@@ -184,6 +184,10 @@ module Steps
         git.run("push", *push_lease_args(git, chdir, branch, push_url), push_url, "HEAD:refs/heads/#{branch}", chdir: chdir)
       end
       git.run("rev-parse", "HEAD", chdir: chdir).strip
+    rescue GithubPushProtection::Rejected => e
+      # Merge-train history is synthesized and shared: quarantine and route to
+      # the originating Job(s) instead of rewriting it here.
+      handle_push_protection_rejection!(e)
     end
 
     # A bare `--force-with-lease` leases against the remote-tracking ref -- and

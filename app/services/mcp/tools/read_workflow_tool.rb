@@ -44,8 +44,9 @@ module Mcp::Tools
           created_at: workflow.created_at&.iso8601,
           started_at: workflow.started_at&.iso8601,
           finished_at: workflow.finished_at&.iso8601,
+          cancellation: Workflows::CancellationAttribution.payload_for(workflow),
           steps: workflow.steps.map { |step| step_payload(step) }
-        }
+        }.then { |h| without_blank_cancellation(h) }
       end
 
       def step_payload(step)
@@ -70,8 +71,9 @@ module Mcp::Tools
           agent_summary: text_snippet(run.agent_summary, 500),
           started_at: run.started_at&.iso8601,
           finished_at: run.finished_at&.iso8601,
-          cost_usd: decimal_payload(run.cost_usd)
-        }
+          cost_usd: decimal_payload(run.cost_usd),
+          cancellation: Workflows::CancellationAttribution.run_payload(run)
+        }.then { |h| without_blank_cancellation(h) }
       end
 
       def decimal_payload(value)

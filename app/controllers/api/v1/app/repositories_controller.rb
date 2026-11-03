@@ -336,7 +336,6 @@ module Api
         def form_payload(repository)
           payload = {
             repository: repository_form_json(repository),
-            configured_agent_providers: Current.user.configured_agent_providers.map { |provider| provider_json(provider) },
             user_agent_provider_label: agent_provider_label(Current.user.agent_provider),
             provider_routing_rules: repository.persisted? ? provider_routing_rules_json(scope_type: "repository", scope_id: repository.id) : [],
             inherited_provider_routing_context: repository.persisted? ? provider_routing_inherited_context_json(scope_type: "repository", scope_id: repository.id, user_id: repository.user_id || Current.user.id) : [],
@@ -478,8 +477,6 @@ module Api
             polling_enabled: repository.polling_enabled?,
             archived: repository.archived?,
             archived_at: repository.archived_at&.iso8601,
-            agent_provider: repository.agent_provider,
-            agent_provider_label: repository.agent_provider.present? ? agent_provider_label(repository.agent_provider) : "default",
             main_health: repository.main_health,
             open_jobs_count: repository_index_open_jobs_count(repository),
             last_job_activity_at: repository_index_last_job(repository)&.updated_at&.iso8601,
@@ -561,7 +558,6 @@ module Api
             fork_auto_sync_enabled: repository.fork_auto_sync_enabled?,
             external_pr_ingestion_enabled: repository.external_pr_ingestion_enabled?,
             distributed_workflow_dag_enabled: repository.distributed_workflow_dag_enabled?,
-            agent_provider: repository.agent_provider.to_s,
             auto_approve_mode: repository.auto_approve_mode,
             feedback_policy: repository.feedback_policy,
             review_policy: repository.review_policy,
@@ -638,10 +634,11 @@ module Api
         end
 
         def provider_retry_status_json(repository)
-          circuit = ProviderCircuitBreaker.call(repository.effective_agent_provider, include_logs: false)
+          provider = ProviderRouting::Resolver.preview_provider(repository: repository)
+          circuit = ProviderCircuitBreaker.call(provider, include_logs: false)
           {
-            agent_provider: repository.effective_agent_provider,
-            agent_provider_label: agent_provider_label(repository.effective_agent_provider),
+            agent_provider: provider,
+            agent_provider_label: agent_provider_label(provider),
             provider_circuit: circuit.as_json
           }
         end
@@ -1123,13 +1120,6 @@ module Api
               values: HEALTH_FILTER_VALUES.map { |value| { value: value, label: HEALTH_FILTER_LABELS.fetch(value) } }
             },
             {
-              field: "agent_provider",
-              label: "Agent",
-              bucket: "enum",
-              operators: %w[ is is_not is_one_of is_none_of is_set is_unset ],
-              values: repository_agent_provider_filter_values(repositories)
-            },
-            {
               field: "has_open_jobs",
               label: "Has open jobs",
               bucket: "boolean",
@@ -1140,10 +1130,6 @@ module Api
 
         def repository_owner_filter_values(repositories)
           repositories.map(&:owner).uniq.sort.map { |owner| { value: owner, label: owner } }
-        end
-
-        def repository_agent_provider_filter_values(repositories)
-          repositories.filter_map(&:agent_provider).uniq.sort.map { |provider| { value: provider, label: agent_provider_label(provider) } }
         end
 
         def repository_count_for_folder(folder, repositories)
@@ -1378,7 +1364,6 @@ module Api
             :trigger_label,
             :polling_enabled,
             :prepare_enabled,
-            :agent_provider,
             :pr_cost_footer_enabled,
             :auto_merge_enabled,
             :trust_clean_rebase_grade,

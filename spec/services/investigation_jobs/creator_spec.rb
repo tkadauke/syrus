@@ -28,7 +28,7 @@ RSpec.describe InvestigationJobs::Creator do
       result = described_class.call(user: user, repository: repository, prompt: "Investigate something.")
 
       expect(result.job.priority).to eq("medium")
-      expect(result.job.agent_provider).to eq(repository.effective_agent_provider)
+      expect(result.job.agent_provider).to eq(user.agent_provider)
     end
 
     it "leaves delivery_track nil by default" do

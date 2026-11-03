@@ -344,24 +344,16 @@ timeout.
 
 **Provider routing and availability failover:** `ProviderRouting::Resolver`
 chooses ordered provider/model/effort candidates for a Workflow from explicit
-Job pins, job-scoped routing rules, repository routing rules, an explicit
-repository/membership provider (`Repository#agent_provider` or a write/admin
-member's override, via `Repository#explicit_agent_provider`), user routing
-rules, the user's own default provider, and the hardcoded fallback, in that
-order. Within a rule scope it evaluates rules by ascending `position` and stops
+Job pins, job-scoped routing rules, repository routing rules, user routing
+rules, the user's own default provider (`User#agent_provider`), and the
+hardcoded fallback, in that order. Routing rules are the only way to choose a
+provider per repository; the old single-value repository/membership provider
+settings were converted to default routing rules and removed. Within a rule
+scope it evaluates rules by ascending `position` and stops
 at the first match. Rule triggers are actual invocation kinds: chat roles and
 agentic `Step::Kind` values, including plugin-provided step kinds. Workflow
 trigger kind is evaluated as a condition only when workflow context is present.
-A repository (or write/admin membership) provider outranks user-scoped routing
-rules even when no repository routing rule exists for the task -- a repository
-pinned to a specific provider is not silently routed to a user's personal
-default-routing rule. It does not foreclose failover, though: the repository
-provider is prepended to the user-scoped candidate chain rather than replacing
-it, so a real outage still fails over into the user's rules/default
-(deduplicated by provider), and the failover artifact still records the
-repository provider as the original choice. A repository-scoped routing rule
-(task-specific or default-task) still overrides the repository's explicit
-provider outright, the same as before. Workflow creation records the chosen
+A repository with no repository rules follows the user's rules. Workflow creation records the chosen
 candidate in `agent_provider_routing_decision`, including a
 `routing_resolution` payload with the matched rule, source scope, condition
 results, and final action.
@@ -1220,6 +1212,31 @@ the step that actually publishes the branch as the one step that could not
 recover. The restore is opportunistic: if it cannot run, the step behaves as it
 did before and `close_empty_new_publication_branch!` still refuses to publish an
 empty branch or file the Job as `no_changes`.
+
+**Stacked-parent freshness barrier.** For any Job whose PR base is another open
+Job's branch (Epic or not), a parent that was rebased and force-pushed while the
+child was running does not cancel the child. Instead, immediately before
+publishing, `pr_open` fetches the live parent head and checks that the completed
+branch descends from it (`StackBaseFreshness`). The parent head the workspace was
+prepared from is recorded in `workflow.artifacts["stack_base_prepared"]`. If the
+parent moved, the child's own commits are rebased with `git rebase --onto
+<live> <prepared>`, the required graders run again on the rebased tree, and the
+check repeats, up to three rebases. A branch that was rewritten is pushed with
+`--force-with-lease` pinned to the observed remote tip; a non-rewritten stacked branch
+is likewise pushed conditional on the tip observed just before (or on being absent),
+so a concurrent update is rejected as a divergence rather than accepted and later
+erased by the rollback. After the push the
+head is checked against the live parent once more before a PR is opened or the
+Job becomes `implemented` (which is what releases dependents). Git cannot make a
+push conditional on a different ref, so if the parent moved between the final
+check and the push, that publication is rolled back (new branch deleted, or the
+previous tip restored, both leased on the pushed head) and recorded in
+`workflow.artifacts["stale_publication_rolled_back"]`. If the parent never settles,
+the rebase conflicts, or post-rebase validation fails, `pr_open` fails with the
+`awaiting_stable_base` problem, keeps the completed work, writes
+`workflow.artifacts["awaiting_stable_base"]` with the observed parent heads, and
+publishes nothing. Whole-stack restacking remains the recovery path for stacks
+that were already published stale.
 
 For `coding_handoff` workflows, `pr_open` also verifies that the branch about to
 be pushed still contains the latest recorded `coding_handoff_fix` patch-id. A

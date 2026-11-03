@@ -403,38 +403,28 @@ RSpec.describe ProviderRouting::Resolver do
     end
   end
 
-  describe "explicit repository provider vs. user-scoped routing rules" do
-    # A repository configured with an explicit agent_provider (the original
-    # report used a different provider; these specs use "codex" as a stand-in
-    # registered provider) must not be quietly routed to a user's personal
-    # default-routing-rule provider.
-    it "puts the repository's explicit agent_provider ahead of a user-scoped default routing rule" do
-      repository.update!(agent_provider: "codex")
+  describe "repository rules vs. user rules" do
+    it "follows the user's rule when the repository has no routing rules" do
       job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
 
+      ProviderRoutingRule.create!(scope_type: "user", scope_id: user.id, task_key: "default", candidates: [ { "provider" => "claude" }, { "provider" => "codex" } ])
+
+      resolution = ProviderRouting::Resolver.resolve(job: job, task_key: "implement")
+      expect(resolution.candidates).to eq([ candidate(provider: "claude"), candidate(provider: "codex") ])
+      expect(resolution.source_scope).to eq("user")
+      expect(resolution.reason).to eq("matched_rule")
+    end
+
+    it "puts a repository default rule ahead of a user default rule without merging failover chains" do
+      job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
+
+      ProviderRoutingRule.create!(scope_type: "repository", scope_id: repository.id, task_key: "default", candidates: [ { "provider" => "codex" } ])
       ProviderRoutingRule.create!(scope_type: "user", scope_id: user.id, task_key: "default", candidates: [ { "provider" => "claude" } ])
 
-      expect(resolve(job)).to eq([
-        candidate(provider: "codex"),
-        candidate(provider: "claude")
-      ])
+      expect(resolve(job)).to eq([ candidate(provider: "codex") ])
     end
 
-    it "keeps the user-scoped rule's candidates as a failover chain behind the repository provider" do
-      repository.update!(agent_provider: "codex")
-      job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
-
-      ProviderRoutingRule.create!(scope_type: "user", scope_id: user.id, task_key: "ci_failure", candidates: [ { "provider" => "claude" }, { "provider" => "agy" } ])
-
-      expect(resolve(job)).to eq([
-        candidate(provider: "codex"),
-        candidate(provider: "claude"),
-        candidate(provider: "agy")
-      ])
-    end
-
-    it "still lets a repository-scoped routing rule override the repository's explicit provider for that task" do
-      repository.update!(agent_provider: "codex")
+    it "lets a task-specific repository rule override the user's default rule for that task" do
       job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
 
       ProviderRoutingRule.create!(scope_type: "repository", scope_id: repository.id, task_key: "ci_failure", candidates: [ { "provider" => "agy" } ])
@@ -443,37 +433,12 @@ RSpec.describe ProviderRouting::Resolver do
       expect(resolve(job)).to eq([ candidate(provider: "agy") ])
     end
 
-    it "gives a write-tier membership provider override the same precedence as repository.agent_provider" do
-      member = Factories.user(agent_provider: "claude")
-      repository.repository_memberships.create!(user: member, role: "write", agent_provider: "codex")
-      job = Factories.job(repository: repository, user: member, job_provider_setting: "default")
-
-      ProviderRoutingRule.create!(scope_type: "user", scope_id: member.id, task_key: "default", candidates: [ { "provider" => "claude" } ])
-
-      expect(resolve(job)).to eq([
-        candidate(provider: "codex"),
-        candidate(provider: "claude")
-      ])
-    end
-
-    it "deduplicates when the same provider appears from the repository's explicit default and a user rule" do
-      repository.update!(agent_provider: "codex")
+    it "falls back to the user's default provider when no rule exists at any scope" do
       job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
 
-      ProviderRoutingRule.create!(scope_type: "user", scope_id: user.id, task_key: "default", candidates: [ { "provider" => "codex" }, { "provider" => "claude" } ])
-
-      expect(resolve(job)).to eq([
-        candidate(provider: "codex"),
-        candidate(provider: "claude")
-      ])
-    end
-
-    it "still lets user-scoped routing rules define the default/fallback routing when the repository has no explicit provider" do
-      job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
-
-      ProviderRoutingRule.create!(scope_type: "user", scope_id: user.id, task_key: "default", candidates: [ { "provider" => "claude" } ])
-
-      expect(resolve(job)).to eq([ candidate(provider: "claude") ])
+      resolution = ProviderRouting::Resolver.resolve(job: job, task_key: "implement")
+      expect(resolution.source_scope).to eq("user_default_provider")
+      expect(resolution.candidates.map(&:provider)).to eq([ user.agent_provider ])
     end
   end
 
@@ -486,5 +451,39 @@ RSpec.describe ProviderRouting::Resolver do
 
       expect(resolve(job)).to eq([ candidate(provider: "agy") ])
     end
+  end
+end
+
+RSpec.describe ProviderRouting::Resolver, ".preview_provider" do
+  let(:user) { Factories.user(agent_provider: "claude") }
+  let(:repository) { Factories.repository(user: user) }
+
+  it "falls back to the owner's default provider with no rules" do
+    expect(described_class.preview_provider(repository: repository)).to eq("claude")
+  end
+
+  it "follows a repository routing rule" do
+    ProviderRoutingRule.create!(scope_type: "repository", scope_id: repository.id, task_key: "default", candidates: [ { "provider" => "codex" } ])
+
+    expect(described_class.preview_provider(repository: repository)).to eq("codex")
+  end
+end
+
+RSpec.describe ProviderRoutingRule, "user condition" do
+  let(:owner) { Factories.user }
+  let(:member) { Factories.user }
+  let(:repository) { Factories.repository(user: owner) }
+
+  it "matches only jobs acting for the listed users and rejects a malformed condition" do
+    rule = ProviderRoutingRule.create!(scope_type: "repository", scope_id: repository.id, task_key: "default",
+      conditions: { "user" => { "ids" => [ member.id ] } }, candidates: [ { "provider" => "codex" } ])
+    mine = Factories.job(repository: repository, user: member)
+    theirs = Factories.job(repository: repository, user: owner)
+
+    expect(rule.matches?(invocation: { "type" => "default" }, job: mine)).to be(true)
+    expect(rule.matches?(invocation: { "type" => "default" }, job: theirs)).to be(false)
+
+    rule.conditions = { "user" => { "ids" => "nope" } }
+    expect(rule).not_to be_valid
   end
 end

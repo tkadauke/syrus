@@ -130,6 +130,7 @@ class Workflow < ApplicationRecord
   after_update_commit :wake_workflow_admission_after_completion!, if: :saved_change_to_state_to_terminal?
   after_create_commit :enforce_job_workflow_runaway_limits_on_create!
   after_create_commit :record_workflow_activity_created!
+  after_create_commit :link_as_replacement_in_cancellation_attribution
   after_update_commit :record_workflow_activity_state_change!, if: :saved_change_to_state?
 
   def saved_change_to_state_to_failed?
@@ -370,6 +371,16 @@ class Workflow < ApplicationRecord
     Workflows::JobLifecyclePropagation.cancel!(self)
   end
 
+  # A newer Workflow on the Job is the replacement for a recently superseded
+  # one whose replacement was not known when the cancellation was recorded.
+  def link_as_replacement_in_cancellation_attribution
+    job.workflows.where(state: "cancelled").where("id < ?", id).order(id: :desc).limit(5).each do |candidate|
+      Workflows::CancellationAttribution.link_replacement!(candidate, self)
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[Workflow##{id}] replacement attribution link failed: #{e.class}: #{e.message}")
+  end
+
   def superseded_cancellation?
     artifact("cancelled_reason").in?([
       SUPERSEDED_BY_REBASE_REASON,
@@ -453,6 +464,7 @@ class Workflow < ApplicationRecord
     Step.suppress_cancel_cascade do
       active_steps = persisted_active_steps.to_a
       cancellation_details = active_descendant_cancellation_details(reason)
+      attribution_ref = Workflows::CancellationAttribution.new(self).step_reference
 
       runs.active.find_each do |run|
         if run.may_cancel?
@@ -467,6 +479,10 @@ class Workflow < ApplicationRecord
 
           step.cancellation_reason = reason
           step.details = step.details.to_h.merge(cancellation_details)
+          # First attribution wins: repeated cleanup must not overwrite the root cause.
+          if attribution_ref && step.details[Workflows::CancellationAttribution::STEP_DETAIL_KEY].blank?
+            step.details = step.details.merge(Workflows::CancellationAttribution::STEP_DETAIL_KEY => attribution_ref)
+          end
           step.finished_at = Time.current
           step.cancel!
         end
@@ -563,6 +579,9 @@ class Workflow < ApplicationRecord
          WorkUnits::WorkflowCancellation.cancel!(
            candidate,
            reason: SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
+           cause: { kind: "supersession", initiator_class: "Workflow", initiator_id: id,
+                    control_path: "workflow#cancel_superseded_retry_workflows!",
+                    source: { "replacement_workflow_id" => id, "workflow_id" => candidate.id } },
            by_work_unit: work_unit,
            artifacts: candidate.artifacts
          )

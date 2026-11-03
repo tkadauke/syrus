@@ -40,7 +40,6 @@ RSpec.describe "Frontend locale keys", type: :unit do
       "personal_documents.col_content_cache_state" => "established technical term",
       "target_graph.workflow" => "approved domain noun with placeholder",
       "repositories.col_repository" => "approved domain noun",
-      "repositories.col_agent" => "approved domain noun",
       "repository.agent_prefix" => "approved domain noun",
       "repository.cognitive_blind" => "same word in German",
       "repository.cognitive_state_blind" => "same word in German",

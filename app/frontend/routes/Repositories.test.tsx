@@ -27,8 +27,6 @@ function repositoryRow(overrides: Record<string, unknown> = {}) {
     polling_enabled: true,
     archived: false,
     archived_at: null,
-    agent_provider: null,
-    agent_provider_label: "Claude",
     main_health: "unknown",
     open_jobs_count: 0,
     last_job_activity_at: null,
@@ -87,7 +85,6 @@ function repositoriesPayload(overrides: Record<string, unknown> = {}) {
           { value: "unknown", label: "Unknown" }
         ]
       },
-      { field: "agent_provider", label: "Agent", bucket: "enum", operators: ["is", "is_not", "is_one_of", "is_none_of"], values: [] },
       { field: "has_open_jobs", label: "Has open jobs", bucket: "boolean", operators: ["is_true", "is_false"] }
     ],
     message: null,
@@ -191,7 +188,6 @@ describe("RepositoriesIndex data table", () => {
     expect(screen.getByRole("columnheader", { name: "Open jobs" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Last activity" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Health" })).toBeInTheDocument()
-    expect(screen.getByRole("columnheader", { name: "Agent" })).toBeInTheDocument()
 
     expect(screen.queryByRole("columnheader", { name: "Polling" })).not.toBeInTheDocument()
     expect(screen.queryByRole("columnheader", { name: "Last poll" })).not.toBeInTheDocument()
@@ -222,29 +218,28 @@ describe("RepositoriesIndex data table", () => {
     await screen.findByRole("columnheader", { name: "Repository" })
 
     function optionalColumnOrder() {
-      const optionalNames = ["GitHub owner", "Open jobs", "Last activity", "Health", "Agent"]
+      const optionalNames = ["GitHub owner", "Open jobs", "Last activity", "Health"]
       return screen
         .getAllByRole("columnheader")
         .map((header) => header.textContent?.trim())
         .filter((name) => optionalNames.includes(name ?? ""))
     }
 
-    expect(optionalColumnOrder()).toEqual(["GitHub owner", "Open jobs", "Last activity", "Health", "Agent"])
+    expect(optionalColumnOrder()).toEqual(["GitHub owner", "Open jobs", "Last activity", "Health"])
 
     fireEvent.click(screen.getByRole("button", { name: "Columns" }))
     const menu = await screen.findByRole("menu")
     fireEvent.click(within(menu).getByRole("button", { name: "Move Open jobs up" }))
 
     await waitFor(() => {
-      expect(optionalColumnOrder()).toEqual(["Open jobs", "GitHub owner", "Last activity", "Health", "Agent"])
+      expect(optionalColumnOrder()).toEqual(["Open jobs", "GitHub owner", "Last activity", "Health"])
     })
 
     expect(JSON.parse(window.localStorage.getItem("syrus.repositories.visible_columns") ?? "[]")).toEqual([
       "open_jobs",
       "github_owner",
       "last_activity",
-      "health",
-      "agent"
+      "health"
     ])
   })
 
@@ -254,14 +249,14 @@ describe("RepositoriesIndex data table", () => {
     await screen.findByRole("columnheader", { name: "Repository" })
 
     function optionalColumnOrder() {
-      const optionalNames = ["GitHub owner", "Open jobs", "Last activity", "Health", "Agent"]
+      const optionalNames = ["GitHub owner", "Open jobs", "Last activity", "Health"]
       return screen
         .getAllByRole("columnheader")
         .map((header) => header.textContent?.trim())
         .filter((name) => optionalNames.includes(name ?? ""))
     }
 
-    expect(optionalColumnOrder()).toEqual(["GitHub owner", "Open jobs", "Last activity", "Health", "Agent"])
+    expect(optionalColumnOrder()).toEqual(["GitHub owner", "Open jobs", "Last activity", "Health"])
 
     const ownerHeader = screen.getByRole("columnheader", { name: "GitHub owner" })
     const openJobsHeader = screen.getByRole("columnheader", { name: /Open jobs/ })
@@ -272,15 +267,14 @@ describe("RepositoriesIndex data table", () => {
     fireEvent.drop(openJobsHeader, { dataTransfer: transfer })
 
     await waitFor(() => {
-      expect(optionalColumnOrder()).toEqual(["Open jobs", "GitHub owner", "Last activity", "Health", "Agent"])
+      expect(optionalColumnOrder()).toEqual(["Open jobs", "GitHub owner", "Last activity", "Health"])
     })
 
     expect(JSON.parse(window.localStorage.getItem("syrus.repositories.visible_columns") ?? "[]")).toEqual([
       "open_jobs",
       "github_owner",
       "last_activity",
-      "health",
-      "agent"
+      "health"
     ])
 
     // The required Repository/Actions columns never accept a drag -- verify
@@ -299,7 +293,6 @@ describe("RepositoriesIndex data table", () => {
     ["Open jobs", ["acme/widgets", "acme/zulu", "acme/apex"], "ascending"],
     ["Last activity", ["acme/apex", "acme/zulu", "acme/widgets"], "ascending"],
     ["Health", ["acme/apex", "acme/zulu", "acme/widgets"], "ascending"],
-    ["Agent", ["acme/zulu", "acme/apex", "acme/widgets"], "ascending"],
     ["Polling", ["acme/apex", "acme/widgets", "acme/zulu"], "ascending"],
     ["Last poll", ["acme/apex", "acme/zulu", "acme/widgets"], "ascending"],
     ["Trigger label", ["acme/apex", "acme/zulu", "acme/widgets"], "ascending"],
@@ -319,7 +312,6 @@ describe("RepositoriesIndex data table", () => {
               open_jobs_count: 1,
               last_job_activity_at: "2026-02-01T00:00:00Z",
               main_health: "unknown",
-              agent_provider_label: "Zulu",
               polling_enabled: true,
               last_poll_status: "ok",
               last_poll_started_at: "2026-01-03T00:00:00Z",
@@ -336,7 +328,6 @@ describe("RepositoriesIndex data table", () => {
               open_jobs_count: 9,
               last_job_activity_at: null,
               main_health: "broken",
-              agent_provider_label: "Codex",
               polling_enabled: false,
               last_poll_status: null,
               last_poll_started_at: null,
@@ -352,7 +343,6 @@ describe("RepositoriesIndex data table", () => {
               open_jobs_count: 5,
               last_job_activity_at: "2026-01-01T00:00:00Z",
               main_health: "healthy",
-              agent_provider_label: "Claude",
               polling_enabled: true,
               last_poll_status: "ok",
               last_poll_started_at: "2026-01-01T00:00:00Z",
@@ -460,11 +450,21 @@ describe("RepositoriesIndex data table", () => {
   })
 
   it("hides Unarchive from members without repository admin access", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(repositoriesPayload({
-      active_repositories: [],
-      archived_repositories: [repositoryRow({ archived: true, can_edit: false })]
-    })))
-    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter initialEntries={["/app-shell/repositories"]}><RepositoriesIndex /></MemoryRouter></QueryClientProvider>)
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        repositoriesPayload({
+          active_repositories: [],
+          archived_repositories: [repositoryRow({ archived: true, can_edit: false })]
+        })
+      )
+    )
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/repositories"]}>
+          <RepositoriesIndex />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
 
     expect(await screen.findByText("acme/widgets")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Unarchive" })).not.toBeInTheDocument()
@@ -738,8 +738,7 @@ describe("RepositoriesIndex responsive gutter", () => {
               slug: "acme/widgets",
               owner: "acme",
               last_job_activity_at: "2026-02-01T00:00:00Z",
-              main_health: "healthy",
-              agent_provider_label: "Codex"
+              main_health: "healthy"
             })
           ]
         })
@@ -751,7 +750,6 @@ describe("RepositoriesIndex responsive gutter", () => {
       const mobileRow = await screen.findByRole("link", { name: /acme\/widgets/ })
       expect(within(mobileRow).getByText("acme/widgets")).toBeInTheDocument()
       expect(within(mobileRow).getByText("Healthy")).toBeInTheDocument()
-      expect(within(mobileRow).getByText("Codex")).toBeInTheDocument()
       expect(screen.queryByRole("columnheader", { name: "GitHub owner" })).not.toBeInTheDocument()
       expect(screen.queryByRole("button", { name: "Columns" })).not.toBeInTheDocument()
 

@@ -14,7 +14,7 @@ RSpec.describe Steps::PublishSourceSnapshot do
     allow(handler).to receive(:head_sha).and_return("refreshed-sha")
     allow(GitRunner).to receive(:new).and_return(git)
     allow(GithubAuthenticatedGit).to receive(:run) { |**_kwargs, &block| block.call("https://example.test/repo.git") }
-    allow(git).to receive(:run).with("push", anything,
+    allow(git).to receive(:run).with("-c", "core.hooksPath=/dev/null", "push", anything,
       "refreshed-sha:refs/syrus/source-snapshots/runs/#{run.id}", chdir: workspace.path.to_s,
       env: { "GIT_TERMINAL_PROMPT" => "0" })
     allow(git).to receive(:run).with("rev-parse", "HEAD^{tree}", chdir: workspace.path.to_s).and_return("tree-sha\n")

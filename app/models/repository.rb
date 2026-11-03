@@ -133,7 +133,6 @@ class Repository < ApplicationRecord
   validates :upstream_name, format: { with: GITHUB_NAME }, allow_blank: true
   validates :default_branch, presence: true
   validates :trigger_label, presence: true
-  validates_agent_provider allow_nil: true
   validates :review_policy, presence: true, inclusion: { in: REVIEW_POLICIES }
   validates :feedback_policy, presence: true, inclusion: { in: FEEDBACK_POLICIES }
   validates :epic_dependency_policy, presence: true, inclusion: { in: EPIC_DEPENDENCY_POLICIES }
@@ -144,7 +143,6 @@ class Repository < ApplicationRecord
   }
   validate :upstream_owner_and_name_are_paired
 
-  before_validation :normalize_agent_provider
   before_validation :normalize_upstream_metadata
   before_validation :normalize_main_branch_health_settings
   before_validation :default_main_branch_repair_for_fork, on: :create
@@ -464,25 +462,6 @@ class Repository < ApplicationRecord
     upstream_repository_id.present?
   end
 
-  def effective_agent_provider(user: nil)
-    explicit_agent_provider(user: user) || (user || self.user)&.agent_provider
-  end
-
-  # The repo-level piece of #effective_agent_provider, without the final
-  # fallback to the user's own default provider. Lets callers (like
-  # ProviderRouting::Resolver) distinguish "this repository/membership has an
-  # explicit provider configured" from "nothing is configured here, so we
-  # inherited the user's default" -- the former must outrank user-scoped
-  # routing rules, the latter must not.
-  def explicit_agent_provider(user: nil)
-    if user
-      membership = membership_for(user)
-      membership_provider = membership.agent_provider.presence if membership&.at_least?("write")
-      return membership_provider if membership_provider
-    end
-    agent_provider.presence
-  end
-
   def membership_for(user)
     return nil unless user
     repository_memberships.find_by(user_id: user.id)
@@ -581,20 +560,9 @@ class Repository < ApplicationRecord
     chat_pending_actions.where(request_kind: "legacy_action").destroy_all
   end
 
-  def explicit_agent_provider_for?(effective_user)
-    return true if agent_provider.present?
-
-    membership = membership_for(effective_user)
-    membership&.at_least?("write") && membership.agent_provider.present?
-  end
-
   def best_team_role_for(user)
     team_ids = user.team_memberships.select(:team_id)
     team_repositories.where(team_id: team_ids).pluck(:role).max_by { |role| RepositoryMembership::ROLE_RANK.fetch(role, -1) }
-  end
-
-  def normalize_agent_provider
-    self.agent_provider = nil if agent_provider.blank?
   end
 
   def normalize_upstream_metadata

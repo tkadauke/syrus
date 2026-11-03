@@ -93,9 +93,10 @@ RSpec.describe Prompts::VisualReview do
     end
   end
 
-  it "labels the diff as from an implement step by default" do
-    expect(prompt).to include("implement step")
-    expect(prompt).not_to include("respond step")
+  it "labels the diff as the full job diff by default" do
+    expect(prompt).to include("Full job diff against the base branch")
+    expect(prompt).to include("Never skip because changes were \"committed in earlier steps\"")
+    expect(prompt).not_to include("latest succeeded")
   end
 
   it "includes submit_visual_review tool instructions" do
@@ -345,8 +346,8 @@ RSpec.describe Prompts::VisualReview do
       expect(prompt).to include("PR comment feedback workflow")
     end
 
-    it "labels the diff as from a respond step" do
-      expect(prompt).to include("respond step")
+    it "labels the diff as the full job diff" do
+      expect(prompt).to include("Full job diff against the base branch")
     end
 
     it "does not include feedback history when feedback_context is blank" do
@@ -370,8 +371,8 @@ RSpec.describe Prompts::VisualReview do
       expect(prompt).to include("chat feedback workflow")
     end
 
-    it "labels the diff as from a respond step" do
-      expect(prompt).to include("respond step")
+    it "labels the diff as the full job diff" do
+      expect(prompt).to include("Full job diff against the base branch")
     end
 
     context "with feedback_context" do
@@ -391,8 +392,8 @@ RSpec.describe Prompts::VisualReview do
       expect(prompt).not_to include("feedback workflow")
     end
 
-    it "labels the diff as from an implement step" do
-      expect(prompt).to include("implement step")
+    it "labels the diff as the full job diff" do
+      expect(prompt).to include("Full job diff against the base branch")
     end
   end
 end

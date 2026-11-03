@@ -3,6 +3,11 @@ module McpToolPayloads
   # Extend this module into a class's singleton to get all helpers as class methods.
   module WorkflowPayload
     # Compact index entry used in list_job_workflows and read_job's workflow index.
+    # `cancellation` is additive: omit it for workflows that were never cancelled.
+    def without_blank_cancellation(payload)
+      payload[:cancellation].nil? ? payload.except(:cancellation) : payload
+    end
+
     def workflow_index_payload(workflow)
       runs = workflow_step_runs(workflow)
       latest_run = latest_run_for(runs)
@@ -16,8 +21,9 @@ module McpToolPayloads
         run_count: runs.size,
         created_at: workflow.created_at&.iso8601,
         started_at: workflow.started_at&.iso8601,
-        finished_at: workflow.finished_at&.iso8601
-      }
+        finished_at: workflow.finished_at&.iso8601,
+        cancellation: Workflows::CancellationAttribution.payload_for(workflow, include_cascade: false)
+      }.then { |h| without_blank_cancellation(h) }
     end
 
     # Brief summary payload used in read_job's latest_workflow field.
@@ -33,8 +39,9 @@ module McpToolPayloads
         planned_execution: workflow.planned_execution_json,
         summary: workflow.artifact("summary").presence || latest_run&.agent_summary,
         created_at: workflow.created_at&.iso8601,
-        finished_at: workflow.finished_at&.iso8601
-      }
+        finished_at: workflow.finished_at&.iso8601,
+        cancellation: Workflows::CancellationAttribution.payload_for(workflow, include_cascade: false)
+      }.then { |h| without_blank_cancellation(h) }
     end
 
     # One chunk row from a Run's job_logs, used by read_run_transcript.

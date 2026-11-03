@@ -9691,7 +9691,6 @@ describe("App", () => {
     fireEvent.change(screen.getByLabelText("Upstream owner"), { target: { value: "rails" } })
     fireEvent.change(screen.getByLabelText("Upstream name"), { target: { value: "rails" } })
     fireEvent.change(screen.getByLabelText("Upstream default branch"), { target: { value: "main" } })
-    fireEvent.change(screen.getByLabelText("Default agent"), { target: { value: "codex" } })
     fireEvent.change(screen.getByLabelText("Auto-approval fallback"), { target: { value: "if_graders_pass" } })
     fireEvent.click(screen.getByLabelText("Run prepare step on this repository's Workflows"))
     fireEvent.click(screen.getByLabelText("Auto-merge approved Syrus PRs"))
@@ -9722,7 +9721,6 @@ describe("App", () => {
               main_branch_repair_blocks_work: true,
               main_branch_repair_auto_approve: false,
               treat_grader_timeouts_as_failures: false,
-              agent_provider: "codex",
               auto_approve_mode: "if_graders_pass",
               feedback_policy: "confirm",
               github_owner_id: "123",
@@ -18242,8 +18240,6 @@ function repositoryDetailPayload() {
       trigger_label: "syrus",
       polling_enabled: true,
       archived: false,
-      agent_provider: "codex",
-      agent_provider_label: "Codex",
       effective_agent_provider: "codex",
       effective_agent_provider_label: "Codex",
       github_url: "https://github.com/acme/widgets",

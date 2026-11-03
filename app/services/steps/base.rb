@@ -23,6 +23,7 @@ module Steps
   # orchestrator catches it, transitions the Run + Step to
   # failed, and increments the Workflow's failure_count.
   class Base
+    include PushProtectionRecovery
     # A step failure, optionally carrying the Problem it represents.
     #
     # Historically a step raised prose and every downstream layer regex-matched
@@ -178,6 +179,14 @@ module Steps
     # what the classifier, the landing handler and any adjudicator read.
     def fail_with!(code, message, evidence: {})
       raise StepFailed.new(message, problem_code: code, evidence: evidence)
+    end
+
+    # GitHub accepted this commit; it becomes the clean anchor for any later
+    # push-protection repair on the same Job.
+    def record_accepted_push!
+      PushProtection::Ledger.for(workflow).record_accepted!(head_sha)
+    rescue StandardError => e
+      log("push protection: could not record accepted anchor: #{e.class}", kind: "system")
     end
 
     def mark_failure_code!(code)

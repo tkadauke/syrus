@@ -4,7 +4,7 @@ class ProviderRoutingRule < ApplicationRecord
   TRIGGER_TYPES = %w[ default step chat_role legacy_task ].freeze
   ACTION_TYPES = %w[ route hold ].freeze
   ACTION_STRATEGIES = %w[ fallback_order weighted panel ].freeze
-  CONDITION_KEYS = %w[ workflow_trigger_kind usage budget day_time repository job_metadata ].freeze
+  CONDITION_KEYS = %w[ workflow_trigger_kind usage budget day_time repository job_metadata user ].freeze
 
   belongs_to :user
   belongs_to :repository, optional: true
@@ -49,6 +49,7 @@ class ProviderRoutingRule < ApplicationRecord
       "day_time" => day_time_condition_result(now),
       "repository" => repository_condition_result(job&.repository),
       "job_metadata" => job_metadata_condition_result(job),
+      "user" => user_condition_result(job),
       "usage" => ProviderRouting::Conditions::Usage.evaluate(condition: conditions["usage"], job: job, now: now),
       "budget" => passive_condition_result("budget")
     }
@@ -167,6 +168,7 @@ class ProviderRoutingRule < ApplicationRecord
     validate_day_time_condition
     validate_repository_condition
     validate_job_metadata_condition
+    validate_user_condition
     validate_usage_condition
   end
 
@@ -232,6 +234,18 @@ class ProviderRoutingRule < ApplicationRecord
     errors.add(:conditions, :repository_ids_must_be_array) if value.key?("ids") && !value["ids"].is_a?(Array)
     errors.add(:conditions, :repository_names_must_be_array) if value.key?("names") && !value["names"].is_a?(Array)
     errors.add(:conditions, :repository_owners_must_be_array) if value.key?("owners") && !value["owners"].is_a?(Array)
+  end
+
+  def validate_user_condition
+    value = conditions["user"]
+    return if value.blank?
+
+    unless value.is_a?(Hash)
+      errors.add(:conditions, :user_must_be_object)
+      return
+    end
+
+    errors.add(:conditions, :user_ids_must_be_array) if value.key?("ids") && !value["ids"].is_a?(Array)
   end
 
   def validate_job_metadata_condition
@@ -411,6 +425,30 @@ class ProviderRoutingRule < ApplicationRecord
       "configured" => conditions["job_metadata"].present?,
       "matched" => job_metadata_condition_matches?(target_job),
       "expected" => conditions["job_metadata"],
+      "actual" => actual
+    }.compact
+  end
+
+  # Limits a rule to jobs run on behalf of specific users (the job's owner
+  # user, else its creator). Lets a repository-scoped rule target one member.
+  def user_condition_matches?(target_job)
+    value = conditions["user"]
+    return true if value.blank?
+    return false if target_job.blank?
+
+    acting_user_id = (target_job.owner_user || target_job.user)&.id
+    Array(value["ids"]).map(&:to_i).include?(acting_user_id)
+  end
+
+  def user_condition_result(target_job)
+    actual = if target_job
+      { "id" => (target_job.owner_user || target_job.user)&.id }
+    end
+
+    {
+      "configured" => conditions["user"].present?,
+      "matched" => user_condition_matches?(target_job),
+      "expected" => conditions["user"],
       "actual" => actual
     }.compact
   end

@@ -126,18 +126,24 @@ class RunPreAdmissionSkip
       nil
     end
 
+    # Cumulative job diff (`<base>...HEAD`, base = the job's effective base) so
+    # a later docs-only iteration cannot hide earlier UI changes. The latest
+    # agentic step diff is only a fallback when git cannot produce it.
     def changed_files
-      @changed_files ||= begin
+      @changed_files ||= cumulative_changed_files.presence || begin
         diff = latest_agentic_diff
-        if diff.present?
-          diff_file_paths(diff)
-        else
-          GitRunner.new.run(
-            "diff", "--name-only", "#{WorkflowWorkspace.base_ref_for(job, workflow: workflow)}...HEAD",
-            chdir: workspace_path.to_s
-          ).split("\n").map(&:strip).reject(&:empty?)
-        end
+        diff.present? ? diff_file_paths(diff) : []
       end
+    end
+
+    def cumulative_changed_files
+      GitRunner.new.run(
+        "-c", "core.quotePath=false", "diff", "--name-only",
+        "#{WorkflowWorkspace.base_ref_for(job, workflow: workflow)}...HEAD",
+        chdir: workspace_path.to_s
+      ).split("\n").map(&:strip).reject(&:empty?)
+    rescue GitRunner::GitError, Errno::ENOENT
+      []
     end
 
     def latest_agentic_diff

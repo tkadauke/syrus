@@ -77,6 +77,11 @@ module PendingActions
             WorkUnits::WorkflowCancellation.cancel!(
               workflow,
               reason: WorkUnits::WorkflowCancellation::OPERATOR_STALE_WORK_REASON,
+              cause: job.operator_cancellation_cause(
+                "pending_action#cancel_stale_work",
+                "pending_action_id" => @action&.id,
+                "job_id" => job.id, "workflow_id" => workflow.id
+              ),
               artifacts: {
                 "cancelled_reason" => WorkUnits::WorkflowCancellation::OPERATOR_STALE_WORK_REASON,
                 "cancelled_by_operator_repair_at" => Time.current.iso8601,

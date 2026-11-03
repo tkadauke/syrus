@@ -25,12 +25,14 @@ class RunCheckpointPublisher
 
   def publish!
     return nil unless eligible?
+    return suppressed_during_push_protection_repair if push_protection_repair_active?
 
     checkpoint = RunCheckpoint.find_or_initialize_by(run_id: run.id)
     checkpoint.assign_attributes(checkpoint_attributes.merge(status: "pending", error_message: nil))
     checkpoint.save!
 
     publish_ref!(checkpoint)
+    PushProtection::Ledger.for(run.workflow).record_accepted!(checkpoint.commit_sha)
     checkpoint.update!(status: "published", published_at: Time.current, error_message: nil)
     log("checkpoint: published #{checkpoint.remote_ref} at #{checkpoint.commit_sha.first(12)}", kind: "system")
     checkpoint
@@ -44,6 +46,17 @@ class RunCheckpointPublisher
   private
 
   attr_reader :run, :workspace, :git
+
+  # A checkpoint ref would republish the rejected ancestry to GitHub. Work stays
+  # in the workspace until clean history has been reconstructed.
+  def push_protection_repair_active?
+    PushProtection::Ledger.for(run.workflow).repair_active?
+  end
+
+  def suppressed_during_push_protection_repair
+    log("checkpoint: suppressed while a GitHub push-protection repair is in progress", kind: "system")
+    nil
+  end
 
   def eligible?
     run.step&.kind.in?(MUTATION_STEP_KINDS) &&

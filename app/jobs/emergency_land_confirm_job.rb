@@ -51,7 +51,7 @@ class EmergencyLandConfirmJob < ApplicationJob
 
     user.jobs.create!(repository: repository, kind: "direct", issue_title: payload.fetch("title"),
       issue_body: payload.fetch("description"), branch_name: snapshot.fetch("handoff_branch"),
-      agent_provider: repository.effective_agent_provider, state: "implemented")
+      state: "implemented")
   end
 
   def post_message!(chat, text)

@@ -2,8 +2,8 @@ module WorkUnits
   class WorkflowCancellation
     OPERATOR_STALE_WORK_REASON = "operator_stale_work_repair".freeze
 
-    def self.cancel!(workflow, reason:, artifacts: {}, by_work_unit: nil)
-      new(workflow, reason: reason, artifacts: artifacts, by_work_unit: by_work_unit).cancel!
+    def self.cancel!(workflow, reason:, artifacts: {}, by_work_unit: nil, cause: nil)
+      new(workflow, reason: reason, artifacts: artifacts, by_work_unit: by_work_unit, cause: cause).cancel!
     end
 
     # Cancels every queued (not yet started) retry-workflow-attempt Workflow
@@ -33,7 +33,8 @@ module WorkUnits
       end
     end
 
-    def initialize(workflow, reason:, artifacts:, by_work_unit:)
+    def initialize(workflow, reason:, artifacts:, by_work_unit:, cause: nil)
+      @cause = cause
       @workflow = workflow
       @reason = reason.to_s
       @artifacts = artifacts || {}
@@ -48,6 +49,8 @@ module WorkUnits
         workflow.reload
         if workflow.may_cancel?
           workflow.artifacts = workflow.artifacts.to_h.merge(merged_artifacts)
+          # Root-cause event is recorded before cancel! kicks off terminal cleanup.
+          Workflows::CancellationAttribution.record!(workflow, reason: reason, cause: cause)
           workflow.finished_at = Time.current
           workflow.cancel!
           workflow.work_unit&.preempt!(reason: reason, by_work_unit: by_work_unit)
@@ -59,6 +62,6 @@ module WorkUnits
 
     private
 
-    attr_reader :workflow, :reason, :artifacts, :by_work_unit
+    attr_reader :workflow, :reason, :artifacts, :by_work_unit, :cause
   end
 end

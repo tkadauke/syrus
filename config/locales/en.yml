@@ -119,6 +119,8 @@ en:
       repository_names_must_be_array: "repository names must be an array"
       repository_owners_must_be_array: "repository owners must be an array"
       job_metadata_must_be_object: "job_metadata must be an object"
+      user_must_be_object: "user must be an object"
+      user_ids_must_be_array: "user ids must be an array"
       job_metadata_kinds_must_be_array: "job_metadata kinds must be an array"
       job_metadata_priorities_must_be_array: "job_metadata priorities must be an array"
       must_be_candidate_array: "must be an array of candidate objects"

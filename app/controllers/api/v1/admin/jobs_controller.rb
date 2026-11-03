@@ -117,7 +117,7 @@ module Api
           owner_user = find_owner_user(attrs[:owner_user_id])
           return render_error("validation_failed", I18n.t("api.direct_jobs.owner_not_found"), status: :unprocessable_content) if attrs[:owner_user_id].present? && !owner_user
 
-          selected_agent_provider = agent_provider || repository.effective_agent_provider
+          selected_agent_provider = agent_provider || (owner_user || repository.user)&.agent_provider
           title = attrs[:title].to_s.strip.presence
           target_branch = attrs[:target_branch].to_s.strip.presence
           delivery_track = attrs[:delivery_track].to_s.strip.presence

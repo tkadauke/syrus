@@ -6,6 +6,7 @@ module RepositorySummarySerialization
   extend ActiveSupport::Concern
 
   def repository_detail_json(repository)
+    effective_provider = ProviderRouting::Resolver.preview_provider(repository: repository)
     {
       id: repository.id,
       slug: repository.slug,
@@ -19,10 +20,8 @@ module RepositorySummarySerialization
       trigger_label: repository.trigger_label,
       polling_enabled: repository.polling_enabled?,
       archived: repository.archived?,
-      agent_provider: repository.agent_provider,
-      agent_provider_label: repository.agent_provider.present? ? agent_provider_label(repository.agent_provider) : nil,
-      effective_agent_provider: repository.effective_agent_provider,
-      effective_agent_provider_label: agent_provider_label(repository.effective_agent_provider),
+      effective_agent_provider: effective_provider,
+      effective_agent_provider_label: agent_provider_label(effective_provider),
       github_url: "https://github.com/#{repository.slug}",
       created_at: repository.created_at.iso8601,
       owner_user: owner_user_json(repository.user),

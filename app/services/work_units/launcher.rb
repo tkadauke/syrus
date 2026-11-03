@@ -405,6 +405,10 @@ module WorkUnits
           WorkUnits::WorkflowCancellation.cancel!(
             ci_unit.workflow,
             reason: "superseded_by_rebase",
+            cause: { kind: "stack_topology_repair", initiator_class: "WorkUnit", initiator_id: unit.id,
+                     control_path: "launcher#preempt_superseded_ci_repairs!",
+                     source: { "work_unit_id" => unit.id, "replacement_workflow_id" => unit.workflow_id,
+                               "workflow_id" => ci_unit.workflow.id } },
             artifacts: {
               "cancelled_reason" => Workflow::SUPERSEDED_BY_REBASE_REASON,
               "preempted_by_work_unit_id" => unit.id,

@@ -448,7 +448,7 @@ class MainHealthChangedService
       issue_number: nil,
       issue_title: FIX_MAIN_TITLE,
       issue_body: fix_job_prompt,
-      agent_provider: @repository.effective_agent_provider,
+      agent_provider: @repository.user&.agent_provider,
       priority: repair_job_priority
     )
   rescue ActiveRecord::RecordNotUnique => e

@@ -115,7 +115,6 @@ function resetDemoRepositorySettings(): number {
       trigger_label: "syrus",
       polling_enabled: false,
       prepare_enabled: true,
-      agent_provider: "codex",
       review_policy: "self",
       feedback_policy: "confirm",
       epic_dependency_policy: "linear"

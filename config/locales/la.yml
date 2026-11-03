@@ -89,6 +89,8 @@ la:
       repository_names_must_be_array: "repository names series esse debet"
       repository_owners_must_be_array: "repository owners series esse debet"
       job_metadata_must_be_object: "job_metadata obiectum esse debet"
+      user_must_be_object: "user obiectum esse debet"
+      user_ids_must_be_array: "user ids series esse debet"
       job_metadata_kinds_must_be_array: "job_metadata kinds series esse debet"
       job_metadata_priorities_must_be_array: "job_metadata priorities series esse debet"
       must_be_candidate_array: "series obiectorum candidatorum esse debet"

@@ -53,8 +53,6 @@ function repositoryDetailPayload(overrides: Partial<RepositoryDetailPayload> = {
       trigger_label: "syrus",
       polling_enabled: true,
       archived: false,
-      agent_provider: null,
-      agent_provider_label: null,
       effective_agent_provider: "claude",
       effective_agent_provider_label: "Claude",
       epic_dependency_policy: "linear",

@@ -58,6 +58,47 @@ RSpec.describe WorkflowWorkspace, :ci_only do
   # or a concurrent run -- reaches `git clone` and is rejected with "already
   # exists and is not an empty directory". Every retry then failed on its own
   # leftovers rather than the original fault, a loop that blocked production.
+  describe "#record_stack_base_preparation!" do
+    let(:dir) { Pathname.new(Dir.mktmpdir("syrus-wfws-stack")) }
+    let(:ws) { described_class.new(workflow) }
+
+    def g(*args) = system("git", "-C", dir.to_s, "-c", "user.name=t", "-c", "user.email=t@example.com", *args, out: File::NULL, err: File::NULL) || raise("git #{args.join(' ')} failed")
+
+    before do
+      g("init", "-q", "-b", "parent")
+      g("commit", "-q", "--allow-empty", "-m", "p1")
+      g("update-ref", "refs/remotes/origin/parent", "HEAD")
+      allow(ws).to receive(:path).and_return(dir)
+      allow(ws).to receive(:base_branch).and_return("parent")
+      allow(StackBaseFreshness).to receive(:applicable?).and_return(true)
+    end
+
+    after { FileUtils.rm_rf(dir) }
+
+    it "records the parent head when the checked-out branch descends from it" do
+      g("checkout", "-q", "-b", "child")
+      g("commit", "-q", "--allow-empty", "-m", "c1")
+
+      ws.send(:record_stack_base_preparation!)
+
+      expect(workflow.reload.artifact(StackBaseFreshness::PREPARED_ARTIFACT)["sha"])
+        .to eq(`git -C #{dir} rev-parse origin/parent`.strip)
+    end
+
+    it "records nothing when an existing child branch predates a parent force-push" do
+      g("checkout", "-q", "-b", "child")
+      g("commit", "-q", "--allow-empty", "-m", "c1")
+      g("checkout", "-q", "--orphan", "rewritten")
+      g("commit", "-q", "--allow-empty", "-m", "p1-rewritten")
+      g("update-ref", "refs/remotes/origin/parent", "HEAD")
+      g("checkout", "-q", "child")
+
+      ws.send(:record_stack_base_preparation!)
+
+      expect(workflow.reload.artifact(StackBaseFreshness::PREPARED_ARTIFACT)).to be_nil
+    end
+  end
+
   describe "#reclaim_partial_clone!" do
     it "removes debris left by a dead clone so the retry can proceed" do
       ws = described_class.new(workflow)

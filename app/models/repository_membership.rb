@@ -11,9 +11,6 @@ class RepositoryMembership < ApplicationRecord
 
   validates :role, inclusion: { in: ROLES }
   validates :user_id, uniqueness: { scope: :repository_id, message: "is already a member of this repository" }
-  validates_agent_provider allow_nil: true
-
-  before_validation :normalize_agent_provider
 
   # Memberships whose role tier is at least `tier` (e.g. `at_least("write")`
   # matches both "write" and "admin" rows).
@@ -21,11 +18,5 @@ class RepositoryMembership < ApplicationRecord
 
   def at_least?(tier)
     ROLE_RANK.fetch(role, -1) >= ROLE_RANK.fetch(tier.to_s, 0)
-  end
-
-  private
-
-  def normalize_agent_provider
-    self.agent_provider = nil if agent_provider.blank?
   end
 end

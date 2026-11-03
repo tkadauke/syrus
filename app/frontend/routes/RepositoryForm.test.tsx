@@ -36,7 +36,6 @@ function editPayload(overrides: Record<string, unknown> = {}) {
       fork_auto_sync_enabled: false,
       external_pr_ingestion_enabled: false,
       distributed_workflow_dag_enabled: false,
-      agent_provider: "",
       auto_approve_mode: "manual",
       feedback_policy: "confirm",
       review_policy: "self",
@@ -47,7 +46,6 @@ function editPayload(overrides: Record<string, unknown> = {}) {
       archived: false,
       archived_at: null
     },
-    configured_agent_providers: [],
     user_agent_provider_label: "Claude",
     app_archive_repository_path: "/api/v1/app/repositories/1/archive",
     app_unarchive_repository_path: "/api/v1/app/repositories/1/unarchive",
@@ -102,7 +100,6 @@ function mockFetch(repositoryOverrides: Record<string, unknown> = {}, finalAppro
               {
                 id: 12,
                 role: "write",
-                agent_provider: null,
                 created_at: "2026-01-03T00:00:00Z",
                 github_permission_mismatch_reason: null,
                 github_permission_mismatch_checked_at: null,
@@ -359,15 +356,6 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     expect(reviewPolicy).toHaveAttribute("aria-describedby", reviewHint.id)
   })
 
-  it("cross-links the per-repository default agent override to the account-level agent and chat settings", async () => {
-    mockFetch()
-    renderRoute()
-
-    await screen.findByLabelText("Default agent")
-    expect(screen.getByRole("link", { name: "Agent Settings" })).toHaveAttribute("href", "/settings/agent")
-    expect(screen.getByRole("link", { name: "Credentials" })).toHaveAttribute("href", "/credentials")
-  })
-
   it("keeps monitoring enabled when enabling main branch repair or broken-main pausing", async () => {
     mockFetch({
       main_branch_health_enabled: false,
@@ -461,10 +449,7 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     fireEvent.change(screen.getByLabelText("Trigger label"), { target: { value: "delegate" } })
     fireEvent.change(screen.getByLabelText("Auto-approval fallback"), { target: { value: "manual" } })
     fireEvent.click(screen.getAllByLabelText("Polling enabled")[0])
-    fireEvent.change(
-      screen.getByLabelText("When pull request CI checks hold a Job out of the landing queue"),
-      { target: { value: "own_only" } }
-    )
+    fireEvent.change(screen.getByLabelText("When pull request CI checks hold a Job out of the landing queue"), { target: { value: "own_only" } })
     fireEvent.click(screen.getByLabelText("Ingest externally-filed pull requests as Jobs"))
     fireEvent.click(screen.getByRole("button", { name: "Save Repository" }))
 
@@ -496,7 +481,6 @@ describe("RepositoryForm plugin input-source decoupling", () => {
           fork_auto_sync_enabled: false,
           external_pr_ingestion_enabled: true,
           distributed_workflow_dag_enabled: false,
-          agent_provider: "",
           auto_approve_mode: "manual",
           feedback_policy: "confirm",
           review_policy: "self",
@@ -652,7 +636,6 @@ describe("RepositoryForm plugin input-source decoupling", () => {
           {
             id: 10,
             role: "admin",
-            agent_provider: null,
             created_at: "2026-01-01T00:00:00Z",
             github_permission_mismatch_reason: null,
             github_permission_mismatch_checked_at: null,
