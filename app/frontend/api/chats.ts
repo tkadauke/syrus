@@ -490,6 +490,7 @@ export type ChatPendingActionInline = {
   review?: Record<string, unknown>
   request_kind?: "legacy_action" | "authorization_request"
   authorization_items?: ChatAuthorizationItem[]
+  authorization_presentation?: PermissionPresentation
   /** Readable canonical preview of a permission-management call (grant/deny/lease). */
   permission_rule_preview?: RuleDraftPreview | null
   resource_title?: string
@@ -594,6 +595,7 @@ export type ChatPendingAction = {
   review?: Record<string, unknown>
   request_kind?: "legacy_action" | "authorization_request"
   authorization_items?: ChatAuthorizationItem[]
+  authorization_presentation?: PermissionPresentation
   /** Readable canonical preview of a permission-management call (grant/deny/lease). */
   permission_rule_preview?: RuleDraftPreview | null
   before_snapshot?: Record<string, unknown>
