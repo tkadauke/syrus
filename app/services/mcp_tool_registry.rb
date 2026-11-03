@@ -338,9 +338,9 @@ class McpToolRegistry
         operational_chat(Mcp::Tools::ClearProviderCircuitTool, admin_only: true, mutation: true),
         operational_chat(Mcp::Tools::WakeProviderAdmissionTool, admin_only: true, mutation: true),
         legacy_chat(Mcp::Tools::ReadFileTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ]),
-        legacy_chat(Mcp::Tools::WriteFileTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ], mutation: true),
+        local_mode_chat(Mcp::Tools::WriteFileTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ], mutation: true),
         legacy_chat(Mcp::Tools::ListFilesTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ]),
-        legacy_chat(Mcp::Tools::RunCommandTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ], mutation: true),
+        local_mode_chat(Mcp::Tools::RunCommandTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ], mutation: true),
         legacy_chat(Mcp::Tools::GitDiffTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ]),
         legacy_chat(Mcp::Tools::GitStatusTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ]),
         legacy_chat(Mcp::Tools::OpenInLocalModeTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ], mutation: true),
@@ -580,6 +580,11 @@ class McpToolRegistry
     def operational_chat(tool, **metadata)
       roles = metadata[:required_roles].presence || AgentRole::CHAT_ROLES
       descriptor = Permissions::OperationalActions.descriptor_for(tool_name_for(tool), required_roles: roles)
+      chat(tool, **metadata, descriptor:)
+    end
+
+    def local_mode_chat(tool, **metadata)
+      descriptor = Permissions::LocalModeActions.descriptor_for(tool_name_for(tool), required_roles: metadata[:required_roles])
       chat(tool, **metadata, descriptor:)
     end
 
