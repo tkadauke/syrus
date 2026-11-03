@@ -1,6 +1,6 @@
 # SDLC Pipeline
 
-SDLC Pipeline is experimental and disabled by default. An administrator must enable instance beta mode before the plugin can be enabled from the plugin settings. Instances that already enabled the plugin keep their choice; the default applies only to fresh installations. While it is disabled, the repository Pipeline tab, the chat **View pipeline** entry point, and the `show_pipeline` agent presentation tool are absent.
+SDLC Pipeline is experimental and disabled by default. An administrator must enable instance beta mode before the plugin can be enabled from the plugin settings. Instances that already enabled the plugin keep their choice (the upgrade turns instance beta mode on for an instance that already had it enabled, so the tab does not vanish); the default applies only to fresh installations. While it is disabled, the repository Pipeline tab, the chat **View pipeline** entry point, and the `show_pipeline` agent presentation tool are absent.
 
 The SDLC Pipeline plugin adds a full-width **Pipeline** tab to each repository. It derives one mutually exclusive, furthest-proven stage for each visible Job from authoritative Job state, landed commit, and configured deployment-stage evidence. It never stores a parallel pipeline state.
 
