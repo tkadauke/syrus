@@ -319,6 +319,17 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
     expect(ProviderRoutingRule.where(scope_type: "job", scope_id: job.id)).to be_empty
   end
 
+  it "exposes the current per-provider usage reading for the usage condition hint" do
+    observed = Time.current.iso8601
+    availability = { "codex" => { "state" => "available", "usage" => { "remaining_percent" => 20.0, "observed_at" => observed } }, "claude" => nil }
+    allow(App::ProviderAvailability).to receive(:all_for_user).and_return(availability)
+
+    get "/api/v1/app/credentials/provider_routing_rules"
+
+    usage = parse_body.dig("provider_routing_options", "conditions", "provider_usage")
+    expect(usage).to eq([ { "provider" => "codex", "state" => "available", "remaining_percent" => 20.0, "observed_at" => observed } ])
+  end
+
   it "exposes trigger and condition options from live registries" do
     workflow_kind_provider = Class.new do
       include Syrus::Plugin::WorkflowKinds

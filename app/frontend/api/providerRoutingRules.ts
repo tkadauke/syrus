@@ -75,6 +75,13 @@ export type ProviderRoutingRegistryOption = {
   panel_capable?: boolean
 }
 
+export type ProviderUsageReading = {
+  provider: string
+  state?: string
+  remaining_percent?: number | string | null
+  observed_at?: string | null
+}
+
 export type ProviderRoutingRegistryOptions = {
   triggers?: {
     chat_roles?: ProviderRoutingRegistryOption[]
@@ -82,6 +89,7 @@ export type ProviderRoutingRegistryOptions = {
   }
   conditions?: {
     workflow_trigger_kinds?: ProviderRoutingRegistryOption[]
+    provider_usage?: ProviderUsageReading[]
   }
   action_strategies?: ProviderRoutingRegistryOption[]
   action_types?: ProviderRoutingRegistryOption[]
