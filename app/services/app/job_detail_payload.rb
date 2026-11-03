@@ -110,6 +110,23 @@ module App
         .map { |request| Permissions::RequestPresenter.new(request, current_user: @user).as_json }
     end
 
+    # The blocked-workflow banner offers the same dismiss action as the
+    # workflows list, for the most recent blocked auxiliary workflow.
+    def blocked_workflow_dismissal_json
+      return nil unless @job.needs_attention? && @job.needs_attention_reason == "agent_cannot_proceed"
+
+      workflow = @job.workflows.where(state: "blocked", trigger_kind: Workflow::TriggerKind::NON_APPROVAL_BLOCKING_VALUES)
+        .order(created_at: :desc, id: :desc).first
+      return nil unless workflow&.operator_dismissable?
+
+      {
+        workflow_id: workflow.id,
+        slug: workflow.slug,
+        reason_text: workflow.blocked_reason_text,
+        app_dismiss_path: "/api/v1/app/jobs/#{workflow.job_id}/workflows/#{workflow.id}/dismiss"
+      }
+    end
+
     def workflows_payload
       PerformanceLogging.phase("job_workflows_payload", job_id: @job.id, page: workflows_page) do
         {
@@ -319,6 +336,7 @@ module App
         delivery_target_ref: delivery_policy.job_landing_branch(@job),
         needs_attention: @job.needs_attention?,
         needs_attention_reason: @job.needs_attention_reason,
+        blocked_workflow_dismissal: blocked_workflow_dismissal_json,
         needs_attention_since: iso8601(@job.needs_attention_since),
         grace_period_expires_at: iso8601(@job.grace_period_expires_at),
         main_branch_repair: @job.main_branch_repair?,

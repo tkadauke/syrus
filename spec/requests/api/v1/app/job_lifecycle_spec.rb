@@ -1290,6 +1290,17 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
       expect(workflow.reload).to be_blocked
     end
 
+    it "exposes the blocked workflow dismissal on the job payload for the needs-attention banner" do
+      workflow = Workflow.create!(job: job, trigger_kind: "rebase", state: "blocked", artifacts: { "cannot_proceed" => { "reason" => "missing binary" } })
+      job.set_needs_attention!(reason: "agent_cannot_proceed")
+
+      get "/api/v1/app/jobs/#{job.id}", as: :json
+
+      expect(parse_body.dig("job", "blocked_workflow_dismissal")).to include(
+        "workflow_id" => workflow.id, "reason_text" => "missing binary", "app_dismiss_path" => dismiss_path(job, workflow)
+      )
+    end
+
     it "exposes dismissable and the blocked reason in the job workflows payload" do
       workflow = Workflow.create!(job: job, trigger_kind: "rebase", state: "blocked", artifacts: { "start_blocked_reason" => "main branch broken" })
 

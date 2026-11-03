@@ -210,6 +210,7 @@ export type JobRecord = {
   delivery_target_ref: string
   needs_attention: boolean
   needs_attention_reason: string | null
+  blocked_workflow_dismissal?: { workflow_id: number; slug: string; reason_text: string | null; app_dismiss_path: string } | null
   needs_attention_since: string | null
   grace_period_expires_at: string | null
   main_branch_repair: boolean
