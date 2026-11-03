@@ -31,6 +31,7 @@ RSpec.describe RunHostAdmission do
 
     expect(decision).to be_admit
     expect(decision.reason).to eq("admission_control_disabled")
+    expect_reason_attribution(decision)
   end
 
   it "keeps critical local pressure active when admission control is disabled" do
@@ -41,6 +42,7 @@ RSpec.describe RunHostAdmission do
 
     expect(decision).to be_defer
     expect(decision.reason).to eq("local_worker_pressure_critical")
+    expect_reason_attribution(decision)
   end
 
   it "defers compute runs on a worker with critical local pressure" do
@@ -50,6 +52,7 @@ RSpec.describe RunHostAdmission do
 
     expect(decision).to be_defer
     expect(decision.reason).to eq("local_worker_pressure_critical")
+    expect_reason_attribution(decision)
     expect(decision.details).to include(
       "hostname" => "worker-a",
       "worker_storage_key" => "storage-critical",
@@ -83,6 +86,7 @@ RSpec.describe RunHostAdmission do
 
     expect(decision).to be_admit
     expect(decision.reason).to eq("host_capacity_available")
+    expect_reason_attribution(decision)
     expect(decision.details.fetch("sample_health")).to include("level" => "critical")
   end
 
@@ -94,6 +98,7 @@ RSpec.describe RunHostAdmission do
 
     expect(decision).to be_defer
     expect(decision.reason).to eq("local_worker_pressure_critical")
+    expect_reason_attribution(decision)
   end
 
   it "keeps deferring disk-bound work while the disk is critical" do
@@ -105,6 +110,7 @@ RSpec.describe RunHostAdmission do
 
     expect(decision).to be_defer
     expect(decision.reason).to eq("local_worker_pressure_critical")
+    expect_reason_attribution(decision)
   end
 
   # The other half of that rule. A grader IS disk-bound, so a genuinely
@@ -132,6 +138,7 @@ RSpec.describe RunHostAdmission do
 
     expect(decision).to be_defer
     expect(decision.reason).to eq("local_worker_pressure_critical")
+    expect_reason_attribution(decision)
     expect(decision.details).to include(
       "queue_name" => "resume-storage-a",
       "sticky_resume_queue" => true
@@ -153,6 +160,7 @@ RSpec.describe RunHostAdmission do
 
     expect(decision).to be_defer
     expect(decision.reason).to eq("local_worker_pressure_critical")
+    expect_reason_attribution(decision)
     expect(decision.details).to include(
       "queue_name" => "merges",
       "step_kind" => "landing_fix",
@@ -191,6 +199,7 @@ RSpec.describe RunHostAdmission do
 
     expect(decision).to be_defer
     expect(decision.reason).to eq("host_resource_semaphore_busy")
+    expect_reason_attribution(decision)
   end
 
   it "keeps a further guarded run off a host whose slots are full" do
@@ -203,6 +212,7 @@ RSpec.describe RunHostAdmission do
 
     expect(decision).to be_defer
     expect(decision.reason).to eq("host_resource_semaphore_busy")
+    expect_reason_attribution(decision)
     expect(decision.details).to include(
       "active_guarded_run_count" => 3
     )
@@ -241,6 +251,7 @@ RSpec.describe RunHostAdmission do
 
     expect(decision).to be_admit
     expect(decision.reason).to eq("host_capacity_available")
+    expect_reason_attribution(decision)
   end
 
   it "admits a lone agentic run when one capacity unit reserves more than the memory budget" do
@@ -277,6 +288,7 @@ RSpec.describe RunHostAdmission do
 
     expect(decision).to be_defer
     expect(decision.reason).to eq("host_resource_semaphore_busy")
+    expect_reason_attribution(decision)
     expect(decision.details["resource_guard_binding_terms"]).to include("memory_reservation")
     expect(decision.details["resource_guard_binding_terms"]).not_to include("compute_units")
   end
@@ -302,6 +314,48 @@ RSpec.describe RunHostAdmission do
     expect(admission_decisions_total("defer")).to eq(defer_before + 1)
   end
 
+  it "tags each decision's reason, so equal actions with different reasons are separate series" do
+    worker_sample(cpu_pressure_some: 55.0, cpu_pressure_full: 6.0)
+    before = admission_decisions_for_reason("defer", "local_worker_pressure_critical")
+
+    described_class.call(run: run)
+
+    expect(admission_decisions_for_reason("defer", "local_worker_pressure_critical")).to eq(before + 1)
+    expect(admission_decisions_for_reason("defer", "host_resource_semaphore_busy")).to eq(
+      Syrus::Metrics.counter(:syrus_admission_decisions_total).samples.to_h[{ decision: "defer", reason: "host_resource_semaphore_busy" }].to_i
+    )
+  end
+
+  it "attributes a run that is no longer queued as not_queued" do
+    run.update!(state: "succeeded")
+
+    decision = described_class.call(run: run)
+
+    expect(decision.reason).to eq("not_queued")
+    expect_reason_attribution(decision)
+  end
+
+  it "attributes work on a non-compute queue as non_compute_queue" do
+    admission = described_class.new(run: run)
+    allow(admission).to receive(:compute_queue?).and_return(false)
+
+    decision = admission.call
+
+    expect(decision.reason).to eq("non_compute_queue")
+    expect_reason_attribution(decision)
+  end
+
+  it "attributes a run that needs no resource guard as resource_guard_not_needed" do
+    worker_sample(cpu_pressure_some: 10.0)
+    admission = described_class.new(run: run)
+    allow(admission).to receive(:resource_guarded?).and_return(false)
+
+    decision = admission.call
+
+    expect(decision.reason).to eq("resource_guard_not_needed")
+    expect_reason_attribution(decision)
+  end
+
   it "admits control-plane steps on a worker with critical local pressure" do
     enable_distributed_workflow_dag!
     worker_sample(cpu_pressure_some: 55.0, cpu_pressure_full: 6.0)
@@ -318,6 +372,7 @@ RSpec.describe RunHostAdmission do
 
     expect(decision).to be_admit
     expect(decision.reason).to eq("control_plane_step")
+    expect_reason_attribution(decision)
     expect(decision.details).to include(
       "queue_name" => "merges",
       "step_kind" => "grader_collect"
@@ -353,7 +408,19 @@ RSpec.describe RunHostAdmission do
   end
 
   def admission_decisions_total(decision)
-    Syrus::Metrics.counter(:syrus_admission_decisions_total).samples.to_h[{ decision: decision }].to_i
+    Syrus::Metrics.counter(:syrus_admission_decisions_total).samples.to_h
+      .sum { |tags, count| tags[:decision] == decision ? count.to_i : 0 }
+  end
+
+  def admission_decisions_for_reason(decision, reason)
+    Syrus::Metrics.counter(:syrus_admission_decisions_total).samples.to_h[{ decision: decision, reason: reason }].to_i
+  end
+
+  # The reason must survive into both the payload and the metric tag, so a
+  # deferral count can be attributed to the guard that produced it.
+  def expect_reason_attribution(decision)
+    expect(decision.details["reason"]).to eq(decision.reason)
+    expect(admission_decisions_for_reason(decision.action, decision.reason)).to be_positive
   end
 
   def worker_sample(**attrs)
@@ -492,6 +559,7 @@ RSpec.describe RunHostAdmission do
 
       expect(decision).to be_admit
       expect(decision.reason).to eq("host_capacity_available")
+      expect_reason_attribution(decision)
     end
 
     it "admits prepare on a large healthy host when only CPU-derived fallback reservations would reject it" do
@@ -506,6 +574,7 @@ RSpec.describe RunHostAdmission do
 
       expect(decision).to be_admit
       expect(decision.reason).to eq("host_capacity_available")
+      expect_reason_attribution(decision)
     end
 
     it "defers prepare when measured working-set usage leaves no safe headroom" do
@@ -560,6 +629,7 @@ RSpec.describe RunHostAdmission do
 
       expect(decision).to be_defer
       expect(decision.reason).to eq("host_resource_semaphore_busy")
+      expect_reason_attribution(decision)
       memory_budget = (16.gigabytes * described_class::MEMORY_UTILIZATION).floor
       grader_reserve = (16.gigabytes / 6) * 2
       expect(decision.details).to include(
@@ -594,6 +664,7 @@ RSpec.describe RunHostAdmission do
 
       expect(decision).to be_defer
       expect(decision.reason).to eq("host_resource_semaphore_busy")
+      expect_reason_attribution(decision)
       expect(decision.details).to include(
         "active_compute_units" => 6,
         "candidate_compute_units" => 1,
@@ -609,6 +680,7 @@ RSpec.describe RunHostAdmission do
 
       expect(decision).to be_admit
       expect(decision.reason).to eq("host_capacity_available")
+      expect_reason_attribution(decision)
     end
 
     it "defers background main-health graders on a warning host while landing work is active" do
@@ -636,6 +708,7 @@ RSpec.describe RunHostAdmission do
 
       expect(decision).to be_defer
       expect(decision.reason).to eq("landing_work_has_priority")
+      expect_reason_attribution(decision)
     end
 
     it "does not make landing graders yield to background main-health work" do
@@ -671,6 +744,7 @@ RSpec.describe RunHostAdmission do
 
       expect(decision).to be_admit
       expect(decision.reason).to eq("host_capacity_available")
+      expect_reason_attribution(decision)
     end
 
     it "defers the next grader when graders consume the host budget" do
@@ -681,6 +755,7 @@ RSpec.describe RunHostAdmission do
 
       expect(decision).to be_defer
       expect(decision.reason).to eq("host_resource_semaphore_busy")
+      expect_reason_attribution(decision)
       expect(decision.details).to include(
         "resource_guard_kind" => "grader",
         "active_grader_run_count" => 6,
@@ -700,6 +775,7 @@ RSpec.describe RunHostAdmission do
 
       expect(decision).to be_defer
       expect(decision.reason).to eq("host_resource_semaphore_busy")
+      expect_reason_attribution(decision)
       expect(decision.details).to include(
         "resource_guard_kind" => "grader",
         "agentic_reserved_units" => 2,
@@ -717,6 +793,7 @@ RSpec.describe RunHostAdmission do
 
       expect(decision).to be_admit
       expect(decision.reason).to eq("host_capacity_available")
+      expect_reason_attribution(decision)
     end
 
     it "lets an operator spend the reserve on graders instead" do
@@ -729,6 +806,7 @@ RSpec.describe RunHostAdmission do
 
       expect(decision).to be_admit
       expect(decision.reason).to eq("host_capacity_available")
+      expect_reason_attribution(decision)
     end
 
     it "defers a second process-attributed high-IO grader on a warning host" do
@@ -744,6 +822,7 @@ RSpec.describe RunHostAdmission do
 
       expect(decision).to be_defer
       expect(decision.reason).to eq("host_resource_semaphore_busy")
+      expect_reason_attribution(decision)
       expect(decision.details).to include(
         "resource_guard_kind" => "io_intensive_grader",
         "active_io_intensive_grader_run_count" => 1
@@ -771,6 +850,7 @@ RSpec.describe RunHostAdmission do
 
       expect(decision).to be_defer
       expect(decision.reason).to eq("host_resource_semaphore_busy")
+      expect_reason_attribution(decision)
       expect(decision.details).to include("active_io_intensive_grader_run_count" => 1)
     end
 
@@ -793,6 +873,7 @@ RSpec.describe RunHostAdmission do
 
       expect(decision).to be_defer
       expect(decision.reason).to eq("local_worker_pressure_critical")
+      expect_reason_attribution(decision)
     end
   end
 
@@ -828,6 +909,7 @@ RSpec.describe RunHostAdmission do
 
       expect(decision).to be_defer
       expect(decision.reason).to eq("host_resource_semaphore_busy")
+      expect_reason_attribution(decision)
       expect(decision.details).to include(
         "resource_guard_kind" => "visual_diff_preview",
         "active_visual_diff_preview_run_count" => 1,
@@ -842,6 +924,7 @@ RSpec.describe RunHostAdmission do
 
       expect(decision).to be_admit
       expect(decision.reason).to eq("host_capacity_available")
+      expect_reason_attribution(decision)
     end
 
     it "admits a second colocated visual_diff preview on a healthy host" do
@@ -860,6 +943,7 @@ RSpec.describe RunHostAdmission do
 
       expect(decision).to be_defer
       expect(decision.reason).to eq("local_worker_pressure_critical")
+      expect_reason_attribution(decision)
     end
   end
 
@@ -885,6 +969,7 @@ RSpec.describe RunHostAdmission do
 
       expect(decision).to be_defer
       expect(decision.reason).to eq("host_admission_staggering")
+      expect_reason_attribution(decision)
     end
 
     it "admits once the stagger window has passed" do

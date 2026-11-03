@@ -9,7 +9,7 @@ RSpec.describe "runtime process execution boundary" do
       next [] if path == allowed
 
       direct_launch_lines(path).map do |line_number|
-        "#{Pathname.new(path).relative_path_from(Rails.root)}:#{line_number}: #{File.readlines(path)[line_number - 1].strip}"
+        "#{Pathname.new(path).relative_path_from(Rails.root)}:#{line_number}: #{lines_for(path)[line_number - 1].strip}"
       end
     end
 
@@ -18,6 +18,13 @@ RSpec.describe "runtime process execution boundary" do
       or ProcessRunner for other binaries. Direct process launches found:
       #{violations.join("\n")}
     MESSAGE
+  end
+
+  it "prefilters only files that cannot contain a launch" do
+    expect("Open3.capture3('x')").to match(LAUNCH_CANDIDATE)
+    expect("`worker`").to match(LAUNCH_CANDIDATE)
+    expect("%x(worker)").to match(LAUNCH_CANDIDATE)
+    expect("class Plain; def a = 1; end").not_to match(LAUNCH_CANDIDATE)
   end
 
   it "recognizes every supported direct-launch form" do
@@ -56,8 +63,22 @@ RSpec.describe "runtime process execution boundary" do
     expect(direct_launch_lines_for(source)).to eq([])
   end
 
+  # Cheap textual superset of every form direct_launch_node? can match:
+  # Open3/Process/IO/Kernel constant calls, bare `system`, backticks, and %x.
+  # Files without any of these tokens cannot contain a launch, so skip the
+  # (expensive) AST parse for them. The AST check still decides the result for
+  # every file that passes this prefilter.
+  LAUNCH_CANDIDATE = /Open3|Process|IO|Kernel|system|`|%x/
+
+  def lines_for(path)
+    File.readlines(path)
+  end
+
   def direct_launch_lines(path)
-    direct_launch_lines_for(File.read(path))
+    source = File.read(path)
+    return [] unless source.match?(LAUNCH_CANDIDATE)
+
+    direct_launch_lines_for(source)
   end
 
   def direct_launch_lines_for(source)

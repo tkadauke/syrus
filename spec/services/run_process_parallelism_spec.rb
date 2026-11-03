@@ -200,3 +200,48 @@ RSpec.describe RunProcessParallelism do
     expect(described_class.effective_cpu_count).to eq(6)
   end
 end
+
+RSpec.describe RunProcessParallelism, ".cpu_detection" do
+  around do |example|
+    described_class.reset_undetectable_cpu_warning!
+    example.run
+    described_class.reset_undetectable_cpu_warning!
+  end
+
+  before do
+    allow(described_class).to receive(:cgroup_v2_cpu_count).and_return(nil)
+    allow(described_class).to receive(:cgroup_v1_cpu_count).and_return(nil)
+    allow(Etc).to receive(:nprocessors).and_return(20)
+    stub_const("ENV", ENV.to_h.except(described_class::CPU_LIMIT_ENV))
+  end
+
+  it "reports a cgroup v2 quota as the source" do
+    allow(described_class).to receive(:cgroup_v2_cpu_count).and_return(8)
+
+    expect(described_class.cpu_detection).to have_attributes(count: 8, source: "cgroup_v2_quota")
+  end
+
+  it "reports a cgroup v1 quota as the source" do
+    allow(described_class).to receive(:cgroup_v1_cpu_count).and_return(2)
+
+    expect(described_class.cpu_detection).to have_attributes(count: 2, source: "cgroup_v1_quota")
+  end
+
+  it "reports the explicit core budget as an env override" do
+    stub_const("ENV", ENV.to_h.merge(described_class::CPU_LIMIT_ENV => "12"))
+
+    expect(described_class.cpu_detection).to have_attributes(count: 12, source: "env_override")
+  end
+
+  it "reports the deliberately-small fallback without logging a warning" do
+    expect(Rails.logger).not_to receive(:warn)
+
+    expect(described_class.cpu_detection).to have_attributes(
+      count: described_class::UNDETECTABLE_CPU_COUNT, source: "undetectable_fallback"
+    )
+  end
+
+  it "agrees with effective_cpu_count" do
+    expect(described_class.cpu_detection.count).to eq(described_class.effective_cpu_count)
+  end
+end

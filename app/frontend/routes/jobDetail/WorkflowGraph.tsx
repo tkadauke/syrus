@@ -531,6 +531,18 @@ function WorkflowCard({
           ) : null}
         </div>
       </div>
+      {workflow.dismissable && workflow.app_dismiss_path ? (
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1" data-testid={`workflow-dismiss-${workflow.id}`}>
+          {workflow.blocked_reason_text ? <p className="min-w-0 flex-1 truncate text-xs text-text-muted">{workflow.blocked_reason_text}</p> : null}
+          <CommandButton
+            command={command}
+            input={{ method: "post", path: workflow.app_dismiss_path, confirm: t(workflow.state === "blocked" ? "workflow_dismiss_confirm" : "workflow_cancel_confirm") }}
+            tone="secondary"
+          >
+            {t(workflow.state === "blocked" ? "workflow_dismiss" : "workflow_cancel")}
+          </CommandButton>
+        </div>
+      ) : null}
       {branchDivergence ? (
         <BranchDivergencePanel command={command} divergence={branchDivergence} payload={payload} prefix={prefix} workflow={workflow} />
       ) : null}

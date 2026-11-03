@@ -949,7 +949,7 @@ function SummaryTab({
   const showUnsatisfiedDependencies = !HIDE_UNSATISFIED_DEPENDENCIES_STATES.has(payload.job.state) && payload.unsatisfied_dependencies.length > 0
   return (
     <div className="space-y-4">
-      <NeedsAttentionBanner job={payload.job} />
+      <NeedsAttentionBanner command={command} job={payload.job} />
       <TriageDecisionBanner job={payload.job} />
       <JobSummaryNotices command={command} payload={payload} prefix={prefix} showUnsatisfiedDependencies={showUnsatisfiedDependencies} />
 

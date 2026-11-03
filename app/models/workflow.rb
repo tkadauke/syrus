@@ -24,6 +24,10 @@ class Workflow < ApplicationRecord
   SUPERSEDED_BY_REBASE_REASON = "superseded_by_rebase"
   SUPERSEDED_BY_NEWER_WORKFLOW_REASON = "superseded_by_newer_workflow"
   SUPERSEDED_BY_STATE_REPAIR_REASON = "superseded_by_state_repair"
+  # Written when an operator dismisses a blocked/stuck auxiliary workflow from
+  # the Job page. Treated like a superseded cancellation so the Job's own state
+  # is left alone: the auxiliary workflow was never what drove it.
+  DISMISSED_BY_OPERATOR_REASON = "dismissed_by_operator"
 
   belongs_to :job
   belongs_to :user
@@ -114,6 +118,15 @@ class Workflow < ApplicationRecord
         after: -> { Workflows::LifecyclePropagation.cancelled!(self) }
     end
 
+    # A blocked workflow is terminal for AASM purposes, but its WorkUnit stays
+    # active (and the Job keeps its needs-attention flag) until something
+    # retires them. Dismissing runs the same cancellation propagation as
+    # `cancel`, which retires the WorkUnit and releases its locks.
+    event :dismiss do
+      transitions from: :blocked, to: :cancelled,
+        after: -> { Workflows::LifecyclePropagation.cancelled!(self) }
+    end
+
     event :block do
       transitions from: [ :queued, :running ], to: :blocked,
         after: -> { Workflows::LifecyclePropagation.blocked!(self) }
@@ -139,6 +152,25 @@ class Workflow < ApplicationRecord
 
   def saved_change_to_state_to_terminal?
     saved_change_to_state? && terminal?
+  end
+
+  OPERATOR_DISMISSABLE_STATES = %w[blocked queued running].freeze
+
+  # Auxiliary (non-approval-blocking) workflows that are stuck or in flight can
+  # be cancelled/dismissed by an operator from the Job page. Implement and the
+  # other primary workflows keep their dedicated controls.
+  def operator_dismissable?
+    Workflow::TriggerKind.non_approval_blocking?(trigger_kind) && state.in?(OPERATOR_DISMISSABLE_STATES)
+  end
+
+  # One-line reason shown next to the dismiss action so the operator knows what
+  # they are dismissing.
+  def blocked_reason_text
+    return nil unless operator_dismissable?
+
+    cannot_proceed = artifact("cannot_proceed")
+    cannot_proceed_reason = cannot_proceed["reason"] if cannot_proceed.is_a?(Hash)
+    [ artifact("start_blocked_reason"), cannot_proceed_reason ].find(&:present?)&.to_s&.squish&.truncate(200)
   end
 
   def epic_wide?
@@ -385,7 +417,8 @@ class Workflow < ApplicationRecord
     artifact("cancelled_reason").in?([
       SUPERSEDED_BY_REBASE_REASON,
       SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
-      SUPERSEDED_BY_STATE_REPAIR_REASON
+      SUPERSEDED_BY_STATE_REPAIR_REASON,
+      DISMISSED_BY_OPERATOR_REASON
     ])
   end
 

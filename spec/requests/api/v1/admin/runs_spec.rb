@@ -192,4 +192,52 @@ RSpec.describe "API: /api/v1/admin/runs", type: :request do
       expect(response).to have_http_status(:forbidden)
     end
   end
+
+  describe "host admission attribution" do
+    let(:deferral) do
+      { "action" => "defer", "reason" => "host_resource_semaphore_busy", "hostname" => "worker-a",
+        "resource_guard_binding_terms" => [ "compute_units" ], "deferral_count" => 3 }
+    end
+
+    def record_deferral(run, workflow)
+      workflow.update!(artifacts: (workflow.artifacts || {}).merge("run_host_admission" => deferral.merge("run_id" => run.id)))
+    end
+
+    it "reports the deferral on a queued Run in the list and artifacts endpoints" do
+      run = job.initial_run
+      run.update!(state: "queued")
+      record_deferral(run, run.step.workflow)
+
+      get "/api/v1/admin/runs", params: { run_id: run.id }, headers: auth
+      expect(parse_body["runs"].first["host_admission"]).to include(
+        "reason" => "host_resource_semaphore_busy", "resource_guard_binding_terms" => [ "compute_units" ]
+      )
+
+      get "/api/v1/admin/runs/#{run.id}/artifacts", headers: auth
+      expect(parse_body["host_admission"]).to include("reason" => "host_resource_semaphore_busy", "deferral_count" => 3)
+    end
+
+    it "does not retain stale attribution once the Run is terminal" do
+      run = job.initial_run
+      run.update!(state: "succeeded", started_at: 1.hour.ago, finished_at: 30.minutes.ago)
+      record_deferral(run, run.step.workflow)
+
+      get "/api/v1/admin/runs", params: { run_id: run.id }, headers: auth
+      expect(parse_body["runs"].first["host_admission"]).to be_nil
+
+      get "/api/v1/admin/runs/#{run.id}/artifacts", headers: auth
+      expect(parse_body["host_admission"]).to be_nil
+    end
+
+    it "does not attribute another Run's deferral to a queued Run" do
+      run = job.initial_run
+      run.update!(state: "queued")
+      record_deferral(run, run.step.workflow)
+      run.step.workflow.update!(artifacts: { "run_host_admission" => deferral.merge("run_id" => run.id + 1000) })
+
+      get "/api/v1/admin/runs", params: { run_id: run.id }, headers: auth
+
+      expect(parse_body["runs"].first["host_admission"]).to be_nil
+    end
+  end
 end

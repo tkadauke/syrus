@@ -119,7 +119,8 @@ RSpec.describe WorkflowAdmissionBudget do
   end
 
   def admission_decisions_total(decision)
-    Syrus::Metrics.counter(:syrus_admission_decisions_total).samples.to_h[{ decision: decision }].to_i
+    Syrus::Metrics.counter(:syrus_admission_decisions_total).samples.to_h
+      .sum { |tags, count| tags[:decision] == decision ? count.to_i : 0 }
   end
 
   before do

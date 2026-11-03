@@ -289,6 +289,9 @@ module App
             app_push_commits_path: "/api/v1/app/jobs/#{workflow_job_id}/workflows/#{workflow.id}/push_commits",
             app_force_push_branch_path: "/api/v1/app/jobs/#{workflow_job_id}/workflows/#{workflow.id}/force_push_branch",
             app_discard_branch_output_path: "/api/v1/app/jobs/#{workflow_job_id}/workflows/#{workflow.id}/discard_branch_output",
+            app_dismiss_path: "/api/v1/app/jobs/#{workflow_job_id}/workflows/#{workflow.id}/dismiss",
+            dismissable: workflow.operator_dismissable?,
+            blocked_reason_text: workflow.blocked_reason_text,
             failure_classification: workflow_failure_classification_json(workflow),
             steps_total: step_count,
             steps_displayed: steps.size,
@@ -599,7 +602,7 @@ module App
       def step_placement_json(step, workflow:)
         details = step.details.to_h
         latest_run = ordered_runs_for(step).max_by { |run| [ run.started_at || run.created_at || Time.zone.at(0), run.id || 0 ] }
-        latest_admission = latest_admission_details_for(step, workflow: workflow)
+        latest_admission = latest_admission_details_for(step, workflow: workflow, latest_run: latest_run)
         checkout = details["immutable_source_checkout"].is_a?(Hash) ? details["immutable_source_checkout"] : {}
         checkout_storage_key = checkout["worker_storage_key"].presence
 
@@ -672,11 +675,19 @@ module App
         value.slice("status", "hit", "key", "source", "reason")
       end
 
-      def latest_admission_details_for(step, workflow:)
+      # Only a Run that is still queued is held up by its deferral; the artifact
+      # outlives the Run it describes, so a started or terminal Run reports none.
+      def latest_admission_details_for(step, workflow:, latest_run: nil)
         admission = admission_artifacts_for(workflow).find { |candidate| admission_applies_to_step?(candidate, step) }
         return nil unless admission
 
-        admission.slice("reason", "action", "retry_at", "worker_key", "worker_hostname", "worker_storage_key", "hostname", "step_id", "run_id")
+        named_run = ordered_runs_for(step).find { |run| run.id == admission["run_id"].to_i } || latest_run
+        return nil unless named_run&.queued?
+
+        admission.slice(
+          "reason", "action", "retry_at", "worker_key", "worker_hostname", "worker_storage_key", "hostname",
+          "step_id", "run_id", "resource_guard_binding_terms", "routed_queue", "queue_name", "deferral_count"
+        )
       end
 
       def admission_artifacts_for(workflow)

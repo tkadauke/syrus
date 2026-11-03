@@ -1210,4 +1210,104 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
   end
+
+  describe "dismissing an auxiliary workflow" do
+    let(:read_member) { Factories.user }
+
+    def dismiss_path(job_record, workflow) = "/api/v1/app/jobs/#{job_record.id}/workflows/#{workflow.id}/dismiss"
+
+    Workflow::TriggerKind::NON_APPROVAL_BLOCKING_VALUES.each do |kind|
+      it "retires a blocked #{kind} workflow with its work unit and clears needs-attention" do
+        job.update!(state: "implemented")
+        workflow = Workflow.create!(job: job, trigger_kind: kind, state: "blocked", artifacts: { "cannot_proceed" => { "reason" => "missing binary" } })
+        unit = attach_work_unit(workflow, kind: kind, state: "blocked")
+        job.set_needs_attention!(reason: "agent_cannot_proceed")
+
+        post dismiss_path(job, workflow), as: :json
+
+        expect(response).to have_http_status(:ok)
+        expect(workflow.reload).to be_cancelled
+        expect(unit.reload).to be_cancelled
+        expect(unit.work_unit_locks.active).to be_empty
+        expect(WorkUnit.where(workflow_id: workflow.id, state: WorkUnits::Ownership::ACTIVE_STATES)).to be_empty
+        expect(job.reload.needs_attention).to be(false)
+        expect(job).to be_implemented
+        expect(parse_body["message"]).to eq("#{workflow.slug} dismissed.")
+      end
+    end
+
+    %w[queued running].each do |state|
+      it "cancels a #{state} auxiliary workflow and its work unit" do
+        job.update!(state: "implemented")
+        workflow = Workflow.create!(job: job, trigger_kind: "rebase", state: state)
+        unit = attach_work_unit(workflow, kind: "rebase", state: state)
+
+        post dismiss_path(job, workflow), as: :json
+
+        expect(response).to have_http_status(:ok)
+        expect(workflow.reload).to be_cancelled
+        expect(unit.reload).to be_cancelled
+        expect(job.reload).to be_implemented
+      end
+    end
+
+    it "rejects non-auxiliary workflows such as initial" do
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "blocked")
+
+      post dismiss_path(job, workflow), as: :json
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(workflow.reload).to be_blocked
+    end
+
+    it "is a no-op for an already finished auxiliary workflow" do
+      workflow = Workflow.create!(job: job, trigger_kind: "visual_diff", state: "succeeded")
+
+      post dismiss_path(job, workflow), as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(workflow.reload).to be_succeeded
+      expect(parse_body["message"]).to include("already succeeded")
+    end
+
+    it "404s for a workflow that does not belong to the job" do
+      other = Workflow.create!(job: Factories.job(repository: repo, issue_number: 43), trigger_kind: "rebase", state: "blocked")
+
+      post dismiss_path(job, other), as: :json
+
+      expect(response).to have_http_status(:not_found)
+      expect(other.reload).to be_blocked
+    end
+
+    it "403s for a read-tier member" do
+      repo.repository_memberships.create!(user: read_member, role: "read")
+      workflow = Workflow.create!(job: job, trigger_kind: "rebase", state: "blocked")
+      sign_in_as(read_member)
+
+      post dismiss_path(job, workflow), as: :json
+
+      expect(response).to have_http_status(:forbidden)
+      expect(workflow.reload).to be_blocked
+    end
+
+    it "exposes the blocked workflow dismissal on the job payload for the needs-attention banner" do
+      workflow = Workflow.create!(job: job, trigger_kind: "rebase", state: "blocked", artifacts: { "cannot_proceed" => { "reason" => "missing binary" } })
+      job.set_needs_attention!(reason: "agent_cannot_proceed")
+
+      get "/api/v1/app/jobs/#{job.id}", as: :json
+
+      expect(parse_body.dig("job", "blocked_workflow_dismissal")).to include(
+        "workflow_id" => workflow.id, "reason_text" => "missing binary", "app_dismiss_path" => dismiss_path(job, workflow)
+      )
+    end
+
+    it "exposes dismissable and the blocked reason in the job workflows payload" do
+      workflow = Workflow.create!(job: job, trigger_kind: "rebase", state: "blocked", artifacts: { "start_blocked_reason" => "main branch broken" })
+
+      get "/api/v1/app/jobs/#{job.id}/workflows", as: :json
+
+      entry = parse_body.fetch("workflows").find { |w| w["id"] == workflow.id }
+      expect(entry).to include("dismissable" => true, "blocked_reason_text" => "main branch broken", "app_dismiss_path" => dismiss_path(job, workflow))
+    end
+  end
 end

@@ -257,7 +257,7 @@ the sampler first runs, not from the beginning of time.
 | `syrus_worker_disk_percent{hostname,storage_key}` | latest data-root disk utilization sample per worker storage identity, labelled with the current hostname for display |
 | `syrus_active_agent_runs` | currently running agentic Runs, subject to the global concurrency cap |
 | `syrus_max_concurrent_agent_runs` | the configured ceiling, so the dashboard panel shows capacity alongside utilization |
-| `syrus_admission_decisions_total{decision}` | admission decisions, tagged by the action taken |
+| `syrus_admission_decisions_total{decision,reason}` | admission decisions, tagged by the action taken and the reason (e.g. `host_resource_semaphore_busy`, `local_worker_pressure_critical`, `landing_work_has_priority`) |
 | `syrus_workflow_step_duration_seconds{kind}` | Step wall clock from start to finish |
 
 `Metrics::WorkerSampler` (`app/services/metrics/worker_sampler.rb`) owns the
@@ -298,6 +298,14 @@ made it. It is declared once, in `WorkflowAdmissionBudget`, and
 increments in the shared counter sink and flushes them
 without coupling admission to recorder availability; replicas aggregate it
 with `max`, not `sum`.
+
+The `reason` tag attributes every decision to the guard that produced it, so a
+deferral count can distinguish a saturated fleet (`host_resource_semaphore_busy`)
+from pressure (`local_worker_pressure_critical`) or staggering
+(`host_admission_staggering`). The set of reasons is a small fixed vocabulary
+in `RunHostAdmission` and `WorkflowAdmissionBudget`. Which semaphore term bound
+(`compute_units`, `memory_reservation`, `measured_memory`) is not a tag; it is
+`resource_guard_binding_terms` in the per-Run admission payload.
 
 ### Fleet
 
