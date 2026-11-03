@@ -556,6 +556,7 @@ export function pendingActionCardData(action: ChatPendingAction): ChatPendingAct
     review: action.review,
     request_kind: action.request_kind,
     authorization_items: action.authorization_items,
+    authorization_presentation: action.authorization_presentation,
     resource_title: action.resource_title,
     resource_url: action.resource_url,
     document: action.document,

@@ -490,6 +490,13 @@ describe("PendingActionCard", () => {
       pendingAction({
         action: "coworker_tool_call",
         request_kind: "authorization_request",
+        authorization_presentation: {
+          statement: "Run a database query",
+          agent: "Maya",
+          origin: "Chat",
+          requested_durations: ["This one time"],
+          why_approval_required: "Your settings require your approval before an agent does this."
+        },
         authorization_items: [
           {
             id: 41,
@@ -519,6 +526,9 @@ describe("PendingActionCard", () => {
 
     expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument()
     expect(screen.getByText("Allow permission to read the database")).toBeInTheDocument()
+    expect(screen.getByText("Maya · Chat")).toBeInTheDocument()
+    expect(screen.getByText("This one time")).toBeInTheDocument()
+    expect(screen.getByText("Your settings require your approval before an agent does this.")).toBeInTheDocument()
     expect(screen.getByText("Run a database query")).toBeInTheDocument()
     expect(screen.getByText("Orders database · read confidential information")).toBeInTheDocument()
     expect(screen.queryByText(/database\.read/)).not.toBeInTheDocument()

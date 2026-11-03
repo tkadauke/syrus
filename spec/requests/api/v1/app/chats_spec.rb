@@ -6843,7 +6843,9 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     get "/api/v1/app/chats/#{chat.id}"
 
-    item = parse_body.fetch("pending_actions").first.fetch("authorization_items").first
+    action = parse_body.fetch("pending_actions").first
+    expect(action.fetch("authorization_presentation")).to include("statement" => "Send a message to another chat", "consequences" => [ "send a message" ])
+    item = action.fetch("authorization_items").first
     expect(item.fetch("presentation")).to include("statement" => "Send a message to another chat", "consequences" => [ "send a message" ])
   end
 
