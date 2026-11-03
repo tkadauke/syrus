@@ -1599,6 +1599,55 @@ RSpec.describe Steps::PrOpen, :ci_only do
         expect { handler.send(:confirm_published_stack_base!) }.to raise_error(described_class::AwaitingStableBase)
       end
 
+      describe "leased publication of a non-rebased stacked branch" do
+        before { handler.instance_variable_set(:@pre_push_observed, true) }
+
+        it "pushes conditional on the remote tip observed before publication" do
+          handler.instance_variable_set(:@pre_push_remote_sha, "a" * 40)
+          allow(handler).to receive(:ancestor?).with(git, "a" * 40, "HEAD").and_return(true)
+
+          expect(git).to receive(:run).with(
+            "push", "--force-with-lease=refs/heads/syrus/issue-42:#{"a" * 40}", "https://x/y",
+            "HEAD:refs/heads/syrus/issue-42", chdir: "/tmp/ws"
+          )
+
+          handler.send(:push_branch_to_remote, git, "https://x/y")
+        end
+
+        it "pushes conditional on the branch still being absent when it did not exist" do
+          handler.instance_variable_set(:@pre_push_remote_sha, nil)
+
+          expect(git).to receive(:run).with(
+            "push", "--force-with-lease=refs/heads/syrus/issue-42:", "https://x/y",
+            "HEAD:refs/heads/syrus/issue-42", chdir: "/tmp/ws"
+          )
+
+          handler.send(:push_branch_to_remote, git, "https://x/y")
+        end
+
+        it "does not roll back a concurrent fast-forward: the leased push is rejected instead of accepted" do
+          handler.instance_variable_set(:@pre_push_remote_sha, "a" * 40)
+          allow(handler).to receive(:ancestor?).with(git, "a" * 40, "HEAD").and_return(true)
+          allow(git).to receive(:run).and_raise(GitRunner::GitError.new([ "push" ], 1, "! [rejected] (stale info)"))
+          allow(handler).to receive(:fetch_remote_branch!).and_return("b" * 40)
+          allow(handler).to receive(:record_branch_divergence!)
+          allow(handler).to receive(:branch_divergence_message).and_return("diverged")
+          expect(handler).not_to receive(:rollback_stale_publication!)
+
+          expect { handler.send(:push_branch_to_remote, git, "https://x/y") }
+            .to raise_error(described_class::BranchDiverged)
+        end
+
+        it "keeps the ordinary push when the observed tip is not a fast-forward ancestor" do
+          handler.instance_variable_set(:@pre_push_remote_sha, "a" * 40)
+          allow(handler).to receive(:ancestor?).with(git, "a" * 40, "HEAD").and_return(false)
+
+          expect(git).to receive(:run).with("push", "https://x/y", "HEAD:refs/heads/syrus/issue-42", chdir: "/tmp/ws")
+
+          handler.send(:push_branch_to_remote, git, "https://x/y")
+        end
+      end
+
       it "passes confirmation when the published head descends from the live parent" do
         allow(handler).to receive(:live_stack_parent_sha).and_return("d" * 40)
         allow(handler).to receive(:ancestor?).with(git, "d" * 40, "HEAD").and_return(true)
