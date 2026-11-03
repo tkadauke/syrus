@@ -14,6 +14,27 @@ vi.mock("../api/permissionRequests", async () => {
 describe("PermissionInboxDrawer", () => {
   afterEach(() => vi.useRealTimers())
 
+  it("renders the open drawer in a body portal above the app chrome", async () => {
+    vi.mocked(api.fetchPermissionRequests).mockResolvedValue({
+      requests: [],
+      summary: { pending_count: 0, blocked_agent_count: 0 },
+      pagination: { page: 1, per_page: 50, total: 0, total_pages: 1 }
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const { container } = render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <PermissionInboxDrawer />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole("button", { name: /./ }))
+    const drawer = await screen.findByRole("complementary")
+    expect(drawer.parentElement).toBe(document.body)
+    expect(container.contains(drawer)).toBe(false)
+    expect(drawer.className).toContain("z-50")
+  })
+
   it("shows normalized arguments on compact request cards", async () => {
     vi.mocked(api.fetchPermissionRequests).mockResolvedValue({
       requests: [
