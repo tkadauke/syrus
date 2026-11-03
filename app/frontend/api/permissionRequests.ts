@@ -1,5 +1,23 @@
 import { deleteJson, getJson, postJson } from "./client"
 
+export type SmartPermissionKind = "always_allow_similar" | "allow_job" | "allow_chat"
+export type SmartPermissionOption = {
+  kind: SmartPermissionKind
+  duration: "permanent" | "job" | "chat_session"
+  digest: string
+  summary: { allows: string[]; excludes: string[] }
+  draft: Record<string, unknown>
+  ceiling: Record<string, unknown>
+  context: {
+    coworker: string | null
+    operation: string | null
+    repository: string | null
+    resource_scope_label: string | null
+    duration: string
+  }
+}
+export type PermissionAuthorityReference = { kind: string; id: number }
+
 export type PermissionRequestReference = { type: string; id: number; label: string }
 export type PermissionRequestItem = {
   id: number
@@ -19,6 +37,9 @@ export type PermissionRequestItem = {
   selected_duration: string | null
   decision_reason: string | null
   decided_at: string | null
+  prerequisite_ids?: number[]
+  smart_option?: SmartPermissionOption | null
+  resulting_authority?: PermissionAuthorityReference | null
 }
 export type PermissionRequest = {
   id: number
@@ -51,3 +72,8 @@ export const dismissPermissionRequest = (id: number) => {
 }
 export const batchDecidePermissionRequests = (requestIds: number[], decision: "approved" | "denied", duration?: string) =>
   postJson<{ requests: PermissionRequest[] }>("/api/v1/app/permission_requests/batch_decide", { request_ids: requestIds, decision, duration })
+export const smartDecidePermissionRequest = (id: number, itemId: number, option: Pick<SmartPermissionOption, "duration" | "digest">) =>
+  postJson<{ request: PermissionRequest }>(`/api/v1/app/permission_requests/${id}/items/${itemId}/smart_decision`, {
+    duration: option.duration,
+    digest: option.digest
+  })

@@ -34,11 +34,16 @@ module Permissions
         policy_chain: item.policy_chain, decisive_rule: item.decisive_rule,
         requested_durations: item.requested_durations,
         selected_duration: item.selected_duration,
-        decision_reason: item.decision_reason, decided_at: item.decided_at
+        decision_reason: item.decision_reason, decided_at: item.decided_at,
+        prerequisite_ids: item.prerequisites.map(&:id),
+        smart_option: SmartDecision.new(request:, item:, user: @current_user).option,
+        resulting_authority: SmartDecision.authority_reference(item)
       }
     end
 
-    def reference(record)
+    def reference(record) = self.class.reference(record)
+
+    def self.reference(record)
       return nil unless record
 
       label = if record.respond_to?(:slug) && record.slug.present?

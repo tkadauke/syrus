@@ -1739,5 +1739,36 @@
   "aria_design_system": "Systema Formarum",
   "aria_notification_settings": "Optiones nuntiorum",
   "page_title_schedules": "Agenda",
-  "page_title_repo_schedules": "Agenda — {{slug}}"
+  "page_title_repo_schedules": "Agenda — {{slug}}",
+  "permission_smart": {
+    "group": "Decisio licentiae",
+    "allow_once": "Semel permitte",
+    "deny": "Nega",
+    "always_allow_similar": "Similia semper permitte",
+    "allow_job": "Huic job permitte",
+    "allow_chat": "Huic colloquio permitte",
+    "preview_title": "Hanc licentiam inspice",
+    "coworker": "Coworker",
+    "operation": "Operatio",
+    "repository": "Repositorium",
+    "scope": "Ambitus",
+    "duration": "Duratio",
+    "any_scope": "Quaelibet res huius operationis",
+    "no_repository": "Nullum",
+    "allows": "Permittit",
+    "excludes": "Non permittit",
+    "durations": {
+      "permanent": "Perpetua, donec revocaveris",
+      "job": "Hoc job tantum",
+      "chat_session": "Hoc colloquium tantum"
+    },
+    "confirm": "Confirma",
+    "back": "Retro",
+    "customize": "Accommoda",
+    "applying": "Applicatur…",
+    "stale": "Haec petitio post praevisionem mutata est. Optiones novissimae oneratae sunt; eas inspice et iterum conare.",
+    "error": "Licentia applicari non potuit. Nihil mutatum est.",
+    "status_preview": "Regula «{{action}}» inspicitur.",
+    "linked_rule": "Concessum regula #{{id}}"
+  }
 }

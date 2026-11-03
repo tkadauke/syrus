@@ -241,6 +241,7 @@ Rails.application.routes.draw do
         get "permission_requests", to: "permission_requests#index"
         post "permission_requests/batch_decide", to: "permission_requests#batch_decide"
         post "permission_requests/:id/decide", to: "permission_requests#decide", constraints: { id: /\d+/ }
+        post "permission_requests/:id/items/:item_id/smart_decision", to: "permission_requests#smart_decide", constraints: { id: /\d+/, item_id: /\d+/ }
         delete "permission_requests/:id", to: "permission_requests#dismiss", constraints: { id: /\d+/ }
         patch "dashboard/preferences", to: "dashboard#preferences"
         post "dashboard/landing_pause", to: "dashboard#landing_pause"
@@ -330,6 +331,7 @@ Rails.application.routes.draw do
         post "chats/:id/proposals/:proposal_id/reject", to: "chats#reject_proposal", constraints: { id: /\d+/, proposal_id: /\d+/ }
         post "chats/:id/pending_actions/:pending_action_id/confirm", to: "chats#confirm_pending_action", constraints: { id: /\d+/, pending_action_id: /\d+/ }
         post "chats/:id/pending_actions/:pending_action_id/authorization_items/:item_id/decision", to: "chats#decide_authorization_item", constraints: { id: /\d+/, pending_action_id: /\d+/, item_id: /\d+/ }
+        post "chats/:id/pending_actions/:pending_action_id/authorization_items/:item_id/smart_decision", to: "chats#smart_decide_authorization_item", constraints: { id: /\d+/, pending_action_id: /\d+/, item_id: /\d+/ }
         patch "chats/:id/pending_actions/:pending_action_id", to: "chats#update_pending_action", constraints: { id: /\d+/, pending_action_id: /\d+/ }
         post "chats/:id/pending_actions/:pending_action_id/reject", to: "chats#destroy_pending_action", constraints: { id: /\d+/, pending_action_id: /\d+/ }
         delete "chats/:id/pending_actions/:pending_action_id", to: "chats#destroy_pending_action", constraints: { id: /\d+/, pending_action_id: /\d+/ }

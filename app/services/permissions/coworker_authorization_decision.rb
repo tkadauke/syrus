@@ -8,7 +8,7 @@ module Permissions
       @user = user
     end
 
-    def call(decision:)
+    def call(decision:, smart: nil)
       raise ArgumentError, "not a coworker authorization request" unless request.authorization_request? && request.action == "coworker_tool_call"
       raise ActiveRecord::RecordNotFound, "authorization request belongs to another user" unless request.user == user
       raise ArgumentError, "authorization item belongs to another request" unless item.chat_pending_action_id == request.id
@@ -16,8 +16,14 @@ module Permissions
       decision = decision.to_s
       raise ArgumentError, "decision must be approved or denied" unless decision.in?(%w[approved denied])
 
+      raise ArgumentError, "a rule can only accompany an approval" if smart && decision != "approved"
+
       ready = request.with_lock do
-        return Result.new(request:, execution_enqueued: false) unless request.pending? && item.reload.actionable?
+        unless request.pending? && item.reload.actionable?
+          raise SmartDecision::AlreadyDecided, I18n.t("api.permission_requests.smart_decision.stale") if smart
+
+          return Result.new(request:, execution_enqueued: false)
+        end
 
         if decision == "denied"
           item.decide!(decision, principal: user)
@@ -28,7 +34,10 @@ module Permissions
           return Result.new(request:, execution_enqueued: false)
         end
 
-        item.decide!(decision, principal: user, duration: "invocation")
+        # The rule (or lease) and the approval share this transaction: a stale
+        # preview, ceiling or failed invocation rolls back both.
+        rule = SmartDecision.new(request:, item:, user:).apply_rule!(duration: smart.fetch(:duration), digest: smart[:digest]) if smart
+        item.decide!(decision, principal: user, duration: smart ? smart.fetch(:duration) : "invocation", resulting_authority: rule)
         issue_invocation!(item) if item.kind == "operation"
         request.reload.ready_for_authorized_invocation?
       end

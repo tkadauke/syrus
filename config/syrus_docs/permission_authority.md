@@ -51,6 +51,20 @@ requests can be selected and decided atomically when their items share a duratio
 remain available as history; dismissing an obsolete request does not create a
 deny rule.
 
+Coworker authorization cards (in chat and in the inbox) default to three
+decisions: Allow once, an adaptive action, and Deny. The adaptive action is
+derived from the capability descriptor and the canonical rule draft, never from
+a tool name: "Always allow similar" is offered only as a permanent rule for the
+exact requesting coworker and normalized scope when the descriptor and every
+higher-layer ceiling permit it; otherwise "Allow for this job" or "Allow for this
+chat" is offered as the strongest safe duration. Invocation-only capabilities,
+explicit denies and ceilings leave just Allow once and Deny. Choosing the
+adaptive action opens an inline preview naming the coworker, operation,
+repository, scope, duration and exclusions, with Confirm, Back and Customize.
+Confirm creates the rule or lease and authorizes the waiting invocation in one
+transaction, so a stale preview or ceiling creates neither; the approved item
+links to its auditable, revocable rule, and a duplicate decision is refused.
+
 Background authorization requests are also routed through the operator's
 notification settings. Normal and low-urgency requests share a configurable
 batch window; urgent requests skip that window. All external delivery respects

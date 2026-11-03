@@ -1739,5 +1739,36 @@
   "aria_design_system": "Design System",
   "aria_notification_settings": "Notification settings",
   "page_title_schedules": "Schedules",
-  "page_title_repo_schedules": "Schedules — {{slug}}"
+  "page_title_repo_schedules": "Schedules — {{slug}}",
+  "permission_smart": {
+    "group": "Permission decision",
+    "allow_once": "Allow once",
+    "deny": "Deny",
+    "always_allow_similar": "Always allow similar",
+    "allow_job": "Allow for this job",
+    "allow_chat": "Allow for this chat",
+    "preview_title": "Review this permission",
+    "coworker": "Coworker",
+    "operation": "Operation",
+    "repository": "Repository",
+    "scope": "Scope",
+    "duration": "Duration",
+    "any_scope": "Any resource of this operation",
+    "no_repository": "None",
+    "allows": "Allows",
+    "excludes": "Does not allow",
+    "durations": {
+      "permanent": "Permanent until you revoke it",
+      "job": "This job only",
+      "chat_session": "This chat only"
+    },
+    "confirm": "Confirm",
+    "back": "Back",
+    "customize": "Customize",
+    "applying": "Applying…",
+    "stale": "This request changed since the preview was shown. The latest options are loaded; review them and try again.",
+    "error": "The permission could not be applied. Nothing was changed.",
+    "status_preview": "Reviewing the {{action}} rule.",
+    "linked_rule": "Granted by rule #{{id}}"
+  }
 }

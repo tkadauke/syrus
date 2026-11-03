@@ -30,6 +30,20 @@ module Api
           render_error("invalid_permission_decision", error.message, status: :unprocessable_content)
         end
 
+        # Applies the adaptive rule/lease and authorizes the waiting invocation in
+        # one transaction; a stale preview or ceiling creates neither.
+        def smart_decide
+          request = scope.find(params[:id])
+          item = request.authorization_items.find(params[:item_id])
+          Permissions::CoworkerAuthorizationDecision.new(request:, item:, user: Current.user)
+            .call(decision: "approved", smart: { duration: params.require(:duration).to_s, digest: params[:digest].to_s })
+          render json: { request: present(request.reload) }
+        rescue Permissions::SmartDecision::AlreadyDecided, Permissions::RuleDraft::Stale => error
+          render_error("stale_permission_decision", error.message, status: :conflict)
+        rescue ArgumentError, ActiveRecord::RecordInvalid => error
+          render_error("invalid_permission_decision", error.message, status: :unprocessable_content)
+        end
+
         def dismiss
           request = scope.find(params[:id])
           if request.dismiss!

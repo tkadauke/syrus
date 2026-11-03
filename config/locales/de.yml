@@ -270,6 +270,9 @@ de:
         scope_not_covering_request: "Dieser Bereich deckt die Anfrage nicht ab."
     permission_requests:
       not_dismissible: "Diese Berechtigungsanfrage kann nicht mehr ausgeblendet werden."
+      smart_decision:
+        stale: "Diese Berechtigungsanfrage wurde bereits entschieden oder geändert. Prüfe die aktuelle Anfrage."
+        unavailable: "Diese Berechtigungsoption ist für diese Anfrage nicht verfügbar."
 
     job_source_diff:
       preview_fixture: "Vorschau-Testdaten"
