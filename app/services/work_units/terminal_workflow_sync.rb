@@ -74,10 +74,14 @@ module WorkUnits
     attr_reader :workflow
 
     def sync_work_unit_from_terminal_workflow
-      return unless WorkUnit::TERMINAL_STATES.include?(workflow.state)
       return unless workflow.work_unit&.active?
 
-      workflow.work_unit.mark_terminal!(workflow.state)
+      if WorkUnit::TERMINAL_STATES.include?(workflow.state)
+        workflow.work_unit.mark_terminal!(workflow.state)
+      elsif workflow.blocked? && Workflow::TriggerKind.non_approval_blocking?(workflow.trigger_kind)
+        # Repairs a blocked auxiliary Workflow whose WorkUnit stayed active.
+        workflow.work_unit.mark_terminal!("failed")
+      end
     end
 
     def sync_workflow_from_terminal_work_unit

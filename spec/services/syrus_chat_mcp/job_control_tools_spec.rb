@@ -273,6 +273,28 @@ RSpec.describe "Mcp::Tools job control tools" do
     expect(job.reload).to be_approved
   end
 
+  it "approves an implemented job whose visual_diff workflow is blocked with a blocked WorkUnit" do
+    job = Factories.job_record(repository: repository, state: "implemented")
+    visual_diff = Workflow.create!(job: job, trigger_kind: "visual_diff", state: "blocked")
+    attach_work_unit(visual_diff, kind: "visual_diff", state: "blocked", blocked_reason: "agent_cannot_proceed")
+
+    response = call_tool("approve_job", job_id: job.id)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(job.reload).to be_approved
+  end
+
+  it "approves an implemented job whose visual_diff workflow is blocked with a blocked WorkUnit" do
+    job = Factories.job_record(repository: repository, state: "implemented")
+    visual_diff = Workflow.create!(job: job, trigger_kind: "visual_diff", state: "blocked")
+    attach_work_unit(visual_diff, kind: "visual_diff", state: "blocked", blocked_reason: "agent_cannot_proceed")
+
+    response = call_tool("approve_job", job_id: job.id)
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(job.reload).to be_approved
+  end
+
   it "rejects approving a job that is not implemented" do
     job = Factories.job_record(repository: repository, state: "queued")
 

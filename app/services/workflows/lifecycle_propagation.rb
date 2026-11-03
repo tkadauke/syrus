@@ -51,10 +51,17 @@ module Workflows
 
     def blocked!
       workflow.finished_at = Time.current
-      workflow.work_unit&.block!(
-        reason: "agent_cannot_proceed",
-        details: workflow.artifact("cannot_proceed").to_h
-      )
+      if Workflow::TriggerKind.non_approval_blocking?(workflow.trigger_kind)
+        # Auxiliary work must give back its locks when it cannot proceed. A
+        # WorkUnit has no blocked *outcome*, and a blocked unit would keep
+        # holding the Job-wide lock behind an already-terminal Workflow.
+        workflow.sync_work_unit_terminal!("failed")
+      else
+        workflow.work_unit&.block!(
+          reason: "agent_cannot_proceed",
+          details: workflow.artifact("cannot_proceed").to_h
+        )
+      end
       workflow.job.set_needs_attention!(reason: "agent_cannot_proceed")
       workflow.cleanup_workspace!
     end
