@@ -34,14 +34,19 @@ RSpec.describe Workflows::CancellationAttribution do
       )
     end
 
-    def cancel_descendant!
-      WorkUnits::WorkflowCancellation.cancel!(
-        descendant[0].tap(&:reload),
-        reason: "dependency_invalidated",
-        cause: { kind: "dependency_invalidation", initiator_class: "Workflow", initiator_id: root[0].id,
-                 control_path: "dependency#invalidate", parent_workflow_id: root[0].id,
-                 source: { "dependency_job_id" => root_job.id } }
-      )
+    # Drives the descendant cancellation from inside the root's terminal
+    # propagation (as a dependent-job hook does), with NO parent passed in:
+    # the parent must come from the ambient propagation context.
+    def cancel_root_and_descendant!
+      child = descendant[0]
+      root_id = root[0].id
+      allow_any_instance_of(Workflows::LifecyclePropagation).to receive(:dispatch_hook).and_wrap_original do |m, name|
+        m.call(name)
+        if name == :after_cancel && m.receiver.send(:workflow).id == root_id
+          WorkUnits::WorkflowCancellation.cancel!(child.reload, reason: "job_closed")
+        end
+      end
+      cancel_root!
     end
 
     it "records a redacted root event before cleanup and propagates it to steps and runs" do
@@ -65,15 +70,16 @@ RSpec.describe Workflows::CancellationAttribution do
     end
 
     it "links descendants to the same root event and exposes the chain and replacement" do
-      cancel_root!
-      cancel_descendant!
+      cancel_root_and_descendant!
       root_event = root[0].reload.artifacts["cancellation"]
       child_event = descendant[0].reload.artifacts["cancellation"]
 
       expect(child_event).to include(
-        "event_id" => root_event["event_id"], "cascade_id" => root_event["cascade_id"],
-        "root_workflow_id" => root[0].id, "parent_workflow_id" => root[0].id, "kind" => "dependency_invalidation"
+        "root_event_id" => root_event["event_id"], "parent_event_id" => root_event["event_id"],
+        "cascade_id" => root_event["cascade_id"], "root_workflow_id" => root[0].id,
+        "parent_workflow_id" => root[0].id, "kind" => "dependency_invalidation", "attributed" => true
       )
+      expect(child_event["event_id"]).not_to eq(root_event["event_id"])
       expect(descendant[1].reload.details["cancellation_attribution"]).to include("root_workflow_id" => root[0].id)
 
       payload = described_class.payload_for(root[0])
@@ -95,9 +101,35 @@ RSpec.describe Workflows::CancellationAttribution do
       expect(root[1].reload.details["cancellation_attribution"]).to eq(step_before)
     end
 
-    it "serializes through the read_workflow tool" do
+    it "links a replacement created after the cancellation" do
+      later = Factories.job_record(user: user, repository: repository)
+      WorkUnits::WorkflowCancellation.cancel!(
+        root[0].reload, reason: "superseded_by_newer_workflow",
+        cause: { kind: "supersession", initiator_class: "system", control_path: "spec" }
+      )
+      newer = Workflow.create!(job: root_job, trigger_kind: "initial", state: "queued")
+
+      expect(root[0].reload.artifacts.dig("cancellation", "source", "replacement_workflow_id")).to eq(newer.id)
+      expect(described_class.payload_for(root[0])["replacement_workflow_ids"]).to eq([ newer.id ])
+      expect(later).to be_present
+    end
+
+    it "reports a Run's immediate parent as its Step" do
       cancel_root!
-      cancel_descendant!
+      expect(described_class.run_payload(root[2].reload)["parent"]).to eq("type" => "step", "id" => root[1].id)
+    end
+
+    it "drops nested or secret-bearing array source values" do
+      WorkUnits::WorkflowCancellation.cancel!(
+        root[0].reload, reason: "operator_cancelled",
+        cause: { kind: "operator_cancellation", initiator_class: "User",
+                 source: { "job_ids" => [ 1, "token=ghp_abcdefghijklmnop123", { "a" => 1 } ] } }
+      )
+      expect(root[0].reload.artifacts.dig("cancellation", "source", "job_ids")).to eq([ 1, "token=[REDACTED]" ])
+    end
+
+    it "serializes through the read_workflow tool" do
+      cancel_root_and_descendant!
       workflow = root[0].reload
       tool = Mcp::Tools::ReadWorkflowTool
       payload = tool.send(:workflow_detail_payload, workflow)
