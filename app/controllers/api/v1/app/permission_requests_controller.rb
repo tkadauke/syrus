@@ -91,9 +91,18 @@ module Api
           raise ArgumentError, "coworker permission requests cannot be decided together with other requests" if permission_requests.length != ids.length
           raise ArgumentError, I18n.t("api.permission_requests.smart_decision.duration_required") unless decision == "denied"
 
-          permission_requests.each do |request|
-            Permissions::CoworkerAuthorizationDecision.new(request:, item: request.authorization_items.sole, user: Current.user)
-              .call(decision: "denied")
+          ChatPendingAction.transaction do
+            locked = scope.where(id: ids).order(:id).lock.to_a
+            raise ActiveRecord::RecordNotFound if locked.length != ids.length
+            items = locked.map { |request| request.authorization_items.lock.to_a }
+            unless locked.all? { |request| request.pending? && request.actionable? } && items.all? { |list| list.one? && list.first.actionable? }
+              raise ArgumentError, "request is no longer actionable"
+            end
+
+            locked.zip(items).each do |request, list|
+              Permissions::CoworkerAuthorizationDecision.new(request:, item: list.first, user: Current.user).call(decision: "denied")
+            end
+            permission_requests = locked
           end
           permission_requests
         end
