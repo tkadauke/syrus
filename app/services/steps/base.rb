@@ -180,6 +180,28 @@ module Steps
       raise StepFailed.new(message, problem_code: code, evidence: evidence)
     end
 
+    # Owns recovery for a GitHub push-protection rejection raised by the shared
+    # authenticated push boundary (GithubAuthenticatedGit). Records sanitized
+    # evidence, preserves the rejected workspace outside GitHub, prepares the
+    # single-commit repair candidate (mutable Job refs) or quarantines the ref
+    # (shared refs), and always stops downstream publication.
+    def handle_push_protection_rejection!(error)
+      outcome = PushProtection::Recovery
+        .for(workflow: workflow, workspace_path: workspace.path, branch: workspace.branch_name)
+        .handle_rejection!(error)
+      log("push protection: #{outcome.kind}: #{outcome.message}", kind: "system")
+      fail_with!(:github_push_protection, "GitHub push protection rejected #{workspace.branch_name}: #{outcome.message}",
+                 evidence: { "outcome" => outcome.kind.to_s, "findings" => error.findings.map(&:to_h) })
+    end
+
+    # GitHub accepted this commit; it becomes the clean anchor for any later
+    # push-protection repair on the same Job.
+    def record_accepted_push!
+      PushProtection::Ledger.for(workflow).record_accepted!(head_sha)
+    rescue StandardError => e
+      log("push protection: could not record accepted anchor: #{e.class}", kind: "system")
+    end
+
     def mark_failure_code!(code)
       details = step.details.to_h.merge("failure_code" => code)
       problem = Problem::Kind.resolve(code)
