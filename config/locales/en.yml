@@ -249,6 +249,59 @@ en:
       scope_required: "A bounded resource scope is required."
     permission_rules:
       stale_preview: "Preview these permission changes again before confirming."
+    permission_rule_drafts:
+      stale_preview: "Preview this permission rule again before applying it."
+      errors:
+        operation_required: "Choose the exact operation this rule covers."
+        unknown_capability: "That capability or operation is not in the permission catalog."
+        unknown_policy: "Unknown rule policy."
+        unsupported_duration: "Choose chat session, job, or permanent authority."
+        restrictive_rules_are_permanent: "Ask and deny rules are always permanent."
+        duration_not_offered: "This capability does not offer that authority duration."
+        permanent_forbidden: "This capability cannot be allowed permanently."
+        exceeds_maximum_autonomy: "That duration exceeds the maximum autonomy for this capability."
+        unsupported_subject: "That subject type is not supported for rule drafts."
+        subject_id_required: "This subject type needs an exact subject."
+        subject_id_forbidden: "This subject type does not take an exact subject."
+        subject_repository_required: "This subject type needs a repository."
+        unknown_subject: "That coworker could not be found."
+        role_not_eligible: "That role cannot request this capability."
+        unknown_repository: "That repository could not be found."
+        invalid_constraints: "Constraints must be an object."
+        constraints_not_enforceable: "Argument constraints are only supported on chat-session and job authority."
+        constraint_not_supported: "%{field} is not a supported constraint for this capability."
+        constraint_invalid_value: "%{field} has an invalid or sensitive value."
+        invalid_resource_scope: "The resource scope is not valid for this capability."
+        chat_session_required: "A chat session you own is required."
+        job_required: "A job you can access is required."
+        exceeds_policy_ceiling: "A higher-level policy does not allow this authority."
+        rejected_by_policy: "The permission policy rejects this draft."
+      summary:
+        allows:
+          allow: "Allows %{subject} to run %{operation} on %{resource} %{duration}."
+          ask: "Always asks before %{subject} runs %{operation} on %{resource}."
+          deny: "Always denies %{subject} running %{operation} on %{resource}."
+        only_when: "Only when %{constraints}."
+        excludes:
+          other_operations: "Excludes every other operation and capability."
+          other_scopes: "Excludes anything outside %{resource}."
+          other_subjects: "Excludes everyone except %{subject}."
+          ceilings: "Never overrides a higher-level restriction."
+          expires: "Does not outlast its chat session, job or expiry."
+        durations:
+          chat_session: "for this chat session"
+          job: "for this job"
+          permanent: "until revoked"
+        subjects:
+          agent: "coworker %{id}"
+          interactive_chat: "interactive chats"
+          coding_chat: "coding chats"
+          local_chat: "local chats"
+          workflow_role: "workflow role %{id}"
+          repository_role: "repository role %{id}"
+      warnings:
+        scope_broader_than_request: "This scope is broader than what was requested."
+        scope_not_covering_request: "This scope does not cover what was requested."
     permission_requests:
       not_dismissible: "This permission request can no longer be dismissed."
 

@@ -215,6 +215,59 @@ de:
       scope_required: "Ein begrenzter Ressourcenbereich ist erforderlich."
     permission_rules:
       stale_preview: "Prüfe diese Berechtigungsänderungen vor dem Bestätigen erneut."
+    permission_rule_drafts:
+      stale_preview: "Prüfe diese Berechtigungsregel vor dem Anwenden erneut."
+      errors:
+        operation_required: "Wähle die genaue Operation dieser Regel."
+        unknown_capability: "Diese Fähigkeit oder Operation ist nicht im Berechtigungskatalog."
+        unknown_policy: "Unbekannte Regelrichtlinie."
+        unsupported_duration: "Wähle Chat-Sitzung, Job oder dauerhafte Berechtigung."
+        restrictive_rules_are_permanent: "Nachfrage- und Verweigerungsregeln sind immer dauerhaft."
+        duration_not_offered: "Diese Fähigkeit bietet diese Dauer nicht an."
+        permanent_forbidden: "Diese Fähigkeit kann nicht dauerhaft erlaubt werden."
+        exceeds_maximum_autonomy: "Diese Dauer überschreitet die maximale Autonomie dieser Fähigkeit."
+        unsupported_subject: "Dieser Subjekttyp wird für Regelentwürfe nicht unterstützt."
+        subject_id_required: "Dieser Subjekttyp benötigt ein genaues Subjekt."
+        subject_id_forbidden: "Dieser Subjekttyp nimmt kein genaues Subjekt an."
+        subject_repository_required: "Dieser Subjekttyp benötigt ein Repository."
+        unknown_subject: "Dieser Coworker wurde nicht gefunden."
+        role_not_eligible: "Diese Rolle darf diese Fähigkeit nicht anfragen."
+        unknown_repository: "Dieses Repository wurde nicht gefunden."
+        invalid_constraints: "Einschränkungen müssen ein Objekt sein."
+        constraints_not_enforceable: "Argument-Einschränkungen werden nur für Chat-Sitzungs- und Job-Berechtigungen unterstützt."
+        constraint_not_supported: "%{field} ist keine unterstützte Einschränkung für diese Fähigkeit."
+        constraint_invalid_value: "%{field} hat einen ungültigen oder sensiblen Wert."
+        invalid_resource_scope: "Der Ressourcenbereich ist für diese Fähigkeit ungültig."
+        chat_session_required: "Eine eigene Chat-Sitzung ist erforderlich."
+        job_required: "Ein zugänglicher Job ist erforderlich."
+        exceeds_policy_ceiling: "Eine übergeordnete Richtlinie erlaubt diese Berechtigung nicht."
+        rejected_by_policy: "Die Berechtigungsrichtlinie lehnt diesen Entwurf ab."
+      summary:
+        allows:
+          allow: "Erlaubt %{subject}, %{operation} auf %{resource} auszuführen, %{duration}."
+          ask: "Fragt immer nach, bevor %{subject} %{operation} auf %{resource} ausführt."
+          deny: "Verweigert %{subject} immer die Ausführung von %{operation} auf %{resource}."
+        only_when: "Nur wenn %{constraints}."
+        excludes:
+          other_operations: "Schließt jede andere Operation und Fähigkeit aus."
+          other_scopes: "Schließt alles außerhalb von %{resource} aus."
+          other_subjects: "Schließt alle außer %{subject} aus."
+          ceilings: "Überschreibt nie eine übergeordnete Einschränkung."
+          expires: "Überdauert weder Chat-Sitzung, Job noch Ablauf."
+        durations:
+          chat_session: "für diese Chat-Sitzung"
+          job: "für diesen Job"
+          permanent: "bis zum Widerruf"
+        subjects:
+          agent: "Coworker %{id}"
+          interactive_chat: "interaktive Chats"
+          coding_chat: "Coding-Chats"
+          local_chat: "lokale Chats"
+          workflow_role: "Workflow-Rolle %{id}"
+          repository_role: "Repository-Rolle %{id}"
+      warnings:
+        scope_broader_than_request: "Dieser Bereich ist weiter gefasst als angefragt."
+        scope_not_covering_request: "Dieser Bereich deckt die Anfrage nicht ab."
     permission_requests:
       not_dismissible: "Diese Berechtigungsanfrage kann nicht mehr ausgeblendet werden."
 

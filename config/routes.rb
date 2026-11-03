@@ -412,6 +412,12 @@ Rails.application.routes.draw do
         resources :approval_delegations, only: %i[ index create ] do
           member { post :revoke }
         end
+        scope :permission_rule_drafts, controller: :permission_rule_drafts, as: :permission_rule_drafts do
+          get :options
+          post :from_request
+          post :preview
+          post :apply
+        end
         resources :permission_rules, only: %i[ index create ] do
           collection do
             get :history
