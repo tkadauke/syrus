@@ -72,18 +72,22 @@ module Permissions
         )
       end
 
-      # The workspace a Local Mode daemon is attached to. The server only knows
-      # the repository identity the daemon reported, not the checkout path, so
-      # that identity is the workspace root for authority purposes. Authority
-      # granted for one workspace never covers another.
+      # The workspace a Local Mode daemon is attached to: the repository it
+      # reported plus the normalized absolute root of the checkout it runs in.
+      # Two checkouts of one repository are different workspaces, so authority
+      # never carries from one to the other. A daemon that reports no root
+      # (an older CLI) is scoped to its current connection, so authority cannot
+      # outlive a reconnect.
       def workspace_scope
         ResourceScopeSchema.new(
           type: :local_workspace,
           normalize: lambda { |scope, context:|
-            workspace = scope.to_h.transform_keys(&:to_s)["workspace"].to_s.strip
-            workspace.empty? ? {} : { "workspace" => workspace }
+            scope.to_h.transform_keys(&:to_s).slice("repository", "workspace_root")
+              .transform_values { |value| value.to_s.strip }.reject { |_key, value| value.empty? }
           },
-          label: ->(scope, context:) { scope["workspace"] ? "Workspace #{scope['workspace']}" : "Any Local Mode workspace" },
+          label: lambda { |scope, context:|
+            scope.empty? ? "Any Local Mode workspace" : "Workspace #{scope['workspace_root']} (#{scope['repository']})"
+          },
           # An empty scope on a rule or lease means every workspace; an
           # invocation always carries the workspace it runs in.
           compare: lambda { |invocation, rule, context:|
@@ -96,8 +100,9 @@ module Permissions
       end
 
       def resource_scope_for(chat_session)
-        workspace = chat_session.local_daemon_session&.daemon_repo.presence || "chat-session-#{chat_session.id}"
-        { "workspace" => workspace }
+        daemon = chat_session.local_daemon_session
+        root = daemon&.daemon_workspace_root.presence || "connection:#{daemon&.connection_id.presence || "chat-session-#{chat_session.id}"}"
+        { "repository" => daemon&.daemon_repo.to_s, "workspace_root" => root }
       end
 
       def classify(tool_name, arguments)
