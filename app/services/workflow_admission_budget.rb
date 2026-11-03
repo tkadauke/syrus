@@ -49,8 +49,8 @@ class WorkflowAdmissionBudget
   # cluster sink rather than exposing only the recorder process's share.
   def self.declare_metrics!
     Syrus::Metrics.declare do
-      counter :admission_decisions_total, tags: %i[decision], cluster: true,
-              comment: "Workflow- and host-level admission decisions, tagged by the action taken " \
+      counter :admission_decisions_total, tags: %i[decision reason], cluster: true,
+              comment: "Workflow- and host-level admission decisions, tagged by the action taken and the reason " \
                        "(GLOBAL -- aggregate replicas with max, not sum)"
     end
   end
@@ -872,7 +872,7 @@ class WorkflowAdmissionBudget
   def decision(action, reason, pressure, delay_until: nil, override: false, details: {})
     raise ArgumentError, "unknown admission action=#{action.inspect}" unless ACTIONS.include?(action)
 
-    Syrus::Metrics.counter(:syrus_admission_decisions_total).increment(tags: { decision: action })
+    Syrus::Metrics.counter(:syrus_admission_decisions_total).increment(tags: { decision: action, reason: reason })
 
     Decision.new(
       action: action,

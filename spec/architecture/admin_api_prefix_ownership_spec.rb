@@ -118,6 +118,7 @@ RSpec.describe "admin API prefix ownership" do
     GET /api/v1/admin/plugins/:name/config api/v1/admin/plugins#show_config
     PATCH /api/v1/admin/plugins/:name/config api/v1/admin/plugins#update_config
     GET /api/v1/admin/console api/v1/admin/console#show
+    GET /api/v1/admin/settings api/v1/admin/settings#show
     POST /api/v1/admin/console/pause_polling api/v1/admin/console#pause_polling
     POST /api/v1/admin/console/unpause_polling api/v1/admin/console#unpause_polling
     POST /api/v1/admin/console/pause_runs api/v1/admin/console#pause_runs

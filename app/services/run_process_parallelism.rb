@@ -17,6 +17,21 @@ class RunProcessParallelism
     cgroup_v2_cpu_count || cgroup_v1_cpu_count || undetectable_cpu_count
   end
 
+  # Where the effective CPU count came from. The undetectable fallback
+  # silently shrinks a worker to a handful of cores, so the source is
+  # reported alongside the count (see RunHostAdmissionCapacity) instead of
+  # leaving it to be inferred from arithmetic. Mirrors effective_cpu_count's
+  # precedence but never logs, so it is safe to call from a heartbeat.
+  CpuDetection = Data.define(:count, :source)
+
+  def self.cpu_detection
+    if (count = cgroup_v2_cpu_count) then return CpuDetection.new(count: count, source: "cgroup_v2_quota") end
+    if (count = cgroup_v1_cpu_count) then return CpuDetection.new(count: count, source: "cgroup_v1_quota") end
+    if (count = positive_int(ENV[CPU_LIMIT_ENV])) then return CpuDetection.new(count: count, source: "env_override") end
+
+    CpuDetection.new(count: [ Etc.nprocessors, UNDETECTABLE_CPU_COUNT ].min, source: "undetectable_fallback")
+  end
+
   # `Etc.nprocessors` reports the machine's CPUs, not this process's share of
   # them, so trusting it inside a container without a CPU limit is how a
   # worker comes to believe it owns the node.
