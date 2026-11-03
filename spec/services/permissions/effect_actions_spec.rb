@@ -59,4 +59,27 @@ RSpec.describe Permissions::EffectActions do
 
     expect(mine).to be_empty
   end
+
+  describe "authorization dispatch" do
+    it "installs the authorization hook on every migrated core tool" do
+      described_class.tool_names.each do |name|
+        tool = chat_entries.fetch(name).tool
+
+        expect(tool.singleton_class).to be < Mcp::Tools::AuthorizationSupport::ToolDispatch
+      end
+    end
+
+    it "returns a pending authorization instead of creating a wakeup when approval is required" do
+      chat_session = ChatSession.create!(user: Factories.user)
+      pending = MCP::Tool::Response.new([ { type: "text", text: { pending_action_id: 1 }.to_json } ])
+      allow(Mcp::Tools::AuthorizationSupport).to receive(:pending_scheduled_authorization).and_return(nil)
+      allow(Mcp::Tools::AuthorizationSupport).to receive(:pending_coworker_approval).and_return(pending)
+
+      response = nil
+      expect {
+        response = Mcp::Tools::ScheduleWakeupTool.call(prompt: "check back", delay_minutes: 5, server_context: { chat_session: chat_session })
+      }.not_to change(ChatWakeup, :count)
+      expect(response).to equal(pending)
+    end
+  end
 end

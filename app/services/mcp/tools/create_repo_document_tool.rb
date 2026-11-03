@@ -4,6 +4,8 @@ module Mcp::Tools
   class CreateRepoDocumentTool < MCP::Tool
     extend ProposalToolSupport
     extend PendingActionToolSupport
+    extend AuthorizationSupport
+    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
 
     tool_name "create_repo_document"
 
