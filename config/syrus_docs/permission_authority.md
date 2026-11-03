@@ -166,3 +166,13 @@ Core Job and Epic lifecycle tools use stable, explicit capabilities instead of c
 - `syrus.landing_queue@v1`: `pause`, `resume`, `wake`, `force_recheck`, `override_blocker_once`.
 
 A single-Job call and a bulk call (`job_id` versus `job_ids`) share one operation and are classified and fingerprinted identically, so approving one Job or many evaluates the same way. Proposals (`propose_job`, `propose_epic`, `propose_epic_with_jobs`) remain a separate lifecycle and are not part of these capabilities. All of these default to `ask`.
+
+## Admin repair, operations, and delivery capabilities
+
+Consequential admin repair, operational, and delivery chat tools also use explicit capabilities:
+
+- `syrus.admin_repair@v1`: state repair such as `force_fail_job`, `reconcile_job_state`, `force_state_transition`, `cancel_stale_work`, `retire_terminal_work_unit`, `reenqueue_work`, `repair_queue_affinity`, `retry_step`, `cleanup_workspace`, `reap_stale_runs`, `kill_process`, `manual_agentic_run`, `force_rebase`, `restack_epic`, PR-branch adoption/replacement, CI repair, and provider-circuit repair.
+- `syrus.operations@v1`: `maintenance_tasks`, polling/run/user-scheduling pause and unpause, `clear_github_cache`, `refresh_installations`.
+- `syrus.delivery@v1`: `select_track`, `dispatch_ref_movement`, `emergency_land`.
+
+The evaluator decides whether the invocation may proceed. It does not replace the tool-specific checks: preconditions, before/after repair snapshots, and fresh validation of the live record at execution time stay in the tools and their pending-action executors. Every operation is capped at exact-invocation authority (no chat-session, Job, or permanent lease) and defaults to `ask`. `emergency_land` is classified critical, destructive, and irreversible.
