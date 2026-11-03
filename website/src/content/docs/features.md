@@ -1117,7 +1117,9 @@ that Job. The same page exposes job-specific routing rules and a resolved
 provider explanation, including the matched scope or rule, so operators can see
 why future work will use a provider before starting another workflow. Rules can
 be enabled inline, duplicated, edited, deleted, and reordered without disabled
-rules losing their ordered position. Disabled rules remain visible but muted,
+rules losing their ordered position. The rules editor's Test button runs the
+rule set against any Job you can see for a chosen step or chat role and shows
+which rule wins and why each other rule was skipped. Disabled rules remain visible but muted,
 are skipped during evaluation, and the first enabled matching rule wins. A rule
 can route to ordered provider candidates or hold work with a reason and manual,
 condition-based, or timed resumption policy. Job pages show active hold status
