@@ -1,4 +1,6 @@
 de:
+  unlanding:
+    disabled: "Unlanding ist für diese Instanz nicht aktiviert."
   notifications:
     approval_request:
       one: "Genehmigung erforderlich: %{purpose}"

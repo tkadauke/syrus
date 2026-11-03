@@ -579,6 +579,10 @@
       "emergency_land": {
         "name": "Emergency land",
         "description": "Enables an emergency-land escape hatch for Coding Mode, letting a repository-tier admin or global admin land a Coding Mode chat's committed branch immediately, bypassing Syrus's grader, adversarial-review, and visual-review pipeline. A separate, explicit opt-in layered on top of Coding Mode itself, since it skips Syrus's own quality gates for incident response."
+      },
+      "unlanding": {
+        "name": "Unlanding",
+        "description": "Enables creating new compensating rollback (unland) operations for landed Jobs and Epics from the UI, API, and Syrus Chat. Existing rollback Jobs and unland Workflows keep running when disabled."
       }
     }
   },

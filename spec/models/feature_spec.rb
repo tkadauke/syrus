@@ -166,6 +166,22 @@ RSpec.describe Feature, type: :model do
     end
   end
 
+  describe ".unlanding_enabled?" do
+    it "defaults off when unset" do
+      expect(Feature.unlanding_enabled?).to be false
+    end
+
+    it "returns the flag value" do
+      Feature.create!(slug: "unlanding", category: "Labs", name: "Unlanding", enabled: true)
+      expect(Feature.unlanding_enabled?).to be true
+    end
+
+    it "declares the unlanding flag experimental and default-off in config/features.yml" do
+      declaration = FeatureRegistry.declarations.find { |feature| feature.slug == "unlanding" }
+      expect(declaration).to have_attributes(category: "Labs", experimental: true, default_enabled: false, type: :boolean)
+    end
+  end
+
   describe ".emergency_land_enabled?" do
     it "returns the flag value" do
       Feature.create!(slug: "emergency_land", category: "Labs", name: "Emergency land", enabled: true)

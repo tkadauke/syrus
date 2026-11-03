@@ -1165,6 +1165,7 @@ module App
         # operator has reviewed the submitted report. See Workflows::Investigation.
         can_close_investigation: writable && @job.investigation? && @job.implemented?,
         can_reopen: writable && @job.closed? && !@job.infrastructure?,
+        can_unland: writable && Unlanding::Eligibility.enabled? && unland_json(@job)[:state] == "landed",
         can_mark_valid: writable && (@job.validity_duplicate? || @job.validity_already_implemented?),
         can_start_chat: writable && source_chat_payload.nil? && discussion_chat.nil?,
         can_open_in_local_mode: writable && Feature.local_mode_enabled? && (@job.implemented? || @job.approved?) && @job.linked_chat_id.nil?,
@@ -1328,7 +1329,7 @@ module App
         app_unapprove_path: "/api/v1/app/jobs/#{@job.id}/unapprove",
         app_close_investigation_path: "/api/v1/app/jobs/#{@job.id}/close_investigation",
         app_reopen_path: "/api/v1/app/jobs/#{@job.id}/reopen",
-        app_unland_path: "/api/v1/app/jobs/#{@job.id}/unland",
+        app_unland_path: Unlanding::Eligibility.enabled? ? "/api/v1/app/jobs/#{@job.id}/unland" : nil,
         app_poll_feedback_path: "/api/v1/app/jobs/#{@job.id}/poll_feedback",
         app_rebase_path: "/api/v1/app/jobs/#{@job.id}/rebase",
         app_retry_pr_ingestion_path: "/api/v1/app/jobs/#{@job.id}/retry_pr_ingestion",
@@ -1372,10 +1373,10 @@ module App
           "failed"
         elsif rollback && !rollback.state.in?(Job::TERMINAL_STATES + %w[failed])
           "in_progress"
-        elsif job.closed? && Job::SUCCESSFUL_CLOSURE_REASONS.include?(job.closure_reason) && job.landed_sha.present?
+        elsif Unlanding::Eligibility.enabled? && job.closed? && Job::SUCCESSFUL_CLOSURE_REASONS.include?(job.closure_reason) && job.landed_sha.present?
           "landed"
         end
-        { state:, rollback_job: rollback_reference_json(rollback) }
+        { available: Unlanding::Eligibility.enabled?, state:, rollback_job: rollback_reference_json(rollback) }
       end
     end
 
