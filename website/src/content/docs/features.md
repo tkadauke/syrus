@@ -750,6 +750,15 @@ firing it now, and deleting it always ask, and an approval covers only that
 exact request. Requests appear in your approvals inbox, and the same rules
 apply when a scheduled Job reaches one of these actions.
 
+Chat agents that pull in outside content or read private records go through the
+same permission decisions. Reading pull requests and issue lists, searching
+chats, and detaching a repository are automatic. Ingesting a pull request as a
+Job, reading a run transcript, a Job diff, another chat's messages, or a stored
+artifact, and attaching a repository ask by default, and an approval can cover
+the current chat session. Approval history keeps identifiers and a short digest
+instead of search text, and notes whether the content came from GitHub or from
+Syrus itself.
+
 Supported schedule kinds:
 
 | Kind       | Meaning                                                                      |
