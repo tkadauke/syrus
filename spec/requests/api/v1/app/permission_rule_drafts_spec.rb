@@ -76,4 +76,32 @@ RSpec.describe "API: /api/v1/app/permission_rule_drafts", type: :request do
     expect(response).to have_http_status(:not_found)
     expect(origin).to be_persisted
   end
+
+  it "replaces an existing rule atomically while preserving its audit trail" do
+    old = Permissions::Management.new(user).grant!(
+      draft.stringify_keys.merge("role" => role, "resource_scope" => {}), actor: user
+    )
+    post "/api/v1/app/permission_rule_drafts/preview", params: { draft: draft.merge(rationale: "tighter") }, as: :json
+    digest = JSON.parse(response.body).dig("preview", "digest")
+    expect(JSON.parse(response.body).dig("preview", "examples", "matches")).not_to be_empty
+
+    post "/api/v1/app/permission_rule_drafts/apply", params: { draft: draft.merge(rationale: "tighter"), digest:, replace_rule_id: old.id }, as: :json
+
+    expect(response).to have_http_status(:created)
+    expect(old.reload.revoked_at).to be_present
+    expect(old.audit_events.pluck(:event_type)).to include("created", "revoked")
+    expect(PermissionRule.where(owner_user: user).active.count).to eq(1)
+  end
+
+  it "does not let one user replace another user's rule" do
+    other = Permissions::Management.new(Factories.user).grant!(draft.stringify_keys.merge("role" => role), actor: Factories.user)
+    post "/api/v1/app/permission_rule_drafts/preview", params: { draft: }, as: :json
+    digest = JSON.parse(response.body).dig("preview", "digest")
+
+    post "/api/v1/app/permission_rule_drafts/apply", params: { draft:, digest:, replace_rule_id: other.id }, as: :json
+
+    expect(response).to have_http_status(:not_found)
+    expect(other.reload.revoked_at).to be_nil
+    expect(PermissionRule.where(owner_user: user).count).to eq(0)
+  end
 end

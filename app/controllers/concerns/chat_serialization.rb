@@ -349,6 +349,8 @@ module ChatSerialization
         presenter = PendingActions.for(action.action.presence || action.action_type).new(action)
         review = presenter.tool_card_review
         payload[:review] = review if review.present?
+        rule_preview = permission_rule_preview_for(action)
+        payload[:permission_rule_preview] = rule_preview if rule_preview
         if action.authorization_request?
           payload[:authorization_items] = action.authorization_items.sort_by(&:id).map do |item|
             {
@@ -370,6 +372,16 @@ module ChatSerialization
         payload.merge!(resource) if resource
       end
     end
+  end
+
+  # Readable preview of a confirmed permission-management call, built through
+  # the same RuleDraft the Hub and authorization cards apply.
+  def permission_rule_preview_for(action)
+    draft = Permissions::RuleDraft.from_management_payload(user: Current.user, action: action.action, payload: action.payload || {},
+      chat_session: action.chat_session)
+    draft&.preview&.to_h
+  rescue StandardError
+    nil
   end
 
   def pending_actions_for_payload(chat_session)

@@ -39,6 +39,7 @@ import { dispatchProposalUpdated } from "../../lib/appEvents"
 import { mergeChatPayloadUpdate } from "../../lib/chatCache"
 import { replaceProposalInMessages } from "./messageStreamItems"
 import { CloseIcon } from "../../components/CloseIcon"
+import { PermissionRulePreview } from "../../components/PermissionRulePreview"
 import { LinkedPermissionRule, SmartPermissionActions } from "../../components/SmartPermissionActions"
 import type { SmartPermissionOption } from "../../api/permissionRequests"
 import { Button } from "../../components/Button"
@@ -1090,6 +1091,7 @@ export function PendingActionCard({
         isEmergencyLand ||
         actionKey === "schedule_recurring" ||
         pendingAction.detail ||
+        pendingAction.permission_rule_preview ||
         pendingAction.reason ||
         (pendingAction.execution_step && !isConfirming) ||
         pendingAction.execution_error ? (
@@ -1115,6 +1117,14 @@ export function PendingActionCard({
               />
             ) : pendingAction.detail ? (
               <PendingActionDetail detail={pendingAction.detail} />
+            ) : null}
+            {pendingAction.permission_rule_preview ? (
+              <div className="mt-2 rounded border border-gray-200 p-2 dark:border-gray-700">
+                <PermissionRulePreview headingLevel={4} preview={pendingAction.permission_rule_preview} />
+                <Link className="mt-2 inline-block text-xs font-medium text-brand hover:underline" to="/settings/permissions">
+                  {i18n.t("settings:permission_editor.open_in_hub")}
+                </Link>
+              </div>
             ) : null}
             {pendingAction.reason ? (
               <p className="mt-2 break-words text-xs text-gray-600 dark:text-gray-300">
@@ -1152,8 +1162,13 @@ export function PendingActionCard({
                           smartAuthorizationDecision.reset()
                           authorizationDecision.mutate({ path: item.app_decision_path, decision: "denied" })
                         }}
+                        onCustomized={(decision) => {
+                          smartAuthorizationDecision.reset()
+                          authorizationDecision.mutate({ path: item.app_decision_path, decision })
+                        }}
                         onStale={() => void queryClient.invalidateQueries({ queryKey })}
                         option={item.smart_option}
+                        request={{ requestId: pendingAction.id, itemId: item.id }}
                       />
                     ) : null}
                     <LinkedPermissionRule authority={item.resulting_authority} />

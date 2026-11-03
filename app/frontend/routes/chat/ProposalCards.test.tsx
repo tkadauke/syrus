@@ -525,6 +525,44 @@ describe("PendingActionCard", () => {
     )
   })
 
+  it("renders a confirmed grant_permission call as a readable rule preview, not raw JSON", () => {
+    renderCard(
+      pendingAction({
+        action: "grant_permission",
+        label: "Grant permission",
+        permission_rule_preview: {
+          valid: true,
+          errors: [],
+          warnings: [],
+          digest: "d",
+          draft: {
+            policy: "allow",
+            duration: "permanent",
+            role: "chat:planner",
+            subject: { type: "interactive_chat", id: null, subject_type: null, repository_id: null },
+            capability: "mail",
+            operation: "mail/send",
+            resource_scope: {},
+            resource_scope_label: "",
+            constraints: {},
+            chat_session_id: null,
+            job_id: null,
+            expires_at: null,
+            rationale: null
+          },
+          summary: { allows: ["Allows interactive chats to run mail/send until revoked."], excludes: ["Excludes every other operation and capability."] },
+          ceiling: { maximum_autonomy: "permanent", maximum_duration_seconds: null, permanent_allowed: true, limited_by: null },
+          examples: { matches: ["interactive chats running mail/send."], non_matches: ["Anyone other than interactive chats."] }
+        }
+      })
+    )
+
+    const preview = screen.getByTestId("permission-rule-preview")
+    expect(preview).toHaveTextContent("Allows interactive chats to run mail/send until revoked.")
+    expect(preview).toHaveTextContent("Representative non-matches")
+    expect(screen.getByRole("link", { name: "Open in Permissions Hub" })).toHaveAttribute("href", "/settings/permissions")
+  })
+
   it("previews and confirms the adaptive permission through the smart decision endpoint", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ pending_actions: [], message: "Permission decision recorded." }))
     const { onNotice } = renderCard(
@@ -569,7 +607,7 @@ describe("PendingActionCard", () => {
     expect(screen.getByText("acme/app")).toBeInTheDocument()
     expect(screen.getByText("All tables")).toBeInTheDocument()
     expect(screen.getByText("Other operations")).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Customize" })).toHaveAttribute("href", "/settings/permissions")
+    expect(screen.getByRole("button", { name: "Customize" })).toBeInTheDocument()
     expect(fetchSpy).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }))

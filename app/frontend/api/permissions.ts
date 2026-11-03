@@ -7,6 +7,9 @@ export type PermissionRule = {
   operation: string | null
   subject_selector_type: string
   subject_selector_id: string | null
+  subject_repository_id?: number | null
+  subject_role_keys?: string[]
+  constraints?: Record<string, unknown>
   resource_scope: Record<string, unknown>
   resource_type: string
   resource_scope_label: string

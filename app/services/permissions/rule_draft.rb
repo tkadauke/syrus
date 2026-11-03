@@ -33,11 +33,11 @@ module Permissions
       end
     end
 
-    Preview = Data.define(:valid, :errors, :warnings, :draft, :summary, :ceiling, :digest) do
+    Preview = Data.define(:valid, :errors, :warnings, :draft, :summary, :ceiling, :examples, :digest) do
       def valid? = valid
 
       def to_h
-        { valid:, errors:, warnings:, draft:, summary:, ceiling:, digest: }
+        { valid:, errors:, warnings:, draft:, summary:, ceiling:, examples:, digest: }
       end
     end
 
@@ -55,6 +55,23 @@ module Permissions
         "operation" => ("#{item.operation}@v#{item.operation_version}" if item.operation),
         "resource_scope" => item.resource_scope, "constraints" => request_constraints(item)
       }.merge(request_subject(request)).merge(lifecycle), request_scope: item.resource_scope)
+    end
+
+    # Builds the same draft a confirmed permission-management tool call will
+    # execute, so its readable preview matches what the Hub and cards apply.
+    MANAGEMENT_POLICIES = { "grant_permission" => "allow", "deny_permission" => "deny" }.freeze
+
+    def self.from_management_payload(user:, action:, payload:, chat_session: nil)
+      payload = payload.to_h.stringify_keys
+      case action.to_s
+      when "create_permission_lease"
+        return unless payload["duration"].present?
+
+        new(user:, attributes: payload.merge("policy" => "allow", "chat_session_id" => payload["chat_session_id"] || chat_session&.id))
+      else
+        policy = MANAGEMENT_POLICIES[action.to_s]
+        policy && new(user:, attributes: payload.merge("policy" => policy, "duration" => "permanent"))
+      end
     end
 
     # Maps the request's runtime context onto the canonical subject selector:
@@ -121,7 +138,8 @@ module Permissions
       return invalid_preview(errors) if resolved.nil? || errors.any?
 
       Preview.new(valid: true, errors: [], warnings: warnings_for(resolved), draft: public_draft(resolved),
-        summary: summary_for(resolved), ceiling: ceiling_for(resolved), digest: digest_for(resolved))
+        summary: summary_for(resolved), ceiling: ceiling_for(resolved), examples: examples_for(resolved),
+        digest: digest_for(resolved))
     end
 
     def apply!(digest:, actor:)
@@ -321,7 +339,7 @@ module Permissions
     end
 
     def invalid_preview(errors)
-      Preview.new(valid: false, errors:, warnings: [], draft: nil, summary: nil, ceiling: nil, digest: nil)
+      Preview.new(valid: false, errors:, warnings: [], draft: nil, summary: nil, ceiling: nil, examples: nil, digest: nil)
     end
 
     def error(code, **details)
@@ -385,6 +403,23 @@ module Permissions
         permanent_allowed: resolved.descriptor.authority_durations.include?(:permanent) && resolved.descriptor.maximum_autonomy == :permanent,
         limited_by: rule && { id: rule.id, layer: rule.layer.to_s, policy: rule.policy.to_s }
       }
+    end
+
+    # Representative calls the rule does and does not cover, phrased from the
+    # same normalized subject/operation/scope the evaluator will see.
+    def examples_for(resolved)
+      attrs = resolved.attributes
+      subject = subject_label(resolved)
+      operation = resolved.descriptor.operation
+      scope = scope_label(resolved)
+      key = "api.permission_rule_drafts.examples"
+      matches = [ I18n.t("#{key}.matches.exact", subject:, operation:, resource: scope) ]
+      matches << I18n.t("#{key}.matches.constrained", constraints: attrs["constraints"].map { |k, v| "#{k} = #{ToolPayloadRedactor.redact(v)}" }.join(", ")) if attrs["constraints"].present?
+      non_matches = [ I18n.t("#{key}.non_matches.other_operation", subject:, operation:) ]
+      non_matches << I18n.t("#{key}.non_matches.other_resource", subject:, operation:, resource: scope) if resolved.scope.present?
+      non_matches << I18n.t("#{key}.non_matches.other_subject", operation:, subject:)
+      non_matches << I18n.t("#{key}.non_matches.after_expiry") unless attrs["duration"] == "permanent"
+      { matches:, non_matches: }
     end
 
     def warnings_for(resolved)

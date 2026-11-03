@@ -28,8 +28,10 @@ module Api
         end
 
         def apply
-          rule = build_draft.apply!(digest: params[:digest], actor: Current.user)
+          rule = apply_draft!
           render json: { authority: serialize_authority(rule) }, status: :created
+        rescue ActiveRecord::RecordNotFound
+          render_error("not_found", I18n.t("api.permission_rule_drafts.errors.unknown_rule"), status: :not_found)
         rescue Permissions::RuleDraft::Stale => error
           render_error("stale_permission_preview", error.message, status: :conflict)
         rescue Permissions::RuleDraft::Invalid, ActiveRecord::RecordInvalid, ArgumentError => error
@@ -37,6 +39,19 @@ module Api
         end
 
         private
+
+        # Editing replaces a rule: the new authority is applied against the
+        # previewed state, then the old rule is revoked in the same transaction
+        # so ownership, audit history and immediate revocation stay intact.
+        def apply_draft!
+          PermissionRule.transaction do
+            rule = build_draft.apply!(digest: params[:digest], actor: Current.user)
+            if params[:replace_rule_id].present?
+              Permissions::Management.new(Current.user).revoke_rule!(params[:replace_rule_id], actor: Current.user)
+            end
+            rule
+          end
+        end
 
         def reject_invocation_context
           return unless current_invocation_context
@@ -66,7 +81,11 @@ module Api
 
         def render_preview(draft)
           preview = draft.preview
-          render json: { preview: preview.to_h }, status: (preview.valid? ? :ok : :unprocessable_entity)
+          return render json: { preview: preview.to_h } if preview.valid?
+
+          # ApiError surfaces error.issues, which the editor renders inline.
+          render json: { preview: preview.to_h, error: { code: "invalid_permission_draft",
+            message: preview.errors.pluck(:message).join("; "), issues: preview.errors } }, status: :unprocessable_entity
         end
 
         def serialize_authority(record)
