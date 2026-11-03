@@ -21,7 +21,7 @@ import {
 } from "../../api/jobs"
 import { FilePreviewModal } from "../../components/FilePreviewModal"
 import { DocumentPreviewModal, isImageContentType, isPreviewableTextContentType } from "../../components/DocumentPreviewModal"
-import { useJobCommand } from "./command"
+import { CommandButton, useJobCommand } from "./command"
 import { jobSlug } from "./formatting"
 import type { HTMLAttributes, ReactNode, UIEvent } from "react"
 import { useEffect, useLayoutEffect, useRef, useState } from "react"
@@ -416,7 +416,7 @@ export function TagsPanel({
   return <Section.Root>{content}</Section.Root>
 }
 
-export function NeedsAttentionBanner({ job }: { job: JobDetailPayload["job"] }) {
+export function NeedsAttentionBanner({ job, command }: { job: JobDetailPayload["job"]; command?: ReturnType<typeof useJobCommand> }) {
   const { t } = useT("jobs")
   if (!job.needs_attention) return null
 
@@ -436,6 +436,7 @@ export function NeedsAttentionBanner({ job }: { job: JobDetailPayload["job"] }) 
       : t("attention_reason_fallback", { reason: job.needs_attention_reason })
     : t("attention_generic")
 
+  const dismissal = job.blocked_workflow_dismissal
   const gracePeriodText = job.grace_period_expires_at
     ? (() => {
         const expires = new Date(job.grace_period_expires_at)
@@ -461,6 +462,14 @@ export function NeedsAttentionBanner({ job }: { job: JobDetailPayload["job"] }) 
         <Text className="mt-1" tone="warning">
           {gracePeriodText}
         </Text>
+      ) : null}
+      {dismissal && command ? (
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+          {dismissal.reason_text ? <Text className="min-w-0 flex-1 truncate text-xs" tone="warning">{dismissal.reason_text}</Text> : null}
+          <CommandButton command={command} input={{ method: "post", path: dismissal.app_dismiss_path, confirm: t("workflow_dismiss_confirm") }} tone="secondary">
+            {t("workflow_dismiss")}
+          </CommandButton>
+        </div>
       ) : null}
     </Notice>
   )
