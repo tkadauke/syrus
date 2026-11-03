@@ -134,3 +134,14 @@ Repository-document create and delete keep their pending-action lifecycle and re
 ## Local Mode capabilities
 
 `run_command` and `write_file` in Local Mode use `syrus.local_mode@v1` (`run_command`, `write_file`), defaulting to `ask` for the `chat:local` role with invocation or chat-session authority at most. The resource scope is the workspace the daemon is attached to: the repository plus the normalized absolute checkout root the CLI reports at connect time, so two checkouts of one repository never share authority (a daemon that reports no root is scoped to its connection); the fingerprint and lease constraints use the normalized command, or the root-relative path plus the content digest. The classifier adds `network_read`, `external_write`, `credential_use`, `destructive`, or `privilege_change` from the arguments. Leases only cover plain `operator_host_access`, so those calls ask every time. The daemon keeps enforcing the repository-root sandbox.
+
+## Input ingestion, attachment, confidential-read, and binding capabilities
+
+Chat tools that bring outside content in, materialize attachments, read confidential records, or bind a chat to a repository use explicit capabilities:
+
+- `syrus.ingestion@v1`: `pull_request` (`ingest_pull_request`, creates a Job, `ask` up to chat-session authority), and the `network_read` observations `read_pull_request`, `list_open_issues`, `list_open_prs` (`allow`).
+- `syrus.attachments@v1`: `materialize_chat_media` (`allow`) and `read_artifact` (`confidential_read`, `ask`).
+- `syrus.confidential_reads@v1`: `read_run_transcript`, `read_job_diff`, and `read_chat_messages` (`ask`, up to chat-session authority); `search_chats` (`allow`).
+- `syrus.resource_bindings@v1`: `attach_repository` (`ask`, scoped to a repository slug) and `detach_repository` (`allow`, it only narrows access).
+
+Scopes are visibility-safe: the repository scope is the slug alone and is never resolved through a lookup, so a rule label or comparison cannot reveal whether a repository exists. Redacted arguments keep identifiers but replace free text (`query`, `body`, `content`, `text`, `prompt`) with a short digest, and carry a `provenance` of `external_untrusted` (GitHub content) or `syrus_internal`. Provenance is not part of the fingerprint. Tools keep their own visibility filtering and answer unknown and invisible records identically.
