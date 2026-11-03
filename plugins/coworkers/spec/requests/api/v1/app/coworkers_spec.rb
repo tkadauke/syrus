@@ -42,6 +42,8 @@ RSpec.describe "API: coworkers", type: :request do
   it "includes the permission cutover report in coworker details" do
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-report", workspace_repo: "https://github.com/acme/workspace.git")
     coworker.grants.create!(capability: "syrus.read_jobs", approval_policy: "auto")
+    # Core coworker tools now carry explicit descriptors; a grant with no registered tools is still a gap.
+    coworker.grants.create!(capability: "workspace.shell", approval_policy: "auto")
     sign_in_as(owner)
 
     get "/api/v1/app/coworkers/#{coworker.id}"
@@ -49,8 +51,11 @@ RSpec.describe "API: coworkers", type: :request do
     expect(response).to have_http_status(:ok)
     report = response.parsed_body.dig("coworker", "permission_cutover_report")
     expect(report).to include("ready" => false)
-    expect(report.fetch("legacy_grants")).to contain_exactly(include("capability" => "syrus.read_jobs", "approval_policy" => "auto"))
-    expect(report.fetch("descriptor_gaps")).to contain_exactly(include("legacy_capability" => "syrus.read_jobs"))
+    expect(report.fetch("legacy_grants")).to contain_exactly(
+      include("capability" => "syrus.read_jobs", "approval_policy" => "auto"),
+      include("capability" => "workspace.shell", "approval_policy" => "auto")
+    )
+    expect(report.fetch("descriptor_gaps")).to contain_exactly(include("legacy_capability" => "workspace.shell"))
   end
 
   it "adds coworker sender and receiver appearances to chat messages without per-message queries" do

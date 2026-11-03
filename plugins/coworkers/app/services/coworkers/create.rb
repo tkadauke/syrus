@@ -15,12 +15,12 @@ class Coworkers::Create
     "chat.message_owner" => "confirm",
     "workspace.files" => "auto",
     "workspace.shell" => "auto",
-    "chats.read_shared" => "auto",
+    "chats.read_shared" => "confirm",
     "coworker.message" => "confirm",
     "coworker.spawn_chat" => "confirm",
     "schedule.manage_self" => "confirm",
     "syrus.read_jobs" => "auto",
-    "syrus.propose_job" => "confirm"
+    "syrus.propose_job" => "auto"
   }.freeze
 
   AGENTS = <<~MARKDOWN.freeze

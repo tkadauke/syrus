@@ -168,7 +168,9 @@ module Mcp::Tools
 
     class << self
       def call(epic:, jobs:, server_context:, for_active_goal: false)
-        chat_session = server_context.fetch(:chat_session)
+        # Unattended coworker runs carry only a run; proposals land in the coworker's main chat.
+        chat_session = server_context[:chat_session] || McpToolContext.from_server_context(server_context).chat_session ||
+          server_context.fetch(:chat_session)
         user = chat_session.user
 
         epic_attrs = normalize_hash(epic)
