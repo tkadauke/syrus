@@ -363,8 +363,8 @@ class McpToolRegistry
         legacy_chat(Mcp::Tools::ListOpenPrsTool, tier: :deferred),
         legacy_chat(Mcp::Tools::SearchChatsTool, tier: :deferred),
         legacy_chat(Mcp::Tools::ReadChatMessagesTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::SendChatMessageTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::SpawnChatsTool, tier: :deferred, mutation: true),
+        effect_chat(Mcp::Tools::SendChatMessageTool, tier: :deferred, mutation: true),
+        effect_chat(Mcp::Tools::SpawnChatsTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::ListTagsTool, tier: :deferred),
         legacy_chat(Mcp::Tools::CreateTagTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::AddJobTagTool, tier: :deferred, mutation: true),
@@ -388,13 +388,13 @@ class McpToolRegistry
         legacy_chat(Mcp::Tools::RemoveJobDependencyTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::ListRepoDocumentsTool, tier: :deferred),
         legacy_chat(Mcp::Tools::ReadRepoDocumentTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::CreateRepoDocumentTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::DeleteRepoDocumentTool, tier: :deferred, mutation: true),
+        effect_chat(Mcp::Tools::CreateRepoDocumentTool, tier: :deferred, mutation: true),
+        effect_chat(Mcp::Tools::DeleteRepoDocumentTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::ListChatMediaTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::SubmitArtifactTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::ScheduleWakeupTool, tier: :deferred, mutation: true),
+        effect_chat(Mcp::Tools::SubmitArtifactTool, tier: :deferred, mutation: true),
+        effect_chat(Mcp::Tools::ScheduleWakeupTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::ListWakeupsTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::CancelWakeupTool, tier: :deferred, mutation: true),
+        effect_chat(Mcp::Tools::CancelWakeupTool, tier: :deferred, mutation: true),
         lifecycle_chat(Mcp::Tools::PauseLandingQueueTool, tier: :deferred, mutation: true),
         lifecycle_chat(Mcp::Tools::ResumeLandingQueueTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::ReadQueueTool, tier: :deferred, admin_only: true),
@@ -580,6 +580,12 @@ class McpToolRegistry
     def operational_chat(tool, **metadata)
       roles = metadata[:required_roles].presence || AgentRole::CHAT_ROLES
       descriptor = Permissions::OperationalActions.descriptor_for(tool_name_for(tool), required_roles: roles)
+      chat(tool, **metadata, descriptor:)
+    end
+
+    def effect_chat(tool, **metadata)
+      roles = metadata[:required_roles].presence || AgentRole::CHAT_ROLES
+      descriptor = Permissions::EffectActions.descriptor_for(tool_name_for(tool), required_roles: roles)
       chat(tool, **metadata, descriptor:)
     end
 
