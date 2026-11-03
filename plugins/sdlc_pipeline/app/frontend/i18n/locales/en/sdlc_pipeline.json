@@ -105,5 +105,12 @@
   "tool_copy_link": "Copy link",
   "tool_summary": "Pipeline for {{repository}}",
   "tool_malformed": "This pipeline result cannot be displayed.",
-  "chat_view_pipeline": "View pipeline"
+  "chat_view_pipeline": "View pipeline",
+  "history_loading": "Loading history…",
+  "history_empty": "No pipeline changes were recorded in this history window. Choose a longer window to look further back.",
+  "history_error": "History could not be loaded. The live pipeline is still shown.",
+  "retry_history": "Retry history",
+  "history_controls_unavailable": "History controls are unavailable until history loads with events",
+  "history_no_previous": "No earlier event in this window",
+  "history_no_next": "No later event in this window"
 }

@@ -105,5 +105,12 @@
   "tool_copy_link": "Vinculum exscribere",
   "tool_summary": "Pipeline pro {{repository}}",
   "tool_malformed": "Hoc responsum pipeline ostendi non potest.",
-  "chat_view_pipeline": "Pipeline videre"
+  "chat_view_pipeline": "Pipeline videre",
+  "history_loading": "Historia oneratur…",
+  "history_empty": "In hoc tempore nullae mutationes notatae sunt. Tempus longius elige.",
+  "history_error": "Historia onerari non potuit. Fistula viva adhuc monstratur.",
+  "retry_history": "Historiam iterum tenta",
+  "history_controls_unavailable": "Historiae instrumenta non praesto sunt donec eventa adsint",
+  "history_no_previous": "Nullum eventum prius in hoc tempore",
+  "history_no_next": "Nullum eventum posterius in hoc tempore"
 }

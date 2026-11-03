@@ -105,5 +105,12 @@
   "tool_copy_link": "Link kopieren",
   "tool_summary": "Pipeline für {{repository}}",
   "tool_malformed": "Dieses Pipeline-Ergebnis kann nicht angezeigt werden.",
-  "chat_view_pipeline": "Pipeline anzeigen"
+  "chat_view_pipeline": "Pipeline anzeigen",
+  "history_loading": "Verlauf wird geladen …",
+  "history_empty": "In diesem Verlaufszeitraum wurden keine Pipeline-Änderungen aufgezeichnet. Wähle einen längeren Zeitraum.",
+  "history_error": "Der Verlauf konnte nicht geladen werden. Die aktuelle Pipeline wird weiterhin angezeigt.",
+  "retry_history": "Verlauf erneut laden",
+  "history_controls_unavailable": "Verlaufssteuerung ist erst verfügbar, wenn der Verlauf Ereignisse enthält",
+  "history_no_previous": "Kein früheres Ereignis in diesem Zeitraum",
+  "history_no_next": "Kein späteres Ereignis in diesem Zeitraum"
 }
