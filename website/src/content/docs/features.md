@@ -127,6 +127,26 @@ separate so undeployed changes stay visible. Partial delivery evidence is
 called out explicitly, and Job cards link through to their Job, latest
 Workflow, and delivery/release evidence. The projection is read-only;
 disabling or deleting the plugin does not alter Job or deployment state.
+Its standard FilterBar narrows the Job cohort by search, associated chat,
+Epic, Job, or owner before every total and card is computed. Nested AND/OR/NOT
+expressions can be saved as reusable Pipeline views, including the built-in
+**All** and **Mine** views. Repository scope remains in the route rather than
+the saved view, and filters never hide configured pipeline stages, including
+empty ones.
+The same filtered view is available from a chat's Jobs workspace and through
+the read-only `show_pipeline` chat tool. Multi-repository chats ask the operator
+to choose a repository; live tool calls may present the view once, while saved
+tool cards retain explicit open and copy-link actions without reopening on
+transcript replay. The popup is a focused presentation of the editable
+FilterBar, pipeline canvas, and compact history rail; saved views, summaries,
+diagnostics, and repository navigation remain on the full Pipeline page.
+The dedicated history rail reconstructs the filtered cohort at meaningful
+lifecycle and delivery ticks from a bounded checkpoint-plus-delta response, so
+scrubbing does not fetch a full board repeatedly. Historical mode is clearly
+read-only and URL-backed, keeps stage navigation spatially fixed, and shows
+entered/left times and dwell data in its trace contract. Stage placement is
+identified as reconstructed while titles and other mutable card metadata are
+identified as current when no historical record exists.
 
 Job kinds:
 

@@ -36,6 +36,14 @@ describe("toolPresentationRegistry", () => {
       expect(entry.examples[0].label).toBe("Click a submit button")
     })
 
+    it("honors an explicit read-only declaration for observational plugin tools", () => {
+      const entry = toolPresentationEntryFor("show_pipeline")
+
+      expect(entry.ownerType).toBe("plugin")
+      expect(entry.ownerName).toBe("sdlc_pipeline")
+      expect(entry.readOnly).toBe(true)
+    })
+
     it("defaults examples to an empty array for a card that doesn't opt in", () => {
       const entry = toolPresentationEntryFor("Edit")
       expect(entry.examples).toEqual([])

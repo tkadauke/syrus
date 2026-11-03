@@ -122,7 +122,7 @@ module Admin
       when "repository"
         repositories_path(smart_folder_id: folder.id)
       else
-        SmartFolder.path_for_subject(subject, smart_folder_id: folder.id) || smart_folders_path(subject_type: subject)
+        SmartFolder.path_for_subject(subject, **path_context, smart_folder_id: folder.id) || smart_folders_path(subject_type: subject)
       end
     end
   end

@@ -1,5 +1,5 @@
 class ChatJobStatusQuery
-  JOB_PROPOSAL_KINDS = %w[job syrus_issue].freeze
+  JOB_PROPOSAL_KINDS = ChatAssociatedJobs::PROPOSAL_KINDS
   PENDING_PROPOSAL_KINDS = (JOB_PROPOSAL_KINDS + %w[epic]).freeze
 
   def self.call(chat_session)
@@ -11,13 +11,23 @@ class ChatJobStatusQuery
   end
 
   def call
-    {
+    payload = {
       pending_proposals: pending_proposals_json,
       items: job_status_items
     }
+    extensions = extension_payload
+    payload[:extensions] = extensions if extensions.present?
+    payload
   end
 
   private
+
+  def extension_payload
+    jobs = ChatAssociatedJobs.scope(@chat_session).includes(:repository).to_a
+    Syrus::PluginRegistry.providers_for(:chat_job_status_extension).each_with_object({}) do |provider, payload|
+      payload.merge!(provider.payload(chat_session: @chat_session, jobs: jobs))
+    end
+  end
 
   def pending_proposals_json
     @chat_session.proposals
@@ -50,7 +60,8 @@ class ChatJobStatusQuery
     end
 
     proposal_job_ids = job_proposals.filter_map { |p| p.job&.id }.to_set
-    direct_jobs = Job.where(linked_chat_id: @chat_session.id, kind: "direct")
+    associated_jobs = ChatAssociatedJobs.scope(@chat_session)
+    direct_jobs = associated_jobs.where(linked_chat_id: @chat_session.id, kind: "direct")
        .includes(:repository)
        .where.not(id: proposal_job_ids)
        .to_a

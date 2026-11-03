@@ -56,6 +56,9 @@ SMART_FOLDER_FILTER_BAR_CONTRACT_INVENTORY = {
   },
   "worker_timeline" => {
     macro: "plugins/worker_timeline/spec/requests/api/v1/app/admin/worker_timeline_spec.rb"
+  },
+  "sdlc_pipeline" => {
+    repository: "plugins/sdlc_pipeline/spec/requests/api/v1/app/sdlc_pipeline_spec.rb"
   }
 }.freeze
 

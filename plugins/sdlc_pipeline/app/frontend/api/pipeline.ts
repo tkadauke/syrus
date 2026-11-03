@@ -1,5 +1,7 @@
 import { getJson } from "@app/api/client"
 import type { RepositoryTab } from "@app/api/repositories"
+import type { AdminSmartFolder } from "@app/api/adminSmartFolders"
+import type { FilterSchemaField } from "@app/components/FilterBar"
 
 export type PipelineItem = {
   id: number
@@ -51,13 +53,40 @@ export type PipelinePayload = {
   groups: PipelineGroup[]
   evidence: { status: "complete" | "partial"; incomplete_count: number }
   drill_down?: PipelineDrillDown
+  filter: Record<string, unknown>
+  filter_schema: FilterSchemaField[]
+  smart_folders: AdminSmartFolder[]
+  active_smart_folder_id: number | null
+  history?: PipelineHistory
 }
 
-export function fetchPipelineStage(repositoryId: string, stage: string, page = 1) {
-  const params = new URLSearchParams({ stage, page: String(page) })
+export type HistoricalPlacement = {
+  job_id: number
+  stage: string
+  item: Pick<PipelineItem, "id" | "slug" | "title" | "state" | "paths"> & {
+    epic?: { id: number; slug: string; title: string }
+    metadata_as_of: string
+  }
+}
+
+export type PipelineHistory = {
+  from: string
+  to: string
+  checkpoint: { at: string; placements: HistoricalPlacement[] }
+  deltas: { at: string; job_id: number; from_stage: string | null; to_stage: string | null; item?: HistoricalPlacement }[]
+  ticks: string[]
+  traces: { job_id: number; segments: { stage: string; entered_at: string; left_at: string; dwell_seconds: number }[] }[]
+  accuracy: { status: "reconstructed" | "partial" | "bounded"; message: string; truncated: boolean; legacy_job_count?: number }
+  bounds?: { maximum_days: number; maximum_jobs: number; maximum_deltas: number; included_jobs: number; omitted_jobs: number }
+}
+
+export function fetchPipelineStage(repositoryId: string, stage: string, page = 1, search = "") {
+  const params = new URLSearchParams(search)
+  params.set("stage", stage)
+  params.set("page", String(page))
   return getJson<PipelinePayload>(`/api/v1/app/repositories/${repositoryId}/sdlc_pipeline?${params}`)
 }
 
-export function fetchPipeline(repositoryId: string) {
-  return getJson<PipelinePayload>(`/api/v1/app/repositories/${repositoryId}/sdlc_pipeline`)
+export function fetchPipeline(repositoryId: string, search = "") {
+  return getJson<PipelinePayload>(`/api/v1/app/repositories/${repositoryId}/sdlc_pipeline${search}`)
 }
