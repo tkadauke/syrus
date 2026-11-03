@@ -33,4 +33,20 @@ RSpec.describe MetricsDashboard::Sample do
       expect(described_class.retention_window).to eq(7.days)
     end
   end
+
+  describe "history access path" do
+    it "has a (metric, recorded_at) index so the dashboard range scan does not skip over series_key" do
+      indexes = described_class.connection.indexes(:metrics_dashboard_samples)
+
+      expect(indexes.map(&:columns)).to include(%w[metric recorded_at])
+      expect(indexes.find { |i| i.columns == %w[metric series_key recorded_at] }&.unique).to be(true)
+    end
+
+    it "plans the history query on the (metric, recorded_at) index" do
+      relation = described_class.for_metric("m").since(1.hour.ago).order(:recorded_at)
+      plan = relation.explain.inspect
+
+      expect(plan).to include("idx_metrics_dashboard_metric_recorded_at")
+    end
+  end
 end
