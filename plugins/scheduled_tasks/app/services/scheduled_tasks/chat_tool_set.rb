@@ -22,6 +22,17 @@ module ScheduledTasks
 
     EVALUATOR_TOOLS = %w[list_scheduled_tasks read_scheduled_task].freeze
 
+    DESCRIPTORS = {
+      "schedule_recurring" => "scheduled_tasks/create@v1",
+      "list_scheduled_tasks" => "scheduled_tasks/list@v1",
+      "read_scheduled_task" => "scheduled_tasks/read@v1",
+      "update_scheduled_task" => "scheduled_tasks/update@v1",
+      "pause_scheduled_task" => "scheduled_tasks/pause@v1",
+      "resume_scheduled_task" => "scheduled_tasks/resume@v1",
+      "delete_scheduled_task" => "scheduled_tasks/delete@v1",
+      "fire_scheduled_task_now" => "scheduled_tasks/fire_now@v1"
+    }.freeze
+
     def self.available_for?(_chat_session, tier:)
       return false unless ScheduledTasks.enabled?
 
@@ -38,7 +49,8 @@ module ScheduledTasks
         name: name,
         description: klass.description_value,
         input_schema: klass.input_schema_value.to_h,
-        evaluator: EVALUATOR_TOOLS.include?(name)
+        evaluator: EVALUATOR_TOOLS.include?(name),
+        capability_descriptor: PermissionProvider.capability_descriptor(DESCRIPTORS.fetch(name))
       }
     end
 

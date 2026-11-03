@@ -778,6 +778,30 @@ background `cron` Job and Workflow; it does not resume the chat where it was
 requested. Use it for unattended work such as “run the dependency audit every
 Monday and open a PR.”
 
+When an agent manages scheduled tasks from chat, each action goes through the
+same permission decisions as other consequential effects. Listing, reading, and
+pausing a task are automatic. Creating or editing a task asks by default, and
+you can approve it once or for the current chat session. Resuming a task,
+firing it now, and deleting it always ask, and an approval covers only that
+exact request. Requests appear in your approvals inbox, and the same rules
+apply when a scheduled Job reaches one of these actions.
+
+Chat agents that pull in outside content or read private records go through the
+same permission decisions. Reading pull requests and issue lists, searching
+chats, and detaching a repository are automatic. Ingesting a pull request as a
+Job, reading a run transcript, a Job diff, another chat's messages, or a stored
+artifact, and attaching a repository ask by default, and an approval can cover
+the current chat session. Approval history keeps identifiers and a short digest
+instead of search text, and notes whether the content came from GitHub or from
+Syrus itself.
+
+Commands Syrus starts on a worker or in a container are now evaluated against
+your permission rules. A rule that denies an execution stops it before it
+starts, and container confinement limits cannot be widened by a rule. Requests
+that would need approval, such as using credentials or pushing code, are
+recorded but not yet blocked, and actions an agent's own tools take are not yet
+covered.
+
 Supported schedule kinds:
 
 | Kind       | Meaning                                                                      |

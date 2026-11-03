@@ -110,12 +110,7 @@ module Permissions
         effects = %i[operator_host_access]
         risk = :high
         if tool_name.to_s == "run_command"
-          command = normalize_command(arguments["command"])
-          effects << :network_read if command.match?(NETWORK_COMMAND)
-          effects << :external_write if command.match?(PUSH_COMMAND)
-          effects << :credential_use if command.match?(CREDENTIAL_COMMAND)
-          effects << :destructive if command.match?(DESTRUCTIVE_COMMAND)
-          effects << :privilege_change if command.match?(PRIVILEGED_COMMAND)
+          effects.concat(command_effects(normalize_command(arguments["command"])))
         else
           path = normalize_path(arguments["path"])
           if path.nil?
@@ -153,6 +148,18 @@ module Permissions
             "content_bytes" => content.bytesize
           }
         end
+      end
+
+      # Effects a shell command line adds beyond plain execution. Shared with
+      # +ExecutionActions+ so both classify command text identically.
+      def command_effects(command)
+        effects = []
+        effects << :network_read if command.match?(NETWORK_COMMAND)
+        effects << :external_write if command.match?(PUSH_COMMAND)
+        effects << :credential_use if command.match?(CREDENTIAL_COMMAND)
+        effects << :destructive if command.match?(DESTRUCTIVE_COMMAND)
+        effects << :privilege_change if command.match?(PRIVILEGED_COMMAND)
+        effects
       end
 
       def normalize_command(command) = command.to_s.gsub("\r\n", "\n").strip

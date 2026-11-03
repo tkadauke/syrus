@@ -10,6 +10,10 @@ RSpec.describe ScheduledTasks::Engine do
     expect(Array(manifest.provides[:callbacks])).to include(ScheduledTasks::Callbacks)
   end
 
+  it "registers the scoped permission provider" do
+    expect(Syrus::PluginRegistry.providers_for(:permission_provider)).to include(ScheduledTasks::PermissionProvider)
+  end
+
   # Plugin metrics follow while_enabled semantics: a disabled plugin emits no
   # series at all. The declaration is a Syrus::Installer while_enabled effect,
   # which is sync-on-read (see MetricsController#sync_plugin_declarations)

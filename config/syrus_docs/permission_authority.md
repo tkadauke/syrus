@@ -258,3 +258,28 @@ Repository-document create and delete keep their pending-action lifecycle and re
 ## Local Mode capabilities
 
 `run_command` and `write_file` in Local Mode use `syrus.local_mode@v1` (`run_command`, `write_file`), defaulting to `ask` for the `chat:local` role with invocation or chat-session authority at most. The resource scope is the workspace the daemon is attached to: the repository plus the normalized absolute checkout root the CLI reports at connect time, so two checkouts of one repository never share authority (a daemon that reports no root is scoped to its connection); the fingerprint and lease constraints use the normalized command, or the root-relative path plus the content digest. The classifier adds `network_read`, `external_write`, `credential_use`, `destructive`, or `privilege_change` from the arguments. Leases only cover plain `operator_host_access`, so those calls ask every time. The daemon keeps enforcing the repository-root sandbox.
+
+## Input ingestion, attachment, confidential-read, and binding capabilities
+
+Chat tools that bring outside content in, materialize attachments, read confidential records, or bind a chat to a repository use explicit capabilities:
+
+- `syrus.ingestion@v1`: `pull_request` (`ingest_pull_request`, creates a Job, `ask` up to chat-session authority), and the `network_read` observations `read_pull_request`, `list_open_issues`, `list_open_prs` (`allow`).
+- `syrus.attachments@v1`: `materialize_chat_media` (`allow`) and `read_artifact` (`confidential_read`, `ask`).
+- `syrus.confidential_reads@v1`: `read_run_transcript`, `read_job_diff`, and `read_chat_messages` (`ask`, up to chat-session authority); `search_chats` (`allow`).
+- `syrus.resource_bindings@v1`: `attach_repository` (`ask`, scoped to a repository slug) and `detach_repository` (`allow`, it only narrows access).
+
+Scopes are visibility-safe: the repository scope is the slug alone and is never resolved through a lookup, so a rule label or comparison cannot reveal whether a repository exists. Redacted arguments keep identifiers but replace free text (`query`, `body`, `content`, `text`, `prompt`) with a short digest, and carry a `provenance` of `external_untrusted` (GitHub content) or `syrus_internal`. Provenance is not part of the fingerprint. Tools keep their own visibility filtering and answer unknown and invisible records identically.
+
+## Host and container execution (deny-only enforcement)
+
+Processes Syrus starts through `Execution::Router` are evaluated by `Permissions::ExecutionGate` under `syrus.execution@v1` (`host_process` on the worker, `container_process` in a confined backend). The classifier derives `network_read`, `external_write`, `credential_use`, `destructive`, and `privilege_change` from the command line (sharing the Local Mode patterns) and the network profile. Injected environment variables are not treated as credential use. Plain work keeps its `allow` default; sensitive effects that were allowed only by default become `ask`.
+
+**What is enforced today:** a `deny` stops the process before it starts, whether it comes from the owner's durable rules or from a ceiling. Rules are created through the normal permission tools and the Permissions Hub (the execution operations are in the catalog) and match a process by subject selector: the chat role (`interactive_chat`, `coding_chat`, `local_chat`), `workflow_role`, `repository_role`, `agent`, or `eligible_roles`. When several apply, the strictest result wins. The only default ceiling is `FailClosedHost`, which denies host execution under a fail-closed workload policy. `NetworkProfile` and provider `ProviderLimits` ceilings exist but are opt-in. Ceilings only lower a decision; no rule or lease raises one, and existing confinement (the grader network profile, container backends) is unchanged.
+
+**What is not enforced yet:** an `ask` is logged with a redacted subject (executable and command digest) but does not block, because Syrus-launched processes have no interactive approval route. `Router.new(enforce_ask: true)` refuses them. Provider-native actions (a provider's own shell and file tools) run inside the provider CLI and are not intercepted; `ExecutionActions.subject_for_provider_action` and `ProviderLimits` are groundwork for that path.
+
+## Fresh authentication and budget metadata
+
+A capability descriptor may declare `fresh_authentication_window`. When the approver's authentication is older than that window (or unknown), an `allow` is lowered to `ask`; like the execution ceilings it can never raise a decision, and a `deny` stays a `deny`. Dropping the window or lengthening it in a capability successor is reported as semantic widening.
+
+A descriptor may also declare `budget_dimensions` (`model_tokens`, `compute_time`, `network_egress`, `external_spend`, `storage`). This is effect metadata only: `Permissions::EffectMetadata` hands observers the classified effects, risk, and dimensions of a non-denied decision. Budgets are not permission grants — observer return values are ignored and a failing observer never changes the decision.
