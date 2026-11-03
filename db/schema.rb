@@ -674,8 +674,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_083102) do
     t.index ["chat_session_id"], name: "index_chat_pending_actions_on_chat_session_id"
     t.index ["deduplication_key", "deduplication_active"], name: "idx_pending_actions_active_deduplication", unique: true
     t.index ["delivery_state", "created_at"], name: "idx_pending_actions_delivery"
-    t.index ["origin_type", "origin_id"], name: "index_chat_pending_actions_on_origin"
     t.index ["origin_type", "origin_id", "checkpoint_state"], name: "idx_pending_actions_origin_checkpoint"
+    t.index ["origin_type", "origin_id"], name: "index_chat_pending_actions_on_origin"
     t.index ["outcome_message_id"], name: "index_chat_pending_actions_on_outcome_message_id"
     t.index ["pending_action_group_id"], name: "index_chat_pending_actions_on_pending_action_group_id"
     t.index ["repository_id"], name: "index_chat_pending_actions_on_repository_id"
