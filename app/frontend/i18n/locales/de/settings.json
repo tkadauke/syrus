@@ -1481,7 +1481,7 @@
     },
     "repository": {
       "owners": "Eigentümer",
-      "search": "Repositories suchen",
+      "search": "Repository suchen",
       "names": "Repository-Namen",
       "pill": "Repo: {{label}}"
     },
