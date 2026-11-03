@@ -778,6 +778,14 @@ background `cron` Job and Workflow; it does not resume the chat where it was
 requested. Use it for unattended work such as “run the dependency audit every
 Monday and open a PR.”
 
+When an agent manages scheduled tasks from chat, each action goes through the
+same permission decisions as other consequential effects. Listing, reading, and
+pausing a task are automatic. Creating or editing a task asks by default, and
+you can approve it once or for the current chat session. Resuming a task,
+firing it now, and deleting it always ask, and an approval covers only that
+exact request. Requests appear in your approvals inbox, and the same rules
+apply when a scheduled Job reaches one of these actions.
+
 Supported schedule kinds:
 
 | Kind       | Meaning                                                                      |
