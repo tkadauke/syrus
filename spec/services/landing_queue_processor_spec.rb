@@ -838,6 +838,26 @@ RSpec.describe LandingQueueProcessor, :ci_only do
     expect(second.reload).to be_approved
   end
 
+  it "does not preload historical workflows for queued Epic siblings" do
+    epic = Factories.epic(user: user, repository: repository, state: "in_progress")
+    queue_job(issue_number: 1, approved_at: 3.minutes.ago, epic: epic)
+    4.times do |i|
+      queued = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 10 + i, state: "queued")
+      3.times { Workflows::Initial.instantiate(job: queued).update_columns(state: "cancelled") }
+    end
+
+    preloads = []
+    callback = lambda do |_name, _start, _finish, _id, payload|
+      sql = payload[:sql].to_s
+      preloads << sql if sql =~ /FROM "workflows" WHERE "workflows"."job_id" IN/
+    end
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      described_class.new.send(:start_ready_epic_sibling_jobs!)
+    end
+
+    expect(preloads).to be_empty
+  end
+
   it "ignores closed epic siblings when checking whether every open sibling is approved" do
     epic = Factories.epic(user: user, repository: repository, state: "in_progress")
     approved = queue_job(issue_number: 1, approved_at: 1.minute.ago, epic: epic)
