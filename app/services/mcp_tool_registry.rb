@@ -424,7 +424,7 @@ class McpToolRegistry
         legacy_coworker(Mcp::Tools::ReadPrTool, capability: "code.read"),
         legacy_coworker(Mcp::Tools::AskUserQuestionTool, capability: "chat.message_owner", interactive_only: true, mutation: true, ungated: true),
         legacy_coworker(Mcp::Tools::SuggestNextStepTool, capability: "chat.message_owner", interactive_only: true, mutation: true, ungated: true),
-        coworker(Mcp::Tools::DiscoverCoworkerCapabilitiesTool,
+        legacy_coworker(Mcp::Tools::DiscoverCoworkerCapabilitiesTool,
           tier: :deferred, capability: "chat.message_owner", ungated: true),
         legacy_coworker(Mcp::Tools::ListJobsTool, capability: "syrus.read_jobs"),
         legacy_coworker(Mcp::Tools::SearchJobsTool, capability: "syrus.read_jobs"),
