@@ -63,7 +63,8 @@ module Permissions
           resource_scope: { type: :none },
           classifier: ->(arguments) { classify(location, arguments).to_h },
           fingerprint_normalizer: ->(arguments) { normalize_arguments(location, arguments) },
-          redactor: ->(arguments) { redact_arguments(location, arguments) }
+          redactor: ->(arguments) { redact_arguments(location, arguments) },
+          budget_dimensions: %i[compute_time]
         )
       end
 

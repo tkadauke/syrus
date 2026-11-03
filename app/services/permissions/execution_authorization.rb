@@ -7,19 +7,24 @@ module Permissions
   # 1. Sensitive effects (credential use, privilege change, destructive or
   #    external writes) that were only allowed by the descriptor default, not by
   #    an explicit rule, are lowered to +ask+.
-  # 2. +ExecutionCeiling+ limits (confinement, network profile, provider
+  # 2. A descriptor's fresh-authentication window lowers +allow+ to +ask+ when
+  #    the approver's +authenticated_at+ is not recent enough.
+  # 3. +ExecutionCeiling+ limits (confinement, network profile, provider
   #    ceilings) then lower the result further. They can never raise it.
   class ExecutionAuthorization
-    Result = Data.define(:decision, :policy, :ceilings, :subject) do
+    Result = Data.define(:decision, :policy, :ceilings, :subject, :fresh_authentication) do
+      def initialize(fresh_authentication: nil, **attributes) = super
+
       def allowed? = policy == :allow
       def ask? = policy == :ask
       def denied? = policy == :deny
-      def to_h = { policy:, ceilings: ceilings.map(&:to_h), decision: decision.to_h }
+      def to_h = { policy:, ceilings: ceilings.map(&:to_h), decision: decision.to_h, fresh_authentication: fresh_authentication&.to_h }
     end
 
     def self.authorize(...) = new(...).authorize
 
-    def initialize(subject:, role:, rules: [], ceiling: ExecutionCeiling.default, context: {}, selector_contexts: nil)
+    def initialize(subject:, role:, rules: [], ceiling: ExecutionCeiling.default, context: {}, selector_contexts: nil, authenticated_at: nil)
+      @authenticated_at = authenticated_at
       @subject = subject
       @role = role.to_s
       @rules = rules
@@ -46,8 +51,11 @@ module Permissions
         policy = :ask
       end
 
+      policy, fresh = FreshAuthentication.apply(policy, descriptor:, authenticated_at: @authenticated_at)
       policy, applied = @ceiling.apply(policy, effects:, subject: @subject)
-      Result.new(decision:, policy:, ceilings: applied, subject: @subject)
+      # Budget observers see the outcome only; they cannot change it.
+      EffectMetadata.notify(descriptor, decision) unless policy == :deny
+      Result.new(decision:, policy:, ceilings: applied, subject: @subject, fresh_authentication: fresh)
     end
   end
 end
