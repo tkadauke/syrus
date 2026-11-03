@@ -151,7 +151,10 @@ page's own "Throughput" tab and API at
 output, landing, and review funnel windows with explicit confidence labels for
 sparse samples.
 
-The bundled SDLC Pipeline plugin adds a repository **Pipeline** tab that
+The bundled SDLC Pipeline plugin is experimental and disabled by default; an
+administrator must enable instance beta mode before enabling it, and until then
+the Pipeline tab, chat entry point, and `show_pipeline` tool are absent. Once
+enabled it adds a repository **Pipeline** tab that
 projects existing lifecycle, landing, and configured deployment-stage facts
 into one ordered view. Stage totals, attention and aging counts, Epic rollups,
 and a bounded recent-completion tail keep the initial view useful for busy
