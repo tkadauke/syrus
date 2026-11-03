@@ -64,4 +64,27 @@ RSpec.describe RunCheckpointPublisher do
     expect(checkpoint.status).to eq("failed")
     expect(checkpoint.error_message).to include("already points at def456")
   end
+
+  it "records a sanitized failure when GitHub push protection rejects the checkpoint" do
+    finding = GithubPushProtection::Finding.new(secret_type: "Token", commit_sha: "a" * 40, path: "x.rb", line: 2)
+    rejected = GithubPushProtection::Rejected.new([ "push", "u", "abc123:refs/syrus/checkpoints/runs/#{run.id}" ], 1, findings: [ finding ], ref: "refs/x")
+    allow(git).to receive(:run).with("ls-remote", anything, anything, any_args).and_return("")
+    allow(git).to receive(:run).with("push", anything, anything, any_args).and_raise(rejected)
+
+    expect(described_class.publish!(run: run, workspace: workspace, git: git)).to be_nil
+
+    checkpoint = run.reload.run_checkpoint
+    expect(checkpoint.status).to eq("failed")
+    expect(checkpoint.error_message).to include("push protection").and include("x.rb:2")
+    expect(PushProtection::Ledger.for(workflow).clean_anchor).to be_nil
+  end
+
+  it "advances the clean anchor only after the checkpoint push succeeds" do
+    allow(git).to receive(:run).with("ls-remote", anything, anything, any_args).and_return("")
+    allow(git).to receive(:run).with("push", anything, anything, any_args).and_return("")
+
+    described_class.publish!(run: run, workspace: workspace, git: git)
+
+    expect(PushProtection::Ledger.for(workflow).clean_anchor).to eq("abc123")
+  end
 end

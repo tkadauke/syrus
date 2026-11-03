@@ -30,6 +30,9 @@ module Steps
         GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: "git_stack_force_push", log: method(:log)) do |push_url|
           git.run("push", force_with_lease_arg(entry), push_url, "#{post_sha}:refs/heads/#{branch}", chdir: workspace.path.to_s)
         end
+      rescue GithubPushProtection::Rejected => e
+        # Multi-branch stack push: no in-place repair; record evidence for the owning Job and stop.
+        handle_push_protection_rejection!(e)
       rescue GitRunner::GitError => e
         raise unless push_rejected?(e)
 

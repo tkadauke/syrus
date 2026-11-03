@@ -20,7 +20,11 @@ module Steps
       begin
         authenticated_git("git_push", git: git) { |push_url| push_branch(git, push_url) }
       rescue GithubPushProtection::Rejected => e
-        handle_push_protection_rejection!(e)
+        handle_push_protection_rejection!(e) do
+          authenticated_git("git_push_protection_repair_push", git: git) do |push_url|
+            git.run("push", push_url, "HEAD:refs/heads/#{workspace.branch_name}", chdir: workspace.path.to_s)
+          end
+        end
       end
       record_accepted_push!
       apply_job_metadata_refresh
