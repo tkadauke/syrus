@@ -128,12 +128,37 @@ module Steps
       live = live_stack_parent_sha(git, base)
       return if ancestor?(git, live, "HEAD")
 
+      # Git cannot make one push conditional on a *different* ref, so the
+      # parent can still move between the final check and the push. Repair
+      # the stale publication (before any PR is opened or the Job becomes
+      # implemented) so obsolete ancestry is not left on the remote.
+      rollback_stale_publication!(git)
       raise_awaiting_stable_base!(
         StackBaseFreshness::AwaitingStableBase.new(
           "#{base} moved to #{live} after publication; published head does not descend from it, so dependents were not released",
           evidence: { "parent_ref" => base, "live_sha" => live, "published_sha" => current_head_sha(git), "phase" => "post_publish" }
         )
       )
+    end
+
+    # Restores the remote branch to what it was before this publication
+    # (deleting it if it did not exist), leased on the head we pushed so a
+    # concurrent update is never clobbered.
+    def rollback_stale_publication!(git)
+      branch = workspace.branch_name
+      pushed = current_head_sha(git)
+      previous = @pre_push_remote_sha
+      refspec = previous.present? ? "#{previous}:refs/heads/#{branch}" : ":refs/heads/#{branch}"
+      authenticated_git("git_pr_open_stale_rollback", git: git) do |push_url|
+        git.run("push", "--force-with-lease=refs/heads/#{branch}:#{pushed}", push_url, refspec,
+                chdir: workspace.path.to_s)
+      end
+      workflow.set_artifact!("stale_publication_rolled_back", {
+        "branch" => branch, "pushed_sha" => pushed, "restored_sha" => previous, "at" => Time.current.iso8601
+      }.compact)
+      log("pr_open: parent moved during publication; rolled #{branch} back to #{previous.presence || 'absent'}")
+    rescue GitRunner::GitError => e
+      log("pr_open: could not roll back stale publication of #{branch}: #{e.message}", kind: "system")
     end
 
     def raise_awaiting_stable_base!(error)
@@ -174,6 +199,7 @@ module Steps
     def push_stack_rebased_branch(git, push_url)
       branch = workspace.branch_name
       remote_sha = fetch_remote_branch!(git, push_url)
+      @pre_push_remote_sha = remote_sha
       if remote_sha.present? && !ancestor?(git, remote_sha, "HEAD") && !remote_patches_preserved?(git, branch)
         record_branch_divergence!(git, "remote branch holds work the stack rebase did not preserve", remote_sha: remote_sha)
         raise BranchDiverged, branch_divergence_message
@@ -373,6 +399,8 @@ module Steps
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
       authenticated_git("git_pr_open_push", git: git) do |push_url|
         next push_stack_rebased_branch(git, push_url) if @stack_base_rebased
+
+        @pre_push_remote_sha = fetch_remote_branch!(git, push_url) if StackBaseFreshness.applicable?(job, pr_base_branch)
 
         return :superseded if published_review_branch? && verify_existing_pr_branch_not_diverged!(git, push_url) == :superseded
         push_branch_to_remote(git, push_url)
