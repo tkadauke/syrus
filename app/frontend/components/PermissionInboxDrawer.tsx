@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { Link } from "react-router-dom"
 import { fetchPermissionRequests } from "../api/permissionRequests"
 import { useT } from "../hooks/useT"
@@ -68,35 +69,38 @@ export function PermissionInboxDrawer({ onNavigate, prefix = "" }: { onNavigate?
       <span aria-live="assertive" className="sr-only">
         {announcement}
       </span>
-      {open ? (
-        <aside
-          aria-label={t("approval_inbox.drawer_title")}
-          className="fixed inset-y-0 right-0 z-40 w-full max-w-md overflow-y-auto border-l border-border bg-surface p-4 shadow-xl"
-        >
-          <header className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold">{t("approval_inbox.drawer_title")}</h2>
-            <button className="text-sm text-text-secondary" onClick={() => setOpen(false)} type="button">
-              {t("approval_inbox.close")}
-            </button>
-          </header>
-          <div className="space-y-3">
-            {pending.slice(0, 5).map((request) => (
-              <PermissionRequestCard key={request.id} request={request} />
-            ))}
-          </div>
-          {!pendingCount ? <p className="text-sm text-text-muted">{t("approval_inbox.empty_pending")}</p> : null}
-          <Link
-            className="mt-4 inline-block text-sm font-semibold text-brand hover:underline"
-            onClick={() => {
-              setOpen(false)
-              onNavigate?.()
-            }}
-            to={withRoutePrefix("/permissions/inbox", prefix)}
-          >
-            {t("approval_inbox.view_all")}
-          </Link>
-        </aside>
-      ) : null}
+      {open
+        ? createPortal(
+            <aside
+              aria-label={t("approval_inbox.drawer_title")}
+              className="fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto border-l border-border bg-surface p-4 shadow-xl"
+            >
+              <header className="mb-4 flex items-center justify-between gap-3">
+                <h2 className="text-lg font-semibold">{t("approval_inbox.drawer_title")}</h2>
+                <button className="text-sm text-text-secondary" onClick={() => setOpen(false)} type="button">
+                  {t("approval_inbox.close")}
+                </button>
+              </header>
+              <div className="space-y-3">
+                {pending.slice(0, 5).map((request) => (
+                  <PermissionRequestCard key={request.id} request={request} />
+                ))}
+              </div>
+              {!pendingCount ? <p className="text-sm text-text-muted">{t("approval_inbox.empty_pending")}</p> : null}
+              <Link
+                className="mt-4 inline-block text-sm font-semibold text-brand hover:underline"
+                onClick={() => {
+                  setOpen(false)
+                  onNavigate?.()
+                }}
+                to={withRoutePrefix("/permissions/inbox", prefix)}
+              >
+                {t("approval_inbox.view_all")}
+              </Link>
+            </aside>,
+            document.body
+          )
+        : null}
     </div>
   )
 }
