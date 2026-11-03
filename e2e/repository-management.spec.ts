@@ -24,7 +24,6 @@ test("adds a repository with automation settings from the UI", async ({ page }) 
     await main.getByLabel("Working name").fill(name)
     await main.getByLabel("Default branch", { exact: true }).fill("main")
     await main.getByLabel("Trigger label").first().fill("delegate")
-    await main.getByLabel("Default agent").selectOption("codex")
     await main.getByLabel("Feedback policy").selectOption("auto")
     await main.getByLabel("Review policy").selectOption("two_person")
 
@@ -33,7 +32,6 @@ test("adds a repository with automation settings from the UI", async ({ page }) 
 
     const row = page.getByRole("row").filter({ has: page.getByRole("link", { name: `${owner}/${name}`, exact: true }) })
     await expect(row).toBeVisible()
-    await expect(row).toContainText("Codex")
 
     // The trigger label is not a column in the repositories table; assert it
     // where it is actually shown, which also proves it was persisted.
@@ -78,7 +76,6 @@ test("edits the seeded repository settings and shows config plus unconfigured Gi
     await expect(main.getByLabel("Working owner")).toHaveValue("demo")
     await expect(main.getByLabel("Working name")).toHaveValue("syrus-preview")
     await expect(main.getByLabel("Trigger label").first()).toHaveValue("syrus")
-    await expect(main.getByLabel("Default agent")).toHaveValue("codex")
     await expect(main.getByLabel("Feedback policy")).toHaveValue("confirm")
     await expect(main.getByLabel("Review policy")).toHaveValue("self")
 

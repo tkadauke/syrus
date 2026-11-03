@@ -9,6 +9,7 @@ module SdlcPipeline
     disableable true
     author "Thomas Kadauke"
     icon_url "/plugin-icons/sdlc_pipeline.svg"
+    capability_descriptor_compatibility chat_mcp_tool_set: "a141fbece18b215cff90c6bb771f51f009f8cbf18c1506947dca7f319630d853"
     description "A bounded repository pipeline derived from existing lifecycle and deployment facts."
     long_description "SDLC Pipeline turns the existing Job, Epic, landing, and deployment-stage records into an ordered repository view. It is a read-only projection: disabling or removing the plugin does not change delivery state."
 

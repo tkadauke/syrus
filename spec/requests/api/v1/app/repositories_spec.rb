@@ -234,7 +234,6 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       default_branch: "main",
       trigger_label: "syrus",
       polling_enabled: true,
-      agent_provider: "codex",
       last_poll_status: "ok",
       last_poll_started_at: Time.zone.parse("2026-05-30 12:00:00")
     )
@@ -265,7 +264,6 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
         "default_branch" => "main",
         "trigger_label" => "syrus",
         "polling_enabled" => true,
-        "agent_provider_label" => "Codex",
         "main_health" => "broken",
         "open_jobs_count" => 1,
         "last_job_activity_at" => job_activity_at.iso8601,
@@ -292,7 +290,6 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       user: user,
       owner: "acme",
       name: "widgets",
-      agent_provider: "codex",
       main_branch_health_enabled: true,
       last_health_checked_sha: "abc123",
       last_ci_evaluated_sha: "abc123",
@@ -301,13 +298,12 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       grader_health: "broken"
     )
     Factories.job_record(user: user, repository: match, state: "running")
-    Factories.repository(user: user, owner: "acme", name: "api", agent_provider: "claude")
-    Factories.repository(user: user, owner: "other", name: "widgets", agent_provider: "codex")
+    Factories.repository(user: user, owner: "acme", name: "api")
+    Factories.repository(user: user, owner: "other", name: "widgets")
 
     get "/api/v1/app/repositories", params: {
       github_owner: [ "acme" ],
       health: "broken",
-      agent_provider: "codex",
       has_open_jobs: "true",
       slug: "widgets"
     }
@@ -350,16 +346,16 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
   it "lists repository smart folders with All/Recent/Archived built-ins and honors a saved user folder" do
     sign_in_as(user)
-    match = Factories.repository(user: user, owner: "acme", name: "widgets", agent_provider: "codex")
-    Factories.repository(user: user, owner: "acme", name: "other", agent_provider: "claude")
+    match = Factories.repository(user: user, owner: "acme", name: "widgets")
+    Factories.repository(user: user, owner: "acme", name: "other")
     archived = Factories.repository(user: user, owner: "acme", name: "archived")
     archived.archive!
     saved = SmartFolder.create!(
       user: user,
       kind: "user_defined",
       subject_type: "repository",
-      name: "Codex repos",
-      filter: { "and" => [ { "field" => "agent_provider", "op" => "is", "value" => "codex" } ] },
+      name: "Widgets repos",
+      filter: { "and" => [ { "field" => "slug", "op" => "contains", "value" => "widgets" } ] },
       position: 0
     )
 
@@ -367,7 +363,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     folders = parse_body.fetch("smart_folders")
-    expect(folders.map { |f| f["name"] }).to include("All", "Recent", "Archived", "Codex repos")
+    expect(folders.map { |f| f["name"] }).to include("All", "Recent", "Archived", "Widgets repos")
     all_folder = folders.find { |f| f["name"] == "All" }
     expect(all_folder["count"]).to eq(3)
     archived_folder = folders.find { |f| f["name"] == "Archived" }
@@ -606,10 +602,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(body.dig("repository", "main_branch_repair_auto_approve")).to eq(false)
     expect(body.dig("repository", "treat_grader_timeouts_as_failures")).to eq(false)
     expect(body.dig("repository", "external_pr_ingestion_enabled")).to eq(false)
-    expect(body["configured_agent_providers"]).to include(
-      { "value" => "codex", "label" => "Codex" },
-      { "value" => "claude", "label" => "Claude Code" }
-    )
+    expect(body).not_to have_key("configured_agent_providers")
     expect(body["input_source_types"]).to include(
       include(
         "type" => "InputSources::Github",
@@ -646,7 +639,6 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       main_branch_repair_auto_approve: true,
       treat_grader_timeouts_as_failures: true,
       distributed_workflow_dag_enabled: true,
-      agent_provider: "codex",
       auto_approve_mode: "if_graders_pass",
       epic_dependency_policy: "linear",
       github_owner_id: 123,
@@ -677,7 +669,6 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       "treat_grader_timeouts_as_failures" => true,
       "external_pr_ingestion_enabled" => false,
       "distributed_workflow_dag_enabled" => true,
-      "agent_provider" => "codex",
       "auto_approve_mode" => "if_graders_pass",
       "epic_dependency_policy" => "linear",
       "github_owner_id" => 123,
@@ -719,13 +710,13 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
   it "returns the repository detail payload" do
     RepositoryContent.provider_classes_override = []  # nothing can read the repository
     sign_in_as(user)
+    user.update!(agent_provider: "codex", codex_auth_mode: "api_key", codex_api_key: "sk-test")
     AppSetting.current.update!(github_app_id: 123, github_app_slug: "operator-syrus")
     repository = Factories.repository(
       user: user,
       owner: "acme",
       name: "widgets",
       trigger_label: "syrus",
-      agent_provider: "codex",
       github_owner_id: 100,
       github_repository_id: 200,
       ci_health: "not_configured",
@@ -772,7 +763,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       "id" => user.id,
       "email_address" => user.email_address
     )
-    expect(body.dig("repository", "agent_provider_label")).to eq("Codex")
+    expect(body.dig("repository", "effective_agent_provider_label")).to eq("Codex")
     expect(body.dig("repository", "github_url")).to eq("https://github.com/acme/widgets")
     expect(body.dig("repository", "landing_paused")).to eq(true)
     expect(body.dig("repository", "main_branch_health_enabled")).to eq(true)
@@ -975,7 +966,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
   it "returns repository job failover payloads without per-job latest workflow lookups" do
     sign_in_as(user)
-    repository = Factories.repository(user: user, agent_provider: "claude")
+    repository = Factories.repository(user: user)
     failed_over = Factories.job_record(repository: repository, issue_number: 1, issue_title: "Fail over provider", agent_provider: "claude")
     Workflow.create!(
       job: failed_over,
@@ -1314,7 +1305,6 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
           main_branch_repair_blocks_work: "0",
           main_branch_repair_auto_approve: "1",
           treat_grader_timeouts_as_failures: "1",
-          agent_provider: "codex",
           auto_approve_mode: "if_graders_pass",
           epic_dependency_policy: "linear",
           github_owner_id: "123",
@@ -1337,7 +1327,6 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(repository.main_branch_repair_blocks_work).to eq(false)
     expect(repository.main_branch_repair_auto_approve).to eq(true)
     expect(repository.treat_grader_timeouts_as_failures).to eq(true)
-    expect(repository.agent_provider).to eq("codex")
     expect(repository.auto_approve_mode).to eq("if_graders_pass")
     expect(repository.epic_dependency_policy).to eq("linear")
     expect(repository.github_owner_id).to eq(123)
@@ -1457,7 +1446,6 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
         main_branch_repair_blocks_work: "0",
         main_branch_repair_auto_approve: "1",
         treat_grader_timeouts_as_failures: "1",
-        agent_provider: "codex",
         auto_approve_mode: "if_graders_pass_and_tagged_safe",
         epic_dependency_policy: "linear",
         github_owner_id: "123",
@@ -1481,7 +1469,6 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(repository.main_branch_repair_blocks_work).to eq(false)
     expect(repository.main_branch_repair_auto_approve).to eq(true)
     expect(repository.treat_grader_timeouts_as_failures).to eq(true)
-    expect(repository.agent_provider).to eq("codex")
     expect(repository.auto_approve_mode).to eq("if_graders_pass_and_tagged_safe")
     expect(repository.epic_dependency_policy).to eq("linear")
     expect(repository.github_owner_id).to eq(123)

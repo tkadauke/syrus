@@ -1609,16 +1609,6 @@ describe "running / failed lifecycle (new in this commit)" do
       expect(job.agent_provider).to eq("codex")
       expect(job.initial_run.agent_provider).to eq("codex")
     end
-
-    it "defaults the job agent provider from the repository override before the user default" do
-      user = Factories.user(agent_provider: "claude", codex_api_key: "sk-test")
-      repository = Factories.repository(user: user, agent_provider: "codex")
-
-      job = Factories.job(repository: repository)
-
-      expect(job.agent_provider).to eq("codex")
-      expect(job.initial_run.agent_provider).to eq("codex")
-    end
   end
 
   describe "Run helpers" do

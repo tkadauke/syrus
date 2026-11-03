@@ -3242,7 +3242,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       expect(action.reload).to be_cancelled
       expect(job.reload).to be_implemented
-      expect(parse_body["pending_actions"]).to contain_exactly(include("id" => action.id, "state" => "cancelled"))
+      # The cancellation's durable outcome message retires the card.
+      expect(parse_body["pending_actions"]).to be_empty
       expect(parse_body["attached_coding_job"]).to be_nil
     end
 
@@ -6836,6 +6837,10 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(action.confirm!).to be(true)
     document = action.reload.result
+    # Completed cards are retired once their durable outcome message exists;
+    # clear it to exercise the card payload for a confirmed action that is
+    # still visible.
+    action.update_columns(outcome_message_id: nil)
     get "/api/v1/app/chats/#{chat.id}"
 
     expect(parse_body["pending_actions"]).to contain_exactly(

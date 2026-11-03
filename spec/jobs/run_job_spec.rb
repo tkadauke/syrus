@@ -1537,7 +1537,7 @@ RSpec.describe RunJob, :ci_only do
       expect(wf.reload.artifact("run_host_admission")).to be_nil
     end
 
-    it "does not skip visual_review when the captured agent diff matches even if the workspace diff does not" do
+    it "does not skip visual_review when the cumulative workspace diff matches even if the latest captured agent diff does not" do
       job = job_with_single_run(step_kind: "visual_review")
       wf = job.workflows.last
       step = wf.first_step
@@ -1548,7 +1548,7 @@ RSpec.describe RunJob, :ci_only do
         trigger_kind: wf.trigger_kind,
         agent_provider: job.agent_provider,
         state: "succeeded",
-        step_agent_diff: "diff --git a/app/frontend/routes/card.tsx b/app/frontend/routes/card.tsx\n+export const card = true\n"
+        step_agent_diff: "diff --git a/docs/readme.md b/docs/readme.md\n+docs only\n"
       )
       syrus_yml = <<~YAML
         visual_review:
@@ -1559,7 +1559,7 @@ RSpec.describe RunJob, :ci_only do
       initialize_workspace_repo(
         wf,
         ".syrus.yml" => syrus_yml,
-        "lib/backend.rb" => "class Backend; end\n"
+        "app/frontend/routes/card.tsx" => "export const card = true\n"
       )
       decision = RunHostAdmission::Decision.new(
         action: "defer",
