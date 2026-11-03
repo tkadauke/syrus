@@ -187,3 +187,7 @@ Core chat tools whose effects persist or leave the conversation use explicit cap
 - `syrus.artifacts@v1`: `submit`, a low-risk edit of an artifact the caller owns, which stays automatic (`allow`).
 
 Repository-document create and delete keep their pending-action lifecycle and re-validate the live record when the approved action runs; bridge threads keep their hop limits. The evaluator only decides whether the invocation may proceed.
+
+## Local Mode capabilities
+
+`run_command` and `write_file` in Local Mode use `syrus.local_mode@v1` (`run_command`, `write_file`), defaulting to `ask` for the `chat:local` role with invocation or chat-session authority at most. The resource scope is the workspace the daemon is attached to; the fingerprint and lease constraints use the normalized command, or the root-relative path plus the content digest. The classifier adds `network_read`, `external_write`, `credential_use`, `destructive`, or `privilege_change` from the arguments. Leases only cover plain `operator_host_access`, so those calls ask every time. The daemon keeps enforcing the repository-root sandbox.

@@ -1,15 +1,17 @@
 module Mcp::Tools
   module LocalToolDispatch
     DISCONNECTED_ERROR = "Local daemon not connected. Run `syrus local` in your repo to continue."
-    CONFIRMATION_REQUIRED_TOOLS = %w[run_command write_file].freeze
+    CONFIRMATION_REQUIRED_TOOLS = Permissions::LocalModeActions::TOOL_NAMES
 
     def self.call(tool_name, arguments, chat_session:, server_context: nil)
       if confirmation_required?(tool_name) && !daemon_connected?(chat_session)
         return execute_now(tool_name, arguments, chat_session:)
       end
 
-      if confirmation_required?(tool_name) && !approved_for_session?(tool_name, arguments, chat_session:)
-        return create_pending_confirmation(tool_name, arguments, chat_session:, server_context:)
+      if confirmation_required?(tool_name)
+        authorization = Permissions::LocalModeAuthorization.authorize(chat_session:, tool_name:, arguments:)
+        return not_permitted_error(tool_name) if authorization.denied?
+        return create_pending_confirmation(tool_name, arguments, chat_session:, server_context:) unless authorization.allowed?
       end
 
       execute_now(tool_name, arguments, chat_session:)
@@ -42,12 +44,8 @@ module Mcp::Tools
       chat_session.local_daemon_session&.connected?
     end
 
-    def self.approved_for_session?(tool_name, arguments, chat_session:)
-      expected = approval_payload(tool_name, arguments)
-      chat_session.pending_actions
-        .confirmed
-        .where(action: "local_tool_call")
-        .any? { |action| comparable_payload(action.payload) == expected }
+    def self.not_permitted_error(tool_name)
+      Mcp::Tools.tool_error("#{tool_label(tool_name).capitalize} is denied by a permission rule for Local Mode.")
     end
 
     def self.create_pending_confirmation(tool_name, arguments, chat_session:, server_context:)
