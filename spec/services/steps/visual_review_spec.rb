@@ -21,7 +21,7 @@ RSpec.describe Steps::VisualReview do
   let(:handler) { described_class.new(run) }
 
   before do
-    fake_ws = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/workspace"))
+    fake_ws = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/workspace"), base_ref: "origin/main")
     allow(handler).to receive(:workspace).and_return(fake_ws)
     allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_raise(Errno::ENOENT)
     allow(App::VisualReviewProjects).to receive(:call).and_return(
@@ -48,6 +48,12 @@ RSpec.describe Steps::VisualReview do
     # exercise the review loop without starting a real preview process.
     allow_any_instance_of(described_class).to receive(:start_runtime_sessions!)
     allow_any_instance_of(described_class).to receive(:stop_runtime_sessions!)
+
+    # By default the cumulative `<base>...HEAD` diff is unavailable, so the
+    # examples below exercise the per-step diff fallback. Examples covering
+    # the cumulative diff stub `diff_against_default` themselves.
+    allow_any_instance_of(described_class).to receive(:diff_against_default)
+      .and_raise(GitRunner::GitError.new(%w[diff], 128, "fatal: bad revision"))
 
     implement_step.update!(state: "succeeded")
     implement_run.update!(
@@ -353,7 +359,7 @@ RSpec.describe Steps::VisualReview do
     expect(workflow.reload.artifact("visual_review_iterations")).to be_blank
   end
 
-  it "reviews the latest implement step diff instead of the cumulative stack diff" do
+  it "falls back to the latest implement step diff when the cumulative diff is unavailable" do
     implement_run.update!(
       agent_diff: <<~DIFF,
         diff --git a/plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx b/plugins/design_docs/app/frontend/components/DesignDocsSurface.tsx
@@ -713,7 +719,7 @@ RSpec.describe Steps::VisualReview do
     end
   end
 
-  context "when an earlier implement changed UI and a later repair only changed backend files" do
+  context "when an earlier implement changed UI and a later repair only changed docs" do
     before do
       allow(SyrusYml).to receive(:load_repo).with(Pathname.new("/tmp/workspace")).and_return(
         SyrusYml::Config.new(
@@ -754,16 +760,51 @@ RSpec.describe Steps::VisualReview do
       )
     end
 
-    it "runs visual review but keeps the reviewer prompt focused on the latest scoped diff" do
+    let(:cumulative_diff) do
+      <<~DIFF
+        diff --git a/plugins/global_search/app/frontend/routes/Search.tsx b/plugins/global_search/app/frontend/routes/Search.tsx
+        +<SearchFilters />
+        diff --git a/app/services/search_filter.rb b/app/services/search_filter.rb
+        +filter semantics
+      DIFF
+    end
+
+    it "runs visual review and reviews the whole job diff, not just the last iteration" do
+      allow(handler).to receive(:diff_against_default).and_return(cumulative_diff)
+
       expect(handler).to receive(:run_agent) do |prompt: nil, **|
         expect(prompt).to include("diff --git a/app/services/search_filter.rb")
-        expect(prompt).not_to include("Search.tsx")
+        expect(prompt).to include("Search.tsx")
+        expect(prompt).to include("Full job diff against the base branch")
         workflow.set_artifact!("visual_review_iterations", [
           { "iteration" => review_step.iteration, "critique" => "OK.", "verdict" => "approved" }
         ])
       end
 
       handler.call
+    end
+
+    it "does not skip via the when_files_changed pre-filter when only an earlier iteration touched UI files" do
+      allow(handler).to receive(:diff_against_default).and_return(cumulative_diff)
+
+      expect(handler.send(:changed_files)).to include("plugins/global_search/app/frontend/routes/Search.tsx")
+      expect(handler.send(:configured_changed_files_match?)).to be(true)
+    end
+  end
+
+  context "when the cumulative diff is computed for a stacked job" do
+    it "diffs against the job's effective base so the parent's changes are excluded" do
+      fake_ws = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/workspace"),
+                                                   base_ref: "origin/parent-branch")
+      allow(handler).to receive(:workspace).and_return(fake_ws)
+      git = instance_double(GitRunner)
+      allow(GitRunner).to receive(:new).and_return(git)
+      expect(git).to receive(:run)
+        .with("-c", "core.quotePath=false", "diff", "origin/parent-branch...HEAD", chdir: "/tmp/workspace")
+        .and_return("diff --git a/app/views/child.html.erb b/app/views/child.html.erb\n+child\n")
+      allow_any_instance_of(described_class).to receive(:diff_against_default).and_call_original
+
+      expect(handler.send(:review_diff)).to include("child.html.erb")
     end
   end
 
@@ -856,10 +897,10 @@ RSpec.describe Steps::VisualReview do
       ])
     end
 
-    it "reads the respond step diff, not an implement diff" do
+    it "reads the respond step diff (fallback), not an implement diff" do
       expect(fb_handler).to receive(:run_agent) do |prompt: nil, **|
         expect(prompt).to include("addressed feedback")
-        expect(prompt).to include("respond step")
+        expect(prompt).to include("Full job diff against the base branch")
         feedback_workflow.set_artifact!("visual_review_iterations", [
           { "iteration" => 1, "critique" => "Fine.", "verdict" => "approved" }
         ])

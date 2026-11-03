@@ -318,24 +318,32 @@ module Steps
       job.synthetic_issue || Struct.new(:title, :body).new(job.issue_title.to_s, job.issue_body.to_s)
     end
 
-    # Standalone manual visual review workflows (Workflows::ManualVisualReview)
-    # have no implement/respond step to read a diff off of — they run the
-    # reviewer alone against whatever is already on the branch. Only fall
-    # back to a fresh `git diff` when this workflow's chain has no step of
-    # that kind at all; when one exists but hasn't produced a diff (still
-    # running, failed, or genuinely produced nothing) keep raising so a
-    # broken loop iteration surfaces instead of silently reviewing stale state.
+    # Review the cumulative job diff (`<base>...HEAD`), not just the last
+    # implement/respond iteration: a later iteration (e.g. fixing adversarial
+    # review feedback) can touch far less than the job as a whole. The base is
+    # the job's effective base (parent branch for stacked jobs) via
+    # `default_branch_ref`. The per-step diff is only a fallback when the
+    # cumulative diff is unavailable. Standalone manual visual reviews have no
+    # agentic step at all, so they raise only when the branch has no changes.
     def review_diff
-      latest_agentic_diff.presence
+      cumulative_branch_diff.presence || latest_agentic_diff.presence
     end
 
     def review_eligibility_diff
-      scope = workflow.steps.where(kind: agentic_kind)
+      cumulative_branch_diff.presence ||
+        if workflow.steps.where(kind: agentic_kind).exists?
+          latest_agentic_review_run&.agent_diff.presence || latest_agentic_diff.presence
+        end
+    end
 
-      if scope.exists?
-        latest_agentic_review_run&.agent_diff.presence || latest_agentic_diff.presence
-      else
-        diff_against_default.presence
+    def cumulative_branch_diff
+      return @cumulative_branch_diff if defined?(@cumulative_branch_diff)
+
+      @cumulative_branch_diff = begin
+        diff_against_default
+      rescue GitRunner::GitError, Errno::ENOENT => e
+        log("[visual_review] warning: cumulative diff unavailable, falling back to step diff: #{e.message}")
+        nil
       end
     end
 
@@ -347,7 +355,7 @@ module Steps
           &.then { |agentic_run| agentic_run.step_agent_diff.presence || agentic_run.agent_diff.presence }
           .presence || raise(StepFailed, "no succeeded #{agentic_kind} diff available for visual_review")
       else
-        diff_against_default.presence || raise(StepFailed, "no changes to review against #{default_branch_ref}")
+        raise StepFailed, "no changes to review against #{default_branch_ref}"
       end
     end
 

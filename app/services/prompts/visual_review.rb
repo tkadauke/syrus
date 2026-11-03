@@ -100,6 +100,9 @@ module Prompts
         console errors, incorrect rendering, broken interactions — that only show up when the app is
         actually running, not just from reading the diff.
         Do not make code changes; any edits you make are ephemeral and will not be committed.
+        You are reviewing the full job: the diff below is the cumulative change on the branch, not
+        a single iteration. Never skip because changes were "committed in earlier steps" or "aren't
+        in this diff" — if the diff includes UI changes, review them.
         Do not run builds, test suites, graders, typecheckers, linters, or other deterministic
         verification commands. Those belong to Syrus grader steps. Use shell only for lightweight,
         review-specific setup such as reading files, inspecting logs, or applying documented seed
@@ -130,19 +133,18 @@ module Prompts
     end
 
     def current_diff
-      agentic_label = feedback_workflow? ? "respond" : "implement"
       [
-        current_diff_label(agentic_label),
+        current_diff_label,
         "```diff",
         diff_context,
         "```"
       ].join("\n")
     end
 
-    def current_diff_label(agentic_label)
-      return "Current diff from the latest succeeded #{agentic_label} step:" unless oversized_diff?
+    def current_diff_label
+      return "Full job diff against the base branch (all implementation iterations combined):" unless oversized_diff?
 
-      "Current diff summary from the latest succeeded #{agentic_label} step (bounded for visual review prompt budget):"
+      "Full job diff summary against the base branch (all implementation iterations combined; bounded for visual review prompt budget):"
     end
 
     def diff_context
