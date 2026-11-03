@@ -1101,3 +1101,18 @@ boundary: the current Run finishes, then the dispatcher records
 Manual pauses have no automatic `next_check_at`; only an operator unpause clears
 the flag and lets normal admission/dependency/provider checks decide when the
 workflow can proceed.
+
+## Reading admission inputs from the admin API
+
+- `GET /api/v1/admin/queue/workers` reports `admission_capacity` per worker:
+  `effective_cpu_count`, `cpu_source` (`cgroup_v2_quota`, `cgroup_v1_quota`,
+  `env_override`, or `undetectable_fallback`), `cpu_fallback_in_effect`,
+  `host_compute_capacity`, `agentic_capacity_units`, `agentic_runs_per_host`,
+  `grader_runs_per_host`, `agentic_reserved_units`, and memory limit, budget
+  and reserve. Workers publish it with their heartbeat (it is computed from
+  their own cgroup), so it can lag a restart by one heartbeat.
+- `GET /api/v1/admin/runs` and `/runs/:run_id/artifacts` carry `host_admission`
+  for a Run that is still queued: the latest deferral (reason, binding terms,
+  compute and memory evidence). It is null once the Run starts or finishes.
+- `GET /api/v1/admin/settings` returns every non-secret AppSetting with its
+  value and registry metadata, including `max_concurrent_agent_runs`.

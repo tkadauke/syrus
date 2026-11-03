@@ -462,6 +462,7 @@ module Admin
           status: process_status(worker),
           capabilities: process_capabilities(worker),
           capability_diagnostics: process_capability_diagnostics(worker),
+          admission_capacity: process_capability_diagnostics(worker)["admission_capacity"],
           macos_worker_drain: drain_payload(worker)
         }
       end

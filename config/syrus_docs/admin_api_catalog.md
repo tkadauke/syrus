@@ -47,6 +47,7 @@ Generated catalog of core token-only `/api/v1/admin/*` operator endpoints. Plugi
 | core | GET | `/api/v1/admin/runs/:run_id/artifacts` | `api/v1/admin/runs#artifacts` |
 | core | GET | `/api/v1/admin/runs/:run_id/transcript` | `api/v1/admin/transcripts#show` |
 | core | GET | `/api/v1/admin/runs/:run_id/transcript/raw` | `api/v1/admin/transcripts#raw` |
+| core | GET | `/api/v1/admin/settings` | `api/v1/admin/settings#show` |
 | core | GET | `/api/v1/admin/stuck` | `api/v1/admin/overview#stuck` |
 | core | GET | `/api/v1/admin/users` | `api/v1/admin/users#index` |
 | core | GET | `/api/v1/admin/users/:id` | `api/v1/admin/users#show` |

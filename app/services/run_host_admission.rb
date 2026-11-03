@@ -12,7 +12,7 @@ class RunHostAdmission
   # to large workers instead of imposing one fleet-wide concurrency constant.
   IO_INTENSIVE_GRADER_BYTES = 1.gigabyte
   DETERMINISTIC_COMPUTE_FALLBACK_BYTES = 1.gigabyte
-  MEMORY_UTILIZATION = 0.8
+  MEMORY_UTILIZATION = RunHostAdmissionCapacity::MEMORY_UTILIZATION
 
   # visual_diff previews drive a headless browser against a spawned preview
   # app -- IO-heavy on top of the agent turn itself. Colocating more than one
@@ -78,12 +78,12 @@ class RunHostAdmission
   attr_reader :run, :queue_name, :now
 
   def admit(reason)
-    Syrus::Metrics.counter(:syrus_admission_decisions_total).increment(tags: { decision: "admit" })
+    Syrus::Metrics.counter(:syrus_admission_decisions_total).increment(tags: { decision: "admit", reason: reason })
     Decision.new(action: "admit", reason: reason, delay: nil, details: basic_details(reason))
   end
 
   def defer(reason)
-    Syrus::Metrics.counter(:syrus_admission_decisions_total).increment(tags: { decision: "defer" })
+    Syrus::Metrics.counter(:syrus_admission_decisions_total).increment(tags: { decision: "defer", reason: reason })
     Decision.new(action: "defer", reason: reason, delay: RETRY_DELAY, details: details(reason))
   end
 
@@ -270,10 +270,7 @@ class RunHostAdmission
   end
 
   def agentic_reserved_units
-    configured = ENV["SYRUS_AGENTIC_RESERVED_UNITS"]
-    return configured.to_i.clamp(0, host_compute_capacity - 1) if configured.present?
-
-    [ agentic_capacity_units, host_compute_capacity - 1 ].min
+    RunHostAdmissionCapacity.agentic_reserved_units(host_compute_capacity)
   end
 
   def grader_memory_reserve_bytes
@@ -299,19 +296,19 @@ class RunHostAdmission
   # provider call itself is mostly waiting on the network. Give them two units
   # of the same host budget a grader consumes.
   def agentic_runs_per_host
-    [ host_compute_capacity / agentic_capacity_units, 1 ].max
+    RunHostAdmissionCapacity.agentic_runs_per_host(host_compute_capacity)
   end
 
   def grader_runs_per_host
-    [ host_compute_capacity / grader_capacity_units, 1 ].max
+    RunHostAdmissionCapacity.grader_runs_per_host(host_compute_capacity)
   end
 
   def agentic_capacity_units
-    ENV.fetch("SYRUS_AGENTIC_CAPACITY_UNITS", 2).to_i.clamp(1, host_compute_capacity)
+    RunHostAdmissionCapacity.agentic_capacity_units(host_compute_capacity)
   end
 
   def grader_capacity_units
-    ENV.fetch("SYRUS_GRADER_CAPACITY_UNITS", 1).to_i.clamp(1, host_compute_capacity)
+    RunHostAdmissionCapacity.grader_capacity_units(host_compute_capacity)
   end
 
   def candidate_compute_units

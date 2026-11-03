@@ -2,6 +2,9 @@ require "json"
 require "open3"
 require "rbconfig"
 require_relative "target_graph/execution_capabilities"
+# config/queue.yml renders this before Rails exists; keep these self-contained.
+require_relative "run_process_parallelism"
+require_relative "run_host_admission_capacity"
 require "timeout"
 
 class WorkerCapabilities
@@ -74,7 +77,8 @@ class WorkerCapabilities
         diagnostics: detected.fetch(:diagnostics).merge(
           "configured" => configured.any?,
           "env_key" => ENV_KEY,
-          "worker_pool_name" => presence(ENV["SYRUS_WORKER_POOL_NAME"])
+          "worker_pool_name" => presence(ENV["SYRUS_WORKER_POOL_NAME"]),
+          "admission_capacity" => RunHostAdmissionCapacity.snapshot
         )
       }
     end
