@@ -244,4 +244,20 @@ RSpec.describe Mcp::Tools::OperationalDiagnosticsTools do
 
     expect(parsed(response).dig("data", "diagnosis", "kind")).to eq("ready_waiting_for_slot")
   end
+
+  %w[failed cancelled].each do |state|
+    it "returns a non-empty waterfall for a #{state} workflow" do
+      job = Factories.job(repository: repository)
+      workflow = job.workflows.first
+      workflow.update_columns(state: state)
+      allow(WorkerTimeline).to receive(:enabled?).and_return(true)
+      allow(Timeline::WorkflowWaterfallQuery).to receive(:call).with(workflow_id: workflow.id)
+        .and_return(workflow_id: workflow.id, steps: [ { id: 1, state: state } ])
+
+      response = described_class::ReadWorkflowWaterfallTool.call(server_context: { chat_session: admin_chat }, workflow_id: workflow.id)
+
+      expect(response).not_to be_error
+      expect(parsed(response).dig("data", "steps")).to eq([ { "id" => 1, "state" => state, "runs" => [] } ])
+    end
+  end
 end

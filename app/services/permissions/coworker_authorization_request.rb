@@ -2,7 +2,12 @@ require "digest"
 
 module Permissions
   class CoworkerAuthorizationRequest
-    Result = Data.define(:request, :decision)
+    # RESULT_REUSE_WINDOW bounds how long an executed single-use approval's
+    # stored result may answer an identical retry without a new approval.
+    RESULT_REUSE_WINDOW = 15.minutes
+    Result = Data.define(:request, :decision, :reused_result) do
+      def initialize(request:, decision:, reused_result: nil) = super
+    end
 
     def initialize(context:, descriptor:, arguments:, purpose: nil, action: nil, payload: {}, force_request: false)
       @context = context
@@ -23,6 +28,9 @@ module Permissions
       raise Mcp::Tools::AuthorizationSupport::AuthorizationError, "permission policy denies this operation" if denied?(decision)
       return Result.new(request: nil, decision:) if authorization.authorized? && !force_request
 
+      reused = reusable_completed_request(decision)
+      return Result.new(request: nil, decision:, reused_result: reused.payload["tool_result"]) if reused
+
       request = create_request(decision)
       Result.new(request:, decision:)
     end
@@ -30,6 +38,24 @@ module Permissions
     private
 
     attr_reader :context, :descriptor, :arguments, :purpose, :action, :payload, :force_request
+
+    # An identical retry of an invocation the owner already approved and that
+    # already executed returns the stored result. The deduplication key binds the
+    # actor, capability, operation, resource scope, exact arguments and
+    # conversation, and the owner/subject are re-checked, so nothing is broadened.
+    def reusable_completed_request(decision)
+      return if force_request || action != "coworker_tool_call"
+
+      key = deduplication_key(decision, InvocationFingerprint.call(descriptor:, arguments:))
+      candidate = ChatPendingAction.where(deduplication_key: key, state: "confirmed")
+        .where(confirmed_at: RESULT_REUSE_WINDOW.ago..).order(confirmed_at: :desc).first
+      return unless candidate
+      return unless candidate.user_id == context.user.id && candidate.subject == context.agent_actor
+      return if candidate.payload.to_h["tool_result"].blank?
+
+      Rails.logger.info("[coworker_tool_call] reusing result of pending_action=#{candidate.id} tool=#{candidate.payload['tool_name']}")
+      candidate
+    end
 
     def create_request(decision)
       fingerprint = InvocationFingerprint.call(descriptor:, arguments:)
