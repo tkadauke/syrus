@@ -50,7 +50,8 @@
     "previous": "Zurück",
     "next": "Weiter",
     "page_of": "Seite {{page}} von {{total}}",
-    "filters": { "state": "Status", "subject": "Subjekt", "capability": "Fähigkeit", "effect": "Auswirkung" },
+    "scope": "Gilt für", "consequence": "Was passieren könnte", "requested_duration": "Angefordert für", "why_required": "Warum ist eine Genehmigung nötig?",
+    "filters": { "state": "Status", "subject": "Agent", "action": "Angeforderte Aktion", "effect": "Folge", "origin_type": "Herkunft" },
     "states": { "pending": "Ausstehend", "confirmed": "Genehmigt", "rejected": "Abgelehnt", "dismissed": "Ausgeblendet", "non_actionable": "Nicht verfügbar" },
     "durations": { "invocation": "Dieser Aufruf", "chat_session": "Dieser Chat", "job": "Dieser Job", "permanent": "Dauerhaft" }
   },

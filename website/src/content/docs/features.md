@@ -32,9 +32,14 @@ evidence is redacted before display.
 
 The approval inbox at `/permissions/inbox` collects operational requests from
 chats and background work. A compact global drawer and inline Job cards show
-the same durable request, including its subject, origin, normalized resource,
-redacted arguments, effects, purpose, duration choices, and policy explanation.
-Operators can filter the inbox, select requests with a shared duration and decide them atomically,
+the same durable request in the same plain-English wording as the chat card:
+what the agent wants to do, which agent asked, where it came from, what it
+applies to, what could happen, how long it is requested for, and why approval
+is required. Raw capability keys, JSON, and internal identifiers stay in the
+redacted audit record rather than on the card.
+Operators can filter the inbox by state, agent, requested action, consequence,
+and origin using searchable labeled choices; filters run on the server before
+pagination, so matches beyond the first page are found. Select requests with a shared duration and decide them atomically,
 dismiss obsolete requests without denying future work, and review completed
 history. Coworker approval cards offer Allow once, Deny, and one adaptive
 choice — "Always allow similar", "Allow for this job", or "Allow for this chat",

@@ -6827,6 +6827,26 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(request.reload).to be_pending
   end
 
+  it "serializes humanized authorization item presentation without relying on raw keys in the card" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    request = chat.pending_actions.create!(
+      request_kind: "authorization_request", action: "coworker_tool_call", requested_by: "agent",
+      origin: chat, subject: user, payload: { "tool_name" => "send_chat_message", "arguments" => {} }
+    )
+    request.authorization_items.create!(
+      kind: "operation", capability: "syrus.communication@v1", capability_version: 1,
+      operation: "syrus.communication/send_chat_message@v1", operation_version: 1, resource_type: "none",
+      invocation_fingerprint: "sha256:presentation", normalized_arguments: {},
+      effects: [ "communication" ], policy_chain: [], decisive_rule: {}, requested_durations: [ "invocation" ]
+    )
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    item = parse_body.fetch("pending_actions").first.fetch("authorization_items").first
+    expect(item.fetch("presentation")).to include("statement" => "Send a message to another chat", "consequences" => [ "send a message" ])
+  end
+
   it "records a coworker operation denial without creating legacy possession" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
