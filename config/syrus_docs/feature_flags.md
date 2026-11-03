@@ -93,6 +93,19 @@ the namespace, so the graded command would have to execute there too, which is
 a change to how commands are run rather than how workspaces are materialized.
 The fallback log says when a host is ready for it.
 
+### Host requirements and diagnosing a fallback
+
+Overlay mounts only work when the worker host satisfies all of:
+
+- **Linux** with `overlay` listed in `/proc/filesystems`.
+- **Privileges**: either an effective `CAP_SYS_ADMIN` (direct mount), or kernel 5.11+ with unprivileged user namespaces enabled (`/proc/sys/user/max_user_namespaces` above 0, `kernel.unprivileged_userns_clone` not 0, and no AppArmor/seccomp profile blocking `unshare`). Only the direct mount is used today.
+- **Filesystem**: the workspace root must be a filesystem that can host overlay upper/work directories (not itself an overlayfs that refuses nesting).
+- `mount` and `unshare` binaries on `PATH`.
+
+When overlay is unavailable, **hardlink fan-out is the effective default**, and it already costs about zero extra bytes. So an instance with this flag on but overlay unavailable is working as designed, not broken.
+
+To see why a worker cannot mount: the worker's capability diagnostics (worker health) carry an `overlayfs` entry with the strategy, a reason naming the blocking cause, and per-attempt command, exit status and stderr plus the environment facts (effective uid, `CAP_SYS_ADMIN`, user-namespace limits, filesystem types, `mount`/`unshare` availability). Each grader Step that fell back also records `overlay_capability` and `overlay_diagnostics` in its `immutable_source_workspace` details.
+
 ### Materialization strategies
 
 Each grader's checkout is materialized from the prepared tree -- a complete

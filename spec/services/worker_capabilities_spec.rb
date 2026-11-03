@@ -1,6 +1,13 @@
 require "rails_helper"
 
 RSpec.describe WorkerCapabilities do
+  # `current` also reports the overlayfs probe, which would otherwise spawn
+  # real mount commands; the examples about it override this stub.
+  before do
+    allow(ImmutableSourceCheckoutOverlay).to receive(:capability)
+      .and_return(ImmutableSourceCheckoutOverlay::Capability.new(:unavailable, "stubbed", {}))
+  end
+
   def probe_result(success:, output: "", status: nil)
     described_class::CommandResult.new(
       success: success,
@@ -330,6 +337,23 @@ RSpec.describe WorkerCapabilities do
         "xcode" => false,
         "xcode_probe_status" => "failed"
       )
+    end
+
+    it "reports the overlayfs capability and reason in diagnostics" do
+      allow(described_class).to receive(:command_result).and_return(probe_result(success: false))
+      capability = ImmutableSourceCheckoutOverlay::Capability.new(:unavailable, "overlay mount failed: nope", { "effective_uid" => 1000 })
+      allow(ImmutableSourceCheckoutOverlay).to receive(:capability).and_return(capability)
+
+      expect(described_class.current.dig(:diagnostics, "overlayfs")).to eq(
+        "strategy" => "unavailable", "reason" => "overlay mount failed: nope", "diagnostics" => { "effective_uid" => 1000 }
+      )
+    end
+
+    it "omits overlayfs diagnostics rather than failing when the probe raises" do
+      allow(described_class).to receive(:command_result).and_return(probe_result(success: false))
+      allow(ImmutableSourceCheckoutOverlay).to receive(:capability).and_raise("boom")
+
+      expect(described_class.current.fetch(:diagnostics)).not_to have_key("overlayfs")
     end
 
     it "includes the external worker pool name in diagnostics when configured" do

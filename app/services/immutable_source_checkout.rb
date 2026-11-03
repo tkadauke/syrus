@@ -858,6 +858,9 @@ class ImmutableSourceCheckout
       # before the fallback had chosen one. One record per materialization,
       # naming what actually happened.
       materialization_details["fallback_reason"] = overlay.reason
+      capability = ImmutableSourceCheckoutOverlay.capability
+      materialization_details["overlay_capability"] = capability.strategy.to_s
+      materialization_details["overlay_diagnostics"] = capability.diagnostics
     end
 
     # Hard links before a copy: the tree is ~69,000 entries and copying it
