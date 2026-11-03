@@ -1143,10 +1143,10 @@ export function PendingActionCard({
             {authorizationItems.length > 0 ? (
               <div className="mt-3 space-y-2">
                 {authorizationContext.length ? (
-                  <dl className="min-w-0 space-y-1 text-xs text-gray-600 dark:text-gray-300">
+                  <dl className="min-w-0 space-y-1 text-xs text-text-secondary">
                     {authorizationContext.map(([label, value]) => (
                       <div className="min-w-0" key={label}>
-                        <dt className="font-medium text-gray-700 dark:text-gray-200">{label}</dt>
+                        <dt className="font-medium text-text-primary">{label}</dt>
                         <dd className="break-words">{value}</dd>
                       </div>
                     ))}
@@ -1155,11 +1155,11 @@ export function PendingActionCard({
                 {authorizationItems.map((item) => (
                   <div className="rounded border border-gray-200 p-2 text-xs dark:border-gray-700" key={item.id}>
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="font-medium text-gray-800 dark:text-gray-200">{item.presentation?.statement || t("authorization_fallback")}</span>
+                      <span className="font-medium text-text-primary">{item.presentation?.statement || t("authorization_fallback")}</span>
                       <span className="text-gray-500 dark:text-gray-400">{t(`authorization_state_${item.state}`)}</span>
                     </div>
                     {item.presentation?.scope || item.presentation?.consequences?.length ? (
-                      <p className="mt-1 break-words text-gray-600 dark:text-gray-300">
+                      <p className="mt-1 break-words text-text-secondary">
                         {[item.presentation?.scope, item.presentation?.consequences?.join(", ")].filter(Boolean).join(" · ")}
                       </p>
                     ) : null}
