@@ -211,6 +211,59 @@ describe("Activity shell", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Activity" })).not.toBeInTheDocument())
   })
 
+  it("pops its history entry before navigating so no dead overlay entry is left behind", async () => {
+    const back = vi.spyOn(window.history, "back")
+    renderChrome()
+    fireEvent.click(await screen.findByRole("button", { name: /^Approvals/ }))
+    const shell = await screen.findByRole("dialog", { name: "Activity" })
+    fireEvent.click(await within(shell).findByRole("link", { name: "View all requests" }))
+    expect(back).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole("dialog", { name: "Activity" })).toBeInTheDocument()
+    act(() => window.dispatchEvent(new PopStateEvent("popstate")))
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Activity" })).not.toBeInTheDocument())
+  })
+
+  it("marks a notification read from the Activity shell", async () => {
+    vi.mocked(notificationApi.markNotificationRead).mockResolvedValue({ notification: notification(1, "Build failed", true), unread_count: 0 } as never)
+    renderChrome()
+    fireEvent.click(await screen.findByRole("button", { name: /^Notifications/ }))
+    const shell = await screen.findByRole("dialog", { name: "Activity" })
+    expect(await within(shell).findByTestId("activity-count-notifications")).toHaveTextContent("1")
+    const row = (await within(shell).findByText("Build failed")).closest("[role], div") as HTMLElement
+    fireEvent.click(row)
+    await waitFor(() => expect(notificationApi.markNotificationRead).toHaveBeenCalledWith(1))
+  })
+
+  it("layers a nested modal above the shell and isolates later body portals", async () => {
+    renderChrome()
+    fireEvent.click(await screen.findByRole("button", { name: /^Approvals/ }))
+    const shell = await screen.findByRole("dialog", { name: "Activity" })
+    expect(shell).toHaveClass("z-50")
+    const late = document.createElement("div")
+    document.body.appendChild(late)
+    await waitFor(() => expect(late).toHaveAttribute("inert"))
+    const live = document.createElement("div")
+    live.setAttribute("aria-live", "polite")
+    document.body.appendChild(live)
+    await Promise.resolve()
+    expect(live).not.toHaveAttribute("inert")
+    const modalView = render(
+      <Modal label="Customize rule" onClose={() => undefined} open>
+        <button type="button">inner</button>
+      </Modal>
+    )
+    const modal = screen.getByRole("dialog", { name: "Customize rule" }).parentElement as HTMLElement
+    expect(modal.className).toContain("z-50")
+    // Equal z-index: the later body child (the modal) paints above the shell.
+    expect(shell.compareDocumentPosition(modal) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    modalView.unmount()
+    fireEvent.click(within(shell).getByRole("button", { name: "Close Activity" }))
+    act(() => window.dispatchEvent(new PopStateEvent("popstate")))
+    await waitFor(() => expect(late).not.toHaveAttribute("inert"))
+    late.remove()
+    live.remove()
+  })
+
   it("closes when the viewport rotates to a desktop width", async () => {
     renderChrome()
     fireEvent.click(await screen.findByRole("button", { name: /^Notifications/ }))

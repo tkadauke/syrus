@@ -94,7 +94,10 @@ The global Approvals shield sits beside notifications and always shows the
 pending total. When an agent is stopped at an authorization checkpoint, the
 shield uses an amber waiting halo until the request is resolved and announces
 newly blocked agents to assistive technology. Reduced-motion preferences replace
-the animated halo with a static ring. Infrastructure and security banners remain
+the animated halo with a static ring. On mobile widths the shield opens the
+shared full-screen Activity shell (`ActivityProvider`) on its Approvals tab
+instead of the side drawer; notifications and approvals stay separate data
+models and every decision keeps the same audit path. Infrastructure and security banners remain
 the higher-priority alert surface.
 
 ## Plugin-provided AI approval

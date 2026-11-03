@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react"
+import { useEffect, useLayoutEffect, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react"
 import { createPortal } from "react-dom"
 import { useT } from "../../hooks/useT"
+import { hasDismissLayers } from "../../lib/dismissLayers"
 import { NotificationsActivityPanel, useNotificationsQuery } from "../Notifications"
 import type { ActivityTab } from "./ActivityContext"
 import { ApprovalsActivityPanel } from "./ApprovalsActivityPanel"
 import { usePendingApprovals } from "./usePendingApprovals"
 
 const SHELL_CLASS = [
-  "fixed inset-0 z-[60] flex h-[100dvh] max-h-[100dvh] w-screen flex-col overflow-hidden",
+  "fixed inset-0 z-50 flex h-[100dvh] max-h-[100dvh] w-screen flex-col overflow-hidden",
   "bg-surface text-text-primary motion-safe:transition-opacity"
 ].join(" ")
 const TABS: ActivityTab[] = ["notifications", "approvals"]
@@ -25,13 +26,13 @@ function badgeText(count: number) {
  */
 export function ActivityShell({
   onClose,
-  onNavigate,
+  navigateTo,
   onSelectTab,
   prefix,
   tab
 }: {
   onClose: () => void
-  onNavigate: () => void
+  navigateTo: (to: string) => void
   onSelectTab: (tab: ActivityTab) => void
   prefix: string
   tab: ActivityTab
@@ -56,19 +57,23 @@ export function ActivityShell({
     }
   }, [])
 
-  // Keep the page behind the shell out of the tab order and the accessibility tree.
+  // Keep the page behind the shell out of the tab order and accessibility tree. A mutation observer also
+  // isolates layers portaled later; nested dialogs (Customize) and live regions stay interactive/announced.
   useEffect(() => {
-    const root = rootRef.current
-    const siblings = Array.from(document.body.children).filter(
-      (node): node is HTMLElement => node instanceof HTMLElement && !node.contains(root) && node !== root?.parentElement
-    )
-    const restore = siblings.map((node) => ({ node, inert: node.hasAttribute("inert"), hidden: node.getAttribute("aria-hidden") }))
-    restore.forEach(({ node }) => node.setAttribute("inert", ""))
+    const isolated = new Set<HTMLElement>()
+    const isolate = (node: Node) => {
+      if (!(node instanceof HTMLElement) || node === rootRef.current || isolated.has(node)) return
+      if (node.matches('[role="status"], [role="alert"], [aria-live]') || node.querySelector('[aria-modal="true"], [aria-live]')) return
+      if (node.hasAttribute("inert")) return
+      node.setAttribute("inert", "")
+      isolated.add(node)
+    }
+    Array.from(document.body.children).forEach(isolate)
+    const observer = new MutationObserver((records) => records.forEach((record) => record.addedNodes.forEach(isolate)))
+    observer.observe(document.body, { childList: true })
     return () => {
-      restore.forEach(({ node, inert, hidden }) => {
-        if (!inert) node.removeAttribute("inert")
-        if (hidden === null) node.removeAttribute("aria-hidden")
-      })
+      observer.disconnect()
+      isolated.forEach((node) => node.removeAttribute("inert"))
     }
   }, [])
 
@@ -90,23 +95,18 @@ export function ActivityShell({
     onSelectTab(next)
   }
 
-  // Escape closes Activity unless a nested dialog (e.g. Customize) is open; that dialog handles its own Escape first.
-  const hasNestedDialog = useCallback(() => {
-    const root = rootRef.current
-    return Array.from(document.querySelectorAll('[aria-modal="true"]')).some((node) => node !== root)
-  }, [])
-
+  // Escape closes Activity unless a nested layer (e.g. Customize) is open; that layer handles its own Escape first.
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape" || event.defaultPrevented || hasNestedDialog()) return
+      if (event.key !== "Escape" || event.defaultPrevented || hasDismissLayers()) return
       onCloseRef.current()
     }
     document.addEventListener("keydown", onKeyDown)
     return () => document.removeEventListener("keydown", onKeyDown)
-  }, [hasNestedDialog])
+  }, [])
 
   function onRootKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
-    if (event.key !== "Tab" || hasNestedDialog()) return
+    if (event.key !== "Tab" || hasDismissLayers()) return
     const focusable = Array.from(rootRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR) ?? []).filter((node) => !node.closest("[hidden]"))
     if (focusable.length === 0) return
     const first = focusable[0]
@@ -211,9 +211,9 @@ export function ActivityShell({
           role="tabpanel"
         >
           {key === "notifications" ? (
-            <NotificationsActivityPanel onNavigate={onNavigate} prefix={prefix} />
+            <NotificationsActivityPanel navigateTo={navigateTo} prefix={prefix} />
           ) : (
-            <ApprovalsActivityPanel onNavigate={onNavigate} prefix={prefix} />
+            <ApprovalsActivityPanel navigateTo={navigateTo} prefix={prefix} />
           )}
         </div>
       ))}

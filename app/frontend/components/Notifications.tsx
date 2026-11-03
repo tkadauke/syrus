@@ -124,7 +124,7 @@ export function NotificationsRoute() {
 }
 
 /** Notifications tab content for the shared mobile Activity shell. */
-export function NotificationsActivityPanel({ onNavigate, prefix }: { onNavigate?: () => void; prefix: string }) {
+export function NotificationsActivityPanel({ navigateTo, prefix }: { navigateTo: (to: string) => void; prefix: string }) {
   const { t } = useT("nav")
   const notifications = useNotificationsQuery({ enabled: true })
   return (
@@ -133,7 +133,7 @@ export function NotificationsActivityPanel({ onNavigate, prefix }: { onNavigate?
       error={notifications.isError}
       loading={notifications.isPending}
       notifications={notifications.data?.notifications ?? []}
-      onNavigate={onNavigate}
+      navigateTo={navigateTo}
       prefix={prefix}
       title={t("notifications.title")}
     />
@@ -143,6 +143,7 @@ export function NotificationsActivityPanel({ onNavigate, prefix }: { onNavigate?
 function NotificationsPanel({
   loading = false,
   notifications,
+  navigateTo,
   onNavigate,
   prefix,
   title,
@@ -152,6 +153,7 @@ function NotificationsPanel({
   embedded?: boolean
   error?: boolean
   loading?: boolean
+  navigateTo?: (to: string) => void
   notifications: NotificationRecord[]
   onNavigate?: () => void
   prefix: string
@@ -194,7 +196,7 @@ function NotificationsPanel({
       ) : notifications.length > 0 ? (
         <div className={embedded ? undefined : "max-h-[28rem] overflow-y-auto"}>
           {notifications.map((notification) => (
-            <NotificationRow key={notification.id} notification={notification} onNavigate={onNavigate} prefix={prefix} />
+            <NotificationRow key={notification.id} navigateTo={navigateTo} notification={notification} onNavigate={onNavigate} prefix={prefix} />
           ))}
         </div>
       ) : embedded ? (
@@ -206,7 +208,17 @@ function NotificationsPanel({
   )
 }
 
-function NotificationRow({ notification, onNavigate, prefix }: { notification: NotificationRecord; onNavigate?: () => void; prefix: string }) {
+function NotificationRow({
+  navigateTo,
+  notification,
+  onNavigate,
+  prefix
+}: {
+  navigateTo?: (to: string) => void
+  notification: NotificationRecord
+  onNavigate?: () => void
+  prefix: string
+}) {
   const { t } = useT("nav")
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -232,6 +244,11 @@ function NotificationRow({ notification, onNavigate, prefix }: { notification: N
   function openNotification() {
     markRead.mutate(undefined, {
       onSettled() {
+        if (navigateTo) {
+          if (target) navigateTo(target)
+          else onNavigate?.()
+          return
+        }
         onNavigate?.()
         if (target) navigate(target)
       }

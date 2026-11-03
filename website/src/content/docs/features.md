@@ -210,8 +210,13 @@ clicking the row opens the matching Job page, while a separate PR link opens
 the pull request. Both actions mark the notification read. The panel also
 supports marking all notifications read.
 
-On mobile, the bell opens the full `/notifications` page with the same
-recent list and read behavior.
+On mobile, the bell and the Approvals shield open one shared full-screen
+Activity view. The bell opens it on the Notifications tab and the shield on
+the Approvals tab; each tab shows its unread or pending count, and switching
+tabs keeps each one's scroll position. Back, Escape, or the close button
+dismisses nested dialogs such as Customize first, then Activity, and focus
+returns to the control you opened it from. The list and read behavior match
+the desktop panel. Desktop keeps the lightweight popover and the side drawer.
 
 The same live event that updates the bell also dispatches a native OS
 notification via the browser's standard Notification API — clicking it opens
