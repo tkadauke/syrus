@@ -435,7 +435,7 @@ function PipelineOverview({
           0,
           (at -
             new Date(
-              tracesByJob.get(item.id)?.segments.find((segment) => timeMs(segment.entered_at) <= at && timeMs(segment.left_at) >= at)?.entered_at ||
+              tracesByJob.get(item.id)?.segments.find((segment) => at >= timeMs(segment.entered_at) && timeMs(segment.left_at) >= at)?.entered_at ||
               historicalAt!
             ).getTime()) /
             1000
@@ -488,10 +488,10 @@ function PipelineOverview({
     navigate({ search: params.toString() })
   }
   const selectedTime = historicalAt ? new Date(historicalAt).getTime() : new Date(history.to).getTime()
-  const currentTick = history.ticks.reduce((found, tick, index) => (timeMs(tick) <= selectedTime ? index : found), -1)
+  const currentTick = history.ticks.reduce((found, tick, index) => (selectedTime >= timeMs(tick) ? index : found), -1)
   const previousTick = currentTick > 0 ? history.ticks[currentTick - 1] : history.from
   const changes = historical
-    ? history.deltas.filter((delta) => timeMs(delta.at) > timeMs(previousTick) && timeMs(delta.at) <= selectedTime)
+    ? history.deltas.filter((delta) => timeMs(delta.at) > timeMs(previousTick) && selectedTime >= timeMs(delta.at))
     : []
   const eventMarks = useMemo(() => {
     const deltasByTick = new Map<string, typeof history.deltas>()
