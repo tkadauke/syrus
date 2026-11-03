@@ -85,6 +85,7 @@ class Step < ApplicationRecord
     cancelled_workflow_state
     cancelled_source_step_id
     cancelled_source_step_kind
+    cancellation_attribution
   ].freeze
 
   # MySQL 8 rejects defaults on JSON columns, so seed `{}` on new

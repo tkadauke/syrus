@@ -453,6 +453,7 @@ class Workflow < ApplicationRecord
     Step.suppress_cancel_cascade do
       active_steps = persisted_active_steps.to_a
       cancellation_details = active_descendant_cancellation_details(reason)
+      attribution_ref = Workflows::CancellationAttribution.new(self).step_reference
 
       runs.active.find_each do |run|
         if run.may_cancel?
@@ -467,6 +468,10 @@ class Workflow < ApplicationRecord
 
           step.cancellation_reason = reason
           step.details = step.details.to_h.merge(cancellation_details)
+          # First attribution wins: repeated cleanup must not overwrite the root cause.
+          if attribution_ref && step.details[Workflows::CancellationAttribution::STEP_DETAIL_KEY].blank?
+            step.details = step.details.merge(Workflows::CancellationAttribution::STEP_DETAIL_KEY => attribution_ref)
+          end
           step.finished_at = Time.current
           step.cancel!
         end
@@ -563,6 +568,9 @@ class Workflow < ApplicationRecord
          WorkUnits::WorkflowCancellation.cancel!(
            candidate,
            reason: SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
+           cause: { kind: "supersession", initiator_class: "Workflow", initiator_id: id,
+                    control_path: "workflow#cancel_superseded_retry_workflows!",
+                    source: { "replacement_workflow_id" => id, "workflow_id" => candidate.id } },
            by_work_unit: work_unit,
            artifacts: candidate.artifacts
          )

@@ -449,6 +449,9 @@ class StepDispatcher
     WorkUnits::WorkflowCancellation.cancel!(
       workflow,
       reason: "job_closed",
+      cause: { kind: "dependency_invalidation", initiator_class: "system",
+               control_path: "step_dispatcher#cancel_unstartable_closed_job_workflow!",
+               source: { "job_id" => workflow.job_id } },
       artifacts: {
         "start_cancelled_reason" => "job_closed",
         "start_cancelled_at" => Time.current.iso8601
@@ -508,6 +511,9 @@ class StepDispatcher
     WorkUnits::WorkflowCancellation.cancel!(
       workflow,
       reason: reason,
+      cause: { kind: "stack_topology_repair", initiator_class: "system",
+               control_path: "step_dispatcher#cancel_unstartable_rebase_workflow!",
+               source: { "job_id" => workflow.job_id } },
       artifacts: {
         "start_blocked_reason" => reason,
         "start_blocked_at" => Time.current.iso8601
@@ -520,6 +526,9 @@ class StepDispatcher
     WorkUnits::WorkflowCancellation.cancel!(
       workflow,
       reason: EPIC_WIDE_BLOCK_REASON,
+      cause: { kind: "supersession", initiator_class: "Workflow", initiator_id: blocking_workflow.id,
+               control_path: "step_dispatcher#cancel_unstartable_epic_workflow_conflict!",
+               source: { "blocking_workflow_id" => blocking_workflow.id } },
       by_work_unit: blocking_workflow.work_unit,
       artifacts: {
         "start_cancelled_reason" => EPIC_WIDE_BLOCK_REASON,

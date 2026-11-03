@@ -1314,6 +1314,7 @@ class Job < ApplicationRecord
       WorkUnits::WorkflowCancellation.cancel!(
         workflow,
         reason: "operator_stopped_landing",
+        cause: operator_cancellation_cause("job#stop_landing!", "job_id" => id),
         artifacts: {
           "cancelled_reason" => "operator_stopped_landing",
           "cancelled_at" => Time.current.iso8601
@@ -1325,12 +1326,30 @@ class Job < ApplicationRecord
     fail_landing! if landing? && may_fail_landing?
   end
 
-  def cancel_active_execution!(reason: "operator_cancelled")
+  # Cause for operator-initiated cancels: the signed-in user when there is one,
+  # otherwise the ambient cause or a system actor.
+  def operator_cancellation_cause(control_path, source = {})
+    ambient = Current.cancellation_cause
+    return ambient if ambient.present?
+
+    user = Current.user
+    {
+      kind: "operator_cancellation",
+      initiator_class: user ? "User" : "system",
+      initiator_id: user&.id,
+      control_path: control_path,
+      source: source
+    }
+  end
+
+  def cancel_active_execution!(reason: "operator_cancelled", cause: nil)
+    cause ||= operator_cancellation_cause("job#cancel_active_execution!", "job_id" => id)
     transaction do
       active_runtime_workflows.each do |workflow|
         WorkUnits::WorkflowCancellation.cancel!(
           workflow,
           reason: reason,
+          cause: cause,
           artifacts: {
             "cancelled_reason" => reason,
             "cancelled_at" => Time.current.iso8601
@@ -1376,6 +1395,8 @@ class Job < ApplicationRecord
       WorkUnits::WorkflowCancellation.cancel!(
         workflow,
         reason: Workflow::SUPERSEDED_BY_REBASE_REASON,
+        cause: { kind: "stack_topology_repair", initiator_class: "system", control_path: "job#supersede_for_rebase",
+                 source: { "job_id" => id, "workflow_id" => workflow.id } },
         artifacts: workflow.artifacts
       )
       cancelled = true
@@ -1508,6 +1529,8 @@ class Job < ApplicationRecord
       WorkUnits::WorkflowCancellation.cancel!(
         workflow,
         reason: "workflow_runaway",
+        cause: { kind: "automatic_recovery", initiator_class: "system", control_path: "job#close_for_workflow_runaway!",
+                 source: { "job_id" => id, "workflow_id" => workflow.id } },
         artifacts: {
           "cancelled_reason" => "workflow_runaway",
           "cancelled_at" => Time.current.iso8601,
