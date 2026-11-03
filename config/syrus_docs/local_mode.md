@@ -85,7 +85,7 @@ execution are gated in chat: `write_file` and `run_command` create a pending
 action and do not reach the local daemon until the operator confirms it.
 Confirming a plain call also grants a chat-session permission lease
 (`syrus.local_mode@v1`) for that exact normalized command (or path and file
-content digest) in the paired workspace, so repeating the same test command
+content digest) in the paired checkout (identified by its repository and absolute root, so another checkout of the same repository needs its own confirmation), so repeating the same test command
 does not require another click. The lease is not shared with other chats or
 workspaces, appears under Permissions with the confirming action as its source,
 and can be revoked there; rejecting the pending action grants nothing. Calls

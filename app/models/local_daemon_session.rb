@@ -37,11 +37,12 @@ class LocalDaemonSession < ApplicationRecord
     )
   end
 
-  def mark_connected!(repo:, branch:, connection_id: SecureRandom.uuid)
+  def mark_connected!(repo:, branch:, connection_id: SecureRandom.uuid, workspace_root: nil)
     with_lock do
       now = Time.current
       update!(
         daemon_repo: repo,
+        daemon_workspace_root: workspace_root.presence,
         daemon_branch: branch,
         connection_id: connection_id,
         last_heartbeat_at: now,

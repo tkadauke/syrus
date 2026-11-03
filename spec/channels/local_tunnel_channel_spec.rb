@@ -125,9 +125,10 @@ RSpec.describe LocalTunnelChannel, type: :channel do
     it "marks the session connected with repo and branch on connect message" do
       subscribe_to(daemon_session)
 
-      perform :receive, { "type" => "connect", "repo" => "owner/repo", "branch" => "feat" }
+      perform :receive, { "type" => "connect", "repo" => "owner/repo", "branch" => "feat", "workspace_root" => "/work/repo" }
 
       expect(daemon_session.reload.daemon_repo).to eq("owner/repo")
+      expect(daemon_session.daemon_workspace_root).to eq("/work/repo")
       expect(daemon_session.reload.daemon_branch).to eq("feat")
       expect(chat.reload.daemon_connected).to be true
       expect(chat.local_daemon_state).to eq("connected")

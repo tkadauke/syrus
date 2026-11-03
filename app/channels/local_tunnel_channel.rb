@@ -82,7 +82,8 @@ class LocalTunnelChannel < ApplicationCable::Channel
   def handle_connect(data)
     repo   = data["repo"].to_s.strip
     branch = data["branch"].to_s.strip
-    @daemon_session.mark_connected!(repo: repo, branch: branch, connection_id: @connection_id)
+    workspace_root = data["workspace_root"].to_s.strip
+    @daemon_session.mark_connected!(repo: repo, branch: branch, connection_id: @connection_id, workspace_root: workspace_root)
     transmit({ type: "connected" })
     drain_queued_tool_calls
   end

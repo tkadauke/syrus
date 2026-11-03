@@ -13,7 +13,7 @@ RSpec.describe Permissions::LocalModeActions do
     Permissions::LocalModeAuthorization.grant_after_confirmation(chat_session: chat_session, tool_name: tool, arguments: arguments, **options)
   end
 
-  before { chat_session.create_local_daemon_session!(user: user, auth_token: "tok", daemon_repo: "acme/app") }
+  before { chat_session.create_local_daemon_session!(user: user, auth_token: "tok", daemon_repo: "acme/app", daemon_workspace_root: "/work/a") }
 
   it "registers run_command and write_file with explicit local-host descriptors" do
     described_class.tool_names.each do |name|
@@ -79,7 +79,7 @@ RSpec.describe Permissions::LocalModeActions do
 
       lease = grant("run_command", { command: "bin/test" })
 
-      expect(lease).to have_attributes(duration_kind: "chat_session", chat_session_id: chat_session.id, resource_scope: { "workspace" => "acme/app" })
+      expect(lease).to have_attributes(duration_kind: "chat_session", chat_session_id: chat_session.id, resource_scope: { "repository" => "acme/app", "workspace_root" => "/work/a" })
       expect(authorize("run_command", { command: "  bin/test " })).to be_allowed
       expect(authorize("run_command", { command: "bin/test --verbose" })).not_to be_allowed
       expect(authorize("write_file", { path: "a.rb", content: "x" })).not_to be_allowed
@@ -101,10 +101,35 @@ RSpec.describe Permissions::LocalModeActions do
     it "does not cross chat sessions or workspaces" do
       grant("run_command", { command: "bin/test" })
       other = ChatSession.create!(user: user, mode: "local")
-      other.create_local_daemon_session!(user: user, auth_token: "other", daemon_repo: "acme/app")
+      other.create_local_daemon_session!(user: user, auth_token: "other", daemon_repo: "acme/app", daemon_workspace_root: "/work/a")
       expect(authorize("run_command", { command: "bin/test" }, session: other)).not_to be_allowed
 
       chat_session.local_daemon_session.update!(daemon_repo: "acme/other")
+      expect(authorize("run_command", { command: "bin/test" })).not_to be_allowed
+    end
+
+    it "does not carry authority to another checkout of the same repository" do
+      grant("write_file", { path: "a.rb", content: "x" })
+      daemon = chat_session.local_daemon_session
+      expect(authorize("write_file", { path: "a.rb", content: "x" })).to be_allowed
+
+      daemon.mark_disconnected!
+      daemon.mark_connected!(repo: "acme/app", branch: "main", workspace_root: "/work/b")
+
+      expect(authorize("write_file", { path: "a.rb", content: "x" })).not_to be_allowed
+
+      daemon.mark_disconnected!
+      daemon.mark_connected!(repo: "acme/app", branch: "main", workspace_root: "/work/a")
+      expect(authorize("write_file", { path: "a.rb", content: "x" })).to be_allowed
+    end
+
+    it "scopes a daemon that reports no root to its connection" do
+      daemon = chat_session.local_daemon_session
+      daemon.mark_connected!(repo: "acme/app", branch: "main", connection_id: "c1")
+      grant("run_command", { command: "bin/test" })
+      expect(authorize("run_command", { command: "bin/test" })).to be_allowed
+
+      daemon.mark_connected!(repo: "acme/app", branch: "main", connection_id: "c2")
       expect(authorize("run_command", { command: "bin/test" })).not_to be_allowed
     end
 
