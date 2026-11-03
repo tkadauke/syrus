@@ -408,7 +408,10 @@ module Steps
         return :superseded if published_review_branch? && verify_existing_pr_branch_not_diverged!(git, push_url) == :superseded
         push_branch_to_remote(git, push_url)
       end
+      record_accepted_push!
       :pushed
+    rescue GithubPushProtection::Rejected => e
+      handle_push_protection_rejection!(e)
     rescue GitRunner::GitError => e
       raise unless published_review_branch? && push_rejected?(e)
 
