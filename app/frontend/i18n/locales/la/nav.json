@@ -268,6 +268,18 @@
     "repositories_recent": "Recentia",
     "repositories_archived": "Archivata"
   },
+  "activity": {
+    "title": "Actio",
+    "tabs": "Partes actionis",
+    "close": "Actionem claude",
+    "tab_notifications": "Nuntii",
+    "tab_approvals": "Approbationes",
+    "count_notifications": "{{count}} non lecti",
+    "count_approvals": "{{count}} pendentes",
+    "loading": "Oneratur...",
+    "empty": "Nihil hic",
+    "error": "Onerari non potuit."
+  },
   "notifications": {
     "title": "Nuntii",
     "aria_unread": "Nuntii, {{count}} non lecti",
