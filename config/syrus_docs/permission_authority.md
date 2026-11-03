@@ -176,3 +176,14 @@ Consequential admin repair, operational, and delivery chat tools also use explic
 - `syrus.delivery@v1`: `select_track`, `dispatch_ref_movement`, `emergency_land`.
 
 The evaluator decides whether the invocation may proceed. It does not replace the tool-specific checks: preconditions, before/after repair snapshots, and fresh validation of the live record at execution time stay in the tools and their pending-action executors. Every operation is capped at exact-invocation authority (no chat-session, Job, or permanent lease) and defaults to `ask`. `emergency_land` is classified critical, destructive, and irreversible.
+
+## Schedule, communication, document, and artifact capabilities
+
+Core chat tools whose effects persist or leave the conversation use explicit capabilities:
+
+- `syrus.schedules@v1`: `schedule_wakeup` (persistent autonomy, `ask`) and `cancel_wakeup` (own pending wakeup, `allow`).
+- `syrus.communication@v1`: `send_chat_message` (`ask`, up to chat-session authority) and `spawn_chats` (`ask`, exact invocation only).
+- `syrus.documents@v1`: `create` (`ask`) and `delete` (destructive, `ask`, exact invocation only) for repository documents.
+- `syrus.artifacts@v1`: `submit`, a low-risk edit of an artifact the caller owns, which stays automatic (`allow`).
+
+Repository-document create and delete keep their pending-action lifecycle and re-validate the live record when the approved action runs; bridge threads keep their hop limits. The evaluator only decides whether the invocation may proceed.
