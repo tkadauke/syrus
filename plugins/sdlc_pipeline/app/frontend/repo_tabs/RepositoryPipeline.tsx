@@ -287,7 +287,7 @@ function HistoryRail({
             setPlaying((value) => !value)
           }}
           size="icon"
-          title={playing ? t("pause_history") : t("play_history")}
+          title={history.ticks.length ? (playing ? t("pause_history") : t("play_history")) : t("history_controls_unavailable")}
           variant="secondary"
         >
           {playing ? "Ⅱ" : "▶"}
@@ -307,7 +307,7 @@ function HistoryRail({
           disabled={!historical || currentTick <= 0}
           onClick={() => onSelect(history.ticks[currentTick - 1])}
           size="icon"
-          title={t("previous_tick")}
+          title={!historical || currentTick <= 0 ? t("history_no_previous") : t("previous_tick")}
           variant="secondary"
         >
           ‹
@@ -317,7 +317,7 @@ function HistoryRail({
           disabled={!historical || currentTick >= history.ticks.length - 1}
           onClick={() => onSelect(history.ticks[currentTick + 1])}
           size="icon"
-          title={t("next_tick")}
+          title={!historical || currentTick >= history.ticks.length - 1 ? t("history_no_next") : t("next_tick")}
           variant="secondary"
         >
           ›
@@ -375,13 +375,38 @@ function HistoryRail({
   )
 }
 
+type HistoryStatus = "loading" | "error" | "empty" | "ready"
+
+function HistoryStatusNotice({ onRetry, status }: { onRetry: () => void; status: HistoryStatus }) {
+  const { t } = useT("sdlc_pipeline")
+  if (status === "ready") return null
+  return (
+    <div className="px-3 pb-2" data-testid="history-status" data-history-status={status} role="status">
+      {status === "loading" ? <Notice>{t("history_loading")}</Notice> : null}
+      {status === "empty" ? <Notice>{t("history_empty")}</Notice> : null}
+      {status === "error" ? (
+        <Notice tone="danger">
+          {t("history_error")}
+          <Button className="ml-2" onClick={onRetry} size="sm" variant="secondary">
+            {t("retry_history")}
+          </Button>
+        </Notice>
+      ) : null}
+    </div>
+  )
+}
+
 function PipelineOverview({
   embedded = false,
+  historyStatus = "ready",
+  onRetryHistory = () => {},
   payload,
   repositoryId,
   search
 }: {
   embedded?: boolean
+  historyStatus?: HistoryStatus
+  onRetryHistory?: () => void
   payload: PipelinePayload
   repositoryId: string
   search: string
@@ -436,7 +461,7 @@ function PipelineOverview({
           (at -
             new Date(
               tracesByJob.get(item.id)?.segments.find((segment) => at >= timeMs(segment.entered_at) && timeMs(segment.left_at) >= at)?.entered_at ||
-              historicalAt!
+                historicalAt!
             ).getTime()) /
             1000
         ),
@@ -490,9 +515,7 @@ function PipelineOverview({
   const selectedTime = historicalAt ? new Date(historicalAt).getTime() : new Date(history.to).getTime()
   const currentTick = history.ticks.reduce((found, tick, index) => (selectedTime >= timeMs(tick) ? index : found), -1)
   const previousTick = currentTick > 0 ? history.ticks[currentTick - 1] : history.from
-  const changes = historical
-    ? history.deltas.filter((delta) => timeMs(delta.at) > timeMs(previousTick) && selectedTime >= timeMs(delta.at))
-    : []
+  const changes = historical ? history.deltas.filter((delta) => timeMs(delta.at) > timeMs(previousTick) && selectedTime >= timeMs(delta.at)) : []
   const eventMarks = useMemo(() => {
     const deltasByTick = new Map<string, typeof history.deltas>()
     history.deltas.forEach((delta) => deltasByTick.set(delta.at, [...(deltasByTick.get(delta.at) || []), delta]))
@@ -639,6 +662,7 @@ function PipelineOverview({
           </div>
         </div>
       ) : null}
+      <HistoryStatusNotice onRetry={onRetryHistory} status={historyStatus} />
       <div className="relative flex border-y border-border bg-surface-subtle" data-testid="pipeline-with-time-rail">
         {!embedded ? (
           <aside aria-label={t("history_aria")} className={TIME_RAIL_CLASSES} data-testid="pipeline-time-rail">
@@ -719,7 +743,7 @@ function PipelineOverview({
                 }}
                 className="h-7 w-7"
                 size="icon"
-                title={playing ? t("pause_history") : t("play_history")}
+                title={history.ticks.length ? (playing ? t("pause_history") : t("play_history")) : t("history_controls_unavailable")}
                 variant="secondary"
               >
                 {playing ? "Ⅱ" : "▶"}
@@ -730,7 +754,7 @@ function PipelineOverview({
                 className="h-7 w-7"
                 onClick={() => setAt(history.ticks[currentTick - 1])}
                 size="icon"
-                title={t("previous_tick")}
+                title={currentTick <= 0 ? t("history_no_previous") : t("previous_tick")}
                 variant="secondary"
               >
                 ↑
@@ -741,7 +765,7 @@ function PipelineOverview({
                 className="h-7 w-7"
                 onClick={() => setAt(history.ticks[currentTick + 1])}
                 size="icon"
-                title={t("next_tick")}
+                title={!historical || currentTick >= history.ticks.length - 1 ? t("history_no_next") : t("next_tick")}
                 variant="secondary"
               >
                 ↓
@@ -865,22 +889,24 @@ function PipelineOverview({
             ))}
           </div>
         </div>
-        <HistoryRail
-          currentTick={currentTick}
-          historical={historical}
-          historicalAt={historicalAt}
-          history={history}
-          onRangeChange={(days) => {
-            const params = new URLSearchParams(search)
-            const end = new Date(history.to)
-            params.set("range_end", end.toISOString())
-            params.set("range_start", new Date(end.getTime() - days * 86_400_000).toISOString())
-            navigate({ search: params.toString() })
-          }}
-          onSelect={setAt}
-          playing={playing}
-          setPlaying={setPlaying}
-        />
+        {embedded ? (
+          <HistoryRail
+            currentTick={currentTick}
+            historical={historical}
+            historicalAt={historicalAt}
+            history={history}
+            onRangeChange={(days) => {
+              const params = new URLSearchParams(search)
+              const end = new Date(history.to)
+              params.set("range_end", end.toISOString())
+              params.set("range_start", new Date(end.getTime() - days * 86_400_000).toISOString())
+              navigate({ search: params.toString() })
+            }}
+            onSelect={setAt}
+            playing={playing}
+            setPlaying={setPlaying}
+          />
+        ) : null}
       </div>
       {!embedded ? (
         <div className="space-y-2 py-3">
@@ -924,6 +950,14 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
     placeholderData: (previous) => previous,
     staleTime: POLL_INTERVAL_MS
   })
+  const historyStatus: HistoryStatus = history.isError
+    ? "error"
+    : history.isPending || history.isFetching
+      ? "loading"
+      : (history.data?.history?.ticks.length ?? 0) === 0
+        ? "empty"
+        : "ready"
+  const retryHistory = () => void history.refetch()
   const folders = useMemo(() => {
     const presentation = new URLSearchParams(location.search)
     const keys = ["at", "range_start", "range_end", "syrus_presentation"]
@@ -974,7 +1008,14 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
               />
             </div>
             <div className="min-h-0 flex-1 overflow-auto">
-              <PipelineOverview embedded payload={{ ...pipeline.data, history: history.data?.history }} repositoryId={repositoryId} search={location.search} />
+              <PipelineOverview
+                embedded
+                historyStatus={historyStatus}
+                onRetryHistory={retryHistory}
+                payload={{ ...pipeline.data, history: history.data?.history }}
+                repositoryId={repositoryId}
+                search={location.search}
+              />
             </div>
           </>
         ) : null}
@@ -1025,7 +1066,13 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
             />
           }
         >
-          <PipelineOverview payload={{ ...pipeline.data, history: history.data?.history }} repositoryId={repositoryId} search={location.search} />
+          <PipelineOverview
+            historyStatus={historyStatus}
+            onRetryHistory={retryHistory}
+            payload={{ ...pipeline.data, history: history.data?.history }}
+            repositoryId={repositoryId}
+            search={location.search}
+          />
         </AdminFiltersLayout>
       ) : null}
     </RepositoryPageShell>
