@@ -5,7 +5,7 @@ class PendingActionTransition < ApplicationRecord
 
   attribute :metadata, :json, default: -> { {} }
 
-  validates :sequence, numericality: { only_integer: true, greater_than: 0 }, uniqueness: { scope: :chat_pending_action_id }
+  validates :sequence, numericality: { only_integer: true, greater_than: 0 }, uniqueness: { scope: :chat_pending_action_id }, unless: :sequence_assigned_under_lock?
   validates :event_type, :to_state, presence: true
   validate :item_belongs_to_action
 
@@ -20,7 +20,15 @@ class PendingActionTransition < ApplicationRecord
 
     chat_pending_action.with_lock do
       self.sequence = chat_pending_action.transitions.maximum(:sequence).to_i + 1
+      @sequence_assigned_under_lock = true
     end
+  end
+
+  # The sequence was just computed while holding the action's row lock (and
+  # idx_pending_action_transitions_sequence is unique), so re-checking
+  # uniqueness would only repeat that query.
+  def sequence_assigned_under_lock?
+    @sequence_assigned_under_lock == true
   end
 
   def item_belongs_to_action
