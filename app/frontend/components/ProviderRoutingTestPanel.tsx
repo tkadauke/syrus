@@ -66,12 +66,7 @@ export function RoutingTestPanel({
 
         <Form.Field>
           <Form.Label>{t("provider_routing.test.job")}</Form.Label>
-          <Form.Input
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder={t("provider_routing.test.search_jobs")}
-            type="search"
-            value={search}
-          />
+          <Form.Input onChange={(event) => setSearch(event.target.value)} placeholder={t("provider_routing.test.search_jobs")} type="search" value={search} />
         </Form.Field>
         <Select aria-label={t("provider_routing.test.job")} onChange={(event) => setJobId(event.target.value)} value={jobId}>
           <option value="">{t("provider_routing.test.pick_job")}</option>
@@ -95,9 +90,7 @@ export function RoutingTestPanel({
           {explain.isPending ? t("provider_routing.test.running") : t("provider_routing.test.run")}
         </Button>
 
-        {explain.isError ? (
-          <PanelMessage tone="error">{errorMessage(explain.error, t("provider_routing.test.error"))}</PanelMessage>
-        ) : null}
+        {explain.isError ? <PanelMessage tone="error">{errorMessage(explain.error, t("provider_routing.test.error"))}</PanelMessage> : null}
         {explain.data ? <ExplanationResult explanation={explain.data} options={options} t={t} /> : null}
       </div>
     </Surface>
