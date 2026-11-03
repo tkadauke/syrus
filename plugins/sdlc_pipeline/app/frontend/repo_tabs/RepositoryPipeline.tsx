@@ -436,7 +436,7 @@ function PipelineOverview({
           (at -
             new Date(
               tracesByJob.get(item.id)?.segments.find((segment) => at >= timeMs(segment.entered_at) && timeMs(segment.left_at) >= at)?.entered_at ||
-              historicalAt!
+                historicalAt!
             ).getTime()) /
             1000
         ),
@@ -490,9 +490,7 @@ function PipelineOverview({
   const selectedTime = historicalAt ? new Date(historicalAt).getTime() : new Date(history.to).getTime()
   const currentTick = history.ticks.reduce((found, tick, index) => (selectedTime >= timeMs(tick) ? index : found), -1)
   const previousTick = currentTick > 0 ? history.ticks[currentTick - 1] : history.from
-  const changes = historical
-    ? history.deltas.filter((delta) => timeMs(delta.at) > timeMs(previousTick) && selectedTime >= timeMs(delta.at))
-    : []
+  const changes = historical ? history.deltas.filter((delta) => timeMs(delta.at) > timeMs(previousTick) && selectedTime >= timeMs(delta.at)) : []
   const eventMarks = useMemo(() => {
     const deltasByTick = new Map<string, typeof history.deltas>()
     history.deltas.forEach((delta) => deltasByTick.set(delta.at, [...(deltasByTick.get(delta.at) || []), delta]))
@@ -865,22 +863,24 @@ function PipelineOverview({
             ))}
           </div>
         </div>
-        <HistoryRail
-          currentTick={currentTick}
-          historical={historical}
-          historicalAt={historicalAt}
-          history={history}
-          onRangeChange={(days) => {
-            const params = new URLSearchParams(search)
-            const end = new Date(history.to)
-            params.set("range_end", end.toISOString())
-            params.set("range_start", new Date(end.getTime() - days * 86_400_000).toISOString())
-            navigate({ search: params.toString() })
-          }}
-          onSelect={setAt}
-          playing={playing}
-          setPlaying={setPlaying}
-        />
+        {embedded ? (
+          <HistoryRail
+            currentTick={currentTick}
+            historical={historical}
+            historicalAt={historicalAt}
+            history={history}
+            onRangeChange={(days) => {
+              const params = new URLSearchParams(search)
+              const end = new Date(history.to)
+              params.set("range_end", end.toISOString())
+              params.set("range_start", new Date(end.getTime() - days * 86_400_000).toISOString())
+              navigate({ search: params.toString() })
+            }}
+            onSelect={setAt}
+            playing={playing}
+            setPlaying={setPlaying}
+          />
+        ) : null}
       </div>
       {!embedded ? (
         <div className="space-y-2 py-3">

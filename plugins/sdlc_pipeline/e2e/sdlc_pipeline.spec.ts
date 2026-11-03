@@ -62,7 +62,7 @@ test("SDLC Pipeline keeps a stage beside the time rail at 390px", async ({ page 
   await page.getByRole("link", { name: "demo/syrus-preview" }).click()
   await page.getByRole("link", { name: "Pipeline" }).click()
 
-  const pipeline = page.getByRole("region", { name: "Repository SDLC pipeline" })
+  const pipeline = page.getByRole("main", { name: "Repository SDLC pipeline" })
   const rail = pipeline.getByTestId("pipeline-time-rail")
   const stage = pipeline.locator("[data-stage]").first()
   await expect(rail).toBeVisible()
