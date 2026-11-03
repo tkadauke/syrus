@@ -51,7 +51,10 @@
     "next": "Next",
     "page_of": "Page {{page}} of {{total}}",
     "requested_by": "Requested by",
-    "scope": "Applies to", "consequence": "What could happen", "requested_duration": "Requested for", "why_required": "Why is approval required?",
+    "scope": "Applies to",
+    "consequence": "What could happen",
+    "requested_duration": "Requested for",
+    "why_required": "Why is approval required?",
     "filters": { "state": "State", "subject": "Agent", "action": "Requested action", "effect": "Consequence", "origin_type": "Origin" },
     "states": { "pending": "Pending", "confirmed": "Approved", "rejected": "Denied", "dismissed": "Dismissed", "non_actionable": "Unavailable" },
     "durations": { "invocation": "This invocation", "chat_session": "This chat", "job": "This Job", "permanent": "Permanent" }

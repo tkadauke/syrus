@@ -1155,9 +1155,7 @@ export function PendingActionCard({
                 {authorizationItems.map((item) => (
                   <div className="rounded border border-gray-200 p-2 text-xs dark:border-gray-700" key={item.id}>
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="font-medium text-gray-800 dark:text-gray-200">
-                        {item.presentation?.statement || t("authorization_fallback")}
-                      </span>
+                      <span className="font-medium text-gray-800 dark:text-gray-200">{item.presentation?.statement || t("authorization_fallback")}</span>
                       <span className="text-gray-500 dark:text-gray-400">{t(`authorization_state_${item.state}`)}</span>
                     </div>
                     {item.presentation?.scope || item.presentation?.consequences?.length ? (
