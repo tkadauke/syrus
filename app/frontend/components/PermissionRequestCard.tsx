@@ -56,7 +56,10 @@ export function PermissionRequestCard({ request, jobId }: { request: PermissionR
   const linkedAuthority = request.items.find((item) => item.resulting_authority)?.resulting_authority
 
   return (
-    <article className="min-w-0 max-w-full overflow-x-auto rounded-xl border border-border bg-surface-raised p-4" data-testid={`permission-request-${request.id}`}>
+    <article
+      className="min-w-0 max-w-full overflow-x-auto rounded-xl border border-border bg-surface-raised p-4"
+      data-testid={`permission-request-${request.id}`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
