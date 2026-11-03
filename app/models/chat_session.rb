@@ -256,6 +256,7 @@ class ChatSession < ApplicationRecord
   def reset_repository_memo
     @repository_memo = nil
     @repository_memoized = false
+    association(:attached_repositories).reset if association(:attached_repositories).loaded?
   end
 
   # The most recently attached repository is the operator's current intent
@@ -282,7 +283,7 @@ class ChatSession < ApplicationRecord
       return repository_attachments.last&.attachable || @initial_repository
     end
 
-    attached_repositories.last || @initial_repository
+    attached_repositories.load.last || @initial_repository
   end
 
   def repository_id

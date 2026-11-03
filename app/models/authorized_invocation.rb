@@ -83,9 +83,16 @@ class AuthorizedInvocation < ApplicationRecord
     raise ArgumentError, "origin_resumable must be callable" unless origin_resumable.respond_to?(:call)
 
     claim = -> { claim_under_lock!(fingerprint:, claimant:, claim_key:, revalidate:, origin_resumable:) }
-    return claim.call unless authority
+    # Lock the authority row directly: loading `authority` first and then
+    # with_lock (which reloads) read the same row twice.
+    authority_class = authority_type&.safe_constantize
+    return claim.call unless authority_class && authority_id
 
-    authority.with_lock { claim.call }
+    authority_class.transaction do
+      locked = authority_class.lock.find_by(id: authority_id)
+      association(:authority).target = locked if locked
+      claim.call
+    end
   rescue ActiveRecord::RecordNotUnique
     reload
     ClaimResult.new(status: self.claim_key == claim_key ? :already_claimed : :unavailable, invocation: self)
@@ -178,7 +185,7 @@ class AuthorizedInvocation < ApplicationRecord
   end
 
   def validate_claim_fields
-    fields_present = claim_key.present? && claimed_by.present? && claimed_at.present?
+    fields_present = claim_key.present? && claimed_by_id.present? && claimed_by_type.present? && claimed_at.present?
     claimed_or_completed = claimed? || state.in?(RESULT_STATUSES)
     errors.add(:base, "claimed invocations require complete claim attribution") if claimed_or_completed && !fields_present
     if state.in?(RESULT_STATUSES)
