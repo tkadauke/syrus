@@ -498,6 +498,7 @@ describe("PendingActionCard", () => {
             capability: "database.read",
             operation: null,
             effects: [],
+            presentation: { statement: "Allow permission to read the database" },
             prerequisite_ids: [],
             app_decision_path: "/api/v1/app/chats/122/pending_actions/501/authorization_items/41/decision"
           },
@@ -508,6 +509,7 @@ describe("PendingActionCard", () => {
             capability: "database.read",
             operation: "database.read/query",
             effects: ["confidential_read"],
+            presentation: { statement: "Run a database query", scope: "Orders database", consequences: ["read confidential information"] },
             prerequisite_ids: [41],
             app_decision_path: "/api/v1/app/chats/122/pending_actions/501/authorization_items/42/decision"
           }
@@ -516,6 +518,10 @@ describe("PendingActionCard", () => {
     )
 
     expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument()
+    expect(screen.getByText("Allow permission to read the database")).toBeInTheDocument()
+    expect(screen.getByText("Run a database query")).toBeInTheDocument()
+    expect(screen.getByText("Orders database · read confidential information")).toBeInTheDocument()
+    expect(screen.queryByText(/database\.read/)).not.toBeInTheDocument()
     fireEvent.click(screen.getAllByRole("button", { name: "Allow once" })[0])
 
     await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Permission decision recorded."))

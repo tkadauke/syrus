@@ -15,6 +15,7 @@ module Permissions
         non_actionable_reason: request.non_actionable_reason,
         origin: reference(request.origin), subject: reference(request.subject),
         repository: reference(request.repository),
+        presentation: presentation.as_json,
         items: request.authorization_items.map { |item| item_json(item) }
       }
     end
@@ -23,8 +24,11 @@ module Permissions
 
     attr_reader :request
 
+    def presentation = @presentation ||= RequestPresentation.new(request, current_user: @current_user)
+
     def item_json(item)
       {
+        presentation: presentation.item_json(item),
         id: item.id, kind: item.kind, state: item.state,
         capability: item.capability, operation: item.operation,
         resource_type: item.resource_type,

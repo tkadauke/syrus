@@ -187,6 +187,70 @@ RSpec.describe "API: /api/v1/app/permission_requests", type: :request do
     expect(request.reload).to be_confirmed
   end
 
+  describe "server-side filters" do
+    def q(*chips) = Filters::QueryParam.encode({ "and" => chips.map { |field, value| { "field" => field, "op" => "is_one_of", "value" => value } } })
+
+    def add_request(key, operation:, effects:, state: "pending", origin: job)
+      request = authorization_request(deduplication_key: key)
+      request.update!(state:, origin:)
+      request.authorization_items.create!(item_attributes.merge(operation:, effects:, invocation_fingerprint: key))
+      request
+    end
+
+    it "filters before counting and pagination, combining filters with AND" do
+      stub_const("Api::V1::App::PermissionRequestsController::PER_PAGE", 2)
+      60.times { |i| add_request("noise-#{i}", operation: "send@v1", effects: [ "communication" ]) }
+      target = add_request("needle", operation: "delete@v1", effects: [ "destructive" ], state: "confirmed")
+
+      get "/api/v1/app/permission_requests", params: { q: q([ "effect", [ "destructive" ] ]) }
+      body = JSON.parse(response.body)
+      expect(body.fetch("requests").map { |r| r["id"] }).to eq([ target.id ])
+      expect(body.fetch("pagination")).to include("total" => 1, "total_pages" => 1)
+
+      get "/api/v1/app/permission_requests", params: { q: q([ "action", [ "delete@v1" ] ], [ "state", [ "pending" ] ]) }
+      expect(JSON.parse(response.body).fetch("requests")).to be_empty
+
+      get "/api/v1/app/permission_requests", params: { q: q([ "action", [ "delete@v1" ] ], [ "state", [ "confirmed" ] ], [ "origin_type", [ "Job" ] ],
+        [ "subject", [ "User:#{user.id}" ] ]) }
+      expect(JSON.parse(response.body).fetch("requests").map { |r| r["id"] }).to eq([ target.id ])
+
+      get "/api/v1/app/permission_requests", params: { q: q([ "state", [ "pending" ] ]), page: 2 }
+      body = JSON.parse(response.body)
+      expect(body.fetch("pagination")).to include("page" => 2, "total" => 60, "total_pages" => 30)
+      expect(body.fetch("requests").length).to eq(2)
+    end
+
+    it "returns labeled, visibility-safe options for the whole scope and humanized presentation" do
+      add_request("one", operation: "send@v1", effects: [ "communication" ])
+      other = Factories.user
+      ChatPendingAction.create!(request_kind: "authorization_request", user: other, origin: other, subject: other, purpose: "Invisible", deduplication_key: "other-user")
+        .authorization_items.create!(item_attributes.merge(operation: "hidden@v1", effects: [ "financial" ]))
+
+      get "/api/v1/app/permission_requests", params: { q: q([ "state", [ "confirmed" ] ]) }
+      body = JSON.parse(response.body)
+      expect(body.fetch("requests")).to be_empty
+      options = body.fetch("filter_options")
+      expect(options.fetch("effect")).to eq([ { "value" => "communication", "label" => "send a message" } ])
+      expect(options.fetch("action").map { |o| o["value"] }).to eq([ "send@v1" ])
+      expect(options.fetch("origin_type")).to eq([ { "value" => "Job", "label" => "Job" } ])
+      expect(options.fetch("subject").map { |o| o["value"] }).to eq([ "User:#{user.id}" ])
+      expect(options.fetch("state").map { |o| o["label"] }).to include("Pending", "Approved", "Denied")
+      expect(response.body).not_to include("hidden@v1", "financial", "spend money")
+    end
+  end
+
+  it "presents a request with plain-English wording and no raw keys" do
+    request = authorization_request
+    request.authorization_items.create!(item_attributes.merge(effects: [ "communication" ], decisive_rule: { "source" => "role_default", "policy" => "ask" }))
+
+    get "/api/v1/app/permission_requests"
+
+    presentation = JSON.parse(response.body).fetch("requests").first.fetch("presentation")
+    expect(presentation).to include("statement" => "Publish a status update", "consequences" => [ "send a message" ],
+      "why_approval_required" => "Agents of this kind need your approval before doing this.")
+    expect(presentation.to_json).not_to match(/communication\.chat|send@v1|role_default/)
+  end
+
   def authorization_request(deduplication_key: "permission-inbox-spec")
     ChatPendingAction.create!(request_kind: "authorization_request", user:, repository:, origin: job,
       subject: user, runtime_role: "implementer", purpose: "Publish a status update",

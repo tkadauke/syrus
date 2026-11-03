@@ -2,7 +2,7 @@ import { ApiError, deleteJson, getJson, patchJson, postForm, postJson } from "./
 import type { ProviderAvailability } from "./providerAvailability"
 import type { TypedArtifact } from "./artifacts"
 import type { RuleDraftPreview } from "./permissionRuleDrafts"
-import type { PermissionAuthorityReference, SmartPermissionOption } from "./permissionRequests"
+import type { PermissionAuthorityReference, PermissionPresentation, SmartPermissionOption } from "./permissionRequests"
 
 export type ChatRepository = {
   id: number
@@ -616,6 +616,7 @@ export type ChatAuthorizationItem = {
   operation?: string | null
   effects: string[]
   prerequisite_ids: number[]
+  presentation?: PermissionPresentation
   smart_option?: SmartPermissionOption | null
   resulting_authority?: PermissionAuthorityReference | null
   app_decision_path: string

@@ -14,10 +14,11 @@ vi.mock("../api/permissionRequests", async () => {
 describe("PermissionInboxDrawer", () => {
   afterEach(() => vi.useRealTimers())
 
-  it("shows normalized arguments on compact request cards", async () => {
+  it("shows plain-English context on compact request cards", async () => {
     vi.mocked(api.fetchPermissionRequests).mockResolvedValue({
       requests: [
         {
+          presentation: { statement: "Publish the release note", agent: "Release agent", scope: "Release channel", consequences: ["send a message"] },
           id: 12,
           state: "pending",
           actionable: true,
@@ -82,8 +83,10 @@ describe("PermissionInboxDrawer", () => {
     )
     fireEvent.click(control)
 
-    expect(screen.getByText("Arguments")).toBeInTheDocument()
-    expect(screen.getByText(JSON.stringify({ channel: "release", message: "Drawer must show this argument" }))).toBeInTheDocument()
+    expect(screen.getByText("Release channel")).toBeInTheDocument()
+    expect(screen.queryByText("Arguments")).not.toBeInTheDocument()
+    expect(screen.queryByText(/Drawer must show this argument/)).not.toBeInTheDocument()
+    expect(screen.getByTestId("permission-request-12").textContent).not.toMatch(/communication\.chat|send@v1|role_default|\{/)
     vi.mocked(api.fetchPermissionRequests).mockResolvedValue({
       requests: [],
       summary: { pending_count: 0, blocked_agent_count: 0 },

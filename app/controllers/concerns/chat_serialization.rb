@@ -352,9 +352,12 @@ module ChatSerialization
         rule_preview = permission_rule_preview_for(action)
         payload[:permission_rule_preview] = rule_preview if rule_preview
         if action.authorization_request?
+          presentation = Permissions::RequestPresentation.new(action, current_user: Current.user)
+          payload[:authorization_presentation] = presentation.as_json
           payload[:authorization_items] = action.authorization_items.sort_by(&:id).map do |item|
             {
               id: item.id,
+              presentation: presentation.item_json(item),
               kind: item.kind,
               state: item.state,
               capability: item.capability,
