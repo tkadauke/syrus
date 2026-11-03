@@ -65,11 +65,70 @@ type inboxPageMsg struct {
 
 type inboxTickMsg struct{}
 
+// inboxFilter selects which state-focused view of the inbox is shown.
+type inboxFilter int
+
+const (
+	inboxFilterAll inboxFilter = iota
+	inboxFilterImplemented
+	inboxFilterFailed
+	inboxFilterCount
+)
+
+func (f inboxFilter) label() string {
+	switch f {
+	case inboxFilterImplemented:
+		return "implemented"
+	case inboxFilterFailed:
+		return "failed"
+	default:
+		return "all"
+	}
+}
+
+func (f inboxFilter) matches(job api.JobItem) bool {
+	switch f {
+	case inboxFilterImplemented:
+		return job.State == "implemented"
+	case inboxFilterFailed:
+		return job.State == "failed"
+	default:
+		return true
+	}
+}
+
+func (f inboxFilter) next() inboxFilter {
+	return (f + 1) % inboxFilterCount
+}
+
+// visibleJobs returns the jobs matching the active filter, in inbox order.
+// The cursor indexes into this slice.
+func (m inboxModel) visibleJobs() []api.JobItem {
+	if m.filter == inboxFilterAll {
+		return m.jobs
+	}
+	var out []api.JobItem
+	for _, job := range m.jobs {
+		if m.filter.matches(job) {
+			out = append(out, job)
+		}
+	}
+	return out
+}
+
+// clampCursor keeps the cursor inside the visible list.
+func (m *inboxModel) clampCursor() {
+	if n := len(m.visibleJobs()); m.cursor >= n {
+		m.cursor = max(0, n-1)
+	}
+}
+
 type inboxModel struct {
 	client  inboxAPI
 	options inboxOptions
 
 	jobs       []api.JobItem
+	filter     inboxFilter
 	cursor     int
 	width      int
 	detailOpen bool
@@ -155,10 +214,14 @@ func (m inboxModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, inboxTick()
 		}
 		m.err = ""
+		selected, hadSelection := m.selectedJob()
 		m.mergeRefresh(msg.jobs)
-		if m.cursor >= len(m.jobs) {
-			m.cursor = max(0, len(m.jobs)-1)
+		if hadSelection {
+			if idx := slices.IndexFunc(m.visibleJobs(), func(j api.JobItem) bool { return j.ID == selected.ID }); idx >= 0 {
+				m.cursor = idx
+			}
 		}
+		m.clampCursor()
 		return m, inboxTick()
 	case inboxDetailMsg:
 		delete(m.pending, msg.jobID)
@@ -241,7 +304,7 @@ func (m inboxModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.fetchSelectedDetailIfOpen()
 		}
 	case "down", "j":
-		if m.cursor < len(m.jobs)-1 {
+		if m.cursor < len(m.visibleJobs())-1 {
 			m.cursor++
 			return m.fetchSelectedDetailIfOpen()
 		}
@@ -256,6 +319,8 @@ func (m inboxModel) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "?":
 		m.help = !m.help
+	case "f":
+		return m.cycleFilter()
 	case "R":
 		m.loading = true
 		return m, refreshInboxCmd(m.client, m.options.repo)
@@ -365,10 +430,25 @@ func inboxHandledLabel(kind string) string {
 }
 
 func (m inboxModel) selectedJob() (api.JobItem, bool) {
-	if len(m.jobs) == 0 || m.cursor < 0 || m.cursor >= len(m.jobs) {
+	jobs := m.visibleJobs()
+	if len(jobs) == 0 || m.cursor < 0 || m.cursor >= len(jobs) {
 		return api.JobItem{}, false
 	}
-	return m.jobs[m.cursor], true
+	return jobs[m.cursor], true
+}
+
+// cycleFilter advances to the next filter, keeping the selected job selected
+// when it is still visible and otherwise clamping to the nearest row.
+func (m inboxModel) cycleFilter() (tea.Model, tea.Cmd) {
+	selected, hadSelection := m.selectedJob()
+	m.filter = m.filter.next()
+	if hadSelection {
+		if idx := slices.IndexFunc(m.visibleJobs(), func(j api.JobItem) bool { return j.ID == selected.ID }); idx >= 0 {
+			m.cursor = idx
+		}
+	}
+	m.clampCursor()
+	return m.fetchSelectedDetailIfOpen()
 }
 
 func (m inboxModel) fetchSelectedDetailIfOpen() (tea.Model, tea.Cmd) {
@@ -394,9 +474,17 @@ func (m inboxModel) View() string {
 		scope = m.options.repo
 	}
 	width := m.renderWidth()
-	lines := []string{fmt.Sprintf("%s  %d jobs · %s", header, len(m.jobs), scope), ruleStyle.Render(strings.Repeat("─", width))}
+	visible := m.visibleJobs()
+	count := fmt.Sprintf("%d jobs", len(visible))
+	if m.filter != inboxFilterAll {
+		count = fmt.Sprintf("%d of %d jobs", len(visible), len(m.jobs))
+	}
+	lines := []string{fmt.Sprintf("%s  %s · %s · filter: %s", header, count, scope, filterStyle.Render(m.filter.label())), ruleStyle.Render(strings.Repeat("─", width))}
 
-	for i, job := range m.jobs {
+	if len(visible) == 0 {
+		lines = append(lines, subtleStyle.Render(fmt.Sprintf("No %s jobs. Press f to change the filter.", m.filter.label())))
+	}
+	for i, job := range visible {
 		pointer := " "
 		if i == m.cursor {
 			pointer = "▶"
@@ -439,9 +527,9 @@ func (m inboxModel) View() string {
 	if m.confirm != "" {
 		lines = append(lines, fmt.Sprintf("Confirm %s JOB-%d? y/N", m.confirm, m.pendingID))
 	} else if m.help {
-		lines = append(lines, "↑/↓ j/k navigate · enter details · a approve · s open Syrus · o open PR · c checkout · d diff · l log · r retry · R refresh · ? help · q quit")
+		lines = append(lines, "↑/↓ j/k navigate · enter details · a approve · s open Syrus · o open PR · c checkout · d diff · l log · r retry · R refresh · f cycle filter (all → implemented → failed) · ? help · q quit")
 	} else {
-		lines = append(lines, "a approve  s open Syrus  o open PR  c checkout  d diff  l log  r retry  R refresh  ? help  q quit")
+		lines = append(lines, "a approve  s open Syrus  o open PR  c checkout  d diff  l log  r retry  R refresh  f filter  ? help  q quit")
 	}
 	if m.loading {
 		lines = append(lines, subtleStyle.Render("Refreshing..."))
@@ -599,6 +687,7 @@ var (
 	errorStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 	successStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
 	spinnerStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("39"))
+	filterStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
 )
 
 func checkoutJobCmd(client inboxAPI, jobID int64) tea.Cmd {
