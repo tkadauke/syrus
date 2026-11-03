@@ -65,6 +65,63 @@ newly blocked agents to assistive technology. Reduced-motion preferences replace
 the animated halo with a static ring. Infrastructure and security banners remain
 the higher-priority alert surface.
 
+## Plugin-provided AI approval
+
+Approval plugins register an `approval_provider`; registration and plugin
+enablement do not grant it authority. A user must create an explicit delegation
+for one provider, capability, resource type, and typed resource scope. The
+delegation can narrow the provider further with excluded effects and can be
+revoked immediately.
+
+An AI provider receives the role-labelled transcript, exact tool call, current
+policy chain, and immutable invocation fingerprint. It returns structured
+`allow`, `deny`, or `escalate` data with rationale, policy factors, confidence,
+and evidence that core redacts before returning or storing it. Its authority
+never extends beyond that exact invocation: it cannot create rules, leases,
+grants, or other delegations.
+Permission management, privilege changes, and financial effects remain
+human-only. Core evaluates non-delegable plugin, instance, resource, and user
+ceilings from the effective policy chain before calling the provider. Missing
+providers, invalid output, confidence below `0.8`, and provider-owned cost or
+rate outcomes escalate the existing request to a human.
+
+The classifier envelope orders core non-overridable guidance, the provider's
+default guidance, and repository guidance supplied by the authorization
+context.
+
+Transcript entries retain their explicit roles. The envelope labels transcript,
+tool-call, and repository content as untrusted evidence; only the effective
+policy chain is authoritative. Providers must disclose where this evidence is
+processed and retained. The provider receives the complete evidence needed for
+the decision, while the durable audit artifact redacts secrets from the
+transcript, tool arguments, repository guidance, provider evidence, and decision.
+
+### AI decision lifecycle
+
+An AI decision attaches to the request that is already pending; it never opens
+a second one. Only a request with a single operation item is delegable.
+`allow` approves that item for the invocation duration and issues the
+exact-invocation authority in one transaction, so a failure leaves the request
+pending for a human. `deny` rejects only the current attempt: it creates no
+rule or lease and does not start the denial cooldown, so a later identical
+resubmission is evaluated again. Escalation, provider failure, and low
+confidence leave the request in the human inbox without a new notification.
+Each evaluation is recorded on the request's transition history with the
+redacted audit artifact. An identical resubmission is re-evaluated only when
+its transcript evidence differs from the last evaluation.
+
+### Delegation and audit management
+
+The Permissions Hub's AI approvals view (`/api/v1/app/approval_delegations`)
+shows providers with their disclosure and default guidance, the owner's
+delegations (provider, capability, resource type, bounded scope, status),
+the core human-only exclusions, and the owner's `ai_approval_evaluated`
+history. It reports `enabled: false` until a provider plugin is registered.
+Creating a delegation requires a registered provider, a known capability, and a
+non-empty scope; revocation is immediate and attributed to the human. Requests
+carrying a workflow invocation credential are rejected so an AI principal cannot
+delegate to itself.
+
 ## Agent-facing management APIs
 
 Chat agents can inspect the signed-in operator's effective store with

@@ -129,6 +129,64 @@ describe("PermissionsSettingsRoute", () => {
     expect(screen.getByText("Repeated requests were escalated into this decision.")).toBeInTheDocument()
     expect(screen.getByText(/\[redacted\]/)).toBeInTheDocument()
   })
+  it("shows the AI approval section disabled until a provider exists and revokes delegations immediately", async () => {
+    const empty = { enabled: false, providers: [], delegations: [], human_only: { effects: ["financial"], capabilities: [] }, history: [] }
+    const enabled = {
+      enabled: true,
+      providers: [{ provider_key: "reviewer", display_name: "Reviewer", data_sharing: "Sent to Reviewer Cloud", default_guidance: "Be careful" }],
+      delegations: [
+        {
+          id: 9,
+          provider_key: "reviewer",
+          provider_name: "Reviewer",
+          capability: "syrus.jobs@v1",
+          resource_type: "job",
+          resource_scope: { job_id: 1 },
+          excluded_effects: ["financial"],
+          status: "active",
+          revoked_at: null,
+          created_at: "2026-01-01T00:00:00Z"
+        }
+      ],
+      human_only: { effects: ["financial"], capabilities: ["syrus.permissions@v1"] },
+      history: [
+        {
+          id: 1,
+          occurred_at: "2026-01-01T00:00:00Z",
+          request_id: 3,
+          purpose: "Cancel job",
+          outcome: "allow",
+          provider_outcome: null,
+          rationale: "Safe",
+          delegation_id: 9
+        }
+      ]
+    }
+    let current: unknown = empty
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      if (url.endsWith("/approval_delegations/9/revoke")) {
+        current = { ...enabled, delegations: [{ ...enabled.delegations[0], status: "revoked" }] }
+        return Promise.resolve(jsonResponse({}))
+      }
+      return Promise.resolve(jsonResponse(url.endsWith("/approval_delegations") ? current : payload()))
+    })
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "AI approvals" }))
+    expect(await screen.findByText(/AI approvals are off/)).toBeInTheDocument()
+
+    current = enabled
+    fireEvent.click(screen.getByRole("button", { name: "Agent matrix" }))
+    fireEvent.click(screen.getByRole("button", { name: "AI approvals" }))
+    expect(await screen.findByText(/Sent to Reviewer Cloud/)).toBeInTheDocument()
+    expect(screen.getByText(/Always decided by a human/)).toBeInTheDocument()
+    expect(screen.getByText(/allow: Cancel job/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Revoke now" }))
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Revoke now" })).not.toBeInTheDocument())
+    expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("/approval_delegations/9/revoke"), expect.objectContaining({ method: "POST" }))
+  })
 })
 
 function renderRoute() {

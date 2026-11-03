@@ -1,4 +1,5 @@
 class User < ApplicationRecord
+  has_many :approval_provider_delegations, foreign_key: :owner_user_id, dependent: :destroy
   include AutoApproveModes
   include PluginDataCleanup
   include ValidatesAgentProvider

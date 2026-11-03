@@ -171,6 +171,7 @@ per-user/private:
   - plugins/test_insights/app/controllers/api/v1/app/job_test_results_controller.rb
   - app/controllers/api/v1/app/jobs_controller.rb
   - app/controllers/api/v1/app/local_daemon_sessions_controller.rb
+  - app/controllers/api/v1/app/approval_delegations_controller.rb
   - app/controllers/api/v1/app/notification_preferences_controller.rb
   - app/controllers/api/v1/app/notifications_controller.rb
   - app/controllers/api/v1/app/permission_requests_controller.rb
@@ -406,6 +407,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/jobs_controller.rb` | per-user/private and admin gate | Job detail/source and chat feedback submission are scoped through `JobPolicy` (`policy_scope(Job)`, exactly `Current.user.jobs` — see [Policy layer](#policy-layer-repositoryjobepic)); timeline is separately admin-only because it exposes run history. |
 | `app/controllers/api/v1/app/local_daemon_sessions_controller.rb` | per-user/private | Creates and manages local daemon sessions through `Current.user.chat_sessions`; daemon session creation sets `user: Current.user`. |
 | `plugins/agent_memory/app/controllers/api/v1/app/memories_controller.rb` | per-user/private and admin gate | Memory listing includes the current user's own memories plus repository-published memories for that user's repositories; writes are owner-only unless the viewer is an admin. |
+| `app/controllers/api/v1/app/approval_delegations_controller.rb` | per-user/private | Lists, creates, and revokes only `Current.user.approval_provider_delegations`. |
 | `app/controllers/api/v1/app/notification_preferences_controller.rb` | per-user/private | Reads and updates only `Current.user.notification_preferences`. |
 | `app/controllers/api/v1/app/pending_feedback_controller.rb` | per-user/private | Pending feedback actions (apply/ignore/replace) find the parent job through `Current.user.jobs` and serialize a full `App::JobDetailPayload` for that user. |
 | `app/controllers/api/v1/app/notifications_controller.rb` | per-user/private | Notification listing and mark-read commands operate only on `Current.user.notifications`. |

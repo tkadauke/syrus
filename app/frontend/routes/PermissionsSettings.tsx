@@ -18,6 +18,7 @@ import {
   type PermissionPreview,
   type PermissionRule
 } from "../api/permissions"
+import { AiApprovalDelegations } from "./AiApprovalDelegations"
 import { Input } from "../components/Input"
 import { Modal } from "../components/Modal"
 import { PageHeading, SectionHeading } from "../components/Heading"
@@ -32,7 +33,7 @@ import { routePrefix, withRoutePrefix } from "../lib/routing"
 const queryKey = ["permission_rules"] as const
 const subjects = ["interactive_chat", "coding_chat", "local_chat"] as const
 type Subject = (typeof subjects)[number]
-type View = "matrix" | "resources" | "rules" | "leases" | "history"
+type View = "matrix" | "resources" | "rules" | "leases" | "history" | "ai_approval"
 type PolicyState = "allow" | "ask" | "deny" | "scoped"
 type Translate = TFunction<"settings">
 
@@ -146,7 +147,7 @@ export function PermissionsSettingsRoute() {
       ) : null}
       {revoke.isError ? <PanelMessage tone="error">{errorMessage(revoke.error, t("permissions.revoke_error"))}</PanelMessage> : null}
       <nav aria-label={t("permissions.views_label")} className="flex gap-2 border-b border-border">
-        {(["matrix", "resources", "rules", "leases", "history"] as View[]).map((item) => (
+        {(["matrix", "resources", "rules", "leases", "history", "ai_approval"] as View[]).map((item) => (
           <button
             className={`px-3 py-2 text-sm font-medium ${view === item ? "border-b-2 border-brand text-brand" : "text-text-secondary"}`}
             key={item}
@@ -156,6 +157,8 @@ export function PermissionsSettingsRoute() {
           </button>
         ))}
       </nav>
+
+      {view === "ai_approval" ? <AiApprovalDelegations descriptors={descriptors} /> : null}
 
       {view === "matrix" ? (
         <section className="overflow-x-auto rounded-xl border border-border bg-surface-raised p-5">
