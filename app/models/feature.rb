@@ -142,6 +142,12 @@ class Feature < ApplicationRecord
     enabled?(:emergency_land)
   end
 
+  # Rollout gate for creating new unland operations. Existing rollback Jobs and
+  # unland Workflows are never gated by this flag.
+  def self.unlanding_enabled?
+    enabled?(:unlanding)
+  end
+
   def self.execution_request_assertions_enabled?
     enabled?(:execution_request_assertions)
   end

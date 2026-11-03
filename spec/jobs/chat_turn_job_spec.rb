@@ -641,6 +641,10 @@ RSpec.describe ChatTurnJob, :ci_only do
   it "reports a chat_startup.mcp_config_write phase when performance logging is enabled" do
     Feature.create!(slug: "performance_logging", category: "Operations", name: "Performance logging", enabled: true)
     allow(PerformanceLogging).to receive(:slow_phase_threshold_ms).and_return(0.0)
+    # A zero threshold makes every phase (plugin registry lookups included)
+    # emit an event; disable the per-minute sampler so the many unrelated
+    # events cannot rate-limit away the one under test.
+    stub_const("Observability::EventSink::PERFORMANCE_RATE_LIMIT_PER_MINUTE", 0)
     PerformanceLogging::Store.clear!
     ChatTurnJob.agent_runner = ->(**_) { result_fixture(session_id: "chat-session-1") }
 

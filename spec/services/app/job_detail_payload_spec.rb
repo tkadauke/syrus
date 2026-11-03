@@ -1,4 +1,5 @@
 require "rails_helper"
+require "support/unlanding_feature"
 require "tmpdir"
 require "fileutils"
 
@@ -24,6 +25,45 @@ RSpec.describe App::JobDetailPayload do
 
     ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
     queries
+  end
+
+  it "reports unlanding unavailable and omits the action path when the flag is off" do
+    original = Factories.job_record(
+      user: user, repository: repo, state: "closed", closure_reason: "pr_merged", landed_sha: "original"
+    )
+
+    payload = payload_for(original)
+
+    expect(payload.dig(:job, :unland)).to include(available: false, state: nil)
+    expect(payload.dig(:actions, :can_unland)).to be(false)
+    expect(payload.dig(:paths, :app_unland_path)).to be_nil
+  end
+
+  it "offers the unland action and path when the flag is on" do
+    enable_unlanding!
+    original = Factories.job_record(
+      user: user, repository: repo, state: "closed", closure_reason: "pr_merged", landed_sha: "original"
+    )
+
+    payload = payload_for(original)
+
+    expect(payload.dig(:job, :unland)).to include(available: true, state: "landed")
+    expect(payload.dig(:actions, :can_unland)).to be(true)
+    expect(payload.dig(:paths, :app_unland_path)).to eq("/api/v1/app/jobs/#{original.id}/unland")
+  end
+
+  it "keeps in-flight and historical rollback presentation when the flag is off" do
+    original = Factories.job_record(
+      user: user, repository: repo, state: "closed", closure_reason: "pr_merged", landed_sha: "original"
+    )
+    rollback = Factories.job_record(user: user, repository: repo, rollback_of: original, state: "running")
+
+    expect(payload_for(original).dig(:job, :unland)).to include(available: false, state: "in_progress")
+    rollback.update!(state: "closed", closure_reason: "pr_merged", landed_sha: "rollback")
+    payload = payload_for(original.reload)
+    expect(payload.dig(:job, :unland)).to include(state: "reverted")
+    expect(payload.dig(:job, :unlanded_by)).to include(id: rollback.id)
+    expect(payload_for(rollback).dig(:job, :rollback_of)).to include(id: original.id)
   end
 
   it "exposes rollback provenance in both directions" do

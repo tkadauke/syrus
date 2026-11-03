@@ -4,6 +4,7 @@ module PendingActions
     repairs_job!
 
     def execute
+      Unlanding::Eligibility.ensure_enabled!
       progress!("Creating linked rollback for #{action_job.slug}...")
       Unlanding::Create.call!(original: action_job, user: user)
     end

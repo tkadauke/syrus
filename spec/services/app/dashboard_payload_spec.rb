@@ -157,8 +157,8 @@ RSpec.describe App::DashboardPayload, :ci_only do
 
     it "batches repository membership lookups instead of querying once per job row" do
       other_repo = Factories.repository(user: user)
-      repo.membership_for(user).update!(role: "write", agent_provider: "claude")
-      other_repo.membership_for(user).update!(role: "write", agent_provider: "codex")
+      repo.membership_for(user).update!(role: "write")
+      other_repo.membership_for(user).update!(role: "write")
       jobs = [
         Factories.job_record(user: user, repository: repo, job_provider_setting: "codex"),
         Factories.job_record(user: user, repository: other_repo, job_provider_setting: "claude"),
@@ -182,7 +182,11 @@ RSpec.describe App::DashboardPayload, :ci_only do
 
       expect(query_count).to eq(1)
       mismatches = jobs.index_with { |job| result[:items].find { |row| row[:id] == job.id }[:provider_mismatch] }
-      expect(mismatches.values).to all(be_present)
+      # Provider mismatch compares the job pin to the owner's default provider.
+      expect(user.agent_provider).to eq("claude")
+      expect(mismatches[jobs[0]]).to be_present
+      expect(mismatches[jobs[1]]).to be_nil
+      expect(mismatches[jobs[2]]).to be_present
     end
   end
 

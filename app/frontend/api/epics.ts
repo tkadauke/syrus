@@ -208,6 +208,7 @@ export type EpicDetailPayload = {
   merge_train_status?: MergeTrainStatus | null
   epic: EpicDetailRecord
   unland?: {
+    available?: boolean
     state: "landed" | "in_progress" | "failed" | "reverted" | null
     rollback_job: { id: number; slug: string; state: string; path: string; pr_number: number | null; pr_url: string | null } | null
   }
@@ -229,7 +230,7 @@ export type EpicDetailPayload = {
     app_unclaim_path: string
     app_reassign_path: string
     app_dependencies_path: string
-    app_unland_path: string
+    app_unland_path: string | null
   }
 }
 

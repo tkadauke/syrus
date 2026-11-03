@@ -13,7 +13,10 @@ The primary workflow: explores the repo, writes code, runs graders, and opens a 
 ## unland
 
 **When it fires:** An operator confirms a compensating rollback for a
-successfully landed Job or Epic.
+successfully landed Job or Epic. Unlanding is experimental and off by default;
+an admin must enable the `unlanding` feature flag before new unland operations
+can be previewed or confirmed. Disabling it later blocks only new operations —
+existing rollback Jobs and unland Workflows keep running and stay visible.
 
 **Step chain:** `unland_revert → unland_conflict? → prepare → grader_fanout → grader_collect → summarize → pr_open`
 

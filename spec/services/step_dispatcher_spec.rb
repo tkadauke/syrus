@@ -305,12 +305,12 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(first_step.runs.last.agent_provider).to eq("codex")
     end
 
-    it "prefers the repository's explicit provider over a user-scoped default routing rule when refreshing a default-backed workflow" do
-      # Regression: with a repo-level explicit provider and a
-      # user-scoped default routing rule both in play, the repo provider
-      # must win the refresh, not the user's routing rule.
+    it "prefers a repository-scoped default routing rule over a user-scoped one when refreshing a default-backed workflow" do
+      # Regression: with a repo-scoped and a user-scoped default routing
+      # rule both in play, the repo rule must win the refresh.
       user = Factories.user(agent_provider: "claude", codex_api_key: "ck-test")
-      repository = Factories.repository(user: user, agent_provider: "codex")
+      repository = Factories.repository(user: user)
+      ProviderRoutingRule.create!(scope_type: "repository", scope_id: repository.id, task_key: "default", candidates: [ { "provider" => "codex" } ])
       default_job = Factories.job_record(user: user, repository: repository, state: "queued",
                                          agent_provider: "claude", job_provider_setting: "default")
       default_workflow = Workflow.create!(

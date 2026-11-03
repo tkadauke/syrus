@@ -23,7 +23,7 @@ module Mcp::Tools
           state: pending.state,
           message: I18n.t("server.mcp.unland_confirmation.job", subject: job.slug)
         ))
-      rescue Unlanding::Create::Ineligible => e
+      rescue Unlanding::Eligibility::Disabled, Unlanding::Create::Ineligible => e
         Mcp::Tools.invalid(e.message)
       end
     end

@@ -1,4 +1,5 @@
 require "rails_helper"
+require "support/unlanding_feature"
 
 RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
   let(:user) { Factories.user }
@@ -27,7 +28,38 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     expect(parse_body.dig("error", "code")).to eq("unauthorized")
   end
 
+  it "rejects Epic unland preflight and mutation while the flag is off and reports it unavailable" do
+    epic = Factories.epic(user: user, repository: repository, state: "done")
+    expect(RepositoryBareClone).not_to receive(:new)
+    sign_in_as(user)
+
+    get "/api/v1/app/epics/#{epic.id}"
+    expect(parse_body.dig("epic", "can_unland")).to be(false)
+    expect(parse_body.dig("paths", "app_unland_path")).to be_nil
+    expect(parse_body.dig("unland", "available")).to be(false)
+    expect(parse_body.dig("unland", "state")).to be_nil
+
+    get "/api/v1/app/epics/#{epic.id}/unland"
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("unland_disabled")
+
+    expect { post "/api/v1/app/epics/#{epic.id}/unland" }.not_to change(Job, :count)
+    expect(response).to have_http_status(:unprocessable_content)
+  end
+
+  it "keeps historical rollback visible on the Epic when the flag is off" do
+    epic = Factories.epic(user: user, repository: repository, state: "done")
+    rollback = Factories.job_record(user: user, repository: repository, rollback_epic: epic, state: "running")
+    sign_in_as(user)
+
+    get "/api/v1/app/epics/#{epic.id}"
+
+    expect(parse_body.dig("unland", "state")).to eq("in_progress")
+    expect(parse_body.dig("unland", "rollback_job", "id")).to eq(rollback.id)
+  end
+
   it "preflights an Epic unland before explicitly creating its rollback" do
+    enable_unlanding!
     epic = Factories.epic(user: user, repository: repository, state: "done")
     rollback = Factories.job_record(user: user, repository: repository)
     plan = instance_double(Unlanding::Create::Plan, to_h: {

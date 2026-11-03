@@ -1,4 +1,5 @@
 require "rails_helper"
+require "support/unlanding_feature"
 require "ostruct"
 
 RSpec.describe "Mcp::Tools job control tools" do
@@ -71,7 +72,38 @@ RSpec.describe "Mcp::Tools job control tools" do
     expect(job.reload).to be_open
   end
 
+  it "does not execute unland_job or unland_epic while the flag is off" do
+    job = Factories.job_record(repository: repository, state: "closed", closure_reason: "pr_merged", landed_sha: "abc")
+    epic = Factories.epic(user: user, repository: repository, state: "done")
+    allow(Unlanding::Create).to receive(:call!)
+
+    [ [ "unland_job", { job_id: job.id } ], [ "unland_epic", { epic_id: epic.id } ] ].each do |name, args|
+      response = call_tool(name, args)
+      expect(response.dig(:result, :isError) || response[:error]).to be_truthy
+    end
+    expect(chat_session.pending_actions.where(action: %w[unland_job unland_epic])).to be_empty
+    expect(Unlanding::Create).not_to have_received(:call!)
+  end
+
+  it "rechecks the flag at confirmation so a drafted unland cannot run after disablement" do
+    enable_unlanding!
+    job = Factories.job_record(repository: repository, state: "closed", closure_reason: "pr_merged", landed_sha: "abc")
+    plan = instance_double(Unlanding::Create::Plan, to_h: { subject: job.slug, commits: [ "abc" ], graders: [ "smoke" ], warnings: [] })
+    allow(Unlanding::Create).to receive(:plan!).and_return(plan)
+    body = payload(call_tool("unland_job", job_id: job.id))
+    pending = chat_session.pending_actions.find(body.fetch(:pending_confirmation_id))
+
+    disable_unlanding!
+    expect(RepositoryBareClone).not_to receive(:new)
+
+    jobs = Job.count
+    expect { pending.confirm!(user: user) }.to raise_error(Unlanding::Eligibility::Disabled)
+    expect(Job.count).to eq(jobs)
+    expect(pending.reload).not_to be_confirmed
+  end
+
   it "returns the unland preflight and waits for confirmation before creating rollback work" do
+    enable_unlanding!
     job = Factories.job_record(repository: repository, state: "closed", closure_reason: "pr_merged", landed_sha: "abc")
     plan = instance_double(Unlanding::Create::Plan, to_h: { subject: job.slug, commits: [ "abc" ], graders: [ "smoke" ], warnings: [] })
     allow(Unlanding::Create).to receive(:plan!).with(original: job, user: user).and_return(plan)
@@ -86,6 +118,7 @@ RSpec.describe "Mcp::Tools job control tools" do
   end
 
   it "returns the Epic unland preflight and waits for confirmation before creating rollback work" do
+    enable_unlanding!
     epic = Factories.epic(user: user, repository: repository, state: "done")
     plan = instance_double(Unlanding::Create::Plan, to_h: { subject: epic.slug, affected: [ epic.slug ], commits: [ "abc" ], graders: [ "smoke" ], warnings: [] })
     allow(Unlanding::Create).to receive(:plan!).with(original: epic, user: user).and_return(plan)

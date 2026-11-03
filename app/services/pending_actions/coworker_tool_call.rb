@@ -21,6 +21,8 @@ module PendingActions
     end
 
     def execute
+      raise ArgumentError, "originating conversation is no longer available" unless chat_session&.persisted?
+
       server_context = replay_server_context
       context = McpToolContext.from_server_context(server_context)
       unless context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
@@ -61,13 +63,20 @@ module PendingActions
         invocation.complete!(claim_key:, status: :failed)
         raise ArgumentError, response.content.first[:text].to_s
       end
-      invocation.complete!(claim_key:, status: :succeeded)
-
       result_text = response.content.filter_map { |item| item[:text] || item["text"] }.join("\n")
-      @action.update!(payload: payload.merge("tool_result" => result_text.byteslice(0, 64.kilobytes)))
+      raise ArgumentError, "tool returned no result to deliver to the originating chat" if result_text.blank?
+
+      invocation.complete!(claim_key:, status: :succeeded)
+      stored = result_text.byteslice(0, 64.kilobytes).scrub
+      @action.update!(payload: payload.merge("tool_result" => stored))
+      Rails.logger.info(
+        "[coworker_tool_call] result stored pending_action=#{action.id} tool=#{payload['tool_name']} " \
+        "chat_session=#{chat_session.id} bytes=#{stored.bytesize} truncated=#{result_text.bytesize > stored.bytesize}"
+      )
 
       nil
-    rescue StandardError
+    rescue StandardError => e
+      Rails.logger.warn("[coworker_tool_call] delivery failed pending_action=#{action.id} tool=#{payload['tool_name']} error=#{e.class}")
       invocation&.complete!(claim_key:, status: :failed) if invocation&.claimed?
       raise
     end
