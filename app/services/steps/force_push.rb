@@ -37,7 +37,7 @@ module Steps
       handle_push_protection_rejection!(e) do
         git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
         GithubAuthenticatedGit.run(repository: repository, user: job.user, git: git, operation_type: "git_force_push_protection_repair", log: method(:log)) do |push_url|
-          git.run("push", force_with_lease_arg(git, push_url), push_url, "HEAD:refs/heads/#{workspace.branch_name}", chdir: workspace.path.to_s)
+          git.run("-c", "core.hooksPath=/dev/null", "push", force_with_lease_arg(git, push_url), push_url, "HEAD:refs/heads/#{workspace.branch_name}", chdir: workspace.path.to_s)
         end
       end
       persist_rebase_diff_review_version!

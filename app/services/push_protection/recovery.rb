@@ -51,7 +51,7 @@ module PushProtection
         extra: {
           "clean_anchor" => anchor, "candidate_sha" => candidate.sha, "rejected_range" => candidate.rejected_range,
           "rejected_bundle" => candidate.bundle_path, "baseline" => candidate.baseline,
-          "metadata" => candidate.metadata, "allowed_paths" => error.finding_paths
+          "metadata" => candidate.metadata, "allowed_paths" => allowed_paths_for(error, anchor, candidate)
         }
       )
       Outcome.new(kind: :repair, message: error.message, candidate: candidate)
@@ -86,6 +86,7 @@ module PushProtection
       repo.run("reset", "--hard", data["candidate_sha"])
       repo.run("clean", "-fd")
       File.write(File.join(repo.path, ".git", "config"), baseline["config"])
+      repo.restore_metadata(bundle_dir.join("git-metadata").to_s)
       wanted = baseline["refs"].to_h { |l| l.split(" ", 2).reverse }
       repo.refs_except(branch).each do |line|
         sha, name = line.split(" ", 2)
@@ -116,6 +117,12 @@ module PushProtection
     private
 
     attr_reader :workflow, :branch, :repo
+
+    # GitHub normally names the files; when it does not, the repair may touch
+    # any file the rejected range itself changed (never anything outside it).
+    def allowed_paths_for(error, anchor, candidate)
+      error.finding_paths.presence || repo.changed_paths(anchor, candidate.sha)
+    end
 
     def reconstruct!(data)
       metadata = Metadata.from_h(data["metadata"])

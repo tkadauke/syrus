@@ -22,6 +22,7 @@ module PushProtection
       raise ArgumentError, "rejected range is empty" if range.empty?
 
       bundle_path = preserve_rejected!(rejected_head)
+      repo.backup_metadata(metadata_dir)
       metadata = Metadata.capture(repo, rejected_head)
       sha = Reconstructor.commit_tree!(repo, tree: repo.tree(rejected_head), anchor: anchor, metadata: metadata)
       repo.run("reset", "--hard", sha)
@@ -32,6 +33,12 @@ module PushProtection
     private
 
     attr_reader :repo, :branch, :anchor, :bundle_dir
+
+    def metadata_dir
+      FileUtils.rm_rf(bundle_dir.join("git-metadata"))
+      FileUtils.mkdir_p(bundle_dir.join("git-metadata"))
+      bundle_dir.join("git-metadata").to_s
+    end
 
     def preserve_rejected!(rejected_head)
       FileUtils.mkdir_p(bundle_dir)
@@ -49,6 +56,7 @@ module PushProtection
         "refs" => repo.refs_except(branch),
         "remotes" => repo.remotes,
         "config" => repo.config_text,
+        "git_metadata" => repo.metadata_digest,
         "gitlinks" => repo.gitlinks(sha),
         "gitmodules" => repo.gitmodules(sha)
       }
