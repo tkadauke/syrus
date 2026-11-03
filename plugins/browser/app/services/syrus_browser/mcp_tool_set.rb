@@ -66,6 +66,7 @@ module SyrusBrowser
       "browser_screenshot" => "browser.observe/read@v1",
       "browser_wait_for" => "browser.observe/read@v1",
       "browser_resize" => "browser.observe/read@v1",
+      "browser_emulate" => "browser.observe/read@v1",
       "browser_evaluate" => "browser.execute/evaluate@v1",
       "browser_file_upload" => "browser.upload/file@v1",
       "browser_drop" => "browser.upload/file@v1",
