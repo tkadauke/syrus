@@ -684,86 +684,22 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
       <ThemeProvider colorTheme={user?.color_theme ?? null} theme={user?.theme ?? "system"}>
         <BugReportContext.Provider value={bugReportContextValue}>
           <ActivityProvider prefix={prefix}>
-          <GlobalShortcutsHelp />
-          {user ? <GlobalBugReportShortcut onOpenBugReport={openBugReport} /> : null}
-          <div
-            className="flex h-[var(--syrus-app-viewport-height,100dvh)] overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white"
-            data-testid="app-chrome-root"
-            style={appViewportStyle}
-          >
-            <aside
-              className={`relative hidden shrink-0 transition-[width] duration-200 ease-out lg:flex ${sidebarSplitter.collapsed ? "overflow-visible" : ""}`}
-              data-testid="desktop-sidebar"
-              style={{ width: `${sidebarSplitter.collapsed ? SIDEBAR_COLLAPSED_WIDTH : sidebarSplitter.width}px` }}
-              {...(isDesktopSidebarViewport ? {} : { "data-html2canvas-ignore": true })}
+            <GlobalShortcutsHelp />
+            {user ? <GlobalBugReportShortcut onOpenBugReport={openBugReport} /> : null}
+            <div
+              className="flex h-[var(--syrus-app-viewport-height,100dvh)] overflow-hidden bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white"
+              data-testid="app-chrome-root"
+              style={appViewportStyle}
             >
-              <SidebarContent
-                collapsed={sidebarSplitter.collapsed}
-                dashboardSubnavEnabled={isDesktopSidebarViewport}
-                featureFlags={data?.feature_flags ?? {}}
-                navItems={navItems}
-                onCloseDrawer={() => setDrawerOpen(false)}
-                onNotice={setNotice}
-                onOpenBugReport={openBugReport}
-                onReorderNavItems={reorderSidebarNav.mutate}
-                onStartChat={startChat}
-                onStartGroupChat={startGroupChat}
-                prefix={prefix}
-                showTeamProfile={(data?.team_user_count || 0) > 1}
-                startingChat={startingChat}
-                user={user}
-                onHoverStart={openSidebarPeekSoon}
-                onHoverEnd={closeSidebarPeekSoon}
-              />
-              {sidebarSplitter.collapsed ? (
-                <div
-                  {...sidebarPeekInertAttributes}
-                  aria-hidden={!sidebarPeekOpen}
-                  className={`absolute bottom-0 left-0 top-0 z-30 shadow-xl transition-all duration-200 ease-out ${sidebarPeekOpen ? "translate-x-0 opacity-100" : "-translate-x-4 opacity-0 pointer-events-none"}`}
-                  data-testid="sidebar-peek"
-                  onMouseEnter={keepSidebarPeekOpen}
-                  onMouseLeave={closeSidebarPeekSoon}
-                  style={{ width: `${sidebarSplitter.width}px` }}
-                >
-                  <SidebarContent
-                    collapsed={false}
-                    dashboardSubnavEnabled={isDesktopSidebarViewport}
-                    featureFlags={data?.feature_flags ?? {}}
-                    navItems={navItems}
-                    onCloseDrawer={() => setDrawerOpen(false)}
-                    onNotice={setNotice}
-                    onOpenBugReport={openBugReport}
-                    onReorderNavItems={reorderSidebarNav.mutate}
-                    onStartChat={startChat}
-                    onStartGroupChat={startGroupChat}
-                    prefix={prefix}
-                    searchShortcutsEnabled={sidebarPeekOpen}
-                    showTeamProfile={(data?.team_user_count || 0) > 1}
-                    startingChat={startingChat}
-                    user={user}
-                  />
-                </div>
-              ) : null}
-              <div
-                aria-label={t("nav:resize_sidebar")}
-                aria-orientation="vertical"
-                aria-valuemax={SIDEBAR_MAX_WIDTH}
-                aria-valuemin={SIDEBAR_COLLAPSED_WIDTH}
-                aria-valuenow={sidebarSplitter.collapsed ? SIDEBAR_COLLAPSED_WIDTH : Math.round(sidebarSplitter.width)}
-                className="absolute inset-y-0 -right-1 z-40 w-2 cursor-col-resize rounded-sm outline-none transition-colors hover:bg-brand/30 focus-visible:bg-brand/40"
-                onClick={sidebarSplitter.toggleCollapsed}
-                onKeyDown={sidebarSplitter.resizeWithKeyboard}
-                onMouseDown={sidebarSplitter.beginResize}
-                role="separator"
-                tabIndex={0}
-              />
-            </aside>
-
-            {drawerOpen ? (
-              <div className="fixed inset-0 z-40 bg-white dark:bg-gray-950 lg:hidden">
+              <aside
+                className={`relative hidden shrink-0 transition-[width] duration-200 ease-out lg:flex ${sidebarSplitter.collapsed ? "overflow-visible" : ""}`}
+                data-testid="desktop-sidebar"
+                style={{ width: `${sidebarSplitter.collapsed ? SIDEBAR_COLLAPSED_WIDTH : sidebarSplitter.width}px` }}
+                {...(isDesktopSidebarViewport ? {} : { "data-html2canvas-ignore": true })}
+              >
                 <SidebarContent
-                  collapsed={false}
-                  dashboardSubnavEnabled={false}
+                  collapsed={sidebarSplitter.collapsed}
+                  dashboardSubnavEnabled={isDesktopSidebarViewport}
                   featureFlags={data?.feature_flags ?? {}}
                   navItems={navItems}
                   onCloseDrawer={() => setDrawerOpen(false)}
@@ -776,123 +712,187 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
                   showTeamProfile={(data?.team_user_count || 0) > 1}
                   startingChat={startingChat}
                   user={user}
+                  onHoverStart={openSidebarPeekSoon}
+                  onHoverEnd={closeSidebarPeekSoon}
                 />
-              </div>
-            ) : null}
+                {sidebarSplitter.collapsed ? (
+                  <div
+                    {...sidebarPeekInertAttributes}
+                    aria-hidden={!sidebarPeekOpen}
+                    className={`absolute bottom-0 left-0 top-0 z-30 shadow-xl transition-all duration-200 ease-out ${sidebarPeekOpen ? "translate-x-0 opacity-100" : "-translate-x-4 opacity-0 pointer-events-none"}`}
+                    data-testid="sidebar-peek"
+                    onMouseEnter={keepSidebarPeekOpen}
+                    onMouseLeave={closeSidebarPeekSoon}
+                    style={{ width: `${sidebarSplitter.width}px` }}
+                  >
+                    <SidebarContent
+                      collapsed={false}
+                      dashboardSubnavEnabled={isDesktopSidebarViewport}
+                      featureFlags={data?.feature_flags ?? {}}
+                      navItems={navItems}
+                      onCloseDrawer={() => setDrawerOpen(false)}
+                      onNotice={setNotice}
+                      onOpenBugReport={openBugReport}
+                      onReorderNavItems={reorderSidebarNav.mutate}
+                      onStartChat={startChat}
+                      onStartGroupChat={startGroupChat}
+                      prefix={prefix}
+                      searchShortcutsEnabled={sidebarPeekOpen}
+                      showTeamProfile={(data?.team_user_count || 0) > 1}
+                      startingChat={startingChat}
+                      user={user}
+                    />
+                  </div>
+                ) : null}
+                <div
+                  aria-label={t("nav:resize_sidebar")}
+                  aria-orientation="vertical"
+                  aria-valuemax={SIDEBAR_MAX_WIDTH}
+                  aria-valuemin={SIDEBAR_COLLAPSED_WIDTH}
+                  aria-valuenow={sidebarSplitter.collapsed ? SIDEBAR_COLLAPSED_WIDTH : Math.round(sidebarSplitter.width)}
+                  className="absolute inset-y-0 -right-1 z-40 w-2 cursor-col-resize rounded-sm outline-none transition-colors hover:bg-brand/30 focus-visible:bg-brand/40"
+                  onClick={sidebarSplitter.toggleCollapsed}
+                  onKeyDown={sidebarSplitter.resizeWithKeyboard}
+                  onMouseDown={sidebarSplitter.beginResize}
+                  role="separator"
+                  tabIndex={0}
+                />
+              </aside>
 
-            {/* A scroll container, not a landmark. Routes render their own labeled
+              {drawerOpen ? (
+                <div className="fixed inset-0 z-40 bg-white dark:bg-gray-950 lg:hidden">
+                  <SidebarContent
+                    collapsed={false}
+                    dashboardSubnavEnabled={false}
+                    featureFlags={data?.feature_flags ?? {}}
+                    navItems={navItems}
+                    onCloseDrawer={() => setDrawerOpen(false)}
+                    onNotice={setNotice}
+                    onOpenBugReport={openBugReport}
+                    onReorderNavItems={reorderSidebarNav.mutate}
+                    onStartChat={startChat}
+                    onStartGroupChat={startGroupChat}
+                    prefix={prefix}
+                    showTeamProfile={(data?.team_user_count || 0) > 1}
+                    startingChat={startingChat}
+                    user={user}
+                  />
+                </div>
+              ) : null}
+
+              {/* A scroll container, not a landmark. Routes render their own labeled
           <main> (Page.Root, RepositoryPageShell, and friends), which is what
           getByRole("main", { name }) finds and what screen readers announce;
           a <main> here nested a second one inside it on every page, which is
           invalid and made locator("main") ambiguous. */}
-            <div
-              className={`min-w-0 flex-1 ${isMobileChatPage ? "relative flex flex-col overflow-hidden" : "overflow-auto"}`}
-              data-testid="app-scroll-pane"
-              onScroll={isMobileLayeredChromePage ? handleMobileLayeredChromeScroll : undefined}
-              onTouchMove={isMobileLayeredChromePage ? handleMobileLayeredChromeTouchMove : undefined}
-              onWheel={isMobileLayeredChromePage ? handleMobileLayeredChromeWheel : undefined}
-              style={mobileChatAppContentStyle}
-            >
-              {mobileChatHeaderAutoHideActive && mobileChatHeaderHidden ? (
-                <button
-                  aria-label={t("nav:open_sidebar")}
-                  className={`${HIDDEN_MOBILE_CHAT_HEADER_BUTTON_LAYOUT_CLASS} ${HIDDEN_MOBILE_CHAT_HEADER_BUTTON_TONE_CLASS}`}
-                  data-testid="mobile-chat-hidden-header-sidebar-button"
-                  onClick={() => {
-                    revealMobileChatHeader()
-                    setDrawerOpen(true)
-                  }}
-                  type="button"
-                >
-                  <MenuIcon />
-                </button>
-              ) : null}
               <div
-                className={`${isMobileChatPage ? "absolute" : "sticky"} ${MOBILE_CHROME_BOTTOM_OVERLAP_CLASS} ${MOBILE_CHROME_SURFACE_CLASS} left-0 right-0 top-0 z-20 flex w-full max-w-[100vw] shrink-0 items-center justify-between gap-3 overflow-hidden border-b border-gray-200 px-4 py-3 dark:border-gray-800 lg:hidden ${mobileChatHeaderAutoHideActive && !reducedMotion ? "transition-[transform,opacity] duration-150 ease-out" : ""}`}
-                data-testid="mobile-app-header"
-                ref={mobileAppHeaderRef}
-                style={
-                  mobileChatHeaderAutoHideActive
-                    ? {
-                        opacity: mobileChatHeaderHidden ? 0 : 1,
-                        transform: `translateY(-${mobileChatHeaderOffset}px)`
-                      }
-                    : undefined
-                }
+                className={`min-w-0 flex-1 ${isMobileChatPage ? "relative flex flex-col overflow-hidden" : "overflow-auto"}`}
+                data-testid="app-scroll-pane"
+                onScroll={isMobileLayeredChromePage ? handleMobileLayeredChromeScroll : undefined}
+                onTouchMove={isMobileLayeredChromePage ? handleMobileLayeredChromeTouchMove : undefined}
+                onWheel={isMobileLayeredChromePage ? handleMobileLayeredChromeWheel : undefined}
+                style={mobileChatAppContentStyle}
               >
-                <div className="flex min-w-0 items-center gap-2">
+                {mobileChatHeaderAutoHideActive && mobileChatHeaderHidden ? (
                   <button
                     aria-label={t("nav:open_sidebar")}
-                    className="inline-flex min-h-[44px] min-w-0 items-center gap-2 text-lg font-semibold text-gray-900 hover:text-brand dark:text-white"
-                    onClick={() => setDrawerOpen(true)}
+                    className={`${HIDDEN_MOBILE_CHAT_HEADER_BUTTON_LAYOUT_CLASS} ${HIDDEN_MOBILE_CHAT_HEADER_BUTTON_TONE_CLASS}`}
+                    data-testid="mobile-chat-hidden-header-sidebar-button"
+                    onClick={() => {
+                      revealMobileChatHeader()
+                      setDrawerOpen(true)
+                    }}
                     type="button"
                   >
                     <MenuIcon />
-                    <SyrusBrand showTestChannelMarker={!drawerOpen} />
                   </button>
-                </div>
-                <div className="flex items-center gap-1">
-                  <BugReportTriggerButton onClick={() => openBugReport()} />
-                  {user ? <ConnectionStatusButton prefix={prefix} /> : null}
-                  {user ? <PermissionInboxDrawer prefix={prefix} /> : null}
-                  {user ? <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} prefix={prefix} /> : null}
-                </div>
-              </div>
-              {isMobileChatPage ? (
-                <div className="flex min-h-0 flex-1 flex-col" data-testid="mobile-chat-content-shell">
-                  <SystemAlertsBanner alerts={data?.system_alerts} prefix={prefix} />
-                  <FlashBanner flash={data?.flash} />
-                  <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-                  <MobileChromeContext.Provider value={mobileChatHeaderContext}>
-                    <div className="flex min-h-0 flex-1 flex-col">{pageContent}</div>
-                  </MobileChromeContext.Provider>
-                </div>
-              ) : showAdminSubnav ? (
-                <>
-                  <SystemAlertsBanner alerts={data?.system_alerts} prefix={prefix} />
-                  <FlashBanner flash={data?.flash} />
-                  <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-                  <div className="flex min-h-full min-w-0">
-                    <AdminNav featureFlags={data?.feature_flags || {}} normalizedPath={normalizedPath} prefix={prefix}>
-                      {pageContent}
-                    </AdminNav>
+                ) : null}
+                <div
+                  className={`${isMobileChatPage ? "absolute" : "sticky"} ${MOBILE_CHROME_BOTTOM_OVERLAP_CLASS} ${MOBILE_CHROME_SURFACE_CLASS} left-0 right-0 top-0 z-20 flex w-full max-w-[100vw] shrink-0 items-center justify-between gap-3 overflow-hidden border-b border-gray-200 px-4 py-3 dark:border-gray-800 lg:hidden ${mobileChatHeaderAutoHideActive && !reducedMotion ? "transition-[transform,opacity] duration-150 ease-out" : ""}`}
+                  data-testid="mobile-app-header"
+                  ref={mobileAppHeaderRef}
+                  style={
+                    mobileChatHeaderAutoHideActive
+                      ? {
+                          opacity: mobileChatHeaderHidden ? 0 : 1,
+                          transform: `translateY(-${mobileChatHeaderOffset}px)`
+                        }
+                      : undefined
+                  }
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    <button
+                      aria-label={t("nav:open_sidebar")}
+                      className="inline-flex min-h-[44px] min-w-0 items-center gap-2 text-lg font-semibold text-gray-900 hover:text-brand dark:text-white"
+                      onClick={() => setDrawerOpen(true)}
+                      type="button"
+                    >
+                      <MenuIcon />
+                      <SyrusBrand showTestChannelMarker={!drawerOpen} />
+                    </button>
                   </div>
-                </>
-              ) : (
-                <>
-                  <SystemAlertsBanner alerts={data?.system_alerts} prefix={prefix} />
-                  <FlashBanner flash={data?.flash} />
-                  <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-                  <MobileChromeContext.Provider value={mobileChatHeaderContext}>{pageContent}</MobileChromeContext.Provider>
-                </>
-              )}
-              {showQuote ? <PubliliusSyrusFooter quote={quote} /> : null}
+                  <div className="flex items-center gap-1">
+                    <BugReportTriggerButton onClick={() => openBugReport()} />
+                    {user ? <ConnectionStatusButton prefix={prefix} /> : null}
+                    {user ? <PermissionInboxDrawer prefix={prefix} /> : null}
+                    {user ? <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} prefix={prefix} /> : null}
+                  </div>
+                </div>
+                {isMobileChatPage ? (
+                  <div className="flex min-h-0 flex-1 flex-col" data-testid="mobile-chat-content-shell">
+                    <SystemAlertsBanner alerts={data?.system_alerts} prefix={prefix} />
+                    <FlashBanner flash={data?.flash} />
+                    <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
+                    <MobileChromeContext.Provider value={mobileChatHeaderContext}>
+                      <div className="flex min-h-0 flex-1 flex-col">{pageContent}</div>
+                    </MobileChromeContext.Provider>
+                  </div>
+                ) : showAdminSubnav ? (
+                  <>
+                    <SystemAlertsBanner alerts={data?.system_alerts} prefix={prefix} />
+                    <FlashBanner flash={data?.flash} />
+                    <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
+                    <div className="flex min-h-full min-w-0">
+                      <AdminNav featureFlags={data?.feature_flags || {}} normalizedPath={normalizedPath} prefix={prefix}>
+                        {pageContent}
+                      </AdminNav>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <SystemAlertsBanner alerts={data?.system_alerts} prefix={prefix} />
+                    <FlashBanner flash={data?.flash} />
+                    <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
+                    <MobileChromeContext.Provider value={mobileChatHeaderContext}>{pageContent}</MobileChromeContext.Provider>
+                  </>
+                )}
+                {showQuote ? <PubliliusSyrusFooter quote={quote} /> : null}
+              </div>
+              {user ? (
+                <BugReportButton
+                  bugReportMode={data?.app?.bug_report_mode ?? null}
+                  chatId={activeChatId}
+                  context={bugReportContext(location.pathname)}
+                  featureFlags={data?.feature_flags}
+                  onChatStarted={(redirectTo) => navigate(withRoutePrefix(redirectTo, prefix))}
+                  pageAttachments={bugReportAttachments}
+                  ref={bugReportRef}
+                  reportIssueRepoSlug={data?.app?.report_issue_repo_slug ?? null}
+                />
+              ) : null}
+              <BuildBadge builtAt={data?.app?.built_at} revision={data?.app?.revision} version={data?.app?.version} />
+              {activeChatId != null ? <ToolPresentationModal chatId={String(activeChatId)} prefix={prefix} /> : null}
+              {groupChatPickerOpen ? (
+                <ParticipantPickerModal
+                  confirmLabel={t("chat:group_picker_create_button")}
+                  error={groupChatError}
+                  onCancel={() => setGroupChatPickerOpen(false)}
+                  onConfirm={confirmGroupChat}
+                  submitting={groupChatCreating}
+                  title={t("chat:group_picker_title_create")}
+                />
+              ) : null}
             </div>
-            {user ? (
-              <BugReportButton
-                bugReportMode={data?.app?.bug_report_mode ?? null}
-                chatId={activeChatId}
-                context={bugReportContext(location.pathname)}
-                featureFlags={data?.feature_flags}
-                onChatStarted={(redirectTo) => navigate(withRoutePrefix(redirectTo, prefix))}
-                pageAttachments={bugReportAttachments}
-                ref={bugReportRef}
-                reportIssueRepoSlug={data?.app?.report_issue_repo_slug ?? null}
-              />
-            ) : null}
-            <BuildBadge builtAt={data?.app?.built_at} revision={data?.app?.revision} version={data?.app?.version} />
-            {activeChatId != null ? <ToolPresentationModal chatId={String(activeChatId)} prefix={prefix} /> : null}
-            {groupChatPickerOpen ? (
-              <ParticipantPickerModal
-                confirmLabel={t("chat:group_picker_create_button")}
-                error={groupChatError}
-                onCancel={() => setGroupChatPickerOpen(false)}
-                onConfirm={confirmGroupChat}
-                submitting={groupChatCreating}
-                title={t("chat:group_picker_title_create")}
-              />
-            ) : null}
-          </div>
           </ActivityProvider>
         </BugReportContext.Provider>
       </ThemeProvider>

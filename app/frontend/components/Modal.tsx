@@ -100,7 +100,6 @@ export function Modal({
       document.removeEventListener("keydown", onKeyDown)
       previouslyFocusedRef.current?.focus?.()
     }
-     
   }, [open])
 
   if (!open) return null
