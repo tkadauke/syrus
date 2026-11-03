@@ -376,7 +376,7 @@ module ChatSerialization
     # Grouped members render only inside their PendingActionGroup card
     # (pending_action_groups_json below), never as their own standalone card.
     base_scope = chat_session.pending_actions.where(pending_action_group_id: nil)
-      .includes(:tool_call_message, :message, authorization_items: :prerequisites)
+      .includes(:tool_call_message, :message, authorization_items: [ :prerequisites, :resulting_authority ])
     base_scope.where(dismissed_at: nil).order(:created_at, :id).select(&:visible_in_chat_payload?)
   end
 

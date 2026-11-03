@@ -29,7 +29,7 @@ module Permissions
     def supported?
       user && request.authorization_request? && request.action == SUPPORTED_ACTION && request.user_id == user.id &&
         item.chat_pending_action_id == request.id && item.kind == "operation" && item.operation.present? &&
-        request.pending? && request.actionable? && item.actionable? && item.prerequisites_approved?
+        request.pending? && request.actionable? && item.actionable? && item.prerequisites.all?(&:approved?)
     end
 
     # Payload shared by every surface; nil when only Allow once / Deny apply.

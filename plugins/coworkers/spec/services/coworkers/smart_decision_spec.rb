@@ -24,12 +24,11 @@ RSpec.describe Permissions::SmartDecision do
 
   # The shipped coworker.message descriptor is invocation-only; this catalog
   # variant offers durable authority for the same capability and operation.
-  def durable_descriptor(durations: %i[ invocation chat_session job permanent ], autonomy: :permanent)
+  def durable_descriptor(durations: %i[ invocation chat_session job permanent ], autonomy: :permanent, effects: %i[internal_write], risk: :medium, schema: Permissions::ResourceScopeSchema.new(type: :none))
     Permissions::CapabilityDescriptor.new(
-      capability: "coworker.message@v1", operation: "coworker.message/message_coworker@v1", effects: %i[internal_write],
-      risk: :medium, requestable_roles: [ "chat:coworker" ], defaults: { "chat:coworker" => :ask },
+      capability: "coworker.message@v1", operation: "coworker.message/message_coworker@v1", effects:, risk:, requestable_roles: [ "chat:coworker" ], defaults: { "chat:coworker" => :ask },
       maximum_autonomy: autonomy, authority_durations: durations,
-      resource_scope: Permissions::ResourceScopeSchema.new(type: :none),
+      resource_scope: schema,
       classifier: ->(_arguments) { { operation: "coworker.message/message_coworker@v1", confidence: :certain } },
       fingerprint_normalizer: ->(arguments) { arguments }, redactor: ->(arguments) { arguments }
     )
@@ -116,6 +115,52 @@ RSpec.describe Permissions::SmartDecision do
     decide = -> { Permissions::CoworkerAuthorizationDecision.new(request: action, item: item, user: owner).call(decision: "approved", smart: { duration: option[:duration], digest: option[:digest] }) }
     decide.call
     expect { expect { decide.call }.to raise_error(described_class::AlreadyDecided) }.not_to change { PermissionRule.count + PermissionLease.count }
+  end
+
+  it "offers a permanent rule for a safe read" do
+    stub_catalog(durable_descriptor(effects: %i[local_read], risk: :low))
+    expect(smart.option).to include(kind: "always_allow_similar", duration: "permanent")
+  end
+
+  it "keeps a scoped mutation to its exact normalized resource scope" do
+    schema = Permissions::ResourceScopeSchema.new(
+      type: :repository,
+      normalize: ->(scope, context:) { { repository_id: Integer(scope.to_h.stringify_keys.fetch("repository_id")) } },
+      compare: ->(left, right, context:) { left == right ? :equal : :disjoint },
+      label: ->(scope, context:) { "repository ##{scope.fetch('repository_id')}" }
+    )
+    stub_catalog(durable_descriptor(schema: schema))
+    item.update!(resource_scope: { "repository_id" => repository.id }, resource_type: "repository")
+
+    option = described_class.new(request: action.reload, item: item.reload, user: owner).option
+    expect(option[:draft][:resource_scope]).to eq("repository_id" => repository.id)
+    expect(option[:context][:resource_scope_label]).to eq("repository ##{repository.id}")
+    expect(option[:summary][:excludes].join(" ")).to include("repository ##{repository.id}")
+  end
+
+  it "refuses the second of two callers racing on the same request" do
+    stub_catalog(durable_descriptor)
+    option = smart.option
+    # Both callers loaded the pending request before either decided; the lock
+    # makes the loser re-read it as already decided.
+    first = ChatPendingAction.find(action.id)
+    second = ChatPendingAction.find(action.id)
+    decide = lambda do |request|
+      Permissions::CoworkerAuthorizationDecision.new(request: request, item: request.authorization_items.find(item.id), user: owner)
+        .call(decision: "approved", smart: { duration: option[:duration], digest: option[:digest] })
+    end
+
+    outcomes = [ first, second ].map do |request|
+      decide.call(request)
+      :applied
+    rescue described_class::AlreadyDecided
+      :refused
+    end
+
+    expect(outcomes).to eq(%i[applied refused])
+    expect(PermissionRule.where(capability: "coworker.message@v1").or(PermissionRule.where(capability: "coworker.message")).count).to eq(1)
+    expect(AuthorizedInvocation.where(pending_action_item: item).count).to eq(1)
+    expect(item.reload).to be_approved
   end
 
   it "withholds the option when an explicit deny rule applies" do
