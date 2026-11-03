@@ -6068,6 +6068,23 @@ describe("Job unland controls", () => {
     expect(screen.getByText("Unland in progress. The original Job remains closed.")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "JOB-2" })).toHaveAttribute("href", "/app-shell/jobs/2")
   })
+
+  it("hides the unland control when unlanding is unavailable but keeps rollback history visible", () => {
+    const payload = jobPayload()
+    payload.job = {
+      ...payload.job,
+      state: "closed",
+      summary_state: "closed",
+      unland: { available: false, state: "in_progress", rollback_job: { id: 2, slug: "JOB-2", title: "Rollback", state: "running", path: "/jobs/2" } }
+    }
+    payload.actions = { ...payload.actions, can_unland: false }
+    payload.paths = { ...payload.paths, app_unland_path: null }
+    renderJobDetail(payload)
+
+    expect(screen.queryByRole("button", { name: "Unland Job" })).not.toBeInTheDocument()
+    expect(screen.getByText("Unland in progress. The original Job remains closed.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "JOB-2" })).toBeInTheDocument()
+  })
 })
 
 describe("PrChecksBanner attribution", () => {

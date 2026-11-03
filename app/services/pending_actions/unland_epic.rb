@@ -3,6 +3,7 @@ module PendingActions
     action_key "unland_epic"
 
     def execute
+      Unlanding::Eligibility.ensure_enabled!
       epic = Epic.find(payload.fetch("epic_id"))
       progress!("Creating linked rollback for #{epic.slug}...")
       Unlanding::Create.call!(original: epic, user: user)

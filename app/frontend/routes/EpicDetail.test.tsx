@@ -379,6 +379,15 @@ describe("EpicDetail unland preflight", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1)
   })
 
+  it("hides the control when unlanding is unavailable", () => {
+    const payload = detailPayload({ state: "done", startable: false, can_unland: false })
+    payload.unland = { available: false, state: null, rollback_job: null }
+    payload.paths = { ...payload.paths, app_unland_path: null }
+    renderDetail(payload)
+
+    expect(screen.queryByRole("button", { name: "Unland Epic" })).not.toBeInTheDocument()
+  })
+
   it("hides the control when the operator cannot mutate the Epic", () => {
     renderDetail(detailPayload({ state: "done", startable: false, can_unland: false }))
 

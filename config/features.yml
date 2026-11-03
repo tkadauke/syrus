@@ -107,3 +107,11 @@ features:
     description: "Checks local ProcessRunner executions against declared mount and network requests before container execution backends depend on that contract."
     experimental: true
     default: false
+  - slug: unlanding
+    category: "Labs"
+    name: "Unlanding"
+    name_i18n_key: "features.slugs.unlanding.name"
+    description: "Enables creating new compensating rollback (unland) operations for landed Jobs and Epics from the UI, API, and Syrus Chat. Existing rollback Jobs and unland Workflows keep running when disabled."
+    description_i18n_key: "features.slugs.unlanding.description"
+    experimental: true
+    default: false

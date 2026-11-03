@@ -1,6 +1,7 @@
 module Unlanding
   class Create
     class Ineligible < StandardError; end
+    Disabled = Unlanding::Eligibility::Disabled
 
     Plan = Data.define(:original, :affected, :base_sha, :commit_shas, :files, :dependents,
                        :deployment_stages, :warnings, :graders) do
@@ -34,6 +35,7 @@ module Unlanding
     end
 
     def call!
+      Unlanding::Eligibility.ensure_enabled!
       original.unland_lock_record.with_lock do
         plan = plan!
 
@@ -66,6 +68,7 @@ module Unlanding
     attr_reader :original, :user, :agent_provider
 
     def plan!
+      Unlanding::Eligibility.ensure_enabled!
       validate_original!
       shas, base_sha, git, clone = verified_commits
       dependents = dependent_slugs

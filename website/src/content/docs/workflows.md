@@ -254,7 +254,10 @@ prevents endless CI-failure loops on the same Job.
 
 ### Compensating rollback Jobs
 
-Unlanding creates a linked rollback Job; it never rewinds or reopens the
+Unlanding is experimental and off by default. An admin enables it with the
+`unlanding` feature flag; turning it off later blocks only new unland
+operations, while existing rollback Jobs and their history stay visible and can
+finish. When enabled, unlanding creates a linked rollback Job; it never rewinds or reopens the
 original landed Job. The workflow verifies the original's recorded landed
 commits on the current default branch, reverses them in safe reverse order,
 uses an implementing agent if conflicts need resolution, and then runs
