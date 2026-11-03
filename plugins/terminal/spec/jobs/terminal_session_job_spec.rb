@@ -46,4 +46,15 @@ RSpec.describe TerminalSessionJob, type: :job do
 
     described_class.perform_now(session.id)
   end
+
+  it "finishes the session without raising when the working directory is gone" do
+    session = terminal_session(working_directory: "/nonexistent/terminal/workspace")
+
+    expect(Terminal::Relay).not_to receive(:new)
+
+    expect { described_class.perform_now(session.id) }.not_to raise_error
+    expect(session.reload.finished_at).to be_present
+    expect(session.outcome).to eq("exited")
+    expect(session.relay_started_at).to be_nil
+  end
 end
