@@ -52,12 +52,55 @@ module Permissions
                     "job_id" => (request.origin_id.to_s if request.origin_type == "Job") }.compact
       new(user:, attributes: {
         "policy" => policy, "duration" => duration.to_s,
-        "subject_selector_type" => "agent", "subject_selector_id" => request.subject_id.to_s,
-        "subject_type" => request.subject_type, "subject_repository_id" => request.repository_id,
         "role" => request.runtime_role, "capability" => "#{item.capability}@v#{item.capability_version}",
         "operation" => ("#{item.operation}@v#{item.operation_version}" if item.operation),
-        "resource_scope" => item.resource_scope, "constraints" => {}
-      }.merge(lifecycle), request_scope: item.resource_scope)
+        "resource_scope" => item.resource_scope, "constraints" => request_constraints(item)
+      }.merge(request_subject(request)).merge(lifecycle), request_scope: item.resource_scope)
+    end
+
+    # Maps the request's runtime context onto the canonical subject selector:
+    # an exact agent only for an allowlisted coworker subject, otherwise the
+    # chat type or the (repository-scoped) workflow role the request ran as.
+    def self.request_subject(request)
+      if AGENT_SUBJECT_TYPES.include?(request.subject_type)
+        return { "subject_selector_type" => "agent", "subject_selector_id" => request.subject_id.to_s,
+                 "subject_type" => request.subject_type, "subject_repository_id" => request.repository_id }
+      end
+
+      role = request.runtime_role.to_s
+      chat_type = PermissionRule::SUBJECT_SELECTORS.find { |_type, definition| definition[:role] == role }&.first
+      return { "subject_selector_type" => chat_type } if chat_type
+      return {} unless AgentRole::WORKFLOW_ROLES.include?(role)
+
+      if request.repository_id
+        { "subject_selector_type" => "repository_role", "subject_selector_id" => role,
+          "subject_repository_id" => request.repository_id }
+      else
+        { "subject_selector_type" => "workflow_role", "subject_selector_id" => role }
+      end
+    end
+
+    # Only descriptor-declared, correctly typed, non-secret arguments become
+    # constraints; everything else is omitted so the draft never over-claims.
+    def self.request_constraints(item)
+      descriptor = Catalog.find!(capability: "#{item.capability}@v#{item.capability_version}",
+        operation: ("#{item.operation}@v#{item.operation_version}" if item.operation))
+      item.normalized_arguments.to_h.stringify_keys.select do |key, value|
+        type = descriptor.constraint_fields[key]
+        type && !key.match?(ToolPayloadRedactor::SENSITIVE_KEY) && constraint_value_valid?(type, value)
+      end.sort.to_h
+    rescue Catalog::UnknownCapability
+      {}
+    end
+
+    def self.constraint_value_valid?(type, value)
+      case type
+      when :string
+        value.is_a?(String) && value.present? && !value.match?(/\A\[redacted\]\z/i) && ToolPayloadRedactor.redact(value) == value
+      when :integer then value.is_a?(Integer)
+      when :boolean then [ true, false ].include?(value)
+      else false
+      end
     end
 
     attr_reader :user
@@ -216,14 +259,7 @@ module Permissions
       constraints.sort.to_h
     end
 
-    def constraint_value_valid?(type, value)
-      case type
-      when :string then value.is_a?(String) && value.present? && ToolPayloadRedactor.redact(value) == value
-      when :integer then value.is_a?(Integer)
-      when :boolean then [ true, false ].include?(value)
-      else false
-      end
-    end
+    def constraint_value_valid?(type, value) = self.class.constraint_value_valid?(type, value)
 
     def normalize_scope(descriptor, errors)
       return {} unless attributes["resource_scope"].is_a?(Hash)

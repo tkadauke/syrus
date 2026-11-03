@@ -23,7 +23,7 @@ RSpec.describe Permissions::RuleDraft do
     Permissions::CapabilityDescriptor.new(**{
       capability: "syrus.deploys@v1", operation: "syrus.deploys/run@v1",
       effects: %i[internal_write], risk: :medium,
-      requestable_roles: [ chat_role, "implementer" ], defaults: { chat_role => :ask, "implementer" => :ask },
+      requestable_roles: [ chat_role, "implementer", AgentRole::WORKFLOW_IMPLEMENT ], defaults: { chat_role => :ask, "implementer" => :ask, AgentRole::WORKFLOW_IMPLEMENT => :ask },
       maximum_autonomy:, authority_durations: %i[invocation chat_session job permanent],
       resource_scope: schema, constraint_fields:,
       classifier: ->(_arguments) { { operation: "syrus.deploys/run@v1", confidence: :certain } },
@@ -247,10 +247,63 @@ RSpec.describe Permissions::RuleDraft do
       )
     end
 
-    it "refuses agent subjects that are not exact, owned coworkers" do
-      preview = described_class.from_request_item(user:, request:, item:, duration: "chat_session").preview
+    def request_for(runtime_role:, repository: self.repository, subject: user)
+      ChatPendingAction.create!(
+        request_kind: "authorization_request", user:, repository:, chat_session: ChatSession.create!(user:, title: "o"),
+        origin: ChatSession.create!(user:, title: "o"), subject:, runtime_role:, deduplication_key: SecureRandom.hex(8)
+      )
+    end
 
-      expect(error_codes(preview)).to eq([ "unknown_subject" ])
+    def item_for(request, arguments: {})
+      request.authorization_items.create!(
+        kind: "operation", capability: "syrus.deploys", capability_version: 1, operation: "syrus.deploys/run",
+        operation_version: 1, resource_type: "repository", resource_scope: { "repository_id" => repository.id },
+        normalized_arguments: arguments, invocation_fingerprint: SecureRandom.hex(4), effects: [],
+        policy_chain: [], requested_durations: [ "invocation" ]
+      )
+    end
+
+    def derived(request, **arguments)
+      described_class.from_request_item(user:, request:, item: item_for(request, **arguments), duration: "chat_session")
+    end
+
+    it "refuses agent subjects that are not exact, owned coworkers" do
+      other = described_class.new(user:, attributes: {
+        "duration" => "chat_session", "subject_selector_type" => "agent", "subject_selector_id" => user.id,
+        "subject_type" => "User", "role" => chat_role, "capability" => "syrus.deploys@v1", "operation" => "syrus.deploys/run@v1"
+      })
+
+      expect(error_codes(other.preview)).to include("unknown_subject")
+    end
+
+    it "maps chat, workflow and repository runtime roles onto canonical selectors" do
+      chat = derived(request_for(runtime_role: chat_role)).preview
+      expect(chat).to be_valid
+      expect(chat.draft[:subject]).to include(type: "interactive_chat", id: nil)
+
+      repo_role = derived(request_for(runtime_role: AgentRole::WORKFLOW_IMPLEMENT)).preview
+      expect(repo_role).to be_valid
+      expect(repo_role.draft[:subject]).to include(type: "repository_role", id: AgentRole::WORKFLOW_IMPLEMENT, repository_id: repository.id)
+
+      workflow = derived(request_for(runtime_role: AgentRole::WORKFLOW_IMPLEMENT, repository: nil)).preview
+      expect(workflow).to be_valid
+      expect(workflow.draft[:subject]).to include(type: "workflow_role", id: AgentRole::WORKFLOW_IMPLEMENT)
+    end
+
+    it "does not guess a subject for an unsupported runtime role" do
+      expect(error_codes(derived(request_for(runtime_role: "mystery")).preview)).to include("unsupported_subject")
+    end
+
+    it "keeps only safe, descriptor-declared, correctly typed arguments as constraints" do
+      arguments = { "branch" => "main", "dry_run" => true, "force" => true, "api_token" => "tok",
+                    "extra" => "x" }
+      preview = derived(request_for(runtime_role: chat_role), arguments:).preview
+
+      expect(preview).to be_valid
+      expect(preview.draft[:constraints]).to eq("branch" => "main", "dry_run" => true)
+
+      redacted = derived(request_for(runtime_role: chat_role), arguments: { "branch" => "[redacted]", "dry_run" => "yes" }).preview
+      expect(redacted.draft[:constraints]).to eq({})
     end
 
     it "refuses another user's request" do
