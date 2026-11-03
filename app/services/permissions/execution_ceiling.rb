@@ -44,7 +44,11 @@ module Permissions
       end
     end
 
-    def self.default = new([ NetworkProfile.new, FailClosedHost.new ])
+    # Only the confinement ceiling that cannot misfire is on by default.
+    # +NetworkProfile+ stays opt-in: the grader profile already enforces
+    # loopback-only egress in ProcessRunner, and command text cannot tell a
+    # loopback request from an external one.
+    def self.default = new([ FailClosedHost.new ])
 
     def initialize(limits = [])
       @limits = limits

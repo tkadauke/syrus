@@ -795,11 +795,12 @@ the current chat session. Approval history keeps identifiers and a short digest
 instead of search text, and notes whether the content came from GitHub or from
 Syrus itself.
 
-Commands that run on a worker or in a container, and actions an agent's own tools
-take, follow the same decisions. Ordinary confined work stays automatic, while
-using credentials, changing privileges, deleting data, or pushing code asks
-first. Container confinement, network restrictions, and provider limits always
-win: an approval or rule can never widen them.
+Commands Syrus starts on a worker or in a container are now evaluated against
+your permission rules. A rule that denies an execution stops it before it
+starts, and container confinement limits cannot be widened by a rule. Requests
+that would need approval, such as using credentials or pushing code, are
+recorded but not yet blocked, and actions an agent's own tools take are not yet
+covered.
 
 Supported schedule kinds:
 

@@ -64,14 +64,17 @@ module Permissions
       end
 
       # Builds the neutral subject from an Execution::Request. Environment
-      # values are never carried, only names.
+      # names are deliberately not carried: nearly every Syrus-launched process
+      # receives injected token variables, so they say nothing about intent.
+      # Callers that know a credential is deliberately exposed can pass
+      # +env_keys+ on a provider-native subject instead.
       def subject_for_request(request, location: nil, writable_paths: [])
         location ||= confined_request?(request) ? :container : :host
         Subject.new(
           location: location.to_sym,
           command: Array(request.command).map(&:to_s),
           network: request.network.to_s,
-          env_keys: request.env.to_h.keys.map(&:to_s).sort,
+          env_keys: [],
           writable_paths: Array(writable_paths).map(&:to_s),
           provider: nil, tool: nil,
           container_backend: confined_request?(request) ? :required : nil
@@ -96,11 +99,9 @@ module Permissions
         command = Array(arguments["command"]).map(&:to_s).join(" ")
         command = LocalModeActions.normalize_command(command)
 
-        effects << :network_read if network_open?(arguments["network"]) || command.match?(LocalModeActions::NETWORK_COMMAND)
-        effects << :external_write if command.match?(LocalModeActions::PUSH_COMMAND)
-        effects << :credential_use if command.match?(LocalModeActions::CREDENTIAL_COMMAND) || credential_env?(arguments["env_keys"])
-        effects << :destructive if command.match?(LocalModeActions::DESTRUCTIVE_COMMAND)
-        effects << :privilege_change if command.match?(LocalModeActions::PRIVILEGED_COMMAND)
+        effects << :network_read if network_open?(arguments["network"])
+        effects.concat(LocalModeActions.command_effects(command))
+        effects << :credential_use if credential_env?(arguments["env_keys"])
         effects << :isolated_workspace_write if Array(arguments["writable_paths"]).any?
         effects.uniq!
 
