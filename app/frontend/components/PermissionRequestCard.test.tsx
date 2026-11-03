@@ -76,4 +76,18 @@ describe("PermissionRequestCard smart actions", () => {
     expect(url).toBe("/api/v1/app/permission_requests/9/items/33/smart_decision")
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({ duration: "job", digest: "d1" })
   })
+
+  it("wraps long unbroken argument text instead of overflowing horizontally", () => {
+    const long = { items: [{ ...request.items[0], arguments: { description: "x".repeat(500) } }] }
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter>
+          <PermissionRequestCard request={{ ...request, ...long }} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    const value = screen.getByText(/xxxxxxxx/)
+    expect(value.className).toContain("[overflow-wrap:anywhere]")
+    expect(screen.getByTestId("permission-request-9").className).toContain("min-w-0")
+  })
 })
