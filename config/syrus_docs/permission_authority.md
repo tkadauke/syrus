@@ -171,6 +171,41 @@ use the permission it is attempting to create to authorize itself. Durable
 rules keep append-only audit events, and revoking either a rule or lease also
 invalidates its unclaimed authorized invocations.
 
+## Coworker self-service: requests, surrender, and revocation requests
+
+Coworkers get three ungated tools that only ever act for the calling coworker.
+None of them takes a subject parameter, and none exposes the management tools
+above (`grant_permission`, `deny_permission`, `revoke_permission`, rule editing
+and the rest of the permission store stay chat-only).
+
+- `request_permission` asks the owner for authority for the coworker itself:
+  exact capability and operation, normalized resource scope, descriptor-supported
+  constraints, a purpose and the narrowest suitable duration. The request is
+  validated through the same `RuleDraft` preview the Permissions Hub applies, so
+  only durations the descriptor autonomy ceiling and the owner's policy accept
+  are offered. Creating it grants nothing: it creates (or reuses) the same
+  durable authorization request shown in chats and the approval inbox. The
+  owner's adaptive approval never exceeds the duration the coworker asked for,
+  and approving without choosing a duration is refused. Equivalent requests are
+  deduplicated; a coworker may have at most three waiting requests and six per
+  hour, and cannot re-ask for an hour after a denial.
+- `surrender_permission_lease` immediately revokes an active lease whose exact
+  subject is the calling coworker. Reducing its own authority needs no owner
+  confirmation. Leases of other coworkers, role-wide leases and other owners'
+  leases are reported as not found.
+- `request_permission_revocation` asks the owner to revoke a durable rule whose
+  exact subject is the calling coworker. It creates an owner-confirmed pending
+  action; the rule is neither revoked nor edited until the owner confirms, and
+  the subject is checked again at confirmation.
+
+Authority is never transferable: when coworker A asks coworker B to do
+something, B is evaluated only against B's own rules and leases.
+
+Requests, deduplications, rate limits, denials, grants, surrenders, revocation
+requests and final revocations are recorded as append-only admin actions named
+`coworker_permission_*`; rule creation and revocation also keep their
+`PermissionRuleAuditEvent` rows.
+
 ## Coworker enforcement
 
 A gated coworker invocation runs through the common evaluator. Descriptor

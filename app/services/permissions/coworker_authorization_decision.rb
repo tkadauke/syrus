@@ -9,7 +9,7 @@ module Permissions
     end
 
     def call(decision:, smart: nil)
-      raise ArgumentError, "not a coworker authorization request" unless request.authorization_request? && request.action == "coworker_tool_call"
+      raise ArgumentError, "not a coworker authorization request" unless request.authorization_request? && request.action.in?(SmartDecision::SUPPORTED_ACTIONS)
       raise ActiveRecord::RecordNotFound, "authorization request belongs to another user" unless request.user == user
       raise ArgumentError, "authorization item belongs to another request" unless item.chat_pending_action_id == request.id
 
@@ -17,6 +17,10 @@ module Permissions
       raise ArgumentError, "decision must be approved or denied" unless decision.in?(%w[approved denied])
 
       raise ArgumentError, "a rule can only accompany an approval" if smart && decision != "approved"
+      permission_request = request.action == CoworkerPermissionRequest::ACTION
+      if permission_request && decision == "approved" && smart.nil?
+        raise ArgumentError, I18n.t("api.permission_requests.smart_decision.duration_required")
+      end
 
       ready = request.with_lock do
         unless request.pending? && item.reload.actionable?
@@ -31,6 +35,7 @@ module Permissions
             pending.mark_non_actionable!("Another authorization prerequisite was denied")
           end
           request.update!(state: "rejected", rejected_at: Time.current)
+          audit(:coworker_permission_request_denied)
           return Result.new(request:, execution_enqueued: false)
         end
 
@@ -38,6 +43,12 @@ module Permissions
         # preview, ceiling or failed invocation rolls back both.
         rule = SmartDecision.new(request:, item:, user:).apply_rule!(duration: smart.fetch(:duration), digest: smart[:digest]) if smart
         item.decide!(decision, principal: user, duration: smart ? smart.fetch(:duration) : "invocation", resulting_authority: rule)
+        if permission_request
+          # Nothing is waiting to run: the approval is the rule or lease itself.
+          request.update!(state: "confirmed")
+          audit(:coworker_permission_granted, authority: SmartDecision.authority_reference(item), duration: smart.fetch(:duration))
+          return Result.new(request:, execution_enqueued: false)
+        end
         issue_invocation!(item) if item.kind == "operation"
         request.reload.ready_for_authorized_invocation?
       end
@@ -48,6 +59,13 @@ module Permissions
     private
 
     attr_reader :request, :item, :user
+
+    def audit(event, **details)
+      return unless request.action == CoworkerPermissionRequest::ACTION && request.subject
+
+      CoworkerAudit.record!(event, owner: user, coworker: request.subject, authorization_request_id: request.id,
+        capability: item.capability, operation: item.operation, **details)
+    end
 
     def issue_invocation!(operation)
       descriptor = permission_descriptor

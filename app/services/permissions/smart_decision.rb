@@ -5,7 +5,8 @@ module Permissions
   # name). Shared by the chat card and the approval inbox so both render the
   # same payload and apply it through the same code path.
   class SmartDecision
-    SUPPORTED_ACTION = "coworker_tool_call".freeze
+    SUPPORTED_ACTIONS = %w[ coworker_tool_call coworker_permission_request ].freeze
+    DURATION_RANK = { "chat_session" => 0, "job" => 1, "permanent" => 2 }.freeze
     # Strongest first. Permanent authority is only ever offered for the exact
     # coworker that asked; "similar" never widens to a role or chat type.
     CANDIDATES = %w[ permanent job chat_session ].freeze
@@ -27,7 +28,7 @@ module Permissions
     end
 
     def supported?
-      user && request.authorization_request? && request.action == SUPPORTED_ACTION && request.user_id == user.id &&
+      user && request.authorization_request? && request.action.in?(SUPPORTED_ACTIONS) && request.user_id == user.id &&
         item.chat_pending_action_id == request.id && item.kind == "operation" && item.operation.present? &&
         request.pending? && request.actionable? && item.actionable? && item.prerequisites.all?(&:approved?)
     end
@@ -62,12 +63,23 @@ module Permissions
 
     def candidate_durations
       CANDIDATES.select do |duration|
+        next false if duration_above_request?(duration)
+
         case duration
         when "job" then request.origin_type == "Job"
         when "chat_session" then request.chat_session_id.present?
         else true
         end
       end
+    end
+
+    # A coworker names the narrowest duration it needs; the card never offers
+    # more than that, whatever the descriptor would otherwise allow.
+    def duration_above_request?(duration)
+      return false unless request.action == CoworkerPermissionRequest::ACTION
+
+      requested = request.payload.to_h["requested_duration"]
+      DURATION_RANK.fetch(duration) > DURATION_RANK.fetch(requested, 0)
     end
 
     def permitted?(duration, preview)

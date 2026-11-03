@@ -11,7 +11,7 @@ module Coworkers
       chat_ids = Coworkers::Chat.where(coworker_id: coworker_ids.select(:id)).select(:chat_session_id)
 
       ChatPendingAction.pending
-        .where(user: owner, chat_session_id: chat_ids, action: "coworker_tool_call")
+        .where(user: owner, chat_session_id: chat_ids, action: [ "coworker_tool_call", Permissions::CoworkerPermissionRequest::ACTION ])
         .where("json_extract(chat_pending_actions.payload, '$.approval_inbox') = ?", true)
         .order(created_at: :asc, id: :asc)
     end
