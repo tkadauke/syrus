@@ -17,7 +17,6 @@ import {
   type PermissionRule
 } from "../api/permissions"
 import { AiApprovalDelegations } from "./AiApprovalDelegations"
-import { Input } from "../components/Input"
 import { PermissionRuleEditor, type RuleEditorSeed } from "../components/PermissionRuleEditor"
 import { Modal } from "../components/Modal"
 import { PageHeading, SectionHeading } from "../components/Heading"
