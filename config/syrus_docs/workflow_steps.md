@@ -1232,12 +1232,24 @@ Job becomes `implemented` (which is what releases dependents). Git cannot make a
 push conditional on a different ref, so if the parent moved between the final
 check and the push, that publication is rolled back (new branch deleted, or the
 previous tip restored, both leased on the pushed head) and recorded in
-`workflow.artifacts["stale_publication_rolled_back"]`. If the parent never settles,
-the rebase conflicts, or post-rebase validation fails, `pr_open` fails with the
-`awaiting_stable_base` problem, keeps the completed work, writes
-`workflow.artifacts["awaiting_stable_base"]` with the observed parent heads, and
-publishes nothing. Whole-stack restacking remains the recovery path for stacks
-that were already published stale.
+`workflow.artifacts["stale_publication_rolled_back"]`. A clean automatic rebase
+goes straight on to validation and publication. If the rebase **conflicts**,
+`pr_open` fails with `stack_base_rebase_conflict` and the Job's workflow runs
+`stack_base_agent_rebase` (the completed work, live and prepared parent SHAs,
+conflicting paths and rebase output are in `workflow.artifacts["stack_base_repair"]`);
+if the required graders **fail** on the rebased tree it fails with
+`stack_base_validation_failed` and runs `stack_base_validation_repair` (grader
+commands and failure output). Neither is treated as an unstable parent. After
+either repair a new `pr_open` re-runs the required graders (tracked by
+`stack_base_validation_pending`) and repeats the live-parent check, rebasing onto
+the newest head if the parent moved again. Limits are explicit: three automatic
+rebases per `pr_open` and two agentic repair rungs per Job; after that the last
+failure stands as a needs-attention condition with the branch, workspace and
+`stack_base_repair` evidence retained, and dependents stay blocked. Only a parent
+that never holds still ends in the `awaiting_stable_base` problem
+(`workflow.artifacts["awaiting_stable_base"]` lists the observed parent heads).
+Nothing stale is ever published. Whole-stack restacking remains the recovery path
+for stacks that were already published stale.
 
 For `coding_handoff` workflows, `pr_open` also verifies that the branch about to
 be pushed still contains the latest recorded `coding_handoff_fix` patch-id. A

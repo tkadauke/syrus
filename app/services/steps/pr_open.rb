@@ -36,6 +36,17 @@ module Steps
       problem_code :awaiting_stable_base
     end
 
+    # The completed work conflicts with the live stack parent. Deterministic
+    # retries would reproduce it, so a Try branch hands it to an agentic rebase.
+    class StackBaseRebaseConflict < StepFailed
+      problem_code :stack_base_rebase_conflict
+    end
+
+    # The rebased tree failed the required graders; handed to an agentic repair.
+    class StackBaseValidationFailed < StepFailed
+      problem_code :stack_base_validation_failed
+    end
+
     def call
       workspace.setup
       verify_coding_handoff_snapshot!
@@ -100,8 +111,35 @@ module Steps
         "rebases" => result.rebases, "checked_at" => Time.current.iso8601
       }.compact)
       log("pr_open: stack base #{base} confirmed at #{result.live_sha} (#{result.status})")
+    rescue StackBaseFreshness::RebaseConflict => e
+      raise_stack_base_repair_needed!(e, StackBaseRebaseConflict, StackBaseFreshness::CONFLICT_FAILURE_CODE, "rebase_conflict")
+    rescue StackBaseFreshness::ValidationFailed => e
+      raise_stack_base_repair_needed!(e, StackBaseValidationFailed, StackBaseFreshness::VALIDATION_FAILURE_CODE, "validation_failed")
     rescue StackBaseFreshness::Error => e
       raise_awaiting_stable_base!(e)
+    end
+
+    # Conflicts and post-rebase validation failures are deterministic, so they
+    # are not "waiting for a stable base": record the evidence the repair step
+    # needs, tag the failure so the workflow's Try branch can dispatch it, and
+    # keep the completed work. With no branch left (the bounded repair rungs are
+    # spent) the failure stands as a precise needs-attention condition.
+    def raise_stack_base_repair_needed!(error, klass, code, kind)
+      attempts = Array(workflow.artifact(StackBaseFreshness::REPAIR_ARTIFACT).to_h["history"])
+      entry = error.evidence.merge("kind" => kind, "message" => error.message, "detected_at" => Time.current.iso8601)
+      workflow.set_artifact!(StackBaseFreshness::REPAIR_ARTIFACT, entry.merge(
+        "history" => attempts + [ entry.slice("kind", "live_sha", "prepared_sha", "detected_at") ],
+        "branch" => workspace.branch_name, "retained_head_sha" => retained_head_sha
+      ).compact)
+      mark_failure_code!(code)
+      log("pr_open: stack base #{kind.tr('_', ' ')} for #{job.slug}: #{error.message}")
+      raise klass.new(error.message, evidence: error.evidence)
+    end
+
+    def retained_head_sha
+      current_head_sha(streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" }))
+    rescue StandardError
+      nil
     end
 
     def stack_base_freshness(git, base)
@@ -172,11 +210,14 @@ module Steps
     end
 
     # Runs the repository's required graders against the rebased tree.
-    # No configured graders means nothing to run.
+    # No configured graders means nothing to run. Every grader runs so the
+    # repair step sees all failures; returns { "passed", "failures" }.
     def post_rebase_validation_passed?
       plan = RepoGradePlan.for(workspace.path)
-      plan.graders.select(&:required).all? do |grader|
+      failures = []
+      plan.graders.select(&:required).each do |grader|
         log("pr_open: post-rebase validation $ #{grader.command}")
+        tail = +""
         result = ProcessRunner.new(
           env: ProcessRunner.forwarded_env(Prepare.prep_env_forward, extra: workspace_dependency_env),
           command: [ "bash", "-c", grader.command ],
@@ -186,10 +227,18 @@ module Steps
           kind: "grader",
           run: run,
           workflow: workflow,
-          on_output_chunk: ->(chunk) { log(chunk, kind: "grade_log") }
+          on_output_chunk: lambda { |chunk|
+            tail << chunk.to_s
+            tail.replace(tail.byteslice(-4000, 4000).to_s.scrub) if tail.bytesize > 4000
+            log(chunk, kind: "grade_log")
+          }
         ).run
-        !result.timed_out && result.exit_status.to_i.zero?
+        next if !result.timed_out && result.exit_status.to_i.zero?
+
+        failures << { "name" => grader.name, "command" => grader.command, "timed_out" => result.timed_out,
+                      "exit_status" => result.exit_status, "output_tail" => tail }
       end
+      { "passed" => failures.empty?, "failures" => failures }
     end
 
     # Publishes work that was just rebased onto a moved parent. The branch's

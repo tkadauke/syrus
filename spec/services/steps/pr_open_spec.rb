@@ -1548,13 +1548,40 @@ RSpec.describe Steps::PrOpen, :ci_only do
         expect(workflow.reload.artifact("awaiting_stable_base")).to include("live_sha" => "c" * 40, "reason" => "awaiting_stable_base")
       end
 
-      it "surfaces post-rebase validation failure as awaiting-stable-base" do
+      it "classifies a rebase conflict as repairable, retaining the evidence for the agentic step" do
         barrier = instance_double(StackBaseFreshness)
-        allow(barrier).to receive(:ensure_fresh!).and_raise(StackBaseFreshness::ValidationFailed.new("graders red"))
+        allow(barrier).to receive(:ensure_fresh!).and_raise(
+          StackBaseFreshness::RebaseConflict.new(
+            "conflict",
+            evidence: { "live_sha" => "b" * 40, "prepared_sha" => "a" * 40, "conflicting_paths" => [ "x.rb" ], "parent_ref" => parent.branch_name }
+          )
+        )
         allow(StackBaseFreshness).to receive(:new).and_return(barrier)
+        allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/ws").and_return("c" * 40)
 
-        expect { handler.send(:ensure_stack_base_fresh!) }.to raise_error(described_class::AwaitingStableBase, "graders red")
-        expect(workflow.reload.artifact("awaiting_stable_base")["reason"]).to eq("validation_failed")
+        expect { handler.send(:ensure_stack_base_fresh!) }
+          .to raise_error(described_class::StackBaseRebaseConflict) { |e|
+            expect(e.problem.code).to eq("stack_base_rebase_conflict")
+          }
+        expect(step.reload.details).to include("failure_code" => "stack_base_rebase_conflict")
+        expect(workflow.reload.artifact("stack_base_repair")).to include(
+          "kind" => "rebase_conflict", "conflicting_paths" => [ "x.rb" ], "live_sha" => "b" * 40, "retained_head_sha" => "c" * 40
+        )
+        expect(workflow.artifact("awaiting_stable_base")).to be_nil
+      end
+
+      it "classifies post-rebase validation failure distinctly from an unstable parent" do
+        barrier = instance_double(StackBaseFreshness)
+        allow(barrier).to receive(:ensure_fresh!).and_raise(
+          StackBaseFreshness::ValidationFailed.new("graders red", evidence: { "validation_failures" => [ { "command" => "rspec", "output_tail" => "boom" } ] })
+        )
+        allow(StackBaseFreshness).to receive(:new).and_return(barrier)
+        allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: "/tmp/ws").and_return("c" * 40)
+
+        expect { handler.send(:ensure_stack_base_fresh!) }.to raise_error(described_class::StackBaseValidationFailed, "graders red")
+        expect(step.reload.details).to include("failure_code" => "stack_base_validation_failed")
+        expect(workflow.reload.artifact("stack_base_repair")["validation_failures"].first).to include("command" => "rspec")
+        expect(workflow.artifact("awaiting_stable_base")).to be_nil
       end
 
       it "does not release dependents when the published head no longer descends from the live parent" do

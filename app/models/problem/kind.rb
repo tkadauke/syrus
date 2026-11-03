@@ -149,6 +149,15 @@ class Problem
       Entry.new(code: "awaiting_stable_base", scope: :external, retryable: true,
                 default_remediation: :defer,
                 label: "Awaiting stable base"),
+      # Terminal states of the stacked-base barrier: the bounded agentic repair
+      # rungs are spent. The completed branch/workspace is retained and
+      # dependents stay blocked until an operator intervenes.
+      Entry.new(code: "stack_base_rebase_conflict", scope: :external, retryable: false,
+                default_remediation: :escalate,
+                label: "Stack base rebase conflict"),
+      Entry.new(code: "stack_base_validation_failed", scope: :external, retryable: false,
+                default_remediation: :escalate,
+                label: "Stack base validation failed"),
       Entry.new(code: "pr_open_no_commits_between", scope: :external, retryable: true,
                 default_remediation: :restart_workflow),
       Entry.new(code: "merge_train_rebase_conflict", scope: :unit, retryable: false,

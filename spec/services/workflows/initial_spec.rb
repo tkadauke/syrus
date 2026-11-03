@@ -367,4 +367,35 @@ RSpec.describe Workflows::Initial do
       expect(kinds).not_to include("grader_fanout", "grader_collect")
     end
   end
+
+  describe "stacked pr_open repair rungs" do
+    let(:parent) { Factories.job(user: user, repository: repository, issue_number: 91) }
+
+    it "keeps a bare pr_open for ordinary main-based Jobs" do
+      workflow = described_class.instantiate(job: job)
+
+      expect(workflow.chain_template.last).to eq({ "type" => "step", "kind" => "pr_open" })
+    end
+
+    it "wraps pr_open for any stacked Job in bounded, distinct conflict and validation rungs" do
+      job.update_columns(parent_job_id: parent.id)
+      workflow = described_class.instantiate(job: job.reload)
+
+      node = workflow.chain_template.last
+      expect(node).to include("type" => "try", "step" => "pr_open")
+      expect(workflow.steps.order(:position).pluck(:kind).last).to eq("pr_open")
+
+      depth = 0
+      while node.dig("on_failure", "stack_base_rebase_conflict")
+        depth += 1
+        conflict = node.dig("on_failure", "stack_base_rebase_conflict")
+        validation = node.dig("on_failure", "stack_base_validation_failed")
+        expect(conflict.first).to eq({ "type" => "step", "kind" => "stack_base_agent_rebase" })
+        expect(validation.first).to eq({ "type" => "step", "kind" => "stack_base_validation_repair" })
+        node = conflict.last
+      end
+      expect(depth).to eq(StackBaseFreshness::MAX_AGENTIC_REPAIRS)
+      expect(node["on_failure"]).to be_empty
+    end
+  end
 end

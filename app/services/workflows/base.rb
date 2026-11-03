@@ -354,9 +354,30 @@ module Workflows
     end
 
     def self.initial_pr_finish_steps(job, syrus_yml: nil)
-      steps = [ "summarize", "test_plan", "pr_open" ]
+      steps = [ "summarize", "test_plan", stacked_pr_open(job) ]
       steps << "post_implementation_review" if post_implementation_review_requested?(job, trigger_kind: trigger_kind)
       steps
+    end
+
+    # pr_open for a Job stacked on another Job's branch carries the bounded
+    # agentic rungs of the base-freshness barrier. A conflict or a post-rebase
+    # validation failure dispatches a repair step and a nested pr_open (which
+    # re-runs the required graders and re-checks the live parent); each nesting
+    # level is one agentic attempt, so the chain ends after
+    # StackBaseFreshness::MAX_AGENTIC_REPAIRS rungs with the last failure
+    # standing as a needs-attention condition. Main-based Jobs keep a bare step.
+    def self.stacked_pr_open(job, attempts: StackBaseFreshness::MAX_AGENTIC_REPAIRS)
+      return "pr_open" unless job&.parent_job.present?
+
+      stack_base_try(attempts)
+    end
+
+    def self.stack_base_try(remaining)
+      node = Workflows::Try.new(:pr_open)
+      return node unless remaining.positive?
+
+      node.on_failure(StackBaseFreshness::CONFLICT_FAILURE_CODE, [ :stack_base_agent_rebase, stack_base_try(remaining - 1) ])
+      node.on_failure(StackBaseFreshness::VALIDATION_FAILURE_CODE, [ :stack_base_validation_repair, stack_base_try(remaining - 1) ])
     end
 
     def self.feedback_finish_steps(job = nil)

@@ -19,10 +19,25 @@
 class StackBaseFreshness
   PREPARED_ARTIFACT = "stack_base_prepared".freeze
   AWAITING_ARTIFACT = "awaiting_stable_base".freeze
+  # Written by pr_open when the barrier needs an agentic repair step; carries
+  # the evidence (paths, grader output, SHAs) that step's prompt is built from.
+  REPAIR_ARTIFACT = "stack_base_repair".freeze
+  # Set whenever the branch was rewritten onto a new parent head and cleared
+  # once the required graders pass on that tree. While set, a branch that
+  # already descends from the live parent (an agentic repair, a rerun) still
+  # gets validated before it may be published.
+  VALIDATION_PENDING_ARTIFACT = "stack_base_validation_pending".freeze
+  # Automatic (deterministic) rebases inside one barrier run.
   MAX_REBASES = 3
+  # Agentic repair rungs (conflict resolution or validation repair) that the
+  # workflow graph offers before the Job stops in needs-attention. Each rung is
+  # followed by a fresh barrier run with its own MAX_REBASES budget.
+  MAX_AGENTIC_REPAIRS = 2
+  CONFLICT_FAILURE_CODE = "stack_base_rebase_conflict".freeze
+  VALIDATION_FAILURE_CODE = "stack_base_validation_failed".freeze
 
   Result = Data.define(:status, :parent_ref, :prepared_sha, :live_sha, :rebases) do
-    def rebased? = rebases.positive?
+    def rebased? = rebases.positive? || status == :rebased
   end
 
   class Error < StandardError
@@ -82,8 +97,9 @@ class StackBaseFreshness
       raise AwaitingStableBase.new("could not resolve live head of #{@parent_ref}", evidence: evidence(prepared, live, history)) if live.blank?
 
       if descends_from?(live)
+        repaired = validate_pending!(live, prepared, history)
         record_prepared!(live)
-        return Result.new(rebases.zero? ? :fresh : :rebased, @parent_ref, prepared, live, rebases)
+        return Result.new(rebases.zero? && !repaired ? :fresh : :rebased, @parent_ref, prepared, live, rebases)
       end
 
       if rebases >= @max_rebases
@@ -96,8 +112,10 @@ class StackBaseFreshness
       history << live
       rebases += 1
       say("stack base #{@parent_ref} moved (#{short(prepared)} -> #{short(live)}); rebasing completed work (attempt #{rebases}/#{@max_rebases})")
+      mark_validation_pending!(live)
       rebase_onto!(live, prepared, history)
       validate!(live, prepared, history)
+      clear_validation_pending!
       prepared = live
       record_prepared!(live)
     end
@@ -119,6 +137,24 @@ class StackBaseFreshness
     sha.presence || @workflow.artifact("stack_parent_head_sha").to_s.presence
   end
 
+  # A tree that was rewritten but never validated (agentic repair, or a rerun
+  # after a failed validation) is validated here before it counts as fresh.
+  def validate_pending!(live, prepared, history)
+    return false unless @workflow.artifact(VALIDATION_PENDING_ARTIFACT).present?
+
+    validate!(live, prepared, history)
+    clear_validation_pending!
+    true
+  end
+
+  def mark_validation_pending!(live)
+    @workflow.set_artifact!(VALIDATION_PENDING_ARTIFACT, { "live_sha" => live, "at" => Time.current.iso8601 })
+  end
+
+  def clear_validation_pending!
+    @workflow.delete_artifacts!(VALIDATION_PENDING_ARTIFACT)
+  end
+
   def record_prepared!(sha)
     @workflow.set_artifact!(PREPARED_ARTIFACT, { "ref" => @parent_ref, "sha" => sha, "recorded_at" => Time.current.iso8601 })
   end
@@ -133,6 +169,7 @@ class StackBaseFreshness
       @git.run("rebase", live, chdir: @path)
     end
   rescue GitRunner::GitError => e
+    conflicts = conflicting_paths
     begin
       @git.run("rebase", "--abort", chdir: @path)
     rescue GitRunner::GitError
@@ -140,17 +177,29 @@ class StackBaseFreshness
     end
     raise RebaseConflict.new(
       "rebasing completed work onto #{@parent_ref} (#{short(live)}) failed: #{e.message}",
-      evidence: evidence(prepared, live, history)
+      evidence: evidence(prepared, live, history).merge(
+        "conflicting_paths" => conflicts, "rebase_output" => e.message.to_s.last(4000)
+      )
     )
   end
 
+  def conflicting_paths
+    @git.run("diff", "--name-only", "--diff-filter=U", chdir: @path).lines.map(&:strip).reject(&:blank?)
+  rescue GitRunner::GitError
+    []
+  end
+
+  # The validator returns true/false/nil, or a Hash with "passed" and, on
+  # failure, "failures" (grader command + output) for the repair prompt.
   def validate!(live, prepared, history)
     outcome = @validator.call
-    return if outcome != false
+    failures = outcome.is_a?(Hash) ? Array(outcome["failures"]) : []
+    passed = outcome.is_a?(Hash) ? outcome["passed"] != false : outcome != false
+    return if passed
 
     raise ValidationFailed.new(
       "post-rebase validation failed after rebasing onto #{@parent_ref} (#{short(live)})",
-      evidence: evidence(prepared, live, history)
+      evidence: evidence(prepared, live, history).merge("validation_failures" => failures)
     )
   end
 

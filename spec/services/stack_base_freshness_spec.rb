@@ -133,6 +133,58 @@ RSpec.describe StackBaseFreshness, :ci_only do
     expect(child.join(".git/rebase-apply")).not_to exist
   end
 
+  it "reports the conflicting paths and rebase evidence for the agentic step" do
+    sh(parent_clone, "checkout", "-q", "parent")
+    sh(parent_clone, "reset", "-q", "--hard", "main")
+    commit(parent_clone, "child.txt", "conflicting")
+    sh(parent_clone, "push", "-q", "--force", "origin", "HEAD:refs/heads/#{parent_ref}")
+
+    expect { barrier.ensure_fresh! }.to raise_error(described_class::RebaseConflict) { |e|
+      expect(e.evidence).to include("conflicting_paths" => [ "child.txt" ], "prepared_sha" => @prepared)
+      expect(e.evidence["live_sha"]).to be_present
+      expect(e.evidence["rebase_output"]).to be_present
+    }
+    expect(workflow.reload.artifact(described_class::VALIDATION_PENDING_ARTIFACT)).to be_present
+  end
+
+  it "carries grader failure output in the validation failure and keeps validation pending" do
+    force_rebase_parent!
+    failing = -> { { "passed" => false, "failures" => [ { "command" => "rspec", "output_tail" => "boom" } ] } }
+
+    expect { barrier(validator: failing).ensure_fresh! }.to raise_error(described_class::ValidationFailed) { |e|
+      expect(e.evidence["validation_failures"]).to eq([ { "command" => "rspec", "output_tail" => "boom" } ])
+    }
+    expect(workflow.reload.artifact(described_class::VALIDATION_PENDING_ARTIFACT)).to be_present
+  end
+
+  it "re-validates an already-descending tree (agentic repair) before declaring it fresh, then clears the marker" do
+    live = force_rebase_parent!
+    expect { barrier(validator: -> { false }).ensure_fresh! }.to raise_error(described_class::ValidationFailed)
+    # An agent repaired the tree on top of the live parent: it descends, but
+    # was never validated, so the barrier must still run the graders.
+    sh(child, "fetch", "-q", "origin", "#{parent_ref}")
+    expect(barrier.descends_from?(live)).to be(true)
+
+    validated = 0
+    result = barrier(validator: -> { validated += 1; true }).ensure_fresh!
+
+    expect(validated).to eq(1)
+    expect(result.status).to eq(:rebased)
+    expect(result).to be_rebased
+    expect(workflow.reload.artifact(described_class::VALIDATION_PENDING_ARTIFACT)).to be_nil
+  end
+
+  it "rebases against the newest head when the parent moves again after an agentic repair" do
+    force_rebase_parent!
+    expect { barrier(validator: -> { false }).ensure_fresh! }.to raise_error(described_class::ValidationFailed)
+    newest = force_rebase_parent!
+
+    result = barrier.ensure_fresh!
+
+    expect(result.live_sha).to eq(newest)
+    expect(barrier.descends_from?(newest)).to be(true)
+  end
+
   it "fails when post-rebase validation fails" do
     force_rebase_parent!
 
