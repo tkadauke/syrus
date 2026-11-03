@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
 import { CommandButton, useJobCommand } from "./command"
+import { NeedsAttentionBanner } from "./components"
 import { jsonResponse } from "../../testSupport"
 
 function Probe({ onNotice = () => {} }: { onNotice?: (message: string | null) => void }) {
@@ -346,5 +347,80 @@ describe("CommandButton pending scope", () => {
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/discard", expect.objectContaining({ method: "POST" })))
     await waitFor(() => expect(screen.getByRole("button", { name: "replace" })).not.toBeDisabled())
+  })
+})
+
+describe("blocked workflow dismissal", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  const dismissal = { workflow_id: 7, slug: "WF-7", reason_text: "main branch broken", app_dismiss_path: "/api/v1/app/jobs/1/workflows/7/dismiss" }
+
+  function BannerProbe() {
+    const command = useJobCommand(1, ["jobs", "1", "detail", ""] as const, undefined, () => {})
+    const job = { needs_attention: true, needs_attention_reason: "agent_cannot_proceed", blocked_workflow_dismissal: dismissal } as never
+    return (
+      <>
+        <NeedsAttentionBanner command={command} job={job} />
+        {command.dialog}
+      </>
+    )
+  }
+
+  it("confirms, posts the dismiss request, and invalidates the cached job so the blocked state refetches", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "WF-7 dismissed." }))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    const previewKey = ["jobs", "1"] as const
+    client.setQueryData(previewKey, { job: { id: 1 } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <BannerProbe />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(screen.getByText("main branch broken")).toBeInTheDocument()
+    act(() => screen.getByRole("button", { name: "Dismiss" }).click())
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument())
+    expect(fetchSpy).not.toHaveBeenCalled()
+
+    await act(async () => screen.getByRole("button", { name: "Confirm" }).click())
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(dismissal.app_dismiss_path, expect.objectContaining({ method: "POST" })))
+    await waitFor(() => expect(client.getQueryState(previewKey)?.isInvalidated).toBe(true))
+  })
+
+  it("does not post when the operator cancels the confirm", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "x" }))
+    const client = new QueryClient()
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <BannerProbe />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    act(() => screen.getByRole("button", { name: "Dismiss" }).click())
+    await waitFor(() => screen.getByRole("button", { name: "Cancel" }))
+    await act(async () => screen.getByRole("button", { name: "Cancel" }).click())
+
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it("renders no action without a dismissal", () => {
+    const client = new QueryClient()
+    function Plain() {
+      const command = useJobCommand(1, ["jobs", "1", "detail", ""] as const, undefined, () => {})
+      return <NeedsAttentionBanner command={command} job={{ needs_attention: true, needs_attention_reason: "agent_cannot_proceed" } as never} />
+    }
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <Plain />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    expect(screen.queryByRole("button", { name: "Dismiss" })).not.toBeInTheDocument()
   })
 })
