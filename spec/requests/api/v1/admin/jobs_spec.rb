@@ -67,8 +67,8 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", :ci_only, type: :request do
     before { admin_token }
 
     it "creates a direct job for the target repository owner and starts the workflow" do
-      owner = Factories.user(codex_auth_mode: "api_key", codex_api_key: "sk-test")
-      repo = Factories.repository(user: owner, owner: "acme", name: "widgets", agent_provider: "codex")
+      owner = Factories.user(agent_provider: "codex", codex_auth_mode: "api_key", codex_api_key: "sk-test")
+      repo = Factories.repository(user: owner, owner: "acme", name: "widgets")
 
       expect {
         post "/api/v1/admin/jobs",
