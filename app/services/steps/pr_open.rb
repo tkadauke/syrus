@@ -400,7 +400,10 @@ module Steps
       authenticated_git("git_pr_open_push", git: git) do |push_url|
         next push_stack_rebased_branch(git, push_url) if @stack_base_rebased
 
-        @pre_push_remote_sha = fetch_remote_branch!(git, push_url) if StackBaseFreshness.applicable?(job, pr_base_branch)
+        if StackBaseFreshness.applicable?(job, pr_base_branch)
+          @pre_push_remote_sha = fetch_remote_branch!(git, push_url)
+          @pre_push_observed = true
+        end
 
         return :superseded if published_review_branch? && verify_existing_pr_branch_not_diverged!(git, push_url) == :superseded
         push_branch_to_remote(git, push_url)
@@ -417,13 +420,35 @@ module Steps
 
 
     def push_branch_to_remote(git, push_url)
-      git.run("push", push_url, "HEAD:refs/heads/#{workspace.branch_name}",
-              chdir: workspace.path.to_s)
+      args = publication_push_args(git, push_url)
+      git.run(*args, chdir: workspace.path.to_s)
     rescue GitRunner::GitError => e
       raise unless push_rejected?(e)
       raise if published_review_branch?
 
+      if args&.any? { |arg| arg.start_with?("--force-with-lease") }
+        # The branch moved after we observed it; replacing it would silently
+        # discard that writer's update, so surface the divergence instead.
+        record_branch_divergence!(git, "push lease rejected: remote branch moved during stacked publication")
+        raise BranchDiverged, branch_divergence_message
+      end
+
       force_push_unopened_publication_branch!(git, push_url, e)
+    end
+
+    # A stacked publication is conditional on the remote tip observed just
+    # before it (or on the branch still being absent). Otherwise a concurrent
+    # fast-forward could be accepted by a plain push and then silently erased
+    # by the stale-publication rollback, which restores that observed tip.
+    # Only fast-forward-equivalent pushes are leased; anything else keeps the
+    # ordinary divergence handling.
+    def publication_push_args(git, push_url)
+      refspec = "HEAD:refs/heads/#{workspace.branch_name}"
+      if @pre_push_observed && (@pre_push_remote_sha.blank? || ancestor?(git, @pre_push_remote_sha, "HEAD"))
+        return [ "push", "--force-with-lease=refs/heads/#{workspace.branch_name}:#{@pre_push_remote_sha}", push_url, refspec ]
+      end
+
+      [ "push", push_url, refspec ]
     end
 
     def force_push_unopened_publication_branch!(git, push_url, error)

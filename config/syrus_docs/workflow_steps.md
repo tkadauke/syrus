@@ -1222,7 +1222,10 @@ prepared from is recorded in `workflow.artifacts["stack_base_prepared"]`. If the
 parent moved, the child's own commits are rebased with `git rebase --onto
 <live> <prepared>`, the required graders run again on the rebased tree, and the
 check repeats, up to three rebases. A branch that was rewritten is pushed with
-`--force-with-lease` pinned to the observed remote tip, and after the push the
+`--force-with-lease` pinned to the observed remote tip; a non-rewritten stacked branch
+is likewise pushed conditional on the tip observed just before (or on being absent),
+so a concurrent update is rejected as a divergence rather than accepted and later
+erased by the rollback. After the push the
 head is checked against the live parent once more before a PR is opened or the
 Job becomes `implemented` (which is what releases dependents). Git cannot make a
 push conditional on a different ref, so if the parent moved between the final
