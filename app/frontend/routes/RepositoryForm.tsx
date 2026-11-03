@@ -450,6 +450,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
 
           {mode === "edit" && payload.repository.id ? (
             <ProviderRoutingRulesEditor
+              scope="repository"
               basePath={`/api/v1/app/repositories/${payload.repository.id}/provider_routing_rules`}
               description={t("provider_routing.repository_description")}
               options={payload.provider_routing_options}

@@ -319,6 +319,16 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
     expect(ProviderRoutingRule.where(scope_type: "job", scope_id: job.id)).to be_empty
   end
 
+  it "exposes job kinds, repositories, and the time zone for the condition editor" do
+    repository
+    get "/api/v1/app/credentials/provider_routing_rules"
+
+    conditions = parse_body.dig("provider_routing_options", "conditions")
+    expect(conditions.fetch("job_kinds").map { |entry| entry["value"] }).to eq(Job::Kind.user_facing_values)
+    expect(conditions.fetch("repositories")).to include(include("id" => repository.id, "owner" => repository.owner, "name" => repository.name))
+    expect(conditions.fetch("time_zone")).to eq(Time.zone.name)
+  end
+
   it "exposes the current per-provider usage reading for the usage condition hint" do
     observed = Time.current.iso8601
     availability = { "codex" => { "state" => "available", "usage" => { "remaining_percent" => 20.0, "observed_at" => observed } }, "claude" => nil }

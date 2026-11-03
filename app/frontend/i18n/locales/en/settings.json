@@ -1419,7 +1419,10 @@
       "search_workflow": "Search triggers",
       "no_matches": "No matches.",
       "other": "+{{count}} other",
-      "usage": "Provider usage"
+      "usage": "Provider usage",
+      "day_time": "Day and time",
+      "job_metadata": "Job type",
+      "repository": "Repository"
     },
     "usage": {
       "less_than": "less than",
@@ -1446,6 +1449,42 @@
       "state_open": "Circuit open",
       "state_auth_error": "Auth error",
       "state_model_unsupported": "Model unsupported"
+    },
+    "day_time": {
+      "days": "Days",
+      "start": "Start time",
+      "end": "End time",
+      "zone": "Server time zone: {{zone}}",
+      "from": "from {{time}}",
+      "until": "until {{time}}",
+      "validation_overnight": "Start must be before end. For overnight windows, use two rules.",
+      "short_monday": "Mon",
+      "short_tuesday": "Tue",
+      "short_wednesday": "Wed",
+      "short_thursday": "Thu",
+      "short_friday": "Fri",
+      "short_saturday": "Sat",
+      "short_sunday": "Sun"
+    },
+    "job_metadata": {
+      "kinds": "Job kinds",
+      "priorities": "Priorities",
+      "investigation": "Investigations",
+      "any": "Any",
+      "only_investigations": "Only investigations",
+      "never_investigations": "Never",
+      "priority_urgent": "Urgent",
+      "priority_high": "High",
+      "priority_medium": "Medium",
+      "priority_low": "Low",
+      "pill_investigations": "Investigations",
+      "pill_no_investigations": "No investigations"
+    },
+    "repository": {
+      "owners": "Owners",
+      "search": "Search repositories",
+      "names": "Repository names",
+      "pill": "Repo: {{label}}"
     },
     "workflow_condition_pill": "Workflow: {{label}}",
     "action_type": "Action type",

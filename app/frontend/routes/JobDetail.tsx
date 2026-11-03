@@ -1365,6 +1365,7 @@ function JobRoutingPanel({ payload, queryKey }: { payload: JobDetailPayload; que
         </div>
       ))}
       <ProviderRoutingRulesEditor
+        scope="job"
         basePath={`/api/v1/app/jobs/${payload.job.id}/provider_routing_rules`}
         description={t("routing_job_panel_description")}
         inheritedContext={payload.job.inherited_provider_routing_context}

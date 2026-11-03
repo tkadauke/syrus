@@ -82,6 +82,13 @@ export type ProviderUsageReading = {
   observed_at?: string | null
 }
 
+export type ProviderRoutingRepositoryOption = {
+  id: number
+  owner: string
+  name: string
+  slug: string
+}
+
 export type ProviderRoutingRegistryOptions = {
   triggers?: {
     chat_roles?: ProviderRoutingRegistryOption[]
@@ -90,6 +97,9 @@ export type ProviderRoutingRegistryOptions = {
   conditions?: {
     workflow_trigger_kinds?: ProviderRoutingRegistryOption[]
     provider_usage?: ProviderUsageReading[]
+    job_kinds?: ProviderRoutingRegistryOption[]
+    repositories?: ProviderRoutingRepositoryOption[]
+    time_zone?: string
   }
   action_strategies?: ProviderRoutingRegistryOption[]
   action_types?: ProviderRoutingRegistryOption[]

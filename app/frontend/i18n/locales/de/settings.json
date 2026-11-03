@@ -1419,7 +1419,10 @@
       "search_workflow": "Trigger suchen",
       "no_matches": "Keine Treffer.",
       "other": "+{{count}} weitere",
-      "usage": "Anbieter-Nutzung"
+      "usage": "Anbieter-Nutzung",
+      "day_time": "Tag und Uhrzeit",
+      "job_metadata": "Job-Typ",
+      "repository": "Repository"
     },
     "usage": {
       "less_than": "weniger als",
@@ -1446,6 +1449,42 @@
       "state_open": "Schutzschalter offen",
       "state_auth_error": "Auth-Fehler",
       "state_model_unsupported": "Modell nicht unterstützt"
+    },
+    "day_time": {
+      "days": "Tage",
+      "start": "Startzeit",
+      "end": "Endzeit",
+      "zone": "Server-Zeitzone: {{zone}}",
+      "from": "ab {{time}}",
+      "until": "bis {{time}}",
+      "validation_overnight": "Start muss vor dem Ende liegen. Für Zeitfenster über Mitternacht nutze zwei Regeln.",
+      "short_monday": "Mo",
+      "short_tuesday": "Di",
+      "short_wednesday": "Mi",
+      "short_thursday": "Do",
+      "short_friday": "Fr",
+      "short_saturday": "Sa",
+      "short_sunday": "So"
+    },
+    "job_metadata": {
+      "kinds": "Job-Arten",
+      "priorities": "Prioritäten",
+      "investigation": "Untersuchungen",
+      "any": "Beliebig",
+      "only_investigations": "Nur Untersuchungen",
+      "never_investigations": "Nie",
+      "priority_urgent": "Dringend",
+      "priority_high": "Hoch",
+      "priority_medium": "Mittel",
+      "priority_low": "Niedrig",
+      "pill_investigations": "Untersuchungen",
+      "pill_no_investigations": "Keine Untersuchungen"
+    },
+    "repository": {
+      "owners": "Eigentümer",
+      "search": "Repositories suchen",
+      "names": "Repository-Namen",
+      "pill": "Repo: {{label}}"
     },
     "workflow_condition_pill": "Workflow: {{label}}",
     "action_type": "Aktionstyp",

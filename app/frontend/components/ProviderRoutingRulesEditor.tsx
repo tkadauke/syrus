@@ -9,7 +9,14 @@ import { Select } from "./Select"
 import { Checkbox, Form, Pill, Surface } from "./ui"
 import { errorMessage } from "../lib/errorMessage"
 import { useT } from "../hooks/useT"
-import { activeConditionTypes, availableConditionTypes, conditionSummaries, conditionsError, pruneEmptyConditions } from "./providerRoutingConditions"
+import {
+  activeConditionTypes,
+  availableConditionTypes,
+  conditionSummaries,
+  conditionsError,
+  pruneEmptyConditions,
+  type ConditionScope
+} from "./providerRoutingConditions"
 import {
   createProviderRoutingRule,
   deleteProviderRoutingRule,
@@ -59,6 +66,8 @@ export type RoutingRulesPanelProps = {
   reorderError?: unknown
   reorderPending?: boolean
   rules?: ProviderRoutingRule[]
+  /** Scope of the rule set being edited; hides conditions that are redundant there. */
+  scope?: ConditionScope
   saveError?: unknown
   saving?: boolean
   title: string
@@ -81,7 +90,8 @@ export function ProviderRoutingRulesEditor({
   rules,
   title,
   options,
-  onSaved
+  onSaved,
+  scope
 }: {
   basePath: string
   description: string
@@ -91,6 +101,7 @@ export function ProviderRoutingRulesEditor({
   title: string
   options?: ProviderRoutingOptions
   onSaved?: (payload: ProviderRoutingRulesPayload) => void
+  scope?: ConditionScope
 }) {
   const queryClient = useQueryClient()
   const [displayRules, setDisplayRules] = useState(rules || [])
@@ -142,6 +153,7 @@ export function ProviderRoutingRulesEditor({
       reorderError={reorder.error}
       reorderPending={reorder.isPending}
       rules={displayRules}
+      scope={scope}
       saveError={save.error}
       saving={save.isPending}
       title={title}
@@ -165,6 +177,7 @@ export function RoutingRulesPanel({
   rules,
   saveError,
   saving = false,
+  scope = "user",
   title
 }: RoutingRulesPanelProps) {
   const { t } = useT("settings")
@@ -297,6 +310,7 @@ export function RoutingRulesPanel({
         }}
         options={routingOptions}
         saving={saving}
+        scope={scope}
         t={t}
       />
     </section>
@@ -447,6 +461,7 @@ function RuleEditorModal({
   onUpdate,
   options,
   saving,
+  scope,
   t
 }: {
   draft: DraftRule | null
@@ -456,6 +471,7 @@ function RuleEditorModal({
   onUpdate: (draft: DraftRule) => void
   options: ProviderRoutingOptions
   saving: boolean
+  scope: ConditionScope
   t: (key: string, options?: Record<string, unknown>) => string
 }) {
   const titleId = "provider-routing-rule-editor-title"
@@ -527,7 +543,13 @@ function RuleEditorModal({
           </Form.Field>
         </div>
 
-        <ConditionsSection conditions={currentDraft.conditions} onChange={(conditions) => onUpdate({ ...currentDraft, conditions })} options={options} t={t} />
+        <ConditionsSection
+          conditions={currentDraft.conditions}
+          onChange={(conditions) => onUpdate({ ...currentDraft, conditions })}
+          options={options}
+          scope={scope}
+          t={t}
+        />
         {errors.conditions ? (
           <p className="text-xs text-danger" role="alert">
             {errors.conditions}
@@ -728,16 +750,18 @@ function ConditionsSection({
   conditions,
   onChange,
   options,
+  scope,
   t
 }: {
   conditions: ProviderRoutingConditions
   onChange: (conditions: ProviderRoutingConditions) => void
   options: ProviderRoutingOptions
+  scope: ConditionScope
   t: (key: string, options?: Record<string, unknown>) => string
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const active = activeConditionTypes(conditions)
-  const available = availableConditionTypes(conditions)
+  const active = activeConditionTypes(conditions, scope)
+  const available = availableConditionTypes(conditions, scope)
 
   return (
     <section aria-label={t("provider_routing.conditions.title")} className="space-y-2">
@@ -802,7 +826,10 @@ function normalizeOptions(options?: ProviderRoutingOptions): ProviderRoutingOpti
     },
     conditions: {
       workflow_trigger_kinds: options?.conditions?.workflow_trigger_kinds || [],
-      provider_usage: options?.conditions?.provider_usage || []
+      provider_usage: options?.conditions?.provider_usage || [],
+      job_kinds: options?.conditions?.job_kinds || [],
+      repositories: options?.conditions?.repositories || [],
+      time_zone: options?.conditions?.time_zone
     },
     action_strategies: options?.action_strategies || [],
     condition_keys: options?.condition_keys || []

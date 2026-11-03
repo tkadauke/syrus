@@ -1419,7 +1419,10 @@
       "search_workflow": "Signa quaere",
       "no_matches": "Nihil inventum.",
       "other": "+{{count}} aliae",
-      "usage": "Usus provisoris"
+      "usage": "Usus provisoris",
+      "day_time": "Dies et hora",
+      "job_metadata": "Genus Job",
+      "repository": "Repositorium"
     },
     "usage": {
       "less_than": "minus quam",
@@ -1446,6 +1449,42 @@
       "state_open": "Circuitus apertus",
       "state_auth_error": "Error auctoritatis",
       "state_model_unsupported": "Exemplar non adiutum"
+    },
+    "day_time": {
+      "days": "Dies",
+      "start": "Hora initii",
+      "end": "Hora finis",
+      "zone": "Zona horaria servi: {{zone}}",
+      "from": "ab {{time}}",
+      "until": "usque ad {{time}}",
+      "validation_overnight": "Initium ante finem esse debet. Pro spatiis nocturnis duas regulas utere.",
+      "short_monday": "Lun",
+      "short_tuesday": "Mar",
+      "short_wednesday": "Mer",
+      "short_thursday": "Iov",
+      "short_friday": "Ven",
+      "short_saturday": "Sab",
+      "short_sunday": "Dom"
+    },
+    "job_metadata": {
+      "kinds": "Genera Job",
+      "priorities": "Prioritates",
+      "investigation": "Investigationes",
+      "any": "Quodlibet",
+      "only_investigations": "Solae investigationes",
+      "never_investigations": "Numquam",
+      "priority_urgent": "Urgens",
+      "priority_high": "Alta",
+      "priority_medium": "Media",
+      "priority_low": "Humilis",
+      "pill_investigations": "Investigationes",
+      "pill_no_investigations": "Sine investigationibus"
+    },
+    "repository": {
+      "owners": "Domini",
+      "search": "Repositoria quaerere",
+      "names": "Nomina repositoriorum",
+      "pill": "Repo: {{label}}"
     },
     "workflow_condition_pill": "Fluxus: {{label}}",
     "action_type": "Genus actionis",
