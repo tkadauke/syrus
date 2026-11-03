@@ -357,7 +357,11 @@ function DurationField({ fields, idBase, onChange, options }: SectionProps) {
   const durations = offered.includes(fields.duration) ? offered : [...offered, fields.duration]
   return (
     <Field label={t("permission_editor.duration")} htmlFor={`${idBase}-duration`}>
-      <Select id={`${idBase}-duration`} onChange={(event) => onChange({ duration: event.target.value as DraftDuration })} value={fields.duration}>
+      <Select
+        id={`${idBase}-duration`}
+        onChange={(event) => onChange({ duration: event.target.value as DraftDuration, ...(event.target.value === "permanent" ? { constraints: {} } : {}) })}
+        value={fields.duration}
+      >
         {durations.map((duration) => (
           <option key={duration} value={duration}>
             {t(`permission_smart.durations.${duration}`)}
