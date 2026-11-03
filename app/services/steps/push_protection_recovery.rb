@@ -15,8 +15,8 @@ module Steps
     def handle_push_protection_rejection!(error, &republish)
       recovery = PushProtection::Recovery.for(workflow: workflow, workspace_path: workspace.path, branch: workspace.branch_name)
       outcome = recovery.handle_rejection!(error, remote_tip: push_protection_remote_tip)
-      log("push protection: #{outcome.kind}: #{outcome.message}", kind: "system")
-      push_protection_fail!(error, outcome.kind, outcome.message) unless outcome.repair? && republish
+      log("push protection: #{outcome.kind}: #{outcome.detail}", kind: "system")
+      push_protection_fail!(error, outcome.kind, outcome.detail) unless outcome.repair? && republish
 
       repair_loop(recovery, error, outcome, &republish)
     end
@@ -35,7 +35,7 @@ module Steps
         result = recovery.verify_repair!
         break if result.kind == :verified
 
-        push_protection_fail!(error, result.kind, "#{result.message}: #{result.violations.join(' | ')}") if result.kind == :operator_review
+        push_protection_fail!(error, result.kind, "#{result.detail}: #{result.violations.join(' | ')}") if result.kind == :operator_review
         violations = result.violations
         log("push protection: repair contract violated (#{violations.size}); resetting to candidate and retrying", kind: "system")
         recovery.restore_candidate!

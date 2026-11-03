@@ -11,8 +11,8 @@ module PushProtection
   #
   # Never retries an identical rejected SHA and never bypasses push protection.
   class Recovery
-    Outcome = Data.define(:kind, :message, :candidate, :violations) do
-      def initialize(kind:, message:, candidate: nil, violations: [])
+    Outcome = Data.define(:kind, :detail, :candidate, :violations) do
+      def initialize(kind:, detail:, candidate: nil, violations: [])
         super
       end
 
@@ -54,7 +54,7 @@ module PushProtection
           "metadata" => candidate.metadata, "allowed_paths" => allowed_paths_for(error, anchor, candidate)
         }
       )
-      Outcome.new(kind: :repair, message: error.message, candidate: candidate)
+      Outcome.new(kind: :repair, detail: error.message, candidate: candidate)
     end
 
     # Returns an Outcome: :repair-contract-ok => kind :verified, otherwise the
@@ -71,9 +71,9 @@ module PushProtection
       ledger.increment_attempts!(violations: violations)
       if ledger.attempts_exhausted?
         ledger.update!("status" => Ledger::OPERATOR_REVIEW)
-        return Outcome.new(kind: :operator_review, message: "repair contract violated after #{ledger.attempts} attempts", violations: violations)
+        return Outcome.new(kind: :operator_review, detail: "repair contract violated after #{ledger.attempts} attempts", violations: violations)
       end
-      Outcome.new(kind: :contract_violation, message: "repair contract violated", violations: violations)
+      Outcome.new(kind: :contract_violation, detail: "repair contract violated", violations: violations)
     end
 
     # Undo everything a contract-violating attempt did: back to the candidate
@@ -135,7 +135,7 @@ module PushProtection
       raise "reconstructed commit failed topology validation: #{leftover.join('; ')}" if leftover.any?
 
       ledger.update!("reconstructed_sha" => sha)
-      Outcome.new(kind: :verified, message: "reconstructed #{sha}")
+      Outcome.new(kind: :verified, detail: "reconstructed #{sha}")
     end
 
     def quarantine!(error, sha, ref)
@@ -144,12 +144,12 @@ module PushProtection
         extra: { "route_to_job_ids" => originating_job_ids, "reason" => "shared or synthesized ref; not rewritten directly" }
       )
       route_to_originating_jobs!(error, ref)
-      Outcome.new(kind: :quarantine, message: "#{ref} is a shared/synthesized ref; routed to originating Job(s) #{originating_job_ids.join(', ').presence || 'unknown'}")
+      Outcome.new(kind: :quarantine, detail: "#{ref} is a shared/synthesized ref; routed to originating Job(s) #{originating_job_ids.join(', ').presence || 'unknown'}")
     end
 
     def stop!(error, sha, ref, status, message)
       ledger.record_rejection!(sha: sha, findings: error.findings, ref: ref, status: status, extra: { "reason" => message })
-      Outcome.new(kind: status.to_sym, message: message)
+      Outcome.new(kind: status.to_sym, detail: message)
     end
 
     # Jobs whose commits fed a shared/synthesized ref: for a merge train, its

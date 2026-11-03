@@ -163,7 +163,7 @@ RSpec.describe PushProtection::Recovery do
     outcome = recovery.handle_rejection!(rejection([ bad1 ]))
 
     expect(outcome.kind).to eq(:operator_review)
-    expect(outcome.message).to include("identical SHA is never retried")
+    expect(outcome.detail).to include("identical SHA is never retried")
   end
 
   it "advances the clean anchor only after GitHub accepts the push" do
