@@ -82,6 +82,31 @@ RSpec.describe CodingHandoffCapture, :ci_only do
     )
   end
 
+  it "surfaces a sanitized push-protection rejection without leaking the bypass URL" do
+    hook = @remote.join("hooks/pre-receive")
+    File.write(hook, <<~SH)
+      #!/bin/sh
+      echo "GH013: Repository rule violations found. GITHUB PUSH PROTECTION - Push cannot contain secrets" >&2
+      echo "  -- GitHub Personal Access Token --" >&2
+      echo "    - commit: #{'b' * 40}" >&2
+      echo "      path: config/app.rb:3" >&2
+      echo "  https://github.com/acme/widgets/security/secret-scanning/unblock-secret/XYZ" >&2
+      exit 1
+    SH
+    File.chmod(0o755, hook)
+    write_file(@checkout, "config/app.rb", "x\n")
+    git!(@checkout, "add", "config/app.rb")
+    git!(@checkout, "commit", "-m", "Add config")
+
+    expect {
+      described_class.capture!(chat_session: chat_session, repository: repository, user: user,
+                               source_branch: "main", handoff_branch: "syrus/chat-#{chat_session.id}-handoff-9")
+    }.to raise_error(CodingHandoffCapture::CaptureError) { |e|
+      expect(e.message).to include("push protection").and include("GitHub Personal Access Token").and include("config/app.rb:3")
+      expect(e.message).not_to include("unblock-secret")
+    }
+  end
+
   it "captures only commits after an explicit stack base" do
     write_file(@checkout, "app/models/widget.rb", "class Widget\nend\n")
     git!(@checkout, "add", "app/models/widget.rb")

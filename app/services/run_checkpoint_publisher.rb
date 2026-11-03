@@ -32,6 +32,7 @@ class RunCheckpointPublisher
     checkpoint.save!
 
     publish_ref!(checkpoint)
+    PushProtection::Ledger.for(run.workflow).record_accepted!(checkpoint.commit_sha)
     checkpoint.update!(status: "published", published_at: Time.current, error_message: nil)
     log("checkpoint: published #{checkpoint.remote_ref} at #{checkpoint.commit_sha.first(12)}", kind: "system")
     checkpoint
