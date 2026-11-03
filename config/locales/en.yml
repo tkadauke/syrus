@@ -28,6 +28,8 @@
 #       enabled: "ON"
 
 en:
+  unlanding:
+    disabled: "Unlanding is not enabled for this instance."
   notifications:
     approval_request:
       one: "Approval needed: %{purpose}"

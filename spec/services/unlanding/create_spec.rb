@@ -1,4 +1,5 @@
 require "rails_helper"
+require "support/unlanding_feature"
 
 RSpec.describe Unlanding::Create do
   let(:original) do
@@ -23,6 +24,7 @@ RSpec.describe Unlanding::Create do
   let(:target_graph) { instance_double(TargetGraph) }
 
   before do
+    enable_unlanding!
     LandedCommit.create!(landable: original, sha: "commit-a", kind: "implementation", position: 0)
     allow(RepositoryBareClone).to receive(:new).and_return(clone)
     allow(clone).to receive(:read_from_default_branch).and_return(nil)
@@ -39,6 +41,35 @@ RSpec.describe Unlanding::Create do
     allow(git).to receive(:run).with("diff-tree", "--no-commit-id", "--name-only", "-r", anything, anything)
       .and_return("app/models/example.rb\n")
     allow(WorkUnits::Launcher).to receive(:start!)
+  end
+
+  context "when the unlanding flag is off" do
+    before { disable_unlanding! }
+
+    it "refuses preflight without resolving commits" do
+      expect(RepositoryBareClone).not_to receive(:new)
+
+      expect { described_class.plan!(original: original) }.to raise_error(Unlanding::Eligibility::Disabled)
+    end
+
+    it "refuses creation without creating a rollback Job or Workflow" do
+      expect(RepositoryBareClone).not_to receive(:new)
+
+      jobs = Job.count
+      workflows = Workflow.count
+
+      expect { described_class.call!(original: original) }.to raise_error(Unlanding::Eligibility::Disabled)
+      expect(Job.count).to eq(jobs)
+      expect(Workflow.count).to eq(workflows)
+    end
+
+    it "does not stop an existing rollback from finishing" do
+      rollback = Factories.job_record(rollback_of: original, state: "running")
+      workflow = Workflows::Unland.instantiate(job: rollback)
+
+      expect { Workflows::Unland.after_fail(workflow) }.not_to raise_error
+      expect(rollback.reload).to be_failed
+    end
   end
 
   it "creates a linked rollback Job without changing the original landing facts" do

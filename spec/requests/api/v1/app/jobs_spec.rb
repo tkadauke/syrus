@@ -1,4 +1,5 @@
 require "rails_helper"
+require "support/unlanding_feature"
 require "tmpdir"
 
 RSpec.describe "App API job detail", :ci_only, type: :request do
@@ -69,7 +70,23 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       .update_all(state: "succeeded", finished_at: Time.current, blocked_reason: nil, blocked_until: nil, blocked_details: {})
   end
 
+  it "rejects Job unland preflight and mutation without resolving commits while the flag is off" do
+    original = Factories.job_record(
+      user: user, repository: repo, state: "closed", closure_reason: "pr_merged", landed_sha: "landed"
+    )
+    expect(RepositoryBareClone).not_to receive(:new)
+
+    get "/api/v1/app/jobs/#{original.id}/unland"
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("unland_disabled")
+
+    expect { post "/api/v1/app/jobs/#{original.id}/unland" }.not_to change(Job, :count)
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("unland_disabled")
+  end
+
   it "preflights and explicitly starts a confirmed Job unland" do
+    enable_unlanding!
     original = Factories.job_record(
       user: user, repository: repo, state: "closed", closure_reason: "pr_merged", landed_sha: "landed"
     )

@@ -1,4 +1,6 @@
 la:
+  unlanding:
+    disabled: "Unlanding in hac instantia non activatum est."
   notifications:
     approval_request:
       one: "Approbatio necessaria: %{purpose}"

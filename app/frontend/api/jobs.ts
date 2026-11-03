@@ -156,7 +156,7 @@ export type JobRecord = {
   closure_reason: string | null
   rollback_of?: JobRollbackReference | null
   unlanded_by?: JobRollbackReference | null
-  unland?: { state: "landed" | "in_progress" | "failed" | "reverted" | null; rollback_job: JobRollbackReference | null }
+  unland?: { available?: boolean; state: "landed" | "in_progress" | "failed" | "reverted" | null; rollback_job: JobRollbackReference | null }
   emergency_landed_at?: string | null
   emergency_landed_by_user?: JobUserReference | null
   emergency_landed_by_membership_tier?: string | null
@@ -1131,7 +1131,7 @@ export type JobPaths = {
   app_unapprove_path: string
   app_close_investigation_path: string
   app_reopen_path: string
-  app_unland_path?: string
+  app_unland_path?: string | null
   app_poll_feedback_path: string
   app_rebase_path: string
   app_recheck_pr_checks_path?: string

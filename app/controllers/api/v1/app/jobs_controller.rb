@@ -68,6 +68,8 @@ module Api
           return unless authorize_job_mutation!(job)
 
           render json: Unlanding::Create.plan!(original: job, user: Current.user).to_h
+        rescue Unlanding::Eligibility::Disabled => e
+          render_error("unland_disabled", e.message, status: :unprocessable_content)
         rescue Unlanding::Create::Ineligible => e
           render_error("unland_ineligible", e.message, status: :unprocessable_content)
         end
@@ -83,6 +85,8 @@ module Api
             rollback_job_slug: rollback.slug,
             rollback_job_path: job_path(rollback)
           }, status: :created
+        rescue Unlanding::Eligibility::Disabled => e
+          render_error("unland_disabled", e.message, status: :unprocessable_content)
         rescue Unlanding::Create::Ineligible => e
           render_error("unland_ineligible", e.message, status: :unprocessable_content)
         end

@@ -213,6 +213,8 @@ module Api
 
         def unland_plan
           render json: Unlanding::Create.plan!(original: find_epic, user: Current.user).to_h
+        rescue Unlanding::Eligibility::Disabled => e
+          render_error("unland_disabled", e.message, status: :unprocessable_content)
         rescue Unlanding::Create::Ineligible => e
           render_error("unland_ineligible", e.message, status: :unprocessable_content)
         end
@@ -225,6 +227,8 @@ module Api
             rollback_job_slug: rollback.slug,
             rollback_job_path: job_path(rollback)
           }, status: :created
+        rescue Unlanding::Eligibility::Disabled => e
+          render_error("unland_disabled", e.message, status: :unprocessable_content)
         rescue Unlanding::Create::Ineligible => e
           render_error("unland_ineligible", e.message, status: :unprocessable_content)
         end
@@ -373,7 +377,7 @@ module Api
               app_unclaim_path: "/api/v1/app/epics/#{epic.id}/unclaim",
               app_reassign_path: "/api/v1/app/epics/#{epic.id}/reassign",
               app_dependencies_path: "/api/v1/app/epics/#{epic.id}/dependencies",
-              app_unland_path: "/api/v1/app/epics/#{epic.id}/unland"
+              app_unland_path: Unlanding::Eligibility.enabled? ? "/api/v1/app/epics/#{epic.id}/unland" : nil
             }
           }
 
@@ -396,10 +400,10 @@ module Api
             "failed"
           elsif rollback && !rollback.state.in?(Job::TERMINAL_STATES + %w[failed])
             "in_progress"
-          elsif epic.done?
+          elsif epic.done? && Unlanding::Eligibility.enabled?
             "landed"
           end
-          { state: state, rollback_job: rollback && { id: rollback.id, slug: rollback.slug, state: rollback.state, path: job_path(rollback), pr_number: rollback.pr_number, pr_url: rollback.pr_url } }
+          { available: Unlanding::Eligibility.enabled?, state: state, rollback_job: rollback && { id: rollback.id, slug: rollback.slug, state: rollback.state, path: job_path(rollback), pr_number: rollback.pr_number, pr_url: rollback.pr_number && "https://github.com/#{rollback.repository.slug}/pull/#{rollback.pr_number}" } }
         end
 
         def epic_blocked_reason(dependency)
@@ -453,7 +457,7 @@ module Api
             landing: epic.landing?(jobs: jobs),
             stuck: epic.stuck?,
             startable: epic.may_start_implementing?(actor: Current.user),
-            can_unland: EpicPolicy.new(Current.user, epic).write? && epic.done?,
+            can_unland: Unlanding::Eligibility.enabled? && EpicPolicy.new(Current.user, epic).write? && epic.done?,
             # Names of unfinished dependencies keeping a backlog/ready Epic
             # from being startable; the UI renders a muted "Waiting on ..."
             # hint in place of the hidden Start implementing button.

@@ -125,7 +125,9 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
   })
   const unlandCommand = useMutation({
     mutationFn: async () => {
-      const plan = await fetchEpicUnlandPlan(payload.paths.app_unland_path)
+      const unlandPath = payload.paths.app_unland_path
+      if (!unlandPath) return null
+      const plan = await fetchEpicUnlandPlan(unlandPath)
       const details = [
         t("unland_confirm_affected", { affected: plan.affected.join(", ") }),
         t("unland_confirm_commits", { commits: plan.commits.join(", ") }),
@@ -156,7 +158,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
       )
         return null
 
-      return startEpicUnland(payload.paths.app_unland_path)
+      return startEpicUnland(unlandPath)
     },
     onSuccess: (result) => {
       if (result) setNotice(result.message)

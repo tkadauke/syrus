@@ -124,6 +124,16 @@ RSpec.describe McpToolRegistry do
   end
 
   describe ".tools_for_context" do
+    it "hides unland tools from chat discovery unless the unlanding flag is on" do
+      context = McpToolContext.new(surface: :chat, role: AgentRole::CHAT_PLANNER, user: user)
+
+      expect(tool_names_for(context, tier: :deferred)).not_to include("unland_job", "unland_epic")
+
+      enable_feature(:unlanding)
+      Feature.clear_enabled_cache!
+      expect(tool_names_for(context, tier: :deferred)).to include("unland_job", "unland_epic")
+    end
+
     it "keeps ungated deferred discovery callable without granting the capability it describes" do
       context = McpToolContext.new(
         surface: :chat, role: AgentRole::COWORKER_CHAT, user: user,
