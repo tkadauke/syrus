@@ -1,8 +1,14 @@
 import { createConsumer, type Consumer, type Subscription } from "@rails/actioncable"
 import type { QueryClient } from "@tanstack/react-query"
 import { applyAppEvent, recoverAppEventContinuity, recoverChatResourceContinuity, recoverJobResourceContinuity, resetAppEventSequenceTracking, type AppEvent } from "./appEvents"
+import { browserTraceId, recordBrowserTrace } from "./performanceTrace"
 
 let sharedConsumer: Consumer | null = null
+// When the shared WebSocket was created, so the first `connected` callback can
+// report how long the socket took to become usable. The server's cable.connect
+// phase covers its own work; this covers what the user actually waits for --
+// upgrade, auth, and subscription confirmation end to end.
+let consumerCreatedAt: number | null = null
 
 // Every ActionCable subscriber in the app should share this single
 // Consumer (one underlying WebSocket, multiplexing every channel
@@ -11,8 +17,39 @@ let sharedConsumer: Consumer | null = null
 // subscription.unsubscribe() on cleanup leaks an open WebSocket forever —
 // unsubscribe drops the channel subscription but never closes the socket.
 export function getAppConsumer(): Consumer {
-  if (!sharedConsumer) sharedConsumer = createConsumer()
+  if (!sharedConsumer) {
+    consumerCreatedAt = performance.now()
+    sharedConsumer = createConsumer()
+  }
   return sharedConsumer
+}
+
+export function resetAppConsumerForTest(): void {
+  sharedConsumer = null
+  consumerCreatedAt = null
+}
+
+// Emits one browser trace per socket for "how long until the app was actually
+// live". Reconnects are reported too, tagged so they can be separated from the
+// cold first connect, because a reconnect storm and a slow initial connect are
+// different problems with the same symptom. Reuses the existing browser-trace
+// pipeline, so this lands in performance_log_events next to the server's
+// cable.connect phase rather than anywhere new.
+function recordCableConnectTrace(wasConnected: boolean): void {
+  if (consumerCreatedAt === null) return
+
+  const durationMs = performance.now() - consumerCreatedAt
+  // Restart the clock so a later reconnect measures its own gap rather than
+  // the time since the page opened.
+  consumerCreatedAt = performance.now()
+  recordBrowserTrace({
+    trace_id: browserTraceId("cable.connect"),
+    name: "cable.connect",
+    path: window.location.pathname,
+    duration_ms: Math.round(durationMs),
+    visibility_state: document.visibilityState,
+    metadata: { reconnect: String(wasConnected) }
+  })
 }
 
 export function subscribeToAppEvents(
@@ -27,12 +64,18 @@ export function subscribeToAppEvents(
   onSubscriptionChange?: (subscribed: boolean) => void
 ): Subscription {
   let everConnected = false
+  // Normally set when the shared consumer was created, which is the number we
+  // want. A caller that injects its own consumer never went through
+  // getAppConsumer, so fall back to measuring from subscribe -- still the
+  // right shape, just a tighter window.
+  if (consumerCreatedAt === null) consumerCreatedAt = performance.now()
 
   return consumer.subscriptions.create(
     { channel: "AppUserChannel" },
     {
       connected() {
         const wasConnected = everConnected
+        recordCableConnectTrace(wasConnected)
         if (wasConnected) {
           // A reconnect already means events were missed during the drop,
           // and recoverAppEventContinuity's sweep below covers exactly

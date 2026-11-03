@@ -1,9 +1,53 @@
 import { QueryClient } from "@tanstack/react-query"
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { APP_EVENT_RECEIVED_EVENT } from "./appEvents"
-import { subscribeToAppEvents, subscribeToChatResourceEvents, subscribeToJobResourceEvents } from "./actionCable"
+import { resetAppConsumerForTest, subscribeToAppEvents, subscribeToChatResourceEvents, subscribeToJobResourceEvents } from "./actionCable"
+import { recordBrowserTrace } from "./performanceTrace"
+
+vi.mock("./performanceTrace", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./performanceTrace")>()),
+  recordBrowserTrace: vi.fn()
+}))
 
 describe("subscribeToAppEvents", () => {
+  beforeEach(() => {
+    resetAppConsumerForTest()
+    vi.mocked(recordBrowserTrace).mockClear()
+  })
+
+  // A slow WebSocket connect is invisible in request timing: the upgrade is
+  // fast and everything expensive happens after it. This trace is the only
+  // end-to-end measurement of how long the user waited for a live app.
+  it("reports how long the socket took to become live, and tags reconnects separately", () => {
+    const queryClient = new QueryClient()
+    let connected: (() => void) | undefined
+    const consumer = {
+      subscriptions: {
+        create: vi.fn((_params, mixin) => {
+          connected = mixin.connected
+          return { perform: vi.fn(), unsubscribe: vi.fn() }
+        })
+      }
+    }
+
+    subscribeToAppEvents(queryClient, consumer)
+
+    connected?.()
+    expect(recordBrowserTrace).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(recordBrowserTrace).mock.calls[0][0]).toMatchObject({
+      name: "cable.connect",
+      metadata: { reconnect: "false" }
+    })
+    expect(vi.mocked(recordBrowserTrace).mock.calls[0][0].duration_ms).toBeGreaterThanOrEqual(0)
+
+    connected?.()
+    expect(recordBrowserTrace).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(recordBrowserTrace).mock.calls[1][0]).toMatchObject({
+      name: "cable.connect",
+      metadata: { reconnect: "true" }
+    })
+  })
+
   it("subscribes to the app user channel and invalidates queries for received events", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")

@@ -28,9 +28,20 @@ module ApplicationCable
     end
     declare_metrics!
 
+    # Instrumented because a slow WebSocket connect is invisible otherwise:
+    # the upgrade handshake is pure network and fast, while everything that
+    # can actually be slow -- the session or api_token lookup -- happens here,
+    # after the upgrade, where no request-level timing covers it. Both phases
+    # land in performance_log_events alongside request and browser traces, and
+    # PerformanceLogging only emits past its slow threshold, so an ordinary
+    # fast connect costs nothing. `identify` is separate from the enclosing
+    # phase so the auth query is attributable on its own rather than inferred
+    # from the difference.
     def connect
-      set_current_user || reject_unauthorized_connection
-      track_connected!
+      PerformanceLogging.phase("cable.connect") do
+        PerformanceLogging.phase("cable.connect.identify") { set_current_user } || reject_unauthorized_connection
+        track_connected!
+      end
     end
 
     def disconnect

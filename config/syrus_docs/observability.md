@@ -343,6 +343,36 @@ groups `grouped_browser_traces` by `[name, path]`, or filter
 `PerformanceLogEvent.where(event_name: PerformanceLogging::BROWSER_TRACE_EVENT,
 name: "diff_review.parse_diff")` directly.
 
+### WebSocket connect latency (`cable.connect`)
+
+A slow live-updates connection is invisible in request timing. The HTTP
+upgrade to `/cable` is pure network and completes in tens of milliseconds;
+everything that can actually be slow happens after it, where no controller
+timing reaches. Two complementary measurements cover it, both landing in
+`performance_log_events` rather than anywhere new:
+
+- **Server**: `ApplicationCable::Connection#connect` is wrapped in a
+  `cable.connect` phase, with the session/`api_token` lookup separately
+  wrapped as `cable.connect.identify`. The nested phase means a slow auth
+  query is attributable on its own instead of being inferred from the
+  difference between the two. Both obey the usual
+  `slow_phase_threshold_ms`, so an ordinary fast connect writes nothing.
+- **Browser**: the shared consumer records a `cable.connect` browser trace on
+  each `connected` callback, measuring from socket creation to the
+  subscription being confirmed -- the interval the user actually waits
+  through. `metadata.reconnect` distinguishes the cold first connect from a
+  later recovery, because a reconnect storm and a slow initial connect look
+  identical from the outside and have different causes. The clock restarts on
+  each connect, so a reconnect reports its own gap rather than the time since
+  the page opened.
+
+Note that cable lives in its own database but on the same server as the
+primary, so it shares one buffer pool: connect latency can degrade because
+unrelated large tables have evicted cable's pages, not because of anything in
+the cable path itself. The server phase and the browser trace diverging --
+fast `cable.connect`, slow browser trace -- points outward to the network or
+the client instead.
+
 ### Chat startup latency (`chat_startup.*` phases)
 
 The filesystem-dependent stages that run before a chat turn's agent process

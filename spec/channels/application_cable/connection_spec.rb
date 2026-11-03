@@ -1,6 +1,29 @@
 require "rails_helper"
 
 RSpec.describe ApplicationCable::Connection, type: :channel do
+  # A slow connect is invisible in request timing -- the upgrade is fast and
+  # the auth lookup that can actually be slow happens after it. Both phases
+  # land in performance_log_events, so a slow connect is attributable without
+  # a new table.
+  it "records connect and identify phases so a slow handshake is attributable" do
+    Factories.user(api_token: "syrus_desktop_token")
+    phases = []
+    allow(PerformanceLogging).to receive(:phase).and_wrap_original do |original, name, *args, &block|
+      phases << name
+      original.call(name, *args, &block)
+    end
+
+    connect "/cable", headers: { "Authorization" => "Bearer syrus_desktop_token" }
+
+    expect(phases).to include("cable.connect", "cable.connect.identify")
+  end
+
+  it "still rejects an unauthorized connection while instrumented" do
+    expect {
+      connect "/cable", headers: { "Authorization" => "Bearer nope" }
+    }.to have_rejected_connection
+  end
+
   it "connects with an API token in the Authorization header" do
     user = Factories.user(api_token: "syrus_desktop_token")
 
