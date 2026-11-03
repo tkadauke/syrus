@@ -17,9 +17,8 @@ module Permissions
       policy duration subject_selector_type subject_selector_id subject_type subject_repository_id
       role capability operation resource_scope constraints chat_session_id job_id rationale
     ].freeze
-    # Core never constants-depends on plugins; exact-agent subjects are resolved
-    # from this allowlist of class names and must expose owner_user_id.
-    AGENT_SUBJECT_TYPES = %w[ Coworkers::Coworker ].freeze
+    # Core never constants-depends on plugins: an exact-agent subject class opts
+    # in by responding true to .permission_agent_subject? and exposing owner_user_id.
     # The unscoped dynamic selector cannot name an exact subject.
     EXCLUDED_SELECTORS = %w[ eligible_roles ].freeze
 
@@ -62,7 +61,7 @@ module Permissions
     # an exact agent only for an allowlisted coworker subject, otherwise the
     # chat type or the (repository-scoped) workflow role the request ran as.
     def self.request_subject(request)
-      if AGENT_SUBJECT_TYPES.include?(request.subject_type)
+      if agent_subject_class(request.subject_type)
         return { "subject_selector_type" => "agent", "subject_selector_id" => request.subject_id.to_s,
                  "subject_type" => request.subject_type, "subject_repository_id" => request.repository_id }
       end
@@ -78,6 +77,11 @@ module Permissions
       else
         { "subject_selector_type" => "workflow_role", "subject_selector_id" => role }
       end
+    end
+
+    def self.agent_subject_class(name)
+      klass = name.to_s.safe_constantize
+      klass if klass.is_a?(Class) && klass < ActiveRecord::Base && klass.respond_to?(:permission_agent_subject?) && klass.permission_agent_subject?
     end
 
     # Only descriptor-declared, correctly typed, non-secret arguments become
@@ -225,7 +229,7 @@ module Permissions
     end
 
     def validate_agent_subject(errors)
-      klass = AGENT_SUBJECT_TYPES.include?(attributes["subject_type"]) ? attributes["subject_type"].safe_constantize : nil
+      klass = self.class.agent_subject_class(attributes["subject_type"])
       subject = klass&.find_by(id: attributes["subject_selector_id"])
       errors << error(:unknown_subject) unless subject && subject.owner_user_id == user.id
     end
