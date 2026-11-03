@@ -4,7 +4,7 @@ import type { FormEvent } from "react"
 import { describe, expect, it, vi } from "vitest"
 import { ProviderRoutingRulesEditor, RoutingRulesPanel } from "./ProviderRoutingRulesEditor"
 import { conditionSummaries, DAYS, investigationMode, setInvestigationMode, setUsageComparison, usageHint } from "./providerRoutingConditions"
-import type { ProviderRoutingInheritedContext, ProviderRoutingOptions, ProviderRoutingRule, ProviderRoutingRuleInput } from "../api/providerRoutingRules"
+import type { ProviderRoutingExplainInput, ProviderRoutingExplanation, ProviderRoutingInheritedContext, ProviderRoutingOptions, ProviderRoutingRule, ProviderRoutingRuleInput } from "../api/providerRoutingRules"
 
 const options: ProviderRoutingOptions = {
   agent_providers: [
@@ -779,3 +779,95 @@ function renderPanel({
     />
   )
 }
+
+describe("RoutingTestPanel", () => {
+  const explanation = (overrides: Record<string, unknown> = {}) => ({
+    job_id: 5,
+    scope_precedence: [
+      {
+        scope_type: "user",
+        scope_id: 1,
+        rules: [
+          {
+            id: 1, position: 1, enabled: true, outcome: "match_failed", winning: false,
+            evidence: [{
+              matched: false,
+              trigger: { matched: true },
+              conditions: {
+                usage: {
+                  configured: true, matched: false,
+                  expected: { provider: "codex", remaining_percent_less_than: 25 },
+                  actual: { provider: "codex", remaining_percent: 31 }
+                }
+              }
+            }]
+          },
+          {
+            id: 2, position: 2, enabled: true, outcome: "matched_winner", winning: true,
+            evidence: [{ matched: true, trigger: { matched: true }, conditions: {} }]
+          },
+          { id: 3, position: 3, enabled: true, outcome: "not_evaluated_after_winner", winning: false, evidence: [] }
+        ]
+      }
+    ],
+    winning_decision: {
+      decision: { status: "routed" },
+      matched_rule: { id: 2 },
+      final_action: { candidates: [{ provider: "claude" }, { provider: "codex" }] }
+    },
+    ...overrides
+  })
+
+  function renderPanel(onExplain: (input: ProviderRoutingExplainInput) => Promise<ProviderRoutingExplanation>) {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    vi.stubGlobal("fetch", vi.fn(async () =>
+      new Response(JSON.stringify({ count: 1, jobs: [{ id: 5, title: "Fix it", issue_title: "Fix it", state: "open", repository_slug: "a/b", pr_url: null }] }), {
+        status: 200, headers: { "Content-Type": "application/json" }
+      })
+    ))
+    render(
+      <QueryClientProvider client={client}>
+        <RoutingRulesPanel description="d" onCreateRule={vi.fn()} onDeleteRule={vi.fn()} onExplain={onExplain} onReorderRules={vi.fn()} onUpdateRule={vi.fn()} options={options} rules={[]} title="t" />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Test" }))
+  }
+
+  async function runTest() {
+    await screen.findByRole("option", { name: "JOB-5 Fix it" })
+    fireEvent.change(screen.getAllByRole("combobox")[0], { target: { value: "5" } })
+    fireEvent.click(screen.getByRole("button", { name: "Run test" }))
+  }
+
+  it("shows the winner line and per-rule reasons", async () => {
+    const onExplain = vi.fn().mockResolvedValue(explanation() as unknown as ProviderRoutingExplanation)
+    renderPanel(onExplain)
+    await runTest()
+
+    expect(await screen.findByText("Rule 2 wins: Claude, then Codex")).toBeInTheDocument()
+    expect(onExplain).toHaveBeenCalledWith({ target_job_id: 5, task_key: "implement" })
+    expect(screen.getByText(": skipped: Codex 31% not < 25%")).toBeInTheDocument()
+    expect(screen.getByText(": matched")).toBeInTheDocument()
+    expect(screen.getByText(": not evaluated")).toBeInTheDocument()
+  })
+
+  it("reports no winner and holds", async () => {
+    const onExplain = vi.fn().mockResolvedValue(explanation({ scope_precedence: [], winning_decision: {} }) as unknown as ProviderRoutingExplanation)
+    renderPanel(onExplain)
+    await runTest()
+    expect(await screen.findByText("No rule matches; default routing applies.")).toBeInTheDocument()
+  })
+
+  it("reports a held decision", async () => {
+    const held = explanation({ winning_decision: { decision: { status: "held", reason: "Quota low" }, matched_rule: { id: 2 } } })
+    renderPanel(vi.fn().mockResolvedValue(held))
+    await runTest()
+    expect(await screen.findByText("Rule 2 holds work: Quota low")).toBeInTheDocument()
+  })
+
+  it("shows an error when the test fails", async () => {
+    renderPanel(vi.fn().mockRejectedValue(new Error("boom")))
+    await runTest()
+    expect(await screen.findByText("Unable to test routing rules.")).toBeInTheDocument()
+  })
+})

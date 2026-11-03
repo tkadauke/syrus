@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Button } from "./Button"
 import { ChevronIcon } from "./ChevronIcon"
 import { Modal } from "./Modal"
+import { RoutingTestPanel } from "./ProviderRoutingTestPanel"
 import { PanelMessage } from "./PanelMessage"
 import { Select } from "./Select"
 import { Checkbox, Form, Pill, Surface } from "./ui"
@@ -20,9 +21,12 @@ import {
 import {
   createProviderRoutingRule,
   deleteProviderRoutingRule,
+  explainProviderRouting,
   reorderProviderRoutingRules,
   updateProviderRoutingRule,
   type ProviderRoutingAction,
+  type ProviderRoutingExplainInput,
+  type ProviderRoutingExplanation,
   type ProviderRoutingCandidate,
   type ProviderRoutingConditions,
   type ProviderRoutingInheritedContext,
@@ -59,6 +63,8 @@ export type RoutingRulesPanelProps = {
   inheritedContext?: ProviderRoutingInheritedContext[]
   onCreateRule: (input: ProviderRoutingRuleInput) => Promise<unknown> | unknown
   onDeleteRule: (rule: ProviderRoutingRule) => Promise<unknown> | unknown
+  /** Enables the Test entry point; runs the rule set against a Job. */
+  onExplain?: (input: ProviderRoutingExplainInput) => Promise<ProviderRoutingExplanation>
   onReorderRules: (ids: number[]) => void
   onToggleRule?: (rule: ProviderRoutingRule, enabled: boolean) => Promise<unknown> | unknown
   onUpdateRule: (rule: ProviderRoutingRule, input: ProviderRoutingRuleInput) => Promise<unknown> | unknown
@@ -146,6 +152,7 @@ export function ProviderRoutingRulesEditor({
       inheritedContext={inheritedContext}
       onCreateRule={(input) => save.mutateAsync({ input })}
       onDeleteRule={(rule) => destroy.mutateAsync(rule)}
+      onExplain={(input) => explainProviderRouting(basePath, input)}
       onReorderRules={reorderOptimistically}
       onToggleRule={(rule, enabled) => save.mutateAsync({ rule, input: ruleToInput(rule, { enabled }) })}
       onUpdateRule={(rule, input) => save.mutateAsync({ rule, input })}
@@ -168,6 +175,7 @@ export function RoutingRulesPanel({
   inheritedContext,
   onCreateRule,
   onDeleteRule,
+  onExplain,
   onReorderRules,
   onToggleRule,
   onUpdateRule,
@@ -186,6 +194,7 @@ export function RoutingRulesPanel({
   const inheritedRows = (inheritedContext || []).filter((context) => context.rules.length > 0)
   const [draft, setDraft] = useState<DraftRule | null>(null)
   const [draftErrors, setDraftErrors] = useState<DraftErrors>({})
+  const [testing, setTesting] = useState(false)
 
   function openNewRule() {
     setDraft(emptyDraft(routingOptions))
@@ -258,10 +267,19 @@ export function RoutingRulesPanel({
           <p className="mt-1 text-xs text-text-secondary">{description}</p>
           <p className="mt-1 text-xs font-medium text-text-primary">{t("provider_routing.first_match_wins")}</p>
         </div>
-        <Button onClick={openNewRule} size="sm">
-          {t("provider_routing.new_rule")}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {onExplain ? (
+            <Button aria-expanded={testing} onClick={() => setTesting((open) => !open)} size="sm" variant="secondary">
+              {t("provider_routing.test.button")}
+            </Button>
+          ) : null}
+          <Button onClick={openNewRule} size="sm">
+            {t("provider_routing.new_rule")}
+          </Button>
+        </div>
       </div>
+
+      {testing && onExplain ? <RoutingTestPanel onClose={() => setTesting(false)} onExplain={onExplain} options={routingOptions} /> : null}
 
       {routingRules.length > 0 || inheritedRows.length > 0 ? (
         <div className="space-y-3">

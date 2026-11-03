@@ -75,6 +75,22 @@ module Api
           render json: routing_rule_payload(scope)
         end
 
+        # Dry-runs the effective routing rules against a Job the caller can see.
+        # Same payload as the explain_provider_routing MCP tool. The scope only
+        # gates access (same checks as the rules endpoints); the explanation always
+        # covers every scope that applies to the target Job.
+        def explain
+          return unless routing_rule_scope!
+
+          task_key = params.require(:task_key).to_s
+          job = find_job_by_ref(policy_scope(Job).includes(:repository, :owner_user, :user), params.require(:target_job_id))
+          render json: ProviderRouting::Explainer.call(
+            job: job,
+            task_key: task_key,
+            workflow_trigger_kind: params[:workflow_trigger_kind].presence
+          )
+        end
+
         private
 
         def routing_rule_scope!
