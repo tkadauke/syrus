@@ -10,10 +10,7 @@ function Probe({ onNotice = () => {} }: { onNotice?: (message: string | null) =>
   const command = useJobCommand(1, ["jobs", "1", "detail", ""] as const, undefined, onNotice)
   return (
     <div>
-      <button
-        onClick={() => command.mutate({ method: "post", path: "/api/v1/app/jobs/1/retry", confirm: "Retry this job?" })}
-        type="button"
-      >
+      <button onClick={() => command.mutate({ method: "post", path: "/api/v1/app/jobs/1/retry", confirm: "Retry this job?" })} type="button">
         retry
       </button>
       {command.dialog}
@@ -54,10 +51,7 @@ describe("useJobCommand confirm flow", () => {
     await waitFor(() => screen.getByRole("button", { name: "Confirm" }))
     await act(async () => screen.getByRole("button", { name: "Confirm" }).click())
 
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/jobs/1/retry",
-      expect.objectContaining({ method: "POST" })
-    ))
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/retry", expect.objectContaining({ method: "POST" })))
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 
@@ -110,9 +104,14 @@ describe("useJobCommand notices", () => {
 
   it("surfaces the server error message when a command fails", async () => {
     const onNotice = vi.fn()
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      error: { code: "validation_failed", message: "Unapprove before replacing the PR branch." }
-    }, 422))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        {
+          error: { code: "validation_failed", message: "Unapprove before replacing the PR branch." }
+        },
+        422
+      )
+    )
     renderProbe(onNotice)
 
     act(() => screen.getByRole("button", { name: "retry" }).click())
@@ -193,10 +192,7 @@ describe("useJobCommand cache sync", () => {
     function ApproveProbe() {
       const command = useJobCommand(1, ["jobs", "1", "detail", ""] as const, undefined, () => {})
       return (
-        <button
-          onClick={() => command.mutate({ method: "post", path: "/api/v1/app/jobs/1/approve" })}
-          type="button"
-        >
+        <button onClick={() => command.mutate({ method: "post", path: "/api/v1/app/jobs/1/approve" })} type="button">
           approve
         </button>
       )
@@ -211,11 +207,13 @@ describe("useJobCommand cache sync", () => {
 
     // The refetch triggered by invalidateQueries never resolves in this test —
     // it must not be what makes can_approve flip.
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      message: "Job approved.",
-      job: { id: 1, state: "approved" },
-      actions: { can_approve: false, can_unapprove: true }
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        message: "Job approved.",
+        job: { id: 1, state: "approved" },
+        actions: { can_approve: false, can_unapprove: true }
+      })
+    )
 
     render(
       <QueryClientProvider client={client}>
@@ -239,10 +237,7 @@ describe("useJobCommand cache sync", () => {
     function RestartProbe() {
       const command = useJobCommand(1, ["jobs", "1", "detail", ""] as const, undefined, () => {})
       return (
-        <button
-          onClick={() => command.mutate({ method: "post", path: "/api/v1/app/jobs/1/restart" })}
-          type="button"
-        >
+        <button onClick={() => command.mutate({ method: "post", path: "/api/v1/app/jobs/1/restart" })} type="button">
           restart
         </button>
       )
@@ -257,13 +252,15 @@ describe("useJobCommand cache sync", () => {
 
     // restart responds with the newly created replacement Job (id 2), not
     // job 1 that this hook/queryKey is bound to.
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      message: "Started over - new branch and PR will be created.",
-      job: { id: 2, state: "queued" },
-      actions: { can_approve: false, can_unapprove: false },
-      old_job: { id: 1, state: "closed" },
-      redirect_to: "/jobs/2"
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        message: "Started over - new branch and PR will be created.",
+        job: { id: 2, state: "queued" },
+        actions: { can_approve: false, can_unapprove: false },
+        old_job: { id: 1, state: "closed" },
+        redirect_to: "/jobs/2"
+      })
+    )
 
     render(
       <QueryClientProvider client={client}>
@@ -296,9 +293,15 @@ describe("CommandButton pending scope", () => {
     const command = useJobCommand(1, ["jobs", "1", "detail", ""] as const, undefined, () => {})
     return (
       <div>
-        <CommandButton command={command} input={{ method: "post", path: "/retry", body: { a: 1 } }}>retry</CommandButton>
-        <CommandButton command={command} input={{ method: "post", path: "/force_push", confirm: "Replace?" }}>replace</CommandButton>
-        <CommandButton command={command} input={{ method: "post", path: "/discard" }}>discard</CommandButton>
+        <CommandButton command={command} input={{ method: "post", path: "/retry", body: { a: 1 } }}>
+          retry
+        </CommandButton>
+        <CommandButton command={command} input={{ method: "post", path: "/force_push", confirm: "Replace?" }}>
+          replace
+        </CommandButton>
+        <CommandButton command={command} input={{ method: "post", path: "/discard" }}>
+          discard
+        </CommandButton>
         {command.dialog}
       </div>
     )
@@ -308,7 +311,9 @@ describe("CommandButton pending scope", () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
     render(
       <QueryClientProvider client={client}>
-        <MemoryRouter><Panel /></MemoryRouter>
+        <MemoryRouter>
+          <Panel />
+        </MemoryRouter>
       </QueryClientProvider>
     )
   }
