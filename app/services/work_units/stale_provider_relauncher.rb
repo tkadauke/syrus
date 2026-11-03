@@ -45,6 +45,8 @@ module WorkUnits
       WorkUnits::WorkflowCancellation.cancel!(
         workflow,
         reason: PREEMPTION_REASON,
+        cause: { kind: "provider_rerouting", initiator_class: "system", control_path: "stale_provider_relauncher#release!",
+                 source: { "workflow_id" => workflow.id, "work_unit_id" => work_unit.id } },
         artifacts: {
           "cancelled_reason" => Workflow::SUPERSEDED_BY_NEWER_WORKFLOW_REASON,
           "provider_relaunch" => {

@@ -13,7 +13,9 @@ class Current < ActiveSupport::CurrentAttributes
             :performance_slow_sql_count,
             :performance_sql_fingerprints,
             :performance_phase_stack,
-            :cancellation_cause
+            :cancellation_cause,
+            :cancellation_parent_workflow_id,
+            :cancellation_parent_event
 
   def user
     api_user || session&.user

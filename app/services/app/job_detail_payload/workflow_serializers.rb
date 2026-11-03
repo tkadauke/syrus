@@ -716,7 +716,7 @@ module App
           trigger_kind: run.trigger_kind,
           agent_provider: run.agent_provider,
           agent_outcome: run.agent_outcome,
-          cancellation: Workflows::CancellationAttribution.run_payload(run),
+          cancellation: Workflows::CancellationAttribution.run_payload(run, step: step),
           agent_turns: run.agent_turns,
           agent_pr_title: run.agent_pr_title,
           agent_summary: run.agent_summary,

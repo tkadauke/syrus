@@ -45,11 +45,13 @@ module Workflows
       # Invariant: a root event exists before any cleanup runs. Direct
       # `workflow.cancel!` callers that supplied none surface as unattributed.
       Workflows::CancellationAttribution.record!(workflow, reason: workflow.artifact("cancelled_reason").presence || "unspecified")
-      workflow.sync_work_unit_terminal!("cancelled")
-      workflow.cancel_active_descendants!
-      workflow.propagate_cancel_to_job!
-      workflow.cleanup_workspace!
-      dispatch_hook(:after_cancel)
+      Workflows::CancellationAttribution.with_parent(workflow) do
+        workflow.sync_work_unit_terminal!("cancelled")
+        workflow.cancel_active_descendants!
+        workflow.propagate_cancel_to_job!
+        workflow.cleanup_workspace!
+        dispatch_hook(:after_cancel)
+      end
     end
 
     def blocked!
