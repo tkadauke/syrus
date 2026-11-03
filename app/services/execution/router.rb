@@ -10,19 +10,22 @@ module Execution
       end
     end
 
-    # +authorizer+ is an optional callable taking the request and returning a
-    # +Permissions::ExecutionAuthorization::Result+ (or nil for "no opinion").
-    # Only an +allow+ result runs; +ask+ and +deny+ raise NotAuthorized so the
-    # caller can route the approval. Without one, behavior is unchanged.
-    def initialize(local: Local.new, authorizer: nil)
+    # +authorizer+ is a callable taking the request and the backend location
+    # (+location:+ of +:host+ or +:container+) and returning a
+    # +Permissions::ExecutionAuthorization::Result+, or nil for "no opinion".
+    # The default is +Permissions::ExecutionGate+, which enforces denies only.
+    # A denied result raises NotAuthorized before anything starts. Pass
+    # +enforce_ask: true+ to also refuse results that need approval.
+    def initialize(local: Local.new, authorizer: Permissions::ExecutionGate.new, enforce_ask: false)
       @local = local
       @authorizer = authorizer
+      @enforce_ask = enforce_ask
     end
 
     def run(request)
       validate_request!(request)
-      authorize!(request)
       backend = backend_for(request)
+      authorize!(request, backend)
       WorkspaceReuseOutcomes::Recorder.note_backend(run: request.run, backend: backend_identity(backend))
       backend.run(request)
     end
@@ -31,9 +34,11 @@ module Execution
 
     attr_reader :local, :authorizer
 
-    def authorize!(request)
-      result = authorizer&.call(request)
-      raise NotAuthorized, result if result && !result.allowed?
+    def authorize!(request, backend)
+      location = backend.is_a?(Execution::Local) ? :host : :container
+      result = authorizer&.call(request, location:)
+      return unless result
+      raise NotAuthorized, result if result.denied? || (@enforce_ask && !result.allowed?)
     end
 
     def backend_identity(backend)
