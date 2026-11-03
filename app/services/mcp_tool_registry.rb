@@ -214,8 +214,8 @@ class McpToolRegistry
 
     def chat_entries
       [
-        legacy_chat(Mcp::Tools::AttachRepositoryTool, mutation: true),
-        legacy_chat(Mcp::Tools::DetachRepositoryTool, mutation: true),
+        ingestion_chat(Mcp::Tools::AttachRepositoryTool, mutation: true),
+        ingestion_chat(Mcp::Tools::DetachRepositoryTool, mutation: true),
         legacy_chat(Mcp::Tools::ProposeEpicTool, mutation: true),
         legacy_chat(Mcp::Tools::ProposeJobTool, mutation: true),
         legacy_chat(Mcp::Tools::ProposeEpicWithJobsTool, mutation: true),
@@ -350,19 +350,19 @@ class McpToolRegistry
         legacy_chat(Mcp::Tools::RemovePinnedContextTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::ListChatsTool, tier: :deferred),
         legacy_chat(Mcp::Tools::ListRepositoriesTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::GetJobDiffTool, tier: :deferred),
+        ingestion_chat(Mcp::Tools::GetJobDiffTool, tier: :deferred),
         legacy_chat(Mcp::Tools::UpdateJobTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::ListJobWorkflowsTool, tier: :deferred),
         legacy_chat(Mcp::Tools::ReadWorkflowTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::ReadRunTranscriptTool, tier: :deferred),
+        ingestion_chat(Mcp::Tools::ReadRunTranscriptTool, tier: :deferred),
         legacy_chat(Mcp::Tools::ListArtifactsTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::ReadArtifactTool, tier: :deferred),
+        ingestion_chat(Mcp::Tools::ReadArtifactTool, tier: :deferred),
         legacy_chat(Mcp::Tools::ExplainStuckJobTool, tier: :deferred),
         legacy_chat(Mcp::Tools::AssignJobToEpicTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::ListOpenIssuesTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::ListOpenPrsTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::SearchChatsTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::ReadChatMessagesTool, tier: :deferred),
+        ingestion_chat(Mcp::Tools::ListOpenIssuesTool, tier: :deferred),
+        ingestion_chat(Mcp::Tools::ListOpenPrsTool, tier: :deferred),
+        ingestion_chat(Mcp::Tools::SearchChatsTool, tier: :deferred),
+        ingestion_chat(Mcp::Tools::ReadChatMessagesTool, tier: :deferred),
         effect_chat(Mcp::Tools::SendChatMessageTool, tier: :deferred, mutation: true),
         effect_chat(Mcp::Tools::SpawnChatsTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::ListTagsTool, tier: :deferred),
@@ -375,7 +375,7 @@ class McpToolRegistry
         legacy_chat(Mcp::Tools::RunVisualReviewTool, tier: :deferred, mutation: true),
         lifecycle_chat(Mcp::Tools::CheckJobMergeabilityTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::DelegateIssueTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::ReadPrTool, tier: :deferred),
+        ingestion_chat(Mcp::Tools::ReadPrTool, tier: :deferred),
         lifecycle_chat(Mcp::Tools::UnapproveJobTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::RemoveJobFromEpicTool, tier: :deferred, mutation: true),
         lifecycle_chat(Mcp::Tools::StartEpicTool, tier: :deferred, mutation: true),
@@ -390,7 +390,7 @@ class McpToolRegistry
         legacy_chat(Mcp::Tools::ReadRepoDocumentTool, tier: :deferred),
         effect_chat(Mcp::Tools::CreateRepoDocumentTool, tier: :deferred, mutation: true),
         effect_chat(Mcp::Tools::DeleteRepoDocumentTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::ListChatMediaTool, tier: :deferred),
+        ingestion_chat(Mcp::Tools::ListChatMediaTool, tier: :deferred),
         effect_chat(Mcp::Tools::SubmitArtifactTool, tier: :deferred, mutation: true),
         effect_chat(Mcp::Tools::ScheduleWakeupTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::ListWakeupsTool, tier: :deferred),
@@ -406,7 +406,7 @@ class McpToolRegistry
         operational_chat(Mcp::Tools::DispatchRefMovementActionTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::ReadRefMovementStatusTool, tier: :deferred),
         legacy_chat(Mcp::Tools::ClassifyPullRequestTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::IngestPullRequestTool, tier: :deferred, mutation: true)
+        ingestion_chat(Mcp::Tools::IngestPullRequestTool, tier: :deferred, mutation: true)
       ]
     end
 
@@ -591,6 +591,12 @@ class McpToolRegistry
 
     def local_mode_chat(tool, **metadata)
       descriptor = Permissions::LocalModeActions.descriptor_for(tool_name_for(tool), required_roles: metadata[:required_roles])
+      chat(tool, **metadata, descriptor:)
+    end
+
+    def ingestion_chat(tool, **metadata)
+      roles = metadata[:required_roles].presence || AgentRole::CHAT_ROLES
+      descriptor = Permissions::IngestionActions.descriptor_for(tool_name_for(tool), required_roles: roles)
       chat(tool, **metadata, descriptor:)
     end
 
