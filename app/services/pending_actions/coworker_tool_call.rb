@@ -10,7 +10,7 @@ module PendingActions
         raise ArgumentError, "authorization request prerequisites are not approved"
       end
 
-      operation = @action.authorization_items.find_by!(kind: "operation")
+      operation = operation_item
       descriptor = permission_descriptor
       fingerprint = Permissions::InvocationFingerprint.call(
         descriptor:, arguments: payload.fetch("arguments")
@@ -40,7 +40,7 @@ module PendingActions
       end
       raise ArgumentError, "tool is no longer available to coworkers" unless callable
 
-      invocation = @action.authorization_items.find_by!(kind: "operation").authorized_invocation
+      invocation = operation_item.authorized_invocation
       raise ArgumentError, "authorized invocation is missing" unless invocation
       fingerprint = Permissions::InvocationFingerprint.call(
         descriptor: permission_descriptor, arguments: payload.fetch("arguments")
@@ -98,6 +98,11 @@ module PendingActions
 
     private
 
+    def operation_item
+      @operation_item ||= @action.authorization_items.detect { |item| item.kind == "operation" } ||
+        raise(ActiveRecord::RecordNotFound, "operation authorization item is missing")
+    end
+
     def permission_descriptor
       catalog_entry = Mcp::CoworkerToolCatalog.resolve(payload.fetch("tool_name"), chat_session: chat_session)
       raise ArgumentError, "tool is not available to coworkers" unless catalog_entry
@@ -127,7 +132,7 @@ module PendingActions
       authorization = Permissions::Management.new(context.user).authorize(
         descriptor: permission_descriptor,
         role: context.role,
-        resource_scope: action.authorization_items.find_by!(kind: "operation").resource_scope,
+        resource_scope: operation_item.resource_scope,
         arguments: payload.fetch("arguments"),
         context: {
           role: context.role,
