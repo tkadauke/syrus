@@ -66,7 +66,7 @@ RSpec.describe Coworkers::SpawnChatTool do
     coworker.grants.create!(capability: "coworker.spawn_chat", approval_policy: "confirm")
     run = Factories.run(user: owner, repository: repository)
     run_context = McpToolContext.new(surface: :run, role: AgentRole::COWORKER, user: owner, run:, chat_session: chat,
-      granted_capabilities: [ "coworker.spawn_chat" ], capability_approval_policies: { "coworker.spawn_chat" => "queue" },
+      granted_capabilities: [ "coworker.spawn_chat" ],
       agent_actor: coworker)
     allow(McpToolContext).to receive(:from_server_context).with({ run: run }).and_return(run_context)
 
