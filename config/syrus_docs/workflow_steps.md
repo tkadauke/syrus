@@ -1224,8 +1224,12 @@ parent moved, the child's own commits are rebased with `git rebase --onto
 <live> <prepared>`, the required graders run again on the rebased tree, and the
 check repeats, up to three rebases. A branch that was rewritten is pushed with
 `--force-with-lease` pinned to the observed remote tip, and after the push the
-head is checked against the live parent once more before the Job becomes
-`implemented` (which is what releases dependents). If the parent never settles,
+head is checked against the live parent once more before a PR is opened or the
+Job becomes `implemented` (which is what releases dependents). Git cannot make a
+push conditional on a different ref, so if the parent moved between the final
+check and the push, that publication is rolled back (new branch deleted, or the
+previous tip restored, both leased on the pushed head) and recorded in
+`workflow.artifacts["stale_publication_rolled_back"]`. If the parent never settles,
 the rebase conflicts, or post-rebase validation fails, `pr_open` fails with the
 `awaiting_stable_base` problem, keeps the completed work, writes
 `workflow.artifacts["awaiting_stable_base"]` with the observed parent heads, and

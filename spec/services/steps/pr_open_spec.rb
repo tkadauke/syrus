@@ -1561,8 +1561,42 @@ RSpec.describe Steps::PrOpen, :ci_only do
         allow(handler).to receive(:live_stack_parent_sha).and_return("d" * 40)
         allow(handler).to receive(:ancestor?).with(git, "d" * 40, "HEAD").and_return(false)
         allow(handler).to receive(:current_head_sha).and_return("e" * 40)
+        allow(handler).to receive(:authenticated_git).and_yield("https://x/y")
+        allow(git).to receive(:run)
 
         expect { handler.send(:confirm_published_stack_base!) }.to raise_error(described_class::AwaitingStableBase, /dependents were not released/)
+      end
+
+      it "rolls a brand-new branch back off the remote when the parent moved between the final check and the push" do
+        handler.instance_variable_set(:@pre_push_remote_sha, nil)
+        allow(handler).to receive(:live_stack_parent_sha).and_return("d" * 40)
+        allow(handler).to receive(:ancestor?).and_return(false)
+        allow(handler).to receive(:current_head_sha).and_return("e" * 40)
+        allow(handler).to receive(:authenticated_git).and_yield("https://x/y")
+
+        expect(git).to receive(:run).with(
+          "push", "--force-with-lease=refs/heads/syrus/issue-42:#{"e" * 40}", "https://x/y",
+          ":refs/heads/syrus/issue-42", chdir: "/tmp/ws"
+        )
+
+        expect { handler.send(:confirm_published_stack_base!) }.to raise_error(described_class::AwaitingStableBase)
+        expect(workflow.reload.artifact("stale_publication_rolled_back")).to include("pushed_sha" => "e" * 40)
+        expect(workflow.artifact("awaiting_stable_base")["phase"]).to eq("post_publish")
+      end
+
+      it "restores the previous remote tip of an already-published branch" do
+        handler.instance_variable_set(:@pre_push_remote_sha, "a" * 40)
+        allow(handler).to receive(:live_stack_parent_sha).and_return("d" * 40)
+        allow(handler).to receive(:ancestor?).and_return(false)
+        allow(handler).to receive(:current_head_sha).and_return("e" * 40)
+        allow(handler).to receive(:authenticated_git).and_yield("https://x/y")
+
+        expect(git).to receive(:run).with(
+          "push", "--force-with-lease=refs/heads/syrus/issue-42:#{"e" * 40}", "https://x/y",
+          "#{"a" * 40}:refs/heads/syrus/issue-42", chdir: "/tmp/ws"
+        )
+
+        expect { handler.send(:confirm_published_stack_base!) }.to raise_error(described_class::AwaitingStableBase)
       end
 
       it "passes confirmation when the published head descends from the live parent" do
