@@ -58,7 +58,14 @@ module Permissions
       explicit = LAYERS.filter_map { |layer| selected[layer] }
       if explicit.empty?
         policy = @descriptor.defaults.fetch(@role, :deny)
-        default = Explanation.new(layer: :default, status: :decisive_default, rule: nil, policy:, detail: :role_default)
+        detail = :role_default
+        if policy == :allow && CoworkerDefaultPolicy::ROLES.include?(@role) &&
+            !CoworkerDefaultPolicy.invocation_allowed?(@descriptor, classification)
+          # Dynamic classification: this particular invocation is not provably benign.
+          policy = :ask
+          detail = :unsafe_classification
+        end
+        default = Explanation.new(layer: :default, status: :decisive_default, rule: nil, policy:, detail:)
         return decision(policy, nil, chain + [ default ], invocation)
       end
 

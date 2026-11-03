@@ -76,6 +76,66 @@ RSpec.describe "Coworker repository code access" do
     expect(Mcp::Tools::ReadPrTool.call(pr_number: 1, repository_id: outside_repository.id, server_context: { chat_session: chat })).to be_error
   end
 
+  describe "attach_repository default policy" do
+    let(:checkout_path) { Pathname(Dir.mktmpdir).join("product") }
+
+    before do
+      allow(ChatWorkspace).to receive(:attach_repository!).and_return(checkout_path)
+      allow(ChatWorkspace).to receive(:protect_path_read_only!)
+    end
+
+    it "attaches and detaches an in-scope repository without a pending action or permission rule" do
+      expect(PermissionRule.count).to eq(0)
+
+      expect do
+        response = Mcp::Tools::AttachRepositoryTool.call(slug: repository.slug, server_context: { chat_session: chat })
+        expect(response).not_to be_error
+        expect(payload(response).dig("repository", "slug")).to eq(repository.slug)
+      end.not_to change { chat.pending_actions.count }
+
+      expect(ChatWorkspace).to have_received(:attach_repository!).with(chat, repository)
+      expect(ChatWorkspace).to have_received(:protect_path_read_only!).with(checkout_path)
+      detached = Mcp::Tools::DetachRepositoryTool.call(slug: repository.slug, server_context: { chat_session: chat })
+      # The stubbed attach left no record, so the tool itself answers (authorization did not queue it).
+      expect(detached.content.first.fetch(:text)).to include("is not attached to this chat")
+      expect(chat.pending_actions.where(action: "coworker_tool_call")).to be_empty
+    end
+
+    it "rejects a repository outside the grant scope without cloning or asking" do
+      response = Mcp::Tools::AttachRepositoryTool.call(slug: outside_repository.slug, server_context: { chat_session: chat })
+
+      expect(response).to be_error
+      expect(ChatWorkspace).not_to have_received(:attach_repository!)
+      expect(chat.pending_actions.where(action: "coworker_tool_call")).to be_empty
+    end
+
+    it "rejects a repository the owner cannot access, even under an all-repositories grant" do
+      coworker.grants.update_all(scope: Mcp::Tools::CoworkerRepositoryAccess::ALL)
+      foreign = Factories.repository(user: Factories.user)
+
+      response = Mcp::Tools::AttachRepositoryTool.call(slug: foreign.slug, server_context: { chat_session: chat })
+
+      expect(response).to be_error
+      expect(ChatWorkspace).not_to have_received(:attach_repository!)
+    end
+
+    it "still honors an explicit deny rule over the allow default" do
+      descriptor = McpToolRegistry.entries(surface: :coworker).find { |entry| entry.tool == Mcp::Tools::AttachRepositoryTool }.descriptor
+      PermissionRule.create!(
+        owner_user: owner, created_by_user: owner, updated_by_user: owner,
+        subject_selector_type: "agent", subject_selector_id: coworker.id.to_s,
+        subject_role_keys: [], capability: descriptor.capability, operation: descriptor.operation,
+        resource_type: descriptor.resource_scope.type.to_s, resource_scope: {}, constraints: {},
+        policy: "deny", policy_layer: "agent", source: "operator", provenance: {}
+      )
+
+      response = Mcp::Tools::AttachRepositoryTool.call(slug: repository.slug, server_context: { chat_session: chat })
+
+      expect(response).to be_error
+      expect(ChatWorkspace).not_to have_received(:attach_repository!)
+    end
+  end
+
   it "makes an attached product checkout non-writable while leaving unrelated workspace files writable" do
     root = Pathname(Dir.mktmpdir)
     product_path = root.join("product")

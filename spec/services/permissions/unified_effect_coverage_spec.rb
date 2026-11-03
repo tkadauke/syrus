@@ -82,7 +82,9 @@ RSpec.describe "Unified consequential-effect coverage" do
   end
 
   it "registers every MCP-backed effect on its tool surface with the identical contract" do
-    by_name = McpToolRegistry.entries.select(&:explicit_descriptor).group_by(&:tool_name)
+    # Coworker registrations carry their own per-role contract (Permissions::CoworkerActions),
+    # whose defaults reflect owner-delegated, grant-scoped access rather than chat defaults.
+    by_name = McpToolRegistry.entries.select(&:explicit_descriptor).reject { |entry| entry.surface == :coworker }.group_by(&:tool_name)
     {
       Permissions::EffectActions => Permissions::EffectActions.tool_names,
       Permissions::IngestionActions => Permissions::IngestionActions.tool_names,

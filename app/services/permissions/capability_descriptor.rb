@@ -18,6 +18,11 @@ module Permissions
     # dimension never grants, widens, or narrows authority.
     BUDGET_DIMENSIONS = %i[model_tokens compute_time network_egress external_spend storage].freeze
 
+    # Internal writes that are provably benign for default-allow purposes. An
+    # `internal_write` effect alone is never benign; a descriptor must name
+    # which bounded, reversible, user-authorized kind it is.
+    BENIGN_INTERNAL_KINDS = %i[context_binding owner_interaction authority_reduction draft_proposal].freeze
+
     # Argument types a descriptor may expose as durable-authority constraints.
     CONSTRAINT_TYPES = %i[string integer boolean].freeze
 
@@ -27,13 +32,13 @@ module Permissions
       :defaults, :maximum_autonomy, :authority_durations, :maximum_duration,
       :resource_scope, :classifier, :fingerprint_normalizer, :redactor, :presets,
       :capability_aliases, :operation_aliases, :constraint_fields,
-      :fresh_authentication_window, :budget_dimensions
+      :fresh_authentication_window, :budget_dimensions, :benign_internal
 
     def initialize(capability:, operation:, effects:, risk:, requestable_roles:, defaults:,
       maximum_autonomy:, authority_durations:, resource_scope:, classifier:,
       fingerprint_normalizer:, redactor:, maximum_duration: nil, presets: [],
       capability_aliases: [], operation_aliases: [], constraint_fields: {},
-      fresh_authentication_window: nil, budget_dimensions: [])
+      fresh_authentication_window: nil, budget_dimensions: [], benign_internal: nil)
       @capability = versioned_identifier(capability, :capability)
       @operation = versioned_identifier(operation, :operation)
       @effects = Array(effects).map(&:to_sym).uniq.freeze
@@ -51,6 +56,7 @@ module Permissions
       @constraint_fields = constraint_fields.to_h.to_h { |name, type| [ name.to_s.freeze, type.to_sym ] }.freeze
       @fresh_authentication_window = fresh_authentication_window
       @budget_dimensions = Array(budget_dimensions).map(&:to_sym).uniq.freeze
+      @benign_internal = benign_internal&.to_sym
       @capability_aliases = aliases(capability_aliases, :capability_aliases)
       @operation_aliases = aliases(operation_aliases, :operation_aliases)
       validate!
@@ -70,7 +76,7 @@ module Permissions
         maximum_duration, resource_scope.type, resource_scope.options,
         requestable_roles.sort, defaults.sort, presets,
         capability_aliases.sort, operation_aliases.sort, constraint_fields.sort,
-        fresh_authentication_window, budget_dimensions.sort
+        fresh_authentication_window, budget_dimensions.sort, benign_internal
       ]
     end
 
@@ -94,7 +100,8 @@ module Permissions
         operation_aliases: operation_aliases,
         constraint_fields: constraint_fields,
         fresh_authentication_window: fresh_authentication_window,
-        budget_dimensions: budget_dimensions
+        budget_dimensions: budget_dimensions,
+        benign_internal: benign_internal
       }
     end
 
@@ -137,6 +144,12 @@ module Permissions
       end
       unknown_budget = budget_dimensions - BUDGET_DIMENSIONS
       raise ArgumentError, "unknown budget dimensions: #{unknown_budget.join(', ')}" if unknown_budget.any?
+      if benign_internal
+        raise ArgumentError, "unknown benign internal kind: #{benign_internal}" unless BENIGN_INTERNAL_KINDS.include?(benign_internal)
+        unless risk == :low && (effects - %i[internal_write local_read]).empty? && effects.include?(:internal_write)
+          raise ArgumentError, "benign internal descriptors must be low risk and limited to internal_write/local_read effects"
+        end
+      end
       %i[classifier fingerprint_normalizer redactor].each do |hook|
         raise ArgumentError, "#{hook} must respond to call" unless public_send(hook).respond_to?(:call)
       end

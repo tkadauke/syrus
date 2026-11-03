@@ -51,6 +51,28 @@ module Coworkers
       ]
     end
 
+    # Explicit descriptors so each default policy is justified by classified
+    # effects (see Permissions::CoworkerDefaultPolicy), never inherited.
+    def self.coworker_descriptor(klass)
+      name = klass.tool_name
+      if WORKSPACE_TOOLS.include?(klass)
+        Permissions::CoworkerActions.descriptor(tool_name: name, family: "workspace.files", effects: %i[isolated_workspace_write],
+          risk: :low, default: :allow, maximum_autonomy: :invocation)
+      elsif klass == ReplyInChatThreadTool
+        Permissions::CoworkerActions.descriptor(tool_name: name, family: "chat.reply_owner_thread", effects: %i[internal_write],
+          risk: :low, default: :allow, benign_internal: :owner_interaction)
+      elsif klass == ManageScheduleTool
+        Permissions::CoworkerActions.descriptor(tool_name: name, family: "schedule.manage_self",
+          effects: %i[internal_write persistent_autonomy], risk: :medium, default: :ask)
+      elsif klass == SpawnChatTool
+        Permissions::CoworkerActions.descriptor(tool_name: name, family: "coworker.spawn_chat",
+          effects: %i[internal_write communication persistent_autonomy], risk: :medium, default: :ask)
+      else
+        Permissions::CoworkerActions.descriptor(tool_name: name, family: "coworker.message",
+          effects: %i[internal_write communication], risk: :medium, default: :ask)
+      end
+    end
+
     def self.available_for?(chat_session, tier:)
       Coworkers.enabled? && tier.to_sym == :deferred && !Coworkers::Chat.exists?(chat_session_id: chat_session.id)
     end
@@ -80,7 +102,8 @@ module Coworkers
               "coworker.message"
                         end,
             ungated: klass == ReplyInChatThreadTool,
-            mutation: true
+            mutation: true,
+            capability_descriptor: coworker_descriptor(klass)
           }
         end
       end

@@ -140,7 +140,9 @@ module Mcp::Tools
 
     class << self
       def call(repo:, title:, description:, server_context:, epic_id: nil, depends_on: [], depends_on_epic_ids: [], depends_on_job_ids: [], dependency_requirements: [], media: [], route_to_backlog: false, investigation: false, provider: nil, priority: "medium", planned_execution: nil, for_active_goal: false)
-        chat_session = server_context.fetch(:chat_session)
+        # Unattended coworker runs carry only a run; proposals land in the coworker's main chat.
+        chat_session = server_context[:chat_session] || McpToolContext.from_server_context(server_context).chat_session ||
+          server_context.fetch(:chat_session)
         repository = repository_for(chat_session, repo)
         title = title.to_s.strip
         description = normalize_proposal_markdown(description).strip
