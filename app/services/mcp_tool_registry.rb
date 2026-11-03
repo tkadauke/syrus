@@ -241,13 +241,13 @@ class McpToolRegistry
         legacy_chat(Mcp::Tools::MutateProviderRoutingRulesTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::ListEpicsTool),
         legacy_chat(Mcp::Tools::ReadEpicTool),
-        legacy_chat(Mcp::Tools::ApproveJobTool, mutation: true),
-        legacy_chat(Mcp::Tools::CancelJobTool, mutation: true),
-        legacy_chat(Mcp::Tools::UnlandJobTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::UnlandEpicTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::CloseJobSuccessfullyTool, mutation: true),
-        legacy_chat(Mcp::Tools::RetryJobTool, mutation: true),
-        legacy_chat(Mcp::Tools::BaseRefreshRetryJobTool, mutation: true),
+        lifecycle_chat(Mcp::Tools::ApproveJobTool, mutation: true),
+        lifecycle_chat(Mcp::Tools::CancelJobTool, mutation: true),
+        lifecycle_chat(Mcp::Tools::UnlandJobTool, tier: :deferred, mutation: true),
+        lifecycle_chat(Mcp::Tools::UnlandEpicTool, tier: :deferred, mutation: true),
+        lifecycle_chat(Mcp::Tools::CloseJobSuccessfullyTool, mutation: true),
+        lifecycle_chat(Mcp::Tools::RetryJobTool, mutation: true),
+        lifecycle_chat(Mcp::Tools::BaseRefreshRetryJobTool, mutation: true),
         legacy_chat(Mcp::Tools::SetJobPriorityTool, mutation: true),
         legacy_chat(Mcp::Tools::RepoInfoTool),
         legacy_chat(Mcp::Tools::SubmitChatFeedbackTool, mutation: true),
@@ -345,7 +345,7 @@ class McpToolRegistry
         legacy_chat(Mcp::Tools::GitStatusTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ]),
         legacy_chat(Mcp::Tools::OpenInLocalModeTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ], mutation: true),
         legacy_chat(Mcp::Tools::CancelLocalModeTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ], mutation: true),
-        legacy_chat(Mcp::Tools::CreateCodingJobTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ], mutation: true),
+        lifecycle_chat(Mcp::Tools::CreateCodingJobTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ], mutation: true),
         legacy_chat(Mcp::Tools::UpdatePinnedContextTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::RemovePinnedContextTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::ListChatsTool, tier: :deferred),
@@ -369,18 +369,18 @@ class McpToolRegistry
         legacy_chat(Mcp::Tools::CreateTagTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::AddJobTagTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::RemoveJobTagTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::RebaseJobTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::ReopenJobTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::PollJobFeedbackTool, tier: :deferred, mutation: true),
+        lifecycle_chat(Mcp::Tools::RebaseJobTool, tier: :deferred, mutation: true),
+        lifecycle_chat(Mcp::Tools::ReopenJobTool, tier: :deferred, mutation: true),
+        lifecycle_chat(Mcp::Tools::PollJobFeedbackTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::RunVisualReviewTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::CheckJobMergeabilityTool, tier: :deferred, mutation: true),
+        lifecycle_chat(Mcp::Tools::CheckJobMergeabilityTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::DelegateIssueTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::ReadPrTool, tier: :deferred),
-        legacy_chat(Mcp::Tools::UnapproveJobTool, tier: :deferred, mutation: true),
+        lifecycle_chat(Mcp::Tools::UnapproveJobTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::RemoveJobFromEpicTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::StartEpicTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::MoveEpicToBacklogTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::ArchiveEpicTool, tier: :deferred, mutation: true),
+        lifecycle_chat(Mcp::Tools::StartEpicTool, tier: :deferred, mutation: true),
+        lifecycle_chat(Mcp::Tools::MoveEpicToBacklogTool, tier: :deferred, mutation: true),
+        lifecycle_chat(Mcp::Tools::ArchiveEpicTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::UpdateEpicTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::AddEpicDependencyTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::RemoveEpicDependencyTool, tier: :deferred, mutation: true),
@@ -395,8 +395,8 @@ class McpToolRegistry
         legacy_chat(Mcp::Tools::ScheduleWakeupTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::ListWakeupsTool, tier: :deferred),
         legacy_chat(Mcp::Tools::CancelWakeupTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::PauseLandingQueueTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::ResumeLandingQueueTool, tier: :deferred, mutation: true),
+        lifecycle_chat(Mcp::Tools::PauseLandingQueueTool, tier: :deferred, mutation: true),
+        lifecycle_chat(Mcp::Tools::ResumeLandingQueueTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::ReadQueueTool, tier: :deferred, admin_only: true),
         legacy_chat(Mcp::Tools::SearchSyrusDocsTool, tier: :deferred),
         legacy_chat(Mcp::Tools::ListDeliveryTracksTool, tier: :deferred),
@@ -570,6 +570,12 @@ class McpToolRegistry
     def legacy_workflow(tool, **metadata) = workflow(tool, **metadata, compatibility_descriptor: true)
     def legacy_coworker(tool, **metadata) = coworker(tool, **metadata, compatibility_descriptor: true)
     def legacy_entry(tool, **metadata) = entry(tool, **metadata, compatibility_descriptor: true)
+
+    def lifecycle_chat(tool, **metadata)
+      roles = metadata[:required_roles].presence || AgentRole::CHAT_ROLES
+      descriptor = Permissions::JobLifecycle.descriptor_for(tool_name_for(tool), required_roles: roles)
+      chat(tool, **metadata, descriptor:)
+    end
 
     def permission_management_chat(tool, mutation: false)
       descriptor = Permissions::CapabilityDescriptorAdapter.for_registry_entry(
