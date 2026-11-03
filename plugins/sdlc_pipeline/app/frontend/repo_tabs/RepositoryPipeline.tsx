@@ -683,6 +683,7 @@ function PipelineOverview({
                 return (
                   <button
                     aria-label={label}
+                    aria-pressed={selected}
                     className={`${EVENT_MARK_CLASSES} ${
                       selected
                         ? "bg-brand text-on-brand ring-2 ring-offset-1 ring-offset-surface"
@@ -865,22 +866,24 @@ function PipelineOverview({
             ))}
           </div>
         </div>
-        <HistoryRail
-          currentTick={currentTick}
-          historical={historical}
-          historicalAt={historicalAt}
-          history={history}
-          onRangeChange={(days) => {
-            const params = new URLSearchParams(search)
-            const end = new Date(history.to)
-            params.set("range_end", end.toISOString())
-            params.set("range_start", new Date(end.getTime() - days * 86_400_000).toISOString())
-            navigate({ search: params.toString() })
-          }}
-          onSelect={setAt}
-          playing={playing}
-          setPlaying={setPlaying}
-        />
+        {embedded ? (
+          <HistoryRail
+            currentTick={currentTick}
+            historical={historical}
+            historicalAt={historicalAt}
+            history={history}
+            onRangeChange={(days) => {
+              const params = new URLSearchParams(search)
+              const end = new Date(history.to)
+              params.set("range_end", end.toISOString())
+              params.set("range_start", new Date(end.getTime() - days * 86_400_000).toISOString())
+              navigate({ search: params.toString() })
+            }}
+            onSelect={setAt}
+            playing={playing}
+            setPlaying={setPlaying}
+          />
+        ) : null}
       </div>
       {!embedded ? (
         <div className="space-y-2 py-3">

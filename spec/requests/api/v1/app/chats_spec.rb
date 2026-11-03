@@ -3242,7 +3242,9 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       expect(action.reload).to be_cancelled
       expect(job.reload).to be_implemented
-      expect(parse_body["pending_actions"]).to contain_exactly(include("id" => action.id, "state" => "cancelled"))
+      # Terminal cards retire once their durable outcome message exists.
+      expect(action.reload.outcome_message).to be_present
+      expect(parse_body["pending_actions"]).to be_empty
       expect(parse_body["attached_coding_job"]).to be_nil
     end
 
@@ -6836,6 +6838,9 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(action.confirm!).to be(true)
     document = action.reload.result
+    # Confirmed cards retire once their outcome message exists, so re-open the
+    # card to exercise the serializer's created-resource payload.
+    action.update_columns(state: "pending", confirmed_at: nil)
     get "/api/v1/app/chats/#{chat.id}"
 
     expect(parse_body["pending_actions"]).to contain_exactly(

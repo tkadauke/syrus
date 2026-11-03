@@ -425,7 +425,13 @@ class McpToolRegistry
         legacy_coworker(Mcp::Tools::AskUserQuestionTool, capability: "chat.message_owner", interactive_only: true, mutation: true, ungated: true),
         legacy_coworker(Mcp::Tools::SuggestNextStepTool, capability: "chat.message_owner", interactive_only: true, mutation: true, ungated: true),
         coworker(Mcp::Tools::DiscoverCoworkerCapabilitiesTool,
-          tier: :deferred, capability: "chat.message_owner", ungated: true),
+          tier: :deferred, capability: "chat.message_owner", ungated: true,
+          descriptor: Permissions::CapabilityDescriptorAdapter.for_registry_entry(
+            tool_name: tool_name_for(Mcp::Tools::DiscoverCoworkerCapabilitiesTool),
+            capability: "chat.message_owner",
+            mutation: false,
+            required_roles: [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]
+          )),
         legacy_coworker(Mcp::Tools::ListJobsTool, capability: "syrus.read_jobs"),
         legacy_coworker(Mcp::Tools::SearchJobsTool, capability: "syrus.read_jobs"),
         legacy_coworker(Mcp::Tools::ReadJobTool, capability: "syrus.read_jobs"),

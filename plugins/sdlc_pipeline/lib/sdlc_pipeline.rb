@@ -2,6 +2,7 @@ module SdlcPipeline
   extend Syrus::PluginApi
 
   syrus_plugin "sdlc_pipeline" do
+    capability_descriptor_compatibility chat_mcp_tool_set: "a141fbece18b215cff90c6bb771f51f009f8cbf18c1506947dca7f319630d853"
     display_name "SDLC Pipeline"
     category "collaboration"
     author "Thomas Kadauke"

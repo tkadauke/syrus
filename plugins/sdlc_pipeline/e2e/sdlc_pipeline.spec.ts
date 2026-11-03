@@ -49,6 +49,9 @@ test("SDLC Pipeline repository tab is aggregate-first and drills into a bounded 
   await page.screenshot({ path: path.join(SCREENSHOT_DIR, "pipeline-history-desktop.png"), fullPage: false })
   expect(await pipeline.getByRole("link", { name: "Job" }).count()).toBeLessThanOrEqual(5 * (await pipeline.locator("[data-stage]").count()))
   await expect(pipeline.locator('[draggable="true"]')).toHaveCount(0)
+  // Stage drill-down is only offered for the live pipeline, not historical ticks.
+  await pipeline.getByTestId("pipeline-time-rail").getByRole("button", { name: "Return to now" }).click()
+  await expect(page).not.toHaveURL(/(?:\?|&)at=/)
   const stage = pipeline.locator("[data-stage]").first()
   await stage.getByRole("button").first().click()
   await expect(page.getByRole("dialog")).toBeVisible()
@@ -62,7 +65,7 @@ test("SDLC Pipeline keeps a stage beside the time rail at 390px", async ({ page 
   await page.getByRole("link", { name: "demo/syrus-preview" }).click()
   await page.getByRole("link", { name: "Pipeline" }).click()
 
-  const pipeline = page.getByRole("region", { name: "Repository SDLC pipeline" })
+  const pipeline = page.getByRole("main", { name: "Repository SDLC pipeline" })
   const rail = pipeline.getByTestId("pipeline-time-rail")
   const stage = pipeline.locator("[data-stage]").first()
   await expect(rail).toBeVisible()
