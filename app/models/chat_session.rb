@@ -195,12 +195,14 @@ class ChatSession < ApplicationRecord
   end
 
   def user
+    return @owner_user_memo if defined?(@owner_user_memo) && @owner_user_memo
+
     owner = if chat_participants.loaded?
       chat_participants.target.find { |participant| participant.role == "owner" }
     else
       owner_participant
     end
-    owner&.user || super
+    @owner_user_memo = owner&.user || super
   end
 
   def title_pending?
@@ -240,6 +242,20 @@ class ChatSession < ApplicationRecord
 
   def repository=(repository)
     @initial_repository = repository
+    reset_repository_memo
+  end
+
+  def reload(*)
+    reset_repository_memo
+    remove_instance_variable(:@owner_user_memo) if defined?(@owner_user_memo)
+    super
+  end
+
+  # Drops the memoized effective repository; called whenever attachments
+  # change on this instance so `repository` never serves a stale answer.
+  def reset_repository_memo
+    @repository_memo = nil
+    @repository_memoized = false
   end
 
   # The most recently attached repository is the operator's current intent
@@ -249,6 +265,14 @@ class ChatSession < ApplicationRecord
   # order for context/prompt surfaces that intentionally show every
   # attached repository.
   def repository
+    return @repository_memo if @repository_memoized
+
+    @repository_memo = resolve_repository
+    @repository_memoized = true
+    @repository_memo
+  end
+
+  def resolve_repository
     if respond_to?(:coworker_workspace_repository)
       workspace_repository = coworker_workspace_repository
       return workspace_repository if workspace_repository

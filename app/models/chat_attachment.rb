@@ -10,6 +10,8 @@ class ChatAttachment < ApplicationRecord
   after_commit :broadcast_chat_media_update, on: [ :create, :destroy ], if: :document_media_attachment?
 
   before_validation :set_attached_at
+  after_save :reset_chat_session_repository_memo
+  after_destroy :reset_chat_session_repository_memo
 
   validates :attached_at, presence: true
   validates :attachable_type, inclusion: { in: ATTACHABLE_TYPES }
@@ -17,6 +19,10 @@ class ChatAttachment < ApplicationRecord
   validate :attachable_belongs_to_chat_user
 
   private
+
+  def reset_chat_session_repository_memo
+    chat_session&.reset_repository_memo
+  end
 
   def broadcast_chat_session_header_update
     return if suppress_header_broadcast

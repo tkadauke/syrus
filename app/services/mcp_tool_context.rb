@@ -55,6 +55,7 @@ class McpToolContext
 
   def self.from_chat_session(chat_session, evaluator: false, agent_actor: nil)
     coworker = coworker_actor(agent_actor) || coworker_for_chat(chat_session)
+    grant_rows = coworker ? coworker.grants.pluck(:capability, :scope) : []
     new(
       surface:                :chat,
       role:                   evaluator ? AgentRole::CHAT_EVALUATOR : role_for_chat(chat_session, coworker:),
@@ -66,8 +67,8 @@ class McpToolContext
       allowed_memory_scopes:  coworker ? %w[ global repository instance ] : %w[ global repository ],
       allowed_repository_ids: chat_session.attached_repositories.ids,
       allowed_chat_session_ids: coworker ? coworker.readable_chat_session_ids : nil,
-      granted_capabilities: coworker ? coworker.grants.pluck(:capability) : [],
-      capability_scopes: coworker ? coworker.grants.pluck(:capability, :scope).to_h : {},
+      granted_capabilities: grant_rows.map(&:first),
+      capability_scopes: grant_rows.to_h,
       interactive: interactive_turn?(chat_session),
       agent_actor: coworker
     )
