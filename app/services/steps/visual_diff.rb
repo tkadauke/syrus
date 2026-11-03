@@ -20,7 +20,16 @@ module Steps
       record_base_revision!
       before_count = baseline_entries.size
       run.update!(prompt: prompt(after_artifacts)) if run.prompt.blank?
-      run_agent(prompt: run.prompt, required_mcp_tools: %w[submit_visual_artifact])
+      begin
+        run_agent(prompt: run.prompt, required_mcp_tools: %w[submit_visual_artifact])
+      rescue CannotProceed => e
+        # Visual diff is auxiliary: failing to start the preview for baseline
+        # capture must degrade to a skipped comparison, never a blocked
+        # workflow that keeps the Job looking stuck.
+        job.clear_needs_attention!(reason: "agent_cannot_proceed")
+        skip!("Baseline capture could not run: #{e.reason}")
+        return
+      end
 
       workflow.reload
       new_baselines = baseline_entries.drop(before_count)
