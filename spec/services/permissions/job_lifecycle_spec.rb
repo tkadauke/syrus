@@ -13,6 +13,18 @@ RSpec.describe Permissions::JobLifecycle do
     end
   end
 
+  it "covers every registered landing-queue tool, preserving admin-only registration" do
+    landing = chat_entries.values.select { |entry| entry.tool_name.include?("landing") }
+
+    expect(landing.map(&:tool_name)).to include("wake_landing_queue", "pause_landing_queue", "resume_landing_queue")
+    landing.each do |entry|
+      expect(described_class).to be_covers(entry.tool_name)
+      expect(entry.descriptor.capability).to eq("syrus.landing_queue@v1")
+      expect(entry).to have_attributes(explicit_descriptor: true, compatibility_descriptor: false)
+    end
+    expect(chat_entries.fetch("wake_landing_queue").admin_only).to be(true)
+  end
+
   it "uses unique operations under the stable capability families" do
     descriptors = described_class.tool_names.map { |name| described_class.descriptor_for(name) }
 
