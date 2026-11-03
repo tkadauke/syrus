@@ -9,7 +9,7 @@ import { Select } from "./Select"
 import { Checkbox, Form, Pill, Surface } from "./ui"
 import { errorMessage } from "../lib/errorMessage"
 import { useT } from "../hooks/useT"
-import { activeConditionTypes, availableConditionTypes, conditionSummaries, pruneEmptyConditions } from "./providerRoutingConditions"
+import { activeConditionTypes, availableConditionTypes, conditionSummaries, conditionsError, pruneEmptyConditions } from "./providerRoutingConditions"
 import {
   createProviderRoutingRule,
   deleteProviderRoutingRule,
@@ -43,7 +43,7 @@ type DraftRule = {
   resumeAt: string
 }
 
-type DraftErrors = Partial<Record<"name" | "trigger" | "candidates" | "panel" | "holdReason" | "resumeAt", string>>
+type DraftErrors = Partial<Record<"name" | "trigger" | "candidates" | "panel" | "holdReason" | "resumeAt" | "conditions", string>>
 
 export type RoutingRulesPanelProps = {
   description: string
@@ -528,6 +528,11 @@ function RuleEditorModal({
         </div>
 
         <ConditionsSection conditions={currentDraft.conditions} onChange={(conditions) => onUpdate({ ...currentDraft, conditions })} options={options} t={t} />
+        {errors.conditions ? (
+          <p className="text-xs text-danger" role="alert">
+            {errors.conditions}
+          </p>
+        ) : null}
 
         {currentDraft.actionType === "route" ? (
           <div className="space-y-3">
@@ -796,7 +801,8 @@ function normalizeOptions(options?: ProviderRoutingOptions): ProviderRoutingOpti
       step_kinds: options?.triggers?.step_kinds || []
     },
     conditions: {
-      workflow_trigger_kinds: options?.conditions?.workflow_trigger_kinds || []
+      workflow_trigger_kinds: options?.conditions?.workflow_trigger_kinds || [],
+      provider_usage: options?.conditions?.provider_usage || []
     },
     action_strategies: options?.action_strategies || [],
     condition_keys: options?.condition_keys || []
@@ -865,6 +871,8 @@ function validateDraft(draft: DraftRule, options: ProviderRoutingOptions, t: (ke
     )
       errors.panel = t("provider_routing.validation_panel_members")
   }
+  const conditionsMessage = conditionsError(draft.conditions, t)
+  if (conditionsMessage) errors.conditions = conditionsMessage
   if (draft.actionType === "hold" && !draft.holdReason.trim()) errors.holdReason = t("provider_routing.validation_hold_reason")
   if (draft.actionType === "hold" && draft.resumptionMode === "until_time" && !draft.resumeAt) errors.resumeAt = t("provider_routing.validation_resume_time")
   return errors

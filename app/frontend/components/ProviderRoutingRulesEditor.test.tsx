@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import type { FormEvent } from "react"
 import { describe, expect, it, vi } from "vitest"
 import { ProviderRoutingRulesEditor, RoutingRulesPanel } from "./ProviderRoutingRulesEditor"
+import { setUsageComparison, usageHint } from "./providerRoutingConditions"
 import type { ProviderRoutingInheritedContext, ProviderRoutingOptions, ProviderRoutingRule, ProviderRoutingRuleInput } from "../api/providerRoutingRules"
 
 const options: ProviderRoutingOptions = {
@@ -27,7 +28,8 @@ const options: ProviderRoutingOptions = {
     workflow_trigger_kinds: [
       { value: "initial", label: "Initial" },
       { value: "ci_failure", label: "CI failure" }
-    ]
+    ],
+    provider_usage: [{ provider: "codex", state: "available", remaining_percent: 20, observed_at: "2026-11-02T12:00:00Z" }]
   },
   action_strategies: [
     { value: "fallback_order", label: "Fallback order" },
@@ -269,7 +271,7 @@ describe("ProviderRoutingRulesEditor", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Add condition" }))
     expect(within(dialog).queryByText(/budget/i)).not.toBeInTheDocument()
     fireEvent.click(within(dialog).getByRole("button", { name: "Workflow trigger" }))
-    expect(within(dialog).queryByRole("button", { name: "Add condition" })).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole("button", { name: "Workflow trigger" })).not.toBeInTheDocument()
 
     fireEvent.change(within(dialog).getByLabelText("Search triggers"), { target: { value: "ci" } })
     expect(within(dialog).queryByLabelText("Initial")).not.toBeInTheDocument()
@@ -289,6 +291,79 @@ describe("ProviderRoutingRulesEditor", () => {
     expect(within(again).getByText("Always applies.")).toBeInTheDocument()
   })
 
+  it.each([
+    ["remaining_percent_less_than", "less than"],
+    ["remaining_percent_less_than_or_equal_to", "at most"],
+    ["remaining_percent_greater_than", "more than"],
+    ["remaining_percent_greater_than_or_equal_to", "at least"]
+  ])("round-trips the usage card through stored JSON for %s", async (key, label) => {
+    const onCreateRule = vi.fn()
+    renderPanel({ onCreateRule, rules: [] })
+
+    fireEvent.click(screen.getByRole("button", { name: "New rule" }))
+    const dialog = screen.getByRole("dialog", { name: "New routing rule" })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add condition" }))
+    fireEvent.click(within(dialog).getByRole("button", { name: "Provider usage" }))
+    fireEvent.change(within(dialog).getByLabelText("Usage provider"), { target: { value: "codex" } })
+    fireEvent.change(within(dialog).getByLabelText("Comparator"), { target: { value: key } })
+    expect(within(dialog).getByRole("option", { name: label })).toBeInTheDocument()
+    fireEvent.change(within(dialog).getByLabelText("Percent left"), { target: { value: "40" } })
+    fireEvent.change(within(dialog).getByLabelText(/Rule name/), { target: { value: "R" } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create rule" }))
+
+    await waitFor(() => expect(onCreateRule).toHaveBeenCalledWith(expect.objectContaining({ conditions: { usage: { provider: "codex", [key]: 40 } } })))
+  })
+
+  it("stores provider states from the More disclosure and keeps them on save", async () => {
+    const onUpdateRule = vi.fn()
+    const rule: ProviderRoutingRule = { ...rules[0], conditions: { usage: { provider: "codex", remaining_percent_less_than: 25 } } }
+    renderPanel({ onUpdateRule, rules: [rule] })
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
+    fireEvent.click(within(dialog).getByRole("button", { name: "More" }))
+    fireEvent.click(within(dialog).getByRole("button", { name: "Rate limited" }))
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save rule" }))
+
+    await waitFor(() =>
+      expect(onUpdateRule).toHaveBeenCalledWith(
+        rule,
+        expect.objectContaining({ conditions: { usage: { provider: "codex", states: ["rate_limited"], remaining_percent_less_than: 25 } } })
+      )
+    )
+  })
+
+  it("rejects usage percents outside 0-100 and blocks saving", () => {
+    const onUpdateRule = vi.fn()
+    const rule: ProviderRoutingRule = { ...rules[0], conditions: { usage: { provider: "codex", remaining_percent_less_than: 25 } } }
+    renderPanel({ onUpdateRule, rules: [rule] })
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
+    fireEvent.change(within(dialog).getByLabelText("Percent left"), { target: { value: "150" } })
+    expect(within(dialog).getByText("Enter a percent from 0 to 100.")).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save rule" }))
+    expect(onUpdateRule).not.toHaveBeenCalled()
+  })
+
+  it("summarizes the usage condition in the rule list and shows the live hint in the card", () => {
+    const rule: ProviderRoutingRule = { ...rules[0], conditions: { usage: { provider: "codex", remaining_percent_less_than: 25 } } }
+    renderPanel({ rules: [rule] })
+
+    expect(screen.getByText("Codex < 25% left")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    expect(within(screen.getByRole("dialog", { name: "Edit routing rule" })).getByText("Codex: 20% left now - matches")).toBeInTheDocument()
+  })
+
+  it("builds usage hints for matching, non-matching, and unread providers", () => {
+    const t = (key: string, vars?: Record<string, unknown>) => `${key}:${JSON.stringify(vars)}`
+    expect(usageHint({ provider: "codex", remaining_percent_greater_than: 50 }, options, t)).toContain("hint_no_match")
+    expect(usageHint({ provider: "codex", remaining_percent_less_than: 25, states: ["exhausted"] }, options, t)).toContain("hint_no_match")
+    expect(usageHint({ provider: "claude", remaining_percent_less_than: 25 }, options, t)).toContain("hint_unknown")
+    expect(usageHint({ remaining_percent_less_than: 25 }, options, t)).toBeNull()
+    expect(setUsageComparison({ provider: "codex", remaining_percent_less_than: 1 }, "remaining_percent_greater_than", "")).toEqual({ provider: "codex" })
+  })
+
   it("summarizes conditions tersely and collapses unknown ones", () => {
     const withUnknown: ProviderRoutingRule = {
       ...rules[0],
@@ -297,7 +372,7 @@ describe("ProviderRoutingRulesEditor", () => {
     renderPanel({ rules: [withUnknown] })
 
     expect(screen.getByText("Workflow: Initial, CI failure")).toBeInTheDocument()
-    expect(screen.getByText("+2 other")).toBeInTheDocument()
+    expect(screen.getByText("+1 other")).toBeInTheDocument()
     expect(screen.queryByText("usage")).not.toBeInTheDocument()
     expect(screen.queryByText("budget")).not.toBeInTheDocument()
   })
