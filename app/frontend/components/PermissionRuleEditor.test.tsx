@@ -219,4 +219,30 @@ describe("PermissionRuleEditor", () => {
     expect(await screen.findByLabelText("Applies to")).toBeInTheDocument()
     expect(calls.some((call) => call.path.includes("/options?capability=mail%40v1&operation=mail%2Fsend%40v1"))).toBe(true)
   })
+
+  it("clears hidden constraints when switching to permanent authority", async () => {
+    const { calls } = setup(
+      {
+        kind: "fields",
+        fields: {
+          capability: "mail@v1",
+          operation: "mail/send@v1",
+          subject_selector_type: "interactive_chat",
+          duration: "chat_session",
+          chat_session_id: "5",
+          constraints: { recipient: "a@b.c" }
+        }
+      },
+      standard
+    )
+    expect(await screen.findByLabelText("recipient")).toHaveValue("a@b.c")
+
+    fireEvent.change(screen.getByLabelText("Duration"), { target: { value: "permanent" } })
+    fireEvent.click(screen.getByRole("button", { name: "Review rule" }))
+
+    await waitFor(() => expect(calls.some((call) => call.path.endsWith("/preview"))).toBe(true))
+    const body = calls.find((call) => call.path.endsWith("/preview"))!.body as { draft: Record<string, unknown> }
+    expect(body.draft.constraints).toEqual({})
+    expect(body.draft.duration).toBe("permanent")
+  })
 })
