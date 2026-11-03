@@ -3,7 +3,8 @@ require "rails_helper"
 # Regression guard for query amplification in the pending-action confirmation
 # job (a single coworker tool-call confirmation once issued ~100 statements).
 RSpec.describe ChatPendingActionConfirmationJob, "query budget" do
-  SQL_BUDGET = 60
+  # The acceptance bar is strictly below 50 statements.
+  SQL_BUDGET = 49
 
   include ActiveJob::TestHelper
 
@@ -31,6 +32,16 @@ RSpec.describe ChatPendingActionConfirmationJob, "query budget" do
     Class.new do
       def self.call(**) = MCP::Tool::Response.new([ { type: "text", text: "ok" } ])
     end
+  end
+
+  # Production caches plugin enablement for a TTL; the test default re-reads it
+  # on every provider lookup, which would inflate the count.
+  around do |example|
+    previous = Thread.current[:syrus_plugin_record_cache_ttl]
+    Thread.current[:syrus_plugin_record_cache_ttl] = 60
+    example.run
+  ensure
+    Thread.current[:syrus_plugin_record_cache_ttl] = previous
   end
 
   before do

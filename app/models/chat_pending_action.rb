@@ -301,13 +301,20 @@ class ChatPendingAction < ApplicationRecord
   def lock!(*)
     preserved = %i[chat_session user origin subject].filter_map do |name|
       assoc = association(name)
-      [ name, assoc.target ] if assoc.loaded? && assoc.target
+      [ name, assoc.target ] if assoc.loaded?
     end
     super.tap do
       preserved.each do |name, target|
         assoc = association(name)
-        same_record = target.id == public_send(assoc.reflection.foreign_key) &&
-          (!assoc.reflection.polymorphic? || target.class.polymorphic_name == public_send(assoc.reflection.foreign_type))
+        reflection = assoc.reflection
+        same_record = if !reflection.belongs_to?
+          target.nil? || target.public_send(reflection.foreign_key) == id
+        elsif target.nil?
+          public_send(reflection.foreign_key).nil?
+        else
+          target.id == public_send(reflection.foreign_key) &&
+            (!reflection.polymorphic? || target.class.polymorphic_name == public_send(reflection.foreign_type))
+        end
         assoc.target = target if same_record
       end
     end
@@ -909,8 +916,10 @@ class ChatPendingAction < ApplicationRecord
   def broadcast_pending_action_updated
     return unless chat_session
 
+    # user_matches_chat_session guarantees this is the session's owner, so we
+    # avoid resolving the owner through chat participants again.
     AppEvents.broadcast(
-      user: chat_session.user,
+      user: user || chat_session.user,
       type: "updated",
       resource: "chat",
       id: chat_session_id,
