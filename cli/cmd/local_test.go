@@ -599,7 +599,12 @@ func TestLocalConnectAndServeSendsConnectWithRepoAndBranch(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), "api-token", t.TempDir(), "acme/widget", "feat-branch", 42, "tok-abc") //nolint:errcheck
+	root := canonicalTempDir(t)
+	localConnectAndServe(ctx, &strings.Builder{}, wsURL(t, srv), "api-token", root, "acme/widget", "feat-branch", 42, "tok-abc") //nolint:errcheck
+
+	if gotConnect["workspace_root"] != root {
+		t.Fatalf("workspace_root = %v, want %v", gotConnect["workspace_root"], root)
+	}
 
 	if gotConnect["type"] != "connect" {
 		t.Fatalf("type = %v", gotConnect["type"])

@@ -381,9 +381,10 @@ func localConnectAndServe(ctx context.Context, out io.Writer, wsURL, apiToken, r
 	// LocalTunnelChannel#receive's "connect" case, which expects "repo" and
 	// "branch" fields and replies with a "connected" frame.
 	connectData, err := json.Marshal(map[string]string{
-		"type":   "connect",
-		"repo":   repoSlug,
-		"branch": branch,
+		"type":           "connect",
+		"repo":           repoSlug,
+		"branch":         branch,
+		"workspace_root": localWorkspaceRoot(repoRoot),
 	})
 	if err != nil {
 		return err
@@ -677,6 +678,21 @@ func executeLocalToolCall(ctx context.Context, repoRoot string, call localToolCa
 	default:
 		return map[string]any{"error": fmt.Sprintf("unknown tool %q", call.Tool)}
 	}
+}
+
+// localWorkspaceRoot is the stable identity of the checkout the daemon serves:
+// the absolute repository root with symlinks resolved. The server binds
+// command and file-write authority to it, so two checkouts of the same
+// repository never share approvals.
+func localWorkspaceRoot(repoRoot string) string {
+	abs, err := filepath.Abs(repoRoot)
+	if err != nil {
+		return repoRoot
+	}
+	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
+		return resolved
+	}
+	return abs
 }
 
 // resolveLocalPath resolves a (possibly relative) path against repoRoot and

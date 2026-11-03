@@ -32,6 +32,10 @@ RSpec.describe "Local Mode MCP tools" do
     allow(call).to receive(:error).and_return(error)
   end
 
+  def grant_session_authority(tool_name, arguments)
+    Permissions::LocalModeAuthorization.grant_after_confirmation(chat_session: chat_session, tool_name: tool_name, arguments: arguments)
+  end
+
   shared_examples "disconnected daemon" do |tool_name, arguments = {}|
     it "returns an error when no daemon session exists" do
       server = server_with(described_class)
@@ -221,13 +225,45 @@ RSpec.describe "Local Mode MCP tools" do
         .and change(LocalToolCall, :count).by(0)
     end
 
-    it "propagates daemon-side errors" do
-      chat_session.pending_actions.create!(
-        action: "local_tool_call",
-        payload: { "tool_name" => "run_command", "arguments" => { "command" => "bad-cmd" } },
-        state: "confirmed",
-        confirmed_at: Time.current
+    it "covers a session repeat only when the confirmed call was plain, and records a revocable lease" do
+      daemon_session
+      allow_any_instance_of(LocalToolCall).to receive(:wait_for_result).and_return({ exit_code: 0, output: "ok" })
+      server = server_with(described_class)
+      call_tool(server, "run_command", { command: "rm -rf tmp/cache" })
+      ChatPendingAction.last.confirm!(user: user)
+      expect(PermissionLease.count).to eq(0)
+
+      call_tool(server, "run_command", { command: "bin/test" })
+      action = ChatPendingAction.last
+      action.confirm!(user: user)
+      lease = PermissionLease.last
+      expect(lease).to have_attributes(chat_session_id: chat_session.id, source: action, capability: "syrus.local_mode@v1")
+
+      lease.revoke!(actor: user)
+      expect {
+        response = call_tool(server, "run_command", { command: "bin/test" })
+        expect(JSON.parse(response.dig(:result, :content, 0, :text))).to include("state" => "pending")
+      }.to change(ChatPendingAction, :count).by(1)
+    end
+
+    it "does not ask or dispatch when a deny rule applies" do
+      daemon_session
+      Permissions::Management.new(user).deny!(
+        { "capability" => "syrus.local_mode@v1", "operation" => "syrus.local_mode/run_command@v1",
+          "role" => AgentRole::CHAT_LOCAL, "subject_selector_type" => "local_chat" },
+        actor: user
       )
+      server = server_with(described_class)
+
+      expect {
+        response = call_tool(server, "run_command", { command: "bin/test" })
+        expect(response.dig(:result, :isError)).to be(true)
+        expect(response.dig(:result, :content, 0, :text)).to include("denied")
+      }.to change(ChatPendingAction, :count).by(0).and change(LocalToolCall, :count).by(0)
+    end
+
+    it "propagates daemon-side errors" do
+      grant_session_authority("run_command", { command: "bad-cmd" })
       stub_dispatch("run_command", { command: "bad-cmd" }, error: "command not found")
       allow(chat_session).to receive(:local_daemon_session).and_return(daemon_session)
       server = server_with(described_class)
@@ -239,12 +275,7 @@ RSpec.describe "Local Mode MCP tools" do
     end
 
     it "treats daemon error payloads as tool errors" do
-      chat_session.pending_actions.create!(
-        action: "local_tool_call",
-        payload: { "tool_name" => "run_command", "arguments" => { "command" => "bad-cmd" } },
-        state: "confirmed",
-        confirmed_at: Time.current
-      )
+      grant_session_authority("run_command", { command: "bad-cmd" })
       stub_dispatch("run_command", { command: "bad-cmd" }, result: { error: "command not found" })
       allow(chat_session).to receive(:local_daemon_session).and_return(daemon_session)
       server = server_with(described_class)

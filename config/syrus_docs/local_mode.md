@@ -83,10 +83,16 @@ Reads are immediate: `read_file`, `list_files`, `git_diff`, `git_diff_staged`,
 and `git_status` go straight to the paired daemon. Writes and command
 execution are gated in chat: `write_file` and `run_command` create a pending
 action and do not reach the local daemon until the operator confirms it.
-Confirming the action also approves that exact tool payload for the same chat
-session, so repeating the same test command does not require another click.
-The approval is not shared with other chats, and rejecting the pending action
-does not grant approval.
+Confirming a plain call also grants a chat-session permission lease
+(`syrus.local_mode@v1`) for that exact normalized command (or path and file
+content digest) in the paired checkout (identified by its repository and absolute root, so another checkout of the same repository needs its own confirmation), so repeating the same test command
+does not require another click. The lease is not shared with other chats or
+workspaces, appears under Permissions with the confirming action as its source,
+and can be revoked there; rejecting the pending action grants nothing. Calls
+that use the network, touch credentials or secrets, are destructive, or need
+elevated privileges are classified as such and always ask again: confirming
+them covers only that one invocation. A deny rule for the capability blocks the
+call without asking.
 
 ## Limitations
 

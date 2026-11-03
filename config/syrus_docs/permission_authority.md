@@ -156,3 +156,38 @@ invalidates queued work, and retries cannot replay an already claimed call.
 Only tools explicitly classified as safe, ungated local operations bypass this
 flow. Other runtime roles continue to use shadow comparison rather than this
 enforcement cutover.
+
+## Job and Epic lifecycle capabilities
+
+Core Job and Epic lifecycle tools use stable, explicit capabilities instead of compatibility descriptors:
+
+- `syrus.jobs@v1`: `create`, `approve`, `unapprove`, `cancel`, `retry`, `retry_base_refresh`, `poll_feedback`, `rebase`, `reopen`, `close`, `check_mergeability`, `unland`.
+- `syrus.epics@v1`: `start`, `move_to_backlog`, `archive`, `unland`.
+- `syrus.landing_queue@v1`: `pause`, `resume`, `wake`, `force_recheck`, `override_blocker_once`.
+
+A single-Job call and a bulk call (`job_id` versus `job_ids`) share one operation and are classified and fingerprinted identically, so approving one Job or many evaluates the same way. Proposals (`propose_job`, `propose_epic`, `propose_epic_with_jobs`) remain a separate lifecycle and are not part of these capabilities. All of these default to `ask`.
+
+## Admin repair, operations, and delivery capabilities
+
+Consequential admin repair, operational, and delivery chat tools also use explicit capabilities:
+
+- `syrus.admin_repair@v1`: state repair such as `force_fail_job`, `reconcile_job_state`, `force_state_transition`, `cancel_stale_work`, `retire_terminal_work_unit`, `reenqueue_work`, `repair_queue_affinity`, `retry_step`, `cleanup_workspace`, `reap_stale_runs`, `kill_process`, `manual_agentic_run`, `force_rebase`, `restack_epic`, PR-branch adoption/replacement, CI repair, and provider-circuit repair.
+- `syrus.operations@v1`: `maintenance_tasks`, polling/run/user-scheduling pause and unpause, `clear_github_cache`, `refresh_installations`.
+- `syrus.delivery@v1`: `select_track`, `dispatch_ref_movement`, `emergency_land`.
+
+The evaluator decides whether the invocation may proceed. It does not replace the tool-specific checks: preconditions, before/after repair snapshots, and fresh validation of the live record at execution time stay in the tools and their pending-action executors. Every operation is capped at exact-invocation authority (no chat-session, Job, or permanent lease) and defaults to `ask`. `emergency_land` is classified critical, destructive, and irreversible.
+
+## Schedule, communication, document, and artifact capabilities
+
+Core chat tools whose effects persist or leave the conversation use explicit capabilities:
+
+- `syrus.schedules@v1`: `schedule_wakeup` (persistent autonomy, `ask`) and `cancel_wakeup` (own pending wakeup, `allow`).
+- `syrus.communication@v1`: `send_chat_message` (`ask`, up to chat-session authority) and `spawn_chats` (`ask`, exact invocation only).
+- `syrus.documents@v1`: `create` (`ask`) and `delete` (destructive, `ask`, exact invocation only) for repository documents.
+- `syrus.artifacts@v1`: `submit`, a low-risk edit of an artifact the caller owns, which stays automatic (`allow`).
+
+Repository-document create and delete keep their pending-action lifecycle and re-validate the live record when the approved action runs; bridge threads keep their hop limits. The evaluator only decides whether the invocation may proceed.
+
+## Local Mode capabilities
+
+`run_command` and `write_file` in Local Mode use `syrus.local_mode@v1` (`run_command`, `write_file`), defaulting to `ask` for the `chat:local` role with invocation or chat-session authority at most. The resource scope is the workspace the daemon is attached to: the repository plus the normalized absolute checkout root the CLI reports at connect time, so two checkouts of one repository never share authority (a daemon that reports no root is scoped to its connection); the fingerprint and lease constraints use the normalized command, or the root-relative path plus the content digest. The classifier adds `network_read`, `external_write`, `credential_use`, `destructive`, or `privilege_change` from the arguments. Leases only cover plain `operator_host_access`, so those calls ask every time. The daemon keeps enforcing the repository-root sandbox.

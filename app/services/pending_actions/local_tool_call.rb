@@ -27,6 +27,7 @@ module PendingActions
       )
       raise ArgumentError, response.content.first[:text].to_s if response.error?
 
+      grant_session_authority
       nil
     end
 
@@ -53,6 +54,18 @@ module PendingActions
     end
 
     private
+
+    # Confirming also covers the same normalized call for the rest of this chat
+    # session, unless the request asked for exact-invocation authority only or
+    # the call has effects a session lease may not cover.
+    def grant_session_authority
+      Permissions::LocalModeAuthorization.grant_after_confirmation(
+        chat_session:, tool_name: payload.fetch("tool_name"), arguments:, source: @action,
+        duration: payload["authority_duration"].presence || :chat_session
+      )
+    rescue ArgumentError, ActiveRecord::RecordInvalid => error
+      Rails.logger.warn("Local Mode session authority not granted: #{error.message}")
+    end
 
     def arguments
       payload["arguments"].to_h

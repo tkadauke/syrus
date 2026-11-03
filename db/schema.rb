@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_02_222846) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_03_083102) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2119,6 +2119,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_02_222846) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "connection_id"
+    t.string "daemon_workspace_root"
     t.index ["auth_token"], name: "index_local_daemon_sessions_on_auth_token", unique: true
     t.index ["chat_session_id"], name: "index_local_daemon_sessions_on_chat_session_id"
     t.index ["user_id"], name: "index_local_daemon_sessions_on_user_id"
