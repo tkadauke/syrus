@@ -156,4 +156,31 @@ RSpec.describe PendingActions::CoworkerToolCall do
 
     expect { command.execute }.to raise_error(ArgumentError, /originating conversation/)
   end
+
+  it "delivers the result to the originating chat on confirmation and wakes the turn" do
+    approve_request!(request)
+    allow(ChatTurnJob).to receive(:perform_later)
+
+    request.reload.execute_confirmation!(raise_on_error: true)
+
+    request.reload
+    expect(request).to be_confirmed
+    message = chat.messages.find_by!(role: "system")
+    expect(message.content["source"]).to eq(ChatPendingActionOutcomeNotification::SOURCE)
+    expect(message.content["pending_action_id"]).to eq(request.id)
+    expect(message.content["text"]).to include("Result:").and include("customers")
+    expect(ChatTurnJob).to have_received(:perform_later).with(chat.id, message.id)
+  end
+
+  it "surfaces a failed outcome in the chat when the tool returns nothing" do
+    approve_request!(request)
+    allow(ChatTurnJob).to receive(:perform_later)
+    allow(tool).to receive(:call).and_return(MCP::Tool::Response.new([ { type: "text", text: "" } ]))
+
+    request.reload.execute_confirmation!
+
+    expect(request.reload).to be_failed
+    text = chat.messages.find_by!(role: "system").content["text"]
+    expect(text).to include("Pending action failed").and include("no result to deliver")
+  end
 end
