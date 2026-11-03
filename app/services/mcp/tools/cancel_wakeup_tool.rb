@@ -2,6 +2,8 @@ require "mcp"
 
 module Mcp::Tools
   class CancelWakeupTool < MCP::Tool
+    extend AuthorizationSupport
+    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
     tool_name "cancel_wakeup"
 
     description <<~DESC

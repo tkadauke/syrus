@@ -4,6 +4,8 @@ module Mcp::Tools
   class DeleteRepoDocumentTool < MCP::Tool
     extend ProposalToolSupport
     extend PendingActionToolSupport
+    extend AuthorizationSupport
+    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
 
     tool_name "delete_repo_document"
 

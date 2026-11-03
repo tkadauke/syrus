@@ -6,6 +6,8 @@ module Mcp::Tools
   # in ChatSession#artifacts instead of a workflow Run's Workflow. Same
   # idempotency (replace-on-type-match) and validation as the workflow tool.
   class SubmitArtifactTool < MCP::Tool
+    extend AuthorizationSupport
+    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
     tool_name "submit_artifact"
 
     description <<~DESC
