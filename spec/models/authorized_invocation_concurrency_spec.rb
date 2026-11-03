@@ -8,6 +8,9 @@ RSpec.describe AuthorizedInvocation, :ci_only do
       authorization-decision-race@example.com
       authorized-invocation-race@example.com
     ]).destroy_all
+    # The claim/revocation example uses a randomized address; leaving its
+    # authorization request behind skews counts in unrelated specs.
+    User.where("email_address LIKE ?", "authorized-invocation-claim-revocation-race-%@example.com").destroy_all
     ActiveRecord::Base.connection_handler.clear_all_connections!
   end
 
