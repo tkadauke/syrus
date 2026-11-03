@@ -62,6 +62,7 @@ RSpec.describe Permissions::ScheduledAuthorization, :ci_only do
 
     expect(result.status).to eq(:policy_denied)
     expect(result.request).to be_nil
-    expect(ChatPendingAction.where(request_kind: "authorization_request")).to be_empty
+    # Scope to this example's user: other ci_only examples can leave committed rows behind.
+    expect(ChatPendingAction.where(user:, request_kind: "authorization_request")).to be_empty
   end
 end

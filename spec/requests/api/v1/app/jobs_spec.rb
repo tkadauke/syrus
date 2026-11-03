@@ -888,7 +888,8 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("job", "runs_count")).to eq(job.runs.count)
-    broad_run_loads = queries.grep(/SELECT\s+["`]?runs["`]?\.\*/i)
+    # Provider availability legitimately runs a bounded ranked usage-limit lookup.
+    broad_run_loads = queries.grep(/SELECT\s+["`]?runs["`]?\.\*/i).grep_v(/ranked_runs|provider_rank/)
     expect(broad_run_loads).to be_empty
   end
 

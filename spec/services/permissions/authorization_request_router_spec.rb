@@ -95,7 +95,7 @@ RSpec.describe Permissions::AuthorizationRequestRouter, :ci_only do
     expect(result.status).to eq(:request_cap)
     expect(result.request).to be_nil
     expect(result).to be_continue_ungated
-    expect(ChatPendingAction.where(request_kind: "authorization_request").count).to eq(2)
+    expect(ChatPendingAction.where(user:, request_kind: "authorization_request").count).to eq(2)
   end
 
   it "does not apply another repository's active-request cap" do
