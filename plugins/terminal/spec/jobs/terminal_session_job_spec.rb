@@ -57,4 +57,17 @@ RSpec.describe TerminalSessionJob, type: :job do
     expect(session.outcome).to eq("exited")
     expect(session.relay_started_at).to be_nil
   end
+
+  it "does not overwrite the outcome of a session killed after the initial check" do
+    session = terminal_session(working_directory: "/nonexistent/terminal/workspace")
+    allow(Terminal::Session).to receive(:find).with(session.id).and_return(session)
+    allow(session).to receive(:finished?) do
+      Terminal::Session.where(id: session.id).update_all(finished_at: Time.current, outcome: "killed")
+      false
+    end
+
+    described_class.perform_now(session.id)
+
+    expect(Terminal::Session.find_by(id: session.id).outcome).to eq("killed")
+  end
 end

@@ -8,7 +8,9 @@ class TerminalSessionJob < ApplicationJob
     # The working directory (e.g. a cleaned-up workflow workspace) can vanish
     # before the relay starts; PTY.spawn would raise Errno::ENOENT on chdir.
     unless Dir.exist?(session.working_directory.to_s)
-      session.update!(finished_at: Time.current, outcome: "exited")
+      # Conditional update so a concurrent kill/reap keeps its own outcome.
+      Terminal::Session.where(id: session.id, finished_at: nil)
+                       .update_all(finished_at: Time.current, outcome: "exited")
       return
     end
 
