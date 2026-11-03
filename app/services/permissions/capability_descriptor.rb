@@ -15,17 +15,20 @@ module Permissions
     AUTONOMY_CEILINGS = %i[none invocation chat_session job permanent].freeze
     AUTHORITY_DURATIONS = %i[invocation chat_session job permanent].freeze
 
+    # Argument types a descriptor may expose as durable-authority constraints.
+    CONSTRAINT_TYPES = %i[string integer boolean].freeze
+
     ResourceScope = ResourceScopeSchema
 
     attr_reader :capability, :operation, :effects, :risk, :requestable_roles,
       :defaults, :maximum_autonomy, :authority_durations, :maximum_duration,
       :resource_scope, :classifier, :fingerprint_normalizer, :redactor, :presets,
-      :capability_aliases, :operation_aliases
+      :capability_aliases, :operation_aliases, :constraint_fields
 
     def initialize(capability:, operation:, effects:, risk:, requestable_roles:, defaults:,
       maximum_autonomy:, authority_durations:, resource_scope:, classifier:,
       fingerprint_normalizer:, redactor:, maximum_duration: nil, presets: [],
-      capability_aliases: [], operation_aliases: [])
+      capability_aliases: [], operation_aliases: [], constraint_fields: {})
       @capability = versioned_identifier(capability, :capability)
       @operation = versioned_identifier(operation, :operation)
       @effects = Array(effects).map(&:to_sym).uniq.freeze
@@ -40,6 +43,7 @@ module Permissions
       @fingerprint_normalizer = fingerprint_normalizer
       @redactor = redactor
       @presets = Array(presets).freeze
+      @constraint_fields = constraint_fields.to_h.to_h { |name, type| [ name.to_s.freeze, type.to_sym ] }.freeze
       @capability_aliases = aliases(capability_aliases, :capability_aliases)
       @operation_aliases = aliases(operation_aliases, :operation_aliases)
       validate!
@@ -56,7 +60,7 @@ module Permissions
         capability, effects.sort, risk, maximum_autonomy, authority_durations.sort,
         maximum_duration, resource_scope.type, resource_scope.options,
         requestable_roles.sort, defaults.sort, presets,
-        capability_aliases.sort, operation_aliases.sort
+        capability_aliases.sort, operation_aliases.sort, constraint_fields.sort
       ]
     end
 
@@ -77,7 +81,8 @@ module Permissions
         redactor: redactor,
         presets: presets,
         capability_aliases: capability_aliases,
-        operation_aliases: operation_aliases
+        operation_aliases: operation_aliases,
+        constraint_fields: constraint_fields
       }
     end
 
@@ -110,6 +115,10 @@ module Permissions
       raise ArgumentError, "missing role defaults: #{missing_defaults.join(', ')}" if missing_defaults.any?
       raise ArgumentError, "capability aliases must not include the canonical identifier" if capability_aliases.include?(capability)
       raise ArgumentError, "operation aliases must not include the canonical identifier" if operation_aliases.include?(operation)
+      unknown_constraints = constraint_fields.reject { |_name, type| CONSTRAINT_TYPES.include?(type) }
+      raise ArgumentError, "unknown constraint field types: #{unknown_constraints.keys.join(', ')}" if unknown_constraints.any?
+      sensitive = constraint_fields.keys.grep(ToolPayloadRedactor::SENSITIVE_KEY)
+      raise ArgumentError, "constraint fields must not expose secrets: #{sensitive.join(', ')}" if sensitive.any?
       %i[classifier fingerprint_normalizer redactor].each do |hook|
         raise ArgumentError, "#{hook} must respond to call" unless public_send(hook).respond_to?(:call)
       end

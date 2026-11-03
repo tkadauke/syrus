@@ -302,6 +302,10 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | DELETE | `/api/v1/app/permission_requests/:id` | `api/v1/app/permission_requests#dismiss` |
 | core | POST | `/api/v1/app/permission_requests/:id/decide` | `api/v1/app/permission_requests#decide` |
 | core | POST | `/api/v1/app/permission_requests/batch_decide` | `api/v1/app/permission_requests#batch_decide` |
+| core | POST | `/api/v1/app/permission_rule_drafts/apply` | `api/v1/app/permission_rule_drafts#apply` |
+| core | POST | `/api/v1/app/permission_rule_drafts/from_request` | `api/v1/app/permission_rule_drafts#from_request` |
+| core | GET | `/api/v1/app/permission_rule_drafts/options` | `api/v1/app/permission_rule_drafts#options` |
+| core | POST | `/api/v1/app/permission_rule_drafts/preview` | `api/v1/app/permission_rule_drafts#preview` |
 | core | GET | `/api/v1/app/permission_rules` | `api/v1/app/permission_rules#index` |
 | core | POST | `/api/v1/app/permission_rules` | `api/v1/app/permission_rules#create` |
 | core | PATCH | `/api/v1/app/permission_rules/:id` | `api/v1/app/permission_rules#update` |

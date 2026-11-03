@@ -43,6 +43,15 @@ RSpec.describe Permissions::CapabilityDescriptor do
     expect(first.contract_key).to eq(second.contract_key)
   end
 
+  it "defaults to no constraint fields and includes them in the contract" do
+    plain = described_class.new(**attributes)
+    constrained = described_class.new(**attributes.merge(constraint_fields: { branch: "string" }))
+
+    expect(plain.constraint_fields).to eq({})
+    expect(constrained.constraint_fields).to eq("branch" => :string)
+    expect(constrained.contract_key).not_to eq(plain.contract_key)
+  end
+
   it "requires versioned capability and operation identifiers" do
     expect { described_class.new(**attributes.merge(capability: "mysql.data")) }
       .to raise_error(ArgumentError, /versioned identifier/)
