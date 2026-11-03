@@ -31,7 +31,6 @@ module UnifiedEffectCoverage
 end
 
 RSpec.describe "Unified consequential-effect coverage" do
-
   def self.effects = UnifiedEffectCoverage.effects
 
   let(:user) { Factories.user }
