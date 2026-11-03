@@ -89,3 +89,37 @@ RSpec.describe "Permissions fresh authentication and budget hooks" do
     end
   end
 end
+
+RSpec.describe Permissions::ExecutionAuthorization, "budget metadata" do
+  after { Permissions::EffectMetadata.reset! }
+
+  def host(command)
+    request = Execution::Request.new(**Execution::Request.members.index_with { nil }, command:, network: "agent", env: {})
+    Permissions::ExecutionActions.subject_for_request(request, location: :host)
+  end
+
+  it "reports the effective policy after downgrades, not the evaluator's" do
+    seen = []
+    Permissions::EffectMetadata.register(:meter) { |record| seen << record.policy }
+
+    result = described_class.authorize(subject: host([ "sudo rm -rf /tmp/x" ]), role: AgentRole::WORKFLOW_IMPLEMENT)
+
+    expect(result.decision.policy).to eq(:allow)
+    expect(result.policy).to eq(:ask)
+    expect(seen).to eq([ :ask ])
+  end
+
+  it "does not notify observers when a ceiling denies the invocation" do
+    seen = []
+    Permissions::EffectMetadata.register(:meter) { |record| seen << record }
+    ceiling = Permissions::ExecutionCeiling.new([ Class.new(Permissions::ExecutionCeiling::Limit) do
+      def initialize = super(source: :confinement, reason: :test)
+      def cap(*) = :deny
+    end.new ])
+
+    result = described_class.authorize(subject: host(%w[ls]), role: AgentRole::WORKFLOW_IMPLEMENT, ceiling:)
+
+    expect(result).to be_denied
+    expect(seen).to be_empty
+  end
+end

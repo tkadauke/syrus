@@ -25,18 +25,19 @@ module Permissions
       def observers = @observers.dup
       def reset! = @observers.clear
 
-      def for(descriptor, decision)
+      def for(descriptor, decision, policy: decision.policy)
         invocation = decision.invocation
         Record.new(capability: invocation.capability, operation: invocation.operation,
           effects: invocation.effects, risk: invocation.risk,
-          budget_dimensions: descriptor.budget_dimensions, policy: decision.policy)
+          budget_dimensions: descriptor.budget_dimensions, policy:)
       end
 
-      # Always returns the decision unchanged.
-      def notify(descriptor, decision, logger: Rails.logger)
-        return decision if decision.deny? || descriptor.budget_dimensions.empty?
+      # Always returns the decision unchanged. +policy+ is the effective
+      # outcome after downgrades and ceilings; it defaults to the decision's.
+      def notify(descriptor, decision, policy: decision.policy, logger: Rails.logger)
+        return decision if policy == :deny || descriptor.budget_dimensions.empty?
 
-        record = self.for(descriptor, decision)
+        record = self.for(descriptor, decision, policy:)
         @observers.each do |name, observer|
           observer.call(record)
         rescue => error

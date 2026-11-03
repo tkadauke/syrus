@@ -54,7 +54,7 @@ module Permissions
       policy, fresh = FreshAuthentication.apply(policy, descriptor:, authenticated_at: @authenticated_at)
       policy, applied = @ceiling.apply(policy, effects:, subject: @subject)
       # Budget observers see the outcome only; they cannot change it.
-      EffectMetadata.notify(descriptor, decision) unless policy == :deny
+      EffectMetadata.notify(descriptor, decision, policy:)
       Result.new(decision:, policy:, ceilings: applied, subject: @subject, fresh_authentication: fresh)
     end
   end
