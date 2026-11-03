@@ -1,8 +1,8 @@
 module Mcp
   class CoworkerToolCatalog
-    Descriptor = Data.define(:tool_name, :capability, :ungated, :tier, :tool, :provider, :availability_state, :description, :definition) do
-      def initialize(availability_state: :available, description: nil, definition: nil, **attributes)
-        super(availability_state:, description:, definition:, **attributes)
+    Descriptor = Data.define(:tool_name, :capability, :ungated, :tier, :tool, :provider, :availability_state, :description, :definition, :grant) do
+      def initialize(availability_state: :available, description: nil, definition: nil, grant: nil, **attributes)
+        super(availability_state:, description:, definition:, grant:, **attributes)
       end
     end
 
@@ -48,7 +48,8 @@ module Mcp
                 tier: definition ? definition_tier(provider, name, chat_session: chat_session) : :essential,
                 tool: nil, provider: provider,
                 availability_state: definition ? provider_state(provider, plugin_state, chat_session:) : :unavailable,
-                description: definition && value(definition, :description), definition: definition)
+                description: definition && value(definition, :description), definition: definition,
+                grant: grant_definitions.fetch(capability))
             end
           end
           ungated = definitions.filter_map do |definition|

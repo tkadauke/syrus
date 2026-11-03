@@ -51,6 +51,7 @@ module Syrus
 
       module ClassMethods
         def coworker_grant(name:, label:, scope: nil, tools:, default_policy: "confirm", max_policy: "auto", description: nil,
+          unconfigured_remediation: nil,
                            privileged: false)
           @coworker_grant = {
             name: name.to_s,
@@ -62,7 +63,8 @@ module Syrus
             scope_options_callback: scope&.fetch(:options),
             scope_label_callback: scope&.fetch(:label),
             valid_scope_callback: scope&.fetch(:valid),
-            privileged: privileged
+            privileged: privileged,
+            unconfigured_remediation: unconfigured_remediation
           }
         end
 

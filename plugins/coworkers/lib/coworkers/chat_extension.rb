@@ -47,6 +47,14 @@ module Coworkers
           Coworkers::PrivilegedGrantGate.turn_admission(agent)
         end
 
+        ChatSession.define_method(:coworker_grant_availability) do |capability|
+          descriptor = Coworkers::GrantCatalog.all.find { |entry| entry.name == capability.to_s }
+          next unless descriptor
+
+          availability = Coworkers::PrivilegedGrantGate.availability(descriptor)
+          { available: availability.available?, reason: availability.reason }
+        end
+
         ChatSession.define_method(:coworker_workspace?) do
           coworker_chat.present?
         end
@@ -69,7 +77,7 @@ module Coworkers
         end
 
         -> do
-          %i[coworker coworker_roster_mention agent_turn_context with_agent_operation_lock workspace_file_read_policy agent_turn_admission coworker_workspace? coworker_workspace_repository coworker_workspace_repository_id].each do |method|
+          %i[coworker coworker_roster_mention agent_turn_context with_agent_operation_lock workspace_file_read_policy agent_turn_admission coworker_grant_availability coworker_workspace? coworker_workspace_repository coworker_workspace_repository_id].each do |method|
             ChatSession.remove_method(method) if ChatSession.instance_methods(false).include?(method)
           end
         end
