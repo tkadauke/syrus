@@ -56,9 +56,9 @@ export function PermissionRequestCard({ request, jobId }: { request: PermissionR
   const linkedAuthority = request.items.find((item) => item.resulting_authority)?.resulting_authority
 
   return (
-    <article className="rounded-xl border border-border bg-surface-raised p-4" data-testid={`permission-request-${request.id}`}>
+    <article className="min-w-0 max-w-full overflow-x-auto rounded-xl border border-border bg-surface-raised p-4" data-testid={`permission-request-${request.id}`}>
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded bg-warning-surface px-2 py-0.5 text-xs font-medium text-warning-text">{t("approval_inbox.request_badge")}</span>
             <span className="text-xs text-text-muted">
@@ -79,12 +79,12 @@ export function PermissionRequestCard({ request, jobId }: { request: PermissionR
       </div>
       <div className="mt-3 space-y-3">
         {request.items.map((item) => (
-          <div className="rounded-lg bg-surface-subtle p-3 text-sm" key={item.id || `${item.capability}:${item.operation}`}>
+          <div className="min-w-0 rounded-lg bg-surface-subtle p-3 text-sm" key={item.id || `${item.capability}:${item.operation}`}>
             <div className="font-medium text-text-primary">
               {item.capability}
               {item.operation ? ` / ${item.operation}` : ""}
             </div>
-            <dl className="mt-2 grid gap-1 text-xs text-text-secondary sm:grid-cols-2">
+            <dl className="mt-2 grid min-w-0 gap-1 text-xs text-text-secondary sm:grid-cols-2">
               <Detail label={t("approval_inbox.resource")} value={`${item.resource_type || "—"} · ${json(item.resource_scope)}`} />
               <Detail label={t("approval_inbox.effects")} value={(item.effects ?? []).join(", ") || "—"} />
               <Detail label={t("approval_inbox.arguments")} value={json(item.arguments)} />
@@ -157,9 +157,9 @@ export function PermissionRequestCard({ request, jobId }: { request: PermissionR
 
 function Detail({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    <div className="min-w-0">
       <dt className="font-medium text-text-muted">{label}</dt>
-      <dd className="break-words text-text-secondary">{value}</dd>
+      <dd className="text-text-secondary [overflow-wrap:anywhere]">{value}</dd>
     </div>
   )
 }
