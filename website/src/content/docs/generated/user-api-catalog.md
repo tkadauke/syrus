@@ -11,6 +11,9 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 
 | Owner | Method | Path | Handler |
 |---|---|---|---|
+| core | GET | `/api/v1/app/approval_delegations` | `api/v1/app/approval_delegations#index` |
+| core | POST | `/api/v1/app/approval_delegations` | `api/v1/app/approval_delegations#create` |
+| core | POST | `/api/v1/app/approval_delegations/:id/revoke` | `api/v1/app/approval_delegations#revoke` |
 | core | POST | `/api/v1/app/auth/passwords` | `api/v1/app/auth#create_password` |
 | core | PATCH | `/api/v1/app/auth/passwords/:token` | `api/v1/app/auth#update_password` |
 | core | DELETE | `/api/v1/app/auth/session` | `api/v1/app/auth#destroy_session` |
