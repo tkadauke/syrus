@@ -77,6 +77,7 @@ module Api
             trigger_kind: run.trigger_kind,
             agent_diff: run.agent_diff,
             agent_diff_bytes: run.agent_diff&.bytesize || 0,
+            host_admission: ::RunHostAdmissionAttribution.for(run),
             logs_count: logs.size,
             logs: logs
           }
@@ -118,6 +119,7 @@ module Api
             failure_classification: serialize_failure_classification(run.run_failure_classification),
             started_at:        run.started_at,
             finished_at:       run.finished_at,
+            host_admission:    ::RunHostAdmissionAttribution.for(run),
             error_class:       run.run_diagnostic&.error_class,
             error_message:     run.run_diagnostic&.error_message&.[](0, 200)
           }

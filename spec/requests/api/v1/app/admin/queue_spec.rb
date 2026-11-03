@@ -529,6 +529,30 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     )
   end
 
+  it "reports each worker's published admission capacity, including an undetectable CPU fallback" do
+    sign_in_as(admin)
+    solid_queue_process(hostname: "worker-quota", pid: 301, metadata: { "queues" => "runs" })
+    solid_queue_process(hostname: "worker-fallback", pid: 302, metadata: { "queues" => "runs" })
+    solid_queue_process(hostname: "worker-silent", pid: 303, metadata: { "queues" => "runs" })
+    quota = { "effective_cpu_count" => 8, "cpu_source" => "cgroup_v2_quota", "cpu_fallback_in_effect" => false,
+              "host_compute_capacity" => 6, "agentic_runs_per_host" => 3 }
+    fallback = { "effective_cpu_count" => 4, "cpu_source" => "undetectable_fallback", "cpu_fallback_in_effect" => true,
+                 "host_compute_capacity" => 3, "agentic_runs_per_host" => 1 }
+    InstanceVersion.create!(hostname: "worker-quota", role: "worker", version: "abc123", started_at: 5.minutes.ago,
+                            last_heartbeat_at: 10.seconds.ago, capability_diagnostics: { "admission_capacity" => quota })
+    InstanceVersion.create!(hostname: "worker-fallback", role: "worker", version: "abc123", started_at: 5.minutes.ago,
+                            last_heartbeat_at: 10.seconds.ago, capability_diagnostics: { "admission_capacity" => fallback })
+    InstanceVersion.create!(hostname: "worker-silent", role: "worker", version: "abc123", started_at: 5.minutes.ago,
+                            last_heartbeat_at: 10.seconds.ago)
+
+    get "/api/v1/app/admin/queue/workers"
+
+    workers = parse_body["workers"].index_by { |worker| worker["hostname"] }
+    expect(workers.fetch("worker-quota")["admission_capacity"]).to eq(quota)
+    expect(workers.fetch("worker-fallback")["admission_capacity"]).to include("cpu_fallback_in_effect" => true)
+    expect(workers.fetch("worker-silent")["admission_capacity"]).to be_nil
+  end
+
   it "shows process capabilities from fresh worker health samples when metadata and instance records omit them" do
     sign_in_as(admin)
     solid_queue_process(hostname: "mac-mini-a", pid: 101, metadata: { "queues" => "runs-macos-arm64" })

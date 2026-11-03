@@ -581,6 +581,9 @@ Rails.application.routes.draw do
         post "console/pause_runs",      to: "console#pause_runs"
         post "console/unpause_runs",    to: "console#unpause_runs"
 
+        # Read-only AppSetting values (non-secret) with registry metadata.
+        get "settings", to: "settings#show"
+
         # Poison-pill restart — writes a Rails.cache timestamp that every
         # web/worker process independently polls for (see RestartWatcher).
         # Body: { component: "web" | "worker" | "all", force: true }.
