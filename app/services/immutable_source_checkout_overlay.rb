@@ -25,13 +25,32 @@ class ImmutableSourceCheckoutOverlay
   # the graded command has to execute inside it, which is a change to how
   # commands are run rather than to how workspaces are materialized. Recording
   # it says whether the fleet is ready for that work.
-  Capability = Data.define(:strategy, :reason) do
+  #
+  # `diagnostics` is a bounded, string-keyed hash explaining the outcome: the
+  # command, exit status and trimmed stderr of both mount attempts plus the
+  # environment facts that decide them (see .environment_diagnostics). It is
+  # recorded on fallback Steps and in worker health so a fallback can be
+  # explained without reading logs.
+  Capability = Data.define(:strategy, :reason, :diagnostics) do
+    def initialize(strategy:, reason:, diagnostics: {})
+      super
+    end
+
     def direct? = strategy == :direct
 
     def user_namespace? = strategy == :user_namespace
 
     def available? = direct?
+
+    def to_h
+      { "strategy" => strategy.to_s, "reason" => reason, "diagnostics" => diagnostics }
+    end
   end
+
+  STDERR_LIMIT = 500
+  COMMAND_LIMIT = 300
+  CAP_SYS_ADMIN_BIT = 21
+  PERMISSION_DENIED = /operation not permitted|must be superuser|permission denied|EPERM|EACCES/i
 
   def self.capability(refresh: false)
     @capability = nil if refresh
@@ -39,32 +58,151 @@ class ImmutableSourceCheckoutOverlay
   end
 
   def self.probe_capability
-    return Capability.new(:unavailable, "overlayfs requires Linux workers") unless RbConfig::CONFIG.fetch("host_os").match?(/linux/i)
-    return Capability.new(:unavailable, "overlayfs is not listed in /proc/filesystems") unless overlay_filesystem_available?
+    diagnostics = environment_diagnostics
+    return build_capability(:unavailable, "overlayfs requires Linux workers", diagnostics) unless RbConfig::CONFIG.fetch("host_os").match?(/linux/i)
+    unless overlay_filesystem_available?
+      diagnostics["overlay_in_proc_filesystems"] = false
+      return build_capability(:unavailable, "overlayfs is not listed in /proc/filesystems (kernel without overlay support)", diagnostics)
+    end
+    diagnostics["overlay_in_proc_filesystems"] = true
 
     Dir.mktmpdir("syrus-overlay-probe-") do |dir|
       probe = Pathname.new(dir)
+      diagnostics["probe_dir_filesystem"] = filesystem_type(probe)
       %w[lower upper work mount].each { |name| FileUtils.mkdir_p(probe.join(name)) }
       options = "lowerdir=#{probe.join('lower')},upperdir=#{probe.join('upper')},workdir=#{probe.join('work')}"
       mount_point = probe.join("mount").to_s
 
-      direct = capture([ "mount", "-t", "overlay", "overlay", "-o", options, mount_point ], workdir: probe)
+      direct_command = [ "mount", "-t", "overlay", "overlay", "-o", options, mount_point ]
+      direct = capture(direct_command, workdir: probe)
+      diagnostics["direct"] = attempt_diagnostics(direct_command, direct)
       if direct.success?
         unmount(mount_point)
-        next Capability.new(:direct, nil)
+        next build_capability(:direct, nil, diagnostics)
       end
 
-      namespace = capture([
+      namespace_command = [
         "unshare", "--user", "--map-root-user", "--mount", "--propagation", "unchanged",
         "sh", "-c", "mount -t overlay overlay -o #{options} #{mount_point}"
-      ], workdir: probe)
-      reason = "overlay mount failed: #{direct.stderr.to_s.strip.presence || "exit #{direct.result.exit_status}"}"
-      next Capability.new(:user_namespace, reason) if namespace.success?
+      ]
+      namespace = capture(namespace_command, workdir: probe)
+      diagnostics["user_namespace"] = attempt_diagnostics(namespace_command, namespace)
+      reason = failure_reason(diagnostics, namespace_succeeded: namespace.success?)
+      next build_capability(:user_namespace, reason, diagnostics) if namespace.success?
 
-      Capability.new(:unavailable, reason)
+      build_capability(:unavailable, reason, diagnostics)
     end
   rescue StandardError => e
-    Capability.new(:unavailable, "overlay support probe failed: #{e.class}: #{e.message}")
+    build_capability(:unavailable, "overlay support probe failed: #{e.class}: #{e.message}", diagnostics || {})
+  end
+
+  def self.build_capability(strategy, reason, diagnostics)
+    Capability.new(strategy: strategy, reason: reason, diagnostics: diagnostics)
+  end
+
+  def self.attempt_diagnostics(command, capture)
+    {
+      "command" => command.join(" ").truncate(COMMAND_LIMIT),
+      "exit_status" => capture.result.exit_status,
+      "stderr" => capture.stderr.to_s.strip.truncate(STDERR_LIMIT)
+    }
+  end
+
+  # Names the actual blocking cause, e.g. "direct mount denied (EPERM: must be
+  # superuser to use mount) and user-namespace mount denied: unprivileged user
+  # namespaces disabled (max_user_namespaces=0)".
+  def self.failure_reason(diagnostics, namespace_succeeded:)
+    direct = describe_attempt("direct mount", diagnostics.fetch("direct"))
+    if namespace_succeeded
+      return "overlay mount failed: #{direct}; user-namespace mount works"
+    end
+
+    namespace = describe_attempt("user-namespace mount", diagnostics.fetch("user_namespace"))
+    cause = namespace_blocker(diagnostics)
+    "overlay mount failed: #{direct} and #{namespace}#{cause ? ": #{cause}" : ""}"
+  end
+
+  def self.describe_attempt(label, attempt)
+    stderr = attempt["stderr"].presence
+    detail = stderr || "exit #{attempt['exit_status']}"
+    if stderr&.match?(PERMISSION_DENIED)
+      "#{label} denied (EPERM: #{detail})"
+    else
+      "#{label} failed (#{detail})"
+    end
+  end
+
+  def self.namespace_blocker(diagnostics)
+    return "unshare binary missing" if diagnostics["unshare_available"] == false
+    return "mount binary missing" if diagnostics["mount_available"] == false
+    return "unprivileged user namespaces disabled (max_user_namespaces=0)" if diagnostics["max_user_namespaces"] == 0
+    return "unprivileged user namespaces disabled (kernel.unprivileged_userns_clone=0)" if diagnostics["unprivileged_userns_clone"] == 0
+    return "unprivileged user namespaces restricted (apparmor_restrict_unprivileged_userns=1)" if diagnostics["apparmor_restrict_unprivileged_userns"] == 1
+    return "no CAP_SYS_ADMIN and user namespace unavailable (seccomp/AppArmor profile or nested overlayfs on #{diagnostics['probe_dir_filesystem'] || 'unknown'} suspected)" if diagnostics["cap_sys_admin"] == false
+
+    nil
+  end
+
+  # Environment facts that decide whether a mount can work. Every value is a
+  # scalar, read best-effort; nothing here is sensitive.
+  def self.environment_diagnostics
+    {
+      "effective_uid" => Process.euid,
+      "cap_sys_admin" => cap_sys_admin?,
+      "max_user_namespaces" => read_integer("/proc/sys/user/max_user_namespaces"),
+      "unprivileged_userns_clone" => read_integer("/proc/sys/kernel/unprivileged_userns_clone"),
+      "apparmor_restrict_unprivileged_userns" => read_integer("/proc/sys/kernel/apparmor_restrict_unprivileged_userns"),
+      "mount_available" => executable_on_path?("mount"),
+      "unshare_available" => executable_on_path?("unshare"),
+      "workspace_root_filesystem" => workspace_root_filesystem
+    }.compact
+  end
+
+  def self.workspace_root_filesystem
+    filesystem_type(WorkflowWorkspace.data_root)
+  rescue StandardError
+    nil
+  end
+
+  def self.cap_sys_admin?
+    line = File.readlines("/proc/self/status").find { |l| l.start_with?("CapEff:") }
+    return nil unless line
+
+    line.split.last.to_i(16)[CAP_SYS_ADMIN_BIT] == 1
+  rescue SystemCallError
+    nil
+  end
+
+  def self.read_integer(path)
+    Integer(File.read(path).strip, 10)
+  rescue SystemCallError, ArgumentError
+    nil
+  end
+
+  def self.executable_on_path?(name)
+    ENV.fetch("PATH", "").split(File::PATH_SEPARATOR).any? do |dir|
+      candidate = File.join(dir, name)
+      File.file?(candidate) && File.executable?(candidate)
+    end
+  end
+
+  # Filesystem type of the mount containing `path`: the longest mountpoint
+  # prefix in /proc/self/mountinfo.
+  def self.filesystem_type(path)
+    target = Pathname.new(path).expand_path.to_s
+    best = nil
+    File.readlines("/proc/self/mountinfo", chomp: true).each do |line|
+      head, tail = line.split(" - ", 2)
+      next unless tail
+
+      mountpoint = head.split[4].to_s.gsub("\\040", " ")
+      next unless target == mountpoint || target.start_with?(mountpoint.chomp("/") + "/")
+
+      best = [ mountpoint, tail.split.first ] if best.nil? || mountpoint.length > best[0].length
+    end
+    best&.last
+  rescue SystemCallError
+    nil
   end
 
   def self.overlay_filesystem_available?
