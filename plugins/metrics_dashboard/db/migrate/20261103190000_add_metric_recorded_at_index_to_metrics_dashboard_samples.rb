@@ -12,14 +12,17 @@ class AddMetricRecordedAtIndexToMetricsDashboardSamples < ActiveRecord::Migratio
   def up
     return unless table_exists?(:metrics_dashboard_samples)
 
-    unless index_exists?(:metrics_dashboard_samples, %i[metric recorded_at], name: INDEX)
-      # Online on MySQL: in-place build without blocking writes.
-      if connection.adapter_name =~ /mysql|trilogy/i
-        add_index :metrics_dashboard_samples, %i[metric recorded_at], name: INDEX,
-                  algorithm: :inplace, lock: :none
-      else
-        add_index :metrics_dashboard_samples, %i[metric recorded_at], name: INDEX
-      end
+    return if index_exists?(:metrics_dashboard_samples, %i[metric recorded_at], name: INDEX)
+
+    if connection.adapter_name =~ /mysql|trilogy/i
+      # Online on MySQL: add_index has no :lock option, so spell the DDL out.
+      # INPLACE + LOCK=NONE builds the index without blocking writes and
+      # fails fast (rather than silently copying the table) if it can't.
+      execute "ALTER TABLE #{quote_table_name(:metrics_dashboard_samples)} " \
+              "ADD INDEX #{quote_column_name(INDEX)} (#{quote_column_name(:metric)}, #{quote_column_name(:recorded_at)}), " \
+              "ALGORITHM=INPLACE, LOCK=NONE"
+    else
+      add_index :metrics_dashboard_samples, %i[metric recorded_at], name: INDEX unless index_exists?(:metrics_dashboard_samples, %i[metric recorded_at], name: INDEX)
     end
   end
 
