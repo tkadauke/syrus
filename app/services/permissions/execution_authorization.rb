@@ -19,20 +19,26 @@ module Permissions
 
     def self.authorize(...) = new(...).authorize
 
-    def initialize(subject:, role:, rules: [], ceiling: ExecutionCeiling.default, context: {})
+    def initialize(subject:, role:, rules: [], ceiling: ExecutionCeiling.default, context: {}, selector_contexts: nil)
       @subject = subject
       @role = role.to_s
       @rules = rules
       @ceiling = ceiling
       @context = context
+      # A rule's selectors compare against one subject description, but one
+      # process matches several (its role, its repository-scoped role, its
+      # agent). Each is evaluated and the strictest outcome wins.
+      @contexts = Array(selector_contexts).presence || [ context ]
     end
 
     def authorize
       descriptor = ExecutionActions.descriptor_for(@subject.location)
-      decision = PolicyEvaluator.new(
-        descriptor:, role: @role, resource_scope: {}, rules: @rules, context: @context,
-        arguments: ExecutionActions.arguments_for(@subject)
-      ).call
+      arguments = ExecutionActions.arguments_for(@subject)
+      decision = @contexts.map do |context|
+        PolicyEvaluator.new(
+          descriptor:, role: @role, resource_scope: {}, rules: @rules, context: @context.merge(context), arguments:
+        ).call
+      end.min_by { |candidate| PolicyEvaluator::POLICY_RANK.fetch(candidate.policy) }
       effects = decision.invocation.effects
       policy = decision.policy
 

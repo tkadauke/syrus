@@ -40,6 +40,10 @@ module Permissions
     class << self
       def operation_names = OPERATIONS.values
 
+      # Execution has no MCP tool to carry its descriptors into the catalog, so
+      # they are listed here for rule management and the permissions hub.
+      def descriptors = LOCATIONS.map { |location| descriptor_for(location) }
+
       def operation_for(location) = "syrus.execution/#{OPERATIONS.fetch(location.to_sym)}@v1"
 
       def descriptor_for(location, required_roles: ROLES)
