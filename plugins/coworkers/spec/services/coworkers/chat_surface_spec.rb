@@ -278,9 +278,13 @@ RSpec.describe "Coworker chat surface" do
     expect(repeated.execution_enqueued).to be(false)
     expect(Coworkers::MessageCoworkerTool).to have_received(:call).once
 
-    queued = coworker_tool("message_coworker").call(**arguments, server_context: { chat_session: chat })
+    retried = coworker_tool("message_coworker").call(**arguments, server_context: { chat_session: chat })
+    expect(response_payload(retried)).to include("delivered" => true, "receipt" => "stored result")
+
+    other_arguments = arguments.merge(text: "A different message")
+    queued = coworker_tool("message_coworker").call(**other_arguments, server_context: { chat_session: chat })
     expect(response_payload(queued)).to include("approval_policy" => "queue")
-    expect(chat.pending_actions.last.payload).to include("approval_inbox" => true, "arguments" => arguments.stringify_keys)
+    expect(chat.pending_actions.last.payload).to include("approval_inbox" => true, "arguments" => other_arguments.stringify_keys)
     expect(Coworkers::MessageCoworkerTool).to have_received(:call).once
 
     expect(Mcp::Sidecar.chat_tool_names(chat.reload, tier: :essential)).to include("message_coworker")
