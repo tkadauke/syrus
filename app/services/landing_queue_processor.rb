@@ -561,9 +561,12 @@ class LandingQueueProcessor
     epic_ids = Job.approved.where.not(epic_id: nil).distinct.pluck(:epic_id)
     return if epic_ids.blank?
 
+    # Deliberately no :workflows preload: the wakeup finds its queued workflows
+    # through a targeted WorkUnitMember query, so loading every historical
+    # workflow per Job only grows cost with history.
     Job.queued
        .where(epic_id: epic_ids)
-       .includes(:repository, :workflows, dependencies: [ :depends_on_job, :depends_on_epic ])
+       .includes(:repository, dependencies: [ :depends_on_job, :depends_on_epic ])
        .find_each(&:start_pending_workflows_if_dependencies_satisfied!)
   end
 
