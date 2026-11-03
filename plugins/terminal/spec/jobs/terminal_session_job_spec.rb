@@ -46,4 +46,30 @@ RSpec.describe TerminalSessionJob, type: :job do
 
     described_class.perform_now(session.id)
   end
+
+  it "finishes the session without a relay when the working directory is missing" do
+    session = terminal_session(working_directory: "/nonexistent/terminal/dir")
+
+    expect(Terminal::Relay).not_to receive(:new)
+
+    described_class.perform_now(session.id)
+
+    expect(session.reload.outcome).to eq("exited")
+    expect(session.finished_at).to be_present
+  end
+
+  it "does not overwrite a killed outcome when the session finishes before finalization" do
+    session = terminal_session(working_directory: "/nonexistent/terminal/dir")
+    allow(Terminal::Session).to receive(:find).and_return(session)
+    allow(session).to receive(:finished?) do
+      Terminal::Session.where(id: session.id).update_all(finished_at: Time.current, outcome: "killed")
+      false
+    end
+
+    expect(Terminal::Relay).not_to receive(:new)
+
+    described_class.perform_now(session.id)
+
+    expect(session.reload.outcome).to eq("killed")
+  end
 end
