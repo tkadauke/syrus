@@ -75,6 +75,20 @@ export type ProviderRoutingRegistryOption = {
   panel_capable?: boolean
 }
 
+export type ProviderUsageReading = {
+  provider: string
+  state?: string
+  remaining_percent?: number | string | null
+  observed_at?: string | null
+}
+
+export type ProviderRoutingRepositoryOption = {
+  id: number
+  owner: string
+  name: string
+  slug: string
+}
+
 export type ProviderRoutingRegistryOptions = {
   triggers?: {
     chat_roles?: ProviderRoutingRegistryOption[]
@@ -82,6 +96,10 @@ export type ProviderRoutingRegistryOptions = {
   }
   conditions?: {
     workflow_trigger_kinds?: ProviderRoutingRegistryOption[]
+    provider_usage?: ProviderUsageReading[]
+    job_kinds?: ProviderRoutingRegistryOption[]
+    repositories?: ProviderRoutingRepositoryOption[]
+    time_zone?: string
   }
   action_strategies?: ProviderRoutingRegistryOption[]
   action_types?: ProviderRoutingRegistryOption[]
@@ -130,4 +148,54 @@ export function deleteProviderRoutingRule(path: string) {
 
 export function reorderProviderRoutingRules(path: string, ids: number[]) {
   return patchJson<ProviderRoutingRulesPayload>(`${path}/reorder`, { provider_routing_rule_ids: ids })
+}
+
+export type ProviderRoutingConditionResult = {
+  configured?: boolean
+  matched: boolean
+  expected?: unknown
+  actual?: unknown
+  predicate_results?: Record<string, boolean>
+  reason?: string
+}
+
+export type ProviderRoutingRuleEvidence = {
+  matched: boolean
+  trigger?: { matched: boolean; expected?: unknown; actual?: unknown }
+  conditions?: Record<string, ProviderRoutingConditionResult>
+}
+
+export type ProviderRoutingRuleTrace = {
+  id: number
+  position: number
+  enabled: boolean
+  outcome: "matched_winner" | "match_failed" | "disabled_skipped" | "not_evaluated_after_winner" | "overridden_by_explicit_pin"
+  winning: boolean
+  trigger?: ProviderRoutingTrigger
+  conditions?: ProviderRoutingConditions
+  action?: ProviderRoutingAction
+  evidence: ProviderRoutingRuleEvidence[]
+}
+
+export type ProviderRoutingExplanation = {
+  job_id: number
+  scope_precedence: Array<{ scope_type: string; scope_id: number; rules: ProviderRoutingRuleTrace[] }>
+  explicit_pin?: { provider?: string; model?: string }
+  winning_decision: {
+    fallback?: boolean
+    reason?: string
+    decision?: { status: string; reason?: string }
+    matched_rule?: { id: number }
+    final_action?: { candidates?: ProviderRoutingCandidate[]; reason?: string }
+  }
+}
+
+export type ProviderRoutingExplainInput = {
+  target_job_id: number
+  task_key: string
+  workflow_trigger_kind?: string
+}
+
+export function explainProviderRouting(path: string, values: ProviderRoutingExplainInput) {
+  return postJson<ProviderRoutingExplanation>(`${path}/explain`, values)
 }

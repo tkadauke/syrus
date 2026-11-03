@@ -3,7 +3,15 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import type { FormEvent } from "react"
 import { describe, expect, it, vi } from "vitest"
 import { ProviderRoutingRulesEditor, RoutingRulesPanel } from "./ProviderRoutingRulesEditor"
-import type { ProviderRoutingInheritedContext, ProviderRoutingOptions, ProviderRoutingRule, ProviderRoutingRuleInput } from "../api/providerRoutingRules"
+import { conditionSummaries, DAYS, investigationMode, setInvestigationMode, setUsageComparison, usageHint } from "./providerRoutingConditions"
+import type {
+  ProviderRoutingExplainInput,
+  ProviderRoutingExplanation,
+  ProviderRoutingInheritedContext,
+  ProviderRoutingOptions,
+  ProviderRoutingRule,
+  ProviderRoutingRuleInput
+} from "../api/providerRoutingRules"
 
 const options: ProviderRoutingOptions = {
   agent_providers: [
@@ -27,7 +35,17 @@ const options: ProviderRoutingOptions = {
     workflow_trigger_kinds: [
       { value: "initial", label: "Initial" },
       { value: "ci_failure", label: "CI failure" }
-    ]
+    ],
+    provider_usage: [{ provider: "codex", state: "available", remaining_percent: 20, observed_at: "2026-11-02T12:00:00Z" }],
+    job_kinds: [
+      { value: "issue", label: "Issue" },
+      { value: "cron", label: "Cron" }
+    ],
+    repositories: [
+      { id: 7, owner: "acme", name: "widgets", slug: "acme/widgets" },
+      { id: 8, owner: "globex", name: "gadgets", slug: "globex/gadgets" }
+    ],
+    time_zone: "UTC"
   },
   action_strategies: [
     { value: "fallback_order", label: "Fallback order" },
@@ -231,6 +249,305 @@ describe("ProviderRoutingRulesEditor", () => {
     expect(screen.queryByText(/^Workflow:/)).not.toBeInTheDocument()
   })
 
+  it("preserves usage, budget, and unknown conditions when saving through the form", async () => {
+    const onUpdateRule = vi.fn()
+    const rich: ProviderRoutingRule = {
+      ...rules[0],
+      conditions: { workflow_trigger_kind: ["initial"], usage: { provider: "codex", remaining_percent: { lt: 25 } }, budget: { max: 5 }, mystery: true }
+    }
+    renderPanel({ onUpdateRule, rules: [rich] })
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
+    fireEvent.click(within(dialog).getByLabelText("CI failure"))
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save rule" }))
+
+    await waitFor(() =>
+      expect(onUpdateRule).toHaveBeenCalledWith(
+        rich,
+        expect.objectContaining({
+          conditions: {
+            workflow_trigger_kind: ["initial", "ci_failure"],
+            usage: { provider: "codex", remaining_percent: { lt: 25 } },
+            budget: { max: 5 },
+            mystery: true
+          }
+        })
+      )
+    )
+  })
+
+  it("adds and removes the workflow trigger condition and searches kinds", async () => {
+    const onCreateRule = vi.fn()
+    renderPanel({ onCreateRule, rules: [] })
+
+    fireEvent.click(screen.getByRole("button", { name: "New rule" }))
+    const dialog = screen.getByRole("dialog", { name: "New routing rule" })
+    expect(within(dialog).getByText("Always applies.")).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add condition" }))
+    expect(within(dialog).queryByText(/budget/i)).not.toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole("button", { name: "Workflow trigger" }))
+    expect(within(dialog).queryByRole("button", { name: "Workflow trigger" })).not.toBeInTheDocument()
+
+    fireEvent.change(within(dialog).getByLabelText("Search triggers"), { target: { value: "ci" } })
+    expect(within(dialog).queryByLabelText("Initial")).not.toBeInTheDocument()
+    fireEvent.keyDown(within(dialog).getByLabelText("Search triggers"), { key: "Enter" })
+    expect(onCreateRule).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByLabelText("CI failure"))
+
+    fireEvent.change(within(dialog).getByLabelText(/Rule name/), { target: { value: "R" } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create rule" }))
+    await waitFor(() => expect(onCreateRule).toHaveBeenCalledWith(expect.objectContaining({ conditions: { workflow_trigger_kind: ["ci_failure"] } })))
+
+    fireEvent.click(screen.getByRole("button", { name: "New rule" }))
+    const again = screen.getByRole("dialog", { name: "New routing rule" })
+    fireEvent.click(within(again).getByRole("button", { name: "Add condition" }))
+    fireEvent.click(within(again).getByRole("button", { name: "Workflow trigger" }))
+    fireEvent.click(within(again).getByRole("button", { name: "Remove condition: Workflow trigger" }))
+    expect(within(again).getByText("Always applies.")).toBeInTheDocument()
+  })
+
+  it.each([
+    ["remaining_percent_less_than", "less than"],
+    ["remaining_percent_less_than_or_equal_to", "at most"],
+    ["remaining_percent_greater_than", "more than"],
+    ["remaining_percent_greater_than_or_equal_to", "at least"]
+  ])("round-trips the usage card through stored JSON for %s", async (key, label) => {
+    const onCreateRule = vi.fn()
+    renderPanel({ onCreateRule, rules: [] })
+
+    fireEvent.click(screen.getByRole("button", { name: "New rule" }))
+    const dialog = screen.getByRole("dialog", { name: "New routing rule" })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add condition" }))
+    fireEvent.click(within(dialog).getByRole("button", { name: "Provider usage" }))
+    fireEvent.change(within(dialog).getByLabelText("Usage provider"), { target: { value: "codex" } })
+    fireEvent.change(within(dialog).getByLabelText("Comparator"), { target: { value: key } })
+    expect(within(dialog).getByRole("option", { name: label })).toBeInTheDocument()
+    fireEvent.change(within(dialog).getByLabelText("Percent left"), { target: { value: "40" } })
+    fireEvent.change(within(dialog).getByLabelText(/Rule name/), { target: { value: "R" } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create rule" }))
+
+    await waitFor(() => expect(onCreateRule).toHaveBeenCalledWith(expect.objectContaining({ conditions: { usage: { provider: "codex", [key]: 40 } } })))
+  })
+
+  it("stores provider states from the More disclosure and keeps them on save", async () => {
+    const onUpdateRule = vi.fn()
+    const rule: ProviderRoutingRule = { ...rules[0], conditions: { usage: { provider: "codex", remaining_percent_less_than: 25 } } }
+    renderPanel({ onUpdateRule, rules: [rule] })
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
+    fireEvent.click(within(dialog).getByRole("button", { name: "More" }))
+    fireEvent.click(within(dialog).getByRole("button", { name: "Rate limited" }))
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save rule" }))
+
+    await waitFor(() =>
+      expect(onUpdateRule).toHaveBeenCalledWith(
+        rule,
+        expect.objectContaining({ conditions: { usage: { provider: "codex", states: ["rate_limited"], remaining_percent_less_than: 25 } } })
+      )
+    )
+  })
+
+  it("keeps the chosen usage comparator when the percent is cleared and retyped", async () => {
+    const onUpdateRule = vi.fn()
+    const rule: ProviderRoutingRule = { ...rules[0], conditions: { usage: { provider: "codex", remaining_percent_less_than: 25 } } }
+    renderPanel({ onUpdateRule, rules: [rule] })
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
+    fireEvent.change(within(dialog).getByLabelText("Comparator"), { target: { value: "remaining_percent_greater_than_or_equal_to" } })
+    fireEvent.change(within(dialog).getByLabelText("Percent left"), { target: { value: "" } })
+    expect(within(dialog).getByLabelText("Comparator")).toHaveValue("remaining_percent_greater_than_or_equal_to")
+    fireEvent.change(within(dialog).getByLabelText("Percent left"), { target: { value: "60" } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save rule" }))
+
+    await waitFor(() =>
+      expect(onUpdateRule).toHaveBeenCalledWith(
+        rule,
+        expect.objectContaining({ conditions: { usage: { provider: "codex", remaining_percent_greater_than_or_equal_to: 60 } } })
+      )
+    )
+  })
+
+  it("rejects usage percents outside 0-100 and blocks saving", () => {
+    const onUpdateRule = vi.fn()
+    const rule: ProviderRoutingRule = { ...rules[0], conditions: { usage: { provider: "codex", remaining_percent_less_than: 25 } } }
+    renderPanel({ onUpdateRule, rules: [rule] })
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
+    fireEvent.change(within(dialog).getByLabelText("Percent left"), { target: { value: "150" } })
+    expect(within(dialog).getByText("Enter a percent from 0 to 100.")).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save rule" }))
+    expect(onUpdateRule).not.toHaveBeenCalled()
+  })
+
+  it("summarizes the usage condition in the rule list and shows the live hint in the card", () => {
+    const rule: ProviderRoutingRule = { ...rules[0], conditions: { usage: { provider: "codex", remaining_percent_less_than: 25 } } }
+    renderPanel({ rules: [rule] })
+
+    expect(screen.getByText("Codex < 25% left")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    expect(within(screen.getByRole("dialog", { name: "Edit routing rule" })).getByText("Codex: 20% left now - matches")).toBeInTheDocument()
+  })
+
+  async function createWithCondition(label: string, interact: (dialog: HTMLElement) => void) {
+    const onCreateRule = vi.fn()
+    renderPanel({ onCreateRule, rules: [] })
+    fireEvent.click(screen.getByRole("button", { name: "New rule" }))
+    const dialog = screen.getByRole("dialog", { name: "New routing rule" })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add condition" }))
+    fireEvent.click(within(dialog).getByRole("button", { name: label }))
+    interact(dialog)
+    fireEvent.change(within(dialog).getByLabelText(/Rule name/), { target: { value: "R" } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create rule" }))
+    return onCreateRule
+  }
+
+  it("round-trips the day and time card through stored JSON", async () => {
+    const onCreateRule = await createWithCondition("Day and time", (dialog) => {
+      // Defaults to Mon-Fri 09:00-18:00; drop Friday, add Sunday, and move the start.
+      fireEvent.click(within(dialog).getByRole("button", { name: "Fri" }))
+      fireEvent.click(within(dialog).getByRole("button", { name: "Sun" }))
+      fireEvent.change(within(dialog).getByLabelText("Start time"), { target: { value: "08:30" } })
+      expect(within(dialog).getByText("Server time zone: UTC")).toBeInTheDocument()
+    })
+
+    await waitFor(() =>
+      expect(onCreateRule).toHaveBeenCalledWith(
+        expect.objectContaining({ conditions: { day_time: { days: ["monday", "tuesday", "wednesday", "thursday", "sunday"], start: "08:30", end: "18:00" } } })
+      )
+    )
+  })
+
+  it("blocks saving an overnight day and time window", () => {
+    const onCreateRule = vi.fn()
+    renderPanel({ onCreateRule, rules: [] })
+    fireEvent.click(screen.getByRole("button", { name: "New rule" }))
+    const dialog = screen.getByRole("dialog", { name: "New routing rule" })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add condition" }))
+    fireEvent.click(within(dialog).getByRole("button", { name: "Day and time" }))
+    fireEvent.change(within(dialog).getByLabelText("Start time"), { target: { value: "22:00" } })
+    fireEvent.change(within(dialog).getByLabelText("End time"), { target: { value: "06:00" } })
+    expect(within(dialog).getAllByText("Start must be before end. For overnight windows, use two rules.").length).toBeGreaterThan(0)
+    fireEvent.change(within(dialog).getByLabelText(/Rule name/), { target: { value: "R" } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Create rule" }))
+    expect(onCreateRule).not.toHaveBeenCalled()
+  })
+
+  it("summarizes day and time conditions tersely", () => {
+    const t = (key: string) => key.split("short_")[1] ?? key
+    const summary = (value: unknown) => conditionSummaries({ day_time: value as Record<string, unknown> }, options, t as never)[0]
+    expect(summary({ days: DAYS.slice(0, 5), start: "09:00", end: "18:00" })).toBe("monday-friday 09:00-18:00")
+    expect(summary({ days: ["monday", "wednesday"], end: "12:00" })).toContain("monday, wednesday")
+    expect(summary({ days: [...DAYS], start: "09:00", end: "10:00" })).toBe("09:00-10:00")
+  })
+
+  it("shows day and time as Mon-Fri 09:00-18:00 in the rule list", () => {
+    const rule: ProviderRoutingRule = {
+      ...rules[0],
+      conditions: { day_time: { days: ["monday", "tuesday", "wednesday", "thursday", "friday"], start: "09:00", end: "18:00" } }
+    }
+    renderPanel({ rules: [rule] })
+    expect(screen.getByText("Mon-Fri 09:00-18:00")).toBeInTheDocument()
+  })
+
+  it("round-trips the job type card through stored JSON", async () => {
+    const onCreateRule = await createWithCondition("Job type", (dialog) => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "Issue" }))
+      fireEvent.click(within(dialog).getByRole("button", { name: "High" }))
+      fireEvent.click(within(dialog).getByRole("button", { name: "Urgent" }))
+      fireEvent.click(within(dialog).getByRole("radio", { name: "Only investigations" }))
+    })
+
+    await waitFor(() =>
+      expect(onCreateRule).toHaveBeenCalledWith(
+        expect.objectContaining({ conditions: { job_metadata: { kinds: ["issue"], priorities: ["high", "urgent"], investigation: true } } })
+      )
+    )
+  })
+
+  it("stores never-investigations as false and drops the key for any", () => {
+    expect(setInvestigationMode({ kinds: ["issue"] }, "never")).toEqual({ kinds: ["issue"], investigation: false })
+    expect(investigationMode({ investigation: false })).toBe("never")
+    expect(setInvestigationMode({ investigation: false }, "any")).toEqual({})
+  })
+
+  it("summarizes job type as High/Urgent and drops an emptied job type on save", async () => {
+    const rule: ProviderRoutingRule = { ...rules[0], conditions: { job_metadata: { priorities: ["high", "urgent"] } } }
+    const onUpdateRule = vi.fn()
+    renderPanel({ onUpdateRule, rules: [rule] })
+    expect(screen.getByText("High/Urgent")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
+    fireEvent.click(within(dialog).getByRole("button", { name: "High" }))
+    fireEvent.click(within(dialog).getByRole("button", { name: "Urgent" }))
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save rule" }))
+    await waitFor(() => expect(onUpdateRule).toHaveBeenCalledWith(rule, expect.objectContaining({ conditions: {} })))
+  })
+
+  it("round-trips the repository card through stored JSON", async () => {
+    const onCreateRule = await createWithCondition("Repository", (dialog) => {
+      fireEvent.click(within(dialog).getByLabelText("acme/widgets"))
+      fireEvent.click(within(dialog).getByRole("button", { name: "globex" }))
+    })
+
+    await waitFor(() => expect(onCreateRule).toHaveBeenCalledWith(expect.objectContaining({ conditions: { repository: { ids: [7], owners: ["globex"] } } })))
+  })
+
+  it("summarizes the repository condition with truncation", () => {
+    const rule: ProviderRoutingRule = { ...rules[0], conditions: { repository: { ids: [7], owners: ["a-very-long-owner-name-indeed"] } } }
+    renderPanel({ rules: [rule] })
+    expect(screen.getByText("Repo: acme/widgets, a-very-long-owner-name-…")).toBeInTheDocument()
+  })
+
+  it.each([
+    ["repository", false],
+    ["job", false],
+    ["user", true]
+  ] as const)("offers the repository condition at %s scope: %s", (scope, offered) => {
+    renderPanel({ rules: [], scope })
+    fireEvent.click(screen.getByRole("button", { name: "New rule" }))
+    const dialog = screen.getByRole("dialog", { name: "New routing rule" })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Add condition" }))
+    expect(within(dialog).queryByRole("button", { name: "Repository" }) !== null).toBe(offered)
+  })
+
+  it("hides but preserves an existing repository condition at repository scope", async () => {
+    const rule: ProviderRoutingRule = { ...rules[0], conditions: { repository: { owners: ["acme"] } } }
+    const onUpdateRule = vi.fn()
+    renderPanel({ onUpdateRule, rules: [rule], scope: "repository" })
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
+    expect(within(dialog).queryByRole("button", { name: "Remove condition: Repository" })).toBeNull()
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save rule" }))
+    await waitFor(() => expect(onUpdateRule).toHaveBeenCalledWith(rule, expect.objectContaining({ conditions: { repository: { owners: ["acme"] } } })))
+  })
+
+  it("builds usage hints for matching, non-matching, and unread providers", () => {
+    const t = (key: string, vars?: Record<string, unknown>) => `${key}:${JSON.stringify(vars)}`
+    expect(usageHint({ provider: "codex", remaining_percent_greater_than: 50 }, options, t)).toContain("hint_no_match")
+    expect(usageHint({ provider: "codex", remaining_percent_less_than: 25, states: ["exhausted"] }, options, t)).toContain("hint_no_match")
+    expect(usageHint({ provider: "claude", remaining_percent_less_than: 25 }, options, t)).toContain("hint_unknown")
+    expect(usageHint({ remaining_percent_less_than: 25 }, options, t)).toBeNull()
+    expect(setUsageComparison({ provider: "codex", remaining_percent_less_than: 1 }, "remaining_percent_greater_than", "")).toEqual({ provider: "codex" })
+  })
+
+  it("summarizes conditions tersely and collapses unknown ones", () => {
+    const withUnknown: ProviderRoutingRule = {
+      ...rules[0],
+      conditions: { workflow_trigger_kind: ["initial", "ci_failure"], usage: { x: 1 }, mystery: 1, budget: { max: 1 } }
+    }
+    renderPanel({ rules: [withUnknown] })
+
+    expect(screen.getByText("Workflow: Initial, CI failure")).toBeInTheDocument()
+    expect(screen.getByText("+1 other")).toBeInTheDocument()
+    expect(screen.queryByText("usage")).not.toBeInTheDocument()
+    expect(screen.queryByText("budget")).not.toBeInTheDocument()
+  })
+
   it("edits, duplicates, deletes, and reorders rules through panel callbacks", async () => {
     const onCreateRule = vi.fn()
     const onUpdateRule = vi.fn()
@@ -428,10 +745,7 @@ function renderEditor({ inheritedContext, rules }: { inheritedContext?: Provider
 }
 
 function ruleRowNames() {
-  return screen
-    .getAllByRole("row")
-    .slice(1)
-    .map((row) => (row.textContent?.includes("CI fast path") ? "CI fast path" : "General fallback"))
+  return screen.getAllByTestId("routing-rule-row").map((row) => (row.textContent?.includes("CI fast path") ? "CI fast path" : "General fallback"))
 }
 
 function renderPanel({
@@ -442,6 +756,7 @@ function renderPanel({
   onToggleRule = vi.fn(),
   onUpdateRule = vi.fn(),
   saveError,
+  scope,
   rules
 }: {
   inheritedContext?: ProviderRoutingInheritedContext[]
@@ -451,6 +766,7 @@ function renderPanel({
   onToggleRule?: (rule: ProviderRoutingRule, enabled: boolean) => unknown
   onUpdateRule?: (rule: ProviderRoutingRule, input: ProviderRoutingRuleInput) => unknown
   saveError?: unknown
+  scope?: "user" | "repository" | "job"
   rules: ProviderRoutingRule[]
 }) {
   return render(
@@ -465,7 +781,129 @@ function renderPanel({
       options={options}
       rules={rules}
       saveError={saveError}
+      scope={scope}
       title="Provider routing rules"
     />
   )
 }
+
+describe("RoutingTestPanel", () => {
+  const explanation = (overrides: Record<string, unknown> = {}) => ({
+    job_id: 5,
+    scope_precedence: [
+      {
+        scope_type: "user",
+        scope_id: 1,
+        rules: [
+          {
+            id: 1,
+            position: 1,
+            enabled: true,
+            outcome: "match_failed",
+            winning: false,
+            evidence: [
+              {
+                matched: false,
+                trigger: { matched: true },
+                conditions: {
+                  usage: {
+                    configured: true,
+                    matched: false,
+                    expected: { provider: "codex", remaining_percent_less_than: 25 },
+                    actual: { provider: "codex", remaining_percent: 31 }
+                  }
+                }
+              }
+            ]
+          },
+          {
+            id: 2,
+            position: 2,
+            enabled: true,
+            outcome: "matched_winner",
+            winning: true,
+            evidence: [{ matched: true, trigger: { matched: true }, conditions: {} }]
+          },
+          { id: 3, position: 3, enabled: true, outcome: "not_evaluated_after_winner", winning: false, evidence: [] }
+        ]
+      }
+    ],
+    winning_decision: {
+      decision: { status: "routed" },
+      matched_rule: { id: 2 },
+      final_action: { candidates: [{ provider: "claude" }, { provider: "codex" }] }
+    },
+    ...overrides
+  })
+
+  function renderPanel(onExplain: (input: ProviderRoutingExplainInput) => Promise<ProviderRoutingExplanation>) {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({ count: 1, jobs: [{ id: 5, title: "Fix it", issue_title: "Fix it", state: "open", repository_slug: "a/b", pr_url: null }] }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" }
+            }
+          )
+      )
+    )
+    render(
+      <QueryClientProvider client={client}>
+        <RoutingRulesPanel
+          description="d"
+          onCreateRule={vi.fn()}
+          onDeleteRule={vi.fn()}
+          onExplain={onExplain}
+          onReorderRules={vi.fn()}
+          onUpdateRule={vi.fn()}
+          options={options}
+          rules={[]}
+          title="t"
+        />
+      </QueryClientProvider>
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Test" }))
+  }
+
+  async function runTest() {
+    await screen.findByRole("option", { name: "JOB-5 Fix it" })
+    fireEvent.change(screen.getAllByRole("combobox")[0], { target: { value: "5" } })
+    fireEvent.click(screen.getByRole("button", { name: "Run test" }))
+  }
+
+  it("shows the winner line and per-rule reasons", async () => {
+    const onExplain = vi.fn().mockResolvedValue(explanation() as unknown as ProviderRoutingExplanation)
+    renderPanel(onExplain)
+    await runTest()
+
+    expect(await screen.findByText("Rule 2 wins: Claude, then Codex")).toBeInTheDocument()
+    expect(onExplain).toHaveBeenCalledWith({ target_job_id: 5, task_key: "implement" })
+    expect(screen.getByText(": skipped: Codex 31% not < 25%")).toBeInTheDocument()
+    expect(screen.getByText(": matched")).toBeInTheDocument()
+    expect(screen.getByText(": not evaluated")).toBeInTheDocument()
+  })
+
+  it("reports no winner and holds", async () => {
+    const onExplain = vi.fn().mockResolvedValue(explanation({ scope_precedence: [], winning_decision: {} }) as unknown as ProviderRoutingExplanation)
+    renderPanel(onExplain)
+    await runTest()
+    expect(await screen.findByText("No rule matches; default routing applies.")).toBeInTheDocument()
+  })
+
+  it("reports a held decision", async () => {
+    const held = explanation({ winning_decision: { decision: { status: "held", reason: "Quota low" }, matched_rule: { id: 2 } } })
+    renderPanel(vi.fn().mockResolvedValue(held))
+    await runTest()
+    expect(await screen.findByText("Rule 2 holds work: Quota low")).toBeInTheDocument()
+  })
+
+  it("shows an error when the test fails", async () => {
+    renderPanel(vi.fn().mockRejectedValue(new Error("boom")))
+    await runTest()
+    expect(await screen.findByText("Unable to test routing rules.")).toBeInTheDocument()
+  })
+})

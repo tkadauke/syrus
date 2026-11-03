@@ -84,7 +84,42 @@ module ProviderRoutingRuleSerialization
   end
 
   def provider_routing_options_json(user = Current.user)
-    agent_provider_catalog_options(user).merge(provider_routing_registry_options_json)
+    registry = provider_routing_registry_options_json
+    registry[:conditions] = registry[:conditions].merge(
+      provider_usage: provider_routing_usage_json(user),
+      job_kinds: Job::Kind.user_facing_values.map { |kind| provider_routing_option_json(kind, kind.humanize) },
+      repositories: provider_routing_repositories_json(user),
+      time_zone: Time.zone.name
+    )
+    agent_provider_catalog_options(user).merge(registry)
+  end
+
+  # Repositories the user can see, for the repository condition picker.
+  def provider_routing_repositories_json(user)
+    return [] if user.blank?
+
+    Repository.accessible_to(user).active.order(:owner, :name).map do |repository|
+      { id: repository.id, owner: repository.owner, name: repository.name, slug: repository.slug }
+    end
+  end
+
+  # Current per-provider availability reading, so the usage condition editor can
+  # show a live "N% left now" hint. Providers without a reading are omitted.
+  def provider_routing_usage_json(user)
+    return [] if user.blank?
+
+    ::App::ProviderAvailability.all_for_user(user).filter_map do |provider, availability|
+      next if availability.blank?
+
+      availability = availability.to_h.stringify_keys
+      usage = availability["usage"].to_h.stringify_keys
+      {
+        provider: provider,
+        state: availability["state"] || "available",
+        remaining_percent: usage["remaining_percent"],
+        observed_at: usage["observed_at"]
+      }.compact
+    end
   end
 
   def provider_routing_kind_entry_json(entry)

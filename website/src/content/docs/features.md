@@ -1117,7 +1117,9 @@ that Job. The same page exposes job-specific routing rules and a resolved
 provider explanation, including the matched scope or rule, so operators can see
 why future work will use a provider before starting another workflow. Rules can
 be enabled inline, duplicated, edited, deleted, and reordered without disabled
-rules losing their ordered position. Disabled rules remain visible but muted,
+rules losing their ordered position. The rules editor's Test button runs the
+rule set against any Job you can see for a chosen step or chat role and shows
+which rule wins and why each other rule was skipped. Disabled rules remain visible but muted,
 are skipped during evaluation, and the first enabled matching rule wins. A rule
 can route to ordered provider candidates or hold work with a reason and manual,
 condition-based, or timed resumption policy. Job pages show active hold status
@@ -1144,6 +1146,12 @@ Because routing admission happens before Run creation, a hold never interrupts
 an already-running provider process. Usage-based rules can match provider state
 or remaining-capacity thresholds, and fresh provider evidence wakes matching
 holds immediately rather than waiting for their safety timer.
+The rule editor's "Only when" section can add workflow trigger, provider usage,
+day and time, job type, and repository conditions. Day and time windows use the
+server time zone and must not cross midnight (start after end is rejected by the
+editor and the API; use two rules instead). Job type matches kinds, priorities,
+and investigation Jobs. The repository condition is only offered for user-level
+rules, since repository and Job rule sets already apply to one repository.
 Existing workflow pins are not rewritten.
 Chat agents can inspect those same user, repository, and Job rule sets, explain
 the effective first-match decision, and prepare atomic rule changes for operator

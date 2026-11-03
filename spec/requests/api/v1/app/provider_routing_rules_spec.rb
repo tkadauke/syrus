@@ -319,6 +319,27 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
     expect(ProviderRoutingRule.where(scope_type: "job", scope_id: job.id)).to be_empty
   end
 
+  it "exposes job kinds, repositories, and the time zone for the condition editor" do
+    repository
+    get "/api/v1/app/credentials/provider_routing_rules"
+
+    conditions = parse_body.dig("provider_routing_options", "conditions")
+    expect(conditions.fetch("job_kinds").map { |entry| entry["value"] }).to eq(Job::Kind.user_facing_values)
+    expect(conditions.fetch("repositories")).to include(include("id" => repository.id, "owner" => repository.owner, "name" => repository.name))
+    expect(conditions.fetch("time_zone")).to eq(Time.zone.name)
+  end
+
+  it "exposes the current per-provider usage reading for the usage condition hint" do
+    observed = Time.current.iso8601
+    availability = { "codex" => { "state" => "available", "usage" => { "remaining_percent" => 20.0, "observed_at" => observed } }, "claude" => nil }
+    allow(App::ProviderAvailability).to receive(:all_for_user).and_return(availability)
+
+    get "/api/v1/app/credentials/provider_routing_rules"
+
+    usage = parse_body.dig("provider_routing_options", "conditions", "provider_usage")
+    expect(usage).to eq([ { "provider" => "codex", "state" => "available", "remaining_percent" => 20.0, "observed_at" => observed } ])
+  end
+
   it "exposes trigger and condition options from live registries" do
     workflow_kind_provider = Class.new do
       include Syrus::Plugin::WorkflowKinds
@@ -409,5 +430,77 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
     expect(parse_body.dig("provider_routing_options", "agent_providers")).to include(
       include("value" => "claude", "models" => include(include("id" => "claude-sonnet-4-6")))
     )
+  end
+
+  describe "POST explain" do
+    let(:target) { Factories.job_record(user: user, repository: repository, issue_number: 202) }
+
+    def rule_trace
+      parse_body.fetch("scope_precedence").flat_map { |scope| scope.fetch("rules") }
+    end
+
+    it "explains the winning user rule for an accessible Job" do
+      rule = create_rule(scope_type: "user", scope_id: user.id, task_key: "implement")
+
+      post "/api/v1/app/credentials/provider_routing_rules/explain",
+        params: { target_job_id: target.id, task_key: "implement" }, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("job_id")).to eq(target.id)
+      expect(rule_trace).to include(include("id" => rule.id, "outcome" => "matched_winner"))
+      expect(parse_body.dig("winning_decision", "matched_rule", "id")).to eq(rule.id)
+    end
+
+    it "accepts a Job slug and explains from repository and job scopes" do
+      rule = create_rule(scope_type: "repository", scope_id: repository.id, task_key: "implement")
+
+      post "/api/v1/app/repositories/#{repository.id}/provider_routing_rules/explain",
+        params: { target_job_id: "JOB-#{target.id}", task_key: "implement" }, as: :json
+      expect(response).to have_http_status(:ok)
+      expect(rule_trace).to include(include("id" => rule.id, "outcome" => "matched_winner"))
+
+      post "/api/v1/app/jobs/#{job.id}/provider_routing_rules/explain",
+        params: { target_job_id: target.id, task_key: "implement" }, as: :json
+      expect(response).to have_http_status(:ok)
+    end
+
+    it "reports a rule skipped because its workflow trigger condition failed" do
+      rule = ProviderRoutingRule.create!(
+        scope_type: "user", scope_id: user.id, task_key: "implement",
+        conditions: { "workflow_trigger_kind" => [ "ci_failure" ] },
+        candidates: [ { "provider" => "codex" } ]
+      )
+
+      post "/api/v1/app/credentials/provider_routing_rules/explain",
+        params: { target_job_id: target.id, task_key: "implement", workflow_trigger_kind: "initial" }, as: :json
+
+      expect(response).to have_http_status(:ok)
+      trace = rule_trace.find { |entry| entry["id"] == rule.id }
+      expect(trace["outcome"]).to eq("match_failed")
+      expect(trace.fetch("evidence").first.dig("conditions", "workflow_trigger_kind")).to include("matched" => false)
+    end
+
+    it "returns not_found for a missing Job" do
+      post "/api/v1/app/credentials/provider_routing_rules/explain",
+        params: { target_job_id: 99_999_999, task_key: "implement" }, as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "does not explain a Job the user cannot see" do
+      other = Factories.user
+      hidden = Factories.job_record(user: other, repository: Factories.repository(user: other, owner: "other", name: "hidden"), issue_number: 303)
+
+      post "/api/v1/app/credentials/provider_routing_rules/explain",
+        params: { target_job_id: hidden.id, task_key: "implement" }, as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "requires a task" do
+      post "/api/v1/app/credentials/provider_routing_rules/explain", params: { target_job_id: target.id }, as: :json
+
+      expect(response).to have_http_status(:bad_request)
+    end
   end
 end

@@ -101,6 +101,7 @@ Rails.application.routes.draw do
         end
         get "credentials/provider_routing_rules", to: "provider_routing_rules#index"
         post "credentials/provider_routing_rules", to: "provider_routing_rules#create"
+        post "credentials/provider_routing_rules/explain", to: "provider_routing_rules#explain"
         patch "credentials/provider_routing_rules/reorder", to: "provider_routing_rules#reorder"
         patch "credentials/provider_routing_rules/:id", to: "provider_routing_rules#update", constraints: { id: /\d+/ }
         delete "credentials/provider_routing_rules/:id", to: "provider_routing_rules#destroy", constraints: { id: /\d+/ }
@@ -116,6 +117,7 @@ Rails.application.routes.draw do
         get "jobs/:job_id/target_graph", to: "target_graphs#job", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:job_id/provider_routing_rules", to: "provider_routing_rules#index", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/provider_routing_rules", to: "provider_routing_rules#create", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
+        post "jobs/:job_id/provider_routing_rules/explain", to: "provider_routing_rules#explain", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         patch "jobs/:job_id/provider_routing_rules/reorder", to: "provider_routing_rules#reorder", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         patch "jobs/:job_id/provider_routing_rules/:id", to: "provider_routing_rules#update", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
         delete "jobs/:job_id/provider_routing_rules/:id", to: "provider_routing_rules#destroy", constraints: { job_id: /[a-zA-Z0-9_-]+/, id: /\d+/ }
@@ -379,7 +381,10 @@ Rails.application.routes.draw do
           resources :team_grants, controller: "repository_team_grants", only: %i[ index create update destroy ]
           resources :final_approvers, controller: "repository_final_approvers", only: %i[ index create destroy ]
           resources :provider_routing_rules, controller: "provider_routing_rules", only: %i[ index create update destroy ] do
-            collection { patch :reorder }
+            collection do
+              patch :reorder
+              post :explain
+            end
           end
         end
         resources :teams, only: %i[ index show create update destroy ] do
