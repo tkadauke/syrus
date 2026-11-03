@@ -10,6 +10,8 @@ module Steps
       snapshot = WorkflowSourceSnapshots.record!(workflow: workflow, creator_step: step, source_sha: sha, source_ref: ref,
         tree_sha: GitRunner.new.run("rev-parse", "HEAD^{tree}", chdir: workspace.path.to_s).strip)
       workflow.set_artifact!("base_refresh_source_snapshot_id", snapshot.id)
+    rescue GithubPushProtection::Rejected => e
+      handle_push_protection_rejection!(e)
     rescue GitRunner::GitError => e
       raise WorkflowSourceSnapshots::InfrastructureStateError, "refreshed source snapshot publication failed: #{e.message}"
     end

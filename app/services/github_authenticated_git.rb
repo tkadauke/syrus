@@ -14,7 +14,19 @@ class GithubAuthenticatedGit
     @log = log
   end
 
-  def run
+  # Classifies GitHub push-protection rejections at this single authenticated
+  # boundary. Recovery is owned by the calling workflow; see
+  # PushProtection::Recovery.
+  def run(&block)
+    run_with_fallback(&block)
+  rescue GitRunner::GitError => e
+    classified = GithubPushProtection.reclassify(e)
+    raise classified unless classified.equal?(e)
+
+    raise
+  end
+
+  def run_with_fallback
     installation = GithubClient.active_installation_for(repository: repository, user: user)
     return yield default_url if installation.blank?
 

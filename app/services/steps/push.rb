@@ -17,7 +17,12 @@ module Steps
 
       log("push: pushing branch #{workspace.branch_name} (#{workflow.slug})")
       git = streaming_git(env: { "GIT_TERMINAL_PROMPT" => "0" })
-      authenticated_git("git_push", git: git) { |push_url| push_branch(git, push_url) }
+      begin
+        authenticated_git("git_push", git: git) { |push_url| push_branch(git, push_url) }
+      rescue GithubPushProtection::Rejected => e
+        handle_push_protection_rejection!(e)
+      end
+      record_accepted_push!
       apply_job_metadata_refresh
       update_managed_pr_footers unless refreshed_job_metadata_applied?
     end
