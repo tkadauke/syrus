@@ -304,10 +304,10 @@ function HistoryRail({
         </Button>
         <Button
           aria-label={`${t("history_short")} ${t("previous_tick")}`}
-          disabled={!historical || currentTick <= 0}
-          onClick={() => onSelect(history.ticks[currentTick - 1])}
+          disabled={!history.ticks.length || (historical && currentTick <= 0)}
+          onClick={() => onSelect(historical ? history.ticks[currentTick - 1] : history.ticks[history.ticks.length - 1])}
           size="icon"
-          title={!historical || currentTick <= 0 ? t("history_no_previous") : t("previous_tick")}
+          title={!history.ticks.length || (historical && currentTick <= 0) ? t("history_no_previous") : t("previous_tick")}
           variant="secondary"
         >
           ‹
@@ -750,11 +750,11 @@ function PipelineOverview({
               </Button>
               <Button
                 aria-label={t("previous_tick")}
-                disabled={currentTick <= 0}
+                disabled={!history.ticks.length || (historical && currentTick <= 0)}
                 className="h-7 w-7"
-                onClick={() => setAt(history.ticks[currentTick - 1])}
+                onClick={() => setAt(historical ? history.ticks[currentTick - 1] : history.ticks[history.ticks.length - 1])}
                 size="icon"
-                title={currentTick <= 0 ? t("history_no_previous") : t("previous_tick")}
+                title={!history.ticks.length || (historical && currentTick <= 0) ? t("history_no_previous") : t("previous_tick")}
                 variant="secondary"
               >
                 ↑
