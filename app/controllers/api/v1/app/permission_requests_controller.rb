@@ -6,7 +6,7 @@ module Api
 
         def index
           page = [ params[:page].to_i, 1 ].max
-          relation = scope.preload(:origin, :subject, :repository, :authorization_items).order(created_at: :desc)
+          relation = scope.preload(:origin, :subject, :repository, authorization_items: [ :prerequisites, :resulting_authority ]).order(created_at: :desc)
           total = relation.count
           requests = relation.offset((page - 1) * PER_PAGE).limit(PER_PAGE)
           render json: {
