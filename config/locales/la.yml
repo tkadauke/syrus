@@ -9,6 +9,13 @@ la:
   server:
     permissions:
       coworker_request_waiting: "Exspectatur dominus ut de permissionibus requisitis decernat."
+      coworker_permission:
+        requested: "Petitio permissionis ad dominum missa est. Nihil concedit donec dominus approbet."
+        deduplicated: "Petitio permissionis aequivalens iam dominum exspectat."
+        already_authorized: "Haec socia operis hanc auctoritatem iam habet; nulla petitio necessaria erat."
+        surrendered: "Locatio permissionis reddita est. Statim revocata est."
+        revocation_requested: "Petitio revocationis ad dominum missa est. Regula valet donec dominus confirmet."
+        rejected: "Petitio permissionis non missa est: %{reason}"
       authorization_required_tool_interrupted: "Conversatio agentis ad auctoritatem exspectandam substitit antequam hoc instrumentum respondit."
       scheduled_authorization:
         waiting: "Auctoritas exspectatur."
@@ -276,6 +283,7 @@ la:
       smart_decision:
         stale: "Haec petitio licentiae iam decisa vel mutata est. Petitionem praesentem inspice."
         unavailable: "Haec optio licentiae huic petitioni non praesto est."
+        duration_required: "Elige quam diu haec permissio sociae operis duret antequam eam approbes."
 
     job_source_diff:
       preview_fixture: "Exemplar praevium"

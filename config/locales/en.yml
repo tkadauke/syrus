@@ -40,6 +40,13 @@ en:
   server:
     permissions:
       coworker_request_waiting: "Waiting for the owner to decide the required permissions."
+      coworker_permission:
+        requested: "Permission request sent to the owner. It grants nothing until the owner approves it."
+        deduplicated: "An equivalent permission request is already waiting for the owner."
+        already_authorized: "This coworker already has this authority; no request was needed."
+        surrendered: "Permission lease surrendered. It is revoked immediately."
+        revocation_requested: "Revocation request sent to the owner. The rule stays in force until the owner confirms."
+        rejected: "Permission request not sent: %{reason}"
       authorization_required_tool_interrupted: "Agent turn paused for authorization before this tool returned."
       scheduled_authorization:
         waiting: "Waiting for authorization."
@@ -310,6 +317,7 @@ en:
       smart_decision:
         stale: "This permission request was already decided or changed. Review the current request."
         unavailable: "This permission option is not available for this request."
+        duration_required: "Choose how long this coworker permission should last before approving it."
 
     job_source_diff:
       preview_fixture: "Preview fixture"

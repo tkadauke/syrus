@@ -9,6 +9,13 @@ de:
   server:
     permissions:
       coworker_request_waiting: "Warten auf die Entscheidung des Eigentümers über die erforderlichen Berechtigungen."
+      coworker_permission:
+        requested: "Berechtigungsanfrage an den Eigentümer gesendet. Es wird nichts gewährt, bis der Eigentümer zustimmt."
+        deduplicated: "Eine gleichwertige Berechtigungsanfrage wartet bereits auf den Eigentümer."
+        already_authorized: "Dieser Coworker hat diese Berechtigung bereits; es war keine Anfrage nötig."
+        surrendered: "Berechtigungs-Lease zurückgegeben. Es ist sofort widerrufen."
+        revocation_requested: "Widerrufsanfrage an den Eigentümer gesendet. Die Regel gilt weiter, bis der Eigentümer bestätigt."
+        rejected: "Berechtigungsanfrage nicht gesendet: %{reason}"
       authorization_required_tool_interrupted: "Die Agentenrunde wurde zur Autorisierung angehalten, bevor dieses Tool antwortete."
       scheduled_authorization:
         waiting: "Warten auf Autorisierung."
@@ -276,6 +283,7 @@ de:
       smart_decision:
         stale: "Diese Berechtigungsanfrage wurde bereits entschieden oder geändert. Prüfe die aktuelle Anfrage."
         unavailable: "Diese Berechtigungsoption ist für diese Anfrage nicht verfügbar."
+        duration_required: "Wähle aus, wie lange diese Berechtigung des Coworkers gelten soll, bevor du sie genehmigst."
 
     job_source_diff:
       preview_fixture: "Vorschau-Testdaten"

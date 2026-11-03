@@ -65,6 +65,9 @@ module Api
           decision = params.require(:decision).to_s
           raise ArgumentError, "decision must be approved or denied" unless decision.in?(%w[approved denied])
 
+          permission_requests = scope.where(id: ids, action: Permissions::CoworkerPermissionRequest::ACTION).order(:id).to_a
+          return decide_coworker_permission_requests!(ids, permission_requests, decision) if permission_requests.any?
+
           requests = []
           ChatPendingAction.transaction do
             requests = scope.where(id: ids).order(:id).lock.to_a
@@ -79,6 +82,20 @@ module Api
             requests.each { |request| request.update!(state: decision == "approved" ? "confirmed" : "rejected") }
           end
           requests
+        end
+
+        # A coworker permission request carries no invocation: it can only be
+        # denied here, or approved through the adaptive rule so the owner always
+        # sees the exact authority being created.
+        def decide_coworker_permission_requests!(ids, permission_requests, decision)
+          raise ArgumentError, "coworker permission requests cannot be decided together with other requests" if permission_requests.length != ids.length
+          raise ArgumentError, I18n.t("api.permission_requests.smart_decision.duration_required") unless decision == "denied"
+
+          permission_requests.each do |request|
+            Permissions::CoworkerAuthorizationDecision.new(request:, item: request.authorization_items.sole, user: Current.user)
+              .call(decision: "denied")
+          end
+          permission_requests
         end
 
         def validate_decision!(requests, items, decision)
