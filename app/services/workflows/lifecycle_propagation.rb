@@ -42,6 +42,9 @@ module Workflows
 
     def cancelled!
       workflow.finished_at = Time.current
+      # Invariant: a root event exists before any cleanup runs. Direct
+      # `workflow.cancel!` callers that supplied none surface as unattributed.
+      Workflows::CancellationAttribution.record!(workflow, reason: workflow.artifact("cancelled_reason").presence || "unspecified")
       workflow.sync_work_unit_terminal!("cancelled")
       workflow.cancel_active_descendants!
       workflow.propagate_cancel_to_job!

@@ -16,8 +16,9 @@ module McpToolPayloads
         run_count: runs.size,
         created_at: workflow.created_at&.iso8601,
         started_at: workflow.started_at&.iso8601,
-        finished_at: workflow.finished_at&.iso8601
-      }
+        finished_at: workflow.finished_at&.iso8601,
+        cancellation: Workflows::CancellationAttribution.payload_for(workflow, include_cascade: false)
+      }.then { |h| h[:cancellation].nil? ? h.except(:cancellation) : h }
     end
 
     # Brief summary payload used in read_job's latest_workflow field.
@@ -33,8 +34,9 @@ module McpToolPayloads
         planned_execution: workflow.planned_execution_json,
         summary: workflow.artifact("summary").presence || latest_run&.agent_summary,
         created_at: workflow.created_at&.iso8601,
-        finished_at: workflow.finished_at&.iso8601
-      }
+        finished_at: workflow.finished_at&.iso8601,
+        cancellation: Workflows::CancellationAttribution.payload_for(workflow, include_cascade: false)
+      }.then { |h| h[:cancellation].nil? ? h.except(:cancellation) : h }
     end
 
     # One chunk row from a Run's job_logs, used by read_run_transcript.
