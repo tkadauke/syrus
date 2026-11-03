@@ -256,7 +256,13 @@ module Steps
       record_accepted_push!
       :pushed
     rescue GithubPushProtection::Rejected => e
-      handle_push_protection_rejection!(e)
+      handle_push_protection_rejection!(e) do
+        authenticated_git("git_pr_open_push_protection_repair_push", git: git) do |push_url|
+          git.run("push", push_url, "HEAD:refs/heads/#{workspace.branch_name}", chdir: workspace.path.to_s)
+        end
+      end
+      record_accepted_push!
+      :pushed
     rescue GitRunner::GitError => e
       raise unless published_review_branch? && push_rejected?(e)
 

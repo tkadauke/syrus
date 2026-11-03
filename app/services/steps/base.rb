@@ -23,6 +23,7 @@ module Steps
   # orchestrator catches it, transitions the Run + Step to
   # failed, and increments the Workflow's failure_count.
   class Base
+    include PushProtectionRecovery
     # A step failure, optionally carrying the Problem it represents.
     #
     # Historically a step raised prose and every downstream layer regex-matched
@@ -178,20 +179,6 @@ module Steps
     # what the classifier, the landing handler and any adjudicator read.
     def fail_with!(code, message, evidence: {})
       raise StepFailed.new(message, problem_code: code, evidence: evidence)
-    end
-
-    # Owns recovery for a GitHub push-protection rejection raised by the shared
-    # authenticated push boundary (GithubAuthenticatedGit). Records sanitized
-    # evidence, preserves the rejected workspace outside GitHub, prepares the
-    # single-commit repair candidate (mutable Job refs) or quarantines the ref
-    # (shared refs), and always stops downstream publication.
-    def handle_push_protection_rejection!(error)
-      outcome = PushProtection::Recovery
-        .for(workflow: workflow, workspace_path: workspace.path, branch: workspace.branch_name)
-        .handle_rejection!(error)
-      log("push protection: #{outcome.kind}: #{outcome.message}", kind: "system")
-      fail_with!(:github_push_protection, "GitHub push protection rejected #{workspace.branch_name}: #{outcome.message}",
-                 evidence: { "outcome" => outcome.kind.to_s, "findings" => error.findings.map(&:to_h) })
     end
 
     # GitHub accepted this commit; it becomes the clean anchor for any later

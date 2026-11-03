@@ -110,8 +110,13 @@ class CodingHandoffCapture
       raise CaptureError, "coding handoff branch #{handoff_branch} already exists at #{remote_sha}, expected #{head_sha}" unless allow_existing_branch_update?
     end
 
-    authenticated_git("git_coding_handoff_push") do |url|
-      git.run("push", url, "HEAD:refs/heads/#{handoff_branch}", chdir: checkout_path.to_s)
+    begin
+      authenticated_git("git_coding_handoff_push") do |url|
+        git.run("push", url, "HEAD:refs/heads/#{handoff_branch}", chdir: checkout_path.to_s)
+      end
+    rescue GithubPushProtection::Rejected => e
+      # No Job-owned workflow exists yet: stop publication and surface sanitized evidence.
+      raise CaptureError, "GitHub push protection rejected the handoff branch #{handoff_branch}; remove the flagged secrets and resubmit.\n#{e.message}"
     end
     actual_sha = remote_branch_sha
     raise CaptureError, "coding handoff branch #{handoff_branch} was not published" if actual_sha.blank?
