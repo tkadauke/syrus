@@ -28,13 +28,13 @@ module Workflows
     end
 
     KINDS = [
-      Kind.new(key: "operator_cancellation", reasons: %w[operator_cancelled operator_stopped_landing operator_stale_work_repair], prefixes: %w[operator_]),
-      Kind.new(key: "stack_topology_repair", reasons: %w[superseded_by_rebase], prefixes: %w[stack_ rebase_]),
-      Kind.new(key: "supersession", reasons: %w[superseded_by_newer_workflow emergency_land_superseded superseded], prefixes: %w[superseded_by_newer superseded_base]),
-      Kind.new(key: "dependency_invalidation", reasons: %w[job_closed job_approved], prefixes: %w[dependency_ epic_]),
-      Kind.new(key: "provider_rerouting", reasons: %w[stale_provider_relaunch], prefixes: %w[provider_]),
-      Kind.new(key: "automatic_recovery", reasons: %w[superseded_by_state_repair workflow_runaway], prefixes: %w[repair_ recovery_ auto_ cancel_stale]),
-      Kind.new(key: "infrastructure_shutdown", reasons: %w[worker_shutdown], prefixes: %w[infrastructure_ shutdown_])
+      Kind.new(key: "operator_cancellation", reasons: %w[operator_cancelled operator_stopped_landing operator_stale_work_repair], prefixes: []),
+      Kind.new(key: "stack_topology_repair", reasons: %w[superseded_by_rebase], prefixes: %w[stack_rebase]),
+      Kind.new(key: "supersession", reasons: %w[superseded_by_newer_workflow emergency_land_superseded superseded coding_handoff_takeover], prefixes: %w[superseded_base]),
+      Kind.new(key: "dependency_invalidation", reasons: %w[job_closed job_approved], prefixes: %w[dependency_]),
+      Kind.new(key: "provider_rerouting", reasons: %w[stale_provider_relaunch], prefixes: %w[provider_relaunch]),
+      Kind.new(key: "automatic_recovery", reasons: %w[superseded_by_state_repair workflow_runaway], prefixes: %w[recovery_]),
+      Kind.new(key: "infrastructure_shutdown", reasons: %w[worker_shutdown], prefixes: %w[infrastructure_shutdown])
     ].freeze
     DIRECT_KIND = "direct_cancellation".freeze
     UNATTRIBUTED_KIND = "unattributed".freeze
@@ -61,6 +61,18 @@ module Workflows
       Current.cancellation_cause = previous
     end
 
+    # While a Workflow's terminal propagation runs, every other cancellation it
+    # triggers (job lifecycle, hooks, dependents) is a child of that Workflow.
+    def self.with_parent(workflow)
+      previous = [ Current.cancellation_parent_workflow_id, Current.cancellation_parent_event ]
+      Current.cancellation_parent_workflow_id = workflow.id
+      # The parent's event is still in memory (its transition is not saved yet).
+      Current.cancellation_parent_event = workflow.artifacts.to_h[ARTIFACT_KEY]
+      yield
+    ensure
+      Current.cancellation_parent_workflow_id, Current.cancellation_parent_event = previous
+    end
+
     def self.kind_for(reason)
       reason = reason.to_s
       KINDS.find { |kind| kind.matches?(reason) }&.key || DIRECT_KIND
@@ -85,12 +97,16 @@ module Workflows
       raw.is_a?(Hash) ? raw : nil
     end
 
-    def self.run_payload(run)
-      step = run.step
+    # A Run's immediate causal parent is its Step; the Step reference carries
+    # the event ids and the Workflow that was the Step's own parent.
+    def self.run_payload(run, step: run.step)
       return unless run.state == "cancelled"
-      return unavailable unless step
 
-      step_payload(step) ? step_payload(step).merge("attribution_available" => true) : unavailable
+      ref = step && step_payload(step)
+      return unavailable unless ref
+
+      ref.merge("attribution_available" => true, "parent" => { "type" => "step", "id" => step.id },
+                "step_parent" => ref["parent"])
     end
 
     def self.unavailable
@@ -106,6 +122,12 @@ module Workflows
       return existing if existing.is_a?(Hash) && existing["event_id"].present?
 
       cause = normalize_cause(cause || Current.cancellation_cause)
+      ambient_parent = Current.cancellation_parent_workflow_id
+      if ambient_parent && ambient_parent != workflow.id
+        cause = { "kind" => nil, "initiator_class" => "Workflow", "initiator_id" => ambient_parent,
+                  "control_path" => "cascade" }.merge(cause.compact)
+        cause["parent_workflow_id"] ||= ambient_parent
+      end
       event = cause.present? ? build_event(reason, cause) : unattributed_event(reason)
       workflow.artifacts = workflow.artifacts.to_h.merge(ARTIFACT_KEY => event)
       instrument(event)
@@ -118,7 +140,7 @@ module Workflows
       event = workflow.artifacts.to_h[ARTIFACT_KEY]
       return unless event.is_a?(Hash)
 
-      event.slice("event_id", "cascade_id", "root_workflow_id", "kind", "attributed").merge(
+      event.slice("event_id", "root_event_id", "cascade_id", "root_workflow_id", "kind", "attributed").merge(
         "parent" => { "type" => "workflow", "id" => workflow.id }
       )
     end
@@ -133,9 +155,21 @@ module Workflows
         "attribution_available" => true,
         "root" => root_id == workflow.id,
         "root_event" => root_id == workflow.id ? nil : root_event,
-        "descendants" => (include_cascade ? descendants(event["cascade_id"]) : nil),
+        "descendants" => (include_cascade && root_id == workflow.id ? descendants(event["cascade_id"]) : nil),
         "replacement_workflow_ids" => replacement_ids(root_event)
       ).compact
+    end
+
+    # Records the replacement Workflow on an already-recorded supersession
+    # once it is known. Only fills a missing link; never alters the cause.
+    def self.link_replacement!(cancelled, replacement)
+      event = cancelled.artifacts.to_h[ARTIFACT_KEY]
+      return false unless event.is_a?(Hash) && event["kind"] == "supersession"
+      return false if event.dig("source", "replacement_workflow_id").present?
+
+      source = event["source"].to_h.merge("replacement_workflow_id" => replacement.id)
+      cancelled.update_columns(artifacts: cancelled.artifacts.to_h.merge(ARTIFACT_KEY => event.merge("source" => source)))
+      true
     end
 
     private
@@ -152,11 +186,14 @@ module Workflows
       parent = parent_attribution(cause)
       root = parent || {}
       cascade = root["cascade_id"].presence || SecureRandom.uuid
+      event_id = SecureRandom.uuid
       {
-        "event_id" => root["event_id"].presence || SecureRandom.uuid,
+        "event_id" => event_id,
+        "root_event_id" => root["root_event_id"].presence || root["event_id"].presence || event_id,
         "cascade_id" => cascade,
         "root_workflow_id" => root["root_workflow_id"] || workflow.id,
         "parent_workflow_id" => cause["parent_workflow_id"]&.to_i,
+        "parent_event_id" => root["event_id"],
         "occurred_at" => Time.current.iso8601(6),
         "kind" => cause["kind"].presence || self.class.kind_for(reason),
         "initiator_class" => cause["initiator_class"].presence || UNKNOWN_INITIATOR,
@@ -170,7 +207,8 @@ module Workflows
 
     def unattributed_event(reason)
       {
-        "event_id" => SecureRandom.uuid,
+        "event_id" => (event_id = SecureRandom.uuid),
+        "root_event_id" => event_id,
         "cascade_id" => SecureRandom.uuid,
         "root_workflow_id" => workflow.id,
         "occurred_at" => Time.current.iso8601(6),
@@ -188,7 +226,8 @@ module Workflows
       parent_id = cause["parent_workflow_id"]
       return unless parent_id.present? && parent_id.to_i != workflow.id
 
-      event = Workflow.find_by(id: parent_id)&.artifacts.to_h&.[](ARTIFACT_KEY)
+      event = Current.cancellation_parent_event if Current.cancellation_parent_workflow_id == parent_id.to_i
+      event ||= Workflow.find_by(id: parent_id)&.artifacts.to_h&.[](ARTIFACT_KEY)
       event if event.is_a?(Hash) && event["event_id"].present?
     end
 
@@ -223,9 +262,16 @@ module Workflows
 
       source.to_h.stringify_keys.each_with_object({}) do |(key, value), safe|
         next unless key.match?(SOURCE_ID_KEY)
-        next unless value.is_a?(Numeric) || value.is_a?(String) || value.is_a?(Array)
+        safe[key] = sanitize_source_value(value)
+        safe.delete(key) if safe[key].nil?
+      end
+    end
 
-        safe[key] = value.is_a?(String) ? redact(value) : value
+    def sanitize_source_value(value)
+      case value
+      when Numeric then value
+      when String then redact(value)
+      when Array then value.first(50).filter_map { |item| sanitize_source_value(item) unless item.is_a?(Array) || item.is_a?(Hash) }
       end
     end
 

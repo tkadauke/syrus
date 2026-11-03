@@ -111,6 +111,8 @@ module JobCodingMode
       WorkUnits::WorkflowCancellation.cancel!(
         wf,
         reason: "coding_handoff_takeover",
+        cause: { kind: "supersession", initiator_class: "system", control_path: "job#complete_coding_handoff!",
+                 source: { "job_id" => id, "workflow_id" => wf.id } },
         artifacts: {
           "cancelled_reason" => "coding_handoff_takeover",
           "cancelled_at" => Time.current.iso8601

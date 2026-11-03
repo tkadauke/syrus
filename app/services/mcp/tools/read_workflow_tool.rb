@@ -46,7 +46,7 @@ module Mcp::Tools
           finished_at: workflow.finished_at&.iso8601,
           cancellation: Workflows::CancellationAttribution.payload_for(workflow),
           steps: workflow.steps.map { |step| step_payload(step) }
-        }.then { |h| h[:cancellation].nil? ? h.except(:cancellation) : h }
+        }.then { |h| without_blank_cancellation(h) }
       end
 
       def step_payload(step)
@@ -73,7 +73,7 @@ module Mcp::Tools
           finished_at: run.finished_at&.iso8601,
           cost_usd: decimal_payload(run.cost_usd),
           cancellation: Workflows::CancellationAttribution.run_payload(run)
-        }.then { |h| h[:cancellation].nil? ? h.except(:cancellation) : h }
+        }.then { |h| without_blank_cancellation(h) }
       end
 
       def decimal_payload(value)

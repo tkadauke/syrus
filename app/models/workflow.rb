@@ -130,6 +130,7 @@ class Workflow < ApplicationRecord
   after_update_commit :wake_workflow_admission_after_completion!, if: :saved_change_to_state_to_terminal?
   after_create_commit :enforce_job_workflow_runaway_limits_on_create!
   after_create_commit :record_workflow_activity_created!
+  after_create_commit :link_as_replacement_in_cancellation_attribution
   after_update_commit :record_workflow_activity_state_change!, if: :saved_change_to_state?
 
   def saved_change_to_state_to_failed?
@@ -368,6 +369,16 @@ class Workflow < ApplicationRecord
 
   def propagate_cancel_to_job!
     Workflows::JobLifecyclePropagation.cancel!(self)
+  end
+
+  # A newer Workflow on the Job is the replacement for a recently superseded
+  # one whose replacement was not known when the cancellation was recorded.
+  def link_as_replacement_in_cancellation_attribution
+    job.workflows.where(state: "cancelled").where("id < ?", id).order(id: :desc).limit(5).each do |candidate|
+      Workflows::CancellationAttribution.link_replacement!(candidate, self)
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[Workflow##{id}] replacement attribution link failed: #{e.class}: #{e.message}")
   end
 
   def superseded_cancellation?
