@@ -123,6 +123,9 @@ module Mcp::Tools
             "actor" => approval_actor(context.agent_actor)
           }.compact
         ).call
+        if result.reused_result
+          return MCP::Tool::Response.new([ { type: "text", text: result.reused_result } ])
+        end
         return unless result.request
 
         action = result.request
