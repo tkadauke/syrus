@@ -50,6 +50,7 @@
     "previous": "Zurück",
     "next": "Weiter",
     "page_of": "Seite {{page}} von {{total}}",
+    "requested_by": "Angefordert von",
     "scope": "Gilt für", "consequence": "Was passieren könnte", "requested_duration": "Angefordert für", "why_required": "Warum ist eine Genehmigung nötig?",
     "filters": { "state": "Status", "subject": "Agent", "action": "Angeforderte Aktion", "effect": "Folge", "origin_type": "Herkunft" },
     "states": { "pending": "Ausstehend", "confirmed": "Genehmigt", "rejected": "Abgelehnt", "dismissed": "Ausgeblendet", "non_actionable": "Nicht verfügbar" },

@@ -1016,6 +1016,14 @@ export function PendingActionCard({
   const canDismiss = Boolean(terminalLabel && dismissPath)
   const isEmergencyLand = actionKey === "emergency_land"
   const coworkerReview = actionKey === "coworker_tool_call" ? pendingAction.review : null
+  const authorizationSummary = pendingAction.request_kind === "authorization_request" ? pendingAction.authorization_presentation : undefined
+  const authorizationContext = (
+    [
+      [i18n.t("settings:approval_inbox.requested_by"), [authorizationSummary?.agent, authorizationSummary?.origin].filter(Boolean).join(" · ")],
+      [i18n.t("settings:approval_inbox.requested_duration"), authorizationSummary?.requested_durations?.join(", ")],
+      [i18n.t("settings:approval_inbox.why_required"), authorizationSummary?.why_approval_required]
+    ] as Array<[string, string | undefined]>
+  ).filter((entry): entry is [string, string] => Boolean(entry[1]))
   const authorizationItems = pendingAction.request_kind === "authorization_request" ? pendingAction.authorization_items || [] : []
   const statusClass =
     isEmergencyLand && (isPending || isConfirming)
@@ -1134,6 +1142,16 @@ export function PendingActionCard({
             ) : null}
             {authorizationItems.length > 0 ? (
               <div className="mt-3 space-y-2">
+                {authorizationContext.length ? (
+                  <dl className="min-w-0 space-y-1 text-xs text-gray-600 dark:text-gray-300">
+                    {authorizationContext.map(([label, value]) => (
+                      <div className="min-w-0" key={label}>
+                        <dt className="font-medium text-gray-700 dark:text-gray-200">{label}</dt>
+                        <dd className="break-words">{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : null}
                 {authorizationItems.map((item) => (
                   <div className="rounded border border-gray-200 p-2 text-xs dark:border-gray-700" key={item.id}>
                     <div className="flex flex-wrap items-center justify-between gap-2">
