@@ -1,10 +1,10 @@
 class CreateWorkspaceReuseOutcomes < ActiveRecord::Migration[8.1]
   def change
     create_table :workspace_reuse_outcomes do |t|
-      t.references :repository, null: false
-      t.references :workflow, null: false
-      t.references :step, null: false
-      t.references :run, null: false
+      t.references :repository, null: false, foreign_key: false
+      t.references :workflow, null: false, foreign_key: false
+      t.references :step, null: false, foreign_key: false
+      t.references :run, null: false, foreign_key: false
       t.string :kind, null: false, limit: 32
       t.string :outcome, null: false, limit: 64
       t.string :prepare_fingerprint, limit: 64
