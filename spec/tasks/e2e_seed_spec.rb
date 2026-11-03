@@ -53,6 +53,7 @@ RSpec.describe "e2e:seed" do
       git_history
       k8s_cluster
       mysql_db_browser
+      sdlc_pipeline
       spending_insights
       team_directory
       worker_timeline
