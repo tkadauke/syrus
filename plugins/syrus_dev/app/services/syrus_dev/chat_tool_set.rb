@@ -42,7 +42,10 @@ module SyrusDev
         description: klass.description_value,
         input_schema: klass.input_schema_value.to_h,
         coworker_safe: true,
-        capability: CAPABILITY
+        capability: CAPABILITY,
+        capability_descriptor: Permissions::CoworkerActions.descriptor(
+          tool_name: klass.tool_name, family: CAPABILITY, effects: %i[confidential_read], risk: :medium, default: :ask
+        )
       }
     end
 

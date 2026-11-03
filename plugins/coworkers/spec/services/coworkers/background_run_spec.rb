@@ -27,6 +27,23 @@ RSpec.describe "Coworker background runs" do
     allow(Coworkers::ChatWorkspaceLifecycle).to receive(:new).with(main_chat).and_return(lifecycle)
   end
 
+  # Cross-chat reads and proposals are descriptor-gated; explicit owner rules
+  # (allow or ask) sit above those defaults.
+  def rule_for(tool_class, policy)
+    descriptor = McpToolRegistry.entries(surface: :coworker).find { |entry| entry.tool == tool_class }.descriptor
+    PermissionRule.create!(
+      owner_user: owner, created_by_user: owner, updated_by_user: owner,
+      subject_selector_type: "agent", subject_selector_id: coworker.id.to_s,
+      subject_role_keys: [], capability: descriptor.capability, operation: descriptor.operation,
+      resource_type: descriptor.resource_scope.type.to_s, resource_scope: {}, constraints: {},
+      policy: policy.to_s, policy_layer: "agent", source: "operator", provenance: {}
+    )
+  end
+
+  def allow_chat_reads
+    [ Mcp::Tools::ListChatsTool, Mcp::Tools::SearchChatsTool, Mcp::Tools::ReadChatMessagesTool ].each { |tool| rule_for(tool, :allow) }
+  end
+
   it "builds prepare, agent, post, and close steps on the coworker's home branch" do
     workflow = Coworkers::Workflow.instantiate(job: job)
 
@@ -124,6 +141,7 @@ RSpec.describe "Coworker background runs" do
     SQL
     SearchRecord.connection.execute("CREATE TABLE IF NOT EXISTS chat_search_metadata (key TEXT PRIMARY KEY, value TEXT)")
     coworker.grants.create!(capability: "chats.read_shared", approval_policy: "auto")
+    allow_chat_reads
     shared_chat = ChatSession.create!(user: owner, title: "Shared feedback")
     owner_chat = ChatSession.create!(user: owner, title: "Owner planning")
     inaccessible_chat = ChatSession.create!(user: Factories.user, title: "Private elsewhere")
@@ -191,6 +209,7 @@ RSpec.describe "Coworker background runs" do
 
   it "dispatches chat listing and search through the scheduled-run authorization boundary" do
     coworker.grants.create!(capability: "chats.read_shared", approval_policy: "auto")
+    allow_chat_reads
     own_side_chat = ChatSession.create!(user: owner, title: "Coworker side chat")
     Coworkers::Chat.create!(coworker: coworker, chat_session: own_side_chat, role: "side")
     shared_chat = ChatSession.create!(user: owner, title: "Shared owner chat")
@@ -262,6 +281,7 @@ RSpec.describe "Coworker background runs" do
 
   it "queues confirm and queue mutations from unattended runs and replays an approval in its run context" do
     coworker.grants.create!(capability: "syrus.propose_job", approval_policy: "confirm")
+    rule_for(Mcp::Tools::ProposeJobTool, :ask)
     workflow = Coworkers::Workflow.instantiate(job: job)
     step = workflow.steps.find_by!(kind: "coworker_run")
     run = Run.create!(job: job, user: owner, step: step, trigger_kind: "coworker_run", agent_provider: "codex")

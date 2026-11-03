@@ -6,6 +6,26 @@ leases can narrow or extend those defaults within each descriptor's ceiling.
 Legacy coworker grant rows are cleared during the cutover and are not runtime
 authority.
 
+## Default policies for coworker tools
+
+A coworker tool defaults to `allow` only when every classified invocation is low
+risk and confined to local reads, isolated workspace writes, or a declared benign
+internal write: bounded read-only repository context (`attach_repository`,
+`detach_repository`, within the owner's accessible repositories and the grant's
+repository scope), owner-directed interaction, reducing the coworker's own
+authority, or creating a non-executing draft proposal (`propose_job`,
+`propose_epic_with_jobs`) that an operator must still confirm. Cross-chat reads,
+operational telemetry and logs, database and Kubernetes access, credential use,
+messaging other coworkers, side-chat creation, schedules, and any consequential,
+privilege-changing, destructive, or irreversible effect stay `ask` or `deny`.
+Explicit operator rules, denies, and ceilings always override these defaults, and
+an invocation whose own classification is not benign is downgraded to `ask`.
+Registration fails when a coworker descriptor defaults to `allow` without meeting
+this rule, and `Coworkers::ToolDefaultPolicyReport` fails when an advertised grant
+default disagrees with the effective descriptor default. Run
+`bin/rails syrus:coworker_tool_defaults` to print every coworker tool grouped into
+allow, ask, and deny with the reason.
+
 ## Background runs
 
 The plugin contributes an infrastructure workflow for unattended coworker

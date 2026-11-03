@@ -188,22 +188,44 @@ RSpec.describe "Coworker chat surface" do
     expect(chat.proposals).to be_empty
   end
 
-  it "ignores legacy grant policy and uses the unified ask default" do
+  it "ignores legacy grant policy: propose_job defaults to allow but only creates a pending proposal" do
     coworker.grants.create!(capability: "syrus.propose_job", approval_policy: "confirm")
 
     response = coworker_tool("propose_job").call(
       repo: repository.slug,
       title: "Confirm first",
-      description: "The owner must allow this draft.",
+      description: "The owner must still confirm this draft.",
       planned_execution: { capabilities: { os: [ "linux" ] } },
       server_context: { chat_session: chat }
     )
 
     expect(response).not_to be_error
-    expect(response_payload(response)).to include("approval_policy" => "queue")
+    payload = response_payload(response)
+    expect(payload).to include("state" => "proposed", "slug" => "job-confirm-first")
+    expect(payload).not_to have_key("approval_policy")
+    expect(chat.pending_actions.where(action: "coworker_tool_call")).to be_empty
+    # The draft stays pending: no Job exists until an operator confirms it.
+    expect(chat.proposals.map(&:state)).to eq([ "proposed" ])
+    expect(Job.count).to eq(0)
+  end
+
+  it "keeps proposals gated behind an explicit deny rule" do
+    descriptor = McpToolRegistry.entries(surface: :coworker).find { |entry| entry.tool == Mcp::Tools::ProposeJobTool }.descriptor
+    PermissionRule.create!(
+      owner_user: owner, created_by_user: owner, updated_by_user: owner,
+      subject_selector_type: "agent", subject_selector_id: coworker.id.to_s,
+      subject_role_keys: [], capability: descriptor.capability, operation: descriptor.operation,
+      resource_type: descriptor.resource_scope.type.to_s, resource_scope: {}, constraints: {},
+      policy: "deny", policy_layer: "agent", source: "operator", provenance: {}
+    )
+
+    response = coworker_tool("propose_job").call(
+      repo: repository.slug, title: "Denied", description: "Should never be drafted.",
+      planned_execution: { capabilities: { os: [ "linux" ] } }, server_context: { chat_session: chat }
+    )
+
+    expect(response).to be_error
     expect(chat.proposals).to be_empty
-    expect(chat.pending_actions.last).to have_attributes(action: "coworker_tool_call", state: "pending")
-    expect(chat.pending_actions.last.payload.fetch("actor")).to include("name" => coworker.name, "handle" => coworker.handle)
   end
 
   it "uses descriptor defaults for read-only core tools despite legacy policy changes" do
@@ -320,6 +342,7 @@ RSpec.describe "Coworker chat surface" do
 
   it "delegates the owner's accessible chats to list, search, and read without widening to other users" do
     coworker.grants.create!(capability: "chats.read_shared", approval_policy: "auto")
+    [ Mcp::Tools::ListChatsTool, Mcp::Tools::SearchChatsTool, Mcp::Tools::ReadChatMessagesTool ].each { |tool| allow_tool(tool) }
     owner_chat = ChatSession.create!(user: owner, title: "Owner chat")
     other_coworker = Coworkers::Coworker.create!(
       owner_user: owner, name: "Robin", handle: "robin-chat-reader",
@@ -360,6 +383,7 @@ RSpec.describe "Coworker chat surface" do
     SQL
     SearchRecord.connection.execute("CREATE TABLE IF NOT EXISTS chat_search_metadata (key TEXT PRIMARY KEY, value TEXT)")
     coworker.grants.create!(capability: "chats.read_shared", approval_policy: "auto")
+    allow_tool(Mcp::Tools::SearchChatsTool)
     indexed = chat.messages.create!(role: "user", content: { "text" => "calendar needle" })
     ChatMessageSearchIndex.insert(indexed)
     Syrus::PluginRegistry.register(:chat_result_decorator, Coworkers::ChatResultDecorator)

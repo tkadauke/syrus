@@ -97,7 +97,7 @@ class McpToolRegistry
           name: "code.read",
           label: "Read repository code",
           description: "Attach read-only repository checkouts and browse source, pull requests, and Job diffs within the selected repositories.",
-          default_policy: "auto",
+          default_policy: Permissions::CoworkerActions.grant_default_policy("code.read"),
           maximum_policy: "auto",
           tools: entries(surface: :coworker).select { |entry| entry.capability == :"code.read" }.map(&:tool_name),
           scope_options_callback: ->(user:) { Mcp::Tools::CoworkerRepositoryAccess.scope_options(user:) },
@@ -108,7 +108,7 @@ class McpToolRegistry
           name: "ops.read_logs",
           label: "Read operational observability",
           description: "Read redacted operational logs, worker and queue diagnostics, admission evidence, exception events, browser errors, and performance traces.",
-          default_policy: "confirm",
+          default_policy: Permissions::CoworkerActions.grant_default_policy("ops.read_logs"),
           maximum_policy: "auto",
           tools: entries(surface: :coworker).select { |entry| entry.capability == :"ops.read_logs" }.map(&:tool_name),
           scope_options_callback: nil,
@@ -415,42 +415,42 @@ class McpToolRegistry
     # never widens this surface.
     def coworker_entries
       [
-        legacy_coworker(Mcp::Tools::AttachRepositoryTool, capability: "code.read", interactive_only: true, mutation: true),
-        legacy_coworker(Mcp::Tools::DetachRepositoryTool, capability: "code.read", interactive_only: true, mutation: true),
-        legacy_coworker(Mcp::Tools::ListRepositoryFilesTool, capability: "code.read"),
-        legacy_coworker(Mcp::Tools::ReadRepositoryFileTool, capability: "code.read"),
-        legacy_coworker(Mcp::Tools::SearchRepositoryCodeTool, capability: "code.read"),
-        legacy_coworker(Mcp::Tools::GetJobDiffTool, capability: "code.read"),
-        legacy_coworker(Mcp::Tools::ReadPrTool, capability: "code.read"),
-        legacy_coworker(Mcp::Tools::AskUserQuestionTool, capability: "chat.message_owner", interactive_only: true, mutation: true, ungated: true),
-        legacy_coworker(Mcp::Tools::SuggestNextStepTool, capability: "chat.message_owner", interactive_only: true, mutation: true, ungated: true),
-        legacy_coworker(Mcp::Tools::DiscoverCoworkerCapabilitiesTool,
+        coworker_action(Mcp::Tools::AttachRepositoryTool, capability: "code.read", interactive_only: true, mutation: true),
+        coworker_action(Mcp::Tools::DetachRepositoryTool, capability: "code.read", interactive_only: true, mutation: true),
+        coworker_action(Mcp::Tools::ListRepositoryFilesTool, capability: "code.read"),
+        coworker_action(Mcp::Tools::ReadRepositoryFileTool, capability: "code.read"),
+        coworker_action(Mcp::Tools::SearchRepositoryCodeTool, capability: "code.read"),
+        coworker_action(Mcp::Tools::GetJobDiffTool, capability: "code.read"),
+        coworker_action(Mcp::Tools::ReadPrTool, capability: "code.read"),
+        coworker_action(Mcp::Tools::AskUserQuestionTool, capability: "chat.message_owner", interactive_only: true, mutation: true, ungated: true),
+        coworker_action(Mcp::Tools::SuggestNextStepTool, capability: "chat.message_owner", interactive_only: true, mutation: true, ungated: true),
+        coworker_action(Mcp::Tools::DiscoverCoworkerCapabilitiesTool,
           tier: :deferred, capability: "chat.message_owner", ungated: true),
-        coworker(Mcp::Tools::RequestPermissionTool,
+        coworker_action(Mcp::Tools::RequestPermissionTool,
           tier: :deferred, capability: "chat.message_owner", ungated: true, mutation: true),
-        coworker(Mcp::Tools::SurrenderPermissionLeaseTool,
+        coworker_action(Mcp::Tools::SurrenderPermissionLeaseTool,
           tier: :deferred, capability: "chat.message_owner", ungated: true, mutation: true),
-        coworker(Mcp::Tools::RequestPermissionRevocationTool,
+        coworker_action(Mcp::Tools::RequestPermissionRevocationTool,
           tier: :deferred, capability: "chat.message_owner", ungated: true, mutation: true),
-        legacy_coworker(Mcp::Tools::ListJobsTool, capability: "syrus.read_jobs"),
-        legacy_coworker(Mcp::Tools::SearchJobsTool, capability: "syrus.read_jobs"),
-        legacy_coworker(Mcp::Tools::ReadJobTool, capability: "syrus.read_jobs"),
-        legacy_coworker(Mcp::Tools::ProposeJobTool, capability: "syrus.propose_job", mutation: true),
-        legacy_coworker(Mcp::Tools::ProposeEpicWithJobsTool, capability: "syrus.propose_job", mutation: true),
-        legacy_coworker(Mcp::Tools::ListChatsTool, tier: :deferred, capability: "chats.read_shared"),
-        legacy_coworker(Mcp::Tools::SearchChatsTool, tier: :deferred, capability: "chats.read_shared"),
-        legacy_coworker(Mcp::Tools::ReadChatMessagesTool, tier: :deferred, capability: "chats.read_shared"),
-        legacy_coworker(Mcp::Tools::AdminReadOperationalLogsTool, capability: "ops.read_logs", default_policy: :ask),
-        legacy_coworker(Mcp::Tools::ReadWorkerHealthTool, capability: "ops.read_logs", default_policy: :ask),
-        legacy_coworker(Mcp::Tools::ReadBackendExceptionEventsTool, capability: "ops.read_logs", default_policy: :ask),
-        legacy_coworker(Mcp::Tools::ReadBrowserErrorEventsTool, capability: "ops.read_logs", default_policy: :ask),
-        legacy_coworker(Mcp::Tools::ReadPerformanceLogEventsTool, capability: "ops.read_logs", default_policy: :ask),
-        legacy_coworker(Mcp::Tools::OperationalDiagnosticsTools::ReadMetricsDiagnosticsTool, capability: "ops.read_logs", default_policy: :ask),
-        legacy_coworker(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkerOccupancyTool, capability: "ops.read_logs", default_policy: :ask),
-        legacy_coworker(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkflowTimelineTool, capability: "ops.read_logs", default_policy: :ask),
-        legacy_coworker(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkflowWaterfallTool, capability: "ops.read_logs", default_policy: :ask),
-        legacy_coworker(Mcp::Tools::OperationalDiagnosticsTools::ReadAdmissionDiagnosticsTool, capability: "ops.read_logs", default_policy: :ask),
-        legacy_coworker(Mcp::Tools::OperationalDiagnosticsTools::DiagnoseRunQueueTool, capability: "ops.read_logs", default_policy: :ask)
+        coworker_action(Mcp::Tools::ListJobsTool, capability: "syrus.read_jobs"),
+        coworker_action(Mcp::Tools::SearchJobsTool, capability: "syrus.read_jobs"),
+        coworker_action(Mcp::Tools::ReadJobTool, capability: "syrus.read_jobs"),
+        coworker_action(Mcp::Tools::ProposeJobTool, capability: "syrus.propose_job", mutation: true),
+        coworker_action(Mcp::Tools::ProposeEpicWithJobsTool, capability: "syrus.propose_job", mutation: true),
+        coworker_action(Mcp::Tools::ListChatsTool, tier: :deferred, capability: "chats.read_shared"),
+        coworker_action(Mcp::Tools::SearchChatsTool, tier: :deferred, capability: "chats.read_shared"),
+        coworker_action(Mcp::Tools::ReadChatMessagesTool, tier: :deferred, capability: "chats.read_shared"),
+        coworker_action(Mcp::Tools::AdminReadOperationalLogsTool, capability: "ops.read_logs"),
+        coworker_action(Mcp::Tools::ReadWorkerHealthTool, capability: "ops.read_logs"),
+        coworker_action(Mcp::Tools::ReadBackendExceptionEventsTool, capability: "ops.read_logs"),
+        coworker_action(Mcp::Tools::ReadBrowserErrorEventsTool, capability: "ops.read_logs"),
+        coworker_action(Mcp::Tools::ReadPerformanceLogEventsTool, capability: "ops.read_logs"),
+        coworker_action(Mcp::Tools::OperationalDiagnosticsTools::ReadMetricsDiagnosticsTool, capability: "ops.read_logs"),
+        coworker_action(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkerOccupancyTool, capability: "ops.read_logs"),
+        coworker_action(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkflowTimelineTool, capability: "ops.read_logs"),
+        coworker_action(Mcp::Tools::OperationalDiagnosticsTools::ReadWorkflowWaterfallTool, capability: "ops.read_logs"),
+        coworker_action(Mcp::Tools::OperationalDiagnosticsTools::ReadAdmissionDiagnosticsTool, capability: "ops.read_logs"),
+        coworker_action(Mcp::Tools::OperationalDiagnosticsTools::DiagnoseRunQueueTool, capability: "ops.read_logs")
       ]
     end
 
@@ -565,6 +565,13 @@ class McpToolRegistry
       entry(tool, surface: :workflow, **metadata)
     end
 
+    # Core coworker tools take their descriptor, and therefore their default
+    # policy, from Permissions::CoworkerActions.
+    def coworker_action(tool, **metadata)
+      descriptor = Permissions::CoworkerActions.descriptor_for(tool_name_for(tool))
+      coworker(tool, **metadata, descriptor:)
+    end
+
     def coworker(tool, tier: :essential, **metadata)
       metadata[:required_roles] ||= [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]
       entry(tool, surface: :coworker, tier: tier, **metadata)
@@ -621,6 +628,17 @@ class McpToolRegistry
               descriptor: nil, compatibility_descriptor: false, default_policy: nil)
       tool_name = tool_name_for(tool)
       explicit_descriptor = descriptor.present?
+      resolved_descriptor = Permissions::CapabilityDescriptorAdapter.for_registry_entry(
+        tool_name: tool_name,
+        capability: capability,
+        mutation: mutation,
+        required_roles: required_roles,
+        admin_only: admin_only,
+        descriptor: descriptor,
+        default_policy: default_policy
+      )
+      # Invariant: a coworker tool can never silently inherit an unsafe `allow`.
+      Permissions::CoworkerDefaultPolicy.validate!(resolved_descriptor) if surface.to_sym == :coworker
       Entry.new(
         tool: tool,
         surface: surface.to_sym,
@@ -635,15 +653,7 @@ class McpToolRegistry
         interactive_only: interactive_only,
         mutation: mutation,
         ungated: ungated,
-        descriptor: Permissions::CapabilityDescriptorAdapter.for_registry_entry(
-          tool_name: tool_name,
-          capability: capability,
-          mutation: mutation,
-          required_roles: required_roles,
-          admin_only: admin_only,
-          descriptor: descriptor,
-          default_policy: default_policy
-        ),
+        descriptor: resolved_descriptor,
         explicit_descriptor: explicit_descriptor,
         compatibility_descriptor: compatibility_descriptor
       )

@@ -2,7 +2,7 @@ module SyrusDev
   extend Syrus::PluginApi
 
   syrus_plugin "syrus_dev" do
-    capability_descriptor_compatibility chat_mcp_tool_set: "61bbaaf46a65d7f996b27826e528a8edd6b7f8fd92bc8910b72e7583e6846f22", mcp_tool_set: "daf0791578d623ea9c8585ea202bf6d39cf6d98c3907d1c3019776ddf3c7c757"
+    capability_descriptor_compatibility mcp_tool_set: "daf0791578d623ea9c8585ea202bf6d39cf6d98c3907d1c3019776ddf3c7c757"
     experimental true
     display_name "Syrus Dev"
     description "Syrus development diagnostics and internal tooling."
