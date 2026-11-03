@@ -252,6 +252,7 @@ en:
     permission_rule_drafts:
       stale_preview: "Preview this permission rule again before applying it."
       errors:
+        unknown_rule: "That permission rule could not be found."
         operation_required: "Choose the exact operation this rule covers."
         unknown_capability: "That capability or operation is not in the permission catalog."
         unknown_policy: "Unknown rule policy."
@@ -299,6 +300,15 @@ en:
           local_chat: "local chats"
           workflow_role: "workflow role %{id}"
           repository_role: "repository role %{id}"
+      examples:
+        matches:
+          exact: "%{subject} running %{operation} on %{resource}."
+          constrained: "…and only when %{constraints}."
+        non_matches:
+          other_operation: "%{subject} running anything other than %{operation}."
+          other_resource: "%{subject} running %{operation} outside %{resource}."
+          other_subject: "Anyone other than %{subject} running %{operation}."
+          after_expiry: "Any call after the chat session, job or expiry has ended."
       warnings:
         scope_broader_than_request: "This scope is broader than what was requested."
         scope_not_covering_request: "This scope does not cover what was requested."

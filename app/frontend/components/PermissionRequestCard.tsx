@@ -106,8 +106,13 @@ export function PermissionRequestCard({ request, jobId }: { request: PermissionR
             smartDecide.reset()
             decide.mutate("denied")
           }}
+          onCustomized={(decision) => {
+            smartDecide.reset()
+            decide.mutate(decision)
+          }}
           onStale={() => refresh()}
           option={smartItem.smart_option}
+          request={{ requestId: request.id, itemId: smartItem.id }}
         />
       ) : pending ? (
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">

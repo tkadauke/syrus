@@ -22,36 +22,55 @@ describe("PermissionsSettingsRoute", () => {
     expect(screen.getByRole("link", { name: "Open approval inbox" })).toHaveAttribute("href", "/permissions/inbox")
   })
 
-  it("creates a scoped user rule", async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(jsonResponse(payload()))
-      .mockResolvedValueOnce(jsonResponse({ rule: payload().rules[0] }, 201))
-      .mockResolvedValue(jsonResponse(payload()))
+  it("creates a rule through the shared editor's preview and apply contract", async () => {
+    const fetchSpy = mockHub()
     renderRoute()
     fireEvent.click(await screen.findByRole("button", { name: "Rules" }))
-    await screen.findByRole("combobox", { name: "Policy" })
-    fireEvent.click(screen.getByRole("button", { name: "Add rule" }))
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/permission_rules", expect.objectContaining({ method: "POST" })))
-    const call = fetchSpy.mock.calls.find(([path, init]) => path === "/api/v1/app/permission_rules" && init?.method === "POST")!
-    expect(JSON.parse(String(call[1]?.body)).permission_rule).toMatchObject({
-      policy: "allow",
-      subject_selector_type: "interactive_chat",
-      capability: "syrus.jobs@v1"
+    fireEvent.click(await screen.findByRole("button", { name: "New rule" }))
+    fireEvent.change(await screen.findByLabelText("Capability"), { target: { value: "syrus.jobs@v1|cancel@v1" } })
+    fireEvent.change(await screen.findByLabelText("Applies to"), { target: { value: "interactive_chat" } })
+    fireEvent.click(screen.getByRole("button", { name: "Review rule" }))
+    expect(await screen.findByText("Effective rule")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Save rule" }))
+
+    await waitFor(() => expect(screen.getByText("Rule saved")).toBeInTheDocument())
+    const apply = fetchSpy.mock.calls.find(([path]) => String(path).endsWith("/permission_rule_drafts/apply"))!
+    expect(JSON.parse(String(apply[1]?.body))).toMatchObject({
+      digest: "hub-digest",
+      draft: { policy: "allow", subject_selector_type: "interactive_chat", capability: "syrus.jobs@v1", operation: "cancel@v1" }
     })
   })
 
-  it("shows a failed create instead of silently leaving the form unchanged", async () => {
-    vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(jsonResponse(payload()))
-      .mockResolvedValueOnce(jsonResponse({ error: { code: "invalid_permission_rule", message: "authority exceeds the effective policy ceiling" } }, 422))
+  it("edits an existing rule by replacing it through the editor", async () => {
+    const fetchSpy = mockHub()
     renderRoute()
-
     fireEvent.click(await screen.findByRole("button", { name: "Rules" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }))
+    expect(await screen.findByRole("heading", { name: "Edit permission rule" })).toBeInTheDocument()
+    await screen.findByLabelText("Applies to")
+    fireEvent.click(screen.getByRole("button", { name: "Review rule" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Save rule" }))
 
-    fireEvent.click(await screen.findByRole("button", { name: "Add rule" }))
+    await waitFor(() => expect(screen.getByText("Rule saved")).toBeInTheDocument())
+    const apply = fetchSpy.mock.calls.find(([path]) => String(path).endsWith("/permission_rule_drafts/apply"))!
+    expect(JSON.parse(String(apply[1]?.body))).toMatchObject({ replace_rule_id: 4 })
+  })
 
-    expect(await screen.findByText("authority exceeds the effective policy ceiling")).toBeInTheDocument()
+  it("opens the editor prefilled from a card's deep link", async () => {
+    const fetchSpy = mockHub()
+    renderRoute("/settings/permissions?request=7&item=9")
+
+    expect(await screen.findByRole("heading", { name: "Customize permission rule" })).toBeInTheDocument()
+    const call = fetchSpy.mock.calls.find(([path]) => String(path).endsWith("/permission_rule_drafts/from_request"))!
+    expect(JSON.parse(String(call[1]?.body))).toMatchObject({ request_id: 7, item_id: 9 })
+  })
+
+  it("highlights the rule a card links to", async () => {
+    mockHub()
+    renderRoute("/settings/permissions?rule=4")
+
+    const rule = await screen.findByRole("article", { current: true })
+    expect(rule).toHaveAttribute("id", "permission-rule-4")
   })
 
   it("shows a failed revoke instead of silently leaving the rule active", async () => {
@@ -189,9 +208,60 @@ describe("PermissionsSettingsRoute", () => {
   })
 })
 
-function renderRoute() {
+const hubPreview = {
+  valid: true,
+  errors: [],
+  warnings: [],
+  digest: "hub-digest",
+  draft: {
+    policy: "allow",
+    duration: "permanent",
+    role: "chat:planner",
+    subject: { type: "interactive_chat", id: null, subject_type: null, repository_id: null },
+    capability: "syrus.jobs@v1",
+    operation: "cancel@v1",
+    resource_scope: {},
+    resource_scope_label: "All resources",
+    constraints: {},
+    chat_session_id: null,
+    job_id: null,
+    expires_at: null,
+    rationale: null
+  },
+  summary: { allows: ["Allows interactive chats to run cancel@v1."], excludes: ["Excludes every other operation and capability."] },
+  ceiling: { maximum_autonomy: "permanent", maximum_duration_seconds: null, permanent_allowed: true, limited_by: null },
+  examples: { matches: ["interactive chats running cancel@v1."], non_matches: ["Anyone else."] }
+}
+const hubOptions = {
+  capability: "syrus.jobs@v1",
+  operation: "cancel@v1",
+  policies: ["allow", "ask", "deny"],
+  risk: "medium",
+  subject_types: [{ type: "interactive_chat", requires_id: false, requires_repository: false, roles: ["chat:planner"], exact_agent: false }],
+  resource_scope: { type: "none", options: null },
+  constraint_fields: {},
+  authority_durations: ["chat_session", "job", "permanent"],
+  maximum_autonomy: "permanent",
+  maximum_duration_seconds: null,
+  permanent_allowed: true,
+  ceilings: []
+}
+
+function mockHub() {
+  return vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+    const path = String(input)
+    if (path.includes("/permission_rule_drafts/options")) return Promise.resolve(jsonResponse({ options: hubOptions }))
+    if (path.endsWith("/permission_rule_drafts/preview") || path.endsWith("/permission_rule_drafts/from_request"))
+      return Promise.resolve(jsonResponse({ preview: hubPreview }))
+    if (path.endsWith("/permission_rule_drafts/apply"))
+      return Promise.resolve(jsonResponse({ authority: { kind: "PermissionRule", id: 5, capability: "syrus.jobs@v1", operation: "cancel@v1" } }, 201))
+    return Promise.resolve(jsonResponse(payload()))
+  })
+}
+
+function renderRoute(entry = "/") {
   render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[entry]}>
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <PermissionsSettingsRoute />
       </QueryClientProvider>

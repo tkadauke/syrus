@@ -4,8 +4,12 @@ import { ApiError } from "../api/client"
 import type { SmartPermissionOption } from "../api/permissionRequests"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
+import { Modal } from "./Modal"
+import { hubRuleLink, PermissionRuleEditor } from "./PermissionRuleEditor"
 
 const BUTTON = "min-w-[7rem] flex-1 rounded-md px-3 py-1.5 text-sm font-semibold disabled:opacity-60 sm:flex-none motion-reduce:transition-none"
+
+const EDITOR_PANEL = "max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[var(--radius-panel)] bg-surface p-4 shadow-[var(--shadow-panel)] sm:p-5"
 
 export const SMART_CUSTOMIZE_PATH = "/settings/permissions"
 
@@ -23,7 +27,9 @@ export function SmartPermissionActions({
   onDeny,
   onConfirm,
   onStale,
-  customizeTo = SMART_CUSTOMIZE_PATH
+  customizeTo = SMART_CUSTOMIZE_PATH,
+  request,
+  onCustomized
 }: {
   option: SmartPermissionOption | null | undefined
   busy: boolean
@@ -33,12 +39,18 @@ export function SmartPermissionActions({
   onConfirm: (option: SmartPermissionOption) => void
   onStale?: () => void
   customizeTo?: string
+  /** The exact pending call; enables the in-card fine-grained rule editor. */
+  request?: { requestId: number; itemId: number }
+  /** Called after a customized rule is saved, with the decision it implies for this call. */
+  onCustomized?: (decision: "approved" | "denied") => void
 }) {
   const { t } = useT("settings")
   const headingId = useId()
   const headingRef = useRef<HTMLHeadingElement>(null)
   const adaptiveRef = useRef<HTMLButtonElement>(null)
   const [previewing, setPreviewing] = useState(false)
+  const [customizing, setCustomizing] = useState(false)
+  const customizeRef = useRef<HTMLButtonElement>(null)
   const stale = error instanceof ApiError && error.status === 409
   const staleHandled = useRef(false)
 
@@ -101,9 +113,21 @@ export function SmartPermissionActions({
             <button className="text-sm font-medium text-text-secondary underline-offset-2 hover:underline" disabled={busy} onClick={leavePreview} type="button">
               {t("permission_smart.back")}
             </button>
-            <Link className="text-sm font-medium text-brand underline-offset-2 hover:underline" to={customizeTo}>
-              {t("permission_smart.customize")}
-            </Link>
+            {request ? (
+              <button
+                className="text-sm font-medium text-brand underline-offset-2 hover:underline"
+                disabled={busy}
+                onClick={() => setCustomizing(true)}
+                ref={customizeRef}
+                type="button"
+              >
+                {t("permission_smart.customize")}
+              </button>
+            ) : (
+              <Link className="text-sm font-medium text-brand underline-offset-2 hover:underline" to={customizeTo}>
+                {t("permission_smart.customize")}
+              </Link>
+            )}
           </div>
         </section>
       ) : (
@@ -121,6 +145,22 @@ export function SmartPermissionActions({
           </button>
         </div>
       )}
+      {request ? (
+        <Modal className={EDITOR_PANEL} label={t("permission_editor.title")} onClose={() => setCustomizing(false)} open={customizing}>
+          <PermissionRuleEditor
+            onApplied={({ policy }) => {
+              setCustomizing(false)
+              // The saved rule is standing policy; this pending call still needs its own decision.
+              onCustomized?.(policy === "deny" ? "denied" : "approved")
+            }}
+            onCancel={() => {
+              setCustomizing(false)
+              requestAnimationFrame(() => customizeRef.current?.focus())
+            }}
+            seed={{ kind: "request", requestId: request.requestId, itemId: request.itemId, duration: option?.duration }}
+          />
+        </Modal>
+      ) : null}
       <p aria-live="polite" className="sr-only" role="status">
         {previewing && option ? t("permission_smart.status_preview", { action: label }) : ""}
       </p>

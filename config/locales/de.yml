@@ -218,6 +218,7 @@ de:
     permission_rule_drafts:
       stale_preview: "Prüfe diese Berechtigungsregel vor dem Anwenden erneut."
       errors:
+        unknown_rule: "Diese Berechtigungsregel wurde nicht gefunden."
         operation_required: "Wähle die genaue Operation dieser Regel."
         unknown_capability: "Diese Fähigkeit oder Operation ist nicht im Berechtigungskatalog."
         unknown_policy: "Unbekannte Regelrichtlinie."
@@ -265,6 +266,15 @@ de:
           local_chat: "lokale Chats"
           workflow_role: "Workflow-Rolle %{id}"
           repository_role: "Repository-Rolle %{id}"
+      examples:
+        matches:
+          exact: "%{subject} führt %{operation} auf %{resource} aus."
+          constrained: "…und nur wenn %{constraints}."
+        non_matches:
+          other_operation: "%{subject} führt etwas anderes als %{operation} aus."
+          other_resource: "%{subject} führt %{operation} außerhalb von %{resource} aus."
+          other_subject: "Jemand anderes als %{subject} führt %{operation} aus."
+          after_expiry: "Jeder Aufruf nach Ende des Chats, Jobs oder Ablaufs."
       warnings:
         scope_broader_than_request: "Dieser Bereich ist weiter gefasst als angefragt."
         scope_not_covering_request: "Dieser Bereich deckt die Anfrage nicht ab."

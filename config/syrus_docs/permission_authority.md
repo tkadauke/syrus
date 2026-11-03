@@ -65,6 +65,24 @@ Confirm creates the rule or lease and authorizes the waiting invocation in one
 transaction, so a stale preview or ceiling creates neither; the approved item
 links to its auditable, revocable rule, and a duplicate decision is refused.
 
+**Customize** opens the one fine-grained rule editor, prefilled from the exact
+pending call. The same editor backs the Permissions Hub (**New rule** and
+**Edit**) and the readable preview on confirmed `grant_permission`,
+`deny_permission` and `create_permission_lease` cards, so a rule is authored,
+validated, audited and revoked identically from every surface. The editor offers
+only what the capability descriptor supports: an exact coworker or supported
+role subject, capability and operation, repository, the provider-declared
+resource-scope fields, safe argument constraints (bounded allow authority only),
+a supported duration, allow, ask or deny, and a rationale. Resource-scope inputs
+come from the provider's scope schema (`options.fields`), never a raw JSON box.
+Nothing is saved without a server preview showing the effective rule, its
+exclusions, the ceilings that cap it, and representative matches and
+non-matches; saving applies the preview's digest, so a changed ceiling or rule
+set refuses the stale preview. Editing a rule applies the replacement and revokes
+the original in one transaction, keeping the audit trail. Cards deep-link to the
+Hub with `?request=<id>&item=<id>` (editor prefilled from the request) or
+`?rule=<id>` (rule highlighted).
+
 Background authorization requests are also routed through the operator's
 notification settings. Normal and low-urgency requests share a configurable
 batch window; urgent requests skip that window. All external delivery respects
