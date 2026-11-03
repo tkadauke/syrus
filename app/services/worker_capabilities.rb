@@ -79,8 +79,20 @@ class WorkerCapabilities
           "env_key" => ENV_KEY,
           "worker_pool_name" => presence(ENV["SYRUS_WORKER_POOL_NAME"]),
           "admission_capacity" => RunHostAdmissionCapacity.snapshot
-        )
+        ).merge(overlayfs_diagnostics)
       }
+    end
+
+    # Why grader fan-out can or cannot mount overlayfs on this worker. Resolved
+    # lazily and guarded: queue config renders `current` before Rails loads, and
+    # a failing probe must never take capability reporting down.
+    def overlayfs_diagnostics
+      return {} unless defined?(Rails) && defined?(ImmutableSourceCheckoutOverlay)
+
+      { "overlayfs" => ImmutableSourceCheckoutOverlay.capability.to_h }
+    rescue StandardError => e
+      debug_log { "[WorkerCapabilities] overlayfs diagnostics failed: #{e.class}: #{e.message}" }
+      {}
     end
 
     # Detection is memoized for the process; tests that stub probes need a way

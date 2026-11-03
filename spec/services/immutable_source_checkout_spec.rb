@@ -341,6 +341,11 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expected_manifest = checkout_manifest(copy_checkout.path)
 
     enable_grader_fanout_overlay!
+    allow(ImmutableSourceCheckoutOverlay).to receive(:capability).and_return(
+      ImmutableSourceCheckoutOverlay::Capability.new(
+        :unavailable, "overlayfs is not listed in /proc/filesystems", { "overlay_in_proc_filesystems" => false }
+      )
+    )
     allow(ImmutableSourceCheckoutOverlay).to receive(:mount).and_return(
       ImmutableSourceCheckoutOverlay::Result.new(
         false,
@@ -363,6 +368,8 @@ RSpec.describe ImmutableSourceCheckout, :ci_only do
     expect(second_step.reload.details.fetch("immutable_source_workspace")).to include(
       "strategy" => "hardlink",
       "fallback_reason" => "overlayfs is not listed in /proc/filesystems",
+      "overlay_capability" => "unavailable",
+      "overlay_diagnostics" => { "overlay_in_proc_filesystems" => false },
       "lower_path" => cache_path.to_s,
       "mount_path" => fallback_checkout.path.to_s
     )
