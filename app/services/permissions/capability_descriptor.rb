@@ -14,18 +14,22 @@ module Permissions
     POLICIES = %i[deny ask allow].freeze
     AUTONOMY_CEILINGS = %i[none invocation chat_session job permanent].freeze
     AUTHORITY_DURATIONS = %i[invocation chat_session job permanent].freeze
+    # What a future budget control may meter. Pure metadata: declaring a
+    # dimension never grants, widens, or narrows authority.
+    BUDGET_DIMENSIONS = %i[model_tokens compute_time network_egress external_spend storage].freeze
 
     ResourceScope = ResourceScopeSchema
 
     attr_reader :capability, :operation, :effects, :risk, :requestable_roles,
       :defaults, :maximum_autonomy, :authority_durations, :maximum_duration,
       :resource_scope, :classifier, :fingerprint_normalizer, :redactor, :presets,
-      :capability_aliases, :operation_aliases
+      :capability_aliases, :operation_aliases, :fresh_authentication_window, :budget_dimensions
 
     def initialize(capability:, operation:, effects:, risk:, requestable_roles:, defaults:,
       maximum_autonomy:, authority_durations:, resource_scope:, classifier:,
       fingerprint_normalizer:, redactor:, maximum_duration: nil, presets: [],
-      capability_aliases: [], operation_aliases: [])
+      capability_aliases: [], operation_aliases: [], fresh_authentication_window: nil,
+      budget_dimensions: [])
       @capability = versioned_identifier(capability, :capability)
       @operation = versioned_identifier(operation, :operation)
       @effects = Array(effects).map(&:to_sym).uniq.freeze
@@ -40,11 +44,15 @@ module Permissions
       @fingerprint_normalizer = fingerprint_normalizer
       @redactor = redactor
       @presets = Array(presets).freeze
+      @fresh_authentication_window = fresh_authentication_window
+      @budget_dimensions = Array(budget_dimensions).map(&:to_sym).uniq.freeze
       @capability_aliases = aliases(capability_aliases, :capability_aliases)
       @operation_aliases = aliases(operation_aliases, :operation_aliases)
       validate!
       freeze
     end
+
+    def requires_fresh_authentication? = !fresh_authentication_window.nil?
 
     def classify(arguments) = classifier.call(arguments)
     def normalize_fingerprint(arguments) = fingerprint_normalizer.call(arguments)
@@ -56,7 +64,8 @@ module Permissions
         capability, effects.sort, risk, maximum_autonomy, authority_durations.sort,
         maximum_duration, resource_scope.type, resource_scope.options,
         requestable_roles.sort, defaults.sort, presets,
-        capability_aliases.sort, operation_aliases.sort
+        capability_aliases.sort, operation_aliases.sort,
+        fresh_authentication_window, budget_dimensions.sort
       ]
     end
 
@@ -77,7 +86,9 @@ module Permissions
         redactor: redactor,
         presets: presets,
         capability_aliases: capability_aliases,
-        operation_aliases: operation_aliases
+        operation_aliases: operation_aliases,
+        fresh_authentication_window: fresh_authentication_window,
+        budget_dimensions: budget_dimensions
       }
     end
 
@@ -110,6 +121,12 @@ module Permissions
       raise ArgumentError, "missing role defaults: #{missing_defaults.join(', ')}" if missing_defaults.any?
       raise ArgumentError, "capability aliases must not include the canonical identifier" if capability_aliases.include?(capability)
       raise ArgumentError, "operation aliases must not include the canonical identifier" if operation_aliases.include?(operation)
+      unless fresh_authentication_window.nil? ||
+          (fresh_authentication_window.respond_to?(:to_f) && !fresh_authentication_window.is_a?(String) && fresh_authentication_window.to_f >= 0)
+        raise ArgumentError, "fresh authentication window must be a non-negative duration"
+      end
+      unknown_budget = budget_dimensions - BUDGET_DIMENSIONS
+      raise ArgumentError, "unknown budget dimensions: #{unknown_budget.join(', ')}" if unknown_budget.any?
       %i[classifier fingerprint_normalizer redactor].each do |hook|
         raise ArgumentError, "#{hook} must respond to call" unless public_send(hook).respond_to?(:call)
       end

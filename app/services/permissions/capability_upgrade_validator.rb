@@ -155,7 +155,14 @@ module Permissions
       dimensions << "authority durations" unless (new_descriptor.authority_durations - old_descriptor.authority_durations).empty?
       dimensions << "maximum duration" if duration_widened?(old_descriptor.maximum_duration, new_descriptor.maximum_duration)
       dimensions << "role defaults" if defaults_widened?(old_descriptor, new_descriptor)
+      dimensions << "fresh authentication" if fresh_authentication_weakened?(old_descriptor, new_descriptor)
       dimensions
+    end
+
+    # Dropping the requirement or lengthening its window lets an older sign-in
+    # approve what a recent one was needed for.
+    def fresh_authentication_weakened?(old_descriptor, new_descriptor)
+      duration_widened?(old_descriptor.fresh_authentication_window, new_descriptor.fresh_authentication_window)
     end
 
     def duration_widened?(old_duration, new_duration)
