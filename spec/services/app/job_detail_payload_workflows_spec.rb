@@ -987,6 +987,33 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       )
     end
 
+    it "reports binding terms and routed queue for a queued Run and drops them once the Run is terminal" do
+      job = Factories.job_record(user: user, repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
+      step = Step.create!(workflow: workflow, kind: "grader", position: 1, state: "queued")
+      run = Run.create!(job: job, step: step, trigger_kind: "initial", agent_provider: "claude", state: "queued")
+      workflow.set_artifact!(
+        "run_host_admission",
+        {
+          "reason" => "host_resource_semaphore_busy", "action" => "defer", "run_id" => run.id,
+          "resource_guard_binding_terms" => [ "compute_units" ], "routed_queue" => "runs", "deferral_count" => 4
+        }
+      )
+
+      queued = workflows_payload_for(job).fetch(:workflows).first.fetch(:steps).first
+      expect(queued.dig(:placement, :admission)).to include(
+        "reason" => "host_resource_semaphore_busy",
+        "resource_guard_binding_terms" => [ "compute_units" ],
+        "routed_queue" => "runs",
+        "deferral_count" => 4
+      )
+
+      run.update!(state: "succeeded", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+
+      finished = workflows_payload_for(job).fetch(:workflows).first.fetch(:steps).first
+      expect(finished.dig(:placement, :admission)).to be_nil
+    end
+
     it "keeps legacy workflows without WorkUnit ownership in the fallback workflow list" do
       job = Factories.job_record(user: user, repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
