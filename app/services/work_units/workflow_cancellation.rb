@@ -47,12 +47,12 @@ module WorkUnits
 
       workflow.with_lock do
         workflow.reload
-        if workflow.may_cancel?
+        if workflow.may_cancel? || workflow.may_dismiss?
           workflow.artifacts = workflow.artifacts.to_h.merge(merged_artifacts)
           # Root-cause event is recorded before cancel! kicks off terminal cleanup.
           Workflows::CancellationAttribution.record!(workflow, reason: reason, cause: cause)
           workflow.finished_at = Time.current
-          workflow.cancel!
+          workflow.may_cancel? ? workflow.cancel! : workflow.dismiss!
           workflow.work_unit&.preempt!(reason: reason, by_work_unit: by_work_unit)
         end
       end
