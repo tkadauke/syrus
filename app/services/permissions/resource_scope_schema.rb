@@ -1,4 +1,9 @@
 module Permissions
+  # Provider-owned description of a resource scope. Authoring surfaces render
+  # scope inputs from `options[:fields]` (an array of
+  # `{ name:, label:, type: "string"|"integer"|"boolean"|"select", choices: [{ value:, label: }] }`)
+  # and never from provider-specific knowledge in core; a scope without
+  # declared fields is shown by its label only and carried through unchanged.
   class ResourceScopeSchema
     STATUSES = %i[ok not_found invalid failed].freeze
     COMPARISONS = %i[equal narrower broader disjoint].freeze

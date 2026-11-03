@@ -97,6 +97,49 @@ RSpec.describe "API: /api/v1/app/permission_requests", type: :request do
     expect(request.authorization_items.first.reload).to be_denied
   end
 
+  it "only lets a coworker permission request be denied through the generic decision endpoints" do
+    coworker = Coworkers::Coworker.create!(owner_user: user, name: "Maya", handle: "maya", workspace_repo: repository.remote_url)
+    request = ChatPendingAction.create!(request_kind: "authorization_request", user:, repository:, origin: job,
+      subject: coworker, runtime_role: AgentRole::COWORKER_CHAT, purpose: "Read orders",
+      action: "coworker_permission_request", requested_by: "agent", deduplication_key: "coworker-permission-request-spec",
+      payload: { "requested_duration" => "chat_session" })
+    request.authorization_items.create!(item_attributes.merge(requested_durations: %w[chat_session]))
+
+    post "/api/v1/app/permission_requests/#{request.id}/decide", params: { decision: "approved", duration: "chat_session" }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(request.reload).to be_pending
+
+    post "/api/v1/app/permission_requests/batch_decide", params: { request_ids: [ request.id ], decision: "denied" }
+
+    expect(response).to have_http_status(:ok)
+    expect(request.reload).to be_rejected
+    expect(request.rejected_at).to be_present
+    expect(AdminAction.where(action: "coworker_permission_request_denied").count).to eq(1)
+  end
+
+  it "denies a batch of coworker permission requests atomically" do
+    coworker = Coworkers::Coworker.create!(owner_user: user, name: "Maya", handle: "maya", workspace_repo: repository.remote_url)
+    build = lambda do |key|
+      ChatPendingAction.create!(request_kind: "authorization_request", user:, repository:, origin: job,
+        subject: coworker, runtime_role: AgentRole::COWORKER_CHAT, purpose: "Read orders",
+        action: "coworker_permission_request", requested_by: "agent", deduplication_key: key,
+        payload: { "requested_duration" => "chat_session" }).tap do |request|
+        request.authorization_items.create!(item_attributes.merge(requested_durations: %w[chat_session]))
+      end
+    end
+    fresh = build.call("batch-fresh")
+    stale = build.call("batch-stale")
+    stale.update!(state: "cancelled")
+
+    post "/api/v1/app/permission_requests/batch_decide", params: { request_ids: [ fresh.id, stale.id ], decision: "denied" }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(fresh.reload).to be_pending
+    expect(fresh.authorization_items.first).to be_pending
+    expect(AdminAction.where(action: "coworker_permission_request_denied")).to be_empty
+  end
+
   it "decides a compatible batch atomically" do
     first = authorization_request
     second = authorization_request(deduplication_key: "permission-inbox-spec-2")

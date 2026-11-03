@@ -1,6 +1,8 @@
 import { ApiError, deleteJson, getJson, patchJson, postForm, postJson } from "./client"
 import type { ProviderAvailability } from "./providerAvailability"
 import type { TypedArtifact } from "./artifacts"
+import type { RuleDraftPreview } from "./permissionRuleDrafts"
+import type { PermissionAuthorityReference, SmartPermissionOption } from "./permissionRequests"
 
 export type ChatRepository = {
   id: number
@@ -488,6 +490,8 @@ export type ChatPendingActionInline = {
   review?: Record<string, unknown>
   request_kind?: "legacy_action" | "authorization_request"
   authorization_items?: ChatAuthorizationItem[]
+  /** Readable canonical preview of a permission-management call (grant/deny/lease). */
+  permission_rule_preview?: RuleDraftPreview | null
   resource_title?: string
   resource_url?: string
   document?: ChatPendingActionDocument
@@ -590,6 +594,8 @@ export type ChatPendingAction = {
   review?: Record<string, unknown>
   request_kind?: "legacy_action" | "authorization_request"
   authorization_items?: ChatAuthorizationItem[]
+  /** Readable canonical preview of a permission-management call (grant/deny/lease). */
+  permission_rule_preview?: RuleDraftPreview | null
   before_snapshot?: Record<string, unknown>
   after_snapshot?: Record<string, unknown>
   chat_message_id?: number | null
@@ -610,7 +616,10 @@ export type ChatAuthorizationItem = {
   operation?: string | null
   effects: string[]
   prerequisite_ids: number[]
+  smart_option?: SmartPermissionOption | null
+  resulting_authority?: PermissionAuthorityReference | null
   app_decision_path: string
+  app_smart_decision_path?: string
 }
 
 export type ChatPendingActionDocument = {
@@ -1674,6 +1683,10 @@ export function searchChatEpics(query: string, options: { signal?: AbortSignal }
 
 export function confirmPendingAction(path: string) {
   return postJson<ChatPayload>(path)
+}
+
+export function smartDecideAuthorizationItem(path: string, option: Pick<SmartPermissionOption, "duration" | "digest">) {
+  return postJson<ChatPayload>(path, { duration: option.duration, digest: option.digest })
 }
 
 export function decideAuthorizationItem(path: string, decision: "approved" | "denied") {

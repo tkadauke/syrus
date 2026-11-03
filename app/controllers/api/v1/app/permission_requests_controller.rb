@@ -6,7 +6,7 @@ module Api
 
         def index
           page = [ params[:page].to_i, 1 ].max
-          relation = scope.preload(:origin, :subject, :repository, :authorization_items).order(created_at: :desc)
+          relation = scope.preload(:origin, :subject, :repository, authorization_items: [ :prerequisites, :resulting_authority ]).order(created_at: :desc)
           total = relation.count
           requests = relation.offset((page - 1) * PER_PAGE).limit(PER_PAGE)
           render json: {
@@ -26,6 +26,20 @@ module Api
         def batch_decide
           requests = decide_requests!(params.require(:request_ids))
           render json: { requests: requests.map { |request| present(request.reload) } }
+        rescue ArgumentError, ActiveRecord::RecordInvalid => error
+          render_error("invalid_permission_decision", error.message, status: :unprocessable_content)
+        end
+
+        # Applies the adaptive rule/lease and authorizes the waiting invocation in
+        # one transaction; a stale preview or ceiling creates neither.
+        def smart_decide
+          request = scope.find(params[:id])
+          item = request.authorization_items.find(params[:item_id])
+          Permissions::CoworkerAuthorizationDecision.new(request:, item:, user: Current.user)
+            .call(decision: "approved", smart: { duration: params.require(:duration).to_s, digest: params[:digest].to_s })
+          render json: { request: present(request.reload) }
+        rescue Permissions::SmartDecision::AlreadyDecided, Permissions::RuleDraft::Stale => error
+          render_error("stale_permission_decision", error.message, status: :conflict)
         rescue ArgumentError, ActiveRecord::RecordInvalid => error
           render_error("invalid_permission_decision", error.message, status: :unprocessable_content)
         end
@@ -51,6 +65,9 @@ module Api
           decision = params.require(:decision).to_s
           raise ArgumentError, "decision must be approved or denied" unless decision.in?(%w[approved denied])
 
+          permission_requests = scope.where(id: ids, action: Permissions::CoworkerPermissionRequest::ACTION).order(:id).to_a
+          return decide_coworker_permission_requests!(ids, permission_requests, decision) if permission_requests.any?
+
           requests = []
           ChatPendingAction.transaction do
             requests = scope.where(id: ids).order(:id).lock.to_a
@@ -65,6 +82,29 @@ module Api
             requests.each { |request| request.update!(state: decision == "approved" ? "confirmed" : "rejected") }
           end
           requests
+        end
+
+        # A coworker permission request carries no invocation: it can only be
+        # denied here, or approved through the adaptive rule so the owner always
+        # sees the exact authority being created.
+        def decide_coworker_permission_requests!(ids, permission_requests, decision)
+          raise ArgumentError, "coworker permission requests cannot be decided together with other requests" if permission_requests.length != ids.length
+          raise ArgumentError, I18n.t("api.permission_requests.smart_decision.duration_required") unless decision == "denied"
+
+          ChatPendingAction.transaction do
+            locked = scope.where(id: ids).order(:id).lock.to_a
+            raise ActiveRecord::RecordNotFound if locked.length != ids.length
+            items = locked.map { |request| request.authorization_items.lock.to_a }
+            unless locked.all? { |request| request.pending? && request.actionable? } && items.all? { |list| list.one? && list.first.actionable? }
+              raise ArgumentError, "request is no longer actionable"
+            end
+
+            locked.zip(items).each do |request, list|
+              Permissions::CoworkerAuthorizationDecision.new(request:, item: list.first, user: Current.user).call(decision: "denied")
+            end
+            permission_requests = locked
+          end
+          permission_requests
         end
 
         def validate_decision!(requests, items, decision)

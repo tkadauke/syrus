@@ -11,6 +11,19 @@ module Permissions
       DURATIONS.fetch(duration.to_sym).constantize.new(**attributes).issue!
     end
 
+    class CeilingExceeded < ArgumentError
+      attr_reader :decision
+
+      def initialize(message, decision:)
+        super(message)
+        @decision = decision
+      end
+    end
+
+    Evaluation = Data.define(:scope, :decision, :expires_at)
+
+    def self.build(duration:, **attributes) = DURATIONS.fetch(duration.to_sym).constantize.new(**attributes)
+
     class Base
       AUTONOMY_RANK = CapabilityDescriptor::AUTONOMY_CEILINGS.each_with_index.to_h.freeze
 
@@ -38,6 +51,13 @@ module Permissions
       end
 
       def issue!
+        persist!(evaluate!.scope)
+      end
+
+      # Validates and evaluates the grant through the descriptor and the shared
+      # policy evaluator without persisting anything. Raises ArgumentError (or
+      # CeilingExceeded) exactly where issue! would.
+      def evaluate!
         validate_descriptor!
         normalized = @descriptor.resource_scope.normalize(@resource_scope, context: @context)
         raise ArgumentError, "resource scope could not be normalized" if normalized.fail_closed?
@@ -47,9 +67,9 @@ module Permissions
           selectors: subject_selectors)
         decision = PolicyEvaluator.new(descriptor: @descriptor, role: @role, resource_scope: normalized.value,
           rules: @rules + [ candidate ], context: @context, arguments: @arguments).call
-        raise ArgumentError, "authority exceeds the effective policy ceiling" unless decision.allow?
+        raise CeilingExceeded.new("authority exceeds the effective policy ceiling", decision:) unless decision.allow?
 
-        persist!(normalized.value)
+        Evaluation.new(scope: normalized.value, decision:, expires_at: @expires_at)
       end
 
       private
@@ -125,7 +145,7 @@ module Permissions
     end
 
     class Permanent < Base
-      def issue!
+      def evaluate!
         raise ArgumentError, "permanent authority cannot expire or have a use limit" if @expires_at || @max_uses
 
         super

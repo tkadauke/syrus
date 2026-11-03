@@ -36,7 +36,16 @@ the same durable request, including its subject, origin, normalized resource,
 redacted arguments, effects, purpose, duration choices, and policy explanation.
 Operators can filter the inbox, select requests with a shared duration and decide them atomically,
 dismiss obsolete requests without denying future work, and review completed
-history.
+history. Coworker approval cards offer Allow once, Deny, and one adaptive
+choice — "Always allow similar", "Allow for this job", or "Allow for this chat",
+whichever is the strongest the capability and your permission ceilings allow.
+It opens a short preview of the exact coworker, operation, scope, duration and
+exclusions; confirming creates a revocable rule and approves the request together,
+or neither.
+Customize opens the same fine-grained rule editor used by the Permissions page,
+prefilled from the exact request; it shows the effective rule, what it excludes,
+the ceilings that cap it and examples of what it does and does not match before
+you save, and every rule it creates is audited and instantly revocable.
 
 Approval notification settings can batch normal requests and hold delivery
 during configured quiet hours. Urgent approvals bypass the batch delay, while

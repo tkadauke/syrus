@@ -349,6 +349,8 @@ module ChatSerialization
         presenter = PendingActions.for(action.action.presence || action.action_type).new(action)
         review = presenter.tool_card_review
         payload[:review] = review if review.present?
+        rule_preview = permission_rule_preview_for(action)
+        payload[:permission_rule_preview] = rule_preview if rule_preview
         if action.authorization_request?
           payload[:authorization_items] = action.authorization_items.sort_by(&:id).map do |item|
             {
@@ -359,7 +361,10 @@ module ChatSerialization
               operation: item.operation,
               effects: item.effects,
               prerequisite_ids: item.prerequisites.map(&:id),
-              app_decision_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/authorization_items/#{item.id}/decision"
+              resulting_authority: Permissions::SmartDecision.authority_reference(item),
+              smart_option: Permissions::SmartDecision.new(request: action, item:, user: Current.user).option,
+              app_decision_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/authorization_items/#{item.id}/decision",
+              app_smart_decision_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/authorization_items/#{item.id}/smart_decision"
             }
           end
         end
@@ -369,11 +374,21 @@ module ChatSerialization
     end
   end
 
+  # Readable preview of a confirmed permission-management call, built through
+  # the same RuleDraft the Hub and authorization cards apply.
+  def permission_rule_preview_for(action)
+    draft = Permissions::RuleDraft.from_management_payload(user: Current.user, action: action.action, payload: action.payload || {},
+      chat_session: action.chat_session)
+    draft&.preview&.to_h
+  rescue StandardError
+    nil
+  end
+
   def pending_actions_for_payload(chat_session)
     # Grouped members render only inside their PendingActionGroup card
     # (pending_action_groups_json below), never as their own standalone card.
     base_scope = chat_session.pending_actions.where(pending_action_group_id: nil)
-      .includes(:tool_call_message, :message, authorization_items: :prerequisites)
+      .includes(:tool_call_message, :message, authorization_items: [ :prerequisites, :resulting_authority ])
     base_scope.where(dismissed_at: nil).order(:created_at, :id).select(&:visible_in_chat_payload?)
   end
 

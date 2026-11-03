@@ -1,4 +1,6 @@
 class Coworkers::Coworker < ApplicationRecord
+  # Opts in as an exact-agent permission rule subject (see Permissions::RuleDraft).
+  def self.permission_agent_subject? = true
   self.table_name = "coworkers"
   include Mentionable
   include PluginDataCleanup

@@ -9,6 +9,13 @@ la:
   server:
     permissions:
       coworker_request_waiting: "Exspectatur dominus ut de permissionibus requisitis decernat."
+      coworker_permission:
+        requested: "Petitio permissionis ad dominum missa est. Nihil concedit donec dominus approbet."
+        deduplicated: "Petitio permissionis aequivalens iam dominum exspectat."
+        already_authorized: "Haec socia operis hanc auctoritatem iam habet; nulla petitio necessaria erat."
+        surrendered: "Locatio permissionis reddita est. Statim revocata est."
+        revocation_requested: "Petitio revocationis ad dominum missa est. Regula valet donec dominus confirmet."
+        rejected: "Petitio permissionis non missa est: %{reason}"
       authorization_required_tool_interrupted: "Conversatio agentis ad auctoritatem exspectandam substitit antequam hoc instrumentum respondit."
       scheduled_authorization:
         waiting: "Auctoritas exspectatur."
@@ -215,8 +222,75 @@ la:
       scope_required: "Ambitus rerum finitus requiritur."
     permission_rules:
       stale_preview: "Has mutationes permissionum ante confirmationem iterum considera."
+    permission_rule_drafts:
+      stale_preview: "Hanc regulam permissionis ante applicationem iterum considera."
+      errors:
+        unknown_rule: "Haec regula permissionis non inventa est."
+        operation_required: "Operationem exactam huius regulae elige."
+        unknown_capability: "Haec facultas vel operatio in catalogo permissionum non est."
+        unknown_policy: "Politica regulae ignota."
+        unsupported_duration: "Sessionem colloquii, opus vel perpetuam potestatem elige."
+        restrictive_rules_are_permanent: "Regulae rogandi et negandi semper perpetuae sunt."
+        duration_not_offered: "Haec facultas hanc durationem non offert."
+        permanent_forbidden: "Haec facultas perpetuo permitti non potest."
+        exceeds_maximum_autonomy: "Haec duratio maximam autonomiam facultatis excedit."
+        unsupported_subject: "Hoc genus subiecti pro schematibus regularum non sustinetur."
+        subject_id_required: "Hoc genus subiecti subiectum exactum requirit."
+        subject_id_forbidden: "Hoc genus subiecti subiectum exactum non accipit."
+        subject_repository_required: "Hoc genus subiecti repositorium requirit."
+        unknown_subject: "Hic collega inveniri non potuit."
+        role_not_eligible: "Hoc munus hanc facultatem petere non potest."
+        unknown_repository: "Hoc repositorium inveniri non potuit."
+        invalid_constraints: "Restrictiones obiectum esse debent."
+        constraints_not_enforceable: "Restrictiones argumentorum tantum in potestate sessionis colloquii et operis sustinentur."
+        constraint_not_supported: "%{field} restrictio huic facultati non sustinetur."
+        constraint_invalid_value: "%{field} valorem invalidum vel sensibilem habet."
+        invalid_resource_scope: "Ambitus rei huic facultati non valet."
+        chat_session_required: "Sessio colloquii tua requiritur."
+        job_required: "Opus accessibile requiritur."
+        exceeds_policy_ceiling: "Politica superior hanc potestatem non permittit."
+        rejected_by_policy: "Politica permissionum hoc schema reicit."
+      summary:
+        allows:
+          allow: "Permittit %{subject} %{operation} in %{resource} exsequi, %{duration}."
+          ask: "Semper rogat antequam %{subject} %{operation} in %{resource} exsequitur."
+          deny: "Semper negat %{subject} %{operation} in %{resource} exsequi."
+        only_when: "Solum cum %{constraints}."
+        excludes:
+          other_operations: "Omnem aliam operationem et facultatem excludit."
+          other_scopes: "Quidquid extra %{resource} est excludit."
+          other_subjects: "Omnes praeter %{subject} excludit."
+          ceilings: "Restrictionem superiorem numquam superat."
+          expires: "Sessionem, opus vel terminum non superat."
+        durations:
+          chat_session: "pro hac sessione colloquii"
+          job: "pro hoc opere"
+          permanent: "donec revocetur"
+        subjects:
+          agent: "collega %{id}"
+          interactive_chat: "colloquia interactiva"
+          coding_chat: "colloquia codicis"
+          local_chat: "colloquia localia"
+          workflow_role: "munus fluxus %{id}"
+          repository_role: "munus repositorii %{id}"
+      examples:
+        matches:
+          exact: "%{subject} %{operation} in %{resource} exsequitur."
+          constrained: "…et solum cum %{constraints}."
+        non_matches:
+          other_operation: "%{subject} aliud quam %{operation} exsequitur."
+          other_resource: "%{subject} %{operation} extra %{resource} exsequitur."
+          other_subject: "Alius quam %{subject} %{operation} exsequitur."
+          after_expiry: "Quaevis vocatio post finem colloquii, operis vel termini."
+      warnings:
+        scope_broader_than_request: "Hic ambitus latior est quam petitum."
+        scope_not_covering_request: "Hic ambitus petitum non tegit."
     permission_requests:
       not_dismissible: "Haec petitio potestatis iam dimitti non potest."
+      smart_decision:
+        stale: "Haec petitio licentiae iam decisa vel mutata est. Petitionem praesentem inspice."
+        unavailable: "Haec optio licentiae huic petitioni non praesto est."
+        duration_required: "Elige quam diu haec permissio sociae operis duret antequam eam approbes."
 
     job_source_diff:
       preview_fixture: "Exemplar praevium"

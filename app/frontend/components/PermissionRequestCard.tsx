@@ -1,10 +1,18 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { Link } from "react-router-dom"
-import { decidePermissionRequest, dismissPermissionRequest, type PermissionRequest, type PermissionRequestsPayload } from "../api/permissionRequests"
+import {
+  decidePermissionRequest,
+  dismissPermissionRequest,
+  smartDecidePermissionRequest,
+  type PermissionRequest,
+  type PermissionRequestsPayload,
+  type SmartPermissionOption
+} from "../api/permissionRequests"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import { Select } from "./Select"
+import { LinkedPermissionRule, SmartPermissionActions } from "./SmartPermissionActions"
 
 export function PermissionRequestCard({ request, jobId }: { request: PermissionRequest; jobId?: number }) {
   const { t } = useT("settings")
@@ -37,9 +45,15 @@ export function PermissionRequestCard({ request, jobId }: { request: PermissionR
     mutationFn: (decision: "approved" | "denied") => decidePermissionRequest(request.id, decision, decision === "approved" ? duration : undefined),
     onSuccess: ({ request: resolved }) => refresh(resolved)
   })
+  const smartItem = request.items.find((item) => item.smart_option)
+  const smartDecide = useMutation({
+    mutationFn: (option: SmartPermissionOption) => smartDecidePermissionRequest(request.id, smartItem!.id, option),
+    onSuccess: ({ request: resolved }) => refresh(resolved)
+  })
   const dismiss = useMutation({ mutationFn: () => dismissPermissionRequest(request.id), onSuccess: ({ request: resolved }) => refresh(resolved) })
   const pending = request.state === "pending" && request.actionable
   const failure = decide.error || dismiss.error
+  const linkedAuthority = request.items.find((item) => item.resulting_authority)?.resulting_authority
 
   return (
     <article className="rounded-xl border border-border bg-surface-raised p-4" data-testid={`permission-request-${request.id}`}>
@@ -79,7 +93,28 @@ export function PermissionRequestCard({ request, jobId }: { request: PermissionR
           </div>
         ))}
       </div>
-      {pending ? (
+      {pending && smartItem ? (
+        <SmartPermissionActions
+          busy={decide.isPending || smartDecide.isPending}
+          error={smartDecide.error || decide.error}
+          onAllowOnce={() => {
+            smartDecide.reset()
+            decide.mutate("approved")
+          }}
+          onConfirm={(option) => smartDecide.mutate(option)}
+          onDeny={() => {
+            smartDecide.reset()
+            decide.mutate("denied")
+          }}
+          onCustomized={(decision) => {
+            smartDecide.reset()
+            decide.mutate(decision)
+          }}
+          onStale={() => refresh()}
+          option={smartItem.smart_option}
+          request={{ requestId: request.id, itemId: smartItem.id }}
+        />
+      ) : pending ? (
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
           {durationChoices.length ? (
             <Select aria-label={t("approval_inbox.duration")} fullWidth={false} onChange={(event) => setDuration(event.target.value)} value={duration}>
@@ -110,7 +145,12 @@ export function PermissionRequestCard({ request, jobId }: { request: PermissionR
           {t("approval_inbox.dismiss")}
         </button>
       ) : null}
-      {failure ? <p className="mt-2 text-xs text-danger">{errorMessage(failure, t("approval_inbox.action_error"))}</p> : null}
+      {linkedAuthority ? (
+        <div className="mt-2">
+          <LinkedPermissionRule authority={linkedAuthority} />
+        </div>
+      ) : null}
+      {failure && !(pending && smartItem) ? <p className="mt-2 text-xs text-danger">{errorMessage(failure, t("approval_inbox.action_error"))}</p> : null}
     </article>
   )
 }

@@ -1,16 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { TFunction } from "i18next"
-import { useMemo, useState } from "react"
-import { Link, useLocation } from "react-router-dom"
+import { useEffect, useMemo, useState } from "react"
+import { Link, useLocation, useSearchParams } from "react-router-dom"
 import {
   applyPermissionBulk,
   applyPermissionPreset,
-  createPermissionRule,
   fetchPermissionHistory,
   fetchPermissions,
   previewPermissionBulk,
   revokePermissionRule,
-  updatePermissionRule,
   type InheritedPermission,
   type PermissionBulkOperation,
   type PermissionHistoryEntry,
@@ -19,11 +17,10 @@ import {
   type PermissionRule
 } from "../api/permissions"
 import { AiApprovalDelegations } from "./AiApprovalDelegations"
-import { Input } from "../components/Input"
+import { PermissionRuleEditor, type RuleEditorSeed } from "../components/PermissionRuleEditor"
 import { Modal } from "../components/Modal"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { PanelMessage } from "../components/PanelMessage"
-import { Select } from "../components/Select"
 import { Checkbox, DataTable } from "../components/ui"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
@@ -47,39 +44,18 @@ export function PermissionsSettingsRoute() {
   const rules = (query.data?.rules ?? []).filter((rule) => !rule.revoked_at)
   const [view, setView] = useState<View>("matrix")
   const historyQuery = useQuery({ queryKey: ["permission_history"], queryFn: fetchPermissionHistory, enabled: view === "leases" || view === "history" })
-  const [subject, setSubject] = useState<Subject>("interactive_chat")
-  const [descriptorKey, setDescriptorKey] = useState("")
-  const [policy, setPolicy] = useState<"allow" | "deny">("allow")
-  const [rationale, setRationale] = useState("")
-  const [editing, setEditing] = useState<PermissionRule | null>(null)
+  const subject: Subject = "interactive_chat"
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [editor, setEditor] = useState<RuleEditorSeed | null>(null)
+  const [savedNotice, setSavedNotice] = useState(false)
+  const highlightedRuleId = Number(searchParams.get("rule")) || null
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
   const [selectedRuleIds, setSelectedRuleIds] = useState<number[]>([])
   const [preview, setPreview] = useState<{ rows: PermissionPreview[]; digest: string; operations: PermissionBulkOperation[] } | null>(null)
   const role = roleFor(subject)
-  const editableDescriptors = useMemo(
-    () => descriptors.filter((item) => item.requestable_roles.includes(role) && (policy === "deny" || item.authority_durations.includes("permanent"))),
-    [descriptors, policy, role]
-  )
-  const selected = editableDescriptors.find((item) => keyFor(item) === descriptorKey) ?? editableDescriptors[0]
+  // Capabilities that can carry a standing (permanent) rule for some role.
+  const authorableCapabilities = useMemo(() => descriptors.filter((item) => item.requestable_roles.length > 0), [descriptors])
   const refresh = () => queryClient.invalidateQueries({ queryKey })
-  const payload = () => ({
-    policy,
-    role,
-    subject_selector_type: subject,
-    capability: selected.capability,
-    operation: selected.operation,
-    resource_scope: editing?.resource_scope ?? {},
-    constraints: {},
-    rationale
-  })
-  const save = useMutation({
-    mutationFn: () => (editing ? updatePermissionRule(editing.id, payload()) : createPermissionRule(payload())),
-    onSuccess: () => {
-      setEditing(null)
-      setRationale("")
-      void refresh()
-    }
-  })
   const revoke = useMutation({ mutationFn: revokePermissionRule, onSuccess: refresh })
   const preset = useMutation({
     mutationFn: ({ item, name }: { item: InheritedPermission; name: string }) =>
@@ -109,12 +85,46 @@ export function PermissionsSettingsRoute() {
   })
 
   const startEdit = (rule: PermissionRule) => {
-    setEditing(rule)
-    setSubject(rule.subject_selector_type as Subject)
-    setDescriptorKey(`${rule.capability}:${rule.operation}`)
-    setPolicy(rule.policy === "deny" ? "deny" : "allow")
-    setRationale(rule.rationale ?? "")
+    setView("rules")
+    setEditor({
+      kind: "fields",
+      replaceRuleId: rule.id,
+      fields: {
+        policy: rule.policy,
+        duration: "permanent",
+        subject_selector_type: rule.subject_selector_type,
+        subject_selector_id: rule.subject_selector_id ?? "",
+        subject_repository_id: rule.subject_repository_id ? String(rule.subject_repository_id) : "",
+        role: rule.subject_role_keys?.[0] ?? "",
+        capability: rule.capability,
+        operation: rule.operation ?? "",
+        resource_scope: rule.resource_scope,
+        constraints: rule.constraints ?? {},
+        rationale: rule.rationale ?? ""
+      }
+    })
   }
+  const closeEditor = () => {
+    setEditor(null)
+    if (searchParams.has("request") || searchParams.has("item")) {
+      const next = new URLSearchParams(searchParams)
+      next.delete("request")
+      next.delete("item")
+      setSearchParams(next, { replace: true })
+    }
+  }
+  // Deep links from authorization cards: ?request=&item= opens the editor
+  // prefilled from that exact pending call; ?rule= focuses a rule in the list.
+  const deepRequest = Number(searchParams.get("request")) || null
+  const deepItem = Number(searchParams.get("item")) || null
+  useEffect(() => {
+    if (deepRequest && deepItem) {
+      setView("rules")
+      setEditor({ kind: "request", requestId: deepRequest, itemId: deepItem })
+    } else if (highlightedRuleId) {
+      setView("rules")
+    }
+  }, [deepRequest, deepItem, highlightedRuleId])
   const previewSelected = (nextPolicy: "allow" | "deny") => {
     const operations = descriptors
       .filter((item) => selectedKeys.includes(keyFor(item)))
@@ -142,8 +152,8 @@ export function PermissionsSettingsRoute() {
         </Link>
       </header>
       {query.isError ? <PanelMessage tone="error">{t("permissions.load_error")}</PanelMessage> : null}
-      {save.isError || bulkPreview.isError || bulkApply.isError ? (
-        <PanelMessage tone="error">{errorMessage(save.error || bulkPreview.error || bulkApply.error, t("permissions.create_error"))}</PanelMessage>
+      {bulkPreview.isError || bulkApply.isError ? (
+        <PanelMessage tone="error">{errorMessage(bulkPreview.error || bulkApply.error, t("permissions.create_error"))}</PanelMessage>
       ) : null}
       {revoke.isError ? <PanelMessage tone="error">{errorMessage(revoke.error, t("permissions.revoke_error"))}</PanelMessage> : null}
       <nav aria-label={t("permissions.views_label")} className="flex gap-2 border-b border-border">
@@ -230,7 +240,12 @@ export function PermissionsSettingsRoute() {
           <p className="mt-1 text-sm text-text-secondary">{t("permissions.your_rules_help")}</p>
           <div className="mt-4 space-y-3">
             {rules.map((rule) => (
-              <article className="flex flex-col gap-3 rounded-lg border border-border p-4 sm:flex-row sm:items-center sm:justify-between" key={rule.id}>
+              <article
+                aria-current={rule.id === highlightedRuleId ? "true" : undefined}
+                className={`flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between ${rule.id === highlightedRuleId ? "border-brand bg-brand/5" : "border-border"}`}
+                id={`permission-rule-${rule.id}`}
+                key={rule.id}
+              >
                 <Checkbox
                   aria-label={t("permissions.select_rule", { capability: rule.capability, operation: rule.operation })}
                   checked={selectedRuleIds.includes(rule.id)}
@@ -266,24 +281,40 @@ export function PermissionsSettingsRoute() {
             ))}
             {rules.length === 0 ? <p className="text-sm text-text-muted">{t("permissions.no_rules")}</p> : null}
           </div>
-          {selected ? (
-            <RuleForm
-              descriptors={editableDescriptors}
-              editing={editing}
-              policy={policy}
-              rationale={rationale}
-              selected={selected}
-              subject={subject}
-              t={t}
-              onCancel={() => setEditing(null)}
-              onDescriptor={setDescriptorKey}
-              onPolicy={setPolicy}
-              onRationale={setRationale}
-              onSubject={setSubject}
-              onSubmit={() => save.mutate()}
-              pending={save.isPending}
-            />
-          ) : null}
+          {editor ? (
+            <div className="mt-5 border-t border-border pt-5">
+              <PermissionRuleEditor
+                headingLevel={3}
+                key={editorKey(editor)}
+                onApplied={() => {
+                  closeEditor()
+                  setSavedNotice(true)
+                  void refresh()
+                  void queryClient.invalidateQueries({ queryKey: ["permission_history"] })
+                }}
+                onCancel={closeEditor}
+                seed={editor}
+              />
+            </div>
+          ) : (
+            <div className="mt-5 border-t border-border pt-5">
+              <button
+                className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-on-brand"
+                onClick={() => {
+                  setSavedNotice(false)
+                  setEditor({ kind: "blank", capabilities: authorableCapabilities.map(({ capability, operation }) => ({ capability, operation })) })
+                }}
+                type="button"
+              >
+                {t("permission_editor.custom_rule")}
+              </button>
+              {savedNotice ? (
+                <span className="ml-3 text-sm text-success" role="status">
+                  {t("permission_editor.rule_saved")}
+                </span>
+              ) : null}
+            </div>
+          )}
         </section>
       ) : null}
       <section className="rounded-xl border border-border bg-surface-raised p-5">
@@ -300,91 +331,6 @@ export function PermissionsSettingsRoute() {
   )
 }
 
-type RuleFormProps = {
-  descriptors: InheritedPermission[]
-  editing: PermissionRule | null
-  policy: "allow" | "deny"
-  rationale: string
-  selected: InheritedPermission
-  subject: Subject
-  t: Translate
-  onCancel: () => void
-  onDescriptor: (value: string) => void
-  onPolicy: (value: "allow" | "deny") => void
-  onRationale: (value: string) => void
-  onSubject: (value: Subject) => void
-  onSubmit: () => void
-  pending: boolean
-}
-
-function RuleForm({
-  descriptors,
-  editing,
-  policy,
-  rationale,
-  selected,
-  subject,
-  t,
-  onCancel,
-  onDescriptor,
-  onPolicy,
-  onRationale,
-  onSubject,
-  onSubmit,
-  pending
-}: RuleFormProps) {
-  return (
-    <form
-      className="mt-5 grid gap-3 border-t border-border pt-5 md:grid-cols-2"
-      onSubmit={(event) => {
-        event.preventDefault()
-        onSubmit()
-      }}
-    >
-      <label className="text-sm font-medium">
-        {t("permissions.subject")}
-        <Select className="mt-1" onChange={(event) => onSubject(event.target.value as Subject)} value={subject}>
-          {subjects.map((item) => (
-            <option key={item} value={item}>
-              {t(`permissions.subjects.${item}`)}
-            </option>
-          ))}
-        </Select>
-      </label>
-      <label className="text-sm font-medium">
-        {t("permissions.capability")}
-        <Select className="mt-1" onChange={(event) => onDescriptor(event.target.value)} value={keyFor(selected)}>
-          {descriptors.map((item) => (
-            <option key={keyFor(item)} value={keyFor(item)}>
-              {item.capability} · {item.operation}
-            </option>
-          ))}
-        </Select>
-      </label>
-      <label className="text-sm font-medium">
-        {t("permissions.policy")}
-        <Select className="mt-1" onChange={(event) => onPolicy(event.target.value as "allow" | "deny")} value={policy}>
-          <option value="allow">{t("permissions.allow")}</option>
-          <option value="deny">{t("permissions.deny")}</option>
-        </Select>
-      </label>
-      <label className="text-sm font-medium">
-        {t("permissions.rationale")}
-        <Input className="mt-1" onChange={(event) => onRationale(event.target.value)} value={rationale} />
-      </label>
-      <div className="flex gap-2">
-        <button className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-on-brand disabled:opacity-50" disabled={pending} type="submit">
-          {editing ? t("permissions.save_rule") : t("permissions.add_rule")}
-        </button>
-        {editing ? (
-          <button className="rounded-md border border-border px-4 py-2 text-sm" onClick={onCancel} type="button">
-            {t("permissions.cancel_edit")}
-          </button>
-        ) : null}
-      </div>
-    </form>
-  )
-}
 function ResourceView({ rules, t }: { rules: PermissionRule[]; t: Translate }) {
   const groups = rules.reduce<Record<string, PermissionRule[]>>((result, rule) => {
     const key = `${rule.resource_type}:${rule.resource_scope_label}`
@@ -622,4 +568,12 @@ function toggle(items: string[], item: string) {
 }
 function toggleNumber(items: number[], item: number) {
   return items.includes(item) ? items.filter((value) => value !== item) : [...items, item]
+}
+
+// A different seed must remount the editor so one rule's fields and preview
+// can never be saved while replacing another rule.
+function editorKey(seed: RuleEditorSeed) {
+  if (seed.kind === "request") return `request-${seed.requestId}-${seed.itemId}`
+  if (seed.kind === "fields") return `rule-${seed.replaceRuleId ?? "new"}`
+  return "blank"
 }

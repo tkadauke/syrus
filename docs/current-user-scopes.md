@@ -176,6 +176,7 @@ per-user/private:
   - app/controllers/api/v1/app/notifications_controller.rb
   - app/controllers/api/v1/app/permission_requests_controller.rb
   - app/controllers/api/v1/app/permission_rules_controller.rb
+  - app/controllers/api/v1/app/permission_rule_drafts_controller.rb
   - app/controllers/api/v1/app/passkeys_controller.rb
   - app/controllers/api/v1/app/pending_feedback_controller.rb
   - app/controllers/api/v1/app/platform_identities_controller.rb

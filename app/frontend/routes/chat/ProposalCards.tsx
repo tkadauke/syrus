@@ -10,6 +10,7 @@ import {
   confirmChatProposal,
   confirmPendingAction,
   decideAuthorizationItem,
+  smartDecideAuthorizationItem,
   fetchChatMedia,
   rejectChatProposal,
   rejectPendingAction,
@@ -38,6 +39,9 @@ import { dispatchProposalUpdated } from "../../lib/appEvents"
 import { mergeChatPayloadUpdate } from "../../lib/chatCache"
 import { replaceProposalInMessages } from "./messageStreamItems"
 import { CloseIcon } from "../../components/CloseIcon"
+import { PermissionRulePreview } from "../../components/PermissionRulePreview"
+import { LinkedPermissionRule, SmartPermissionActions } from "../../components/SmartPermissionActions"
+import type { SmartPermissionOption } from "../../api/permissionRequests"
 import { Button } from "../../components/Button"
 import { Input } from "../../components/Input"
 import { ConfirmDialog } from "../../components/ConfirmDialog"
@@ -990,6 +994,13 @@ export function PendingActionCard({
       onNotice(updated.message || null)
     }
   })
+  const smartAuthorizationDecision = useMutation({
+    mutationFn: (input: { path: string; option: SmartPermissionOption }) => smartDecideAuthorizationItem(appendSearch(input.path, search), input.option),
+    onSuccess: (updated) => {
+      mergeChatPayloadUpdate(queryClient, queryKey, updated)
+      onNotice(updated.message || null)
+    }
+  })
   const terminalLabel = pendingActionTerminalLabel(pendingAction.state)
   const actionKey = pendingActionKey(pendingAction)
   const rejectLabel = actionKey === "schedule_recurring" ? "Cancel" : "Decline"
@@ -1080,6 +1091,7 @@ export function PendingActionCard({
         isEmergencyLand ||
         actionKey === "schedule_recurring" ||
         pendingAction.detail ||
+        pendingAction.permission_rule_preview ||
         pendingAction.reason ||
         (pendingAction.execution_step && !isConfirming) ||
         pendingAction.execution_error ? (
@@ -1106,6 +1118,14 @@ export function PendingActionCard({
             ) : pendingAction.detail ? (
               <PendingActionDetail detail={pendingAction.detail} />
             ) : null}
+            {pendingAction.permission_rule_preview ? (
+              <div className="mt-2 rounded border border-gray-200 p-2 dark:border-gray-700">
+                <PermissionRulePreview headingLevel={4} preview={pendingAction.permission_rule_preview} />
+                <Link className="mt-2 inline-block text-xs font-medium text-brand hover:underline" to="/settings/permissions">
+                  {i18n.t("settings:permission_editor.open_in_hub")}
+                </Link>
+              </div>
+            ) : null}
             {pendingAction.reason ? (
               <p className="mt-2 break-words text-xs text-gray-600 dark:text-gray-300">
                 <span className="font-medium text-gray-700 dark:text-gray-200">Reason: </span>
@@ -1125,25 +1145,33 @@ export function PendingActionCard({
                       <span className="text-gray-500 dark:text-gray-400">{t(`authorization_state_${item.state}`)}</span>
                     </div>
                     {item.state === "pending" ? (
-                      <div className="mt-2 flex gap-2">
-                        <button
-                          className={primaryButton()}
-                          disabled={authorizationDecision.isPending}
-                          onClick={() => authorizationDecision.mutate({ path: item.app_decision_path, decision: "approved" })}
-                          type="button"
-                        >
-                          {t("authorization_approve")}
-                        </button>
-                        <button
-                          className={secondaryButton()}
-                          disabled={authorizationDecision.isPending}
-                          onClick={() => authorizationDecision.mutate({ path: item.app_decision_path, decision: "denied" })}
-                          type="button"
-                        >
-                          {t("authorization_deny")}
-                        </button>
-                      </div>
+                      <SmartPermissionActions
+                        busy={authorizationDecision.isPending || smartAuthorizationDecision.isPending}
+                        error={smartAuthorizationDecision.error}
+                        onAllowOnce={() => {
+                          smartAuthorizationDecision.reset()
+                          authorizationDecision.mutate({ path: item.app_decision_path, decision: "approved" })
+                        }}
+                        onConfirm={(option) =>
+                          smartAuthorizationDecision.mutate({
+                            path: item.app_smart_decision_path || `${item.app_decision_path.replace(/\/decision$/, "")}/smart_decision`,
+                            option
+                          })
+                        }
+                        onDeny={() => {
+                          smartAuthorizationDecision.reset()
+                          authorizationDecision.mutate({ path: item.app_decision_path, decision: "denied" })
+                        }}
+                        onCustomized={(decision) => {
+                          smartAuthorizationDecision.reset()
+                          authorizationDecision.mutate({ path: item.app_decision_path, decision })
+                        }}
+                        onStale={() => void queryClient.invalidateQueries({ queryKey })}
+                        option={item.smart_option}
+                        request={{ requestId: pendingAction.id, itemId: item.id }}
+                      />
                     ) : null}
+                    <LinkedPermissionRule authority={item.resulting_authority} />
                   </div>
                 ))}
                 {authorizationDecision.isError ? (

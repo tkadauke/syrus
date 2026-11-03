@@ -516,12 +516,105 @@ describe("PendingActionCard", () => {
     )
 
     expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument()
-    fireEvent.click(screen.getAllByRole("button", { name: "Approve" })[0])
+    fireEvent.click(screen.getAllByRole("button", { name: "Allow once" })[0])
 
     await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Permission decision recorded."))
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/chats/122/pending_actions/501/authorization_items/41/decision",
       expect.objectContaining({ method: "POST", body: JSON.stringify({ decision: "approved" }) })
+    )
+  })
+
+  it("renders a confirmed grant_permission call as a readable rule preview, not raw JSON", () => {
+    renderCard(
+      pendingAction({
+        action: "grant_permission",
+        label: "Grant permission",
+        permission_rule_preview: {
+          valid: true,
+          errors: [],
+          warnings: [],
+          digest: "d",
+          draft: {
+            policy: "allow",
+            duration: "permanent",
+            role: "chat:planner",
+            subject: { type: "interactive_chat", id: null, subject_type: null, repository_id: null },
+            capability: "mail",
+            operation: "mail/send",
+            resource_scope: {},
+            resource_scope_label: "",
+            constraints: {},
+            chat_session_id: null,
+            job_id: null,
+            expires_at: null,
+            rationale: null
+          },
+          summary: { allows: ["Allows interactive chats to run mail/send until revoked."], excludes: ["Excludes every other operation and capability."] },
+          ceiling: { maximum_autonomy: "permanent", maximum_duration_seconds: null, permanent_allowed: true, limited_by: null },
+          examples: { matches: ["interactive chats running mail/send."], non_matches: ["Anyone other than interactive chats."] }
+        }
+      })
+    )
+
+    const preview = screen.getByTestId("permission-rule-preview")
+    expect(preview).toHaveTextContent("Allows interactive chats to run mail/send until revoked.")
+    expect(preview).toHaveTextContent("Representative non-matches")
+    expect(screen.getByRole("link", { name: "Open in Permissions Hub" })).toHaveAttribute("href", "/settings/permissions")
+  })
+
+  it("previews and confirms the adaptive permission through the smart decision endpoint", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ pending_actions: [], message: "Permission decision recorded." }))
+    const { onNotice } = renderCard(
+      pendingAction({
+        action: "coworker_tool_call",
+        request_kind: "authorization_request",
+        authorization_items: [
+          {
+            id: 42,
+            kind: "operation",
+            state: "pending",
+            capability: "database.read",
+            operation: "database.read/query",
+            effects: [],
+            prerequisite_ids: [],
+            app_decision_path: "/api/v1/app/chats/122/pending_actions/501/authorization_items/42/decision",
+            app_smart_decision_path: "/api/v1/app/chats/122/pending_actions/501/authorization_items/42/smart_decision",
+            smart_option: {
+              kind: "allow_chat",
+              duration: "chat_session",
+              digest: "abc123",
+              summary: { allows: ["Maya may run database.read/query in this chat."], excludes: ["Other operations"] },
+              draft: {},
+              ceiling: {},
+              context: {
+                coworker: "Maya",
+                operation: "database.read/query",
+                repository: "acme/app",
+                resource_scope_label: "All tables",
+                duration: "chat_session"
+              }
+            }
+          }
+        ]
+      })
+    )
+
+    expect(screen.getByRole("button", { name: "Allow once" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Deny" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Allow for this chat" }))
+    expect(screen.getByText("Maya")).toBeInTheDocument()
+    expect(screen.getByText("acme/app")).toBeInTheDocument()
+    expect(screen.getByText("All tables")).toBeInTheDocument()
+    expect(screen.getByText("Other operations")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Customize" })).toBeInTheDocument()
+    expect(fetchSpy).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+    await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Permission decision recorded."))
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/chats/122/pending_actions/501/authorization_items/42/smart_decision",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ duration: "chat_session", digest: "abc123" }) })
     )
   })
 

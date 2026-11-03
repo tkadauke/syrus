@@ -128,6 +128,8 @@ module Admin
       clear_provider_circuit
       close_job_successfully
       complete_implement_step
+      coworker_permission_request
+      coworker_permission_revocation
       coworker_tool_call
       create_coworker
       create_permission_lease
