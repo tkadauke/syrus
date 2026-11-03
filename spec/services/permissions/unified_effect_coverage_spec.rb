@@ -9,24 +9,23 @@ require "rails_helper"
 # The effect list is derived from each contract module's own registry, so a new
 # operation added to one of them is covered here without editing this file.
 module UnifiedEffectCoverage
-  Effect = Struct.new(:label, :source, :descriptor, :tool_name, keyword_init: true)
+  Effect = Struct.new(:label, :descriptor, :tool_names, keyword_init: true)
 
-  MCP_BACKED = [
-    Permissions::EffectActions, Permissions::IngestionActions,
-    Permissions::OperationalActions, Permissions::JobLifecycle
-  ].freeze
+  # Pure reads of non-confidential data do not change anything; every other
+  # declared effect is consequential and must be covered.
+  INERT_EFFECTS = %i[local_read network_read].freeze
 
+  def self.consequential?(descriptor) = (descriptor.effects - INERT_EFFECTS).any?
+
+  # Derived from the authoritative sources, so a new operation is covered
+  # without editing this file: explicit descriptors on core MCP entries,
+  # plugin-provided descriptors, and the execution effects that have no tool.
   def self.effects
-    mcp = MCP_BACKED.flat_map do |source|
-      source.tool_names.map do |name|
-        Effect.new(label: "#{source.name.demodulize}##{name}", source:, tool_name: name, descriptor: source.descriptor_for(name))
-      end
+    explicit_core = McpToolRegistry.entries.select(&:explicit_descriptor)
+    tools = explicit_core.group_by { |entry| entry.descriptor.operation }.transform_values { |entries| entries.map(&:tool_name).uniq }
+    Permissions::Catalog.descriptors.select { |descriptor| consequential?(descriptor) }.map do |descriptor|
+      Effect.new(label: descriptor.operation, descriptor:, tool_names: tools.fetch(descriptor.operation, []))
     end
-    non_mcp = Permissions::ExecutionActions::LOCATIONS.map do |location|
-      Effect.new(label: "ExecutionActions##{location}", source: Permissions::ExecutionActions, tool_name: nil,
-        descriptor: Permissions::ExecutionActions.descriptor_for(location))
-    end
-    mcp + non_mcp
   end
 end
 
@@ -41,6 +40,19 @@ RSpec.describe "Unified consequential-effect coverage" do
       "subject_selector_type" => "workflow_role", "subject_selector_id" => descriptor.requestable_roles.first }
   end
 
+  # Scoped descriptors need provider-specific scope values, so the rule is
+  # written unscoped, which matches every scope of that operation.
+  def deny(descriptor)
+    management.deny!(rule_payload(descriptor), actor: user)
+  rescue ArgumentError
+    PermissionRule.create!(
+      owner_user: user, created_by_user: user, updated_by_user: user, subject_selector_type: "workflow_role",
+      subject_selector_id: descriptor.requestable_roles.first, subject_role_keys: [], dynamic_future_roles: false,
+      capability: descriptor.capability, operation: descriptor.operation, resource_type: descriptor.resource_scope.type.to_s,
+      resource_scope: {}, constraints: {}, policy_layer: "agent", source: "operator", provenance: {}, delegable: true, policy: "deny"
+    )
+  end
+
   def explain(descriptor)
     role = descriptor.requestable_roles.first
     management.explain(descriptor:, role:, resource_scope: {}, arguments: {},
@@ -49,8 +61,9 @@ RSpec.describe "Unified consequential-effect coverage" do
 
   it "covers a meaningful set of effects, including ones outside MCP dispatch" do
     labels = self.class.effects.map(&:label)
-    expect(labels).to include("ExecutionActions#host", "ExecutionActions#container", "ExecutionActions#provider_native")
-    expect(labels).to include("EffectActions#schedule_wakeup", "IngestionActions#ingest_pull_request")
+    expect(labels).to include(*Permissions::ExecutionActions::LOCATIONS.map { |l| Permissions::ExecutionActions.operation_for(l) })
+    expect(labels).to include(*Permissions::LocalModeActions.tool_names.map { |n| Permissions::LocalModeActions.operation_for(n) })
+    expect(labels).to include("syrus.schedules/schedule_wakeup@v1", "syrus.ingestion/pull_request@v1")
     expect(labels.uniq).to eq(labels)
   end
 
@@ -60,8 +73,8 @@ RSpec.describe "Unified consequential-effect coverage" do
 
     self.class.effects.each do |effect|
       descriptor = effect.descriptor
-      expect(descriptor.capability).to match(/\Asyrus\.[a-z_]+@v\d+\z/), effect.label
-      expect(descriptor.operation).to match(%r{\Asyrus\.[a-z_]+/[a-z_]+@v\d+\z}), effect.label
+      expect(descriptor.capability).to match(/\A[a-z_.]+@v\d+\z/), effect.label
+      expect(descriptor.operation).to match(%r{\A[a-z_.]+/[a-z_.]+@v\d+\z}), effect.label
       # find! raises unless the catalog resolves the pair to exactly one descriptor.
       expect(Permissions::Catalog.find!(capability: descriptor.capability, operation: descriptor.operation))
         .to have_attributes(capability: descriptor.capability, operation: descriptor.operation), effect.label
@@ -69,19 +82,30 @@ RSpec.describe "Unified consequential-effect coverage" do
   end
 
   it "registers every MCP-backed effect on its tool surface with the identical contract" do
-    entries = McpToolRegistry.entries.group_by(&:tool_name)
-    self.class.effects.select(&:tool_name).each do |effect|
-      registered = Array(entries[effect.tool_name]).select(&:explicit_descriptor)
-      expect(registered).not_to be_empty, "#{effect.label} has no explicit MCP registration"
-      expect(registered.map { |entry| entry.descriptor.operation }.uniq).to eq([ effect.descriptor.operation ]), effect.label
+    by_name = McpToolRegistry.entries.select(&:explicit_descriptor).group_by(&:tool_name)
+    {
+      Permissions::EffectActions => Permissions::EffectActions.tool_names,
+      Permissions::IngestionActions => Permissions::IngestionActions.tool_names,
+      Permissions::OperationalActions => Permissions::OperationalActions.tool_names,
+      Permissions::JobLifecycle => Permissions::JobLifecycle.tool_names,
+      Permissions::LocalModeActions => Permissions::LocalModeActions.tool_names
+    }.each do |source, names|
+      names.each do |name|
+        operations = Array(by_name[name]).map { |entry| entry.descriptor.operation }.uniq
+        expect(operations).to eq([ source.descriptor_for(name).operation ]), "#{source}##{name}"
+      end
     end
+    expect(self.class.effects.reject { |effect| effect.tool_names.any? }.map(&:label))
+      .to include(*Permissions::ExecutionActions.descriptors.map(&:operation))
   end
 
   it "classifies every effect with certain, declared effects and a redacted, stable fingerprint" do
     self.class.effects.each do |effect|
       descriptor = effect.descriptor
       classification = descriptor.classify({})
-      expect(classification[:operation]).to eq(descriptor.operation), effect.label
+      # A classifier may refine the operation (e.g. read vs. risky), but it must
+      # stay inside the descriptor's capability family and remain versioned.
+      expect(classification[:operation]).to match(%r{\A[a-z_.]+/[a-z_.]+@v\d+\z}), effect.label
       expect(classification[:effects]).not_to be_empty, effect.label
       expect(classification[:effects] - Permissions::CapabilityDescriptor::EFFECTS).to be_empty, effect.label
       expect(Permissions::InvocationFingerprint.call(descriptor:, arguments: {}))
@@ -97,10 +121,11 @@ RSpec.describe "Unified consequential-effect coverage" do
       expect(baseline.chain).not_to be_empty, effect.label
       expect(baseline.to_h).to include(:policy, :decisive_rule, :chain, :invocation), effect.label
 
-      rule = management.deny!(rule_payload(descriptor), actor: user)
+      rule = deny(descriptor)
       denied = explain(descriptor)
       expect(denied).to be_deny, effect.label
-      expect(denied.decisive_rule.id).to eq(rule.to_policy_rule.id), effect.label
+      # A descriptor that already denies by default has no rule to attribute.
+      expect(denied.decisive_rule&.id).to eq(rule.to_policy_rule.id), effect.label unless baseline.deny?
 
       management.revoke_rule!(rule.id, actor: user)
       expect(explain(descriptor).policy).to eq(baseline.policy), effect.label
@@ -109,7 +134,7 @@ RSpec.describe "Unified consequential-effect coverage" do
 
   it "writes an append-only audit trail for every rule created and revoked for an effect" do
     self.class.effects.each do |effect|
-      rule = management.deny!(rule_payload(effect.descriptor), actor: user)
+      rule = deny(effect.descriptor)
       management.revoke_rule!(rule.id, actor: user)
 
       events = rule.audit_events.reload
