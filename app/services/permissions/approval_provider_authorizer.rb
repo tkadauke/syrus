@@ -1,6 +1,6 @@
 module Permissions
   class ApprovalProviderAuthorizer
-    HUMAN_ONLY_CAPABILITY = "syrus.permissions@v1"
+    HUMAN_ONLY_CAPABILITY = "syrus.permissions"
     MINIMUM_ALLOW_CONFIDENCE = 0.8
 
     Result = Data.define(:decision, :delegation, :provider, :request, :audit_artifact) do
@@ -55,7 +55,9 @@ module Permissions
     private
 
     def human_only?
-      @request.capability == HUMAN_ONLY_CAPABILITY ||
+      # Pending items carry unversioned capability names while descriptors are
+      # versioned, so compare the bare name or any @vN spelling would bypass it.
+      @request.capability.sub(/@v\d+\z/, "") == HUMAN_ONLY_CAPABILITY ||
         (@request.effects & ApprovalProviderDelegation::CORE_HUMAN_ONLY_EFFECTS).any?
     end
 
