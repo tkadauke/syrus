@@ -77,8 +77,11 @@ describe("PermissionRequestCard smart actions", () => {
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({ duration: "job", digest: "d1" })
   })
 
-  it("wraps long unbroken argument text instead of overflowing horizontally", () => {
-    const long = { items: [{ ...request.items[0], arguments: { description: "x".repeat(500) } }] }
+  it("keeps long statements inside a 402px card without raw structures or identifiers", () => {
+    const long = {
+      presentation: { statement: "x".repeat(500), agent: "Maya", scope: "y".repeat(300), consequences: ["send a message"] },
+      items: [{ ...request.items[0], arguments: { description: "SECRET_ARGUMENT" }, resource_scope: { job_id: 777 } }]
+    }
     render(
       <QueryClientProvider client={new QueryClient()}>
         <MemoryRouter>
@@ -86,8 +89,25 @@ describe("PermissionRequestCard smart actions", () => {
         </MemoryRouter>
       </QueryClientProvider>
     )
-    const value = screen.getByText(/xxxxxxxx/)
-    expect(value.className).toContain("[overflow-wrap:anywhere]")
-    expect(screen.getByTestId("permission-request-9").className).toContain("min-w-0")
+    const card = screen.getByTestId("permission-request-9")
+    expect(card.className).toContain("min-w-0")
+    expect(card.className).toContain("overflow-hidden")
+    expect(card.className).not.toContain("overflow-x-auto")
+    expect(screen.getByRole("heading").className).toContain("break-words")
+    expect(screen.getByText(/y{50}/).className).toContain("[overflow-wrap:anywhere]")
+    expect(card.textContent).not.toMatch(/SECRET_ARGUMENT|777|mail\.send|\{|—/)
+  })
+
+  it("omits optional context that is not available", () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter>
+          <PermissionRequestCard request={{ ...request, presentation: { statement: "Draft an email" } }} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    expect(screen.getByText("Draft an email")).toBeInTheDocument()
+    expect(screen.queryByText("Why is approval required?")).not.toBeInTheDocument()
+    expect(screen.queryByText("Applies to")).not.toBeInTheDocument()
   })
 })

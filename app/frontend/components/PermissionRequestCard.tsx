@@ -55,9 +55,20 @@ export function PermissionRequestCard({ request, jobId }: { request: PermissionR
   const failure = decide.error || dismiss.error
   const linkedAuthority = request.items.find((item) => item.resulting_authority)?.resulting_authority
 
+  const summary = request.presentation ?? {}
+  const context = [summary.agent, summary.origin].filter((value): value is string => Boolean(value))
+  const details = (
+    [
+      [t("approval_inbox.scope"), summary.scope],
+      [t("approval_inbox.consequence"), summary.consequences?.join(", ")],
+      [t("approval_inbox.requested_duration"), summary.requested_durations?.join(", ")],
+      [t("approval_inbox.why_required"), summary.why_approval_required]
+    ] as Array<[string, string | undefined]>
+  ).filter((entry): entry is [string, string] => Boolean(entry[1]))
+
   return (
     <article
-      className="min-w-0 max-w-full overflow-x-auto rounded-xl border border-border bg-surface-raised p-4"
+      className="min-w-0 max-w-full overflow-hidden rounded-xl border border-border bg-surface-raised p-4"
       data-testid={`permission-request-${request.id}`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -68,34 +79,25 @@ export function PermissionRequestCard({ request, jobId }: { request: PermissionR
               {request.checkpoint_state || t(`approval_inbox.states.${request.state}`, { defaultValue: request.state })}
             </span>
           </div>
-          <h2 className="mt-2 font-semibold text-text-primary">{request.purpose || t("approval_inbox.fallback_purpose")}</h2>
-          <p className="mt-1 text-xs text-text-secondary">
-            {request.subject?.label || request.runtime_role || t("approval_inbox.unknown_subject")}
-            {request.origin ? ` · ${request.origin.label}` : ""}
-          </p>
+          <h2 className="mt-2 break-words font-semibold text-text-primary">{summary.statement || request.purpose || t("approval_inbox.fallback_purpose")}</h2>
+          {context.length ? <p className="mt-1 break-words text-xs text-text-secondary">{context.join(" · ")}</p> : null}
         </div>
         {request.origin?.type === "Job" ? (
-          <Link className="text-xs font-medium text-brand hover:underline" to={`/jobs/${request.origin.id}`}>
+          <Link className="shrink-0 text-xs font-medium text-brand hover:underline" to={`/jobs/${request.origin.id}`}>
             {t("approval_inbox.open_origin")}
           </Link>
         ) : null}
       </div>
-      <div className="mt-3 space-y-3">
-        {request.items.map((item) => (
-          <div className="min-w-0 rounded-lg bg-surface-subtle p-3 text-sm" key={item.id || `${item.capability}:${item.operation}`}>
-            <div className="font-medium text-text-primary">
-              {item.capability}
-              {item.operation ? ` / ${item.operation}` : ""}
+      {details.length ? (
+        <dl className="mt-3 min-w-0 space-y-1 rounded-lg bg-surface-subtle p-3 text-xs text-text-secondary">
+          {details.map(([label, value]) => (
+            <div className="min-w-0" key={label}>
+              <dt className="font-medium text-text-muted">{label}</dt>
+              <dd className="[overflow-wrap:anywhere]">{value}</dd>
             </div>
-            <dl className="mt-2 grid min-w-0 gap-1 text-xs text-text-secondary sm:grid-cols-2">
-              <Detail label={t("approval_inbox.resource")} value={`${item.resource_type || "—"} · ${json(item.resource_scope)}`} />
-              <Detail label={t("approval_inbox.effects")} value={(item.effects ?? []).join(", ") || "—"} />
-              <Detail label={t("approval_inbox.arguments")} value={json(item.arguments)} />
-              <Detail label={t("approval_inbox.policy")} value={json(item.decisive_rule)} />
-            </dl>
-          </div>
-        ))}
-      </div>
+          ))}
+        </dl>
+      ) : null}
       {pending && smartItem ? (
         <SmartPermissionActions
           busy={decide.isPending || smartDecide.isPending}
@@ -156,16 +158,4 @@ export function PermissionRequestCard({ request, jobId }: { request: PermissionR
       {failure && !(pending && smartItem) ? <p className="mt-2 text-xs text-danger">{errorMessage(failure, t("approval_inbox.action_error"))}</p> : null}
     </article>
   )
-}
-
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0">
-      <dt className="font-medium text-text-muted">{label}</dt>
-      <dd className="text-text-secondary [overflow-wrap:anywhere]">{value}</dd>
-    </div>
-  )
-}
-function json(value: unknown) {
-  return value && typeof value === "object" && Object.keys(value as object).length ? JSON.stringify(value) : "—"
 }

@@ -1138,12 +1138,15 @@ export function PendingActionCard({
                   <div className="rounded border border-gray-200 p-2 text-xs dark:border-gray-700" key={item.id}>
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="font-medium text-gray-800 dark:text-gray-200">
-                        {item.kind === "capability_possession"
-                          ? t("authorization_possession", { capability: item.capability })
-                          : t("authorization_operation", { operation: item.operation })}
+                        {item.presentation?.statement || t("authorization_fallback")}
                       </span>
                       <span className="text-gray-500 dark:text-gray-400">{t(`authorization_state_${item.state}`)}</span>
                     </div>
+                    {item.presentation?.scope || item.presentation?.consequences?.length ? (
+                      <p className="mt-1 break-words text-gray-600 dark:text-gray-300">
+                        {[item.presentation?.scope, item.presentation?.consequences?.join(", ")].filter(Boolean).join(" · ")}
+                      </p>
+                    ) : null}
                     {item.state === "pending" ? (
                       <SmartPermissionActions
                         busy={authorizationDecision.isPending || smartAuthorizationDecision.isPending}

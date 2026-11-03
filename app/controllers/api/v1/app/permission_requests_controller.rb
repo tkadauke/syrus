@@ -6,12 +6,14 @@ module Api
 
         def index
           page = [ params[:page].to_i, 1 ].max
-          relation = scope.preload(:origin, :subject, :repository, authorization_items: [ :prerequisites, :resulting_authority ]).order(created_at: :desc)
+          filter = Permissions::RequestFilter.new(scope, ::Filters::QueryParam.decode(params[:q]))
+          relation = filter.apply.preload(:origin, :subject, :repository, authorization_items: [ :prerequisites, :resulting_authority ]).order(created_at: :desc)
           total = relation.count
           requests = relation.offset((page - 1) * PER_PAGE).limit(PER_PAGE)
           render json: {
             requests: requests.map { |request| present(request) },
-            summary: request_summary(relation),
+            summary: request_summary(scope),
+            filter_options: filter.options,
             pagination: { page:, per_page: PER_PAGE, total:, total_pages: (total.to_f / PER_PAGE).ceil }
           }
         end

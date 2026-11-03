@@ -19,7 +19,17 @@ export type SmartPermissionOption = {
 export type PermissionAuthorityReference = { kind: string; id: number }
 
 export type PermissionRequestReference = { type: string; id: number; label: string }
+export type PermissionPresentation = {
+  statement?: string
+  agent?: string
+  origin?: string
+  scope?: string
+  consequences?: string[]
+  why_approval_required?: string
+  requested_durations?: string[]
+}
 export type PermissionRequestItem = {
+  presentation?: PermissionPresentation
   id: number
   kind: string
   state: string
@@ -42,6 +52,7 @@ export type PermissionRequestItem = {
   resulting_authority?: PermissionAuthorityReference | null
 }
 export type PermissionRequest = {
+  presentation?: PermissionPresentation
   id: number
   state: string
   actionable: boolean
@@ -57,13 +68,18 @@ export type PermissionRequest = {
   items: PermissionRequestItem[]
 }
 
+export type PermissionFilterOption = { value: string; label: string }
+export type PermissionFilterOptions = Record<"state" | "subject" | "action" | "effect" | "origin_type", PermissionFilterOption[]>
 export type PermissionRequestsPayload = {
   requests: PermissionRequest[]
+  filter_options?: PermissionFilterOptions
   summary: { pending_count: number; blocked_agent_count: number }
   pagination: { page: number; per_page: number; total: number; total_pages: number }
 }
-export const fetchPermissionRequests = (page = 1) => {
-  return getJson<PermissionRequestsPayload>(`/api/v1/app/permission_requests?page=${page}`)
+export const fetchPermissionRequests = (page = 1, q = "") => {
+  const params = new URLSearchParams({ page: String(page) })
+  if (q) params.set("q", q)
+  return getJson<PermissionRequestsPayload>(`/api/v1/app/permission_requests?${params}`)
 }
 export const decidePermissionRequest = (id: number, decision: "approved" | "denied", duration?: string) =>
   postJson<{ request: PermissionRequest }>(`/api/v1/app/permission_requests/${id}/decide`, { decision, duration })
