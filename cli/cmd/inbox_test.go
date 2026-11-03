@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/tkadauke/syrus/cli/pkg/api"
 )
 
@@ -485,6 +486,7 @@ func TestInboxFilterDetailAndHandledState(t *testing.T) {
 	if !m.detailOpen || !strings.Contains(m.View(), "JOB-1 · one") {
 		t.Fatalf("detail not shown while filtered:\n%s", m.View())
 	}
+	delete(m.pending, 1)
 	m.handled[1] = "approve"
 	m.markRead(1, "approve")
 	view := m.View()
@@ -500,10 +502,20 @@ func TestInboxFilterHelpAndNarrowWidth(t *testing.T) {
 		t.Fatalf("help missing filter docs")
 	}
 	m = pressKey(m, "f")
-	next, _ := m.Update(tea.WindowSizeMsg{Width: 30})
+	m = pressKey(m, "\r")
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m = next.(inboxModel)
-	view := m.View()
-	if !strings.Contains(view, "filter: implemented") {
-		t.Fatalf("narrow view lost filter label:\n%s", view)
+	for _, width := range []int{20, 30, 40, 60} {
+		next, _ := m.Update(tea.WindowSizeMsg{Width: width})
+		m = next.(inboxModel)
+		view := m.View()
+		if !strings.Contains(view, "filter:") || !strings.Contains(view, "implemented") {
+			t.Fatalf("width %d lost filter label:\n%s", width, view)
+		}
+		for _, line := range strings.Split(strings.TrimRight(view, "\n"), "\n") {
+			if w := lipgloss.Width(line); w > width {
+				t.Fatalf("width %d: line is %d wide: %q", width, w, line)
+			}
+		}
 	}
 }

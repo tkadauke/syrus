@@ -301,9 +301,14 @@ Common keys:
 | `c` | Check out the Job branch |
 | `d` | View the diff in `$PAGER` |
 | `l` | View the log in `$PAGER` |
+| `f` | Cycle the filter: all, implemented, failed |
 | `R` | Refresh |
 | `?` | Toggle help |
 | `q` | Quit |
+
+The header always shows the active filter. Filtering keeps your selected Job
+selected when it is still visible, survives automatic refreshes, and shows a
+hint when no Jobs match.
 
 With `--watch`, an empty inbox stays open and refreshes every 30 seconds.
 
