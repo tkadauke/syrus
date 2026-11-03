@@ -179,14 +179,6 @@ module Mcp::Tools
         ActiveSupport::SecurityUtils.secure_compare(invocation.invocation_fingerprint, fingerprint) ||
           raise(AuthorizationError, "authorized invocation fingerprint does not match")
       end
-
-      def with_coworker_approval_bypass
-        previous = Thread.current[:coworker_tool_approval_bypass]
-        Thread.current[:coworker_tool_approval_bypass] = true
-        yield
-      ensure
-        Thread.current[:coworker_tool_approval_bypass] = previous
-      end
     end
 
     def admin?

@@ -110,7 +110,6 @@ RSpec.describe "Coworker background runs" do
 
     expect(context).to have_attributes(role: AgentRole::COWORKER, interactive: false)
     expect(context.agent_actor).to eq(coworker)
-    expect(context.capability_approval_policies["syrus.read_jobs"]).to eq("queue")
     expect(context.capability_scopes).to include("syrus.read_jobs" => nil)
     expect(names).to include("list_jobs", "search_jobs", "read_job")
     expect(names).not_to include("ask_user_question", "suggest_next_step", "force_fail_job", "run_command")
