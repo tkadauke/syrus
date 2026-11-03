@@ -206,6 +206,16 @@ and the provider selected for the workflow. Operator-selected alternate retry
 providers render distinct operator copy. Explicit Job provider settings still
 win over routing rules, and chat provider switching remains explicit.
 
+The routing rules editor (user, repository, and Job scopes) has a Test button
+that dry-runs the effective rules against any Job the operator can see, for a
+chosen step kind or chat role and an optional workflow trigger kind. It shows
+one winner line (or the hold reason, a Job provider pin, or that no rule
+matches), then a collapsed per-rule list (`matched`, `skipped: <reason>`,
+`not evaluated`) with the raw condition evidence behind a disclosure. The
+`POST .../provider_routing_rules/explain` endpoints return the same explanation
+as the `explain_provider_routing` MCP tool and use the rules endpoints' scope
+access checks plus Job visibility.
+
 ## dependencies
 
 Topological dependency graph showing jobs (or epics) as nodes and their `Depends-on` / `Blocked-by` relationships as directed edges. Nodes are placed in columns by dependency depth: Layer 0 has no blockers, Layer N is blocked by Layer N-1 work. Clicking a node navigates to the job or epic detail page.

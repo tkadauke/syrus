@@ -140,6 +140,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/credentials/provider_routing_rules` | `api/v1/app/provider_routing_rules#create` |
 | core | DELETE | `/api/v1/app/credentials/provider_routing_rules/:id` | `api/v1/app/provider_routing_rules#destroy` |
 | core | PATCH | `/api/v1/app/credentials/provider_routing_rules/:id` | `api/v1/app/provider_routing_rules#update` |
+| core | POST | `/api/v1/app/credentials/provider_routing_rules/explain` | `api/v1/app/provider_routing_rules#explain` |
 | core | PATCH | `/api/v1/app/credentials/provider_routing_rules/reorder` | `api/v1/app/provider_routing_rules#reorder` |
 | core | POST | `/api/v1/app/credentials/recheck_provider_availability` | `api/v1/app/credentials#recheck_provider_availability` |
 | core | DELETE | `/api/v1/app/credentials/revoke_api_token` | `api/v1/app/credentials#revoke_api_token` |
@@ -247,6 +248,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/jobs/:job_id/provider_routing_rules` | `api/v1/app/provider_routing_rules#create` |
 | core | DELETE | `/api/v1/app/jobs/:job_id/provider_routing_rules/:id` | `api/v1/app/provider_routing_rules#destroy` |
 | core | PATCH | `/api/v1/app/jobs/:job_id/provider_routing_rules/:id` | `api/v1/app/provider_routing_rules#update` |
+| core | POST | `/api/v1/app/jobs/:job_id/provider_routing_rules/explain` | `api/v1/app/provider_routing_rules#explain` |
 | core | PATCH | `/api/v1/app/jobs/:job_id/provider_routing_rules/reorder` | `api/v1/app/provider_routing_rules#reorder` |
 | core | PATCH | `/api/v1/app/jobs/:job_id/provider_setting` | `api/v1/app/jobs#update_provider_setting` |
 | core | POST | `/api/v1/app/jobs/:job_id/rebase` | `api/v1/app/job_run_commands#rebase` |
@@ -362,6 +364,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | DELETE | `/api/v1/app/repositories/:repository_id/provider_routing_rules/:id` | `api/v1/app/provider_routing_rules#destroy` |
 | core | PATCH | `/api/v1/app/repositories/:repository_id/provider_routing_rules/:id` | `api/v1/app/provider_routing_rules#update` |
 | core | PUT | `/api/v1/app/repositories/:repository_id/provider_routing_rules/:id` | `api/v1/app/provider_routing_rules#update` |
+| core | POST | `/api/v1/app/repositories/:repository_id/provider_routing_rules/explain` | `api/v1/app/provider_routing_rules#explain` |
 | core | PATCH | `/api/v1/app/repositories/:repository_id/provider_routing_rules/reorder` | `api/v1/app/provider_routing_rules#reorder` |
 | core | POST | `/api/v1/app/repositories/:repository_id/recommendations/:recommendation_id` | `api/v1/app/repository_recommendations#create` |
 | core | POST | `/api/v1/app/repositories/:repository_id/ref_movement_actions` | `api/v1/app/repository_ref_movement_actions#create` |
