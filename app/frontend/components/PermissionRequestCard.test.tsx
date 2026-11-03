@@ -54,14 +54,12 @@ afterEach(() => vi.restoreAllMocks())
 
 describe("PermissionRequestCard smart actions", () => {
   it("applies the adaptive rule through the item smart decision endpoint", async () => {
-    const fetchSpy = vi
-      .spyOn(window, "fetch")
-      .mockResolvedValue(
-        new Response(JSON.stringify({ request: { ...request, state: "confirmed", actionable: false } }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" }
-        })
-      )
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ request: { ...request, state: "confirmed", actionable: false } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    )
     render(
       <QueryClientProvider client={new QueryClient()}>
         <MemoryRouter>
