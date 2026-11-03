@@ -333,6 +333,27 @@ describe("ProviderRoutingRulesEditor", () => {
     )
   })
 
+  it("keeps the chosen usage comparator when the percent is cleared and retyped", async () => {
+    const onUpdateRule = vi.fn()
+    const rule: ProviderRoutingRule = { ...rules[0], conditions: { usage: { provider: "codex", remaining_percent_less_than: 25 } } }
+    renderPanel({ onUpdateRule, rules: [rule] })
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
+    fireEvent.change(within(dialog).getByLabelText("Comparator"), { target: { value: "remaining_percent_greater_than_or_equal_to" } })
+    fireEvent.change(within(dialog).getByLabelText("Percent left"), { target: { value: "" } })
+    expect(within(dialog).getByLabelText("Comparator")).toHaveValue("remaining_percent_greater_than_or_equal_to")
+    fireEvent.change(within(dialog).getByLabelText("Percent left"), { target: { value: "60" } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save rule" }))
+
+    await waitFor(() =>
+      expect(onUpdateRule).toHaveBeenCalledWith(
+        rule,
+        expect.objectContaining({ conditions: { usage: { provider: "codex", remaining_percent_greater_than_or_equal_to: 60 } } })
+      )
+    )
+  })
+
   it("rejects usage percents outside 0-100 and blocks saving", () => {
     const onUpdateRule = vi.fn()
     const rule: ProviderRoutingRule = { ...rules[0], conditions: { usage: { provider: "codex", remaining_percent_less_than: 25 } } }
