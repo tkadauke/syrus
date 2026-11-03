@@ -1144,6 +1144,12 @@ Because routing admission happens before Run creation, a hold never interrupts
 an already-running provider process. Usage-based rules can match provider state
 or remaining-capacity thresholds, and fresh provider evidence wakes matching
 holds immediately rather than waiting for their safety timer.
+The rule editor's "Only when" section can add workflow trigger, provider usage,
+day and time, job type, and repository conditions. Day and time windows use the
+server time zone and must not cross midnight (start after end is rejected by the
+editor and the API; use two rules instead). Job type matches kinds, priorities,
+and investigation Jobs. The repository condition is only offered for user-level
+rules, since repository and Job rule sets already apply to one repository.
 Existing workflow pins are not rewritten.
 Chat agents can inspect those same user, repository, and Job rule sets, explain
 the effective first-match decision, and prepare atomic rule changes for operator

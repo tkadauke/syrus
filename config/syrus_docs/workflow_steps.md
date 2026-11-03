@@ -221,6 +221,13 @@ Disabled rules are skipped and the first enabled matching rule wins. Hold action
 show their reason and manual, condition-based, or timed resumption policy; Job
 detail also shows active holds and their next wake where applicable.
 
+The rule editor's "Only when" section can add workflow trigger, provider usage,
+day and time, job type, and repository conditions. Day and time windows use the
+server time zone and must not cross midnight (start after end is rejected by the
+editor and the API; use two rules instead). Job type matches kinds, priorities,
+and investigation Jobs. The repository condition is only offered for user-level
+rules, since repository and Job rule sets already apply to one repository.
+
 `agy` is the Antigravity workflow provider. `SYRUS_AGY_MODEL` and
 `SYRUS_AGY_EFFORT` are forwarded into the isolated Antigravity provider home as
 Syrus-owned configuration hints, and Agy loads Syrus workflow tools from the
