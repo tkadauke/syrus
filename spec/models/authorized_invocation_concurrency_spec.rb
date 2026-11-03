@@ -7,7 +7,7 @@ RSpec.describe AuthorizedInvocation, :ci_only do
     User.where(email_address: %w[
       authorization-decision-race@example.com
       authorized-invocation-race@example.com
-    ]).destroy_all
+    ]).or(User.where("email_address LIKE ?", "authorized-invocation-claim-revocation-race-%@example.com")).destroy_all
     ActiveRecord::Base.connection_handler.clear_all_connections!
   end
 
