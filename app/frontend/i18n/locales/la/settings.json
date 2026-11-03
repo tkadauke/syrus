@@ -51,7 +51,10 @@
     "next": "Proxima",
     "page_of": "Pagina {{page}} ex {{total}}",
     "requested_by": "Petitum a",
-    "scope": "Valet pro", "consequence": "Quid accidere possit", "requested_duration": "Petitum ad", "why_required": "Cur approbatio requiritur?",
+    "scope": "Valet pro",
+    "consequence": "Quid accidere possit",
+    "requested_duration": "Petitum ad",
+    "why_required": "Cur approbatio requiritur?",
     "filters": { "state": "Status", "subject": "Agens", "action": "Actio petita", "effect": "Consecutio", "origin_type": "Origo" },
     "states": { "pending": "Pendens", "confirmed": "Approbata", "rejected": "Negata", "dismissed": "Dimissa", "non_actionable": "Non praesto" },
     "durations": { "invocation": "Haec invocatio", "chat_session": "Hic sermo", "job": "Hoc Opus", "permanent": "Perpetua" }
