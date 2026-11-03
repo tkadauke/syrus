@@ -212,3 +212,14 @@ surface. With the plugin disabled, every endpoint answers `plugin_disabled`.
 ## Per-user scheduling pause
 
 Set `User#scheduling_paused = true` to pause all scheduled tasks for a user without touching individual tasks. `PollScheduledTasksJob` skips paused users entirely. Operators can toggle this via the admin UI; users can toggle it in `/credentials/edit`.
+
+## Chat tool permissions
+
+The chat tools that manage scheduled tasks declare permission capabilities, so
+persistent automation goes through the same policy, audit, and attention
+routing as other consequential effects. Listing, reading, and pausing are
+automatic (pausing only removes autonomy). Creating and editing a task ask by
+default and can be covered for the current chat session. Resuming, firing now,
+and deleting ask for the exact invocation. Creation and immediate firing still
+return a pending confirmation, and write access to the repository is checked
+again when the approved action runs.
