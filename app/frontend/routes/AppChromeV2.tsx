@@ -38,6 +38,7 @@ import {
 import { buildAdminNavItems, filterAdminNavItems, type AdminNavGroup, type MergedAdminNavItem } from "./appChromeV2/adminNav"
 import { applySidebarNavOrder, buildSidebarNavItems, sidebarNavItemActive } from "./appChromeV2/sidebarNav"
 import { RecentChatsSidebar } from "./appChromeV2/RecentChatsSidebar"
+import { ActivityProvider } from "../components/activity/ActivityProvider"
 import { PermissionInboxDrawer } from "../components/PermissionInboxDrawer"
 import { ToolPresentationModal } from "./chat/ToolPresentationModal"
 import { useMediaQuery } from "./dashboard/components"
@@ -682,6 +683,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     <ShortcutsProvider>
       <ThemeProvider colorTheme={user?.color_theme ?? null} theme={user?.theme ?? "system"}>
         <BugReportContext.Provider value={bugReportContextValue}>
+          <ActivityProvider prefix={prefix}>
           <GlobalShortcutsHelp />
           {user ? <GlobalBugReportShortcut onOpenBugReport={openBugReport} /> : null}
           <div
@@ -891,6 +893,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
               />
             ) : null}
           </div>
+          </ActivityProvider>
         </BugReportContext.Provider>
       </ThemeProvider>
     </ShortcutsProvider>
