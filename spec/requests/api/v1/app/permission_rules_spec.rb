@@ -102,7 +102,11 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
   end
 
   it "uses the policy evaluator for matrix states and marks resource-dependent outcomes" do
-    descriptor = Permissions::Catalog.descriptors.find { |candidate| candidate.resource_scope.type == :none }
+    # An auto-allowed default would make an allow rule indistinguishable from the
+    # default, so pick a descriptor that does not already allow by default.
+    descriptor = Permissions::Catalog.descriptors.find do |candidate|
+      candidate.resource_scope.type == :none && candidate.defaults.values.none?(:allow)
+    end
     permission_rule(owner: user, descriptor:, policy: "deny")
     permission_rule(owner: user, descriptor:, policy: "allow")
 
