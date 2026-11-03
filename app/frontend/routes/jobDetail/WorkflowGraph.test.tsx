@@ -63,6 +63,50 @@ function command() {
 }
 
 describe("WorkflowsTab", () => {
+  describe("dismiss action", () => {
+    function renderWith(overrides: Record<string, unknown>, cmd = command()) {
+      const workflow = { ...workflowWithStepDetails({} as never), steps: [], ...overrides }
+      render(
+        <MemoryRouter>
+          <QueryClientProvider client={new QueryClient()}>
+            <WorkflowsTab command={cmd} payload={payload({ workflows: [workflow] as never })} prefix="" />
+          </QueryClientProvider>
+        </MemoryRouter>
+      )
+      return cmd
+    }
+
+    it("shows Dismiss with the blocked reason and a confirm for a blocked auxiliary workflow", () => {
+      const cmd = renderWith({
+        trigger_kind: "rebase",
+        state: "blocked",
+        dismissable: true,
+        app_dismiss_path: "/workflows/10/dismiss",
+        blocked_reason_text: "main branch broken"
+      })
+
+      expect(screen.getByText("main branch broken")).toBeInTheDocument()
+      fireEvent.click(screen.getByRole("button", { name: "Dismiss" }))
+      expect(cmd.mutate).toHaveBeenCalledWith(
+        expect.objectContaining({ method: "post", path: "/workflows/10/dismiss", confirm: expect.stringContaining("Dismiss this blocked workflow") })
+      )
+    })
+
+    it("shows Cancel for a running auxiliary workflow", () => {
+      renderWith({ trigger_kind: "visual_diff", state: "running", dismissable: true, app_dismiss_path: "/workflows/10/dismiss" })
+
+      expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "Dismiss" })).not.toBeInTheDocument()
+    })
+
+    it("hides the action when the workflow is not dismissable", () => {
+      renderWith({ trigger_kind: "initial", state: "blocked", dismissable: false, app_dismiss_path: "/workflows/10/dismiss" })
+
+      expect(screen.queryByRole("button", { name: "Dismiss" })).not.toBeInTheDocument()
+      expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument()
+    })
+  })
+
   it("passes the Step agentic metadata to the transcript renderer", async () => {
     const workflow = workflowWithDiffRun()
     workflow.steps[0].agentic = false

@@ -258,6 +258,36 @@ module Api
           render_job(job.reload, message: lifecycle_t("cancellation_requested"), changed: [ "state", "runs" ])
         end
 
+        # Cancels (or dismisses, when already blocked) one auxiliary workflow.
+        # Reuses WorkUnits::WorkflowCancellation so Runs are cancelled and the
+        # WorkUnit and its locks are retired together.
+        def dismiss_workflow
+          job = find_mutable_job
+          return unless authorize_job_mutation!(job)
+
+          workflow = job.workflows.find_by(id: params[:workflow_id])
+          unless workflow
+            render_error("not_found", lifecycle_t("workflow_not_found"), status: :not_found)
+            return
+          end
+          unless Workflow::TriggerKind.non_approval_blocking?(workflow.trigger_kind)
+            render_error("validation_failed", lifecycle_t("dismiss_auxiliary_only"), status: :unprocessable_content)
+            return
+          end
+          unless workflow.operator_dismissable?
+            render_job(job.reload, message: lifecycle_t("workflow_already_finished", slug: workflow.slug, state: workflow.state), changed: [])
+            return
+          end
+
+          WorkUnits::WorkflowCancellation.cancel!(
+            workflow,
+            reason: Workflow::DISMISSED_BY_OPERATOR_REASON,
+            artifacts: { "cancelled_reason" => Workflow::DISMISSED_BY_OPERATOR_REASON, "dismissed_by_user_id" => Current.user.id }
+          )
+          job.reload.clear_needs_attention!(reason: "agent_cannot_proceed") unless job.workflows.where(state: "blocked").where.not(id: workflow.id).exists?
+          render_job(job.reload, message: lifecycle_t("workflow_dismissed", slug: workflow.slug), changed: [ "state", "workflows", "runs" ], tab: "workflows")
+        end
+
         def stop_landing
           job = find_mutable_job
           return unless authorize_job_mutation!(job)
