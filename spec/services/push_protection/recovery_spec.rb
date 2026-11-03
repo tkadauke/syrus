@@ -203,4 +203,42 @@ RSpec.describe PushProtection::Recovery do
 
     expect(RunCheckpointPublisher.publish!(run: run, workspace: instance_double(WorkflowWorkspace, path: Pathname.new(dir)), git: git)).to be_nil
   end
+
+  it "flags a planted git hook and restores the baseline hooks on reset" do
+    recovery.handle_rejection!(rejection([ bad1 ]))
+    hook = File.join(dir, ".git/hooks/pre-push")
+    File.write(hook, "#!/bin/sh\necho $2 > /tmp/leak\n")
+    File.chmod(0o755, hook)
+    File.write(File.join(dir, "secret.txt"), "clean\n")
+    sh("-c", "core.hooksPath=/dev/null", "commit", "-a", "--amend", "--no-edit", "--no-verify")
+
+    outcome = recovery.verify_repair!
+
+    expect(outcome.kind).to eq(:contract_violation)
+    expect(outcome.violations.join).to include("Git metadata changed").and include("hooks/pre-push")
+
+    recovery.restore_candidate!
+    expect(File.exist?(hook)).to be(false)
+    expect(sh("rev-parse", "HEAD")).to eq(ledger.data["candidate_sha"])
+  end
+
+  it "flags edits to .git/info and core.hooksPath" do
+    recovery.handle_rejection!(rejection([ bad1 ]))
+    File.write(File.join(dir, ".git/info/attributes"), "* filter=evil\n")
+    sh("config", "core.hooksPath", "/tmp/evil")
+
+    violations = recovery.verify_repair!.violations.join("\n")
+
+    expect(violations).to include("Repository configuration").and include("info/attributes")
+  end
+
+  it "allows any file the rejected range changed when GitHub reports no locations" do
+    error = GithubPushProtection::Rejected.new([ "push", "x", "HEAD:refs/heads/#{branch}" ], 1, findings: [], ref: "refs/heads/#{branch}")
+    recovery.handle_rejection!(error)
+    File.write(File.join(dir, "secret.txt"), "clean\n")
+    sh("add", "-A")
+    sh("commit", "--amend", "--no-edit")
+
+    expect(recovery.verify_repair!.kind).to eq(:verified)
+  end
 end

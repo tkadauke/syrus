@@ -43,6 +43,10 @@ module PushProtection
       v << "Repository refs changed (#{(refs - baseline['refs']).size} added/moved, #{(baseline['refs'] - refs).size} removed); do not create, move or delete refs." if refs != baseline["refs"]
       v << "Git remotes changed; do not add, remove or edit remotes." if repo.remotes != baseline["remotes"]
       v << "Repository configuration (.git/config) changed; do not modify it." if repo.config_text != baseline["config"]
+      if repo.metadata_digest != baseline["git_metadata"]
+        changed = (repo.metadata_digest.to_a - baseline["git_metadata"].to_a).map(&:first) | (baseline["git_metadata"].keys - repo.metadata_digest.keys)
+        v << "Git metadata changed (#{changed.first(10).join(', ')}); do not create or edit hooks, .git/info or worktree config."
+      end
       v << "Working tree is not clean; commit or discard leftovers." if repo.dirty?
       v
     end

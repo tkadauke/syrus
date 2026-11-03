@@ -23,7 +23,7 @@ RSpec.describe Steps::PushProtectionRecovery do
     rejecting = push_results
     Class.new do
       define_method(:run) do |*args, **kw|
-        if args.first == "push"
+        if args.reject { |a| a == "-c" || a.start_with?("core.") }.first == "push"
           pushes_log << `git -C #{kw[:chdir]} rev-parse HEAD`.strip
           result = rejecting.shift
           raise result if result.is_a?(Exception)
@@ -175,5 +175,24 @@ RSpec.describe Steps::PushProtectionRecovery do
     expect { handler.call }.to raise_error(Steps::Base::StepFailed) { |e|
       expect(e.message).not_to include("unblock-secret")
     }
+  end
+
+  it "never executes a hook the agent plants, during the harness amend or the republish" do
+    marker = File.join(dir, "hook-ran")
+    push_results.replace([ rejection(@bad1), nil ])
+    allow(handler).to receive(:run_agent) do |**|
+      %w[pre-commit post-commit pre-push].each do |name|
+        path = File.join(dir, ".git/hooks", name)
+        File.write(path, "#!/bin/sh\ntouch #{marker}\n")
+        File.chmod(0o755, path)
+      end
+      File.write(File.join(dir, "secret.txt"), "TOKEN=<redacted>\n") # left uncommitted: harness amends
+    end
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed) # planted hooks fail the contract
+
+    expect(File).not_to exist(marker)
+    expect(pushes.size).to eq(1) # never reached the repair push
+    expect(ledger.status).to eq("repairing").or eq("operator_review")
   end
 end

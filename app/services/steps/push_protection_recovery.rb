@@ -56,8 +56,10 @@ module Steps
       git = GitRunner.new
       return if git.run("status", "--porcelain", chdir: workspace.path.to_s).strip.empty?
 
-      git.run("add", "-A", chdir: workspace.path.to_s)
-      git.run("commit", "--amend", "--no-edit", chdir: workspace.path.to_s)
+      # Hooks are agent-writable and would run with harness credentials: never
+      # execute them for harness-owned commands.
+      git.run("-c", "core.hooksPath=/dev/null", "add", "-A", chdir: workspace.path.to_s)
+      git.run("-c", "core.hooksPath=/dev/null", "commit", "--amend", "--no-edit", "--no-verify", chdir: workspace.path.to_s)
     end
 
     def push_protection_fail!(error, kind, message)
