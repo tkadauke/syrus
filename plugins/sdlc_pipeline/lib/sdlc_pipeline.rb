@@ -2,8 +2,11 @@ module SdlcPipeline
   extend Syrus::PluginApi
 
   syrus_plugin "sdlc_pipeline" do
+    experimental true
     display_name "SDLC Pipeline"
     category "collaboration"
+    default_enabled false
+    disableable true
     author "Thomas Kadauke"
     icon_url "/plugin-icons/sdlc_pipeline.svg"
     description "A bounded repository pipeline derived from existing lifecycle and deployment facts."
