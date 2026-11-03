@@ -56,6 +56,34 @@ describe("PermissionsSettingsRoute", () => {
     expect(JSON.parse(String(apply[1]?.body))).toMatchObject({ replace_rule_id: 4 })
   })
 
+  it("never saves one rule's fields while replacing another when Edit is clicked on a second rule", async () => {
+    const fetchSpy = mockHub()
+    const data = payload()
+    data.rules.push({ ...data.rules[0], id: 5, rationale: "second" } as unknown as (typeof data.rules)[number])
+    fetchSpy.mockImplementation((input) => {
+      const path = String(input)
+      if (path.includes("/permission_rule_drafts/options")) return Promise.resolve(jsonResponse({ options: hubOptions }))
+      if (path.endsWith("/permission_rule_drafts/preview")) return Promise.resolve(jsonResponse({ preview: hubPreview }))
+      if (path.endsWith("/permission_rule_drafts/apply"))
+        return Promise.resolve(jsonResponse({ authority: { kind: "PermissionRule", id: 9, capability: "syrus.jobs@v1", operation: "cancel@v1" } }, 201))
+      return Promise.resolve(jsonResponse(data))
+    })
+    renderRoute()
+    fireEvent.click(await screen.findByRole("button", { name: "Rules" }))
+    const edits = await screen.findAllByRole("button", { name: "Edit" })
+    fireEvent.click(edits[0])
+    fireEvent.change(await screen.findByLabelText("Rationale (optional)"), { target: { value: "typed for rule 4" } })
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[1])
+
+    expect(await screen.findByLabelText("Rationale (optional)")).toHaveValue("second")
+    await screen.findByLabelText("Applies to")
+    fireEvent.click(screen.getByRole("button", { name: "Review rule" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Save rule" }))
+    await waitFor(() => expect(screen.getByText("Rule saved")).toBeInTheDocument())
+    const apply = fetchSpy.mock.calls.find(([path]) => String(path).endsWith("/permission_rule_drafts/apply"))!
+    expect(JSON.parse(String(apply[1]?.body))).toMatchObject({ replace_rule_id: 5, draft: { rationale: "second" } })
+  })
+
   it("opens the editor prefilled from a card's deep link", async () => {
     const fetchSpy = mockHub()
     renderRoute("/settings/permissions?request=7&item=9")

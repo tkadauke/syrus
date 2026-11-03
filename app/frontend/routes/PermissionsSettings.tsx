@@ -282,6 +282,7 @@ export function PermissionsSettingsRoute() {
             <div className="mt-5 border-t border-border pt-5">
               <PermissionRuleEditor
                 headingLevel={3}
+                key={editorKey(editor)}
                 onApplied={() => {
                   closeEditor()
                   setSavedNotice(true)
@@ -564,4 +565,12 @@ function toggle(items: string[], item: string) {
 }
 function toggleNumber(items: number[], item: number) {
   return items.includes(item) ? items.filter((value) => value !== item) : [...items, item]
+}
+
+// A different seed must remount the editor so one rule's fields and preview
+// can never be saved while replacing another rule.
+function editorKey(seed: RuleEditorSeed) {
+  if (seed.kind === "request") return `request-${seed.requestId}-${seed.itemId}`
+  if (seed.kind === "fields") return `rule-${seed.replaceRuleId ?? "new"}`
+  return "blank"
 }
