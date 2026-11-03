@@ -40,7 +40,10 @@ module Permissions
       "archive_epic" => Operation.new(EPICS, "archive", STATE_CHANGE, :medium),
       "unland_epic" => Operation.new(EPICS, "unland", WORK_CONTROL, :high),
       "pause_landing_queue" => Operation.new(LANDING_QUEUE, "pause", WORK_CONTROL, :high),
-      "resume_landing_queue" => Operation.new(LANDING_QUEUE, "resume", WORK_CONTROL, :medium)
+      "resume_landing_queue" => Operation.new(LANDING_QUEUE, "resume", WORK_CONTROL, :medium),
+      "wake_landing_queue" => Operation.new(LANDING_QUEUE, "wake", WORK_CONTROL, :medium),
+      "force_landing_recheck" => Operation.new(LANDING_QUEUE, "force_recheck", WORK_CONTROL, :high),
+      "override_landing_blocker_once" => Operation.new(LANDING_QUEUE, "override_blocker_once", DESTRUCTIVE_CONTROL, :critical)
     }.freeze
 
     # Argument keys that name the target records, mapped to the canonical key

@@ -106,6 +106,6 @@ Core Job and Epic lifecycle tools use stable, explicit capabilities instead of c
 
 - `syrus.jobs@v1`: `create`, `approve`, `unapprove`, `cancel`, `retry`, `retry_base_refresh`, `poll_feedback`, `rebase`, `reopen`, `close`, `check_mergeability`, `unland`.
 - `syrus.epics@v1`: `start`, `move_to_backlog`, `archive`, `unland`.
-- `syrus.landing_queue@v1`: `pause`, `resume`.
+- `syrus.landing_queue@v1`: `pause`, `resume`, `wake`, `force_recheck`, `override_blocker_once`.
 
 A single-Job call and a bulk call (`job_id` versus `job_ids`) share one operation and are classified and fingerprinted identically, so approving one Job or many evaluates the same way. Proposals (`propose_job`, `propose_epic`, `propose_epic_with_jobs`) remain a separate lifecycle and are not part of these capabilities. All of these default to `ask`.
