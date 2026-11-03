@@ -163,7 +163,12 @@ export function usageHint(value: unknown, options: ProviderRoutingOptions, t: Co
 
 function UsageCard({ onChange, options, t, value }: ConditionCardProps) {
   const stored = usageValue(value)
-  const { comparator, percent } = usageComparator(value)
+  const { comparator: storedComparator, percent } = usageComparator(value)
+  // The comparator only exists in stored JSON while a percent is present, so keep the
+  // selection locally to survive clearing the percent field.
+  const [pendingKey, setPendingKey] = useState<string>(storedComparator.key)
+  const hasStoredComparator = USAGE_COMPARATORS.some((entry) => entry.key in stored)
+  const comparator = USAGE_COMPARATORS.find((entry) => entry.key === (hasStoredComparator ? storedComparator.key : pendingKey)) ?? USAGE_COMPARATORS[0]
   const states = stringList(stored.states)
   const [showMore, setShowMore] = useState(states.length > 0)
   const error = usageError(value, t)
@@ -201,7 +206,10 @@ function UsageCard({ onChange, options, t, value }: ConditionCardProps) {
         <Form.Field className="min-w-28 flex-1">
           <Form.Select
             aria-label={t("provider_routing.usage.comparator")}
-            onChange={(event) => onChange(setUsageComparison(stored, event.target.value, percent as string | number | undefined))}
+            onChange={(event) => {
+              setPendingKey(event.target.value)
+              onChange(setUsageComparison(stored, event.target.value, percent as string | number | undefined))
+            }}
             value={comparator.key}
           >
             {USAGE_COMPARATORS.map((option) => (
