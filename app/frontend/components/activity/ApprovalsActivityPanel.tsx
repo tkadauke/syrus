@@ -6,9 +6,11 @@ import { ActivityState } from "./ActivityState"
 import { usePendingApprovals } from "./usePendingApprovals"
 
 /** Approvals tab content. Cards keep their full hierarchy; resolved requests retire as the shared query updates. */
-export function ApprovalsActivityPanel({ onNavigate, prefix }: { onNavigate?: () => void; prefix: string }) {
+export function ApprovalsActivityPanel({ navigateTo, prefix }: { navigateTo: (to: string) => void; prefix: string }) {
   const { t } = useT("settings")
   const { query, pending } = usePendingApprovals()
+
+  const inboxPath = withRoutePrefix("/permissions/inbox", prefix)
 
   return (
     <div className="space-y-3 p-4">
@@ -21,7 +23,14 @@ export function ApprovalsActivityPanel({ onNavigate, prefix }: { onNavigate?: ()
       ) : (
         <ActivityState kind="empty" message={t("approval_inbox.empty_pending")} />
       )}
-      <Link className="inline-block text-sm font-semibold text-brand hover:underline" onClick={onNavigate} to={withRoutePrefix("/permissions/inbox", prefix)}>
+      <Link
+        className="inline-block text-sm font-semibold text-brand hover:underline"
+        onClick={(event) => {
+          event.preventDefault()
+          navigateTo(inboxPath)
+        }}
+        to={inboxPath}
+      >
         {t("approval_inbox.view_all")}
       </Link>
     </div>

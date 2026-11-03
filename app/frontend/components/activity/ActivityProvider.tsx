@@ -1,37 +1,44 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { useLocation, useNavigate } from "react-router-dom"
 import { ACTIVITY_MOBILE_QUERY, useMediaQuery } from "../../hooks/useMediaQuery"
+import { dismissTopLayer } from "../../lib/dismissLayers"
 import { ActivityContext, type ActivityOpenOptions, type ActivityTab } from "./ActivityContext"
 import { ActivityShell } from "./ActivityShell"
 
 /**
  * Owns the single mobile Activity overlay. Opening while already open only switches the tab, so overlays never stack.
- * Back handling is deterministic: a nested dialog (e.g. Customize) closes first, then Activity itself.
- * Activity pushes exactly one history entry and consumes it on close.
+ *
+ * Back is deterministic: the topmost registered nested layer (e.g. Customize) closes first, then Activity itself.
+ * Activity owns exactly one synthetic history entry. It is consumed by closing, and by leaving Activity for another
+ * route (history.back() first, then the navigation), so no dead overlay entry is left under the destination.
  */
 export function ActivityProvider({ children, prefix = "" }: { children: ReactNode; prefix?: string }) {
   const isMobile = useMediaQuery(ACTIVITY_MOBILE_QUERY)
+  const navigate = useNavigate()
+  const location = useLocation()
   const [state, setState] = useState<{ open: boolean; tab: ActivityTab }>({ open: false, tab: "notifications" })
   const invokerRef = useRef<HTMLElement | null>(null)
   const onNavigateRef = useRef<(() => void) | undefined>(undefined)
+  const pendingNavigationRef = useRef<string | null>(null)
   const historyEntryRef = useRef(false)
   const openRef = useRef(false)
   openRef.current = state.open
+  const routeKey = `${location.pathname}${location.search}`
+  const openedAtRoute = useRef(routeKey)
 
-  const finish = useCallback(() => {
+  const finish = useCallback((restoreFocus = true) => {
     const invoker = invokerRef.current
     invokerRef.current = null
+    openRef.current = false
     setState((current) => ({ ...current, open: false }))
-    if (invoker) requestAnimationFrame(() => invoker.isConnected && invoker.focus())
+    if (restoreFocus && invoker) requestAnimationFrame(() => invoker.isConnected && invoker.focus())
   }, [])
 
   const closeActivity = useCallback(() => {
     if (!openRef.current) return
-    if (historyEntryRef.current) {
-      // popstate handler performs the actual close so the browser stack and UI stay in sync.
-      window.history.back()
-    } else {
-      finish()
-    }
+    // The popstate handler performs the actual close so the browser stack and UI stay in sync.
+    if (historyEntryRef.current) window.history.back()
+    else finish()
   }, [finish])
 
   const openActivity = useCallback((tab: ActivityTab, options: ActivityOpenOptions = {}) => {
@@ -41,6 +48,7 @@ export function ActivityProvider({ children, prefix = "" }: { children: ReactNod
     }
     invokerRef.current = options.invoker ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null)
     onNavigateRef.current = options.onNavigate
+    openedAtRoute.current = `${window.location.pathname}${window.location.search}`
     window.history.pushState({ ...(window.history.state ?? {}), syrusActivity: true }, "")
     historyEntryRef.current = true
     openRef.current = true
@@ -49,37 +57,53 @@ export function ActivityProvider({ children, prefix = "" }: { children: ReactNod
 
   const selectTab = useCallback((tab: ActivityTab) => setState((current) => ({ ...current, tab })), [])
 
+  const navigateFromActivity = useCallback(
+    (to: string) => {
+      onNavigateRef.current?.()
+      if (historyEntryRef.current) {
+        // Pop our entry first; the navigation happens once the browser has settled on the underlying page.
+        pendingNavigationRef.current = to
+        window.history.back()
+      } else {
+        finish(false)
+        navigate(to)
+      }
+    },
+    [finish, navigate]
+  )
+
   useEffect(() => {
     if (!state.open) return
 
     function onPopState() {
-      const nested = Array.from(document.querySelectorAll('[aria-modal="true"]')).filter((node) => node.getAttribute("data-testid") !== "activity-shell")
-      if (nested.length > 0) {
-        // Back closes the nested layer first; restore Activity's history entry.
-        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))
+      const pending = pendingNavigationRef.current
+      if (pending == null && dismissTopLayer()) {
+        // The pop consumed Activity's entry while a nested layer was still open: close the layer, restore the entry.
         window.history.pushState({ ...(window.history.state ?? {}), syrusActivity: true }, "")
         return
       }
       historyEntryRef.current = false
-      finish()
+      pendingNavigationRef.current = null
+      finish(pending == null)
+      if (pending != null) navigate(pending)
     }
 
     window.addEventListener("popstate", onPopState)
     return () => window.removeEventListener("popstate", onPopState)
-  }, [state.open, finish])
+  }, [state.open, finish, navigate])
+
+  // A route change we did not initiate (e.g. an in-card link) dismisses Activity so it never covers the new page.
+  useEffect(() => {
+    if (openRef.current && routeKey !== openedAtRoute.current && pendingNavigationRef.current == null) {
+      historyEntryRef.current = false
+      finish(false)
+    }
+  }, [routeKey, finish])
 
   // Rotating or resizing to a desktop width hands off to the popover/drawer: close Activity.
   useEffect(() => {
     if (!isMobile && state.open) closeActivity()
   }, [isMobile, state.open, closeActivity])
-
-  // Leaving via an in-app link must not leave a dead history entry marker behind.
-  const navigateAway = useCallback(() => {
-    onNavigateRef.current?.()
-    historyEntryRef.current = false
-    invokerRef.current = null
-    setState((current) => ({ ...current, open: false }))
-  }, [])
 
   const value = useMemo(
     () => ({ isMobile, open: state.open, tab: state.tab, openActivity, closeActivity, selectTab }),
@@ -90,7 +114,7 @@ export function ActivityProvider({ children, prefix = "" }: { children: ReactNod
     <ActivityContext.Provider value={value}>
       {children}
       {state.open && isMobile ? (
-        <ActivityShell onClose={closeActivity} onNavigate={navigateAway} onSelectTab={selectTab} prefix={prefix} tab={state.tab} />
+        <ActivityShell navigateTo={navigateFromActivity} onClose={closeActivity} onSelectTab={selectTab} prefix={prefix} tab={state.tab} />
       ) : null}
     </ActivityContext.Provider>
   )
