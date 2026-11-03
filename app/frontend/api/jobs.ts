@@ -732,6 +732,9 @@ export type JobWorkflow = {
   app_push_commits_path: string
   app_force_push_branch_path: string
   app_discard_branch_output_path: string
+  app_dismiss_path?: string
+  dismissable?: boolean
+  blocked_reason_text?: string | null
   failure_classification?: RunFailureClassification | null
   steps_total?: number
   steps_displayed?: number
