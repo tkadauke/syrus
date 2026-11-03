@@ -26,6 +26,8 @@ module MysqlDbBrowser
       description: "Browse and query selected agentic-access MySQL connections with enforced read-only access.",
       tools: TOOL_CLASSES,
       privileged: true,
+      unconfigured_remediation: "Enable agentic access on a MySQL connection that has a usable stored credential " \
+        "(DB Browser connection settings), then re-run discover_coworker_capabilities.",
       default_policy: "confirm",
       max_policy: "auto",
       scope: {

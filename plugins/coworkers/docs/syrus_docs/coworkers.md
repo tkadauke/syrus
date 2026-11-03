@@ -228,6 +228,17 @@ the required resource scope, effective policy, and lock reason without granting
 authority. Explicit discovery keeps `available`, `requestable`, `prohibited`,
 `plugin_disabled`, `resource_unconfigured`, and `unavailable` as separate
 states so an absent tool is never presented as an implicit denial or grant.
+Known capabilities such as `mysql.read` stay in the catalog when a privileged
+grant is missing, the confinement probe is unavailable, no eligible resource is
+configured, or the provider plugin is disabled. Every entry also carries a
+`blocker`, its `prerequisites`, the `permitted_scope`, and a `next_action`.
+When permission is the only blocker the action is a ready `request_permission`
+payload (one request per operation, with `scope_choices`). When infrastructure,
+a resource, or the plugin is the blocker the action is an `owner_remediation`
+that says granting permission alone will not make execution safe. A
+`not_authorized` refusal for a blocked tool carries the same state and action,
+and each action lists the tools and the discovery query to rerun after
+remediation so the original intent can resume.
 
 Each coworker chat runs in its own disposable checkout and immutable-id branch,
 `coworkers/chat/<coworker-id>-<chat-id>`, cut from the coworker's
