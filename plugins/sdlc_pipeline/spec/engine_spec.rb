@@ -1,6 +1,24 @@
 require "rails_helper"
 
 RSpec.describe SdlcPipeline::Engine do
+  it "is an experimental, disableable plugin that is not enabled by default" do
+    manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "sdlc_pipeline" }
+
+    expect(manifest.experimental?).to be(true)
+    expect(manifest.disableable?).to be(true)
+    expect(manifest.default_enabled?).to be(false)
+  end
+
+  it "registers none of its providers or tools while disabled" do
+    PluginRecord.find_by!(name: "sdlc_pipeline").update!(enabled: false)
+
+    expect(Syrus::PluginRegistry.providers_for(:repo_page_tab)).not_to include(SdlcPipeline::RepoPageTabs)
+    expect(Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set)).not_to include(SdlcPipeline::ChatToolSet)
+    expect(Syrus::PluginRegistry.providers_for(:chat_job_status_extension)).not_to include(SdlcPipeline::ChatJobStatusExtension)
+  ensure
+    PluginRecord.find_by!(name: "sdlc_pipeline").update!(enabled: true)
+  end
+
   it "registers the repository tab and route" do
     manifest = Syrus::PluginRegistry.all_plugins.find { |plugin| plugin.name == "sdlc_pipeline" }
 

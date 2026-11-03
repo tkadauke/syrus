@@ -1,5 +1,7 @@
 # SDLC Pipeline
 
+SDLC Pipeline is experimental and disabled by default. An administrator must enable instance beta mode before the plugin can be enabled from the plugin settings. Instances that already enabled the plugin keep their choice; the default applies only to fresh installations. While it is disabled, the repository Pipeline tab, the chat **View pipeline** entry point, and the `show_pipeline` agent presentation tool are absent.
+
 The SDLC Pipeline plugin adds a full-width **Pipeline** tab to each repository. It derives one mutually exclusive, furthest-proven stage for each visible Job from authoritative Job state, landed commit, and configured deployment-stage evidence. It never stores a parallel pipeline state.
 
 The ordered lifecycle is Triaging, Ready, Implementing, Review, Landing, and Landed, followed by the repository's `.syrus.yml` `deployment_stages` in declared order. Each stage reports totals, attention and aging counts, oldest age, and at most five highlighted Jobs. Epic and ungrouped totals make the overview useful without returning every Job.

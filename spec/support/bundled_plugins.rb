@@ -9,7 +9,7 @@ module Syrus
       TEST_ENABLED_PLUGIN_NAMES = %w[
         claude_agent codex_agent agy_agent
         build_cache credential_store design_docs django java kotlin
-        spending_insights team_directory
+        sdlc_pipeline spending_insights team_directory
       ].freeze
       EXAMPLE_ENABLED_PLUGIN_PATHS = {
         "git_history" => %r{\A\./plugins/git_history/spec/},
