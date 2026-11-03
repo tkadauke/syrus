@@ -237,6 +237,14 @@ module ChatIndexPayload
     busy_ids = busy_agent_rows.filter_map { |chat_id, _workdir| chat_id }.to_set
     busy_workdirs = busy_agent_rows.filter_map { |_chat_id, workdir| workdir }.to_set
     providers = chat_sessions.map(&:effective_chat_provider).compact.uniq
+    # Warm the per-request availability cache in one batched pass. Asking
+    # ProviderAvailability.for_user provider-by-provider builds a fresh
+    # evidence Batch each time, so a chat list spanning four providers paid
+    # four full evidence scans -- measured at ~500ms apiece, which was the
+    # bulk of this method's time. all_for_user shares one Batch across every
+    # provider and populates the same Current cache the per-provider lookups
+    # below read, so they become hits.
+    ::App::ProviderAvailability.all_for_user(Current.user) if providers.any?
 
     {
       repositories: chat_sessions.to_h { |chat_session| [ chat_session.id, chat_session.repository ] },

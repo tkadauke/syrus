@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_03_083102) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_03_184045) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -674,8 +674,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_083102) do
     t.index ["chat_session_id"], name: "index_chat_pending_actions_on_chat_session_id"
     t.index ["deduplication_key", "deduplication_active"], name: "idx_pending_actions_active_deduplication", unique: true
     t.index ["delivery_state", "created_at"], name: "idx_pending_actions_delivery"
-    t.index ["origin_type", "origin_id"], name: "index_chat_pending_actions_on_origin"
     t.index ["origin_type", "origin_id", "checkpoint_state"], name: "idx_pending_actions_origin_checkpoint"
+    t.index ["origin_type", "origin_id"], name: "index_chat_pending_actions_on_origin"
     t.index ["outcome_message_id"], name: "index_chat_pending_actions_on_outcome_message_id"
     t.index ["pending_action_group_id"], name: "index_chat_pending_actions_on_pending_action_group_id"
     t.index ["repository_id"], name: "index_chat_pending_actions_on_repository_id"
@@ -1886,7 +1886,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_083102) do
 
   create_table "jobs", force: :cascade do |t|
     t.string "agent_provider", null: false
-    t.json "approval_evidence", null: false
+    t.json "approval_evidence", default: {}, null: false
     t.datetime "approved_at"
     t.integer "approved_by_user_id"
     t.string "approved_via"
@@ -3084,14 +3084,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_083102) do
     t.index ["chat_message_id"], name: "index_provider_availability_evidences_on_chat_message_id"
     t.index ["chat_session_id"], name: "index_provider_availability_evidences_on_chat_session_id"
     t.index ["provider", "status", "observed_at"], name: "idx_provider_evidence_provider_status_observed"
-    t.index ["provider", "status", "observed_at"], name: "idx_provider_evidence_status_observed"
     t.index ["provider", "status", "repair_status", "observed_at"], name: "idx_provider_evidence_circuit_repair"
     t.index ["repaired_by_user_id"], name: "index_provider_availability_evidences_on_repaired_by_user_id"
     t.index ["run_id"], name: "index_provider_availability_evidences_on_run_id"
     t.index ["user_id", "provider", "account_id", "model", "observed_at"], name: "idx_provider_evidence_scope_observed"
     t.index ["user_id", "provider", "source", "observed_at", "id"], name: "idx_provider_evidence_user_provider_source_recent"
     t.index ["user_id", "provider", "status", "observed_at", "id"], name: "idx_provider_evidence_user_provider_status_recent"
-    t.index ["user_id", "provider", "status", "observed_at"], name: "idx_provider_evidence_user_provider_status_observed"
     t.index ["user_id", "provider", "status", "repair_status", "observed_at", "id"], name: "idx_provider_evidence_user_status_repair_recent"
     t.index ["user_id"], name: "index_provider_availability_evidences_on_user_id"
   end
@@ -3699,7 +3697,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_083102) do
 
   create_table "smart_folders", force: :cascade do |t|
     t.datetime "created_at", null: false
-    t.json "filter", null: false
+    t.json "filter", default: {}, null: false
     t.string "kind", null: false
     t.string "name", null: false
     t.integer "position", default: 0, null: false
@@ -4202,7 +4200,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_083102) do
     t.integer "chat_session_id", null: false
     t.datetime "created_at", null: false
     t.datetime "last_edited_at"
-    t.json "scene_json", null: false
+    t.json "scene_json", default: {"elements" => []}, null: false
     t.datetime "updated_at", null: false
     t.integer "version", default: 0, null: false
     t.index ["chat_session_id"], name: "index_whiteboard_boards_on_chat_session_id", unique: true

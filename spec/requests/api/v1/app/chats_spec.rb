@@ -817,6 +817,34 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(group["chats"].map { |chat| chat["id"] }).to contain_exactly(active_chat.id, hidden_chat.id)
   end
 
+  # Regression: the sidebar asked ProviderAvailability for each provider
+  # separately, and every one of those calls built its own evidence Batch and
+  # rescanned provider_availability_evidences. A chat list spanning several
+  # providers therefore paid one full scan per provider. Batch once, then the
+  # per-provider lookups read the warmed per-request cache.
+  it "scans provider availability evidence once regardless of how many providers the chats span" do
+    sign_in_as(user)
+    %w[claude codex].each_with_index do |provider, index|
+      ChatSession.create!(user: user, title: "#{provider} chat", chat_provider: provider,
+        conversation_kind: "direct", last_message_at: (index + 1).minutes.ago)
+    end
+
+    scans = 0
+    counter = ->(_name, _start, _finish, _id, payload) do
+      scans += 1 if payload[:sql].to_s.include?("provider_availability_evidences")
+    end
+
+    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") do
+      get "/api/v1/app/chats", params: { chat_types: "agent" }
+    end
+
+    expect(response).to have_http_status(:ok)
+    # Batched: 6 scans. Per-provider (the bug): 14, and climbing with each
+    # additional provider in the list. The bound is deliberately loose -- it
+    # guards the batching, not an exact query count.
+    expect(scans).to be <= 8
+  end
+
   it "filters recent sidebar chats by derived chat type" do
     sign_in_as(user)
     Factories.user
