@@ -36,6 +36,14 @@ RSpec.describe RunPreAdmissionSkip do
     )
     allow(App::VisualReviewProjects).to receive(:configured_when_files_changed).with(workspace_path: workspace_path).and_return([])
 
+    # The fake workspace has no real repository, so the cumulative diff is
+    # unavailable by default and the per-step diff fallback is exercised.
+    allow(GitRunner).to receive(:new).and_return(
+      instance_double(GitRunner).tap do |git|
+        allow(git).to receive(:run).and_raise(GitRunner::GitError.new(%w[diff], 128, "fatal: not a git repository"))
+      end
+    )
+
     implement_step.update!(state: "succeeded")
   end
 
@@ -73,6 +81,27 @@ RSpec.describe RunPreAdmissionSkip do
     result = described_class.call(run: run)
 
     expect(result).not_to be_skip
+  end
+
+  it "admits visual review from the cumulative branch diff when the latest iteration only touched docs" do
+    docs_diff = "diff --git a/docs/readme.md b/docs/readme.md\n+docs\n"
+    implement_run.update!(agent_diff: docs_diff, step_agent_diff: docs_diff)
+    git = instance_double(GitRunner)
+    allow(GitRunner).to receive(:new).and_return(git)
+    allow(WorkflowWorkspace).to receive(:base_ref_for).with(job, workflow: workflow).and_return("origin/parent-branch")
+    expect(git).to receive(:run)
+      .with("-c", "core.quotePath=false", "diff", "--name-only", "origin/parent-branch...HEAD", chdir: workspace_path.to_s)
+      .and_return("app/frontend/routes/Search.tsx\ndocs/readme.md\n")
+
+    expect(described_class.call(run: run)).not_to be_skip
+  end
+
+  it "skips when the cumulative branch diff has no matching files" do
+    git = instance_double(GitRunner)
+    allow(GitRunner).to receive(:new).and_return(git)
+    allow(git).to receive(:run).and_return("docs/readme.md\n")
+
+    expect(described_class.call(run: run)).to be_skip
   end
 
   it "skips retired review_plan steps before host admission" do
