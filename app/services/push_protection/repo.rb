@@ -46,6 +46,41 @@ module PushProtection
       nil
     end
 
+    # Agent-writable .git metadata that changes how git behaves (hooks run with
+    # the harness's credentials, info/attributes can wire filters).
+    GIT_METADATA_PATHS = %w[hooks info config.worktree].freeze
+
+    def metadata_digest
+      GIT_METADATA_PATHS.each_with_object({}) do |rel, digest|
+        root = File.join(path, ".git", rel)
+        entries = File.directory?(root) ? Dir.glob(File.join(root, "**", "{*,.*}"), File::FNM_DOTMATCH).sort : [ root ]
+        entries.each do |entry|
+          next unless File.exist?(entry) || File.symlink?(entry)
+          next if File.directory?(entry) && !File.symlink?(entry)
+
+          stat = File.lstat(entry)
+          content = File.symlink?(entry) ? File.readlink(entry) : Digest::SHA256.file(entry).hexdigest
+          digest[entry.delete_prefix("#{path}/.git/")] = [ format("%o", stat.mode), content ]
+        end
+      end
+    end
+
+    def backup_metadata(dest)
+      GIT_METADATA_PATHS.each do |rel|
+        src = File.join(path, ".git", rel)
+        FileUtils.cp_r(src, File.join(dest, rel), preserve: true) if File.exist?(src) || File.symlink?(src)
+      end
+    end
+
+    def restore_metadata(src)
+      GIT_METADATA_PATHS.each do |rel|
+        live = File.join(path, ".git", rel)
+        FileUtils.rm_rf(live)
+        backup = File.join(src, rel)
+        FileUtils.cp_r(backup, live, preserve: true) if File.exist?(backup) || File.symlink?(backup)
+      end
+    end
+
     def changed_paths(from, to) = out("diff", "--name-only", "--no-renames", from, to).lines.map(&:strip)
     def dirty? = out("status", "--porcelain").present?
   end

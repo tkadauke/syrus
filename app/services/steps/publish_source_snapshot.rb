@@ -5,7 +5,7 @@ module Steps
       ref = "refs/syrus/source-snapshots/runs/#{run.id}"
       push_snapshot = lambda do
         authenticated_git("git_base_refresh_source_snapshot_push") do |url|
-          GitRunner.new.run("push", url, "#{head_sha}:#{ref}", chdir: workspace.path.to_s, env: { "GIT_TERMINAL_PROMPT" => "0" })
+          GitRunner.new.run("-c", "core.hooksPath=/dev/null", "push", url, "#{head_sha}:#{ref}", chdir: workspace.path.to_s, env: { "GIT_TERMINAL_PROMPT" => "0" })
         end
       end
       begin
