@@ -359,7 +359,10 @@ module ChatSerialization
               operation: item.operation,
               effects: item.effects,
               prerequisite_ids: item.prerequisites.map(&:id),
-              app_decision_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/authorization_items/#{item.id}/decision"
+              resulting_authority: Permissions::SmartDecision.authority_reference(item),
+              smart_option: Permissions::SmartDecision.new(request: action, item:, user: Current.user).option,
+              app_decision_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/authorization_items/#{item.id}/decision",
+              app_smart_decision_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/authorization_items/#{item.id}/smart_decision"
             }
           end
         end

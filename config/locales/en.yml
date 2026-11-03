@@ -297,6 +297,9 @@ en:
         scope_not_covering_request: "This scope does not cover what was requested."
     permission_requests:
       not_dismissible: "This permission request can no longer be dismissed."
+      smart_decision:
+        stale: "This permission request was already decided or changed. Review the current request."
+        unavailable: "This permission option is not available for this request."
 
     job_source_diff:
       preview_fixture: "Preview fixture"

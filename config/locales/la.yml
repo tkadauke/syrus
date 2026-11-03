@@ -263,6 +263,9 @@ la:
         scope_not_covering_request: "Hic ambitus petitum non tegit."
     permission_requests:
       not_dismissible: "Haec petitio potestatis iam dimitti non potest."
+      smart_decision:
+        stale: "Haec petitio licentiae iam decisa vel mutata est. Petitionem praesentem inspice."
+        unavailable: "Haec optio licentiae huic petitioni non praesto est."
 
     job_source_diff:
       preview_fixture: "Exemplar praevium"

@@ -84,6 +84,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | DELETE | `/api/v1/app/chats/:id/pending_actions/:pending_action_id` | `api/v1/app/chats#destroy_pending_action` |
 | core | PATCH | `/api/v1/app/chats/:id/pending_actions/:pending_action_id` | `api/v1/app/chats#update_pending_action` |
 | core | POST | `/api/v1/app/chats/:id/pending_actions/:pending_action_id/authorization_items/:item_id/decision` | `api/v1/app/chats#decide_authorization_item` |
+| core | POST | `/api/v1/app/chats/:id/pending_actions/:pending_action_id/authorization_items/:item_id/smart_decision` | `api/v1/app/chats#smart_decide_authorization_item` |
 | core | POST | `/api/v1/app/chats/:id/pending_actions/:pending_action_id/confirm` | `api/v1/app/chats#confirm_pending_action` |
 | core | POST | `/api/v1/app/chats/:id/pending_actions/:pending_action_id/reject` | `api/v1/app/chats#destroy_pending_action` |
 | core | GET | `/api/v1/app/chats/:id/pins` | `api/v1/app/chats#pins` |
@@ -301,6 +302,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | GET | `/api/v1/app/permission_requests` | `api/v1/app/permission_requests#index` |
 | core | DELETE | `/api/v1/app/permission_requests/:id` | `api/v1/app/permission_requests#dismiss` |
 | core | POST | `/api/v1/app/permission_requests/:id/decide` | `api/v1/app/permission_requests#decide` |
+| core | POST | `/api/v1/app/permission_requests/:id/items/:item_id/smart_decision` | `api/v1/app/permission_requests#smart_decide` |
 | core | POST | `/api/v1/app/permission_requests/batch_decide` | `api/v1/app/permission_requests#batch_decide` |
 | core | POST | `/api/v1/app/permission_rule_drafts/apply` | `api/v1/app/permission_rule_drafts#apply` |
 | core | POST | `/api/v1/app/permission_rule_drafts/from_request` | `api/v1/app/permission_rule_drafts#from_request` |

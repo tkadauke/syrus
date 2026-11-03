@@ -905,6 +905,21 @@ module Api
           render_error("validation_failed", message, status: :unprocessable_content)
         end
 
+        def smart_decide_authorization_item
+          chat_session = find_chat_session
+          pending_action = find_pending_action(chat_session)
+          item = pending_action.authorization_items.find(params[:item_id])
+          Permissions::CoworkerAuthorizationDecision.new(request: pending_action, item:, user: Current.user)
+            .call(decision: "approved", smart: { duration: params.require(:duration).to_s, digest: params[:digest].to_s })
+
+          render json: chat_payload(chat_session.reload, message: t("api.chats.messages.authorization_item_decided"))
+        rescue Permissions::SmartDecision::AlreadyDecided, Permissions::RuleDraft::Stale => e
+          render_error("stale_permission_decision", e.message, status: :conflict)
+        rescue Permissions::RuleDraft::Invalid, ActiveRecord::RecordInvalid, ArgumentError => e
+          message = e.respond_to?(:record) ? e.record.errors.full_messages.to_sentence : e.message
+          render_error("validation_failed", message, status: :unprocessable_content)
+        end
+
         def update_pending_action
           chat_session = find_chat_session
           pending_action = find_pending_action(chat_session)

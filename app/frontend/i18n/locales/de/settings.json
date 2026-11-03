@@ -1604,5 +1604,36 @@
   "aria_design_system": "Design-System",
   "aria_notification_settings": "Benachrichtigungseinstellungen",
   "page_title_schedules": "Zeitpläne",
-  "page_title_repo_schedules": "Zeitpläne — {{slug}}"
+  "page_title_repo_schedules": "Zeitpläne — {{slug}}",
+  "permission_smart": {
+    "group": "Berechtigungsentscheidung",
+    "allow_once": "Einmal erlauben",
+    "deny": "Ablehnen",
+    "always_allow_similar": "Ähnliches immer erlauben",
+    "allow_job": "Für diesen Job erlauben",
+    "allow_chat": "Für diesen Chat erlauben",
+    "preview_title": "Diese Berechtigung prüfen",
+    "coworker": "Coworker",
+    "operation": "Operation",
+    "repository": "Repository",
+    "scope": "Umfang",
+    "duration": "Dauer",
+    "any_scope": "Jede Ressource dieser Operation",
+    "no_repository": "Keines",
+    "allows": "Erlaubt",
+    "excludes": "Erlaubt nicht",
+    "durations": {
+      "permanent": "Dauerhaft, bis du sie widerrufst",
+      "job": "Nur dieser Job",
+      "chat_session": "Nur dieser Chat"
+    },
+    "confirm": "Bestätigen",
+    "back": "Zurück",
+    "customize": "Anpassen",
+    "applying": "Wird angewendet…",
+    "stale": "Diese Anfrage hat sich seit der Vorschau geändert. Die aktuellen Optionen wurden geladen; prüfe sie und versuche es erneut.",
+    "error": "Die Berechtigung konnte nicht angewendet werden. Es wurde nichts geändert.",
+    "status_preview": "Die Regel „{{action}}“ wird geprüft.",
+    "linked_rule": "Erteilt durch Regel #{{id}}"
+  }
 }
