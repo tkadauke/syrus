@@ -66,8 +66,25 @@ module Mcp
         MCP::Tool::Response.new([ { type: "text", text: "Unauthorized: #{message}" } ], error: true)
       end
 
-      def not_authorized
-        MCP::Tool::Response.new([ { type: "text", text: JSON.generate(error: "not_authorized") } ], error: true)
+      def not_authorized(**details)
+        MCP::Tool::Response.new([ { type: "text", text: JSON.generate({ error: "not_authorized" }.merge(details.compact)) } ], error: true)
+      end
+
+      # A coworker refused a tool it can name gets the capability's state and a
+      # machine-readable next action (request_permission payload, or owner
+      # remediation when permission alone cannot help). Anything else gets the
+      # bare refusal.
+      def not_authorized_for(context, tool_name)
+        return not_authorized unless context&.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+
+        result = Permissions::CoworkerCapabilityDiscovery.new(context).for_tool(tool_name)
+        return not_authorized unless result
+
+        not_authorized(tool_name: tool_name.to_s, capability: result.capability, state: result.state,
+          lock_reason: result.lock_reason, blocker: result.blocker, next_action: result.next_action)
+      rescue StandardError => error
+        Rails.logger.warn("[Mcp::Tools] not_authorized next action unavailable: #{error.class}: #{error.message}")
+        not_authorized
       end
 
       def fresh_active_goal(chat_session)
