@@ -589,9 +589,22 @@ class WorkflowWorkspace
     return unless StackBaseFreshness.applicable?(@job, base_branch)
 
     sha = @git.run("rev-parse", "origin/#{base_branch}", chdir: path.to_s).strip
+    # An existing child branch (retry/follow-up) may predate a parent
+    # force-push. Only a parent head the checked-out branch actually descends
+    # from is its ancestry basis; otherwise record nothing so finalization
+    # falls back to a plain rebase instead of `--onto` with a bogus basis.
+    return unless head_descends_from?(sha)
+
     StackBaseFreshness.record_prepared!(@workflow, ref: base_branch, sha: sha)
   rescue StandardError => e
     notify("could not record stack base preparation: #{e.class}: #{e.message}")
+  end
+
+  def head_descends_from?(sha)
+    @git.run("merge-base", "--is-ancestor", sha, "HEAD", chdir: path.to_s)
+    true
+  rescue GitRunner::GitError
+    false
   end
 
   def validate_clone_checkout_branch!

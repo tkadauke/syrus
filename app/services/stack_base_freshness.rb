@@ -127,7 +127,7 @@ class StackBaseFreshness
   # superseded parent history are not carried over. Without a usable prepared
   # SHA, falls back to a plain rebase onto the live head.
   def rebase_onto!(live, prepared, history)
-    if prepared.present? && commit_available?(prepared)
+    if prepared.present? && commit_available?(prepared) && descends_from?(prepared)
       @git.run("rebase", "--onto", live, prepared, chdir: @path)
     else
       @git.run("rebase", live, chdir: @path)

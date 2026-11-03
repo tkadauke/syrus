@@ -92,6 +92,18 @@ RSpec.describe StackBaseFreshness, :ci_only do
     expect(workflow.reload.artifact(described_class::PREPARED_ARTIFACT)["sha"]).to eq(live)
   end
 
+  it "does not trust a recorded basis the branch does not descend from (existing child branch, parent moved before setup)" do
+    live = force_rebase_parent!
+    workflow.set_artifact!(described_class::PREPARED_ARTIFACT, { "ref" => parent_ref, "sha" => live })
+
+    result = barrier.ensure_fresh!
+
+    expect(result.status).to eq(:rebased)
+    expect(barrier.descends_from?(live)).to be(true)
+    # Only the child's own commit sits on top; superseded parent history was dropped.
+    expect(sh(child, "rev-list", "--count", "#{live}..HEAD")).to eq("1")
+  end
+
   it "re-checks after a rebase and rebases again when the parent moves during validation" do
     force_rebase_parent!
     moved = nil
