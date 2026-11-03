@@ -126,4 +126,21 @@ RSpec.describe Steps::VisualDiff do
 
     expect(pairs).to be_empty
   end
+
+  it "raises StepSkipped instead of blocking when the agent cannot start the preview for baselines" do
+    job = Factories.job_record
+    run = visual_diff_run_for(job, artifacts: [ { "type" => "after-1", "title" => "Home", "image_url" => "/a.png" } ])
+    handler = described_class.new(run)
+    allow(handler).to receive(:validated_after_artifacts).and_return([ { "title" => "Home" } ])
+    allow(handler).to receive(:workspace).and_return(double(setup: true, path: Dir.pwd))
+    allow(handler).to receive(:record_base_revision!)
+    allow(handler).to receive(:prompt).and_return("p")
+    allow(handler).to receive(:run_agent).and_raise(Steps::Base::CannotProceed, "start_preview timed out")
+    allow(handler).to receive(:job).and_return(job)
+    expect(job).to receive(:clear_needs_attention!).with(reason: "agent_cannot_proceed")
+
+    expect { handler.call }.to raise_error(Steps::Base::StepSkipped, /start_preview timed out/)
+
+    expect(run.workflow.reload.artifact("visual_diff_skipped_reason")).to include("start_preview timed out")
+  end
 end
