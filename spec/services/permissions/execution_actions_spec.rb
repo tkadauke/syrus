@@ -166,3 +166,49 @@ RSpec.describe Permissions::ExecutionActions do
     expect(tool_operations & mine).to be_empty
   end
 end
+
+RSpec.describe "persisted execution deny rules" do
+  let(:user) { Factories.user }
+  let(:chat_session) { ChatSession.create!(user: user, mode: "coding") }
+  let(:gate) { Permissions::ExecutionGate.new }
+
+  def request(**attrs)
+    Execution::Request.new(**Execution::Request.members.index_with { nil }, command: %w[ls], network: "agent", env: {}, **attrs)
+  end
+
+  def deny(selector_type, id: nil)
+    Permissions::Management.new(user).deny!(
+      { "capability" => Permissions::ExecutionActions::CAPABILITY, "operation" => Permissions::ExecutionActions.operation_for(:host),
+        "role" => "any", "subject_selector_type" => selector_type, "subject_selector_id" => id }.compact,
+      actor: user
+    )
+  end
+
+  it "lists the execution operations in the permission catalog so rules can be created" do
+    expect(Permissions::Catalog.find!(capability: Permissions::ExecutionActions::CAPABILITY, operation: Permissions::ExecutionActions.operation_for(:host)))
+      .to have_attributes(operation: Permissions::ExecutionActions.operation_for(:host))
+  end
+
+  it "stops a coding-chat process and leaves an unrelated process running" do
+    deny("coding_chat")
+
+    expect(gate.call(request(chat_session:), location: :host)).to be_denied
+    expect(gate.call(request(chat_session:), location: :container)).to be_allowed
+  end
+
+  it "stops a workflow process by role and leaves other roles running" do
+    deny("workflow_role", id: AgentRole::WORKFLOW_IMPLEMENT)
+
+    expect(gate.call(request(agent: AgentRole::WORKFLOW_IMPLEMENT, job: Job.new(user: user)), location: :host)).to be_denied
+    expect(gate.call(request(agent: AgentRole::WORKFLOW_REBASE_CONFLICT, job: Job.new(user: user)), location: :host)).to be_allowed
+  end
+
+  it "does not start the backend when a persisted rule denies the request" do
+    deny("coding_chat")
+    local = Execution::Local.new
+    expect(local).not_to receive(:run)
+    req = request(chat_session:, mounts: ProcessRunner::Mounts.new(workdir: Dir.pwd, read_write: [ Dir.pwd ]), timeout: 5)
+
+    expect { Execution::Router.new(local:).run(req) }.to raise_error(Execution::Router::NotAuthorized)
+  end
+end
