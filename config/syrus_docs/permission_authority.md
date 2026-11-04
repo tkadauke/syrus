@@ -1,5 +1,22 @@
 # Permission authority lifetimes
 
+## Canonical profiles and tool-set bundles
+
+Permission setup offers three stable profiles: `full_access@v1`,
+`ask_on_first_use@v1`, and `restricted@v1`. Profiles compile into ordinary
+role-layer `Permissions::PolicyRule` records and are evaluated by the same
+`Permissions::PolicyEvaluator` as customized rules and leases. They never
+bypass resource authorization, provider ceilings, confinement, credential
+checks, or nondelegable operations. Full access means every capability the
+operator is eligible to delegate, not unrestricted process authority.
+
+Descriptors are grouped by effects into the versioned Workspace, Knowledge,
+Collaboration, Operations, and Administration bundles. This keeps plugin and
+core tools in one human-sized vocabulary without coupling core to plugin tool
+names. The capability registry reports bundle coverage, and the provider
+contract checks both bundle membership and profile compilation. Profile parity
+diagnostics identify decisions narrowed by provider or resource policy.
+
 Syrus represents permanent agent authority as an audited `PermissionRule` and
 temporary authority as a `PermissionLease`. Temporary leases support one exact
 invocation, the current chat session, or the current Job. Workflow and Run ids
