@@ -1786,8 +1786,10 @@ Quiet isolated work is limited to low-risk reads and workspace writes; code
 execution still asks under Ask on first use and remains denied by Restricted.
 Operators select or change these profiles per interactive, Coding, or Local chat
 surface at the top of the Permissions Hub. The confirmation explains that a
-profile replaces that surface's custom rules and previews the boundaries that
-remain enforced. Fine-grained capability and resource controls stay available
+profile replaces that surface's custom rules, lists the exact rules removed and
+allow/ask/deny rules added, and previews the boundaries that remain enforced.
+Syrus refuses a stale confirmation if those rules change meanwhile.
+Fine-grained capability and resource controls stay available
 below, but are not required for initial setup.
 
 Core and plugin tools share five human-sized bundles: Workspace, Knowledge,
