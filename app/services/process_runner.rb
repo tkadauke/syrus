@@ -716,8 +716,12 @@ class ProcessRunner
     @backend.run(execution_request)
   end
 
-  def run_with_local_backend
+  def run_with_local_backend(on_spawned_process: @on_spawned_process)
+    previous_callback = @on_spawned_process
+    @on_spawned_process = on_spawned_process
     with_workspace_lock { run_process }
+  ensure
+    @on_spawned_process = previous_callback
   end
 
   # Capture is implemented as a ProcessRunner invocation rather than an
@@ -895,7 +899,6 @@ class ProcessRunner
     effective_command = command_with_local_execution_request_assertions
 
     @spawned_process = register_spawned_process
-    @on_spawned_process&.call(@spawned_process) if @spawned_process
 
     spawn_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     begin
@@ -904,6 +907,7 @@ class ProcessRunner
                     unsetenv_others: @unsetenv_others,
                     close_others: true,
                     pgroup: @pgroup) do |stdin, output, wait_thread|
+        @on_spawned_process&.call(@spawned_process) if @spawned_process
         record_chat_process_spawn_latency!(spawn_started_at)
         update_pid!(wait_thread.pid)
         write_stdin(stdin)
