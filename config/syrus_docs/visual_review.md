@@ -286,7 +286,9 @@ within the same session — no new browser instance, no manual Playwright
 script. By default, `Prompts::VisualReview` instructs the reviewer to test
 every visually testable change at both a desktop viewport (1280x800) and a
 mobile viewport (390x844), capturing labeled screenshots at each with
-`submit_visual_artifact`. The reviewer may skip one viewport when the
+`submit_visual_artifact`. Subjects are structured as a fresh snapshot ref plus
+its `browser_snapshot` token, an explicit CSS selector, or an accessibility role
+plus optional accessible name. The reviewer may skip one viewport when the
 issue/diff context makes it clearly irrelevant (a mobile-nav-only bug
 report, a component hidden below a desktop breakpoint, an admin-only
 desktop tool), but must state why in its critique so the omission is an

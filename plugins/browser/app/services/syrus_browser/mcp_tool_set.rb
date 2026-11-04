@@ -78,9 +78,25 @@ module SyrusBrowser
       klass = TOOL_CLASSES.find { |candidate| candidate.tool_name == tool_name.to_s }
       return BrowserTool.error("Unknown browser tool: #{tool_name.inspect}") unless klass
 
-      klass.call(**self.class.symbolize(params), server_context: server_context)
+      context = SessionContext.resolve(server_context)
+      response = klass.call(**self.class.symbolize(params), server_context: server_context)
+      return response if response.error?
+
+      if tool_name.to_s == "browser_snapshot"
+        token = SnapshotFreshness.record(context.session_key)
+        response.content << { type: "text", text: "Syrus snapshot token: #{token}. Use this token with snapshot-ref artifact targets." }
+      elsif invalidates_snapshot?(tool_name)
+        SnapshotFreshness.invalidate(context.session_key)
+      end
+      response
     rescue StandardError => e
       BrowserTool.error("#{e.class}: #{e.message}")
+    end
+
+    private
+
+    def invalidates_snapshot?(tool_name)
+      %w[browser_navigate browser_click browser_fill browser_drag browser_drop browser_file_upload browser_evaluate browser_resize browser_emulate].include?(tool_name.to_s)
     end
 
     def self.symbolize(params)

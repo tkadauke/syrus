@@ -183,9 +183,9 @@ RSpec.describe Prompts::VisualReview do
   end
 
   it "requires every visual artifact to identify and visibly capture the subject" do
-    expect(prompt).to include("Every `submit_visual_artifact` call must pass `subject`")
-    expect(prompt).to include("exact `browser_snapshot` ref")
-    expect(prompt).to include("preferably a stable `data-testid`")
+    expect(prompt).to include("Every `submit_visual_artifact` call must pass a structured `subject`")
+    expect(prompt).to include('{type: "snapshot_ref", ref: "e12", snapshot_token: "..."}')
+    expect(prompt).to include('{type: "css", selector: "[data-testid=...]"}')
     expect(prompt).to include("scroll the subject into view and verify that it is visible")
     expect(prompt).to include("does not show the subject of the Job is not evidence and must not be submitted")
   end

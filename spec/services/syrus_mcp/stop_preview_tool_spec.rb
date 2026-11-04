@@ -25,6 +25,27 @@ RSpec.describe Mcp::Tools::StopPreviewTool do
     expect(run.job_logs.last.chunk).to include("[mcp] stop_preview")
   end
 
+  it "waits for an in-flight artifact capture before stopping the preview" do
+    Mcp::Tools::AgentPreviewRegistry.register(key: run.id, pid: 12_345, port: 3001)
+    capture_started = Queue.new
+    release_capture = Queue.new
+    capture = Thread.new do
+      Mcp::Tools::AgentPreviewRegistry.while_in_use(run.id) do
+        capture_started << true
+        release_capture.pop
+      end
+    end
+    capture_started.pop
+    stopped = Queue.new
+    stopper = Thread.new { call.tap { stopped << true } }
+
+    expect { stopped.pop(true) }.to raise_error(ThreadError)
+    release_capture << true
+    expect(stopped.pop).to be(true)
+    capture.join
+    stopper.join
+  end
+
   context "when a preview is registered" do
     let!(:spawned_process) do
       SpawnedProcess.create!(kind: "preview", command: "bin/server", hostname: "worker",
