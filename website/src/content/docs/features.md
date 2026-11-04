@@ -1823,6 +1823,11 @@ Approval issues a single-use invocation lease. The worker atomically claims it,
 re-evaluates current policy, verifies the exact arguments, and refuses duplicate
 or revoked execution. Explicitly safe local operations remain ungated.
 
+During upgrade, existing coworker grants become exact-coworker permission
+rules with migration provenance. The original records remain as historical
+evidence, while all new coworker setup and permission changes use the same
+canonical rules shown in Settings → Permissions.
+
 ## Permission parity diagnostics
 
 Coworker roles enforce the evaluator directly. Other agent roles remain in

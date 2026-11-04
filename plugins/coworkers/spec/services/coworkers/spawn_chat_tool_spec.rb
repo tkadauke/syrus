@@ -55,7 +55,7 @@ RSpec.describe Coworkers::SpawnChatTool do
   end
 
   it "refuses another coworker handle" do
-    coworker.grants.create!(capability: "coworker.spawn_chat", approval_policy: "confirm")
+    coworker.permission_rules.update!(capability: "coworker.spawn_chat", approval_policy: "confirm", actor: owner)
     response = described_class.call(prompt: "Nope", handle: "someone-else", server_context: context)
     expect(response).to be_error
     expect(error_text(response)).to include("only spawn a side chat of itself")
@@ -63,7 +63,7 @@ RSpec.describe Coworkers::SpawnChatTool do
   end
 
   it "queues the pending action from an unattended run" do
-    coworker.grants.create!(capability: "coworker.spawn_chat", approval_policy: "confirm")
+    coworker.permission_rules.update!(capability: "coworker.spawn_chat", approval_policy: "confirm", actor: owner)
     run = Factories.run(user: owner, repository: repository)
     run_context = McpToolContext.new(surface: :run, role: AgentRole::COWORKER, user: owner, run:, chat_session: chat,
       granted_capabilities: [ "coworker.spawn_chat" ],
@@ -76,7 +76,7 @@ RSpec.describe Coworkers::SpawnChatTool do
   end
 
   it "enforces configurable per-run and per-day caps with pending requests reserving capacity" do
-    coworker.grants.create!(capability: "coworker.spawn_chat", approval_policy: "confirm",
+    coworker.permission_rules.update!(capability: "coworker.spawn_chat", approval_policy: "confirm", actor: owner,
       constraints: { "max_spawns_per_run" => 1, "max_spawns_per_day" => 2 })
 
     expect(described_class.call(prompt: "One", server_context: context)).not_to be_error
@@ -91,7 +91,7 @@ RSpec.describe Coworkers::SpawnChatTool do
   end
 
   it "serializes the cap check and pending-action reservation on the coworker" do
-    coworker.grants.create!(capability: "coworker.spawn_chat", approval_policy: "confirm",
+    coworker.permission_rules.update!(capability: "coworker.spawn_chat", approval_policy: "confirm", actor: owner,
       constraints: { "max_spawns_per_run" => 1, "max_spawns_per_day" => 1 })
     tool_context = McpToolContext.from_server_context(context)
     actor = tool_context.agent_actor

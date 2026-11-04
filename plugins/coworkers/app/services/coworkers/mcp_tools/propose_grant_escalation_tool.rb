@@ -46,7 +46,7 @@ module Coworkers::McpTools
       private
 
       def normalize_grants(grants, owner:, coworker:)
-        held_grants = coworker.grants.index_by(&:capability)
+        held_grants = coworker.permission_rules.entries.index_by { |entry| entry.fetch(:capability) }
         normalized = Array(grants).map do |raw|
           attributes = raw.to_h.stringify_keys
           descriptor = Coworkers::GrantCatalog.fetch(attributes.fetch("capability"))
@@ -54,7 +54,7 @@ module Coworkers::McpTools
           Coworkers::PrivilegedGrantGate.ensure_available!(descriptor) unless policy == "off"
           raise ArgumentError, "approval policy exceeds maximum #{descriptor.maximum_policy}" unless Coworkers::GrantCatalog.policy_allowed?(descriptor, policy)
           scope = attributes.key?("scope") ? attributes["scope"] : Coworkers::GrantUpdate::SCOPE_UNCHANGED
-          if policy != "off" && descriptor.scopeable? && scope.equal?(Coworkers::GrantUpdate::SCOPE_UNCHANGED) && held_grants[descriptor.name].nil?
+          if policy != "off" && descriptor.scopeable? && scope.equal?(Coworkers::GrantUpdate::SCOPE_UNCHANGED) && held_grants[descriptor.name]&.fetch(:approval_policy) == "off"
             raise ArgumentError, "scope is required for #{descriptor.name}"
           end
           unless policy == "off" || scope.equal?(Coworkers::GrantUpdate::SCOPE_UNCHANGED) || descriptor.valid_scope?(scope, user: owner)

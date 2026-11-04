@@ -18,12 +18,14 @@ class Coworkers::SpawnChatLimiter
 
   private
 
-  def grant = @coworker.grants.find_by(capability: "coworker.spawn_chat")
+  def grant
+    @grant ||= @coworker.permission_rules.entries.find { |entry| entry[:capability] == "coworker.spawn_chat" }
+  end
   def per_run_cap = positive_constraint("max_spawns_per_run", Coworkers::SpawnChatTool::DEFAULT_PER_RUN_CAP)
   def per_day_cap = positive_constraint("max_spawns_per_day", Coworkers::SpawnChatTool::DEFAULT_PER_DAY_CAP)
 
   def positive_constraint(key, fallback)
-    value = Integer(grant&.constraints.to_h[key], exception: false)
+    value = Integer(grant&.dig(:constraints, key), exception: false)
     value&.positive? ? value : fallback
   end
 

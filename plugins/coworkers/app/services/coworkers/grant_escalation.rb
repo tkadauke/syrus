@@ -7,7 +7,9 @@ class Coworkers::GrantEscalation
     unknown = requested - Coworkers::GrantCatalog.names
     raise ArgumentError, "unknown grants: #{unknown.join(', ')}" if unknown.any?
     requested.each { |capability| Coworkers::PrivilegedGrantGate.ensure_available!(Coworkers::GrantCatalog.fetch(capability)) }
-    existing = coworker.grants.where(capability: requested).pluck(:capability)
+    existing = coworker.permission_rules.entries.filter_map do |entry|
+      entry[:capability] if requested.include?(entry[:capability]) && entry[:approval_policy] != "off"
+    end
     raise ArgumentError, "already granted: #{existing.join(', ')}" if existing.any?
 
     [ coworker, requested ]
@@ -15,11 +17,12 @@ class Coworkers::GrantEscalation
 
   def self.call(owner:, coworker_id:, grants:)
     coworker, requested = preflight!(owner: owner, coworker_id: coworker_id, grants: grants)
-    Coworkers::Grant.transaction do
+    PermissionRule.transaction do
       requested.each do |capability|
-        coworker.grants.create!(
-          capability: capability,
-          approval_policy: Coworkers::Create::DEFAULT_GRANTS.fetch(capability) { Coworkers::GrantCatalog.fetch(capability).maximum_policy }
+        coworker.permission_rules.update!(
+          capability:, actor: owner,
+          approval_policy: Coworkers::Create::DEFAULT_GRANTS.fetch(capability) { Coworkers::GrantCatalog.fetch(capability).maximum_policy },
+          provenance: { "coworker_permission_escalation" => true }
         )
       end
     end
