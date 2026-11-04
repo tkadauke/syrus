@@ -63,6 +63,13 @@ module Syrus
         def capabilities(_repository, _config)
           raise NotImplementedError, "#{self}.capabilities is required"
         end
+
+        # Whether failure to establish this provider during visual review is
+        # missing acceptance coverage rather than an optional unavailable
+        # preview. Providers opt in so core does not branch on provider keys.
+        def visual_review_start_required?
+          false
+        end
       end
 
       # -- Interface methods providers must implement --

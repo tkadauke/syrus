@@ -190,7 +190,7 @@ visual_review:
 - **`required`** — whether unavailable browser-preview preparation fails the
   workflow. Defaults to `false`, which records the review `skipped`, raises a
   WorkflowWarning, and continues when the preview cannot be prepared. Set to
-  `true` to fail the workflow instead. A configured non-browser runtime target
+  `true` to fail the workflow instead. A configured terminal runtime target
   that cannot start always fails coverage: missing workspace affinity, relay
   startup failure, and relay readiness timeout cannot become successful skips.
   This does not change reviewer-submitted `needs_work` findings.

@@ -8,6 +8,7 @@ module RuntimeTerminal
     class << self
       def provider_key = "cli_tui"
       def display_name = "Terminal"
+      def visual_review_start_required? = true
 
       def detect(_repository, _config)
         false
@@ -89,8 +90,12 @@ module RuntimeTerminal
         terminal_session: terminal_session
       )
       TerminalSessionJob.set(queue: terminal_session.target_queue_name).perform_later(terminal_session.id)
+      wait_for_relay_ready!(terminal_session) if workflow
 
       { terminal_session_id: terminal_session.id, initial_dimensions: initial_dimensions }.compact
+    rescue StandardError
+      Terminal::KillSession.call(terminal_session) if terminal_session&.persisted?
+      raise
     end
 
     def build_or_reload(session_id, options)
@@ -248,7 +253,18 @@ module RuntimeTerminal
     end
 
     def relay_ready_terminal_session_for(runtime_session)
-      terminal_session = terminal_session_for(runtime_session)
+      relay_ready_terminal_session_for_record(terminal_session_for(runtime_session))
+    end
+
+    def wait_for_relay_ready!(terminal_session)
+      terminal_session = relay_ready_terminal_session_for_record(terminal_session)
+      return terminal_session if terminal_session.relay_ready?
+
+      raise RuntimeSessionProviders::ConfigurationError,
+            "runtime terminal relay was not ready within #{RELAY_ADDRESS_TIMEOUT.inspect}"
+    end
+
+    def relay_ready_terminal_session_for_record(terminal_session)
       deadline = Time.current + RELAY_ADDRESS_TIMEOUT
 
       until terminal_session.relay_ready? || Time.current > deadline
