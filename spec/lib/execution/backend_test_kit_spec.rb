@@ -98,7 +98,10 @@ class LocalBackendContractAdapter
 
   def success_runner
     Object.new.tap do |runner|
-      runner.define_singleton_method(:run_with_local_backend) { Execution::BackendTestKit.success_result }
+      runner.define_singleton_method(:run_with_local_backend) do |on_spawned_process:|
+        on_spawned_process&.call(:process)
+        Execution::BackendTestKit.success_result
+      end
     end
   end
 
