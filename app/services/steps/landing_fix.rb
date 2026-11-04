@@ -43,6 +43,8 @@ module Steps
         "inconclusive_no_op",
         reason: reports.exists? ? "reported_main_concern_pending_equivalent_rerun" : "clean_tree_without_structured_resolution",
         repair_head_sha: head_sha,
+        grade_plan_fingerprint: workflow.artifact(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY),
+        grade_plan_base_sha: workflow.artifact(GraderConclusionCache::ARTIFACT_BASE_SHA_KEY),
         failing_context: failing_grader_context,
         report_ids: reports.pluck(:id).presence
       )

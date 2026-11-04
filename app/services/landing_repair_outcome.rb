@@ -79,15 +79,19 @@ class LandingRepairOutcome
     return unless index
 
     repair_head_sha = entries[index].dig("evidence", "repair_head_sha").presence
-    failing_context = Array(entries[index].dig("evidence", "failing_context")).presence
+    failing_context = grader_identities(entries[index].dig("evidence", "failing_context"))
     rerun_head_sha = workflow.artifact(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY).presence
-    return unless repair_head_sha && failing_context && rerun_head_sha == repair_head_sha
+    return unless repair_head_sha && failing_context.present? && rerun_head_sha == repair_head_sha
+    return unless matching_grade_context?(workflow, entries[index])
 
     grader_steps = workflow.steps.where(
       loop_id: collect_step.loop_id,
       iteration: collect_step.iteration,
       kind: "grader"
     ).order(:position)
+    successful_rerun = grader_steps.select(&:succeeded?)
+    return unless (failing_context - grader_identities(successful_rerun.map(&:details))).empty?
+
     entries[index] = entries[index].merge(
       "outcome" => "verified_no_change_resolution",
       "evidence" => entries[index].fetch("evidence", {}).merge(
@@ -107,4 +111,26 @@ class LandingRepairOutcome
     )
     workflow.set_artifact!(ARTIFACT_KEY, entries)
   end
+
+  def self.grader_identities(contexts)
+    Array(contexts).filter_map do |context|
+      details = context.to_h
+      grader = details["grader"].presence || details["name"].presence
+      command = details["command"].presence
+      [ grader, command ] if grader && command
+    end.uniq
+  end
+  private_class_method :grader_identities
+
+  def self.matching_grade_context?(workflow, entry)
+    evidence = entry.fetch("evidence", {})
+    {
+      "grade_plan_fingerprint" => GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY,
+      "grade_plan_base_sha" => GraderConclusionCache::ARTIFACT_BASE_SHA_KEY
+    }.all? do |evidence_key, artifact_key|
+      expected = evidence[evidence_key].presence
+      expected.nil? || workflow.artifact(artifact_key).presence == expected
+    end
+  end
+  private_class_method :matching_grade_context?
 end
