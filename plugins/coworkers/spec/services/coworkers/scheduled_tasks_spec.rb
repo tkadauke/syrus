@@ -145,6 +145,44 @@ RSpec.describe "Coworker scheduled tasks" do
     end
   end
 
+  it "does not follow daily-memory symlinks outside the coworker workspace" do
+    chat = ChatSession.create!(user: owner, repository: repository, title: "Maya")
+    Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
+
+    Dir.mktmpdir do |directory|
+      root = Pathname(directory).join("workspace")
+      path = root.join("memory/daily/2026-11-03.md")
+      secret = Pathname(directory).join("secret.txt")
+      path.dirname.mkpath
+      secret.write("credential-store-secret")
+      File.symlink(secret, path)
+      allow(ChatWorkspace).to receive(:repo_path_for).with(chat, repository).and_return(root)
+
+      activity = Coworkers::JournalingActivity.new(coworker:, date: Date.new(2026, 11, 3))
+      expect(activity).not_to be_active
+      expect(activity.material).not_to include("credential-store-secret")
+    end
+  end
+
+  it "does not follow symlinked directories in a daily-memory path" do
+    chat = ChatSession.create!(user: owner, repository: repository, title: "Maya")
+    Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
+
+    Dir.mktmpdir do |directory|
+      root = Pathname(directory).join("workspace")
+      outside = Pathname(directory).join("outside")
+      root.join("memory").mkpath
+      outside.mkpath
+      outside.join("2026-11-03.md").write("other-workflow-secret")
+      File.symlink(outside, root.join("memory/daily"))
+      allow(ChatWorkspace).to receive(:repo_path_for).with(chat, repository).and_return(root)
+
+      activity = Coworkers::JournalingActivity.new(coworker:, date: Date.new(2026, 11, 3))
+      expect(activity).not_to be_active
+      expect(activity.material).not_to include("other-workflow-secret")
+    end
+  end
+
   it "fires an active journal date with the code-owned dated prompt" do
     chat = ChatSession.create!(user: owner, repository: repository, title: "Maya")
     Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
