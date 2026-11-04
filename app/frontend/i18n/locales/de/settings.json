@@ -62,6 +62,30 @@
   "permissions": {
     "title": "Berechtigungen",
     "description": "Verwalte dauerhafte Befugnisse, die du Agenten übertragen hast.",
+    "profile_title": "Berechtigungsprofil wählen",
+    "profile_help": "Beginne mit einer klaren Haltung. Feine Regeln bleiben unten unter Anpassen optional.",
+    "profile_for": "Profil für",
+    "profile_active": "Aktiv",
+    "profile_select": "Auswählen",
+    "profile_selected": "Ausgewählt",
+    "profile_names": { "full_access": "Vollzugriff", "ask_on_first_use": "Bei erster Nutzung fragen", "restricted": "Eingeschränkt" },
+    "profile_descriptions": {
+      "full_access": "Erlaube jede zulässige Capability, die du delegieren darfst.",
+      "ask_on_first_use": "Erlaube sichere lokale Arbeit und frage vor folgenreichen Capabilities.",
+      "restricted": "Erlaube sichere lokale Arbeit und verweigere andere Capabilities."
+    },
+    "profile_boundaries": {
+      "full_access": "Bleibt durch deine Befugnisse, Anbietergrenzen, Zugangsdaten, Isolation und nicht delegierbare Vorgänge begrenzt.",
+      "ask_on_first_use": "Eine folgenreiche Capability pausiert einmal und kann eine begrenzte Freigabe erhalten.",
+      "restricted": "Verweigerte Capabilities laufen nicht und fragen nicht nach, bis du Regel oder Profil änderst."
+    },
+    "profile_confirm_title": "Berechtigungsprofil ändern",
+    "profile_confirm_body": "Dies ersetzt die eigenen Regeln für {{subject}} durch dieses Profil.",
+    "profile_confirm_boundary": "Ressourcenrichtlinien, Sicherheitsgrenzen, Zugangsdaten und nicht delegierbare Vorgänge bleiben wirksam.",
+    "profile_confirm": "Profil anwenden",
+    "profile_applying": "Wird angewendet…",
+    "profile_cancel": "Abbrechen",
+    "profile_error": "Das Berechtigungsprofil konnte nicht angewendet werden.",
     "views_label": "Berechtigungsansichten",
     "views": {
       "matrix": "Agent-Matrix",

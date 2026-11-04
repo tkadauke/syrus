@@ -61,6 +61,11 @@ collapsing them into one policy. The resource view groups active rules by
 provider-supplied typed scope labels. Editing creates an audited replacement.
 Bulk changes require a complete server-normalized preview with a signed digest,
 then apply the exact previewed set in one transaction or fail as stale.
+The top of the Hub offers Full access, Ask on first use, and Restricted as fast
+starting postures for each chat surface. Changing a profile previews its safety
+boundary and atomically replaces that surface's user-owned rules; provider and
+resource ceilings, credentials, confinement, and nondelegable operations still
+win. Operators only need the matrix and rule editor when they want finer scope.
 Active-lease and history views expose temporary authority lifecycle, origin,
 expiry, and use counts alongside requests, decisions, repeated-request
 escalations, dismissals, non-actionable reasons, policy changes, revocations,

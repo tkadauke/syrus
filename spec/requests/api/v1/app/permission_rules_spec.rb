@@ -19,9 +19,30 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     expect(payload.fetch("inherited")).not_to be_empty
     expect(payload.fetch("inherited")).to all(include("editable" => false, "explanation" => "role_default"))
     expect(payload.fetch("inherited")).to all(include("requestable_roles", "authority_durations"))
+    expect(payload.fetch("profiles").pluck("key")).to eq(%w[full_access@v1 ask_on_first_use@v1 restricted@v1])
+    expect(payload.fetch("current_profiles")).to include("interactive_chat" => nil)
     expect(payload.fetch("inherited")).to all(include("matrix_states" => include(
       "interactive_chat", "coding_chat", "local_chat"
     )))
+  end
+
+  it "atomically replaces one chat surface's custom rules with a canonical profile" do
+    descriptor = Permissions::Catalog.descriptors.find { |candidate| candidate.requestable_roles.include?(AgentRole::CHAT_PLANNER) }
+    old_rule = permission_rule(owner: user, descriptor:)
+
+    post "/api/v1/app/permission_rules/apply_profile", params: {
+      profile: "restricted@v1", subject_selector_type: "interactive_chat", role: AgentRole::CHAT_PLANNER
+    }
+
+    expect(response).to have_http_status(:ok)
+    expect(old_rule.reload.revoked_at).to be_present
+    active = PermissionRule.for_owner(user).active.where(subject_selector_type: "interactive_chat")
+    expect(active).not_to be_empty
+    expect(active.pluck(:source).uniq).to eq([ "permission_profile:restricted@v1" ])
+    expect(JSON.parse(response.body)).to include("profile" => "restricted@v1", "subject_selector_type" => "interactive_chat")
+
+    get "/api/v1/app/permission_rules"
+    expect(JSON.parse(response.body).dig("current_profiles", "interactive_chat")).to eq("restricted@v1")
   end
 
   it "shows current leases and a redacted, user-scoped authorization history" do
