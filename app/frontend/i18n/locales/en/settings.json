@@ -62,6 +62,30 @@
   "permissions": {
     "title": "Permissions",
     "description": "Manage durable authority you have delegated to agents.",
+    "profile_title": "Choose a permission profile",
+    "profile_help": "Start with one clear posture. Fine-grained rules remain optional under Customize below.",
+    "profile_for": "Profile for",
+    "profile_active": "Active",
+    "profile_select": "Select",
+    "profile_selected": "Selected",
+    "profile_names": { "full_access": "Full access", "ask_on_first_use": "Ask on first use", "restricted": "Restricted" },
+    "profile_descriptions": {
+      "full_access": "Allow every eligible capability you can delegate.",
+      "ask_on_first_use": "Allow safe local work and ask before consequential capabilities.",
+      "restricted": "Allow safe local work and deny other capabilities."
+    },
+    "profile_boundaries": {
+      "full_access": "Still bounded by your authority, provider limits, credentials, confinement, and nondelegable operations.",
+      "ask_on_first_use": "A consequential capability pauses once and can receive a scoped grant.",
+      "restricted": "Denied capabilities do not run or prompt until you change the rule or profile."
+    },
+    "profile_confirm_title": "Change permission profile",
+    "profile_confirm_body": "This replaces the custom rules for {{subject}} with this profile.",
+    "profile_confirm_boundary": "Resource policy, safety ceilings, credentials, and operations that cannot be delegated remain enforced.",
+    "profile_confirm": "Apply profile",
+    "profile_applying": "Applying…",
+    "profile_cancel": "Cancel",
+    "profile_error": "The permission profile could not be applied.",
     "views_label": "Permission views",
     "views": {
       "matrix": "Agent matrix",
