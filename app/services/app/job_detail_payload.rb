@@ -1003,6 +1003,7 @@ module App
           handling_workflow_id: comment.handling_workflow_id,
           handling_failed_at: iso8601(comment.handling_failed_at),
           handling_failure_reason: comment.handling_failure_reason,
+          classification: comment.classification_audit,
           retryable: comment.retryable_handling_without_workflow_load?
         }
       end

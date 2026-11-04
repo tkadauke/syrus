@@ -73,4 +73,15 @@ RSpec.describe PrCommentClassifier do
       expect(result.error).to match(/invalid JSON/)
     end
   end
+
+  describe "prompt hardening" do
+    it "instructs the model to reject quotes, bots, third-party and hypothetical text" do
+      prompt = Prompts::CommentClassifier.new(body: "x").to_s
+      expect(prompt).to include("quoted request", "bot, CI, or Syrus", "Third-party commentary", "hypothetical")
+    end
+  end
+
+  it "stamps results with the classifier version" do
+    expect(described_class::Result.new(actionable: true, reason: nil, error: nil).version).to eq(described_class::VERSION)
+  end
 end

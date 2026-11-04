@@ -3,8 +3,11 @@ require "json"
 class PrCommentClassifier
   DEFAULT_TIMEOUT_SECONDS = 20
   DEFAULT_MAX_TURNS = 1
+  VERSION = "2".freeze
 
-  Result = Data.define(:actionable, :reason, :error) do
+  Result = Data.define(:actionable, :reason, :error, :version) do
+    def initialize(actionable:, reason:, error:, version: VERSION) = super
+
     def success? = error.nil?
   end
 

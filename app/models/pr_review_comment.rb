@@ -58,6 +58,20 @@ class PrReviewComment < ApplicationRecord
       .where.not(handling_workflow_id: nil)
   }
 
+  # Operator-facing explanation of why this comment did or did not start work.
+  # Deliberately excludes the comment body.
+  def classification_audit
+    {
+      decision: classification_decision,
+      reason: classification_reason,
+      source: classification_source,
+      classifier_version: classifier_version,
+      error: classification_error,
+      qualified_for_workflow: qualified_for_workflow,
+      qualification_gate: qualification_gate
+    }
+  end
+
   def job_owner? = attributed_to == "job_owner"
   def member? = attributed_to == "member"
   def external? = attributed_to == "external"
