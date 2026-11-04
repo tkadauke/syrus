@@ -265,9 +265,12 @@ requests deduplicate.
 
 The coworker cutover translates each historical grant into operation-level,
 exact-agent rules. Migration provenance records the legacy row ID, preserves
-the old row for audit and rollback diagnosis, and makes reruns idempotent.
-Rollback revokes only rules created by that migration. New coworker creation
-and permission edits never write the legacy table.
+any remaining old row for audit and rollback diagnosis, and makes reruns idempotent.
+Pre-existing canonical rules win and are reported as conflicts rather than
+being overwritten; policy, scope, and constraint parity failures are included
+in the migration diagnostics without blocking unrelated rows. Rollback revokes
+only rules created by that migration. New coworker creation and permission
+edits never write the legacy table.
 
 Approval creates an invocation-only lease and an `AuthorizedInvocation` before
 enqueueing execution. The worker atomically claims that record, re-evaluates the
