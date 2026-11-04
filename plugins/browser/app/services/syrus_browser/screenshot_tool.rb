@@ -3,6 +3,8 @@ require "mcp"
 module SyrusBrowser
   # Maps to Playwright MCP's "browser_take_screenshot".
   class ScreenshotTool < BrowserTool
+    def self.captures_metadata? = true
+
     tool_name "browser_screenshot"
 
     description "Take a screenshot of the current page (or a single element, if `target` is given). " \

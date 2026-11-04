@@ -52,6 +52,10 @@ module SyrusMcp
           type: "boolean",
           description: "When true, capture the current authenticated MCP browser page directly and submit that screenshot. Prefer this for visual-review screenshots. This is also the default when image_base64 and image_path are omitted."
         },
+        captured_evidence_id: {
+          type: "string",
+          description: "Stable draft evidence ID returned by browser_screenshot. Promotes the already captured image without recapturing it."
+        },
         subject: {
           type: "object",
           description: "Structured subject target. Snapshot refs require the token returned by the latest browser_snapshot. Semantic targets use an accessibility role and optional accessible name.",
@@ -78,14 +82,14 @@ module SyrusMcp
     )
 
     class << self
-      def call(type:, title:, server_context:, image_base64: nil, image_path: nil, capture_current_browser: false, subject: nil, minimum_subject_visible_fraction: DEFAULT_MINIMUM_SUBJECT_VISIBLE_FRACTION, content_type: nil)
+      def call(type:, title:, server_context:, image_base64: nil, image_path: nil, capture_current_browser: false, captured_evidence_id: nil, subject: nil, minimum_subject_visible_fraction: DEFAULT_MINIMUM_SUBJECT_VISIBLE_FRACTION, content_type: nil)
         run = Mcp::Tools.run_from_context(server_context)
         context = McpToolContext.from_run(run)
         return Mcp::Tools.not_authorized unless McpToolPolicy.capability_permitted?(context, :submit_visual_artifact)
 
         artifact_type  = Mcp::Tools.utf8(type).strip
         artifact_title = Mcp::Tools.utf8(title).strip
-        image_source   = normalize_image_source(image_base64: image_base64, image_path: image_path, capture_current_browser: capture_current_browser, subject: subject)
+        image_source   = normalize_image_source(image_base64: image_base64, image_path: image_path, capture_current_browser: capture_current_browser, captured_evidence_id: captured_evidence_id, subject: subject)
         explicit_content_type = Mcp::Tools.utf8(content_type).strip.presence
 
         return Mcp::Tools.invalid("type is required")  if artifact_type.empty?
@@ -143,6 +147,7 @@ module SyrusMcp
           ),
           **TypedArtifactProvenance.for_run(run)
         )
+        captured[:evidence]&.promote!
 
         Mcp::Tools.write_log(
           run,
@@ -166,7 +171,7 @@ module SyrusMcp
         nil
       end
 
-      def normalize_image_source(image_base64:, image_path:, capture_current_browser:, subject:)
+      def normalize_image_source(image_base64:, image_path:, capture_current_browser:, captured_evidence_id:, subject:)
         encoded_text = Mcp::Tools.utf8(image_base64).strip
         path_text = Mcp::Tools.utf8(image_path).strip
         subject_target = normalize_subject(subject)
@@ -177,11 +182,13 @@ module SyrusMcp
         encoded = encoded_text.presence
         path = path_text.presence
         current_browser = ActiveModel::Type::Boolean.new.cast(capture_current_browser)
-        source_count = [ encoded.present?, path.present?, current_browser ].count(true)
-        return { error: "provide exactly one of image_path, image_base64, or capture_current_browser" } if source_count > 1
+        evidence_id = Mcp::Tools.utf8(captured_evidence_id).strip.presence
+        source_count = [ encoded.present?, path.present?, current_browser, evidence_id.present? ].count(true)
+        return { error: "provide exactly one image source" } if source_count > 1
 
         return { kind: :base64, value: encoded, source: "base64" } if encoded.present?
         return { kind: :path, path: path, source: "image_path" } if path.present?
+        return { kind: :captured_evidence, stable_id: evidence_id, source: "captured_evidence" } if evidence_id
 
         { kind: :current_browser, source: "current_browser", subject: subject_target[:target] }
       end
@@ -229,6 +236,15 @@ module SyrusMcp
           { data: File.binread(path), source: image_source[:source] }
         when :current_browser
           capture_current_browser(run, image_source[:subject], minimum_visible_fraction: minimum_visible_fraction)
+        when :captured_evidence
+          evidence = run.workflow.visual_evidences.find_by(stable_id: image_source[:stable_id], run: run)
+          return { error: "captured visual evidence was not found for this run" } unless evidence&.image&.attached?
+          {
+            data: evidence.image.download, content_type: evidence.image.content_type,
+            source: "captured_evidence", evidence: evidence,
+            metadata: { "page" => evidence.page_identity, "viewport" => evidence.viewport,
+                        "device" => evidence.device, "subject" => evidence.subject }.compact
+          }
         else
           { error: "image_path, image_base64, or capture_current_browser is required" }
         end

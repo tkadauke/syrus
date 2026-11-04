@@ -54,6 +54,11 @@ only touches projects without previews, the panel says that no affected project
 has a preview configured.
 
 Browser-based visual review uses the same affected-project preview selection.
+Each successful browser screenshot is retained immediately as draft evidence,
+then reviewers curate the submitted screenshots shown by default. Unsubmitted
+drafts have a shorter configurable retention window and survive failed
+submission attempts. Syrus strips credentials and query strings from their
+stored page identity.
 The reviewer prompt lists affected preview projects with `project_id`, label,
 path, and owning `.syrus.yml`. With one affected preview, the reviewer can call
 `start_preview` without a `project_id` or pass that id explicitly. With several

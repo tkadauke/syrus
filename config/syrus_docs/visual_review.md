@@ -55,7 +55,15 @@ budget remains. Once the review that just ran was the last one `rounds`
 allows, its `needs_work` repair runs alone, with no further review to act on.
 `rounds: N` means exactly N review opinions get sought, and every one of
 them — including the last — gets exactly one repair reaction; the loop never
-fails the workflow. Each `visual_review` call:
+fails the workflow. Every successful `browser_screenshot` is retained first as
+run-scoped draft evidence with a stable ID, capture order, sanitized page
+identity, viewport/device metadata, and subject metadata when available. URL
+credentials and query strings are stripped. Identical captures are deduplicated
+and each Run is capped at 50 drafts. `submit_visual_artifact` can curate a draft
+with `captured_evidence_id`; a failed submission leaves the capture intact.
+Unsubmitted drafts use the configurable `draft_visual_evidence` retention
+policy (seven days by default), while submitted evidence remains with its
+Workflow. Each `visual_review` call:
 
 **visual_review** — a fresh agent (in a new session) independently decides
 whether the change is visually testable, drives a headless browser against

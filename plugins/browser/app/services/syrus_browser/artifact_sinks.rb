@@ -1,9 +1,52 @@
 module SyrusBrowser
+  require "digest"
+  require "uri"
   # Where captured browser evidence (screenshots, for now) is filed,
   # independent of which browser session owns the call (see SessionContext).
   # Two axes, two decisions: SessionContext answers "which session do I
   # operate on"; ArtifactSinks answers "where does the evidence go."
   module ArtifactSinks
+    class VisualReviewDraft
+      MAX_CAPTURES_PER_RUN = 50
+
+      def initialize(run)
+        @run = run
+      end
+
+      def capture(bytes:, content_type:, title:, metadata: {})
+        return nil unless title == "browser_screenshot capture"
+
+        digest = Digest::SHA256.hexdigest(bytes)
+        existing = @run.workflow.visual_evidences.find_by(run: @run, content_digest: digest)
+        return existing if existing
+        return nil if @run.workflow.visual_evidences.where(run: @run).count >= MAX_CAPTURES_PER_RUN
+
+        evidence = @run.workflow.visual_evidences.create!(
+          run: @run, step: @run.step,
+          sequence: @run.workflow.visual_evidences.where(run: @run).maximum(:sequence).to_i + 1,
+          status: "draft", captured_at: Time.current, content_digest: digest,
+          page_identity: sanitize_page(metadata.to_h["page"] || metadata.to_h[:page]),
+          viewport: metadata.to_h["viewport"] || metadata.to_h[:viewport] || {},
+          device: metadata.to_h["device"] || metadata.to_h[:device],
+          subject: metadata.to_h["subject"] || metadata.to_h[:subject]
+        )
+        evidence.image.attach(io: StringIO.new(bytes), filename: "visual-evidence-#{evidence.stable_id}.png", content_type:, identify: false)
+        evidence
+      end
+
+      private
+
+      def sanitize_page(page)
+        page = page.to_h.stringify_keys
+        uri = URI.parse(page["url"].to_s)
+        safe_url = uri.path.presence || "/"
+        safe_url += "##{uri.fragment}" if uri.fragment.present?
+        { "url" => safe_url, "path" => safe_url, "title" => page["title"].to_s.truncate(200) }.compact_blank
+      rescue URI::InvalidURIError
+        { "title" => page["title"].to_s.truncate(200) }.compact_blank
+      end
+    end
+
     # The visual_review Run path's existing behavior: nothing is persisted
     # here at capture time. The image content returned to the agent is the
     # only output; the visual_review agent explicitly files durable evidence

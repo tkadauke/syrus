@@ -6,6 +6,32 @@ RSpec.describe SyrusBrowser::ArtifactSinks do
   let(:chat_session) { ChatSession.create!(user: user, repository: repository, mode: "coding") }
   let(:png_bytes) { "\x89PNG\r\n\x1a\n".b }
 
+  describe SyrusBrowser::ArtifactSinks::VisualReviewDraft do
+    let(:run) { Factories.job(repository: repository, user: user).initial_run }
+    let(:workflow) { run.workflow }
+    let(:step) { run.step }
+
+    it "persists sanitized, deduplicated run-scoped draft evidence" do
+      sink = described_class.new(run)
+      metadata = { "page" => { "url" => "http://user:pass@127.0.0.1/orders?token=secret#row", "title" => "Orders" },
+                   "viewport" => { "width" => 390, "height" => 844 }, "device" => "iphone-15-pro" }
+      first = sink.capture(bytes: png_bytes, content_type: "image/png", title: "browser_screenshot capture", metadata: metadata)
+      second = sink.capture(bytes: png_bytes, content_type: "image/png", title: "browser_screenshot capture", metadata: metadata)
+
+      expect(second).to eq(first)
+      expect(first).to have_attributes(status: "draft", sequence: 1, run: run, step: step, device: "iphone-15-pro")
+      expect(first.page_identity).to include("url" => "/orders#row")
+      expect(first.page_identity.to_json).not_to include("secret", "pass")
+      expect(first.image.download).to eq(png_bytes)
+    end
+
+    it "does not persist snapshot image blocks" do
+      result = described_class.new(run).capture(bytes: png_bytes, content_type: "image/png", title: "browser_snapshot capture")
+      expect(result).to be_nil
+      expect(workflow.visual_evidences).to be_empty
+    end
+  end
+
   describe SyrusBrowser::ArtifactSinks::Null do
     it "does nothing and returns nil" do
       expect(described_class.new.capture(bytes: png_bytes, content_type: "image/png", title: "x")).to be_nil

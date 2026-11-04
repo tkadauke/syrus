@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_03_190000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_04_092623) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -4519,6 +4519,30 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_190000) do
     t.index ["last_observed_at"], name: "idx_workflow_step_resource_profiles_observed"
     t.index ["repository_id", "agent_provider", "trigger_kind", "step_kind", "grader_name", "job_kind"], name: "idx_workflow_step_resource_profiles_key", unique: true
     t.index ["repository_id"], name: "index_workflow_step_resource_profiles_on_repository_id"
+  end
+
+  create_table "workflow_visual_evidences", force: :cascade do |t|
+    t.integer "workflow_id", null: false
+    t.integer "run_id", null: false
+    t.integer "step_id", null: false
+    t.string "stable_id", null: false
+    t.integer "sequence", null: false
+    t.string "status", null: false
+    t.datetime "captured_at", null: false
+    t.json "page_identity"
+    t.json "viewport"
+    t.string "device"
+    t.json "subject"
+    t.string "content_digest", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["run_id", "content_digest"], name: "index_workflow_visual_evidences_on_run_id_and_content_digest"
+    t.index ["run_id", "sequence"], name: "index_workflow_visual_evidences_on_run_id_and_sequence", unique: true
+    t.index ["run_id"], name: "index_workflow_visual_evidences_on_run_id"
+    t.index ["stable_id"], name: "index_workflow_visual_evidences_on_stable_id", unique: true
+    t.index ["status", "captured_at"], name: "index_workflow_visual_evidences_on_status_and_captured_at"
+    t.index ["step_id"], name: "index_workflow_visual_evidences_on_step_id"
+    t.index ["workflow_id"], name: "index_workflow_visual_evidences_on_workflow_id"
   end
 
   create_table "workflow_warnings", force: :cascade do |t|

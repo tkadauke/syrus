@@ -46,6 +46,7 @@ class Workflow < ApplicationRecord
   has_many :diff_review_versions, dependent: :nullify
   has_one_attached :coverage_hit_map
   has_many_attached :visual_artifacts
+  has_many :visual_evidences, class_name: "WorkflowVisualEvidence", dependent: :destroy
 
   # Resolved per validation, not captured at class load: plugin-contributed
   # trigger kinds appear (and disappear) with the plugin, and a frozen array
