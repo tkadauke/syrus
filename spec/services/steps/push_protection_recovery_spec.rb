@@ -56,6 +56,7 @@ RSpec.describe Steps::PushProtectionRecovery do
   end
 
   before do
+    authorize_recovery_commands
     allow(WorkflowWorkspace).to receive(:data_root).and_return(Pathname.new(data_root))
     sh("init", "-q", "-b", "main")
     sh("config", "user.email", "t@example.com")
@@ -79,6 +80,25 @@ RSpec.describe Steps::PushProtectionRecovery do
     File.write(File.join(dir, "secret.txt"), content)
     sh("add", "-A")
     sh("commit", "--amend", "--no-edit")
+  end
+
+  def authorize_recovery_commands
+    Permissions::Management.new(user).lease!(
+      {
+        "capability" => Permissions::ExecutionActions::CAPABILITY,
+        "operation" => Permissions::ExecutionActions.operation_for(:host),
+        "role" => AgentRole::WORKFLOW_MANUAL,
+        "subject_selector_type" => "workflow_role",
+        "subject_selector_id" => AgentRole::WORKFLOW_MANUAL,
+        "duration" => "job",
+        "job_id" => job.id,
+        "arguments" => {
+          "location" => "host", "command" => [ "git", "reset", "--hard", "HEAD" ], "network" => "grader",
+          "env_keys" => [], "writable_paths" => [], "provider" => "", "tool" => ""
+        }
+      },
+      actor: user
+    )
   end
 
   it "repairs the rejected range, republishes one clean commit, and advances the anchor only after acceptance" do
