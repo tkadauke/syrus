@@ -94,6 +94,31 @@ RSpec.describe RunJob, :ci_only do
     end
   end
 
+  describe "execution acquisition" do
+    it "retries a transient lifecycle lock timeout" do
+      run = job.initial_run
+      run_job = RunJob.new
+      run_job.instance_variable_set(:@run, run)
+      run_job.instance_variable_set(:@step, run.step)
+      run_job.instance_variable_set(:@workflow, run.workflow)
+      run_job.instance_variable_set(:@job, job)
+      attempts = 0
+
+      allow(run).to receive(:with_lock).and_wrap_original do |original, *args, &block|
+        attempts += 1
+        raise ActiveRecord::LockWaitTimeout, "lock wait timeout" if attempts == 1
+
+        original.call(*args, &block)
+      end
+
+      expect(run_job.send(:acquire_run_execution!)).to be(true)
+      expect(attempts).to eq(2)
+      expect(run.reload).to be_running
+      expect(run.step.reload).to be_running
+      expect(run.workflow.reload).to be_running
+    end
+  end
+
   describe "stale retry workflows" do
     it "cancels a retry run if the job was approved before it started" do
       initial_run = job.initial_run
