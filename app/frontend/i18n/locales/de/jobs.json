@@ -1060,6 +1060,6 @@
   "visual_evidence_show_submitted": "Nur eingereichte anzeigen",
   "visual_evidence_unknown_page": "Erfasste Seite",
   "visual_evidence_unknown_viewport": "unbekannter Viewport",
-  "visual_evidence_metadata": "#{{sequence}} · {{viewport}} · {{timestamp}}",
+  "visual_evidence_metadata": "Aufnahme {{sequence}} · {{viewport}} · {{timestamp}}",
   "visual_evidence_submission_failed": "Einreichen fehlgeschlagen; Aufnahme wurde aufbewahrt"
 }

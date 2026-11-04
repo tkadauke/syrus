@@ -1060,6 +1060,6 @@
   "visual_evidence_show_submitted": "Summissas tantum ostende",
   "visual_evidence_unknown_page": "Pagina capta",
   "visual_evidence_unknown_viewport": "dimensio ignota",
-  "visual_evidence_metadata": "#{{sequence}} · {{viewport}} · {{timestamp}}",
+  "visual_evidence_metadata": "Captura {{sequence}} · {{viewport}} · {{timestamp}}",
   "visual_evidence_submission_failed": "Summissio defecit; imago servata est"
 }
