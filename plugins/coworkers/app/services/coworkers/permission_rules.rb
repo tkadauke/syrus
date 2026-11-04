@@ -29,7 +29,7 @@ module Coworkers
           approval_policy: projected_policy(policy, matching),
           constraints: source&.constraints || {}
         }.tap do |entry|
-          scope = legacy_scope(matching.map(&:resource_scope), descriptor:)
+          scope = projected_scope(matching, descriptor:)
           entry[:scope] = scope unless scope.nil?
         end
       end
@@ -54,7 +54,9 @@ module Coworkers
               capability: descriptor.capability, operation: descriptor.operation,
               resource_type: descriptor.resource_scope.type.to_s, resource_scope: resource_scope,
               constraints: constraints.to_h, policy:, policy_layer: "agent", source:,
-              provenance: { "coworker_id" => coworker.id }.merge(provenance.stringify_keys),
+              provenance: { "coworker_id" => coworker.id }.tap { |value|
+                value["coworker_scope"] = scope unless scope.nil?
+              }.merge(provenance.stringify_keys),
               rationale: "Coworker permission configured by the owner", delegable: false
             )
           end
@@ -133,6 +135,16 @@ module Coworkers
         return values.first.values.first
       end
       values.one? ? values.first : values.presence
+    end
+
+    def projected_scope(matching, descriptor:)
+      configured = matching.filter_map do |rule|
+        rule.provenance["coworker_scope"] if rule.provenance.key?("coworker_scope")
+      end.uniq
+      return configured.first if configured.one?
+      return configured if configured.many?
+
+      legacy_scope(matching.map(&:resource_scope), descriptor:)
     end
 
     def unversioned(value) = value.to_s.sub(/@v\d+\z/, "")
