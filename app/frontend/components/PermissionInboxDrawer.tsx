@@ -1,10 +1,11 @@
-import { useQuery } from "@tanstack/react-query"
 import { useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { Link } from "react-router-dom"
-import { fetchPermissionRequests } from "../api/permissionRequests"
+import { ACTIVITY_MOBILE_QUERY, useMediaQuery } from "../hooks/useMediaQuery"
 import { useT } from "../hooks/useT"
 import { withRoutePrefix } from "../lib/routing"
+import { useActivity } from "./activity/ActivityContext"
+import { usePendingApprovals } from "./activity/usePendingApprovals"
 import { PermissionRequestCard } from "./PermissionRequestCard"
 
 const CONTROL_CLASS = "relative inline-flex h-9 w-9 items-center justify-center rounded hover:bg-surface-subtle"
@@ -19,10 +20,10 @@ export function PermissionInboxDrawer({ onNavigate, prefix = "" }: { onNavigate?
   const [announcement, setAnnouncement] = useState("")
   const previousBlockedCount = useRef<number | null>(null)
   const clearAnnouncementTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const query = useQuery({ queryKey: ["permission_requests", 1], queryFn: () => fetchPermissionRequests(1), refetchInterval: 30_000 })
-  const pending = (query.data?.requests ?? []).filter((request) => request.state === "pending")
-  const pendingCount = query.data?.summary?.pending_count ?? pending.length
-  const blockedCount = query.data?.summary?.blocked_agent_count ?? pending.filter((request) => request.checkpoint_state === "waiting").length
+  const { pending, pendingCount, blockedCount } = usePendingApprovals()
+  const activity = useActivity()
+  const isMobile = useMediaQuery(ACTIVITY_MOBILE_QUERY)
+  const showInActivity = Boolean(activity && isMobile)
   const badge = pendingCount > 9 ? "9+" : String(pendingCount)
   const label = blockedCount
     ? t("approval_inbox.aria_blocked", { pending: pendingCount, blocked: blockedCount })
@@ -47,12 +48,15 @@ export function PermissionInboxDrawer({ onNavigate, prefix = "" }: { onNavigate?
   return (
     <div className="relative">
       <button
-        aria-expanded={open}
+        aria-expanded={showInActivity ? activity?.open && activity.tab === "approvals" : open}
         aria-haspopup="dialog"
         aria-label={label}
         className={`${CONTROL_CLASS} ${blockedCount ? "text-warning-text" : "text-text-secondary hover:text-brand-emphasis"}`}
         data-blocked={blockedCount > 0 ? "true" : "false"}
-        onClick={() => setOpen((value) => !value)}
+        onClick={(event) => {
+          if (activity && showInActivity) activity.openActivity("approvals", { invoker: event.currentTarget, onNavigate })
+          else setOpen((value) => !value)
+        }}
         type="button"
       >
         {blockedCount ? <span aria-hidden="true" className={HALO_CLASS} data-testid="approval-waiting-halo" /> : null}
@@ -69,7 +73,7 @@ export function PermissionInboxDrawer({ onNavigate, prefix = "" }: { onNavigate?
       <span aria-live="assertive" className="sr-only">
         {announcement}
       </span>
-      {open
+      {open && !showInActivity
         ? createPortal(
             <aside
               aria-label={t("approval_inbox.drawer_title")}

@@ -1,26 +1,48 @@
 import { RelativeTimestamp } from "./RelativeTimestamp"
 import { withRoutePrefix } from "../lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { type MouseEvent, type ReactNode, useEffect, useState } from "react"
+import { type MouseEvent, type ReactNode, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { fetchNotifications, markAllNotificationsRead, markNotificationRead, type NotificationRecord, type NotificationsPayload } from "../api/notifications"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { requestNativeNotificationPermission } from "../lib/nativeNotifications"
 import { useT } from "../hooks/useT"
+import { ACTIVITY_MOBILE_QUERY, useMediaQuery } from "../hooks/useMediaQuery"
+import { useActivity } from "./activity/ActivityContext"
+import { ActivityState } from "./activity/ActivityState"
 import { Button } from "./Button"
 import { noticePopoverSurfaceClass } from "./noticeStyles"
 
-const notificationsQueryKey = ["notifications"] as const
+export const notificationsQueryKey = ["notifications"] as const
 
 export function NotificationsBell({ initialUnreadCount, prefix, onNavigate }: { initialUnreadCount?: number; prefix: string; onNavigate?: () => void }) {
   const { t } = useT("nav")
   const [open, setOpen] = useState(false)
-  const isMobile = useMediaQuery("(max-width: 767px)")
+  const activity = useActivity()
+  const isMobile = useMediaQuery(ACTIVITY_MOBILE_QUERY)
   const panelRef = useDismissiblePopup<HTMLDivElement>(open, () => setOpen(false))
   const notifications = useNotificationsQuery({ enabled: open || initialUnreadCount == null })
   const unreadCount = notifications.data?.unread_count ?? initialUnreadCount ?? 0
   const badge = unreadCount > 9 ? "9+" : String(unreadCount)
   const label = unreadCount > 0 ? t("notifications.aria_unread", { count: unreadCount }) : t("notifications.title")
+
+  if (isMobile && activity) {
+    return (
+      <button
+        aria-haspopup="dialog"
+        aria-label={label}
+        className={bellButtonClass()}
+        onClick={(event) => {
+          void requestNativeNotificationPermission()
+          activity.openActivity("notifications", { invoker: event.currentTarget, onNavigate })
+        }}
+        type="button"
+      >
+        <BellIcon />
+        {unreadCount > 0 ? <NotificationBadge>{badge}</NotificationBadge> : null}
+      </button>
+    )
+  }
 
   if (isMobile) {
     return (
@@ -101,14 +123,37 @@ export function NotificationsRoute() {
   )
 }
 
+/** Notifications tab content for the shared mobile Activity shell. */
+export function NotificationsActivityPanel({ navigateTo, prefix }: { navigateTo: (to: string) => void; prefix: string }) {
+  const { t } = useT("nav")
+  const notifications = useNotificationsQuery({ enabled: true })
+  return (
+    <NotificationsPanel
+      embedded
+      error={notifications.isError}
+      loading={notifications.isPending}
+      notifications={notifications.data?.notifications ?? []}
+      navigateTo={navigateTo}
+      prefix={prefix}
+      title={t("notifications.title")}
+    />
+  )
+}
+
 function NotificationsPanel({
   loading = false,
   notifications,
+  navigateTo,
   onNavigate,
   prefix,
-  title
+  title,
+  embedded = false,
+  error = false
 }: {
+  embedded?: boolean
+  error?: boolean
   loading?: boolean
+  navigateTo?: (to: string) => void
   notifications: NotificationRecord[]
   onNavigate?: () => void
   prefix: string
@@ -126,7 +171,11 @@ function NotificationsPanel({
   return (
     <div>
       <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-800">
-        <h1 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{title}</h1>
+        {embedded ? (
+          <span className="text-xs text-text-muted">{title}</span>
+        ) : (
+          <h1 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{title}</h1>
+        )}
         <button
           className="rounded px-2 py-1 text-xs font-medium text-brand-emphasis hover:bg-brand/10 disabled:cursor-not-allowed disabled:text-gray-400 dark:disabled:text-gray-600"
           disabled={markAll.isPending || notifications.length === 0}
@@ -137,13 +186,21 @@ function NotificationsPanel({
         </button>
       </div>
       {loading ? (
-        <div className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400">{t("notifications.loading")}</div>
+        embedded ? (
+          <ActivityState kind="loading" />
+        ) : (
+          <div className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400">{t("notifications.loading")}</div>
+        )
+      ) : error && notifications.length === 0 ? (
+        <ActivityState kind="error" />
       ) : notifications.length > 0 ? (
-        <div className="max-h-[28rem] overflow-y-auto">
+        <div className={embedded ? undefined : "max-h-[28rem] overflow-y-auto"}>
           {notifications.map((notification) => (
-            <NotificationRow key={notification.id} notification={notification} onNavigate={onNavigate} prefix={prefix} />
+            <NotificationRow key={notification.id} navigateTo={navigateTo} notification={notification} onNavigate={onNavigate} prefix={prefix} />
           ))}
         </div>
+      ) : embedded ? (
+        <ActivityState kind="empty" message={t("notifications.empty")} />
       ) : (
         <div className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">{t("notifications.empty")}</div>
       )}
@@ -151,7 +208,17 @@ function NotificationsPanel({
   )
 }
 
-function NotificationRow({ notification, onNavigate, prefix }: { notification: NotificationRecord; onNavigate?: () => void; prefix: string }) {
+function NotificationRow({
+  navigateTo,
+  notification,
+  onNavigate,
+  prefix
+}: {
+  navigateTo?: (to: string) => void
+  notification: NotificationRecord
+  onNavigate?: () => void
+  prefix: string
+}) {
   const { t } = useT("nav")
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -177,6 +244,11 @@ function NotificationRow({ notification, onNavigate, prefix }: { notification: N
   function openNotification() {
     markRead.mutate(undefined, {
       onSettled() {
+        if (navigateTo) {
+          if (target) navigateTo(target)
+          else onNavigate?.()
+          return
+        }
         onNavigate?.()
         if (target) navigate(target)
       }
@@ -235,7 +307,7 @@ function NotificationRow({ notification, onNavigate, prefix }: { notification: N
   )
 }
 
-function useNotificationsQuery({ enabled }: { enabled: boolean }) {
+export function useNotificationsQuery({ enabled }: { enabled: boolean }) {
   return useQuery({
     queryKey: notificationsQueryKey,
     queryFn: () => fetchNotifications(),
@@ -249,29 +321,6 @@ function bodyIncludesJobTitle(body: string, jobTitle: string | null) {
   if (body.includes(jobTitle)) return true
 
   return jobTitle.length > 77 && body.includes(`${jobTitle.slice(0, 77)}...`)
-}
-
-function useMediaQuery(query: string) {
-  const [matches, setMatches] = useState(() => {
-    if (typeof window.matchMedia !== "function") return false
-    return window.matchMedia(query).matches
-  })
-
-  useEffect(() => {
-    if (typeof window.matchMedia !== "function") return
-
-    const media = window.matchMedia(query)
-    setMatches(media.matches)
-
-    function handleChange(event: MediaQueryListEvent) {
-      setMatches(event.matches)
-    }
-
-    media.addEventListener("change", handleChange)
-    return () => media.removeEventListener("change", handleChange)
-  }, [query])
-
-  return matches
 }
 
 function KindIcon({ kind }: { kind: string }) {

@@ -83,7 +83,7 @@ module PersistentMcpDaemon::ChatToolDispatch
         sidecar_mode: "persistent", daemon_identity: daemon_identity,
         chat_session: chat_session, provider: chat_session&.effective_chat_provider
       ) do
-        next Mcp::Tools.not_authorized unless resolved.allowed_tool_names.include?(name_value)
+        next Mcp::Tools.not_authorized_for(resolved.tool_context, name_value) unless resolved.allowed_tool_names.include?(name_value)
 
         super(*args, server_context: resolved.server_context, **kwargs, &block)
       end

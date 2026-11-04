@@ -3,7 +3,7 @@ require "mcp"
 module Mcp::Tools
   class DiscoverCoworkerCapabilitiesTool < MCP::Tool
     tool_name "discover_coworker_capabilities"
-    description "Discover capability families this coworker may request. Returns required scope, effective policy, and the reason each capability is locked; it does not grant authority."
+    description "Discover capability families this coworker may request. Returns required scope, effective policy, and the reason each capability is locked; it does not grant authority. Each entry names its blocker, prerequisites, permitted scope, and a next_action: a request_permission payload when permission is the only blocker, otherwise an owner remediation."
     input_schema(properties: {
       query: { type: "string", description: "Optional capability or operation search text." },
       include_non_requestable: { type: "boolean", default: false,

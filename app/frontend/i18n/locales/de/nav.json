@@ -268,6 +268,18 @@
     "repositories_recent": "Kürzlich",
     "repositories_archived": "Archiviert"
   },
+  "activity": {
+    "title": "Aktivität",
+    "tabs": "Aktivitätsbereiche",
+    "close": "Aktivität schließen",
+    "tab_notifications": "Benachrichtigungen",
+    "tab_approvals": "Freigaben",
+    "count_notifications": "{{count}} ungelesen",
+    "count_approvals": "{{count}} ausstehend",
+    "loading": "Lädt …",
+    "empty": "Nichts vorhanden",
+    "error": "Konnte nicht geladen werden."
+  },
   "notifications": {
     "title": "Benachrichtigungen",
     "aria_unread": "Benachrichtigungen, {{count}} ungelesen",

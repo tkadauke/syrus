@@ -42,14 +42,15 @@ RSpec.describe Permissions::CoworkerCapabilityDiscovery do
   it "reports an eligible ungranted family as requestable with scope, policy, and lock reason" do
     allow(McpToolRegistry).to receive(:entry_for).with(tool).and_return(registry_entry(permission_descriptor))
 
-    expect(described_class.new(context).call.map(&:to_h)).to contain_exactly(
+    expect(described_class.new(context).call.map(&:to_h)).to contain_exactly(a_hash_including(
       capability: "example.records",
       operations: [ "example.records/read@v1" ],
       required_scope: a_hash_including(type: :repository),
       effective_policy: "ask",
       state: "requestable",
-        lock_reason: "operation_requires_approval"
-    )
+      lock_reason: "operation_requires_approval",
+      blocker: "permission"
+    ))
   end
 
   it "does not collapse available and prohibited families into requestable results" do

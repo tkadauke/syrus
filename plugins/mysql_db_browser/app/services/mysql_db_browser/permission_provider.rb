@@ -3,7 +3,12 @@ module MysqlDbBrowser
     include Syrus::Plugin::PermissionProvider
 
     ROLES = [ AgentRole::CHAT_PLANNER, AgentRole::WORKFLOW_IMPLEMENT ].freeze
+    # Coworkers request read access through request_permission, so the read
+    # operations must be requestable by them. The critical query operation
+    # stays on ROLES: coworker execution remains read-only.
+    READ_ROLES = (ROLES + [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]).freeze
     READ_DEFAULTS = ROLES.index_with { :ask }.freeze
+    COWORKER_READ_DEFAULTS = READ_ROLES.index_with { :ask }.freeze
     READ_DURATIONS = %i[invocation chat_session job].freeze
 
     class << self
@@ -92,7 +97,7 @@ module MysqlDbBrowser
     READ_OPERATIONS.each do |operation, scope|
       register_capability(
         capability: "mysql.read@v1", operation:, effects: %i[network_read confidential_read credential_use],
-        risk: :medium, requestable_roles: ROLES, defaults: READ_DEFAULTS,
+        risk: :medium, requestable_roles: READ_ROLES, defaults: COWORKER_READ_DEFAULTS,
         maximum_autonomy: :job, authority_durations: READ_DURATIONS, resource_scope: scope,
         classifier: ->(_arguments) { { operation:, effects: %i[network_read confidential_read credential_use], risk: :medium, confidence: :certain } },
         fingerprint_normalizer: method(:normalize_arguments), redactor: method(:redact_arguments)

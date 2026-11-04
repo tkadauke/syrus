@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react"
 import type { MouseEvent as ReactMouseEvent, ReactNode, RefObject } from "react"
 import { createPortal } from "react-dom"
+import { registerDismissLayer } from "../lib/dismissLayers"
 
 export interface ModalProps {
   open: boolean
@@ -93,11 +94,12 @@ export function Modal({
     }
 
     document.addEventListener("keydown", onKeyDown)
+    const unregister = registerDismissLayer(() => onCloseRef.current())
     return () => {
+      unregister()
       document.removeEventListener("keydown", onKeyDown)
       previouslyFocusedRef.current?.focus?.()
     }
-     
   }, [open])
 
   if (!open) return null
