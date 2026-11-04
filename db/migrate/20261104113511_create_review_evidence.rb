@@ -1,9 +1,9 @@
 class CreateReviewEvidence < ActiveRecord::Migration[8.1]
   def change
     create_table :review_evidences, if_not_exists: true do |t|
-      t.references :run, null: false, foreign_key: true, index: { unique: true }
-      t.references :workflow, null: false, foreign_key: true
-      t.references :step, null: false, foreign_key: true
+      t.references :run, null: false, index: { unique: true }
+      t.references :workflow, null: false
+      t.references :step, null: false
       t.string :review_kind, null: false
       t.string :provider, null: false
       t.string :model, null: false
@@ -24,7 +24,11 @@ class CreateReviewEvidence < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :review_evidences, %i[reviewer_type reviewer_id], if_not_exists: true
-    add_index :review_evidences, %i[workflow_id review_kind state], if_not_exists: true
+    unless index_exists?(:review_evidences, %i[reviewer_type reviewer_id])
+      add_index :review_evidences, %i[reviewer_type reviewer_id]
+    end
+    unless index_exists?(:review_evidences, %i[workflow_id review_kind state])
+      add_index :review_evidences, %i[workflow_id review_kind state]
+    end
   end
 end
