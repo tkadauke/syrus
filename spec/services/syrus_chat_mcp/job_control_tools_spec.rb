@@ -9,6 +9,23 @@ RSpec.describe "Mcp::Tools job control tools" do
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
 
+  before do
+    grant_tool_access(
+      Mcp::Tools::SetJobPriorityTool,
+      Mcp::Tools::AssignJobToEpicTool,
+      Mcp::Tools::RemoveJobFromEpicTool,
+      Mcp::Tools::UpdateJobTool
+    )
+  end
+
+  def grant_tool_access(*tools)
+    management = Permissions::Management.new(user)
+    operations = tools.map { |tool| McpToolRegistry.entry_for(tool).descriptor.operation }
+    plan = management.profile_plan(profile_key: "full_access@v1", subject_selector_type: "interactive_chat")
+    plan[:replacements].select! { |replacement| replacement[:descriptor].operation.in?(operations) }
+    management.apply_profile!(plan:, actor: user)
+  end
+
   def server
     MCP::Server.new(
       name: "syrus-chat-sidecar",
