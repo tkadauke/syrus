@@ -254,6 +254,21 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
       expect(ChatPendingAction.find(request_id).authorization_items.pluck(:kind)).to eq([ "operation" ])
     end
 
+    it "enforces policy without creating a generic request for tools whose effect is an approval card" do
+      allow(Mcp::CoworkerToolCatalog).to receive(:resolve).and_return(
+        Mcp::CoworkerToolCatalog::Descriptor.new(
+          tool_name: "read_custom_data", capability: "custom.read", ungated: false,
+          approval_effect: true, tier: :essential, tool: coworker_tool, provider: nil
+        )
+      )
+
+      expect {
+        expect(described_class.pending_coworker_approval(
+          coworker_tool, { chat_session: }, { query: "customers" }
+        )).to be_nil
+      }.not_to change(ChatPendingAction, :count)
+    end
+
     it "fails closed when a core registry entry has no permission descriptor" do
       allow(McpToolRegistry).to receive(:entries).with(surface: :coworker)
         .and_return([ Struct.new(:tool, :descriptor).new(coworker_tool, nil) ])
