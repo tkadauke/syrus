@@ -18,12 +18,12 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     )
   end
 
-  def grant_tool_access(*tools)
-    management = Permissions::Management.new(user)
+  def grant_tool_access(*tools, grantee: user)
+    management = Permissions::Management.new(grantee)
     operations = tools.map { |tool| McpToolRegistry.entry_for(tool).descriptor.operation }
     plan = management.profile_plan(profile_key: "full_access@v1", subject_selector_type: "interactive_chat")
     plan[:replacements].select! { |replacement| replacement[:descriptor].operation.in?(operations) }
-    management.apply_profile!(plan:, actor: user)
+    management.apply_profile!(plan:, actor: grantee)
   end
 
   def server
@@ -954,6 +954,8 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     let(:other_user) { Factories.user }
     let(:other_repository) { Factories.repository(user: other_user) }
     let(:admin_chat_session) { ChatSession.create!(user: admin) }
+
+    before { grant_tool_access(Mcp::Tools::SetJobPriorityTool, grantee: admin) }
 
     def admin_server
       MCP::Server.new(
