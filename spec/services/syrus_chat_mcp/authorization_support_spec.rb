@@ -341,6 +341,7 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
         "requested_durations" => %w[invocation chat_session permanent],
         "tool_set_bundle" => "collaboration@v1"
       )
+
       item = request.authorization_items.sole
       preview = Permissions::RuleDraft.from_request_item(
         user:, request:, item:, duration: "chat_session"
