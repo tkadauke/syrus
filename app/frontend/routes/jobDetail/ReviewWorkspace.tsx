@@ -619,7 +619,7 @@ export function VisualEvidenceGallery({ approved, gallery }: { approved: boolean
       </div>
       {submitted.length === 0 && !showAll ? (
         <p className="mt-3 text-sm text-text-muted">
-          {t(approved ? "visual_evidence_approved_without_curated" : "visual_evidence_none_submitted")} {" "}
+          {t(approved ? "visual_evidence_approved_without_curated" : "visual_evidence_none_submitted")}{" "}
           <button className="font-medium text-brand underline" onClick={() => setShowAll(true)} type="button">
             {t("visual_evidence_view_captured")}
           </button>
@@ -636,7 +636,13 @@ export function VisualEvidenceGallery({ approved, gallery }: { approved: boolean
                 </a>
                 <figcaption className="mt-2 space-y-1 text-xs text-text-muted">
                   <p className="font-medium text-text-primary">{pageLabel}</p>
-                  <p>{t("visual_evidence_metadata", { sequence: screenshot.sequence, viewport: viewport || t("visual_evidence_unknown_viewport"), timestamp: new Date(screenshot.captured_at).toLocaleString() })}</p>
+                  <p>
+                    {t("visual_evidence_metadata", {
+                      sequence: screenshot.sequence,
+                      viewport: viewport || t("visual_evidence_unknown_viewport"),
+                      timestamp: new Date(screenshot.captured_at).toLocaleString()
+                    })}
+                  </p>
                   {screenshot.submission_failed ? <p className="font-medium text-danger">{t("visual_evidence_submission_failed")}</p> : null}
                 </figcaption>
               </figure>
