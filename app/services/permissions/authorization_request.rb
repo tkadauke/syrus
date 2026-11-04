@@ -80,8 +80,20 @@ module Permissions
         effects: decision.invocation.effects, risk: decision.invocation.risk,
         classifier_confidence: decision.invocation.classification.confidence,
         policy_chain: decision.chain.map(&:to_h), decisive_rule: decision.decisive_rule&.to_h || {},
-        purpose:, requested_durations: [ "invocation" ]
+        purpose:, requested_durations: requested_durations
       }
+    end
+
+    def requested_durations
+      available = descriptor.authority_durations.map(&:to_s)
+      applicable = if context.chat_session
+        %w[ invocation chat_session permanent ]
+      elsif context.job
+        %w[ invocation job permanent ]
+      else
+        %w[ invocation permanent ]
+      end
+      available & applicable
     end
 
     def evaluation_context
