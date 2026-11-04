@@ -114,7 +114,13 @@ class PerformanceLogEvent < ApplicationRecord
       "peak_rss_bytes" => attrs["peak_rss_bytes"],
       "start_cgroup_memory_current_bytes" => attrs["start_cgroup_memory_current_bytes"],
       "end_cgroup_memory_current_bytes" => attrs["end_cgroup_memory_current_bytes"],
-      "peak_cgroup_memory_current_bytes" => attrs["peak_cgroup_memory_current_bytes"]
+      "peak_cgroup_memory_current_bytes" => attrs["peak_cgroup_memory_current_bytes"],
+      # Live-slot movement is what separates a leak from a heap that merely
+      # never shrinks: RSS growth with flat live slots is bloat, growth in both
+      # means the objects are still reachable.
+      "start_heap_live_slots" => attrs["start_heap_live_slots"],
+      "end_heap_live_slots" => attrs["end_heap_live_slots"],
+      "peak_heap_live_slots" => attrs["peak_heap_live_slots"]
     }.compact_blank
   end
 

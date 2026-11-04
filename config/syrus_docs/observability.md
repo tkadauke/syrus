@@ -343,6 +343,27 @@ groups `grouped_browser_traces` by `[name, path]`, or filter
 `PerformanceLogEvent.where(event_name: PerformanceLogging::BROWSER_TRACE_EVENT,
 name: "diff_review.parse_diff")` directly.
 
+### Per-job memory attribution (`job_memory_summary`)
+
+Every job records a memory summary on completion, written straight to
+`performance_log_events` (and, unlike most events, never to the log -- look
+for it through `GET /api/v1/admin/performance?event_name=syrus.performance.job_memory_summary`,
+not in `kubectl logs`). Each row carries `job_class` alongside start, end and
+peak figures for RSS, cgroup memory and **heap live slots**.
+
+Live slots are what make this a leak detector rather than a usage report. RSS
+that grew while live slots stayed flat is a heap that was not returned to the
+OS -- bloat, and largely harmless. Growth in both means objects are still
+reachable, which is a leak, and the `end - start` difference per `job_class`
+says which jobs are responsible. Note `start_*` is captured at the job's first
+sample rather than at enqueue.
+
+That identifies the *job*. To find the objects and then the allocating line,
+take a `heap_histogram` and then an `allocation_trace` on an affected worker --
+see below. Monitoring and hunting are deliberately separate: the summary is
+always on and costs nothing, the diagnostics are opt-in and some of them are
+expensive.
+
 ### On-demand process diagnostics (SIGUSR2)
 
 Some questions can only be answered from inside a running process: what is on

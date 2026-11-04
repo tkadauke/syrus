@@ -34,6 +34,33 @@ RSpec.describe PerformanceLogging::MemoryHighWaterSampler do
     PerformanceLogEvent.delete_all
   end
 
+  # RSS growth alone cannot distinguish a leak from a heap that simply never
+  # shrinks. Growth in live slots means the objects are still reachable, which
+  # is what turns "this job used memory" into "this job leaks". read_sample
+  # already computed this value and the summary event used to discard it.
+  it "records live-slot movement per job so retention is separable from heap bloat" do
+    allow(GC).to receive(:stat).and_call_original
+    token = described_class.register(first_context)
+    # start_* is captured on the first sample of the job, not at register --
+    # same as the existing start_rss_bytes.
+    allow(GC).to receive(:stat).with(:heap_live_slots).and_return(1_000)
+    described_class.sample!
+    allow(GC).to receive(:stat).with(:heap_live_slots).and_return(4_000)
+    described_class.sample!
+    allow(GC).to receive(:stat).with(:heap_live_slots).and_return(3_000)
+
+    described_class.unregister(token)
+
+    summary = PerformanceLogEvent.where(event_name: PerformanceLogging::JOB_MEMORY_SUMMARY_EVENT).last
+    expect(summary.payload).to include(
+      "start_heap_live_slots" => 1_000,
+      "peak_heap_live_slots" => 4_000,
+      "end_heap_live_slots" => 3_000
+    )
+    # Ended above where it started: 2000 slots survived the job.
+    expect(summary.payload["end_heap_live_slots"] - summary.payload["start_heap_live_slots"]).to eq(2_000)
+  end
+
   it "persists a threshold crossing synchronously and does not repeat its bucket" do
     described_class.register(first_context)
     allow(ProcessResourceSampler).to receive(:rss_bytes).and_return(300.megabytes)
