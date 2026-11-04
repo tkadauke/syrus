@@ -457,13 +457,14 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       [
         [ "old-member-b", "repair-1" ],
         [ "repair-1", "repair-2" ],
-        [ "repair-2", "repair-3" ]
+        [ "repair-2", "repair-3" ],
+        [ "repair-3", "detached-repair" ]
       ].each_with_index do |(base_sha, head_sha), index|
         repair_step = source_workflow.steps.create!(kind: "landing_fix", position: index + 1, state: "succeeded")
         repair_step.runs.create!(job: b, trigger_kind: "merge_train", state: "succeeded",
           base_sha: base_sha, head_sha: head_sha)
       end
-      failed_step = source_workflow.steps.create!(kind: "grader_collect", position: 4, state: "failed")
+      failed_step = source_workflow.steps.create!(kind: "grader_collect", position: 5, state: "failed")
       failed_run = failed_step.runs.create!(job: b, trigger_kind: "merge_train", state: "failed",
         agent_outcome: "grader_failure")
       RunFailureClassification.create!(run: failed_run, classification: "grader_failure", retryable: false,
@@ -497,6 +498,12 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
           hash_including("sha" => "repair-3", "reason" => "successful landing_fix run head")
         ),
         "skipped" => include(hash_including("sha" => "unrelated", "reason" => "not produced by a successful landing_fix run"))
+      )
+      expect(handler.workflow.artifact(MergeTrainFixReplay::STATUS_ARTIFACT).fetch("rejected")).to include(
+        hash_including(
+          "sha" => "detached-repair",
+          "reason" => "successful landing_fix run head is not reachable from the recorded source integration range"
+        )
       )
       expect(train.reload.integration_sha).to eq("intsha999")
     end

@@ -214,10 +214,14 @@ implemented rungs are `restart`, which tears the failed assembly down and
 returns members through normal landing-failure handling; `keep_assembly`, which
 keeps a train whose failure was not a member's own fault and schedules the
 retry that resumes it, so the integration branch and the grades already earned
-are reused instead of rebuilt; and `keep_fixes`, which also preserves repair
-commits for stale-base rebuilds. A train is only kept when that retry can
-actually be scheduled; otherwise it is torn down for the failure that caused
-it. Epic children land only via the train, never individually.
+are reused instead of rebuilt; and `keep_fixes`, which also preserves verified
+repair commits for reconstruction after stale-base failures or exhausted grader
+repair loops. Replay requires the same ordered member set and only uses commits
+that are both reachable from the failed integration branch and recorded as the
+head of a successful landing-fix run; member and unrelated commits are skipped.
+A train is only kept when that retry can actually be scheduled; otherwise it is
+torn down for the failure that caused it. Epic children land only via the train,
+never individually.
 
 Repositories can opt into a focused multisect failure rung in `.syrus.yml`.
 When a train's required graders fail, Syrus can validate that the focused
