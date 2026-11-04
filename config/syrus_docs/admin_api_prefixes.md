@@ -41,6 +41,11 @@ for operator automation should declare the `/api/v1/admin/*` prefix; a plugin
 route intended only for the in-app admin UI should declare the
 `/api/v1/app/admin/*` prefix.
 
+The development-only permission factory-reset preview and confirmation routes
+are intentionally app-admin-only. They drive the Syrus Dev Permission Model
+screen, including its count digest and typed whole-instance confirmation, and
+are not a general automation interface.
+
 The generated endpoint inventory lives in
 `config/syrus_docs/admin_api_catalog.md`; update it with
 `bin/surface-catalogs` after route changes.

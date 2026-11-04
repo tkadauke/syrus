@@ -15,9 +15,11 @@ describe("plugin admin page registry", () => {
       "admin_mysql/AdminMysql",
       "syrus_dev/AdminOperationalLogs",
       "syrus_dev/AdminPerformance",
+      "syrus_dev/AdminPermissionModel",
       "syrus_dev/AdminDesignSystem"
     ]))
     expect(pluginAdminComponentFor("syrus_dev/AdminPerformance")).toBeTruthy()
+    expect(pluginAdminComponentFor("syrus_dev/AdminPermissionModel")).toBeTruthy()
     expect(pluginAdminComponentFor("syrus_dev/AdminDesignSystem")).toBeTruthy()
     expect(pluginAdminComponentFor("missing/Nope")).toBeNull()
   })
