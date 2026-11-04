@@ -1,5 +1,6 @@
 module Permissions
   class Management
+    PROFILE_SOURCE_PREFIX = "permission_profile:"
     def initialize(user)
       @user = user
     end
@@ -113,6 +114,32 @@ module Permissions
       end
     end
 
+    def apply_profile!(profile_key:, role:, subject_selector_type:, actor:)
+      profile = PermissionProfiles.fetch(profile_key)
+      definition = PermissionRule::SUBJECT_SELECTORS.fetch(subject_selector_type.to_s)
+      raise ArgumentError, "permission profile subject does not have a role" unless definition[:role] == role.to_s
+
+      descriptors = Catalog.descriptors.select { |descriptor| descriptor.requestable_roles.include?(role.to_s) }
+      PermissionRule.transaction do
+        rules.where(subject_selector_type:).find_each { |rule| rule.revoke!(actor:) }
+        descriptors.map do |descriptor|
+          create_profile_rule!(profile:, descriptor:, role:, subject_selector_type:, actor:)
+        end
+      end
+    end
+
+    def current_profile(subject_selector_type:)
+      active = rules.where(subject_selector_type:).to_a
+      sources = active.map(&:source).uniq
+      return unless sources.one? && sources.first.start_with?(PROFILE_SOURCE_PREFIX)
+
+      key = sources.first.delete_prefix(PROFILE_SOURCE_PREFIX)
+      expected = Catalog.descriptors.count do |descriptor|
+        descriptor.requestable_roles.include?(PermissionRule::SUBJECT_SELECTORS.fetch(subject_selector_type.to_s).fetch(:role))
+      end
+      key if active.size == expected && PermissionProfiles::DEFINITIONS.key?(key)
+    end
+
     def preset_drafts(payload)
       preset = Catalog.presets[payload.fetch("preset").to_s]
       raise ArgumentError, "unknown permission preset" unless preset
@@ -138,6 +165,19 @@ module Permissions
     private :create_rule!, :validate_preset_drafts
 
     private
+
+    def create_profile_rule!(profile:, descriptor:, role:, subject_selector_type:, actor:)
+      policy = profile.policy_for(descriptor, role:)
+      PermissionRule.create!(
+        owner_user: @user, created_by_user: actor, updated_by_user: actor,
+        subject_selector_type:, subject_role_keys: [], dynamic_future_roles: false,
+        capability: descriptor.capability, operation: descriptor.operation,
+        resource_type: descriptor.resource_scope.type.to_s, resource_scope: {}, constraints: {},
+        policy: policy.to_s, policy_layer: "agent", source: "#{PROFILE_SOURCE_PREFIX}#{profile.key}",
+        provenance: { "management_api" => true, "profile" => profile.key },
+        rationale: profile.description, delegable: true
+      )
+    end
 
     PRESET_APPLIERS = { "allow" => :grant!, "ask" => :ask!, "deny" => :deny! }.freeze
 
