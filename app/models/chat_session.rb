@@ -205,6 +205,22 @@ class ChatSession < ApplicationRecord
     @owner_user_memo = owner&.user || super
   end
 
+  # The owner memo above must not outlive a change of owner.
+  def user=(value)
+    clear_owner_user_memo
+    super
+  end
+
+  def user_id=(value)
+    clear_owner_user_memo
+    super
+  end
+
+  def clear_owner_user_memo
+    remove_instance_variable(:@owner_user_memo) if defined?(@owner_user_memo)
+  end
+  private :clear_owner_user_memo
+
   def title_pending?
     title.blank? && ChatMessage.where(chat_session_id: id, role: "user").exists?
   end
@@ -247,7 +263,7 @@ class ChatSession < ApplicationRecord
 
   def reload(*)
     reset_repository_memo
-    remove_instance_variable(:@owner_user_memo) if defined?(@owner_user_memo)
+    clear_owner_user_memo
     super
   end
 
