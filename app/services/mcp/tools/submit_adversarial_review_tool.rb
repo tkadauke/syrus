@@ -40,10 +40,11 @@ module Mcp::Tools
         return Mcp::Tools.invalid("critique is required") if normalized_critique.empty?
         return Mcp::Tools.invalid("verdict must be one of: #{VERDICTS.join(', ')}") unless VERDICTS.include?(normalized_verdict)
 
+        submission = Step::Kind.fetch(run.step.kind).review_submission.fetch_values(:artifact_key, :review_kind)
         ReviewEvidence::VerdictSubmission.call!(
           run: run,
-          artifact_key: "adversarial_review_iterations",
-          review_kind: "adversarial",
+          artifact_key: submission.first,
+          review_kind: submission.last,
           verdict: normalized_verdict,
           critique: normalized_critique
         )

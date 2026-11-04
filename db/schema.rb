@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_04_113511) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_04_161406) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -3353,6 +3353,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_113511) do
     t.json "terminal_failure_details"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.json "reviewer_target_snapshot"
     t.index ["reviewer_type", "reviewer_id"], name: "index_review_evidences_on_reviewer_type_and_reviewer_id"
     t.index ["run_id"], name: "index_review_evidences_on_run_id", unique: true
     t.index ["step_id"], name: "index_review_evidences_on_step_id"

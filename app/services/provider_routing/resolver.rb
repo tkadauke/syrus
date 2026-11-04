@@ -142,7 +142,7 @@ module ProviderRouting
     end
 
     def resolve
-      resolution = (job_override_resolution unless task_key == ProviderRoutingRule::COWORKER_REVIEW_STEP_KIND) ||
+      resolution = (job_override_resolution unless task_key == "coworker_review") ||
         rule_resolution(scope_type: "job", scope_id: job.id) ||
         rule_resolution(scope_type: "repository", scope_id: repository_id) ||
         user_scoped_resolution ||
@@ -156,7 +156,7 @@ module ProviderRouting
     attr_reader :job, :task_key, :trigger, :workflow_trigger_kind, :released_hold_rule_ids
 
     def validate_required_reviewer_target!(resolution)
-      return unless task_key == ProviderRoutingRule::COWORKER_REVIEW_STEP_KIND
+      return unless task_key == "coworker_review"
       return if !resolution.held? && resolution.candidates.present? && resolution.candidates.all?(&:reviewer_target)
 
       raise ReviewerTarget::Missing,
@@ -270,7 +270,7 @@ module ProviderRouting
     def candidate_from_hash(hash)
       hash = hash.stringify_keys
       target = if hash["reviewer_target"].present?
-        ReviewerTarget.resolve!(definition: hash["reviewer_target"], user: effective_user, repository: job.repository)
+        ReviewerTarget.resolve!(definition: hash["reviewer_target"], user: job.owner_user || job.user, repository: job.repository)
       end
       Candidate.new(provider: hash["provider"], model: hash["model"], effort_level: hash["effort_level"], reviewer_target: target)
     end

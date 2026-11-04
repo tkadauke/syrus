@@ -56,6 +56,22 @@ RSpec.describe Mcp::Tools::SubmitAdversarialReviewTool do
     ])
   end
 
+  it "records dedicated coworker reviews in their own evidence artifact" do
+    coworker_step = Step.create!(workflow: run.workflow, kind: "coworker_review", position: 100)
+    coworker_run = coworker_step.runs.create!(job: run.job, trigger_kind: run.workflow.trigger_kind)
+    expect(ReviewFindingEvents).to receive(:record).with(hash_including(review_kind: "coworker"))
+
+    response = described_class.call(
+      critique: "Named reviewer approves.", verdict: "approved", server_context: { run: coworker_run }
+    )
+
+    expect(response).not_to be_error
+    expect(run.workflow.reload.artifact("coworker_review_iterations").last).to include(
+      "run_id" => coworker_run.id, "verdict" => "approved"
+    )
+    expect(run.workflow.artifact("adversarial_review_iterations")).to be_nil
+  end
+
   it "normalizes binary-tagged UTF-8 and strips whitespace" do
     call(critique: "  Check ● paths.  ".b, verdict: " approved ".b)
 

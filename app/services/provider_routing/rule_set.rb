@@ -116,8 +116,8 @@ module ProviderRouting
 
     def registry_options
       agent_provider_catalog_options(@user).merge(
-        step_kinds: Step::Kind.entries.select(&:agentic).map(&:kind) | [ ProviderRoutingRule::COWORKER_REVIEW_STEP_KIND ],
-        panel_capable_step_kinds: Step::Kind.entries.select(&:panel_capable).map(&:kind) | [ ProviderRoutingRule::COWORKER_REVIEW_STEP_KIND ],
+        step_kinds: Step::Kind.entries.select(&:agentic).map(&:kind),
+        panel_capable_step_kinds: Step::Kind.entries.select(&:panel_capable).map(&:kind),
         chat_roles: AgentRole::CHAT_ROLES,
         workflow_trigger_kinds: Workflow::TriggerKind.values,
         action_types: ProviderRoutingRule::ACTION_TYPES,

@@ -122,6 +122,28 @@ RSpec.describe ProviderRouting::Resolver do
       expect(rule.reload.action.dig("candidates", 0, "reviewer_target", "display_snapshot")).to include("name" => "Ada")
     end
 
+    it "does not refresh an audit snapshot when an unrelated rule attribute changes" do
+      coworker = Coworkers::Coworker.create!(
+        owner_user: user, name: "Ada", handle: "ada-audit", workspace_repo: "git@example.com:ada.git"
+      )
+      rule = ProviderRoutingRule.create!(
+        scope_type: "repository", scope_id: repository.id,
+        trigger: { type: "step", kind: "adversarial_review" },
+        action: { strategy: "fallback_order", candidates: [ {
+          provider: "codex", reviewer_target: { type: "coworker", reference: "coworker:#{coworker.id}" }
+        } ] }
+      )
+      original = rule.action.deep_dup
+      coworker.update!(name: "Renamed")
+      PluginRecord.find_by!(name: "coworkers").update!(enabled: false)
+      Syrus::PluginRegistry.clear_plugin_record_cache!
+
+      rule.update!(enabled: false)
+
+      expect(rule.reload.action).to eq(original)
+      expect(rule.action.dig("candidates", 0, "reviewer_target", "display_snapshot", "name")).to eq("Ada")
+    end
+
     it "hard-fails resolution when a selected coworker is later paused" do
       job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
       coworker = Coworkers::Coworker.create!(owner_user: user, name: "Ada", handle: "ada-paused", workspace_repo: "git@example.com:ada.git")

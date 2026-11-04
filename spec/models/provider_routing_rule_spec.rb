@@ -124,6 +124,14 @@ RSpec.describe ProviderRoutingRule do
     expect(unknown_chat_role.errors[:trigger]).to be_present
   end
 
+  it "registers coworker review as an agentic panel-capable step" do
+    kind = Step::Kind.fetch("coworker_review")
+
+    expect(kind.agentic).to be(true)
+    expect(kind.panel_capable).to be(true)
+    expect(kind.handler_class).to eq(Steps::CoworkerReview)
+  end
+
   it "rejects malformed condition payloads" do
     record = rule(conditions: {
       "workflow_trigger_kind" => "not-real",

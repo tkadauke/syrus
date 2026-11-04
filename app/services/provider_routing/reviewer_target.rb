@@ -9,6 +9,10 @@ module ProviderRouting
       def to_h
         { "type" => type, "reference" => reference, "display_snapshot" => display_snapshot }
       end
+
+      def pinned_h
+        to_h.merge("record_type" => record.class.polymorphic_name, "record_id" => record.id)
+      end
     end
 
     REVIEW_STEP_KINDS = %w[adversarial_review security_review coworker_review].freeze

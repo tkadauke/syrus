@@ -1,6 +1,6 @@
 class ReviewEvidence < ApplicationRecord
   STATES = %w[pending submitted failed stale].freeze
-  REVIEW_KINDS = %w[adversarial security].freeze
+  REVIEW_KINDS = %w[adversarial security coworker].freeze
 
   belongs_to :run
   belongs_to :workflow
@@ -47,7 +47,7 @@ class ReviewEvidence < ApplicationRecord
   end
 
   def immutable_provenance
-    immutable = %w[run_id workflow_id step_id review_kind provider model reviewer_type reviewer_id
+    immutable = %w[run_id workflow_id step_id review_kind provider model reviewer_type reviewer_id reviewer_target_snapshot
                    reviewed_base_sha reviewed_head_sha canonical_diff_sha256 prompt_version
                    checklist_version tool_policy_version]
     changed = changes_to_save.keys & immutable

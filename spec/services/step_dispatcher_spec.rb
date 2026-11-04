@@ -78,6 +78,43 @@ RSpec.describe StepDispatcher, :ci_only do
     end
   end
 
+  describe ".pin_reviewer_target!" do
+    before do
+      PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
+      Syrus::PluginRegistry.clear_plugin_record_cache!
+    end
+
+    it "pins an authorized target snapshot before a coworker review Run exists" do
+      owner = job.owner_user || job.user
+      coworker = Coworkers::Coworker.create!(
+        owner_user: owner, name: "Ada", handle: "ada-pin", workspace_repo: "git@example.com:ada.git"
+      )
+      step = Step.create!(workflow: workflow, kind: "coworker_review", position: 3)
+      target = ProviderRouting::ReviewerTarget.resolve!(
+        definition: { type: "coworker", reference: "coworker:#{coworker.id}" },
+        user: owner, repository: job.repository
+      )
+      candidate = ProviderRouting::AvailabilitySelector.candidate(provider: "codex", reviewer_target: target)
+
+      described_class.pin_reviewer_target!(step, workflow, candidate)
+
+      expect(step.reload.details.fetch("reviewer_target")).to include(
+        "reference" => "coworker:#{coworker.id}", "record_id" => coworker.id,
+        "display_snapshot" => include("name" => "Ada")
+      )
+      expect(step.runs).to be_empty
+    end
+
+    it "hard-fails a coworker review without a named target" do
+      step = Step.create!(workflow: workflow, kind: "coworker_review", position: 3)
+      candidate = ProviderRouting::AvailabilitySelector.candidate(provider: "codex")
+
+      expect {
+        described_class.pin_reviewer_target!(step, workflow, candidate)
+      }.to raise_error(ProviderRouting::ReviewerTarget::Missing, /requires a matching provider rule/)
+    end
+  end
+
   describe ".fail_from" do
     it "expands a retry_until failure branch after the bounded grader loop exhausts" do
       train_workflow = Workflows::MergeTrain.instantiate(

@@ -663,6 +663,10 @@ module Steps
           "An independent adversarial-review agent examined the previous iteration and flagged issues that still need to be addressed:"
         ),
         needs_work_review_section(
+          "coworker_review_iterations",
+          "A named coworker reviewer examined the previous iteration and flagged issues that still need to be addressed:"
+        ),
+        needs_work_review_section(
           "security_review_iterations",
           "An independent security-review agent examined the previous iteration and flagged security issues that still need to be addressed:"
         ),

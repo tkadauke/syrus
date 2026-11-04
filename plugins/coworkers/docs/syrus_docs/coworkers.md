@@ -1,12 +1,15 @@
 # Coworkers
 
 Active coworkers can be selected as accountable reviewer targets in provider
-routing rules for adversarial and security reviews. The routing candidate keeps
+routing rules for adversarial, security, and dedicated coworker reviews. The routing candidate keeps
 the coworker identity separate from its execution provider and model. Rules
 store an opaque local reference and a safe name/handle/role snapshot; each
 review resolves the live coworker again and accepts only an active coworker
 owned by the Job owner with access to the repository. Paused, archived,
 deleted, unauthorized, or plugin-unavailable targets fail deterministically.
+Dedicated coworker-review Steps require a named target and never fall back to
+an anonymous provider reviewer. The selected identity snapshot and its
+provider/model are frozen into review evidence before the reviewer runs.
 
 Coworker tool dispatch is enforced by the unified permission evaluator. Capability
 descriptors supply the recommended defaults, while operator rules and temporary

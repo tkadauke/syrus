@@ -5,7 +5,6 @@ class ProviderRoutingRule < ApplicationRecord
   ACTION_TYPES = %w[ route hold ].freeze
   ACTION_STRATEGIES = %w[ fallback_order weighted panel ].freeze
   CONDITION_KEYS = %w[ workflow_trigger_kind usage budget day_time repository job_metadata user ].freeze
-  COWORKER_REVIEW_STEP_KIND = "coworker_review".freeze
 
   belongs_to :user
   belongs_to :repository, optional: true
@@ -25,6 +24,7 @@ class ProviderRoutingRule < ApplicationRecord
   before_validation :normalize_scope_columns
   before_validation :normalize_position
   before_validation :normalize_payloads
+  before_save :snapshot_reviewer_targets
 
   def scope_type_user? = scope_type == "user"
   def scope_type_repository? = scope_type == "repository"
@@ -136,13 +136,10 @@ class ProviderRoutingRule < ApplicationRecord
   def validate_step_trigger
     kind = trigger["kind"].to_s
     errors.add(:trigger, :step_kind_required) if kind.blank?
-    valid_kinds = Step::Kind.agentic_values | [ COWORKER_REVIEW_STEP_KIND ]
-    errors.add(:trigger, :step_kind_not_agentic) if kind.present? && !valid_kinds.include?(kind)
+    errors.add(:trigger, :step_kind_not_agentic) if kind.present? && !Step::Kind.agentic_values.include?(kind)
   end
 
   def panel_capable_trigger?
-    return true if trigger["kind"] == COWORKER_REVIEW_STEP_KIND
-
     trigger["type"] == "step" && Step::Kind.fetch(trigger["kind"]).panel_capable
   rescue KeyError
     false
@@ -324,14 +321,27 @@ class ProviderRoutingRule < ApplicationRecord
       errors.add(:candidates, :reviewer_target_requires_review_step, index: index)
       return
     end
+    return unless new_record? || will_save_change_to_action? || will_save_change_to_trigger?
 
-    target = ProviderRouting::ReviewerTarget.resolve!(
+    ProviderRouting::ReviewerTarget.resolve!(
       definition: definition, user: user, repository: repository || job&.repository
     )
-    action["candidates"][index]["reviewer_target"] = target.to_h
-    action_will_change!
   rescue ProviderRouting::ReviewerTarget::ResolutionError => e
     errors.add(:candidates, :reviewer_target_invalid, index: index, message: e.message)
+  end
+
+  def snapshot_reviewer_targets
+    return unless new_record? || will_save_change_to_action?
+
+    normalized = action.deep_dup
+    Array(normalized["candidates"]).each do |candidate|
+      next unless candidate["reviewer_target"].present?
+
+      candidate["reviewer_target"] = ProviderRouting::ReviewerTarget.resolve!(
+        definition: candidate["reviewer_target"], user: user, repository: repository || job&.repository
+      ).to_h
+    end
+    self.action = normalized
   end
 
   # Enforced for any provider that exposes a model catalog. Providers that do

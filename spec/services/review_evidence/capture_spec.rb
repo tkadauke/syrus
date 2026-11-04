@@ -49,7 +49,8 @@ RSpec.describe ReviewEvidence::Capture do
     step.update!(details: {
       "reviewer_target" => {
         "type" => "coworker", "reference" => "coworker:#{coworker.id}",
-        "display_snapshot" => { "name" => "Ada" }
+        "display_snapshot" => { "name" => "Ada" },
+        "record_type" => coworker.class.polymorphic_name, "record_id" => coworker.id
       }
     })
     allow(ReviewEvidence::CanonicalDiff).to receive(:resolve).and_return("a" * 40)
@@ -60,8 +61,28 @@ RSpec.describe ReviewEvidence::Capture do
     )
 
     expect(evidence).to have_attributes(
-      reviewer: coworker, provider: "codex", model: "gpt-pinned"
+      reviewer: coworker, provider: "codex", model: "gpt-pinned",
+      reviewer_target_snapshot: step.details.fetch("reviewer_target")
     )
+  end
+
+  it "captures the pinned target without re-resolving live coworker state" do
+    target = {
+      "type" => "coworker", "reference" => "coworker:99",
+      "display_snapshot" => { "name" => "Ada" },
+      "record_type" => "Coworkers::Coworker", "record_id" => 99
+    }
+    step.update!(details: { "reviewer_target" => target })
+    allow(ReviewEvidence::CanonicalDiff).to receive(:resolve).and_return("a" * 40)
+    allow(ReviewEvidence::CanonicalDiff).to receive(:snapshot).and_return(head_sha: "b" * 40, sha256: "c" * 64)
+    expect(ProviderRouting::ReviewerTarget).not_to receive(:resolve!)
+
+    evidence = described_class.call(
+      run: run, workspace_path: "/workspace", review_kind: "adversarial", base_ref: "origin/main"
+    )
+
+    expect(evidence.reviewer).to be_nil
+    expect(evidence.reviewer_target_snapshot).to eq(target)
   end
 
   it "refuses to fabricate a model when routing did not resolve one" do

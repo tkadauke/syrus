@@ -626,7 +626,7 @@ class StepDispatcher
         workflow.reload
         run_provider_candidate = run_provider_candidate_for(step, workflow)
         return nil if run_provider_candidate.nil?
-        pin_reviewer_target!(step, run_provider_candidate)
+        pin_reviewer_target!(step, workflow, run_provider_candidate)
 
         if check_phase_admission && capability_worker_deferred?(step, workflow, backoff: PHASE_ADMISSION_RECHECK_DELAY)
           return nil
@@ -758,7 +758,8 @@ class StepDispatcher
       end
 
       return ProviderRouting::AvailabilitySelector.candidate(
-        provider: member["provider"], model: member["model"], effort_level: member["effort_level"]
+        provider: member["provider"], model: member["model"], effort_level: member["effort_level"],
+        reviewer_target: member["reviewer_target"]
       )
     end
 
@@ -862,7 +863,7 @@ class StepDispatcher
     }
   end
 
-  def self.pin_reviewer_target!(step, candidate)
+  def self.pin_reviewer_target!(step, workflow, candidate)
     target = candidate.reviewer_target
     if step.kind == "coworker_review" && target.blank?
       raise ProviderRouting::ReviewerTarget::Missing,
@@ -870,7 +871,12 @@ class StepDispatcher
     end
     return if target.blank?
 
-    payload = target.respond_to?(:to_h) ? target.to_h : target
+    target = ProviderRouting::ReviewerTarget.resolve!(
+      definition: target,
+      user: workflow.job.owner_user || workflow.job.user,
+      repository: workflow.job.repository
+    ) unless target.respond_to?(:pinned_h)
+    payload = target.pinned_h
     step.update!(details: step.details.to_h.merge("reviewer_target" => payload))
   end
 
