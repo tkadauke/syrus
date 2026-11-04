@@ -327,6 +327,14 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
 
       expect(described_class.pending_actor_approval(actor_tool, { chat_session: }, { prompt: "Continue?" })).to be_nil
     end
+
+    it "keeps a tool's existing pending-action confirmation as its only approval boundary" do
+      actor_tool = Mcp::Tools::CancelJobTool
+
+      expect(Permissions::AuthorizationRequest).not_to receive(:new)
+
+      expect(described_class.pending_actor_approval(actor_tool, { chat_session: }, { job_id: 7 })).to be_nil
+    end
   end
 
   it "routes scheduled tool calls through the shared authorization request" do
