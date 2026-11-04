@@ -1,5 +1,6 @@
 require "mcp"
 require "base64"
+require "digest"
 
 module SyrusMcp
   # Image-capable sibling to SubmitArtifactTool. Captures the current browser
@@ -291,8 +292,16 @@ module SyrusMcp
           data: data,
           source: "current_browser",
           content_type: image[:mimeType].presence || image[:mime_type].presence || DEFAULT_CONTENT_TYPE,
+          evidence: retained_evidence_for(run, data),
           metadata: current_browser_metadata(run).deep_merge(subject_metadata)
         }
+      end
+
+      def retained_evidence_for(run, data)
+        run.workflow.visual_evidences.find_by(
+          run: run,
+          content_digest: Digest::SHA256.hexdigest(data)
+        )
       end
 
       def scroll_subject_into_view(run, subject)

@@ -305,6 +305,11 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
   end
 
   it "captures the current MCP browser directly and stores page provenance" do
+    evidence = run.workflow.visual_evidences.create!(
+      run: run, step: run.step, sequence: 1, status: "draft", captured_at: Time.current,
+      content_digest: Digest::SHA256.hexdigest(png_bytes)
+    )
+    evidence.image.attach(io: StringIO.new(png_bytes), filename: "capture.png", content_type: "image/png")
     stub_current_browser_capture
 
     response = described_class.call(
@@ -315,6 +320,7 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
     )
 
     expect(response).not_to be_error
+    expect(evidence.reload.status).to eq("submitted")
     entry = run.workflow.reload.artifact("typed_artifacts").first
     expect(entry["payload"]).to include(
       "source" => "current_browser",
