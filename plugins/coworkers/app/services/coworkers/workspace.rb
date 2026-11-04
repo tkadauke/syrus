@@ -1,13 +1,19 @@
 class Coworkers::Workspace
   class InvalidPath < ArgumentError; end
 
-  def initialize(chat_session)
+  def self.for(server_context)
+    run = server_context[:run]
+    root = StepWorkspace.for(run.step, run: run).path if run&.step&.kind == "coworker_run"
+    new(server_context.fetch(:chat_session), root: root)
+  end
+
+  def initialize(chat_session, root: nil)
     @chat_session = chat_session
     link = Coworkers::Chat.includes(:coworker).find_by(chat_session_id: chat_session.id)
     repository = link&.coworker&.workspace_repository
     raise InvalidPath, "coworker workspace is unavailable" unless repository
 
-    @root = ChatWorkspace.repo_path_for(chat_session, repository).expand_path
+    @root = (root || ChatWorkspace.repo_path_for(chat_session, repository)).expand_path
   end
 
   def write(path, content)

@@ -1,6 +1,6 @@
 class Coworkers::WorkspaceFileTools::Base < MCP::Tool
   class << self
-    def workspace(server_context) = Coworkers::Workspace.new(server_context.fetch(:chat_session))
+    def workspace(server_context) = Coworkers::Workspace.for(server_context)
 
     def safely
       yield
