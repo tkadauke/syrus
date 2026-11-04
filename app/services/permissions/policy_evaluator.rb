@@ -75,11 +75,20 @@ module Permissions
         chain = mark_ceiling(chain, ceiling)
         effective = ceiling
       end
+      if effective.policy == :allow && profile_rule?(effective) && CoworkerDefaultPolicy::ROLES.include?(@role) &&
+          !CoworkerDefaultPolicy.invocation_allowed?(@descriptor, classification)
+        chain = mark_decisive(chain, effective)
+        downgrade = Explanation.new(layer: :core, status: :decisive_ceiling, rule: nil,
+          policy: :ask, detail: :unsafe_classification)
+        return decision(:ask, nil, chain + [ downgrade ], invocation)
+      end
       chain = mark_decisive(chain, effective)
       decision(effective.policy, effective, chain, invocation)
     end
 
     private
+
+    def profile_rule?(rule) = rule.source.start_with?("permission_profile:")
 
     def select_rule(rules)
       rules.min_by do |rule|

@@ -18,10 +18,11 @@ RSpec.describe Permissions::CapabilityRegistryValidator do
     }.merge(overrides))
   end
 
-  def registration(name, descriptor:, surface: :chat, source: "ExamplePlugin", explicit_descriptor: descriptor.present?, compatibility_descriptor: nil)
+  def registration(name, descriptor:, surface: :chat, source: "ExamplePlugin", explicit_descriptor: descriptor.present?,
+    compatibility_descriptor: nil, ungated: false)
     described_class::Registration.new(
       tool_name: name, surface: surface, source: source, descriptor: descriptor,
-      explicit_descriptor: explicit_descriptor, compatibility_descriptor: compatibility_descriptor
+      explicit_descriptor: explicit_descriptor, compatibility_descriptor: compatibility_descriptor, ungated:
     )
   end
 
@@ -29,6 +30,12 @@ RSpec.describe Permissions::CapabilityRegistryValidator do
     validator = described_class.new([ registration("read_example", descriptor: nil) ])
 
     expect { validator.validate! }.to raise_error(described_class::ValidationError, /ExamplePlugin chat tool "read_example" has no explicit capability_descriptor/)
+  end
+
+  it "accepts an explicitly ungated executable tool without a descriptor" do
+    validator = described_class.new([ registration("harmless_protocol_tool", descriptor: nil, ungated: true) ])
+
+    expect(validator.validate!).to be(true)
   end
 
   it "rejects compatibility descriptors outside the frozen migration baseline" do
@@ -196,7 +203,8 @@ RSpec.describe Permissions::CapabilityRegistryValidator do
   it "reports role defaults and effect coverage" do
     coverage = described_class.new([ registration("read_example", descriptor: descriptor) ]).coverage
 
-    expect(coverage).to include(tools: 1, described_tools: 1, explicit_descriptors: 1, legacy_descriptors: 0)
+    expect(coverage).to include(tools: 1, described_tools: 1, explicit_descriptors: 1, legacy_descriptors: 0,
+      ungated_tools: 0, tool_set_bundles: { "knowledge@v1" => 1 })
     expect(coverage.dig(:roles, "chat_planner")).to eq(descriptors: 1, defaults: { allow: 1 })
     expect(coverage.dig(:effects, :network_read)).to eq(1)
     expect(coverage.dig(:effects, :destructive)).to eq(0)
