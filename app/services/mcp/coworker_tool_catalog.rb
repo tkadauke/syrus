@@ -41,8 +41,14 @@ module Mcp
           end
 
           granted = grants.flat_map do |capability, names|
-            names.map do |name|
+            names.filter_map do |name|
               definition = by_name[name]
+              # A tool may still belong to a grant for discovery/UI while
+              # declaring itself ungated because its only effect is creating
+              # the owner's real confirmation card. Keep one descriptor so
+              # the generic coworker gate cannot ask for approval first.
+              next if definition && value(definition, :ungated) == true
+
               definition = definition&.merge(coworker_default_policy: grant_definitions.fetch(capability)["default_policy"])
               Descriptor.new(tool_name: name, capability: capability, ungated: false,
                 tier: definition ? definition_tier(provider, name, chat_session: chat_session) : :essential,

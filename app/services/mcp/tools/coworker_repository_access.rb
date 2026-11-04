@@ -3,12 +3,16 @@ module Mcp::Tools
     ALL = "all".freeze
 
     def self.resolve(server_context:, repository_id: nil, slug: nil)
+      resolve_for_capability(server_context:, capability: "code.read", repository_id:, slug:)
+    end
+
+    def self.resolve_for_capability(server_context:, capability:, repository_id: nil, slug: nil)
       context = McpToolContext.from_server_context(server_context)
       repository = find_repository(context, repository_id:, slug:)
       return Mcp::Tools.invalid("repository not found or is not accessible") unless repository
       return repository unless context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
 
-      scope = context.capability_scopes["code.read"]
+      scope = context.capability_scopes[capability]
       return Mcp::Tools.not_authorized unless scope == ALL || Array(scope).map(&:to_i).include?(repository.id)
 
       repository

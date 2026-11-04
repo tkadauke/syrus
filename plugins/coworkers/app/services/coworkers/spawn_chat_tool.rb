@@ -6,7 +6,7 @@ module Coworkers
     DEFAULT_PER_DAY_CAP = 10
 
     tool_name "spawn_coworker_chat"
-    description "Create a side chat for the current coworker with an initial owner message. The grant approval and spawn caps always apply."
+    description "Create a side chat of this same coworker. This does not create a regular Syrus engineering/planner chat; use spawn_syrus_chat for that. The owner confirmation and spawn caps always apply."
     input_schema(
       properties: {
         prompt: { type: "string", description: "The initial message in the new side chat." },
