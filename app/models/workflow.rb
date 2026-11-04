@@ -657,6 +657,17 @@ class Workflow < ApplicationRecord
     super({})
   end
 
+  # ActiveRecord#reload refreshes attributes and associations but knows
+  # nothing about the staged artifact assignment kept in these instance
+  # variables. Clear it as part of the same refresh contract so stale staged
+  # values cannot mask side-table writes made by another Workflow instance.
+  def reload(...)
+    super.tap do
+      @assigned_external_artifacts = nil
+      @assigned_external_artifact_deletions = nil
+    end
+  end
+
   # Append-only artifact write. Inline domain-event subscribers can write
   # artifacts during a step before the step writes its own artifact, so merge
   # against the locked current row rather than a possibly stale instance copy.

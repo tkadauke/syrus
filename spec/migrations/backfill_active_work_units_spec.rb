@@ -7,6 +7,12 @@ RSpec.describe BackfillActiveWorkUnits, :ci_only do
   let(:repository) { Factories.repository(user: user) }
   let(:job) { Factories.job_record(user: user, repository: repository, state: "queued") }
 
+  # This historical migration ran before artifact externalization, so its
+  # fixtures must represent the inline rows it encountered at that point.
+  def write_inline_artifacts(workflow, artifacts)
+    workflow.update_column(:artifacts, artifacts)
+  end
+
   it "creates intent, unit, member, and lock rows for an active workflow" do
     job.update!(branch_name: "syrus/job-#{job.id}")
     workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running", started_at: 5.minutes.ago)
@@ -50,13 +56,13 @@ RSpec.describe BackfillActiveWorkUnits, :ci_only do
     workflow = Workflow.create!(
       job: job,
       trigger_kind: "initial",
-      state: "queued",
-      artifacts: {
-        "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
-        "start_blocked_next_check_at" => next_check_at.iso8601,
-        "start_blocked_details" => { "pressure" => "high" }
-      }
+      state: "queued"
     )
+    write_inline_artifacts(workflow, {
+      "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
+      "start_blocked_next_check_at" => next_check_at.iso8601,
+      "start_blocked_details" => { "pressure" => "high" }
+    })
 
     migration.up
 
@@ -83,9 +89,9 @@ RSpec.describe BackfillActiveWorkUnits, :ci_only do
     workflow = Workflow.create!(
       job: second,
       trigger_kind: "merge_train",
-      state: "running",
-      artifacts: { "merge_train_id" => train.id }
+      state: "running"
     )
+    write_inline_artifacts(workflow, { "merge_train_id" => train.id })
 
     migration.up
 
@@ -111,9 +117,9 @@ RSpec.describe BackfillActiveWorkUnits, :ci_only do
     workflow = Workflow.create!(
       job: second,
       trigger_kind: "merge_train",
-      state: "running",
-      artifacts: { "merge_train_id" => train.id }
+      state: "running"
     )
+    write_inline_artifacts(workflow, { "merge_train_id" => train.id })
 
     migration.up
 
