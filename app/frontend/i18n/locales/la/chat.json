@@ -550,6 +550,7 @@
   "aria_close_proposal_editor": "Recensorem propositi claudere",
   "attached_scope": "Ambitus adnexus",
   "no_repository_attached": "Nullum repositorium adiunctum",
+  "opened_by_coworker": "A collega @{{handle}} apertum",
   "proposal_route": "Via",
   "proposal_route_backlog": "Backlog",
   "proposal_route_implement": "Efficere",

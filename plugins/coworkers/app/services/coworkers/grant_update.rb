@@ -41,7 +41,7 @@ class Coworkers::GrantUpdate
   private
 
   def normalized_constraints
-    if @capability == "coworker.spawn_chat"
+    if @capability.in?([ "coworker.spawn_chat", "syrus.spawn_chat" ])
       defaults = {
         "max_spawns_per_run" => Coworkers::SpawnChatTool::DEFAULT_PER_RUN_CAP,
         "max_spawns_per_day" => Coworkers::SpawnChatTool::DEFAULT_PER_DAY_CAP
@@ -66,7 +66,7 @@ class Coworkers::GrantUpdate
   def constraints_more_permissive?(grant)
     return false if @approval_policy == "off"
     return false unless grant
-    if @capability == "coworker.spawn_chat"
+    if @capability.in?([ "coworker.spawn_chat", "syrus.spawn_chat" ])
       current = {
         "max_spawns_per_run" => Coworkers::SpawnChatTool::DEFAULT_PER_RUN_CAP,
         "max_spawns_per_day" => Coworkers::SpawnChatTool::DEFAULT_PER_DAY_CAP

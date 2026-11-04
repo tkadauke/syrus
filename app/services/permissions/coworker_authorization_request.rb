@@ -9,7 +9,8 @@ module Permissions
       def initialize(request:, decision:, reused_result: nil) = super
     end
 
-    def initialize(context:, descriptor:, arguments:, purpose: nil, action: nil, payload: {}, force_request: false)
+    def initialize(context:, descriptor:, arguments:, purpose: nil, action: nil, payload: {}, force_request: false,
+      request_on_ask: true)
       @context = context
       @descriptor = descriptor
       @arguments = arguments.to_h
@@ -17,6 +18,7 @@ module Permissions
       @action = action
       @payload = payload
       @force_request = force_request
+      @request_on_ask = request_on_ask
     end
 
     def call
@@ -26,6 +28,7 @@ module Permissions
       )
       decision = authorization.decision
       raise Mcp::Tools::AuthorizationSupport::AuthorizationError, "permission policy denies this operation" if denied?(decision)
+      return Result.new(request: nil, decision:) unless request_on_ask
       return Result.new(request: nil, decision:) if authorization.authorized? && !force_request
 
       reused = reusable_completed_request(decision)
@@ -37,7 +40,7 @@ module Permissions
 
     private
 
-    attr_reader :context, :descriptor, :arguments, :purpose, :action, :payload, :force_request
+    attr_reader :context, :descriptor, :arguments, :purpose, :action, :payload, :force_request, :request_on_ask
 
     # An identical retry of an invocation the owner already approved and that
     # already executed returns the stored result. The deduplication key binds the

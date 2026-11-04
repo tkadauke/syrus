@@ -112,7 +112,7 @@ accept either owner-scoped identifier. These deferred tools are available to
 planner and ordinary Syrus chats, never to coworker chats.
 
 The coworker-facing inventory is `message_coworker`, `reply_in_chat_thread`,
-`manage_coworker_schedule`, `spawn_coworker_chat`, and the bounded `write_coworker_file`,
+`manage_coworker_schedule`, `spawn_coworker_chat`, `spawn_syrus_chat`, and the bounded `write_coworker_file`,
 `edit_coworker_file`, `move_coworker_file`, and `delete_coworker_file` tools.
 Those essential tools remain governed by the coworker's grants and workspace
 boundary; coworkers do not receive owner control-plane tools.
@@ -129,6 +129,12 @@ tools, `reply_in_chat_thread`, and the in-turn question/suggestion helpers use
 that classification. `message_coworker` remains gated by `coworker.message`
 and defaults to confirmation.
 
+Tools marked `approval_effect` still evaluate capability policy and fail on an
+explicit deny, but they do not create a generic tool-call approval when their
+only mutation is creating the owner's real confirmation card. Job/Epic
+proposal tools and both chat-spawn tools use this marker, preventing a second
+approval without weakening deny rules.
+
 `spawn_coworker_chat(prompt, handle?, title?)` creates only a side chat of the
 calling coworker. It cannot create a Syrus chat or select another coworker.
 The `coworker.spawn_chat` grant defaults to confirmation, and unattended
@@ -141,6 +147,19 @@ coworker's chats. Owners can set positive `max_spawns_per_run` and
 burst cannot bypass either limit. The spawned chat inherits the coworker's
 identity, grants, tool surface, model configuration, and per-chat workspace
 branch through its normal `Coworkers::Chat` side-chat link.
+
+`spawn_syrus_chat(repository_id, prompt, title?)` is the distinct path for
+engineering and planning work. The `syrus.spawn_chat` grant is off until the
+owner enables it, defaults to confirmation, and is scoped to selected
+repositories (or all repositories the owner can read). Its confirmation is
+the action's real approval card, so it bypasses the generic coworker mutation
+gate and never asks twice. Approval creates an ordinary owner-owned planning
+chat in the normal chat list, records the originating coworker in chat
+provenance and the audit log, and opens a cross-chat bridge carrying the
+initial message. The coworker reads replies delivered over that bridge and
+uses `reply_in_chat_thread` for follow-ups; it gains no access to unrelated
+chats. Separate positive `max_spawns_per_run` and `max_spawns_per_day`
+constraints default to three and ten.
 
 `reply_in_chat_thread` is an ungated exception to grant approval: it needs no
 per-reply confirmation when the coworker's owner opened

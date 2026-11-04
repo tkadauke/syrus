@@ -85,7 +85,9 @@ RSpec.describe Coworkers::ToolDefaultPolicyReport do
 
   it "keeps proposals as pending operator-confirmed drafts with no confirmation authority" do
     %w[propose_job propose_epic_with_jobs].each do |name|
-      descriptor = McpToolRegistry.entries(surface: :coworker).find { |entry| entry.tool_name == name }.descriptor
+      entry = McpToolRegistry.entries(surface: :coworker).find { |candidate| candidate.tool_name == name }
+      descriptor = entry.descriptor
+      expect(entry.approval_effect).to eq(true)
       expect(descriptor.benign_internal).to eq(:draft_proposal)
       expect(descriptor.maximum_autonomy).to eq(:invocation)
     end

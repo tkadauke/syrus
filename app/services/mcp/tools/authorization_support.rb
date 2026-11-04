@@ -57,6 +57,10 @@ module Mcp::Tools
         descriptor = Mcp::CoworkerToolCatalog.resolve(tool, chat_session: context.chat_session)
         raise AuthorizationError, "tool is not available to coworkers" unless descriptor
         return if descriptor.ungated
+        if descriptor.approval_effect
+          enforce_coworker_policy_without_generic_request(context:, server_context:, descriptor:, arguments:)
+          return
+        end
         return if claimed_invocation_authorizes?(descriptor, context, server_context, arguments)
 
         protected_path = protected_coworker_workspace_path?(context, descriptor, arguments)
@@ -75,6 +79,20 @@ module Mcp::Tools
           normalized_coworker_workspace_path(path)
         end
         (protected_paths & requested_paths).any?
+      end
+
+      def enforce_coworker_policy_without_generic_request(context:, server_context:, descriptor:, arguments:)
+        capability_descriptor = if descriptor.tool
+          McpToolRegistry.entries(surface: :coworker).find { |entry| entry.tool == descriptor.tool }&.descriptor
+        else
+          Permissions::CapabilityDescriptorAdapter.for_plugin_definition(descriptor.definition)
+        end
+        raise AuthorizationError, "tool has no permission descriptor" unless capability_descriptor
+
+        Permissions::CoworkerAuthorizationRequest.new(
+          context:, descriptor: capability_descriptor, arguments:,
+          purpose: "Invoke #{descriptor.tool_name}", request_on_ask: false
+        ).call
       end
 
       def normalized_coworker_workspace_path(path)
