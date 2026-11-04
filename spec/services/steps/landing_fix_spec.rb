@@ -164,7 +164,12 @@ RSpec.describe Steps::LandingFix, :ci_only do
     expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include(
       "no changes were needed -- report_main_concern was filed for this repair lineage"
     )
-    expect(step.reload.details.dig("landing_repair_outcome", "outcome")).to eq("verified_no_change_resolution")
+    expect(step.reload.details.dig("landing_repair_outcome", "outcome")).to eq("inconclusive_no_op")
+    expect(step.details.dig("landing_repair_outcome", "evidence")).to include(
+      "reason" => "reported_main_concern_pending_equivalent_rerun",
+      "repair_head_sha" => "def456",
+      "report_ids" => [ MainConcernReport.last.id ]
+    )
   end
 
   it "treats a later no-op repair as successful when an earlier landing_fix iteration reported the same main concern", ci_only: false do

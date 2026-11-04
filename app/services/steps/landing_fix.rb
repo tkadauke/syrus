@@ -16,7 +16,7 @@ module Steps
           run.update!(prompt: compose_prompt) if run.prompt.blank?
         end
       rescue NoChangesProduced
-        record_outcome!("inconclusive_no_op", reason: "clean_tree_without_structured_resolution")
+        record_no_change_outcome!
         log("landing_fix produced no repository changes; treating as a successful no-op so graders can recheck the current tree",
             kind: "system")
         return
@@ -26,11 +26,7 @@ module Steps
       if run.step_agent_diff.present?
         record_outcome!("committed_repair", head_sha: run.head_sha, diff_present: true)
       else
-        record_outcome!(
-          "verified_no_change_resolution",
-          reason: "reported_main_concern_for_repair_lineage",
-          report_ids: main_concern_reports_for_repair_lineage.pluck(:id)
-        )
+        record_no_change_outcome!
       end
       preserve_merge_train_repair_head!
     end
@@ -39,6 +35,33 @@ module Steps
 
     def record_outcome!(outcome, evidence = {})
       LandingRepairOutcome.record!(step: step, outcome: outcome, evidence: evidence)
+    end
+
+    def record_no_change_outcome!
+      reports = main_concern_reports_for_repair_lineage
+      record_outcome!(
+        "inconclusive_no_op",
+        reason: reports.exists? ? "reported_main_concern_pending_equivalent_rerun" : "clean_tree_without_structured_resolution",
+        repair_head_sha: head_sha,
+        failing_context: failing_grader_context,
+        report_ids: reports.pluck(:id).presence
+      )
+    end
+
+    def failing_grader_context
+      workflow.steps
+        .where(kind: "grader", loop_id: step.loop_id, iteration: step.iteration - 1)
+        .where(state: %w[ failed blocked ])
+        .order(:position)
+        .map do |grader|
+          {
+            "grader" => grader.details.to_h["name"],
+            "command" => grader.details.to_h["command"],
+            "failure_code" => grader.details.to_h["failure_code"],
+            "step_id" => grader.id,
+            "run_id" => grader.runs.order(:created_at).last&.id
+          }.compact
+        end
     end
 
     # landing_fix repairs the failing required graders diagnosed just before
