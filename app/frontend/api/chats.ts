@@ -32,6 +32,7 @@ export type ChatRecord = {
   system_kind?: string | null
   conversation_kind?: ChatConversationKind
   origin_platform?: string | null
+  opened_by_coworker?: { id: number; handle: string; name: string } | null
   chat_type?: ChatType
   participants?: ChatParticipant[]
   pinned: boolean

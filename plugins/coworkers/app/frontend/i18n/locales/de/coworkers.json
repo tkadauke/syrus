@@ -59,9 +59,14 @@
     "push_ok": "Push-Zugriff bestätigt"
   },
   "tool_card": {
-    "spawn_chat_title": "Coworker-Nebenchat erstellen",
+    "spawn_chat_title": "Nebenchat dieses Coworkers starten",
+    "spawn_chat_kind": "Kein Syrus-Planungs-Chat",
+    "spawn_chat_use_syrus": "Verwende spawn_syrus_chat für Engineering- oder Planungsarbeit.",
     "spawn_chat_prompt": "Erste Nachricht",
     "spawn_chat_pending": "Ausstehender Nebenchat",
+    "spawn_syrus_chat_title": "Syrus-Engineering-Chat starten",
+    "spawn_syrus_chat_pending": "Ausstehender Syrus-Engineering-Chat",
+    "repository": "Repository",
     "title": "Vorgeschlagener Mitarbeiter",
     "summary": "Mitarbeiter @{{handle}} vorgeschlagen",
     "grant_title": "Vorgeschlagene Fähigkeitsfreigabe",
@@ -171,7 +176,8 @@
       "workspace_files": "Dieser Coworker kann Workspace-Dateien lesen und bearbeiten.",
       "workspace_shell": "Dieser Coworker kann Befehle in seinem Workspace ausführen.",
       "syrus_read_jobs": "Dieser Coworker kann Syrus-Jobs lesen.",
-      "syrus_propose_job": "Dieser Coworker kann Syrus-Jobs vorschlagen."
+      "syrus_propose_job": "Dieser Coworker kann Syrus-Jobs vorschlagen.",
+      "syrus_spawn_chat": "Dieser Coworker kann normale Syrus-Engineering-Chats starten."
     },
     "policies": { "auto": "Automatisch", "confirm": "Bestätigen", "queue": "Warteschlange", "off": "Aus" },
     "policy_for": "Genehmigungsregel für {{capability}}",
@@ -182,6 +188,9 @@
     "confirm_paths": "Bearbeitungen dieser Pfade immer bestätigen (kommagetrennt)",
     "confirm_paths_placeholder": "SOUL.md, AGENTS.md",
     "save_constraints": "Einschränkungen speichern",
+    "max_spawns_per_run": "Maximum pro Lauf",
+    "max_spawns_per_day": "Maximum pro Tag",
+    "save_spawn_caps": "Spawn-Limits speichern",
     "unavailable": {
       "confinement_unavailable": "Nicht verfügbar, bis ein aktiver Worker die abgeschirmte Coworker-Ausführung bestätigt.",
       "confinement_worker_unavailable": "Nicht verfügbar, weil kein aktiver Worker einen abgeschirmten Coworker-Turn annehmen kann.",

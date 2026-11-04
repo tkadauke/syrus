@@ -13,6 +13,7 @@ module Permissions
       coworker_permission_lease_surrendered
       coworker_permission_revocation_requested
       coworker_permission_revoked
+      coworker_syrus_chat_spawned
     ].freeze
 
     def self.record!(event, owner:, coworker:, **details)

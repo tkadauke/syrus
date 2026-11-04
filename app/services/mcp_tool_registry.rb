@@ -13,12 +13,13 @@ class McpToolRegistry
     :interactive_only,
     :mutation,
     :ungated,
+    :approval_effect,
     :descriptor,
     :explicit_descriptor,
     :compatibility_descriptor
   ) do
-    def initialize(available_if: nil, **attributes)
-      super(available_if: available_if, **attributes)
+    def initialize(available_if: nil, approval_effect: false, **attributes)
+      super(available_if: available_if, approval_effect: approval_effect, **attributes)
     end
 
     def tool_name
@@ -46,6 +47,7 @@ class McpToolRegistry
         interactive_only: interactive_only,
         mutation: mutation,
         ungated: ungated,
+        approval_effect: approval_effect,
         descriptor: descriptor,
         explicit_descriptor: explicit_descriptor,
         compatibility_descriptor: compatibility_descriptor,
@@ -435,8 +437,11 @@ class McpToolRegistry
         coworker_action(Mcp::Tools::ListJobsTool, capability: "syrus.read_jobs"),
         coworker_action(Mcp::Tools::SearchJobsTool, capability: "syrus.read_jobs"),
         coworker_action(Mcp::Tools::ReadJobTool, capability: "syrus.read_jobs"),
-        coworker_action(Mcp::Tools::ProposeJobTool, capability: "syrus.propose_job", mutation: true),
-        coworker_action(Mcp::Tools::ProposeEpicWithJobsTool, capability: "syrus.propose_job", mutation: true),
+        # Proposal tools only create the owner's real confirmation cards. A
+        # generic coworker gate here would ask once before asking again on the
+        # proposal itself.
+        coworker_action(Mcp::Tools::ProposeJobTool, capability: "syrus.propose_job", mutation: true, approval_effect: true),
+        coworker_action(Mcp::Tools::ProposeEpicWithJobsTool, capability: "syrus.propose_job", mutation: true, approval_effect: true),
         coworker_action(Mcp::Tools::ListChatsTool, tier: :deferred, capability: "chats.read_shared"),
         coworker_action(Mcp::Tools::SearchChatsTool, tier: :deferred, capability: "chats.read_shared"),
         coworker_action(Mcp::Tools::ReadChatMessagesTool, tier: :deferred, capability: "chats.read_shared"),
@@ -625,6 +630,7 @@ class McpToolRegistry
 
     def entry(tool, surface:, tier: nil, admin_only: false, feature_flag: nil, feature_flags_by_role: nil,
               required_roles: [], step_kinds: [], capability: nil, available_if: nil, interactive_only: false, mutation: false, ungated: false,
+              approval_effect: false,
               descriptor: nil, compatibility_descriptor: false, default_policy: nil)
       tool_name = tool_name_for(tool)
       explicit_descriptor = descriptor.present?
@@ -653,6 +659,7 @@ class McpToolRegistry
         interactive_only: interactive_only,
         mutation: mutation,
         ungated: ungated,
+        approval_effect: approval_effect,
         descriptor: resolved_descriptor,
         explicit_descriptor: explicit_descriptor,
         compatibility_descriptor: compatibility_descriptor

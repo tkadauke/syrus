@@ -15,7 +15,7 @@ module Coworkers
       WorkspaceFileTools::Move,
       WorkspaceFileTools::Delete
     ].freeze
-    TOOL_CLASSES = ([ MessageCoworkerTool, ReplyInChatThreadTool, ManageScheduleTool, SpawnChatTool ] + WORKSPACE_TOOLS).freeze
+    TOOL_CLASSES = ([ MessageCoworkerTool, ReplyInChatThreadTool, ManageScheduleTool, SpawnChatTool, SpawnSyrusChatTool ] + WORKSPACE_TOOLS).freeze
 
     def self.coworker_grants
       [
@@ -47,6 +47,17 @@ module Coworkers
           scope_options_callback: nil,
           scope_label_callback: nil,
           valid_scope_callback: nil
+        },
+        {
+          name: "syrus.spawn_chat",
+          label: "Start Syrus engineering chats",
+          description: "Create an ordinary planner chat for the owner in a selected accessible repository, subject to per-run and daily caps.",
+          default_policy: "confirm",
+          maximum_policy: "confirm",
+          tools: [ SpawnSyrusChatTool.tool_name ],
+          scope_options_callback: ->(user:) { Mcp::Tools::CoworkerRepositoryAccess.scope_options(user:) },
+          scope_label_callback: ->(value) { Mcp::Tools::CoworkerRepositoryAccess.scope_label(value) },
+          valid_scope_callback: ->(value, user:) { Mcp::Tools::CoworkerRepositoryAccess.valid_scope?(value, user:) }
         }
       ]
     end
@@ -64,9 +75,8 @@ module Coworkers
       elsif klass == ManageScheduleTool
         Permissions::CoworkerActions.descriptor(tool_name: name, family: "schedule.manage_self",
           effects: %i[internal_write persistent_autonomy], risk: :medium, default: :ask)
-      elsif klass == SpawnChatTool
-        Permissions::CoworkerActions.descriptor(tool_name: name, family: "coworker.spawn_chat",
-          effects: %i[internal_write communication persistent_autonomy], risk: :medium, default: :ask)
+      elsif klass.respond_to?(:coworker_descriptor)
+        klass.coworker_descriptor
       else
         Permissions::CoworkerActions.descriptor(tool_name: name, family: "coworker.message",
           effects: %i[internal_write communication], risk: :medium, default: :ask)
@@ -96,12 +106,15 @@ module Coworkers
               "chat.reply_owner_thread"
                         elsif klass == ManageScheduleTool
               "schedule.manage_self"
-                        elsif klass == SpawnChatTool
-              "coworker.spawn_chat"
+                        elsif klass.respond_to?(:coworker_capability)
+              klass.coworker_capability
                         else
               "coworker.message"
                         end,
+            # Spawn tools create the owner's real confirmation card themselves;
+            # bypassing the generic gate prevents a second approval card.
             ungated: klass == ReplyInChatThreadTool,
+            approval_effect: klass.respond_to?(:coworker_approval_effect?) && klass.coworker_approval_effect?,
             mutation: true,
             capability_descriptor: coworker_descriptor(klass)
           }

@@ -2117,6 +2117,14 @@ confirmation becomes a queued approval during unattended work. The defaults
 allow three requests per turn or background run and ten per calendar day, and
 owners can lower or raise both positive limits in the grant constraints.
 
+Side chats are deliberately different from ordinary Syrus planner chats. With
+the repository-scoped `syrus.spawn_chat` grant, a coworker can ask the owner to
+open a regular engineering chat with an initial message. The owner sees one
+confirmation card; approval creates the chat in the normal chat list and opens
+a bounded cross-chat bridge so the coworker can receive answers and send
+follow-ups. The new chat records which coworker opened it, and the action is
+audited and limited per run and per day.
+
 When an owner opens a cross-chat bridge thread to a coworker's chat, the
 coworker can reply through that existing thread without an additional grant or
 confirmation. The reply tool cannot open threads or address arbitrary chats:

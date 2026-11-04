@@ -824,6 +824,7 @@
   "aria_close_proposal_editor": "Close proposal editor",
   "attached_scope": "Attached scope",
   "no_repository_attached": "No repository attached",
+  "opened_by_coworker": "Opened by coworker @{{handle}}",
   "proposal_route": "Route",
   "proposal_route_backlog": "Backlog",
   "proposal_route_implement": "Implement",
