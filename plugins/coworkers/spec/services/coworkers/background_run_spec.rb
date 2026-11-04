@@ -403,6 +403,7 @@ RSpec.describe "Coworker background runs" do
     task = Coworkers::SystemSchedules.reconcile!(coworker)
     job.update!(scheduled_task_id: task.id, issue_title: "Scheduled coworker task: Journaling for 2026-11-03")
     workflow = Coworkers::Workflow.instantiate(job: job)
+    workflow.set_artifact!("journaling_target_on", "2026-11-03")
     source_run = Run.create!(job: job, user: owner, step: workflow.steps.find_by!(kind: "coworker_run"), trigger_kind: "coworker_run", agent_provider: "codex")
     source_run.update_columns(state: "succeeded", agent_summary: "Journal updated.", finished_at: Time.current)
     post_run = Run.new(job: job, user: owner, step: workflow.steps.find_by!(kind: "post_to_chat"), trigger_kind: "coworker_run", agent_provider: "codex")
@@ -414,6 +415,17 @@ RSpec.describe "Coworker background runs" do
     expect(task.reload).to have_attributes(
       last_journaled_on: Date.new(2026, 11, 3), last_system_result: "journaled", last_system_result_reason: nil
     )
+  end
+
+  it "continues a bounded journal catch-up after the current workflow releases" do
+    task = Coworkers::SystemSchedules.reconcile!(coworker)
+    job.update!(scheduled_task_id: task.id)
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    workflow.set_artifact!("journaling_target_on", "2026-11-03")
+    workflow.set_artifact!("journaling_catch_up_remaining", 3)
+
+    expect { Coworkers::Workflow.after_success(workflow) }
+      .to have_enqueued_job(Coworkers::JournalingCatchUpJob).with(task.id, "2026-11-03", 3)
   end
 
   it "queues one wake per run while another turn is in flight" do
@@ -660,6 +672,27 @@ RSpec.describe "Coworker background runs" do
       workflow: workflow
     )
     expect(job.reload).to have_attributes(state: "closed", closure_reason: "coworker_task")
+  end
+
+  it "wakes once when journaling repeatedly fails for the same structured target date" do
+    task = Coworkers::SystemSchedules.reconcile!(coworker)
+    job.update!(scheduled_task_id: task.id)
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    workflow.set_artifact!("journaling_target_on", "2026-11-03")
+    source_step = workflow.steps.find_by!(kind: "coworker_run")
+    source_step.update_columns(state: "failed")
+    source_run = Run.create!(job: job, user: owner, step: source_step, trigger_kind: "coworker_run", agent_provider: "codex")
+    source_run.update_columns(state: "failed", agent_summary: "Diary persistence failed.", finished_at: Time.current)
+
+    Coworkers::Workflow.after_fail(workflow)
+    first_count = main_chat.messages.count
+    Coworkers::Workflow.after_fail(workflow)
+
+    expect(first_count).to eq(2)
+    expect(main_chat.messages.count).to eq(2)
+    expect(task.reload.system_result_history).to include(
+      "date" => "2026-11-03", "result" => "failed", "reason" => workflow.failure_reason
+    )
   end
 
   it "posts exactly one failure card when failure handling is retried" do

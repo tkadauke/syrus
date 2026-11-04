@@ -138,6 +138,7 @@ function repositoryTaskColumns({
       render: (task) => (
         <>
           <Link className="font-medium text-brand underline hover:no-underline dark:text-brand-emphasis" to={`${prefix}/scheduled_tasks/${task.id}`}>{task.name}</Link>
+          {task.system_key ? <span className="ml-2 rounded bg-surface-muted px-2 py-0.5 text-xs text-text-secondary">{t("scheduled_tasks.system")}</span> : null}
           <div className="mt-1 max-w-xl truncate text-xs text-gray-500 dark:text-gray-400">{task.prompt}</div>
         </>
       ),
@@ -166,7 +167,7 @@ function repositoryTaskColumns({
               {task.active ? t("scheduled_tasks.disable") : t("scheduled_tasks.enable")}
             </Button>
           ) : null}
-          <button
+          {!task.system_key ? <button
             className="rounded border border-red-200 px-3 py-1 text-sm text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/50 dark:disabled:text-red-500"
             disabled={destroyPending}
             onClick={async () => {
@@ -175,7 +176,7 @@ function repositoryTaskColumns({
             type="button"
           >
             {t("scheduled_tasks.delete")}
-          </button>
+          </button> : null}
         </div>
       ),
       required: true

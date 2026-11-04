@@ -19,11 +19,19 @@ module Coworkers
         retry
       end
 
-      def target_date(task, now: Time.current)
+      def target_dates(task, now: Time.current)
         zone = ActiveSupport::TimeZone[task.schedule_timezone] || ActiveSupport::TimeZone["UTC"]
         yesterday = now.in_time_zone(zone).to_date - 1
-        first = task.last_journaled_on ? task.last_journaled_on + 1 : yesterday
-        [ first, yesterday - (CATCH_UP_LIMIT - 1) ].max.upto(yesterday).first
+        failed_dates = Array(task.system_result_history).filter_map do |entry|
+          Date.iso8601(entry["date"]) if entry["result"] == "failed" && entry["date"].present?
+        rescue Date::Error
+          nil
+        end
+        next_unprocessed = task.last_journaled_on ? task.last_journaled_on + 1 : yesterday
+        first = ([ next_unprocessed ] + failed_dates.select { |date| date <= yesterday }).min
+        return [] if first > yesterday
+
+        first.upto([ first + CATCH_UP_LIMIT - 1, yesterday ].min).to_a
       end
 
       private

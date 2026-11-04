@@ -3691,6 +3691,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_112912) do
     t.string "last_system_result"
     t.date "last_system_result_on"
     t.string "last_system_result_reason"
+    t.json "system_result_history"
     t.index ["archived_at"], name: "index_scheduled_tasks_on_archived_at"
     t.index ["coworker_id", "system_key"], name: "index_scheduled_tasks_on_coworker_and_system_key", unique: true
     t.index ["coworker_id"], name: "index_scheduled_tasks_on_coworker_id"

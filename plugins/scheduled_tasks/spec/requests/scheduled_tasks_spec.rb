@@ -546,6 +546,23 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(parse_body["message"]).to eq("Scheduled task archived.")
   end
 
+  it "rejects deletion of a system schedule through both generic endpoints" do
+    sign_in_as(user)
+    task = ScheduledTasks::Task.create!(
+      repository: repository, user: user, coworker_id: 123, system_key: "journaling",
+      **valid_cron_attrs.except(:prompt)
+    )
+
+    delete "/api/v1/app/scheduled_tasks/#{task.id}"
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("System schedules cannot be deleted")
+
+    delete "/api/v1/app/repositories/#{repository.id}/scheduled_tasks/#{task.id}"
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to include("System schedules cannot be deleted")
+    expect(task.reload).not_to be_archived
+  end
+
   it "pauses and resumes a task" do
     sign_in_as(user)
     task = ScheduledTasks::Task.create!(repository: repository, user: user, **valid_cron_attrs)

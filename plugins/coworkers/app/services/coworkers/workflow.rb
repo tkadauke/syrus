@@ -16,15 +16,27 @@ module Coworkers
       task = scheduled_task_for(workflow)
       task&.record_failure!
       if task&.system_key == Coworkers::SystemSchedules::JOURNALING
-        date = workflow.job.issue_title.to_s[/ for (\d{4}-\d{2}-\d{2})\z/, 1]&.to_date
-        task.update!(last_system_result: "failed", last_system_result_on: date, last_system_result_reason: workflow.failure_reason)
+        date = workflow.artifact("journaling_target_on")&.to_date
+        task.record_system_result!(date:, result: "failed", reason: workflow.failure_reason) if date
+        enqueue_journaling_catch_up(workflow, task, date)
       end
     ensure
       close_anchor_job!(workflow)
     end
 
     def self.after_success(workflow)
-      scheduled_task_for(workflow)&.record_success!
+      task = scheduled_task_for(workflow)
+      task&.record_success!
+      if task&.system_key == Coworkers::SystemSchedules::JOURNALING
+        enqueue_journaling_catch_up(workflow, task, workflow.artifact("journaling_target_on")&.to_date)
+      end
+    end
+
+    private_class_method def self.enqueue_journaling_catch_up(workflow, task, date)
+      remaining = workflow.artifact("journaling_catch_up_remaining").to_i
+      return unless date && remaining.positive?
+
+      Coworkers::JournalingCatchUpJob.perform_later(task.id, date.iso8601, remaining)
     end
 
     private_class_method def self.close_anchor_job!(workflow)

@@ -21,6 +21,7 @@ export type ScheduledTaskRow = {
   archived_at: string | null
   consecutive_failure_count: number
   coworker_id: number | null
+  system_key: string | null
   scheduled_task_path: string
 }
 

@@ -238,6 +238,7 @@
     "updated": "renovatum"
   },
   "scheduled_tasks": {
+    "system": "Systema",
     "loading": "Officia schedulata onerantia...",
     "error_load": "Officia schedulata receptaculi onerari non potuerunt.",
     "error_update": "Officium schedulatum renovari non potuit.",

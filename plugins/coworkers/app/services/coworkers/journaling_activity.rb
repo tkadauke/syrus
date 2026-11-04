@@ -55,6 +55,10 @@ module Coworkers
 
       repository = @coworker.workspace_repository
       return @daily_memory = nil unless repository
+      if (chat = @coworker.coworker_chats.find_by(role: "main")&.chat_session)
+        local = ChatWorkspace.repo_path_for(chat, repository).join("memory/daily/#{@date.iso8601}.md")
+        return @daily_memory = File.read(local, 64.kilobytes) if local.file?
+      end
       reader = RepositoryContent.for(repository, user: @coworker.owner_user)
       revision = reader.resolve("coworkers/#{@coworker.handle}")
       @daily_memory = reader.read(revision, "memory/daily/#{@date.iso8601}.md", max_bytes: 64.kilobytes).text

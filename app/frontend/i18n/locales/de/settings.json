@@ -238,6 +238,7 @@
     "updated": "aktualisiert"
   },
   "scheduled_tasks": {
+    "system": "System",
     "loading": "Geplante Aufgaben werden geladen...",
     "error_load": "Geplante Repository-Aufgaben konnten nicht geladen werden.",
     "error_update": "Geplante Aufgabe konnte nicht aktualisiert werden.",
