@@ -232,6 +232,15 @@ succeeds; an upstream failure fails that dependent without launching it.
 Members still report outcomes independently, and a later failure does not
 roll back an earlier successful refresh.
 
+Automatic retry selection and Job-page recovery actions still prefer the
+narrowest safe retry. An explicitly requested `implementation` mode is an
+operator escalation: after confirmation it may start fresh even when a
+post-implementation failure would initially recommend `failed_step`, including
+when a retry of that step already failed. Active mutation work, duplicate
+retries, passing PRs, and landing-specific failures remain ineligible. The
+pending action and resulting Workflow record the requested mode plus the source
+Workflow and failed Step context for auditability.
+
 `approve_job` uses the same approval-blocking runtime-work policy as the Job
 detail approve button, dashboard bulk approval, and app lifecycle endpoint. A
 Job can be approved while only non-mutating maintenance/QA work is active

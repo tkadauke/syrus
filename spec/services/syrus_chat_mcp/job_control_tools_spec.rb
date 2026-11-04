@@ -754,6 +754,68 @@ RSpec.describe "Mcp::Tools job control tools" do
     )
   end
 
+  it "confirms an explicit implementation escalation after a repeated post-implementation failure" do
+    job = Factories.job_record(repository: repository, state: "failed")
+    workflow = Workflow.create!(
+      job: job, trigger_kind: "initial", state: "failed",
+      started_at: 10.minutes.ago, finished_at: 1.minute.ago
+    )
+    step = workflow.steps.create!(kind: "summarize", position: 1, state: "failed")
+    step.runs.create!(job: job, trigger_kind: "initial", state: "failed", finished_at: 5.minutes.ago)
+    latest_run = step.runs.create!(job: job, trigger_kind: "initial", state: "failed", finished_at: 1.minute.ago)
+    RunFailureClassification.create!(
+      run: latest_run, classification: "application_error", classified_at: Time.current,
+      retryable: false, confidence: 0.9, reason: "summarize could not read the implementation HEAD"
+    )
+
+    conservative = RetryJobs::Modes::Implementation.new(job: job).preflight
+    expect(conservative).not_to be_eligible
+    expect(conservative.message).to include("should be retried from that step")
+
+    response = call_tool("retry_job", job_id: job.id, mode: "implementation")
+    pending = chat_session.pending_actions.find(payload(response).fetch(:pending_action_id))
+
+    expect(pending.payload).to include(
+      "mode" => "implementation",
+      "source_workflow_id" => workflow.id,
+      "preflight" => include(
+        "requested_mode" => "implementation",
+        "source_workflow_id" => workflow.id,
+        "source_failure" => include(
+          "step_id" => step.id,
+          "step_kind" => "summarize",
+          "run_id" => latest_run.id,
+          "classification" => "application_error",
+          "run_attempts" => 2
+        )
+      )
+    )
+
+    expect { expect(pending.confirm!).to be(true) }
+      .to change { job.workflows.where(trigger_kind: "retry").count }.by(1)
+
+    retry_workflow = job.workflows.where(trigger_kind: "retry").last
+    expect(retry_workflow.artifacts).to include(
+      "retry_requested_mode" => "implementation",
+      "retry_source_workflow_id" => workflow.id,
+      "retry_source_failure" => include(
+        "step_kind" => "summarize",
+        "classification" => "application_error",
+        "run_attempts" => 2
+      )
+    )
+  end
+
+  it "keeps landing recovery failures ineligible for explicit implementation escalation" do
+    job = make_retryable_job(landing_failure_reason: "merge conflict")
+
+    response = call_tool("retry_job", job_id: job.id, mode: "implementation")
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(response.dig(:result, :content, 0, :text)).to include("Landing failed")
+    expect(chat_session.pending_actions.where(action: "retry_job")).to be_empty
+  end
+
   it "requires an audit reason for refresh_base before creating a confirmation" do
     job = make_retryable_job
 

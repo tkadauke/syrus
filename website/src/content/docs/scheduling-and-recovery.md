@@ -100,6 +100,14 @@ and launched in dependency order. A selected dependent waits for its upstream
 refresh workflow to succeed and is not launched if that upstream refresh
 fails. Each Job keeps its own success or failure outcome.
 
+Syrus may initially recommend the narrower failed-step recovery after a
+post-implementation failure. If that is insufficient, an operator can
+explicitly request and confirm `implementation` as an escalation to a fresh
+attempt, even after the in-place retry fails. This does not broaden automatic
+retry selection, and the usual conflict, passing-PR, duplicate-retry, and
+landing-recovery safety checks still apply. The confirmation and new workflow
+retain the requested mode and source failure context in their audit data.
+
 Agent-produced commits can be preserved through checkpoint refs, so a later
 retry can recover useful work even if the original workspace disappeared.
 
