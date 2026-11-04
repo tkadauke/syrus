@@ -245,6 +245,14 @@ RSpec.describe AppSetting, :reset_plugin_registry do
     expect(setting.errors[:workflow_admission_policy]).to be_present
   end
 
+  it "validates against a pre-host-admission-policy schema snapshot" do
+    setting = AppSetting.new
+    allow(setting).to receive(:has_attribute?).and_call_original
+    allow(setting).to receive(:has_attribute?).with(:host_admission_policy).and_return(false)
+
+    expect(setting).to be_valid
+  end
+
   # Guard against the destructive-cutoff footgun: retention 0/negative would
   # make the prune cutoff land at/after now and purge every stored video.
   it "rejects a video_retention_days below 1" do
