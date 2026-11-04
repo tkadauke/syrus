@@ -1539,7 +1539,8 @@ describe("App", () => {
       expect(anchoredTrigger).not.toHaveClass("fixed")
       expect(within(anchoredTrigger).getByText("Syrus")).toBeInTheDocument()
       expect(anchoredTrigger.querySelector('[data-testid="syrus-mark"]')).not.toBeNull()
-      expect(within(mobileTopBar).getByRole("link", { name: "Notifications" })).toHaveAttribute("href", "/app-shell/notifications")
+      // On mobile the bell opens the shared Activity shell instead of navigating.
+      expect(within(mobileTopBar).getByRole("button", { name: "Notifications" })).toBeInTheDocument()
       expect(screen.queryByRole("button", { name: "Open settings" })).not.toBeInTheDocument()
 
       // The chrome's scroll container is a div, not a landmark: routes render
@@ -1556,7 +1557,7 @@ describe("App", () => {
       // is fixed-positioned.
       expect(screen.getAllByRole("button", { name: "Open sidebar" })).toHaveLength(1)
       expect(screen.getByRole("button", { name: "Open sidebar" })).not.toHaveClass("fixed")
-      const notificationLinks = screen.getAllByRole("link", { name: "Notifications" })
+      const notificationLinks = screen.getAllByRole("button", { name: "Notifications" })
       expect(notificationLinks.some((link) => link.parentElement?.classList.contains("fixed"))).toBe(false)
 
       fireEvent.click(anchoredTrigger)
@@ -1564,7 +1565,7 @@ describe("App", () => {
       if (!(drawerPrimaryNav instanceof HTMLElement)) throw new Error("Expected drawer primary navigation to render")
       expect(within(drawerPrimaryNav).getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/app-shell/dashboard/jobs")
       expect(screen.getAllByRole("button", { name: "Close sidebar" }).length).toBeGreaterThan(0)
-      expect(screen.getAllByRole("link", { name: "Notifications" }).length).toBeGreaterThan(0)
+      expect(screen.getAllByRole("button", { name: "Notifications" }).length).toBeGreaterThan(0)
       expect(screen.getAllByRole("separator", { name: "Resize sidebar" })).toHaveLength(1)
     } finally {
       restoreMediaQuery()
