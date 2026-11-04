@@ -289,6 +289,9 @@ visual_review:
 `required` defaults to `false`: if visual review cannot execute because the
 preview cannot be prepared, Syrus marks the review step skipped, raises a
 warning, and continues. Set `required: true` to fail the workflow instead.
+Configured terminal runtime targets are stricter: failure to start the terminal
+on the prepared workspace worker or establish its relay always fails the review
+step, so missing terminal coverage cannot be reported as a successful skip.
 
 ### `preview`
 
