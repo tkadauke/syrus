@@ -23,8 +23,44 @@ RSpec.describe Permissions::ScheduledAuthorization, :ci_only do
     result = described_class.route(tool:, context:, arguments: { record_id: 7 })
 
     expect(result).to be_created
-    expect(result.request).to have_attributes(origin: run, checkpoint_state: "waiting")
+    expect(result.request).to have_attributes(
+      origin: run, checkpoint_state: "waiting", action: "authorized_tool_call",
+      payload: include("tool_name" => "write_external_record", "arguments" => { "record_id" => 7 }, "run_id" => run.id)
+    )
     expect(job.reload.related_authorization_requests).to contain_exactly(result.request)
+  end
+
+  it "issues the exact invocation and queues execution when approved" do
+    request = described_class.route(tool:, context:, arguments: { record_id: 7 }).request
+    entry = Struct.new(:tool, :descriptor).new(tool, descriptor)
+    allow(McpToolRegistry).to receive(:entries).with(surface: :workflow).and_return([ entry ])
+    allow(ChatPendingActionConfirmationJob).to receive(:perform_later)
+
+    result = Permissions::AuthorizationDecision.new(
+      request:, item: request.authorization_items.sole, user:
+    ).call(decision: "approved")
+
+    expect(result.execution_enqueued).to be(true)
+    expect(request.reload).to be_confirming
+    expect(request.authorization_items.sole.authorized_invocation).to have_attributes(
+      tool_name: "write_external_record",
+      invocation_fingerprint: request.authorization_items.sole.invocation_fingerprint
+    )
+    expect(ChatPendingActionConfirmationJob).to have_received(:perform_later).with(request.id)
+  end
+
+  it "resumes the exact checkpoint with a denial" do
+    request = described_class.route(tool:, context:, arguments: { record_id: 7 }).request
+    allow(AuthorizationContinuations::Coordinator).to receive(:call)
+
+    Permissions::AuthorizationDecision.new(
+      request:, item: request.authorization_items.sole, user:
+    ).call(decision: "denied")
+
+    expect(request.reload).to be_rejected
+    expect(AuthorizationContinuations::Coordinator).to have_received(:call).with(
+      request:, outcome: "denied", denial_reason: "The operator denied this operation"
+    )
   end
 
   it "reuses an equivalent request for a later scheduled fire without checkpointing it" do

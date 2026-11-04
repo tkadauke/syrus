@@ -18,9 +18,10 @@ module Permissions
 
     def initialize(user:, repository:, origin:, subject:, runtime_role:, deduplication_key:, purpose:,
       occurrence_origin: origin,
-      capability:, operation:, item_attributes:, occurrence_metadata: {}, ai_approval: nil, now: Time.current)
+      capability:, operation:, item_attributes:, occurrence_metadata: {}, ai_approval: nil, now: Time.current,
+      action: nil, payload: {})
       @request_attributes = {
-        user:, repository:, origin:, subject:, runtime_role:, deduplication_key:, purpose:
+        user:, repository:, origin:, subject:, runtime_role:, deduplication_key:, purpose:, action:, payload:
       }
       @capability = capability.to_s
       @operation = operation.to_s
