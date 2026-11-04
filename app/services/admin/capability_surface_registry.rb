@@ -120,6 +120,7 @@ module Admin
       apply_permission_preset
       approve_job
       archive_epic
+      authorized_tool_call
       base_refresh_retry_job
       cancel_authorization_request
       cancel_job
