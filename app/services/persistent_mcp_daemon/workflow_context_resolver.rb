@@ -16,6 +16,7 @@ class PersistentMcpDaemon::WorkflowContextResolver
       server_context = {
         run: tool_context.run,
         run_id: tool_context.run.id,
+        permission_enforcement: true,
         # Coworker workflow tools share the chat read implementations with
         # interactive coworker turns. Preserve the contributed main chat so
         # those tools can establish the same actor and visibility boundary.

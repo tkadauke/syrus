@@ -189,7 +189,7 @@ RSpec.describe "Mcp::Tools diff and tag tools" do
     tag_response = call_tool("add_job_tag", job_id: Factories.job(repository: repository).id, tag_id: tag.id)
 
     expect(job_response.dig(:result, :isError)).to be(true)
-    expect(payload(job_response)).to eq(error: "not_authorized")
+    expect(payload(job_response)).to include(error: "not_authorized")
     expect(tag_response.dig(:result, :isError)).to be(true)
     expect(tag_response.dig(:result, :content, 0, :text)).to include("tag not found")
   end

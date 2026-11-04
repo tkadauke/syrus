@@ -101,7 +101,7 @@ RSpec.describe Mcp::Tools::SendChatMessageTool do
       response = call(chat_session: origin_chat, current_message: message, text: "hi", target_chat_session_id: other_user_chat.id)
 
       expect(response).to be_error
-      expect(payload(response)).to eq(error: "not_authorized")
+      expect(payload(response)).to include(error: "not_authorized")
       expect(ChatBridgeThread.count).to eq(0)
     end
 
@@ -189,7 +189,7 @@ RSpec.describe Mcp::Tools::SendChatMessageTool do
       response = call(chat_session: bystander_chat, current_message: message, text: "hi", thread_id: thread.id)
 
       expect(response).to be_error
-      expect(payload(response)).to eq(error: "not_authorized")
+      expect(payload(response)).to include(error: "not_authorized")
     end
 
     it "rejects an unknown thread id" do
@@ -198,7 +198,7 @@ RSpec.describe Mcp::Tools::SendChatMessageTool do
       response = call(chat_session: origin_chat, current_message: message, text: "hi", thread_id: ChatBridgeThread.maximum(:id).to_i + 100)
 
       expect(response).to be_error
-      expect(payload(response)).to eq(error: "not_authorized")
+      expect(payload(response)).to include(error: "not_authorized")
     end
   end
 

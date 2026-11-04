@@ -37,7 +37,7 @@ RSpec.describe "Mcp::Tools access control" do
 
   def expect_not_authorized(response)
     expect(response.dig(:result, :isError)).to be(true)
-    expect(payload(response)).to eq(error: "not_authorized")
+    expect(payload(response)).to include(error: "not_authorized")
   end
 
   def other_user_job
@@ -430,7 +430,7 @@ RSpec.describe "Mcp::Tools access control" do
       response = JSON.parse(raw, symbolize_names: true)
 
       expect(response.dig(:result, :isError)).to be(true)
-      expect(payload(response)).to eq(error: "not_authorized")
+      expect(payload(response)).to include(error: "not_authorized")
     end
   end
 end

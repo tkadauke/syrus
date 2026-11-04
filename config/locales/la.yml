@@ -10,6 +10,8 @@ la:
     confinement_unavailable: "Nullus operarius idoneus praesto est: clausura collegae comprobata non praesto est."
   server:
     permissions:
+      decision_audit:
+        evaluated: "Regula canonica permissionum aestimata est"
       coworker_request_waiting: "Exspectatur dominus ut de permissionibus requisitis decernat."
       coworker_permission:
         requested: "Petitio permissionis ad dominum missa est. Nihil concedit donec dominus approbet."

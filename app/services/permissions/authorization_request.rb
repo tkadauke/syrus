@@ -85,7 +85,6 @@ module Permissions
     end
 
     def requested_durations
-      available = descriptor.authority_durations.map(&:to_s)
       applicable = if context.chat_session
         %w[ invocation chat_session permanent ]
       elsif context.job
@@ -93,7 +92,11 @@ module Permissions
       else
         %w[ invocation permanent ]
       end
+      canonical = Catalog.find!(capability: descriptor.capability, operation: descriptor.operation)
+      available = canonical.authority_durations.map(&:to_s)
       available & applicable
+    rescue Catalog::UnknownCapability
+      descriptor.authority_durations.map(&:to_s) & applicable
     end
 
     def evaluation_context

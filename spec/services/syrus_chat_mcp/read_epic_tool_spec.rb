@@ -205,7 +205,7 @@ RSpec.describe Mcp::Tools::ReadEpicTool do
     response = call_tool(id: epic.id)
 
     expect(response.dig(:result, :isError)).to eq(true)
-    expect(tool_payload(response)).to eq(error: "not_authorized")
+    expect(tool_payload(response)).to include(error: "not_authorized")
   end
 
   it "allows an admin to read another user's Epic" do

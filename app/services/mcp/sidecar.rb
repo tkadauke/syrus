@@ -87,7 +87,7 @@ module Mcp
             context.role == AgentRole::COWORKER ? tools : tools + plugin_workflow_tools_for(context)
           end
         },
-        server_context: -> { { run_id: run_id } }
+        server_context: -> { { run_id: run_id, permission_enforcement: true } }
       )
     end
 
@@ -331,6 +331,7 @@ module Mcp
       {
         chat_session: chat_session,
         current_message: current_message,
+        permission_enforcement: true,
         evaluator: evaluator ? true : nil,
         scoped_event_id: scoped_event_id.presence,
         evaluator_session_id: evaluator_session_id.presence

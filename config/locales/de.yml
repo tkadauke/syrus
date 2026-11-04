@@ -10,6 +10,8 @@ de:
     confinement_unavailable: "Kein geeigneter Worker ist verfügbar: Die verifizierte Coworker-Abschirmung ist nicht verfügbar."
   server:
     permissions:
+      decision_audit:
+        evaluated: "Kanonische Berechtigungsrichtlinie ausgewertet"
       coworker_request_waiting: "Warten auf die Entscheidung des Eigentümers über die erforderlichen Berechtigungen."
       coworker_permission:
         requested: "Berechtigungsanfrage an den Eigentümer gesendet. Es wird nichts gewährt, bis der Eigentümer zustimmt."

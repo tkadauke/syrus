@@ -106,7 +106,7 @@ RSpec.describe Mcp::Tools::ExplainStuckJobTool do
     excluded_response = call_tool(job_id: excluded_job.id)
     excluded_payload = response_payload(excluded_response)
     expect(excluded_response.dig(:result, :isError)).to be(true)
-    expect(excluded_payload).to eq(error: "not_authorized")
+    expect(excluded_payload).to include(error: "not_authorized")
   end
 
   it "returns a plain not_authorized error, not an admin-required message, for an ordinary missing/unowned job id" do
@@ -116,6 +116,6 @@ RSpec.describe Mcp::Tools::ExplainStuckJobTool do
     payload = response_payload(response)
 
     expect(response.dig(:result, :isError)).to be(true)
-    expect(payload).to eq(error: "not_authorized")
+    expect(payload).to include(error: "not_authorized")
   end
 end

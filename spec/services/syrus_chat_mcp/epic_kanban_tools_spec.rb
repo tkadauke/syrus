@@ -325,7 +325,7 @@ RSpec.describe "Mcp::Tools epic kanban tools" do
       response = call_tool("update_epic", epic_id: other_epic.id, title: "New")
 
       expect(response.dig(:result, :isError)).to be true
-      expect(payload(response)).to eq(error: "not_authorized")
+      expect(payload(response)).to include(error: "not_authorized")
     end
 
     it "allows an admin to update another user's Epic" do

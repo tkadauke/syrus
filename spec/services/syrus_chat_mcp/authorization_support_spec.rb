@@ -220,6 +220,7 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
       assigned_coworker = coworker
       chat_session.define_singleton_method(:coworker) { assigned_coworker }
       allow(Mcp::CoworkerToolCatalog).to receive(:resolve).and_return(catalog_descriptor)
+      allow(McpToolRegistry).to receive(:entries).and_call_original
       allow(McpToolRegistry).to receive(:entries).with(surface: :coworker).and_return([ registry_entry ])
       grant_descriptor = instance_double(Coworkers::GrantCatalog::Descriptor, valid_scope?: true)
       allow(Coworkers::GrantCatalog).to receive(:fetch).with("custom.read").and_return(grant_descriptor)
@@ -392,7 +393,7 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
 
       server = MCP::Server.new(
         name: "syrus-chat-sidecar", tools: [ Mcp::Sidecar.authorize_tool(actor_tool) ],
-        server_context: { chat_session: }
+        server_context: { chat_session:, permission_enforcement: true }
       )
       raw = server.handle_json({
         jsonrpc: "2.0", id: 1, method: "tools/call",

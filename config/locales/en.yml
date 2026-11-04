@@ -41,6 +41,8 @@ en:
 
   server:
     permissions:
+      decision_audit:
+        evaluated: "Canonical permission policy evaluated"
       coworker_request_waiting: "Waiting for the owner to decide the required permissions."
       coworker_permission:
         requested: "Permission request sent to the owner. It grants nothing until the owner approves it."

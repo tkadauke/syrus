@@ -19,8 +19,15 @@ module Permissions
 
     def call(request, location: :host)
       subject = ExecutionActions.subject_for_request(request, location:)
-      result = ExecutionAuthorization.authorize(subject:, owner: owner_for(request), role: role_for(request), rules: rules_for(request), ceiling: @ceiling,
+      owner = owner_for(request)
+      result = ExecutionAuthorization.authorize(subject:, owner:, role: role_for(request), rules: rules_for(request), ceiling: @ceiling,
         context: lifecycle_context_for(request), selector_contexts: selector_contexts_for(request))
+      # Control-plane and framework processes are outside agent authorization,
+      # even when observability attributes them to a Job. Ceilings and explicit
+      # denies still apply, but only an identified agent can answer an ask or
+      # hold an invocation lease.
+      return if request.agent.blank? && result.ask?
+
       @logger.info("[permissions] execution requires approval: #{ExecutionActions.descriptor_for(location).redact(ExecutionActions.arguments_for(subject)).to_json}") if result.ask?
       result
     end

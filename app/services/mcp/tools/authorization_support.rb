@@ -22,8 +22,10 @@ module Mcp::Tools
           return scheduled if scheduled
           pending = Mcp::Tools::AuthorizationSupport.pending_coworker_approval(self, server_context, kwargs)
           return pending if pending
-          pending = Mcp::Tools::AuthorizationSupport.pending_actor_approval(self, server_context, kwargs)
-          return pending if pending
+          if Mcp::Tools::AuthorizationSupport.actor_permissions_enforced?(server_context)
+            pending = Mcp::Tools::AuthorizationSupport.pending_actor_approval(self, server_context, kwargs)
+            return pending if pending
+          end
 
           super(*args, server_context: server_context, **kwargs, &block)
         end
@@ -39,6 +41,10 @@ module Mcp::Tools
 
       def current_mcp_context
         Thread.current[:mcp_tools_tool_context]
+      end
+
+      def actor_permissions_enforced?(server_context)
+        server_context&.[](:permission_enforcement) == true
       end
 
       def with_server_context(server_context)

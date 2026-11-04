@@ -56,6 +56,7 @@ module Coworkers
               constraints: constraints.to_h, policy:, policy_layer: "agent", source:,
               provenance: { "coworker_id" => coworker.id }.tap { |value|
                 value["coworker_scope"] = scope unless scope.nil?
+                value["coworker_approval_policy"] = approval_policy.to_s
               }.merge(provenance.stringify_keys),
               rationale: "Coworker permission configured by the owner", delegable: false
             )
@@ -76,6 +77,9 @@ module Coworkers
       return "off" unless policy
 
       migrated = matching.map { |rule| rule.provenance["legacy_approval_policy"] }.compact.uniq
+      configured = matching.map { |rule| rule.provenance["coworker_approval_policy"] }.compact.uniq
+      return configured.first if configured.one?
+
       migrated.one? ? migrated.first : LEGACY_POLICY.fetch(policy)
     end
 
