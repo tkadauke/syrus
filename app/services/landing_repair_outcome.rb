@@ -72,9 +72,16 @@ class LandingRepairOutcome
     workflow = collect_step.workflow
     entries = Array(workflow.artifact(ARTIFACT_KEY))
     index = entries.rindex do |entry|
-      entry["loop_id"] == collect_step.loop_id && entry["outcome"] == "inconclusive_no_op"
+      entry["loop_id"] == collect_step.loop_id &&
+        entry["iteration"] == collect_step.iteration &&
+        entry["outcome"] == "inconclusive_no_op"
     end
     return unless index
+
+    repair_head_sha = entries[index].dig("evidence", "repair_head_sha").presence
+    failing_context = Array(entries[index].dig("evidence", "failing_context")).presence
+    rerun_head_sha = workflow.artifact(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY).presence
+    return unless repair_head_sha && failing_context && rerun_head_sha == repair_head_sha
 
     grader_steps = workflow.steps.where(
       loop_id: collect_step.loop_id,
@@ -93,6 +100,7 @@ class LandingRepairOutcome
             "state" => grader.state
           }.compact
         end,
+        "rerun_head_sha" => rerun_head_sha,
         "collect_step_id" => collect_step.id
       ),
       "verified_at" => Time.current.iso8601

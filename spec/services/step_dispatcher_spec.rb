@@ -2428,7 +2428,15 @@ RSpec.describe StepDispatcher, :ci_only do
       described_class.fail_from(first_collect)
 
       landing_fix = retry_workflow.steps.find_by!(kind: "landing_fix", iteration: 2)
-      LandingRepairOutcome.record!(step: landing_fix, outcome: "inconclusive_no_op")
+      LandingRepairOutcome.record!(
+        step: landing_fix,
+        outcome: "inconclusive_no_op",
+        evidence: {
+          "repair_head_sha" => "unchanged-head",
+          "failing_context" => [ { "grader" => "rspec", "command" => "bin/rspec" } ]
+        }
+      )
+      retry_workflow.set_artifact!(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY, "unchanged-head")
       second_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 2)
       add_failed_grader!(retry_workflow, second_collect, failed_tests: %w[spec/pr_lookup_spec.rb])
 
@@ -2476,7 +2484,15 @@ RSpec.describe StepDispatcher, :ci_only do
       described_class.fail_from(first_collect)
 
       landing_fix = retry_workflow.steps.find_by!(kind: "landing_fix", iteration: 2)
-      LandingRepairOutcome.record!(step: landing_fix, outcome: "inconclusive_no_op")
+      LandingRepairOutcome.record!(
+        step: landing_fix,
+        outcome: "inconclusive_no_op",
+        evidence: {
+          "repair_head_sha" => "unchanged-head",
+          "failing_context" => [ { "grader" => "rspec", "command" => "bin/rspec" } ]
+        }
+      )
+      retry_workflow.set_artifact!(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY, "unchanged-head")
       second_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 2)
       successful_grader = Step.create!(
         workflow: retry_workflow,
@@ -2501,6 +2517,56 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(outcome).to include("outcome" => "verified_no_change_resolution")
       expect(outcome.dig("evidence", "successful_equivalent_rerun")).to contain_exactly(
         include("grader" => "rspec", "command" => "bin/rspec", "state" => "succeeded")
+      )
+      expect(outcome.dig("evidence", "rerun_head_sha")).to eq("unchanged-head")
+      expect(outcome.dig("evidence", "failing_context")).to contain_exactly(
+        include("grader" => "rspec", "command" => "bin/rspec")
+      )
+    end
+
+    it "does not verify an older no-op after an intervening committed repair changes the landing head" do
+      retry_workflow = workflow_with_grader_retry_until(max_iterations: 3)
+      old_fix = Step.create!(
+        workflow: retry_workflow,
+        kind: "landing_fix",
+        position: 20,
+        iteration: 2,
+        loop_id: "grade-loop"
+      )
+      LandingRepairOutcome.record!(
+        step: old_fix,
+        outcome: "inconclusive_no_op",
+        evidence: {
+          "repair_head_sha" => "head-before-repair",
+          "failing_context" => [ { "grader" => "rspec", "command" => "bin/rspec" } ]
+        }
+      )
+      committed_fix = Step.create!(
+        workflow: retry_workflow,
+        kind: "landing_fix",
+        position: 21,
+        iteration: 3,
+        loop_id: "grade-loop"
+      )
+      LandingRepairOutcome.record!(
+        step: committed_fix,
+        outcome: "committed_repair",
+        evidence: { "head_sha" => "head-after-repair" }
+      )
+      collect = Step.create!(
+        workflow: retry_workflow,
+        kind: "grader_collect",
+        position: 22,
+        iteration: 3,
+        loop_id: "grade-loop",
+        state: "succeeded"
+      )
+      retry_workflow.set_artifact!(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY, "head-after-repair")
+
+      LandingRepairOutcome.verify_latest_no_change!(collect)
+
+      expect(retry_workflow.reload.artifact("landing_repair_outcomes").first).to include(
+        "outcome" => "inconclusive_no_op"
       )
     end
 
