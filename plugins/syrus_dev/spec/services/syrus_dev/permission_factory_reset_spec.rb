@@ -110,6 +110,18 @@ RSpec.describe SyrusDev::PermissionFactoryReset do
     expect(SyrusDev::PermissionFactoryResetRecord.last).to have_attributes(outcome: "failed", initiated_by_user: admin)
   end
 
+  it "rejects stale confirmation when affected records change without changing counts" do
+    rule = custom_rule
+    service = described_class.new(scope_type: "user", scope_id: owner.id, initiated_by: admin)
+    preview = service.preview
+    rule.revise!(actor: admin, policy: "deny")
+
+    expect(service.preview.counts).to eq(preview.counts)
+    expect { service.confirm!(confirmation_digest: preview.confirmation_digest) }
+      .to raise_error(ArgumentError, "permission reset preview is stale")
+    expect(rule.reload).to have_attributes(policy: "deny", revoked_at: nil)
+  end
+
   it "replaces factory rules whose contents have drifted" do
     service = described_class.new(scope_type: "user", scope_id: owner.id, initiated_by: admin)
     initial = service.preview
