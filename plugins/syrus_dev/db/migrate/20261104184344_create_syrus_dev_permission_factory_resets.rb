@@ -1,7 +1,7 @@
 class CreateSyrusDevPermissionFactoryResets < ActiveRecord::Migration[8.1]
   def change
     create_table :syrus_dev_permission_factory_resets do |t|
-      t.references :initiated_by_user, null: false, foreign_key: { to_table: :users }
+      t.references :initiated_by_user, null: false
       t.string :scope_type, null: false
       t.string :scope_id
       t.string :default_version, null: false
@@ -12,7 +12,10 @@ class CreateSyrusDevPermissionFactoryResets < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :syrus_dev_permission_factory_resets, [ :scope_type, :scope_id, :created_at ],
-      name: "idx_syrus_dev_permission_resets_scope"
+    unless index_exists?(:syrus_dev_permission_factory_resets, [ :scope_type, :scope_id, :created_at ],
+      name: "idx_syrus_dev_permission_resets_scope")
+      add_index :syrus_dev_permission_factory_resets, [ :scope_type, :scope_id, :created_at ],
+        name: "idx_syrus_dev_permission_resets_scope"
+    end
   end
 end
