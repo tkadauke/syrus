@@ -113,7 +113,7 @@ export const ChatMessage = memo(function ChatMessage({
     if (workspaceHrefLooksLocal(href)) event.preventDefault()
   }
 
-  const coworkerMessage = coworkerMessageMetadata(item)
+  const coworkerMessage = coworkerMessageMetadata(item) || bridgedCoworkerMessageMetadata(item)
   if (coworkerMessage?.direction === "incoming") {
     return (
       <CoworkerMessage
@@ -126,6 +126,7 @@ export const ChatMessage = memo(function ChatMessage({
         queryKey={queryKey}
         readOnly={readOnly}
         onNotice={onNotice}
+        prefix={prefix}
       />
     )
   }
@@ -142,6 +143,7 @@ export const ChatMessage = memo(function ChatMessage({
         queryKey={queryKey}
         readOnly={readOnly}
         onNotice={onNotice}
+        prefix={prefix}
         systemNote
       />
     )
@@ -250,6 +252,11 @@ function coworkerMessageMetadata(item: ChatMessageItem): CoworkerMessageMetadata
   return item.content.coworker_message as CoworkerMessageMetadata
 }
 
+function bridgedCoworkerMessageMetadata(item: ChatMessageItem): CoworkerMessageMetadata | null {
+  if (item.cross_chat_bridge?.direction !== "inbound" || !item.coworker_sender) return null
+  return { direction: "incoming", sender_handle: item.coworker_sender.handle }
+}
+
 export function withoutCoworkerMessagePrefix(text: string, direction: "from" | "to", handle?: string) {
   if (!handle) return text
   const prefix = `Message ${direction} @${handle}`
@@ -266,6 +273,7 @@ function CoworkerMessage({
   queryKey,
   readOnly,
   onNotice,
+  prefix,
   systemNote = false
 }: {
   appearance: ChatMessageItem["coworker_sender"]
@@ -277,6 +285,7 @@ function CoworkerMessage({
   queryKey: ChatQueryKey
   readOnly: boolean
   onNotice: (message: string | null) => void
+  prefix: string
   systemNote?: boolean
 }) {
   const { t } = useT("chat")
@@ -304,6 +313,17 @@ function CoworkerMessage({
             <span className="truncate font-normal text-text-muted">{t("coworker_message_to", { handle: fallbackHandle })}</span>
           ) : null}
         </div>
+        {item.cross_chat_bridge?.direction === "inbound" ? (
+          <div className="flex items-center gap-2 text-xs font-normal text-text-muted" data-testid="cross-chat-bridge-chip">
+            <span aria-hidden="true">🔗</span>
+            <Link className="truncate underline hover:no-underline" to={withRoutePrefix(`/chats/${item.cross_chat_bridge.counterpart_chat_session_id}`, prefix)}>
+              {t("cross_chat_bridge_link", {
+                id: item.cross_chat_bridge.counterpart_chat_session_id,
+                title: item.cross_chat_bridge.counterpart_chat_title || t("new_title")
+              })}
+            </Link>
+          </div>
+        ) : null}
         {text.trim() ? <ChatAssistantMarkdownSurface text={text} /> : null}
         <MessageImageAttachments attachments={item.attachments} />
         <MessageFileAttachments attachments={item.attachments} />
