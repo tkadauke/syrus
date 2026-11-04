@@ -449,18 +449,22 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
     evaluate_response = subject_evaluate_response(rect: { x: 0, y: 100, width: 240, height: 60 })
     screenshot_response = MCP::Tool::Response.new([ { type: "image", data: png_base64, mimeType: "image/png" } ])
     allow(described_class).to receive(:call_browser_tool).and_return(evaluate_response, screenshot_response, MCP::Tool::Response.new([ { type: "text", text: "{}" } ]))
+    provider = double("snapshot provider", snapshot_token_current?: true)
+    allow(described_class).to receive(:browser_tool_provider).with(run, "browser_snapshot").and_return(provider)
 
-    allow(described_class).to receive(:fresh_snapshot?).with(run, "snapshot-4-abc").and_return(true)
     response = described_class.call(
       type: "visual_review_screenshot", title: "Card",
       subject: { type: "snapshot_ref", ref: "e12", snapshot_token: "snapshot-4-abc" }, server_context: { run: run }
     )
 
     expect(response).not_to be_error
+    expect(provider).to have_received(:snapshot_token_current?).with(
+      server_context: { run: run }, token: "snapshot-4-abc"
+    )
     expect(described_class).to have_received(:call_browser_tool).with(
       run, "browser_evaluate", hash_including("target" => "e12", "element" => "visual artifact subject")
-    ).ordered
-    expect(described_class).to have_received(:call_browser_tool).with(run, "browser_screenshot", {}).ordered
+    )
+    expect(described_class).to have_received(:call_browser_tool).with(run, "browser_screenshot", {})
   end
 
   it "rejects an ambiguous accessibility role before browser evaluation" do

@@ -366,10 +366,10 @@ module SyrusMcp
       end
 
       def fresh_snapshot?(run, token)
-        context = SyrusBrowser::SessionContext.resolve(run: run)
-        SyrusBrowser::SnapshotFreshness.current?(context.session_key, token)
-      rescue NameError
-        false
+        provider = browser_tool_provider(run, "browser_snapshot")
+        return false unless provider&.respond_to?(:snapshot_token_current?)
+
+        provider.snapshot_token_current?(server_context: { run: run }, token: token)
       end
 
       def normalize_minimum_visible_fraction(value)
