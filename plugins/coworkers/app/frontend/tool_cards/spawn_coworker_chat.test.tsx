@@ -14,7 +14,7 @@ const context: ToolCardContext = {
 it("identifies a same-coworker side chat and points engineering work to the Syrus tool", () => {
   expect(card.collapsedSummary?.(context)).toBe("Start side chat of this coworker")
   render(<>{card.renderExpanded(context)}</>)
-  expect(screen.getByText("Start side chat of this coworker")).toHaveClass("min-w-0", "break-words")
+  expect(screen.getByText("Start side chat of this coworker")).toHaveClass("w-0", "min-w-0", "flex-1", "whitespace-normal", "break-words")
   expect(screen.getByText("Not a Syrus planner chat")).toBeInTheDocument()
   expect(screen.getByText(/spawn_syrus_chat/)).toBeInTheDocument()
 })
