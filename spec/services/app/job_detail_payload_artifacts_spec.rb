@@ -68,7 +68,11 @@ RSpec.describe App::JobDetailPayload do
 
     serialized = workflows_payload_for(job).fetch(:workflows).find { |entry| entry[:id] == workflow.id }
     expect(serialized.dig(:artifacts, "security_review_iterations")).to contain_exactly(
-      include("verdict" => "approved", "critique" => "No blocking security issues.")
+      include(
+        "verdict" => "approved",
+        "critique" => "No blocking security issues.",
+        "review_evidence" => { "state" => "legacy" }
+      )
     )
   end
 
@@ -87,7 +91,9 @@ RSpec.describe App::JobDetailPayload do
 
     serialized = workflows_payload_for(job).fetch(:workflows).find { |entry| entry[:id] == workflow.id }
 
-    expect(serialized.dig(:artifacts, "adversarial_review_iterations")).to eq(panel_entries)
+    expect(serialized.dig(:artifacts, "adversarial_review_iterations")).to eq(
+      panel_entries.map { |entry| entry.merge("review_evidence" => { "state" => "legacy" }) }
+    )
   end
 
   describe "resource admission diagnostics visibility" do

@@ -5,12 +5,14 @@ module AgentProviders
     include Syrus::Plugin::AgentProvider
 
     SESSION_ID_PATTERN = /\A[A-Za-z0-9_-]+\z/
+    DEFAULT_MODEL = "claude-sonnet-4-6".freeze
 
     def self.provider_key = "claude"
     def self.display_name = "Claude Code"
     def self.available?   = true
 
     def self.provider = "claude"
+    def self.default_model = DEFAULT_MODEL
     def self.credential_attributes = %i[claude_oauth_token]
 
     def self.configured_for_user?(user)

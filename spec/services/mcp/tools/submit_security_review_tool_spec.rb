@@ -25,4 +25,26 @@ RSpec.describe Mcp::Tools::SubmitSecurityReviewTool do
     response = described_class.call(critique: "Maybe", verdict: "unknown", server_context: { run: run })
     expect(response).to be_error
   end
+
+
+  it "rejects a verdict when the frozen source changed" do
+    evidence = ReviewEvidence.create!(
+      run: run, workflow: run.workflow, step: run.step, review_kind: "security",
+      provider: "codex", model: "gpt-test", reviewed_base_sha: "a" * 40,
+      reviewed_head_sha: "b" * 40, canonical_diff_sha256: "c" * 64,
+      prompt_version: "1", checklist_version: "d" * 64, tool_policy_version: "1"
+    )
+    allow(ReviewEvidence::CanonicalDiff).to receive(:snapshot)
+      .and_return(head_sha: "e" * 40, sha256: "f" * 64)
+
+    response = described_class.call(
+      critique: "Looks clean.", verdict: "approved", server_context: { run: run }
+    )
+
+    expect(response).to be_error
+    expect(run.workflow.reload.artifact("security_review_iterations")).to be_nil
+    expect(evidence.reload).to have_attributes(
+      state: "stale", terminal_failure_code: "review_evidence_mismatch"
+    )
+  end
 end
