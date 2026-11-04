@@ -12,8 +12,8 @@ module Permissions
   # 3. +ExecutionCeiling+ limits (confinement, network profile, provider
   #    ceilings) then lower the result further. They can never raise it.
   class ExecutionAuthorization
-    Result = Data.define(:decision, :policy, :ceilings, :subject, :fresh_authentication) do
-      def initialize(fresh_authentication: nil, **attributes) = super
+    Result = Data.define(:decision, :policy, :ceilings, :subject, :fresh_authentication, :reservation) do
+      def initialize(fresh_authentication: nil, reservation: nil, **attributes) = super
 
       def allowed? = policy == :allow
       def ask? = policy == :ask
@@ -40,11 +40,33 @@ module Permissions
     def authorize
       descriptor = ExecutionActions.descriptor_for(@subject.location)
       arguments = ExecutionActions.arguments_for(@subject)
-      decisions = @contexts.map { |context| [ context, decision_for(descriptor, arguments, context, consume: false) ] }
-      winning_context, decision = decisions.min_by do |_context, candidate|
-        [ PolicyEvaluator::POLICY_RANK.fetch(candidate.policy), candidate.decisive_rule ? 0 : 1 ]
+      decisions = @contexts.map { |context| [ context, authorization_for(descriptor, arguments, context, consume: false) ] }
+      winning_context, authorization = decisions.min_by do |_context, candidate|
+        [ PolicyEvaluator::POLICY_RANK.fetch(candidate.decision.policy), candidate.decision.decisive_rule ? 0 : 1 ]
       end
-      decision = decision_for(descriptor, arguments, winning_context, consume: true) if @owner && decision.allow?
+      decision = authorization.decision
+      policy, fresh, applied = effective_policy(descriptor, decision)
+      reservation = nil
+
+      if @owner && policy == :allow
+        authorization = authorization_for(descriptor, arguments, winning_context, consume: true)
+        decision = authorization.decision
+        policy, fresh, applied = effective_policy(descriptor, decision)
+        reservation = authorization.reservation if policy == :allow && authorization.lease
+      end
+
+      # Budget observers see the outcome only; they cannot change it.
+      EffectMetadata.notify(descriptor, decision, policy:)
+      Result.new(decision:, policy:, ceilings: applied, subject: @subject, fresh_authentication: fresh, reservation:)
+    end
+
+    private
+
+    Authorization = Data.define(:decision, :lease) do
+      def reservation = LeaseAuthorizer::Reservation.new(lease)
+    end
+
+    def effective_policy(descriptor, decision)
       effects = decision.invocation.effects
       policy = decision.policy
 
@@ -54,20 +76,20 @@ module Permissions
 
       policy, fresh = FreshAuthentication.apply(policy, descriptor:, authenticated_at: @authenticated_at)
       policy, applied = @ceiling.apply(policy, effects:, subject: @subject)
-      # Budget observers see the outcome only; they cannot change it.
-      EffectMetadata.notify(descriptor, decision, policy:)
-      Result.new(decision:, policy:, ceilings: applied, subject: @subject, fresh_authentication: fresh)
+      [ policy, fresh, applied ]
     end
 
-    private
-
-    def decision_for(descriptor, arguments, selector_context, consume:)
+    def authorization_for(descriptor, arguments, selector_context, consume:)
       context = @context.merge(selector_context)
-      return PolicyEvaluator.new(descriptor:, role: @role, resource_scope: {}, rules: @rules, context:, arguments:).call unless @owner
+      unless @owner
+        decision = PolicyEvaluator.new(descriptor:, role: @role, resource_scope: {}, rules: @rules, context:, arguments:).call
+        return Authorization.new(decision:, lease: nil)
+      end
 
       method = consume ? :call : :explain
-      LeaseAuthorizer.public_send(method, descriptor:, owner: @owner, role: @role, resource_scope: {},
-        rules: @rules, context:, arguments:).decision
+      result = LeaseAuthorizer.public_send(method, descriptor:, owner: @owner, role: @role, resource_scope: {},
+        rules: @rules, context:, arguments:)
+      Authorization.new(decision: result.decision, lease: result.lease)
     end
   end
 end

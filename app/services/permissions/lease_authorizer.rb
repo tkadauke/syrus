@@ -1,5 +1,22 @@
 module Permissions
   class LeaseAuthorizer
+    class Reservation
+      def initialize(lease)
+        @lease = lease
+        @committed = false
+      end
+
+      def commit! = @committed = true
+
+      def release!
+        return if @committed || !@lease
+
+        PermissionLease.where(id: @lease.id).where("used_count > 0")
+          .update_all("used_count = used_count - 1")
+        @lease = nil
+      end
+    end
+
     Result = Data.define(:decision, :lease) do
       def authorized? = decision.allow?
     end

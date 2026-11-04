@@ -25,9 +25,13 @@ module Execution
     def run(request)
       validate_request!(request)
       backend = backend_for(request)
-      authorize!(request, backend)
+      authorization = authorize!(request, backend)
+      request = with_authority_commit(request, authorization)
       WorkspaceReuseOutcomes::Recorder.note_backend(run: request.run, backend: backend_identity(backend))
       backend.run(request)
+    rescue StandardError
+      authorization&.reservation&.release!
+      raise
     end
 
     private
@@ -39,6 +43,18 @@ module Execution
       result = authorizer&.call(request, location:)
       return unless result
       raise NotAuthorized, result unless result.allowed?
+
+      result
+    end
+
+    def with_authority_commit(request, authorization)
+      return request unless authorization&.reservation
+
+      callback = request.on_spawned_process
+      request.with(on_spawned_process: lambda do |process|
+        authorization.reservation.commit!
+        callback&.call(process)
+      end)
     end
 
     def backend_identity(backend)
