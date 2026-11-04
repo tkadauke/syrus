@@ -768,7 +768,8 @@ function RoutingCandidateRow({
         <option value="">{t("provider_routing.provider_only_reviewer")}</option>
         {(options.reviewer_targets || []).map((target) => (
           <option key={`${target.type}:${target.reference}`} value={`${target.type}:${target.reference}`}>
-            {target.display_snapshot.name}{target.display_snapshot.handle ? ` (@${target.display_snapshot.handle})` : ""}
+            {target.display_snapshot.name}
+            {target.display_snapshot.handle ? ` (@${target.display_snapshot.handle})` : ""}
           </option>
         ))}
       </Select>

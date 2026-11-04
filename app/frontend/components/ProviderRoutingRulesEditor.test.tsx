@@ -22,9 +22,7 @@ const options: ProviderRoutingOptions = {
     { value: "low", label: "Low" },
     { value: "high", label: "High" }
   ],
-  reviewer_targets: [
-    { type: "coworker", reference: "coworker:17", display_snapshot: { name: "Ada", handle: "ada", role_summary: "Security reviewer" } }
-  ],
+  reviewer_targets: [{ type: "coworker", reference: "coworker:17", display_snapshot: { name: "Ada", handle: "ada", role_summary: "Security reviewer" } }],
   triggers: {
     step_kinds: [
       { value: "implement", label: "Implement" },
@@ -262,10 +260,12 @@ describe("ProviderRoutingRulesEditor", () => {
         reviewRule,
         expect.objectContaining({
           action: expect.objectContaining({
-            candidates: [expect.objectContaining({
-              provider: "codex",
-              reviewer_target: expect.objectContaining({ type: "coworker", reference: "coworker:17" })
-            })]
+            candidates: [
+              expect.objectContaining({
+                provider: "codex",
+                reviewer_target: expect.objectContaining({ type: "coworker", reference: "coworker:17" })
+              })
+            ]
           })
         })
       )
