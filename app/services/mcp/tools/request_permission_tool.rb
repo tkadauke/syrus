@@ -24,7 +24,7 @@ module Mcp::Tools
     class << self
       def call(server_context:, capability:, operation:, purpose:, resource_scope: {}, constraints: {}, duration: nil)
         context = McpToolContext.from_server_context(server_context)
-        result = Permissions::CoworkerPermissionRequest.new(
+        result = Permissions::PermissionRequest.new(
           context:, capability:, operation:, purpose:, resource_scope:, constraints:, duration:,
           origin_message_id: server_context[:current_message]&.id
         ).call
