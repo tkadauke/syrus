@@ -164,6 +164,16 @@ RSpec.describe Coworkers::Create, :allow_host_execution do
     ))
   end
 
+  it "preserves configured grant constraints in canonical rules" do
+    coworker = create_service(grants: [ { capability: "workspace.files",
+      constraints: { "confirm_paths" => [ "SOUL.md" ] } } ]).call
+
+    expect(coworker.permission_rules.entries).to include(include(
+      capability: "workspace.files", approval_policy: "auto",
+      constraints: { "confirm_paths" => [ "SOUL.md" ] }
+    ))
+  end
+
   it "returns the completed coworker for duplicate delivery without duplicating records or branches" do
     key = "confirmation-42"
     allow(ChatTurnJob).to receive(:perform_later).and_call_original
