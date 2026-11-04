@@ -627,7 +627,10 @@ class Workflow < ApplicationRecord
     else
       workflow_artifact_values.find_by(key: key)
     end
-    return external.value if external
+    # Match the old JSON-column behavior: callers receive a value snapshot,
+    # not the serialized association's mutable object. Mutating that object
+    # in place can otherwise make a later locked writer appear unchanged.
+    return external.value.deep_dup if external
 
     self[:artifacts].to_h[key]
   end
@@ -659,22 +662,22 @@ class Workflow < ApplicationRecord
   # against the locked current row rather than a possibly stale instance copy.
   def set_artifact!(key, value)
     key = key.to_s
-    staged_value = value
     self.class.transaction do
       locked = self.class.lock.find(id)
       if value.nil?
         locked.workflow_artifact_values.where(key: key).delete_all
       else
         entry = locked.workflow_artifact_values.find_or_initialize_by(key: key)
-        entry.update!(value: value)
-        staged_value = entry.value
+        entry.value = value
+        # Serialized values may have been read and mutated through another
+        # Workflow instance. Force the targeted write instead of relying on
+        # serialized dirty tracking to notice the replacement.
+        entry.new_record? ? entry.save! : entry.update_column(:value, value)
       end
       if defined?(@assigned_external_artifacts) && @assigned_external_artifacts
-        if value.nil?
-          @assigned_external_artifacts.delete(key)
-        else
-          @assigned_external_artifacts[key] = staged_value
-        end
+        # This key has been persisted directly; do not leave a staged copy
+        # that can survive reload and mask a later write from another instance.
+        @assigned_external_artifacts.delete(key)
       end
       workflow_artifact_values.reset
       value
