@@ -895,7 +895,7 @@ module Api
           chat_session = find_chat_session
           pending_action = find_pending_action(chat_session)
           item = pending_action.authorization_items.find(params[:item_id])
-          Permissions::CoworkerAuthorizationDecision.new(
+          Permissions::AuthorizationDecision.new(
             request: pending_action, item:, user: Current.user
           ).call(decision: params.require(:decision))
 
@@ -909,7 +909,7 @@ module Api
           chat_session = find_chat_session
           pending_action = find_pending_action(chat_session)
           item = pending_action.authorization_items.find(params[:item_id])
-          Permissions::CoworkerAuthorizationDecision.new(request: pending_action, item:, user: Current.user)
+          Permissions::AuthorizationDecision.new(request: pending_action, item:, user: Current.user)
             .call(decision: "approved", smart: { duration: params.require(:duration).to_s, digest: params[:digest].to_s })
 
           render json: chat_payload(chat_session.reload, message: t("api.chats.messages.authorization_item_decided"))

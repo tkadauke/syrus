@@ -223,6 +223,7 @@ class McpToolRegistry
         legacy_chat(Mcp::Tools::DeleteProposalTool, mutation: true),
         legacy_chat(Mcp::Tools::WithdrawPendingActionTool, mutation: true),
         permission_management_chat(Mcp::Tools::ListPermissionsTool),
+        permission_management_chat(Mcp::Tools::RequestPermissionTool, mutation: true),
         permission_management_chat(Mcp::Tools::ExplainPermissionTool),
         permission_management_chat(Mcp::Tools::GrantPermissionTool, mutation: true),
         permission_management_chat(Mcp::Tools::DenyPermissionTool, mutation: true),

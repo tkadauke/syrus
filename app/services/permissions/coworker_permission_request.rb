@@ -42,7 +42,7 @@ module Permissions
     end
 
     def call
-      assert_coworker!
+      assert_self_request!
       raise Rejected.new(:purpose_required, "purpose is required") if purpose.blank?
       descriptor = find_descriptor
       offered = offered_durations(descriptor)
@@ -74,22 +74,24 @@ module Permissions
     attr_reader :context, :capability, :operation, :purpose, :resource_scope, :constraints, :duration, :origin_message_id
 
     def coworker = context.agent_actor
+    def subject = coworker || owner
     def owner = context.user
 
-    def assert_coworker!
+    def assert_self_request!
       return if context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]) && coworker &&
         RuleDraft.agent_subject_class(coworker.class.name) && coworker.owner_user_id == owner.id
+      return if AgentRole::CHAT_ROLES.include?(context.role) && context.chat_session&.user_id == owner.id
 
-      raise Rejected.new(:not_a_coworker, "only a coworker can request authority for itself")
+      raise Rejected.new(:invalid_requester, "only the current agent can request authority for itself")
     end
 
     def find_descriptor
       descriptor = Catalog.find!(capability:, operation:)
-      if descriptor.capability.sub(/@v\d+\z/, "") == PROTECTED_CAPABILITY.sub(/@v\d+\z/, "")
+      if coworker && descriptor.capability.sub(/@v\d+\z/, "") == PROTECTED_CAPABILITY.sub(/@v\d+\z/, "")
         raise Rejected.new(:protected_capability, "permission administration cannot be requested by a coworker")
       end
       unless descriptor.requestable_roles.include?(context.role)
-        raise Rejected.new(:role_not_eligible, "this operation cannot be granted to a coworker")
+        raise Rejected.new(:role_not_eligible, "this operation cannot be granted to this agent")
       end
 
       descriptor
@@ -98,10 +100,11 @@ module Permissions
     end
 
     def draft_for(descriptor, requested_duration)
+      selector_type, selector_id = subject_selector
       RuleDraft.new(user: owner, attributes: {
         "policy" => "allow", "duration" => requested_duration, "role" => context.role,
-        "subject_selector_type" => "agent", "subject_selector_id" => coworker.id.to_s,
-        "subject_type" => coworker.class.name, "subject_repository_id" => context.repository&.id,
+        "subject_selector_type" => selector_type, "subject_selector_id" => selector_id,
+        "subject_type" => (coworker.class.name if coworker), "subject_repository_id" => context.repository&.id,
         "capability" => descriptor.capability, "operation" => descriptor.operation,
         "resource_scope" => resource_scope, "constraints" => constraints,
         "chat_session_id" => context.chat_session&.id
@@ -128,9 +131,10 @@ module Permissions
     end
 
     def evaluation_context
+      selector_type, selector_id = subject_selector
       {
-        role: context.role, agent_id: coworker.id, subject_selector_type: "agent",
-        subject_selector_id: coworker.id.to_s, subject_repository_id: context.repository&.id,
+        role: context.role, agent_id: coworker&.id, subject_selector_type: selector_type,
+        subject_selector_id: selector_id, subject_repository_id: context.repository&.id,
         chat_session_id: context.chat_session&.id
       }.compact
     end
@@ -147,9 +151,9 @@ module Permissions
     end
 
     def deduplication_key(descriptor, scope)
-      material = [ coworker.class.name, coworker.id, owner.id, context.repository&.id, descriptor.capability,
+      material = [ subject.class.name, subject.id, context.role, context.repository&.id, descriptor.capability,
         descriptor.operation, scope, constraints.deep_stringify_keys.sort.to_h ]
-      "coworker-permission-request:#{Digest::SHA256.hexdigest(JSON.generate(canonical(material)))}"
+      "permission-request:#{Digest::SHA256.hexdigest(JSON.generate(canonical(material)))}"
     end
 
     def canonical(value)
@@ -162,10 +166,12 @@ module Permissions
 
     def requests
       ChatPendingAction.where(request_kind: "authorization_request", action: ACTION,
-        subject_type: coworker.class.name, subject_id: coworker.id)
+        subject_type: subject.class.polymorphic_name, subject_id: subject.id)
     end
 
     def enforce_limits!(key)
+      return unless coworker
+
       denied = requests.where(deduplication_key: key, state: "rejected").where(rejected_at: RENEWAL_COOLDOWN.ago..).exists?
       limited = if denied
         [ :recently_denied, "the owner denied an equivalent request moments ago; do not ask again right now" ]
@@ -185,11 +191,11 @@ module Permissions
       ChatPendingAction.transaction do
         request = ChatPendingAction.create_or_find_authorization_request!(
           chat_session: context.chat_session, repository: context.repository, user: owner,
-          origin: context.run || context.chat_session, subject: coworker, runtime_role: context.role,
+          origin: context.run || context.chat_session, subject:, runtime_role: context.role,
           action: ACTION, state: "pending", requested_by: "agent", deduplication_key: key, purpose:,
           payload: { "requested_duration" => requested, "approval_policy" => "queue", "approval_inbox" => true,
                      "origin_message_id" => origin_message_id,
-                     "actor" => Mcp::Tools::AuthorizationSupport.approval_actor(coworker) }.compact
+                     "actor" => Mcp::Tools::AuthorizationSupport.approval_actor(subject) }.compact
         )
         request.authorization_items.create!(item_attributes(descriptor, scope, offered)) if request.authorization_items.empty?
         request
@@ -209,8 +215,18 @@ module Permissions
     end
 
     def audit(event, request, requested)
+      return unless coworker
+
       CoworkerAudit.record!(event, owner:, coworker:, authorization_request_id: request.id,
         capability:, operation:, requested_duration: requested, repository_id: context.repository&.id)
+    end
+
+
+    def subject_selector
+      return [ "agent", coworker.id.to_s ] if coworker
+
+      matching = PermissionRule::SUBJECT_SELECTORS.find { |_type, metadata| metadata[:role] == context.role }
+      matching ? [ matching.first, nil ] : [ "workflow_role", context.role ]
     end
   end
 end

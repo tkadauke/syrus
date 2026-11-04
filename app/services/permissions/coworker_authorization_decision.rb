@@ -9,7 +9,7 @@ module Permissions
     end
 
     def call(decision:, smart: nil)
-      raise ArgumentError, "not a coworker authorization request" unless request.authorization_request? && request.action.in?(SmartDecision::SUPPORTED_ACTIONS)
+      raise ArgumentError, "not an authorization request" unless request.authorization_request?
       raise ActiveRecord::RecordNotFound, "authorization request belongs to another user" unless request.user == user
       raise ArgumentError, "authorization item belongs to another request" unless item.chat_pending_action_id == request.id
 
@@ -36,6 +36,13 @@ module Permissions
           end
           request.update!(state: "rejected", rejected_at: Time.current)
           audit(:coworker_permission_request_denied)
+          if request.checkpoint_state.present?
+            ActiveRecord.after_all_transactions_commit do
+              AuthorizationContinuations::Coordinator.call(
+                request:, outcome: "denied", denial_reason: "The operator denied this operation"
+              )
+            end
+          end
           return Result.new(request:, execution_enqueued: false)
         end
 
@@ -61,7 +68,7 @@ module Permissions
     attr_reader :request, :item, :user
 
     def audit(event, **details)
-      return unless request.action == CoworkerPermissionRequest::ACTION && request.subject
+      return unless request.action == CoworkerPermissionRequest::ACTION && coworker_request? && request.subject
 
       CoworkerAudit.record!(event, owner: user, coworker: request.subject, authorization_request_id: request.id,
         capability: item.capability, operation: item.operation, **details)
@@ -70,9 +77,10 @@ module Permissions
     def issue_invocation!(operation)
       descriptor = permission_descriptor
       arguments = request.payload.fetch("arguments")
+      selector_type, selector_id = subject_selector
       authority = Management.new(user).grant_authority!(
         duration: :invocation, descriptor:, actor: user,
-        subject_selector_type: "agent", subject_selector_id: request.subject_id,
+        subject_selector_type: selector_type, subject_selector_id: selector_id,
         subject_repository: request.repository, role: request.runtime_role,
         resource_scope: operation.resource_scope, arguments:,
         context: evaluation_context, source: request
@@ -84,6 +92,8 @@ module Permissions
     end
 
     def permission_descriptor
+      return actor_permission_descriptor unless coworker_request?
+
       catalog_entry = Mcp::CoworkerToolCatalog.resolve(request.payload.fetch("tool_name"), chat_session: request.chat_session)
       raise ArgumentError, "tool is not available to coworkers" unless catalog_entry
 
@@ -94,16 +104,38 @@ module Permissions
       end || raise(ArgumentError, "tool has no permission descriptor")
     end
 
+    def actor_permission_descriptor
+      surface = request.chat_session_id? ? :chat : :workflow
+      entry = McpToolRegistry.entries(surface:).find do |candidate|
+        McpToolRegistry.tool_name_for(candidate.tool) == request.payload.fetch("tool_name")
+      end
+      entry&.descriptor || raise(ArgumentError, "tool is no longer available to this actor")
+    end
+
+    def coworker_request?
+      request.runtime_role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+    end
+
     def evaluation_context
+      selector_type, selector_id = subject_selector
       {
         role: request.runtime_role,
-        agent_id: request.subject_id,
-        subject_selector_type: "agent",
-        subject_selector_id: request.subject_id.to_s,
+        agent_id: (request.subject_id if selector_type == "agent"),
+        subject_selector_type: selector_type,
+        subject_selector_id: selector_id,
         subject_repository_id: request.repository_id,
         chat_session_id: request.chat_session_id,
         job_id: (request.origin_id if request.origin_type == "Job")
       }.compact
+    end
+
+    def subject_selector
+      return [ "agent", request.subject_id.to_s ] if coworker_request?
+
+      matching = PermissionRule::SUBJECT_SELECTORS.find { |_type, metadata| metadata[:role] == request.runtime_role }
+      return [ matching.first, nil ] if matching
+
+      [ "workflow_role", request.runtime_role ]
     end
   end
 end
