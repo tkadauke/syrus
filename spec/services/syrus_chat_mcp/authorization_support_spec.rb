@@ -299,6 +299,40 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
       )
     end
   end
+
+  describe ".pending_actor_approval" do
+    it "creates a redacted resumable request for an ordinary chat actor" do
+      actor_tool = Class.new(MCP::Tool) do
+        tool_name "send_external_message"
+        input_schema(properties: { body: { type: "string" }, token: { type: "string" } })
+      end
+      generated = Permissions::CapabilityDescriptorAdapter.for_registry_entry(
+        tool_name: "send_external_message", capability: "communication.chat", mutation: true,
+        required_roles: [ AgentRole::CHAT_PLANNER ]
+      )
+      descriptor = Permissions::CapabilityDescriptor.new(**generated.to_h.merge(
+        defaults: { AgentRole::CHAT_PLANNER => :ask },
+        redactor: ->(arguments) { arguments.merge(token: "[REDACTED]") }
+      ))
+      entry = Struct.new(:descriptor).new(descriptor)
+      allow(McpToolRegistry).to receive(:entry_for).with(actor_tool).and_return(entry)
+
+      response = described_class.pending_actor_approval(
+        actor_tool, { chat_session: }, { body: "hello", token: "secret" }
+      )
+      payload = JSON.parse(response.content.first[:text])
+      request = ChatPendingAction.find(payload.fetch("authorization_request_id"))
+
+      expect(request).to have_attributes(
+        subject: user, origin: chat_session, runtime_role: AgentRole::CHAT_PLANNER,
+        checkpoint_state: "waiting", action: "authorized_tool_call"
+      )
+      expect(PendingActions.for(request.action)).to eq(PendingActions::AuthorizedToolCall)
+      expect(request.authorization_items.sole.normalized_arguments)
+        .to eq("body" => "hello", "token" => "[REDACTED]")
+    end
+  end
+
   it "routes scheduled tool calls through the shared authorization request" do
     job = Factories.job_record(user:, repository:, kind: "cron", scheduled_task_id: 41, issue_number: nil)
     run = Factories.run(job:, user:)
