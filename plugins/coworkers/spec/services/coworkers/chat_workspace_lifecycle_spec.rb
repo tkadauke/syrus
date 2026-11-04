@@ -123,7 +123,7 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle do
     expect(home_file("memory/daily.md")).to include("first append", "second append")
   end
 
-  it "keeps a real conflict in the chat checkout and posts visible Markdown file links" do
+  it "silently lets the coworker resolve a real conflict on the next turn" do
     first = chat
     second = chat
     first_lifecycle = lifecycle(first)
@@ -134,20 +134,63 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle do
     write(second_path, "SOUL.md", "role: second\n")
     first_lifecycle.finalize!
 
-    expect { second_lifecycle.finalize! }.to change(second.messages, :count).by(1)
-    conflict = second.messages.last.content.fetch("coworker_workspace_conflict")
-    visible_text = second.messages.last.content.fetch("text")
-    expect(conflict.fetch("files")).to eq([ "SOUL.md" ])
-    expect(conflict.fetch("links").first).to include("/chats/#{second.id}", "SOUL.md")
-    expect(visible_text).to include("[SOUL.md](#{conflict.fetch('links').first})")
-    expect(second.messages.last.content.fetch("body_format")).to eq("markdown")
-    expect(second.messages.last.content.fetch("prominent")).to be(true)
-    expect(second.messages.last.content).to include("system_label" => "Workspace conflict", "system_tone" => "warning")
+    expect { second_lifecycle.finalize! }.not_to change(second.messages, :count)
+    conflict = Coworkers::WorkspaceConflict.active.find_by!(chat_session: second)
+    expect(conflict.files).to eq([ "SOUL.md" ])
     expect(second_path.join("SOUL.md").read).to include("<<<<<<<", "role: first", "role: second")
     expect(home_file("SOUL.md")).to eq("role: first\n")
 
-    expect { second_lifecycle.finalize! }.to change(second.messages, :count).by(1)
-    expect(run_git("status", "--porcelain", chdir: second_path)).to include("UU SOUL.md")
+    concurrent = lifecycle(chat)
+    concurrent_path = concurrent.prepare!
+    write(concurrent_path, "concurrent.md", "home moved\n")
+    concurrent.finalize!
+
+    write(second_path, "SOUL.md", "role: first and second\n")
+    expect { second_lifecycle.finalize! }.not_to change(second.messages, :count)
+    expect(conflict.reload.state).to eq("resolved")
+    expect(run_git("status", "--porcelain", chdir: second_path)).to be_blank
+    expect(home_file("SOUL.md")).to eq("role: first and second\n")
+    expect(home_file("concurrent.md")).to eq("home moved\n")
+  end
+
+  it "warns once after bounded conflict validation failures" do
+    first = chat
+    second = chat
+    first_service = lifecycle(first)
+    second_service = lifecycle(second)
+    write(first_service.prepare!, "SOUL.md", "role: first\n")
+    second_path = second_service.prepare!
+    write(second_path, "SOUL.md", "role: second\n")
+    first_service.finalize!
+    second_service.finalize!
+
+    expect { second_service.finalize! }.not_to change(second.messages, :count)
+    expect { second_service.finalize! }.to change(second.messages, :count).by(1)
+    expect { second_service.finalize! }.not_to change(second.messages, :count)
+    expect(second.messages.last.content.fetch("coworker_workspace_conflict").fetch("files")).to eq([ "SOUL.md" ])
+  end
+
+  it "keeps a diff-check validation failure private and accepts a corrected retry" do
+    first = chat
+    second = chat
+    first_service = lifecycle(first)
+    second_service = lifecycle(second)
+    write(first_service.prepare!, "SOUL.md", "role: first\n")
+    second_path = second_service.prepare!
+    write(second_path, "SOUL.md", "role: second\n")
+    first_service.finalize!
+    second_service.finalize!
+
+    write(second_path, "SOUL.md", "role: combined \n")
+    expect { second_service.finalize! }.not_to change(second.messages, :count)
+    conflict = Coworkers::WorkspaceConflict.active.find_by!(chat_session: second)
+    conflict.reload
+    expect(conflict).to have_attributes(attempt_count: 1)
+    expect(conflict.detail).to include("trailing whitespace")
+
+    write(second_path, "SOUL.md", "role: combined\n")
+    expect(second_service.finalize!).to eq(:merged)
+    expect(conflict.reload.state).to eq("resolved")
   end
 
   it "preserves a conflicting background run and surfaces it in the main chat" do
@@ -165,15 +208,13 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle do
       path: background_path, workflow: instance_double(Workflow, id: 47)
     )
 
-    expect(outcome).to eq(:conflict)
-    conflict = session.messages.last.content.fetch("coworker_workspace_conflict")
-    expect(conflict).to include(
-      "branch" => "coworkers/run/#{coworker.id}-47", "files" => [ "SOUL.md" ]
-    )
-    expect(conflict.fetch("ref")).to match(/\A[0-9a-f]{40}\z/)
-    expect(conflict.fetch("links").first).to include("ref=#{conflict.fetch('ref')}")
+    expect(outcome).to eq(:pending_resolution)
+    expect(session.messages).to be_empty
+    conflict = Coworkers::WorkspaceConflict.active.find_by!(chat_session: session)
+    expect(conflict).to have_attributes(source_branch: "coworkers/run/#{coworker.id}-47", files: [ "SOUL.md" ])
+    expect(conflict.recovery_ref).to match(/\A[0-9a-f]{40}\z/)
     expect(background_path.join("SOUL.md").read).to include("<<<<<<<", "role: foreground", "role: background")
-    preserved = run_git("show", "#{conflict.fetch('ref')}:SOUL.md", chdir: @remote)
+    preserved = run_git("show", "#{conflict.recovery_ref}:SOUL.md", chdir: @remote)
     expect(preserved).to include("<<<<<<<", "role: foreground", "role: background")
     expect(home_file("SOUL.md")).to eq("role: foreground\n")
   end

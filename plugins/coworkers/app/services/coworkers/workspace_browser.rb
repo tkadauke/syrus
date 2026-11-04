@@ -86,8 +86,8 @@ class Coworkers::WorkspaceBrowser
   def conflict_records
     chat_ids = @coworker.coworker_chats.select(:chat_session_id)
     @coworker.chat_agents.select(:chat_session_id).then { |rostered| chat_ids = ChatSession.where(id: chat_ids).or(ChatSession.where(id: rostered)).select(:id) }
-    ChatMessage.where(chat_session_id: chat_ids, role: "system").order(created_at: :desc).filter_map do |message|
-      message.content["coworker_workspace_conflict"] if message.content.is_a?(Hash)
+    Coworkers::WorkspaceConflict.active.where(chat_session_id: chat_ids, repository: @repository).order(created_at: :desc).map do |conflict|
+      { "branch" => conflict.source_branch, "files" => conflict.files, "detail" => conflict.detail }
     end
   end
 

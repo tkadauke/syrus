@@ -463,7 +463,7 @@ RSpec.describe "Coworker background runs" do
     expect(workflow.reload.artifact(Coworkers::PostToChat::MERGE_ARTIFACT)).to eq("merged")
   end
 
-  it "fails before the successor step can clean uncommitted workspace output" do
+  it "keeps a recoverable background conflict silent for the successor turn" do
     workflow = Coworkers::Workflow.instantiate(job: job)
     step = workflow.steps.find_by!(kind: "coworker_run")
     run = Run.create!(job: job, user: owner, step:, trigger_kind: "coworker_run", agent_provider: "codex")
@@ -471,18 +471,11 @@ RSpec.describe "Coworker background runs" do
     handler = Coworkers::RunStep.new(run)
     allow(handler).to receive(:workspace).and_return(workspace)
     allow(handler).to receive(:run_agent).and_return(instance_double(AgentInvocation::Result, final_text: "Memory updated."))
-    allow(lifecycle).to receive(:finalize_background!).and_return(:conflict)
+    allow(lifecycle).to receive(:finalize_background!).and_return(:pending_resolution)
 
-    expect { handler.call }.to raise_error(Coworkers::RunStep::PersistenceFailed, /remains recoverable/)
-    expect(run.reload.agent_summary).to include("Workspace persistence conflict")
-    expect(workflow.reload.artifact(Coworkers::PostToChat::MERGE_ARTIFACT)).to eq("failed")
-
-    run.update_columns(state: "failed", finished_at: Time.current)
-    step.update_columns(state: "failed")
-    expect { Coworkers::PostToChat.post_failure!(workflow) }.to change(main_chat.messages, :count).by(1)
-    expect(main_chat.messages.last.content.fetch("background_run")).to include(
-      "state" => "failed", "summary" => include("resolve the workspace conflict")
-    )
+    expect { handler.call }.not_to change(main_chat.messages, :count)
+    expect(run.reload.agent_summary).to eq("Memory updated.")
+    expect(workflow.reload.artifact(Coworkers::PostToChat::MERGE_ARTIFACT)).to eq("pending_resolution")
   end
 
   it "uses the final top-level assistant transcript when the stored summary is blank" do
