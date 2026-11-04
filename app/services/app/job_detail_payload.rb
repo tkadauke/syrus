@@ -72,6 +72,7 @@ module App
           attachments: PerformanceLogging.phase("job_detail.attachments", job_id: @job.id) { @job.job_attachments.includes(file_attachment: :blob).map { |attachment| attachment_json(attachment) } },
           pr_links: PerformanceLogging.phase("job_detail.pr_links", job_id: @job.id) { pr_links_json },
           typed_artifacts: PerformanceLogging.phase("job_detail.typed_artifacts", job_id: @job.id) { typed_artifacts_json },
+          visual_evidence: PerformanceLogging.phase("job_detail.visual_evidence", job_id: @job.id) { visual_evidence_json },
           coverage: PerformanceLogging.phase("job_detail.coverage", job_id: @job.id) { latest_coverage_json },
           summary: PerformanceLogging.phase("job_detail.summary", job_id: @job.id) { summary_json },
           test_plan: PerformanceLogging.phase("job_detail.test_plan", job_id: @job.id) { test_plan_json },
@@ -775,6 +776,33 @@ module App
           typed_artifact_json(entry, wf, renderer_map)
         end
       end
+    end
+
+    def visual_evidence_json
+      evidence = WorkflowVisualEvidence.joins(:workflow)
+        .merge(@job.workflows)
+        .includes(image_attachment: :blob)
+        .order(:captured_at, :id)
+
+      {
+        captured_count: evidence.size,
+        submitted_count: evidence.count(&:submitted?),
+        screenshots: evidence.map do |item|
+          {
+            id: item.stable_id,
+            workflow_id: item.workflow_id,
+            run_id: item.run_id,
+            sequence: item.sequence,
+            status: item.status,
+            captured_at: item.captured_at&.iso8601(3),
+            page: item.page_identity,
+            viewport: item.viewport,
+            device: item.device,
+            submission_failed: item.submission_failed_at.present?,
+            image_url: "/api/v1/app/jobs/#{@job.id}/visual_evidence/#{item.stable_id}"
+          }
+        end
+      }
     end
 
     def typed_artifact_json(entry, workflow, renderer_map)

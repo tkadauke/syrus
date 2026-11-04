@@ -1246,6 +1246,7 @@ export type JobDetailPayload = {
   attachments: JobAttachment[]
   pr_links: JobPrLink[]
   typed_artifacts: TypedArtifact[]
+  visual_evidence?: JobVisualEvidenceGallery
   coverage: { workflow_id: number; coverage: CoverageArtifact } | null
   summary: JobSummary | null
   test_plan: JobTestPlan | null
@@ -1268,6 +1269,26 @@ export type JobDetailPayload = {
   feature_flags?: Record<string, boolean>
   actions: JobActions
   paths: JobPaths
+}
+
+export type JobVisualEvidence = {
+  id: string
+  workflow_id: number
+  run_id: number
+  sequence: number
+  status: "draft" | "submitted"
+  captured_at: string
+  page?: { path?: string; title?: string } | null
+  viewport?: { width?: number; height?: number; device_scale_factor?: number } | null
+  device?: string | null
+  submission_failed: boolean
+  image_url: string
+}
+
+export type JobVisualEvidenceGallery = {
+  captured_count: number
+  submitted_count: number
+  screenshots: JobVisualEvidence[]
 }
 
 export type JobUnlandPlan = {

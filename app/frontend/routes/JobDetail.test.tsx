@@ -15,6 +15,7 @@ import { Page } from "../components/ui"
 import { TypedArtifactPanel } from "../components/artifacts/TypedArtifactPanel"
 import { FeedbackHistoryPanel, JobDetailRoute, JobDetailView, TestPlanPanel } from "./JobDetail"
 import { StepAdversarialReviewPanel, StepSecurityReviewPanel, StepVisualReviewPanel } from "./jobDetail/WorkflowGraph"
+import { VisualEvidenceGallery } from "./jobDetail/ReviewWorkspace"
 import { readJobNavigationContext, storeJobNavigationContext, type JobNavigationContext } from "../lib/jobNavigationContext"
 
 // Give feedback / Request changes / secondary triage actions now live in the
@@ -23,6 +24,37 @@ import { readJobNavigationContext, storeJobNavigationContext, type JobNavigation
 function openOverflowMenu() {
   fireEvent.click(screen.getByRole("button", { name: "More actions" }))
 }
+
+describe("VisualEvidenceGallery", () => {
+  const captured = {
+    id: "evidence-1",
+    workflow_id: 9,
+    run_id: 34,
+    sequence: 2,
+    status: "draft" as const,
+    captured_at: "2026-11-04T10:00:00.000Z",
+    page: { path: "/dashboard", title: "Dashboard" },
+    viewport: { width: 390, height: 844 },
+    submission_failed: true,
+    image_url: "/api/v1/app/jobs/1/visual_evidence/evidence-1"
+  }
+
+  it("defaults to curated evidence and links directly to retained captures when none was submitted", () => {
+    render(<VisualEvidenceGallery approved gallery={{ captured_count: 1, submitted_count: 0, screenshots: [captured] }} />)
+
+    expect(screen.getByText("Approved without curated evidence.")).toBeInTheDocument()
+    expect(screen.queryByRole("img", { name: "Dashboard" })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "View captured screenshots" }))
+    expect(screen.getByRole("img", { name: "Dashboard" })).toHaveAttribute("src", captured.image_url)
+    expect(screen.getByText("Submission failed; capture retained")).toBeInTheDocument()
+    expect(screen.getByText(/#2 · 390×844/)).toBeInTheDocument()
+  })
+
+  it("distinguishes an approved review with no captured screenshots", () => {
+    render(<VisualEvidenceGallery approved gallery={{ captured_count: 0, submitted_count: 0, screenshots: [] }} />)
+    expect(screen.getByText("Approved, but no screenshots were captured.")).toBeInTheDocument()
+  })
+})
 
 function buildBootstrap(seenTours: string[] = []): BootstrapPayload {
   return {

@@ -65,6 +65,12 @@ Unsubmitted drafts use the configurable `draft_visual_evidence` retention
 policy (seven days by default), while submitted evidence remains with its
 Workflow. Each `visual_review` call:
 
+The Job Review workspace shows submitted evidence by default and reports both
+submitted and captured counts. Authorized viewers can open the fallback gallery
+of all retained captures, including capture order, sanitized page identity,
+viewport, timestamp, and whether a curation attempt failed. This makes reviews
+with no curated evidence explicit without weakening Job access controls.
+
 **visual_review** — a fresh agent (in a new session) independently decides
 whether the change is visually testable, drives a headless browser against
 its own `start_preview` instance if so, captures screenshots, and calls

@@ -18,6 +18,12 @@ class WorkflowVisualEvidence < ApplicationRecord
   before_validation { self.stable_id ||= SecureRandom.uuid }
 
   def promote!
-    update!(status: "submitted")
+    update!(status: "submitted", submission_failed_at: nil)
+  end
+
+  def submitted? = status == "submitted"
+
+  def mark_submission_failed!
+    update_column(:submission_failed_at, Time.current)
   end
 end

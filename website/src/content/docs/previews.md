@@ -56,7 +56,9 @@ has a preview configured.
 Browser-based visual review uses the same affected-project preview selection.
 Each successful browser screenshot is retained immediately as draft evidence,
 then reviewers curate the submitted screenshots shown by default. Unsubmitted
-drafts have a shorter configurable retention window and survive failed
+captures remain available to authorized viewers from the Job Review workspace's
+captured-screenshot fallback gallery, with page, viewport, capture order, and
+timestamp context. Drafts have a shorter configurable retention window and survive failed
 submission attempts. Syrus strips credentials and query strings from their
 stored page identity.
 The reviewer prompt lists affected preview projects with `project_id`, label,
