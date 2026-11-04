@@ -67,22 +67,28 @@ module RuntimeTerminal
     def start_session(workspace_ref, config)
       config = config.to_h.symbolize_keys
       runtime_session = config.fetch(:runtime_session)
+      workflow = config[:workflow] || runtime_session.workflow
       user = config[:chat_session]&.user || config[:user] || runtime_session.run&.user
       raise ArgumentError, "runtime terminal requires a user" unless user
+      queue_name = workflow_queue_name!(workflow) if workflow
       initial_dimensions = normalized_dimensions(config)
 
       terminal_session = Terminal::Session.create!(
         user: user,
-        workflow: nil,
+        workflow: workflow,
         name: config[:terminal_name].presence || "Runtime Terminal",
         working_directory: workspace_ref,
+        worker_hostname: workflow&.worker_hostname,
+        worker_storage_key: workflow&.worker_storage_key,
+        queue_name: queue_name,
+        workspace_kind: workflow ? "workflow" : nil,
         started_at: Time.current
       )
       RuntimeTerminal::SessionLink.create!(
         runtime_session: runtime_session,
         terminal_session: terminal_session
       )
-      TerminalSessionJob.perform_later(terminal_session.id)
+      TerminalSessionJob.set(queue: terminal_session.target_queue_name).perform_later(terminal_session.id)
 
       { terminal_session_id: terminal_session.id, initial_dimensions: initial_dimensions }.compact
     end
@@ -180,6 +186,16 @@ module RuntimeTerminal
     end
 
     private
+
+    def workflow_queue_name!(workflow)
+      storage_key = workflow.worker_storage_key.presence
+      unless storage_key
+        raise RuntimeSessionProviders::ConfigurationError,
+              "runtime terminal cannot start because the prepared workflow workspace has no worker storage affinity"
+      end
+
+      Workflow.resume_queue_name(storage_key)
+    end
 
     def execute_configured_command(session_id, options, operation:)
       command = options.to_h.symbolize_keys[:command].to_s.strip

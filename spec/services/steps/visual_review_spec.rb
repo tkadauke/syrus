@@ -138,7 +138,12 @@ RSpec.describe Steps::VisualReview do
     expect(first_lifecycle).to receive(:stop!).once
     expect(second_lifecycle).to receive(:stop!).once
     expect { handler.send(:start_runtime_sessions!) }
-      .to raise_error(Steps::Base::StepSkipped, /runtime unavailable/)
+      .to raise_error(Steps::Base::StepFailed, /runtime unavailable/)
+    expect(workflow.reload.artifact("visual_review_iterations")).to be_blank
+    expect(workflow.artifact("visual_review_runtime_failure")).to include(
+      "reason" => "runtime_session_start_failed",
+      "message" => "runtime unavailable"
+    )
   end
 
   it "stops runtime sessions when prompt construction fails after startup" do
