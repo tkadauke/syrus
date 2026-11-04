@@ -72,11 +72,30 @@ RSpec.describe SyrusBrowser::ScreenshotTool do
     end
 
     it "does not fail the tool call if capture fails" do
-      allow(ChatMediaLibrary).to receive(:materialize_captured_image!).and_raise("boom")
+      allow(ChatMediaLibrary).to receive(:materialize_captured_image!).and_raise("token=secret")
+      expect(Rails.logger).to receive(:warn).with(
+        "[SyrusBrowser::BrowserTool] artifact capture failed: RuntimeError: token=[REDACTED]"
+      )
 
       response = described_class.call(target: "e1", server_context: { chat_session: chat_session })
 
       expect(response).not_to be_error
+    end
+
+    it "redacts metadata capture failures without failing the screenshot" do
+      allow(session).to receive(:call_tool) do |name:, **|
+        raise "token=secret" if name == "browser_evaluate"
+
+        image_response
+      end
+      expect(Rails.logger).to receive(:warn).with(
+        "[SyrusBrowser::BrowserTool] screenshot metadata capture failed: RuntimeError: token=[REDACTED]"
+      )
+
+      response = described_class.call(target: "e1", server_context: { chat_session: chat_session })
+
+      expect(response).not_to be_error
+      expect(response.content.first[:type]).to eq("image")
     end
   end
 end

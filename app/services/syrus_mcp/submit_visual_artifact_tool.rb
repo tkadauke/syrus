@@ -1,5 +1,6 @@
 require "mcp"
 require "base64"
+require "digest"
 
 module SyrusMcp
   # Image-capable sibling to SubmitArtifactTool. Captures the current browser
@@ -52,9 +53,22 @@ module SyrusMcp
           type: "boolean",
           description: "When true, capture the current authenticated MCP browser page directly and submit that screenshot. Prefer this for visual-review screenshots. This is also the default when image_base64 and image_path are omitted."
         },
-        subject: {
+        captured_evidence_id: {
           type: "string",
-          description: "Optional subject to bring into view before capturing the current browser. Pass either an exact browser_snapshot ref such as 'e12' or a CSS selector such as '[data-testid=results]'."
+          description: "Stable draft evidence ID returned by browser_screenshot. Promotes the already captured image without recapturing it."
+        },
+        subject: {
+          type: "object",
+          description: "Structured subject target. Snapshot refs require the token returned by the latest browser_snapshot. Semantic targets use an accessibility role and optional accessible name.",
+          properties: {
+            type: { type: "string", enum: %w[snapshot_ref css semantic] },
+            ref: { type: "string", description: "Exact ref such as e12 (snapshot_ref only)." },
+            snapshot_token: { type: "string", description: "Freshness token returned with browser_snapshot (snapshot_ref only)." },
+            selector: { type: "string", description: "CSS selector (css only)." },
+            role: { type: "string", description: "ARIA role (semantic only)." },
+            name: { type: "string", description: "Accessible name (semantic only)." }
+          },
+          required: %w[type]
         },
         minimum_subject_visible_fraction: {
           type: "number",
@@ -69,14 +83,14 @@ module SyrusMcp
     )
 
     class << self
-      def call(type:, title:, server_context:, image_base64: nil, image_path: nil, capture_current_browser: false, subject: nil, minimum_subject_visible_fraction: DEFAULT_MINIMUM_SUBJECT_VISIBLE_FRACTION, content_type: nil)
+      def call(type:, title:, server_context:, image_base64: nil, image_path: nil, capture_current_browser: false, captured_evidence_id: nil, subject: nil, minimum_subject_visible_fraction: DEFAULT_MINIMUM_SUBJECT_VISIBLE_FRACTION, content_type: nil)
         run = Mcp::Tools.run_from_context(server_context)
         context = McpToolContext.from_run(run)
         return Mcp::Tools.not_authorized unless McpToolPolicy.capability_permitted?(context, :submit_visual_artifact)
 
         artifact_type  = Mcp::Tools.utf8(type).strip
         artifact_title = Mcp::Tools.utf8(title).strip
-        image_source   = normalize_image_source(image_base64: image_base64, image_path: image_path, capture_current_browser: capture_current_browser, subject: subject)
+        image_source   = normalize_image_source(image_base64: image_base64, image_path: image_path, capture_current_browser: capture_current_browser, captured_evidence_id: captured_evidence_id, subject: subject)
         explicit_content_type = Mcp::Tools.utf8(content_type).strip.presence
 
         return Mcp::Tools.invalid("type is required")  if artifact_type.empty?
@@ -86,7 +100,20 @@ module SyrusMcp
         minimum_visible_fraction = normalize_minimum_visible_fraction(minimum_subject_visible_fraction)
         return Mcp::Tools.invalid("minimum_subject_visible_fraction must be a number from 0 through 1") if minimum_visible_fraction.nil?
 
-        captured = read_image_data(image_source, run, minimum_visible_fraction: minimum_visible_fraction)
+        captured = if image_source[:kind] == :current_browser
+          Mcp::Tools::AgentPreviewRegistry.while_in_use(run.id, prefixes: [ "#{run.id}:" ]) do
+            read_image_data(image_source, run, minimum_visible_fraction: minimum_visible_fraction)
+          end
+        else
+          read_image_data(image_source, run, minimum_visible_fraction: minimum_visible_fraction)
+        end
+        if captured[:error_code]
+          return MCP::Tool::Response.new(
+            [ { type: "text", text: "Error: #{captured[:error]}" } ],
+            error: true,
+            structured_content: { error: { code: captured[:error_code], retryable: captured[:retryable], message: captured[:error] } }
+          )
+        end
         return Mcp::Tools.invalid(captured[:error]) if captured[:error]
 
         image_data = captured.fetch(:data)
@@ -102,25 +129,29 @@ module SyrusMcp
         workflow = run.workflow
         stored_type = stored_artifact_type(workflow, run, artifact_type)
         filename = "#{stored_type.parameterize.presence || 'visual-artifact'}.#{EXTENSIONS.fetch(mime_type, 'png')}"
-        workflow.attach_visual_artifact!(type: stored_type, data: image_data, content_type: mime_type, filename: filename)
+        WorkflowVisualEvidence.transaction do
+          captured[:evidence]&.lock!
+          captured[:evidence]&.promote!
+          workflow.attach_visual_artifact!(type: stored_type, data: image_data, content_type: mime_type, filename: filename)
 
-        workflow.set_typed_artifact!(
-          type: stored_type,
-          title: artifact_title,
-          original_type: artifact_type,
-          renderer_type: :image_diff,
-          payload: visual_artifact_payload(
-            workflow: workflow,
-            run: run,
-            stored_type: stored_type,
+          workflow.set_typed_artifact!(
+            type: stored_type,
+            title: artifact_title,
             original_type: artifact_type,
-            source: captured[:source],
-            content_type: mime_type,
-            byte_size: image_data.bytesize,
-            metadata: captured[:metadata]
-          ),
-          **TypedArtifactProvenance.for_run(run)
-        )
+            renderer_type: :image_diff,
+            payload: visual_artifact_payload(
+              workflow: workflow,
+              run: run,
+              stored_type: stored_type,
+              original_type: artifact_type,
+              source: captured[:source],
+              content_type: mime_type,
+              byte_size: image_data.bytesize,
+              metadata: captured[:metadata]
+            ),
+            **TypedArtifactProvenance.for_run(run)
+          )
+        end
 
         Mcp::Tools.write_log(
           run,
@@ -129,11 +160,18 @@ module SyrusMcp
 
         MCP::Tool::Response.new([ { type: "text", text: "Saved as artifact type #{stored_type.inspect}. Reference this exact type from submit_report to include it in the report." } ])
       rescue StandardError => e
+        record_submission_failure(captured)
         Rails.logger.error("[SyrusMcp::SubmitVisualArtifactTool] #{e.class}: #{e.message}")
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
       end
 
       private
+
+      def record_submission_failure(captured)
+        captured&.dig(:evidence)&.mark_submission_failed!
+      rescue StandardError => e
+        Rails.logger.warn("[SyrusMcp::SubmitVisualArtifactTool] Could not record submission failure: #{e.class}: #{e.message}")
+      end
 
       # Returns decoded bytes (possibly empty, for blank/empty input — the
       # caller distinguishes "" from nil to give a more specific error) or
@@ -144,24 +182,53 @@ module SyrusMcp
         nil
       end
 
-      def normalize_image_source(image_base64:, image_path:, capture_current_browser:, subject:)
+      def normalize_image_source(image_base64:, image_path:, capture_current_browser:, captured_evidence_id:, subject:)
         encoded_text = Mcp::Tools.utf8(image_base64).strip
         path_text = Mcp::Tools.utf8(image_path).strip
-        subject_text = Mcp::Tools.utf8(subject).strip
+        subject_target = normalize_subject(subject)
         return { error: "image_base64 is empty" } if !image_base64.nil? && encoded_text.blank?
         return { error: "image_path is empty" } if !image_path.nil? && path_text.blank?
-        return { error: "subject is empty" } if !subject.nil? && subject_text.blank?
+        return subject_target if subject_target[:error]
 
         encoded = encoded_text.presence
         path = path_text.presence
         current_browser = ActiveModel::Type::Boolean.new.cast(capture_current_browser)
-        source_count = [ encoded.present?, path.present?, current_browser ].count(true)
-        return { error: "provide exactly one of image_path, image_base64, or capture_current_browser" } if source_count > 1
+        evidence_id = Mcp::Tools.utf8(captured_evidence_id).strip.presence
+        source_count = [ encoded.present?, path.present?, current_browser, evidence_id.present? ].count(true)
+        return { error: "provide exactly one image source" } if source_count > 1
 
         return { kind: :base64, value: encoded, source: "base64" } if encoded.present?
         return { kind: :path, path: path, source: "image_path" } if path.present?
+        return { kind: :captured_evidence, stable_id: evidence_id, source: "captured_evidence" } if evidence_id
 
-        { kind: :current_browser, source: "current_browser", subject: subject_text.presence }
+        { kind: :current_browser, source: "current_browser", subject: subject_target[:target] }
+      end
+
+      def normalize_subject(subject)
+        return { target: nil } if subject.nil?
+        if subject.is_a?(String)
+          text = subject.strip
+          return { error: "subject is empty" } if text.blank?
+          if text.start_with?("#", ".", "[", ":") || text.match?(/[ >+~,*]/)
+            return { target: { "type" => "css", "selector" => text } }
+          end
+          return { error: "ambiguous_subject: #{text.inspect} could be an accessibility role, element name, or CSS tag. Use {type: 'semantic', role: #{text.inspect}, name: ...} or an explicit {type: 'css', selector: ...}." }
+        end
+        unless subject.is_a?(Hash)
+          return { error: "subject must be structured; use {type: 'snapshot_ref', ref: 'e12', snapshot_token: ...}, {type: 'css', selector: ...}, or {type: 'semantic', role: ..., name: ...}. Bare words such as 'complementary' are ambiguous." }
+        end
+
+        value = subject.stringify_keys
+        type = value["type"]
+        required = { "snapshot_ref" => %w[ref snapshot_token], "css" => %w[selector], "semantic" => %w[role] }[type]
+        return { error: "subject.type must be one of snapshot_ref, css, semantic" } unless required
+        missing = required.select { |key| value[key].blank? }
+        return { error: "subject #{type} requires #{missing.join(', ')}" } if missing.any?
+        if type == "snapshot_ref" && !value["ref"].match?(/\Ae\d+\z/)
+          return { error: "subject snapshot_ref.ref must be an exact browser_snapshot ref such as e12" }
+        end
+
+        { target: value.slice("type", "ref", "snapshot_token", "selector", "role", "name") }
       end
 
       def read_image_data(image_source, run, minimum_visible_fraction:)
@@ -180,6 +247,15 @@ module SyrusMcp
           { data: File.binread(path), source: image_source[:source] }
         when :current_browser
           capture_current_browser(run, image_source[:subject], minimum_visible_fraction: minimum_visible_fraction)
+        when :captured_evidence
+          evidence = run.workflow.visual_evidences.find_by(stable_id: image_source[:stable_id], run: run)
+          return { error: "captured visual evidence was not found for this run" } unless evidence&.image&.attached?
+          {
+            data: evidence.image.download, content_type: evidence.image.content_type,
+            source: "captured_evidence", evidence: evidence,
+            metadata: { "page" => evidence.page_identity, "viewport" => evidence.viewport,
+                        "device" => evidence.device, "subject" => evidence.subject }.compact
+          }
         else
           { error: "image_path, image_base64, or capture_current_browser is required" }
         end
@@ -216,12 +292,30 @@ module SyrusMcp
           data: data,
           source: "current_browser",
           content_type: image[:mimeType].presence || image[:mime_type].presence || DEFAULT_CONTENT_TYPE,
+          evidence: retained_evidence_for(run, data),
           metadata: current_browser_metadata(run).deep_merge(subject_metadata)
         }
       end
 
+      def retained_evidence_for(run, data)
+        run.workflow.visual_evidences.find_by(
+          run: run,
+          content_digest: Digest::SHA256.hexdigest(data)
+        )
+      end
+
       def scroll_subject_into_view(run, subject)
-        function = if browser_snapshot_ref?(subject)
+        if subject["type"] == "snapshot_ref" && !fresh_snapshot?(run, subject["snapshot_token"])
+          return { error: "stale_snapshot_ref: snapshot ref #{subject['ref'].inspect} is stale after navigation, page state, or viewport changes; call browser_snapshot and retry with its new ref and snapshot_token", error_code: "stale_snapshot_ref", retryable: true }
+        end
+        resolved_ref = subject["ref"]
+        if subject["type"] == "semantic"
+          semantic = resolve_semantic_ref(run, subject)
+          return semantic if semantic[:error]
+
+          resolved_ref = semantic[:ref]
+        end
+        function = if resolved_ref
           <<~JS.squish
             async (element) => {
               const deadline = Date.now() + 2000;
@@ -243,10 +337,10 @@ module SyrusMcp
               };
             }
           JS
-        else
+        elsif subject["type"] == "css"
           <<~JS.squish
             async () => {
-              const selector = #{subject.to_json};
+              const selector = #{subject["selector"].to_json};
               const deadline = Date.now() + 2000;
               let element;
               while (Date.now() < deadline) {
@@ -273,7 +367,7 @@ module SyrusMcp
           JS
         end
         params = { "function" => function }
-        params.merge!("element" => "visual artifact subject", "target" => subject) if browser_snapshot_ref?(subject)
+        params.merge!("element" => "visual artifact subject", "target" => resolved_ref) if resolved_ref
 
         response = call_browser_tool(run, "browser_evaluate", params)
         return { error: "visual artifact subject could not be brought into view: #{tool_error_text(response)}" } if response.nil? || response.error?
@@ -292,8 +386,25 @@ module SyrusMcp
         { error: "visual artifact subject returned an invalid element rectangle: #{e.message}" }
       end
 
-      def browser_snapshot_ref?(subject)
-        subject.match?(/\Ae\d+\z/)
+      def resolve_semantic_ref(run, subject)
+        response = call_browser_tool(run, "browser_snapshot", {})
+        return { error: "semantic subject snapshot failed: #{tool_error_text(response)}" } if response.nil? || response.error?
+
+        text = response.content.filter_map { |block| block[:text] if block.is_a?(Hash) && block[:type] == "text" }.join("\n")
+        role = Regexp.escape(subject.fetch("role"))
+        name = subject["name"].present? ? Regexp.escape(subject["name"]) : nil
+        pattern = name ? /^.*\b#{role}\b\s+['\"]#{name}['\"].*\[ref=(e\d+)\]/i : /^.*\b#{role}\b.*\[ref=(e\d+)\]/i
+        ref = text[pattern, 1]
+        return { error: "semantic subject not found in the current accessibility snapshot: role=#{subject['role'].inspect} name=#{subject['name'].inspect}" } unless ref
+
+        { ref: ref }
+      end
+
+      def fresh_snapshot?(run, token)
+        provider = browser_tool_provider(run, "browser_snapshot")
+        return false unless provider&.respond_to?(:snapshot_token_current?)
+
+        provider.snapshot_token_current?(server_context: { run: run }, token: token)
       end
 
       def normalize_minimum_visible_fraction(value)
@@ -330,7 +441,11 @@ module SyrusMcp
 
       def subject_visibility_error(subject, fraction)
         percentage = (fraction * 100).round
-        "subject #{subject.inspect} is only #{percentage}% visible; scroll or resize and retry"
+        "subject #{subject_description(subject).inspect} is only #{percentage}% visible; scroll or resize and retry"
+      end
+
+      def subject_description(subject)
+        subject["ref"] || subject["selector"] || [ subject["role"], subject["name"] ].compact.join("/")
       end
 
       def current_browser_metadata(run)

@@ -84,6 +84,20 @@ class RetentionPolicyRegistry
   end
   CORE_DEFINITIONS = [
     Definition.new(
+      key: :draft_visual_evidence,
+      model: "WorkflowVisualEvidence",
+      table_name: "workflow_visual_evidences",
+      age_column: :captured_at,
+      scope_name: :prunable,
+      setting_key: :draft_visual_evidence_retention_days,
+      default_value: 7,
+      unit: :days,
+      executor_class: "RetentionPolicyExecutors::VisualEvidence",
+      description: "Unsubmitted screenshots captured during visual review. Submitted evidence is retained with its Workflow.",
+      category: "Product",
+      archivable: false
+    ),
+    Definition.new(
       key: :job_log,
       model: "JobLog",
       table_name: "job_logs",

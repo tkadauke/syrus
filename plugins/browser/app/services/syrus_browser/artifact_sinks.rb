@@ -1,9 +1,62 @@
 module SyrusBrowser
+  require "digest"
+  require "uri"
   # Where captured browser evidence (screenshots, for now) is filed,
   # independent of which browser session owns the call (see SessionContext).
   # Two axes, two decisions: SessionContext answers "which session do I
   # operate on"; ArtifactSinks answers "where does the evidence go."
   module ArtifactSinks
+    class VisualReviewDraft
+      MAX_CAPTURES_PER_RUN = 50
+
+      def initialize(run)
+        @run = run
+      end
+
+      def capture(bytes:, content_type:, title:, metadata: {})
+        return nil unless title == "browser_screenshot capture"
+
+        digest = Digest::SHA256.hexdigest(bytes)
+        @run.with_lock do
+          scope = @run.workflow.visual_evidences.where(run: @run)
+          existing = scope.find_by(content_digest: digest)
+          return existing if existing
+          return nil if scope.count >= MAX_CAPTURES_PER_RUN
+
+          evidence = scope.create!(
+            step: @run.step, sequence: scope.maximum(:sequence).to_i + 1,
+            status: "draft", captured_at: Time.current, content_digest: digest,
+            page_identity: sanitize_page(metadata.to_h["page"] || metadata.to_h[:page]),
+            viewport: sanitize_viewport(metadata.to_h["viewport"] || metadata.to_h[:viewport]),
+            device: redact(metadata.to_h["device"] || metadata.to_h[:device]),
+            subject: redact(metadata.to_h["subject"] || metadata.to_h[:subject])
+          )
+          evidence.image.attach(io: StringIO.new(bytes), filename: "visual-evidence-#{evidence.stable_id}.png", content_type:, identify: false)
+          evidence
+        end
+      end
+
+      private
+
+      def sanitize_page(page)
+        page = page.to_h.stringify_keys
+        uri = URI.parse(page["url"].to_s)
+        safe_url = uri.path.presence || "/"
+        { "url" => safe_url, "path" => safe_url, "title" => redact(page["title"]).to_s.truncate(200) }.compact_blank
+      rescue URI::InvalidURIError
+        { "title" => redact(page["title"]).to_s.truncate(200) }.compact_blank
+      end
+
+      def sanitize_viewport(viewport)
+        viewport.to_h.with_indifferent_access.slice(:width, :height, :device_scale_factor)
+          .transform_values { |value| value.is_a?(Numeric) ? value : nil }.compact.stringify_keys
+      end
+
+      def redact(value)
+        CommandRedactor.redact_value(value)
+      end
+    end
+
     # The visual_review Run path's existing behavior: nothing is persisted
     # here at capture time. The image content returned to the agent is the
     # only output; the visual_review agent explicitly files durable evidence
@@ -32,7 +85,7 @@ module SyrusBrowser
         @runtime_session = runtime_session
       end
 
-      def capture(bytes:, content_type:, title:)
+      def capture(bytes:, content_type:, title:, metadata: {})
         return nil unless @chat_session
 
         document = ChatMediaLibrary.materialize_captured_image!(

@@ -26,7 +26,7 @@ RSpec.describe Prompts::VisualDiff do
     expect(prompt).to include('captured title "Credential Store"')
     expect(prompt).to include('subject: "[data-testid=credential-list]"')
     expect(prompt).to include("exact same title as the paired after screenshot")
-    expect(prompt).to include("reuse the exact value when it is a stable CSS selector")
+    expect(prompt).to include("reuse CSS or semantic targets")
   end
 
   it "requires ref-based subjects to be resolved for the baseline page instead of reused" do
@@ -46,7 +46,7 @@ RSpec.describe Prompts::VisualDiff do
 
     expect(prompt).to include('subject: "e12"')
     expect(prompt).to include("call `browser_snapshot` in the baseline page")
-    expect(prompt).to include("pass the newly resolved ref for that element")
-    expect(prompt).to include("never reuse a stale ref from the after capture or an earlier baseline page state")
+    expect(prompt).to include("pass both the newly resolved ref and its returned snapshot token")
+    expect(prompt).to include("stale refs return a retryable `stale_snapshot_ref` error")
   end
 end

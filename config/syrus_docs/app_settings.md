@@ -474,6 +474,7 @@ dependent-row cleanup or another side effect is required.
 | Setting | Default | Unit | Table | Executor | Archivable |
 | --- | --- | --- | --- | --- | --- |
 | `job_log_retention_days` | 30 | days | `job_logs` | generic | yes |
+| `draft_visual_evidence_retention_days` | 7 | days | `workflow_visual_evidences` | attachment cleanup strategy | no |
 | `performance_log_event_retention_hours` | 24 | **hours** | `performance_log_events` | generic | no |
 | `run_diagnostic_retention_days` | 30 | days | `run_diagnostics` | generic | yes |
 | `run_resource_summary_retention_days` | 30 | days | `run_resource_summaries` | generic | no |
@@ -506,6 +507,11 @@ deleted while the Run and its other history remain. Enable
 preserved outside the live table. `performance_log_event_retention_hours` is a
 short diagnostic window; its default remains the 24 hours used by the
 performance UI.
+
+`draft_visual_evidence_retention_days` controls unsubmitted screenshots captured
+during visual-review Runs. The default seven-day window gives operators time to
+recover an omitted capture without retaining every draft indefinitely. Submitted
+evidence is excluded from this policy and remains attached to its Workflow.
 
 `provider_sessions` is large primarily because each row can contain a provider
 transcript (`transcript_jsonl` is a 64 MiB-capable text column), not because of

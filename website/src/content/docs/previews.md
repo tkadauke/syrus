@@ -54,6 +54,13 @@ only touches projects without previews, the panel says that no affected project
 has a preview configured.
 
 Browser-based visual review uses the same affected-project preview selection.
+Each successful browser screenshot is retained immediately as draft evidence,
+then reviewers curate the submitted screenshots shown by default. Unsubmitted
+captures remain available to authorized viewers from the Job Review workspace's
+captured-screenshot fallback gallery, with page, viewport, capture order, and
+timestamp context. Drafts have a shorter configurable retention window and survive failed
+submission attempts. Syrus strips credentials and query strings from their
+stored page identity.
 The reviewer prompt lists affected preview projects with `project_id`, label,
 path, and owning `.syrus.yml`. With one affected preview, the reviewer can call
 `start_preview` without a `project_id` or pass that id explicitly. With several
@@ -106,9 +113,12 @@ before and after screenshots in a single responsive comparison. Drag the
 divider (or use its keyboard controls) to reveal either version, and tap the
 comparison to open a larger preview with labeled before/after navigation.
 
-When the reviewed UI is below the fold, screenshot submission can identify a
-subject by CSS selector or by its exact browser snapshot ref. Syrus waits for
-that element to become visible and centers it before capturing. By default, at
+When the reviewed UI is below the fold, screenshot submission identifies its
+subject explicitly: a CSS selector, an accessibility role plus optional name,
+or a fresh browser snapshot ref. Snapshot refs carry a token and expire after
+navigation, page-state changes, or viewport changes, prompting the reviewer to
+take a new snapshot instead of targeting the wrong element. Syrus waits for
+the resolved element to become visible and centers it before capturing. By default, at
 least half of the subject must intersect the viewport; taller subjects must
 have their top edge visible. Saved evidence records the subject rectangle,
 visible fraction, and scroll position so reviewers can verify what the

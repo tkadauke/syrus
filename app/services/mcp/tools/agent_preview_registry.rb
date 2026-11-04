@@ -12,6 +12,9 @@ module Mcp::Tools
 
     @previews = {}  # key → { pid: Integer, port: Integer, spawned_process_id: Integer }
     @launch_mutexes = Hash.new { |hash, key| hash[key] = Mutex.new }
+    @active_uses = Hash.new(0)
+    @active_prefix_uses = Hash.new(0)
+    @use_condition = ConditionVariable.new
 
     class << self
       def register(key:, pid:, port:, spawned_process_id: nil, cleanup: nil)
@@ -32,12 +35,34 @@ module Mcp::Tools
       end
 
       def kill(key)
-        preview = MUTEX.synchronize { @previews.delete(key) }
+        preview = MUTEX.synchronize do
+          @use_condition.wait(MUTEX) while key_in_use?(key)
+          @previews.delete(key)
+        end
         stop_preview(preview) if preview
+      end
+
+      def while_in_use(key, prefixes: [])
+        MUTEX.synchronize do
+          @active_uses[key] += 1
+          prefixes.each { |prefix| @active_prefix_uses[prefix] += 1 }
+        end
+        yield
+      ensure
+        MUTEX.synchronize do
+          @active_uses[key] -= 1
+          @active_uses.delete(key) unless @active_uses[key].positive?
+          prefixes.each do |prefix|
+            @active_prefix_uses[prefix] -= 1
+            @active_prefix_uses.delete(prefix) unless @active_prefix_uses[prefix].positive?
+          end
+          @use_condition.broadcast
+        end
       end
 
       def kill_prefix(prefix)
         previews = MUTEX.synchronize do
+          @use_condition.wait(MUTEX) while prefix_in_use?(prefix)
           matches = @previews.select { |key, _| key.to_s.start_with?(prefix.to_s) }
           matches.each_key { |key| @previews.delete(key) }
           matches.values
@@ -47,6 +72,7 @@ module Mcp::Tools
 
       def kill_all
         previews = MUTEX.synchronize do
+          @use_condition.wait(MUTEX) while @active_uses.any? || @active_prefix_uses.any?
           values = @previews.values
           @previews.clear
           values
@@ -58,10 +84,26 @@ module Mcp::Tools
         MUTEX.synchronize do
           @previews.clear
           @launch_mutexes.clear
+          @active_uses.clear
+          @active_prefix_uses.clear
         end
       end
 
       private
+
+      def key_in_use?(key)
+        @active_uses[key].positive? || @active_prefix_uses.any? do |prefix, count|
+          count.positive? && key.to_s.start_with?(prefix.to_s)
+        end
+      end
+
+      def prefix_in_use?(prefix)
+        prefix = prefix.to_s
+        @active_uses.any? { |key, count| count.positive? && key.to_s.start_with?(prefix) } ||
+          @active_prefix_uses.any? do |active_prefix, count|
+            count.positive? && (active_prefix.to_s.start_with?(prefix) || prefix.start_with?(active_prefix.to_s))
+          end
+      end
 
       def cancel(preview)
         handle = managed_handle(preview)

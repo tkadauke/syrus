@@ -25,6 +25,75 @@ RSpec.describe Mcp::Tools::StopPreviewTool do
     expect(run.job_logs.last.chunk).to include("[mcp] stop_preview")
   end
 
+  it "waits for an in-flight artifact capture before stopping the preview" do
+    Mcp::Tools::AgentPreviewRegistry.register(key: run.id, pid: 12_345, port: 3001)
+    capture_started = Queue.new
+    release_capture = Queue.new
+    capture = Thread.new do
+      Mcp::Tools::AgentPreviewRegistry.while_in_use(run.id) do
+        capture_started << true
+        release_capture.pop
+      end
+    end
+    capture_started.pop
+    stopped = Queue.new
+    stopper = Thread.new { call.tap { stopped << true } }
+
+    expect { stopped.pop(true) }.to raise_error(ThreadError)
+    release_capture << true
+    expect(stopped.pop).to be(true)
+    capture.join
+    stopper.join
+  end
+
+  it "waits for an in-flight artifact capture before stopping a runtime-session preview" do
+    preview_key = "#{run.id}:runtime-session"
+    Mcp::Tools::AgentPreviewRegistry.register(key: preview_key, pid: 12_345, port: 3001)
+    capture_started = Queue.new
+    release_capture = Queue.new
+    capture = Thread.new do
+      Mcp::Tools::AgentPreviewRegistry.while_in_use(run.id, prefixes: [ "#{run.id}:" ]) do
+        capture_started << true
+        release_capture.pop
+      end
+    end
+    capture_started.pop
+    stopped = Queue.new
+    stopper = Thread.new { call.tap { stopped << true } }
+
+    expect { stopped.pop(true) }.to raise_error(ThreadError)
+    expect(Mcp::Tools::AgentPreviewRegistry.get(preview_key)).to be_present
+    release_capture << true
+    expect(stopped.pop).to be(true)
+    expect(Mcp::Tools::AgentPreviewRegistry.get(preview_key)).to be_nil
+    capture.join
+    stopper.join
+  end
+
+  it "waits for an in-flight artifact capture before stopping all previews" do
+    preview_key = "#{run.id}:runtime-session"
+    Mcp::Tools::AgentPreviewRegistry.register(key: preview_key, pid: 12_345, port: 3001)
+    capture_started = Queue.new
+    release_capture = Queue.new
+    capture = Thread.new do
+      Mcp::Tools::AgentPreviewRegistry.while_in_use(run.id, prefixes: [ "#{run.id}:" ]) do
+        capture_started << true
+        release_capture.pop
+      end
+    end
+    capture_started.pop
+    stopped = Queue.new
+    stopper = Thread.new { Mcp::Tools::AgentPreviewRegistry.kill_all.tap { stopped << true } }
+
+    expect { stopped.pop(true) }.to raise_error(ThreadError)
+    expect(Mcp::Tools::AgentPreviewRegistry.get(preview_key)).to be_present
+    release_capture << true
+    expect(stopped.pop).to be(true)
+    expect(Mcp::Tools::AgentPreviewRegistry.get(preview_key)).to be_nil
+    capture.join
+    stopper.join
+  end
+
   context "when a preview is registered" do
     let!(:spawned_process) do
       SpawnedProcess.create!(kind: "preview", command: "bin/server", hostname: "worker",

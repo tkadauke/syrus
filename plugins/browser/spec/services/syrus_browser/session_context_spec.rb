@@ -6,17 +6,21 @@ RSpec.describe SyrusBrowser::SessionContext do
 
   describe ".resolve" do
     context "with a run-shaped server_context (workflow visual_review)" do
-      let(:run) { instance_double(Run, id: 42) }
+      let(:run) do
+        Factories.job(repository: repository, user: user).initial_run.tap do |value|
+          value.step.update_column(:kind, "visual_review")
+        end
+      end
 
-      it "resolves to the run's session key and a null artifact sink" do
-        server_context = { run_id: 42 }
+      it "resolves visual-review runs to the draft evidence sink" do
+        server_context = { run_id: run.id }
         allow(Mcp::Tools).to receive(:run_from_context).with(server_context).and_return(run)
 
         result = described_class.resolve(server_context)
 
-        expect(result.session_key).to eq("run:42")
+        expect(result.session_key).to eq("run:#{run.id}")
         expect(result.owner).to eq(run)
-        expect(result.artifact_sink).to be_a(SyrusBrowser::ArtifactSinks::Null)
+        expect(result.artifact_sink).to be_a(SyrusBrowser::ArtifactSinks::VisualReviewDraft)
       end
     end
 

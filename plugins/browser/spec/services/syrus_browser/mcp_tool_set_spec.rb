@@ -9,6 +9,7 @@ RSpec.describe SyrusBrowser::McpToolSet do
   before do
     allow(Mcp::Tools).to receive(:run_from_context).with(ctx).and_return(run)
     SyrusBrowser::SessionRegistry.session_factory = ->(_run_id) { session }
+    SyrusBrowser::SnapshotFreshness.reset!
   end
 
   after do
@@ -47,6 +48,15 @@ RSpec.describe SyrusBrowser::McpToolSet do
   describe ".available_for?" do
     it "returns true for any repository" do
       expect(described_class.available_for?(double("repository"))).to be true
+    end
+  end
+
+  describe ".snapshot_token_current?" do
+    it "checks freshness in the browser session resolved from core context" do
+      token = SyrusBrowser::SnapshotFreshness.record("run:42")
+
+      expect(described_class.snapshot_token_current?(server_context: ctx, token: token)).to be(true)
+      expect(described_class.snapshot_token_current?(server_context: ctx, token: "stale-token")).to be(false)
     end
   end
 
@@ -138,6 +148,17 @@ RSpec.describe SyrusBrowser::McpToolSet do
       tool_set.handle("browser_snapshot", {}, ctx)
 
       expect(session).to have_received(:call_tool).with(name: "browser_snapshot", arguments: {})
+    end
+
+    it "returns a freshness token and invalidates it after a viewport change" do
+      allow(session).to receive(:call_tool).and_return({ "result" => { "content" => [] } })
+
+      response = tool_set.handle("browser_snapshot", {}, ctx)
+      token = response.content.last.fetch(:text).match(/snapshot-\d+-[0-9a-f]+/).to_s
+      expect(SyrusBrowser::SnapshotFreshness.current?("run:42", token)).to be(true)
+
+      tool_set.handle("browser_resize", { "width" => 390, "height" => 844 }, ctx)
+      expect(SyrusBrowser::SnapshotFreshness.current?("run:42", token)).to be(false)
     end
   end
 

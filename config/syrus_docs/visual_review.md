@@ -55,7 +55,21 @@ budget remains. Once the review that just ran was the last one `rounds`
 allows, its `needs_work` repair runs alone, with no further review to act on.
 `rounds: N` means exactly N review opinions get sought, and every one of
 them — including the last — gets exactly one repair reaction; the loop never
-fails the workflow. Each `visual_review` call:
+fails the workflow. Every successful `browser_screenshot` is retained first as
+run-scoped draft evidence with a stable ID, capture order, sanitized page
+identity, viewport/device metadata, and subject metadata when available. URL
+credentials and query strings are stripped. Identical captures are deduplicated
+and each Run is capped at 50 drafts. `submit_visual_artifact` can curate a draft
+with `captured_evidence_id`; a failed submission leaves the capture intact.
+Unsubmitted drafts use the configurable `draft_visual_evidence` retention
+policy (seven days by default), while submitted evidence remains with its
+Workflow. Each `visual_review` call:
+
+The Job Review workspace shows submitted evidence by default and reports both
+submitted and captured counts. Authorized viewers can open the fallback gallery
+of all retained captures, including capture order, sanitized page identity,
+viewport, timestamp, and whether a curation attempt failed. This makes reviews
+with no curated evidence explicit without weakening Job access controls.
 
 **visual_review** — a fresh agent (in a new session) independently decides
 whether the change is visually testable, drives a headless browser against
@@ -287,7 +301,9 @@ within the same session — no new browser instance, no manual Playwright
 script. By default, `Prompts::VisualReview` instructs the reviewer to test
 every visually testable change at both a desktop viewport (1280x800) and a
 mobile viewport (390x844), capturing labeled screenshots at each with
-`submit_visual_artifact`. The reviewer may skip one viewport when the
+`submit_visual_artifact`. Subjects are structured as a fresh snapshot ref plus
+its `browser_snapshot` token, an explicit CSS selector, or an accessibility role
+plus optional accessible name. The reviewer may skip one viewport when the
 issue/diff context makes it clearly irrelevant (a mobile-nav-only bug
 report, a component hidden below a desktop breakpoint, an admin-only
 desktop tool), but must state why in its critique so the omission is an

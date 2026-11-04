@@ -4529,6 +4529,31 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_162251) do
     t.index ["repository_id"], name: "index_workflow_step_resource_profiles_on_repository_id"
   end
 
+  create_table "workflow_visual_evidences", force: :cascade do |t|
+    t.integer "workflow_id", null: false
+    t.integer "run_id", null: false
+    t.integer "step_id", null: false
+    t.string "stable_id", null: false
+    t.integer "sequence", null: false
+    t.string "status", null: false
+    t.datetime "captured_at", null: false
+    t.json "page_identity"
+    t.json "viewport"
+    t.string "device"
+    t.json "subject"
+    t.string "content_digest", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.datetime "submission_failed_at"
+    t.index ["run_id", "content_digest"], name: "index_workflow_visual_evidences_on_run_id_and_content_digest"
+    t.index ["run_id", "sequence"], name: "index_workflow_visual_evidences_on_run_id_and_sequence", unique: true
+    t.index ["run_id"], name: "index_workflow_visual_evidences_on_run_id"
+    t.index ["stable_id"], name: "index_workflow_visual_evidences_on_stable_id", unique: true
+    t.index ["status", "captured_at"], name: "index_workflow_visual_evidences_on_status_and_captured_at"
+    t.index ["step_id"], name: "index_workflow_visual_evidences_on_step_id"
+    t.index ["workflow_id"], name: "index_workflow_visual_evidences_on_workflow_id"
+  end
+
   create_table "workflow_warnings", force: :cascade do |t|
     t.integer "job_id", null: false
     t.integer "workflow_id", null: false

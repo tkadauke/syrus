@@ -395,8 +395,10 @@ module Prompts
            you skip a viewport, state why in your critique so it is an auditable judgment call, not a silent omission.
            Use a descriptive `type` such as `visual_review_desktop_navigation` when useful; Syrus associates
            screenshots with this review from trusted run and image provenance, not from an exact type name.
-           Every `submit_visual_artifact` call must pass `subject`: either an exact `browser_snapshot` ref
-           for the element under review or a CSS selector, preferably a stable `data-testid`. The tool uses
+           Every `submit_visual_artifact` call must pass a structured `subject`: use
+           `{type: "snapshot_ref", ref: "e12", snapshot_token: "..."}` with the token returned by the latest
+           `browser_snapshot`; `{type: "css", selector: "[data-testid=...]"}`; or
+           `{type: "semantic", role: "complementary", name: "..."}`. The tool uses
            it to scroll the subject into view and verify that it is visible before capture. A screenshot
            that does not show the subject of the Job is not evidence and must not be submitted.
            Switch viewports with `browser_emulate`: `preset: "iphone-15-pro"` for the mobile viewport

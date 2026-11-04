@@ -438,6 +438,8 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
             versions={versions}
           />
 
+          <VisualEvidenceGallery approved={Boolean(payload.job.approved_at)} gallery={payload.visual_evidence} />
+
           {/*
           Not `overflow-hidden`: this diff viewer renders with `scroll="natural"`,
           so its file headers pin via `position: sticky` against the page itself.
@@ -580,6 +582,75 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
         ) : null}
       </div>
     </>
+  )
+}
+
+export function VisualEvidenceGallery({ approved, gallery }: { approved: boolean; gallery: JobDetailPayload["visual_evidence"] }) {
+  const { t } = useT("jobs")
+  const [showAll, setShowAll] = useState(false)
+  const evidence = gallery || { captured_count: 0, submitted_count: 0, screenshots: [] }
+  const submitted = evidence.screenshots.filter((screenshot) => screenshot.status === "submitted")
+  const screenshots = showAll ? evidence.screenshots : submitted
+
+  if (evidence.captured_count === 0) {
+    return (
+      <Section.Root>
+        <SectionHeading>{t("visual_evidence_title")}</SectionHeading>
+        <p className="mt-3 text-sm text-text-muted">{t(approved ? "visual_evidence_approved_none_captured" : "visual_evidence_none_captured")}</p>
+      </Section.Root>
+    )
+  }
+
+  return (
+    <Section.Root>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <SectionHeading>{t("visual_evidence_title")}</SectionHeading>
+          <p className="mt-1 text-sm text-text-muted">
+            {t("visual_evidence_counts", { submitted: evidence.submitted_count, captured: evidence.captured_count })}
+            {approved && evidence.submitted_count > 0 ? ` · ${t("visual_evidence_approved_with_evidence")}` : null}
+          </p>
+        </div>
+        {evidence.captured_count > evidence.submitted_count ? (
+          <Button onClick={() => setShowAll((value) => !value)} size="sm" variant="secondary">
+            {showAll ? t("visual_evidence_show_submitted") : t("visual_evidence_show_captured")}
+          </Button>
+        ) : null}
+      </div>
+      {submitted.length === 0 && !showAll ? (
+        <p className="mt-3 text-sm text-text-muted">
+          {t(approved ? "visual_evidence_approved_without_curated" : "visual_evidence_none_submitted")}{" "}
+          <button className="font-medium text-brand underline" onClick={() => setShowAll(true)} type="button">
+            {t("visual_evidence_view_captured")}
+          </button>
+        </p>
+      ) : (
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          {screenshots.map((screenshot) => {
+            const pageLabel = screenshot.page?.title || screenshot.page?.path || t("visual_evidence_unknown_page")
+            const viewport = screenshot.viewport?.width && screenshot.viewport?.height ? `${screenshot.viewport.width}×${screenshot.viewport.height}` : null
+            return (
+              <figure className={surfaceClasses("panel", "sm")} key={screenshot.id}>
+                <a href={screenshot.image_url} rel="noreferrer" target="_blank">
+                  <img alt={pageLabel} className="w-full rounded-md border border-border object-contain" loading="lazy" src={screenshot.image_url} />
+                </a>
+                <figcaption className="mt-2 space-y-1 text-xs text-text-muted">
+                  <p className="font-medium text-text-primary">{pageLabel}</p>
+                  <p>
+                    {t("visual_evidence_metadata", {
+                      sequence: screenshot.sequence,
+                      viewport: viewport || t("visual_evidence_unknown_viewport"),
+                      timestamp: new Date(screenshot.captured_at).toLocaleString()
+                    })}
+                  </p>
+                  {screenshot.submission_failed ? <p className="font-medium text-danger">{t("visual_evidence_submission_failed")}</p> : null}
+                </figcaption>
+              </figure>
+            )
+          })}
+        </div>
+      )}
+    </Section.Root>
   )
 }
 
@@ -842,7 +913,8 @@ function ReviewArtifactsPanel({
 }) {
   const { t } = useT("jobs")
   const [expanded, setExpanded] = useState(false)
-  const hasArtifacts = Boolean(payload.test_plan) || reviewArtifacts.length > 0 || payload.typed_artifacts.length > 0
+  const typedArtifacts = payload.typed_artifacts.filter((artifact) => !isVisualReviewScreenshot(artifact))
+  const hasArtifacts = Boolean(payload.test_plan) || reviewArtifacts.length > 0 || typedArtifacts.length > 0
 
   return (
     <Section.Root>
@@ -878,11 +950,15 @@ function ReviewArtifactsPanel({
               ))}
             </div>
           ) : null}
-          <VersionedArtifactsList artifacts={payload.typed_artifacts} selectedRange={selectedRange} selectedVersion={selectedVersion} versions={versions} />
+          <VersionedArtifactsList artifacts={typedArtifacts} selectedRange={selectedRange} selectedVersion={selectedVersion} versions={versions} />
         </div>
       ) : null}
     </Section.Root>
   )
+}
+
+function isVisualReviewScreenshot(artifact: TypedArtifact) {
+  return artifact.renderer_type === "image_diff" && artifact.type.startsWith("visual_review_")
 }
 
 // An artifact has usable provenance when it can be compared against the

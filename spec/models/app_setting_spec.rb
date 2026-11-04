@@ -49,6 +49,15 @@ RSpec.describe AppSetting, :reset_plugin_registry do
     expect(setting.errors[:singleton_key]).to be_present
   end
 
+  it "skips host admission validation before its column is available" do
+    setting = AppSetting.new
+    allow(setting).to receive(:has_attribute?).and_call_original
+    allow(setting).to receive(:has_attribute?).with(:host_admission_policy).and_return(false)
+    expect(setting).not_to receive(:host_admission_policy)
+
+    setting.valid?
+  end
+
   it "enforces one sentinel row at the database level" do
     AppSetting.current
 

@@ -13,12 +13,47 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
     image_base64: png_base64,
     image_path: nil,
     capture_current_browser: false,
+    captured_evidence_id: nil,
     subject: nil,
     minimum_subject_visible_fraction: described_class::DEFAULT_MINIMUM_SUBJECT_VISIBLE_FRACTION,
     content_type: nil,
     server_context: { run: run }
   )
-    described_class.call(type: type, title: title, image_base64: image_base64, image_path: image_path, capture_current_browser: capture_current_browser, subject: subject, minimum_subject_visible_fraction: minimum_subject_visible_fraction, content_type: content_type, server_context: server_context)
+    described_class.call(type: type, title: title, image_base64: image_base64, image_path: image_path, capture_current_browser: capture_current_browser, captured_evidence_id: captured_evidence_id, subject: subject, minimum_subject_visible_fraction: minimum_subject_visible_fraction, content_type: content_type, server_context: server_context)
+  end
+
+  it "promotes captured draft evidence by stable ID without deleting its source" do
+    evidence = run.workflow.visual_evidences.create!(
+      run: run, step: run.step, sequence: 1, status: "draft", captured_at: Time.current,
+      content_digest: Digest::SHA256.hexdigest(png_bytes), page_identity: { "url" => "/orders" },
+      viewport: { "width" => 390, "height" => 844 }, submission_failed_at: 1.minute.ago
+    )
+    evidence.image.attach(io: StringIO.new(png_bytes), filename: "capture.png", content_type: "image/png")
+
+    response = call(image_base64: nil, captured_evidence_id: evidence.stable_id)
+
+    expect(response).not_to be_error
+    expect(evidence.reload.status).to eq("submitted")
+    expect(evidence.submission_failed_at).to be_nil
+    expect(evidence.image).to be_attached
+    stored_type = run.workflow.reload.artifact("typed_artifacts").last.fetch("type")
+    expect(run.workflow.visual_artifact_for(stored_type).download).to eq(png_bytes)
+  end
+
+  it "keeps captured draft evidence when submission fails" do
+    evidence = run.workflow.visual_evidences.create!(
+      run: run, step: run.step, sequence: 1, status: "draft", captured_at: Time.current,
+      content_digest: Digest::SHA256.hexdigest(png_bytes)
+    )
+    evidence.image.attach(io: StringIO.new(png_bytes), filename: "capture.png", content_type: "image/png")
+    allow_any_instance_of(Workflow).to receive(:set_typed_artifact!).and_raise("metadata unavailable")
+
+    response = call(image_base64: nil, captured_evidence_id: evidence.stable_id)
+
+    expect(response).to be_error
+    expect(evidence.reload.status).to eq("draft")
+    expect(evidence.submission_failed_at).to be_present
+    expect(evidence.image).to be_attached
   end
 
   def write_workspace_file(relative_path, bytes = png_bytes)
@@ -270,6 +305,11 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
   end
 
   it "captures the current MCP browser directly and stores page provenance" do
+    evidence = run.workflow.visual_evidences.create!(
+      run: run, step: run.step, sequence: 1, status: "draft", captured_at: Time.current,
+      content_digest: Digest::SHA256.hexdigest(png_bytes)
+    )
+    evidence.image.attach(io: StringIO.new(png_bytes), filename: "capture.png", content_type: "image/png")
     stub_current_browser_capture
 
     response = described_class.call(
@@ -280,6 +320,7 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
     )
 
     expect(response).not_to be_error
+    expect(evidence.reload.status).to eq("submitted")
     entry = run.workflow.reload.artifact("typed_artifacts").first
     expect(entry["payload"]).to include(
       "source" => "current_browser",
@@ -438,27 +479,77 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
 
     expect(response).not_to be_error
     expect(run.workflow.reload.artifact("typed_artifacts").first.fetch("payload")).to include(
-      "subject" => "#card",
+      "subject" => { "type" => "css", "selector" => "#card" },
       "subject_visible_fraction" => 1.0,
       "subject_rect" => { "x" => 10, "y" => 20, "width" => 300, "height" => 80 },
       "scroll_position" => { "x" => 4, "y" => 512 }
     )
   end
 
-  it "resolves a browser_snapshot ref while scrolling before capturing" do
+  it "resolves a fresh browser_snapshot ref while scrolling before capturing" do
     evaluate_response = subject_evaluate_response(rect: { x: 0, y: 100, width: 240, height: 60 })
     screenshot_response = MCP::Tool::Response.new([ { type: "image", data: png_base64, mimeType: "image/png" } ])
     allow(described_class).to receive(:call_browser_tool).and_return(evaluate_response, screenshot_response, MCP::Tool::Response.new([ { type: "text", text: "{}" } ]))
+    provider = double("snapshot provider", snapshot_token_current?: true)
+    allow(described_class).to receive(:browser_tool_provider).with(run, "browser_snapshot").and_return(provider)
 
     response = described_class.call(
-      type: "visual_review_screenshot", title: "Card", subject: "e12", server_context: { run: run }
+      type: "visual_review_screenshot", title: "Card",
+      subject: { type: "snapshot_ref", ref: "e12", snapshot_token: "snapshot-4-abc" }, server_context: { run: run }
+    )
+
+    expect(response).not_to be_error
+    expect(provider).to have_received(:snapshot_token_current?).with(
+      server_context: { run: run }, token: "snapshot-4-abc"
+    )
+    expect(described_class).to have_received(:call_browser_tool).with(
+      run, "browser_evaluate", hash_including("target" => "e12", "element" => "visual artifact subject")
+    )
+    expect(described_class).to have_received(:call_browser_tool).with(run, "browser_screenshot", {})
+  end
+
+  it "rejects an ambiguous accessibility role before browser evaluation" do
+    allow(described_class).to receive(:call_browser_tool)
+    response = described_class.call(
+      type: "visual_review_screenshot", title: "Sidebar", subject: "complementary", server_context: { run: run }
+    )
+
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include("ambiguous_subject", "type: 'semantic'")
+    expect(described_class).not_to have_received(:call_browser_tool)
+  end
+
+  it "targets a semantic accessibility role and accessible name" do
+    snapshot_response = MCP::Tool::Response.new([ { type: "text", text: '- complementary "Filters" [ref=e19]' } ])
+    evaluate_response = subject_evaluate_response(rect: { x: 0, y: 100, width: 240, height: 60 })
+    screenshot_response = MCP::Tool::Response.new([ { type: "image", data: png_base64, mimeType: "image/png" } ])
+    allow(described_class).to receive(:call_browser_tool).and_return(
+      snapshot_response, evaluate_response, screenshot_response, MCP::Tool::Response.new([ { type: "text", text: "{}" } ])
+    )
+
+    response = described_class.call(
+      type: "visual_review_screenshot", title: "Sidebar",
+      subject: { type: "semantic", role: "complementary", name: "Filters" }, server_context: { run: run }
     )
 
     expect(response).not_to be_error
     expect(described_class).to have_received(:call_browser_tool).with(
-      run, "browser_evaluate", hash_including("target" => "e12", "element" => "visual artifact subject")
-    ).ordered
-    expect(described_class).to have_received(:call_browser_tool).with(run, "browser_screenshot", {}).ordered
+      run, "browser_evaluate", hash_including("target" => "e19", "element" => "visual artifact subject")
+    )
+  end
+
+  it "returns a retryable stale-ref error before browser evaluation" do
+    allow(described_class).to receive(:fresh_snapshot?).and_return(false)
+    allow(described_class).to receive(:call_browser_tool)
+    response = described_class.call(
+      type: "visual_review_screenshot", title: "Sidebar",
+      subject: { type: "snapshot_ref", ref: "e12", snapshot_token: "old" }, server_context: { run: run }
+    )
+
+    expect(response).to be_error
+    expect(response.content.first[:text]).to include("stale_snapshot_ref", "retry")
+    expect(response.structured_content).to include(error: include(code: "stale_snapshot_ref", retryable: true))
+    expect(described_class).not_to have_received(:call_browser_tool)
   end
 
   it "returns a clear error when the subject element is missing" do
@@ -568,7 +659,7 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
     expect(described_class.description).to include("prefer capture_current_browser: true")
     expect(described_class.input_schema_value.to_h.dig(:properties, :image_path, :description)).to include("Reserve this for files you know are workflow-local")
     expect(described_class.input_schema_value.to_h.dig(:properties, :capture_current_browser, :description)).to include("Prefer this for visual-review screenshots")
-    expect(described_class.input_schema_value.to_h.dig(:properties, :subject, :description)).to include("browser_snapshot ref", "CSS selector")
+    expect(described_class.input_schema_value.to_h.dig(:properties, :subject, :description)).to include("Snapshot refs", "Semantic targets")
     expect(described_class.input_schema_value.to_h.dig(:properties, :minimum_subject_visible_fraction, :description)).to include("Defaults to 0.5")
   end
 end

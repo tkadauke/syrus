@@ -36,6 +36,10 @@ module SyrusBrowser
         !!@captures_artifact
       end
 
+      def captures_metadata?
+        false
+      end
+
       # Opt-in flag for tools that deliver real pointer/keyboard input to a
       # shared Runtime Session (DOC-17's Shared Human/Agent Control) -- click,
       # fill, hover, drag, drop, file_upload, and evaluate (arbitrary JS can
@@ -72,7 +76,7 @@ module SyrusBrowser
 
         session = SessionRegistry.fetch(context.session_key)
         response = session.call_tool(name: upstream_tool_name, arguments: upstream_arguments(params))
-        translate(response, artifact_sink: context.artifact_sink)
+        translate(response, artifact_sink: context.artifact_sink, metadata: capture_metadata(session, params))
       rescue SessionContext::NoActiveSessionError => e
         error(e.message)
       rescue MCP::Client::ServerError => e
@@ -150,31 +154,57 @@ module SyrusBrowser
         !(value.nil? || (value.respond_to?(:blank?) ? value.blank? : value.to_s.empty?))
       end
 
-      def translate(response, artifact_sink: nil)
+      def translate(response, artifact_sink: nil, metadata: {})
         result = response.is_a?(Hash) ? response["result"] : nil
         content = result.is_a?(Hash) ? Array(result["content"]) : []
         content = content.map { |block| block.is_a?(Hash) ? block.transform_keys(&:to_sym) : block }
         err = result.is_a?(Hash) && result["isError"] == true
 
-        capture_artifacts!(content, artifact_sink) if captures_artifact? && artifact_sink && !err
+        capture_artifacts!(content, artifact_sink, metadata:) if captures_artifact? && artifact_sink && !err
 
         MCP::Tool::Response.new(content.presence || [ { type: "text", text: "" } ], error: err)
       end
 
       # Best-effort: a capture failure must never turn a successful browser
       # action into a tool error -- the agent already got its response.
-      def capture_artifacts!(content, artifact_sink)
+      def capture_artifacts!(content, artifact_sink, metadata: {})
         content.each do |block|
           next unless block.is_a?(Hash) && block[:type] == "image" && block[:data].present?
 
-          artifact_sink.capture(
+          evidence = artifact_sink.capture(
             bytes: Base64.decode64(block[:data].to_s),
             content_type: block[:mimeType].presence || "image/png",
-            title: "#{tool_name} capture"
+            title: "#{tool_name} capture", metadata:
           )
+          content << { type: "text", text: "Draft visual evidence ID: #{evidence.stable_id}" } if evidence.is_a?(WorkflowVisualEvidence)
         end
       rescue StandardError => e
-        Rails.logger.warn("[SyrusBrowser::BrowserTool] artifact capture failed: #{e.class}: #{e.message}")
+        Rails.logger.warn("[SyrusBrowser::BrowserTool] artifact capture failed: #{e.class}: #{CommandRedactor.redact(e.message)}")
+      end
+
+
+      def capture_metadata(session, params)
+        return {} unless captures_metadata?
+        response = session.call_tool(name: "browser_evaluate", arguments: {
+          "function" => "() => ({page:{url:location.href,path:location.pathname,title:document.title},viewport:{width:innerWidth,height:innerHeight,device_scale_factor:devicePixelRatio},device:(window.__syrusEmulation&&window.__syrusEmulation.preset)||null})"
+        })
+        text = response.dig("result", "content")&.find { |block| block["type"] == "text" }&.dig("text")
+        body = text.to_s.strip
+        parsed = JSON.parse(body)
+        parsed["subject"] = { "type" => "snapshot_ref", "ref" => params[:target] } if params[:target].present?
+        parsed
+      rescue JSON::ParserError
+        result = body.to_s[/(?:\A|\n)### Result\s*\n(?<json>.*?)(?=\n### |\z)/m, :json]
+        parsed = begin
+          JSON.parse(result.to_s)
+        rescue JSON::ParserError
+          return {}
+        end
+        parsed["subject"] = { "type" => "snapshot_ref", "ref" => params[:target] } if params[:target].present?
+        parsed
+      rescue StandardError => e
+        Rails.logger.warn("[SyrusBrowser::BrowserTool] screenshot metadata capture failed: #{e.class}: #{CommandRedactor.redact(e.message)}")
+        {}
       end
     end
   end
