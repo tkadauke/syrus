@@ -25,6 +25,7 @@ class Run < ApplicationRecord
   has_many :target_health_records, dependent: :nullify
   has_many :mcp_tool_usages, dependent: :nullify
   has_many :run_health_snapshots, -> { order(:created_at) }, dependent: :destroy
+  has_many :workflow_visual_evidences, dependent: :destroy
   has_many :auto_retry_attempts, dependent: :nullify
   has_many :spawned_processes, dependent: :nullify
   has_many :command_spans, -> { order(:sequence, :id) }, dependent: :destroy

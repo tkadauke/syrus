@@ -202,7 +202,8 @@ module SyrusBrowser
         end
         parsed["subject"] = { "type" => "snapshot_ref", "ref" => params[:target] } if params[:target].present?
         parsed
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn("[SyrusBrowser::BrowserTool] screenshot metadata capture failed: #{e.class}: #{e.message}")
         {}
       end
     end

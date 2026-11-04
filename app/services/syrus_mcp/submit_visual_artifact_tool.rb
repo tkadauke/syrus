@@ -128,26 +128,29 @@ module SyrusMcp
         workflow = run.workflow
         stored_type = stored_artifact_type(workflow, run, artifact_type)
         filename = "#{stored_type.parameterize.presence || 'visual-artifact'}.#{EXTENSIONS.fetch(mime_type, 'png')}"
-        workflow.attach_visual_artifact!(type: stored_type, data: image_data, content_type: mime_type, filename: filename)
+        WorkflowVisualEvidence.transaction do
+          captured[:evidence]&.lock!
+          captured[:evidence]&.promote!
+          workflow.attach_visual_artifact!(type: stored_type, data: image_data, content_type: mime_type, filename: filename)
 
-        workflow.set_typed_artifact!(
-          type: stored_type,
-          title: artifact_title,
-          original_type: artifact_type,
-          renderer_type: :image_diff,
-          payload: visual_artifact_payload(
-            workflow: workflow,
-            run: run,
-            stored_type: stored_type,
+          workflow.set_typed_artifact!(
+            type: stored_type,
+            title: artifact_title,
             original_type: artifact_type,
-            source: captured[:source],
-            content_type: mime_type,
-            byte_size: image_data.bytesize,
-            metadata: captured[:metadata]
-          ),
-          **TypedArtifactProvenance.for_run(run)
-        )
-        captured[:evidence]&.promote!
+            renderer_type: :image_diff,
+            payload: visual_artifact_payload(
+              workflow: workflow,
+              run: run,
+              stored_type: stored_type,
+              original_type: artifact_type,
+              source: captured[:source],
+              content_type: mime_type,
+              byte_size: image_data.bytesize,
+              metadata: captured[:metadata]
+            ),
+            **TypedArtifactProvenance.for_run(run)
+          )
+        end
 
         Mcp::Tools.write_log(
           run,

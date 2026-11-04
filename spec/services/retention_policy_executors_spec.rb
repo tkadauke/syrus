@@ -1,6 +1,30 @@
 require "rails_helper"
 
 RSpec.describe "retention policy executors" do
+  it "purges only expired draft visual evidence and reports a capped backlog" do
+    set_retention(:draft_visual_evidence, 7)
+    first_run = Factories.job.initial_run
+    second_run = Factories.job.initial_run
+    old_drafts = [ first_run, second_run ].each_with_index.map do |run, index|
+      run.workflow.visual_evidences.create!(
+        run:, step: run.step, sequence: 1, status: "draft", captured_at: 8.days.ago,
+        content_digest: Digest::SHA256.hexdigest("draft-#{index}")
+      ).tap do |evidence|
+        evidence.image.attach(io: StringIO.new("draft-#{index}"), filename: "draft.png", content_type: "image/png")
+      end
+    end
+    submitted = first_run.workflow.visual_evidences.create!(
+      run: first_run, step: first_run.step, sequence: 2, status: "submitted", captured_at: 8.days.ago,
+      content_digest: Digest::SHA256.hexdigest("submitted")
+    )
+
+    result = RetentionPolicyRegistry.fetch(:draft_visual_evidence).executor.call(batch_size: 1, max_batches: 1)
+
+    expect(result).to have_attributes(deleted_count: 1, backlog: true)
+    expect(old_drafts.count { |evidence| WorkflowVisualEvidence.exists?(evidence.id) }).to eq(1)
+    expect(WorkflowVisualEvidence.exists?(submitted.id)).to be(true)
+  end
+
   def create_test_insight_run(job, grader_name:)
     TestInsights::TestRun.create!(
       run: job.initial_run, repository: job.repository, grader_name:,

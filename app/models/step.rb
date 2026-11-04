@@ -16,6 +16,7 @@ class Step < ApplicationRecord
   # has_many :runs cascade was removed in the same change — the
   # cascade path is Job → Workflow → Step → Run.
   has_many :runs, -> { order(:created_at) }, dependent: :destroy
+  has_many :workflow_visual_evidences, dependent: :destroy
   has_many :run_resource_summaries, dependent: :destroy
   has_many :created_source_snapshots,
     class_name: "WorkflowSourceSnapshot",

@@ -17,21 +17,23 @@ module SyrusBrowser
         return nil unless title == "browser_screenshot capture"
 
         digest = Digest::SHA256.hexdigest(bytes)
-        existing = @run.workflow.visual_evidences.find_by(run: @run, content_digest: digest)
-        return existing if existing
-        return nil if @run.workflow.visual_evidences.where(run: @run).count >= MAX_CAPTURES_PER_RUN
+        @run.with_lock do
+          scope = @run.workflow.visual_evidences.where(run: @run)
+          existing = scope.find_by(content_digest: digest)
+          return existing if existing
+          return nil if scope.count >= MAX_CAPTURES_PER_RUN
 
-        evidence = @run.workflow.visual_evidences.create!(
-          run: @run, step: @run.step,
-          sequence: @run.workflow.visual_evidences.where(run: @run).maximum(:sequence).to_i + 1,
-          status: "draft", captured_at: Time.current, content_digest: digest,
-          page_identity: sanitize_page(metadata.to_h["page"] || metadata.to_h[:page]),
-          viewport: metadata.to_h["viewport"] || metadata.to_h[:viewport] || {},
-          device: metadata.to_h["device"] || metadata.to_h[:device],
-          subject: metadata.to_h["subject"] || metadata.to_h[:subject]
-        )
-        evidence.image.attach(io: StringIO.new(bytes), filename: "visual-evidence-#{evidence.stable_id}.png", content_type:, identify: false)
-        evidence
+          evidence = scope.create!(
+            step: @run.step, sequence: scope.maximum(:sequence).to_i + 1,
+            status: "draft", captured_at: Time.current, content_digest: digest,
+            page_identity: sanitize_page(metadata.to_h["page"] || metadata.to_h[:page]),
+            viewport: sanitize_viewport(metadata.to_h["viewport"] || metadata.to_h[:viewport]),
+            device: redact(metadata.to_h["device"] || metadata.to_h[:device]),
+            subject: redact(metadata.to_h["subject"] || metadata.to_h[:subject])
+          )
+          evidence.image.attach(io: StringIO.new(bytes), filename: "visual-evidence-#{evidence.stable_id}.png", content_type:, identify: false)
+          evidence
+        end
       end
 
       private
@@ -40,10 +42,18 @@ module SyrusBrowser
         page = page.to_h.stringify_keys
         uri = URI.parse(page["url"].to_s)
         safe_url = uri.path.presence || "/"
-        safe_url += "##{uri.fragment}" if uri.fragment.present?
-        { "url" => safe_url, "path" => safe_url, "title" => page["title"].to_s.truncate(200) }.compact_blank
+        { "url" => safe_url, "path" => safe_url, "title" => redact(page["title"]).to_s.truncate(200) }.compact_blank
       rescue URI::InvalidURIError
-        { "title" => page["title"].to_s.truncate(200) }.compact_blank
+        { "title" => redact(page["title"]).to_s.truncate(200) }.compact_blank
+      end
+
+      def sanitize_viewport(viewport)
+        viewport.to_h.with_indifferent_access.slice(:width, :height, :device_scale_factor)
+          .transform_values { |value| value.is_a?(Numeric) ? value : nil }.compact.stringify_keys
+      end
+
+      def redact(value)
+        CommandRedactor.redact_value(value)
       end
     end
 
