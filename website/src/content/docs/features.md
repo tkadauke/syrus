@@ -30,6 +30,14 @@ lifecycle, origins and use counts, requests and decisions, escalations,
 dismissals, policy changes, revocations, and execution outcomes. Stored
 evidence is redacted before display.
 
+Interactive, Coding, Local, coworker, scheduled, and workflow agents share one
+authorization-request path. When policy requires approval, Syrus deduplicates
+the exact redacted operation, releases the waiting chat turn or workflow Run,
+and resumes that same operation once with the approved result or a structured
+denial. Ordinary chats can also ask for narrowly scoped authority for
+themselves; persistent coworkers retain additional request limits and safety
+boundaries.
+
 The approval inbox at `/permissions/inbox` collects operational requests from
 chats and background work. A compact global drawer and inline Job cards show
 the same durable request in the same plain-English wording as the chat card:

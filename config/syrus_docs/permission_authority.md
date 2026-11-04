@@ -76,6 +76,14 @@ requests can be selected and decided atomically when their items share a duratio
 remain available as history; dismissing an obsolete request does not create a
 deny rule.
 
+Interactive, Coding, Local, coworker, scheduled, and workflow agents use this
+same request lifecycle. Policy evaluation records the actor's canonical role or
+named-agent selector, deduplicates the exact redacted invocation, and checkpoints
+the originating turn or Run. Approval issues one fingerprinted invocation and
+resumes that exact checkpoint; denial resumes it with a structured denial.
+Ordinary chats may proactively request authority for themselves. Coworkers keep
+the stricter self-request limits, protected-capability boundary, and cooldowns.
+
 Coworker authorization cards (in chat and in the inbox) default to three
 decisions: Allow once, an adaptive action, and Deny. The adaptive action is
 derived from the capability descriptor and the canonical rule draft, never from

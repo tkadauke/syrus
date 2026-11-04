@@ -22,6 +22,8 @@ module Mcp::Tools
           return scheduled if scheduled
           pending = Mcp::Tools::AuthorizationSupport.pending_coworker_approval(self, server_context, kwargs)
           return pending if pending
+          pending = Mcp::Tools::AuthorizationSupport.pending_actor_approval(self, server_context, kwargs)
+          return pending if pending
 
           super(*args, server_context: server_context, **kwargs, &block)
         end
@@ -62,6 +64,40 @@ module Mcp::Tools
         protected_path = protected_coworker_workspace_path?(context, descriptor, arguments)
         create_coworker_pending_action(context:, server_context:, descriptor:,
           arguments:, always_pending: protected_path)
+      end
+
+      def pending_actor_approval(tool, server_context, arguments)
+        context = McpToolContext.from_server_context(server_context)
+        return if context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+
+        entry = McpToolRegistry.entry_for(tool)
+        return unless entry
+
+        descriptor = entry.descriptor
+        return if claimed_actor_invocation_authorizes?(descriptor, context, server_context, arguments, tool)
+
+        result = Permissions::AuthorizationRequest.new(
+          context:, descriptor:, arguments:, purpose: "Invoke #{McpToolRegistry.tool_name_for(tool)}",
+          action: "authorized_tool_call",
+          payload: {
+            "tool_name" => McpToolRegistry.tool_name_for(tool), "arguments" => arguments.stringify_keys,
+            "run_id" => context.run&.id, "origin_message_id" => server_context[:current_message]&.id,
+            "approval_policy" => context.interactive ? "inline" : "queue", "approval_inbox" => true,
+            "actor" => approval_actor(context.agent_actor || context.user)
+          }.compact
+        ).call
+        return if result.request.nil?
+
+        request = result.request
+        request.checkpoint_authorization!(payload: {
+          tool_name: McpToolRegistry.tool_name_for(tool), arguments: arguments,
+          invocation_fingerprint: request.authorization_items.first.invocation_fingerprint
+        })
+        server_context[:current_message]&.update_columns(pending_action_id: request.id)
+        Mcp::Tools.success(
+          authorization_request_id: request.id, pending_action_id: request.id,
+          authorization_status: "waiting", message: I18n.t("server.permissions.coworker_request_waiting")
+        )
       end
 
       def protected_coworker_workspace_path?(context, descriptor, arguments)
@@ -179,6 +215,22 @@ module Mcp::Tools
           Permissions::CapabilityDescriptorAdapter.for_plugin_definition(descriptor.definition)
         end
         fingerprint = Permissions::InvocationFingerprint.call(descriptor: capability_descriptor, arguments:)
+        ActiveSupport::SecurityUtils.secure_compare(invocation.invocation_fingerprint, fingerprint) ||
+          raise(AuthorizationError, "authorized invocation fingerprint does not match")
+      end
+
+      def claimed_actor_invocation_authorizes?(descriptor, context, server_context, arguments, tool)
+        invocation_id = server_context[:authorized_invocation_id]
+        return false if invocation_id.blank?
+
+        invocation = AuthorizedInvocation.find_by(id: invocation_id)
+        claimant = context.agent_actor || context.user
+        raise AuthorizationError, "authorized invocation is unavailable" unless invocation&.claimed?
+        raise AuthorizationError, "authorized invocation claim does not match" unless
+          invocation.claim_key == server_context[:authorized_invocation_claim_key] &&
+          invocation.claimed_by == claimant && invocation.tool_name == McpToolRegistry.tool_name_for(tool)
+
+        fingerprint = Permissions::InvocationFingerprint.call(descriptor:, arguments:)
         ActiveSupport::SecurityUtils.secure_compare(invocation.invocation_fingerprint, fingerprint) ||
           raise(AuthorizationError, "authorized invocation fingerprint does not match")
       end
