@@ -1,7 +1,8 @@
 require "digest"
-require "open3"
 
 module ReviewEvidence::CanonicalDiff
+  CAPTURE_LIMIT = 100.megabytes
+
   module_function
 
   def snapshot(workspace_path:, base_sha:)
@@ -15,9 +16,13 @@ module ReviewEvidence::CanonicalDiff
   end
 
   def git!(workspace_path, *arguments)
-    output, error, status = Open3.capture3("git", "-C", workspace_path.to_s, *arguments)
-    return output if status.success?
+    capture = GitRunner.new.capture(*arguments, chdir: workspace_path.to_s, limit: CAPTURE_LIMIT)
+    if capture.stdout_truncated || capture.stderr_truncated
+      raise "git #{arguments.first} output exceeded #{CAPTURE_LIMIT} bytes"
+    end
+    return capture.stdout if capture.success?
 
-    raise "git #{arguments.first} failed: #{error.to_s.strip.presence || output.to_s.strip}"
+    raise GitRunner::GitError.new(arguments, capture.result.exit_status || -1,
+                                  "#{capture.stdout}#{capture.stderr}")
   end
 end
