@@ -316,7 +316,10 @@ function CoworkerMessage({
         {item.cross_chat_bridge?.direction === "inbound" ? (
           <div className="flex items-center gap-2 text-xs font-normal text-text-muted" data-testid="cross-chat-bridge-chip">
             <span aria-hidden="true">🔗</span>
-            <Link className="truncate underline hover:no-underline" to={withRoutePrefix(`/chats/${item.cross_chat_bridge.counterpart_chat_session_id}`, prefix)}>
+            <Link
+              className="truncate underline hover:no-underline"
+              to={withRoutePrefix(`/chats/${item.cross_chat_bridge.counterpart_chat_session_id}`, prefix)}
+            >
               {t("cross_chat_bridge_link", {
                 id: item.cross_chat_bridge.counterpart_chat_session_id,
                 title: item.cross_chat_bridge.counterpart_chat_title || t("new_title")
