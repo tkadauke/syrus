@@ -51,7 +51,8 @@ module Permissions
       end
 
       def issue!
-        persist!(evaluate!.scope)
+        evaluation = evaluate!
+        persist!(evaluation.scope, effects: evaluation.decision.invocation.effects)
       end
 
       # Validates and evaluates the grant through the descriptor and the shared
@@ -108,13 +109,13 @@ module Permissions
         end
       end
 
-      def lease_attributes(scope)
+      def lease_attributes(scope, effects: @descriptor.effects)
         {
           owner_user: @owner, issued_by_user: @actor, subject_selector_type: @subject_selector_type,
           subject_selector_id: @subject_selector_id, subject_repository: @subject_repository,
           capability: @descriptor.capability,
           operation: @descriptor.operation, resource_type: @descriptor.resource_scope.type.to_s,
-          resource_scope: scope, constraints: @constraints, effects: @descriptor.effects,
+          resource_scope: scope, constraints: @constraints, effects:,
           duration_kind: duration.to_s, source: @source, expires_at: @expires_at, max_uses: @max_uses
         }
       end
@@ -124,8 +125,8 @@ module Permissions
       private
 
       def duration = :invocation
-      def persist!(scope)
-        PermissionLease.create!(lease_attributes(scope).merge(max_uses: 1,
+      def persist!(scope, effects:)
+        PermissionLease.create!(lease_attributes(scope, effects:).merge(max_uses: 1,
           invocation_fingerprint: InvocationFingerprint.call(descriptor: @descriptor, arguments: @arguments)))
       end
     end
@@ -134,14 +135,14 @@ module Permissions
       private
 
       def duration = :chat_session
-      def persist!(scope) = PermissionLease.create!(lease_attributes(scope).merge(chat_session: @lifecycle.fetch(:chat_session)))
+      def persist!(scope, effects:) = PermissionLease.create!(lease_attributes(scope, effects:).merge(chat_session: @lifecycle.fetch(:chat_session)))
     end
 
     class JobScope < Base
       private
 
       def duration = :job
-      def persist!(scope) = PermissionLease.create!(lease_attributes(scope).merge(job: @lifecycle.fetch(:job)))
+      def persist!(scope, effects:) = PermissionLease.create!(lease_attributes(scope, effects:).merge(job: @lifecycle.fetch(:job)))
     end
 
     class Permanent < Base
@@ -156,7 +157,7 @@ module Permissions
       def duration = :permanent
       def layer = :agent
 
-      def persist!(scope)
+      def persist!(scope, effects:)
         PermissionRule.create!(
           owner_user: @owner, subject_selector_type: @subject_selector_type,
           subject_selector_id: @subject_selector_id, subject_repository: @subject_repository,

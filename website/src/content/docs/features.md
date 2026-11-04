@@ -1802,6 +1802,21 @@ resource scope, lifecycle, fingerprint, and remaining uses. Authority that was
 valid when granted cannot override a later deny or execute after its scope has
 ended.
 
+Workflow tools derive their owner and repository scope from the Job and their
+runtime role from the current Step. When one needs approval, the Run releases
+its provider process at a durable checkpoint and resumes the exact invocation
+after approval, or resumes with a structured denial. Scheduled tools use the
+schedule owner's durable preauthorization; equivalent later fires share one
+request and skip only the gated operation instead of treating silence as
+approval.
+
+Processes launched through Syrus's execution router require an explicit allow:
+both deny and ask stop the process before spawn because an arbitrary command has
+no safe exact-invocation replay boundary. Provider-native shell, file, browser,
+and web tools remain outside this broker when they execute inside a provider
+CLI. For hard enforcement, disable or restrict those native tools and use
+brokered Syrus tools or confined execution instead.
+
 Agents can list and explain the operator's permissions, but they cannot silently
 change them. Grant, deny, revoke, temporary-lease, preset, and obsolete-request
 cancellation tools always produce an operator confirmation card. The change is

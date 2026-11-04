@@ -6,11 +6,11 @@ module Permissions
   # the owner's durable rules and the confinement ceilings through
   # +ExecutionAuthorization+ and returns the result.
   #
-  # Enforcement today is deny-only. A +deny+ (an explicit rule, or a ceiling)
-  # stops the process before it starts. An +ask+ is recorded in the log with the
-  # redacted subject but does not block: Syrus-launched processes are not
-  # interactive, and an approval route for them does not exist yet. Provider-
-  # native actions happen inside the provider CLI and are not seen here.
+  # The router requires an explicit +allow+. A +deny+ and an +ask+ both stop the
+  # process before it starts; unlike an MCP invocation, a raw process has no
+  # exact-invocation replay boundary from which approval could safely resume.
+  # Provider-native actions happen inside the provider CLI and are not seen
+  # here.
   class ExecutionGate
     def initialize(ceiling: ExecutionCeiling.default, logger: Rails.logger)
       @ceiling = ceiling
@@ -19,11 +19,9 @@ module Permissions
 
     def call(request, location: :host)
       subject = ExecutionActions.subject_for_request(request, location:)
-      result = ExecutionAuthorization.authorize(subject:, role: role_for(request), rules: rules_for(request), ceiling: @ceiling,
-        selector_contexts: selector_contexts_for(request))
-      if result.ask?
-        @logger.info("[permissions] execution would ask: #{ExecutionActions.descriptor_for(location).redact(ExecutionActions.arguments_for(subject)).to_json}")
-      end
+      result = ExecutionAuthorization.authorize(subject:, owner: owner_for(request), role: role_for(request), rules: rules_for(request), ceiling: @ceiling,
+        context: lifecycle_context_for(request), selector_contexts: selector_contexts_for(request))
+      @logger.info("[permissions] execution requires approval: #{ExecutionActions.descriptor_for(location).redact(ExecutionActions.arguments_for(subject)).to_json}") if result.ask?
       result
     end
 
@@ -54,13 +52,20 @@ module Permissions
     end
 
     def rules_for(request)
-      user = request.chat_session&.user || request.job&.user
+      user = owner_for(request)
       return [] unless user
 
       Management.new(user).rules.map(&:to_policy_rule)
     rescue ActiveRecord::ActiveRecordError => error
       @logger.warn("[permissions] execution rules unavailable, evaluating ceilings only: #{error.class}")
       []
+    end
+
+    def owner_for(request) = request.chat_session&.user || request.job&.user
+
+    def lifecycle_context_for(request)
+      { chat_session_id: request.chat_session&.id, job_id: request.job&.id,
+        workflow_id: request.workflow&.id, run_id: request.run&.id }.compact
     end
   end
 end
