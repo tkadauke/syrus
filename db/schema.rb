@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_03_190000) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_04_004110) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -3008,6 +3008,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_190000) do
     t.integer "start_line"
     t.integer "original_line"
     t.integer "original_start_line"
+    t.string "classification_decision"
+    t.string "classification_reason"
+    t.string "classification_source"
+    t.string "classifier_version"
+    t.string "classification_error"
+    t.boolean "qualified_for_workflow"
+    t.string "qualification_gate"
     t.index ["actioned_at"], name: "index_pr_review_comments_on_actioned_at"
     t.index ["handling_state"], name: "index_pr_review_comments_on_handling_state"
     t.index ["handling_workflow_id"], name: "index_pr_review_comments_on_handling_workflow_id"

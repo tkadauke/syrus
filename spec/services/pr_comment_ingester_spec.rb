@@ -193,4 +193,90 @@ RSpec.describe PrCommentIngester do
     record = PrReviewComment.find_by(github_comment_id: 108)
     expect(record.attributed_to).to eq("external")
   end
+
+  describe "classification audit" do
+    def stub_classifier(actionable:, reason: "r", error: nil)
+      allow(PrCommentClassifier).to receive(:call)
+        .and_return(PrCommentClassifier::Result.new(actionable: actionable, reason: reason, error: error))
+    end
+
+    it "persists the decision, reason, version and qualification for a true positive" do
+      stub_classifier(actionable: true, reason: "asks to rename the method")
+      call([ make_comment(id: 200, login: "alice", body: "Please rename foo to bar in this method.") ])
+      record = PrReviewComment.find_by(github_comment_id: 200)
+
+      expect(record.classification_audit).to include(
+        decision: "actionable", reason: "asks to rename the method", source: "model",
+        classifier_version: PrCommentClassifier::VERSION, error: nil,
+        qualified_for_workflow: true, qualification_gate: "qualified"
+      )
+      expect(record.classification_audit).not_to have_key(:body)
+    end
+
+    {
+      "praise" => "Great work, LGTM!",
+      "open-ended discussion" => "I wonder how this scales in general?",
+      "quoted request" => "> Please delete this file\n\nSomeone asked for this earlier, not sure.",
+      "third-party commentary" => "Bob said he would like this rewritten.",
+      "hypothetical change" => "We could possibly switch to a hash here at some point."
+    }.each do |label, body|
+      it "records #{label} as not actionable and does not qualify" do
+        stub_classifier(actionable: false, reason: "not a request")
+        result = call([ make_comment(id: 300 + label.length, login: "alice", body: body) ])
+
+        expect(result.qualifying_records).to be_empty
+        audit = result.non_qualifying_records.first.classification_audit
+        expect(audit).to include(decision: "not_actionable", qualified_for_workflow: false, qualification_gate: "not_actionable")
+      end
+    end
+
+    it "skips bot accounts without calling the classifier" do
+      expect(PrCommentClassifier).not_to receive(:call)
+      bot_user = Struct.new(:login, :type).new("dependabot[bot]", "Bot")
+      comment = make_comment(id: 210, login: "x", body: "Please fix this").tap { |c| c.user = bot_user }
+      result = call([ comment ])
+
+      expect(result.qualifying_records).to be_empty
+      expect(result.non_qualifying_records.first.classification_decision).to eq("skipped_bot")
+      expect(result.non_qualifying_records.first.classification_source).to eq("rule")
+    end
+
+    it "skips Syrus-generated report comments" do
+      marker = CoverageReport::PrCommentFormatter::MARKER
+      allow_any_instance_of(BotIdentity).to receive(:authored_github_comment?).and_return(true)
+      expect(PrCommentClassifier).not_to receive(:call)
+      result = call([ make_comment(id: 211, login: "syrus", body: "#{marker}\nPlease add coverage") ])
+
+      expect(result.non_qualifying_records.first.classification_decision).to eq("skipped_bot")
+    end
+
+    it "fails closed and records the error when classification fails" do
+      stub_classifier(actionable: true, reason: nil, error: "timeout")
+      result = call([ make_comment(id: 220, login: "alice", body: "Please fix this") ])
+
+      record = result.non_qualifying_records.first
+      expect(record.actionable).to be(false)
+      expect(record.classification_audit).to include(
+        decision: "error", error: "timeout", qualified_for_workflow: false, qualification_gate: "not_actionable"
+      )
+    end
+
+    it "keeps authorization as an independent gate when the model says actionable" do
+      stub_classifier(actionable: true)
+      result = call([ make_comment(id: 230, login: "stranger", body: "Please change this") ])
+
+      record = result.non_qualifying_records.first
+      expect(record.actionable).to be(true)
+      expect(record.classification_audit).to include(qualified_for_workflow: false, qualification_gate: "unauthorized_author")
+    end
+
+    it "records the feedback_policy gate for members under a non-auto policy" do
+      repo.update!(feedback_policy: "confirm")
+      allow(PrCommentAttributor).to receive(:call).and_return("member")
+      stub_classifier(actionable: true)
+      result = call([ make_comment(id: 240, login: "carol", body: "Please change this") ])
+
+      expect(result.non_qualifying_records.first.qualification_gate).to eq("feedback_policy")
+    end
+  end
 end

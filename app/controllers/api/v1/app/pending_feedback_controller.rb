@@ -148,6 +148,7 @@ module Api
             handling_workflow_id: comment.handling_workflow_id,
             handling_failed_at: comment.handling_failed_at&.iso8601,
             handling_failure_reason: comment.handling_failure_reason,
+            classification: comment.classification_audit,
             retryable: comment.retryable_handling?
           }
         end
