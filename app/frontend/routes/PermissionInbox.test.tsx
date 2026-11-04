@@ -11,6 +11,15 @@ vi.mock("../api/permissionRequests", async () => {
 })
 
 const request = {
+  presentation: {
+    statement: "Send a message to another chat",
+    agent: "Release agent",
+    origin: "Job: Ship 1.0",
+    scope: "Chat Release room",
+    consequences: ["send a message"],
+    why_approval_required: "Your settings require your approval before an agent does this.",
+    requested_durations: ["This one time"]
+  },
   id: 12,
   state: "pending",
   actionable: true,
@@ -56,7 +65,7 @@ describe("PermissionInboxRoute", () => {
     vi.mocked(api.decidePermissionRequest).mockResolvedValue({ request: { ...request, state: "confirmed" } })
   })
 
-  it("shows normalized request evidence and approves the selected compatible duration", async () => {
+  it("shows plain-English context and approves the selected compatible duration", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={client}>
@@ -66,9 +75,13 @@ describe("PermissionInboxRoute", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByText("Publish the release note")).toBeInTheDocument()
-    expect(screen.getByText(/communication.chat@v1/)).toBeInTheDocument()
-    expect(screen.getByText("communication")).toBeInTheDocument()
+    expect(await screen.findByText("Send a message to another chat")).toBeInTheDocument()
+    expect(screen.getByText("Send a message to another chat")).toBeInTheDocument()
+    expect(screen.getByText("Release agent · Job: Ship 1.0")).toBeInTheDocument()
+    expect(screen.getByText("Chat Release room")).toBeInTheDocument()
+    expect(screen.getByText("Why is approval required?")).toBeInTheDocument()
+    const card = screen.getByTestId("permission-request-12")
+    expect(card.textContent).not.toMatch(/communication\.chat|send@v1|job_id|\{|"|role_default/)
     fireEvent.change(screen.getByLabelText("Authority duration"), { target: { value: "job" } })
     fireEvent.click(screen.getByRole("button", { name: "Approve" }))
     await waitFor(() => expect(api.decidePermissionRequest).toHaveBeenCalledWith(12, "approved", "job"))
@@ -113,7 +126,7 @@ describe("PermissionInboxRoute", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findByText("Publish the release note")).toBeInTheDocument()
+    expect(await screen.findByText("Send a message to another chat")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Select request: Publish the release note")).not.toBeInTheDocument()
   })
@@ -134,5 +147,34 @@ describe("PermissionInboxRoute", () => {
     )
 
     expect(await screen.findByRole("link", { name: "Next" })).toHaveAttribute("href", "/app-shell/permissions/inbox?page=2")
+  })
+
+  it("sends the encoded filter to the server and offers labeled choices from the response", async () => {
+    const tree = { and: [{ field: "action", op: "is_one_of", value: ["communication.chat/send@v1"] }] }
+    const q = btoa(JSON.stringify(tree)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+    vi.mocked(api.fetchPermissionRequests).mockResolvedValue({
+      requests: [request],
+      filter_options: {
+        state: [{ value: "pending", label: "Pending" }],
+        subject: [{ value: "User:1", label: "Release agent" }],
+        action: [{ value: "communication.chat/send@v1", label: "Send a message to another chat" }],
+        effect: [{ value: "communication", label: "send a message" }],
+        origin_type: [{ value: "Job", label: "Job" }]
+      },
+      summary: { pending_count: 1, blocked_agent_count: 1 },
+      pagination: { page: 2, per_page: 50, total: 120, total_pages: 3 }
+    })
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={[`/permissions/inbox?page=2&q=${q}`]}>
+          <PermissionInboxRoute />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await screen.findByText("Page 2 of 3")
+    expect(api.fetchPermissionRequests).toHaveBeenCalledWith(2, q)
+    expect(screen.getByRole("link", { name: "Next" }).getAttribute("href")).toContain(`q=${q}`)
+    expect(screen.getByRole("link", { name: "Previous" }).getAttribute("href")).toContain(`q=${q}`)
   })
 })

@@ -2,7 +2,7 @@ import { ApiError, deleteJson, getJson, patchJson, postForm, postJson } from "./
 import type { ProviderAvailability } from "./providerAvailability"
 import type { TypedArtifact } from "./artifacts"
 import type { RuleDraftPreview } from "./permissionRuleDrafts"
-import type { PermissionAuthorityReference, SmartPermissionOption } from "./permissionRequests"
+import type { PermissionAuthorityReference, PermissionPresentation, SmartPermissionOption } from "./permissionRequests"
 
 export type ChatRepository = {
   id: number
@@ -490,6 +490,7 @@ export type ChatPendingActionInline = {
   review?: Record<string, unknown>
   request_kind?: "legacy_action" | "authorization_request"
   authorization_items?: ChatAuthorizationItem[]
+  authorization_presentation?: PermissionPresentation
   /** Readable canonical preview of a permission-management call (grant/deny/lease). */
   permission_rule_preview?: RuleDraftPreview | null
   resource_title?: string
@@ -594,6 +595,7 @@ export type ChatPendingAction = {
   review?: Record<string, unknown>
   request_kind?: "legacy_action" | "authorization_request"
   authorization_items?: ChatAuthorizationItem[]
+  authorization_presentation?: PermissionPresentation
   /** Readable canonical preview of a permission-management call (grant/deny/lease). */
   permission_rule_preview?: RuleDraftPreview | null
   before_snapshot?: Record<string, unknown>
@@ -616,6 +618,7 @@ export type ChatAuthorizationItem = {
   operation?: string | null
   effects: string[]
   prerequisite_ids: number[]
+  presentation?: PermissionPresentation
   smart_option?: SmartPermissionOption | null
   resulting_authority?: PermissionAuthorityReference | null
   app_decision_path: string

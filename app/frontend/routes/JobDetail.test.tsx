@@ -125,6 +125,7 @@ describe("JobDetailView", () => {
             checkpoint_state: "waiting",
             non_actionable_reason: null,
             purpose: "Publish scheduled update",
+            presentation: { statement: "Publish a scheduled update", agent: "Agent", origin: "Job: Ship it" },
             created_at: "2026-11-01T12:00:00Z",
             origin: { type: "Job", id: 1, label: "JOB-1" },
             subject: { type: "User", id: 1, label: "Agent" },
@@ -156,8 +157,8 @@ describe("JobDetailView", () => {
     )
 
     expect(screen.getByRole("heading", { name: "Authorization requests" })).toBeInTheDocument()
-    expect(screen.getByText("Publish scheduled update")).toBeInTheDocument()
-    expect(screen.getByText(/records\.write\/publish@v1/)).toBeInTheDocument()
+    expect(screen.getByText("Publish a scheduled update")).toBeInTheDocument()
+    expect(screen.queryByText(/records\.write/)).not.toBeInTheDocument()
     expect(screen.getByText("waiting")).toBeInTheDocument()
   })
 

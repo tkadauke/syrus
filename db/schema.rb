@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_03_184045) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_03_190000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -2411,6 +2411,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_03_184045) do
     t.string "series_key", limit: 190, null: false
     t.float "value", null: false
     t.datetime "recorded_at", null: false
+    t.index ["metric", "recorded_at"], name: "idx_metrics_dashboard_metric_recorded_at"
     t.index ["metric", "series_key", "recorded_at"], name: "idx_metrics_dashboard_series_minute", unique: true
     t.index ["recorded_at"], name: "index_metrics_dashboard_samples_on_recorded_at"
   end

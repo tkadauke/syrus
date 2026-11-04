@@ -1,8 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useMemo, useState } from "react"
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMemo, useRef, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
-import { batchDecidePermissionRequests, fetchPermissionRequests, type PermissionRequest } from "../api/permissionRequests"
-import { FilterBar, filterTreeFromPayload, topFilterChildren, type FilterChip, type FilterSchemaField } from "../components/FilterBar"
+import { batchDecidePermissionRequests, fetchPermissionRequests, type PermissionFilterOptions, type PermissionRequest } from "../api/permissionRequests"
+import { FilterBar, filterTreeFromPayload, type FilterSchemaField } from "../components/FilterBar"
 import { PageHeading } from "../components/Heading"
 import { PanelMessage } from "../components/PanelMessage"
 import { PermissionRequestCard } from "../components/PermissionRequestCard"
@@ -17,39 +17,24 @@ export function PermissionInboxRoute() {
   const location = useLocation()
   const inboxPath = withRoutePrefix("/permissions/inbox", routePrefix(location.pathname))
   const page = Math.max(1, Number(new URLSearchParams(location.search).get("page")) || 1)
-  const fields: FilterSchemaField[] = useMemo(
-    () => [
-      {
-        field: "state",
-        label: t("approval_inbox.filters.state"),
-        bucket: "general",
-        operators: ["eq"],
-        values: ["pending", "confirmed", "rejected", "dismissed", "non_actionable"]
-      },
-      { field: "subject", label: t("approval_inbox.filters.subject"), bucket: "general", operators: ["contains"] },
-      { field: "capability", label: t("approval_inbox.filters.capability"), bucket: "general", operators: ["contains"] },
-      { field: "effect", label: t("approval_inbox.filters.effect"), bucket: "general", operators: ["contains"] }
-    ],
-    [t]
-  )
   usePageTitle(t("approval_inbox.title"))
-  const query = useQuery({ queryKey: ["permission_requests", page], queryFn: () => fetchPermissionRequests(page) })
+  const q = new URLSearchParams(location.search).get("q") || ""
+  const query = useQuery({ queryKey: ["permission_requests", page, q], queryFn: () => fetchPermissionRequests(page, q), placeholderData: keepPreviousData })
+  const optionsRef = useRef<PermissionFilterOptions | undefined>(undefined)
+  if (query.data?.filter_options) optionsRef.current = query.data.filter_options
+  const filterOptions = optionsRef.current
+  const fields: FilterSchemaField[] = useMemo(() => {
+    const field = (name: keyof PermissionFilterOptions): FilterSchemaField => ({
+      field: name,
+      label: t(`approval_inbox.filters.${name}`),
+      bucket: "general",
+      operators: ["is_one_of"],
+      values: filterOptions?.[name] ?? []
+    })
+    return [field("state"), field("subject"), field("action"), field("effect"), field("origin_type")].filter((entry) => (entry.values?.length ?? 0) > 0)
+  }, [t, filterOptions])
   const filterTree = useMemo(() => decodeFilterTree(location.search), [location.search])
-  const filters = useMemo(() => topFilterChildren(filterTree).filter((node): node is FilterChip => "field" in node), [filterTree])
-  const requests = useMemo(
-    () =>
-      (query.data?.requests ?? []).filter((request) =>
-        filters.every((filter) => {
-          const value = String(filter.value || "").toLowerCase()
-          if (filter.field === "state") return request.state === value
-          if (filter.field === "subject") return (request.subject?.label || request.runtime_role || "").toLowerCase().includes(value)
-          if (filter.field === "capability") return request.items.some((item) => item.capability.toLowerCase().includes(value))
-          if (filter.field === "effect") return request.items.some((item) => item.effects.some((effect) => effect.toLowerCase().includes(value)))
-          return true
-        })
-      ),
-    [filters, query.data]
-  )
+  const requests = query.data?.requests ?? []
   const pending = requests.filter((request) => request.state === "pending")
   const completed = requests.filter((request) => request.state !== "pending")
   return (
