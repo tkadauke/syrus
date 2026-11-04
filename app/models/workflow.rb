@@ -659,6 +659,7 @@ class Workflow < ApplicationRecord
   # against the locked current row rather than a possibly stale instance copy.
   def set_artifact!(key, value)
     key = key.to_s
+    staged_value = value
     self.class.transaction do
       locked = self.class.lock.find(id)
       if value.nil?
@@ -666,12 +667,13 @@ class Workflow < ApplicationRecord
       else
         entry = locked.workflow_artifact_values.find_or_initialize_by(key: key)
         entry.update!(value: value)
+        staged_value = entry.value
       end
       if defined?(@assigned_external_artifacts) && @assigned_external_artifacts
         if value.nil?
           @assigned_external_artifacts.delete(key)
         else
-          @assigned_external_artifacts[key] = value
+          @assigned_external_artifacts[key] = staged_value
         end
       end
       workflow_artifact_values.reset
