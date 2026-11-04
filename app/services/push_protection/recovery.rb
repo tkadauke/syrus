@@ -19,14 +19,14 @@ module PushProtection
       def repair? = kind == :repair
     end
 
-    def self.for(workflow:, workspace_path:, branch:, git: GitRunner.new)
+    def self.for(workflow:, workspace_path:, branch:, git: nil)
       new(workflow: workflow, workspace_path: workspace_path, branch: branch, git: git)
     end
 
-    def initialize(workflow:, workspace_path:, branch:, git: GitRunner.new)
+    def initialize(workflow:, workspace_path:, branch:, git: nil)
       @workflow = workflow
       @branch = branch
-      @repo = Repo.new(workspace_path, git: git)
+      @repo = Repo.new(workspace_path, git: git || GitRunner.new(workflow: workflow))
       @ledger = Ledger.for(workflow)
     end
 
