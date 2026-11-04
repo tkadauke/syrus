@@ -12,9 +12,9 @@ const spawnCoworkerChatToolCard: ToolCardRenderer = {
     const live = pendingId && displayValue(context.livePendingAction?.id) === pendingId ? context.livePendingAction : null
     return (
       <CardShell>
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-start gap-2">
           <StatePill state={live?.state || displayValue(result.state) || (context.resultError ? "failed" : "confirmed")} />
-          <span className="text-sm font-medium">{i18n.t("coworkers:tool_card.spawn_chat_title")}</span>
+          <span className="min-w-0 break-words text-sm font-medium">{i18n.t("coworkers:tool_card.spawn_chat_title")}</span>
         </div>
         <Row label={i18n.t("coworkers:fields.handle")} value={`@${displayValue(context.input?.handle)}`} />
         <Row label={i18n.t("coworkers:tool_card.spawn_chat_kind")} value={i18n.t("coworkers:tool_card.spawn_chat_use_syrus")} />
