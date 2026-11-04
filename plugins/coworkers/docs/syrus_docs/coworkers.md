@@ -246,15 +246,22 @@ Each coworker chat runs in its own disposable checkout and immutable-id branch,
 git identity, pushes the chat branch, and merges it into the home branch. Clean
 and file-disjoint changes merge automatically; append-oriented files under
 `memory/` use Git's union merge driver. A conflict keeps both refs and the
-conflicted local checkout intact and posts the affected file links into the
-chat. A missing local checkout is re-cloned from the canonical remote.
+conflicted local checkout intact, then privately gives the coworker a bounded
+opportunity to reconcile both sides on a later turn. Syrus verifies that the
+index is merged, text conflict markers are gone, `git diff --check` succeeds,
+and the result reaches the home branch. Only exhausted retries, failed
+validation or inaccessible recovery data produce one owner-facing warning.
+The Workspace Browser lists only pending conflicts and drops them as soon as
+resolution succeeds. A missing local checkout is re-cloned from the canonical
+remote.
 
 Background runs use the same lifecycle before their agent step can succeed:
 Syrus captures modified, added, moved, deleted, and untracked files in a commit
 authored with the coworker's Git identity, then merges that immutable run ref
-into the home branch. Agents leave changes uncommitted. A conflict or push
-failure makes the run unsuccessful, preserves recoverable output, and posts an
-actionable result to the main chat before the anchor Job closes.
+into the home branch. Agents leave changes uncommitted. A conflict first
+preserves the immutable run ref and enters the same silent recovery path as a
+chat turn. A terminal conflict or push failure posts one actionable result to
+the main chat before the anchor Job closes.
 
 Changing a coworker's handle moves its home branch in the same locked
 operation. Deleting a coworker preserves the home branch under
