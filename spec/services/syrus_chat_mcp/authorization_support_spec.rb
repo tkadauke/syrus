@@ -299,7 +299,7 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
         defaults: { AgentRole::CHAT_PLANNER => :ask },
         redactor: ->(arguments) { arguments.merge(token: "[REDACTED]") }
       ))
-      entry = Struct.new(:descriptor).new(descriptor)
+      entry = Struct.new(:descriptor, :ungated).new(descriptor, false)
       allow(McpToolRegistry).to receive(:entry_for).with(actor_tool).and_return(entry)
 
       response = described_class.pending_actor_approval(
@@ -315,6 +315,17 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
       expect(PendingActions.for(request.action)).to eq(PendingActions::AuthorizedToolCall)
       expect(request.authorization_items.sole.normalized_arguments)
         .to eq("body" => "hello", "token" => "[REDACTED]")
+    end
+
+    it "bypasses permission evaluation for an ungated tool" do
+      actor_tool = Class.new(MCP::Tool) { tool_name "ask_user_question" }
+      descriptor = instance_double(Permissions::CapabilityDescriptor)
+      entry = Struct.new(:descriptor, :ungated).new(descriptor, true)
+      allow(McpToolRegistry).to receive(:entry_for).with(actor_tool).and_return(entry)
+
+      expect(Permissions::AuthorizationRequest).not_to receive(:new)
+
+      expect(described_class.pending_actor_approval(actor_tool, { chat_session: }, { prompt: "Continue?" })).to be_nil
     end
   end
 
