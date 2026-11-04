@@ -68,14 +68,6 @@ class Workflow < ApplicationRecord
   # in the Steps::* handler code where it belongs.
   serialize :artifacts, coder: JSON
 
-  EXTERNALIZED_ARTIFACT_KEYS = %w[
-    adversarial_review_iterations
-    security_review_iterations
-    iterations
-    typed_artifacts
-    visual_review_iterations
-  ].freeze
-
   after_save :persist_assigned_external_artifacts
 
   # JSON-serialized workflow chain declaration used to reconstruct
@@ -627,14 +619,15 @@ class Workflow < ApplicationRecord
   # hasn't been touched yet.
   def artifact(key)
     key = key.to_s
-    if EXTERNALIZED_ARTIFACT_KEYS.include?(key)
-      external = if workflow_artifact_values.loaded?
-        workflow_artifact_values.detect { |entry| entry.key == key }
-      else
-        workflow_artifact_values.find_by(key: key)
-      end
-      return external.value if external
+    return @assigned_external_artifacts[key] if defined?(@assigned_external_artifacts) && @assigned_external_artifacts&.key?(key)
+
+    external = if workflow_artifact_values.loaded?
+      workflow_artifact_values.detect { |entry| entry.key == key }
+    else
+      workflow_artifact_values.find_by(key: key)
     end
+    return external.value if external
+
     self[:artifacts].to_h[key]
   end
 
@@ -646,13 +639,13 @@ class Workflow < ApplicationRecord
     return inline unless persisted?
 
     external = workflow_artifact_values.to_h { |entry| [ entry.key, entry.value ] }
-    inline.merge(external)
+    inline.merge(external).merge(defined?(@assigned_external_artifacts) ? @assigned_external_artifacts.to_h : {})
   end
 
   def artifacts=(values)
     normalized = values.to_h.deep_stringify_keys
-    @assigned_external_artifacts = normalized.slice(*EXTERNALIZED_ARTIFACT_KEYS)
-    super(normalized.except(*EXTERNALIZED_ARTIFACT_KEYS))
+    @assigned_external_artifacts = normalized
+    super({})
   end
 
   # Append-only artifact write. Inline domain-event subscribers can write
@@ -662,21 +655,10 @@ class Workflow < ApplicationRecord
     key = key.to_s
     self.class.transaction do
       locked = self.class.lock.find(id)
-      if EXTERNALIZED_ARTIFACT_KEYS.include?(key)
-        entry = locked.workflow_artifact_values.find_or_initialize_by(key: key)
-        entry.update!(value: value)
-        workflow_artifact_values.reset
-        return value
-      end
-
-      locked[:artifacts] = locked[:artifacts].to_h.merge(key => value)
-      locked.save!
-      self[:artifacts] = locked[:artifacts]
-      # Already persisted through `locked`. Left dirty, this instance would
-      # skip the save inside a later `attach` (Active Storage only saves a
-      # record with no other pending changes), silently dropping e.g. the
-      # coverage hit map.
-      clear_attribute_changes([ :artifacts ])
+      entry = locked.workflow_artifact_values.find_or_initialize_by(key: key)
+      entry.update!(value: value)
+      workflow_artifact_values.reset
+      value
     end
   end
 

@@ -949,11 +949,12 @@ RSpec.describe Run, :ci_only do
           include(
             "hostname" => "mac-mini-a",
             "selected_queue" => true,
-            "worker_storage_key" => "storage-mac",
-            "capabilities" => { "os" => [ "macos" ], "arch" => [ "arm64" ] },
-            "capability_diagnostics" => { "xcode" => true }
+            "worker_storage_key" => "storage-mac"
           )
         )
+      )
+      expect(workflow.artifact("run_queue_decisions").last.dig("live_workers", 0)).not_to include(
+        "capabilities", "capability_diagnostics"
       )
     end
 
@@ -984,13 +985,7 @@ RSpec.describe Run, :ci_only do
         "live_workers" => contain_exactly(
           include(
             "hostname" => "syrus-worker-1",
-            "selected_queue" => true,
-            "capabilities" => { "os" => [ "macos" ], "arch" => [ "arm64" ], "toolchain" => [ "xcode" ] },
-            "capability_diagnostics" => include(
-              "xcode_version" => "16.4",
-              "ios_simulator" => false,
-              "ios_simulator_runtimes" => []
-            )
+            "selected_queue" => true
           )
         )
       )

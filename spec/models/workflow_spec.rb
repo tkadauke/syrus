@@ -1189,14 +1189,16 @@ RSpec.describe Workflow, :ci_only do
       expect(reloaded.artifact("pr_body")).to eq("Adds a tiny greet helper.")
     end
 
-    it "round-trips growth-bound values through external storage" do
-      iterations = [ [ { "grader" => "rspec", "output" => "x" * 20_000 } ] ]
+    it "round-trips an unregistered key through every artifact API using external storage" do
+      value = [ { "payload" => "x" * 20_000 } ]
 
-      wf.set_artifact!("iterations", iterations)
+      wf.update!(artifacts: { "previously_unknown_key" => value })
 
-      expect(described_class.find(wf.id).artifact("iterations")).to eq(iterations)
-      expect(wf.workflow_artifact_values.find_by!(key: "iterations").value).to eq(iterations)
-      expect(wf.reload.attributes_before_type_cast.fetch("artifacts").to_s).not_to include("iterations")
+      reloaded = described_class.find(wf.id)
+      expect(reloaded.artifact("previously_unknown_key")).to eq(value)
+      expect(reloaded.artifacts).to eq("previously_unknown_key" => value)
+      expect(reloaded.workflow_artifact_values.find_by!(key: "previously_unknown_key").value).to eq(value)
+      expect(reloaded.attributes_before_type_cast.fetch("artifacts")).to eq("{}")
     end
 
     it "falls back to inline storage for a row not yet backfilled" do
@@ -1209,7 +1211,7 @@ RSpec.describe Workflow, :ci_only do
       expect(reloaded.artifact("head_sha")).to eq("abc123")
     end
 
-    it "updates only the external value row for a growth-bound artifact" do
+    it "updates only the external value row for any artifact" do
       wf.set_artifact!("head_sha", "abc123")
       wf.set_artifact!("iterations", [ [ { "output" => "first" } ] ])
       sql = []

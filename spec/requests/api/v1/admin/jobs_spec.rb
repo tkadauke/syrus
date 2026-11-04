@@ -19,6 +19,14 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", :ci_only, type: :request do
 
   def auth(token) = { "Authorization" => "Bearer #{token}" }
   def parse_body  = JSON.parse(response.body)
+  def capture_sql
+    queries = []
+    subscriber = lambda do |_name, _started, _finished, _id, payload|
+      queries << payload[:sql] unless payload[:name] == "SCHEMA" || payload[:cached]
+    end
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") { yield }
+    queries
+  end
   def finish_work_units_for(job)
     WorkUnit.where(workflow_id: job.workflows.select(:id)).find_each { |unit| unit.mark_terminal!("succeeded") }
   end
@@ -45,6 +53,20 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", :ci_only, type: :request do
       get "/api/v1/admin/jobs/#{job.id}", headers: auth(admin_token)
       expect(response).to have_http_status(:ok)
       expect(response.content_type).to include("application/json")
+    end
+
+    it "preloads artifact values for every workflow in one query" do
+      2.times do |index|
+        Workflow.create!(job: job, trigger_kind: "retry", artifacts: { "summary" => "Attempt #{index}" })
+      end
+
+      queries = capture_sql do
+        get "/api/v1/admin/jobs/#{job.id}", headers: auth(admin_token)
+      end
+
+      artifact_queries = queries.grep(/FROM [`"]?workflow_artifact_values[`"]?/i)
+      expect(response).to have_http_status(:ok)
+      expect(artifact_queries.size).to eq(1)
     end
 
     it "resolves a job by its human-readable slug" do
