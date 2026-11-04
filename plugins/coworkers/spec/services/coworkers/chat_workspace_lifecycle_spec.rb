@@ -86,7 +86,8 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle do
     service = lifecycle(session)
     service.prepare!
 
-    tool = Mcp::Sidecar.chat_tools(session, tier: :essential).find do |candidate|
+    tools = Mcp::Sidecar.send(:plugin_tools_for, session, tier: :essential, policy: :coworker)
+    tool = tools.find do |candidate|
       McpToolRegistry.tool_name_for(candidate) == "write_coworker_file"
     end
     expect(tool).to be_present
