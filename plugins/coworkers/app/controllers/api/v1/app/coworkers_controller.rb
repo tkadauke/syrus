@@ -216,6 +216,18 @@ module Api
           render json: { schedule: schedule_json(task.reload) }
         end
 
+        def update_schedule
+          task = find_schedule
+          return unless task
+
+          permitted = task.system_schedule? ? params.expect(schedule: %i[schedule_input]) : schedule_params
+          if task.update(permitted)
+            render json: { schedule: schedule_json(task.reload) }
+          else
+            render_error("validation_failed", task.errors.full_messages.to_sentence, status: :unprocessable_content)
+          end
+        end
+
         def resume_schedule
           task = find_schedule
           return unless task
@@ -353,6 +365,8 @@ module Api
         def schedule_json(task)
           {
             id: task.id, name: task.name, prompt: task.prompt, kind: task.kind, state: task.state,
+            system_key: task.system_key, last_journaled_on: task.last_journaled_on&.iso8601,
+            last_system_result: task.last_system_result, last_system_result_reason: task.last_system_result_reason,
             after_run: task.after_run,
             schedule_input: task.schedule_input, schedule_explanation: task.schedule_explanation,
             fire_at: task.fire_at&.iso8601, next_fire_at: task.next_fire_at&.iso8601,

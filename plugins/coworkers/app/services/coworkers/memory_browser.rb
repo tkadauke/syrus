@@ -2,7 +2,7 @@ module Coworkers
   class MemoryBrowser
     MAX_FILES = 1_000
     MAX_FILE_BYTES = 256.kilobytes
-    CATEGORIES = %w[daily people repos banks].freeze
+    CATEGORIES = %w[diary daily people repos banks].freeze
 
     def initialize(coworker:, repository:, user:)
       @coworker = coworker
@@ -60,7 +60,7 @@ module Coworkers
     end
 
     def sort_key(file)
-      file[:category] == "daily" ? [ 0, -file[:name].delete("-").to_i ] : [ CATEGORIES.index(file[:category]) || CATEGORIES.length, file[:name].downcase ]
+      file[:category].in?(%w[diary daily]) ? [ CATEGORIES.index(file[:category]), -file[:name].delete("-").to_i ] : [ CATEGORIES.index(file[:category]) || CATEGORIES.length, file[:name].downcase ]
     end
   end
 end

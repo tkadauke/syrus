@@ -159,7 +159,13 @@
     "empty": "Nulla consilia adhuc.",
     "pause": "Siste",
     "resume": "Perge",
-    "run_now": "Nunc exsequere"
+    "run_now": "Nunc exsequere",
+    "system": "Systema",
+    "journaling_paused": "Diarium sistitur",
+    "last_result": "Eventus ultimus: {{result}} · usque ad {{date}} scriptum",
+    "never_run": "numquam actum",
+    "system_run_time": "Hora consilii systematis",
+    "save_time": "Horam serva"
   },
   "capabilities": {
     "sentences": {

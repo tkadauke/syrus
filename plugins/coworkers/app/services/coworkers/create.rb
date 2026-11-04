@@ -98,6 +98,7 @@ class Coworkers::Create
       @attempt.update!(expected_seeded_commit: sha, seeded_at: Time.current)
       ApplicationRecord.transaction do
         coworker = create_records!(register_repository!)
+        Coworkers::SystemSchedules.reconcile!(coworker)
         create_kickoff!(coworker)
         @attempt.update!(state: "completed", coworker: coworker, completed_at: Time.current, last_error: nil)
         coworker
@@ -217,6 +218,7 @@ class Coworkers::Create
       "AGENTS.md" => AGENTS,
       "USER.md" => user,
       "memory/.gitkeep" => "",
+      "memory/diary/.gitkeep" => "",
       ".gitattributes" => "memory/** merge=union\n"
     }
   end

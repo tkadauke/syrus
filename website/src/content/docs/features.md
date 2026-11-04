@@ -1788,6 +1788,14 @@ results include the required scope, effective policy, and lock reason.
 Available, requestable, prohibited, plugin-disabled, resource-unconfigured, and
 unavailable states remain distinct, and discovery itself never grants access.
 
+Each coworker also receives a System journaling schedule shortly after local
+midnight (using the owner's configured time zone, or UTC). It silently
+organizes that day's memory and writes `memory/diary/YYYY-MM-DD.md`; dormant
+days are skipped without creating a run or chat activity. Owners can change the
+time or visibly pause and resume journaling, but cannot delete it or edit its
+system-owned instructions. Only a journaling failure posts a card and wakes the
+coworker's main chat.
+
 Coworker dispatch enforces the unified evaluator: descriptor defaults and
 current rules decide whether an operation runs, asks, or fails closed. Legacy
 coworker grants are no longer runtime authority. An ask decision creates one

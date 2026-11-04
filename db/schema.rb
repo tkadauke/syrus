@@ -3720,7 +3720,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_195733) do
     t.json "skill_args"
     t.integer "coworker_id"
     t.string "after_run", default: "quiet", null: false
+    t.string "system_key"
+    t.date "last_journaled_on"
+    t.string "last_system_result"
+    t.date "last_system_result_on"
+    t.string "last_system_result_reason"
     t.index ["archived_at"], name: "index_scheduled_tasks_on_archived_at"
+    t.index ["coworker_id", "system_key"], name: "index_scheduled_tasks_on_coworker_and_system_key", unique: true
     t.index ["coworker_id"], name: "index_scheduled_tasks_on_coworker_id"
     t.index ["cron_template_id"], name: "index_scheduled_tasks_on_cron_template_id"
     t.index ["repository_id"], name: "index_scheduled_tasks_on_repository_id"

@@ -74,6 +74,29 @@ turn is active, the follow-up waits in the chat queue, and a run can enqueue at
 most one wake. Choose `after_run: quiet` for card-only delivery. A follow-up
 never fires another scheduled run.
 
+Every active coworker also has one undeletable **System** schedule named
+Journaling. Syrus creates it during provisioning and reconciles it periodically
+if it is missing or damaged. It runs shortly after midnight in the owner's
+approval-delivery time zone (UTC when none is configured), processing the local
+day that just ended. Owners may pause or resume it and change its run time; its
+prompt, kind, identity, and delivery behavior are owned by Syrus. A paused
+journaling schedule remains visibly paused on the coworker page.
+
+Journaling does not invoke an agent on dormant days. It records the day as
+`skipped: dormant`, advances the last-journaled date, and creates no Job, chat
+card, wake turn, or unread state. Active and missed days are processed oldest
+first with a seven-day catch-up bound. Successful journaling is also completely
+silent: the only output is the persisted workspace update and
+`memory/diary/YYYY-MM-DD.md`. Failures post the normal failure card and wake the
+main chat once for that date.
+
+The journal organizes durable daily notes into the normal people, repository,
+and memory-bank files and writes a first-person diary. Memory is never deleted.
+An obsolete entry uses `~~original text~~ (superseded YYYY-MM-DD by <reference>:
+<reason>)`; it remains readable in Memory while standing prompt context omits
+the superseded line. Diary entries appear newest first in the read-only Memory
+tab.
+
 Coworkers is an experimental, instance-local capability for persistent named
 agents. It is disabled by default and requires beta mode before an administrator
 can enable it.

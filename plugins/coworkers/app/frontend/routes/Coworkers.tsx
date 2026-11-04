@@ -21,6 +21,7 @@ import {
   addCoworkerToChat,
   commandCoworkerSchedule,
   createCoworkerSchedule,
+  updateCoworkerSchedule,
   createCoworker,
   createSideChat,
   fetchCoworker,
@@ -37,6 +38,7 @@ import {
   testCoworkerRemote,
   updateCoworkerGrant,
   type CoworkerDetail,
+  type CoworkerSchedule,
   type CoworkerMemoryFile,
   type CoworkerSummary
 } from "../api/coworkers"
@@ -778,10 +780,23 @@ function CoworkerSchedules({ coworker, onChanged }: { coworker: CoworkerDetail; 
           {coworker.schedules.map((schedule) => (
             <li className="flex flex-wrap items-center justify-between gap-3 p-4" key={schedule.id}>
               <div>
-                <div className="font-medium">{schedule.name}</div>
+                <div className="flex items-center gap-2 font-medium">
+                  {schedule.name}
+                  {schedule.system_key ? <span className="rounded bg-surface-muted px-2 py-0.5 text-xs text-text-secondary">{t("schedule.system")}</span> : null}
+                </div>
                 <div className="text-sm text-text-secondary">
                   {schedule.schedule_explanation || schedule.fire_at} · {schedule.state} · {t(`schedule.after_run_${schedule.after_run}`)}
                 </div>
+                {schedule.system_key ? (
+                  <>
+                    <div className="text-sm text-text-secondary">
+                      {schedule.state === "paused" ? t("schedule.journaling_paused") : t("schedule.last_result", {
+                        result: schedule.last_system_result || t("schedule.never_run"), date: schedule.last_journaled_on || "—"
+                      })}
+                    </div>
+                    <SystemScheduleTime coworkerId={String(coworker.id)} onChanged={onChanged} schedule={schedule} />
+                  </>
+                ) : null}
               </div>
               <div className="flex gap-2">
                 {schedule.state === "scheduled" ? (
@@ -817,6 +832,23 @@ function CoworkerSchedules({ coworker, onChanged }: { coworker: CoworkerDetail; 
         </ul>
       )}
     </section>
+  )
+}
+
+function SystemScheduleTime({ coworkerId, schedule, onChanged }: { coworkerId: string; schedule: CoworkerSchedule; onChanged: () => void }) {
+  const { t } = useT("coworkers")
+  const [cadence, setCadence] = useState(schedule.schedule_input || "")
+  const update = useMutation({
+    mutationFn: () => updateCoworkerSchedule(coworkerId, schedule.id, { schedule_input: cadence }),
+    onSuccess: onChanged
+  })
+  return (
+    <div className="mt-2 flex items-center gap-2">
+      <Input aria-label={t("schedule.system_run_time")} className="max-w-56" onChange={(event) => setCadence(event.target.value)} value={cadence} />
+      <button className="rounded border border-border px-2 py-1 text-xs" disabled={update.isPending || cadence === schedule.schedule_input} onClick={() => update.mutate()}>
+        {t("schedule.save_time")}
+      </button>
+    </div>
   )
 }
 

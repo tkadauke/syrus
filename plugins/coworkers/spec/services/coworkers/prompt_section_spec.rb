@@ -87,6 +87,19 @@ RSpec.describe Coworkers::PromptSection do
     expect(section).not_to include("memory/people/#{participant.handle}.md")
   end
 
+  it "keeps superseded memory on disk but omits it from standing context" do
+    path = @root.join("memory/daily/#{Time.zone.today.iso8601}.md")
+    path.dirname.mkpath
+    obsolete = "~~Use the old endpoint~~ (superseded 2026-11-03 by JOB-42: replaced)"
+    path.write("Current decision\n#{obsolete}\n")
+
+    section = described_class.chat_prompt_section(chat_session: chat, repository: repository)
+
+    expect(section).to include("Current decision")
+    expect(section).not_to include("Use the old endpoint")
+    expect(path.read).to include(obsolete)
+  end
+
   it "still describes requestable tool grants when every context file is missing" do
     section = described_class.chat_prompt_section(chat_session: chat, repository: repository)
 

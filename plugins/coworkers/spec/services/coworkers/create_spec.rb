@@ -89,7 +89,8 @@ RSpec.describe Coworkers::Create do
     expect(Coworkers::WorkspaceRepository.find_by!(repository: repository)).to be_present
     expect(remote.seeded_files).to include(
       ".gitattributes" => "memory/** merge=union\n",
-      "memory/.gitkeep" => ""
+      "memory/.gitkeep" => "",
+      "memory/diary/.gitkeep" => ""
     )
     soul = remote.seeded_files.fetch("SOUL.md")
     expect(soul).to start_with("role: not set up yet\nname: Maya\n")
@@ -107,6 +108,9 @@ RSpec.describe Coworkers::Create do
     expect(coworker.grants.pluck(:capability, :approval_policy).to_h).to eq(described_class::DEFAULT_GRANTS)
     expect(coworker.grants.find_by!(capability: "chat.message_owner")).to have_attributes(approval_policy: "confirm")
     expect(coworker.coworker_chats.find_by!(role: "main").chat_session.repository).to eq(repository)
+    expect(coworker.schedules.where(system_key: "journaling")).to contain_exactly(
+      have_attributes(name: "Journaling", kind: "cron", after_run: "quiet")
+    )
   end
 
   it "returns the completed coworker for duplicate delivery without duplicating records or branches" do
