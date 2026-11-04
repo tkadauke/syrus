@@ -20,7 +20,7 @@ module Coworkers
         chat:, workflow:, source_run: run, path: workspace.path
       )
       verify_claimed_paths! if outcome == :merged
-      return if outcome == :merged
+      return if %i[merged pending_resolution].include?(outcome)
 
       fail_persistence!(
         "Workspace persistence #{outcome}. The run output remains recoverable from the workspace and its background-run ref; " \

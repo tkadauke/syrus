@@ -1152,6 +1152,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_162251) do
     t.index ["state", "updated_at"], name: "idx_coworker_provisioning_attempts_reconciliation"
   end
 
+  create_table "coworker_workspace_conflicts", force: :cascade do |t|
+    t.integer "chat_session_id", null: false
+    t.integer "repository_id", null: false
+    t.string "source_branch", null: false
+    t.string "recovery_ref"
+    t.json "files", null: false
+    t.json "versions", null: false
+    t.text "detail"
+    t.string "state", default: "pending", null: false
+    t.integer "attempt_count", default: 0, null: false
+    t.datetime "notified_at"
+    t.datetime "resolved_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_session_id", "repository_id", "state"], name: "idx_coworker_workspace_conflicts_active"
+    t.index ["chat_session_id"], name: "index_coworker_workspace_conflicts_on_chat_session_id"
+    t.index ["repository_id"], name: "index_coworker_workspace_conflicts_on_repository_id"
+  end
+
   create_table "coworker_workspace_repositories", force: :cascade do |t|
     t.integer "repository_id", null: false
     t.datetime "created_at", null: false

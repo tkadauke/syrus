@@ -534,6 +534,21 @@ RSpec.describe "Coworker background runs" do
     )
   end
 
+  it "keeps a recoverable background conflict silent for the successor turn" do
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    step = workflow.steps.find_by!(kind: "coworker_run")
+    run = Run.create!(job: job, user: owner, step:, trigger_kind: "coworker_run", agent_provider: "codex")
+    workspace = instance_double(WorkflowWorkspace, setup: nil, path: Pathname.new(Dir.tmpdir))
+    handler = Coworkers::RunStep.new(run)
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:run_agent).and_return(instance_double(AgentInvocation::Result, final_text: "Memory updated."))
+    allow(lifecycle).to receive(:finalize_background!).and_return(:pending_resolution)
+
+    expect { handler.call }.not_to change(main_chat.messages, :count)
+    expect(run.reload.agent_summary).to eq("Memory updated.")
+    expect(workflow.reload.artifact(Coworkers::PostToChat::MERGE_ARTIFACT)).to eq("pending_resolution")
+  end
+
   it "uses the final top-level assistant transcript when the stored summary is blank" do
     workflow = Coworkers::Workflow.instantiate(job: job)
     source_step = workflow.steps.find_by!(kind: "coworker_run")
