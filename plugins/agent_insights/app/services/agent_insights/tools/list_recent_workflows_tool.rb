@@ -43,7 +43,7 @@ module AgentInsights
 
           scope = ::Workflow
             .joins(:job)
-            .includes(:job, :workflow_warnings, steps: :runs)
+            .includes(:job, :workflow_artifact_values, :workflow_warnings, steps: :runs)
             .where(jobs: { repository_id: repository.id, user_id: context_run.job.user_id })
             .where.not(jobs: { kind: "agent_insight" })
             .where.not(finished_at: nil)

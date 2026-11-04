@@ -168,7 +168,7 @@ module Workflows
       return false if event.dig("source", "replacement_workflow_id").present?
 
       source = event["source"].to_h.merge("replacement_workflow_id" => replacement.id)
-      cancelled.update_columns(artifacts: cancelled.artifacts.to_h.merge(ARTIFACT_KEY => event.merge("source" => source)))
+      cancelled.set_artifact!(ARTIFACT_KEY, event.merge("source" => source))
       true
     end
 
@@ -242,8 +242,11 @@ module Workflows
       root_id = workflow.artifacts.to_h.dig(ARTIFACT_KEY, "root_workflow_id")
       return [] if cascade_id.blank? || root_id.blank?
 
-      Workflow.where(state: "cancelled").where("id >= ?", root_id).where.not(id: workflow.id)
-              .where("artifacts LIKE ?", "%#{cascade_id}%").order(:id).filter_map do |candidate|
+      Workflow.joins(:workflow_artifact_values)
+              .includes(:workflow_artifact_values)
+              .where(state: "cancelled", workflow_artifact_values: { key: ARTIFACT_KEY })
+              .where("workflows.id >= ?", root_id).where.not(workflows: { id: workflow.id })
+              .where("workflow_artifact_values.value LIKE ?", "%#{cascade_id}%").order(:id).filter_map do |candidate|
         ref = candidate.artifacts.to_h[ARTIFACT_KEY]
         next unless ref.is_a?(Hash) && ref["cascade_id"] == cascade_id
 
