@@ -36,7 +36,12 @@ module SyrusBrowser
       end
 
       def for_run(run)
-        Result.new(session_key: "run:#{run.id}", artifact_sink: ArtifactSinks::Null.new, owner: run)
+        sink = if run.is_a?(Run) && run.step&.kind == "visual_review"
+          ArtifactSinks::VisualReviewDraft.new(run)
+        else
+          ArtifactSinks::Null.new
+        end
+        Result.new(session_key: "run:#{run.id}", artifact_sink: sink, owner: run)
       end
 
       def for_runtime_session(runtime_session)

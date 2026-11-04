@@ -197,6 +197,9 @@ artifacts stored by older workflows.
 The preferred generic type is `visual_review_screenshot`, but callers may use
 descriptive types such as `visual_review_desktop_bulk_progress`. They are
 rendered as single after screenshots (`:image_diff` renderer). Visual-review
+browser captures are first stored as drafts and return a stable evidence ID.
+Pass that ID as `captured_evidence_id` to curate the existing image without a
+second capture; the direct browser, file, and base64 paths remain supported.
 iteration association uses trusted same-Run provenance and image metadata,
 not an exact original type. Payload written by `submit_visual_artifact`:
 

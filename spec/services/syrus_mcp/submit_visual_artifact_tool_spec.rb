@@ -13,12 +13,45 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
     image_base64: png_base64,
     image_path: nil,
     capture_current_browser: false,
+    captured_evidence_id: nil,
     subject: nil,
     minimum_subject_visible_fraction: described_class::DEFAULT_MINIMUM_SUBJECT_VISIBLE_FRACTION,
     content_type: nil,
     server_context: { run: run }
   )
-    described_class.call(type: type, title: title, image_base64: image_base64, image_path: image_path, capture_current_browser: capture_current_browser, subject: subject, minimum_subject_visible_fraction: minimum_subject_visible_fraction, content_type: content_type, server_context: server_context)
+    described_class.call(type: type, title: title, image_base64: image_base64, image_path: image_path, capture_current_browser: capture_current_browser, captured_evidence_id: captured_evidence_id, subject: subject, minimum_subject_visible_fraction: minimum_subject_visible_fraction, content_type: content_type, server_context: server_context)
+  end
+
+  it "promotes captured draft evidence by stable ID without deleting its source" do
+    evidence = run.workflow.visual_evidences.create!(
+      run: run, step: run.step, sequence: 1, status: "draft", captured_at: Time.current,
+      content_digest: Digest::SHA256.hexdigest(png_bytes), page_identity: { "url" => "/orders" },
+      viewport: { "width" => 390, "height" => 844 }
+    )
+    evidence.image.attach(io: StringIO.new(png_bytes), filename: "capture.png", content_type: "image/png")
+
+    response = call(image_base64: nil, captured_evidence_id: evidence.stable_id)
+
+    expect(response).not_to be_error
+    expect(evidence.reload.status).to eq("submitted")
+    expect(evidence.image).to be_attached
+    stored_type = run.workflow.reload.artifact("typed_artifacts").last.fetch("type")
+    expect(run.workflow.visual_artifact_for(stored_type).download).to eq(png_bytes)
+  end
+
+  it "keeps captured draft evidence when submission fails" do
+    evidence = run.workflow.visual_evidences.create!(
+      run: run, step: run.step, sequence: 1, status: "draft", captured_at: Time.current,
+      content_digest: Digest::SHA256.hexdigest(png_bytes)
+    )
+    evidence.image.attach(io: StringIO.new(png_bytes), filename: "capture.png", content_type: "image/png")
+    allow_any_instance_of(Workflow).to receive(:attach_visual_artifact!).and_raise("storage unavailable")
+
+    response = call(image_base64: nil, captured_evidence_id: evidence.stable_id)
+
+    expect(response).to be_error
+    expect(evidence.reload.status).to eq("draft")
+    expect(evidence.image).to be_attached
   end
 
   def write_workspace_file(relative_path, bytes = png_bytes)
