@@ -3313,5 +3313,18 @@
   "tool_presentation_title": "Tool presentation",
   "tool_presentation_open_full_page": "Open full page",
   "tool_presentation_copy_link": "Copy link",
-  "tool_presentation_close": "Close"
+  "tool_presentation_close": "Close",
+  "tool_card_repository_search_incomplete_summary": "Incomplete search · {{count}} matches",
+  "tool_card_repository_search_complete_summary": "Complete search · {{count}} matches",
+  "tool_card_repository_search_incomplete": "Search coverage is incomplete",
+  "tool_card_repository_search_retry": "No match applies only to the searched portion. Narrow the path or retry.",
+  "tool_card_repository_search_status": "Status: {{status}}",
+  "tool_card_repository_search_reason": "Reason: {{reason}}",
+  "tool_card_repository_search_coverage": "Searched {{searched}} of {{candidates}} files",
+  "tool_card_repository_search_no_match_partial": "No match was found in the searched portion. This is not a definitive no-match.",
+  "tool_card_repository_search_no_match": "No match found in the complete search.",
+  "tool_card_repository_list_incomplete_summary": "Incomplete listing · {{count}} paths",
+  "tool_card_repository_list_complete_summary": "Complete listing · {{count}} paths",
+  "tool_card_repository_list_incomplete": "File listing is incomplete",
+  "tool_card_repository_list_coverage": "Returned {{returned}} of {{candidates}} paths"
 }

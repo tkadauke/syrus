@@ -3313,5 +3313,18 @@
   "tool_presentation_title": "Praesentatio instrumenti",
   "tool_presentation_open_full_page": "Paginam plenam aperire",
   "tool_presentation_copy_link": "Vinculum exscribere",
-  "tool_presentation_close": "Claude"
+  "tool_presentation_close": "Claude",
+  "tool_card_repository_search_incomplete_summary": "Quaestio imperfecta · {{count}} inventa",
+  "tool_card_repository_search_complete_summary": "Quaestio perfecta · {{count}} inventa",
+  "tool_card_repository_search_incomplete": "Ambitus quaestionis imperfectus est",
+  "tool_card_repository_search_retry": "Nihil inventum ad partem tantum inspectam pertinet. Viam coarta aut iterum tenta.",
+  "tool_card_repository_search_status": "Status: {{status}}",
+  "tool_card_repository_search_reason": "Causa: {{reason}}",
+  "tool_card_repository_search_coverage": "{{searched}} ex {{candidates}} fasciculis inspecti",
+  "tool_card_repository_search_no_match_partial": "Nihil in parte inspecta inventum est; hoc iudicium definitivum non est.",
+  "tool_card_repository_search_no_match": "Nihil in quaestione perfecta inventum est.",
+  "tool_card_repository_list_incomplete_summary": "Index imperfectus · {{count}} viae",
+  "tool_card_repository_list_complete_summary": "Index perfectus · {{count}} viae",
+  "tool_card_repository_list_incomplete": "Index fasciculorum imperfectus est",
+  "tool_card_repository_list_coverage": "{{returned}} ex {{candidates}} viis redditae"
 }

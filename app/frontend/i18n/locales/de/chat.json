@@ -3313,5 +3313,18 @@
   "tool_presentation_title": "Tool-Präsentation",
   "tool_presentation_open_full_page": "Als ganze Seite öffnen",
   "tool_presentation_copy_link": "Link kopieren",
-  "tool_presentation_close": "Schließen"
+  "tool_presentation_close": "Schließen",
+  "tool_card_repository_search_incomplete_summary": "Unvollständige Suche · {{count}} Treffer",
+  "tool_card_repository_search_complete_summary": "Vollständige Suche · {{count}} Treffer",
+  "tool_card_repository_search_incomplete": "Die Suchabdeckung ist unvollständig",
+  "tool_card_repository_search_retry": "Kein Treffer gilt nur für den durchsuchten Teil. Grenze den Pfad ein oder versuche es erneut.",
+  "tool_card_repository_search_status": "Status: {{status}}",
+  "tool_card_repository_search_reason": "Grund: {{reason}}",
+  "tool_card_repository_search_coverage": "{{searched}} von {{candidates}} Dateien durchsucht",
+  "tool_card_repository_search_no_match_partial": "Im durchsuchten Teil wurde kein Treffer gefunden. Das ist kein endgültiges Ergebnis.",
+  "tool_card_repository_search_no_match": "In der vollständigen Suche wurde kein Treffer gefunden.",
+  "tool_card_repository_list_incomplete_summary": "Unvollständige Liste · {{count}} Pfade",
+  "tool_card_repository_list_complete_summary": "Vollständige Liste · {{count}} Pfade",
+  "tool_card_repository_list_incomplete": "Die Dateiliste ist unvollständig",
+  "tool_card_repository_list_coverage": "{{returned}} von {{candidates}} Pfaden zurückgegeben"
 }
