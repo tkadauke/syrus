@@ -47,6 +47,28 @@ RSpec.describe RunCheckpointPublisher do
     )
   end
 
+  it "retries a transient provider failure with bounded backoff" do
+    transient = GitRunner::GitError.new(
+      [ "push" ], 1,
+      "remote: Internal Server Error\n! [remote rejected] HEAD (Internal Server Error)"
+    )
+    sleeper = class_double(Kernel, sleep: nil)
+    allow(git).to receive(:run).with("ls-remote", anything, anything, any_args).and_return("")
+    push_attempts = 0
+    allow(git).to receive(:run).with("push", anything, anything, any_args) do
+      push_attempts += 1
+      raise transient if push_attempts == 1
+
+      ""
+    end
+
+    checkpoint = described_class.publish!(run: run, workspace: workspace, git: git, sleeper: sleeper)
+
+    expect(checkpoint).to be_published
+    expect(sleeper).to have_received(:sleep).with(0.25).once
+    expect(git).to have_received(:run).with("push", anything, anything, any_args).twice
+  end
+
   it "does not push again when the immutable ref already points at the same SHA" do
     allow(git).to receive(:run).with("ls-remote", anything, anything, any_args).and_return("abc123\trefs/syrus/checkpoints/runs/#{run.id}\n")
     expect(git).not_to receive(:run).with("push", anything, anything, any_args)

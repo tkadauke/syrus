@@ -1470,6 +1470,24 @@ RSpec.describe WorkflowWorkspace, :ci_only do
       expect(ws.path).not_to exist
     end
 
+    it "preserves the only copy of a successful mutation when checkpoint publication failed" do
+      ws = described_class.new(workflow)
+      ws.setup
+      File.write(ws.path.join("agent_work.rb"), "class AgentWork; end\n")
+      sh("git -C #{ws.path} add agent_work.rb")
+      sh("git -C #{ws.path} -c user.name=Test -c user.email=test@example.com commit -q -m 'Agent work'")
+      head_sha = sh("git -C #{ws.path} rev-parse HEAD").strip
+      step = workflow.steps.create!(kind: "implement", position: 0, state: "succeeded")
+      run = step.runs.create!(job: job, user: user, trigger_kind: "initial", state: "succeeded", head_sha: head_sha)
+      RunCheckpoint.create!(run: run, workflow: workflow, step: step, job: job, repository: repository,
+        user: user, step_kind: "implement", commit_sha: head_sha, remote_ref: RunCheckpoint.remote_ref_for(run),
+        status: "failed", error_message: "provider unavailable")
+
+      expect(described_class.cleanup_for(workflow)).to eq(false)
+      expect(ws.path.join("agent_work.rb")).to exist
+      expect(workflow.reload.cleaned_up_at).to be_nil
+    end
+
     it "does NOT tear the workspace down on Workflow.fail! (deferred for Retry-from-failed-step)" do
       ws = described_class.new(workflow)
       ws.setup

@@ -324,7 +324,7 @@ RSpec.describe Steps::Summarize, :ci_only do
 
       expect {
         handler.call
-      }.to raise_error(Steps::Base::StepFailed, /workspace HEAD .* does not contain implement run HEAD #{implement_run.head_sha}/)
+      }.to raise_error(WorkflowSourceSnapshots::InfrastructureStateError, /no published checkpoint or trusted workflow source snapshot/)
       expect(workflow.reload.artifact("pr_title")).to be_nil
       expect(commit_message).to eq("Different workspace HEAD")
     end
@@ -362,6 +362,7 @@ RSpec.describe Steps::Summarize, :ci_only do
       File.write(@ws_path.join("base_only.rb"), "class BaseOnly; end\n")
       sh("git -C #{@ws_path} add base_only.rb")
       sh("git -C #{@ws_path} commit -q -m 'Rebuilt workspace from base'")
+      sh("git -C #{@ws_path} branch -f syrus/issue-42-#{job.id} HEAD")
       allow(GithubAuthenticatedGit).to receive(:run) do |**_kwargs, &block|
         block.call("file://#{checkpoint_remote}")
       end
@@ -373,6 +374,69 @@ RSpec.describe Steps::Summarize, :ci_only do
       expect(commit_message).to start_with("Add greeting helper")
       expect(@ws_path.join("feature.rb")).to exist
       expect(@ws_path.join("base_only.rb")).not_to exist
+    end
+
+    it "restores a verified descendant workflow source snapshot when the implement checkpoint failed" do
+      implement_step = Step.create!(workflow: workflow, kind: "implement", position: 0, next_step_id: step.id)
+      implement_sha = head_sha
+      implement_run = Run.create!(job: job, step: implement_step, trigger_kind: "initial", state: "succeeded", head_sha: implement_sha)
+      RunCheckpoint.create!(run: implement_run, workflow: workflow, step: implement_step, job: job,
+        repository: repository, user: user, step_kind: "implement", commit_sha: implement_sha,
+        remote_ref: RunCheckpoint.remote_ref_for(implement_run), status: "failed", error_message: "GitHub 500")
+
+      File.write(@ws_path.join("formatted.rb"), "class Formatted; end\n")
+      sh("git -C #{@ws_path} add formatted.rb")
+      sh("git -C #{@ws_path} commit -q -m 'Format validated implementation'")
+      snapshot_sha = head_sha
+      snapshot_tree = sh("git -C #{@ws_path} rev-parse HEAD^{tree}").strip
+      snapshot_ref = "refs/syrus/source-snapshots/runs/#{run.id}"
+      snapshot_remote = @ws_path.dirname.join("snapshot-#{run.id}-#{SecureRandom.hex(4)}.git")
+      sh("git clone --bare -q #{@ws_path} #{snapshot_remote}")
+      sh("git -C #{@ws_path} push -q file://#{snapshot_remote} HEAD:#{snapshot_ref}")
+      WorkflowSourceSnapshots.record!(workflow: workflow, creator_step: step, source_sha: snapshot_sha,
+        source_ref: snapshot_ref, tree_sha: snapshot_tree)
+
+      sh("git -C #{@ws_path} checkout --orphan rebuilt-from-main")
+      sh("git -C #{@ws_path} rm -rf .")
+      File.write(@ws_path.join("base_only.rb"), "class BaseOnly; end\n")
+      sh("git -C #{@ws_path} add base_only.rb")
+      sh("git -C #{@ws_path} commit -q -m 'Rebuilt workspace from base'")
+      sh("git -C #{@ws_path} branch -f syrus/issue-42-#{job.id} HEAD")
+      allow(GithubAuthenticatedGit).to receive(:run) { |**_kwargs, &block| block.call("file://#{snapshot_remote}") }
+      stub_agent(title: "Add greeting helper", body: "Adds a tiny helper.")
+
+      handler.call
+
+      expect(@ws_path.join("feature.rb")).to exist
+      expect(@ws_path.join("formatted.rb")).to exist
+      expect(head_sha).not_to eq(snapshot_sha) # summarize safely amended the restored commit message
+      expect(run.job_logs.pluck(:chunk).join).to include("validated ref, tree, workflow ownership, and ancestry")
+    end
+
+    it "rejects a workflow source snapshot that is not descended from the implementation" do
+      implement_step = Step.create!(workflow: workflow, kind: "implement", position: 0, next_step_id: step.id)
+      implement_sha = head_sha
+      implement_run = Run.create!(job: job, step: implement_step, trigger_kind: "initial", state: "succeeded", head_sha: implement_sha)
+      snapshot_ref = "refs/syrus/source-snapshots/runs/#{run.id}"
+      snapshot_remote = @ws_path.dirname.join("unrelated-snapshot-#{run.id}-#{SecureRandom.hex(4)}.git")
+      sh("git -C #{@ws_path} checkout --orphan unrelated-snapshot")
+      sh("git -C #{@ws_path} rm -rf .")
+      File.write(@ws_path.join("unrelated.rb"), "class Unrelated; end\n")
+      sh("git -C #{@ws_path} add unrelated.rb")
+      sh("git -C #{@ws_path} commit -q -m 'Unrelated snapshot'")
+      snapshot_sha = head_sha
+      snapshot_tree = sh("git -C #{@ws_path} rev-parse HEAD^{tree}").strip
+      sh("git clone --bare -q #{@ws_path} #{snapshot_remote}")
+      sh("git -C #{@ws_path} push -q file://#{snapshot_remote} HEAD:#{snapshot_ref}")
+      WorkflowSourceSnapshots.record!(workflow: workflow, creator_step: step, source_sha: snapshot_sha,
+        source_ref: snapshot_ref, tree_sha: snapshot_tree)
+      sh("git -C #{@ws_path} branch -f syrus/issue-42-#{job.id} HEAD")
+      allow(GithubAuthenticatedGit).to receive(:run) { |**_kwargs, &block| block.call("file://#{snapshot_remote}") }
+
+      expect { handler.call }.to raise_error(
+        WorkflowSourceSnapshots::InfrastructureStateError,
+        /not a validated descendant of Run ##{implement_run.id}/
+      )
     end
 
     it "fails if the summarize agent changes workspace contents before submitting metadata" do
