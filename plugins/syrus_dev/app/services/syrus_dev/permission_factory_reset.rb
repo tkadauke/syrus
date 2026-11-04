@@ -61,7 +61,7 @@ module SyrusDev
       audit.update!(outcome: "succeeded", counts:, completed_at: Time.current)
       Result.new(record: audit, counts:, changed: counts.values.sum.positive?)
     rescue StandardError => error
-      audit&.update!(outcome: "failed", counts: counts || {}, error_message: "#{error.class}: #{error.message}", completed_at: Time.current)
+      record_failed_audit(audit, counts, error)
       raise
     end
 
@@ -112,6 +112,8 @@ module SyrusDev
     end
 
     def invalidate_invocations!
+      # Rule and lease revocation invalidates their tokens. This pass also
+      # catches tokens attached directly to affected authorization requests.
       affected_relations.fetch(:invocations).find_each { |invocation| invocation.invalidate!(RESET_REASON) }
     end
 
@@ -127,7 +129,7 @@ module SyrusDev
       scope.profile_users.find_each do |user|
         management = Permissions::Management.new(user)
         PROFILE_SUBJECTS.each do |subject|
-          next if management.current_profile(subject_selector_type: subject) == DEFAULT_PROFILE
+          next if profile_will_be_current?(management, subject)
 
           plan = management.profile_plan(profile_key: DEFAULT_PROFILE, subject_selector_type: subject, lock: true)
           management.apply_profile!(plan:, actor: initiated_by)
@@ -147,10 +149,59 @@ module SyrusDev
     end
 
     def profile_will_be_current?(management, subject)
-      active = management.rules.where(subject_selector_type: subject, source: factory_source)
-      expected = management.profile_plan(profile_key: DEFAULT_PROFILE, subject_selector_type: subject)
-        .fetch(:replacements).size
-      active.count == expected
+      plan = management.profile_plan(profile_key: DEFAULT_PROFILE, subject_selector_type: subject)
+      actual = management.rules.where(subject_selector_type: subject).map { |rule| profile_rule_signature(rule) }
+      expected = plan.fetch(:replacements).map do |replacement|
+        descriptor = replacement.fetch(:descriptor)
+        {
+          capability: descriptor.capability,
+          operation: descriptor.operation,
+          resource_type: descriptor.resource_scope.type.to_s,
+          resource_scope: {},
+          constraints: {},
+          policy: replacement.fetch(:policy).to_s,
+          policy_layer: "agent",
+          source: factory_source,
+          subject_selector_id: nil,
+          subject_repository_id: nil,
+          subject_role_keys: [],
+          dynamic_future_roles: false,
+          delegable: true
+        }
+      end
+      actual.sort_by(&:to_json) == expected.sort_by(&:to_json)
+    end
+
+    def profile_rule_signature(rule)
+      {
+        capability: rule.capability,
+        operation: rule.operation,
+        resource_type: rule.resource_type,
+        resource_scope: rule.resource_scope,
+        constraints: rule.constraints,
+        policy: rule.policy,
+        policy_layer: rule.policy_layer,
+        source: rule.source,
+        subject_selector_id: rule.subject_selector_id,
+        subject_repository_id: rule.subject_repository_id,
+        subject_role_keys: rule.subject_role_keys,
+        dynamic_future_roles: rule.dynamic_future_roles,
+        delegable: rule.delegable
+      }
+    end
+
+    def record_failed_audit(audit, counts, error)
+      audit&.update!(
+        outcome: "failed",
+        counts: counts || {},
+        error_message: "#{error.class}: #{error.message}",
+        completed_at: Time.current
+      )
+    rescue StandardError => audit_error
+      Rails.logger.error(
+        "Permission factory reset failure audit could not be completed: " \
+          "#{audit_error.class}: #{audit_error.message}"
+      )
     end
 
     def factory_source = "#{Permissions::Management::PROFILE_SOURCE_PREFIX}#{DEFAULT_PROFILE}"
