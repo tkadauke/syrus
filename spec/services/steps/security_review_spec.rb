@@ -14,6 +14,7 @@ RSpec.describe Steps::SecurityReview do
       step_agent_diff: "diff --git a/app.rb b/app.rb\n+protected endpoint\n", base_sha: "base-sha")
     workspace = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/security-workspace"), base_ref: "origin/main")
     allow(handler).to receive(:workspace).and_return(workspace)
+    allow(ReviewEvidence::Capture).to receive(:call)
     allow(App::SecurityReviewProjects).to receive(:call).and_return(
       App::AdversarialReviewProjects::Result.new(projects: [])
     )
