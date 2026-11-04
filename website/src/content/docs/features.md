@@ -99,6 +99,14 @@ The view stays inert until a provider plugin is installed and you add an
 explicit delegation. Revoking a delegation takes effect immediately, and
 workflow agents cannot create or revoke delegations.
 
+The same canonical policy evaluator governs ordinary chat, coworkers, Local
+Mode, scheduled work, and workflow agents. Benign descriptor defaults remain
+automatic; an `ask` always pauses at an approval boundary and never becomes an
+implicit allow. Exact-invocation fingerprints make approved work resumable,
+while revocation is checked again when queued work is claimed or an effect is
+dispatched. Administrators can inspect redacted effective-policy diagnostics
+grouped by actor, role, capability, and invocation without exposing arguments.
+
 Each approval provider declares an operator-facing disclosure of where evidence
 is processed and how it is retained. A provider receives the complete role-labelled
 transcript, exact tool call, effective policy chain, and fingerprint for the

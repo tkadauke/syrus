@@ -1,29 +1,22 @@
-# Permission shadow evaluation
+# Effective permission diagnostics
 
-Syrus evaluates registered MCP capability descriptors alongside the existing
-role, feature, grant, and Step dispatch filters. Shadow evaluation is
-observational: its result never adds or removes a tool from the current tool
-set.
+Syrus records the canonical permission decision that actually governs an
+agent invocation. The evaluator is the sole authority path; diagnostics are
+observational and can never add authority or change a decision.
 
-When current dispatch differs from the descriptor's north-star policy, Syrus
-records an operational event from `permissions.shadow_evaluator`. Evaluation
-failures are recorded separately. Descriptors whose effects contain only
-`local_read`, `isolated_workspace_write`, or `isolated_execution` are
-explicitly identified as safe local operations; current dispatch remains
-available if evaluator or diagnostic infrastructure fails.
+Each decision records a redacted operational event from
+`permissions.policy_evaluator`, including the actor type and id, runtime role,
+capability and operation, effective policy, decisive rule, and stable
+invocation fingerprint. Argument values are never included.
 
-To keep observation from adding unbounded durable writes to tool dispatch,
-each process records a given tool, role, surface, and decision outcome at most
-once every five minutes. Repeated evaluations still use the legacy dispatch
-decision; only duplicate diagnostic events are suppressed.
+Diagnostic persistence fails open because it is not an authorization input.
+The evaluator itself fails closed at each dispatch boundary. Execution
+ceilings are reported as the effective policy, so an evaluator `allow` lowered
+to `ask` or `deny` is visible without being mistaken for executable authority.
 
-Admins can inspect recent mismatches and failures through
+Admins can inspect recent effective decisions through the compatibility API
 `GET /api/v1/app/admin/permission_parity` or the token-authenticated
-`GET /api/v1/admin/permission_parity`. The payload includes summary counts,
-capability and role groupings, and recent redacted events. `limit` defaults to
-100 and is capped at 500. Summary counts describe that limited recent-event
-window, not all historical events.
-
-Parity fixtures under `spec/fixtures/permission_parity.yml` pin representative
-legacy and north-star decisions. Add a fixture when migrating a distinct role
-gate or consequence class so dispatch changes remain intentional and reviewed.
+`GET /api/v1/admin/permission_parity`. The payload groups the limited recent
+window by effective policy, actor, invocation fingerprint, capability, and
+role, and includes recent redacted events. `limit` defaults to 100 and is
+capped at 500.
