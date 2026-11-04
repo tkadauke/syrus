@@ -1763,7 +1763,9 @@ every eligible delegable capability, **Ask on first use** pauses at the first
 consequential use, and **Restricted** permits safe isolated workspace work
 while denying other capabilities. Profiles use the same evaluator as custom
 rules, so resource authorization, provider ceilings, confinement, credentials,
-and nondelegable operations still apply.
+nondelegable operations, and invocation-time safety classification still apply.
+Quiet isolated work is limited to low-risk reads and workspace writes; code
+execution still asks under Ask on first use and remains denied by Restricted.
 
 Core and plugin tools share five human-sized bundles: Workspace, Knowledge,
 Collaboration, Operations, and Administration. Plugin capabilities join these

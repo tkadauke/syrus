@@ -1,4 +1,4 @@
-# Permission authority lifetimes
+# Permission authority
 
 ## Canonical profiles and tool-set bundles
 
@@ -14,8 +14,16 @@ Descriptors are grouped by effects into the versioned Workspace, Knowledge,
 Collaboration, Operations, and Administration bundles. This keeps plugin and
 core tools in one human-sized vocabulary without coupling core to plugin tool
 names. The capability registry reports bundle coverage, and the provider
-contract checks both bundle membership and profile compilation. Profile parity
-diagnostics identify decisions narrowed by provider or resource policy.
+contract checks both bundle membership and profile compilation. Explicitly
+ungated protocol tools are tracked separately in registry coverage. Profile
+parity diagnostics identify decisions narrowed by provider or resource policy.
+
+Profiles also preserve invocation-time safety classification. A capability that
+is normally safe can still ask when its arguments classify the particular use
+as consequential. Only low-risk local reads and isolated workspace writes are
+quiet under the Ask on first use and Restricted profiles; code execution asks.
+
+## Permission authority lifetimes
 
 Syrus represents permanent agent authority as an audited `PermissionRule` and
 temporary authority as a `PermissionLease`. Temporary leases support one exact

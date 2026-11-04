@@ -1,11 +1,10 @@
 require_dependency "permissions/policy_rule"
 require_dependency "permissions/tool_set_bundles"
+require_dependency "permissions/coworker_default_policy"
 
 module Permissions
   class PermissionProfile
     IDENTIFIER_PATTERN = ToolSetBundle::IDENTIFIER_PATTERN
-    SAFE_EFFECTS = %i[local_read isolated_workspace_write isolated_execution].freeze
-
     attr_reader :key, :label, :description
 
     def initialize(key:, label:, description:, &policy)
@@ -19,9 +18,11 @@ module Permissions
     end
 
     def policy_for(descriptor, role:)
-      return :deny unless descriptor.requestable_roles.include?(role.to_s)
+      role = role.to_s
+      return :deny unless descriptor.requestable_roles.include?(role)
+      return descriptor.defaults.fetch(role, :deny) if descriptor.maximum_autonomy == :none
 
-      @policy.call(descriptor, role.to_s).to_sym
+      @policy.call(descriptor, role).to_sym
     end
 
     # Profiles compile to the same role-layer rules consumed by PolicyEvaluator.
@@ -44,7 +45,11 @@ module Permissions
     def to_h = { key:, label:, description: }
 
     class << self
-      def safe_local?(descriptor) = descriptor.effects.present? && (descriptor.effects - SAFE_EFFECTS).empty?
+      def safe_local?(descriptor)
+        descriptor.effects.present? && CoworkerDefaultPolicy.auto_allowable?(
+          effects: descriptor.effects, risk: descriptor.risk, benign_internal: descriptor.benign_internal
+        )
+      end
     end
   end
 end
