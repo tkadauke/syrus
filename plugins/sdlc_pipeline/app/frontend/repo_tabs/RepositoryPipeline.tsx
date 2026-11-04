@@ -948,7 +948,10 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
     queryFn: () => fetchPipeline(repositoryId, withHistory(requestSearch, true)),
     enabled: repositoryId.length > 0,
     placeholderData: (previous) => previous,
-    staleTime: POLL_INTERVAL_MS
+    staleTime: POLL_INTERVAL_MS,
+    // History is secondary and has an explicit Retry action, so surface a failure quickly
+    // instead of leaving the rail in "loading" through the default multi-second backoff.
+    retry: false
   })
   const historyStatus: HistoryStatus = history.isError
     ? "error"
