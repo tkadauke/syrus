@@ -36,6 +36,14 @@ RSpec.describe "Local Mode MCP tools" do
     Permissions::LocalModeAuthorization.grant_after_confirmation(chat_session: chat_session, tool_name: tool_name, arguments: arguments)
   end
 
+  def grant_local_tool_access(tool)
+    management = Permissions::Management.new(user)
+    operation = McpToolRegistry.entry_for(tool).descriptor.operation
+    plan = management.profile_plan(profile_key: "full_access@v1", subject_selector_type: "local_chat")
+    plan[:replacements].select! { |replacement| replacement[:descriptor].operation == operation }
+    management.apply_profile!(plan:, actor: user)
+  end
+
   shared_examples "disconnected daemon" do |tool_name, arguments = {}|
     it "returns an error when no daemon session exists" do
       server = server_with(described_class)
@@ -335,7 +343,10 @@ RSpec.describe "Local Mode MCP tools" do
   describe Mcp::Tools::OpenInLocalModeTool do
     let(:repository) { Factories.repository(user: user) }
 
-    before { allow(Feature).to receive(:local_mode_enabled?).and_return(true) }
+    before do
+      grant_local_tool_access(described_class)
+      allow(Feature).to receive(:local_mode_enabled?).and_return(true)
+    end
 
     it "takes over an implemented job and enters coding state" do
       job = Factories.job_record(repository: repository, state: "implemented", branch_name: "syrus/job-99")
@@ -384,6 +395,8 @@ RSpec.describe "Local Mode MCP tools" do
 
   describe Mcp::Tools::CancelLocalModeTool do
     let(:repository) { Factories.repository(user: user) }
+
+    before { grant_local_tool_access(described_class) }
 
     it "returns a taken-over job (with pr) to implemented state" do
       job = Factories.job_record(repository: repository, state: "implemented", branch_name: "syrus/job-1", pr_number: 77)
@@ -505,7 +518,10 @@ RSpec.describe "Local Mode MCP tools" do
   describe Mcp::Tools::CreateCodingJobTool do
     let(:repository) { Factories.repository(user: user) }
 
-    before { chat_session.chat_attachments.create!(attachable: repository) }
+    before do
+      grant_local_tool_access(described_class)
+      chat_session.chat_attachments.create!(attachable: repository)
+    end
 
     it "advertises natural-language Local Mode job triggers" do
       expect(described_class.description_value).to include('"local job", "do a local job", "make a local job", "start a local job"')
