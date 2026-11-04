@@ -441,7 +441,7 @@ class Run < ApplicationRecord
   end
 
   def record_run_queue_decision!(decision)
-    entry = decision.details.merge(
+    entry = decision.history_details.merge(
       "blocked" => false,
       "decided_at" => Time.current.iso8601
     )

@@ -76,7 +76,7 @@ module Api
         end
 
         def show
-          job = find_job_by_ref(Job.includes(workflows: { steps: :runs }), params[:id])
+          job = find_job_by_ref(Job.includes(workflows: [ :workflow_artifact_values, { steps: :runs } ]), params[:id])
           payload = serialize(job)
           payload[:github_pr] = github_pr_snapshot(job) if truthy?(params[:include_github])
           render json: payload

@@ -16,7 +16,7 @@ module Api
         # response. Job envelope is included so the caller can drill
         # back up if needed.
         def show
-          workflow = Workflow.includes(steps: :runs).find(params[:id])
+          workflow = Workflow.includes(:workflow_artifact_values, steps: :runs).find(params[:id])
           job = workflow.job
           render json: ::Admin::JobStateSerializer.workflow(workflow).merge(
             job: {
