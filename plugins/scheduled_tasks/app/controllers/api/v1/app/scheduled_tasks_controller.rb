@@ -99,6 +99,8 @@ module Api
           task.soft_delete!
 
           render json: repository_scheduled_tasks_payload(repository).merge(message: "Scheduled task deleted.")
+        rescue ActiveRecord::RecordInvalid => error
+          render_error("validation_failed", error.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         end
 
         def update
@@ -123,6 +125,8 @@ module Api
           task.soft_delete!
 
           render json: scheduled_tasks_index_payload.merge(message: "Scheduled task archived.")
+        rescue ActiveRecord::RecordInvalid => error
+          render_error("validation_failed", error.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         end
 
         def pause
@@ -230,6 +234,7 @@ module Api
             archived_at: task.archived_at&.iso8601,
             consecutive_failure_count: task.consecutive_failure_count,
             coworker_id: task.attributes["coworker_id"],
+            system_key: task.system_key,
             scheduled_task_path: "/scheduled_tasks/#{task.id}"
           }
         end
@@ -257,7 +262,7 @@ module Api
             fireable: !task.archived? && !task.fired?,
             pausable: task.state == "scheduled",
             resumable: task.paused? || task.auto_paused?,
-            editable: !task.archived?
+            editable: !task.archived? && !task.system_schedule?
           )
         end
 

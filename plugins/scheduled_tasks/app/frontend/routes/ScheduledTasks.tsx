@@ -319,9 +319,12 @@ function taskColumns({
       header: t("scheduled_tasks.col_task"),
       className: "font-medium",
       render: (task) => (
-        <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={`${basePath}/${task.id}`}>
-          {task.name}
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={`${basePath}/${task.id}`}>
+            {task.name}
+          </Link>
+          {task.system_key ? <span className="rounded bg-surface-muted px-2 py-0.5 text-xs text-text-secondary">{t("scheduled_tasks.system")}</span> : null}
+        </div>
       ),
       sort: "task",
       sortValue: (task) => task.name
@@ -403,6 +406,7 @@ function TaskDetail({ payload, basePath, prefix }: { payload: ScheduledTaskDetai
           <div className="flex flex-wrap items-center gap-3">
             <PageHeading>{payload.task.name}</PageHeading>
             <StatePill state={payload.task.state} />
+            {payload.task.system_key ? <span className="rounded bg-surface-muted px-2 py-0.5 text-xs text-text-secondary">{t("scheduled_tasks.system")}</span> : null}
           </div>
           <p className="mt-1 font-mono text-sm text-gray-600 dark:text-gray-400">
             <Link
@@ -798,7 +802,7 @@ function SchedulePreviewState({
     return (
       <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">
         {explanation}
-        {source === "structured_intent" ? <span className="ml-1 text-emerald-600 dark:text-emerald-400">{t("scheduled_tasks.preview_via_ai")}</span> : null}
+        {source === "structured_intent" ? <span className="ml-1 text-success">{t("scheduled_tasks.preview_via_ai")}</span> : null}
       </p>
     )
   }
@@ -814,7 +818,7 @@ function StatePill({ state }: { state: string }) {
   }
   return (
     <span
-      className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${styles[state] || "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"}`}
+      className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${styles[state] || "bg-surface-muted text-text-secondary"}`}
     >
       {state}
     </span>

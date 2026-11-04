@@ -238,6 +238,7 @@
     "updated": "updated"
   },
   "scheduled_tasks": {
+    "system": "System",
     "loading": "Loading scheduled tasks...",
     "error_load": "Unable to load repository scheduled tasks.",
     "error_update": "Unable to update scheduled task.",

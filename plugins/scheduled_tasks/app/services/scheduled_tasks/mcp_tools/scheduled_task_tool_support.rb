@@ -38,6 +38,7 @@ module ScheduledTasks
           repository_slug: task.repository&.slug,
           label: task.name,
           kind: task.kind,
+          system_key: task.system_key,
           state: task.state,
           cron_expression: task.cron_expression,
           schedule_input: task.schedule_input,

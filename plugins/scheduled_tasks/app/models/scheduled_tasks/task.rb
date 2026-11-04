@@ -26,7 +26,7 @@ module ScheduledTasks
     # schedule_input previously resolved through the LLM cadence fallback, so
     # save-time canonicalization can reuse that structured intent instead of
     # calling the LLM again.
-    attr_accessor :structured_intent
+    attr_accessor :structured_intent, :system_destruction
 
     scope :active, -> { where(archived_at: nil).where(state: %w[ scheduled ]) }
     scope :archived, -> { where.not(archived_at: nil) }
@@ -46,6 +46,7 @@ module ScheduledTasks
     validates :skill_name, format: { with: Skills::NAME_PATTERN }, allow_blank: true
     validate  :prompt_or_skill
     validate  :system_schedule_attributes_are_owned_by_code, on: :update
+    before_destroy :prevent_system_schedule_destruction
 
     validates :schedule_expression, presence: true, if: :cron?
     validates :fire_at,         presence: true, if: :one_shot?
@@ -188,6 +189,28 @@ module ScheduledTasks
       update!(archived_at: Time.current)
     end
 
+    def destroy_as_system!
+      self.system_destruction = true
+      destroy!
+    ensure
+      self.system_destruction = false
+    end
+
+    def record_system_result!(date:, result:, reason: nil)
+      with_lock do
+        entry = { "date" => date.iso8601, "result" => result.to_s, "reason" => reason }
+        history = Array(system_result_history).reject { |item| item["date"] == entry["date"] }
+        attributes = {
+          system_result_history: (history << entry).last(31),
+          last_system_result: result,
+          last_system_result_on: date,
+          last_system_result_reason: reason
+        }
+        attributes[:last_journaled_on] = [ last_journaled_on, date ].compact.max unless result.to_s == "failed"
+        update!(attributes)
+      end
+    end
+
     def pause!(reason: "operator")
       update!(state: PAUSE_STATES.fetch(reason))
     end
@@ -217,6 +240,10 @@ module ScheduledTasks
     end
 
     private
+
+    def prevent_system_schedule_destruction
+      throw(:abort) if !system_destruction && system_schedule_error!(:base, "System schedules cannot be deleted.")
+    end
 
     def system_schedule_attributes_are_owned_by_code
       return unless system_schedule? || system_key_was.present?
