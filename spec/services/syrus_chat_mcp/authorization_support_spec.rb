@@ -341,7 +341,6 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
         "requested_durations" => %w[invocation chat_session permanent],
         "tool_set_bundle" => "collaboration@v1"
       )
-
       item = request.authorization_items.sole
       preview = Permissions::RuleDraft.from_request_item(
         user:, request:, item:, duration: "chat_session"
@@ -359,6 +358,7 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
         state: "issued", tool_name: "send_external_message"
       )
     end
+
     it "bypasses permission evaluation for an ungated tool" do
       actor_tool = Class.new(MCP::Tool) { tool_name "ask_user_question" }
       descriptor = instance_double(Permissions::CapabilityDescriptor)

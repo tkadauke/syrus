@@ -98,6 +98,7 @@ module Permissions
       end
       available & applicable
     end
+
     def evaluation_context
       selector_type, selector_id = subject_selector
       {

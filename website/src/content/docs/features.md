@@ -47,6 +47,7 @@ when the capability supports it. Syrus then resumes the exact fingerprinted
 call once. Denials stop before execution and explain why. A proposal or
 transaction that already has its own confirmation does not add a redundant
 permission prompt in front of that review.
+
 The approval inbox at `/permissions/inbox` collects operational requests from
 chats and background work. A compact global drawer and inline Job cards show
 the same durable request in the same plain-English wording as the chat card:
