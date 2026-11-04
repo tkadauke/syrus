@@ -1052,6 +1052,40 @@ monitoring gap from a genuinely busy host. Admin users additionally get a
 includes the link's path when `Job::actions.can_view_resource_admission_diagnostics`
 is true (i.e. the requesting user is an admin).
 
+`AppSetting.host_admission_policy` chooses *how a worker decides it has room*,
+independently of the workflow-level policy below.
+
+- `prediction` (default) forecasts each step's cost from
+  `WorkflowStepResourceProfile`, sums the forecasts for the runs already on the
+  host, and refuses when the total exceeds the memory budget. It is accurate
+  only where a profile exists. A profile must match repository, agent provider,
+  trigger kind, job kind and step kind (plus grader name) *and* have at least
+  ten attributed samples; anything else falls back to a flat
+  `host_memory_limit / host_compute_capacity` per compute unit -- a sixth of
+  the host for a grader, a third for an agentic step. Three such estimates
+  exhaust a budget regardless of what the machine is doing, which is how a
+  host can refuse work while measuring a fraction of its limit in real use.
+- `usage` reads what the host is actually doing. Memory PSI
+  (`memory.pressure`, `some avg10`) reports the share of time at least one
+  task stalled waiting on memory, which is the condition that actually
+  matters: a cgroup can sit near its limit indefinitely while reclaiming
+  without a single stall, and such a host is fine. Admission refuses only
+  above `SYRUS_MEMORY_PRESSURE_CEILING` (default 10%). Compute units still
+  bound concurrency, because PSI lags -- without a width limit a burst
+  admitted inside one window all starts before pressure registers. When
+  `memory.pressure` cannot be read the policy admits rather than refusing
+  blindly.
+
+Every admission decision records `admission_policy`, and under `usage` also
+`memory_pressure_some` and `memory_pressure_ceiling`, so an admit is as
+auditable as a refusal. `resource_guard_binding_terms` names
+`memory_pressure` instead of `memory_reservation`/`measured_memory` under the
+usage policy.
+
+Switching is instance-wide and takes effect on the next decision; no restart
+is needed. `prediction` remains the default so the setting appearing changes
+nothing until an operator opts in.
+
 `AppSetting.workflow_admission_policy` chooses how far that admission decision
 extends:
 

@@ -113,6 +113,24 @@ class WorkerHostHealthSampler
       {}
     end
 
+    # Memory PSI, for usage-based admission. Unlike predicted reservations,
+    # this reports whether processes are *actually* stalling on memory --
+    # `some` is the share of time at least one task was delayed, `full` the
+    # share where every task was. Zero means the host is fine no matter what
+    # its usage figure looks like, which is the whole point: a cgroup can sit
+    # near its limit indefinitely while reclaiming happily.
+    def memory_pressure_snapshot
+      pressure = read_pressure_with_source("memory")
+      {
+        memory_pressure_some: pressure.values[:some],
+        memory_pressure_full: pressure.values[:full],
+        memory_pressure_source: pressure.source
+      }.compact
+    rescue StandardError => e
+      Rails.logger.debug { "[WorkerHostHealthSampler] memory pressure snapshot failed: #{e.class}: #{e.message}" }
+      {}
+    end
+
     private
 
     def cpu_used_percent

@@ -10,6 +10,17 @@ class AppSetting < ApplicationRecord
   }.freeze
 
   WORKFLOW_ADMISSION_POLICIES = %w[whole_workflow phase_aware].freeze
+  # How a worker decides whether it can take more work.
+  #
+  #   prediction -- forecast each step's cost from measured profiles, sum the
+  #                 forecasts, compare to a budget. Accurate only where a
+  #                 profile exists; everything else falls back to a flat share
+  #                 of the host, which over-estimates heavily.
+  #   usage      -- read what the host is actually doing. Memory PSI reports
+  #                 whether processes are stalling on memory, which is the
+  #                 condition that matters; a cgroup sitting near its limit
+  #                 while reclaiming happily is not in trouble.
+  HOST_ADMISSION_POLICIES = %w[prediction usage].freeze
 
   # What happens to an assembled merge train when its workflow fails.
   #
@@ -41,6 +52,7 @@ class AppSetting < ApplicationRecord
   }
   validates :workflow_admission_control_enabled, inclusion: { in: [ true, false ] }
   validates :workflow_admission_policy, inclusion: { in: WORKFLOW_ADMISSION_POLICIES }
+  validates :host_admission_policy, inclusion: { in: HOST_ADMISSION_POLICIES }
   # Whether chat agent turns run inside the container_execution backend.
   #
   #   off       no containment is requested; turns run on the worker, which is
@@ -165,6 +177,15 @@ class AppSetting < ApplicationRecord
 
   def self.workflow_admission_policy
     current.workflow_admission_policy.presence_in(WORKFLOW_ADMISSION_POLICIES) || "whole_workflow"
+  end
+
+  def self.host_admission_policy
+    setting = current
+    # Tolerates the column not existing yet, so a worker running the previous
+    # release against the migrated schema keeps admitting rather than raising.
+    return "prediction" unless setting.has_attribute?(:host_admission_policy)
+
+    setting.host_admission_policy.presence_in(HOST_ADMISSION_POLICIES) || "prediction"
   end
 
   def self.workflow_admission_phase_aware?

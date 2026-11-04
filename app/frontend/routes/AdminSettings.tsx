@@ -141,6 +141,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
   const [rebaseFailureCooldown, setRebaseFailureCooldown] = useState(String(payload.settings.rebase_failure_cooldown_minutes))
   const [workflowAdmissionControlEnabled, setWorkflowAdmissionControlEnabled] = useState(payload.settings.workflow_admission_control_enabled)
   const [workflowAdmissionPolicy, setWorkflowAdmissionPolicy] = useState<"whole_workflow" | "phase_aware">(payload.settings.workflow_admission_policy)
+  const [hostAdmissionPolicy, setHostAdmissionPolicy] = useState<"prediction" | "usage">(payload.settings.host_admission_policy)
   const [chatCodingWorkspaceBudgetMb, setChatCodingWorkspaceBudgetMb] = useState(String(payload.settings.chat_coding_workspace_budget_mb))
   const update = useMutation({
     mutationFn: () =>
@@ -166,6 +167,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
         rebase_failure_cooldown_minutes: optionalNumber(rebaseFailureCooldown),
         workflow_admission_control_enabled: workflowAdmissionControlEnabled,
         workflow_admission_policy: workflowAdmissionPolicy,
+        host_admission_policy: hostAdmissionPolicy,
         chat_coding_workspace_budget_mb: optionalNumber(chatCodingWorkspaceBudgetMb)
       }),
     onSuccess: (updated) => {
@@ -197,6 +199,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
     setRebaseFailureCooldown(String(payload.settings.rebase_failure_cooldown_minutes))
     setWorkflowAdmissionControlEnabled(payload.settings.workflow_admission_control_enabled)
     setWorkflowAdmissionPolicy(payload.settings.workflow_admission_policy)
+    setHostAdmissionPolicy(payload.settings.host_admission_policy)
     setChatCodingWorkspaceBudgetMb(String(payload.settings.chat_coding_workspace_budget_mb))
   }, [
     payload.settings.signups_open,
@@ -220,6 +223,7 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
     payload.settings.rebase_failure_cooldown_minutes,
     payload.settings.workflow_admission_control_enabled,
     payload.settings.workflow_admission_policy,
+    payload.settings.host_admission_policy,
     payload.settings.chat_coding_workspace_budget_mb
   ])
 
@@ -583,6 +587,22 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
           >
             <option value="whole_workflow">{t("settings.workflow_admission_policy_whole_workflow")}</option>
             <option value="phase_aware">{t("settings.workflow_admission_policy_phase_aware")}</option>
+          </Select>
+        </div>
+        <div className="mt-3">
+          <label className="block text-sm font-medium text-text-primary" htmlFor="admin-settings-host-admission-policy">
+            {t("settings.host_admission_policy_label")}
+          </label>
+          <span className="mt-1 block text-xs text-text-secondary">{t("settings.host_admission_policy_help")}</span>
+          <Select
+            className="mt-2"
+            fullWidth={false}
+            id="admin-settings-host-admission-policy"
+            onChange={(event) => setHostAdmissionPolicy(event.target.value as "prediction" | "usage")}
+            value={hostAdmissionPolicy}
+          >
+            <option value="prediction">{t("settings.host_admission_policy_prediction")}</option>
+            <option value="usage">{t("settings.host_admission_policy_usage")}</option>
           </Select>
         </div>
       </div>

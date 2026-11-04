@@ -29,6 +29,8 @@ class RunHostAdmission
   # the previous one. Grader fanout is not staggered; its shared capacity budget
   # and inner process allocation provide the bound without serial startup.
   STAGGER_INTERVAL = 20.seconds
+  # Percent of avg10 memory PSI above which the usage policy stops admitting.
+  MEMORY_PRESSURE_CEILING = 10.0
 
   # Agentic steps are the expensive ones by nature and are guarded on sight.
   # Grader runs are guarded on sight because fanout can make several siblings
@@ -124,7 +126,13 @@ class RunHostAdmission
       "workflow_id" => workflow&.id,
       "run_id" => run&.id,
       "queue_name" => queue_name,
-      "sticky_resume_queue" => sticky_resume_queue?
+      "sticky_resume_queue" => sticky_resume_queue?,
+      # On every decision, not just refusals: knowing which policy admitted a
+      # run is as useful as knowing which one refused it, and the headroom
+      # reading is what makes an admit auditable.
+      "admission_policy" => admission_policy,
+      "memory_pressure_some" => usage_policy? ? memory_pressure_some : nil,
+      "memory_pressure_ceiling" => usage_policy? ? memory_pressure_ceiling : nil
     }.compact
   end
 
@@ -230,7 +238,63 @@ class RunHostAdmission
     resource_guard_kind(candidate).present?
   end
 
+  def admission_policy
+    @admission_policy ||= AppSetting.host_admission_policy
+  rescue StandardError
+    "prediction"
+  end
+
+  def usage_policy? = admission_policy == "usage"
+
   def resource_guard_full?
+    return usage_guard_full? if usage_policy?
+
+    prediction_guard_full?
+  end
+
+  # Usage policy: refuse only when the host is demonstrably struggling.
+  #
+  # Memory PSI answers the question the prediction policy only estimates --
+  # are processes actually stalling on memory? A cgroup can sit at 95% of its
+  # limit indefinitely while reclaiming without a single stall, and that host
+  # is fine. Conversely a host under genuine pressure stalls long before its
+  # usage figure looks alarming.
+  #
+  # Compute units still bound concurrency: PSI is a lagging signal, and
+  # without a width limit a burst admitted in one window all starts at once.
+  def usage_guard_full?
+    return true if compute_capacity_full?
+    return true if memory_pressure_exceeded?
+
+    false
+  end
+
+  def memory_pressure_exceeded?
+    some = memory_pressure_some
+    return false if some.nil?
+
+    some >= memory_pressure_ceiling
+  end
+
+  def memory_pressure_some
+    memory_pressure_snapshot["memory_pressure_some"] || memory_pressure_snapshot[:memory_pressure_some]
+  end
+
+  def memory_pressure_snapshot
+    @memory_pressure_snapshot ||= (WorkerHostHealthSampler.memory_pressure_snapshot || {}).stringify_keys
+  rescue StandardError
+    {}
+  end
+
+  # avg10 share of time at least one task stalled on memory. A few percent is
+  # ordinary reclaim; sustained double digits means the host is thrashing.
+  def memory_pressure_ceiling
+    Float(ENV.fetch("SYRUS_MEMORY_PRESSURE_CEILING", MEMORY_PRESSURE_CEILING))
+  rescue ArgumentError, TypeError
+    MEMORY_PRESSURE_CEILING
+  end
+
+  def prediction_guard_full?
     return true if compute_capacity_full?
     return true if memory_capacity_full?
     return active_io_intensive_grader_run_count >= io_intensive_runs_per_host if io_intensive_grader_guard?
@@ -245,6 +309,12 @@ class RunHostAdmission
 
   def resource_guard_binding_terms(reason)
     return [] unless reason == "host_resource_semaphore_busy"
+    if usage_policy?
+      terms = []
+      terms << "compute_units" if compute_capacity_full?
+      terms << "memory_pressure" if memory_pressure_exceeded?
+      return terms
+    end
 
     terms = []
     terms << "compute_units" if compute_capacity_full?
