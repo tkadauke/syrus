@@ -1177,11 +1177,23 @@ class StepDispatcher
   end
 
   def advance!
+    LandingRepairOutcome.verify_latest_no_change!(@from_step) if successful_landing_grader_collect?
     clear_recovered_grader_loop_attention!
     return if handle_successful_review_loop_iteration
     return if handle_successful_step_advance_handler
 
     enqueue_next_runnable_steps!
+  end
+
+  def successful_landing_grader_collect?
+    return false unless @from_step&.kind == "grader_collect" && @from_step.succeeded?
+    return false unless @from_step.loop_id.present? && @workflow.landing_workflow?
+
+    loop_node = loop_node_for(@from_step)
+    loop_node&.fetch("type", nil) == "retry_until" &&
+      Array(loop_node["repair"]).map(&:to_s) == [ "landing_fix" ]
+  rescue KeyError
+    false
   end
 
   def enqueue_next_runnable_steps!
@@ -1399,9 +1411,18 @@ class StepDispatcher
     end
 
     max_iterations = loop_max_iterations(loop_node)
-    if @from_step.iteration < max_iterations
+    landing_decision = landing_repair_decision(loop_node, max_iterations)
+    if landing_decision&.fetch(:stop, false)
+      summary = landing_decision.fetch(:summary)
+      record_grader_loop_decision!(
+        summary.fetch("reason"), loop_match: loop_match, max_iterations: max_iterations
+      )
+      return stop_landing_repair_loop!(summary)
+    end
+
+    if landing_decision&.fetch(:continue, false) || @from_step.iteration < max_iterations
       progress = GraderLoopProgress.record_failure!(workflow: @workflow, collect_step: @from_step)
-      if progress.stop?
+      if progress.stop? && !landing_decision&.fetch(:ignore_generic_no_progress, false)
         record_grader_loop_decision!(
           GraderLoopProgress::NO_PROGRESS_REASON,
           loop_match: loop_match,
@@ -1426,6 +1447,7 @@ class StepDispatcher
       )
       advance_to_next_runnable!
     else
+      record_landing_budget_summary!(loop_node, max_iterations)
       record_grader_loop_decision!(
         "grader_loop_budget_exhausted",
         loop_match: loop_match,
@@ -1433,6 +1455,59 @@ class StepDispatcher
       )
       exhaust_loop!(loop_node)
     end
+  end
+
+  def record_landing_budget_summary!(loop_node, repair_limit)
+    return unless loop_node["type"] == "retry_until"
+    return unless Array(loop_node["repair"]).map(&:to_s) == [ "landing_fix" ]
+
+    summary = LandingRepairOutcome.record_summary!(
+      workflow: @workflow,
+      loop_id: @from_step.loop_id,
+      repair_limit: repair_limit,
+      reason: "landing_repair_budget_exhausted"
+    )
+    @workflow.set_artifact!("failure_summary", summary)
+  end
+
+  def landing_repair_decision(loop_node, repair_limit)
+    return unless loop_node["type"] == "retry_until"
+    return unless Array(loop_node["repair"]).map(&:to_s) == [ "landing_fix" ]
+    return unless @from_step.kind == "grader_collect"
+
+    if skip_repair_for_transient_grader_failure?(@from_step, loop_node)
+      LandingRepairOutcome.record_flaky_retry!(@from_step)
+    end
+    counters = LandingRepairOutcome.counters(workflow: @workflow, loop_id: @from_step.loop_id)
+
+    reason = if counters["no_progress_attempts"] >= LandingRepairOutcome::NO_PROGRESS_LIMIT
+      "landing_repair_no_progress_exhausted"
+    elsif counters["flaky_retries"] > LandingRepairOutcome::FLAKY_RETRY_LIMIT &&
+        skip_repair_for_transient_grader_failure?(@from_step, loop_node)
+      "landing_repair_flaky_retry_exhausted"
+    end
+    if reason
+      summary = LandingRepairOutcome.record_summary!(
+        workflow: @workflow, loop_id: @from_step.loop_id, repair_limit: repair_limit, reason: reason
+      )
+      return { stop: true, summary: summary }
+    end
+
+    repair_budget_remaining = counters["repair_iterations"] < repair_limit
+    no_op_retry = counters["outcomes"].last&.fetch("outcome", nil) == "inconclusive_no_op"
+    flaky_retry = skip_repair_for_transient_grader_failure?(@from_step, loop_node)
+    {
+      continue: repair_budget_remaining,
+      ignore_generic_no_progress: no_op_retry || flaky_retry
+    }
+  end
+
+  def stop_landing_repair_loop!(summary)
+    reason = summary.fetch("reason")
+    @workflow.set_artifact!("failure_summary", summary)
+    cancel_post_loop_steps!(reason)
+    @workflow.increment!(:failure_count)
+    hard_fail_workflow!(reason)
   end
 
   def advance_to_next_runnable!
@@ -1556,7 +1631,10 @@ class StepDispatcher
         "verdict" => progress.stop? ? "stop" : "continue",
         "stop" => progress.stop?,
         "payload" => progress.payload
-      }
+      },
+      "landing_repair" => (@from_step.loop_id && LandingRepairOutcome.counters(
+        workflow: @workflow, loop_id: @from_step.loop_id
+      ))
     }.compact
 
     WorkflowActivity.record!(

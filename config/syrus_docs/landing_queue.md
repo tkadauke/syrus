@@ -273,10 +273,13 @@ failed/error set, and the grader must have a normal non-timeout test exit.
 Partial JUnit from a crash, load error, or mixed command failure therefore
 cannot be represented by one qualifying flaky test and accepted.
 
-`Adjudicators::IsolatedReproDismissal` closes the loop at rung 0: when every
+Outside landing workflows, `Adjudicators::IsolatedReproDismissal` closes the loop at rung 0: when every
 failing test in a required grader Step has a same-SHA, pre-fix "did not
 reproduce" record, the failure is dismissed instead of blocking landing or
-spending another repair turn. Off by default, opted in per repository via
+spending another repair turn. Landing workflows require the equivalent full
+grader command to pass on the authoritative landing tree; an isolated example
+pass alone cannot dismiss an order-dependent suite failure. Off by default,
+opted in per repository via
 `Repository#isolated_repro_dismissal_enabled` (same shape as
 `known_flaky_failure_dismissal_enabled` above). A dismissal is recorded as an
 `isolated_repro_grader_failure` workflow artifact (the dismissed grader
@@ -417,8 +420,18 @@ cap and efficiency metrics are intentionally absent until parallel landing
 grader fanout is designed and enabled separately.
 
 If graders fail, `landing_fix` (an agentic repair step) attempts a fix, and
-graders re-run. This loop repeats up to `grade_max_iterations` times unless it
-stops making progress. Progress means at least one previously failing grader
+graders re-run. The repair budget counts committed repairs rather than raw
+agent turns. A clean-tree turn with no structured resolution is classified as
+an `inconclusive_no_op` and immediately regraded without spending a repair
+iteration; two such turns stop the loop deterministically. Transient or
+infrastructure-only failures have a separate one-rerun allowance. Each turn is
+classified as `committed_repair`, `verified_no_change_resolution`,
+`explicit_flaky_retry`, or `inconclusive_no_op`; workflow decision events and
+the terminal `landing_repair_summary` expose both the repair and no-progress
+counters.
+
+For ordinary non-landing grader loops, the loop repeats up to
+`grade_max_iterations` times unless it stops making progress. Progress means at least one previously failing grader
 identity now passes: a round that fixes something still counts even if an
 unrelated failure appears in the same round, because the failing set spans
 every required grader at once. Two rounds end the loop early with

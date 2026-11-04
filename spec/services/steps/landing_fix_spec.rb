@@ -134,6 +134,7 @@ RSpec.describe Steps::LandingFix, :ci_only do
 
     expect(run.reload.agent_diff).to eq("diff --git a/app.rb b/app.rb\n+ok")
     expect(run.head_sha).to eq("def456")
+    expect(step.reload.details.dig("landing_repair_outcome", "outcome")).to eq("committed_repair")
   end
 
   it "treats no-op repairs as successful so the landing grader loop can recheck" do
@@ -143,6 +144,7 @@ RSpec.describe Steps::LandingFix, :ci_only do
     expect { handler.call }.not_to raise_error
 
     expect(run.reload.agent_diff).to be_nil
+    expect(step.reload.details.dig("landing_repair_outcome", "outcome")).to eq("inconclusive_no_op")
   end
 
   it "does not fail a no-op repair when the agent confirmed the failing graders were not caused by code via report_main_concern" do
@@ -162,6 +164,7 @@ RSpec.describe Steps::LandingFix, :ci_only do
     expect(run.reload.job_logs.pluck(:chunk).join("\n")).to include(
       "no changes were needed -- report_main_concern was filed for this repair lineage"
     )
+    expect(step.reload.details.dig("landing_repair_outcome", "outcome")).to eq("verified_no_change_resolution")
   end
 
   it "treats a later no-op repair as successful when an earlier landing_fix iteration reported the same main concern", ci_only: false do
