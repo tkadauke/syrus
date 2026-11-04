@@ -80,7 +80,7 @@ module Permissions
         effects: decision.invocation.effects, risk: decision.invocation.risk,
         classifier_confidence: decision.invocation.classification.confidence,
         policy_chain: decision.chain.map(&:to_h), decisive_rule: decision.decisive_rule&.to_h || {},
-        purpose:, requested_durations: [ "invocation" ]
+        purpose:, requested_durations: descriptor.authority_durations.map(&:to_s)
       }
     end
 

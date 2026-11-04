@@ -37,6 +37,12 @@ and resumes that same operation once with the approved result or a structured
 denial. Ordinary chats can also ask for narrowly scoped authority for
 themselves; persistent coworkers retain additional request limits and safety
 boundaries.
+This applies equally to built-in and plugin-contributed chat tools. Benign
+defaults remain immediate, while first use of a consequential tool creates one
+compact request that can authorize only that invocation or an offered chat,
+Job/repository, or durable scope. Denials fail closed with an explanation.
+Actions that already open a separately confirmed proposal or transaction do
+not add a second permission confirmation in front of it.
 
 The approval inbox at `/permissions/inbox` collects operational requests from
 chats and background work. A compact global drawer and inline Job cards show

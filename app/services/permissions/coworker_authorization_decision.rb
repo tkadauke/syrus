@@ -109,7 +109,21 @@ module Permissions
       entry = McpToolRegistry.entries(surface:).find do |candidate|
         McpToolRegistry.tool_name_for(candidate.tool) == request.payload.fetch("tool_name")
       end
-      entry&.descriptor || raise(ArgumentError, "tool is no longer available to this actor")
+      return entry.descriptor if entry
+
+      actor_tools.find do |candidate|
+        McpToolRegistry.tool_name_for(candidate) == request.payload.fetch("tool_name")
+      end&.capability_descriptor || raise(ArgumentError, "tool is no longer available to this actor")
+    end
+
+    def actor_tools
+      return Mcp::Sidecar.chat_tools(request.chat_session, tier: :all) if request.chat_session_id?
+
+      run = Run.find_by(id: request.payload.to_h["run_id"])
+      raise ArgumentError, "originating run is no longer available" unless run
+
+      context = McpToolContext.from_run(run)
+      McpToolPolicy.for(context) + Mcp::Sidecar.plugin_workflow_tools_for(context)
     end
 
     def coworker_request?

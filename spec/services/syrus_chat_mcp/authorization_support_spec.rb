@@ -166,6 +166,12 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
         end
       end
     end
+    descriptor = Permissions::CapabilityDescriptorAdapter.for_registry_entry(
+      tool_name: "raising_tool", capability: "testing.raise", mutation: false,
+      required_roles: [ AgentRole::CHAT_PLANNER ], default_policy: :allow
+    )
+    allow(McpToolRegistry).to receive(:entry_for).with(raising_tool)
+      .and_return(Struct.new(:descriptor, :ungated).new(descriptor, false))
 
     server = MCP::Server.new(
       name: "syrus-chat-sidecar",
@@ -183,7 +189,7 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
     payload = JSON.parse(response.fetch(:result).fetch(:content).first.fetch(:text), symbolize_names: true)
 
     expect(response[:result][:isError]).to be(true)
-    expect(payload).to eq(error: "not_authorized")
+    expect(payload).to eq(error: "not_authorized", reason: "blocked")
   end
 
   describe ".pending_coworker_approval" do
@@ -315,6 +321,43 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
       expect(PendingActions.for(request.action)).to eq(PendingActions::AuthorizedToolCall)
       expect(request.authorization_items.sole.normalized_arguments)
         .to eq("body" => "hello", "token" => "[REDACTED]")
+    end
+
+    it "offers every descriptor-approved scope on the single invocation request" do
+      actor_tool = Class.new(MCP::Tool) { tool_name "send_external_message" }
+      generated = Permissions::CapabilityDescriptorAdapter.for_registry_entry(
+        tool_name: "send_external_message", capability: "communication.chat", mutation: false,
+        required_roles: [ AgentRole::CHAT_PLANNER ]
+      )
+      descriptor = Permissions::CapabilityDescriptor.new(**generated.to_h.merge(
+        defaults: { AgentRole::CHAT_PLANNER => :ask }, maximum_autonomy: :permanent,
+        authority_durations: %i[invocation chat_session permanent]
+      ))
+      allow(McpToolRegistry).to receive(:entry_for).with(actor_tool)
+        .and_return(Struct.new(:descriptor, :ungated).new(descriptor, false))
+
+      response = described_class.pending_actor_approval(actor_tool, { chat_session: }, { body: "hello" })
+      request = ChatPendingAction.find(JSON.parse(response.content.first[:text]).fetch("authorization_request_id"))
+
+      expect(request.authorization_items.sole.requested_durations)
+        .to eq(%w[invocation chat_session permanent])
+    end
+
+    it "routes plugin chat tools through the same evaluator" do
+      actor_tool = Class.new(MCP::Tool) { tool_name "plugin_write" }
+      descriptor = Permissions::CapabilityDescriptorAdapter.for_plugin_definition(
+        name: "plugin_write", capability: "plugin.records", mutation: true,
+        requestable_roles: [ AgentRole::CHAT_PLANNER ]
+      )
+      actor_tool.define_singleton_method(:capability_descriptor) { descriptor }
+      allow(McpToolRegistry).to receive(:entry_for).with(actor_tool).and_return(nil)
+
+      response = described_class.pending_actor_approval(actor_tool, { chat_session: }, { record_id: 9 })
+      request = ChatPendingAction.find(JSON.parse(response.content.first[:text]).fetch("authorization_request_id"))
+
+      expect(request.authorization_items.sole).to have_attributes(
+        capability: "plugin.records", operation: "plugin.records/plugin_write"
+      )
     end
 
     it "bypasses permission evaluation for an ungated tool" do

@@ -27,8 +27,8 @@ module Mcp::Tools
 
           super(*args, server_context: server_context, **kwargs, &block)
         end
-      rescue Mcp::Tools::AuthorizationSupport::AuthorizationError
-        Mcp::Tools.not_authorized
+      rescue Mcp::Tools::AuthorizationSupport::AuthorizationError => error
+        Mcp::Tools.not_authorized(reason: error.message)
       end
     end
 
@@ -71,10 +71,9 @@ module Mcp::Tools
         return if context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
 
         entry = McpToolRegistry.entry_for(tool)
-        return unless entry
-
-        descriptor = entry.descriptor
-        return if entry.ungated
+        descriptor = entry&.descriptor || (tool.capability_descriptor if tool.respond_to?(:capability_descriptor))
+        raise AuthorizationError, "tool has no permission descriptor" unless descriptor
+        return if entry&.ungated
         # A tool whose result is itself a PendingAction already stops at the
         # established operator-confirmation boundary. Wrapping that tool call
         # in another authorization request hides its preflight and creates a

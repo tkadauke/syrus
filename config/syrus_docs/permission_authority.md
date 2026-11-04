@@ -83,6 +83,13 @@ the originating turn or Run. Approval issues one fingerprinted invocation and
 resumes that exact checkpoint; denial resumes it with a structured denial.
 Ordinary chats may proactively request authority for themselves. Coworkers keep
 the stricter self-request limits, protected-capability boundary, and cooldowns.
+Core and plugin-contributed ordinary chat tools cross that evaluator at the
+same dispatch boundary. Safe defaults execute without interruption; an ask
+produces one compact request for the exact invocation and offers every
+descriptor-approved chat-session, Job/repository, or permanent scope. A deny
+returns a structured reason and never reaches the handler. Tools that already
+create a separately confirmed proposal or transaction keep that confirmation
+as their only approval boundary, avoiding a redundant permission prompt.
 
 Coworker authorization cards (in chat and in the inbox) default to three
 decisions: Allow once, an adaptive action, and Deny. The adaptive action is
