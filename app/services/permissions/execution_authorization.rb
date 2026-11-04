@@ -23,8 +23,9 @@ module Permissions
 
     def self.authorize(...) = new(...).authorize
 
-    def initialize(subject:, role:, rules: [], ceiling: ExecutionCeiling.default, context: {}, selector_contexts: nil, authenticated_at: nil)
+    def initialize(subject:, role:, owner: nil, rules: [], ceiling: ExecutionCeiling.default, context: {}, selector_contexts: nil, authenticated_at: nil)
       @authenticated_at = authenticated_at
+      @owner = owner
       @subject = subject
       @role = role.to_s
       @rules = rules
@@ -39,11 +40,11 @@ module Permissions
     def authorize
       descriptor = ExecutionActions.descriptor_for(@subject.location)
       arguments = ExecutionActions.arguments_for(@subject)
-      decision = @contexts.map do |context|
-        PolicyEvaluator.new(
-          descriptor:, role: @role, resource_scope: {}, rules: @rules, context: @context.merge(context), arguments:
-        ).call
-      end.min_by { |candidate| PolicyEvaluator::POLICY_RANK.fetch(candidate.policy) }
+      decisions = @contexts.map { |context| [ context, decision_for(descriptor, arguments, context, consume: false) ] }
+      winning_context, decision = decisions.min_by do |_context, candidate|
+        [ PolicyEvaluator::POLICY_RANK.fetch(candidate.policy), candidate.decisive_rule ? 0 : 1 ]
+      end
+      decision = decision_for(descriptor, arguments, winning_context, consume: true) if @owner && decision.allow?
       effects = decision.invocation.effects
       policy = decision.policy
 
@@ -56,6 +57,17 @@ module Permissions
       # Budget observers see the outcome only; they cannot change it.
       EffectMetadata.notify(descriptor, decision, policy:)
       Result.new(decision:, policy:, ceilings: applied, subject: @subject, fresh_authentication: fresh)
+    end
+
+    private
+
+    def decision_for(descriptor, arguments, selector_context, consume:)
+      context = @context.merge(selector_context)
+      return PolicyEvaluator.new(descriptor:, role: @role, resource_scope: {}, rules: @rules, context:, arguments:).call unless @owner
+
+      method = consume ? :call : :explain
+      LeaseAuthorizer.public_send(method, descriptor:, owner: @owner, role: @role, resource_scope: {},
+        rules: @rules, context:, arguments:).decision
     end
   end
 end
