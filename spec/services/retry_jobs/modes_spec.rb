@@ -11,7 +11,8 @@ RSpec.describe "RetryJobs modes" do
       .with(job: job, agent_provider: nil, provider_validation: :retry_alternate, resume_checkpoint: false, retry_kind: "retry", artifacts: {
         RebaseTarget::BASE_BRANCH_ARTIFACT => job.effective_base_branch,
         "skip_existing_branch_checkout" => true,
-        "implementation_retry" => true
+        "implementation_retry" => true,
+        "retry_requested_mode" => "implementation"
       })
       .and_return(implementation_result)
 

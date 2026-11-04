@@ -4,9 +4,13 @@ module PendingActions
 
     def execute
       job = action_job
-      mode = RetryJobs::Mode.for(payload.fetch("mode", "auto")).new(
-        job: job, source_workflow_id: payload["source_workflow_id"], reason: payload["reason"]
-      )
+      mode_name = payload.fetch("mode", "auto")
+      mode_arguments = { job: job, source_workflow_id: payload["source_workflow_id"], reason: payload["reason"] }
+      mode_arguments[:explicit_operator_intent] = true if mode_name == "implementation"
+      mode = RetryJobs::Mode.for(mode_name).new(**mode_arguments)
+      preflight = mode.preflight
+      raise ArgumentError, preflight.message unless preflight.eligible?
+
       progress!("Creating #{payload.fetch('mode', 'auto').humanize(capitalize: false)} retry for #{job.slug}...")
       result = mode.execute
       raise ArgumentError, result.error unless result.success?
