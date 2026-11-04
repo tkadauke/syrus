@@ -402,6 +402,7 @@ describe("ChatWorkspacePanel coding files", () => {
       binary: false,
       content: "# Widgets\n<script>window.pwned = true</script>\n",
       path: "README.md",
+      preview_kind: "markdown",
       too_large: false
     })
 
@@ -424,7 +425,13 @@ describe("ChatWorkspacePanel coding files", () => {
 
   it("resets Markdown to Raw when the selected file changes", async () => {
     vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: ["first.md", "second.md"] })
-    vi.mocked(fetchCodingFileContent).mockImplementation(async (_path, filePath) => ({ binary: false, content: `# ${filePath}`, path: filePath, too_large: false }))
+    vi.mocked(fetchCodingFileContent).mockImplementation(async (_path, filePath) => ({
+      binary: false,
+      content: `# ${filePath}`,
+      path: filePath,
+      preview_kind: "markdown",
+      too_large: false
+    }))
 
     renderWorkspacePanel(makeCodingPayload())
     fireEvent.click(await screen.findByRole("button", { name: "first.md" }))
@@ -439,7 +446,13 @@ describe("ChatWorkspacePanel coding files", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 402 })
     window.dispatchEvent(new Event("resize"))
     vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: ["README.md"] })
-    vi.mocked(fetchCodingFileContent).mockResolvedValue({ binary: false, content: "| A | B |\n|---|---|\n| one | two |", path: "README.md", too_large: false })
+    vi.mocked(fetchCodingFileContent).mockResolvedValue({
+      binary: false,
+      content: "| A | B |\n|---|---|\n| one | two |",
+      path: "README.md",
+      preview_kind: "markdown",
+      too_large: false
+    })
 
     renderWorkspacePanel(makeCodingPayload())
     fireEvent.click(await screen.findByRole("button", { name: "README.md" }))
@@ -455,6 +468,7 @@ describe("ChatWorkspacePanel coding files", () => {
       binary: filePath !== "index.html",
       content: filePath === "index.html" ? "<script>alert(1)</script>" : null,
       path: filePath,
+      preview_kind: filePath === "logo.svg" ? ("image" as const) : filePath === "manual.pdf" ? ("pdf" as const) : undefined,
       too_large: false
     }))
 
@@ -474,7 +488,18 @@ describe("ChatWorkspacePanel coding files", () => {
       expect(element).not.toBeNull()
       return element!
     })
-    expect(frame).toHaveAttribute("sandbox", "allow-downloads")
+    expect(frame).not.toHaveAttribute("sandbox")
+  })
+
+  it("does not infer Markdown rendering from an untrusted extension", async () => {
+    vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: ["hostile.md"] })
+    vi.mocked(fetchCodingFileContent).mockResolvedValue({ binary: true, content: null, path: "hostile.md", too_large: false })
+
+    renderWorkspacePanel(makeCodingPayload())
+    fireEvent.click(await screen.findByRole("button", { name: "hostile.md" }))
+
+    expect(await screen.findByText("Binary file — cannot display.")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Rendered" })).not.toBeInTheDocument()
   })
 
   it("opens file-scoped find from Cmd-F and navigates highlighted matches", async () => {

@@ -265,8 +265,9 @@ The coding sidebar includes a file tree, a diff browser, and a compact commit
 selector. Operators can inspect the live working tree at HEAD or choose a recent
 commit on the checkout branch to view file contents and that commit's diff.
 Markdown files open as raw source and can be switched to a sanitized rendered
-view. Images, SVG, and PDF open in isolated rendered previews, while HTML and
-ordinary source files remain raw-only. Choosing another file or commit resets
+view. Images and SVG open as sandboxed image resources, and PDF uses the
+browser's isolated native viewer. HTML and ordinary source files remain
+raw-only. Choosing another file or commit resets
 Markdown to Raw, and Find in file is available only for raw text.
 
 A planning-mode chat with an attached repository gets a read-only version of

@@ -715,6 +715,7 @@ RSpec.describe ChatWorkspace, :ci_only do
       expect(result[:binary]).to eq(false)
       expect(result[:too_large]).to eq(false)
       expect(result[:content]).to include("Widgets")
+      expect(result[:preview_kind]).to eq("markdown")
     end
 
     it "preserves UTF-8 symbols in file content" do
@@ -831,6 +832,19 @@ RSpec.describe ChatWorkspace, :ci_only do
       expect(described_class.file_bytes(chat_session, repository, "secret.png")).to be_nil
     ensure
       FileUtils.rm_rf(outside.to_s) if outside
+    end
+
+    it "denies binary bytes when a workspace read policy applies" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      File.binwrite(checkout_path.join("logo.png"), "\x89PNG\r\n\x1A\n\x00preview".b)
+      workspace = described_class.new(chat_session)
+      allow(workspace).to receive(:workspace_file_read_policy).with("logo.png").and_return(double(max_bytes: 100))
+
+      result = workspace.file_bytes_result(repository, "logo.png")
+
+      expect(result.status).to eq(:forbidden)
+      expect(result.bytes).to be_nil
     end
   end
 
