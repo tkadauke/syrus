@@ -23,8 +23,8 @@ module SyrusDev
     end
 
     def key = self.class.name.demodulize.underscore
-    def users = User.none
-    def profile_users = ::User.none
+    def users = ::User.none
+    def profile_users = users
     def rules = PermissionRule.none
     def leases = PermissionLease.none
     def requests = ChatPendingAction.none
@@ -38,14 +38,14 @@ module SyrusDev
 
   class PermissionFactoryResetScope::Chat < PermissionFactoryResetScope
     def chat = @chat ||= ChatSession.find(id)
-    def users = User.where(id: chat.user_id)
+    def users = ::User.where(id: chat.user_id)
     def leases = PermissionLease.where(chat_session_id: chat.id)
     def requests = ChatPendingAction.where(request_kind: "authorization_request", chat_session_id: chat.id)
   end
 
   class PermissionFactoryResetScope::Actor < PermissionFactoryResetScope
     def actor = @actor ||= GlobalID::Locator.locate(id) || raise(ActiveRecord::RecordNotFound)
-    def users = User.where(id: actor.respond_to?(:user_id) ? actor.user_id : actor.id)
+    def users = ::User.where(id: actor.respond_to?(:user_id) ? actor.user_id : actor.id)
     def rules
       PermissionRule.where(subject_selector_type: "agent", subject_selector_id: actor.id.to_s)
     end
