@@ -22,6 +22,7 @@ RSpec.describe "workflow lookup tools" do
   end
 
   before do
+    GithubClient::ScopedCache::STORE.clear
     repository.repository_memberships.create!(user: user, role: "read")
   end
 
