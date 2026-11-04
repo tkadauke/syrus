@@ -33,6 +33,7 @@ module PerformanceLogging
         update_peak(state, sample)
         state[:end_rss_bytes] = sample[:rss_bytes]
         state[:end_cgroup_memory_current_bytes] = sample[:cgroup_memory_current_bytes]
+        state[:end_heap_live_slots] = sample[:heap_live_slots]
         persist!(summary_event(state))
       rescue StandardError => e
         log_failure(e)
@@ -114,8 +115,10 @@ module PerformanceLogging
           started_at: Time.current,
           start_rss_bytes: nil,
           start_cgroup_memory_current_bytes: nil,
+          start_heap_live_slots: nil,
           peak_rss_bytes: nil,
-          peak_cgroup_memory_current_bytes: nil
+          peak_cgroup_memory_current_bytes: nil,
+          peak_heap_live_slots: nil
         }
       end
 
@@ -150,8 +153,10 @@ module PerformanceLogging
         mutex.synchronize do
           state[:start_rss_bytes] ||= sample[:rss_bytes]
           state[:start_cgroup_memory_current_bytes] ||= sample[:cgroup_memory_current_bytes]
+          state[:start_heap_live_slots] ||= sample[:heap_live_slots]
           state[:peak_rss_bytes] = [ state[:peak_rss_bytes], sample[:rss_bytes] ].compact.max
           state[:peak_cgroup_memory_current_bytes] = [ state[:peak_cgroup_memory_current_bytes], sample[:cgroup_memory_current_bytes] ].compact.max
+          state[:peak_heap_live_slots] = [ state[:peak_heap_live_slots], sample[:heap_live_slots] ].compact.max
         end
       end
 
@@ -174,7 +179,14 @@ module PerformanceLogging
           "peak_rss_bytes" => state[:peak_rss_bytes],
           "start_cgroup_memory_current_bytes" => state[:start_cgroup_memory_current_bytes],
           "end_cgroup_memory_current_bytes" => state[:end_cgroup_memory_current_bytes],
-          "peak_cgroup_memory_current_bytes" => state[:peak_cgroup_memory_current_bytes]
+          "peak_cgroup_memory_current_bytes" => state[:peak_cgroup_memory_current_bytes],
+          # RSS alone cannot tell retention from heap bloat: a job whose RSS
+          # grew and whose live slots did not simply failed to return pages to
+          # the OS, while growth in both means objects are still reachable.
+          # read_sample already computed this; it was being discarded here.
+          "start_heap_live_slots" => state[:start_heap_live_slots],
+          "end_heap_live_slots" => state[:end_heap_live_slots],
+          "peak_heap_live_slots" => state[:peak_heap_live_slots]
         ).compact
       end
 

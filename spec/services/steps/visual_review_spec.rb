@@ -125,10 +125,10 @@ RSpec.describe Steps::VisualReview do
     expect(workflow.reload.artifact("visual_review_runtime_sessions")).to eq([])
   end
 
-  it "stops already-started sessions when a later runtime target fails to start" do
+  it "fails required terminal coverage and stops already-started sessions when startup fails" do
     targets = [ double(legacy_browser: false), double(legacy_browser: false) ]
     first_lifecycle = instance_double(VisualReviewRuntimeSession, start!: true, stop!: true)
-    second_lifecycle = instance_double(VisualReviewRuntimeSession, stop!: true)
+    second_lifecycle = instance_double(VisualReviewRuntimeSession, stop!: true, start_required?: true)
     allow(second_lifecycle).to receive(:start!).and_raise("runtime unavailable")
     allow(handler).to receive(:visual_review_runtime_targets).and_return(targets)
     allow(handler).to receive(:start_runtime_sessions!).and_call_original
@@ -138,7 +138,30 @@ RSpec.describe Steps::VisualReview do
     expect(first_lifecycle).to receive(:stop!).once
     expect(second_lifecycle).to receive(:stop!).once
     expect { handler.send(:start_runtime_sessions!) }
-      .to raise_error(Steps::Base::StepSkipped, /runtime unavailable/)
+      .to raise_error(Steps::Base::StepFailed, /runtime unavailable/)
+    expect(workflow.reload.artifact("visual_review_iterations")).to be_blank
+    expect(workflow.artifact("visual_review_runtime_failure")).to include(
+      "reason" => "runtime_session_start_failed",
+      "message" => "runtime unavailable"
+    )
+  end
+
+  it "keeps an optional configured browser provider on the existing skip policy when startup fails" do
+    target = double(legacy_browser: false)
+    lifecycle = instance_double(VisualReviewRuntimeSession, stop!: true, start_required?: false)
+    allow(lifecycle).to receive(:start!).and_raise("browser unavailable")
+    allow(handler).to receive(:visual_review_runtime_targets).and_return([ target ])
+    allow(handler).to receive(:start_runtime_sessions!).and_call_original
+    allow(handler).to receive(:stop_runtime_sessions!).and_call_original
+    allow(VisualReviewRuntimeSession).to receive(:new).and_return(lifecycle)
+
+    expect(lifecycle).to receive(:stop!).once
+    expect { handler.send(:start_runtime_sessions!) }
+      .to raise_error(Steps::Base::StepSkipped, /browser unavailable/)
+    expect(workflow.reload.artifact("visual_review_runtime_failure")).to include(
+      "reason" => "runtime_session_start_failed",
+      "message" => "browser unavailable"
+    )
   end
 
   it "stops runtime sessions when prompt construction fails after startup" do

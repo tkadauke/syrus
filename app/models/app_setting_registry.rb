@@ -397,6 +397,19 @@ class AppSettingRegistry
       surface: :admin_settings
     ),
     Definition.new(
+      key: :host_admission_policy,
+      type: :string,
+      default: "prediction",
+      min: nil,
+      max: nil,
+      category: "Instance operations",
+      operational_meaning: "How a worker decides it can take more work: 'prediction' forecasts each step's cost from measured profiles and refuses when the forecasts exceed a budget; 'usage' reads memory PSI and refuses only when processes are actually stalling on memory.",
+      zero_means: nil,
+      admin_editable: true,
+      secret: false,
+      surface: :admin_settings
+    ),
+    Definition.new(
       key: :workflow_admission_policy,
       type: :string,
       default: "whole_workflow",
@@ -676,6 +689,7 @@ class AppSettingRegistry
   def self.options_for(key)
     {
       workflow_admission_policy: AppSetting::WORKFLOW_ADMISSION_POLICIES,
+      host_admission_policy: AppSetting::HOST_ADMISSION_POLICIES,
       merge_train_failure_policy: AppSetting::MERGE_TRAIN_FAILURE_POLICIES
     }[key.to_sym]
   end

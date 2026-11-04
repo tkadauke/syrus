@@ -21,6 +21,10 @@ RSpec.describe Syrus::Plugin::RuntimeSessionProvider do
     it "requires capabilities" do
       expect { incomplete_class.capabilities(nil, {}) }.to raise_error(NotImplementedError)
     end
+
+    it "keeps visual-review startup optional unless the provider opts in" do
+      expect(incomplete_class.visual_review_start_required?).to be false
+    end
   end
 
   describe "instance-level interface defaults" do

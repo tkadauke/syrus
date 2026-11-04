@@ -10,7 +10,6 @@ RSpec.describe "runtime_terminal lifecycle through runtime_* MCP tools" do
     enable_coding_mode!
     PluginRecord.find_or_create_by!(name: "terminal").update!(enabled: true, disableable: true)
     PluginRecord.find_or_create_by!(name: "runtime_terminal").update!(enabled: true, disableable: true)
-    allow(TerminalSessionJob).to receive(:perform_later)
   end
 
   after { Syrus::PluginRegistry.reset! }
@@ -41,7 +40,7 @@ RSpec.describe "runtime_terminal lifecycle through runtime_* MCP tools" do
       )
       expect(runtime_session.metadata).to include("terminal_session_id" => terminal_session.id)
       expect(terminal_session).to have_attributes(user_id: user.id, workflow_id: nil, working_directory: workspace)
-      expect(TerminalSessionJob).to have_received(:perform_later).with(terminal_session.id)
+      expect(TerminalSessionJob).to have_been_enqueued.with(terminal_session.id).on_queue("chat")
 
       stop_response = Mcp::Tools::RuntimeStopTool.call(
         session_id: runtime_session.id,

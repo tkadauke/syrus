@@ -990,4 +990,73 @@ RSpec.describe RunHostAdmission do
       expect(described_class.call(run: run)).to be_admit
     end
   end
+  # The prediction policy forecasts each step's cost and sums the forecasts.
+  # Where no measured profile exists it assumes a flat share of the host, and
+  # a few of those guesses exhaust the budget while the machine is idle. The
+  # usage policy reads memory PSI instead: whether processes are *actually*
+  # stalling, which is the condition that matters. A cgroup can sit near its
+  # limit indefinitely while reclaiming happily.
+  describe "host admission policy" do
+    before do
+      workflow.update!(state: "running")
+      run.update!(step: workflow.steps.find_by!(kind: "implement"))
+      worker_sample(cpu_pressure_some: 1.0)
+    end
+
+    def decide
+      described_class.call(run: run)
+    end
+
+    it "defaults to the prediction policy so the setting appearing changes nothing" do
+      expect(AppSetting.host_admission_policy).to eq("prediction")
+      expect(decide.details["admission_policy"]).to eq("prediction")
+    end
+
+    context "with the usage policy" do
+      before { AppSetting.current.update!(host_admission_policy: "usage") }
+
+      it "admits while the host reports no memory stalls, even when reservations would refuse" do
+        allow(WorkerHostHealthSampler).to receive(:memory_pressure_snapshot)
+          .and_return(memory_pressure_some: 0.0)
+        # Reservations far beyond the budget -- the prediction policy would
+        # refuse here; measured pressure says the host is fine.
+        allow_any_instance_of(described_class).to receive(:active_reserved_memory_bytes).and_return(40.gigabytes)
+
+        decision = decide
+
+        expect(decision).to be_admit
+        expect(decision.details["memory_pressure_some"]).to eq(0.0)
+      end
+
+      it "defers once processes are genuinely stalling on memory" do
+        allow(WorkerHostHealthSampler).to receive(:memory_pressure_snapshot)
+          .and_return(memory_pressure_some: 42.0)
+
+        decision = decide
+
+        expect(decision).to be_defer
+        expect(decision.reason).to eq("host_resource_semaphore_busy")
+        expect(decision.details["resource_guard_binding_terms"]).to include("memory_pressure")
+      end
+
+      # PSI lags, so concurrency still needs a width bound: without one a burst
+      # admitted inside a single window all starts before pressure registers.
+      it "still bounds concurrency by compute units" do
+        allow(WorkerHostHealthSampler).to receive(:memory_pressure_snapshot)
+          .and_return(memory_pressure_some: 0.0)
+        allow_any_instance_of(described_class).to receive(:active_compute_units).and_return(99)
+
+        decision = decide
+
+        expect(decision).to be_defer
+        expect(decision.details["resource_guard_binding_terms"]).to include("compute_units")
+      end
+
+      it "admits when pressure is unreadable rather than refusing blindly" do
+        allow(WorkerHostHealthSampler).to receive(:memory_pressure_snapshot).and_return({})
+
+        expect(decide).to be_admit
+      end
+    end
+  end
 end
