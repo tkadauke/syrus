@@ -18,6 +18,20 @@ RSpec.describe Jobs::Timeline do
   end
 
   describe ".for" do
+    it "preloads feedback workflow artifacts in one query" do
+      3.times do |index|
+        Workflow.create!(
+          job: job,
+          trigger_kind: "pr_comment",
+          artifacts: { "pr_feedback_iteration" => index + 1 }
+        )
+      end
+
+      queries = capture_sql { described_class.for(job) }
+
+      expect(queries.count { |sql| sql.match?(/FROM [`"]?workflow_artifact_values[`"]?/i) }).to eq(1)
+    end
+
     it "returns chronologically-sorted events derived from StateTransition + record creation timestamps" do
       wf = job.workflows.last
       implement = wf.steps.find_by(kind: "implement")

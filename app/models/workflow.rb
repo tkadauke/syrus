@@ -644,6 +644,11 @@ class Workflow < ApplicationRecord
 
   def artifacts=(values)
     normalized = values.to_h.deep_stringify_keys
+    # Capture only keys this assignment actually observed. A key written by
+    # set_artifact! after this snapshot must not be mistaken for an intentional
+    # deletion when the save callback runs.
+    observed_keys = persisted? ? artifacts.keys : []
+    @assigned_external_artifact_deletions = observed_keys - normalized.keys
     @assigned_external_artifacts = normalized
     super({})
   end
@@ -943,12 +948,16 @@ class Workflow < ApplicationRecord
     return unless defined?(@assigned_external_artifacts) && @assigned_external_artifacts
 
     assigned = @assigned_external_artifacts
-    workflow_artifact_values.where.not(key: assigned.keys).delete_all
+    # after_save runs inside Active Record's save transaction. Keep the side
+    # table replacement in that transaction so a failed artifact write rolls
+    # back the workflows row too.
+    workflow_artifact_values.where(key: Array(@assigned_external_artifact_deletions)).delete_all
     assigned.each do |key, value|
       workflow_artifact_values.find_or_initialize_by(key: key).update!(value: value)
     end
     workflow_artifact_values.reset
     @assigned_external_artifacts = nil
+    @assigned_external_artifact_deletions = nil
   end
 
   def retry_until_barrier_step?(step)
