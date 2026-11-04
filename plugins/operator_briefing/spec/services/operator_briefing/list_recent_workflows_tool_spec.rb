@@ -55,6 +55,24 @@ RSpec.describe OperatorBriefing::Tools::ListRecentWorkflowsTool do
     JSON.parse(response.content.first[:text], symbolize_names: true)
   end
 
+  def targeted_artifact_queries
+    queries = []
+    subscriber = lambda do |_name, _started, _finished, _id, event|
+      queries << event[:sql] unless event[:name] == "SCHEMA" || event[:cached]
+    end
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") { yield }
+    queries.grep(/SELECT .* FROM [`"]?workflow_artifact_values[`"]?.*workflow_id[`"]?\s*=\s*/i)
+  end
+
+  it "preloads artifact values once for a page of workflows" do
+    3.times do |index|
+      completed = build_completed_workflow(repository: repository, finished_at: window_end - (index + 1).hours)
+      completed.set_artifact!("summary", "Summary #{index}")
+    end
+
+    expect(targeted_artifact_queries { described_class.call(server_context: { run: briefing_run }) }).to be_empty
+  end
+
   it "lists completed workflows scoped to the briefing repository, owner, and window" do
     old_workflow = build_completed_workflow(repository: repository, finished_at: window_start - 1.minute)
     recent_workflow = build_completed_workflow(repository: repository, finished_at: window_end - 1.hour, title: "Recent repair")

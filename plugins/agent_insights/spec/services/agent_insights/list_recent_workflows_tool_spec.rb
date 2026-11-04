@@ -22,6 +22,32 @@ RSpec.describe AgentInsights::Tools::ListRecentWorkflowsTool do
     payload["workflows"].find { |w| w["id"] == target_workflow.id }
   end
 
+  it "preloads artifact values once for a page of workflows" do
+    listed_ids = 2.times.map do |index|
+      workflow = Workflow.create!(
+        job: Factories.job_record(repository: repo, user: user),
+        trigger_kind: "initial",
+        finished_at: (index + 1).hours.ago,
+        artifacts: { "summary" => "Summary #{index}" }
+      )
+      workflow.id
+    end
+    queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      queries << payload unless payload[:cached] || payload[:name] == "SCHEMA"
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { call }
+
+    targeted_reads = queries.select do |payload|
+      next false unless payload[:sql].match?(/SELECT .* FROM [`"]?workflow_artifact_values[`"]?.*workflow_id[`"]?\s*=\s*/i)
+
+      bind_values = Array(payload[:binds]).map { |bind| bind.value_for_database }
+      (bind_values & listed_ids).any?
+    end
+    expect(targeted_reads).to be_empty
+  end
+
   it "includes a workflow's WorkflowWarning rows in the payload" do
     WorkflowWarnings.record!(
       workflow: target_workflow,

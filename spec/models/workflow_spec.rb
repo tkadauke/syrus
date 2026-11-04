@@ -1248,6 +1248,17 @@ RSpec.describe Workflow, :ci_only do
       expect(wf.reload.artifacts).to eq("existing" => "new", "added" => true)
     end
 
+    it "does not delete an artifact added after a whole-bag assignment snapshot" do
+      wf.update!(artifacts: { "existing" => "old", "remove" => true })
+      stale = described_class.find(wf.id)
+      stale.artifacts = { "existing" => "changed" }
+      described_class.find(wf.id).set_artifact!("concurrent", true)
+
+      stale.save!
+
+      expect(wf.reload.artifacts).to eq("existing" => "changed", "concurrent" => true)
+    end
+
     it "deletes selected keys without overwriting another instance's artifacts" do
       wf.update!(artifacts: { "remove" => true, "existing" => "old" })
       stale = described_class.find(wf.id)
