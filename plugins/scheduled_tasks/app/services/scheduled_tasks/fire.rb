@@ -49,6 +49,10 @@ module ScheduledTasks
         end
 
         job = handler.fire!(now: @now)
+        if job.is_a?(Result)
+          @task.record_fire!(at: @now)
+          return job
+        end
         unless job.is_a?(Job) && job.scheduled_task_id == @task.id
           raise ArgumentError, "scheduled task fire handler must return a Job linked to its task"
         end

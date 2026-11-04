@@ -399,6 +399,23 @@ RSpec.describe "Coworker background runs" do
     expect(main_chat.reload).not_to be_turn_in_flight
   end
 
+  it "persists a successful journal without posting a card or waking the chat" do
+    task = Coworkers::SystemSchedules.reconcile!(coworker)
+    job.update!(scheduled_task_id: task.id, issue_title: "Scheduled coworker task: Journaling for 2026-11-03")
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    source_run = Run.create!(job: job, user: owner, step: workflow.steps.find_by!(kind: "coworker_run"), trigger_kind: "coworker_run", agent_provider: "codex")
+    source_run.update_columns(state: "succeeded", agent_summary: "Journal updated.", finished_at: Time.current)
+    post_run = Run.new(job: job, user: owner, step: workflow.steps.find_by!(kind: "post_to_chat"), trigger_kind: "coworker_run", agent_provider: "codex")
+
+    expect { Coworkers::PostToChat.new(post_run).call }.not_to change(main_chat.messages, :count)
+
+    expect(lifecycle).to have_received(:finalize_background!).once
+    expect(main_chat.chat_queued_messages).to be_empty
+    expect(task.reload).to have_attributes(
+      last_journaled_on: Date.new(2026, 11, 3), last_system_result: "journaled", last_system_result_reason: nil
+    )
+  end
+
   it "queues one wake per run while another turn is in flight" do
     task = ScheduledTasks::Task.create!(
       user: owner, repository: repository, coworker_id: coworker.id, name: "Busy review",

@@ -11,6 +11,9 @@ module Coworkers
       merge = finalize_once!(chat:, workflow:, source_run: failed_run)
       duration = (failed_run.finished_at - failed_run.started_at).round(1) if failed_run&.started_at && failed_run.finished_at
       summary = summary_for(failed_run, fallback: "Background task failed.")
+      task = ScheduledTasks::Task.find_by(id: job.scheduled_task_id)
+      target_date = job.issue_title.to_s[/ for (\d{4}-\d{2}-\d{2})\z/, 1]&.to_date
+      repeat_system_failure = task&.system_schedule? && task.last_system_result == "failed" && task.last_system_result_on == target_date
 
       post_once!(workflow:, chat:, merge:, content: {
         "text" => summary,
@@ -22,7 +25,7 @@ module Coworkers
           "cost_usd" => failed_run&.cost_usd&.to_s, "merge_state" => merge.to_s
         }
       })
-      enqueue_wake!(chat:, job:, source_run: failed_run, summary:, duration:)
+      enqueue_wake!(chat:, job:, source_run: failed_run, summary:, duration:) unless repeat_system_failure
     end
 
     def call
@@ -31,6 +34,12 @@ module Coworkers
       source_run = workflow.steps.find_by!(kind: "coworker_run").runs.where(state: "succeeded").order(:created_at).last!
       summary = self.class.summary_for(source_run, fallback: "Background task completed.")
       merge = self.class.finalize_once!(chat:, workflow:, source_run:, path: workspace.path)
+      if (task = ScheduledTasks::Task.find_by(id: job.scheduled_task_id))&.system_key == Coworkers::SystemSchedules::JOURNALING
+        date = job.issue_title.to_s[/ for (\d{4}-\d{2}-\d{2})\z/, 1]&.to_date
+        task.update!(last_journaled_on: date, last_system_result: "journaled", last_system_result_on: date,
+                     last_system_result_reason: nil) if date
+        return
+      end
       duration = (source_run.finished_at - source_run.started_at).round(1) if source_run.started_at && source_run.finished_at
 
       self.class.post_once!(workflow:, chat:, merge:, content: {
@@ -81,7 +90,8 @@ module Coworkers
       task = ScheduledTasks::Task.find_by(id: job.scheduled_task_id)
       return unless task && source_run
 
-      Coworkers::AfterRunPolicy.for(task.after_run).enqueue!(chat:, task:, source_run:, summary:, duration:)
+      policy = task.system_schedule? ? "wake" : task.after_run
+      Coworkers::AfterRunPolicy.for(policy).enqueue!(chat:, task:, source_run:, summary:, duration:)
     end
 
     def self.summary_for(source_run, fallback:)

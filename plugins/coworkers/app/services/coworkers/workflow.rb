@@ -13,7 +13,12 @@ module Coworkers
 
     def self.after_fail(workflow)
       Coworkers::PostToChat.post_failure!(workflow) if workflow.steps.where(kind: "coworker_run", state: "failed").exists?
-      scheduled_task_for(workflow)&.record_failure!
+      task = scheduled_task_for(workflow)
+      task&.record_failure!
+      if task&.system_key == Coworkers::SystemSchedules::JOURNALING
+        date = workflow.job.issue_title.to_s[/ for (\d{4}-\d{2}-\d{2})\z/, 1]&.to_date
+        task.update!(last_system_result: "failed", last_system_result_on: date, last_system_result_reason: workflow.failure_reason)
+      end
     ensure
       close_anchor_job!(workflow)
     end

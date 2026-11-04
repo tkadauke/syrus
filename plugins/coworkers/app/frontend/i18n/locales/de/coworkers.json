@@ -155,7 +155,13 @@
     "empty": "Noch keine Zeitpläne.",
     "pause": "Pausieren",
     "resume": "Fortsetzen",
-    "run_now": "Jetzt ausführen"
+    "run_now": "Jetzt ausführen",
+    "system": "System",
+    "journaling_paused": "Journaling pausiert",
+    "last_result": "Letztes Ergebnis: {{result}} · journalisiert bis {{date}}",
+    "never_run": "noch nie ausgeführt",
+    "system_run_time": "Ausführungszeit des Systemzeitplans",
+    "save_time": "Zeit speichern"
   },
   "capabilities": {
     "sentences": {

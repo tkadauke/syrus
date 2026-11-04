@@ -18,7 +18,7 @@ class Coworkers::PromptSection
       next unless path.file?
 
       separator = rendered == HEADING ? "" : "\n\n"
-      section = "### #{name}\n\n#{bounded_read(path, MAX_FILE_BYTES)}"
+      section = "### #{name}\n\n#{current_memory(bounded_read(path, MAX_FILE_BYTES))}"
       candidate = rendered + separator + section
       if candidate.bytesize > MAX_TOTAL_BYTES
         rendered = truncate_aggregate(candidate)
@@ -53,6 +53,13 @@ class Coworkers::PromptSection
     content.safe_byteslice(0, MAX_TOTAL_BYTES - suffix.bytesize) + suffix
   end
 
+  # Superseded entries remain readable in the workspace and Memory tab, but
+  # are omitted from standing prompt context so an old decision cannot compete
+  # with its replacement.
+  def self.current_memory(content)
+    content.lines.reject { |line| line.match?(/~~.+~~ \(superseded \d{4}-\d{2}-\d{2} by .+: .+\)/) }.join
+  end
+
   def self.grant_section(coworker)
     held = coworker.grants.index_by(&:capability)
     lines = Coworkers::GrantCatalog.all.sort_by(&:name).map do |descriptor|
@@ -78,5 +85,5 @@ class Coworkers::PromptSection
     "### Tool grants\n\n#{repository_line}\n\nYour available tools are still determined by these grants. If a needed tool is missing, ask your owner for the named grant.\n\n#{lines.join("\n")}"
   end
 
-  private_class_method :paths_for, :bounded_read, :truncate_aggregate, :grant_section
+  private_class_method :paths_for, :bounded_read, :truncate_aggregate, :current_memory, :grant_section
 end

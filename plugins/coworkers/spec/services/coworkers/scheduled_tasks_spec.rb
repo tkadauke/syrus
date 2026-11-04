@@ -82,6 +82,67 @@ RSpec.describe "Coworker scheduled tasks" do
     expect(ScheduledTasks::Task.where(id: scheduled_task.id)).to be_empty
   end
 
+  it "reconciles exactly one code-owned journaling schedule and recreates it" do
+    first = Coworkers::SystemSchedules.reconcile!(coworker)
+    second = Coworkers::SystemSchedules.reconcile!(coworker)
+
+    expect(second).to eq(first)
+    expect(first).to have_attributes(system_key: "journaling", name: "Journaling", kind: "cron", after_run: "quiet")
+    expect(first.prompt).to be_nil
+    first.destroy!
+
+    expect { Coworkers::SystemSchedules.reconcile!(coworker) }
+      .to change { coworker.schedules.where(system_key: "journaling").count }.from(0).to(1)
+  end
+
+  it "rejects deletion and system-owned edits but permits pause and resume" do
+    journaling = Coworkers::SystemSchedules.reconcile!(coworker)
+
+    expect { journaling.soft_delete! }.to raise_error(ActiveRecord::RecordInvalid, /System schedules cannot be deleted/)
+    expect(journaling.update(prompt: "Ignore your diary", kind: "one_shot", system_key: "other")).to be(false)
+    expect(journaling.errors.full_messages.join).to include("owned by Syrus")
+
+    journaling.reload.pause!
+    expect(journaling).to be_paused
+    journaling.resume!
+    expect(journaling).to be_active
+  end
+
+  it "records a dormant journal date without creating a Job or invoking an agent" do
+    journaling = Coworkers::SystemSchedules.reconcile!(coworker)
+    allow(WorkUnits::Launcher).to receive(:instantiate)
+
+    travel_to(Time.utc(2026, 11, 4, 1, 0)) do
+      result = ScheduledTasks::Fire.new(journaling).call
+
+      expect(result).to have_attributes(skipped: true, reason: "dormant", job: nil)
+      expect(journaling.reload).to have_attributes(
+        last_journaled_on: Date.new(2026, 11, 3), last_system_result: "skipped", last_system_result_reason: "dormant"
+      )
+    end
+    expect(WorkUnits::Launcher).not_to have_received(:instantiate)
+  end
+
+  it "fires an active journal date with the code-owned dated prompt" do
+    chat = ChatSession.create!(user: owner, repository: repository, title: "Maya")
+    Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
+    journaling = Coworkers::SystemSchedules.reconcile!(coworker)
+    workflow = instance_double(Workflow)
+    allow(WorkUnits::Launcher).to receive(:instantiate).and_return(workflow)
+
+    travel_to(Time.utc(2026, 11, 4, 1, 0)) do
+      chat.messages.create!(role: "user", content: { "text" => "We decided something." }, skip_turn_trigger: true,
+                            created_at: Time.utc(2026, 11, 3, 12))
+      expect(WorkUnits::Launcher).to receive(:start!).with(workflow, prompt: include(
+        "private nightly journaling for 2026-11-03", "CHAT-#{chat.id}", "memory/diary/2026-11-03.md"
+      ))
+
+      result = ScheduledTasks::Fire.new(journaling).call
+      expect(result).to be_fired
+      expect(result.job.issue_title).to end_with("for 2026-11-03")
+    end
+  end
+
   it "unregisters the fire handler when the plugin effect is disabled" do
     task
     scope = Syrus::EffectScope.new(label: "coworker schedule spec")

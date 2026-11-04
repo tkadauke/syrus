@@ -52,6 +52,7 @@ module Coworkers
     route :get, "/api/v1/app/coworkers/:id/workspace", to: "api/v1/app/coworkers#workspace"
     route :get, "/api/v1/app/coworkers/:id/activity", to: "api/v1/app/coworkers#activity"
     route :post, "/api/v1/app/coworkers/:id/schedules", to: "api/v1/app/coworkers#create_schedule"
+    route :patch, "/api/v1/app/coworkers/:id/schedules/:schedule_id", to: "api/v1/app/coworkers#update_schedule"
     route :post, "/api/v1/app/coworkers/:id/schedules/:schedule_id/pause", to: "api/v1/app/coworkers#pause_schedule"
     route :post, "/api/v1/app/coworkers/:id/schedules/:schedule_id/resume", to: "api/v1/app/coworkers#resume_schedule"
     route :post, "/api/v1/app/coworkers/:id/schedules/:schedule_id/fire_now", to: "api/v1/app/coworkers#fire_schedule"

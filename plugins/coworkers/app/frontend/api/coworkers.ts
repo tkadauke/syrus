@@ -75,6 +75,10 @@ export type CoworkerSchedule = {
   next_fire_at: string | null
   last_fired_at: string | null
   after_run: "wake" | "quiet"
+  system_key: string | null
+  last_journaled_on: string | null
+  last_system_result: string | null
+  last_system_result_reason: string | null
 }
 export type CoworkerActivityPayload = {
   spend: { week_usd: number; total_usd: number }
@@ -176,6 +180,8 @@ export function createCoworkerSchedule(
 ) {
   return postJson<{ schedule: CoworkerSchedule }>(`/api/v1/app/coworkers/${id}/schedules`, { schedule })
 }
+export const updateCoworkerSchedule = (coworkerId: string, scheduleId: number, schedule: { schedule_input: string }) =>
+  patchJson<{ schedule: CoworkerSchedule }>(`/api/v1/app/coworkers/${coworkerId}/schedules/${scheduleId}`, { schedule })
 export const commandCoworkerSchedule = (coworkerId: string, scheduleId: number, command: "pause" | "resume" | "fire_now") =>
   postJson<{ schedule: CoworkerSchedule; fired?: boolean; reason?: string | null; job_id?: number | null }>(
     `/api/v1/app/coworkers/${coworkerId}/schedules/${scheduleId}/${command}`
