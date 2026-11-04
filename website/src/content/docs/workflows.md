@@ -46,6 +46,8 @@ review begins: routed provider/model, reviewed base and head commits, and a
 canonical diff digest. Syrus verifies the frozen head and diff when the
 reviewer submits a verdict. Evidence becomes permanently stale if the source
 changed, so an approval for an older head cannot satisfy the current gate.
+Bound stale approvals are presented as stale, while older findings without
+evidence remain readable with a legacy marker and no fabricated provenance.
 Existing review findings remain the verdict record, linked to evidence when
 available; historical findings are not assigned invented provenance.
 The agent makes and commits the change during the top-level `implement`

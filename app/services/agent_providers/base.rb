@@ -37,6 +37,15 @@ module AgentProviders
       []
     end
 
+    # Providers with a stable configured default override this so callers that
+    # must record immutable provenance can pin the exact model before launch.
+    def self.default_model
+    end
+
+    def self.resolve_model(model)
+      model.to_s.strip.presence || default_model
+    end
+
     def self.evidence_reset_at(evidence)
     end
 

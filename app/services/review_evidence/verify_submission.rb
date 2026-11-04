@@ -14,10 +14,16 @@ module ReviewEvidence::VerifySubmission
   def call!(evidence:, workspace_path:)
     raise Mismatch.new("review_evidence_stale", evidence.terminal_failure_details.to_h) if evidence.stale?
 
-    snapshot = ReviewEvidence::CanonicalDiff.snapshot(
-      workspace_path: workspace_path,
-      base_sha: evidence.reviewed_base_sha
-    )
+    snapshot = begin
+      ReviewEvidence::CanonicalDiff.snapshot(
+        workspace_path: workspace_path,
+        base_sha: evidence.reviewed_base_sha
+      )
+    rescue StandardError => e
+      details = { error_class: e.class.name, message: e.message }
+      evidence.mark_failed!(code: "review_evidence_verification_failed", details: details)
+      raise Mismatch.new("review_evidence_verification_failed", details)
+    end
     mismatches = {}
     if snapshot.fetch(:head_sha) != evidence.reviewed_head_sha
       mismatches[:reviewed_head_sha] = evidence.reviewed_head_sha
@@ -31,11 +37,5 @@ module ReviewEvidence::VerifySubmission
 
     evidence.mark_stale!(code: "review_evidence_mismatch", details: mismatches)
     raise Mismatch.new("review_evidence_mismatch", mismatches)
-  rescue Mismatch
-    raise
-  rescue StandardError => e
-    details = { error_class: e.class.name, message: e.message }
-    evidence.mark_failed!(code: "review_evidence_verification_failed", details: details)
-    raise Mismatch.new("review_evidence_verification_failed", details)
   end
 end

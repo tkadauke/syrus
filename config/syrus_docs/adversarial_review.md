@@ -47,7 +47,9 @@ only while the workspace still matches that snapshot. Changed source marks the
 evidence stale permanently, rejects the verdict, and forces repair/rereview to
 produce fresh evidence. Findings artifacts remain authoritative; their
 `review_evidence_id` is a provenance link, and legacy entries without one are
-shown unchanged rather than receiving fabricated backfill values.
+shown with a `legacy` evidence marker rather than receiving fabricated backfill
+values. Bound entries expose their evidence state; an approval whose evidence
+later becomes stale is presented as stale rather than as a current approval.
 
 ## Findings carry-forward
 

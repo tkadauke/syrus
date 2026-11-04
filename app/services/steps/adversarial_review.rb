@@ -47,7 +47,8 @@ module Steps
 
       workflow.reload
       verify_review_evidence_at_gate!
-      if (evidence = run.reload.review_evidence) && evidence.state.in?(%w[failed stale])
+      evidence = run.reload.review_evidence
+      if evidence && evidence.state.in?(%w[failed stale])
         failure = EVIDENCE_FAILURES.fetch(evidence.terminal_failure_code, EvidenceVerificationFailed)
         raise failure.new(
           "#{review_step_kind} evidence is #{evidence.state}",
@@ -70,6 +71,12 @@ module Steps
 
         fail_with!(:missing_required_tool_call, "agent didn't call #{review_submit_tool}",
                    evidence: { tool: review_submit_tool })
+      end
+      if evidence && evidence.state != "submitted"
+        raise EvidenceVerificationFailed.new(
+          "#{review_step_kind} evidence was not submitted",
+          evidence: { review_evidence_id: evidence.id, state: evidence.state }
+        )
       end
     rescue StandardError => e
       raise unless skippable_review_failure?(e)
@@ -132,7 +139,7 @@ module Steps
         workspace_path: workspace.path,
         review_kind: review_event_kind,
         base_ref: review_base_ref,
-        checklist: adversarial_review_criteria
+        checklist: review_criteria
       )
     rescue StandardError => e
       fail_with!(
@@ -141,6 +148,8 @@ module Steps
         evidence: { review_kind: review_step_kind, error_class: e.class.name }
       )
     end
+
+    def review_criteria = adversarial_review_criteria
 
     def adversarial_review_criteria
       [ *adversarial_review_projects.criteria, *plugin_review_criteria ].uniq

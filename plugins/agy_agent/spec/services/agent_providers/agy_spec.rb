@@ -40,6 +40,12 @@ RSpec.describe AgentProviders::Agy do
     end
   end
 
+  it "resolves its configured default model for immutable provenance" do
+    allow(AgyInvocation).to receive(:configured_model).and_return("gemini-configured")
+
+    expect(described_class.resolve_model(nil)).to eq("gemini-configured")
+  end
+
   let(:user) { Factories.user(gemini_api_key: "AIza-test") }
   let(:job) { Factories.job(user: user) }
   let(:workflow) { Workflow.create!(job: job, trigger_kind: "initial") }
