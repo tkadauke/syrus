@@ -1810,6 +1810,10 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={item} />)
 
     const details = screen.getByTitle(summary)
+    const header = details.closest("summary")
+    const outcome = screen.getByText("Done").parentElement
+    expect(header).toHaveClass("list-none", "grid-cols-[auto_minmax(0,1fr)_auto_auto]")
+    expect(outcome).toHaveClass("shrink-0", "justify-self-end")
     expect(details).toHaveClass("col-start-2", "col-end-5", "break-words", "sm:col-start-5", "sm:truncate")
     expect(details).not.toHaveClass("truncate")
   })
