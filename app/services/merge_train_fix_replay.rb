@@ -123,6 +123,7 @@ class MergeTrainFixReplay
     member = discovered.select { |sha| member_commits.include?(sha) }
     repair = discovered - member
     unrelated = all_commits - discovered - member_commits.to_a
+    missing = repair_run_commits.keys - all_commits
 
     [ repair, {
       "discovered" => discovered.map do |sha|
@@ -130,7 +131,13 @@ class MergeTrainFixReplay
       end,
       "skipped" => member.map { |sha| { "sha" => sha, "reason" => "member implementation commit" } } +
         unrelated.map { |sha| { "sha" => sha, "reason" => "not produced by a successful landing_fix run" } },
-      "rejected" => []
+      "rejected" => missing.map do |sha|
+        {
+          "sha" => sha,
+          "run_id" => repair_run_commits.fetch(sha),
+          "reason" => "successful landing_fix run head is not reachable from the recorded source integration range"
+        }
+      end
     } ]
   end
 

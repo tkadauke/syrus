@@ -61,16 +61,21 @@ it a couple of minutes later as "no active Workflow or WorkUnit owns it", which
 replaced the real cause with a report about missing runtime. Preservation that
 cannot schedule a relaunch now tears the train down for its real reason instead.
 
-When `merge_train_failure_policy` is `keep_fixes`, a rebuilt train may carry a
-`merge_train_keep_fixes_source_train_id` artifact from a previous failed train.
-After member branches have been rebuilt on the current base, `merge_train_build`
-checks that the source and replacement trains have the same ordered member set.
-It then treats the source integration branch's commits minus the recorded member
-`LandedCommit` rows as repair commits and cherry-picks those repairs onto the
-rebuilt assembly before publishing. If the member set changed, the source branch
-is missing, or a repair cherry-pick conflicts, replay is skipped or aborted and
-the branch is reset to the rebuilt member-only tip before the workflow
-continues.
+When the resolved repository failure-policy rung is `keep_fixes`, a rebuilt
+train may carry a `merge_train_keep_fixes_source_train_id` artifact from a
+previous failed train. This also applies after non-retryable grader exhaustion:
+successful `landing_fix` runs are durable repair progress even though the final
+grader failure itself is not retryable. After member branches have been rebuilt
+on the current base, `merge_train_build` checks that the source and replacement
+trains have the same ordered member set. It only cherry-picks commits whose SHA
+is both reachable in the recorded source integration range and the recorded
+head of a successful `landing_fix` run. Member commits and unrelated branch
+commits are not replayed. The replay artifact records discovered, replayed,
+skipped, and rejected commits with reasons, including successful run heads that
+cannot be verified in the source range. If the member set changed, the source
+branch is missing, or a repair cherry-pick conflicts, replay is skipped or
+aborted and the branch is reset to the rebuilt member-only tip before the
+workflow continues.
 
 The published branch is disposable bookkeeping: `merge_train_land` deletes it after a successful landing, and a train that fails or is cancelled deletes it too unless `keep_fixes` leaves a stale failed branch available for the replacement train. CI is unaffected because the repository's workflows build only `main` and pull requests, and the branch name is unique per train.
 
