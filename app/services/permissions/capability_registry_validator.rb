@@ -84,7 +84,7 @@ module Permissions
     end
 
     def findings
-      missing_descriptor_findings + tool_mapping_findings + descriptor_conflict_findings + identifier_findings
+      missing_descriptor_findings + bundle_findings + tool_mapping_findings + descriptor_conflict_findings + identifier_findings
     end
 
     def coverage
@@ -103,11 +103,22 @@ module Permissions
           role_descriptors = descriptors.select { |descriptor| descriptor.requestable_roles.include?(role) }
           { descriptors: role_descriptors.length, defaults: role_descriptors.map { |descriptor| descriptor.defaults.fetch(role) }.tally }
         end,
-        effects: effects
+        effects: effects,
+        tool_set_bundles: descriptors.map(&:tool_set_bundle).tally
       }
     end
 
     private
+
+    def bundle_findings
+      registrations.filter_map do |registration|
+        next unless registration.descriptor
+        next if ToolSetBundles::DEFINITIONS.key?(registration.descriptor.tool_set_bundle)
+
+        finding(:unknown_tool_set_bundle, registration,
+          "references unknown tool-set bundle #{registration.descriptor.tool_set_bundle.inspect}")
+      end
+    end
 
     def missing_descriptor_findings
       registrations.filter_map do |registration|
