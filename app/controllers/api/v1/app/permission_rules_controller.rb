@@ -12,8 +12,25 @@ module Api
           render json: {
             rules: management.rules(active: false).map { |rule| serialize_rule(rule) },
             inherited: Permissions::Catalog.descriptors.map { |descriptor| serialize_descriptor(descriptor, management:, active_rules:) },
+            profiles: Permissions::PermissionProfiles.all.map(&:to_h),
+            current_profiles: PermissionRule::SUBJECT_SELECTORS.filter_map { |subject, definition|
+              next unless definition[:role]
+              [ subject, management.current_profile(subject_selector_type: subject) ]
+            }.to_h,
             ownership: { editable_layer: "agent", owner_user_id: Current.user.id }
           }
+        end
+
+        def apply_profile
+          subject = params.require(:subject_selector_type)
+          definition = PermissionRule::SUBJECT_SELECTORS.fetch(subject)
+          rules = Permissions::Management.new(Current.user).apply_profile!(
+            profile_key: params.require(:profile), role: definition.fetch(:role),
+            subject_selector_type: subject, actor: Current.user
+          )
+          render json: { rules: rules.map { |rule| serialize_rule(rule) }, profile: params[:profile], subject_selector_type: subject }
+        rescue ActiveRecord::RecordInvalid, ArgumentError, KeyError => error
+          render_error("invalid_permission_profile", error.message, status: :unprocessable_entity)
         end
 
         def history

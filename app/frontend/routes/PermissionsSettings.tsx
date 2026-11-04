@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import { Link, useLocation, useSearchParams } from "react-router-dom"
 import {
   applyPermissionBulk,
+  applyPermissionProfile,
   applyPermissionPreset,
   fetchPermissionHistory,
   fetchPermissions,
@@ -21,6 +22,7 @@ import { PermissionRuleEditor, type RuleEditorSeed } from "../components/Permiss
 import { Modal } from "../components/Modal"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { PanelMessage } from "../components/PanelMessage"
+import { Select } from "../components/Select"
 import { Checkbox, DataTable } from "../components/ui"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
@@ -52,6 +54,8 @@ export function PermissionsSettingsRoute() {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
   const [selectedRuleIds, setSelectedRuleIds] = useState<number[]>([])
   const [preview, setPreview] = useState<{ rows: PermissionPreview[]; digest: string; operations: PermissionBulkOperation[] } | null>(null)
+  const [profileSubject, setProfileSubject] = useState<Subject>("interactive_chat")
+  const [profilePreview, setProfilePreview] = useState<string | null>(null)
   const role = roleFor(subject)
   // Capabilities that can carry a standing (permanent) rule for some role.
   const authorableCapabilities = useMemo(() => descriptors.filter((item) => item.requestable_roles.length > 0), [descriptors])
@@ -80,6 +84,13 @@ export function PermissionsSettingsRoute() {
       setPreview(null)
       setSelectedKeys([])
       setSelectedRuleIds([])
+      void refresh()
+    }
+  })
+  const applyProfile = useMutation({
+    mutationFn: (profile: string) => applyPermissionProfile(profile, profileSubject, roleFor(profileSubject)),
+    onSuccess: () => {
+      setProfilePreview(null)
       void refresh()
     }
   })
@@ -151,6 +162,58 @@ export function PermissionsSettingsRoute() {
           {t("permissions.approvals_link")}
         </Link>
       </header>
+      {query.data ? (
+        <section aria-labelledby="permission-profile-heading" className="rounded-xl border border-border bg-surface-raised p-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <SectionHeading id="permission-profile-heading">{t("permissions.profile_title")}</SectionHeading>
+              <p className="mt-1 max-w-3xl text-sm text-text-secondary">{t("permissions.profile_help")}</p>
+            </div>
+            <label className="text-sm font-medium text-text-secondary">
+              {t("permissions.profile_for")}
+              <Select
+                className="ml-2"
+                fullWidth={false}
+                onChange={(event) => {
+                  setProfileSubject(event.target.value as Subject)
+                  setProfilePreview(null)
+                }}
+                value={profileSubject}
+              >
+                {subjects.map((item) => (
+                  <option key={item} value={item}>
+                    {t(`permissions.subjects.${item}`)}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {query.data.profiles.map((profile) => {
+              const selected = query.data.current_profiles[profileSubject] === profile.key
+              return (
+                <article className={`rounded-lg border p-4 ${selected ? "border-brand bg-brand-subtle" : "border-border bg-surface"}`} key={profile.key}>
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="font-semibold text-text-primary">{t(`permissions.profile_names.${profile.key.split("@")[0]}`)}</h3>
+                    {selected ? <span className="text-xs font-medium text-brand">{t("permissions.profile_active")}</span> : null}
+                  </div>
+                  <p className="mt-2 text-sm text-text-secondary">{t(`permissions.profile_descriptions.${profile.key.split("@")[0]}`)}</p>
+                  <p className="mt-3 text-xs text-text-muted">{t(`permissions.profile_boundaries.${profile.key.split("@")[0]}`)}</p>
+                  <button
+                    className="mt-3 rounded-md border border-brand px-3 py-1.5 text-sm font-semibold text-brand disabled:opacity-60"
+                    disabled={selected || applyProfile.isPending}
+                    onClick={() => setProfilePreview(profile.key)}
+                    type="button"
+                  >
+                    {selected ? t("permissions.profile_selected") : t("permissions.profile_select")}
+                  </button>
+                </article>
+              )
+            })}
+          </div>
+          {applyProfile.isError ? <PanelMessage tone="error">{errorMessage(applyProfile.error, t("permissions.profile_error"))}</PanelMessage> : null}
+        </section>
+      ) : null}
       {query.isError ? <PanelMessage tone="error">{t("permissions.load_error")}</PanelMessage> : null}
       {bulkPreview.isError || bulkApply.isError ? (
         <PanelMessage tone="error">{errorMessage(bulkPreview.error || bulkApply.error, t("permissions.create_error"))}</PanelMessage>
@@ -326,6 +389,32 @@ export function PermissionsSettingsRoute() {
           ))}
         </div>
       </section>
+      <Modal label={t("permissions.profile_confirm_title")} onClose={() => setProfilePreview(null)} open={Boolean(profilePreview)}>
+        {profilePreview ? (
+          <div className="space-y-4">
+            <p className="text-sm text-text-secondary">{t("permissions.profile_confirm_body", { subject: t(`permissions.subjects.${profileSubject}`) })}</p>
+            <p className="rounded-lg bg-warning-surface p-3 text-sm text-warning-text">{t("permissions.profile_confirm_boundary")}</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-on-brand"
+                disabled={applyProfile.isPending}
+                onClick={() => applyProfile.mutate(profilePreview)}
+                type="button"
+              >
+                {applyProfile.isPending ? t("permissions.profile_applying") : t("permissions.profile_confirm")}
+              </button>
+              <button
+                className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-text-secondary"
+                disabled={applyProfile.isPending}
+                onClick={() => setProfilePreview(null)}
+                type="button"
+              >
+                {t("permissions.profile_cancel")}
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
       <BulkPreviewModal applying={bulkApply.isPending} onClose={() => setPreview(null)} onConfirm={() => bulkApply.mutate()} preview={preview} t={t} />
     </main>
   )
