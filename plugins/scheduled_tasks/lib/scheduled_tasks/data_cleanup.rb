@@ -9,7 +9,7 @@ module ScheduledTasks
     def self.install_into(scope)
       scope.effect("repository schedules") do
         Syrus::DataCleanup.register("Repository", "scheduled_tasks.tasks") do |repository|
-          ScheduledTasks::Task.where(repository_id: repository.id).find_each(&:destroy)
+          ScheduledTasks::Task.where(repository_id: repository.id).find_each(&:destroy_as_system!)
         end
       end
 

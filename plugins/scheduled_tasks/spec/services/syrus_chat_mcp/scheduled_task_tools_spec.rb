@@ -214,6 +214,16 @@ RSpec.describe "Mcp::Tools scheduled task tools" do
     expect(task.reload.archived_at).to be_present
   end
 
+  it "rejects deletion of a system schedule" do
+    task = create_scheduled_task(coworker_id: 123, system_key: "journaling", prompt: nil)
+
+    response = call_tool("delete_scheduled_task", scheduled_task_id: task.id)
+
+    expect(response.dig(:result, :isError)).to be true
+    expect(response.dig(:result, :content, 0, :text)).to include("System schedules cannot be deleted")
+    expect(task.reload).not_to be_archived
+  end
+
   it "archives a scheduled task in another repository owned by the user" do
     other_task = create_scheduled_task(repository: Factories.repository(user: user), name: "Other repo")
 

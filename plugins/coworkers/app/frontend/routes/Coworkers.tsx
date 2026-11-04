@@ -794,6 +794,11 @@ function CoworkerSchedules({ coworker, onChanged }: { coworker: CoworkerDetail; 
                         result: schedule.last_system_result || t("schedule.never_run"), date: schedule.last_journaled_on || "—"
                       })}
                     </div>
+                    {schedule.system_result_history.slice(-7).reverse().map((entry) => (
+                      <div className="text-xs text-text-secondary" key={entry.date}>
+                        {entry.date}: {entry.result}{entry.reason ? ` (${entry.reason})` : ""}
+                      </div>
+                    ))}
                     <SystemScheduleTime coworkerId={String(coworker.id)} onChanged={onChanged} schedule={schedule} />
                   </>
                 ) : null}

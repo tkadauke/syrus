@@ -367,6 +367,7 @@ module Api
             id: task.id, name: task.name, prompt: task.prompt, kind: task.kind, state: task.state,
             system_key: task.system_key, last_journaled_on: task.last_journaled_on&.iso8601,
             last_system_result: task.last_system_result, last_system_result_reason: task.last_system_result_reason,
+            system_result_history: Array(task.system_result_history),
             after_run: task.after_run,
             schedule_input: task.schedule_input, schedule_explanation: task.schedule_explanation,
             fire_at: task.fire_at&.iso8601, next_fire_at: task.next_fire_at&.iso8601,
