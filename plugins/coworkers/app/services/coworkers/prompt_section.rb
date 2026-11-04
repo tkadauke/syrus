@@ -16,11 +16,11 @@ class Coworkers::PromptSection
     rendered << conflict_section(chat_session:, repository:, root:)
     rendered = truncate_aggregate(rendered) if rendered.bytesize > MAX_TOTAL_BYTES
     paths_for(chat_session:, repository:, message:).each do |name|
-      path = Syrus::PathJail.resolve!(root, name)
-      next unless path.file?
+      content = safe_workspace_read(root, name)
+      next unless content
 
       separator = rendered == HEADING ? "" : "\n\n"
-      section = "### #{name}\n\n#{bounded_read(path, MAX_FILE_BYTES)}"
+      section = "### #{name}\n\n#{content}"
       candidate = rendered + separator + section
       if candidate.bytesize > MAX_TOTAL_BYTES
         rendered = truncate_aggregate(candidate)
@@ -87,8 +87,7 @@ class Coworkers::PromptSection
     files = Array(conflict.files)
     contexts = files.filter_map do |relative|
       preserved = conflict.versions.to_h[relative].presence
-      path = Syrus::PathJail.resolve!(root, relative)
-      content = preserved || (bounded_read(path, MAX_FILE_BYTES) if path.file?)
+      content = preserved || safe_conflict_read(root, relative)
       next unless content
       "#### #{relative}\n\n```diff\n#{content}\n```"
     end
@@ -105,5 +104,25 @@ class Coworkers::PromptSection
     TEXT
   end
 
-  private_class_method :paths_for, :bounded_read, :truncate_aggregate, :grant_section, :conflict_section
+  def self.safe_conflict_read(root, relative)
+    candidate = Syrus::PathJail.resolve!(root, relative)
+    return if candidate.symlink? || !candidate.file?
+
+    path = Syrus::PathJail.resolve!(root, relative, resolve_symlinks: true)
+    bounded_read(path, MAX_FILE_BYTES)
+  rescue Syrus::PathJail::PathEscape
+    nil
+  end
+
+  def self.safe_workspace_read(root, relative)
+    path = Syrus::PathJail.resolve!(root, relative, resolve_symlinks: true)
+    return unless path.file?
+
+    bounded_read(path, MAX_FILE_BYTES)
+  rescue Syrus::PathJail::PathEscape
+    nil
+  end
+
+  private_class_method :paths_for, :bounded_read, :truncate_aggregate, :grant_section, :conflict_section,
+    :safe_conflict_read, :safe_workspace_read
 end
