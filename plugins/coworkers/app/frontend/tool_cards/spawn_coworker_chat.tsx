@@ -17,6 +17,7 @@ const spawnCoworkerChatToolCard: ToolCardRenderer = {
           <span className="text-sm font-medium">{i18n.t("coworkers:tool_card.spawn_chat_title")}</span>
         </div>
         <Row label={i18n.t("coworkers:fields.handle")} value={`@${displayValue(context.input?.handle)}`} />
+        <Row label={i18n.t("coworkers:tool_card.spawn_chat_kind")} value={i18n.t("coworkers:tool_card.spawn_chat_use_syrus")} />
         <Row label={i18n.t("coworkers:tool_card.spawn_chat_prompt")} value={displayValue(context.input?.prompt)} />
       </CardShell>
     )

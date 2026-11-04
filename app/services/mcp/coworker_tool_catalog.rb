@@ -1,8 +1,8 @@
 module Mcp
   class CoworkerToolCatalog
-    Descriptor = Data.define(:tool_name, :capability, :ungated, :tier, :tool, :provider, :availability_state, :description, :definition, :grant) do
-      def initialize(availability_state: :available, description: nil, definition: nil, grant: nil, **attributes)
-        super(availability_state:, description:, definition:, grant:, **attributes)
+    Descriptor = Data.define(:tool_name, :capability, :ungated, :approval_effect, :tier, :tool, :provider, :availability_state, :description, :definition, :grant) do
+      def initialize(availability_state: :available, description: nil, definition: nil, grant: nil, approval_effect: false, **attributes)
+        super(availability_state:, description:, definition:, grant:, approval_effect:, **attributes)
       end
     end
 
@@ -20,6 +20,7 @@ module Mcp
       def core_descriptors
         McpToolRegistry.entries(surface: :coworker).map do |entry|
           Descriptor.new(tool_name: entry.tool_name, capability: entry.capability&.to_s, ungated: entry.ungated,
+            approval_effect: entry.approval_effect,
             tier: entry.tier, tool: entry.tool, provider: nil, description: entry.tool.description_value)
         end
       end
@@ -45,6 +46,7 @@ module Mcp
               definition = by_name[name]
               definition = definition&.merge(coworker_default_policy: grant_definitions.fetch(capability)["default_policy"])
               Descriptor.new(tool_name: name, capability: capability, ungated: false,
+                approval_effect: value(definition, :approval_effect) == true,
                 tier: definition ? definition_tier(provider, name, chat_session: chat_session) : :essential,
                 tool: nil, provider: provider,
                 availability_state: definition ? provider_state(provider, plugin_state, chat_session:) : :unavailable,
@@ -57,6 +59,7 @@ module Mcp
 
             name = value(definition, :name).to_s
             Descriptor.new(tool_name: name, capability: value(definition, :capability)&.to_s, ungated: true,
+              approval_effect: false,
               tier: definition_tier(provider, name, chat_session: chat_session), tool: nil, provider: provider,
               availability_state: provider_state(provider, plugin_state, chat_session:),
               description: value(definition, :description), definition: definition)

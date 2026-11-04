@@ -191,6 +191,7 @@ module ChatIndexPayload
         available_chat_models: context.fetch(:available_chat_models).fetch(effective_provider, []),
         conversation_kind: chat_session.conversation_kind,
         origin_platform: chat_session.origin_platform,
+        opened_by_coworker: chat_session.artifacts.to_h["opened_by_coworker"],
         chat_type: chat_index_chat_type_for(chat_session),
         mode: chat_session.mode,
         local_daemon_state: chat_session.local_daemon_state,

@@ -50,9 +50,14 @@
     "push_ok": "Accessus mittendi probatus"
   },
   "tool_card": {
-    "spawn_chat_title": "Colloquium laterale collegae crea",
+    "spawn_chat_title": "Colloquium laterale huius collegae incipe",
+    "spawn_chat_kind": "Non est colloquium Syrus consiliarium",
+    "spawn_chat_use_syrus": "Utere spawn_syrus_chat ad opus technicum vel consiliarium.",
     "spawn_chat_prompt": "Nuntius primus",
     "spawn_chat_pending": "Colloquium laterale pendens",
+    "spawn_syrus_chat_title": "Colloquium Syrus technicum incipe",
+    "spawn_syrus_chat_pending": "Colloquium Syrus technicum pendens",
+    "repository": "Repositorium",
     "title": "Collega propositus",
     "summary": "Collega @{{handle}} propositus",
     "grant_title": "Concessio facultatis proposita",
@@ -162,7 +167,8 @@
       "workspace_files": "Hic collega fasciculos spatii laboris legere et mutare potest.",
       "workspace_shell": "Hic collega mandata in spatio laboris exsequi potest.",
       "syrus_read_jobs": "Hic collega Opera Syri legere potest.",
-      "syrus_propose_job": "Hic collega Opera Syro proponere potest."
+      "syrus_propose_job": "Hic collega Opera Syro proponere potest.",
+      "syrus_spawn_chat": "Hic collega colloquia Syrus technica ordinaria incipere potest."
     },
     "policies": { "auto": "Sponte", "confirm": "Confirma", "queue": "Ordo", "off": "Clausum" },
     "policy_for": "Ratio approbationis pro {{capability}}",
@@ -173,6 +179,9 @@
     "confirm_paths": "Mutationes horum itinerum semper confirma (commatibus separata)",
     "confirm_paths_placeholder": "SOUL.md, AGENTS.md",
     "save_constraints": "Fines serva",
+    "max_spawns_per_run": "Maximum per cursum",
+    "max_spawns_per_day": "Maximum per diem",
+    "save_spawn_caps": "Limites creationis serva",
     "unavailable": {
       "confinement_unavailable": "Non praesto donec operarius vivus executionem collegae clausam comprobet.",
       "confinement_worker_unavailable": "Non praesto quia nullus operarius vivus vicem collegae clausam admittere potest.",
