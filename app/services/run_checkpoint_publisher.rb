@@ -1,4 +1,7 @@
 class RunCheckpointPublisher
+  MAX_PUBLISH_ATTEMPTS = 3
+  RETRY_DELAYS = [ 0.25, 1.0 ].freeze
+  TRANSIENT_GIT_FAILURE = /(?:internal server error|http 5\d\d|http 429|too many requests|timed? out|timeout|connection (?:reset|refused)|could not resolve host|temporary failure|remote end hung up|service unavailable)/i
   MUTATION_STEP_KINDS = %w[
     implement
     respond
@@ -16,11 +19,12 @@ class RunCheckpointPublisher
 
   def self.publish!(...) = new(...).publish!
 
-  def initialize(run:, workspace:, git: nil, log: nil)
+  def initialize(run:, workspace:, git: nil, log: nil, sleeper: Kernel)
     @run = run
     @workspace = workspace
     @git = git || GitRunner.new
     @log = log
+    @sleeper = sleeper
   end
 
   def publish!
@@ -31,7 +35,7 @@ class RunCheckpointPublisher
     checkpoint.assign_attributes(checkpoint_attributes.merge(status: "pending", error_message: nil))
     checkpoint.save!
 
-    publish_ref!(checkpoint)
+    publish_ref_with_retry!(checkpoint)
     PushProtection::Ledger.for(run.workflow).record_accepted!(checkpoint.commit_sha)
     checkpoint.update!(status: "published", published_at: Time.current, error_message: nil)
     log("checkpoint: published #{checkpoint.remote_ref} at #{checkpoint.commit_sha.first(12)}", kind: "system")
@@ -39,13 +43,28 @@ class RunCheckpointPublisher
   rescue StandardError => e
     checkpoint&.update(status: "failed", error_message: "#{e.class}: #{e.message}") if checkpoint&.persisted?
     Rails.logger.warn("[RunCheckpointPublisher] failed for Run ##{run.id}: #{e.class}: #{e.message}")
-    log("checkpoint: failed to publish durable checkpoint: #{e.class}: #{e.message}", kind: "system")
+    log("checkpoint: failed to publish durable checkpoint #{checkpoint&.remote_ref}: #{e.class}: #{e.message}; preserving the live workspace until an equivalent source snapshot is durable", kind: "system")
     nil
   end
 
   private
 
   attr_reader :run, :workspace, :git
+
+  def publish_ref_with_retry!(checkpoint)
+    attempt = 0
+    begin
+      attempt += 1
+      publish_ref!(checkpoint)
+    rescue GitRunner::GitError => e
+      raise unless e.message.match?(TRANSIENT_GIT_FAILURE) && attempt < MAX_PUBLISH_ATTEMPTS
+
+      delay = RETRY_DELAYS.fetch(attempt - 1)
+      log("checkpoint: transient failure publishing #{checkpoint.remote_ref} (#{e.class}, attempt #{attempt}/#{MAX_PUBLISH_ATTEMPTS}); retrying in #{delay}s", kind: "system")
+      @sleeper.sleep(delay)
+      retry
+    end
+  end
 
   # A checkpoint ref would republish the rejected ancestry to GitHub. Work stays
   # in the workspace until clean history has been reconstructed.

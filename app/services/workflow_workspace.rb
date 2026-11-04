@@ -210,6 +210,12 @@ class WorkflowWorkspace
       return false
     end
 
+    undurable_run = new(workflow).send(:undurable_successful_mutation_run)
+    if undurable_run
+      Rails.logger.warn("[WorkflowWorkspace] cleanup deferred for Workflow ##{workflow.id}: successful mutation Run ##{undurable_run.id} has no verified durable checkpoint, published branch, or descendant source snapshot")
+      return false
+    end
+
     p = path_for(workflow)
     scratch = scratch_path_for(workflow)
     agent_home = data_root.join("agent_homes", "jobs", workflow.job_id.to_s)
@@ -855,6 +861,41 @@ class WorkflowWorkspace
     { ref: checkpoint.remote_ref, published_at: checkpoint.published_at, id: checkpoint.id }
   rescue GitRunner::GitError
     nil
+  end
+
+  def undurable_successful_mutation_run
+    Run.joins(:step)
+      .where(steps: { workflow_id: @workflow.id, kind: RunCheckpointPublisher::MUTATION_STEP_KINDS })
+      .where(state: "succeeded").where.not(head_sha: [ nil, "" ])
+      .detect do |run|
+        !run.run_checkpoint&.published? &&
+          !durable_workflow_branch_descends_from?(run.head_sha) &&
+          !durable_source_snapshot_descends_from?(run.head_sha)
+      end
+  end
+
+  def durable_workflow_branch_descends_from?(expected_sha)
+    branch = @workflow.job.branch_name.to_s
+    return false if branch.blank?
+
+    remote_sha = remote_ref_sha("refs/heads/#{branch}")
+    return false if remote_sha.blank?
+
+    @git.run("merge-base", "--is-ancestor", expected_sha, remote_sha, chdir: path.to_s)
+    true
+  rescue GitRunner::GitError
+    false
+  end
+
+  def durable_source_snapshot_descends_from?(expected_sha)
+    snapshot = WorkflowSourceSnapshots.current_for(@workflow)
+    return false unless snapshot&.tree_sha.present?
+    return false unless remote_ref_sha(snapshot.source_ref) == snapshot.source_sha
+
+    @git.run("merge-base", "--is-ancestor", expected_sha, snapshot.source_sha, chdir: path.to_s)
+    @git.run("rev-parse", "#{snapshot.source_sha}^{tree}", chdir: path.to_s).strip == snapshot.tree_sha
+  rescue GitRunner::GitError
+    false
   end
 
   def required_branch_restorable?

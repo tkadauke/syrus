@@ -893,7 +893,12 @@ module Steps
       end
 
       checkpoint = source_run.run_checkpoint
-      return unless checkpoint&.published?
+      unless checkpoint&.published?
+        return if restore_source_snapshot_if_valid!(source_run, expected_sha: expected_sha, context: context)
+
+        raise WorkflowSourceSnapshots::InfrastructureStateError,
+              "#{context}: Run ##{source_run.id} head #{expected_sha} is absent from the workspace and has no published checkpoint or trusted workflow source snapshot"
+      end
 
       authenticated_git("git_checkpoint_restore") do |url|
         streaming_git.run(
@@ -913,7 +918,40 @@ module Steps
       checkout_workflow_branch_at!(expected_sha)
       log("#{context}: restored workspace from #{checkpoint.remote_ref} at #{expected_sha.first(12)}", kind: "system")
     rescue GitRunner::GitError => e
-      log("#{context}: could not restore checkpoint for Run ##{source_run&.id}: #{e.message}", kind: "system")
+      log("#{context}: could not restore durable state for Run ##{source_run&.id}: #{e.class}: #{e.message}", kind: "system")
+      raise WorkflowSourceSnapshots::InfrastructureStateError,
+            "#{context}: durable state restore failed for Run ##{source_run&.id}: #{e.message}"
+    end
+
+    def restore_source_snapshot_if_valid!(source_run, expected_sha:, context:)
+      snapshot = WorkflowSourceSnapshots.current_for(workflow)
+      return false unless snapshot
+
+      log("#{context}: checkpoint unavailable; evaluating workflow source snapshot ##{snapshot.id} #{snapshot.source_ref}@#{snapshot.source_sha}", kind: "system")
+      authenticated_git("git_source_snapshot_restore") do |url|
+        streaming_git.run("fetch", url, snapshot.source_ref, chdir: workspace.path.to_s,
+          env: { "GIT_TERMINAL_PROMPT" => "0" })
+      end
+
+      git = GitRunner.new
+      fetched_sha = git.run("rev-parse", "FETCH_HEAD", chdir: workspace.path.to_s).strip
+      fetched_tree = git.run("rev-parse", "FETCH_HEAD^{tree}", chdir: workspace.path.to_s).strip
+      unless fetched_sha == snapshot.source_sha
+        raise WorkflowSourceSnapshots::InfrastructureStateError,
+              "#{context}: source snapshot ##{snapshot.id} ref resolved to #{fetched_sha}, expected #{snapshot.source_sha}"
+      end
+      unless snapshot.tree_sha.present? && fetched_tree == snapshot.tree_sha
+        raise WorkflowSourceSnapshots::InfrastructureStateError,
+              "#{context}: source snapshot ##{snapshot.id} tree resolved to #{fetched_tree}, expected #{snapshot.tree_sha.presence || 'recorded tree identity'}"
+      end
+
+      git.run("merge-base", "--is-ancestor", expected_sha, fetched_sha, chdir: workspace.path.to_s)
+      checkout_workflow_branch_at!(fetched_sha)
+      log("#{context}: restored Run ##{source_run.id} through trusted workflow source snapshot ##{snapshot.id} at #{fetched_sha.first(12)} (validated ref, tree, workflow ownership, and ancestry from #{expected_sha.first(12)})", kind: "system")
+      true
+    rescue GitRunner::GitError => e
+      raise WorkflowSourceSnapshots::InfrastructureStateError,
+            "#{context}: source snapshot ##{snapshot&.id} is not a validated descendant of Run ##{source_run.id} head #{expected_sha}: #{e.message}"
     end
 
     def checkout_workflow_branch_at!(sha)
