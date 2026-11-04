@@ -153,6 +153,14 @@ failure: if it finds an introduced test, historical flakiness cannot dismiss it.
 Recent consecutive failures are treated as a persistent regression rather than
 an intermittent flake.
 
+Landing repair loops additionally require the equivalent full grader rerun to
+pass on the landing tree. A successful isolated example is useful evidence, but
+cannot by itself dismiss an order-dependent suite failure. Clean-tree repair
+turns are regraded without consuming the committed-repair budget and are
+bounded by a separate two-turn no-progress cap; transient failures have one
+separate rerun allowance. Workflow events and failure summaries show these
+counters and the outcome recorded for each repair turn.
+
 ## JUnit and Test Insights
 
 When a grader writes JUnit output, Syrus ingests individual test cases. The

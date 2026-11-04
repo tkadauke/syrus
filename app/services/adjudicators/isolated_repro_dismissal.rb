@@ -29,6 +29,9 @@ module Adjudicators
 
       repository = workflow.job&.repository
       return Adjudication.inconclusive(adjudicator: name, reason: "not_enabled") unless repository&.isolated_repro_dismissal_enabled?
+      if workflow.landing_workflow?
+        return Adjudication.inconclusive(adjudicator: name, reason: "landing_requires_equivalent_full_rerun")
+      end
 
       sha = workflow.artifact(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY).presence
       return Adjudication.inconclusive(adjudicator: name, reason: "no_head_sha") unless sha
