@@ -52,6 +52,24 @@ RSpec.describe Permissions::ExecutionActions do
     expect(authorize(host([ "git", "fetch", "origin" ]))).to be_allowed
   end
 
+  it "audits an execution decision with its owner and invocation identity" do
+    owner = Factories.user
+    subject = host(%w[ls], network: "grader")
+    allow(OperationalLogging).to receive(:ingest)
+
+    Permissions::ExecutionAuthorization.authorize(
+      subject:, owner:, role:, context: { job_id: 42 }
+    )
+
+    expect(OperationalLogging).to have_received(:ingest).with(hash_including(
+      source: Permissions::DecisionAudit::LOG_SOURCE,
+      context: hash_including(
+        actor_type: "User", actor_id: owner.id, user_id: owner.id,
+        role:, job_id: 42, invocation_fingerprint: kind_of(String)
+      )
+    ))
+  end
+
   it "lets an explicit deny rule win" do
     subject = host(%w[ls])
     descriptor = described_class.descriptor_for(:host)
