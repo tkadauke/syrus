@@ -50,6 +50,23 @@ RSpec.describe "owner-scoped coworker read tools" do
     )
   end
 
+  it "loads canonical rules once for the complete coworker list" do
+    3.times do |index|
+      coworker = create_coworker(name: "Agent #{index}", handle: "agent-#{index}")
+      coworker.permission_rules.update!(capability: "syrus.read_jobs", approval_policy: "auto", actor: owner)
+    end
+    queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      queries << payload[:sql] if !payload[:cached] && payload[:sql].include?(%("permission_rules"))
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      Coworkers::McpTools::ListCoworkerGrantsTool.call(server_context: context)
+    end
+
+    expect(queries.length).to eq(1)
+  end
+
   it "filters by state and bounded text across name, handle, and role summary" do
     create_coworker(name: "Ada", handle: "ada-filter", role_summary: "Security researcher")
     paused = create_coworker(name: "Maya", handle: "maya-filter", role_summary: "QA lead", state: "paused")

@@ -160,7 +160,8 @@ class Coworkers::Create
     selected_grants.each do |grant|
       coworker.permission_rules.update!(
         capability: grant.fetch(:capability), approval_policy: grant.fetch(:approval_policy),
-        scope: grant[:scope], actor: @owner, provenance: { "coworker_creation" => true }
+        constraints: grant.fetch(:constraints, {}), scope: grant[:scope], actor: @owner,
+        provenance: { "coworker_creation" => true }
       )
     end
     Coworkers::AvatarUpload.attach!(coworker, @avatar) if @avatar
