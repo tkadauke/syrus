@@ -57,6 +57,11 @@ module Permissions
 
       # Budget observers see the outcome only; they cannot change it.
       EffectMetadata.notify(descriptor, decision, policy:)
+      DecisionAudit.record(
+        decision:, effective_policy: policy, actor: @subject,
+        context: @context.merge(role: @role),
+        fingerprint: InvocationFingerprint.call(descriptor:, arguments:)
+      )
       Result.new(decision:, policy:, ceilings: applied, subject: @subject, fresh_authentication: fresh, reservation:)
     end
 

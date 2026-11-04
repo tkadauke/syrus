@@ -9,11 +9,11 @@ RSpec.describe "API: /api/v1/app/admin/permission_parity", type: :request do
 
     allow(Admin::PermissionParityDiagnostics).to receive(:new)
       .with(limit: "25").and_return(instance_double(Admin::PermissionParityDiagnostics,
-        as_json: { total: 3, mismatches: 2, evaluation_failures: 1 }))
+        as_json: { total: 3, policies: { ask: 2, allow: 1 } }))
     sign_in_as(admin)
     get "/api/v1/app/admin/permission_parity", params: { limit: 25 }
 
     expect(response).to have_http_status(:ok)
-    expect(JSON.parse(response.body)).to include("total" => 3, "mismatches" => 2)
+    expect(JSON.parse(response.body)).to include("total" => 3, "policies" => { "ask" => 2, "allow" => 1 })
   end
 end
