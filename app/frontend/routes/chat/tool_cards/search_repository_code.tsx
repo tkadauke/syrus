@@ -53,7 +53,7 @@ export default searchRepositoryCodeToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "inconclusive",
-    label: "Incomplete search",
+    label: i18n.t("chat:tool_card_repository_search_incomplete"),
     input: { query: "class Widget" },
     parsedResult: {
       status: "inconclusive",
