@@ -1252,11 +1252,11 @@ RSpec.describe Workflow, :ci_only do
       wf.update!(artifacts: { "existing" => "old" })
       wf.artifacts = wf.artifacts.merge("pending" => true)
 
-      wf.set_artifact!("existing", "new")
+      wf.set_artifact!("existing", { nested_key: "new" })
 
-      expect(wf.artifact("existing")).to eq("new")
+      expect(wf.artifact("existing")).to eq("nested_key" => "new")
       wf.save!
-      expect(wf.reload.artifacts).to eq("existing" => "new", "pending" => true)
+      expect(wf.reload.artifacts).to eq("existing" => { "nested_key" => "new" }, "pending" => true)
     end
 
     it "does not delete an artifact added after a whole-bag assignment snapshot" do
