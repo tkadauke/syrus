@@ -432,6 +432,14 @@ files, read capped and secret-redacted files, search code, and inspect pull
 request or Job diffs. Background runs receive the navigation and diff tools;
 attaching and detaching checkouts remain interactive-chat actions.
 
+Repository searches and file listings identify incomplete answers explicitly.
+Their payloads include a status, reason, searched paths, coverage figures, and
+guidance to narrow the path or retry when a time, file, provider, or result
+budget is reached. An empty incomplete search is inconclusive, never a
+definitive no-match. Search skips dependency, temporary, log, coverage, and
+build-output directories unless the requested path is inside source content.
+The chat tool cards show the same warning and coverage to operators.
+
 Attached product checkouts are recursively stripped of write bits, including
 Git metadata. The `workspace.files` and `workspace.shell` grants continue to
 apply only to the coworker's own workspace repository, which remains the

@@ -2089,6 +2089,10 @@ read. The grant unlocks read-only checkout attachment in chats, capped and
 secret-redacted file browsing and code search, plus pull-request and Job diffs;
 background runs receive the same non-attachment reads. Product checkouts have
 write bits removed independently of the coworker's writable identity workspace.
+Large code searches and file listings report incomplete coverage, its cause,
+and the number of paths covered instead of presenting an empty partial result
+as a definitive no-match. The agent and operator-facing tool card both advise
+narrowing the path or retrying.
 Coworkers can start a direct exchange with `message_coworker`. An incoming
 coworker message automatically sends the receiving coworker's final answer
 back to its author, carrying the original turn through a maximum of three
