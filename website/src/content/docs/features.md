@@ -2072,7 +2072,11 @@ duration, and cost into the coworker's main chat, collapsing long results and
 posting only one card when delivery is retried. The card reports whether its
 workspace merged, conflicted, or was unavailable. Before reporting success,
 Syrus commits every tracked and untracked workspace change with the coworker's
-identity and merges it into the home branch; agents do not commit or push.
+identity and merges it into the home branch; the background agent's shell and
+workspace file tools write to that same checkout, and agents do not commit or
+push. Explicitly claimed memory or workspace paths are checked in the persisted
+run tree. A missing claimed path produces a warning and failed result instead
+of a false success.
 Conflicts and push failures preserve recoverable output and produce a failed
 result with guidance in the main chat. By default, the
 coworker then wakes for a normal, unattended chat turn to comment on the

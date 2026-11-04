@@ -302,6 +302,11 @@ other coworker workspaces are outside that boundary. The tools only mutate the
 working tree; branch commits, merges, pushes, and conflict recovery remain part
 of the orchestrated coworker branch lifecycle. Paths listed in `confirm_paths`
 still require owner confirmation when the grant's general policy is `auto`.
+During a scheduled background run, these tools and the agent's shell share the
+workflow checkout that Syrus commits and merges. If the final result explicitly
+claims a workspace or memory path that is absent from the persisted run tree,
+Syrus reports a persistence warning and fails the run instead of posting a false
+success. Runs that claim no paths and runs that make no changes are unaffected.
 
 When enabled, the plugin adds a Coworkers page and a badge counting pending
 approvals across the signed-in owner's coworkers. Syrus is
