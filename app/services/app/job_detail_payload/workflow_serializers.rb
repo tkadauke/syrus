@@ -874,9 +874,27 @@ module App
           "summary",
           "test_plan"
         )
+        %w[adversarial_review_iterations security_review_iterations].each do |key|
+          if safe.key?(key)
+            safe[key] = ReviewEvidence::ArtifactPresentation.call(
+              safe[key], evidence_by_id: review_evidence_by_id
+            )
+          end
+        end
         safe["coverage"] = coverage_artifact_json(artifacts["coverage"]) if artifacts["coverage"].is_a?(Hash)
         safe["typed_artifacts"] = TypedArtifactRenderer.enrich(artifacts["typed_artifacts"]) if artifacts["typed_artifacts"].is_a?(Array)
         safe
+      end
+
+      def review_evidence_by_id
+        @review_evidence_by_id ||= begin
+          ids = serialized_workflows.flat_map do |workflow|
+            %w[adversarial_review_iterations security_review_iterations].flat_map do |key|
+              ReviewEvidence::ArtifactPresentation.evidence_ids(workflow.artifact(key))
+            end
+          end
+          ReviewEvidence.where(id: ids).index_by(&:id)
+        end
       end
 
       def coverage_artifact_json(coverage)

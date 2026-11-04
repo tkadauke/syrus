@@ -92,7 +92,7 @@ RSpec.describe Steps::AdversarialReview do
   it "re-verifies submitted evidence before the review gate advances" do
     evidence = ReviewEvidence.create!(
       run: run, workflow: workflow, step: review_step, review_kind: "adversarial",
-      provider: run.agent_provider, model: "provider-default", reviewed_base_sha: "a" * 40,
+      provider: run.agent_provider, model: "gpt-test", reviewed_base_sha: "a" * 40,
       reviewed_head_sha: "b" * 40, canonical_diff_sha256: "c" * 64,
       prompt_version: "1", checklist_version: "d" * 64, tool_policy_version: "1",
       state: "submitted", submitted_at: Time.current
@@ -109,6 +109,23 @@ RSpec.describe Steps::AdversarialReview do
     ).and_return(evidence)
 
     handler.call
+  end
+
+  it "does not advance when an artifact is bound to pending evidence" do
+    evidence = ReviewEvidence.create!(
+      run: run, workflow: workflow, step: review_step, review_kind: "adversarial",
+      provider: run.agent_provider, model: "gpt-test", reviewed_base_sha: "a" * 40,
+      reviewed_head_sha: "b" * 40, canonical_diff_sha256: "c" * 64,
+      prompt_version: "1", checklist_version: "d" * 64, tool_policy_version: "1"
+    )
+    allow(handler).to receive(:run_agent) do
+      workflow.set_artifact!("adversarial_review_iterations", [
+        { "iteration" => review_step.iteration, "review_evidence_id" => evidence.id,
+          "critique" => "Looks sound.", "verdict" => "approved" }
+      ])
+    end
+
+    expect { handler.call }.to raise_error(Steps::AdversarialReview::EvidenceVerificationFailed)
   end
 
   it "reviews only the latest implement step diff for stacked jobs" do

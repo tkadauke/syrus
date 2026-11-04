@@ -271,10 +271,14 @@ class RetryFailedStepEnqueuer
   end
 
   def create_run_for!(step)
+    selected_provider = agent_provider || workflow.agent_provider
+    same_provider = selected_provider == workflow.agent_provider
     step.runs.create!(
       job: workflow.job,
       trigger_kind: workflow.trigger_kind,
-      agent_provider: agent_provider || workflow.agent_provider,
+      agent_provider: selected_provider,
+      model: (workflow.model if same_provider),
+      effort_level: (workflow.effort_level if same_provider),
       iteration: step.iteration,
       parent_session_id: retry_parent_session_id,
       prompt: prompt

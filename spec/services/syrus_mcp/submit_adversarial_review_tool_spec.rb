@@ -88,7 +88,7 @@ RSpec.describe Mcp::Tools::SubmitAdversarialReviewTool do
   it "links a matching frozen evidence record to the authoritative verdict artifact" do
     evidence = ReviewEvidence.create!(
       run: run, workflow: run.workflow, step: run.step, review_kind: "adversarial",
-      provider: "codex", model: "provider-default", reviewed_base_sha: "a" * 40,
+      provider: "codex", model: "gpt-test", reviewed_base_sha: "a" * 40,
       reviewed_head_sha: "b" * 40, canonical_diff_sha256: "c" * 64,
       prompt_version: "1", checklist_version: "d" * 64, tool_policy_version: "1"
     )
@@ -106,7 +106,7 @@ RSpec.describe Mcp::Tools::SubmitAdversarialReviewTool do
   it "rejects a verdict for a changed head and permanently stales its evidence" do
     evidence = ReviewEvidence.create!(
       run: run, workflow: run.workflow, step: run.step, review_kind: "adversarial",
-      provider: "codex", model: "provider-default", reviewed_base_sha: "a" * 40,
+      provider: "codex", model: "gpt-test", reviewed_base_sha: "a" * 40,
       reviewed_head_sha: "b" * 40, canonical_diff_sha256: "c" * 64,
       prompt_version: "1", checklist_version: "d" * 64, tool_policy_version: "1"
     )
@@ -121,6 +121,25 @@ RSpec.describe Mcp::Tools::SubmitAdversarialReviewTool do
     expect(evidence.reload).to have_attributes(
       state: "stale", terminal_failure_code: "review_evidence_mismatch"
     )
+  end
+
+  it "rolls the verdict artifact back when evidence submission fails" do
+    evidence = ReviewEvidence.create!(
+      run: run, workflow: run.workflow, step: run.step, review_kind: "adversarial",
+      provider: "codex", model: "gpt-test", reviewed_base_sha: "a" * 40,
+      reviewed_head_sha: "b" * 40, canonical_diff_sha256: "c" * 64,
+      prompt_version: "1", checklist_version: "d" * 64, tool_policy_version: "1"
+    )
+    allow(ReviewEvidence::CanonicalDiff).to receive(:snapshot)
+      .and_return(head_sha: "b" * 40, sha256: "c" * 64)
+    allow_any_instance_of(ReviewEvidence)
+      .to receive(:mark_submitted!).and_raise(ActiveRecord::RecordInvalid.new(evidence))
+
+    response = call(verdict: "approved")
+
+    expect(response).to be_error
+    expect(run.workflow.reload.artifact("adversarial_review_iterations")).to be_nil
+    expect(evidence.reload.state).to eq("pending")
   end
 
   it "exposes the expected tool name and required schema" do

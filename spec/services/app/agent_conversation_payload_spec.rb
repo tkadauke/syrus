@@ -62,6 +62,28 @@ RSpec.describe App::AgentConversationPayload do
     expect(review_node[:detail]).to include("verdict" => "needs_work")
   end
 
+  it "presents a stale bound approval as stale while preserving its critique" do
+    workflow = create_workflow
+    step = create_step(workflow: workflow, kind: "adversarial_review", position: 1)
+    run = create_run(step: step, agent_summary: "fallback summary", agent_provider: "codex")
+    evidence = ReviewEvidence.create!(
+      run: run, workflow: workflow, step: step, review_kind: "adversarial",
+      provider: "codex", model: "gpt-test", reviewed_base_sha: "a" * 40,
+      reviewed_head_sha: "b" * 40, canonical_diff_sha256: "c" * 64,
+      prompt_version: "1", checklist_version: "d" * 64, tool_policy_version: "1"
+    )
+    evidence.mark_stale!(code: "review_evidence_mismatch")
+    workflow.set_artifact!("adversarial_review_iterations", [
+      { "iteration" => 1, "run_id" => run.id, "review_evidence_id" => evidence.id,
+        "verdict" => "approved", "critique" => "Was clean before the head changed" }
+    ])
+
+    review_node = node(described_class.build(job: job), "agent_session-#{run.id}")
+
+    expect(review_node[:summary]).to eq("Was clean before the head changed")
+    expect(review_node[:detail]).to include("verdict" => "stale")
+  end
+
   it "matches panel verdicts to the member run that submitted them" do
     workflow = create_workflow
     coordinator_step = create_step(

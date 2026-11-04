@@ -22,8 +22,9 @@ Every new security reviewer Run records the same immutable, SHA-bound evidence
 as adversarial review. Verdict submission rejects a changed head or canonical
 diff and permanently marks that evidence stale; only a fresh rereview can
 advance the gate. The findings artifact remains the verdict authority and
-links to evidence when present, while legacy entries remain valid presentation
-records without fabricated provenance.
+links to evidence when present. Bound stale approvals are presented as stale,
+while legacy entries remain valid presentation records with a `legacy` marker
+and without fabricated provenance.
 Security review supports the same provider-routing panels as adversarial
 review. A multi-member panel runs serially, pins each member Run to its routed
 provider/model/effort, and finishes with a collect step whose aggregate verdict

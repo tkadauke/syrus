@@ -805,7 +805,9 @@ monotonically marks the evidence stale and cannot advance the review gate;
 repair and rereview therefore require a new Run and a new evidence record.
 The existing workflow artifact remains the sole verdict authority and carries
 the evidence id when evidence is available. Older artifact entries without an
-evidence id remain readable and are not backfilled with invented provenance.
+evidence id remain readable, are presented with a `legacy` marker, and are not
+backfilled with invented provenance. Bound approvals are presented as stale if
+their evidence no longer matches the reviewed source.
 
 The reviewer prompt includes configured `adversarial_review.criteria`.
 Criteria declared in the root `.syrus.yml` apply repo-wide. Criteria declared
