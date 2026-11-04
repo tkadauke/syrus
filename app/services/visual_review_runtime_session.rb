@@ -66,6 +66,10 @@ class VisualReviewRuntimeSession
     raise
   end
 
+  def start_required?
+    RuntimeSessionProviders.for(target.provider).visual_review_start_required?
+  end
+
   def stop!
     return unless runtime_session&.persisted?
 

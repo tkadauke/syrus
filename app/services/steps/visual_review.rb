@@ -204,13 +204,16 @@ module Steps
         { "id" => session.id, "provider" => session.provider_key, "name" => session.display_name }
       end)
     rescue StandardError => e
+      start_required = @runtime_session_lifecycles.last&.start_required?
       stop_runtime_sessions!
       failure = { "reason" => "runtime_session_start_failed", "message" => e.message, "run_id" => run.id }
       workflow.set_artifact!("visual_review_runtime_failure", failure)
-      fail_with!(
-        :review_execution_unavailable,
-        "visual_review review could not execute: #{failure['message']}",
-        evidence: { review_kind: "visual_review", reason: failure["reason"] }
+      record_skip!("Visual review runtime could not start: #{e.message}", skip_reason: failure["reason"]) unless start_required
+      skip_or_fail_unavailable_review!(
+        review_kind: "visual_review",
+        reason: failure["reason"],
+        message: failure["message"],
+        config_required: start_required || visual_review_config&.required == true
       )
     end
 
