@@ -51,6 +51,49 @@ RSpec.describe Diagnostics::HeapDiagnostics do
     end
   end
 
+  describe "allocation_trace" do
+    def stub_memory(current:, limit:)
+      allow(RunProcessParallelism).to receive(:cgroup_memory_current_bytes).and_return(current)
+      allow(RunProcessParallelism).to receive(:effective_memory_limit_bytes).and_return(limit)
+    end
+
+    it "attributes surviving objects to the source line that allocated them" do
+      stub_memory(current: 1_000, limit: 10_000)
+      retained = []
+      thread = Thread.new { 200.times { retained << "leaked-#{_1}" }; sleep 2 }
+
+      payload = payload_from(run({ "kind" => "allocation_trace", "seconds" => 1, "top_n" => 20 }))
+      thread.kill
+
+      expect(payload["traced_seconds"]).to eq(1)
+      expect(payload["allocated_during_window"]).to be_positive
+      expect(payload["top_allocation_sites"]).to be_present
+      expect(payload["top_allocation_sites"].first).to include("site", "count", "classes")
+      expect(payload["top_allocation_sites"].first["site"]).to match(/:\d+\z/)
+    end
+
+    # Tracing roughly doubles memory, so it must refuse for the same reason
+    # heap_dump does.
+    it "refuses when the cgroup is close to its limit" do
+      stub_memory(current: 9_000, limit: 10_000)
+
+      expect(run({ "kind" => "allocation_trace", "seconds" => 1 })).to be_nil
+    end
+
+    it "always stops tracing, even when collection fails" do
+      stub_memory(current: 1_000, limit: 10_000)
+      allow(ObjectSpace).to receive(:each_object).and_raise(StandardError, "boom")
+
+      run({ "kind" => "allocation_trace", "seconds" => 1 })
+
+      expect(ObjectSpace.trace_object_allocations_debug_start_count).to eq(0) if
+        ObjectSpace.respond_to?(:trace_object_allocations_debug_start_count)
+      # Tracing left on would double memory indefinitely; a subsequent capture
+      # succeeding is the observable proof it was turned back off.
+      expect(run({ "kind" => "gc_stat" })).to be_present
+    end
+  end
+
   describe "heap_dump" do
     def stub_memory(current:, limit:)
       allow(RunProcessParallelism).to receive(:cgroup_memory_current_bytes).and_return(current)

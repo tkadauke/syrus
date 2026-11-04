@@ -382,9 +382,44 @@ HTTP.
 
 | `kind` | Cost | Answers |
 |---|---|---|
-| `gc_stat` | free | Is this retention or bloat? |
+| `process_overview` | free | Something is wrong and I do not know what |
+| `thread_backtraces` | free | What is this process doing right now? |
+| `db_pool` | free | Are we starved of database connections? |
+| `fd_table` | free | Are we leaking file descriptors? |
+| `gc_stat` | free | Is this retention or heap bloat? |
 | `heap_histogram` | seconds of pause | What is being retained? |
+| `allocation_trace` | ~2x memory for a window | Which line allocates the leak? |
 | `heap_dump` | expensive, risky | What is holding the references? |
+
+Start with `process_overview`. It combines GC counters, shallow thread
+backtraces, pool stats and a descriptor count in one capture, so triage does
+not cost three signals; reach for the specific kinds once it points somewhere.
+
+`thread_backtraces` answers the question behind every wedged worker and
+stalled Run. It costs microseconds and pauses nothing, so take it twice a few
+seconds apart: a thread stuck at the same frame is blocked, one that moved is
+merely busy. `depth` defaults to 40, max 200. Note `status` is reported
+verbatim because its encoding matters -- `"run"`/`"sleep"` are alive, `false`
+means the thread finished normally, `nil` means it died on an exception.
+
+`db_pool` exists because connection starvation and slow queries look identical
+from the outside: requests take seconds while the database sits idle. The
+difference is `waiting`. If threads are queued for a connection, no query
+optimisation will help and the pool size or thread count is the thing to
+change.
+
+`fd_table` classifies `/proc/self/fd` by socket, pipe, anon_inode, device and
+file, and lists the most repeated targets. Descriptor leaks cause mysterious
+intermittent failures long before the limit is hit, and nothing else reports
+them. Linux only; on other platforms it reports `available: false` rather
+than guessing.
+
+`allocation_trace` turns "we are retaining String" into a source location. It
+records an allocation site on every object allocated while tracing is on, runs
+for `seconds` (default 30, max 300), then reports the sites whose objects
+*survived* the window -- which is what a leak looks like. It roughly doubles
+memory while active, so it carries the same refusal threshold as `heap_dump`
+and always stops, including on error.
 
 `gc_stat` reads counters only. Rising `heap_live_slots` alongside rising RSS
 means objects are still reachable -- a leak. High RSS with flat live slots

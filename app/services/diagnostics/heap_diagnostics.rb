@@ -21,12 +21,53 @@ module Diagnostics
     # holding the evidence, so it is refused above this share of the cgroup
     # limit unless the request forces it.
     DUMP_MEMORY_CEILING = 0.75
+    DEFAULT_TRACE_SECONDS = 30
+    MAX_TRACE_SECONDS = 300
 
     class << self
       def register!
         SignalTrigger.register("gc_stat") { |request| gc_stat(request) }
         SignalTrigger.register("heap_histogram") { |request| histogram(request) }
         SignalTrigger.register("heap_dump") { |request| dump(request) }
+        SignalTrigger.register("allocation_trace") { |request| allocation_trace(request) }
+      end
+
+      # Turns "we are retaining String" into "allocated at app/services/x.rb:42".
+      # Tracing records a source location on every object allocated while it is
+      # on, so this only sees allocations made during the window -- which is
+      # the point: objects that survive the window are the ones leaking.
+      #
+      # Roughly doubles memory while active, so it carries the same headroom
+      # guard as heap_dump and always stops, including on error.
+      def allocation_trace(request)
+        unless request.options["force"] || headroom?
+          raise "refusing allocation_trace: cgroup memory is above #{(DUMP_MEMORY_CEILING * 100).round}% of the limit. " \
+                'Tracing roughly doubles memory. Restart the worker for room, or set {"force": true}.'
+        end
+
+        seconds = request.fetch_integer(:seconds, default: DEFAULT_TRACE_SECONDS, max: MAX_TRACE_SECONDS)
+        top_n = request.fetch_integer(:top_n, default: DEFAULT_TOP_N, max: MAX_TOP_N)
+        before = GC.stat(:total_allocated_objects)
+
+        ObjectSpace.trace_object_allocations_start
+        begin
+          sleep(seconds)
+          # Collect while tracing is still on: allocation metadata is dropped
+          # by trace_object_allocations_clear, and stopping then clearing is
+          # what releases the overhead.
+          sites = collect_allocation_sites
+        ensure
+          ObjectSpace.trace_object_allocations_stop
+          ObjectSpace.trace_object_allocations_clear
+        end
+
+        gc_stat(request).merge(
+          "traced_seconds" => seconds,
+          "allocated_during_window" => GC.stat(:total_allocated_objects) - before,
+          "top_n" => top_n,
+          "sites_seen" => sites.size,
+          "top_allocation_sites" => allocation_rows(sites, top_n)
+        )
       end
 
       # Counters only -- no heap walk, no measurable pause. heap_live_slots
@@ -87,6 +128,37 @@ module Diagnostics
       end
 
       private
+
+      # Objects still live at the end of the window, grouped by where they were
+      # allocated. Survivors are what matter: anything allocated and collected
+      # inside the window never shows up here.
+      def collect_allocation_sites
+        sites = Hash.new { |hash, key| hash[key] = { "count" => 0, "memsize" => 0, "classes" => Hash.new(0) } }
+        ObjectSpace.each_object do |object|
+          file = ObjectSpace.allocation_sourcefile(object)
+          next unless file
+
+          key = "#{file}:#{ObjectSpace.allocation_sourceline(object)}"
+          entry = sites[key]
+          entry["count"] += 1
+          entry["memsize"] += memsize_of(object)
+          entry["classes"][class_name_of(object)] += 1
+        end
+        sites
+      rescue StandardError
+        {}
+      end
+
+      def allocation_rows(sites, limit)
+        sites.sort_by { |_site, entry| -entry["count"] }.first(limit).map do |site, entry|
+          {
+            "site" => site,
+            "count" => entry["count"],
+            "memsize" => entry["memsize"],
+            "classes" => entry["classes"].sort_by { |_name, count| -count }.first(5).to_h
+          }
+        end
+      end
 
       def base(request)
         {

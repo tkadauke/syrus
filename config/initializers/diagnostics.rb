@@ -11,5 +11,6 @@
 # Skipped in test, where trapping would leak between examples.
 Rails.application.config.after_initialize do
   Diagnostics::HeapDiagnostics.register!
+  Diagnostics::ProcessDiagnostics.register!
   Diagnostics::SignalTrigger.install! unless Rails.env.test?
 end
