@@ -12,6 +12,8 @@ module Mcp::Tools
 
     @previews = {}  # key → { pid: Integer, port: Integer, spawned_process_id: Integer }
     @launch_mutexes = Hash.new { |hash, key| hash[key] = Mutex.new }
+    @active_uses = Hash.new(0)
+    @use_condition = ConditionVariable.new
 
     class << self
       def register(key:, pid:, port:, spawned_process_id: nil, cleanup: nil)
@@ -32,8 +34,22 @@ module Mcp::Tools
       end
 
       def kill(key)
-        preview = MUTEX.synchronize { @previews.delete(key) }
+        preview = MUTEX.synchronize do
+          @use_condition.wait(MUTEX) while @active_uses[key].positive?
+          @previews.delete(key)
+        end
         stop_preview(preview) if preview
+      end
+
+      def while_in_use(key)
+        MUTEX.synchronize { @active_uses[key] += 1 }
+        yield
+      ensure
+        MUTEX.synchronize do
+          @active_uses[key] -= 1
+          @active_uses.delete(key) unless @active_uses[key].positive?
+          @use_condition.broadcast
+        end
       end
 
       def kill_prefix(prefix)
@@ -58,6 +74,7 @@ module Mcp::Tools
         MUTEX.synchronize do
           @previews.clear
           @launch_mutexes.clear
+          @active_uses.clear
         end
       end
 

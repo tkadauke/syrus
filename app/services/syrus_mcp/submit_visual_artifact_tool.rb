@@ -53,8 +53,17 @@ module SyrusMcp
           description: "When true, capture the current authenticated MCP browser page directly and submit that screenshot. Prefer this for visual-review screenshots. This is also the default when image_base64 and image_path are omitted."
         },
         subject: {
-          type: "string",
-          description: "Optional subject to bring into view before capturing the current browser. Pass either an exact browser_snapshot ref such as 'e12' or a CSS selector such as '[data-testid=results]'."
+          type: "object",
+          description: "Structured subject target. Snapshot refs require the token returned by the latest browser_snapshot. Semantic targets use an accessibility role and optional accessible name.",
+          properties: {
+            type: { type: "string", enum: %w[snapshot_ref css semantic] },
+            ref: { type: "string", description: "Exact ref such as e12 (snapshot_ref only)." },
+            snapshot_token: { type: "string", description: "Freshness token returned with browser_snapshot (snapshot_ref only)." },
+            selector: { type: "string", description: "CSS selector (css only)." },
+            role: { type: "string", description: "ARIA role (semantic only)." },
+            name: { type: "string", description: "Accessible name (semantic only)." }
+          },
+          required: %w[type]
         },
         minimum_subject_visible_fraction: {
           type: "number",
@@ -86,7 +95,20 @@ module SyrusMcp
         minimum_visible_fraction = normalize_minimum_visible_fraction(minimum_subject_visible_fraction)
         return Mcp::Tools.invalid("minimum_subject_visible_fraction must be a number from 0 through 1") if minimum_visible_fraction.nil?
 
-        captured = read_image_data(image_source, run, minimum_visible_fraction: minimum_visible_fraction)
+        captured = if image_source[:kind] == :current_browser
+          Mcp::Tools::AgentPreviewRegistry.while_in_use(run.id) do
+            read_image_data(image_source, run, minimum_visible_fraction: minimum_visible_fraction)
+          end
+        else
+          read_image_data(image_source, run, minimum_visible_fraction: minimum_visible_fraction)
+        end
+        if captured[:error_code]
+          return MCP::Tool::Response.new(
+            [ { type: "text", text: "Error: #{captured[:error]}" } ],
+            error: true,
+            structured_content: { error: { code: captured[:error_code], retryable: captured[:retryable], message: captured[:error] } }
+          )
+        end
         return Mcp::Tools.invalid(captured[:error]) if captured[:error]
 
         image_data = captured.fetch(:data)
@@ -147,10 +169,10 @@ module SyrusMcp
       def normalize_image_source(image_base64:, image_path:, capture_current_browser:, subject:)
         encoded_text = Mcp::Tools.utf8(image_base64).strip
         path_text = Mcp::Tools.utf8(image_path).strip
-        subject_text = Mcp::Tools.utf8(subject).strip
+        subject_target = normalize_subject(subject)
         return { error: "image_base64 is empty" } if !image_base64.nil? && encoded_text.blank?
         return { error: "image_path is empty" } if !image_path.nil? && path_text.blank?
-        return { error: "subject is empty" } if !subject.nil? && subject_text.blank?
+        return subject_target if subject_target[:error]
 
         encoded = encoded_text.presence
         path = path_text.presence
@@ -161,7 +183,34 @@ module SyrusMcp
         return { kind: :base64, value: encoded, source: "base64" } if encoded.present?
         return { kind: :path, path: path, source: "image_path" } if path.present?
 
-        { kind: :current_browser, source: "current_browser", subject: subject_text.presence }
+        { kind: :current_browser, source: "current_browser", subject: subject_target[:target] }
+      end
+
+      def normalize_subject(subject)
+        return { target: nil } if subject.nil?
+        if subject.is_a?(String)
+          text = subject.strip
+          return { error: "subject is empty" } if text.blank?
+          if text.start_with?("#", ".", "[", ":") || text.match?(/[ >+~,*]/)
+            return { target: { "type" => "css", "selector" => text } }
+          end
+          return { error: "ambiguous_subject: #{text.inspect} could be an accessibility role, element name, or CSS tag. Use {type: 'semantic', role: #{text.inspect}, name: ...} or an explicit {type: 'css', selector: ...}." }
+        end
+        unless subject.is_a?(Hash)
+          return { error: "subject must be structured; use {type: 'snapshot_ref', ref: 'e12', snapshot_token: ...}, {type: 'css', selector: ...}, or {type: 'semantic', role: ..., name: ...}. Bare words such as 'complementary' are ambiguous." }
+        end
+
+        value = subject.stringify_keys
+        type = value["type"]
+        required = { "snapshot_ref" => %w[ref snapshot_token], "css" => %w[selector], "semantic" => %w[role] }[type]
+        return { error: "subject.type must be one of snapshot_ref, css, semantic" } unless required
+        missing = required.select { |key| value[key].blank? }
+        return { error: "subject #{type} requires #{missing.join(', ')}" } if missing.any?
+        if type == "snapshot_ref" && !value["ref"].match?(/\Ae\d+\z/)
+          return { error: "subject snapshot_ref.ref must be an exact browser_snapshot ref such as e12" }
+        end
+
+        { target: value.slice("type", "ref", "snapshot_token", "selector", "role", "name") }
       end
 
       def read_image_data(image_source, run, minimum_visible_fraction:)
@@ -221,7 +270,17 @@ module SyrusMcp
       end
 
       def scroll_subject_into_view(run, subject)
-        function = if browser_snapshot_ref?(subject)
+        if subject["type"] == "snapshot_ref" && !fresh_snapshot?(run, subject["snapshot_token"])
+          return { error: "stale_snapshot_ref: snapshot ref #{subject['ref'].inspect} is stale after navigation, page state, or viewport changes; call browser_snapshot and retry with its new ref and snapshot_token", error_code: "stale_snapshot_ref", retryable: true }
+        end
+        resolved_ref = subject["ref"]
+        if subject["type"] == "semantic"
+          semantic = resolve_semantic_ref(run, subject)
+          return semantic if semantic[:error]
+
+          resolved_ref = semantic[:ref]
+        end
+        function = if resolved_ref
           <<~JS.squish
             async (element) => {
               const deadline = Date.now() + 2000;
@@ -243,10 +302,10 @@ module SyrusMcp
               };
             }
           JS
-        else
+        elsif subject["type"] == "css"
           <<~JS.squish
             async () => {
-              const selector = #{subject.to_json};
+              const selector = #{subject["selector"].to_json};
               const deadline = Date.now() + 2000;
               let element;
               while (Date.now() < deadline) {
@@ -273,7 +332,7 @@ module SyrusMcp
           JS
         end
         params = { "function" => function }
-        params.merge!("element" => "visual artifact subject", "target" => subject) if browser_snapshot_ref?(subject)
+        params.merge!("element" => "visual artifact subject", "target" => resolved_ref) if resolved_ref
 
         response = call_browser_tool(run, "browser_evaluate", params)
         return { error: "visual artifact subject could not be brought into view: #{tool_error_text(response)}" } if response.nil? || response.error?
@@ -292,8 +351,25 @@ module SyrusMcp
         { error: "visual artifact subject returned an invalid element rectangle: #{e.message}" }
       end
 
-      def browser_snapshot_ref?(subject)
-        subject.match?(/\Ae\d+\z/)
+      def resolve_semantic_ref(run, subject)
+        response = call_browser_tool(run, "browser_snapshot", {})
+        return { error: "semantic subject snapshot failed: #{tool_error_text(response)}" } if response.nil? || response.error?
+
+        text = response.content.filter_map { |block| block[:text] if block.is_a?(Hash) && block[:type] == "text" }.join("\n")
+        role = Regexp.escape(subject.fetch("role"))
+        name = subject["name"].present? ? Regexp.escape(subject["name"]) : nil
+        pattern = name ? /^.*\b#{role}\b\s+['\"]#{name}['\"].*\[ref=(e\d+)\]/i : /^.*\b#{role}\b.*\[ref=(e\d+)\]/i
+        ref = text[pattern, 1]
+        return { error: "semantic subject not found in the current accessibility snapshot: role=#{subject['role'].inspect} name=#{subject['name'].inspect}" } unless ref
+
+        { ref: ref }
+      end
+
+      def fresh_snapshot?(run, token)
+        context = SyrusBrowser::SessionContext.resolve(run: run)
+        SyrusBrowser::SnapshotFreshness.current?(context.session_key, token)
+      rescue NameError
+        false
       end
 
       def normalize_minimum_visible_fraction(value)
@@ -330,7 +406,11 @@ module SyrusMcp
 
       def subject_visibility_error(subject, fraction)
         percentage = (fraction * 100).round
-        "subject #{subject.inspect} is only #{percentage}% visible; scroll or resize and retry"
+        "subject #{subject_description(subject).inspect} is only #{percentage}% visible; scroll or resize and retry"
+      end
+
+      def subject_description(subject)
+        subject["ref"] || subject["selector"] || [ subject["role"], subject["name"] ].compact.join("/")
       end
 
       def current_browser_metadata(run)

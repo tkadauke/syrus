@@ -54,14 +54,21 @@ Image-capable sibling of `submit_artifact`, for screenshots and other images. Sa
 | `type`                    | string  | yes      | Artifact type identifier (non-empty)                                  |
 | `title`                   | string  | yes      | Human-readable title (non-empty)                                      |
 | `capture_current_browser` | boolean | no       | Capture the current authenticated MCP browser page directly; this is also the default when all image inputs are omitted |
-| `subject`                 | string  | no       | Exact `browser_snapshot` ref (for example `e12`) or CSS selector to center before a current-browser capture |
+| `subject`                 | object  | no       | Structured snapshot-ref, CSS, or semantic accessibility target to center before a current-browser capture |
 | `image_path`              | string  | no       | Path to an image file inside the workflow workspace, relative to the workspace root or absolute within it |
 | `image_base64`            | string  | no       | Base64-encoded image bytes, no `data:` URI prefix                     |
 | `content_type`            | string  | no       | One of `image/png`, `image/jpeg`, `image/webp`. Defaults from the captured image, from `image_path` extension, or to `image/png` |
 
 Provide at most one of `capture_current_browser`, `image_path`, or `image_base64`; omitting all three captures the current browser. Agent-supplied file paths are resolved inside the workflow workspace and rejected if they point outside it.
 
-For current-browser captures, Syrus waits for an optional `subject` to become
+For current-browser captures, `subject` accepts `{type: "css", selector: "..."}`,
+`{type: "semantic", role: "...", name: "..."}`, or `{type: "snapshot_ref",
+ref: "e12", snapshot_token: "..."}`. `browser_snapshot` returns the freshness
+token. Navigation, state-changing browser actions, and viewport changes
+invalidate it; stale refs fail with a retryable `stale_snapshot_ref` structured
+error. Ambiguous bare words such as `complementary` are rejected before browser
+evaluation with guidance to choose semantic or CSS targeting. Syrus waits for
+the optional `subject` to become
 visible, centers it in the viewport, allows the page to settle briefly, and
 then captures the viewport. Omitting `subject` preserves the current scroll
 position.
@@ -210,7 +217,7 @@ not an exact original type. Payload written by `submit_visual_artifact`:
     "height": 900,
     "device_scale_factor": 1
   },
-  "subject": "[data-testid=credential-list]",
+  "subject": { "type": "css", "selector": "[data-testid=credential-list]" },
   "subject_visible_fraction": 1.0,
   "subject_rect": {
     "x": 120,
