@@ -35,6 +35,12 @@ export type InheritedPermission = {
 }
 
 export type PermissionProfile = { key: string; label: string; description: string }
+export type PermissionProfilePreview = {
+  profile: PermissionProfile
+  subject_selector_type: string
+  revoked: PermissionRule[]
+  replacements: Array<{ policy: "allow" | "ask" | "deny"; capability: string; operation: string; resource_scope_label: string }>
+}
 export type PermissionsPayload = {
   rules: PermissionRule[]
   inherited: InheritedPermission[]
@@ -71,11 +77,16 @@ export type PermissionHistoryPayload = { active_leases: PermissionLease[]; histo
 export const fetchPermissions = () => {
   return getJson<PermissionsPayload>("/api/v1/app/permission_rules")
 }
-export const applyPermissionProfile = (profile: string, subject_selector_type: string, role: string) =>
+export const previewPermissionProfile = (profile: string, subject_selector_type: string) =>
+  postJson<{ preview: PermissionProfilePreview; confirmation_digest: string }>("/api/v1/app/permission_rules/preview_profile", {
+    profile,
+    subject_selector_type
+  })
+export const applyPermissionProfile = (profile: string, subject_selector_type: string, confirmation_digest: string) =>
   postJson<{ rules: PermissionRule[]; profile: string; subject_selector_type: string }>("/api/v1/app/permission_rules/apply_profile", {
     profile,
     subject_selector_type,
-    role
+    confirmation_digest
   })
 export const fetchPermissionHistory = () => {
   return getJson<PermissionHistoryPayload>("/api/v1/app/permission_rules/history")

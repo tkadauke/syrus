@@ -80,7 +80,12 @@
       "restricted": "Denied capabilities do not run or prompt until you change the rule or profile."
     },
     "profile_confirm_title": "Change permission profile",
+    "profile_confirm_selection": "Apply {{profile}} to {{subject}}",
     "profile_confirm_body": "This replaces the custom rules for {{subject}} with this profile.",
+    "profile_revoked": "Rules removed ({{count}})",
+    "profile_replacements": "Profile rules added ({{count}})",
+    "profile_no_revocations": "No existing rules will be removed.",
+    "profile_no_replacements": "This profile adds no rules for this surface.",
     "profile_confirm_boundary": "Resource policy, safety ceilings, credentials, and operations that cannot be delegated remain enforced.",
     "profile_confirm": "Apply profile",
     "profile_applying": "Applying…",

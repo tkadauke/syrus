@@ -80,7 +80,12 @@
       "restricted": "Facultates negatae nec agunt nec rogant donec regulam aut formam mutes."
     },
     "profile_confirm_title": "Formam permissionum muta",
+    "profile_confirm_selection": "{{profile}} ad {{subject}} applica",
     "profile_confirm_body": "Hoc regulas proprias pro {{subject}} hac forma substituit.",
+    "profile_revoked": "Regulae removendae ({{count}})",
+    "profile_replacements": "Regulae formae addendae ({{count}})",
+    "profile_no_revocations": "Nullae regulae existentes removebuntur.",
+    "profile_no_replacements": "Haec forma nullas regulas huic superficiei addit.",
     "profile_confirm_boundary": "Regulae rerum, fines securitatis, documenta secreta, et opera non delegabilia manent.",
     "profile_confirm": "Formam applica",
     "profile_applying": "Applicatur…",
