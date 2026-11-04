@@ -4,9 +4,10 @@ class Coworkers::WorkspaceConflict < ApplicationRecord
   belongs_to :chat_session
   belongs_to :repository
 
-  validates :source_branch, :state, :files, :versions, presence: true
+  validates :source_branch, :state, :files, :versions, :expires_at, presence: true
   validates :attempt_count, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :state, inclusion: { in: %w[pending resolved failed] }
 
   scope :active, -> { where(state: "pending") }
+  scope :unresolved, -> { where(state: %w[pending failed]) }
 end

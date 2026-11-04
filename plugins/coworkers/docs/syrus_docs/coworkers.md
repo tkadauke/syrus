@@ -249,11 +249,12 @@ and file-disjoint changes merge automatically; append-oriented files under
 conflicted local checkout intact, then privately gives the coworker a bounded
 opportunity to reconcile both sides on a later turn. Syrus verifies that the
 index is merged, text conflict markers are gone, `git diff --check` succeeds,
-and the result reaches the home branch. Only exhausted retries, failed
-validation or inaccessible recovery data produce one owner-facing warning.
-The Workspace Browser lists only pending conflicts and drops them as soon as
-resolution succeeds. A missing local checkout is re-cloned from the canonical
-remote.
+and the result reaches the home branch. Unchanged turns do not spend a retry.
+Only exhausted retries, a one-hour resolution deadline, failed validation, or
+inaccessible recovery data produce one owner-facing warning. The Workspace
+Browser lists pending and failed-but-unresolved conflicts and drops them as
+soon as resolution succeeds. A missing local checkout is re-cloned from the
+canonical remote.
 
 Background runs use the same lifecycle before their agent step can succeed:
 Syrus captures modified, added, moved, deleted, and untracked files in a commit
