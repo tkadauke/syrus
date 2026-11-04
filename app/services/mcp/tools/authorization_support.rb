@@ -79,6 +79,10 @@ module Mcp::Tools
 
         descriptor = entry.descriptor
         return if entry.ungated
+        # Local command/file effects have their own canonical evaluator and
+        # resumable local_tool_call boundary inside the tool. Do not create a
+        # second generic request in front of that same decision.
+        return if context.role == AgentRole::CHAT_LOCAL && Permissions::LocalModeActions.covers?(McpToolRegistry.tool_name_for(tool))
         # A tool whose result is itself a PendingAction already stops at the
         # established operator-confirmation boundary. Wrapping that tool call
         # in another authorization request hides its preflight and creates a

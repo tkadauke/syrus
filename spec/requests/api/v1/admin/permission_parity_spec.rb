@@ -10,11 +10,11 @@ RSpec.describe "API: /api/v1/admin/permission_parity", type: :request do
 
     allow(Admin::PermissionParityDiagnostics).to receive(:new)
       .with(limit: nil).and_return(instance_double(Admin::PermissionParityDiagnostics,
-        as_json: { total: 1, mismatches: 1, evaluation_failures: 0 }))
+        as_json: { total: 1, policies: { ask: 1 } }))
     get "/api/v1/admin/permission_parity",
       headers: { "Authorization" => "Bearer #{admin_token}" }
 
     expect(response).to have_http_status(:ok)
-    expect(JSON.parse(response.body)).to include("total" => 1, "mismatches" => 1)
+    expect(JSON.parse(response.body)).to include("total" => 1, "policies" => { "ask" => 1 })
   end
 end
