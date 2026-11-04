@@ -2065,6 +2065,11 @@ from the coworker's home branch. Syrus merges and pushes it at turn end, uses
 union merges for concurrent memory appends, and posts linked conflict details
 without choosing either side when a normal Git merge conflicts. Worker-local
 checkouts are disposable and are re-cloned from the durable remote when lost.
+Transient remote save failures receive bounded in-turn and background retries.
+Until a save succeeds, Syrus retains the local checkout, shows one updating
+unsaved-workspace notice in the chat and on the coworker's Workspace tab, and
+offers a manual retry. Permanent authorization and protected-ref failures are
+surfaced without automatic retries.
 Renaming a coworker moves its home branch while no turn is running. Deleting
 one archives that branch under `coworkers/archived/` and releases the handle
 for reuse. Scheduled background work posts the agent's final Markdown result,

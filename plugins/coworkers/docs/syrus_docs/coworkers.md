@@ -248,6 +248,15 @@ and file-disjoint changes merge automatically; append-oriented files under
 `memory/` use Git's union merge driver. A conflict keeps both refs and the
 conflicted local checkout intact and posts the affected file links into the
 chat. A missing local checkout is re-cloned from the canonical remote.
+Transient remote push failures are retried with bounded backoff. If saving
+still fails, the chat records the branch, local checkout, timestamps, attempt
+count, and redacted error as an unsaved-workspace state. One persistent chat
+notice and the coworker's Workspace tab expose that state and a manual retry;
+a chat-queue retry job continues with increasing delays up to its cap. A
+successful retry clears the state and posts one resolution notice. Permanent
+authentication, protected-ref, and non-fast-forward failures are surfaced
+without automatic retries, and Syrus does not replace or delete the local
+checkout while any unsaved state remains.
 
 Background runs use the same lifecycle before their agent step can succeed:
 Syrus captures modified, added, moved, deleted, and untracked files in a commit

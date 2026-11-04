@@ -11,3 +11,11 @@ de:
 
         %{files}
       workspace_conflict_label: "Workspace-Konflikt"
+      unsaved_workspace: "Dieser Coworker hat nicht gespeicherte Workspace-Änderungen. Syrus hat sie lokal unter `%{path}` erhalten und %{retry_status}. Letzter Fehler: %{error}"
+      unsaved_workspace_label: "Nicht gespeicherter Coworker-Workspace"
+      unsaved_workspace_cta: "Workspace prüfen und erneut speichern"
+      retry_pending: "versucht erneut, sie zu speichern"
+      retry_stopped: "die automatischen Wiederholungen wurden beendet"
+      workspace_save_resolved: "Der Coworker-Workspace wurde erfolgreich gespeichert. Keine lokale Arbeit ging verloren."
+      workspace_save_resolved_label: "Workspace gespeichert"
+      workspace_already_saved: "Der Workspace wurde bereits gespeichert."

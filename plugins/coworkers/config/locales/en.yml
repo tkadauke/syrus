@@ -11,3 +11,11 @@ en:
 
         %{files}
       workspace_conflict_label: "Workspace conflict"
+      unsaved_workspace: "This coworker has unsaved workspace changes. Syrus preserved them locally at `%{path}` and %{retry_status}. Last error: %{error}"
+      unsaved_workspace_label: "Unsaved coworker workspace"
+      unsaved_workspace_cta: "Review workspace and retry"
+      retry_pending: "will retry saving them"
+      retry_stopped: "automatic retries have stopped"
+      workspace_save_resolved: "The coworker workspace has been saved successfully. No local work was lost."
+      workspace_save_resolved_label: "Workspace saved"
+      workspace_already_saved: "The workspace has already been saved."

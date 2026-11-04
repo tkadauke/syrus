@@ -6,6 +6,7 @@ class Coworkers::HomeBranchPersistence
   def self.after_chat_turn(chat_session:, **)
     link = Coworkers::Chat.includes(:coworker).find_by(chat_session_id: chat_session.id)
     return unless link
+    return if link.unsaved_workspace?
 
     new(chat_session, link.coworker).persist!
   end
@@ -23,6 +24,14 @@ class Coworkers::HomeBranchPersistence
     path = ChatWorkspace.repo_path_for(@chat_session, repository)
     branch = "coworkers/#{@coworker.handle}"
 
+    Coworkers::UnsavedWorkspace.new(@chat_session).attempt(branch:, path:) do
+      persist_once!(repository, path, branch)
+    end
+  end
+
+  private
+
+  def persist_once!(repository, path, branch)
     if ChatWorkspace.rebase_in_progress?(path)
       continue_rebase!(path)
       push!(repository, path, branch)
@@ -38,8 +47,6 @@ class Coworkers::HomeBranchPersistence
 
     reconcile_and_push!(repository, path, branch)
   end
-
-  private
 
   def commit_changes!(path)
     @git.configure_author(Coworkers::GitIdentity.new(name: @coworker.name, handle: @coworker.handle), chdir: path.to_s)

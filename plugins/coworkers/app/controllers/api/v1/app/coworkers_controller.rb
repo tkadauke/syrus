@@ -146,6 +146,16 @@ module Api
           render_error("remote_unavailable", I18n.t("api.coworkers.memory_unavailable"), status: :service_unavailable)
         end
 
+        def retry_workspace_save
+          coworker = find_coworker
+          authorize coworker, :show?, policy_class: CoworkerPolicy
+          link = coworker.coworker_chats.find(params.require(:chat_id))
+          return render_error("workspace_already_saved", I18n.t("api.coworkers.workspace_already_saved"), status: :unprocessable_content) unless link.unsaved_workspace?
+
+          Coworkers::WorkspaceSaveRetryJob.perform_later(link.id)
+          render json: { unsaved_workspace: link.unsaved_workspace_json }, status: :accepted
+        end
+
         def activity
           coworker = find_coworker
           authorize coworker, :show?, policy_class: CoworkerPolicy
@@ -326,7 +336,7 @@ module Api
             effective_model: coworker.chat_model,
             workspace_repo: coworker.workspace_repo, soul: soul_for(coworker),
             available_chats: available_chats_json(coworker),
-            chats: coworker.coworker_chats.sort_by { |link| [ link.main? ? 0 : 1, link.id ] }.map { |link| { id: link.chat_session_id, role: link.role, title: link.chat_session.title, path: "/chats/#{link.chat_session_id}" } },
+            chats: coworker.coworker_chats.sort_by { |link| [ link.main? ? 0 : 1, link.id ] }.map { |link| { id: link.chat_session_id, link_id: link.id, role: link.role, title: link.chat_session.title, path: "/chats/#{link.chat_session_id}", unsaved_workspace: link.unsaved_workspace_json } },
             grants: coworker.grants.order(:capability).map { |grant|
               { capability: grant.capability, approval_policy: grant.approval_policy, constraints: grant.constraints }
                 .merge(grant.scope.nil? ? {} : { scope: grant.scope })

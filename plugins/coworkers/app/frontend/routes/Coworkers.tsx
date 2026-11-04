@@ -30,6 +30,7 @@ import {
   fetchCoworkerWorkspace,
   fetchCoworkers,
   removeCoworkerFromChat,
+  retryCoworkerWorkspaceSave,
   retryProvisioningCleanup,
   acknowledgeProvisioningCleanup,
   decideCoworkerApproval,
@@ -298,8 +299,10 @@ function Field({ label, ...props }: { label: string; name: string; required?: bo
 function CoworkerPage({ id }: { id: string }) {
   const { t } = useT("coworkers")
   const prefix = usePrefix()
+  const location = useLocation()
   const navigate = useNavigate()
-  const [tab, setTab] = useState(id === "syrus" ? "chats" : "chat")
+  const requestedTab = new URLSearchParams(location.search).get("tab")
+  const [tab, setTab] = useState(id === "syrus" ? "chats" : requestedTab || "chat")
   const query = useQuery({ queryKey: ["coworkers", id], queryFn: () => fetchCoworker(id), enabled: id !== "syrus" })
   const sideChat = useMutation({ mutationFn: () => createSideChat(Number(id)), onSuccess: (data) => navigate(withRoutePrefix(data.chat_path, prefix)) })
   const [selectedChatId, setSelectedChatId] = useState("")
@@ -859,12 +862,33 @@ function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {
     queryFn: () => fetchCoworkerWorkspace(id, selectedPath)
   })
   const pushTest = useMutation({ mutationFn: () => testCoworkerRemote(remote) })
+  const coworkerQuery = useQuery({ queryKey: ["coworkers", id], queryFn: () => fetchCoworker(id) })
+  const unsavedChats = coworkerQuery.data?.coworker.chats.filter((chat) => chat.unsaved_workspace) || []
+  const retrySave = useMutation({
+    mutationFn: (chatLinkId: number) => retryCoworkerWorkspaceSave(id, chatLinkId),
+    onSuccess: () => void coworkerQuery.refetch()
+  })
 
   if (query.isPending) return <PanelMessage>{t("workspace.loading")}</PanelMessage>
   if (query.isError || !query.data) return <PanelMessage>{t("workspace.unavailable")}</PanelMessage>
   const workspace = query.data
   return (
     <section className="space-y-4">
+      {unsavedChats.map((chat) => (
+        <div className="rounded border border-warning bg-warning-subtle p-4 text-sm" key={chat.link_id} role="alert">
+          <div className="font-semibold">{t("workspace.unsaved_title")}</div>
+          <p className="mt-1">{t("workspace.unsaved_detail", { branch: chat.unsaved_workspace?.branch, attempts: chat.unsaved_workspace?.attempt_count })}</p>
+          <p className="mt-1 break-words text-text-secondary">{chat.unsaved_workspace?.last_error}</p>
+          <button
+            className="mt-3 rounded border border-border bg-surface px-3 py-2 font-medium disabled:opacity-50"
+            disabled={retrySave.isPending}
+            onClick={() => retrySave.mutate(chat.link_id)}
+            type="button"
+          >
+            {retrySave.isPending ? t("workspace.retrying_save") : t("workspace.retry_save")}
+          </button>
+        </div>
+      ))}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-border bg-surface p-3 text-sm">
         <div>
           <div className="font-medium text-text-primary">{workspace.remote}</div>

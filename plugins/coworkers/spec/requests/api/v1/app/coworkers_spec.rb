@@ -5,6 +5,23 @@ RSpec.describe "API: coworkers", type: :request do
 
   before { PluginRecord.find_by!(name: "coworkers").update!(enabled: true) }
 
+  it "lets the owner retry a durable unsaved workspace" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "retry-workspace")
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-retry", workspace_repo: repository.remote_url)
+    chat = ChatSession.create!(user: owner, repository:, title: "Maya")
+    link = Coworkers::Chat.create!(coworker:, chat_session: chat, role: "main",
+      unsaved_workspace_branch: "coworkers/chat/1-2", unsaved_workspace_path: "/tmp/preserved",
+      unsaved_workspace_failure_kind: "transient", unsaved_workspace_attempt_count: 3)
+    sign_in_as(owner)
+
+    expect {
+      post "/api/v1/app/coworkers/#{coworker.id}/workspace/retry", params: { chat_id: link.id }
+    }.to have_enqueued_job(Coworkers::WorkspaceSaveRetryJob).with(link.id)
+
+    expect(response).to have_http_status(:accepted)
+    expect(response.parsed_body.dig("unsaved_workspace", "branch")).to eq("coworkers/chat/1-2")
+  end
+
   it "hides coworker workspace repositories from the repository list" do
     visible = Factories.repository(user: owner, owner: "acme", name: "application")
     workspace = Factories.repository(user: owner, owner: "acme", name: "coworker-home")

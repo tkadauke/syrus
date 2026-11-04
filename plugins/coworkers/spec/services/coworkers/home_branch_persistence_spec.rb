@@ -52,8 +52,8 @@ RSpec.describe Coworkers::HomeBranchPersistence do
         ""
       end
 
-    expect { described_class.new(chat, coworker, git: git).persist! }.to raise_error(push_error)
-    expect { described_class.new(chat, coworker, git: git).persist! }.not_to raise_error
+    expect(described_class.new(chat, coworker, git: git).persist!).to eq(:saved)
+    expect(Coworkers::Chat.find_by!(chat_session: chat).reload).not_to be_unsaved_workspace
   end
 
   it "rebases a clean unpublished commit after a non-fast-forward push and retries" do

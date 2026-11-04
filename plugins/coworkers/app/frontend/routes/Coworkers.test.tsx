@@ -682,6 +682,60 @@ it("warns when the workspace tree and selected file are truncated", async () => 
   expect(screen.queryByRole("button", { name: /edit|save|delete/i })).not.toBeInTheDocument()
 })
 
+it("shows durable unsaved work on the workspace tab and retries it manually", async () => {
+  const unsavedDetail = {
+    coworker: {
+      ...detailPayload.coworker,
+      chats: [
+        {
+          id: 12,
+          link_id: 44,
+          role: "main",
+          title: "Maya",
+          path: "/chats/12",
+          unsaved_workspace: {
+            branch: "coworkers/chat/7-12",
+            path: "/data/chats/12/repo",
+            last_error: "remote: Internal Server Error",
+            failure_kind: "transient",
+            first_failed_at: "2026-11-04T09:37:00Z",
+            last_failed_at: "2026-11-04T09:40:00Z",
+            attempt_count: 3,
+            retry_exhausted: false
+          }
+        }
+      ]
+    }
+  }
+  const fetchSpy = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === "POST") return jsonResponse({ unsaved_workspace: unsavedDetail.coworker.chats[0].unsaved_workspace })
+    if (String(input).includes("/workspace"))
+      return jsonResponse({
+        remote: "https://github.com/acme/workspace.git",
+        branch: "coworkers/maya",
+        files: [],
+        partial: false,
+        selected_file: null,
+        commits: [],
+        conflicts: []
+      })
+    return jsonResponse(unsavedDetail)
+  })
+  vi.stubGlobal("fetch", fetchSpy)
+
+  renderRoute("/coworkers/7?tab=workspace")
+
+  expect(await screen.findByText("Unsaved workspace changes")).toBeInTheDocument()
+  expect(screen.getByText("remote: Internal Server Error")).toBeInTheDocument()
+  fireEvent.click(screen.getByRole("button", { name: "Retry save now" }))
+  await waitFor(() =>
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/coworkers/7/workspace/retry",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ chat_id: 44 }) })
+    )
+  )
+})
+
 it("renders chat, run, and unavailable commit provenance honestly", async () => {
   vi.stubGlobal(
     "fetch",

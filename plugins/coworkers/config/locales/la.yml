@@ -11,3 +11,11 @@ la:
 
         %{files}
       workspace_conflict_label: "Conflictus spatii laboris"
+      unsaved_workspace: "Hic collega mutationes spatii nondum servatas habet. Syrus eas localiter in `%{path}` conservavit et %{retry_status}. Error novissimus: %{error}"
+      unsaved_workspace_label: "Spatium collegae nondum servatum"
+      unsaved_workspace_cta: "Spatium inspice et iterum serva"
+      retry_pending: "iterum eas servare conabitur"
+      retry_stopped: "conatus automatici cessaverunt"
+      workspace_save_resolved: "Spatium collegae feliciter servatum est. Nullum opus locale perditum est."
+      workspace_save_resolved_label: "Spatium servatum"
+      workspace_already_saved: "Spatium iam servatum est."
