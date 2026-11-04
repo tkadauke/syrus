@@ -28,7 +28,7 @@ test.describe("Activity shell", () => {
     await expect(shell).toBeHidden()
     await expect(bell).toBeFocused()
 
-    const shield = page.getByRole("button", { name: /^Approvals/ }).first()
+    const shield = page.getByRole("button", { name: /^Open approval inbox/ }).first()
     await shield.click()
     await expect(shell.getByRole("tab", { name: /Approvals/ })).toHaveAttribute("aria-selected", "true")
     await expect(page.getByRole("dialog")).toHaveCount(1)
@@ -56,7 +56,7 @@ test.describe("Activity shell", () => {
     await page.goto("/dashboard/jobs")
 
     await page
-      .getByRole("button", { name: /^Approvals/ })
+      .getByRole("button", { name: /^Open approval inbox/ })
       .first()
       .click()
     await page.getByRole("dialog", { name: "Activity" }).getByRole("link", { name: "View all requests" }).click()
@@ -96,7 +96,7 @@ test.describe("Activity shell", () => {
     await expect(page.getByTestId("activity-shell")).toHaveCount(0)
 
     await page
-      .getByRole("button", { name: /^Approvals/ })
+      .getByRole("button", { name: /^Open approval inbox/ })
       .first()
       .click()
     await expect(page.getByRole("complementary", { name: "Needs your attention" })).toBeVisible()
