@@ -661,8 +661,19 @@ class Workflow < ApplicationRecord
     key = key.to_s
     self.class.transaction do
       locked = self.class.lock.find(id)
-      entry = locked.workflow_artifact_values.find_or_initialize_by(key: key)
-      entry.update!(value: value)
+      if value.nil?
+        locked.workflow_artifact_values.where(key: key).delete_all
+      else
+        entry = locked.workflow_artifact_values.find_or_initialize_by(key: key)
+        entry.update!(value: value)
+      end
+      if defined?(@assigned_external_artifacts) && @assigned_external_artifacts
+        if value.nil?
+          @assigned_external_artifacts.delete(key)
+        else
+          @assigned_external_artifacts[key] = value
+        end
+      end
       workflow_artifact_values.reset
       value
     end
@@ -954,7 +965,11 @@ class Workflow < ApplicationRecord
     # back the workflows row too.
     workflow_artifact_values.where(key: Array(@assigned_external_artifact_deletions)).delete_all
     assigned.each do |key, value|
-      workflow_artifact_values.find_or_initialize_by(key: key).update!(value: value)
+      if value.nil?
+        workflow_artifact_values.where(key: key).delete_all
+      else
+        workflow_artifact_values.find_or_initialize_by(key: key).update!(value: value)
+      end
     end
     workflow_artifact_values.reset
     @assigned_external_artifacts = nil
