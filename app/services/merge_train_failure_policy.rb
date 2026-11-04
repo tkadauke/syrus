@@ -10,6 +10,23 @@ class MergeTrainFailurePolicy
     new(repository: repository, attempt_number: attempt_number, retry_classification: retry_classification).resolve
   end
 
+  def self.resolve_for(workflow:)
+    failed_run = MergeTrainFixReplay.failed_run_for(workflow)
+    classification = failed_run&.run_failure_classification&.classification ||
+      failed_run&.agent_outcome.to_s.presence || "unknown"
+    attempt_number = if failed_run
+      AutoRetryAttempt.budget_scope_for(
+        job: failed_run.job,
+        agent_provider: failed_run.agent_provider.presence || workflow.agent_provider,
+        failure_classification: classification
+      ).count + 1
+    else
+      1
+    end
+
+    resolve(repository: workflow.job&.repository, attempt_number: attempt_number, retry_classification: classification)
+  end
+
   def initialize(repository:, attempt_number:, retry_classification:)
     @repository = repository
     @attempt_number = attempt_number.to_i

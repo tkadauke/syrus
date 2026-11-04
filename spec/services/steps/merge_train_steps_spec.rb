@@ -426,8 +426,11 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(train.reload.state).to eq("grading")
     end
 
-    it "replays previous repair commits onto a rebuilt stale-base train" do
-      AppSetting.current.update!(merge_train_failure_policy: "keep_fixes")
+    it "replays successful repairs after terminal grader exhaustion using the repository failure rung" do
+      AppSetting.current.update!(merge_train_failure_policy: "restart")
+      stub_repository_content(repository, files: {
+        SyrusYml::CONFIG_FILE => "merge_train:\n  failure_policy:\n    - keep_fixes\n    - keep_assembly\n    - restart\n"
+      })
       a = member_job(issue_number: 1)
       b = member_job(issue_number: 2)
       source_train = MergeTrain.create!(
@@ -437,21 +440,34 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
         integration_branch: "syrus/merge-train-old",
         integration_sha: "oldint999",
         state: "failed",
-        failure_reason: "merge_train: base moved from oldbase123 to newbase456; rebuild required",
+        failure_reason: "loop_exhausted_after_grader_failure",
         finished_at: Time.current
       )
       [ a, b ].each_with_index { |job, i| MergeTrainMember.create!(merge_train: source_train, job: job, position: i) }
-      Workflow.create!(
+      source_workflow = Workflow.create!(
         job: b,
         trigger_kind: "merge_train",
         state: "failed",
         artifacts: {
           "merge_train_id" => source_train.id,
-          "merge_train_base_sha" => "oldbase123",
-          "merge_train_stale_base" => { "reason" => "base_moved" }
+          "merge_train_base_sha" => "oldbase123"
         },
         failure_reason: source_train.failure_reason
       )
+      [
+        [ "old-member-b", "repair-1" ],
+        [ "repair-1", "repair-2" ],
+        [ "repair-2", "repair-3" ]
+      ].each_with_index do |(base_sha, head_sha), index|
+        repair_step = source_workflow.steps.create!(kind: "landing_fix", position: index + 1, state: "succeeded")
+        repair_step.runs.create!(job: b, trigger_kind: "merge_train", state: "succeeded",
+          base_sha: base_sha, head_sha: head_sha)
+      end
+      failed_step = source_workflow.steps.create!(kind: "grader_collect", position: 4, state: "failed")
+      failed_run = failed_step.runs.create!(job: b, trigger_kind: "merge_train", state: "failed",
+        agent_outcome: "grader_failure")
+      RunFailureClassification.create!(run: failed_run, classification: "grader_failure", retryable: false,
+        classified_at: Time.current)
       LandedCommit.create!(landable: a, sha: "old-member-a", kind: "implementation", position: 0)
       LandedCommit.create!(landable: b, sha: "old-member-b", kind: "implementation", position: 0)
       train = build_train([ a, b ])
@@ -461,17 +477,26 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       allow(handler).to receive(:run_agent)
       allow(git).to receive(:run)
         .with("rev-list", "--reverse", "oldbase123..oldint999", chdir: "/tmp/ws")
-        .and_return("old-member-a\nold-member-b\nrepair-1\n")
+        .and_return("old-member-a\nold-member-b\nrepair-1\nunrelated\nrepair-2\nrepair-3\n")
 
       handler.call
 
       expect(git).to have_received(:run).with("fetch", authenticated_fetch_url, "refs/heads/master", chdir: "/tmp/ws")
       expect(git).to have_received(:run).with("fetch", authenticated_fetch_url, "refs/heads/syrus/merge-train-old", chdir: "/tmp/ws")
-      expect(git).to have_received(:run).with("cherry-pick", "repair-1", chdir: "/tmp/ws")
+      %w[repair-1 repair-2 repair-3].each do |sha|
+        expect(git).to have_received(:run).with("cherry-pick", sha, chdir: "/tmp/ws")
+      end
+      expect(git).not_to have_received(:run).with("cherry-pick", "unrelated", chdir: "/tmp/ws")
       expect(handler.workflow.artifact(MergeTrainFixReplay::STATUS_ARTIFACT)).to include(
         "status" => "replayed",
         "source_train_id" => source_train.id,
-        "commit_shas" => [ "repair-1" ]
+        "commit_shas" => %w[repair-1 repair-2 repair-3],
+        "discovered" => include(
+          hash_including("sha" => "repair-1", "reason" => "successful landing_fix run head"),
+          hash_including("sha" => "repair-2", "reason" => "successful landing_fix run head"),
+          hash_including("sha" => "repair-3", "reason" => "successful landing_fix run head")
+        ),
+        "skipped" => include(hash_including("sha" => "unrelated", "reason" => "not produced by a successful landing_fix run"))
       )
       expect(train.reload.integration_sha).to eq("intsha999")
     end
@@ -490,7 +515,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
         finished_at: Time.current
       )
       MergeTrainMember.create!(merge_train: source_train, job: a, position: 0)
-      Workflow.create!(
+      source_workflow = Workflow.create!(
         job: a,
         trigger_kind: "merge_train",
         state: "failed",
@@ -501,6 +526,9 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
         },
         failure_reason: source_train.failure_reason
       )
+      repair_step = source_workflow.steps.create!(kind: "landing_fix", position: 1, state: "succeeded")
+      repair_step.runs.create!(job: a, trigger_kind: "merge_train", state: "succeeded",
+        base_sha: "old-member-a", head_sha: "repair-2")
       LandedCommit.create!(landable: a, sha: "old-member-a", kind: "implementation", position: 0)
       train = build_train([ a ])
       handler = step_handler(described_class, "merge_train_build", train, a)
@@ -542,7 +570,7 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
         finished_at: Time.current
       )
       MergeTrainMember.create!(merge_train: source_train, job: a, position: 0)
-      Workflow.create!(
+      source_workflow = Workflow.create!(
         job: a,
         trigger_kind: "merge_train",
         state: "failed",
@@ -553,6 +581,9 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
         },
         failure_reason: source_train.failure_reason
       )
+      repair_step = source_workflow.steps.create!(kind: "landing_fix", position: 1, state: "succeeded")
+      repair_step.runs.create!(job: a, trigger_kind: "merge_train", state: "succeeded",
+        base_sha: "old-member-a", head_sha: "repair-1")
       train = build_train([ a, b ])
       handler = step_handler(described_class, "merge_train_build", train, b)
       handler.workflow.set_artifact!(MergeTrainFixReplay::SOURCE_TRAIN_ARTIFACT, source_train.id)
