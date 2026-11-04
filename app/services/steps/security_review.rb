@@ -8,23 +8,7 @@ module Steps
     def review_config = security_review_config
     def review_skip_label = "Security review"
 
-    def capture_review_evidence!
-      return run.review_evidence if run.review_evidence
-
-      ReviewEvidence::Capture.call(
-        run: run,
-        workspace_path: workspace.path,
-        review_kind: review_event_kind,
-        base_ref: review_base_ref,
-        checklist: security_review_criteria
-      )
-    rescue StandardError => e
-      fail_with!(
-        :review_evidence_capture_failed,
-        "could not freeze #{review_step_kind} evidence: #{e.message}",
-        evidence: { review_kind: review_step_kind, error_class: e.class.name }
-      )
-    end
+    def review_criteria = security_review_criteria
 
     def reviewer_prompt
       Prompts::SecurityReview.new(
