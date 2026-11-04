@@ -1799,8 +1799,8 @@ describe("tool result rendering", () => {
           result_body: JSON.stringify(result),
           result_json: result,
           result_error: false,
-          result_kind: "success",
-          result_summary: null,
+          result_kind: "json",
+          result_summary: "",
           result_settled: true
         }
       ],

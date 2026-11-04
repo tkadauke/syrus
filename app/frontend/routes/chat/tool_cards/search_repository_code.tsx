@@ -2,8 +2,9 @@ import i18n from "@app/i18n"
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 import { Badge, EmptyState } from "../toolCardUi"
 
-function payload(context: ToolCardContext) {
-  return isPlainObject(context.parsedResult) && Array.isArray(context.parsedResult.results) ? context.parsedResult : null
+function payload(context: ToolCardContext): (Record<string, unknown> & { results: unknown[] }) | null {
+  const result = context.parsedResult
+  return isPlainObject(result) && Array.isArray(result.results) ? { ...result, results: result.results } : null
 }
 
 function collapsedSummary(context: ToolCardContext) {
@@ -27,7 +28,9 @@ function renderExpanded(context: ToolCardContext) {
       )}
       <div className="flex flex-wrap gap-1">
         <Badge>{i18n.t("chat:tool_card_repository_search_status", { status: String(result.status || "unknown") })}</Badge>
-        {result.reason && <Badge>{i18n.t("chat:tool_card_repository_search_reason", { reason: String(result.reason) })}</Badge>}
+        {typeof result.reason === "string" && result.reason && (
+          <Badge>{i18n.t("chat:tool_card_repository_search_reason", { reason: result.reason })}</Badge>
+        )}
         <Badge>
           {i18n.t("chat:tool_card_repository_search_coverage", {
             searched: String(coverage.searched_files ?? 0),
