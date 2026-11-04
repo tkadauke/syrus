@@ -331,7 +331,6 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
       expect(request.authorization_items.sole.normalized_arguments)
         .to eq("body" => "hello", "token" => "[REDACTED]")
     end
-
     it "bypasses permission evaluation for an ungated tool" do
       actor_tool = Class.new(MCP::Tool) { tool_name "ask_user_question" }
       descriptor = instance_double(Permissions::CapabilityDescriptor)

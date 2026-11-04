@@ -258,7 +258,6 @@ module Mcp::Tools
         ActiveSupport::SecurityUtils.secure_compare(invocation.invocation_fingerprint, fingerprint) ||
           raise(AuthorizationError, "authorized invocation fingerprint does not match")
       end
-
       def pending_action_tool?(tool)
         PendingActions.for(McpToolRegistry.tool_name_for(tool))
         true
