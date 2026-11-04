@@ -116,8 +116,10 @@ module Mcp::Tools
       def protected_coworker_workspace_path?(context, descriptor, arguments)
         return false unless descriptor.capability == "workspace.files"
 
-        grant = context.agent_actor&.grants&.find_by(capability: "workspace.files")
-        protected_paths = Array(grant&.constraints&.fetch("confirm_paths", nil)).filter_map do |path|
+        rules = context.agent_actor&.permission_rules&.rules || PermissionRule.none
+        protected_paths = rules.where(capability: [ "workspace.files", "workspace.files@v1" ]).flat_map do |rule|
+          Array(rule.constraints["confirm_paths"])
+        end.filter_map do |path|
           normalized_coworker_workspace_path(path)
         end
         requested_paths = [ arguments[:path], arguments[:source], arguments[:destination] ].compact.filter_map do |path|

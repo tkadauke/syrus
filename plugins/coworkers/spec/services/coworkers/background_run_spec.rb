@@ -116,8 +116,8 @@ RSpec.describe "Coworker background runs" do
   end
 
   it "gives the run eligible coworker tools, queues live confirmations, and omits interactive tools" do
-    coworker.grants.create!(capability: "syrus.read_jobs", approval_policy: "confirm")
-    coworker.grants.create!(capability: "chat.message_owner", approval_policy: "auto")
+    coworker.permission_rules.update!(capability: "syrus.read_jobs", approval_policy: "confirm", actor: owner)
+    coworker.permission_rules.update!(capability: "chat.message_owner", approval_policy: "auto", actor: owner)
     workflow = Coworkers::Workflow.instantiate(job: job)
     step = workflow.steps.find_by!(kind: "coworker_run")
     run = Run.new(job: job, user: owner, step: step, trigger_kind: "coworker_run", agent_provider: "codex")

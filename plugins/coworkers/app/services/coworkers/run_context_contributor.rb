@@ -21,7 +21,9 @@ module Coworkers
 
     def self.capability_scopes(coworker)
       allowed = Coworkers::PrivilegedGrantGate.allowed_capabilities(coworker)
-      coworker.grants.where(capability: allowed).pluck(:capability, :scope).to_h
+      coworker.permission_rules.entries.filter_map do |entry|
+        [ entry[:capability], entry[:scope] ] if allowed.include?(entry[:capability])
+      end.to_h
     end
     private_class_method :capability_scopes
   end
