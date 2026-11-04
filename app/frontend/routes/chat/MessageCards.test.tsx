@@ -304,6 +304,35 @@ describe("coworker messages", () => {
     expect(message.closest("article")).not.toHaveClass("justify-end")
   })
 
+  it("renders a coworker cross-chat bridge with the standard coworker identity and bubble color", () => {
+    const item = userMessage("Approved direction.", {
+      cross_chat_bridge: {
+        thread_id: 7,
+        direction: "inbound",
+        counterpart_chat_session_id: 696,
+        counterpart_chat_title: "Monica"
+      },
+      coworker_sender: {
+        id: 8,
+        name: "Monica",
+        handle: "monica",
+        accent_hex: "#E5484D",
+        avatar_key: "spark",
+        avatar_url: null
+      }
+    })
+
+    renderChatMessageItem(item)
+
+    const message = screen.getByTestId("coworker-incoming-message")
+    expect(message).toHaveTextContent("Monica")
+    expect(message).toHaveTextContent("Approved direction.")
+    expect(message).toHaveStyle({ borderLeftColor: "#E5484D" })
+    expect(message.querySelector("img")).toBeInTheDocument()
+    expect(within(message).getByRole("link", { name: "via Chat #696: Monica" })).toHaveAttribute("href", "/chats/696")
+    expect(screen.queryByText("Approved direction.")?.closest(".bg-cyan-50")).not.toBeInTheDocument()
+  })
+
   it("renders an outgoing system note with the receiver appearance", () => {
     const item = systemMessageItem(
       { tone: "neutral", label: "System", body: "Message to @gilfoyle\n\nYour deploy is broken." },
