@@ -153,7 +153,13 @@
     "empty": "No schedules yet.",
     "pause": "Pause",
     "resume": "Resume",
-    "run_now": "Run now"
+    "run_now": "Run now",
+    "system": "System",
+    "journaling_paused": "Journaling paused",
+    "last_result": "Last result: {{result}} · journaled through {{date}}",
+    "never_run": "never run",
+    "system_run_time": "System schedule run time",
+    "save_time": "Save time"
   },
   "capabilities": {
     "sentences": {

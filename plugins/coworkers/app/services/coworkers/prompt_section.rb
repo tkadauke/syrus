@@ -20,7 +20,7 @@ class Coworkers::PromptSection
       next unless content
 
       separator = rendered == HEADING ? "" : "\n\n"
-      section = "### #{name}\n\n#{content}"
+      section = "### #{name}\n\n#{current_memory(content)}"
       candidate = rendered + separator + section
       if candidate.bytesize > MAX_TOTAL_BYTES
         rendered = truncate_aggregate(candidate)
@@ -53,6 +53,20 @@ class Coworkers::PromptSection
   def self.truncate_aggregate(content)
     suffix = "\n\n#{TRUNCATION_MARKER}"
     content.safe_byteslice(0, MAX_TOTAL_BYTES - suffix.bytesize) + suffix
+  end
+
+  # Superseded entries remain readable in the workspace and Memory tab, but
+  # are omitted from standing prompt context so an old decision cannot compete
+  # with its replacement.
+  def self.current_memory(content)
+    content.lines.reject { |line| line.match?(/~~.+~~ \(superseded \d{4}-\d{2}-\d{2} by .+: .+\)/) }.join
+  end
+
+  # Superseded entries remain readable in the workspace and Memory tab, but
+  # are omitted from standing prompt context so an old decision cannot compete
+  # with its replacement.
+  def self.current_memory(content)
+    content.lines.reject { |line| line.match?(/~~.+~~ \(superseded \d{4}-\d{2}-\d{2} by .+: .+\)/) }.join
   end
 
   def self.grant_section(coworker)
@@ -123,6 +137,6 @@ class Coworkers::PromptSection
     nil
   end
 
-  private_class_method :paths_for, :bounded_read, :truncate_aggregate, :grant_section, :conflict_section,
+  private_class_method :paths_for, :bounded_read, :truncate_aggregate, :current_memory, :grant_section, :conflict_section,
     :safe_conflict_read, :safe_workspace_read
 end

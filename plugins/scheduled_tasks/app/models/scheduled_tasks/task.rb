@@ -33,7 +33,8 @@ module ScheduledTasks
     scope :alive,    -> { where(archived_at: nil) }
 
     validates :name, presence: true, length: { maximum: 200 }
-    validates :prompt, presence: true, if: -> { skill_name.blank? }
+    validates :prompt, presence: true, if: -> { skill_name.blank? && !system_schedule? }
+    validates :system_key, uniqueness: { scope: :coworker_id }, allow_nil: true
     validates :kind, presence: true, inclusion: { in: KINDS }
     validates :state, presence: true, inclusion: { in: STATES }
     validates :pr_pileup_policy, presence: true, inclusion: { in: PR_PILEUP_POLICIES }
@@ -44,6 +45,7 @@ module ScheduledTasks
               presence: true, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
     validates :skill_name, format: { with: Skills::NAME_PATTERN }, allow_blank: true
     validate  :prompt_or_skill
+    validate  :system_schedule_attributes_are_owned_by_code, on: :update
 
     validates :schedule_expression, presence: true, if: :cron?
     validates :fire_at,         presence: true, if: :one_shot?
@@ -85,6 +87,14 @@ module ScheduledTasks
 
     def skill_task?
       skill_name.present?
+    end
+
+    def system_schedule? = system_key.present?
+
+    def prompt_for(target_date: nil)
+      return prompt unless system_schedule?
+
+      ScheduledTasks::SystemSchedules.fetch(system_key).new.prompt(task: self, target_date: target_date)
     end
 
     # Compatibility alias for API consumers that still read the historical
@@ -173,6 +183,8 @@ module ScheduledTasks
     end
 
     def soft_delete!
+      raise ActiveRecord::RecordInvalid, self if system_schedule_error!(:base, "System schedules cannot be deleted.")
+
       update!(archived_at: Time.current)
     end
 
@@ -205,6 +217,20 @@ module ScheduledTasks
     end
 
     private
+
+    def system_schedule_attributes_are_owned_by_code
+      return unless system_schedule? || system_key_was.present?
+
+      protected_changes = changes_to_save.keys & %w[system_key prompt kind name coworker_id user_id repository_id after_run]
+      errors.add(:base, "System schedule identity and prompt are owned by Syrus.") if protected_changes.any?
+    end
+
+    def system_schedule_error!(attribute, message)
+      return false unless system_schedule?
+
+      errors.add(attribute, message)
+      true
+    end
 
     def normalize_task_source
       self.skill_args = {} if skill_name.blank?
