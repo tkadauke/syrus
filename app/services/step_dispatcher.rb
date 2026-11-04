@@ -902,7 +902,14 @@ class StepDispatcher
     workflow.update!(
       artifacts: current.merge(
         "run_queue_admission_decision" => entry,
-        "run_queue_admission_decisions" => (Array(current["run_queue_admission_decisions"]) + [ entry ]).last(50)
+        "run_queue_admission_decisions" => (
+          Array(current["run_queue_admission_decisions"]) +
+            [ decision.history_details.merge(
+              "blocked" => decision.blocked?,
+              "blocked_reason" => decision.blocked_reason,
+              "decided_at" => entry["decided_at"]
+            ).compact ]
+        ).last(50)
       )
     )
   end
