@@ -245,9 +245,7 @@ module Api
 
         def scope = CoworkerPolicy::Scope.new(Current.user, Coworkers::Coworker.all).resolve
 
-        def find_coworker
-          scope.includes(:grants, coworker_chats: :chat_session).find(params[:id])
-        end
+        def find_coworker = scope.includes(coworker_chats: :chat_session).find(params[:id])
 
         def owned_chat
           ChatSession.active.find_by!(id: params[:chat_id], user_id: Current.user.id)
@@ -327,10 +325,7 @@ module Api
             workspace_repo: coworker.workspace_repo, soul: soul_for(coworker),
             available_chats: available_chats_json(coworker),
             chats: coworker.coworker_chats.sort_by { |link| [ link.main? ? 0 : 1, link.id ] }.map { |link| { id: link.chat_session_id, role: link.role, title: link.chat_session.title, path: "/chats/#{link.chat_session_id}" } },
-            grants: coworker.grants.order(:capability).map { |grant|
-              { capability: grant.capability, approval_policy: grant.approval_policy, constraints: grant.constraints }
-                .merge(grant.scope.nil? ? {} : { scope: grant.scope })
-            },
+            grants: coworker.permission_rules.entries.reject { |entry| entry[:approval_policy] == "off" },
             permission_cutover_report: Coworkers::PermissionCutoverReport.new(coworker: coworker).as_json,
             grant_catalog: grant_catalog_json,
             schedules: coworker.schedules.alive.order(:created_at).map { |task| schedule_json(task) },

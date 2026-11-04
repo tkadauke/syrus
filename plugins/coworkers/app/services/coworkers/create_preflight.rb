@@ -75,9 +75,10 @@ class Coworkers::CreatePreflight
     @normalized_requested_grants ||= Array(@requested_grants).map do |raw|
       if raw.respond_to?(:to_h)
         attributes = raw.to_h.symbolize_keys
-        { capability: (attributes[:capability] || attributes[:name]).to_s, scope: attributes[:scope] }
+        { capability: (attributes[:capability] || attributes[:name]).to_s, scope: attributes[:scope],
+          constraints: attributes.fetch(:constraints, {}).to_h }
       else
-        { capability: raw.to_s, scope: nil }
+        { capability: raw.to_s, scope: nil, constraints: {} }
       end
     end.uniq
   end

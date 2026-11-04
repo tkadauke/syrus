@@ -3,8 +3,13 @@
 Coworker tool dispatch is enforced by the unified permission evaluator. Capability
 descriptors supply the recommended defaults, while operator rules and temporary
 leases can narrow or extend those defaults within each descriptor's ceiling.
-Legacy coworker grant rows are cleared during the cutover and are not runtime
-authority.
+Existing coworker grants are translated idempotently into exact-agent
+`PermissionRule` rows with the legacy row ID in provenance. Any preserved old
+rows remain immutable audit and rollback evidence, but creation, editing, discovery,
+prompts, execution, and surrender read only canonical rules and leases.
+The cutover never replaces an active canonical rule: it reports that row as a
+conflict, logs per-row parity or translation errors, and continues with other
+rows. Rollback revokes only rules carrying migration provenance.
 
 ## Default policies for coworker tools
 
