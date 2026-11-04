@@ -48,9 +48,7 @@ module Admin
       "read_admission_diagnostics" => "generic",
       "diagnose_run_queue" => "generic",
       "read_syrus_logs" => "generic",
-      "list_repository_files" => "generic",
       "read_repository_file" => "generic",
-      "search_repository_code" => "generic",
       "unland_job" => "generic",
       "unland_epic" => "generic",
       "runtime_wait" => "generic"
