@@ -68,7 +68,7 @@ RSpec.describe "Coworkers plugin" do
     )
     chat = ChatSession.create!(user: owner, title: "Planning")
     Coworkers::ChatAgent.create!(chat_session: chat, coworker: coworker, added_by_user: owner)
-    coworker.grants.create!(capability: "workspace.files", approval_policy: "auto")
+    coworker.permission_rules.update!(capability: "workspace.files", approval_policy: "auto", actor: owner)
     message = chat.messages.build(
       role: "user", content: { "text" => "Ask @maya-turn" },
       mentions: [ { "kind" => "coworker", "id" => coworker.id, "handle" => coworker.handle, "start" => 4, "end" => 14 } ]
