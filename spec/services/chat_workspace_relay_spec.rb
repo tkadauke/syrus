@@ -91,6 +91,9 @@ RSpec.describe ChatWorkspaceRelay do
         binary: false,
         too_large: false
       })
+      allow(ChatWorkspace).to receive(:file_bytes_result).and_return(
+        ChatWorkspace::FileBytesResult.new(status: :ok, bytes: "preview".b)
+      )
       allow(ChatWorkspace).to receive(:coding_diff).and_return("--- a/README.md\n+++ b/README.md")
       allow(ChatWorkspace).to receive(:coding_commits).and_return({
         commits: [
@@ -210,6 +213,28 @@ RSpec.describe ChatWorkspaceRelay do
         res = get_relay("/workspace/file?session_id=#{chat_session.id}&path=SOUL.md&repository_id=#{unattached.id}")
 
         expect(res.code).to eq("422")
+      end
+    end
+
+    describe "GET /workspace/file-preview" do
+      it "returns encoded bytes from the authenticated workspace read" do
+        res = get_relay("/workspace/file-preview?session_id=#{chat_session.id}&path=logo.png")
+
+        expect(res.code).to eq("200")
+        expect(JSON.parse(res.body)["content_base64"]).to eq(Base64.strict_encode64("preview"))
+      end
+
+      it "preserves forbidden and oversized results" do
+        allow(ChatWorkspace).to receive(:file_bytes_result).and_return(
+          ChatWorkspace::FileBytesResult.new(status: :forbidden, bytes: nil),
+          ChatWorkspace::FileBytesResult.new(status: :too_large, bytes: nil)
+        )
+
+        forbidden = get_relay("/workspace/file-preview?session_id=#{chat_session.id}&path=secret.png")
+        too_large = get_relay("/workspace/file-preview?session_id=#{chat_session.id}&path=large.png")
+
+        expect(forbidden.code).to eq("403")
+        expect(too_large.code).to eq("413")
       end
     end
 
