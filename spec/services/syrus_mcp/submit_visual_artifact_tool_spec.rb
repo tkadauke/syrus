@@ -45,7 +45,7 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
       content_digest: Digest::SHA256.hexdigest(png_bytes)
     )
     evidence.image.attach(io: StringIO.new(png_bytes), filename: "capture.png", content_type: "image/png")
-    allow_any_instance_of(Workflow).to receive(:attach_visual_artifact!).and_raise("storage unavailable")
+    allow_any_instance_of(Workflow).to receive(:set_typed_artifact!).and_raise("metadata unavailable")
 
     response = call(image_base64: nil, captured_evidence_id: evidence.stable_id)
 
