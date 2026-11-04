@@ -913,7 +913,8 @@ function ReviewArtifactsPanel({
 }) {
   const { t } = useT("jobs")
   const [expanded, setExpanded] = useState(false)
-  const hasArtifacts = Boolean(payload.test_plan) || reviewArtifacts.length > 0 || payload.typed_artifacts.length > 0
+  const typedArtifacts = payload.typed_artifacts.filter((artifact) => artifact.renderer_type !== "image_diff")
+  const hasArtifacts = Boolean(payload.test_plan) || reviewArtifacts.length > 0 || typedArtifacts.length > 0
 
   return (
     <Section.Root>
@@ -949,7 +950,7 @@ function ReviewArtifactsPanel({
               ))}
             </div>
           ) : null}
-          <VersionedArtifactsList artifacts={payload.typed_artifacts} selectedRange={selectedRange} selectedVersion={selectedVersion} versions={versions} />
+          <VersionedArtifactsList artifacts={typedArtifacts} selectedRange={selectedRange} selectedVersion={selectedVersion} versions={versions} />
         </div>
       ) : null}
     </Section.Root>

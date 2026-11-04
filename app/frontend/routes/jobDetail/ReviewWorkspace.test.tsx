@@ -1119,6 +1119,57 @@ describe("ReviewWorkspace", () => {
     expect(screen.queryByLabelText("Artifact")).not.toBeInTheDocument()
   })
 
+  it("keeps submitted visual artifacts out of Review artifacts while retaining them in Visual evidence", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace({
+      ...jobPayload(),
+      typed_artifacts: [
+        {
+          type: "visual_review_dashboard_run_5_1",
+          title: "Submitted dashboard screenshot",
+          payload: { image_url: "/api/v1/app/workflows/9/visual_artifact?type=visual_review_dashboard_run_5_1" },
+          created_at: "2026-01-01T00:00:00Z",
+          renderer_type: "image_diff"
+        },
+        {
+          type: "security_review_findings",
+          title: "Security findings",
+          payload: { headers: ["Finding"], rows: [["No findings"]] },
+          created_at: "2026-01-01T00:00:00Z",
+          renderer_type: "data_table"
+        }
+      ],
+      visual_evidence: {
+        captured_count: 1,
+        submitted_count: 1,
+        screenshots: [
+          {
+            id: "evidence-1",
+            workflow_id: 9,
+            run_id: 5,
+            sequence: 1,
+            status: "submitted",
+            captured_at: "2026-01-01T00:00:00Z",
+            page: { path: "/dashboard", title: "Dashboard" },
+            viewport: { width: 1440, height: 900 },
+            submission_failed: false,
+            image_url: "/api/v1/app/jobs/42/visual_evidence/evidence-1"
+          }
+        ]
+      }
+    })
+
+    await screen.findByText("Review artifacts")
+    expect(screen.getByRole("img", { name: "Dashboard" })).toHaveAttribute("src", "/api/v1/app/jobs/42/visual_evidence/evidence-1")
+
+    fireEvent.click(screen.getByRole("button", { name: "Show" }))
+    expect(screen.getByText("Security findings")).toBeInTheDocument()
+    expect(screen.queryByText("Submitted dashboard screenshot")).not.toBeInTheDocument()
+    expect(screen.getAllByRole("img", { name: "Dashboard" })).toHaveLength(1)
+  })
+
   it("defaults multiple matching review artifacts to the latest artifact instead of expanding every body", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
@@ -1216,11 +1267,11 @@ describe("ReviewWorkspace", () => {
       ...jobPayload(),
       typed_artifacts: [
         {
-          type: "visual_review_screenshot_run_5_1",
+          type: "structured_review_report_run_5_1",
           title: "Homepage after fix",
-          payload: { image_url: "https://example.test/a.png", iteration: 2 },
+          payload: { headers: ["Finding"], rows: [["Rendering verified"]], iteration: 2 },
           created_at: "2026-01-01T00:00:00Z",
-          renderer_type: "image_diff",
+          renderer_type: "data_table",
           workflow_id: 12,
           run_id: 5,
           step_id: 55,
@@ -1283,21 +1334,21 @@ describe("ReviewWorkspace", () => {
       ...jobPayload(),
       typed_artifacts: [
         {
-          type: "visual_review_screenshot_run_5_1",
+          type: "structured_review_report_run_5_1",
           title: "Matches selected version",
-          payload: {},
+          payload: { headers: ["Finding"], rows: [["Matched report body"]] },
           created_at: "2026-01-01T00:00:00Z",
-          renderer_type: "image_diff",
+          renderer_type: "data_table",
           run_id: 5,
           head_sha: "head-sha",
           diff_review_version_id: 100
         },
         {
-          type: "visual_review_screenshot_run_9_1",
+          type: "structured_review_report_run_9_1",
           title: "From a later round",
-          payload: {},
+          payload: { headers: ["Finding"], rows: [["Later report body"]] },
           created_at: "2026-01-02T00:00:00Z",
-          renderer_type: "image_diff",
+          renderer_type: "data_table",
           run_id: 9,
           head_sha: "other-head-sha",
           diff_review_version_id: 200
