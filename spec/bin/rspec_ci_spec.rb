@@ -27,7 +27,7 @@ RSpec.describe "bin/rspec-ci" do
           printf 'rails-before-lock\\n' >> calls.log
           exit 9
         fi
-        printf 'rails RAILS_ENV=%s args=%s\\n' "$RAILS_ENV" "$*" >> calls.log
+        printf 'rails RAILS_ENV=%s TEST_ENV_NUMBER=%s args=%s\\n' "$RAILS_ENV" "${TEST_ENV_NUMBER:-}" "$*" >> calls.log
       BASH
 
       write_stub(File.join(bin_dir, "rspec-fast"), <<~BASH)
@@ -37,7 +37,7 @@ RSpec.describe "bin/rspec-ci" do
 
       write_stub(File.join(bin_dir, "rspec"), <<~BASH)
         #!/usr/bin/env bash
-        printf 'rspec RUN_CI_ONLY_SPECS=%s RSPEC_JSON_DIR=%s args=%s\\n' "$RUN_CI_ONLY_SPECS" "$RSPEC_JSON_DIR" "$*" >> calls.log
+        printf 'rspec RUN_CI_ONLY_SPECS=%s TEST_ENV_NUMBER=%s RSPEC_JSON_DIR=%s args=%s\\n' "$RUN_CI_ONLY_SPECS" "$TEST_ENV_NUMBER" "$RSPEC_JSON_DIR" "$*" >> calls.log
       BASH
 
       stdout, stderr, status = Open3.capture3(
@@ -51,9 +51,10 @@ RSpec.describe "bin/rspec-ci" do
 
       expect(status).to be_success, "expected success, got stdout=#{stdout.inspect} stderr=#{stderr.inspect}"
       expect(File.read(log_path).lines.map(&:chomp)).to eq([
-        "rails RAILS_ENV=test args=db:test:prepare",
+        "rails RAILS_ENV=test TEST_ENV_NUMBER= args=db:test:prepare",
         "rspec-fast RAILS_ENV=test COVERAGE=false RSPEC_FAST_LOCK_HELD=1 args=spec/models/job_spec.rb",
-        "rspec RUN_CI_ONLY_SPECS=true RSPEC_JSON_DIR=.syrus/rspec-json args=--tag ci_only --require rspec_junit_formatter --format progress --format json --out .syrus/rspec-json/rspec-ci-only.json --format RspecJunitFormatter --out .syrus/rspec-junit/rspec-junit-ci-only.xml spec/models/job_spec.rb"
+        "rails RAILS_ENV=test TEST_ENV_NUMBER=_ci_only args=db:test:prepare",
+        "rspec RUN_CI_ONLY_SPECS=true TEST_ENV_NUMBER=_ci_only RSPEC_JSON_DIR=.syrus/rspec-json args=--tag ci_only --require rspec_junit_formatter --format progress --format json --out .syrus/rspec-json/rspec-ci-only.json --format RspecJunitFormatter --out .syrus/rspec-junit/rspec-junit-ci-only.xml spec/models/job_spec.rb"
       ])
     end
   end

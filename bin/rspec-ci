@@ -17,6 +17,14 @@ export RSPEC_FAST_LOCK_HELD=1
 
 bin/rails db:test:prepare
 bin/rspec-fast "$@"
+
+# The parallel pass uses the unsuffixed test database for worker 1. Some specs
+# deliberately exercise schema and queue-table mutations, so reusing that
+# database for the serial ci_only pass makes its result depend on which files
+# parallel_tests assigned to worker 1. Give the serial pass a freshly prepared
+# database of its own instead.
+export TEST_ENV_NUMBER="${CI_ONLY_TEST_ENV_NUMBER:-_ci_only}"
+bin/rails db:test:prepare
 mkdir -p "$RSPEC_JSON_DIR" "$RSPEC_JUNIT_DIR" "$(dirname "$RSPEC_JUNIT_OUTPUT")"
 
 set +e
