@@ -40,7 +40,11 @@
     "unattributed_source": "Source unavailable",
     "conflict": "Unmerged chat branch {{branch}}:",
     "test_push": "Test push access",
-    "push_ok": "Push access verified"
+    "push_ok": "Push access verified",
+    "unsaved_title": "Unsaved workspace changes",
+    "unsaved_detail": "Changes on {{branch}} are preserved locally after {{attempts}} failed save attempts.",
+    "retry_save": "Retry save now",
+    "retrying_save": "Retrying save…"
   },
   "new": { "action": "New coworker", "title": "New coworker", "create": "Create coworker", "test_push": "Test push access", "push_ok": "Push access verified" },
   "tool_card": {

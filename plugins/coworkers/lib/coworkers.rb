@@ -50,6 +50,7 @@ module Coworkers
     route :delete, "/api/v1/app/coworkers/:id", to: "api/v1/app/coworkers#destroy"
     route :get, "/api/v1/app/coworkers/:id/memory", to: "api/v1/app/coworkers#memory"
     route :get, "/api/v1/app/coworkers/:id/workspace", to: "api/v1/app/coworkers#workspace"
+    route :post, "/api/v1/app/coworkers/:id/workspace/retry", to: "api/v1/app/coworkers#retry_workspace_save"
     route :get, "/api/v1/app/coworkers/:id/activity", to: "api/v1/app/coworkers#activity"
     route :post, "/api/v1/app/coworkers/:id/schedules", to: "api/v1/app/coworkers#create_schedule"
     route :post, "/api/v1/app/coworkers/:id/schedules/:schedule_id/pause", to: "api/v1/app/coworkers#pause_schedule"

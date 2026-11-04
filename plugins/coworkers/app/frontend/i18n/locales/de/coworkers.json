@@ -45,7 +45,11 @@
     "unattributed_source": "Quelle nicht verfügbar",
     "conflict": "Nicht zusammengeführter Chat-Branch {{branch}}:",
     "test_push": "Push-Zugriff testen",
-    "push_ok": "Push-Zugriff bestätigt"
+    "push_ok": "Push-Zugriff bestätigt",
+    "unsaved_title": "Nicht gespeicherte Workspace-Änderungen",
+    "unsaved_detail": "Änderungen auf {{branch}} sind nach {{attempts}} fehlgeschlagenen Speicherversuchen lokal erhalten.",
+    "retry_save": "Speichern jetzt erneut versuchen",
+    "retrying_save": "Speichern wird erneut versucht…"
   },
   "new": {
     "action": "Neuer Mitarbeiter",

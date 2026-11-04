@@ -10,6 +10,15 @@ class Coworkers::Chat < ApplicationRecord
   validate :chat_and_coworker_share_owner
 
   def main? = role == "main"
+  def unsaved_workspace? = unsaved_workspace_branch.present?
+
+  def unsaved_workspace_json
+    return unless unsaved_workspace?
+    { branch: unsaved_workspace_branch, path: unsaved_workspace_path, last_error: unsaved_workspace_error,
+      failure_kind: unsaved_workspace_failure_kind, operation: unsaved_workspace_operation,
+      first_failed_at: unsaved_workspace_first_failed_at&.iso8601, last_failed_at: unsaved_workspace_last_failed_at&.iso8601,
+      attempt_count: unsaved_workspace_attempt_count.to_i, retry_exhausted: unsaved_workspace_retry_exhausted_at.present? }
+  end
 
   private
 

@@ -87,7 +87,11 @@ export function systemMessage(message: ChatMessageItem): ChatSystemMessage | nul
   const requestedTone = stringValue(content?.system_tone)
   const tone = requestedTone === "success" || requestedTone === "warning" || requestedTone === "error" ? requestedTone : "neutral"
   const label = stringValue(content?.system_label) || i18n.t("chat:system.system")
-  return { tone, label, body: text, body_format: bodyFormat, prominent: content?.prominent === true }
+  const requestedCta = contentRecord(content?.system_cta)
+  const ctaLabel = stringValue(requestedCta?.label)
+  const ctaPath = stringValue(requestedCta?.path)
+  const cta = ctaLabel && ctaPath?.startsWith("/") ? { label: ctaLabel, path: ctaPath } : undefined
+  return { tone, label, body: text, body_format: bodyFormat, prominent: content?.prominent === true, cta }
 }
 
 // The outbound (sender-side) and hop-limit closure-notice system messages
