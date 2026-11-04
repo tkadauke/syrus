@@ -25,16 +25,20 @@ module SyrusDev
     route :post, "/api/v1/app/admin/performance/explain", to: "api/v1/app/admin/performance#explain"
     route :get, "/api/v1/app/admin/operational_logs", to: "api/v1/app/admin/operational_logs#index"
     route :post, "/api/v1/app/admin/tool_card_jobs", to: "api/v1/app/admin/tool_card_jobs#create"
+    route :post, "/api/v1/app/admin/permission_factory_resets/preview", to: "api/v1/app/admin/permission_factory_resets#preview"
+    route :post, "/api/v1/app/admin/permission_factory_resets", to: "api/v1/app/admin/permission_factory_resets#create"
     route :get, "/api/v1/admin/performance", to: "api/v1/admin/performance#show"
     route :post, "/api/v1/admin/performance/explain", to: "api/v1/admin/performance#explain"
     route :get, "/api/v1/admin/operational_logs", to: "api/v1/admin/operational_logs#index"
     route :get, "/admin/performance", to: "spa#show"
+    route :get, "/admin/permission_model", to: "spa#show"
     route :get, "/admin/operational_logs", to: "spa#show"
     route :get, "/admin/design_system", to: "spa#show"
     route :get, "/admin/tool_cards", to: "spa#show"
     route :get, "/admin/artifact_renderers", to: "spa#show"
     frontend routes: {
           "syrus_dev/AdminPerformance" => "app/frontend/routes/AdminPerformance.tsx",
+          "syrus_dev/AdminPermissionModel" => "app/frontend/routes/AdminPermissionModel.tsx",
           "syrus_dev/AdminOperationalLogs" => "app/frontend/routes/AdminOperationalLogs.tsx",
           "syrus_dev/AdminDesignSystem" => "app/frontend/routes/AdminDesignSystem.tsx",
           "syrus_dev/AdminToolCards" => "app/frontend/routes/AdminToolCards.tsx",

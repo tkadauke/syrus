@@ -25,6 +25,16 @@ module SyrusDev
           order: 45
         },
         {
+          id: "syrus_dev.permission_model",
+          label: "Permission Model",
+          label_key: "syrus_dev:nav_permission_model",
+          path: "/admin/permission_model",
+          paths: [ "/admin/permission_model" ],
+          component: "syrus_dev/AdminPermissionModel",
+          group_id: "system",
+          order: 89
+        },
+        {
           id: "syrus_dev.design_system",
           label: "Design System",
           label_key: "syrus_dev:nav_design_system",
