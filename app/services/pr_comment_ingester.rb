@@ -98,6 +98,7 @@ class PrCommentIngester
     return audit(true, "empty_body", "empty body treated as actionable", "rule") if body.blank?
     return audit(false, "skipped_bot", "Syrus-generated report comment", "rule") if syrus_report_comment?(comment)
     return audit(false, "skipped_bot", "authored by a bot account", "rule") if bot_comment?(comment)
+    return audit(false, "quoted_only", "body consists only of quoted text", "rule") if quoted_only?(body)
 
     result = PrCommentClassifier.call(body: body, user: @user, agent_provider: @agent_provider)
 
@@ -111,6 +112,13 @@ class PrCommentIngester
 
   def audit(actionable, decision, reason, source, version: nil, error: nil)
     { actionable: actionable, decision: decision, reason: reason, source: source, version: version, error: error }
+  end
+
+  # A comment whose every non-blank line is a Markdown quote ("> ...") only
+  # repeats someone else's words; it never carries the author's own request.
+  def quoted_only?(body)
+    lines = body.to_s.lines.map(&:strip).reject(&:empty?)
+    lines.any? && lines.all? { |line| line.start_with?(">") }
   end
 
   def bot_comment?(comment)

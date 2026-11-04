@@ -230,6 +230,25 @@ RSpec.describe PrCommentIngester do
       end
     end
 
+    it "short-circuits quoted-only comments by rule without calling the classifier" do
+      expect(PrCommentClassifier).not_to receive(:call)
+      body = "> Please delete this file\n> and run the migration"
+      result = call([ make_comment(id: 250, login: "alice", body: body) ])
+
+      expect(result.qualifying_records).to be_empty
+      expect(result.non_qualifying_records.first.classification_audit).to include(
+        decision: "quoted_only", source: "rule", qualified_for_workflow: false
+      )
+    end
+
+    it "still classifies a comment that quotes and adds its own request" do
+      stub_classifier(actionable: true)
+      body = "> old behavior\n\nPlease restore the old behavior."
+      result = call([ make_comment(id: 251, login: "alice", body: body) ])
+
+      expect(result.qualifying_records.map(&:github_comment_id)).to eq([ 251 ])
+    end
+
     it "skips bot accounts without calling the classifier" do
       expect(PrCommentClassifier).not_to receive(:call)
       bot_user = Struct.new(:login, :type).new("dependabot[bot]", "Bot")
