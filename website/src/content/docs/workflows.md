@@ -40,6 +40,14 @@ without changing the Job, pull request, or terminal Workflow.
 Trigger: a GitHub issue with the repository's trigger label, or a new cron
 or direct Job that uses the standard issue-to-PR path. Steps:
 `prepare -> implement -> [adversarial review loop] -> [visual review loop] -> grade loop -> coverage_analyze -> dependency_audit -> summarize -> test_plan -> pr_open`.
+
+Adversarial and security reviewer Runs freeze immutable evidence before the
+review begins: routed provider/model, reviewed base and head commits, and a
+canonical diff digest. Syrus verifies the frozen head and diff when the
+reviewer submits a verdict. Evidence becomes permanently stale if the source
+changed, so an approval for an older head cannot satisfy the current gate.
+Existing review findings remain the verdict record, linked to evidence when
+available; historical findings are not assigned invented provenance.
 The agent makes and commits the change during the top-level `implement`
 step. Optional adversarial and visual review loops can ask for revisions
 before grading. The grade loop then runs the repository's `grade:`
