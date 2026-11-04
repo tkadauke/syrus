@@ -122,7 +122,10 @@ for (const size of [
     await expect(pipeline.getByTestId("history-status")).toHaveAttribute("data-history-status", "loading")
     mode = "error"
     await page.reload()
-    await expect(pipeline.getByTestId("history-status")).toHaveAttribute("data-history-status", "error")
+    await expect(pipeline.getByTestId("history-status")).toHaveAttribute("data-history-status", "error", {
+      // The default query retry policy backs off for ~7s before surfacing the failure.
+      timeout: 20_000
+    })
     await expect(pipeline.locator("[data-stage]").first()).toBeVisible()
     mode = "empty"
     await pipeline.getByRole("button", { name: "Retry history" }).click()
