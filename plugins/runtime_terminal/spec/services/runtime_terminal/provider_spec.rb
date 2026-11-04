@@ -24,6 +24,7 @@ RSpec.describe RuntimeTerminal::Provider do
     it "identifies itself as DOC-17's CLI/TUI provider" do
       expect(described_class.provider_key).to eq("cli_tui")
       expect(described_class.display_name).to eq("Terminal")
+      expect(described_class.visual_review_start_required?).to be true
     end
   end
 
@@ -136,6 +137,7 @@ RSpec.describe RuntimeTerminal::Provider do
         display_name: "Terminal review", state: "starting"
       )
       metadata = nil
+      allow(provider).to receive(:wait_for_relay_ready!).and_return(true)
       expect do
         metadata = provider.start_session(
           workflow_session.workspace_ref,
@@ -153,6 +155,34 @@ RSpec.describe RuntimeTerminal::Provider do
         worker_storage_key: "storage-a",
         queue_name: "resume-storage-a",
         workspace_kind: "workflow"
+      )
+    end
+
+    it "fails startup after the bounded relay timeout and kills the queued terminal" do
+      stub_const("RuntimeTerminal::Provider::RELAY_ADDRESS_TIMEOUT", 0.seconds)
+      job = Factories.job(repository: repository, user: user)
+      run = job.runs.last
+      run.workflow.update!(worker_hostname: "worker-a", worker_storage_key: "storage-a")
+      workflow_session = RuntimeSession.create!(
+        repository: repository, job: job, workflow: run.workflow, run: run,
+        workspace_ref: "/workspace/review", provider_key: "cli_tui",
+        display_name: "Terminal review", state: "starting"
+      )
+
+      expect do
+        provider.start_session(
+          workflow_session.workspace_ref,
+          runtime_session: workflow_session,
+          run: run,
+          user: user
+        )
+      end.to raise_error(RuntimeSessionProviders::ConfigurationError, /relay was not ready/)
+
+      terminal_session = RuntimeTerminal::SessionLink.find_by!(runtime_session: workflow_session).terminal_session
+      expect(terminal_session).to have_attributes(
+        queue_name: "resume-storage-a",
+        finished_at: be_present,
+        outcome: "killed"
       )
     end
 
