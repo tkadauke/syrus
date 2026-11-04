@@ -1104,6 +1104,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_103209) do
     t.integer "unsaved_workspace_notice_message_id"
     t.datetime "unsaved_workspace_retry_exhausted_at"
     t.datetime "unsaved_workspace_retry_scheduled_at"
+    t.string "unsaved_workspace_operation"
+    t.string "unsaved_workspace_retry_token"
     t.index ["chat_session_id"], name: "index_coworker_chats_on_chat_session_id", unique: true
     t.index ["coworker_id"], name: "index_coworker_chats_one_main", unique: true, where: "role = 'main'"
   end

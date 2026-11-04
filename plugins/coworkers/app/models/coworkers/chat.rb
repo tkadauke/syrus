@@ -21,6 +21,7 @@ class Coworkers::Chat < ApplicationRecord
     {
       branch: unsaved_workspace_branch, path: unsaved_workspace_path,
       last_error: unsaved_workspace_error, failure_kind: unsaved_workspace_failure_kind,
+      operation: unsaved_workspace_operation,
       first_failed_at: unsaved_workspace_first_failed_at&.iso8601,
       last_failed_at: unsaved_workspace_last_failed_at&.iso8601,
       attempt_count: unsaved_workspace_attempt_count.to_i,

@@ -16,7 +16,7 @@ RSpec.describe "API: coworkers", type: :request do
 
     expect {
       post "/api/v1/app/coworkers/#{coworker.id}/workspace/retry", params: { chat_id: link.id }
-    }.to have_enqueued_job(Coworkers::WorkspaceSaveRetryJob).with(link.id)
+    }.to have_enqueued_job(Coworkers::WorkspaceSaveRetryJob).with(link.id, kind_of(String))
 
     expect(response).to have_http_status(:accepted)
     expect(response.parsed_body.dig("unsaved_workspace", "branch")).to eq("coworkers/chat/1-2")

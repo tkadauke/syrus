@@ -50,11 +50,11 @@ class Coworkers::ChatWorkspaceLifecycle
     return post_conflict!(files: conflicts, detail: "Resolve the existing Git index conflicts before the workspace can merge.") if conflicts.any?
 
     Coworkers::UnsavedWorkspace.new(@chat).attempt(
-      branch: chat_branch, path:, schedule_background:
+      branch: chat_branch, path:, operation: "chat_branch", schedule_background:
     ) do
       commit_turn!(path)
       push_chat_branch!(path)
-      merge_into_home!(chat_branch)
+      merge_into_home!(chat_branch) == :merged ? :saved : :conflict
     end
   end
 

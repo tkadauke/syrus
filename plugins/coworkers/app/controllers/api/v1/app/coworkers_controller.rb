@@ -152,7 +152,7 @@ module Api
           link = coworker.coworker_chats.find(params.require(:chat_id))
           return render_error("workspace_already_saved", I18n.t("api.coworkers.workspace_already_saved"), status: :unprocessable_content) unless link.unsaved_workspace?
 
-          Coworkers::WorkspaceSaveRetryJob.perform_later(link.id)
+          Coworkers::UnsavedWorkspace.new(link.chat_session).schedule_manual_retry!
           render json: { unsaved_workspace: link.unsaved_workspace_json }, status: :accepted
         end
 

@@ -17,15 +17,18 @@ class Coworkers::HomeBranchPersistence
     @git = git
   end
 
-  def persist!
+  def persist!(schedule_background: true)
     repository = @coworker.workspace_repository
     raise ArgumentError, "coworker workspace repository is unavailable" unless repository
 
     path = ChatWorkspace.repo_path_for(@chat_session, repository)
     branch = "coworkers/#{@coworker.handle}"
 
-    Coworkers::UnsavedWorkspace.new(@chat_session).attempt(branch:, path:) do
+    Coworkers::UnsavedWorkspace.new(@chat_session).attempt(
+      branch:, path:, operation: "home_branch", schedule_background:
+    ) do
       persist_once!(repository, path, branch)
+      :saved
     end
   end
 

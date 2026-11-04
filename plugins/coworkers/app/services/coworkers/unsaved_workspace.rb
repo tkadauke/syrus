@@ -11,13 +11,15 @@ module Coworkers
       @sleeper = sleeper
     end
 
-    def attempt(branch:, path:, schedule_background: true)
+    def attempt(branch:, path:, operation:, schedule_background: true)
       failures = 0
       first_failure_at = nil
       begin
-        yield
+        outcome = yield
+        return outcome unless outcome == :saved
+
         clear!
-        :saved
+        outcome
       rescue GitRunner::GitError => error
         failure = Coworkers::PushFailure.for(error)
         failures += 1
@@ -26,7 +28,7 @@ module Coworkers
           @sleeper.sleep(TURN_BACKOFF.fetch(failures - 1))
           retry
         end
-        record!(failure, branch:, path:, attempts: failures, first_failure_at:)
+        record!(failure, branch:, path:, operation:, attempts: failures, first_failure_at:)
         schedule_retry! if failure.transient? && schedule_background
         :unsaved
       end
@@ -43,18 +45,33 @@ module Coworkers
         end
 
         delay = BACKGROUND_BACKOFF.fetch([ @link.unsaved_workspace_attempt_count.to_i / TURN_ATTEMPTS, BACKGROUND_BACKOFF.length - 1 ].min)
-        @link.update!(unsaved_workspace_retry_scheduled_at: Time.current)
-        Coworkers::WorkspaceSaveRetryJob.set(wait: delay).perform_later(@link.id)
+        enqueue_retry!(wait: delay)
       end
     end
 
-    def begin_retry!
-      @link.update!(unsaved_workspace_retry_scheduled_at: nil)
+    def schedule_manual_retry!
+      @link.with_lock do
+        return false unless @link.unsaved_workspace?
+
+        @link.update!(unsaved_workspace_retry_exhausted_at: nil)
+        enqueue_retry!
+        true
+      end
+    end
+
+    def begin_retry!(token)
+      @link.with_lock do
+        return false if token.blank? || @link.unsaved_workspace_retry_token.blank?
+        return false unless ActiveSupport::SecurityUtils.secure_compare(@link.unsaved_workspace_retry_token.to_s, token.to_s)
+
+        @link.update!(unsaved_workspace_retry_scheduled_at: nil, unsaved_workspace_retry_token: nil)
+        true
+      end
     end
 
     private
 
-    def record!(failure, branch:, path:, attempts:, first_failure_at:)
+    def record!(failure, branch:, path:, operation:, attempts:, first_failure_at:)
       now = Time.current
       @link.with_lock do
         @link.update!(
@@ -62,6 +79,7 @@ module Coworkers
           unsaved_workspace_path: path.to_s,
           unsaved_workspace_error: failure.error.message,
           unsaved_workspace_failure_kind: failure.kind,
+          unsaved_workspace_operation: operation,
           unsaved_workspace_first_failed_at: @link.unsaved_workspace_first_failed_at || first_failure_at,
           unsaved_workspace_last_failed_at: now,
           unsaved_workspace_attempt_count: @link.unsaved_workspace_attempt_count.to_i + attempts
@@ -87,10 +105,10 @@ module Coworkers
 
       @link.update!(
         unsaved_workspace_branch: nil, unsaved_workspace_path: nil, unsaved_workspace_error: nil,
-        unsaved_workspace_failure_kind: nil, unsaved_workspace_first_failed_at: nil,
+        unsaved_workspace_failure_kind: nil, unsaved_workspace_operation: nil, unsaved_workspace_first_failed_at: nil,
         unsaved_workspace_last_failed_at: nil, unsaved_workspace_attempt_count: nil,
         unsaved_workspace_notice_message_id: nil, unsaved_workspace_retry_exhausted_at: nil,
-        unsaved_workspace_retry_scheduled_at: nil
+        unsaved_workspace_retry_scheduled_at: nil, unsaved_workspace_retry_token: nil
       )
       @chat_session.messages.create!(
         role: "system", skip_turn_trigger: true,
@@ -102,9 +120,16 @@ module Coworkers
 
     def notice_content
       exhausted = @link.unsaved_workspace_retry_exhausted_at?
+      retry_status = if @link.unsaved_workspace_failure_kind == "permanent"
+        "api.coworkers.retry_manual"
+      elsif exhausted
+        "api.coworkers.retry_stopped"
+      else
+        "api.coworkers.retry_pending"
+      end
       {
         "text" => I18n.t("api.coworkers.unsaved_workspace", path: @link.unsaved_workspace_path,
-          retry_status: I18n.t(exhausted ? "api.coworkers.retry_stopped" : "api.coworkers.retry_pending"),
+          retry_status: I18n.t(retry_status),
           error: @link.unsaved_workspace_error),
         "body_format" => "markdown", "prominent" => true,
         "system_label" => I18n.t("api.coworkers.unsaved_workspace_label"), "system_tone" => "warning",
@@ -114,6 +139,14 @@ module Coworkers
           "first_failed_at" => @link.unsaved_workspace_first_failed_at&.iso8601,
           "last_failed_at" => @link.unsaved_workspace_last_failed_at&.iso8601, "retry_exhausted" => exhausted }
       }
+    end
+
+    def enqueue_retry!(wait: nil)
+      token = SecureRandom.uuid
+      @link.update!(unsaved_workspace_retry_scheduled_at: Time.current, unsaved_workspace_retry_token: token)
+      job = Coworkers::WorkspaceSaveRetryJob
+      job = job.set(wait:) if wait
+      job.perform_later(@link.id, token)
     end
   end
 end

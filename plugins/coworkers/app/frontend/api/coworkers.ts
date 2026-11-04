@@ -59,6 +59,7 @@ export type UnsavedWorkspace = {
   path: string
   last_error: string
   failure_kind: "transient" | "permanent"
+  operation: "chat_branch" | "home_branch"
   first_failed_at: string
   last_failed_at: string
   attempt_count: number

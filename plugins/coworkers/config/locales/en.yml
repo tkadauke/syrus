@@ -16,6 +16,7 @@ en:
       unsaved_workspace_cta: "Review workspace and retry"
       retry_pending: "will retry saving them"
       retry_stopped: "automatic retries have stopped"
+      retry_manual: "needs your attention; use Retry save now to try again"
       workspace_save_resolved: "The coworker workspace has been saved successfully. No local work was lost."
       workspace_save_resolved_label: "Workspace saved"
       workspace_already_saved: "The workspace has already been saved."

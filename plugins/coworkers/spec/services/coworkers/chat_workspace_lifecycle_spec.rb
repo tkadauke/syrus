@@ -133,6 +133,10 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle do
     write(first_path, "SOUL.md", "role: first\n")
     write(second_path, "SOUL.md", "role: second\n")
     first_lifecycle.finalize!
+    second.coworker_chat.update!(
+      unsaved_workspace_branch: "coworkers/chat/#{coworker.id}-#{second.id}",
+      unsaved_workspace_operation: "chat_branch", unsaved_workspace_failure_kind: "transient"
+    )
 
     expect { second_lifecycle.finalize! }.to change(second.messages, :count).by(1)
     conflict = second.messages.last.content.fetch("coworker_workspace_conflict")
@@ -145,6 +149,8 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle do
     expect(second.messages.last.content).to include("system_label" => "Workspace conflict", "system_tone" => "warning")
     expect(second_path.join("SOUL.md").read).to include("<<<<<<<", "role: first", "role: second")
     expect(home_file("SOUL.md")).to eq("role: first\n")
+    expect(second.coworker_chat.reload).to be_unsaved_workspace
+    expect(second.messages.none? { |message| message.content["coworker_workspace_save_resolved"] }).to be(true)
 
     expect { second_lifecycle.finalize! }.to change(second.messages, :count).by(1)
     expect(run_git("status", "--porcelain", chdir: second_path)).to include("UU SOUL.md")
