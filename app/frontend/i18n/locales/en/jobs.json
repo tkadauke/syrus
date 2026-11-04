@@ -1047,5 +1047,19 @@
   "none": "none",
   "authorization_requests_title": "Authorization requests",
   "authorization_requests_description": "Permission decisions related to this Job also appear in the central approval inbox.",
-  "authorization_request_fallback": "Scheduled operation requires permission"
+  "authorization_request_fallback": "Scheduled operation requires permission",
+  "visual_evidence_title": "Visual evidence",
+  "visual_evidence_counts": "{{submitted}} submitted · {{captured}} captured",
+  "visual_evidence_approved_with_evidence": "Approved with evidence",
+  "visual_evidence_approved_without_curated": "Approved without curated evidence.",
+  "visual_evidence_approved_none_captured": "Approved, but no screenshots were captured.",
+  "visual_evidence_none_captured": "No screenshots captured.",
+  "visual_evidence_none_submitted": "No curated evidence was submitted.",
+  "visual_evidence_view_captured": "View captured screenshots",
+  "visual_evidence_show_captured": "Show all captured",
+  "visual_evidence_show_submitted": "Show submitted only",
+  "visual_evidence_unknown_page": "Captured page",
+  "visual_evidence_unknown_viewport": "unknown viewport",
+  "visual_evidence_metadata": "#{{sequence}} · {{viewport}} · {{timestamp}}",
+  "visual_evidence_submission_failed": "Submission failed; capture retained"
 }

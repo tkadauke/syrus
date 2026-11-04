@@ -1047,5 +1047,19 @@
   "none": "keine",
   "authorization_requests_title": "Autorisierungsanfragen",
   "authorization_requests_description": "Berechtigungsentscheidungen für diesen Job erscheinen auch im zentralen Genehmigungseingang.",
-  "authorization_request_fallback": "Geplanter Vorgang benötigt eine Berechtigung"
+  "authorization_request_fallback": "Geplanter Vorgang benötigt eine Berechtigung",
+  "visual_evidence_title": "Visuelle Nachweise",
+  "visual_evidence_counts": "{{submitted}} eingereicht · {{captured}} erfasst",
+  "visual_evidence_approved_with_evidence": "Mit Nachweisen genehmigt",
+  "visual_evidence_approved_without_curated": "Ohne kuratierte Nachweise genehmigt.",
+  "visual_evidence_approved_none_captured": "Genehmigt, aber es wurden keine Screenshots erfasst.",
+  "visual_evidence_none_captured": "Keine Screenshots erfasst.",
+  "visual_evidence_none_submitted": "Es wurden keine kuratierten Nachweise eingereicht.",
+  "visual_evidence_view_captured": "Erfasste Screenshots anzeigen",
+  "visual_evidence_show_captured": "Alle erfassten anzeigen",
+  "visual_evidence_show_submitted": "Nur eingereichte anzeigen",
+  "visual_evidence_unknown_page": "Erfasste Seite",
+  "visual_evidence_unknown_viewport": "unbekannter Viewport",
+  "visual_evidence_metadata": "#{{sequence}} · {{viewport}} · {{timestamp}}",
+  "visual_evidence_submission_failed": "Einreichen fehlgeschlagen; Aufnahme wurde aufbewahrt"
 }

@@ -63,6 +63,26 @@ module Api
           render json: ::App::JobDetailPayload.build(job: find_job, user: Current.user, params: params)
         end
 
+        def visual_evidence
+          job = find_job
+          evidence = WorkflowVisualEvidence.joins(:workflow)
+            .merge(job.workflows)
+            .find_by!(stable_id: params[:evidence_id])
+          raise ActiveRecord::RecordNotFound, "Visual evidence not found" unless evidence.image.attached?
+
+          send_secure_file(
+            evidence.image.download,
+            filename: evidence.image.filename.to_s,
+            type: evidence.image.content_type || "application/octet-stream"
+          )
+        rescue StandardError => e
+          raise unless StorageConnectivity.transient_error?(e)
+
+          response.set_header("Retry-After", StorageConnectivity::RETRY_AFTER_SECONDS.to_s)
+          render json: { error: { code: "storage_unavailable", message: "Visual evidence storage is temporarily unavailable. Please retry shortly." } },
+            status: :service_unavailable
+        end
+
         def unland_plan
           job = find_job
           return unless authorize_job_mutation!(job)

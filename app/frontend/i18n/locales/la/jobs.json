@@ -1047,5 +1047,19 @@
   "none": "nulla",
   "authorization_requests_title": "Petitiones auctoritatis",
   "authorization_requests_description": "Iudicia permissionis ad hoc Opus pertinentia etiam in receptaculo centrali approbationum apparent.",
-  "authorization_request_fallback": "Operatio constituta permissionem requirit"
+  "authorization_request_fallback": "Operatio constituta permissionem requirit",
+  "visual_evidence_title": "Testimonia visualia",
+  "visual_evidence_counts": "{{submitted}} summissa · {{captured}} capta",
+  "visual_evidence_approved_with_evidence": "Cum testimoniis approbatum",
+  "visual_evidence_approved_without_curated": "Sine testimoniis selectis approbatum.",
+  "visual_evidence_approved_none_captured": "Approbatum, sed nullae imagines captae sunt.",
+  "visual_evidence_none_captured": "Nullae imagines captae sunt.",
+  "visual_evidence_none_submitted": "Nulla testimonia selecta summissa sunt.",
+  "visual_evidence_view_captured": "Imagines captas vide",
+  "visual_evidence_show_captured": "Omnes captas ostende",
+  "visual_evidence_show_submitted": "Summissas tantum ostende",
+  "visual_evidence_unknown_page": "Pagina capta",
+  "visual_evidence_unknown_viewport": "dimensio ignota",
+  "visual_evidence_metadata": "#{{sequence}} · {{viewport}} · {{timestamp}}",
+  "visual_evidence_submission_failed": "Summissio defecit; imago servata est"
 }

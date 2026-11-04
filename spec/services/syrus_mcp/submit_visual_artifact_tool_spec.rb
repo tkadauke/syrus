@@ -26,7 +26,7 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
     evidence = run.workflow.visual_evidences.create!(
       run: run, step: run.step, sequence: 1, status: "draft", captured_at: Time.current,
       content_digest: Digest::SHA256.hexdigest(png_bytes), page_identity: { "url" => "/orders" },
-      viewport: { "width" => 390, "height" => 844 }
+      viewport: { "width" => 390, "height" => 844 }, submission_failed_at: 1.minute.ago
     )
     evidence.image.attach(io: StringIO.new(png_bytes), filename: "capture.png", content_type: "image/png")
 
@@ -34,6 +34,7 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
 
     expect(response).not_to be_error
     expect(evidence.reload.status).to eq("submitted")
+    expect(evidence.submission_failed_at).to be_nil
     expect(evidence.image).to be_attached
     stored_type = run.workflow.reload.artifact("typed_artifacts").last.fetch("type")
     expect(run.workflow.visual_artifact_for(stored_type).download).to eq(png_bytes)
@@ -51,6 +52,7 @@ RSpec.describe SyrusMcp::SubmitVisualArtifactTool do
 
     expect(response).to be_error
     expect(evidence.reload.status).to eq("draft")
+    expect(evidence.submission_failed_at).to be_present
     expect(evidence.image).to be_attached
   end
 

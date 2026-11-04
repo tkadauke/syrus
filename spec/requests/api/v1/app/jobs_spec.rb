@@ -70,6 +70,35 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       .update_all(state: "succeeded", finished_at: Time.current, blocked_reason: nil, blocked_until: nil, blocked_details: {})
   end
 
+  it "returns curated and retained visual evidence and serves images through Job authorization" do
+    workflow = job.workflows.first
+    run = workflow.runs.first
+    evidence = workflow.visual_evidences.create!(
+      run: run, step: run.step, sequence: 1, status: "draft", captured_at: Time.zone.parse("2026-11-04 10:00:00"),
+      page_identity: { "path" => "/dashboard", "title" => "Dashboard" },
+      viewport: { "width" => 390, "height" => 844 }, content_digest: "digest", submission_failed_at: Time.current
+    )
+    evidence.image.attach(io: StringIO.new("png-data"), filename: "dashboard.png", content_type: "image/png")
+
+    get "/api/v1/app/jobs/#{job.id}"
+
+    expect(response).to have_http_status(:ok)
+    gallery = parse_body.fetch("visual_evidence")
+    expect(gallery).to include("captured_count" => 1, "submitted_count" => 0)
+    expect(gallery.fetch("screenshots").first).to include(
+      "id" => evidence.stable_id, "sequence" => 1, "status" => "draft", "submission_failed" => true,
+      "page" => { "path" => "/dashboard", "title" => "Dashboard" }, "viewport" => { "width" => 390, "height" => 844 }
+    )
+
+    get gallery.fetch("screenshots").first.fetch("image_url")
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to eq("png-data")
+
+    sign_in_as(Factories.user)
+    get gallery.fetch("screenshots").first.fetch("image_url")
+    expect(response).to have_http_status(:not_found)
+  end
+
   it "rejects Job unland preflight and mutation without resolving commits while the flag is off" do
     original = Factories.job_record(
       user: user, repository: repo, state: "closed", closure_reason: "pr_merged", landed_sha: "landed"

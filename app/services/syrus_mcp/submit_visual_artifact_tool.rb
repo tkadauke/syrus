@@ -159,11 +159,18 @@ module SyrusMcp
 
         MCP::Tool::Response.new([ { type: "text", text: "Saved as artifact type #{stored_type.inspect}. Reference this exact type from submit_report to include it in the report." } ])
       rescue StandardError => e
+        record_submission_failure(captured)
         Rails.logger.error("[SyrusMcp::SubmitVisualArtifactTool] #{e.class}: #{e.message}")
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
       end
 
       private
+
+      def record_submission_failure(captured)
+        captured&.dig(:evidence)&.mark_submission_failed!
+      rescue StandardError => e
+        Rails.logger.warn("[SyrusMcp::SubmitVisualArtifactTool] Could not record submission failure: #{e.class}: #{e.message}")
+      end
 
       # Returns decoded bytes (possibly empty, for blank/empty input — the
       # caller distinguishes "" from nil to give a more specific error) or

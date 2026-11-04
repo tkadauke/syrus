@@ -4544,6 +4544,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_162251) do
     t.string "content_digest", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.datetime "submission_failed_at"
     t.index ["run_id", "content_digest"], name: "index_workflow_visual_evidences_on_run_id_and_content_digest"
     t.index ["run_id", "sequence"], name: "index_workflow_visual_evidences_on_run_id_and_sequence", unique: true
     t.index ["run_id"], name: "index_workflow_visual_evidences_on_run_id"
