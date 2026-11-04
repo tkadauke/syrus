@@ -4,10 +4,12 @@ import { useEffect, useMemo, useState } from "react"
 import { Link, useLocation, useSearchParams } from "react-router-dom"
 import {
   applyPermissionBulk,
+  applyPermissionProfile,
   applyPermissionPreset,
   fetchPermissionHistory,
   fetchPermissions,
   previewPermissionBulk,
+  previewPermissionProfile,
   revokePermissionRule,
   type InheritedPermission,
   type PermissionBulkOperation,
@@ -21,6 +23,7 @@ import { PermissionRuleEditor, type RuleEditorSeed } from "../components/Permiss
 import { Modal } from "../components/Modal"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { PanelMessage } from "../components/PanelMessage"
+import { Select } from "../components/Select"
 import { Checkbox, DataTable } from "../components/ui"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
@@ -52,6 +55,11 @@ export function PermissionsSettingsRoute() {
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
   const [selectedRuleIds, setSelectedRuleIds] = useState<number[]>([])
   const [preview, setPreview] = useState<{ rows: PermissionPreview[]; digest: string; operations: PermissionBulkOperation[] } | null>(null)
+  const [profileSubject, setProfileSubject] = useState<Subject>("interactive_chat")
+  const [profilePreview, setProfilePreview] = useState<{
+    preview: Awaited<ReturnType<typeof previewPermissionProfile>>["preview"]
+    digest: string
+  } | null>(null)
   const role = roleFor(subject)
   // Capabilities that can carry a standing (permanent) rule for some role.
   const authorableCapabilities = useMemo(() => descriptors.filter((item) => item.requestable_roles.length > 0), [descriptors])
@@ -80,6 +88,17 @@ export function PermissionsSettingsRoute() {
       setPreview(null)
       setSelectedKeys([])
       setSelectedRuleIds([])
+      void refresh()
+    }
+  })
+  const loadProfilePreview = useMutation({
+    mutationFn: (profile: string) => previewPermissionProfile(profile, profileSubject),
+    onSuccess: (result) => setProfilePreview({ preview: result.preview, digest: result.confirmation_digest })
+  })
+  const applyProfile = useMutation({
+    mutationFn: () => applyPermissionProfile(profilePreview!.preview.profile.key, profileSubject, profilePreview!.digest),
+    onSuccess: () => {
+      setProfilePreview(null)
       void refresh()
     }
   })
@@ -151,6 +170,60 @@ export function PermissionsSettingsRoute() {
           {t("permissions.approvals_link")}
         </Link>
       </header>
+      {query.data ? (
+        <section aria-labelledby="permission-profile-heading" className="rounded-xl border border-border bg-surface-raised p-5">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <SectionHeading id="permission-profile-heading">{t("permissions.profile_title")}</SectionHeading>
+              <p className="mt-1 max-w-3xl text-sm text-text-secondary">{t("permissions.profile_help")}</p>
+            </div>
+            <label className="text-sm font-medium text-text-secondary">
+              {t("permissions.profile_for")}
+              <Select
+                className="ml-2"
+                fullWidth={false}
+                onChange={(event) => {
+                  setProfileSubject(event.target.value as Subject)
+                  setProfilePreview(null)
+                }}
+                value={profileSubject}
+              >
+                {subjects.map((item) => (
+                  <option key={item} value={item}>
+                    {t(`permissions.subjects.${item}`)}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {query.data.profiles.map((profile) => {
+              const selected = query.data.current_profiles[profileSubject] === profile.key
+              return (
+                <article className={`rounded-lg border p-4 ${selected ? "border-brand bg-brand-subtle" : "border-border bg-surface"}`} key={profile.key}>
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="font-semibold text-text-primary">{profileCopy(profile, "name", t)}</h3>
+                    {selected ? <span className="text-xs font-medium text-brand">{t("permissions.profile_active")}</span> : null}
+                  </div>
+                  <p className="mt-2 text-sm text-text-secondary">{profileCopy(profile, "description", t)}</p>
+                  <p className="mt-3 text-xs text-text-muted">{profileCopy(profile, "boundary", t)}</p>
+                  <button
+                    className="mt-3 rounded-md border border-brand px-3 py-1.5 text-sm font-semibold text-brand disabled:opacity-60"
+                    disabled={selected || loadProfilePreview.isPending || applyProfile.isPending}
+                    onClick={() => loadProfilePreview.mutate(profile.key)}
+                    type="button"
+                  >
+                    {selected ? t("permissions.profile_selected") : t("permissions.profile_select")}
+                  </button>
+                </article>
+              )
+            })}
+          </div>
+          {loadProfilePreview.isError || applyProfile.isError ? (
+            <PanelMessage tone="error">{errorMessage(loadProfilePreview.error || applyProfile.error, t("permissions.profile_error"))}</PanelMessage>
+          ) : null}
+        </section>
+      ) : null}
       {query.isError ? <PanelMessage tone="error">{t("permissions.load_error")}</PanelMessage> : null}
       {bulkPreview.isError || bulkApply.isError ? (
         <PanelMessage tone="error">{errorMessage(bulkPreview.error || bulkApply.error, t("permissions.create_error"))}</PanelMessage>
@@ -326,9 +399,91 @@ export function PermissionsSettingsRoute() {
           ))}
         </div>
       </section>
+      <Modal label={t("permissions.profile_confirm_title")} onClose={() => setProfilePreview(null)} open={Boolean(profilePreview)}>
+        {profilePreview ? (
+          <div className="space-y-4">
+            <SectionHeading>
+              {t("permissions.profile_confirm_selection", {
+                profile: profileCopy(profilePreview.preview.profile, "name", t),
+                subject: t(`permissions.subjects.${profileSubject}`)
+              })}
+            </SectionHeading>
+            <p className="text-sm text-text-secondary">{t("permissions.profile_confirm_body", { subject: t(`permissions.subjects.${profileSubject}`) })}</p>
+            <div className="grid gap-3 md:grid-cols-2">
+              <ProfileRuleList
+                empty={t("permissions.profile_no_revocations")}
+                heading={t("permissions.profile_revoked", { count: profilePreview.preview.revoked.length })}
+                rows={profilePreview.preview.revoked}
+                t={t}
+              />
+              <ProfileRuleList
+                empty={t("permissions.profile_no_replacements")}
+                heading={t("permissions.profile_replacements", { count: profilePreview.preview.replacements.length })}
+                rows={profilePreview.preview.replacements}
+                t={t}
+              />
+            </div>
+            <p className="rounded-lg bg-warning-surface p-3 text-sm text-warning-text">{t("permissions.profile_confirm_boundary")}</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-on-brand"
+                disabled={applyProfile.isPending}
+                onClick={() => applyProfile.mutate()}
+                type="button"
+              >
+                {applyProfile.isPending ? t("permissions.profile_applying") : t("permissions.profile_confirm")}
+              </button>
+              <button
+                className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-text-secondary"
+                disabled={applyProfile.isPending}
+                onClick={() => setProfilePreview(null)}
+                type="button"
+              >
+                {t("permissions.profile_cancel")}
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
       <BulkPreviewModal applying={bulkApply.isPending} onClose={() => setPreview(null)} onConfirm={() => bulkApply.mutate()} preview={preview} t={t} />
     </main>
   )
+}
+
+type ProfileRuleRow = { policy: string; capability: string; operation: string | null; resource_scope_label: string }
+
+function ProfileRuleList({ empty, heading, rows, t }: { empty: string; heading: string; rows: ProfileRuleRow[]; t: Translate }) {
+  return (
+    <section className="rounded-lg border border-border p-3">
+      <h3 className="text-sm font-semibold text-text-primary">{heading}</h3>
+      {rows.length ? (
+        <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto">
+          {rows.map((row, index) => (
+            <li className="text-xs text-text-secondary" key={`${row.capability}-${row.operation}-${index}`}>
+              <strong>{t(`permissions.states.${row.policy}`)}</strong> · {row.capability} · {row.operation || t("permissions.all_operations")}
+              <br />
+              <span className="text-text-muted">{row.resource_scope_label}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-xs text-text-muted">{empty}</p>
+      )}
+    </section>
+  )
+}
+
+const profileTranslationKeys: Record<string, "full_access" | "ask_on_first_use" | "restricted"> = {
+  "full_access@v1": "full_access",
+  "ask_on_first_use@v1": "ask_on_first_use",
+  "restricted@v1": "restricted"
+}
+
+function profileCopy(profile: { key: string; label: string; description: string }, kind: "name" | "description" | "boundary", t: Translate) {
+  const key = profileTranslationKeys[profile.key]
+  if (!key) return kind === "name" ? profile.label : profile.description
+  const group = kind === "name" ? "profile_names" : kind === "description" ? "profile_descriptions" : "profile_boundaries"
+  return t(`permissions.${group}.${key}`)
 }
 
 function ResourceView({ rules, t }: { rules: PermissionRule[]; t: Translate }) {

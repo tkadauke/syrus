@@ -422,6 +422,8 @@ Rails.application.routes.draw do
         end
         resources :permission_rules, only: %i[ index create ] do
           collection do
+            post :preview_profile
+            post :apply_profile
             get :history
             post :apply_preset
             post :preview_bulk
