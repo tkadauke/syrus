@@ -44,7 +44,7 @@ module Mcp::Tools
       end
 
       def actor_permissions_enforced?(server_context)
-        server_context&.[](:permission_enforcement) == true
+        server_context&.[](:permission_enforcement) == true || server_context&.key?(:run_id)
       end
 
       def with_server_context(server_context)

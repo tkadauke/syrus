@@ -2,8 +2,9 @@ module Permissions
   class Catalog
     class UnknownCapability < ArgumentError; end
 
-    def self.descriptors
-      existing = (McpToolRegistry.entries.map(&:descriptor) + plugin_tool_descriptors + ExecutionActions.descriptors)
+    def self.descriptors(surface: nil)
+      entries = surface ? McpToolRegistry.entries(surface:) : McpToolRegistry.entries
+      existing = (entries.map(&:descriptor) + plugin_tool_descriptors + ExecutionActions.descriptors)
         .uniq { |descriptor| [ descriptor.capability, descriptor.operation ] }
       (existing + permission_provider_descriptors)
         .group_by { |descriptor| [ descriptor.capability, descriptor.operation ] }
@@ -39,8 +40,8 @@ module Permissions
       end.freeze
     end
 
-    def self.find!(capability:, operation: nil)
-      matches = descriptors.select { |descriptor| descriptor.capability == capability.to_s }
+    def self.find!(capability:, operation: nil, surface: nil)
+      matches = descriptors(surface:).select { |descriptor| descriptor.capability == capability.to_s }
       matches.select! { |descriptor| descriptor.operation == operation.to_s } if operation.present?
       raise UnknownCapability, "unknown permission capability or operation" unless matches.one?
 

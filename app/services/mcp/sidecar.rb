@@ -87,7 +87,7 @@ module Mcp
             context.role == AgentRole::COWORKER ? tools : tools + plugin_workflow_tools_for(context)
           end
         },
-        server_context: -> { { run_id: run_id, permission_enforcement: true } }
+        server_context: -> { { run_id: run_id } }
       )
     end
 

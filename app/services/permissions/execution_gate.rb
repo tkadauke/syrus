@@ -26,7 +26,7 @@ module Permissions
       # even when observability attributes them to a Job. Ceilings and explicit
       # denies still apply, but only an identified agent can answer an ask or
       # hold an invocation lease.
-      return if request.agent.blank? && result.ask?
+      return if request.agent.blank? && owner.present? && result.ask?
 
       @logger.info("[permissions] execution requires approval: #{ExecutionActions.descriptor_for(location).redact(ExecutionActions.arguments_for(subject)).to_json}") if result.ask?
       result

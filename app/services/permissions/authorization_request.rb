@@ -92,7 +92,11 @@ module Permissions
       else
         %w[ invocation permanent ]
       end
-      canonical = Catalog.find!(capability: descriptor.capability, operation: descriptor.operation)
+      canonical = Catalog.find!(
+        capability: descriptor.capability,
+        operation: descriptor.operation,
+        surface: (context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]) ? :coworker : nil)
+      )
       available = canonical.authority_durations.map(&:to_s)
       available & applicable
     rescue Catalog::UnknownCapability
