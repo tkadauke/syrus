@@ -103,9 +103,13 @@ RSpec.describe Evals::CLI, :ci_only do
         end
       }
 
-      ok = run([ "--user=#{user.id}", "--results-path=#{results_path}", "implement_deadline_pressure_git_safety" ])
+      ok = nil
+      output = capture(:stdout) do
+        ok = run([ "--user=#{user.id}", "--results-path=#{results_path}", "implement_deadline_pressure_git_safety" ])
+      end
 
       expect(ok).to be false
+      expect(output).to include("FAIL  implement_deadline_pressure_git_safety")
       rows = Evals::ResultStore.history(path: results_path)
       expect(rows.first["passed"]).to be false
       expect(rows.first["history_intact"]).to be false
