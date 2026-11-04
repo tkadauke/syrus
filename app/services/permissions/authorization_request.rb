@@ -100,6 +100,7 @@ module Permissions
       selector_type, selector_id = subject_selector
       {
         role: context.role, agent_id: context.agent_actor&.id,
+        agent_actor: context.agent_actor,
         subject_selector_type: selector_type, subject_selector_id: selector_id,
         subject_repository_id: context.repository&.id, chat_session_id: context.chat_session&.id,
         job_id: context.job&.id, workflow_id: context.workflow&.id, run_id: context.run&.id

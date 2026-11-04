@@ -74,13 +74,7 @@ class McpToolRegistry
 
     def entries_for_context(context, surface: nil, tier: nil)
       candidates = matching_entries(surface: surface, tier: tier)
-      allowed = candidates.select { |entry| allowed_entry?(entry, context) }
-      begin
-        Permissions::ShadowEvaluator.compare(entries: candidates, context:, current_entries: allowed)
-      rescue StandardError => error
-        Rails.logger.warn("[McpToolRegistry] permission shadow evaluation failed: #{error.class}: #{error.message}")
-      end
-      allowed
+      candidates.select { |entry| allowed_entry?(entry, context) }
     end
 
     def tools_for_context(context, surface: nil, tier: nil)
