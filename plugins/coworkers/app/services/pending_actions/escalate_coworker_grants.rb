@@ -6,7 +6,7 @@ module PendingActions
     def execute
       progress!("Updating coworker grants...")
       coworker = Coworkers::OwnerResolver.new(owner: user).find!(id: payload.fetch("coworker_id"))
-      Coworkers::Grant.transaction do
+      PermissionRule.transaction do
         payload.fetch("grants").each do |change|
           scope = change.key?("scope") ? { scope: change["scope"] } : {}
           Coworkers::GrantUpdate.call(owner: user, coworker: coworker, capability: change.fetch("capability"),

@@ -157,7 +157,12 @@ class Coworkers::Create
       owner_user: @owner, name: @name, handle: @handle,
       workspace_repo: repository.remote_url, role_summary: role_summary
     }.merge(@attributes))
-    selected_grants.each { |grant| coworker.grants.create!(grant) }
+    selected_grants.each do |grant|
+      coworker.permission_rules.update!(
+        capability: grant.fetch(:capability), approval_policy: grant.fetch(:approval_policy),
+        scope: grant[:scope], actor: @owner, provenance: { "coworker_creation" => true }
+      )
+    end
     Coworkers::AvatarUpload.attach!(coworker, @avatar) if @avatar
     # Phase 1 attaches the workspace Repository directly to the main chat. The
     # per-chat coworker branch and merge-at-turn-end flow replaces this in Phase 3.

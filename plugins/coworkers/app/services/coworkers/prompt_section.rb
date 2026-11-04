@@ -70,28 +70,28 @@ class Coworkers::PromptSection
   end
 
   def self.grant_section(coworker)
-    held = coworker.grants.index_by(&:capability)
+    held = coworker.permission_rules.entries.index_by { |entry| entry.fetch(:capability) }
     lines = Coworkers::GrantCatalog.all.sort_by(&:name).map do |descriptor|
       grant = held[descriptor.name]
       tools = descriptor.tools.presence&.join(", ") || "no tools currently registered"
       availability = Coworkers::PrivilegedGrantGate.availability(descriptor)
       if !availability.available?
         "- `#{descriptor.name}` — unavailable (#{availability.reason}); tools withheld"
-      elsif grant
-        scope = grant.scope.nil? ? "" : "; scope: #{descriptor.scope_label(grant.scope)}"
-        "- `#{descriptor.name}` — held (#{grant.approval_policy}#{scope}); unlocks: #{tools}"
+      elsif grant && grant[:approval_policy] != "off"
+        scope = grant[:scope].nil? ? "" : "; scope: #{descriptor.scope_label(grant[:scope])}"
+        "- `#{descriptor.name}` — #{grant[:approval_policy]} by canonical permission rule#{scope}; tools: #{tools}"
       else
         "- `#{descriptor.name}` — not held; unlocks: #{tools}"
       end
     end
     code_access = held["code.read"]
-    repository_line = if code_access
+    repository_line = if code_access && code_access[:approval_policy] != "off"
       descriptor = Coworkers::GrantCatalog.fetch("code.read")
-      "You may read #{descriptor.scope_label(code_access.scope)}. You may propose Jobs to change those repositories, but never edit their code."
+      "You may read #{descriptor.scope_label(code_access[:scope])}. You may propose Jobs to change those repositories, but never edit their code."
     else
       "You cannot read product repositories unless your owner grants `code.read`. You may propose Jobs, but never edit product code."
     end
-    "### Tool grants\n\n#{repository_line}\n\nYour available tools are still determined by these grants. If a needed tool is missing, ask your owner for the named grant.\n\n#{lines.join("\n")}"
+    "### Permissions\n\n#{repository_line}\n\nCanonical permission rules determine whether tools run automatically, ask first, or are denied. If a needed capability is blocked, request that permission from your owner.\n\n#{lines.join("\n")}"
   end
 
   def self.conflict_section(chat_session:, repository:, root:)

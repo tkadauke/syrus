@@ -263,6 +263,12 @@ fails closed, and `ask` creates one exact-operation request containing a
 redacted argument snapshot and stable invocation fingerprint. Equivalent active
 requests deduplicate.
 
+The coworker cutover translates each historical grant into operation-level,
+exact-agent rules. Migration provenance records the legacy row ID, preserves
+the old row for audit and rollback diagnosis, and makes reruns idempotent.
+Rollback revokes only rules created by that migration. New coworker creation
+and permission edits never write the legacy table.
+
 Approval creates an invocation-only lease and an `AuthorizedInvocation` before
 enqueueing execution. The worker atomically claims that record, re-evaluates the
 current rule and lease chain under the claim lock, and dispatches only for a new
