@@ -58,7 +58,7 @@ module Permissions
       @fresh_authentication_window = fresh_authentication_window
       @budget_dimensions = Array(budget_dimensions).map(&:to_sym).uniq.freeze
       @benign_internal = benign_internal&.to_sym
-      @tool_set_bundle = (tool_set_bundle || ToolSetBundles.classify(@effects)).to_s.freeze
+      @tool_set_bundle = (tool_set_bundle.presence || ToolSetBundles.classify(@effects)).to_s.freeze
       @capability_aliases = aliases(capability_aliases, :capability_aliases)
       @operation_aliases = aliases(operation_aliases, :operation_aliases)
       validate!
@@ -148,8 +148,8 @@ module Permissions
       unknown_budget = budget_dimensions - BUDGET_DIMENSIONS
       raise ArgumentError, "unknown budget dimensions: #{unknown_budget.join(', ')}" if unknown_budget.any?
       ToolSetBundles.fetch(tool_set_bundle)
-      expected_bundle = ToolSetBundles.classify(effects)
-      if tool_set_bundle != expected_bundle
+      expected_bundle = ToolSetBundles.classify(effects) if effects.present?
+      if expected_bundle && tool_set_bundle != expected_bundle
         raise ArgumentError, "tool-set bundle #{tool_set_bundle.inspect} conflicts with effect-derived #{expected_bundle.inspect}"
       end
       if benign_internal

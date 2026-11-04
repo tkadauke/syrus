@@ -129,6 +129,7 @@ RSpec.describe Permissions::CapabilityUpgradeValidator do
       operation: "example.data/read@v2",
       operation_aliases: [ "example.data/read@v1" ],
       effects: [],
+      tool_set_bundle: "knowledge@v1",
       defaults: { chat_planner: :deny },
       maximum_autonomy: :invocation,
       authority_durations: [ :invocation ],
