@@ -31,6 +31,11 @@ module Permissions
         purpose: "Run #{McpToolRegistry.tool_name_for(tool)} for scheduled work",
         capability: decision.invocation.capability, operation: decision.invocation.operation,
         occurrence_metadata: { run_id: context.run.id, scheduled_task_id: context.job.scheduled_task_id },
+        action: "authorized_tool_call",
+        payload: {
+          "tool_name" => McpToolRegistry.tool_name_for(tool), "arguments" => arguments.stringify_keys,
+          "run_id" => context.run.id, "approval_policy" => "queue", "approval_inbox" => true
+        },
         item_attributes: item_attributes(descriptor, decision, fingerprint)
       )
       checkpoint!(result.request) if result.created?

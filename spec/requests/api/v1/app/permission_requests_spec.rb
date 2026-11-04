@@ -164,6 +164,31 @@ RSpec.describe "API: /api/v1/app/permission_requests", type: :request do
     expect([ first.reload.state, second.reload.state ]).to eq(%w[pending pending])
   end
 
+  it "rolls back every executable request when a later decision fails" do
+    first = executable_authorization_request("batch-executable-first")
+    second = executable_authorization_request("batch-executable-second")
+    calls = 0
+    allow(Permissions::AuthorizationDecision).to receive(:new) do |request:, item:, user:|
+      Struct.new(:request, :item, :user) do
+        define_method(:call) do |decision:|
+          calls += 1
+          raise ArgumentError, "stale executable request" if calls == 2
+
+          item.decide!(decision, principal: user, duration: "invocation")
+          request.update!(state: "confirmed")
+        end
+      end.new(request, item, user)
+    end
+
+    post "/api/v1/app/permission_requests/batch_decide",
+      params: { request_ids: [ first.id, second.id ], decision: "approved", duration: "invocation" }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect([ first.reload.state, second.reload.state ]).to eq(%w[pending pending])
+    expect(first.authorization_items.sole.reload).to be_pending
+    expect(second.authorization_items.sole.reload).to be_pending
+  end
+
   it "dismisses an obsolete non-actionable request without creating a denial" do
     request = authorization_request
     item = request.authorization_items.create!(item_attributes)
@@ -255,6 +280,18 @@ RSpec.describe "API: /api/v1/app/permission_requests", type: :request do
     ChatPendingAction.create!(request_kind: "authorization_request", user:, repository:, origin: job,
       subject: user, runtime_role: "implementer", purpose: "Publish a status update",
       deduplication_key:)
+  end
+
+  def executable_authorization_request(deduplication_key)
+    authorization_request(deduplication_key:).tap do |request|
+      request.update!(
+        action: "authorized_tool_call",
+        payload: { "tool_name" => "send_external_message", "arguments" => {} }
+      )
+      request.authorization_items.create!(item_attributes.merge(
+        invocation_fingerprint: "fingerprint-#{deduplication_key}"
+      ))
+    end
   end
 
   def item_attributes
