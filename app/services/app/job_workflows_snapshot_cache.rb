@@ -61,6 +61,7 @@ module App
         provider_session_stats,
         run_diagnostic_stats,
         run_failure_classification_stats,
+        review_evidence_stats,
         @page,
         @admin
       ].join(":")
@@ -121,6 +122,10 @@ module App
 
     def run_child_stats_for(model, table_name)
       stats_for(run_child_scope_for(model, table_name), table_name)
+    end
+
+    def review_evidence_stats
+      run_child_stats_for(ReviewEvidence, "review_evidences")
     end
 
     def run_child_scope_for(model, table_name)

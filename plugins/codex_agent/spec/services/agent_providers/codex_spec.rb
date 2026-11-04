@@ -43,6 +43,12 @@ RSpec.describe AgentProviders::Codex do
     end
   end
 
+  it "resolves its configured default model for immutable provenance" do
+    allow(CodexInvocation).to receive(:configured_model).and_return("gpt-configured")
+
+    expect(described_class.resolve_model(nil)).to eq("gpt-configured")
+  end
+
   describe ".refresh_stale_usage!" do
     it "refreshes when the user is on chatgpt_login and the probe is stale" do
       user = Factories.user(codex_auth_mode: "chatgpt_login")
