@@ -95,7 +95,6 @@ ceilings permit it; the waiting invocation still resumes once through its
 fingerprinted token. A `deny` decision returns the evaluator explanation and
 creates no request. Tools that already create a separately confirmed proposal
 or transaction keep that existing confirmation as their sole approval boundary.
-
 Coworker authorization cards (in chat and in the inbox) default to three
 decisions: Allow once, an adaptive action, and Deny. The adaptive action is
 derived from the capability descriptor and the canonical rule draft, never from
