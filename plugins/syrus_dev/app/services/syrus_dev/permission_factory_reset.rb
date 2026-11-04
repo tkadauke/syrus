@@ -27,13 +27,13 @@ module SyrusDev
     end
 
     def preview
-      counts = preview_counts
+      snapshot = preview_snapshot
       Preview.new(
         scope_type: scope.key,
         scope_id: scope.id,
         default_version: DEFAULT_VERSION,
-        counts:,
-        confirmation_digest: digest(counts)
+        counts: snapshot.fetch(:counts),
+        confirmation_digest: digest(snapshot)
       )
     end
 
@@ -49,8 +49,9 @@ module SyrusDev
 
       counts = nil
       ApplicationRecord.transaction do
-        counts = preview_counts(lock: true)
-        raise ArgumentError, "permission reset preview is stale" unless secure_digest_match?(confirmation_digest, digest(counts))
+        snapshot = preview_snapshot(lock: true)
+        counts = snapshot.fetch(:counts)
+        raise ArgumentError, "permission reset preview is stale" unless secure_digest_match?(confirmation_digest, digest(snapshot))
 
         revoke_rules!
         revoke_leases!
@@ -69,10 +70,18 @@ module SyrusDev
 
     attr_reader :scope, :initiated_by
 
-    def preview_counts(lock: false)
+    def preview_snapshot(lock: false)
       relations = affected_relations
-      relations.transform_values! { |relation| relation.lock.load } if lock
-      {
+      fingerprint_relations = relations.merge(
+        active_rules: scope.rules.active,
+        pending_authorization_items: PendingActionItem.pending.where(
+          chat_pending_action_id: relations.fetch(:requests).select(:id)
+        ),
+        profile_users: scope.profile_users
+      )
+      fingerprint_relations.each_value { |relation| relation.lock.load } if lock
+
+      counts = {
         "rules" => relations.fetch(:rules).size,
         "leases" => relations.fetch(:leases).size,
         "authorized_invocations" => relations.fetch(:invocations).size,
@@ -82,6 +91,13 @@ module SyrusDev
         "factory_rules_to_create" => factory_rules_to_create_count,
         "factory_presets_to_create" => DEFAULT_PRESETS.size
       }.freeze
+      state = fingerprint_relations.to_h do |name, relation|
+        records = relation.sort_by(&:id).map do |record|
+          name == :profile_users ? { "id" => record.id } : record.attributes.sort.to_h
+        end
+        [ name, records ]
+      end
+      { counts:, state: }
     end
 
     def affected_relations
@@ -206,8 +222,8 @@ module SyrusDev
 
     def factory_source = "#{Permissions::Management::PROFILE_SOURCE_PREFIX}#{DEFAULT_PROFILE}"
 
-    def digest(counts)
-      Digest::SHA256.hexdigest([ scope.key, scope.id, DEFAULT_VERSION, counts.sort ].to_json)
+    def digest(snapshot)
+      Digest::SHA256.hexdigest([ scope.key, scope.id, DEFAULT_VERSION, snapshot ].to_json)
     end
 
     def secure_digest_match?(provided, expected)
