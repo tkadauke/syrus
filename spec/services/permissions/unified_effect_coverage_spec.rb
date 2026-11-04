@@ -20,7 +20,15 @@ module UnifiedEffectCoverage
   # Derived from the authoritative sources, so a new operation is covered
   # without editing this file: explicit descriptors on core MCP entries,
   # plugin-provided descriptors, and the execution effects that have no tool.
+  #
+  # Memoized: building the list walks the whole MCP registry and permission
+  # catalog, and every example (several of them per effect) asks for it. The
+  # registries are fixed for the life of the process, so one build is enough.
   def self.effects
+    @effects ||= build_effects.freeze
+  end
+
+  def self.build_effects
     explicit_core = McpToolRegistry.entries.select(&:explicit_descriptor)
     tools = explicit_core.group_by { |entry| entry.descriptor.operation }.transform_values { |entries| entries.map(&:tool_name).uniq }
     Permissions::Catalog.descriptors.select { |descriptor| consequential?(descriptor) }.map do |descriptor|
