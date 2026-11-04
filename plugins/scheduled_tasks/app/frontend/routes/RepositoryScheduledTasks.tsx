@@ -45,11 +45,15 @@ export function RepositoryScheduledTasksRoute() {
     <RepositoryPageShell
       activeTab="scheduled_tasks.repository"
       ariaLabel={t("aria_repo_scheduled_tasks")}
-      heading={payload ? (
-        <PageHeading mono>
-          <Link className="hover:underline" to={`${prefix}${payload.repository.repository_path}`}>{payload.repository.slug}</Link>
-        </PageHeading>
-      ) : null}
+      heading={
+        payload ? (
+          <PageHeading mono>
+            <Link className="hover:underline" to={`${prefix}${payload.repository.repository_path}`}>
+              {payload.repository.slug}
+            </Link>
+          </PageHeading>
+        ) : null
+      }
       prefix={prefix}
       tabs={payload?.tabs ?? []}
     >
@@ -67,7 +71,8 @@ function RepositoryScheduledTasksView({ payload, prefix }: { payload: Repository
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const queryKey = ["repositories", String(payload.repository.id), "scheduled_tasks"] as const
   const toggle = useMutation({
-    mutationFn: ({ task, enabled }: { task: RepositoryScheduledTask; enabled: boolean }) => updateRepositoryScheduledTask(payload.repository.id, task.id, enabled),
+    mutationFn: ({ task, enabled }: { task: RepositoryScheduledTask; enabled: boolean }) =>
+      updateRepositoryScheduledTask(payload.repository.id, task.id, enabled),
     onSuccess: (updated) => {
       setNotice(updated.message || null)
       queryClient.setQueryData(queryKey, updated)
@@ -87,7 +92,9 @@ function RepositoryScheduledTasksView({ payload, prefix }: { payload: Repository
     <>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <SectionHeading>{t("scheduled_tasks.heading")}</SectionHeading>
-        <Link className={buttonClasses("primary")} to={`${prefix}/repositories/${payload.repository.id}/scheduled_tasks/new`}>{t("scheduled_tasks.new_task")}</Link>
+        <Link className={buttonClasses("primary")} to={`${prefix}/repositories/${payload.repository.id}/scheduled_tasks/new`}>
+          {t("scheduled_tasks.new_task")}
+        </Link>
       </div>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
@@ -100,7 +107,15 @@ function RepositoryScheduledTasksView({ payload, prefix }: { payload: Repository
         </section>
       ) : (
         <AdminEventLogTable
-          columns={repositoryTaskColumns({ confirm, destroyPending: destroy.isPending, onDelete: (task) => destroy.mutate(task), onToggle: (task) => toggle.mutate({ task, enabled: !task.active }), prefix, t, togglePending: toggle.isPending })}
+          columns={repositoryTaskColumns({
+            confirm,
+            destroyPending: destroy.isPending,
+            onDelete: (task) => destroy.mutate(task),
+            onToggle: (task) => toggle.mutate({ task, enabled: !task.active }),
+            prefix,
+            t,
+            togglePending: toggle.isPending
+          })}
           defaultSort={{ column: "name", direction: "asc" }}
           getRowKey={(task) => task.id}
           localSort
@@ -137,20 +152,38 @@ function repositoryTaskColumns({
       header: t("scheduled_tasks.name"),
       render: (task) => (
         <>
-          <Link className="font-medium text-brand underline hover:no-underline dark:text-brand-emphasis" to={`${prefix}/scheduled_tasks/${task.id}`}>{task.name}</Link>
-          {task.system_key ? <span className="ml-2 rounded bg-surface-muted px-2 py-0.5 text-xs text-text-secondary">{t("scheduled_tasks.system")}</span> : null}
+          <Link className="font-medium text-brand underline hover:no-underline dark:text-brand-emphasis" to={`${prefix}/scheduled_tasks/${task.id}`}>
+            {task.name}
+          </Link>
+          {task.system_key ? (
+            <span className="ml-2 rounded bg-surface-muted px-2 py-0.5 text-xs text-text-secondary">{t("scheduled_tasks.system")}</span>
+          ) : null}
           <div className="mt-1 max-w-xl truncate text-xs text-gray-500 dark:text-gray-400">{task.prompt}</div>
         </>
       ),
       sort: "name",
       sortValue: (task) => task.name
     },
-    { key: "schedule", header: t("scheduled_tasks.schedule"), className: "font-mono text-gray-700 dark:text-gray-300", render: (task) => task.schedule_label || t("scheduled_tasks.none"), sort: "schedule", sortValue: (task) => task.schedule_label || "" },
+    {
+      key: "schedule",
+      header: t("scheduled_tasks.schedule"),
+      className: "font-mono text-gray-700 dark:text-gray-300",
+      render: (task) => task.schedule_label || t("scheduled_tasks.none"),
+      sort: "schedule",
+      sortValue: (task) => task.schedule_label || ""
+    },
     {
       key: "next_window",
       header: t("scheduled_tasks.next_window"),
       className: "text-gray-700 dark:text-gray-300",
-      render: (task) => task.next_fire_at ? <span title={toRomanDate(task.next_fire_at)}><RelativeTimestamp value={task.next_fire_at} /></span> : t("scheduled_tasks.none"),
+      render: (task) =>
+        task.next_fire_at ? (
+          <span title={toRomanDate(task.next_fire_at)}>
+            <RelativeTimestamp value={task.next_fire_at} />
+          </span>
+        ) : (
+          t("scheduled_tasks.none")
+        ),
       sort: "next_window",
       sortValue: (task) => task.next_fire_at || ""
     },
@@ -167,16 +200,18 @@ function repositoryTaskColumns({
               {task.active ? t("scheduled_tasks.disable") : t("scheduled_tasks.enable")}
             </Button>
           ) : null}
-          {!task.system_key ? <button
-            className="rounded border border-red-200 px-3 py-1 text-sm text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/50 dark:disabled:text-red-500"
-            disabled={destroyPending}
-            onClick={async () => {
-              if (await confirm({ message: t("scheduled_tasks.confirm_delete"), destructive: true })) onDelete(task)
-            }}
-            type="button"
-          >
-            {t("scheduled_tasks.delete")}
-          </button> : null}
+          {!task.system_key ? (
+            <button
+              className="rounded border border-red-200 px-3 py-1 text-sm text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/50 dark:disabled:text-red-500"
+              disabled={destroyPending}
+              onClick={async () => {
+                if (await confirm({ message: t("scheduled_tasks.confirm_delete"), destructive: true })) onDelete(task)
+              }}
+              type="button"
+            >
+              {t("scheduled_tasks.delete")}
+            </button>
+          ) : null}
         </div>
       ),
       required: true
@@ -191,7 +226,13 @@ function StatePill({ state }: { state: string }) {
     auto_paused: "bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300",
     fired: "bg-info/10 text-info"
   }
-  return <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${styles[state] || "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"}`}>{state}</span>
+  return (
+    <span
+      className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${styles[state] || "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"}`}
+    >
+      {state}
+    </span>
+  )
 }
 
 function RepositoryScheduledTasksError({ error }: { error: Error }) {
