@@ -21,7 +21,7 @@ export type CoworkerDetail = CoworkerSummary & {
   workspace_repo: string
   soul: string | null
   spend_usd: number
-  chats: { id: number; role: "main" | "side"; title: string; path: string }[]
+  chats: { id: number; link_id: number; role: "main" | "side"; title: string; path: string; unsaved_workspace: UnsavedWorkspace | null }[]
   grants: { capability: string; approval_policy: string; constraints: { confirm_paths?: string[] }; scope?: unknown }[]
   permission_cutover_report: PermissionCutoverReport
   grant_catalog: {
@@ -53,6 +53,17 @@ export type CoworkerDetail = CoworkerSummary & {
     window_days: number
     delivery_events: { status: "refused" | "rate_limited"; receiver_handle: string; reason: string; occurred_at: string }[]
   }
+}
+export type UnsavedWorkspace = {
+  branch: string
+  path: string
+  last_error: string
+  failure_kind: "transient" | "permanent"
+  operation: "chat_branch" | "home_branch"
+  first_failed_at: string
+  last_failed_at: string
+  attempt_count: number
+  retry_exhausted: boolean
 }
 export type PermissionCutoverReport = {
   ready: boolean
@@ -162,6 +173,7 @@ export function fetchCoworkerMemory(id: string, search: string) {
 export function fetchCoworkerWorkspace(id: string, path?: string) {
   return getJson<CoworkerWorkspacePayload>(`/api/v1/app/coworkers/${id}/workspace${path ? `?path=${encodeURIComponent(path)}` : ""}`)
 }
+export const retryCoworkerWorkspaceSave = (id: string, chatLinkId: number) => postJson(`/api/v1/app/coworkers/${id}/workspace/retry`, { chat_id: chatLinkId })
 export function fetchCoworkerActivity(id: string) {
   return getJson<CoworkerActivityPayload>(`/api/v1/app/coworkers/${id}/activity`)
 }
