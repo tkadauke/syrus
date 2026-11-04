@@ -189,12 +189,12 @@ RSpec.describe "persisted execution deny rules" do
     )
   end
 
-  def allow_execution(job, selector_type, id: nil, duration: "job")
+  def allow_execution(job, selector_type, id: nil, duration: "job", command: [ "sudo", "ls" ], role: AgentRole::WORKFLOW_IMPLEMENT)
     Permissions::Management.new(user).lease!(
       { "capability" => Permissions::ExecutionActions::CAPABILITY, "operation" => Permissions::ExecutionActions.operation_for(:host),
-        "role" => AgentRole::WORKFLOW_IMPLEMENT, "subject_selector_type" => selector_type, "subject_selector_id" => id,
+        "role" => role, "subject_selector_type" => selector_type, "subject_selector_id" => id,
         "duration" => duration, "job_id" => (job.id if duration == "job"),
-        "arguments" => { "location" => "host", "command" => [ "sudo", "ls" ], "network" => "agent",
+        "arguments" => { "location" => "host", "command" => command, "network" => "agent",
           "env_keys" => [], "writable_paths" => [], "provider" => "", "tool" => "" } }.compact,
       actor: user
     )
@@ -297,5 +297,19 @@ RSpec.describe "persisted execution deny rules" do
     expect { Execution::Router.new(local:).run(req) }.to raise_error(Errno::EIO)
     expect(lease.reload.used_count).to eq(1)
     expect(callback).to have_received(:call).with(:process)
+  end
+
+  it "does not refund invocation authority when local execution raises after spawning" do
+    job = Factories.job_record(user: user)
+    command = [ RbConfig.ruby, "-e", "exit 0" ]
+    lease = allow_execution(job, "workflow_role", id: AgentRole::WORKFLOW_MANUAL, duration: "invocation", command:, role: AgentRole::WORKFLOW_MANUAL)
+    runner = ProcessRunner.new(
+      env: {}, command:, mounts: ProcessRunner.mounts(Dir.pwd), network: "agent", timeout: 5,
+      kind: "agent", job:,
+      on_spawned_process: ->(_process) { raise Errno::EIO }
+    )
+
+    expect { runner.run }.to raise_error(Errno::EIO)
+    expect(lease.reload.used_count).to eq(1)
   end
 end
