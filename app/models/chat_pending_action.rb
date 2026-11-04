@@ -172,8 +172,9 @@ class ChatPendingAction < ApplicationRecord
 
   enum :state, STATES.index_with(&:itself), validate: true
 
-  before_validation :derive_owner_from_chat_session
-  before_validation :derive_origin_from_chat_session
+  before_validation :derive_owner_from_chat_session, if: :derive_from_chat_session?
+  before_validation :derive_origin_from_chat_session, if: :derive_from_chat_session?
+  before_validation :share_chat_session_as_origin
   before_validation :activate_authorization_deduplication
   before_update :release_terminal_deduplication, if: :will_save_change_to_state?
   before_update :cancel_obsolete_checkpoint, if: :will_save_change_to_state?
@@ -196,8 +197,8 @@ class ChatPendingAction < ApplicationRecord
   validate :known_action, if: :legacy_action?
   validate :payload_matches_action, if: :legacy_action?
   validate :queued_actions_are_job_scoped, if: :legacy_action?
-  validate :repository_matches_chat_session
-  validate :user_matches_chat_session
+  validate :repository_matches_chat_session, if: :session_ownership_changed?
+  validate :user_matches_chat_session, if: :session_ownership_changed?
   validate :valid_authorization_checkpoint
 
   scope :actionable, -> { where(deduplication_active: true, non_actionable_at: nil) }
@@ -228,7 +229,10 @@ class ChatPendingAction < ApplicationRecord
   end
 
   def ready_for_authorized_invocation?
-    authorization_request? && authorization_items.exists? && authorization_items.where.not(state: "approved").none?
+    return false unless authorization_request?
+
+    items = authorization_items.reload
+    items.any? && items.all?(&:approved?)
   end
 
   def mark_non_actionable!(reason)
@@ -291,6 +295,31 @@ class ChatPendingAction < ApplicationRecord
     transition_checkpoint!(from: %w[waiting resume_failed], to: "non_resumable", last_resume_error: reason.to_s)
   end
 
+  # `lock!` reloads the row and clears association caches, which made every
+  # with_lock re-query the chat session and user we had already loaded. Those
+  # records are not the locked row, so carry them across the reload.
+  def lock!(*)
+    preserved = %i[chat_session user origin subject].filter_map do |name|
+      assoc = association(name)
+      [ name, assoc.target ] if assoc.loaded?
+    end
+    super.tap do
+      preserved.each do |name, target|
+        assoc = association(name)
+        reflection = assoc.reflection
+        same_record = if !reflection.belongs_to?
+          target.nil? || target.public_send(reflection.foreign_key) == id
+        elsif target.nil?
+          public_send(reflection.foreign_key).nil?
+        else
+          target.id == public_send(reflection.foreign_key) &&
+            (!reflection.polymorphic? || target.class.polymorphic_name == public_send(reflection.foreign_type))
+        end
+        assoc.target = target if same_record
+      end
+    end
+  end
+
   def confirm!(user: nil)
     return false unless start_confirmation!(
       user: user,
@@ -337,18 +366,21 @@ class ChatPendingAction < ApplicationRecord
   end
 
   def execute_confirmation!(raise_on_error: false, finalize: true)
+    command = PendingActions.for(action_key).new(self)
+    # Non-repair actions go straight to their execution label so the progress
+    # row is written (and broadcast) once instead of twice.
+    start_step = command.repair_action? ? "Starting pending action..." : command.execution_label
     should_execute = with_lock do
       return false unless confirming?
       return false if !finalize && execution_status == "running"
 
-      update_confirmation_progress!("running", "Starting pending action...")
+      update_confirmation_progress!("running", start_step)
       true
     end
     return false unless should_execute
 
     raise ActiveRecord::RecordInvalid, self unless valid?
 
-    command = PendingActions.for(action_key).new(self)
     command.authorize_execution!
     repair_targets = command.repair_snapshot_targets
     if command.repair_action?
@@ -359,8 +391,10 @@ class ChatPendingAction < ApplicationRecord
       end
     end
 
-    ApplicationRecord.transaction do
-      update_confirmation_progress!("running", command.execution_label)
+    if execution_step != command.execution_label
+      ApplicationRecord.transaction do
+        update_confirmation_progress!("running", command.execution_label)
+      end
     end
     record = command.execute
     return true if record.equal?(PendingActions::Base::DEFERRED_CONFIRMATION)
@@ -659,6 +693,20 @@ class ChatPendingAction < ApplicationRecord
     nil
   end
 
+  # Owner/origin only need deriving when the record is new or re-pointed at a
+  # different chat session; re-deriving on every progress update re-loaded the
+  # session, its owner, and its repository for nothing.
+  # Progress/outcome updates never touch ownership, so skip re-checking it
+  # (each check loads the session, its repository, and its owner).
+  def session_ownership_changed?
+    new_record? || will_save_change_to_chat_session_id? ||
+      will_save_change_to_repository_id? || will_save_change_to_user_id?
+  end
+
+  def derive_from_chat_session?
+    new_record? || will_save_change_to_chat_session_id?
+  end
+
   def derive_owner_from_chat_session
     return unless chat_session
 
@@ -668,6 +716,15 @@ class ChatPendingAction < ApplicationRecord
 
   def derive_origin_from_chat_session
     self.origin ||= chat_session
+  end
+
+  # The origin of a chat-born request is usually the very chat session we
+  # already hold; reuse that instance instead of loading a second copy.
+  def share_chat_session_as_origin
+    return unless chat_session && origin_type == "ChatSession" && origin_id == chat_session_id
+    return if association(:origin).loaded?
+
+    association(:origin).target = chat_session
   end
 
   def activate_authorization_deduplication
@@ -859,8 +916,10 @@ class ChatPendingAction < ApplicationRecord
   def broadcast_pending_action_updated
     return unless chat_session
 
+    # user_matches_chat_session guarantees this is the session's owner, so we
+    # avoid resolving the owner through chat participants again.
     AppEvents.broadcast(
-      user: chat_session.user,
+      user: user || chat_session.user,
       type: "updated",
       resource: "chat",
       id: chat_session_id,

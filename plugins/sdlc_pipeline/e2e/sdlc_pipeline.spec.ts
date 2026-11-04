@@ -70,6 +70,10 @@ test("SDLC Pipeline keeps a stage beside the time rail at 390px", async ({ page 
   const stage = pipeline.locator("[data-stage]").first()
   await expect(rail).toBeVisible()
   await expect(stage).toBeVisible()
+  // Exactly one history navigator and one window selector at narrow widths.
+  await expect(pipeline.getByTestId("pipeline-time-rail")).toHaveCount(1)
+  await expect(pipeline.getByTestId("compact-pipeline-time-rail")).toHaveCount(0)
+  await expect(pipeline.getByLabel(/History window/)).toHaveCount(1)
   const [railBox, stageBox] = await Promise.all([rail.boundingBox(), stage.boundingBox()])
   expect(railBox).not.toBeNull()
   expect(stageBox).not.toBeNull()
@@ -79,3 +83,50 @@ test("SDLC Pipeline keeps a stage beside the time rail at 390px", async ({ page 
   mkdirSync(SCREENSHOT_DIR, { recursive: true })
   await page.screenshot({ path: path.join(SCREENSHOT_DIR, "pipeline-history-mobile.png"), fullPage: false })
 })
+
+for (const size of [
+  { width: 390, height: 844 },
+  { width: 402, height: 812 }
+]) {
+  test(`SDLC Pipeline shows distinct history states at ${size.width}px`, async ({ page }) => {
+    await page.setViewportSize(size)
+    await signInAsDemo(page)
+    let mode: "pending" | "error" | "empty" = "pending"
+    await page.route("**/sdlc_pipeline*history=1*", async (route) => {
+      if (mode === "pending") return new Promise(() => {})
+      if (mode === "error") return route.fulfill({ status: 500, body: "{}" })
+      const response = await route.fetch({ url: route.request().url().replace("history=1", "history=0") })
+      const body = await response.json()
+      const now = new Date().toISOString()
+      return route.fulfill({
+        response,
+        json: {
+          ...body,
+          history: {
+            from: now,
+            to: now,
+            checkpoint: { at: now, placements: [] },
+            deltas: [],
+            ticks: [],
+            traces: [],
+            accuracy: { status: "reconstructed", message: "", truncated: false }
+          }
+        }
+      })
+    })
+    await page.goto("/repositories")
+    await page.getByRole("link", { name: "demo/syrus-preview" }).click()
+    await page.getByRole("link", { name: "Pipeline" }).click()
+    const pipeline = page.getByRole("main", { name: "Repository SDLC pipeline" })
+    await expect(pipeline.locator("[data-stage]").first()).toBeVisible()
+    await expect(pipeline.getByTestId("history-status")).toHaveAttribute("data-history-status", "loading")
+    mode = "error"
+    await page.reload()
+    await expect(pipeline.getByTestId("history-status")).toHaveAttribute("data-history-status", "error")
+    await expect(pipeline.locator("[data-stage]").first()).toBeVisible()
+    mode = "empty"
+    await pipeline.getByRole("button", { name: "Retry history" }).click()
+    await expect(pipeline.getByTestId("history-status")).toHaveAttribute("data-history-status", "empty")
+    await expect(pipeline.getByTestId("pipeline-time-rail")).toHaveCount(1)
+  })
+}

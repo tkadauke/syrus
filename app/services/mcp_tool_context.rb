@@ -2,8 +2,8 @@ class McpToolContext
   attr_reader :surface, :role, :user, :repository, :epic, :job, :workflow, :run, :chat_session,
               :allowed_memory_scopes, :allowed_repository_ids,
               :allowed_job_ids, :allowed_workflow_ids, :allowed_run_ids,
-              :allowed_chat_session_ids, :allowed_context_sources
-  attr_reader :granted_capabilities, :capability_scopes, :interactive
+              :allowed_context_sources
+  attr_reader :interactive
   attr_reader :agent_actor
 
   def initialize(surface:, role:, user:, repository: nil, epic: nil, job: nil,
@@ -29,11 +29,38 @@ class McpToolContext
     @allowed_run_ids        = allowed_run_ids
     @allowed_chat_session_ids = allowed_chat_session_ids
     @allowed_context_sources  = allowed_context_sources
-    @granted_capabilities     = Array(granted_capabilities).map(&:to_s).freeze
-    @capability_scopes            = capability_scopes.stringify_keys.freeze
+    @grant_source             = granted_capabilities if granted_capabilities.respond_to?(:call)
+    unless @grant_source
+      @granted_capabilities   = Array(granted_capabilities).map(&:to_s).freeze
+      @capability_scopes      = capability_scopes.stringify_keys.freeze
+    end
     @interactive              = interactive
     @agent_actor              = agent_actor
   end
+
+  # Accepts a value or a callable; callables resolve (and memoize) on first
+  # read so contexts that never consult them skip the query.
+  def allowed_chat_session_ids
+    @allowed_chat_session_ids = @allowed_chat_session_ids.call if @allowed_chat_session_ids.respond_to?(:call)
+    @allowed_chat_session_ids
+  end
+
+  def granted_capabilities
+    resolve_grants unless @granted_capabilities
+    @granted_capabilities
+  end
+
+  def capability_scopes
+    resolve_grants unless @capability_scopes
+    @capability_scopes
+  end
+
+  def resolve_grants
+    rows = @grant_source.call
+    @granted_capabilities = rows.map { |capability, _scope| capability.to_s }.freeze
+    @capability_scopes = rows.to_h.stringify_keys.freeze
+  end
+  private :resolve_grants
 
   def self.from_run(run)
     role = role_for_run(run)
@@ -55,6 +82,7 @@ class McpToolContext
 
   def self.from_chat_session(chat_session, evaluator: false, agent_actor: nil)
     coworker = coworker_actor(agent_actor) || coworker_for_chat(chat_session)
+    grant_rows = -> { coworker ? coworker.grants.pluck(:capability, :scope) : [] }
     new(
       surface:                :chat,
       role:                   evaluator ? AgentRole::CHAT_EVALUATOR : role_for_chat(chat_session, coworker:),
@@ -65,9 +93,9 @@ class McpToolContext
       # may write cross-repository facts, a workflow run may not.
       allowed_memory_scopes:  coworker ? %w[ global repository instance ] : %w[ global repository ],
       allowed_repository_ids: chat_session.attached_repositories.ids,
-      allowed_chat_session_ids: coworker ? coworker.readable_chat_session_ids : nil,
-      granted_capabilities: coworker ? coworker.grants.pluck(:capability) : [],
-      capability_scopes: coworker ? coworker.grants.pluck(:capability, :scope).to_h : {},
+      allowed_chat_session_ids: coworker ? -> { coworker.readable_chat_session_ids } : nil,
+      granted_capabilities: grant_rows,
+      capability_scopes: {},
       interactive: interactive_turn?(chat_session),
       agent_actor: coworker
     )

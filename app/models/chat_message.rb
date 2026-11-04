@@ -163,6 +163,7 @@ class ChatMessage < ApplicationRecord
 
   def broadcast_app_event
     chat = chat_session
+    agent_busy = chat.agent_busy?
     tail_payload = realtime_tail_payload(chat)
 
     detail_payload = if tail_payload
@@ -171,7 +172,7 @@ class ChatMessage < ApplicationRecord
         replace_from_id: tail_payload.fetch(:replace_from_id),
         messages: tail_payload.fetch(:messages),
         turn_in_flight: chat.turn_in_flight?,
-        agent_busy: chat.agent_busy?,
+        agent_busy: agent_busy,
         turn_retry_state: App::ChatTurnRetryState.for(chat),
         stop_requested_at: chat.stop_requested_at&.iso8601,
         queued_messages: chat.queued_messages_payload
@@ -204,12 +205,13 @@ class ChatMessage < ApplicationRecord
       payload: detail_payload
     )
 
-    broadcast_sidebar_message_state(chat)
+    broadcast_sidebar_message_state(chat, agent_busy: agent_busy)
   end
 
-  def broadcast_sidebar_message_state(chat)
-    recipients = chat.participants.to_a.presence || [ chat.user ]
-    read_at_by_user_id = chat.chat_participants.where(user_id: recipients.map(&:id)).pluck(:user_id, :last_read_at).to_h
+  def broadcast_sidebar_message_state(chat, agent_busy: chat.agent_busy?)
+    participant_rows = chat.chat_participants.eager_load(:user).to_a
+    recipients = participant_rows.filter_map(&:user).presence || [ chat.user ]
+    read_at_by_user_id = participant_rows.to_h { |row| [ row.user_id, row.last_read_at ] }
 
     recipients.each do |recipient|
       last_read_at = read_at_by_user_id[recipient.id] || chat.last_read_at
@@ -223,7 +225,7 @@ class ChatMessage < ApplicationRecord
         payload: {
           action: "update_sidebar_message_state",
           turn_in_flight: chat.turn_in_flight?,
-          agent_busy: chat.agent_busy?,
+          agent_busy: agent_busy,
           last_message_at: chat.last_message_at&.iso8601,
           unread: unread
         }
