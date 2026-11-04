@@ -74,6 +74,7 @@ module Mcp::Tools
         return unless entry
 
         descriptor = entry.descriptor
+        return if entry.ungated
         return if claimed_actor_invocation_authorizes?(descriptor, context, server_context, arguments, tool)
 
         result = Permissions::AuthorizationRequest.new(
