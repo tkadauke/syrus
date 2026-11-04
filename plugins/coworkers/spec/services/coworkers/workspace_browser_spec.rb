@@ -21,6 +21,21 @@ RSpec.describe Coworkers::WorkspaceBrowser do
     expect(result[:conflicts]).to be_empty
   end
 
+  it "keeps failed conflicts visible until their recovery branch is resolved" do
+    chat = ChatSession.create!(user: owner)
+    Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
+    branch = "coworkers/chat/#{coworker.id}-#{chat.id}"
+    Coworkers::WorkspaceConflict.create!(chat_session: chat, repository:, source_branch: branch,
+      files: [ "notes.md" ], versions: { "notes.md" => "conflict" }, state: "failed",
+      notified_at: Time.current, expires_at: 1.minute.ago)
+    stub_repository_content(repository, ref: "coworkers/maya-browser", files: { "README.md" => "home" })
+    stub_repository_content(repository, ref: branch, files: { "README.md" => "branch" })
+
+    result = described_class.new(coworker:, repository:, user: owner).call
+
+    expect(result[:conflicts]).to contain_exactly(include(branch:, files: [ "notes.md" ]))
+  end
+
   it "attributes commits to chats and matching runs without inventing provenance" do
     chat_sha = "a" * 40
     run_sha = "b" * 40

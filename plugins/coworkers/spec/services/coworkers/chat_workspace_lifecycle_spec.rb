@@ -165,9 +165,45 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle do
     second_service.finalize!
 
     expect { second_service.finalize! }.not_to change(second.messages, :count)
+    write(second_path, "SOUL.md", second_path.join("SOUL.md").read.sub("role: second", "role: second draft"))
+    expect { second_service.finalize! }.not_to change(second.messages, :count)
+    write(second_path, "SOUL.md", second_path.join("SOUL.md").read.sub("role: second draft", "role: second revision"))
     expect { second_service.finalize! }.to change(second.messages, :count).by(1)
     expect { second_service.finalize! }.not_to change(second.messages, :count)
     expect(second.messages.last.content.fetch("coworker_workspace_conflict").fetch("files")).to eq([ "SOUL.md" ])
+
+    write(second_path, "SOUL.md", "role: first and second\n")
+    expect { second_service.finalize! }.not_to change(second.messages, :count)
+    expect(Coworkers::WorkspaceConflict.find_by!(chat_session: second).state).to eq("resolved")
+  end
+
+  it "does not spend a retry when a later turn leaves the conflicted files untouched" do
+    first = chat
+    second = chat
+    first_service = lifecycle(first)
+    second_service = lifecycle(second)
+    write(first_service.prepare!, "SOUL.md", "role: first\n")
+    second_path = second_service.prepare!
+    write(second_path, "SOUL.md", "role: second\n")
+    first_service.finalize!
+    second_service.finalize!
+
+    3.times { expect(second_service.finalize!).to eq(:pending_resolution) }
+
+    expect(Coworkers::WorkspaceConflict.active.find_by!(chat_session: second).attempt_count).to eq(0)
+    expect(second.messages).to be_empty
+  end
+
+  it "does not reuse a notified failed record for an unrelated conflict" do
+    session = chat
+    branch = "coworkers/chat/#{coworker.id}-#{session.id}"
+    Coworkers::WorkspaceConflict.create!(chat_session: session, repository:, source_branch: branch,
+      files: [ "SOUL.md" ], versions: { "SOUL.md" => "old conflict" }, state: "failed",
+      notified_at: Time.current, expires_at: 1.minute.ago)
+
+    match = lifecycle(session).send(:terminal_conflict, files: [ "USER.md" ], source_branch: branch)
+
+    expect(match).to be_nil
   end
 
   it "keeps a diff-check validation failure private and accepts a corrected retry" do
@@ -204,9 +240,12 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle do
     write(foreground_path, "SOUL.md", "role: foreground\n")
     foreground.finalize!
 
-    outcome = lifecycle(session).finalize_background!(
-      path: background_path, workflow: instance_double(Workflow, id: 47)
-    )
+    outcome = nil
+    expect do
+      outcome = lifecycle(session).finalize_background!(
+        path: background_path, workflow: instance_double(Workflow, id: 47)
+      )
+    end.to have_enqueued_job(Coworkers::WorkspaceConflictTimeoutJob)
 
     expect(outcome).to eq(:pending_resolution)
     expect(session.messages).to be_empty
@@ -217,6 +256,22 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle do
     preserved = run_git("show", "#{conflict.recovery_ref}:SOUL.md", chdir: @remote)
     expect(preserved).to include("<<<<<<<", "role: foreground", "role: background")
     expect(home_file("SOUL.md")).to eq("role: foreground\n")
+  end
+
+  it "warns once when the silent resolution deadline expires" do
+    session = chat
+    conflict = Coworkers::WorkspaceConflict.create!(chat_session: session, repository:,
+      source_branch: "coworkers/run/#{coworker.id}-99", recovery_ref: "a" * 40,
+      files: [ "SOUL.md" ], versions: { "SOUL.md" => "both sides" },
+      expires_at: 1.minute.ago)
+
+    2.times { Coworkers::WorkspaceConflictTimeoutJob.perform_now(conflict.id) }
+
+    expect(conflict.reload).to have_attributes(state: "failed")
+    expect(session.messages.count).to eq(1)
+    expect(session.messages.last.content.fetch("coworker_workspace_conflict")).to include(
+      "ref" => "a" * 40, "files" => [ "SOUL.md" ]
+    )
   end
 
   it "commits every uncommitted background change with the coworker identity before merging" do

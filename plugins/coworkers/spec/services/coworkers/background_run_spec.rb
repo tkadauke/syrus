@@ -547,6 +547,12 @@ RSpec.describe "Coworker background runs" do
     expect { handler.call }.not_to change(main_chat.messages, :count)
     expect(run.reload.agent_summary).to eq("Memory updated.")
     expect(workflow.reload.artifact(Coworkers::PostToChat::MERGE_ARTIFACT)).to eq("pending_resolution")
+
+    run.update_columns(state: "succeeded", finished_at: Time.current)
+    post_run = Run.new(job: job, user: owner, step: workflow.steps.find_by!(kind: "post_to_chat"),
+      trigger_kind: "coworker_run", agent_provider: "codex")
+    expect { Coworkers::PostToChat.new(post_run).call }.not_to change(main_chat.messages, :count)
+    expect(main_chat.chat_queued_messages).to be_empty
   end
 
   it "uses the final top-level assistant transcript when the stored summary is blank" do

@@ -1164,6 +1164,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_162251) do
     t.integer "attempt_count", default: 0, null: false
     t.datetime "notified_at"
     t.datetime "resolved_at"
+    t.datetime "expires_at", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["chat_session_id", "repository_id", "state"], name: "idx_coworker_workspace_conflicts_active"

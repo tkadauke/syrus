@@ -96,7 +96,8 @@ RSpec.describe Coworkers::PromptSection do
   it "privately supplies both conflicted sides without creating an owner-facing message" do
     @root.join("USER.md").write("<<<<<<< HEAD\nowner preference\n=======\ncoworker preference\n>>>>>>> home\n")
     Coworkers::WorkspaceConflict.create!(chat_session: chat, repository:, source_branch: "coworkers/chat/source",
-      files: [ "USER.md" ], versions: { "USER.md" => @root.join("USER.md").read }, detail: "merge failed")
+      files: [ "USER.md" ], versions: { "USER.md" => @root.join("USER.md").read }, detail: "merge failed",
+      expires_at: 1.hour.from_now)
 
     section = described_class.chat_prompt_section(chat_session: chat, repository: repository)
 

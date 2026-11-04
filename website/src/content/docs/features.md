@@ -2067,11 +2067,15 @@ when saving still fails. One updating notice appears in the chat and on the
 coworker's Workspace tab, where the owner can retry immediately. Permanent
 authorization, protected-ref, and conflict failures are surfaced without
 automatic retries. It uses union merges for concurrent memory appends and posts linked conflict details
-without choosing either side when a normal Git merge conflicts. Worker-local
-checkouts are disposable and are re-cloned from the durable remote when lost.
+only when a normal Git conflict remains unresolved after a private, bounded
+reconciliation opportunity. The coworker receives both sides privately;
+successful validation and persistence stay silent, while failed validation,
+exhausted retries, or the one-hour deadline produce one warning without
+discarding either side. Worker-local checkouts are disposable and are
+re-cloned from the durable remote when lost.
 Renaming a coworker moves its home branch while no turn is running. Deleting
 one archives that branch under `coworkers/archived/` and releases the handle
-for reuse. Scheduled background work posts the agent's final Markdown result,
+for reuse. Scheduled background work normally posts the agent's final Markdown result,
 duration, and cost into the coworker's main chat, collapsing long results and
 posting only one card when delivery is retried. The card reports whether its
 workspace merged, conflicted, or was unavailable. Before reporting success,
@@ -2081,8 +2085,10 @@ workspace file tools write to that same checkout, and agents do not commit or
 push. Explicitly claimed memory or workspace paths are checked in the persisted
 run tree. A missing claimed path produces a warning and failed result instead
 of a false success.
-Conflicts and push failures preserve recoverable output and produce a failed
-result with guidance in the main chat. By default, the
+Conflicts preserve an immutable run ref and enter the same silent-first
+reconciliation path; while persistence is pending, no result card or follow-up
+turn is posted. Terminal conflicts and push failures produce one warning with
+recovery guidance in the main chat. By default, the
 coworker then wakes for a normal, unattended chat turn to comment on the
 result with its full chat grants; this follow-up waits when another turn is
 active and never fires another schedule. A schedule can instead use quiet
