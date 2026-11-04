@@ -70,8 +70,7 @@ module Api
           permission_requests = scope.where(id: ids, action: Permissions::CoworkerPermissionRequest::ACTION).order(:id).to_a
           return decide_coworker_permission_requests!(ids, permission_requests, decision) if permission_requests.any?
 
-          requests = []
-          ChatPendingAction.transaction do
+          requests = scope.where(id: ids).order(:id).preload(:authorization_items).to_a
             requests = scope.where(id: ids).order(:id).lock.to_a
             raise ActiveRecord::RecordNotFound if requests.length != ids.length
             items = PendingActionItem.where(chat_pending_action_id: ids).order(:id).lock.to_a
