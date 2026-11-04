@@ -117,7 +117,7 @@ RSpec.describe McpToolRegistry do
       expect(entries.map(&:tool_name)).to contain_exactly(
         "list_permissions", "explain_permission", "grant_permission", "deny_permission",
         "revoke_permission", "create_permission_lease", "revoke_permission_lease",
-        "apply_permission_preset", "cancel_authorization_request"
+         "apply_permission_preset", "cancel_authorization_request", "request_permission"
       )
       expect(entries).to all(have_attributes(explicit_descriptor: true, compatibility_descriptor: false, tier: :deferred))
     end

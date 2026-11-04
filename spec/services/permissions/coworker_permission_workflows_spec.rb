@@ -12,7 +12,8 @@ RSpec.describe "coworker permission requests and self-surrender" do
   let(:descriptor) do
     Permissions::CapabilityDescriptor.new(
       capability:, operation:, effects: [ :confidential_read ], risk: :medium,
-      requestable_roles: [ AgentRole::COWORKER_CHAT ], defaults: { AgentRole::COWORKER_CHAT => :ask },
+      requestable_roles: [ AgentRole::COWORKER_CHAT, AgentRole::CHAT_PLANNER ],
+      defaults: { AgentRole::COWORKER_CHAT => :ask, AgentRole::CHAT_PLANNER => :ask },
       maximum_autonomy: :permanent, authority_durations: %i[invocation chat_session job permanent],
       resource_scope: { type: :none }, classifier: ->(_arguments) { {} },
       fingerprint_normalizer: ->(arguments) { arguments }, redactor: ->(arguments) { arguments },
@@ -64,6 +65,23 @@ RSpec.describe "coworker permission requests and self-surrender" do
   end
 
   describe "request_permission" do
+    it "lets an ordinary chat request authority for its own role without coworker audit side effects" do
+      plain_chat = ChatSession.create!(user: owner, repository:, title: "Planning")
+
+      response = Mcp::Tools::RequestPermissionTool.call(
+        server_context: { chat_session: plain_chat }, capability:, operation:,
+        purpose: "Answer a customer question", duration: "chat_session"
+      )
+      request = ChatPendingAction.find(body(response).fetch(:authorization_request_id))
+
+      expect(request).to have_attributes(
+        subject: owner, runtime_role: AgentRole::CHAT_PLANNER, chat_session: plain_chat
+      )
+      expect(Permissions::SmartDecision.new(request:, item: request.authorization_items.sole, user: owner).option)
+        .to include(duration: "chat_session")
+      expect(audit_events("coworker_permission_requested")).to be_empty
+    end
+
     it "creates an owner-facing request for the calling coworker and grants nothing" do
       response = request_permission(duration: "chat_session")
 
@@ -203,12 +221,13 @@ RSpec.describe "coworker permission requests and self-surrender" do
       expect(PermissionLease.count).to eq(0)
     end
 
-    it "is not available to a non-coworker role" do
+    it "is available to an ordinary chat for itself" do
       context = { chat_session: ChatSession.create!(user: owner, repository:) }
       response = Mcp::Tools::RequestPermissionTool.call(server_context: context, capability:, operation:, purpose: "x")
 
-      expect(response.error?).to be(true)
-      expect(ChatPendingAction.where(action: "coworker_permission_request")).to be_empty
+      expect(response.error?).to be(false)
+      request = ChatPendingAction.find(body(response).fetch(:authorization_request_id))
+      expect(request).to have_attributes(subject: owner, runtime_role: AgentRole::CHAT_PLANNER)
     end
   end
 

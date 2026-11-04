@@ -37,7 +37,7 @@ module Api
         def smart_decide
           request = scope.find(params[:id])
           item = request.authorization_items.find(params[:item_id])
-          Permissions::CoworkerAuthorizationDecision.new(request:, item:, user: Current.user)
+          Permissions::AuthorizationDecision.new(request:, item:, user: Current.user)
             .call(decision: "approved", smart: { duration: params.require(:duration).to_s, digest: params[:digest].to_s })
           render json: { request: present(request.reload) }
         rescue Permissions::SmartDecision::AlreadyDecided, Permissions::RuleDraft::Stale => error
@@ -70,18 +70,23 @@ module Api
           permission_requests = scope.where(id: ids, action: Permissions::CoworkerPermissionRequest::ACTION).order(:id).to_a
           return decide_coworker_permission_requests!(ids, permission_requests, decision) if permission_requests.any?
 
-          requests = []
+          requests = scope.where(id: ids).order(:id).preload(:authorization_items).to_a
+          raise ActiveRecord::RecordNotFound if requests.length != ids.length
+          items = requests.flat_map(&:authorization_items)
+          validate_decision!(requests, items, decision)
+          duration = decision == "approved" ? selected_duration(items) : nil
+          executable, record_only = requests.partition { |request| request.payload.to_h["tool_name"].present? }
           ChatPendingAction.transaction do
-            requests = scope.where(id: ids).order(:id).lock.to_a
-            raise ActiveRecord::RecordNotFound if requests.length != ids.length
-            items = PendingActionItem.where(chat_pending_action_id: ids).order(:id).lock.to_a
-            validate_decision!(requests, items, decision)
-            duration = decision == "approved" ? selected_duration(items) : nil
-            items.each do |item|
+            record_only.flat_map(&:authorization_items).each do |item|
               changed = item.decide!(decision, principal: Current.user, duration:, reason: params[:reason])
               raise ArgumentError, "request is no longer actionable" unless changed
             end
-            requests.each { |request| request.update!(state: decision == "approved" ? "confirmed" : "rejected") }
+            record_only.each { |request| request.update!(state: decision == "approved" ? "confirmed" : "rejected") }
+          end
+          executable.each do |request|
+            request.authorization_items.select(&:actionable?).each do |item|
+              Permissions::AuthorizationDecision.new(request:, item:, user: Current.user).call(decision:)
+            end
           end
           requests
         end
@@ -102,7 +107,7 @@ module Api
             end
 
             locked.zip(items).each do |request, list|
-              Permissions::CoworkerAuthorizationDecision.new(request:, item: list.first, user: Current.user).call(decision: "denied")
+              Permissions::AuthorizationDecision.new(request:, item: list.first, user: Current.user).call(decision: "denied")
             end
             permission_requests = locked
           end
