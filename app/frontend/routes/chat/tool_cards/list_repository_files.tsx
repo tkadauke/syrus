@@ -49,7 +49,7 @@ export default listRepositoryFilesToolCard
 export const examples: ToolCardExample[] = [
   {
     id: "incomplete",
-    label: "Incomplete listing",
+    label: i18n.t("chat:tool_card_repository_list_incomplete"),
     parsedResult: {
       status: "incomplete",
       incomplete: true,
