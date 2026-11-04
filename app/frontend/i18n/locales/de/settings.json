@@ -80,7 +80,12 @@
       "restricted": "Verweigerte Capabilities laufen nicht und fragen nicht nach, bis du Regel oder Profil änderst."
     },
     "profile_confirm_title": "Berechtigungsprofil ändern",
+    "profile_confirm_selection": "{{profile}} auf {{subject}} anwenden",
     "profile_confirm_body": "Dies ersetzt die eigenen Regeln für {{subject}} durch dieses Profil.",
+    "profile_revoked": "Entfernte Regeln ({{count}})",
+    "profile_replacements": "Hinzugefügte Profilregeln ({{count}})",
+    "profile_no_revocations": "Es werden keine vorhandenen Regeln entfernt.",
+    "profile_no_replacements": "Dieses Profil fügt für diese Oberfläche keine Regeln hinzu.",
     "profile_confirm_boundary": "Ressourcenrichtlinien, Sicherheitsgrenzen, Zugangsdaten und nicht delegierbare Vorgänge bleiben wirksam.",
     "profile_confirm": "Profil anwenden",
     "profile_applying": "Wird angewendet…",

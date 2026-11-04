@@ -63,7 +63,9 @@ Bulk changes require a complete server-normalized preview with a signed digest,
 then apply the exact previewed set in one transaction or fail as stale.
 The top of the Hub offers Full access, Ask on first use, and Restricted as fast
 starting postures for each chat surface. Changing a profile previews its safety
-boundary and atomically replaces that surface's user-owned rules; provider and
+boundary, the exact rules removed, and the allow/ask/deny rules added. Apply is
+rejected if those rules changed after preview, and otherwise atomically replaces
+that surface's user-owned rules; provider and
 resource ceilings, credentials, confinement, and nondelegable operations still
 win. Operators only need the matrix and rule editor when they want finer scope.
 Active-lease and history views expose temporary authority lifecycle, origin,

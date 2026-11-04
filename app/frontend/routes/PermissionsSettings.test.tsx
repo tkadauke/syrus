@@ -24,6 +24,26 @@ describe("PermissionsSettingsRoute", () => {
 
   it("previews and applies a fast permission profile for the selected chat surface", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      if (String(input).endsWith("/preview_profile"))
+        return Promise.resolve(
+          jsonResponse({
+            preview: {
+              profile: { key: "full_access@v1", label: "Full access", description: "Allow eligible capabilities." },
+              subject_selector_type: "interactive_chat",
+              revoked: payload().rules,
+              replacements: [
+                { policy: "allow", capability: "syrus.jobs@v1", operation: "cancel@v1", resource_scope_label: "All resources" },
+                {
+                  policy: "ask",
+                  capability: "attach_repository@v1",
+                  operation: "attach_repository/attach_repository@v1",
+                  resource_scope_label: "All resources"
+                }
+              ]
+            },
+            confirmation_digest: "profile-digest"
+          })
+        )
       if (String(input).endsWith("/apply_profile")) return Promise.resolve(jsonResponse({ rules: [], profile: "full_access@v1" }))
       return Promise.resolve(jsonResponse(payload()))
     })
@@ -31,12 +51,21 @@ describe("PermissionsSettingsRoute", () => {
 
     const fullAccess = (await screen.findByRole("heading", { name: "Full access" })).closest("article")!
     fireEvent.click(within(fullAccess).getByRole("button", { name: "Select" }))
-    expect(screen.getByRole("dialog", { name: "Change permission profile" })).toHaveTextContent("safety ceilings")
+    const dialog = await screen.findByRole("dialog", { name: "Change permission profile" })
+    expect(dialog).toHaveTextContent("Apply Full access to Interactive chat")
+    expect(dialog).toHaveTextContent("Rules removed (1)")
+    expect(dialog).toHaveTextContent("Profile rules added (2)")
+    expect(dialog).toHaveTextContent("Allow · syrus.jobs@v1 · cancel@v1")
+    expect(dialog).toHaveTextContent("safety ceilings")
     fireEvent.click(screen.getByRole("button", { name: "Apply profile" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/permission_rules/apply_profile", expect.objectContaining({ method: "POST" })))
     const call = fetchSpy.mock.calls.find(([path]) => String(path).endsWith("/apply_profile"))!
-    expect(JSON.parse(String(call[1]?.body))).toEqual({ profile: "full_access@v1", subject_selector_type: "interactive_chat", role: "chat:planner" })
+    expect(JSON.parse(String(call[1]?.body))).toEqual({
+      profile: "full_access@v1",
+      subject_selector_type: "interactive_chat",
+      confirmation_digest: "profile-digest"
+    })
   })
 
   it("creates a rule through the shared editor's preview and apply contract", async () => {
