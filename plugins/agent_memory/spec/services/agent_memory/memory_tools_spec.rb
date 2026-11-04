@@ -255,11 +255,18 @@ RSpec.describe "Mcp::Tools shared memory tools" do
     it "asserts every registry tool class has a unique MCP tool name" do
       tool_directories = %w[app/services/mcp/tools app/services/syrus_mcp]
         .map { |path| Rails.root.join(path).to_s }
-      registry_names = McpToolRegistry.summaries.map { |entry| "#{entry[:surface]}:#{entry[:tier]}:#{entry[:tool_name]}" }
-      registry_source_files = McpToolRegistry.summaries.filter_map { |entry| entry[:tool].method(:call).source_location&.first }
+      registry_entries = McpToolRegistry.summaries
+      registry_names = registry_entries.map { |entry| "#{entry[:surface]}:#{entry[:tier]}:#{entry[:tool_name]}" }
+
+      # Sidecar startup prepends dispatch wrappers to the registry classes, so
+      # Method#source_location depends on whether another example built one.
+      Mcp::Sidecar.wrap_stdio_tool_dispatch(registry_entries.first[:tool])
+      registry_source_files = registry_entries.filter_map do |entry|
+        Object.const_source_location(entry[:tool].name)&.first
+      end
 
       expect(registry_names.uniq.size).to eq(registry_names.size)
-      expect(registry_source_files.size).to eq(McpToolRegistry.summaries.size)
+      expect(registry_source_files.size).to eq(registry_entries.size)
       expect(registry_source_files).to all(satisfy { |path| tool_directories.any? { |directory| path.start_with?("#{directory}/") } })
     end
   end
