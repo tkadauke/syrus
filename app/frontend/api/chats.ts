@@ -961,6 +961,7 @@ export type CodingFileContentPayload = {
   binary: boolean
   too_large: boolean
   size?: number
+  preview_kind?: "markdown" | "image" | "pdf"
 }
 
 export function codingFilePreviewUrl(basePath: string, filePath: string, ref?: string | null) {

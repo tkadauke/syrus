@@ -1601,7 +1601,7 @@ function CodingFilesPanel({
   const [findOpen, setFindOpen] = useState(false)
   const [findQuery, setFindQuery] = useState("")
   const [activeFindIndex, setActiveFindIndex] = useState(0)
-  const [fileViewMode, setFileViewMode] = useState<"raw" | "rendered">("raw")
+  const [fileViewSelection, setFileViewSelection] = useState<{ key: string; mode: "raw" | "rendered" } | null>(null)
   const sourceScrollRef = useRef<HTMLDivElement | null>(null)
   // Below lg there's no room for a resizable side-by-side split (matches the
   // pre-splitter fixed grid, which only became two columns at lg:) -- the
@@ -1705,7 +1705,11 @@ function CodingFilesPanel({
   }
 
   const treeNodes = fileTree.data ? buildFileTree(fileTree.data.files) : []
-  const fileRenderKind = selectedFile ? renderKindForPath(selectedFile) : null
+  const fileRenderKind = fileContent.data?.preview_kind ?? null
+  const fileViewKey = `${selectedFile ?? ""}\0${selectedRef}`
+  const defaultFileViewMode = fileRenderKind === "image" || fileRenderKind === "pdf" ? "rendered" : "raw"
+  const fileViewMode = fileViewSelection?.key === fileViewKey ? fileViewSelection.mode : defaultFileViewMode
+  const setFileViewMode = (mode: "raw" | "rendered") => setFileViewSelection({ key: fileViewKey, mode })
   const fileText = fileContent.data?.content ?? ""
   const findMatches = useMemo(() => fileFindMatches(fileText, findQuery), [fileText, findQuery])
   const activeFindMatch = findMatches[activeFindIndex] ?? null
@@ -1744,7 +1748,8 @@ function CodingFilesPanel({
     }
   }, [fileTree.data, selectedFile])
 
-  const canFindInFile = view === "files" && fileViewMode === "raw" && Boolean(selectedFile) && fileContent.isSuccess && !fileContent.data?.binary && !fileContent.data?.too_large
+  const canFindInFile =
+    view === "files" && fileViewMode === "raw" && Boolean(selectedFile) && fileContent.isSuccess && !fileContent.data?.binary && !fileContent.data?.too_large
   const openFind = useCallback(() => {
     if (!canFindInFile) return false
     setFindOpen(true)
@@ -1765,10 +1770,6 @@ function CodingFilesPanel({
     setFindQuery("")
     setActiveFindIndex(0)
   }, [selectedFile, selectedRef, view])
-
-  useEffect(() => {
-    setFileViewMode(fileRenderKind === "markdown" || fileRenderKind === null ? "raw" : "rendered")
-  }, [fileRenderKind, selectedFile, selectedRef])
 
   useEffect(() => {
     if (fileViewMode === "rendered") setFindOpen(false)
@@ -1936,7 +1937,13 @@ function CodingFilesPanel({
                   </div>
                 ) : null}
                 {fileViewMode === "raw" && fileRenderKind === "markdown" ? (
-                  <SourceCodeTable content={fileContent.data?.content ?? ""} matches={findTableMatches} path={selectedFile} targetLine={null} testId="coding-source-viewer" />
+                  <SourceCodeTable
+                    content={fileContent.data?.content ?? ""}
+                    matches={findTableMatches}
+                    path={selectedFile}
+                    targetLine={null}
+                    testId="coding-source-viewer"
+                  />
                 ) : fileRenderKind === "markdown" ? (
                   <Markdown className="min-w-0 overflow-x-auto px-4 py-3" text={fileContent.data?.content ?? ""} />
                 ) : filePreviewBasePath ? (
@@ -2023,17 +2030,9 @@ function CodingFilesPanel({
 
 type FileRenderKind = "markdown" | "image" | "pdf"
 
-function renderKindForPath(path: string): FileRenderKind | null {
-  const extension = path.split(".").pop()?.toLowerCase()
-  if (extension === "md" || extension === "markdown" || extension === "mdown" || extension === "mkd") return "markdown"
-  if (["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(extension || "")) return "image"
-  if (extension === "pdf") return "pdf"
-  return null
-}
-
 function BinaryFilePreview({ kind, path, src }: { kind: Exclude<FileRenderKind, "markdown">; path: string; src: string }) {
   if (kind === "pdf") {
-    return <iframe className="h-[70vh] min-h-80 w-full border-0" sandbox="allow-downloads" src={src} title={path} />
+    return <iframe className="h-[70vh] min-h-80 w-full border-0" src={src} title={path} />
   }
 
   return <img alt={path} className="mx-auto block max-h-[70vh] max-w-full object-contain p-3" src={src} />

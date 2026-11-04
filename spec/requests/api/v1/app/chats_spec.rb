@@ -3648,6 +3648,33 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response.headers["Content-Security-Policy"]).to include("sandbox", "default-src 'none'")
     end
 
+    it "uses the native scriptless viewer policy for PDFs" do
+      sign_in_as(user)
+      stub_preview_relay("manual.pdf", bytes: "%PDF-1.7 preview".b)
+
+      get "/api/v1/app/chats/#{preview_chat.id}/coding_file_preview", params: { path: "manual.pdf" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq("application/pdf")
+      expect(response.headers["Content-Security-Policy"]).to eq("default-src 'none'; script-src 'none'; object-src 'none'")
+    end
+
+    it "preserves oversized and relay failure responses" do
+      sign_in_as(user)
+      stub_preview_relay("large.png", bytes: "", status: 413)
+
+      get "/api/v1/app/chats/#{preview_chat.id}/coding_file_preview", params: { path: "large.png" }
+
+      expect(response).to have_http_status(:content_too_large)
+      expect(parse_body.dig("error", "message")).to eq("File is too large to preview.")
+
+      stub_preview_relay("logo.png", bytes: "", status: 500)
+      get "/api/v1/app/chats/#{preview_chat.id}/coding_file_preview", params: { path: "logo.png" }
+
+      expect(response).to have_http_status(:service_unavailable)
+      expect(parse_body.dig("error", "code")).to eq("relay_unavailable")
+    end
+
     it "forwards the ref and rejects unsupported bytes despite a renderable extension" do
       sign_in_as(user)
       sha = "a" * 40

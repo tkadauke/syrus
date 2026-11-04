@@ -1,5 +1,7 @@
 class ChatFilePreview
-  Result = Data.define(:content_type, :bytes)
+  Result = Data.define(:content_type, :bytes, :viewer_kind)
+
+  MARKDOWN_EXTENSIONS = %w[.md .markdown .mdown .mkd].freeze
 
   SIGNATURES = [
     [ "image/png", ->(bytes) { bytes.start_with?("\x89PNG\r\n\x1A\n".b) } ],
@@ -27,7 +29,18 @@ class ChatFilePreview
       match = SIGNATURES.find { |_content_type, predicate| predicate.call(bytes) }
       return unless match&.first == allowed_content_type
 
-      Result.new(content_type: match.first, bytes: bytes)
+      Result.new(
+        content_type: match.first,
+        bytes: bytes,
+        viewer_kind: match.first == "application/pdf" ? "pdf" : "image"
+      )
+    end
+
+    def viewer_kind(bytes, path:, binary:)
+      return inspect(bytes, path:)&.viewer_kind if EXTENSIONS.key?(File.extname(path).downcase)
+      return if binary
+
+      MARKDOWN_EXTENSIONS.include?(File.extname(path).downcase) ? "markdown" : nil
     end
 
     private

@@ -198,10 +198,12 @@ class ChatWorkspaceRelay
       path_param = params["path"].to_s.strip
       return send_response(client, 422) if path_param.blank?
 
-      bytes = ChatWorkspace.file_bytes(session, repo, path_param, ref: params["ref"].presence)
-      return send_response(client, 404) unless bytes
+      result = ChatWorkspace.file_bytes_result(session, repo, path_param, ref: params["ref"].presence)
+      return send_response(client, 403) if result.status == :forbidden
+      return send_response(client, 413) if result.status == :too_large
+      return send_response(client, 404) unless result.status == :ok
 
-      send_response(client, 200, { content_base64: Base64.strict_encode64(bytes) })
+      send_response(client, 200, { content_base64: Base64.strict_encode64(result.bytes) })
     rescue StandardError => e
       Rails.logger.error("ChatWorkspaceRelay /workspace/file-preview: #{e.class}: #{e.message}")
       send_response(client, 500)

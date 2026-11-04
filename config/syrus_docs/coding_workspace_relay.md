@@ -57,10 +57,12 @@ Text files open as raw source. Markdown additionally offers a sanitized
 **Rendered** view and always resets to **Raw** when the file or ref changes.
 Allowlisted raster images, SVG, and PDF open directly as rendered resources;
 their authenticated response is signature-inspected, uses an exact content
-type, `X-Content-Type-Options: nosniff`, and a sandbox CSP. HTML and all other
-text formats remain raw-only. SVG is loaded as an image resource and PDF uses
-a scriptless sandboxed frame, so repository content is never inserted as
-active application-origin markup.
+type and `X-Content-Type-Options: nosniff`. Images use a sandbox CSP; PDFs use
+the browser's isolated native PDF viewer with scripts and subresources denied.
+HTML and all other text formats remain raw-only. SVG is loaded as an image
+resource and PDF uses a native viewer frame, so repository content is never
+inserted as active application-origin markup. Chats with a restricted workspace
+read policy do not expose binary preview bytes.
 
 ## Configuration
 
