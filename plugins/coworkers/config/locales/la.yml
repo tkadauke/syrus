@@ -11,3 +11,11 @@ la:
 
         %{files}
       workspace_conflict_label: "Conflictus spatii laboris"
+      workspace_already_saved: "Hoc spatium laboris iam servatum est."
+      workspace_save_label: "Servatio spatii laboris"
+      workspace_save_failed: "Mutationes in `%{branch}` post %{attempts} conatus frustra factos localiter servantur. %{status}"
+      retry_pending: "Syrus automatice iterum conabitur; etiam nunc iterum conari potes."
+      retry_exhausted: "Conatus automatici consumpti sunt; iterum conare cum receptaculum sanum sit."
+      needs_attention: "Hic error attentionem tuam requirit; post emendationem iterum serva."
+      workspace_save_resolved: "Mutationes spatii servatae feliciter sunt."
+      retry_save: "Spatium inspice et iterum conare"

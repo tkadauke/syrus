@@ -252,4 +252,24 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle do
       .to eq("Maya (@maya) <maya@coworkers.syrus.invalid>")
     expect(run_git("remote", "get-url", "origin", chdir: restored).strip).to eq(repository.remote_url)
   end
+
+  it "preserves unsaved local work across a following turn and clears state after recovery" do
+    session = chat
+    service = lifecycle(session)
+    path = service.prepare!
+    write(path, "preserved.md", "do not lose this\n")
+    unavailable_remote = @root.join("remote-unavailable.git")
+    FileUtils.mv(@remote, unavailable_remote)
+    expect(service.finalize!).to eq(:unsaved)
+    expect(session.coworker_chat.reload).to be_unsaved_workspace
+    expect(path.join("preserved.md").read).to eq("do not lose this\n")
+    FileUtils.mv(unavailable_remote, @remote)
+    following_turn = lifecycle(session)
+    expect(following_turn.prepare!).to eq(path)
+    expect(following_turn.finalize!).to eq(:merged)
+    expect(session.coworker_chat.reload).not_to be_unsaved_workspace
+    expect(home_file("preserved.md")).to eq("do not lose this\n")
+  ensure
+    FileUtils.mv(unavailable_remote, @remote) if unavailable_remote&.exist? && !@remote.exist?
+  end
 end

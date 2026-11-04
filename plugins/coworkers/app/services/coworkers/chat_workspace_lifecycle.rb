@@ -43,15 +43,17 @@ class Coworkers::ChatWorkspaceLifecycle
     path
   end
 
-  def finalize!
+  def finalize!(schedule_background: true)
     path = checkout_path
     return unless path.join(".git").directory?
     conflicts = unmerged_files(path)
     return post_conflict!(files: conflicts, detail: "Resolve the existing Git index conflicts before the workspace can merge.") if conflicts.any?
 
     commit_turn!(path)
-    push_chat_branch!(path)
-    merge_into_home!(chat_branch)
+    Coworkers::UnsavedWorkspace.new(@chat).attempt(branch: chat_branch, path:, operation: "chat_branch", schedule_background:) do
+      push_chat_branch!(path)
+      merge_into_home!(chat_branch)
+    end
   end
 
   # Background runs share the exact home-branch merge/retry/conflict path used

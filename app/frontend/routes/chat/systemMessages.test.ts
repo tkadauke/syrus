@@ -71,7 +71,8 @@ describe("systemMessage", () => {
         body_format: "markdown",
         prominent: true,
         system_label: "Workspace conflict",
-        system_tone: "warning"
+        system_tone: "warning",
+        system_cta: { label: "Review workspace and retry", path: "/coworkers/7?tab=workspace" }
       }
     })
 
@@ -80,6 +81,7 @@ describe("systemMessage", () => {
       prominent: true,
       label: "Workspace conflict",
       tone: "warning",
+      cta: { label: "Review workspace and retry", path: "/coworkers/7?tab=workspace" },
       body: "Resolve [SOUL.md](/api/v1/app/chats/7/source_file/raw?path=SOUL.md)"
     })
   })
