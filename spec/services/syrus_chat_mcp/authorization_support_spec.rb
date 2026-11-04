@@ -183,7 +183,7 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
     payload = JSON.parse(response.fetch(:result).fetch(:content).first.fetch(:text), symbolize_names: true)
 
     expect(response[:result][:isError]).to be(true)
-    expect(payload).to eq(error: "not_authorized")
+    expect(payload).to eq(error: "not_authorized", reason: "blocked")
   end
 
   describe ".pending_coworker_approval" do
@@ -312,10 +312,14 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
       )
       descriptor = Permissions::CapabilityDescriptor.new(**generated.to_h.merge(
         defaults: { AgentRole::CHAT_PLANNER => :ask },
+        maximum_autonomy: :permanent,
+        authority_durations: Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS,
         redactor: ->(arguments) { arguments.merge(token: "[REDACTED]") }
       ))
-      entry = Struct.new(:descriptor, :ungated).new(descriptor, false)
+      entry = Struct.new(:tool, :descriptor, :ungated).new(actor_tool, descriptor, false)
       allow(McpToolRegistry).to receive(:entry_for).with(actor_tool).and_return(entry)
+      allow(McpToolRegistry).to receive(:entries).with(surface: :chat).and_return([ entry ])
+      allow(Permissions::Catalog).to receive(:find!).and_return(descriptor)
 
       response = described_class.pending_actor_approval(
         actor_tool, { chat_session: }, { body: "hello", token: "secret" }
@@ -328,8 +332,32 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
         checkpoint_state: "waiting", action: "authorized_tool_call"
       )
       expect(PendingActions.for(request.action)).to eq(PendingActions::AuthorizedToolCall)
+      expect(request.payload.fetch("tool_set_bundle")).to eq("collaboration@v1")
       expect(request.authorization_items.sole.normalized_arguments)
         .to eq("body" => "hello", "token" => "[REDACTED]")
+      expect(request.authorization_items.sole.requested_durations)
+        .to eq(%w[invocation chat_session permanent])
+      expect(payload).to include(
+        "requested_durations" => %w[invocation chat_session permanent],
+        "tool_set_bundle" => "collaboration@v1"
+      )
+
+      item = request.authorization_items.sole
+      preview = Permissions::RuleDraft.from_request_item(
+        user:, request:, item:, duration: "chat_session"
+      ).preview
+
+      expect {
+        Permissions::CoworkerAuthorizationDecision.new(request:, item:, user:).call(
+          decision: "approved", smart: { duration: "chat_session", digest: preview.digest }
+        )
+      }.to have_enqueued_job(ChatPendingActionConfirmationJob).with(request.id)
+      expect(item.reload.resulting_authority).to have_attributes(
+        duration_kind: "chat_session", chat_session_id: chat_session.id
+      )
+      expect(item.authorized_invocation).to have_attributes(
+        state: "issued", tool_name: "send_external_message"
+      )
     end
     it "bypasses permission evaluation for an ungated tool" do
       actor_tool = Class.new(MCP::Tool) { tool_name "ask_user_question" }
@@ -342,12 +370,54 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
       expect(described_class.pending_actor_approval(actor_tool, { chat_session: }, { prompt: "Continue?" })).to be_nil
     end
 
+    it "executes benign defaults without creating an approval" do
+      actor_tool = Class.new(MCP::Tool) { tool_name "read_visible_context" }
+      descriptor = Permissions::CapabilityDescriptorAdapter.for_registry_entry(
+        tool_name: "read_visible_context", capability: "knowledge.read", mutation: false,
+        required_roles: [ AgentRole::CHAT_PLANNER ]
+      )
+      entry = Struct.new(:descriptor, :ungated).new(descriptor, false)
+      allow(McpToolRegistry).to receive(:entry_for).with(actor_tool).and_return(entry)
+
+      expect {
+        expect(described_class.pending_actor_approval(actor_tool, { chat_session: }, {})).to be_nil
+      }.not_to change(ChatPendingAction, :count)
+    end
+
     it "keeps a tool's existing pending-action confirmation as its only approval boundary" do
       actor_tool = Mcp::Tools::CancelJobTool
 
       expect(Permissions::AuthorizationRequest).not_to receive(:new)
 
       expect(described_class.pending_actor_approval(actor_tool, { chat_session: }, { job_id: 7 })).to be_nil
+    end
+
+    it "fails a denied ordinary chat invocation closed with the policy explanation" do
+      actor_tool = Class.new(MCP::Tool) { tool_name "send_external_message" }
+      generated = Permissions::CapabilityDescriptorAdapter.for_registry_entry(
+        tool_name: "send_external_message", capability: "communication.chat", mutation: true,
+        required_roles: [ AgentRole::CHAT_PLANNER ]
+      )
+      descriptor = Permissions::CapabilityDescriptor.new(**generated.to_h.merge(
+        defaults: { AgentRole::CHAT_PLANNER => :deny }
+      ))
+      entry = Struct.new(:descriptor, :ungated).new(descriptor, false)
+      allow(McpToolRegistry).to receive(:entry_for).with(actor_tool).and_return(entry)
+
+      server = MCP::Server.new(
+        name: "syrus-chat-sidecar", tools: [ Mcp::Sidecar.authorize_tool(actor_tool) ],
+        server_context: { chat_session: }
+      )
+      raw = server.handle_json({
+        jsonrpc: "2.0", id: 1, method: "tools/call",
+        params: { name: "send_external_message", arguments: {} }
+      }.to_json)
+      payload = JSON.parse(JSON.parse(raw).dig("result", "content", 0, "text"))
+
+      expect(payload).to eq(
+        "error" => "not_authorized", "reason" => "permission policy denies this operation"
+      )
+      expect(ChatPendingAction.where(action: "authorized_tool_call")).to be_empty
     end
   end
 

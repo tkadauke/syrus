@@ -38,6 +38,16 @@ denial. Ordinary chats can also ask for narrowly scoped authority for
 themselves; persistent coworkers retain additional request limits and safety
 boundaries.
 
+Being available to an ordinary Syrus Chat does not itself authorize a tool.
+Each call goes through the same permission evaluator. Safe defaults remain
+frictionless; an ask-on-first-use decision shows one compact approval for the
+tool's capability bundle and the scopes that are actually safe to grant. You
+can allow only the waiting call, the current chat, or a durable scoped rule
+when the capability supports it. Syrus then resumes the exact fingerprinted
+call once. Denials stop before execution and explain why. A proposal or
+transaction that already has its own confirmation does not add a redundant
+permission prompt in front of that review.
+
 The approval inbox at `/permissions/inbox` collects operational requests from
 chats and background work. A compact global drawer and inline Job cards show
 the same durable request in the same plain-English wording as the chat card:
