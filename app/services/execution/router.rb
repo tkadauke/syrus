@@ -13,13 +13,13 @@ module Execution
     # +authorizer+ is a callable taking the request and the backend location
     # (+location:+ of +:host+ or +:container+) and returning a
     # +Permissions::ExecutionAuthorization::Result+, or nil for "no opinion".
-    # The default is +Permissions::ExecutionGate+, which enforces denies only.
-    # A denied result raises NotAuthorized before anything starts. Pass
-    # +enforce_ask: true+ to also refuse results that need approval.
-    def initialize(local: Local.new, authorizer: Permissions::ExecutionGate.new, enforce_ask: false)
+    # The default is +Permissions::ExecutionGate+. Any result other than an
+    # explicit allow raises +NotAuthorized+ before a process starts. Raw
+    # process execution has no exact-invocation replay boundary, so an +ask+
+    # must fail closed instead of being logged and treated as approval.
+    def initialize(local: Local.new, authorizer: Permissions::ExecutionGate.new)
       @local = local
       @authorizer = authorizer
-      @enforce_ask = enforce_ask
     end
 
     def run(request)
@@ -38,7 +38,7 @@ module Execution
       location = backend.is_a?(Execution::Local) ? :host : :container
       result = authorizer&.call(request, location:)
       return unless result
-      raise NotAuthorized, result if result.denied? || (@enforce_ask && !result.allowed?)
+      raise NotAuthorized, result unless result.allowed?
     end
 
     def backend_identity(backend)

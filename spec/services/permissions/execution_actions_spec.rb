@@ -122,12 +122,12 @@ RSpec.describe Permissions::ExecutionActions do
       expect(seen).to eq(:host)
     end
 
-    it "lets an ask through unless enforce_ask is set" do
+    it "fails closed on ask because raw processes have no resumable approval boundary" do
       asking = ->(_req, location:) { result(:ask) }
 
-      expect(Execution::Router.new(local:, authorizer: asking).run(request)).to eq(:ran)
-      expect { Execution::Router.new(local:, authorizer: asking, enforce_ask: true).run(request) }
-        .to raise_error(Execution::Router::NotAuthorized)
+      expect(local).not_to receive(:run)
+      expect { Execution::Router.new(local:, authorizer: asking).run(request) }
+        .to raise_error(Execution::Router::NotAuthorized, /execution ask/)
     end
   end
 
@@ -144,9 +144,9 @@ RSpec.describe Permissions::ExecutionActions do
       expect(gate.call(request, location: :container)).to be_allowed
     end
 
-    it "logs, but does not block, a request that would ask" do
+    it "records the redacted reason for an ask that the router will block" do
       logger = instance_double(Logger)
-      expect(logger).to receive(:info).with(/would ask.*"executable":"sudo"/)
+      expect(logger).to receive(:info).with(/requires approval.*"executable":"sudo"/)
       plain = request.with(command: [ "sudo", "ls" ], workload_policy: nil)
 
       expect(described_class.new(logger:).call(plain, location: :container)).to be_ask
@@ -184,6 +184,17 @@ RSpec.describe "persisted execution deny rules" do
     )
   end
 
+  def allow_execution(job, selector_type, id: nil)
+    Permissions::Management.new(user).lease!(
+      { "capability" => Permissions::ExecutionActions::CAPABILITY, "operation" => Permissions::ExecutionActions.operation_for(:host),
+        "role" => AgentRole::WORKFLOW_IMPLEMENT, "subject_selector_type" => selector_type, "subject_selector_id" => id,
+        "duration" => "job", "job_id" => job.id,
+        "arguments" => { "location" => "host", "command" => [ "sudo", "ls" ], "network" => "agent",
+          "env_keys" => [], "writable_paths" => [], "provider" => "", "tool" => "" } }.compact,
+      actor: user
+    )
+  end
+
   it "lists the execution operations in the permission catalog so rules can be created" do
     expect(Permissions::Catalog.find!(capability: Permissions::ExecutionActions::CAPABILITY, operation: Permissions::ExecutionActions.operation_for(:host)))
       .to have_attributes(operation: Permissions::ExecutionActions.operation_for(:host))
@@ -210,5 +221,29 @@ RSpec.describe "persisted execution deny rules" do
     req = request(chat_session:, mounts: ProcessRunner::Mounts.new(workdir: Dir.pwd, read_write: [ Dir.pwd ]), timeout: 5)
 
     expect { Execution::Router.new(local:).run(req) }.to raise_error(Execution::Router::NotAuthorized)
+  end
+
+  it "does not start a sensitive process when durable authority is absent" do
+    local = Execution::Local.new
+    expect(local).not_to receive(:run)
+    req = request(
+      command: [ "sudo", "ls" ], job: Job.new(user: user), agent: AgentRole::WORKFLOW_IMPLEMENT,
+      mounts: ProcessRunner::Mounts.new(workdir: Dir.pwd, read_write: [ Dir.pwd ]), timeout: 5
+    )
+
+    expect { Execution::Router.new(local:).run(req) }
+      .to raise_error(Execution::Router::NotAuthorized, /execution ask/)
+  end
+
+  it "starts a sensitive workflow process covered by durable Job-owner authority" do
+    job = Factories.job_record(user: user)
+    allow_execution(job, "workflow_role", id: AgentRole::WORKFLOW_IMPLEMENT)
+    local = Execution::Local.new.tap { |backend| allow(backend).to receive(:run).and_return(:ran) }
+    req = request(
+      command: [ "sudo", "ls" ], job:, agent: AgentRole::WORKFLOW_IMPLEMENT,
+      mounts: ProcessRunner::Mounts.new(workdir: Dir.pwd, read_write: [ Dir.pwd ]), timeout: 5
+    )
+
+    expect(Execution::Router.new(local:).run(req)).to eq(:ran)
   end
 end
