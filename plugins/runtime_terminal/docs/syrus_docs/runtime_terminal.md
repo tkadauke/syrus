@@ -33,6 +33,12 @@ or `TerminalSessionJob` directly, and the link table carries no database
 foreign key back into the `terminal` plugin's schema — the two plugins stay
 independently deletable.
 
+Workflow-owned sessions retain the prepared workspace's worker-storage
+affinity. The provider copies that ownership onto the terminal session and
+dispatches `TerminalSessionJob` to the storage root's `resume-*` queue. It
+rejects startup when a workflow has no recorded storage affinity, because a
+generic worker cannot safely open a node-local prepared workspace.
+
 ## Capabilities
 
 `RuntimeTerminal::Provider.capabilities` advertises:
