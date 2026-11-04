@@ -1539,6 +1539,8 @@
     "provider_candidates_help": "Kandidaten werden in der angezeigten Reihenfolge versucht, wenn Fallback-Reihenfolge ausgewählt ist.",
     "rules_table": "Anbieter-Routing-Regeln",
     "provider": "Anbieter",
+    "reviewer_target": "Verantwortlicher Reviewer",
+    "provider_only_reviewer": "Nur Anbieter",
     "model": "Modell",
     "effort": "Aufwand",
     "order": "Reihenfolge",

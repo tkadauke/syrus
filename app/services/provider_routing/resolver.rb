@@ -7,8 +7,16 @@ module ProviderRouting
   class Resolver
     PanelResolutionRequired = Class.new(StandardError)
 
-    Candidate = Data.define(:provider, :model, :effort_level) do
-      def to_h = super.compact
+    Candidate = Data.define(:provider, :model, :effort_level, :reviewer_target) do
+      def initialize(provider:, model: nil, effort_level: nil, reviewer_target: nil)
+        super
+      end
+
+      def to_h
+        super.compact.tap do |payload|
+          payload[:reviewer_target] = reviewer_target.to_h if reviewer_target.present? && reviewer_target.respond_to?(:to_h)
+        end
+      end
     end
     PanelResolution = Data.define(:members, :consensus, :on_unavailable, :min_members, :source_scope, :source_id, :matched_rule, :match_details) do
       def candidates = members
@@ -95,7 +103,7 @@ module ProviderRouting
       end
     end
 
-    HARDCODED_FALLBACK = [ Candidate.new(provider: "claude", model: nil, effort_level: nil) ].freeze
+    HARDCODED_FALLBACK = [ Candidate.new(provider: "claude", model: nil, effort_level: nil, reviewer_target: nil) ].freeze
 
     def self.call(job:, task_key:, trigger: nil, workflow_trigger_kind: nil)
       resolution = resolve(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind)
@@ -134,16 +142,26 @@ module ProviderRouting
     end
 
     def resolve
-      job_override_resolution ||
+      resolution = (job_override_resolution unless task_key == ProviderRoutingRule::COWORKER_REVIEW_STEP_KIND) ||
         rule_resolution(scope_type: "job", scope_id: job.id) ||
         rule_resolution(scope_type: "repository", scope_id: repository_id) ||
         user_scoped_resolution ||
         hardcoded_fallback_resolution
+      validate_required_reviewer_target!(resolution)
+      resolution
     end
 
     private
 
     attr_reader :job, :task_key, :trigger, :workflow_trigger_kind, :released_hold_rule_ids
+
+    def validate_required_reviewer_target!(resolution)
+      return unless task_key == ProviderRoutingRule::COWORKER_REVIEW_STEP_KIND
+      return if !resolution.held? && resolution.candidates.present? && resolution.candidates.all?(&:reviewer_target)
+
+      raise ReviewerTarget::Missing,
+        "coworker_review requires a matching provider rule whose every candidate has an active coworker target"
+    end
 
     def job_override_candidates
       return nil if job.job_provider_setting_default?
@@ -153,7 +171,7 @@ module ProviderRouting
       # here. switch_job_provider_setting! keeps agent_provider in sync for
       # presentation and legacy callers, but the setting remains the source of
       # truth for explicit pins.
-      [ Candidate.new(provider: job.workflow_agent_provider, model: job.model, effort_level: job.effort_level) ]
+      [ Candidate.new(provider: job.workflow_agent_provider, model: job.model, effort_level: job.effort_level, reviewer_target: nil) ]
     end
 
     def job_override_resolution
@@ -182,7 +200,7 @@ module ProviderRouting
       provider = effective_user&.agent_provider
       return nil if provider.blank?
 
-      [ Candidate.new(provider: provider, model: job.model, effort_level: job.effort_level) ]
+      [ Candidate.new(provider: provider, model: job.model, effort_level: job.effort_level, reviewer_target: nil) ]
     end
 
     def default_provider_resolution
@@ -251,7 +269,10 @@ module ProviderRouting
 
     def candidate_from_hash(hash)
       hash = hash.stringify_keys
-      Candidate.new(provider: hash["provider"], model: hash["model"], effort_level: hash["effort_level"])
+      target = if hash["reviewer_target"].present?
+        ReviewerTarget.resolve!(definition: hash["reviewer_target"], user: effective_user, repository: job.repository)
+      end
+      Candidate.new(provider: hash["provider"], model: hash["model"], effort_level: hash["effort_level"], reviewer_target: target)
     end
 
     def repository_id

@@ -22,6 +22,9 @@ const options: ProviderRoutingOptions = {
     { value: "low", label: "Low" },
     { value: "high", label: "High" }
   ],
+  reviewer_targets: [
+    { type: "coworker", reference: "coworker:17", display_snapshot: { name: "Ada", handle: "ada", role_summary: "Security reviewer" } }
+  ],
   triggers: {
     step_kinds: [
       { value: "implement", label: "Implement" },
@@ -229,6 +232,40 @@ describe("ProviderRoutingRulesEditor", () => {
             on_unavailable: "hold",
             min_members: 2,
             candidates: [{ provider: "codex" }, { provider: "claude" }]
+          })
+        })
+      )
+    )
+  })
+
+  it("keeps an accountable coworker separate from the execution provider", async () => {
+    const onUpdateRule = vi.fn()
+    const reviewRule: ProviderRoutingRule = {
+      id: 52,
+      scope_type: "repository",
+      scope_id: 7,
+      task_key: "security_review",
+      trigger: { type: "step", kind: "security_review" },
+      conditions: {},
+      action: { strategy: "fallback_order", candidates: [{ provider: "codex" }] },
+      candidates: [{ provider: "codex" }]
+    }
+    renderPanel({ onUpdateRule, rules: [reviewRule] })
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
+    fireEvent.change(within(dialog).getByLabelText("Accountable reviewer"), { target: { value: "coworker:coworker:17" } })
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save rule" }))
+
+    await waitFor(() =>
+      expect(onUpdateRule).toHaveBeenCalledWith(
+        reviewRule,
+        expect.objectContaining({
+          action: expect.objectContaining({
+            candidates: [expect.objectContaining({
+              provider: "codex",
+              reviewer_target: expect.objectContaining({ type: "coworker", reference: "coworker:17" })
+            })]
           })
         })
       )

@@ -39,6 +39,31 @@ RSpec.describe ReviewEvidence::Capture do
     expect(evidence.model).to eq("gpt-workflow-default")
   end
 
+  it "pins the routed coworker identity separately from provider and model" do
+    PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+    coworker = Coworkers::Coworker.create!(
+      owner_user: job.owner_user || job.user, name: "Ada", handle: "evidence-ada",
+      workspace_repo: "git@example.com:ada.git"
+    )
+    step.update!(details: {
+      "reviewer_target" => {
+        "type" => "coworker", "reference" => "coworker:#{coworker.id}",
+        "display_snapshot" => { "name" => "Ada" }
+      }
+    })
+    allow(ReviewEvidence::CanonicalDiff).to receive(:resolve).and_return("a" * 40)
+    allow(ReviewEvidence::CanonicalDiff).to receive(:snapshot).and_return(head_sha: "b" * 40, sha256: "c" * 64)
+
+    evidence = described_class.call(
+      run: run, workspace_path: "/workspace", review_kind: "adversarial", base_ref: "origin/main"
+    )
+
+    expect(evidence).to have_attributes(
+      reviewer: coworker, provider: "codex", model: "gpt-pinned"
+    )
+  end
+
   it "refuses to fabricate a model when routing did not resolve one" do
     run.update!(model: nil)
     run.workflow.update!(model: nil)

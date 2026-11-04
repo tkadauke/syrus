@@ -483,6 +483,14 @@ hardcoded provider fallback.
 Candidate providers come from the enabled agent-provider plugin catalog,
 model choices come from that provider's `.available_models`, and
 `effort_level` can be left blank to use the provider default. Editor options
+may also attach an installation-local `reviewer_target` to candidates for
+`adversarial_review`, `security_review`, and `coworker_review` rules. The target
+is separate from the provider/model triple: rules persist only its opaque
+provider-owned reference plus a safe display snapshot, while dispatch resolves
+the active identity against the Job owner and repository again. A missing,
+paused, revoked, unauthorized, or unavailable-plugin target is a deterministic
+failure rather than provider unavailability. Omitting a target from ordinary
+adversarial or security review keeps the existing provider-only behavior.
 come from the same live registries: chat roles from `AgentRole`, agentic step
 kinds from `Step::Kind` including plugin-provided entries, workflow trigger
 conditions from `Workflow::TriggerKind`, and provider/model/effort data from

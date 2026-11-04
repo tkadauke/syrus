@@ -34,6 +34,7 @@ module Syrus
       grader_type
       grader_input_materializer
       review_criteria_provider
+      reviewer_target_provider
       post_implementation_review_provider
       diff_review_annotation_provider
       autofix_command
@@ -106,6 +107,7 @@ module Syrus
       grader_type:             -> { Syrus::Plugin::GraderType },
       grader_input_materializer: -> { Syrus::Plugin::GraderInputMaterializer },
       review_criteria_provider: -> { Syrus::Plugin::ReviewCriteriaProvider },
+      reviewer_target_provider: -> { Syrus::Plugin::ReviewerTargetProvider },
       post_implementation_review_provider: -> { Syrus::Plugin::PostImplementationReviewProvider },
       diff_review_annotation_provider: -> { Syrus::Plugin::DiffReviewAnnotationProvider },
       autofix_command:         -> { Syrus::Plugin::AutofixCommand },

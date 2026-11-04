@@ -12,10 +12,19 @@ module ReviewEvidence::Capture
     base_sha = ReviewEvidence::CanonicalDiff.resolve(workspace_path: workspace_path, ref: base_ref)
     snapshot = ReviewEvidence::CanonicalDiff.snapshot(workspace_path: workspace_path, base_sha: base_sha)
 
+    target = run.step.details.to_h["reviewer_target"]
+    reviewer = if target.present?
+      ProviderRouting::ReviewerTarget.resolve!(
+        definition: target,
+        user: run.workflow.job.owner_user || run.workflow.job.user,
+        repository: run.workflow.job.repository
+      ).record
+    end
     ReviewEvidence.create!(
       run: run, workflow: run.workflow, step: run.step, review_kind: review_kind,
       provider: run.agent_provider,
       model: run.model,
+      reviewer: reviewer,
       reviewed_base_sha: base_sha,
       reviewed_head_sha: snapshot.fetch(:head_sha),
       canonical_diff_sha256: snapshot.fetch(:sha256),

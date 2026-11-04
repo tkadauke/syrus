@@ -91,6 +91,81 @@ RSpec.describe ProviderRouting::Resolver do
   end
 
   describe "ordered scoped rules" do
+    before do
+      PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
+      Syrus::PluginRegistry.clear_plugin_record_cache!
+    end
+
+    it "resolves an active owner coworker independently from the execution provider" do
+      job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
+      coworker = Coworkers::Coworker.create!(
+        owner_user: user, name: "Ada", handle: "ada-reviewer", role_summary: "Security reviewer",
+        workspace_repo: "git@example.com:ada.git"
+      )
+      rule = ProviderRoutingRule.create!(
+        scope_type: "repository", scope_id: repository.id,
+        trigger: { type: "step", kind: "security_review" },
+        action: { strategy: "fallback_order", candidates: [ {
+          provider: "codex", model: "gpt-5",
+          reviewer_target: { type: "coworker", reference: "coworker:#{coworker.id}" }
+        } ] }
+      )
+
+      resolution = described_class.resolve(job: job, task_key: "security_review")
+
+      expect(resolution.candidates.first).to have_attributes(provider: "codex", model: "gpt-5")
+      expect(resolution.candidates.first.reviewer_target).to have_attributes(record: coworker)
+      expect(resolution.explanation.dig("final_action", "candidates", 0, "reviewer_target")).to eq(
+        "type" => "coworker", "reference" => "coworker:#{coworker.id}",
+        "display_snapshot" => { "name" => "Ada", "handle" => "ada-reviewer", "role_summary" => "Security reviewer" }
+      )
+      expect(rule.reload.action.dig("candidates", 0, "reviewer_target", "display_snapshot")).to include("name" => "Ada")
+    end
+
+    it "hard-fails resolution when a selected coworker is later paused" do
+      job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
+      coworker = Coworkers::Coworker.create!(owner_user: user, name: "Ada", handle: "ada-paused", workspace_repo: "git@example.com:ada.git")
+      ProviderRoutingRule.create!(
+        scope_type: "repository", scope_id: repository.id,
+        trigger: { type: "step", kind: "adversarial_review" },
+        action: { strategy: "fallback_order", candidates: [ {
+          provider: "codex", reviewer_target: { type: "coworker", reference: "coworker:#{coworker.id}" }
+        } ] }
+      )
+      coworker.update!(state: "paused")
+
+      expect {
+        described_class.resolve(job: job, task_key: "adversarial_review")
+      }.to raise_error(ProviderRouting::ReviewerTarget::Missing, /unavailable/)
+    end
+
+    it "allows a panel of distinct coworkers on the same provider" do
+      job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
+      coworkers = %w[Ada Grace].map.with_index do |name, index|
+        Coworkers::Coworker.create!(owner_user: user, name: name, handle: "panel-#{index}", workspace_repo: "git@example.com:#{index}.git")
+      end
+      candidates = coworkers.map do |coworker|
+        { provider: "codex", reviewer_target: { type: "coworker", reference: "coworker:#{coworker.id}" } }
+      end
+      ProviderRoutingRule.create!(
+        scope_type: "repository", scope_id: repository.id,
+        trigger: { type: "step", kind: "adversarial_review" },
+        action: { strategy: "panel", candidates: candidates, consensus: "unanimous", on_unavailable: "fail", min_members: 2 }
+      )
+
+      resolution = described_class.resolve(job: job, task_key: "adversarial_review")
+
+      expect(resolution.members.map { |member| member.reviewer_target.record }).to eq(coworkers)
+    end
+
+    it "never falls back to an unnamed provider for dedicated coworker review" do
+      job = Factories.job(repository: repository, user: user, job_provider_setting: "claude")
+
+      expect {
+        described_class.resolve(job: job, task_key: "coworker_review")
+      }.to raise_error(ProviderRouting::ReviewerTarget::Missing, /requires a matching provider rule/)
+    end
+
     it "returns a distinct panel resolution while preserving ordered members" do
       job = Factories.job(repository: repository, user: user, job_provider_setting: "default")
       rule = ProviderRoutingRule.create!(

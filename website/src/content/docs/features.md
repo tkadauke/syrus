@@ -1202,6 +1202,12 @@ or minimum-approval consensus. Each member uses the same availability checks as
 normal routing; the rule decides whether an unavailable member is dropped,
 holds admission, or fails panel admission, and a minimum-member guard prevents
 an undersized panel from producing a review decision.
+When the Coworkers plugin is enabled, each review candidate may additionally
+name an accountable coworker independently of the provider and model that run
+the review. Single-reviewer and panel rules preserve the selected coworker's
+local identity snapshot in their routing explanation and pin the live identity
+into review evidence before invocation. Ordinary adversarial and security
+rules remain provider-only when no coworker is selected.
 The Job review and workflow views keep each panel iteration together as one
 round: its consensus verdict stays visible while the individual provider/model
 verdicts, critiques, unavailable members, and non-blocking notes can be expanded.

@@ -23,6 +23,13 @@ export type ProviderRoutingCandidate = {
   provider: string
   model?: string | null
   effort_level?: string | null
+  reviewer_target?: ReviewerTargetOption | null
+}
+
+export type ReviewerTargetOption = {
+  type: string
+  reference: string
+  display_snapshot: { name: string; handle?: string; role_summary?: string }
 }
 
 export type ProviderRoutingTrigger =
@@ -109,6 +116,7 @@ export type ProviderRoutingRegistryOptions = {
 export type ProviderRoutingOptions = {
   agent_providers: AgentProviderOption[]
   effort_levels: EffortLevelOption[]
+  reviewer_targets?: ReviewerTargetOption[]
 } & ProviderRoutingRegistryOptions
 
 export type ProviderRoutingInheritedContext = {

@@ -32,6 +32,7 @@ module Coworkers
              sidebar_page: "Coworkers::SidebarPages",
              chat_list_group: "Coworkers::ChatListGroup",
              chat_payload_contributor: "Coworkers::PayloadContributor",
+             reviewer_target_provider: "Coworkers::ReviewerTargetProvider",
              chat_turn_finalizer: [ "Coworkers::HomeBranchPersistence", "Coworkers::MessageReply" ],
              chat_mcp_tool_set: "Coworkers::ChatToolSet"
     tick_interval 5.minutes

@@ -1539,6 +1539,8 @@
     "provider_candidates_help": "Candidates are tried in the order shown when fallback order is selected.",
     "rules_table": "Provider routing rules",
     "provider": "Provider",
+    "reviewer_target": "Accountable reviewer",
+    "provider_only_reviewer": "Provider only",
     "model": "Model",
     "effort": "Effort",
     "order": "Order",

@@ -1539,6 +1539,8 @@
     "provider_candidates_help": "Candidati ordine ostenso temptantur cum ordo subsidiarius electus est.",
     "rules_table": "Regulae itineris praebitorum",
     "provider": "Praebitor",
+    "reviewer_target": "Recensor responsabilis",
+    "provider_only_reviewer": "Praebitor tantum",
     "model": "Exemplar",
     "effort": "Conatus",
     "order": "Ordo",

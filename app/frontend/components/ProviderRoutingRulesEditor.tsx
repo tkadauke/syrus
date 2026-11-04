@@ -720,10 +720,10 @@ function RoutingCandidateRow({
 }) {
   const provider = providerOption(options, candidate.provider)
   return (
-    <div className="grid gap-2 rounded border border-border p-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_9rem_auto]">
+    <div className="grid gap-2 rounded border border-border p-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_9rem_minmax(0,1fr)_auto]">
       <Select
         aria-label={t("provider_routing.provider")}
-        onChange={(event) => onChange({ provider: event.target.value, model: null, effort_level: candidate.effort_level || null })}
+        onChange={(event) => onChange({ ...candidate, provider: event.target.value, model: null })}
         value={candidate.provider}
       >
         {options.agent_providers.length === 0 ? <option value=""></option> : null}
@@ -754,6 +754,21 @@ function RoutingCandidateRow({
         {options.effort_levels.map((effort) => (
           <option key={effort.value} value={effort.value}>
             {effortLabel(effort.value, effort.label, t)}
+          </option>
+        ))}
+      </Select>
+      <Select
+        aria-label={t("provider_routing.reviewer_target")}
+        onChange={(event) => {
+          const target = options.reviewer_targets?.find((entry) => `${entry.type}:${entry.reference}` === event.target.value)
+          onChange({ ...candidate, reviewer_target: target || null })
+        }}
+        value={candidate.reviewer_target ? `${candidate.reviewer_target.type}:${candidate.reviewer_target.reference}` : ""}
+      >
+        <option value="">{t("provider_routing.provider_only_reviewer")}</option>
+        {(options.reviewer_targets || []).map((target) => (
+          <option key={`${target.type}:${target.reference}`} value={`${target.type}:${target.reference}`}>
+            {target.display_snapshot.name}{target.display_snapshot.handle ? ` (@${target.display_snapshot.handle})` : ""}
           </option>
         ))}
       </Select>
@@ -838,6 +853,7 @@ function normalizeOptions(options?: ProviderRoutingOptions): ProviderRoutingOpti
   return {
     agent_providers: options?.agent_providers || EMPTY_OPTIONS.agent_providers,
     effort_levels: options?.effort_levels || EMPTY_OPTIONS.effort_levels,
+    reviewer_targets: options?.reviewer_targets || [],
     triggers: {
       chat_roles: options?.triggers?.chat_roles || [],
       step_kinds: options?.triggers?.step_kinds || []
@@ -1103,7 +1119,8 @@ function candidateLabel(candidate: ProviderRoutingCandidate, options: ProviderRo
     model ? model.label : candidate.model,
     candidate.effort_level
       ? t("provider_routing.effort_candidate", { effort: effortLabel(candidate.effort_level, effort?.label || candidate.effort_level, t) })
-      : null
+      : null,
+    candidate.reviewer_target?.display_snapshot.name
   ]
     .filter(Boolean)
     .join(" / ")

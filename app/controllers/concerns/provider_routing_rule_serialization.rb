@@ -66,7 +66,9 @@ module ProviderRoutingRuleSerialization
         chat_roles: AgentRole::CHAT_ROLES.map do |role|
           provider_routing_option_json(role, role.delete_prefix("chat:").humanize)
         end,
-        step_kinds: Step::Kind.entries.select(&:agentic).map { |entry| provider_routing_kind_entry_json(entry) }
+        step_kinds: Step::Kind.entries.select(&:agentic).map { |entry| provider_routing_kind_entry_json(entry) } + [
+          { value: ProviderRoutingRule::COWORKER_REVIEW_STEP_KIND, label: "Coworker review", panel_capable: true }
+        ]
       },
       conditions: {
         workflow_trigger_kinds: Workflow::TriggerKind.entries.map { |entry| provider_routing_kind_entry_json(entry) }
@@ -92,6 +94,7 @@ module ProviderRoutingRuleSerialization
       time_zone: Time.zone.name
     )
     agent_provider_catalog_options(user).merge(registry)
+      .merge(reviewer_targets: ProviderRouting::ReviewerTarget.options(user: user))
   end
 
   # Repositories the user can see, for the repository condition picker.
@@ -144,7 +147,7 @@ module ProviderRoutingRuleSerialization
       provider: candidate["provider"].to_s,
       model: candidate["model"].presence,
       effort_level: candidate["effort_level"].presence
-    }.compact
+    }.compact.merge("reviewer_target" => candidate["reviewer_target"]).compact
   end
 
   def provider_routing_rule_attrs
@@ -155,7 +158,7 @@ module ProviderRoutingRuleSerialization
       trigger: {},
       conditions: {},
       action: {},
-      candidates: [ :provider, :model, :effort_level ]
+      candidates: [ :provider, :model, :effort_level, reviewer_target: {} ]
     )
 
     task_key = attrs[:task_key].to_s.strip.presence || ProviderRoutingRule::DEFAULT_TASK_KEY
@@ -199,8 +202,8 @@ module ProviderRoutingRuleSerialization
       next unless candidate.respond_to?(:to_h)
 
       candidate.to_h
-        .slice("provider", "model", "effort_level")
-        .transform_values { |value| value.to_s.strip.presence }
+        .slice("provider", "model", "effort_level", "reviewer_target")
+        .transform_values { |value| value.respond_to?(:to_h) ? value.to_h : value.to_s.strip.presence }
         .compact
     end.compact
   end

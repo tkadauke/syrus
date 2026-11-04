@@ -271,7 +271,8 @@ module Steps
             iteration: step.iteration, loop_id: step.loop_id,
             details: {
               "panel_member" => true, "panel_id" => panel_id,
-              "provider" => member["provider"], "model" => member["model"], "effort_level" => member["effort_level"]
+              "provider" => member["provider"], "model" => member["model"], "effort_level" => member["effort_level"],
+              "reviewer_target" => member["reviewer_target"]
             }.compact
           )
         end

@@ -116,14 +116,18 @@ module ProviderRouting
 
     def registry_options
       agent_provider_catalog_options(@user).merge(
-        step_kinds: Step::Kind.entries.select(&:agentic).map(&:kind),
-        panel_capable_step_kinds: Step::Kind.entries.select(&:panel_capable).map(&:kind),
+        step_kinds: Step::Kind.entries.select(&:agentic).map(&:kind) | [ ProviderRoutingRule::COWORKER_REVIEW_STEP_KIND ],
+        panel_capable_step_kinds: Step::Kind.entries.select(&:panel_capable).map(&:kind) | [ ProviderRoutingRule::COWORKER_REVIEW_STEP_KIND ],
         chat_roles: AgentRole::CHAT_ROLES,
         workflow_trigger_kinds: Workflow::TriggerKind.values,
         action_types: ProviderRoutingRule::ACTION_TYPES,
         action_strategies: ProviderRoutingRule::ACTION_STRATEGIES,
         condition_keys: ProviderRoutingRule::CONDITION_KEYS
-      )
+      ).merge(reviewer_targets: ProviderRouting::ReviewerTarget.options(user: @user, repository: scope_repository))
+    end
+
+    def scope_repository
+      Repository.find_by(id: scope[:repository_id])
     end
 
     def active_holds(rules)
