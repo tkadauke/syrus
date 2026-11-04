@@ -259,6 +259,14 @@ module Admin
         Permissions::CapabilityRegistryValidator.for_application.coverage
       end
 
+      def permission_profiles
+        Permissions::PermissionProfiles.all.map(&:to_h)
+      end
+
+      def tool_set_bundles
+        Permissions::ToolSetBundles.all.map(&:to_h)
+      end
+
       def validate_descriptors!
         Permissions::CapabilityRegistryValidator.for_application.validate!
       end
