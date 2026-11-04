@@ -139,7 +139,7 @@ RSpec.describe AuthorizedInvocation, :ci_only do
     revalidation_started = Queue.new
     finish_revalidation = Queue.new
     claim_result = Queue.new
-    expect(lease).to receive(:with_lock).and_call_original
+    expect(PermissionLease).to receive(:lock).and_call_original
     claimant = Thread.new do
       ActiveRecord::Base.connection_pool.with_connection do
         claim_result << invocation.claim!(fingerprint: "sha256:claim-revoke-race", claimant: user,
