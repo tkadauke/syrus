@@ -96,7 +96,7 @@ module SyrusMcp
         return Mcp::Tools.invalid("minimum_subject_visible_fraction must be a number from 0 through 1") if minimum_visible_fraction.nil?
 
         captured = if image_source[:kind] == :current_browser
-          Mcp::Tools::AgentPreviewRegistry.while_in_use(run.id) do
+          Mcp::Tools::AgentPreviewRegistry.while_in_use(run.id, prefixes: [ "#{run.id}:" ]) do
             read_image_data(image_source, run, minimum_visible_fraction: minimum_visible_fraction)
           end
         else
