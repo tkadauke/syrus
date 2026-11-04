@@ -1758,6 +1758,18 @@ automatic post-approval export trigger.
 
 ## Lifecycle-bound permission authority
 
+Permission setup has three versioned starting profiles. **Full access** grants
+every eligible delegable capability, **Ask on first use** pauses at the first
+consequential use, and **Restricted** permits safe isolated workspace work
+while denying other capabilities. Profiles use the same evaluator as custom
+rules, so resource authorization, provider ceilings, confinement, credentials,
+and nondelegable operations still apply.
+
+Core and plugin tools share five human-sized bundles: Workspace, Knowledge,
+Collaboration, Operations, and Administration. Plugin capabilities join these
+bundles by their declared effects rather than receiving authority merely
+because the plugin is installed or enabled.
+
 Syrus's permission foundation distinguishes permanent scoped rules from
 temporary authority. Temporary authority can cover one exact invocation, the
 current chat session, or the current Job; Workflow and Run retries do not create

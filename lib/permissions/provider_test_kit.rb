@@ -3,6 +3,8 @@
 require_dependency "permissions/capability_descriptor"
 require_dependency "permissions/capability_upgrade_validator"
 require_dependency "permissions/invocation_classifier"
+require_dependency "permissions/permission_profiles"
+require_dependency "permissions/tool_set_bundles"
 
 module Permissions
   # Shared, behavior-oriented conformance tests for permission providers.
@@ -25,11 +27,27 @@ module Permissions
             expect(operations).to eq(operations.uniq), "permission operations must be unique"
 
             descriptors.each do |descriptor|
+              expect(ToolSetBundles::DEFINITIONS).to have_key(descriptor.tool_set_bundle),
+                "#{descriptor.operation} must belong to a canonical tool-set bundle"
               expect(descriptor.defaults.keys).to contain_exactly(*descriptor.requestable_roles),
                 "#{descriptor.operation} must declare exactly one default for every requestable role"
               registered_scope = permission_provider.permission_resource_scopes[descriptor.resource_scope.type]
               expect(registered_scope).to equal(descriptor.resource_scope),
                 "#{descriptor.operation} must reference a resource scope registered by the provider"
+            end
+          end
+
+          it "compiles every canonical profile through the shared evaluator" do
+            permission_provider.permission_capability_descriptors.each do |descriptor|
+              descriptor.requestable_roles.each do |role|
+                PermissionProfiles.all.each do |profile|
+                  rules = profile.compile(descriptors: [ descriptor ], role:)
+                  decision = PolicyEvaluator.new(
+                    descriptor:, role:, resource_scope: {}, rules:, context: { role: }
+                  ).call
+                  expect(CapabilityDescriptor::POLICIES).to include(decision.policy)
+                end
+              end
             end
           end
 
