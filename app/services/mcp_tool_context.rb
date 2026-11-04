@@ -82,7 +82,13 @@ class McpToolContext
 
   def self.from_chat_session(chat_session, evaluator: false, agent_actor: nil)
     coworker = coworker_actor(agent_actor) || coworker_for_chat(chat_session)
-    grant_rows = -> { coworker ? coworker.grants.pluck(:capability, :scope) : [] }
+    grant_rows = lambda do
+      next [] unless coworker
+
+      coworker.permission_rules.entries.filter_map do |entry|
+        [ entry[:capability], entry[:scope] ] unless entry[:approval_policy] == "off"
+      end
+    end
     new(
       surface:                :chat,
       role:                   evaluator ? AgentRole::CHAT_EVALUATOR : role_for_chat(chat_session, coworker:),

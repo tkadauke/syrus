@@ -90,7 +90,7 @@ RSpec.describe Coworkers::PromptSection do
   it "still describes requestable tool grants when every context file is missing" do
     section = described_class.chat_prompt_section(chat_session: chat, repository: repository)
 
-    expect(section).to include("### Tool grants", "not held")
+    expect(section).to include("### Permissions", "not held")
   end
 
   it "lists held policy and scope alongside missing catalog grants" do
@@ -100,12 +100,16 @@ RSpec.describe Coworkers::PromptSection do
       scope_label_callback: ->(value) { "Connection #{value}" }, valid_scope_callback: ->(value, user:) { value == user.id }
     )
     allow(Coworkers::GrantCatalog).to receive(:all).and_return([ descriptor ])
-    coworker.grants.create!(capability: "database.read", approval_policy: "confirm", scope: owner.id)
+    PermissionRule.create!(owner_user: owner, created_by_user: owner, updated_by_user: owner,
+      subject_selector_type: "agent", subject_selector_id: coworker.id.to_s, subject_role_keys: [],
+      capability: "database.read@v1", operation: "database.read/list_database_tables@v1",
+      resource_type: "database", resource_scope: { "connection_id" => owner.id }, constraints: {},
+      policy: "ask", policy_layer: "agent", source: "coworker_permission", provenance: {}, delegable: false)
 
     section = described_class.chat_prompt_section(chat_session: chat, repository: repository)
 
-    expect(section).to include("`database.read` — held (confirm; scope: Connection #{owner.id})")
-    expect(section).to include("unlocks: list_database_tables")
+    expect(section).to include("`database.read` — confirm by canonical permission rule")
+    expect(section).to include("tools: list_database_tables")
     expect(section).not_to include("not held")
   end
 
