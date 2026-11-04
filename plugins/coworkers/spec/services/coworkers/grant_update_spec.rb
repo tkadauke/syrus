@@ -67,5 +67,4 @@ RSpec.describe Coworkers::GrantUpdate do
       .to raise_error(Pundit::NotAuthorizedError)
     expect(coworker.permission_rules.rules).to be_empty
   end
-
 end
