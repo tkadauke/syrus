@@ -2062,7 +2062,11 @@ that is pending or needs manual attention, with safe retry and acknowledge
 controls; cleanup never scans for arbitrary coworker branches.
 Each coworker conversation has an isolated `coworkers/chat/...` branch cut
 from the coworker's home branch. Syrus merges and pushes it at turn end, uses
-union merges for concurrent memory appends, and posts linked conflict details
+bounded retries for transient remote failures, and preserves the local checkout
+when saving still fails. One updating notice appears in the chat and on the
+coworker's Workspace tab, where the owner can retry immediately. Permanent
+authorization, protected-ref, and conflict failures are surfaced without
+automatic retries. It uses union merges for concurrent memory appends and posts linked conflict details
 without choosing either side when a normal Git merge conflicts. Worker-local
 checkouts are disposable and are re-cloned from the durable remote when lost.
 Renaming a coworker moves its home branch while no turn is running. Deleting

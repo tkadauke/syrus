@@ -830,4 +830,27 @@ RSpec.describe "API: coworkers", type: :request do
     }.to have_enqueued_job(Coworkers::ProvisioningCleanupJob).with(attempt.id)
     expect(response).to have_http_status(:accepted)
   end
+
+  it "exposes durable unsaved state and replaces its delayed retry on owner request" do
+    repository = Factories.repository(user: owner)
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-retry-save", workspace_repo: repository.remote_url)
+    chat = ChatSession.create!(user: owner, repository:, title: "Maya")
+    link = Coworkers::Chat.create!(coworker:, chat_session: chat, role: "main")
+    link.update!(unsaved_workspace_branch: "coworkers/chat/#{coworker.id}-#{chat.id}",
+      unsaved_workspace_path: "/tmp/preserved", unsaved_workspace_error: "remote: Internal Server Error",
+      unsaved_workspace_failure_kind: "transient", unsaved_workspace_operation: "chat_branch",
+      unsaved_workspace_attempt_count: 3, unsaved_workspace_retry_scheduled_at: Time.current,
+      unsaved_workspace_retry_token: "old-token")
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}"
+    expect(response.parsed_body.dig("coworker", "chats", 0, "unsaved_workspace"))
+      .to include("attempt_count" => 3, "branch" => link.unsaved_workspace_branch)
+
+    expect {
+      post "/api/v1/app/coworkers/#{coworker.id}/workspace/retry", params: { chat_id: link.id }
+    }.to have_enqueued_job(Coworkers::WorkspaceSaveRetryJob)
+    expect(response).to have_http_status(:accepted)
+    expect(link.reload.unsaved_workspace_retry_token).not_to eq("old-token")
+  end
 end

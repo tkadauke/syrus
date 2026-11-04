@@ -40,7 +40,11 @@
     "unattributed_source": "Origo non praesto",
     "conflict": "Ramus colloquii nondum coniunctus {{branch}}:",
     "test_push": "Accessum mittendi proba",
-    "push_ok": "Accessus mittendi probatus"
+    "push_ok": "Accessus mittendi probatus",
+    "unsaved_title": "Mutationes spatii nondum servatae",
+    "unsaved_detail": "Mutationes in {{branch}} post {{attempts}} conatus servandi frustra factos localiter servantur.",
+    "retry_save": "Nunc iterum servare",
+    "retrying_save": "Iterum servatur…"
   },
   "new": {
     "action": "Novus collega",

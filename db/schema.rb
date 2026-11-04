@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_04_004110) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_04_115919) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1094,8 +1094,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_004110) do
     t.string "role", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "unsaved_workspace_branch"
+    t.string "unsaved_workspace_path"
+    t.text "unsaved_workspace_error"
+    t.string "unsaved_workspace_failure_kind"
+    t.string "unsaved_workspace_operation"
+    t.datetime "unsaved_workspace_first_failed_at"
+    t.datetime "unsaved_workspace_last_failed_at"
+    t.integer "unsaved_workspace_attempt_count"
+    t.bigint "unsaved_workspace_notice_message_id"
+    t.datetime "unsaved_workspace_retry_exhausted_at"
+    t.datetime "unsaved_workspace_retry_scheduled_at"
+    t.string "unsaved_workspace_retry_token"
     t.index ["chat_session_id"], name: "index_coworker_chats_on_chat_session_id", unique: true
     t.index ["coworker_id"], name: "index_coworker_chats_one_main", unique: true, where: "role = 'main'"
+    t.index ["unsaved_workspace_notice_message_id"], name: "index_coworker_chats_on_unsaved_workspace_notice_message_id"
   end
 
   create_table "coworker_grants", force: :cascade do |t|

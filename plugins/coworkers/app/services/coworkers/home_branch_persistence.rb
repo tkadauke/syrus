@@ -6,6 +6,7 @@ class Coworkers::HomeBranchPersistence
   def self.after_chat_turn(chat_session:, **)
     link = Coworkers::Chat.includes(:coworker).find_by(chat_session_id: chat_session.id)
     return unless link
+    return if link.unsaved_workspace?
 
     new(chat_session, link.coworker).persist!
   end
@@ -16,7 +17,7 @@ class Coworkers::HomeBranchPersistence
     @git = git
   end
 
-  def persist!
+  def persist!(schedule_background: true)
     repository = @coworker.workspace_repository
     raise ArgumentError, "coworker workspace repository is unavailable" unless repository
 
@@ -25,21 +26,37 @@ class Coworkers::HomeBranchPersistence
 
     if ChatWorkspace.rebase_in_progress?(path)
       continue_rebase!(path)
-      push!(repository, path, branch)
-      return
+      return save(repository, path, branch, schedule_background:)
     end
 
     commit_changes!(path) if ChatWorkspace.uncommitted_changes?(path)
     return unless unpublished_commits?(path, branch)
 
-    push!(repository, path, branch)
+    save(repository, path, branch, schedule_background:)
   rescue GitRunner::GitError => e
     raise unless non_fast_forward?(e)
 
-    reconcile_and_push!(repository, path, branch)
+    Coworkers::UnsavedWorkspace.new(@chat_session).attempt(
+      branch:, path:, operation: "home_branch", schedule_background:
+    ) { reconcile_and_push!(repository, path, branch) }
   end
 
   private
+
+  def save(repository, path, branch, schedule_background:)
+    Coworkers::UnsavedWorkspace.new(@chat_session).attempt(
+      branch:, path:, operation: "home_branch", schedule_background:
+    ) do
+      begin
+        push!(repository, path, branch)
+      rescue GitRunner::GitError => error
+        raise unless non_fast_forward?(error)
+
+        reconcile_and_push!(repository, path, branch)
+      end
+      :saved
+    end
+  end
 
   def commit_changes!(path)
     @git.configure_author(Coworkers::GitIdentity.new(name: @coworker.name, handle: @coworker.handle), chdir: path.to_s)

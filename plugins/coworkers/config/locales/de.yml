@@ -11,3 +11,11 @@ de:
 
         %{files}
       workspace_conflict_label: "Workspace-Konflikt"
+      workspace_already_saved: "Dieser Workspace wurde bereits gespeichert."
+      workspace_save_label: "Workspace-Speicherung"
+      workspace_save_failed: "Änderungen auf `%{branch}` bleiben nach %{attempts} fehlgeschlagenen Speicherversuchen lokal erhalten. %{status}"
+      retry_pending: "Syrus versucht es automatisch erneut; du kannst es auch jetzt erneut versuchen."
+      retry_exhausted: "Die automatischen Versuche sind ausgeschöpft; versuche es erneut, sobald der Remote-Dienst funktioniert."
+      needs_attention: "Dieser Fehler benötigt deine Aufmerksamkeit; versuche das Speichern nach der Korrektur erneut."
+      workspace_save_resolved: "Die erhaltenen Workspace-Änderungen wurden erfolgreich gespeichert."
+      retry_save: "Workspace prüfen und erneut versuchen"

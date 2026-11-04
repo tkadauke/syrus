@@ -1,5 +1,7 @@
 # Coworkers
 
+Workspace pushes that fail because of a transient remote or network problem are retried during the turn and then by a background job. Until saving succeeds, Syrus preserves the local checkout and shows one updating warning in the chat and on the coworker's Workspace tab. The owner can use **Retry save now** there; permanent authorization, protected-ref, and conflict failures require attention and are not retried automatically.
+
 Coworker tool dispatch is enforced by the unified permission evaluator. Capability
 descriptors supply the recommended defaults, while operator rules and temporary
 leases can narrow or extend those defaults within each descriptor's ceiling.
