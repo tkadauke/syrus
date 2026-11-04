@@ -27,8 +27,8 @@ module Mcp::Tools
 
           super(*args, server_context: server_context, **kwargs, &block)
         end
-      rescue Mcp::Tools::AuthorizationSupport::AuthorizationError
-        Mcp::Tools.not_authorized
+      rescue Mcp::Tools::AuthorizationSupport::AuthorizationError => error
+        Mcp::Tools.not_authorized(reason: error.message)
       end
     end
 
@@ -87,6 +87,7 @@ module Mcp::Tools
           action: "authorized_tool_call",
           payload: {
             "tool_name" => McpToolRegistry.tool_name_for(tool), "arguments" => arguments.stringify_keys,
+            "tool_set_bundle" => descriptor.tool_set_bundle,
             "run_id" => context.run&.id, "origin_message_id" => server_context[:current_message]&.id,
             "approval_policy" => context.interactive ? "inline" : "queue", "approval_inbox" => true,
             "actor" => approval_actor(context.agent_actor || context.user)
@@ -102,7 +103,9 @@ module Mcp::Tools
         server_context[:current_message]&.update_columns(pending_action_id: request.id)
         Mcp::Tools.success(
           authorization_request_id: request.id, pending_action_id: request.id,
-          authorization_status: "waiting", message: I18n.t("server.permissions.coworker_request_waiting")
+          authorization_status: "waiting", requested_durations: request.authorization_items.first.requested_durations,
+          tool_set_bundle: descriptor.tool_set_bundle,
+          message: I18n.t("server.permissions.coworker_request_waiting")
         )
       end
 
