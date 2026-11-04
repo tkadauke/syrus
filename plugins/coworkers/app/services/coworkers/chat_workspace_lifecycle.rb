@@ -4,6 +4,7 @@ require "tmpdir"
 class Coworkers::ChatWorkspaceLifecycle
   include Syrus::Plugin::ChatWorkspaceLifecycle
   MAX_PUSH_ATTEMPTS = 3
+  MAX_RESOLUTION_ATTEMPTS = 2
   BACKGROUND_GIT_TIMEOUT = 1.minute
 
   class << self
@@ -46,8 +47,12 @@ class Coworkers::ChatWorkspaceLifecycle
   def finalize!
     path = checkout_path
     return unless path.join(".git").directory?
+    pending = active_conflict
+    return resolve_pending_conflict!(path, pending) if pending
+
     conflicts = unmerged_files(path)
-    return post_conflict!(files: conflicts, detail: "Resolve the existing Git index conflicts before the workspace can merge.") if conflicts.any?
+    return post_conflict!(files: conflicts, detail: "The conflict still needs manual resolution.",
+      conflict: terminal_conflict) if conflicts.any?
 
     commit_turn!(path)
     push_chat_branch!(path)
@@ -141,10 +146,53 @@ class Coworkers::ChatWorkspaceLifecycle
     files = unmerged_files(merge_path)
     leave_conflict_in_checkout!(conflict_checkout)
     conflict_ref = snapshot_background_conflict!(conflict_checkout, source_branch) if background_run_branch?(source_branch)
-    post_conflict!(files: files, detail: merge.stderr.to_s.last(500), source_branch:, ref: conflict_ref)
+    record_conflict!(files:, versions: conflict_versions(merge_path, files),
+      detail: merge.stderr.to_s.last(500), source_branch:, ref: conflict_ref)
+    :pending_resolution
   end
 
-  def post_conflict!(files:, detail:, source_branch: chat_branch, ref: nil)
+  def record_conflict!(files:, versions:, detail:, source_branch:, ref: nil)
+    conflict = active_conflict || Coworkers::WorkspaceConflict.new(chat_session: @chat, repository: @repository)
+    conflict.update!(source_branch:, recovery_ref: ref || conflict.recovery_ref, files:, versions:, detail:,
+      attempt_count: conflict.persisted? ? conflict.attempt_count : 0, state: "pending",
+      notified_at: nil, resolved_at: nil)
+    conflict
+  end
+
+  def resolve_pending_conflict!(path, conflict)
+    conflict.increment!(:attempt_count)
+    files = Array(conflict.files)
+    markers = conflict_markers(path, files)
+    return retry_or_fail!(conflict, files:, detail: "Conflict markers remain in #{markers.join(', ')}.") if markers.any?
+
+    git_run("add", "--all", chdir: path.to_s)
+    remaining = unmerged_files(path)
+    return retry_or_fail!(conflict, files:, detail: "Unmerged index entries remain in #{remaining.join(', ')}.") if remaining.any?
+    validation = git_capture("diff", "--check", "HEAD", chdir: path.to_s)
+    return retry_or_fail!(conflict, files:,
+      detail: "#{validation.stdout}#{validation.stderr}".last(500)) unless validation.success?
+
+    commit_turn!(path)
+    push_chat_branch!(path)
+    outcome = merge_into_home!(chat_branch)
+    conflict.update!(state: "resolved", resolved_at: Time.current) if outcome == :merged
+    outcome
+  rescue GitRunner::GitError => error
+    retry_or_fail!(conflict, files:, detail: error.output.to_s.last(500))
+  end
+
+  def retry_or_fail!(conflict, files:, detail:)
+    if conflict.attempt_count < MAX_RESOLUTION_ATTEMPTS
+      conflict.update!(detail:)
+      return :pending_resolution
+    end
+
+    conflict.update!(state: "failed", detail:)
+    post_conflict!(files:, detail:, source_branch: conflict.source_branch, ref: conflict.recovery_ref, conflict:)
+  end
+
+  def post_conflict!(files:, detail:, source_branch: chat_branch, ref: nil, conflict: nil)
+    return :conflict if conflict&.notified_at?
     links = files.map do |file|
       query = { path: file, repository_id: @repository.id, ref: ref }.compact
       "/api/v1/app/chats/#{@chat.id}/source_file/raw?#{query.to_query}"
@@ -162,7 +210,33 @@ class Coworkers::ChatWorkspaceLifecycle
                                              "detail" => detail }
       }
     )
+    conflict&.update!(notified_at: Time.current)
     :conflict
+  end
+
+  def active_conflict
+    Coworkers::WorkspaceConflict.active.find_by(chat_session: @chat, repository: @repository)
+  end
+
+  def terminal_conflict
+    Coworkers::WorkspaceConflict.where(chat_session: @chat, repository: @repository, state: "failed").order(id: :desc).first
+  end
+
+  def conflict_markers(path, files)
+    files.select do |relative|
+      file = Pathname(path).join(relative)
+      file.file? && !file.binread.include?("\0") && file.binread.match?(/^(?:<<<<<<<|=======|>>>>>>>)(?: |$)/)
+    rescue ArgumentError, Encoding::CompatibilityError
+      true
+    end
+  end
+
+  def conflict_versions(path, files)
+    files.to_h do |relative|
+      file = Pathname(path).join(relative)
+      content = file.file? ? File.binread(file, Coworkers::PromptSection::MAX_FILE_BYTES) : ""
+      [ relative, content.force_encoding(Encoding::UTF_8).scrub ]
+    end
   end
 
   def unmerged_files(path)

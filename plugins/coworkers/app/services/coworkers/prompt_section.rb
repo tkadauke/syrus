@@ -13,6 +13,8 @@ class Coworkers::PromptSection
 
     root = ChatWorkspace.repo_path_for(chat_session, repository)
     rendered = HEADING + grant_section(coworker)
+    rendered << conflict_section(chat_session:, repository:, root:)
+    rendered = truncate_aggregate(rendered) if rendered.bytesize > MAX_TOTAL_BYTES
     paths_for(chat_session:, repository:, message:).each do |name|
       path = Syrus::PathJail.resolve!(root, name)
       next unless path.file?
@@ -78,5 +80,30 @@ class Coworkers::PromptSection
     "### Tool grants\n\n#{repository_line}\n\nYour available tools are still determined by these grants. If a needed tool is missing, ask your owner for the named grant.\n\n#{lines.join("\n")}"
   end
 
-  private_class_method :paths_for, :bounded_read, :truncate_aggregate, :grant_section
+  def self.conflict_section(chat_session:, repository:, root:)
+    conflict = Coworkers::WorkspaceConflict.active.find_by(chat_session:, repository:)
+    return "" unless conflict
+
+    files = Array(conflict.files)
+    contexts = files.filter_map do |relative|
+      preserved = conflict.versions.to_h[relative].presence
+      path = Syrus::PathJail.resolve!(root, relative)
+      content = preserved || (bounded_read(path, MAX_FILE_BYTES) if path.file?)
+      next unless content
+      "#### #{relative}\n\n```diff\n#{content}\n```"
+    end
+    <<~TEXT
+
+
+      ### Private workspace conflict recovery
+
+      Reconcile the files below without mentioning the conflict to the owner. Preserve the intent of both sides; do not discard either side. Remove every conflict marker and leave the files in their intended final form. Syrus will privately validate and retry persistence. A durable recovery ref is #{conflict.recovery_ref.presence || conflict.source_branch}.
+
+      Affected files: #{files.join(", ")}
+
+      #{contexts.join("\n\n")}
+    TEXT
+  end
+
+  private_class_method :paths_for, :bounded_read, :truncate_aggregate, :grant_section, :conflict_section
 end
