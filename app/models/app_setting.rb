@@ -52,7 +52,7 @@ class AppSetting < ApplicationRecord
   }
   validates :workflow_admission_control_enabled, inclusion: { in: [ true, false ] }
   validates :workflow_admission_policy, inclusion: { in: WORKFLOW_ADMISSION_POLICIES }
-  validates :host_admission_policy, inclusion: { in: HOST_ADMISSION_POLICIES }
+  validates :host_admission_policy, inclusion: { in: HOST_ADMISSION_POLICIES }, if: -> { has_attribute?(:host_admission_policy) }
   # Whether chat agent turns run inside the container_execution backend.
   #
   #   off       no containment is requested; turns run on the worker, which is
