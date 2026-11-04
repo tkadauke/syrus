@@ -63,7 +63,7 @@ RSpec.describe Coworkers::PrivilegedGrantGate do
     allow(described_class).to receive(:availability).with(descriptor).and_return(
       described_class::Availability.new(available?: false, reason: "confinement_unavailable")
     )
-    coworker.grants.create!(capability: "database.read", approval_policy: "confirm")
+    coworker.permission_rules.update!(capability: "database.read", approval_policy: "confirm", actor: owner)
 
     expect(described_class.allowed_capabilities(coworker)).to be_empty
   end
@@ -76,10 +76,10 @@ RSpec.describe Coworkers::PrivilegedGrantGate do
 
     expect(described_class.confinement_required?(coworker)).to be(false)
 
-    grant = coworker.grants.create!(capability: "database.read", approval_policy: "confirm")
+    coworker.permission_rules.update!(capability: "database.read", approval_policy: "confirm", actor: owner)
     expect(described_class.confinement_required?(coworker)).to be(true)
 
-    grant.destroy!
+    coworker.permission_rules.update!(capability: "database.read", approval_policy: "off", actor: owner)
     expect(described_class.confinement_required?(coworker)).to be(false)
   end
 
@@ -89,7 +89,7 @@ RSpec.describe Coworkers::PrivilegedGrantGate do
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-failover", workspace_repo: repository.remote_url)
     allow(Coworkers::GrantCatalog).to receive(:fetch).with("database.read").and_return(descriptor)
     allow(Coworkers::GrantCatalog).to receive(:all).and_return([ descriptor ])
-    coworker.grants.create!(capability: "database.read", approval_policy: "confirm")
+    coworker.permission_rules.update!(capability: "database.read", approval_policy: "confirm", actor: owner)
     allow(WorkerCapabilities).to receive(:current).and_return(capabilities: { "runtime" => [] })
     worker = InstanceVersion.create!(hostname: "confined-worker", role: "worker", version: "test", started_at: Time.current,
       last_heartbeat_at: Time.current, capabilities: { "os" => [ "linux" ], "runtime" => [ "confined_coworker" ] })

@@ -18,7 +18,8 @@ RSpec.describe "Coworker repository code access" do
     chat.association(:coworker_chat).reset
     message = chat.messages.create!(role: "user", content: { "text" => "Inspect the code" })
     chat.update_columns(current_turn_message_id: message.id, turn_in_flight: true)
-    coworker.grants.create!(capability: "code.read", approval_policy: "auto", scope: [ repository.id ])
+    coworker.permission_rules.update!(capability: "code.read", approval_policy: "auto",
+      scope: [ repository.id ], actor: owner)
     stub_repository_content(repository, files: {
       "app/models/widget.rb" => "class Widget\n  API_TOKEN=super-secret-value\nend\n",
       "src/match.rb" => "prefix #{'x' * 995} token=secret-after-boundary Widget\n",
@@ -44,7 +45,7 @@ RSpec.describe "Coworker repository code access" do
     expect(run_names).not_to include("attach_repository", "detach_repository")
     expect(run_context.capability_scopes["code.read"]).to eq([ repository.id ])
 
-    coworker.grants.delete_all
+    coworker.permission_rules.update!(capability: "code.read", approval_policy: "off", actor: owner)
     expect(McpToolPolicy.for(McpToolContext.from_chat_session(chat)).map { |tool| McpToolRegistry.tool_name_for(tool) })
       .to include("attach_repository", "read_repository_file")
   end
@@ -169,14 +170,15 @@ RSpec.describe "Coworker repository code access" do
       allow(ChatWorkspace).to receive(:protect_path_read_only!)
     end
 
-    it "attaches and detaches an in-scope repository without a pending action or permission rule" do
-      expect(PermissionRule.count).to eq(0)
+    it "attaches and detaches an in-scope repository without a pending action or extra permission rule" do
+      rule_count = PermissionRule.count
 
       expect do
         response = Mcp::Tools::AttachRepositoryTool.call(slug: repository.slug, server_context: { chat_session: chat })
         expect(response).not_to be_error
         expect(payload(response).dig("repository", "slug")).to eq(repository.slug)
       end.not_to change { chat.pending_actions.count }
+      expect(PermissionRule.count).to eq(rule_count)
 
       expect(ChatWorkspace).to have_received(:attach_repository!).with(chat, repository)
       expect(ChatWorkspace).to have_received(:protect_path_read_only!).with(checkout_path)
@@ -195,7 +197,8 @@ RSpec.describe "Coworker repository code access" do
     end
 
     it "rejects a repository the owner cannot access, even under an all-repositories grant" do
-      coworker.grants.update_all(scope: Mcp::Tools::CoworkerRepositoryAccess::ALL)
+      coworker.permission_rules.update!(capability: "code.read", approval_policy: "auto",
+        scope: Mcp::Tools::CoworkerRepositoryAccess::ALL, actor: owner)
       foreign = Factories.repository(user: Factories.user)
 
       response = Mcp::Tools::AttachRepositoryTool.call(slug: foreign.slug, server_context: { chat_session: chat })

@@ -320,7 +320,7 @@ RSpec.describe "Coworker chat surface" do
   it "requires confirmation for protected workspace paths even with automatic file access" do
     PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
     Syrus::PluginRegistry.clear_plugin_record_cache!
-    coworker.grants.create!(capability: "workspace.files", approval_policy: "auto",
+    coworker.permission_rules.update!(capability: "workspace.files", approval_policy: "auto", actor: owner,
       constraints: { "confirm_paths" => [ "./SOUL.md" ] })
 
     response = coworker_tool("write_coworker_file").call(
@@ -497,15 +497,15 @@ RSpec.describe "Coworker chat surface" do
   end
 
   it "turns revoked workspace grants into provider-native denials" do
-    files = coworker.grants.create!(capability: "workspace.files", approval_policy: "auto")
-    shell = coworker.grants.create!(capability: "workspace.shell", approval_policy: "auto")
+    coworker.permission_rules.update!(capability: "workspace.files", approval_policy: "auto", actor: owner)
+    coworker.permission_rules.update!(capability: "workspace.shell", approval_policy: "auto", actor: owner)
     claude = ChatProviders::Claude.new(chat: chat)
 
     expect(claude.send(:disallowed_tools)).to include(*ChatProviders::Claude::COWORKER_FILE_TOOLS)
     expect(claude.send(:disallowed_tools)).not_to include("Bash")
-    shell.destroy!
+    coworker.permission_rules.update!(capability: "workspace.shell", approval_policy: "off", actor: owner)
     expect(claude.send(:disallowed_tools)).to include("Bash")
-    files.destroy!
+    coworker.permission_rules.update!(capability: "workspace.files", approval_policy: "off", actor: owner)
     expect(claude.send(:disallowed_tools)).to include(*ChatProviders::Claude::COWORKER_FILE_TOOLS)
 
     codex = ChatProviders::Codex.new(chat: chat)
