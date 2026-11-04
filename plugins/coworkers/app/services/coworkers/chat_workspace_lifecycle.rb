@@ -261,16 +261,15 @@ class Coworkers::ChatWorkspaceLifecycle
 
   def resolution_changed?(path, conflict)
     conflict.versions.to_h.any? do |relative, original|
-      file = Pathname(path).join(relative)
-      current = file.file? ? File.binread(file, Coworkers::PromptSection::MAX_FILE_BYTES) : ""
-      current.force_encoding(Encoding::UTF_8).scrub != original
+      current = safe_conflict_content(path, relative)
+      current && current != original
     end
   end
 
   def conflict_markers(path, files)
     files.select do |relative|
-      file = Pathname(path).join(relative)
-      file.file? && !file.binread.include?("\0") && file.binread.match?(/^(?:<<<<<<<|=======|>>>>>>>)(?: |$)/)
+      content = safe_conflict_content(path, relative)
+      content.nil? || (!content.include?("\0") && content.match?(/^(?:<<<<<<<|=======|>>>>>>>)(?: |$)/))
     rescue ArgumentError, Encoding::CompatibilityError
       true
     end
@@ -278,10 +277,18 @@ class Coworkers::ChatWorkspaceLifecycle
 
   def conflict_versions(path, files)
     files.to_h do |relative|
-      file = Pathname(path).join(relative)
-      content = file.file? ? File.binread(file, Coworkers::PromptSection::MAX_FILE_BYTES) : ""
-      [ relative, content.force_encoding(Encoding::UTF_8).scrub ]
+      [ relative, safe_conflict_content(path, relative) || "[Conflict source unavailable: unsafe or missing file]" ]
     end
+  end
+
+  def safe_conflict_content(root, relative)
+    candidate = Syrus::PathJail.resolve!(root, relative)
+    return if candidate.symlink? || !candidate.file?
+
+    file = Syrus::PathJail.resolve!(root, relative, resolve_symlinks: true)
+    File.binread(file, Coworkers::PromptSection::MAX_FILE_BYTES).force_encoding(Encoding::UTF_8).scrub
+  rescue Syrus::PathJail::PathEscape, Errno::ENOENT, Errno::EACCES, Errno::ELOOP
+    nil
   end
 
   def unmerged_files(path)

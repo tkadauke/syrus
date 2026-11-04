@@ -194,6 +194,30 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle do
     expect(second.messages).to be_empty
   end
 
+  it "does not follow an unmerged symlink outside the workspace" do
+    session = chat
+    service = lifecycle(session)
+    path = service.prepare!
+    outside = @root.join("worker-secret")
+    outside.write("host credential material")
+    link = path.join("SOUL.md")
+    link.delete
+    File.symlink(outside, link)
+    blob = run_git("rev-parse", "HEAD:SOUL.md", chdir: path).strip
+    index_info = "120000 #{blob} 2\tSOUL.md\n120000 #{blob} 3\tSOUL.md\n"
+    _stdout, stderr, status = Open3.capture3("git", "update-index", "--index-info", chdir: path.to_s,
+      stdin_data: index_info)
+    raise stderr unless status.success?
+
+    expect(service.send(:unmerged_files, path)).to eq([ "SOUL.md" ])
+    versions = service.send(:conflict_versions, path, [ "SOUL.md" ])
+    markers = service.send(:conflict_markers, path, [ "SOUL.md" ])
+
+    expect(versions.fetch("SOUL.md")).to include("source unavailable")
+    expect(versions.fetch("SOUL.md")).not_to include("host credential material")
+    expect(markers).to eq([ "SOUL.md" ])
+  end
+
   it "does not reuse a notified failed record for an unrelated conflict" do
     session = chat
     branch = "coworkers/chat/#{coworker.id}-#{session.id}"
