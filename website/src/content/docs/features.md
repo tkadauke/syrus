@@ -1812,7 +1812,9 @@ approval.
 
 Processes launched through Syrus's execution router require an explicit allow:
 both deny and ask stop the process before spawn because an arbitrary command has
-no safe exact-invocation replay boundary. Provider-native shell, file, browser,
+no safe exact-invocation replay boundary. One-use authority is committed only
+when the backend reports a spawned process, so a ceiling rejection or startup
+failure does not consume it. Provider-native shell, file, browser,
 and web tools remain outside this broker when they execute inside a provider
 CLI. For hard enforcement, disable or restrict those native tools and use
 brokered Syrus tools or confined execution instead.
