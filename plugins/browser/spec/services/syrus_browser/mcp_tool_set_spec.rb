@@ -51,6 +51,15 @@ RSpec.describe SyrusBrowser::McpToolSet do
     end
   end
 
+  describe ".snapshot_token_current?" do
+    it "checks freshness in the browser session resolved from core context" do
+      token = SyrusBrowser::SnapshotFreshness.record("run:42")
+
+      expect(described_class.snapshot_token_current?(server_context: ctx, token: token)).to be(true)
+      expect(described_class.snapshot_token_current?(server_context: ctx, token: "stale-token")).to be(false)
+    end
+  end
+
   describe ".available_for_context?" do
     let(:job) { Factories.job }
     let(:visual_run) do

@@ -57,6 +57,11 @@ module SyrusBrowser
       end
     end
 
+    def self.snapshot_token_current?(server_context:, token:)
+      context = SessionContext.resolve(server_context)
+      SnapshotFreshness.current?(context.session_key, token)
+    end
+
     DESCRIPTORS = {
       "browser_navigate" => "browser.navigate/open@v1",
       "browser_snapshot" => "browser.observe/read@v1",
