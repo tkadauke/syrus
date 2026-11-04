@@ -27,6 +27,10 @@ RSpec.describe Permissions::ScheduledAuthorization, :ci_only do
       origin: run, checkpoint_state: "waiting", action: "authorized_tool_call",
       payload: include("tool_name" => "write_external_record", "arguments" => { "record_id" => 7 }, "run_id" => run.id)
     )
+    expect(result.request.authorization_items.sole).to have_attributes(
+      capability: "records.write", capability_version: 1,
+      operation: "write_external_record", operation_version: 1
+    )
     expect(job.reload.related_authorization_requests).to contain_exactly(result.request)
   end
 

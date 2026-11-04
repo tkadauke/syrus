@@ -29,7 +29,8 @@ module Permissions
         occurrence_origin: context.job, subject: context.agent_actor || context.user,
         runtime_role: context.role, deduplication_key: deduplication_key(decision, fingerprint),
         purpose: "Run #{McpToolRegistry.tool_name_for(tool)} for scheduled work",
-        capability: decision.invocation.capability, operation: decision.invocation.operation,
+        capability: identifier_name(decision.invocation.capability),
+        operation: identifier_name(decision.invocation.operation),
         occurrence_metadata: { run_id: context.run.id, scheduled_task_id: context.job.scheduled_task_id },
         action: "authorized_tool_call",
         payload: {
@@ -75,6 +76,7 @@ module Permissions
     end
 
     def version(identifier) = identifier.to_s[/@v(\d+)\z/, 1].to_i
+    def identifier_name(identifier) = identifier.to_s.sub(/@v\d+\z/, "")
 
     def checkpoint!(request)
       request.checkpoint_authorization!(payload: {
