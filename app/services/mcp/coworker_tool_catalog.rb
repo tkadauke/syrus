@@ -46,7 +46,7 @@ module Mcp
               definition = by_name[name]
               definition = definition&.merge(coworker_default_policy: grant_definitions.fetch(capability)["default_policy"])
               Descriptor.new(tool_name: name, capability: capability, ungated: false,
-                approval_effect: value(definition, :approval_effect) == true,
+                approval_effect: definition.present? && value(definition, :approval_effect) == true,
                 tier: definition ? definition_tier(provider, name, chat_session: chat_session) : :essential,
                 tool: nil, provider: provider,
                 availability_state: definition ? provider_state(provider, plugin_state, chat_session:) : :unavailable,
