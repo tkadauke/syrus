@@ -324,7 +324,7 @@ RSpec.describe Steps::Summarize, :ci_only do
 
       expect {
         handler.call
-      }.to raise_error(WorkflowSourceSnapshots::InfrastructureStateError, /no published checkpoint or trusted workflow source snapshot/)
+      }.to raise_error(WorkflowSourceSnapshots::InfrastructureStateError, /no trusted workflow source snapshot is available/)
       expect(workflow.reload.artifact("pr_title")).to be_nil
       expect(commit_message).to eq("Different workspace HEAD")
     end
@@ -411,6 +411,47 @@ RSpec.describe Steps::Summarize, :ci_only do
       expect(@ws_path.join("formatted.rb")).to exist
       expect(head_sha).not_to eq(snapshot_sha) # summarize safely amended the restored commit message
       expect(run.job_logs.pluck(:chunk).join).to include("validated ref, tree, workflow ownership, and ancestry")
+    end
+
+    it "falls back to a verified descendant source snapshot when a published checkpoint ref is invalid" do
+      implement_step = Step.create!(workflow: workflow, kind: "implement", position: 0, next_step_id: step.id)
+      implement_sha = head_sha
+      implement_run = Run.create!(job: job, step: implement_step, trigger_kind: "initial", state: "succeeded", head_sha: implement_sha)
+
+      File.write(@ws_path.join("formatted.rb"), "class Formatted; end\n")
+      sh("git -C #{@ws_path} add formatted.rb")
+      sh("git -C #{@ws_path} commit -q -m 'Format validated implementation'")
+      snapshot_sha = head_sha
+      snapshot_tree = sh("git -C #{@ws_path} rev-parse HEAD^{tree}").strip
+      snapshot_ref = "refs/syrus/source-snapshots/runs/#{run.id}"
+      checkpoint_ref = RunCheckpoint.remote_ref_for(implement_run)
+      durable_remote = @ws_path.dirname.join("durable-state-#{run.id}-#{SecureRandom.hex(4)}.git")
+      sh("git clone --bare -q #{@ws_path} #{durable_remote}")
+      sh("git -C #{@ws_path} push -q file://#{durable_remote} HEAD:#{snapshot_ref} HEAD:#{checkpoint_ref}")
+      WorkflowSourceSnapshots.record!(workflow: workflow, creator_step: step, source_sha: snapshot_sha,
+        source_ref: snapshot_ref, tree_sha: snapshot_tree)
+      RunCheckpoint.create!(run: implement_run, workflow: workflow, step: implement_step, job: job,
+        repository: repository, user: user, step_kind: "implement", commit_sha: implement_sha,
+        remote_ref: checkpoint_ref, status: "published", published_at: Time.current)
+
+      sh("git -C #{@ws_path} checkout --orphan rebuilt-from-main")
+      sh("git -C #{@ws_path} rm -rf .")
+      File.write(@ws_path.join("base_only.rb"), "class BaseOnly; end\n")
+      sh("git -C #{@ws_path} add base_only.rb")
+      sh("git -C #{@ws_path} commit -q -m 'Rebuilt workspace from base'")
+      sh("git -C #{@ws_path} branch -f syrus/issue-42-#{job.id} HEAD")
+      allow(GithubAuthenticatedGit).to receive(:run) { |**_kwargs, &block| block.call("file://#{durable_remote}") }
+      stub_agent(title: "Add greeting helper", body: "Adds a tiny helper.")
+
+      handler.call
+
+      expect(@ws_path.join("feature.rb")).to exist
+      expect(@ws_path.join("formatted.rb")).to exist
+      expect(run.job_logs.pluck(:chunk).join).to include(
+        "could not restore #{checkpoint_ref}",
+        "evaluating the current workflow source snapshot",
+        "validated ref, tree, workflow ownership, and ancestry"
+      )
     end
 
     it "rejects a workflow source snapshot that is not descended from the implementation" do
