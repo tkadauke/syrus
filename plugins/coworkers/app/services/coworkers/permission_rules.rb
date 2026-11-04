@@ -2,11 +2,12 @@ module Coworkers
   # Canonical permission-rule projection for one coworker. The old grant
   # catalog remains presentation metadata; authority lives only in rules.
   class PermissionRules
-    POLICY = { "auto" => "allow", "confirm" => "ask", "queue" => "ask" }.freeze
+    POLICY = { "auto" => "allow", "confirm" => "ask", "queue" => "ask", "off" => "deny" }.freeze
     LEGACY_POLICY = { "allow" => "auto", "ask" => "confirm", "deny" => "off" }.freeze
 
-    def initialize(coworker)
+    def initialize(coworker, preloaded_rules: nil)
       @coworker = coworker
+      @preloaded_rules = preloaded_rules
     end
 
     def rules(active: true)
@@ -18,13 +19,14 @@ module Coworkers
     end
 
     def entries
+      grouped = loaded_rules.group_by { |rule| unversioned(rule.capability) }
       Coworkers::GrantCatalog.all.map do |descriptor|
-        matching = rules.select { |rule| unversioned(rule.capability) == descriptor.name }
+        matching = grouped.fetch(descriptor.name, [])
         policy = matching.map(&:policy).min_by { |value| policy_rank(value) }
         source = matching.first
         {
           capability: descriptor.name,
-          approval_policy: LEGACY_POLICY.fetch(policy, "off"),
+          approval_policy: projected_policy(policy, matching),
           constraints: source&.constraints || {}
         }.tap do |entry|
           scope = legacy_scope(matching.map(&:resource_scope), descriptor:)
@@ -33,13 +35,14 @@ module Coworkers
       end
     end
 
-    def update!(capability:, approval_policy:, constraints: {}, scope: nil, actor:, provenance: {}, source: "coworker_permission")
+    def update!(capability:, approval_policy:, constraints: {}, scope: nil, actor:, provenance: {},
+      source: "coworker_permission", preserve_denial: false)
       descriptors = canonical_descriptors(capability)
       raise ArgumentError, "no canonical permission descriptors for #{capability}" if descriptors.empty?
 
       PermissionRule.transaction do
         rules.where(capability: descriptors.map(&:capability)).find_each { |rule| rule.revoke!(actor:) }
-        return nil if approval_policy.to_s == "off"
+        return nil if approval_policy.to_s == "off" && !preserve_denial
 
         policy = POLICY.fetch(approval_policy.to_s)
         descriptors.flat_map do |descriptor|
@@ -57,11 +60,22 @@ module Coworkers
           end
         end
       end
+    ensure
+      @preloaded_rules = nil
     end
 
     private
 
     attr_reader :coworker
+
+    def loaded_rules = (@preloaded_rules ||= rules.to_a)
+
+    def projected_policy(policy, matching)
+      return "off" unless policy
+
+      migrated = matching.map { |rule| rule.provenance["legacy_approval_policy"] }.compact.uniq
+      migrated.one? ? migrated.first : LEGACY_POLICY.fetch(policy)
+    end
 
     def canonical_descriptors(capability)
       registered = Permissions::CapabilityRegistryValidator.for_application.registrations.filter_map do |registration|
