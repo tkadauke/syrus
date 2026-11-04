@@ -366,8 +366,10 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
     expect(options.dig("triggers", "step_kinds")).to include(
       include("value" => "implement"),
       include("value" => "security_review", "label" => "Security review"),
+      include("value" => "coworker_review", "label" => "Coworker review", "panel_capable" => true),
       include("value" => "plugin_agent_step", "label" => "Plugin agent step")
     )
+    expect(options.dig("triggers", "step_kinds").count { |entry| entry["value"] == "coworker_review" }).to eq(1)
     expect(options.dig("conditions", "workflow_trigger_kinds")).to include(
       include("value" => "initial"),
       include("value" => "plugin_review", "label" => "Plugin review")
