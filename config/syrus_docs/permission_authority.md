@@ -84,6 +84,18 @@ resumes that exact checkpoint; denial resumes it with a structured denial.
 Ordinary chats may proactively request authority for themselves. Coworkers keep
 the stricter self-request limits, protected-capability boundary, and cooldowns.
 
+Ordinary Syrus Chat tool calls are evaluated at dispatch time through this
+canonical path; appearing on the chat MCP surface is eligibility, not implicit
+authorization. Benign defaults still execute without interruption. An `ask`
+decision creates one compact request for the capability's coherent tool-set
+bundle, records every descriptor-supported duration applicable to the origin,
+and checkpoints the exact arguments. Approval can cover only that invocation,
+the current chat, or a durable scoped rule when the descriptor and higher
+ceilings permit it; the waiting invocation still resumes once through its
+fingerprinted token. A `deny` decision returns the evaluator explanation and
+creates no request. Tools that already create a separately confirmed proposal
+or transaction keep that existing confirmation as their sole approval boundary.
+
 Coworker authorization cards (in chat and in the inbox) default to three
 decisions: Allow once, an adaptive action, and Deny. The adaptive action is
 derived from the capability descriptor and the canonical rule draft, never from

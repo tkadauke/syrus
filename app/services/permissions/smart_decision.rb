@@ -63,6 +63,7 @@ module Permissions
 
     def candidate_durations
       CANDIDATES.select do |duration|
+        next false unless item.requested_durations.include?(duration)
         next false if duration_above_request?(duration)
 
         case duration
