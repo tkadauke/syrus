@@ -14,6 +14,7 @@ module Permissions
     OPERATIONS_EFFECTS = %i[credential_use external_write operational persistent_autonomy].freeze
     COLLABORATION_EFFECTS = %i[internal_write communication].freeze
     KNOWLEDGE_EFFECTS = %i[network_read confidential_read].freeze
+    WORKSPACE_EFFECTS = %i[local_read isolated_workspace_write isolated_execution].freeze
 
     class << self
       def all = DEFINITIONS.values
@@ -27,8 +28,12 @@ module Permissions
         return "operations@v1" if (effects & OPERATIONS_EFFECTS).any?
         return "collaboration@v1" if (effects & COLLABORATION_EFFECTS).any?
         return "knowledge@v1" if (effects & KNOWLEDGE_EFFECTS).any?
+        return "workspace@v1" if effects.present? && (effects - WORKSPACE_EFFECTS).empty?
 
-        "workspace@v1"
+        unknown = effects - CapabilityDescriptor::EFFECTS
+        raise ArgumentError, "unknown effects cannot be bundled: #{unknown.join(', ')}" if unknown.any?
+
+        raise ArgumentError, "effects do not map to a tool-set bundle: #{effects.join(', ')}"
       end
     end
   end

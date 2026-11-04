@@ -78,8 +78,7 @@ module Permissions
         maximum_duration, resource_scope.type, resource_scope.options,
         requestable_roles.sort, defaults.sort, presets,
         capability_aliases.sort, operation_aliases.sort, constraint_fields.sort,
-        fresh_authentication_window, budget_dimensions.sort, benign_internal,
-        tool_set_bundle
+        fresh_authentication_window, budget_dimensions.sort, benign_internal
       ]
     end
 
@@ -149,6 +148,10 @@ module Permissions
       unknown_budget = budget_dimensions - BUDGET_DIMENSIONS
       raise ArgumentError, "unknown budget dimensions: #{unknown_budget.join(', ')}" if unknown_budget.any?
       ToolSetBundles.fetch(tool_set_bundle)
+      expected_bundle = ToolSetBundles.classify(effects)
+      if tool_set_bundle != expected_bundle
+        raise ArgumentError, "tool-set bundle #{tool_set_bundle.inspect} conflicts with effect-derived #{expected_bundle.inspect}"
+      end
       if benign_internal
         raise ArgumentError, "unknown benign internal kind: #{benign_internal}" unless BENIGN_INTERNAL_KINDS.include?(benign_internal)
         unless risk == :low && (effects - %i[internal_write local_read]).empty? && effects.include?(:internal_write)

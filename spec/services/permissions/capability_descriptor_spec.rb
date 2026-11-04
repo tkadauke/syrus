@@ -43,6 +43,11 @@ RSpec.describe Permissions::CapabilityDescriptor do
     expect(first.contract_key).to eq(second.contract_key)
   end
 
+  it "rejects a bundle assignment that conflicts with the descriptor effects" do
+    expect { described_class.new(**attributes.merge(tool_set_bundle: "operations@v1")) }
+      .to raise_error(ArgumentError, /conflicts with effect-derived "knowledge@v1"/)
+  end
+
   it "defaults to no constraint fields and includes them in the contract" do
     plain = described_class.new(**attributes)
     constrained = described_class.new(**attributes.merge(constraint_fields: { branch: "string" }))
