@@ -196,6 +196,10 @@ class ChatWorkspace
     new(chat_session).file_content(repository, relative_path, ref: ref)
   end
 
+  def self.file_bytes(chat_session, repository, relative_path, ref: nil)
+    new(chat_session).file_bytes(repository, relative_path, ref: ref)
+  end
+
   # Returns the unified diff for the coding checkout.
   # mode :cumulative => git diff origin/<default>  (all changes vs remote base)
   # mode :turn       => git diff HEAD              (uncommitted changes only)
@@ -868,6 +872,22 @@ class ChatWorkspace
     result
   end
 
+  def file_bytes(repository, relative_path, ref: nil)
+    path = self.class.repo_path_for(@chat_session, repository)
+    return nil unless path.join(".git").directory?
+
+    safe = safe_checkout_path(path, relative_path)
+    return nil unless safe
+    normalized_relative_path = safe.relative_path_from(path).to_s
+    return file_bytes_at_ref(path, normalized_relative_path, ref) if ref.present?
+
+    safe = safe_checkout_path(path, normalized_relative_path, resolve_symlinks: true)
+    return nil unless safe&.file?
+    return nil if safe.size > self.class::MAX_FILE_BYTES
+
+    safe.binread
+  end
+
   def coding_diff(repository, mode: :cumulative, ref: nil)
     path = self.class.repo_path_for(@chat_session, repository)
     return "" unless path.join(".git").directory?
@@ -1261,6 +1281,19 @@ class ChatWorkspace
     }
     result[:truncated] = true if policy.present? && size > limit
     result
+  end
+
+  def file_bytes_at_ref(checkout_dir, relative_path, ref)
+    return nil unless valid_commit_ref?(ref)
+
+    spec = "#{ref}:#{relative_path}"
+    size_capture = checked_git_capture("file size", "cat-file", "-s", spec,
+      chdir: checkout_dir.to_s, env: @env, limit: 1.kilobyte)
+    return nil unless size_capture.success? && size_capture.stdout.to_i <= self.class::MAX_FILE_BYTES
+
+    capture = checked_git_capture("file bytes", "show", spec, chdir: checkout_dir.to_s, env: @env,
+      limit: self.class::MAX_FILE_BYTES + 1)
+    capture.success? ? capture.stdout.b : nil
   end
 
   def workspace_file_read_policy(relative_path)

@@ -963,6 +963,12 @@ export type CodingFileContentPayload = {
   size?: number
 }
 
+export function codingFilePreviewUrl(basePath: string, filePath: string, ref?: string | null) {
+  const params = new URLSearchParams({ path: filePath })
+  if (ref) params.set("ref", ref)
+  return `${basePath}?${params}`
+}
+
 export type CodingDiffPayload = {
   diff: string
   mode: "cumulative" | "turn"
@@ -1042,6 +1048,7 @@ export type ChatPayload = {
     app_coding_files_path?: string
     app_coding_commits_path?: string
     app_coding_file_path?: string
+    app_coding_file_preview_path?: string
     app_coding_diff_path?: string
     app_source_file_path?: string
     app_source_file_raw_path?: string

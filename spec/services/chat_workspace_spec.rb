@@ -798,6 +798,42 @@ RSpec.describe ChatWorkspace, :ci_only do
     end
   end
 
+  describe ".file_bytes" do
+    it "returns exact binary bytes from the jailed checkout" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      bytes = "\x89PNG\r\n\x1A\n\x00preview".b
+      File.binwrite(checkout_path.join("logo.png"), bytes)
+
+      expect(described_class.file_bytes(chat_session, repository, "logo.png")).to eq(bytes)
+    end
+
+    it "returns exact bytes from a selected ref" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      File.binwrite(checkout_path.join("logo.png"), "old".b)
+      sh("git -C #{checkout_path} add logo.png")
+      sh("git -C #{checkout_path} commit -q -m 'add image'")
+      sha = sh("git -C #{checkout_path} rev-parse HEAD").strip
+      File.binwrite(checkout_path.join("logo.png"), "new".b)
+
+      expect(described_class.file_bytes(chat_session, repository, "logo.png", ref: sha)).to eq("old".b)
+    end
+
+    it "rejects traversal and symlink escapes" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      outside = Pathname.new(Dir.mktmpdir("syrus-chatws-preview"))
+      File.binwrite(outside.join("secret.png"), "secret")
+      FileUtils.ln_s(outside.join("secret.png"), checkout_path.join("secret.png"))
+
+      expect(described_class.file_bytes(chat_session, repository, "../secret.png")).to be_nil
+      expect(described_class.file_bytes(chat_session, repository, "secret.png")).to be_nil
+    ensure
+      FileUtils.rm_rf(outside.to_s) if outside
+    end
+  end
+
   describe ".coding_diff" do
     it "returns complete diffs larger than GitRunner's default capture limit" do
       checkout_path = described_class.repo_path_for(chat_session, repository)
