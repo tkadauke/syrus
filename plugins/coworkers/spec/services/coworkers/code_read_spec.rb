@@ -100,6 +100,35 @@ RSpec.describe "Coworker repository code access" do
     expect(result.fetch("hint")).to match(/Narrow path or retry/i)
   end
 
+  it "turns a repository tree timeout into an incomplete search result" do
+    reader = RepositoryContent.for(repository, user: owner)
+    allow(RepositoryContent).to receive(:for).with(repository, user: owner).and_return(reader)
+    allow(reader).to receive(:tree).and_raise(Net::ReadTimeout)
+
+    result = payload(Mcp::Tools::SearchRepositoryCodeTool.call(
+      repository_id: repository.id, query: "Widget", server_context: { chat_session: chat }
+    ))
+
+    expect(result).to include("status" => "inconclusive", "incomplete" => true,
+      "reason" => "time_budget", "results" => [], "searched_paths" => [])
+    expect(result.fetch("coverage")).to include(
+      "candidate_files" => nil, "searched_files" => 0, "percent" => nil
+    )
+  end
+
+  it "turns a repository revision timeout into an incomplete search result" do
+    reader = RepositoryContent.for(repository, user: owner)
+    allow(RepositoryContent).to receive(:for).with(repository, user: owner).and_return(reader)
+    allow(reader).to receive(:resolve).and_raise(RepositoryContent::Unavailable, "provider timeout")
+
+    result = payload(Mcp::Tools::SearchRepositoryCodeTool.call(
+      repository_id: repository.id, query: "Widget", server_context: { chat_session: chat }
+    ))
+
+    expect(result).to include("status" => "inconclusive", "incomplete" => true,
+      "reason" => "time_budget", "revision" => nil, "results" => [])
+  end
+
   it "skips dependency trees for broad searches but honors an explicitly narrowed path" do
     broad = payload(Mcp::Tools::SearchRepositoryCodeTool.call(
       repository_id: repository.id, query: "DependencyNeedle", server_context: { chat_session: chat }

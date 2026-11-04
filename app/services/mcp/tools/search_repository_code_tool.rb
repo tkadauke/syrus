@@ -23,50 +23,52 @@ module Mcp::Tools
 
         context = McpToolContext.from_server_context(server_context)
         content = RepositoryContent.for(repository, user: context.user)
-        revision = content.resolve(ref.presence || repository.default_branch)
         prefix = path.to_s.sub(%r{\A/+}, "").sub(%r{/+\z}, "")
-        candidates = content.tree(revision).select do |entry|
-          entry.file? && (prefix.blank? || entry.path == prefix || entry.path.start_with?("#{prefix}/"))
-        end.reject { |entry| prefix.blank? && excluded_path?(entry.path) }
-        scan = scan(content, revision, candidates, query.to_s)
-        payload(repository:, revision:, query:, prefix:, candidates:, **scan)
+        revision = nil
+        candidates = nil
+        progress = { results: [], searched_paths: [], skipped_large_files: 0, reason: nil }
+
+        Timeout.timeout(TIME_BUDGET) do
+          revision = content.resolve(ref.presence || repository.default_branch)
+          candidates = content.tree(revision).select do |entry|
+            entry.file? && (prefix.blank? || entry.path == prefix || entry.path.start_with?("#{prefix}/"))
+          end.reject { |entry| prefix.blank? && excluded_path?(entry.path) }
+          scan(content, revision, candidates, query.to_s, progress)
+        end
+        payload(repository:, revision:, query:, prefix:, candidates:, **progress)
+      rescue Timeout::Error, Net::OpenTimeout, Net::ReadTimeout
+        progress[:reason] = "time_budget"
+        payload(repository:, revision:, query:, prefix:, candidates:, **progress)
+      rescue RepositoryContent::Unavailable => e
+        return Mcp::Tools.invalid(e.message) unless e.message.match?(/timeout/i)
+
+        progress[:reason] = "time_budget"
+        payload(repository:, revision:, query:, prefix:, candidates:, **progress)
       rescue RepositoryContent::Error => e
         Mcp::Tools.invalid(e.message)
       end
 
       private
 
-      def scan(content, revision, candidates, query)
-        results = []
-        searched_paths = []
-        skipped_large_files = 0
-        reason = candidates.length > MAX_FILES ? "file_limit" : nil
+      def scan(content, revision, candidates, query, progress)
+        progress[:reason] = "file_limit" if candidates.length > MAX_FILES
 
-        Timeout.timeout(TIME_BUDGET) do
-          candidates.first(MAX_FILES).each do |entry|
-            blob = content.read(revision, entry.path, max_bytes: MAX_FILE_BYTES + 1)
-            searched_paths << entry.path
-            if blob.text.to_s.bytesize > MAX_FILE_BYTES
-              skipped_large_files += 1
-              next
-            end
-            results.concat(matches(blob.text.to_s, entry.path, query))
-            if results.length >= MAX_RESULTS
-              results = results.first(MAX_RESULTS)
-              reason = "result_limit"
-              break
-            end
-          rescue RepositoryContent::NotFound, Encoding::CompatibilityError
-            searched_paths << entry.path unless searched_paths.last == entry.path
+        candidates.first(MAX_FILES).each do |entry|
+          blob = content.read(revision, entry.path, max_bytes: MAX_FILE_BYTES + 1)
+          progress[:searched_paths] << entry.path
+          if blob.text.to_s.bytesize > MAX_FILE_BYTES
+            progress[:skipped_large_files] += 1
+            next
           end
+          progress[:results].concat(matches(blob.text.to_s, entry.path, query))
+          if progress[:results].length >= MAX_RESULTS
+            progress[:results] = progress[:results].first(MAX_RESULTS)
+            progress[:reason] = "result_limit"
+            break
+          end
+        rescue RepositoryContent::NotFound, Encoding::CompatibilityError
+          progress[:searched_paths] << entry.path unless progress[:searched_paths].last == entry.path
         end
-        { results:, searched_paths:, skipped_large_files:, reason: }
-      rescue Timeout::Error, Net::OpenTimeout, Net::ReadTimeout
-        { results:, searched_paths:, skipped_large_files:, reason: "time_budget" }
-      rescue RepositoryContent::Unavailable => e
-        raise unless e.message.match?(/timeout/i)
-
-        { results:, searched_paths:, skipped_large_files:, reason: "time_budget" }
       end
 
       def matches(text, path, query)
@@ -82,15 +84,22 @@ module Mcp::Tools
         incomplete = reason.present?
         status = incomplete && results.empty? ? "inconclusive" : (results.empty? ? "no_match" : (incomplete ? "incomplete" : "complete"))
         coverage = {
-          candidate_files: candidates.length,
+          candidate_files: candidates&.length,
           searched_files: searched_paths.length,
           skipped_large_files: skipped_large_files,
-          percent: candidates.empty? ? 100.0 : ((searched_paths.length.fdiv(candidates.length) * 100).round(1))
+          percent: coverage_percent(candidates, searched_paths)
         }
-        Mcp::Tools.success(repository: { id: repository.id, slug: repository.slug }, revision: revision.id,
+        Mcp::Tools.success(repository: { id: repository.id, slug: repository.slug }, revision: revision&.id,
           query:, path: prefix.presence, status:, results: ToolPayloadRedactor.redact(results), incomplete:,
           reason:, searched_paths:, coverage:, truncated: incomplete,
           hint: incomplete ? "Search is incomplete; no match means no match in the searched portion only. Narrow path or retry." : nil)
+      end
+
+      def coverage_percent(candidates, searched_paths)
+        return if candidates.nil?
+        return 100.0 if candidates.empty?
+
+        (searched_paths.length.fdiv(candidates.length) * 100).round(1)
       end
 
       def excluded_path?(path)
