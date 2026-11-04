@@ -233,7 +233,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_195733) do
     t.boolean "ui_engagement_telemetry_enabled", default: false, null: false
     t.integer "security_review_rounds", default: 0, null: false
     t.string "contained_chat_execution", default: "off", null: false
-    t.string "host_admission_policy", default: "prediction", null: false
     t.index ["github_app_id"], name: "index_app_settings_on_github_app_id", unique: true
     t.index ["singleton_key"], name: "index_app_settings_on_singleton_key", unique: true
     t.index ["workflow_admission_control_changed_by_user_id"], name: "idx_app_settings_workflow_admission_changed_by"
@@ -1095,21 +1094,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_195733) do
     t.string "role", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "unsaved_workspace_branch"
-    t.string "unsaved_workspace_path"
-    t.text "unsaved_workspace_error"
-    t.string "unsaved_workspace_failure_kind"
-    t.string "unsaved_workspace_operation"
-    t.datetime "unsaved_workspace_first_failed_at"
-    t.datetime "unsaved_workspace_last_failed_at"
-    t.integer "unsaved_workspace_attempt_count"
-    t.bigint "unsaved_workspace_notice_message_id"
-    t.datetime "unsaved_workspace_retry_exhausted_at"
-    t.datetime "unsaved_workspace_retry_scheduled_at"
-    t.string "unsaved_workspace_retry_token"
     t.index ["chat_session_id"], name: "index_coworker_chats_on_chat_session_id", unique: true
     t.index ["coworker_id"], name: "index_coworker_chats_one_main", unique: true, where: "role = 'main'"
-    t.index ["unsaved_workspace_notice_message_id"], name: "index_coworker_chats_on_unsaved_workspace_notice_message_id"
   end
 
   create_table "coworker_grants", force: :cascade do |t|
@@ -1150,26 +1136,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_195733) do
     t.index ["owner_user_id", "idempotency_key"], name: "idx_coworker_provisioning_attempts_idempotency", unique: true
     t.index ["owner_user_id"], name: "index_coworker_provisioning_attempts_on_owner_user_id"
     t.index ["state", "updated_at"], name: "idx_coworker_provisioning_attempts_reconciliation"
-  end
-
-  create_table "coworker_workspace_conflicts", force: :cascade do |t|
-    t.integer "chat_session_id", null: false
-    t.integer "repository_id", null: false
-    t.string "source_branch", null: false
-    t.string "recovery_ref"
-    t.json "files", null: false
-    t.json "versions", null: false
-    t.text "detail"
-    t.string "state", default: "pending", null: false
-    t.integer "attempt_count", default: 0, null: false
-    t.datetime "notified_at"
-    t.datetime "resolved_at"
-    t.datetime "expires_at", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["chat_session_id", "repository_id", "state"], name: "idx_coworker_workspace_conflicts_active"
-    t.index ["chat_session_id"], name: "index_coworker_workspace_conflicts_on_chat_session_id"
-    t.index ["repository_id"], name: "index_coworker_workspace_conflicts_on_repository_id"
   end
 
   create_table "coworker_workspace_repositories", force: :cascade do |t|
@@ -1920,7 +1886,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_195733) do
 
   create_table "jobs", force: :cascade do |t|
     t.string "agent_provider", null: false
-    t.json "approval_evidence", null: false
+    t.json "approval_evidence", default: {}, null: false
     t.datetime "approved_at"
     t.integer "approved_by_user_id"
     t.string "approved_via"
@@ -3720,14 +3686,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_195733) do
     t.json "skill_args"
     t.integer "coworker_id"
     t.string "after_run", default: "quiet", null: false
-    t.string "system_key"
-    t.date "last_journaled_on"
-    t.string "last_system_result"
-    t.date "last_system_result_on"
-    t.string "last_system_result_reason"
-    t.json "system_result_history"
     t.index ["archived_at"], name: "index_scheduled_tasks_on_archived_at"
-    t.index ["coworker_id", "system_key"], name: "index_scheduled_tasks_on_coworker_and_system_key", unique: true
     t.index ["coworker_id"], name: "index_scheduled_tasks_on_coworker_id"
     t.index ["cron_template_id"], name: "index_scheduled_tasks_on_cron_template_id"
     t.index ["repository_id"], name: "index_scheduled_tasks_on_repository_id"
@@ -3746,7 +3705,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_195733) do
 
   create_table "smart_folders", force: :cascade do |t|
     t.datetime "created_at", null: false
-    t.json "filter", null: false
+    t.json "filter", default: {}, null: false
     t.string "kind", null: false
     t.string "name", null: false
     t.integer "position", default: 0, null: false
@@ -3907,6 +3866,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_195733) do
     t.index ["workflow_id", "position"], name: "index_steps_on_workflow_id_and_position"
     t.index ["workflow_id", "state", "position", "id"], name: "idx_steps_workflow_state_position_for_repository_detail"
     t.index ["workflow_id"], name: "index_steps_on_workflow_id"
+  end
+
+  create_table "syrus_dev_permission_factory_resets", force: :cascade do |t|
+    t.integer "initiated_by_user_id", null: false
+    t.string "scope_type", null: false
+    t.string "scope_id"
+    t.string "default_version", null: false
+    t.string "outcome", null: false
+    t.json "counts", null: false
+    t.text "error_message"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["initiated_by_user_id"], name: "idx_on_initiated_by_user_id_e5cdfec8e8"
+    t.index ["scope_type", "scope_id", "created_at"], name: "idx_syrus_dev_permission_resets_scope"
   end
 
   create_table "system_alert_notifications", force: :cascade do |t|
@@ -4249,7 +4223,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_195733) do
     t.integer "chat_session_id", null: false
     t.datetime "created_at", null: false
     t.datetime "last_edited_at"
-    t.json "scene_json", null: false
+    t.json "scene_json", default: {"elements" => []}, null: false
     t.datetime "updated_at", null: false
     t.integer "version", default: 0, null: false
     t.index ["chat_session_id"], name: "index_whiteboard_boards_on_chat_session_id", unique: true
@@ -4567,31 +4541,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_195733) do
     t.index ["last_observed_at"], name: "idx_workflow_step_resource_profiles_observed"
     t.index ["repository_id", "agent_provider", "trigger_kind", "step_kind", "grader_name", "job_kind"], name: "idx_workflow_step_resource_profiles_key", unique: true
     t.index ["repository_id"], name: "index_workflow_step_resource_profiles_on_repository_id"
-  end
-
-  create_table "workflow_visual_evidences", force: :cascade do |t|
-    t.integer "workflow_id", null: false
-    t.integer "run_id", null: false
-    t.integer "step_id", null: false
-    t.string "stable_id", null: false
-    t.integer "sequence", null: false
-    t.string "status", null: false
-    t.datetime "captured_at", null: false
-    t.json "page_identity"
-    t.json "viewport"
-    t.string "device"
-    t.json "subject"
-    t.string "content_digest", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.datetime "submission_failed_at"
-    t.index ["run_id", "content_digest"], name: "index_workflow_visual_evidences_on_run_id_and_content_digest"
-    t.index ["run_id", "sequence"], name: "index_workflow_visual_evidences_on_run_id_and_sequence", unique: true
-    t.index ["run_id"], name: "index_workflow_visual_evidences_on_run_id"
-    t.index ["stable_id"], name: "index_workflow_visual_evidences_on_stable_id", unique: true
-    t.index ["status", "captured_at"], name: "index_workflow_visual_evidences_on_status_and_captured_at"
-    t.index ["step_id"], name: "index_workflow_visual_evidences_on_step_id"
-    t.index ["workflow_id"], name: "index_workflow_visual_evidences_on_workflow_id"
   end
 
   create_table "workflow_warnings", force: :cascade do |t|
