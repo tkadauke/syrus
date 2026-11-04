@@ -913,7 +913,7 @@ function ReviewArtifactsPanel({
 }) {
   const { t } = useT("jobs")
   const [expanded, setExpanded] = useState(false)
-  const typedArtifacts = payload.typed_artifacts.filter((artifact) => artifact.renderer_type !== "image_diff")
+  const typedArtifacts = payload.typed_artifacts.filter((artifact) => !isVisualReviewScreenshot(artifact))
   const hasArtifacts = Boolean(payload.test_plan) || reviewArtifacts.length > 0 || typedArtifacts.length > 0
 
   return (
@@ -955,6 +955,10 @@ function ReviewArtifactsPanel({
       ) : null}
     </Section.Root>
   )
+}
+
+function isVisualReviewScreenshot(artifact: TypedArtifact) {
+  return artifact.renderer_type === "image_diff" && artifact.type.startsWith("visual_review_")
 }
 
 // An artifact has usable provenance when it can be compared against the

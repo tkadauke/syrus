@@ -1137,8 +1137,15 @@ describe("ReviewWorkspace", () => {
           type: "security_review_findings",
           title: "Security findings",
           payload: { headers: ["Finding"], rows: [["No findings"]] },
-          created_at: "2026-01-01T00:00:00Z",
+          created_at: "2026-01-02T00:00:00Z",
           renderer_type: "data_table"
+        },
+        {
+          type: "visual_diff_baseline_screenshot_run_5_1",
+          title: "Visual diff baseline",
+          payload: { image_url: "/api/v1/app/workflows/9/visual_artifact?type=visual_diff_baseline_screenshot_run_5_1" },
+          created_at: "2026-01-01T00:00:00Z",
+          renderer_type: "image_diff"
         }
       ],
       visual_evidence: {
@@ -1166,6 +1173,15 @@ describe("ReviewWorkspace", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Show" }))
     expect(screen.getByText("Security findings")).toBeInTheDocument()
+
+    const selector = screen.getByLabelText("Artifact") as HTMLSelectElement
+    const baselineOption = within(selector).getByRole("option", { name: /Visual diff baseline/ }) as HTMLOptionElement
+    fireEvent.change(selector, { target: { value: baselineOption.value } })
+
+    expect(screen.getByRole("img", { name: "Visual diff baseline" })).toHaveAttribute(
+      "src",
+      "/api/v1/app/workflows/9/visual_artifact?type=visual_diff_baseline_screenshot_run_5_1"
+    )
     expect(screen.queryByText("Submitted dashboard screenshot")).not.toBeInTheDocument()
     expect(screen.getAllByRole("img", { name: "Dashboard" })).toHaveLength(1)
   })
