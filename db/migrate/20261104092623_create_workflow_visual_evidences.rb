@@ -2,9 +2,9 @@ class CreateWorkflowVisualEvidences < ActiveRecord::Migration[8.1]
   def up
     unless table_exists?(:workflow_visual_evidences)
       create_table :workflow_visual_evidences do |t|
-        t.references :workflow, null: false, foreign_key: true
-        t.references :run, null: false, foreign_key: true
-        t.references :step, null: false, foreign_key: true
+        t.references :workflow, null: false
+        t.references :run, null: false
+        t.references :step, null: false
         t.string :stable_id, null: false
         t.integer :sequence, null: false
         t.string :status, null: false
