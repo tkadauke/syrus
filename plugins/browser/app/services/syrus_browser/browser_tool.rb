@@ -179,7 +179,7 @@ module SyrusBrowser
           content << { type: "text", text: "Draft visual evidence ID: #{evidence.stable_id}" } if evidence.is_a?(WorkflowVisualEvidence)
         end
       rescue StandardError => e
-        Rails.logger.warn("[SyrusBrowser::BrowserTool] artifact capture failed: #{e.class}: #{e.message}")
+        Rails.logger.warn("[SyrusBrowser::BrowserTool] artifact capture failed: #{e.class}: #{CommandRedactor.redact(e.message)}")
       end
 
 
@@ -203,7 +203,7 @@ module SyrusBrowser
         parsed["subject"] = { "type" => "snapshot_ref", "ref" => params[:target] } if params[:target].present?
         parsed
       rescue StandardError => e
-        Rails.logger.warn("[SyrusBrowser::BrowserTool] screenshot metadata capture failed: #{e.class}: #{e.message}")
+        Rails.logger.warn("[SyrusBrowser::BrowserTool] screenshot metadata capture failed: #{e.class}: #{CommandRedactor.redact(e.message)}")
         {}
       end
     end

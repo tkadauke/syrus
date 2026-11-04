@@ -85,7 +85,7 @@ module SyrusBrowser
         @runtime_session = runtime_session
       end
 
-      def capture(bytes:, content_type:, title:)
+      def capture(bytes:, content_type:, title:, metadata: {})
         return nil unless @chat_session
 
         document = ChatMediaLibrary.materialize_captured_image!(
