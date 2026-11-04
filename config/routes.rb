@@ -343,6 +343,7 @@ Rails.application.routes.draw do
         get "chats/:id/coding_files", to: "chats#coding_files", constraints: { id: /\d+/ }
         get "chats/:id/coding_commits", to: "chats#coding_commits", constraints: { id: /\d+/ }
         get "chats/:id/coding_file", to: "chats#coding_file", constraints: { id: /\d+/ }
+        get "chats/:id/coding_file_preview", to: "chats#coding_file_preview", constraints: { id: /\d+/ }
         get "chats/:id/coding_diff", to: "chats#coding_diff", constraints: { id: /\d+/ }
         get "chats/:id/source_file", to: "chats#source_file", constraints: { id: /\d+/ }
         get "chats/:id/source_file/raw", to: "chats#source_file_raw", constraints: { id: /\d+/ }

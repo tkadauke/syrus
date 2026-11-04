@@ -1,6 +1,7 @@
 require "socket"
 require "uri"
 require "json"
+require "base64"
 
 # Lightweight per-worker HTTP relay that serves coding workspace file/diff reads
 # from the worker pod's local filesystem to the web pod over the pod network.
@@ -127,6 +128,7 @@ class ChatWorkspaceRelay
       when "/workspace/commits" then handle_commits(client, headers, params)
       when "/workspace/file"  then handle_file(client, headers, params)
       when "/workspace/diff"  then handle_diff(client, headers, params)
+      when "/workspace/file-preview" then handle_file_preview(client, headers, params)
       else send_response(client, 404)
       end
     rescue StandardError => e
@@ -183,6 +185,25 @@ class ChatWorkspaceRelay
       send_response(client, 200, result.merge(path: path_param))
     rescue StandardError => e
       Rails.logger.error("ChatWorkspaceRelay /workspace/file: #{e.class}: #{e.message}")
+      send_response(client, 500)
+    end
+
+    def handle_file_preview(client, headers, params)
+      session, error_status = authenticate(headers, params)
+      return send_response(client, error_status) unless session
+
+      repo = relay_repository(session, params)
+      return send_response(client, 422) unless repo
+
+      path_param = params["path"].to_s.strip
+      return send_response(client, 422) if path_param.blank?
+
+      bytes = ChatWorkspace.file_bytes(session, repo, path_param, ref: params["ref"].presence)
+      return send_response(client, 404) unless bytes
+
+      send_response(client, 200, { content_base64: Base64.strict_encode64(bytes) })
+    rescue StandardError => e
+      Rails.logger.error("ChatWorkspaceRelay /workspace/file-preview: #{e.class}: #{e.message}")
       send_response(client, 500)
     end
 
