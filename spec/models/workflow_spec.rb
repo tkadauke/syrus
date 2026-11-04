@@ -1248,6 +1248,17 @@ RSpec.describe Workflow, :ci_only do
       expect(wf.reload.artifacts).to eq("existing" => "new", "added" => true)
     end
 
+    it "keeps a direct artifact write visible over a pending whole-bag snapshot" do
+      wf.update!(artifacts: { "existing" => "old" })
+      wf.artifacts = wf.artifacts.merge("pending" => true)
+
+      wf.set_artifact!("existing", "new")
+
+      expect(wf.artifact("existing")).to eq("new")
+      wf.save!
+      expect(wf.reload.artifacts).to eq("existing" => "new", "pending" => true)
+    end
+
     it "does not delete an artifact added after a whole-bag assignment snapshot" do
       wf.update!(artifacts: { "existing" => "old", "remove" => true })
       stale = described_class.find(wf.id)
@@ -1257,6 +1268,22 @@ RSpec.describe Workflow, :ci_only do
       stale.save!
 
       expect(wf.reload.artifacts).to eq("existing" => "changed", "concurrent" => true)
+    end
+
+    it "treats a nil artifact value as removing the external value" do
+      wf.update!(artifacts: { "temporary" => "value", "kept" => true })
+
+      expect { wf.set_artifact!("temporary", nil) }.not_to raise_error
+
+      expect(wf.reload.artifacts).to eq("kept" => true)
+      expect(wf.workflow_artifact_values.find_by(key: "temporary")).to be_nil
+    end
+
+    it "omits nil values during whole-bag replacement" do
+      expect { wf.update!(artifacts: { "cleared" => nil, "kept" => true }) }.not_to raise_error
+
+      expect(wf.reload.artifacts).to eq("kept" => true)
+      expect(wf.workflow_artifact_values.find_by(key: "cleared")).to be_nil
     end
 
     it "deletes selected keys without overwriting another instance's artifacts" do
