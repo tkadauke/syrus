@@ -1235,7 +1235,7 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item, payload,
   return (
     <details className="group/tool min-w-0 max-w-full overflow-hidden" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
       <summary
-        className="grid min-w-0 max-w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto_auto] items-baseline gap-x-2 overflow-hidden py-0.5 text-sm text-gray-700 hover:text-gray-900 sm:grid-cols-[auto_minmax(0,max-content)_auto_auto_minmax(0,1fr)] dark:text-gray-300 dark:hover:text-gray-100"
+        className="grid min-w-0 max-w-full list-none cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto_auto] items-baseline gap-x-2 overflow-hidden py-0.5 text-sm text-gray-700 hover:text-gray-900 sm:grid-cols-[auto_minmax(0,max-content)_auto_auto_minmax(0,1fr)] dark:text-gray-300 dark:hover:text-gray-100"
         onClick={(event) => {
           event.preventDefault()
           setOpen((value) => !value)
@@ -1245,11 +1245,11 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item, payload,
         <span className="min-w-0 truncate whitespace-nowrap font-medium text-gray-900 dark:text-gray-100" title={summary}>
           {summary}
         </span>
-        <Pill className="shrink-0 text-xs" tone={outcomeState === "failed" ? "danger" : outcomeState === "running" ? "info" : "neutral"}>
+        <Pill className="shrink-0 justify-self-end text-xs" tone={outcomeState === "failed" ? "danger" : outcomeState === "running" ? "info" : "neutral"}>
           {outcome}
         </Pill>
         {item.calls.length > 1 ? (
-          <Pill className="shrink-0 text-xs" tone="neutral">
+          <Pill className="shrink-0 justify-self-end text-xs" tone="neutral">
             {item.calls.length}
           </Pill>
         ) : (
