@@ -4,7 +4,7 @@ module Mcp::Tools
   class UpdateEpicTool < MCP::Tool
     extend EpicToolSupport
     extend AuthorizationSupport
-    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+    singleton_class.prepend(AuthorizationSupport::ContextDispatch)
 
     tool_name "update_epic"
 

@@ -4,7 +4,7 @@ module Mcp::Tools
   class UnlandJobTool < MCP::Tool
     extend ProposalToolSupport
     extend AuthorizationSupport
-    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+    singleton_class.prepend(AuthorizationSupport::ContextDispatch)
 
     tool_name "unland_job"
     description "Preflight or request an operator-confirmed unland of a landed Job. Confirmation creates a linked rollback Job; it never reopens the original or rolls back deployments."

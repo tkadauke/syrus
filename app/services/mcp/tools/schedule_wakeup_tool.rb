@@ -3,7 +3,7 @@ require "mcp"
 module Mcp::Tools
   class ScheduleWakeupTool < MCP::Tool
     extend AuthorizationSupport
-    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+    singleton_class.prepend(AuthorizationSupport::ContextDispatch)
     MIN_DELAY_MINUTES = 1
     MAX_DELAY_MINUTES = 1440
     MAX_FIRE_AT = 1.year

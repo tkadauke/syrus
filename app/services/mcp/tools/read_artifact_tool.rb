@@ -7,7 +7,7 @@ module Mcp::Tools
   # isn't sufficient, the point is to let the agent actually see the image.
   class ReadArtifactTool < MCP::Tool
     extend AuthorizationSupport
-    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+    singleton_class.prepend(AuthorizationSupport::ContextDispatch)
 
     tool_name "read_artifact"
 

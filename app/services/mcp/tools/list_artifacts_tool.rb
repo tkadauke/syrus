@@ -7,7 +7,7 @@ module Mcp::Tools
   # SyrusMcp::SubmitVisualArtifactTool during a workflow run.
   class ListArtifactsTool < MCP::Tool
     extend AuthorizationSupport
-    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+    singleton_class.prepend(AuthorizationSupport::ContextDispatch)
 
     tool_name "list_artifacts"
 

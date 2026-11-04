@@ -4,8 +4,8 @@ module Mcp::Tools
   class UnlandEpicTool < MCP::Tool
     extend ProposalToolSupport
     extend AuthorizationSupport
+    singleton_class.prepend(AuthorizationSupport::ContextDispatch)
     extend EpicToolSupport
-    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
 
     tool_name "unland_epic"
     description "Preflight or request an operator-confirmed coordinated unland of a landed Epic. Confirmation creates one linked rollback Job and does not roll back deployments."

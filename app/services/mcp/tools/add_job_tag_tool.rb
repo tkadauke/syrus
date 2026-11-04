@@ -3,7 +3,7 @@ require "mcp"
 module Mcp::Tools
   class AddJobTagTool < MCP::Tool
     extend AuthorizationSupport
-    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+    singleton_class.prepend(AuthorizationSupport::ContextDispatch)
 
     tool_name "add_job_tag"
 

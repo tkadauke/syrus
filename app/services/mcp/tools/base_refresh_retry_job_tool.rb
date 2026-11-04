@@ -4,7 +4,7 @@ module Mcp::Tools
   class BaseRefreshRetryJobTool < MCP::Tool
     extend ProposalToolSupport
     extend AuthorizationSupport
-    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+    singleton_class.prepend(AuthorizationSupport::ContextDispatch)
 
     tool_name "base_refresh_retry_job"
     description "Request an operator-confirmed retry from a failed Workflow's published checkpoint onto the Job's current effective base."

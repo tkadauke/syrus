@@ -3,7 +3,7 @@ require "mcp"
 module Mcp::Tools
   class SearchChatsTool < MCP::Tool
     extend AuthorizationSupport
-    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+    singleton_class.prepend(AuthorizationSupport::ContextDispatch)
 
     tool_name "search_chats"
 

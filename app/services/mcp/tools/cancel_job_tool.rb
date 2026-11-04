@@ -5,7 +5,7 @@ module Mcp::Tools
     extend ProposalToolSupport
     extend BulkPendingActionToolSupport
     extend AuthorizationSupport
-    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+    singleton_class.prepend(AuthorizationSupport::ContextDispatch)
 
     tool_name "cancel_job"
 

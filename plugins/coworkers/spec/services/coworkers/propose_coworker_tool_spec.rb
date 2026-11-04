@@ -67,7 +67,10 @@ RSpec.describe Coworkers::McpTools::ProposeCoworkerTool do
     coworker = Coworkers::Coworker.find_by!(handle: "maya")
     expect(coworker).to have_attributes(fields.slice(:name, :accent_hex, :chat_provider, :chat_model, :chat_effort))
     expect(coworker.workspace_repo).to eq("https://github.com/acme/coworker-homes.git")
-    expect(coworker.grants.pluck(:capability)).to contain_exactly(*fields[:grants])
+    active_capabilities = coworker.permission_rules.entries.filter_map do |entry|
+      entry[:capability] unless entry[:approval_policy] == "off"
+    end
+    expect(active_capabilities).to contain_exactly(*fields[:grants])
     expect(remote.seeded_files.fetch("SOUL.md")).to include(fields[:about])
     action.reload
     expect(PendingActions::CreateCoworker.new(action).tool_card_outcome).to eq(coworker_id: coworker.id)
@@ -173,7 +176,9 @@ RSpec.describe Coworkers::McpTools::ProposeGrantEscalationTool do
     expect(JSON.parse(response.content.first.fetch(:text)).fetch("grant_escalation")).to eq(action.payload)
 
     expect(action.confirm!).to be true
-    expect(coworker.grants.reload.pluck(:capability, :approval_policy).to_h).to eq(
+    expect(coworker.permission_rules.entries.filter_map { |entry|
+      [ entry[:capability], entry[:approval_policy] ] unless entry[:approval_policy] == "off"
+    }.to_h).to eq(
       "syrus.read_jobs" => "confirm", "workspace.shell" => "queue"
     )
   end
@@ -200,7 +205,8 @@ RSpec.describe Coworkers::McpTools::ProposeGrantEscalationTool do
     coworker.grants.create!(capability: "workspace.shell", approval_policy: "auto")
 
     expect(action.confirm!).to be true
-    expect(coworker.grants.find_by!(capability: "workspace.shell").approval_policy).to eq("confirm")
+    expect(coworker.permission_rules.entries.find { |entry| entry[:capability] == "workspace.shell" })
+      .to include(approval_policy: "confirm")
   end
 
   it "cannot escalate a coworker owned by another user" do
@@ -226,7 +232,10 @@ RSpec.describe Coworkers::McpTools::ProposeGrantEscalationTool do
 
     expect(response).not_to be_error
     expect(chat.pending_actions.last.confirm!).to be true
-    expect(coworker.grants.reload.pluck(:capability, :approval_policy)).to eq([ [ "workspace.shell", "queue" ] ])
+    active = coworker.permission_rules.entries.filter_map do |entry|
+      [ entry[:capability], entry[:approval_policy] ] unless entry[:approval_policy] == "off"
+    end
+    expect(active).to eq([ [ "workspace.shell", "queue" ] ])
   end
 
   it "requires an explicit scope when adding a scopeable grant" do
@@ -245,6 +254,8 @@ RSpec.describe Coworkers::McpTools::ProposeGrantEscalationTool do
     response = propose([ { capability: "database.read", policy: "confirm", scope: owner.id } ])
     expect(response).not_to be_error
     expect(chat.pending_actions.last.confirm!).to be true
-    expect(coworker.grants.find_by!(capability: "database.read")).to have_attributes(approval_policy: "confirm", scope: owner.id)
+    rule = coworker.permission_rules.rules.find { |candidate| candidate.capability.start_with?("database.read") }
+    expect(rule).to have_attributes(policy: "ask")
+    expect(rule.provenance).to include("coworker_approval_policy" => "confirm", "coworker_scope" => owner.id)
   end
 end

@@ -5,7 +5,6 @@ module Mcp::Tools
     extend ProposalToolSupport
     extend PendingActionToolSupport
     extend ProviderRoutingToolSupport
-    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
 
     tool_name "mutate_provider_routing_rules"
     description "Validate and request an atomic provider-routing rule-set mutation. Supports create, update, set_enabled, delete, and reorder operations. Requires the revision returned by read_provider_routing_rules; nothing changes until the operator confirms the human-readable pending action."

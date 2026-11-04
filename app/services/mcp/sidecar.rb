@@ -267,9 +267,18 @@ module Mcp
     end
 
     def self.authorize_tool(tool)
-      tool.extend(Tools::AuthorizationSupport) unless tool.singleton_class < Tools::AuthorizationSupport
-      tool.singleton_class.prepend(Tools::AuthorizationSupport::ToolDispatch) unless tool.singleton_class < Tools::AuthorizationSupport::ToolDispatch
-      tool
+      # Registry tools are shared class objects and are also called directly by
+      # application services. Decorating one in place makes loading a sidecar
+      # globally change every later caller. Keep dispatch authorization local
+      # to the tool instance advertised by this sidecar.
+      authorized = Class.new(tool)
+      tool.instance_variables.each do |name|
+        authorized.instance_variable_set(name, tool.instance_variable_get(name))
+      end
+      authorized.define_singleton_method(:authorization_source_tool) { tool }
+      authorized.extend(Tools::AuthorizationSupport) unless authorized.singleton_class < Tools::AuthorizationSupport
+      authorized.singleton_class.prepend(Tools::AuthorizationSupport::ToolDispatch) unless authorized.singleton_class < Tools::AuthorizationSupport::ToolDispatch
+      authorized
     end
 
     def self.wrap_stdio_tool_dispatch(tool)

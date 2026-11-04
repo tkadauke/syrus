@@ -574,8 +574,8 @@ class McpToolRegistry
 
     # Compatibility is declared beside the registrations it covers so adding
     # a new tool through the normal builders fails descriptor validation.
-    def legacy_chat(tool, **metadata) = chat(tool, **metadata, compatibility_descriptor: true)
-    def legacy_workflow(tool, **metadata) = workflow(tool, **metadata, compatibility_descriptor: true)
+    def legacy_chat(tool, **metadata) = chat(tool, **metadata, default_policy: :allow, compatibility_descriptor: true)
+    def legacy_workflow(tool, **metadata) = workflow(tool, **metadata, default_policy: :allow, compatibility_descriptor: true)
     def legacy_coworker(tool, **metadata) = coworker(tool, **metadata, compatibility_descriptor: true)
     def legacy_entry(tool, **metadata) = entry(tool, **metadata, compatibility_descriptor: true)
 

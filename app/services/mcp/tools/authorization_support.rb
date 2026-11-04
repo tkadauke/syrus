@@ -15,14 +15,28 @@ module Mcp::Tools
   module AuthorizationSupport
     class AuthorizationError < StandardError; end
 
+    # Supplies the request-scoped lookup context used by tool implementations
+    # without applying agent permission policy. Sidecar wrappers prepend the
+    # stricter ToolDispatch at the actual agent invocation boundary.
+    module ContextDispatch
+      def call(*args, server_context: nil, **kwargs, &block)
+        Mcp::Tools::AuthorizationSupport.with_server_context(server_context) do
+          super(*args, server_context: server_context, **kwargs, &block)
+        end
+      rescue Mcp::Tools::AuthorizationSupport::AuthorizationError
+        Mcp::Tools.not_authorized
+      end
+    end
+
     module ToolDispatch
       def call(*args, server_context: nil, **kwargs, &block)
         Mcp::Tools::AuthorizationSupport.with_server_context(server_context) do
-          scheduled = Mcp::Tools::AuthorizationSupport.pending_scheduled_authorization(self, server_context, kwargs)
+          dispatch_tool = respond_to?(:authorization_source_tool) ? authorization_source_tool : self
+          scheduled = Mcp::Tools::AuthorizationSupport.pending_scheduled_authorization(dispatch_tool, server_context, kwargs)
           return scheduled if scheduled
-          pending = Mcp::Tools::AuthorizationSupport.pending_coworker_approval(self, server_context, kwargs)
+          pending = Mcp::Tools::AuthorizationSupport.pending_coworker_approval(dispatch_tool, server_context, kwargs)
           return pending if pending
-          pending = Mcp::Tools::AuthorizationSupport.pending_actor_approval(self, server_context, kwargs)
+          pending = Mcp::Tools::AuthorizationSupport.pending_actor_approval(dispatch_tool, server_context, kwargs)
           return pending if pending
 
           super(*args, server_context: server_context, **kwargs, &block)

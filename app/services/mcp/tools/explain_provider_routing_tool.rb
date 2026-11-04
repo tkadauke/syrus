@@ -3,7 +3,7 @@ require "mcp"
 module Mcp::Tools
   class ExplainProviderRoutingTool < MCP::Tool
     extend AuthorizationSupport
-    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+    singleton_class.prepend(AuthorizationSupport::ContextDispatch)
 
     tool_name "explain_provider_routing"
     description "Explain effective first-match provider routing for an accessible Job, including scope precedence, disabled skips, match evidence, the winning route or hold, active holds, and an explicit Job pin that overrides rules."

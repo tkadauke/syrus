@@ -137,7 +137,9 @@ export type ApprovalDelegationsPayload = {
   human_only: { effects: string[]; capabilities: string[] }
   history: ApprovalDecision[]
 }
-export const fetchApprovalDelegations = () => getJson<ApprovalDelegationsPayload>("/api/v1/app/approval_delegations")
+export const fetchApprovalDelegations = () =>
+  getJson<ApprovalDelegationsPayload>("/api/v1/app/approval_delegations")
 export const createApprovalDelegation = (approval_delegation: Record<string, unknown>) =>
   postJson<{ delegation: ApprovalDelegation }>("/api/v1/app/approval_delegations", { approval_delegation })
-export const revokeApprovalDelegation = (id: number) => postJson<{ delegation: ApprovalDelegation }>(`/api/v1/app/approval_delegations/${id}/revoke`)
+export const revokeApprovalDelegation = (id: number) =>
+  postJson<{ delegation: ApprovalDelegation }>(`/api/v1/app/approval_delegations/${id}/revoke`)

@@ -3,7 +3,7 @@ require "mcp"
 module Mcp::Tools
   class RemoveJobTagTool < MCP::Tool
     extend AuthorizationSupport
-    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+    singleton_class.prepend(AuthorizationSupport::ContextDispatch)
 
     tool_name "remove_job_tag"
 

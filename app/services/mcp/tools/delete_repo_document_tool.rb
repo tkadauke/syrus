@@ -5,7 +5,7 @@ module Mcp::Tools
     extend ProposalToolSupport
     extend PendingActionToolSupport
     extend AuthorizationSupport
-    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+    singleton_class.prepend(AuthorizationSupport::ContextDispatch)
 
     tool_name "delete_repo_document"
 

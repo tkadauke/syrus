@@ -286,6 +286,7 @@ class BaseRevisionRetry
       run: @grader_step.latest_run,
       workflow: @workflow,
       display_command: redacted_command(command),
+      backend: Execution::Router.new(authorizer: nil),
       on_output_chunk: ->(chunk) { output << chunk }
     ).run
 

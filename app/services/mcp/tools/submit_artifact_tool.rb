@@ -7,7 +7,7 @@ module Mcp::Tools
   # idempotency (replace-on-type-match) and validation as the workflow tool.
   class SubmitArtifactTool < MCP::Tool
     extend AuthorizationSupport
-    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+    singleton_class.prepend(AuthorizationSupport::ContextDispatch)
     tool_name "submit_artifact"
 
     description <<~DESC

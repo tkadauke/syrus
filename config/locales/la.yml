@@ -11,6 +11,7 @@ la:
   server:
     permissions:
       coworker_request_waiting: "Exspectatur dominus ut de permissionibus requisitis decernat."
+      policy_evaluated: "Consilium permissionis canonicum aestimatum est"
       coworker_permission:
         requested: "Petitio permissionis ad dominum missa est. Nihil concedit donec dominus approbet."
         deduplicated: "Petitio permissionis aequivalens iam dominum exspectat."

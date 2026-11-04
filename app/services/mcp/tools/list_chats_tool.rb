@@ -3,7 +3,7 @@ require "mcp"
 module Mcp::Tools
   class ListChatsTool < MCP::Tool
     extend AuthorizationSupport
-    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+    singleton_class.prepend(AuthorizationSupport::ContextDispatch)
     tool_name "list_chats"
 
     description "List the current operator's recent Syrus chat sessions, optionally filtering by chat mode or attached Jobs."

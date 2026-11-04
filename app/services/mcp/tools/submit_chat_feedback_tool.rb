@@ -4,7 +4,7 @@ module Mcp::Tools
   class SubmitChatFeedbackTool < MCP::Tool
     extend ProposalToolSupport
     extend AuthorizationSupport
-    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
+    singleton_class.prepend(AuthorizationSupport::ContextDispatch)
 
     tool_name "submit_chat_feedback"
 

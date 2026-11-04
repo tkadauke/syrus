@@ -62,8 +62,15 @@ module Permissions
     end
 
     def candidate_durations
+      available = begin
+        capability = "#{item.capability}@v#{item.capability_version}"
+        operation = "#{item.operation}@v#{item.operation_version}"
+        Catalog.find!(capability:, operation:).authority_durations.map(&:to_s)
+      rescue Catalog::UnknownCapability
+        item.requested_durations
+      end
       CANDIDATES.select do |duration|
-        next false unless item.requested_durations.include?(duration)
+        next false unless available.include?(duration)
         next false if duration_above_request?(duration)
 
         case duration

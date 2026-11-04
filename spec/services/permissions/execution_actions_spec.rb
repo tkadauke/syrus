@@ -155,9 +155,15 @@ RSpec.describe Permissions::ExecutionActions do
   end
 
   describe Permissions::ExecutionGate do
+    let(:user) { Factories.user }
+    let(:chat_session) { ChatSession.create!(user:) }
     let(:request) do
       Execution::Request.new(**Execution::Request.members.index_with { nil }, command: %w[ls], network: "agent", env: {},
-        workload_policy: instance_double(Execution::ChatWorkloadPolicy, fail_closed?: true))
+        chat_session:, workload_policy: instance_double(Execution::ChatWorkloadPolicy, fail_closed?: true))
+    end
+
+    it "does not apply delegated agent authority to ownerless Syrus subprocesses" do
+      expect(described_class.new.call(request.with(chat_session: nil), location: :host)).to be_nil
     end
 
     it "denies a host start under a fail-closed workload and allows a container start" do

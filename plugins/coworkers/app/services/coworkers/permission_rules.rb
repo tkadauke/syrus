@@ -54,7 +54,7 @@ module Coworkers
               capability: descriptor.capability, operation: descriptor.operation,
               resource_type: descriptor.resource_scope.type.to_s, resource_scope: resource_scope,
               constraints: constraints.to_h, policy:, policy_layer: "agent", source:,
-              provenance: { "coworker_id" => coworker.id }.tap { |value|
+              provenance: { "coworker_id" => coworker.id, "coworker_approval_policy" => approval_policy.to_s }.tap { |value|
                 value["coworker_scope"] = scope unless scope.nil?
               }.merge(provenance.stringify_keys),
               rationale: "Coworker permission configured by the owner", delegable: false
@@ -75,8 +75,10 @@ module Coworkers
     def projected_policy(policy, matching)
       return "off" unless policy
 
-      migrated = matching.map { |rule| rule.provenance["legacy_approval_policy"] }.compact.uniq
-      migrated.one? ? migrated.first : LEGACY_POLICY.fetch(policy)
+      configured = matching.filter_map do |rule|
+        rule.provenance["coworker_approval_policy"] || rule.provenance["legacy_approval_policy"]
+      end.uniq
+      configured.one? ? configured.first : LEGACY_POLICY.fetch(policy)
     end
 
     def canonical_descriptors(capability)

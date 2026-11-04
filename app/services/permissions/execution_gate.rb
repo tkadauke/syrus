@@ -18,6 +18,11 @@ module Permissions
     end
 
     def call(request, location: :host)
+      # Execution::Router also carries Syrus-owned maintenance subprocesses
+      # which have no agent principal. They remain outside delegated agent
+      # authority; only requests attributable to a chat or Job are evaluated.
+      return unless owner_for(request)
+
       subject = ExecutionActions.subject_for_request(request, location:)
       result = ExecutionAuthorization.authorize(subject:, owner: owner_for(request), role: role_for(request), rules: rules_for(request), ceiling: @ceiling,
         context: lifecycle_context_for(request), selector_contexts: selector_contexts_for(request))

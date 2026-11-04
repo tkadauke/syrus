@@ -11,6 +11,7 @@ de:
   server:
     permissions:
       coworker_request_waiting: "Warten auf die Entscheidung des Eigentümers über die erforderlichen Berechtigungen."
+      policy_evaluated: "Kanonische Berechtigungsrichtlinie ausgewertet"
       coworker_permission:
         requested: "Berechtigungsanfrage an den Eigentümer gesendet. Es wird nichts gewährt, bis der Eigentümer zustimmt."
         deduplicated: "Eine gleichwertige Berechtigungsanfrage wartet bereits auf den Eigentümer."

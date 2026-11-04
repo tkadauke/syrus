@@ -5,7 +5,9 @@ module Permissions
     COMPATIBILITY_DIGEST_PATTERN = /\A[0-9a-f]{64}\z/
 
     Registration = Data.define(:tool_name, :surface, :source, :descriptor, :explicit_descriptor,
-      :compatibility_descriptor, :ungated)
+      :compatibility_descriptor, :ungated) do
+      def initialize(ungated: false, **attributes) = super
+    end
     Finding = Data.define(:code, :message, :registrations) do
       def to_h = { code: code, message: message, registrations: registrations }
     end

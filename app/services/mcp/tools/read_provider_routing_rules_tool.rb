@@ -3,7 +3,6 @@ require "mcp"
 module Mcp::Tools
   class ReadProviderRoutingRulesTool < MCP::Tool
     extend ProviderRoutingToolSupport
-    singleton_class.prepend(AuthorizationSupport::ToolDispatch)
 
     tool_name "read_provider_routing_rules"
     description "Read an ordered provider-routing rule set, inherited context, registry options, active holds, and its revision. User scope always means the current user; arbitrary user ids are not accepted."
