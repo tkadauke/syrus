@@ -3364,6 +3364,36 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_195733) do
     t.index ["retention_key"], name: "index_retention_policy_settings_on_retention_key", unique: true
   end
 
+  create_table "review_evidences", force: :cascade do |t|
+    t.integer "run_id", null: false
+    t.integer "workflow_id", null: false
+    t.integer "step_id", null: false
+    t.string "review_kind", null: false
+    t.string "provider", null: false
+    t.string "model", null: false
+    t.string "reviewer_type"
+    t.bigint "reviewer_id"
+    t.string "reviewed_base_sha", null: false
+    t.string "reviewed_head_sha", null: false
+    t.string "canonical_diff_sha256", null: false
+    t.string "prompt_version", null: false
+    t.string "checklist_version", null: false
+    t.string "tool_policy_version", null: false
+    t.string "state", default: "pending", null: false
+    t.datetime "submitted_at"
+    t.datetime "stale_at"
+    t.datetime "failed_at"
+    t.string "terminal_failure_code"
+    t.json "terminal_failure_details"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["reviewer_type", "reviewer_id"], name: "index_review_evidences_on_reviewer_type_and_reviewer_id"
+    t.index ["run_id"], name: "index_review_evidences_on_run_id", unique: true
+    t.index ["step_id"], name: "index_review_evidences_on_step_id"
+    t.index ["workflow_id", "review_kind", "state"], name: "idx_on_workflow_id_review_kind_state_8f0cb545b5"
+    t.index ["workflow_id"], name: "index_review_evidences_on_workflow_id"
+  end
+
   create_table "run_checkpoints", force: :cascade do |t|
     t.integer "run_id", null: false
     t.integer "workflow_id", null: false
