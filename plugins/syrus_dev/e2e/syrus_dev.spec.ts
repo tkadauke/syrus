@@ -26,12 +26,26 @@ function seededPerformancePayload() {
     enabled: true,
     current_revision: "e2e0000000000000",
     revision_scope: "current",
-    filter: { and: [{ field: "since", op: "is", value: "1h" }, { field: "revision_scope", op: "is", value: "current" }] },
+    filter: {
+      and: [
+        { field: "since", op: "is", value: "1h" },
+        { field: "revision_scope", op: "is", value: "current" }
+      ]
+    },
     filter_schema: [
       { field: "app_revision", label: "SHA", bucket: "text", operators: ["is"] },
       { field: "since", label: "Since", bucket: "text", operators: ["is"] },
       { field: "until", label: "Until", bucket: "text", operators: ["is"] },
-      { field: "revision_scope", label: "Revision scope", bucket: "enum", operators: ["is"], values: [{ value: "current", label: "Current SHA" }, { value: "all", label: "All SHAs" }] }
+      {
+        field: "revision_scope",
+        label: "Revision scope",
+        bucket: "enum",
+        operators: ["is"],
+        values: [
+          { value: "current", label: "Current SHA" },
+          { value: "all", label: "All SHAs" }
+        ]
+      }
     ],
     thresholds: {
       slow_request_ms: 1000,
@@ -83,7 +97,7 @@ function seededPerformancePayload() {
           slow_sql_count: 1,
           last_seen_at: "2026-09-01T12:00:05Z",
           recent_active_job_id: "job-230",
-          recent_trigger_reasons: [ "duration" ]
+          recent_trigger_reasons: ["duration"]
         }
       ],
       slow_phases: [
@@ -107,7 +121,7 @@ function seededPerformancePayload() {
           max_duration_ms: 900,
           average_api_duration_ms: 700,
           max_api_duration_ms: 700,
-          recent_api_request_ids: [ "frontend-request-9" ],
+          recent_api_request_ids: ["frontend-request-9"],
           last_seen_at: "2026-09-01T12:00:02Z",
           recent_metadata: {}
         }
@@ -135,7 +149,7 @@ function seededPerformancePayload() {
         queue_name: "polling",
         sql_count: 40,
         sql_duration_ms: 900,
-        trigger_reasons: [ "duration" ]
+        trigger_reasons: ["duration"]
       },
       {
         event: "syrus.performance.slow_request",
@@ -186,9 +200,12 @@ function seededPerformancePayload() {
 }
 
 async function mockPerformanceEvents(page: Page) {
-  await page.route((url) => url.pathname === PERFORMANCE_PATH, async (route) => {
-    await route.fulfill({ json: seededPerformancePayload() })
-  })
+  await page.route(
+    (url) => url.pathname === PERFORMANCE_PATH,
+    async (route) => {
+      await route.fulfill({ json: seededPerformancePayload() })
+    }
+  )
 }
 
 test("Syrus Dev Performance UI drills into a seeded request/run and runs a real SQL explain", async ({ page }) => {
@@ -199,7 +216,8 @@ test("Syrus Dev Performance UI drills into a seeded request/run and runs a real 
   // By heading, not by any text in the card: a plugin's card lists the
   // plugins that depend on it ("Required by: tailscale, git_mirror"), so a
   // loose text match now resolves to two cards.
-  const pluginCard = page.getByRole("region", { name: "Registered plugins" })
+  const pluginCard = page
+    .getByRole("region", { name: "Registered plugins" })
     .locator("article")
     .filter({ has: page.getByRole("heading", { name: "Syrus Dev", exact: true }) })
   await expect(pluginCard).toBeVisible()
@@ -272,6 +290,75 @@ test("Syrus Dev Performance UI drills into a seeded request/run and runs a real 
   await page.getByRole("button", { name: "SQL", exact: true }).click()
   await expectDataTableWithOverflow(page.getByRole("table").first())
   await expect(page.getByText(REQUEST_SQL)).toBeVisible()
+})
+
+test("Permission Model previews a whole-instance reset and repeated application converges", async ({ page }) => {
+  await signInAsDemo(page)
+  let applications = 0
+  await page.route("**/api/v1/app/admin/permission_factory_resets/preview", async (route) => {
+    await route.fulfill({
+      json: {
+        scope_type: "instance",
+        scope_id: null,
+        default_version: "permissions-factory@v1",
+        counts:
+          applications === 0
+            ? {
+                rules: 3,
+                leases: 2,
+                authorized_invocations: 1,
+                pending_requests: 1,
+                resumptions: 1,
+                profile_selections: 2,
+                factory_rules_to_create: 4,
+                factory_presets_to_create: 0
+              }
+            : {
+                rules: 0,
+                leases: 0,
+                authorized_invocations: 0,
+                pending_requests: 0,
+                resumptions: 0,
+                profile_selections: 0,
+                factory_rules_to_create: 0,
+                factory_presets_to_create: 0
+              },
+        confirmation_digest: `digest-${applications}`,
+        retained_data: ["audit_history", "users", "repositories", "jobs", "workflows", "permission_reset_audits"],
+        instance_confirmation: "RESET INSTANCE"
+      }
+    })
+  })
+  await page.route("**/api/v1/app/admin/permission_factory_resets", async (route) => {
+    applications += 1
+    await route.fulfill({
+      json: {
+        outcome: "succeeded",
+        changed: applications === 1,
+        counts: {},
+        audit: { id: 100 + applications, completed_at: "2026-11-04T12:00:00Z", default_version: "permissions-factory@v1" }
+      }
+    })
+  })
+
+  await page.goto("/admin/permission_model")
+  await expect(page.getByRole("heading", { name: "Permission Model" })).toBeVisible()
+  await page.getByLabel("Scope").selectOption("instance")
+  await page.getByRole("button", { name: "Preview reset" }).click()
+  await expect(page.getByLabel("Exact reset counts")).toContainText("Active rules to revoke3")
+  await expect(page.getByText("Permission rule and lease audit history")).toBeVisible()
+
+  const apply = page.getByRole("button", { name: "Apply factory reset" })
+  await expect(apply).toBeDisabled()
+  await page.getByLabel("Type RESET INSTANCE to enable the instance-wide reset").fill("RESET INSTANCE")
+  await apply.click()
+  await expect(page.getByRole("status")).toContainText("Factory reset completed. Audit record #101.")
+
+  await page.getByRole("button", { name: "Preview reset" }).click()
+  await expect(page.getByLabel("Exact reset counts")).toContainText("Active rules to revoke0")
+  await page.getByLabel("Type RESET INSTANCE to enable the instance-wide reset").fill("RESET INSTANCE")
+  await page.getByRole("button", { name: "Apply factory reset" }).click()
+  await expect(page.getByRole("status")).toContainText("Factory defaults were already effective. Audit record #102.")
 })
 
 async function expectDataTableWithOverflow(table: Locator) {

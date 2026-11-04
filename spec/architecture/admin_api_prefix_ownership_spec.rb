@@ -193,6 +193,8 @@ RSpec.describe "admin API prefix ownership" do
     plugin_runtime POST /api/v1/app/admin/plugin_services/:name/stop api/v1/app/admin/plugin_services#stop
     syrus_dev GET /api/v1/app/admin/operational_logs api/v1/app/admin/operational_logs#index
     syrus_dev GET /api/v1/app/admin/performance api/v1/app/admin/performance#show
+    syrus_dev POST /api/v1/app/admin/permission_factory_resets api/v1/app/admin/permission_factory_resets#create
+    syrus_dev POST /api/v1/app/admin/permission_factory_resets/preview api/v1/app/admin/permission_factory_resets#preview
     syrus_dev POST /api/v1/app/admin/performance/explain api/v1/app/admin/performance#explain
     syrus_dev POST /api/v1/app/admin/tool_card_jobs api/v1/app/admin/tool_card_jobs#create
     tailscale GET /api/v1/app/admin/tailscale/status api/v1/app/admin/tailscale#status
