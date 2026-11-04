@@ -79,6 +79,11 @@ module Mcp::Tools
 
         descriptor = entry.descriptor
         return if entry.ungated
+        # A tool whose result is itself a PendingAction already stops at the
+        # established operator-confirmation boundary. Wrapping that tool call
+        # in another authorization request hides its preflight and creates a
+        # redundant approval before the real action can even be reviewed.
+        return if pending_action_tool?(tool)
         return if claimed_actor_invocation_authorizes?(descriptor, context, server_context, arguments, tool)
 
         result = Permissions::AuthorizationRequest.new(
@@ -252,6 +257,13 @@ module Mcp::Tools
         fingerprint = Permissions::InvocationFingerprint.call(descriptor:, arguments:)
         ActiveSupport::SecurityUtils.secure_compare(invocation.invocation_fingerprint, fingerprint) ||
           raise(AuthorizationError, "authorized invocation fingerprint does not match")
+      end
+
+      def pending_action_tool?(tool)
+        PendingActions.for(McpToolRegistry.tool_name_for(tool))
+        true
+      rescue PendingActions::UnknownAction
+        false
       end
     end
 
