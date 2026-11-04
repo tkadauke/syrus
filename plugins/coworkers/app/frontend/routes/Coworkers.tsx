@@ -782,7 +782,9 @@ function CoworkerSchedules({ coworker, onChanged }: { coworker: CoworkerDetail; 
               <div>
                 <div className="flex items-center gap-2 font-medium">
                   {schedule.name}
-                  {schedule.system_key ? <span className="rounded bg-surface-muted px-2 py-0.5 text-xs text-text-secondary">{t("schedule.system")}</span> : null}
+                  {schedule.system_key ? (
+                    <span className="rounded bg-surface-muted px-2 py-0.5 text-xs text-text-secondary">{t("schedule.system")}</span>
+                  ) : null}
                 </div>
                 <div className="text-sm text-text-secondary">
                   {schedule.schedule_explanation || schedule.fire_at} · {schedule.state} · {t(`schedule.after_run_${schedule.after_run}`)}
@@ -790,15 +792,22 @@ function CoworkerSchedules({ coworker, onChanged }: { coworker: CoworkerDetail; 
                 {schedule.system_key ? (
                   <>
                     <div className="text-sm text-text-secondary">
-                      {schedule.state === "paused" ? t("schedule.journaling_paused") : t("schedule.last_result", {
-                        result: schedule.last_system_result || t("schedule.never_run"), date: schedule.last_journaled_on || "—"
-                      })}
+                      {schedule.state === "paused"
+                        ? t("schedule.journaling_paused")
+                        : t("schedule.last_result", {
+                            result: schedule.last_system_result || t("schedule.never_run"),
+                            date: schedule.last_journaled_on || "—"
+                          })}
                     </div>
-                    {schedule.system_result_history.slice(-7).reverse().map((entry) => (
-                      <div className="text-xs text-text-secondary" key={entry.date}>
-                        {entry.date}: {entry.result}{entry.reason ? ` (${entry.reason})` : ""}
-                      </div>
-                    ))}
+                    {schedule.system_result_history
+                      .slice(-7)
+                      .reverse()
+                      .map((entry) => (
+                        <div className="text-xs text-text-secondary" key={entry.date}>
+                          {entry.date}: {entry.result}
+                          {entry.reason ? ` (${entry.reason})` : ""}
+                        </div>
+                      ))}
                     <SystemScheduleTime coworkerId={String(coworker.id)} onChanged={onChanged} schedule={schedule} />
                   </>
                 ) : null}
@@ -850,7 +859,11 @@ function SystemScheduleTime({ coworkerId, schedule, onChanged }: { coworkerId: s
   return (
     <div className="mt-2 flex items-center gap-2">
       <Input aria-label={t("schedule.system_run_time")} className="max-w-56" onChange={(event) => setCadence(event.target.value)} value={cadence} />
-      <button className="rounded border border-border px-2 py-1 text-xs" disabled={update.isPending || cadence === schedule.schedule_input} onClick={() => update.mutate()}>
+      <button
+        className="rounded border border-border px-2 py-1 text-xs"
+        disabled={update.isPending || cadence === schedule.schedule_input}
+        onClick={() => update.mutate()}
+      >
         {t("schedule.save_time")}
       </button>
     </div>

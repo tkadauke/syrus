@@ -406,7 +406,9 @@ function TaskDetail({ payload, basePath, prefix }: { payload: ScheduledTaskDetai
           <div className="flex flex-wrap items-center gap-3">
             <PageHeading>{payload.task.name}</PageHeading>
             <StatePill state={payload.task.state} />
-            {payload.task.system_key ? <span className="rounded bg-surface-muted px-2 py-0.5 text-xs text-text-secondary">{t("scheduled_tasks.system")}</span> : null}
+            {payload.task.system_key ? (
+              <span className="rounded bg-surface-muted px-2 py-0.5 text-xs text-text-secondary">{t("scheduled_tasks.system")}</span>
+            ) : null}
           </div>
           <p className="mt-1 font-mono text-sm text-gray-600 dark:text-gray-400">
             <Link
@@ -816,13 +818,7 @@ function StatePill({ state }: { state: string }) {
     auto_paused: "bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300",
     fired: "bg-info/10 text-info"
   }
-  return (
-    <span
-      className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${styles[state] || "bg-surface-muted text-text-secondary"}`}
-    >
-      {state}
-    </span>
-  )
+  return <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium ${styles[state] || "bg-surface-muted text-text-secondary"}`}>{state}</span>
 }
 
 function ScheduledTasksError({ error }: { error: Error }) {
