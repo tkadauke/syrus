@@ -35,4 +35,17 @@ RSpec.describe Coworkers::PermissionRules do
     expect(permissions.rules).to all have_attributes(policy: "ask")
     expect(PermissionRuleAuditEvent.where(permission_rule_id: old_ids, event_type: "revoked").count).to eq(old_ids.length)
   end
+
+  it "preserves compatibility scopes when canonical descriptors have no resource scope" do
+    scope = [ repository.id ]
+
+    described_class.new(coworker).update!(
+      capability: "code.read", approval_policy: "auto", scope:, actor: owner
+    )
+
+    expect(described_class.new(coworker).entries).to include(
+      include(capability: "code.read", approval_policy: "auto", scope: scope)
+    )
+    expect(described_class.new(coworker).rules.map { |rule| rule.provenance["coworker_scope"] }).to all(eq(scope))
+  end
 end
