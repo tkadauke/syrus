@@ -620,26 +620,28 @@ class RunJob < ApplicationJob
     stale_reentry = false
     acquired = false
 
-    @run.with_lock do
-      @run.reload
-      @step = @run.step
-      @workflow = @step&.workflow
-      @job = @run.job
+    with_lifecycle_lock_retry("acquire execution for Run ##{@run.id}") do
+      @run.with_lock do
+        @run.reload
+        @step = @run.step
+        @workflow = @step&.workflow
+        @job = @run.job
 
-      if @run.terminal?
-        acquired = false
-      elsif @run.running?
-        stale_reentry = !fresh_running_run?
-        acquired = false
-      else
-        @workflow.start! if @workflow.may_start?
-        @workflow.save!
-        @step.start! if @step.may_start?
-        @step.save!
-        @run.start!
-        @run.save!
-        @job.update!(started_at: Time.current) if @job.started_at.nil?
-        acquired = true
+        if @run.terminal?
+          acquired = false
+        elsif @run.running?
+          stale_reentry = !fresh_running_run?
+          acquired = false
+        else
+          @workflow.start! if @workflow.may_start?
+          @workflow.save!
+          @step.start! if @step.may_start?
+          @step.save!
+          @run.start!
+          @run.save!
+          @job.update!(started_at: Time.current) if @job.started_at.nil?
+          acquired = true
+        end
       end
     end
 
