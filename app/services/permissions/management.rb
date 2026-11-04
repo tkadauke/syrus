@@ -41,8 +41,15 @@ module Permissions
     end
 
     def authorize(descriptor:, role:, resource_scope:, arguments:, context:)
-      LeaseAuthorizer.call(descriptor:, owner: @user, role:, resource_scope:, arguments:,
+      result = LeaseAuthorizer.call(descriptor:, owner: @user, role:, resource_scope:, arguments:,
         context:, rules: policy_rules)
+      DecisionAudit.record(
+        decision: result.decision,
+        actor: context[:agent_actor] || @user,
+        context: context.merge(role:, user_id: @user.id),
+        fingerprint: InvocationFingerprint.call(descriptor:, arguments:)
+      )
+      result
     end
 
     def grant_authority!(duration:, descriptor:, actor:, role:, subject_selector_type:,

@@ -284,9 +284,13 @@ enqueueing execution. The worker atomically claims that record, re-evaluates the
 current rule and lease chain under the claim lock, and dispatches only for a new
 claim with an exact fingerprint. A revoked or newly denied authority therefore
 invalidates queued work, and retries cannot replay an already claimed call.
-Only tools explicitly classified as safe, ungated local operations bypass this
-flow. Other runtime roles continue to use shadow comparison rather than this
-enforcement cutover.
+Only protocol controls explicitly classified as ungated bypass this flow; they
+cannot perform a capability effect. Ordinary chat, coworker, scheduled,
+workflow, and Local Mode invocations now use the canonical evaluator as their
+sole authority source. The former fail-open shadow comparison has been removed.
+Canonical decisions are recorded as redacted `permissions.policy_evaluator`
+events with actor, role, effective policy, decisive rule, and invocation
+fingerprint diagnostics. Revocation is rechecked at claim or dispatch time.
 
 ## Job and Epic lifecycle capabilities
 
