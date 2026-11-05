@@ -426,6 +426,21 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(train.reload.state).to eq("grading")
     end
 
+    it "does not treat a successful landing no-op as a replayable repair" do
+      a = member_job(issue_number: 1)
+      workflow = Workflow.create!(job: a, trigger_kind: "merge_train")
+      repair_step = workflow.steps.create!(kind: "landing_fix", position: 1, state: "succeeded")
+      repair_step.runs.create!(
+        job: a,
+        trigger_kind: "merge_train",
+        state: "succeeded",
+        base_sha: "unchanged-head",
+        head_sha: "unchanged-head"
+      )
+
+      expect(MergeTrainFixReplay.successful_repair_runs(workflow)).to be_empty
+    end
+
     it "replays successful repairs after terminal grader exhaustion using the repository failure rung" do
       AppSetting.current.update!(merge_train_failure_policy: "restart")
       stub_repository_content(repository, files: {

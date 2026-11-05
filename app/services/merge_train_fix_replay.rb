@@ -29,6 +29,7 @@ class MergeTrainFixReplay
     Run.joins(:step)
        .where(steps: { workflow_id: workflow.id, kind: "landing_fix" }, state: "succeeded")
        .where.not(base_sha: [ nil, "" ], head_sha: [ nil, "" ])
+       .where("runs.head_sha <> runs.base_sha")
        .order(:id)
   end
 
