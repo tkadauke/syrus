@@ -2772,8 +2772,6 @@ module WorkEngine
       workflows.select { |workflow| workflow.running? || workflow.retry_available? }.filter_map do |workflow|
         next if workflow.job&.closed?
         next if WorkflowWorkspace.remote_live_worker_workspace?(workflow)
-        next if workflow.worker_storage_key.present? && !InstanceVersion.worker_queue_live?(Workflow.resume_queue_name(workflow.worker_storage_key))
-        next if workflow.worker_storage_key.blank? && workflow.worker_hostname.present? && !InstanceVersion.worker_live?(workflow.worker_hostname)
 
         path = WorkflowWorkspace.path_for(workflow)
         next if File.directory?(path)
@@ -2783,8 +2781,8 @@ module WorkEngine
           kind: :workspace_missing,
           severity: :critical,
           affected_ids: ids_for(workflow),
-          safe_to_auto_repair: false,
-          recommended_repair_action: "start_over_with_fresh_workflow",
+          safe_to_auto_repair: true,
+          recommended_repair_action: "recover_missing_workspace",
           evidence: workflow_evidence(workflow).merge(
             workspace_path: path.to_s,
             worker_hostname: workflow.worker_hostname,
