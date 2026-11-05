@@ -1,6 +1,16 @@
 require "rails_helper"
 
 RSpec.describe McpToolRegistry do
+  it "resolves a shared tool registration for the active surface" do
+    chat = described_class.entry_for(Mcp::Tools::ListOpenPrsTool, surface: :chat)
+    workflow = described_class.entry_for(Mcp::Tools::ListOpenPrsTool, surface: :workflow)
+
+    expect(chat.surface).to eq(:chat)
+    expect(workflow.surface).to eq(:workflow)
+    expect(chat.descriptor.requestable_roles).to include(AgentRole::CHAT_PLANNER)
+    expect(workflow.descriptor.requestable_roles).to include(AgentRole::WORKFLOW_IMPLEMENT)
+  end
+
   let!(:bootstrap_admin) { Factories.user(admin: true) }
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }

@@ -114,8 +114,8 @@ class McpToolRegistry
       ]
     end
 
-    def entry_for(tool)
-      entries.find { |entry| entry.tool == tool }
+    def entry_for(tool, surface: nil)
+      entries.find { |entry| entry.tool == tool && (surface.nil? || entry.surface == surface.to_sym) }
     end
 
     def tool_name_for(tool)

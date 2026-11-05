@@ -74,7 +74,7 @@ module Mcp::Tools
         context = McpToolContext.from_server_context(server_context)
         return if context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
 
-        entry = McpToolRegistry.entry_for(tool)
+        entry = McpToolRegistry.entry_for(tool, surface: context.surface)
         return unless entry
 
         descriptor = entry.descriptor

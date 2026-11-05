@@ -25,7 +25,7 @@ module AgentMemory
 
       if coworker_chat?(chat_session)
         return COWORKER_TOOL_CLASSES.fetch(tier.to_sym, []).map do |klass|
-          definition_for(klass).merge(coworker_safe: true, ungated: true)
+          definition_for(klass).merge(coworker_safe: true, coworker_default_policy: "auto", ungated: true)
         end
       end
 
