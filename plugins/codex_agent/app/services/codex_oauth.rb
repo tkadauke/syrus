@@ -11,7 +11,14 @@ require "uri"
 # client, PKCE, and token endpoint, then either captures the localhost callback
 # or lets the operator paste the returned callback URL as a fallback.
 class CodexOauth
-  Error = Class.new(StandardError)
+  class Error < StandardError
+    attr_reader :reason
+
+    def initialize(message, reason: :upstream_rejected)
+      @reason = reason
+      super(message)
+    end
+  end
 
   CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann".freeze
   ISSUER = "https://auth.openai.com".freeze
@@ -55,10 +62,10 @@ class CodexOauth
 
   def self.exchange(code:, verifier:, state:, redirect_uri:)
     raw_code, embedded_state = extract_code_and_state(code)
-    raise Error, "Missing authorization code." if raw_code.blank?
+    raise Error.new("Missing authorization code.", reason: :missing_code) if raw_code.blank?
 
     if embedded_state.present? && embedded_state != state
-      raise Error, "Authorization state did not match. Start a new ChatGPT authorization."
+      raise Error.new("Authorization state did not match. Start a new ChatGPT authorization.", reason: :state_mismatch)
     end
 
     response = post_form(
@@ -179,7 +186,7 @@ class CodexOauth
     value = raw_code.to_s.strip
     return [ value, embedded_state ] unless value.include?("code=")
 
-    uri = URI.parse(value)
+    uri = URI.parse(value.match?(%r{\Ahttps?://}i) ? value : "http://#{value}")
     params = Rack::Utils.parse_query(uri.query)
     [ params["code"].to_s.strip, params["state"].presence || embedded_state ]
   rescue URI::InvalidURIError

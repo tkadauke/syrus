@@ -21,7 +21,14 @@ require "uri"
 # it back, and `exchange` completes it. (A loopback/same-host redirect to
 # Syrus is rejected by this client with "Redirect URI is not supported".)
 class ClaudeOauth
-  Error = Class.new(StandardError)
+  class Error < StandardError
+    attr_reader :reason
+
+    def initialize(message, reason: :upstream_rejected)
+      @reason = reason
+      super(message)
+    end
+  end
 
   CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e".freeze
   AUTHORIZE_URL = "https://claude.ai/oauth/authorize".freeze
@@ -69,10 +76,10 @@ class ClaudeOauth
   def self.exchange(code:, verifier:, state:, redirect_uri:)
     raw_code, embedded_state = code.to_s.split("#", 2)
     raw_code = raw_code.to_s.strip
-    raise Error, "Missing authorization code." if raw_code.blank?
+    raise Error.new("Missing authorization code.", reason: :missing_code) if raw_code.blank?
 
     if embedded_state.present? && embedded_state != state
-      raise Error, "Authorization state did not match. Start a new Claude authorization."
+      raise Error.new("Authorization state did not match. Start a new Claude authorization.", reason: :state_mismatch)
     end
 
     effective_state = embedded_state.presence || state
