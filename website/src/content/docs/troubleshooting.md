@@ -411,3 +411,14 @@ If the image store isn't the problem, inspect retained workflow
 workspaces under `$SYRUS_DATA_ROOT/workflows` and clean up workspaces
 left by finished Workflows. If cleanup is not enough, resize the data
 volume before clone, prepare, or landing jobs start failing.
+
+Active Workflows recover automatically when their owning worker or workspace
+storage is lost. Syrus reconstructs the checkout from a verified source
+snapshot, durable branch, or published agent checkpoint and resumes the
+grader collector when that is safe. A recovery source must match the latest
+successful code-changing step exactly; valid but older snapshots are rejected,
+and stranded immutable graders are requeued before their collector. If the
+exact implementation cannot be reconstructed without replaying mutable work,
+Syrus fails the attempt as a retryable infrastructure failure and starts a
+fresh Workflow automatically; the Job should not remain indefinitely running
+behind the lost workspace.

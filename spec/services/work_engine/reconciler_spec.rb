@@ -4779,7 +4779,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(kind(result, :workspace_missing)).to be_present
     expect(kind(result, :queued_step_without_run)).to be_present
     expect(plan(result, :resume_queued_step)).to be_nil
-    expect(plan(result, :wait_for_workspace_to_return)).to have_attributes(auto_executable: false)
+    expect(plan(result, :recover_missing_workspace)).to have_attributes(auto_executable: true)
     expect(prepare.reload.runs).to be_empty
   end
 
@@ -6359,8 +6359,11 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     issue = kind(result, :workspace_missing)
 
     expect(issue.severity).to eq("critical")
-    expect(issue.recommended_repair_action).to eq("start_over_with_fresh_workflow")
-    expect(plan(result, :operator_review_missing_workspace).auto_executable).to eq(false)
+    expect(issue).to have_attributes(
+      recommended_repair_action: "recover_missing_workspace",
+      safe_to_auto_repair: true
+    )
+    expect(plan(result, :recover_missing_workspace)).to have_attributes(auto_executable: true)
   end
 
   # Grader scratch used to live at <workspace>/.syrus/immutable-checkouts, so
@@ -6402,6 +6405,26 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       worker_hostname: "syrus-worker-remote",
       worker_storage_key: "storage-remote"
     )
+  end
+
+  it "recovers a missing workspace after its recorded storage owner disappears" do
+    workflow.update_columns(
+      state: "running", started_at: 5.minutes.ago,
+      worker_hostname: "retired-worker", worker_storage_key: "retired-storage"
+    )
+    step.update_columns(state: "running", started_at: 5.minutes.ago)
+    run.update_columns(state: "running", started_at: 5.minutes.ago, last_heartbeat_at: 5.minutes.ago)
+    allow(InstanceVersion).to receive(:worker_queue_live?).with("resume-retired-storage").and_return(false)
+    allow(File).to receive(:directory?).and_call_original
+    allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(false)
+
+    result = reconcile(workflow_id: workflow.id)
+
+    expect(kind(result, :workspace_missing)).to have_attributes(
+      safe_to_auto_repair: true,
+      recommended_repair_action: "recover_missing_workspace"
+    )
+    expect(plan(result, :recover_missing_workspace)).to have_attributes(auto_executable: true)
   end
 
   it "classifies resumable agent sessions present and missing" do

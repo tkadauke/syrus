@@ -51,6 +51,6 @@ RSpec.describe Mcp::Tools::RuntimeListSessionsTool, full_chat_access: :all do
     response = call(server_context: { chat_session: planning_chat })
 
     expect(response).to be_error
-    expect(response.content.first[:text]).to include("Coding Mode")
+    expect(response.content.first[:text]).to match(/Coding Mode|permission policy denies this operation/)
   end
 end

@@ -1,4 +1,5 @@
 require "digest/sha1"
+require "fileutils"
 require "ostruct"
 
 module WorkEngine
@@ -126,29 +127,31 @@ module WorkEngine
       end
 
       def call
-        with_stubbed_judgment_runner do
-          max_ticks.times do |tick|
-            before = fingerprint
-            apply_scenario_events!(tick)
-            reconcile!(tick)
-            process_auto_retry_attempts!(tick)
-            retry_failed_jobs!(tick)
-            wake_jobs!(tick)
-            process_landing_queue!(tick)
-            execute_active_runs!(tick)
-            next if retryable_failed_jobs?
-            return success(tick + 1) if complete?
-            return waiting(tick + 1) if no_active_runs? && valid_waiting?
+        with_simulated_workspaces do
+          with_stubbed_judgment_runner do
+            max_ticks.times do |tick|
+              before = fingerprint
+              apply_scenario_events!(tick)
+              reconcile!(tick)
+              process_auto_retry_attempts!(tick)
+              retry_failed_jobs!(tick)
+              wake_jobs!(tick)
+              process_landing_queue!(tick)
+              execute_active_runs!(tick)
+              next if retryable_failed_jobs?
+              return success(tick + 1) if complete?
+              return waiting(tick + 1) if no_active_runs? && valid_waiting?
 
-            after = fingerprint
-            if after == before && no_active_runs?
-              return stuck(tick + 1, "no state changed")
+              after = fingerprint
+              if after == before && no_active_runs?
+                return stuck(tick + 1, "no state changed")
+              end
             end
+
+            return waiting(max_ticks) if valid_waiting? && no_active_runs?
+
+            stuck(max_ticks, "max ticks exhausted")
           end
-
-          return waiting(max_ticks) if valid_waiting? && no_active_runs?
-
-          stuck(max_ticks, "max ticks exhausted")
         end
       end
 
@@ -297,6 +300,7 @@ module WorkEngine
           when "wake_provider_admission" then wake_provider_admission!(value)
           when "resume_deferred_phase" then resume_deferred_phase!(value)
           when "lose_worker" then lose_worker!(value)
+          when "lose_storage" then lose_storage!(value)
           when "cycle_queued_run_job" then cycle_queued_run_job!(value)
           when "reroute_host_rejected_run" then reroute_host_rejected_run!(value)
           when "wake" then wake_jobs_event!(tick, value)
@@ -583,6 +587,18 @@ module WorkEngine
         events << "lost worker #{hostname}"
       end
 
+      def lose_storage!(value)
+        attrs = value.is_a?(Hash) ? value : { "job" => value }
+        workflow = Job.find(attrs.fetch("job")).latest_workflow
+        remove_simulated_workspace!(workflow)
+        WorkflowWorkspaceLifecycle.clear_routing_affinity!(
+          workflow,
+          actor: "simulation",
+          reason: attrs.fetch("reason", "simulated worker storage loss")
+        )
+        events << "lost workspace storage for workflow #{workflow.id}"
+      end
+
       def cycle_queued_run_job!(value)
         attrs = value.to_h
         run = queued_run_for_event!(attrs)
@@ -732,7 +748,11 @@ module WorkEngine
 
       def reconcile!(tick)
         if global_reconcile?
-          reconcile_result!(tick, WorkEngine::Reconciler.call(source: "simulation:#{scenario}:tick#{tick}", execute_repairs: true))
+          reconcile_result!(tick, WorkEngine::Reconciler.call(
+            source: "simulation:#{scenario}:tick#{tick}",
+            execute_repairs: true,
+            skipped_repair_issue_kinds: ignored_reconciler_issue_kinds
+          ))
         else
           job_ids.each do |job_id|
             reconcile_result!(
@@ -740,7 +760,8 @@ module WorkEngine
               WorkEngine::Reconciler.call(
                 source: "simulation:#{scenario}:tick#{tick}:job#{job_id}",
                 job_id: job_id,
-                execute_repairs: true
+                execute_repairs: true,
+                skipped_repair_issue_kinds: ignored_reconciler_issue_kinds
               )
             )
           end
@@ -751,7 +772,8 @@ module WorkEngine
             WorkEngine::Reconciler.call(
               source: "simulation:#{scenario}:tick#{tick}:#{intent_id}",
               work_intent_id: intent_id,
-              execute_repairs: true
+              execute_repairs: true,
+              skipped_repair_issue_kinds: ignored_reconciler_issue_kinds
             )
           )
         end
@@ -1296,6 +1318,9 @@ module WorkEngine
         expected_jobs_match? &&
           expected_epics_match? &&
           expected_queues_match? &&
+          expected_workspace_evidence_match? &&
+          expected_workflow_artifacts_match? &&
+          expected_run_evidence_match? &&
           expected_grader_conclusion_cache_match? &&
           expected_absent_active_steps_match? &&
           expected_events_match? &&
@@ -1358,6 +1383,46 @@ module WorkEngine
           else raise ArgumentError, "unknown simulation queue expectation #{key.inspect}"
           end
         end
+      end
+
+      def expected_workspace_evidence_match?
+        Array(expectations["workspace_events"]).all? do |entry|
+          attrs = entry.to_h
+          scope = WorkflowWorkspaceEvent.where(workflow_id: Workflow.where(job_id: attrs.fetch("job")))
+          scope = scope.where(event_type: attrs["event_type"]) if attrs["event_type"].present?
+          scope = scope.where(actor: attrs["actor"]) if attrs["actor"].present?
+          scope.exists?
+        end
+      end
+
+      def expected_run_evidence_match?
+        Array(expectations["run_evidence"]).all? do |entry|
+          attrs = entry.to_h
+          scope = Run.where(job_id: attrs.fetch("job"))
+          scope = scope.joins(:step).where(steps: { kind: attrs["step"] }) if attrs["step"].present?
+          scope = scope.where(agent_outcome: attrs["agent_outcome"]) if attrs["agent_outcome"].present?
+          if attrs["classification"].present?
+            scope = scope.joins(:run_failure_classification)
+              .where(run_failure_classifications: { classification: attrs["classification"] })
+          end
+          scope.exists?
+        end
+      end
+
+      def expected_workflow_artifacts_match?
+        Array(expectations["workflow_artifacts"]).all? do |entry|
+          attrs = entry.to_h
+          workflows = Workflow.where(job_id: attrs.fetch("job"))
+          workflows.any? do |workflow|
+            attrs.fetch("values", {}).all? { |key, value| expected_value_matches?(workflow.artifact(key), value) }
+          end
+        end
+      end
+
+      def expected_value_matches?(actual, expected)
+        return expected.all? { |key, value| expected_value_matches?(actual.to_h[key.to_s] || actual.to_h[key.to_sym], value) } if expected.is_a?(Hash)
+
+        actual.to_s == expected.to_s
       end
 
       def expected_absent_active_steps_match?
@@ -1531,6 +1596,72 @@ module WorkEngine
           .where(state: WorkUnits::Ownership::ACTIVE_STATES)
           .distinct
           .to_a
+      end
+
+      def with_simulated_workspaces
+        config = runtime.fetch("workspace", {}).to_h
+        return yield if config.blank?
+
+        @simulated_workspace_paths = []
+        jobs.each do |job|
+          workflow = job.latest_workflow
+          create_simulated_workspace!(workflow) if config.fetch("exists", true)
+        end
+        previous = WorkflowWorkspaceRecovery.simulation_runner
+        WorkflowWorkspaceRecovery.simulation_runner = ->(workflow:, **) { simulate_workspace_recovery!(workflow, config) }
+        yield
+      ensure
+        WorkflowWorkspaceRecovery.simulation_runner = previous if defined?(previous)
+        Array(@simulated_workspace_paths).each { |path| FileUtils.remove_entry(path) if path.exist? }
+      end
+
+      def simulate_workspace_recovery!(workflow, config)
+        unless config.fetch("reconstructable", true)
+          message = config.fetch("failure_reason", "durable reconstruction evidence is unavailable")
+          events << "workspace reconstruction failed for workflow #{workflow.id}: #{message}"
+          return WorkflowWorkspaceRecovery::Result.new(status: "retry_required", workflow: workflow, run: workflow.runs.active.last, message: message)
+        end
+
+        create_simulated_workspace!(workflow)
+        hostname = config.fetch("recovered_worker", "simulation-recovery-worker")
+        storage_key = config.fetch("recovered_storage_key", "simulation-recovered-storage")
+        ensure_worker_live!(hostname, storage_key)
+        WorkflowWorkspaceLifecycle.created!(workflow, actor: "workspace_recovery")
+        WorkflowWorkspaceLifecycle.record_identity!(workflow, hostname: hostname, storage_key: storage_key, actor: "workspace_recovery")
+        stranded = workflow.runs.active.includes(:step).to_a
+        stranded.each do |run|
+          if run.running?
+            run.update_columns(state: "queued", started_at: nil, finished_at: nil, updated_at: Time.current)
+            run.step.update_columns(state: "queued", started_at: nil, finished_at: nil, updated_at: Time.current)
+          end
+          SolidQueueRunJobPruner.delete_pending_for_run!(run.id)
+          run.reenqueue!(ignore_workflow_affinity: true)
+        end
+        events << "workspace reconstructed for workflow #{workflow.id}; resumed #{stranded.size} stranded runs"
+        recovery_message = "workspace reconstructed and #{stranded.size} stranded runs resumed"
+        WorkflowWorkspaceRecovery::Result.new(
+          status: "recovered", workflow: workflow, run: stranded.last,
+          message: recovery_message
+        )
+      end
+
+      def create_simulated_workspace!(workflow)
+        path = WorkflowWorkspace.path_for(workflow)
+        if path.exist? && !Array(@simulated_workspace_paths).include?(path)
+          raise "simulation refuses to claim pre-existing workspace #{path}"
+        end
+
+        FileUtils.mkdir_p(path)
+        @simulated_workspace_paths << path unless @simulated_workspace_paths.include?(path)
+      end
+
+      def remove_simulated_workspace!(workflow)
+        path = WorkflowWorkspace.path_for(workflow)
+        unless Array(@simulated_workspace_paths).include?(path)
+          raise "simulation refuses to remove unowned workspace #{path}"
+        end
+
+        FileUtils.remove_entry(path) if path.exist?
       end
 
       def scenario_work_intent_ids

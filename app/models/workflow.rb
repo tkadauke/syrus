@@ -47,6 +47,7 @@ class Workflow < ApplicationRecord
   has_one_attached :coverage_hit_map
   has_many_attached :visual_artifacts
   has_many :visual_evidences, class_name: "WorkflowVisualEvidence", dependent: :destroy
+  has_many :workflow_workspace_events, dependent: :destroy
 
   # Resolved per validation, not captured at class load: plugin-contributed
   # trigger kinds appear (and disappear) with the plugin, and a frozen array
@@ -854,12 +855,7 @@ class Workflow < ApplicationRecord
   def record_worker_identity!
     host = SyrusVersion.hostname
     storage_key = WorkerStorageIdentity.queue_key
-    updates = {}
-    updates[:worker_hostname] = host if host.present? && worker_hostname != host
-    updates[:worker_storage_key] = storage_key if storage_key.present? && worker_storage_key != storage_key
-    return if updates.empty?
-
-    update_columns(updates)
+    WorkflowWorkspaceLifecycle.record_identity!(self, hostname: host, storage_key: storage_key, actor: "workflow")
   end
   alias_method :record_worker_hostname!, :record_worker_identity!
 

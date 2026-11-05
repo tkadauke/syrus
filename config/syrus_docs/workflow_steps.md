@@ -52,6 +52,21 @@ projection metadata such as `projected_target_label`,
 `barrier_labels`, and source-snapshot references stays in `steps.details`; only
 scheduler-hot placement is a column.
 
+If an active Workflow's owning worker or storage disappears, reconciliation
+rebuilds its mutable checkout on a live worker from the newest remotely
+verified source snapshot, published agent checkpoint, or safe durable branch.
+When a mutation Step has succeeded, that source must be the exact head recorded
+by the latest successful mutation; an older but otherwise valid snapshot is not
+a recovery candidate. The rebuilt checkout must resolve to the recorded commit
+before ownership is transferred. Stranded immutable grader Runs are requeued
+before their `grader_collect` barrier, and later phases continue normally.
+Syrus never replays a running mutable Step: when no durable head exists,
+validation disagrees, or a mutable Run may still have side effects, the attempt
+fails with the retryable
+`workspace_recovery_failed` outcome. Normal automatic retry then releases the
+old WorkUnit locks and starts a fresh Workflow from the Job's effective base,
+including approved dependency branches.
+
 `StepDispatcher` keeps the legacy one-successor walk unless distributed DAG
 placement is enabled for both the instance and the repository. With those
 rollout gates on, it treats explicit `depends_on_ids` edges as the

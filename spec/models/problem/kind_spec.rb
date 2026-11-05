@@ -4,11 +4,13 @@ RSpec.describe Problem::Kind do
   describe "the vocabulary is closed" do
     def emitted_classifications
       classifier_source = Rails.root.join("app/services/run_failure_classifier.rb").read
+      repair_executor_source = Rails.root.join("app/services/work_engine/repair_executor.rb").read
       step_sources = Dir[Rails.root.join("app/services/steps/**/*.rb")] +
         Dir[Rails.root.join("plugins/*/app/services/steps/**/*.rb")] +
         Dir[Rails.root.join("plugins/*/lib/**/steps/**/*.rb")]
 
       classifier_source.scan(/result\(\s*"([a-z_]+)"/).flatten +
+        repair_executor_source.scan(/classification:\s*"([a-z_]+)"/).flatten +
         step_sources.flat_map { |path| File.read(path).scan(/(?:fail_with!\(|problem_code )[:\s]*:([a-z0-9_]+)/).flatten } +
         [ ProviderUsageLimit::CLASSIFICATION, ProviderModelUnsupported::CLASSIFICATION ]
     end

@@ -199,7 +199,7 @@ class WorkflowWorkspace
     !remote_live_worker_workspace?(workflow)
   end
 
-  def self.cleanup_for(workflow, force_local: false)
+  def self.cleanup_for(workflow, force_local: false, actor: "workflow_workspace", reason: "workflow cleanup")
     unless force_local || cleanable_here?(workflow)
       Rails.logger.debug("[WorkflowWorkspace] skip cleanup for Workflow ##{workflow.id}: storage_key=#{workflow.worker_storage_key} host=#{workflow.worker_hostname}")
       return
@@ -251,7 +251,7 @@ class WorkflowWorkspace
       return
     end
 
-    workflow.update_columns(cleaned_up_at: Time.current) if workflow.persisted?
+    WorkflowWorkspaceLifecycle.cleaned_up!(workflow, actor: actor, reason: reason) if workflow.persisted?
     Rails.logger.info("[WorkflowWorkspace] cleanup done for Workflow ##{workflow.id}")
   rescue StandardError => e
     Rails.logger.warn("[WorkflowWorkspace] cleanup failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
@@ -317,11 +317,24 @@ class WorkflowWorkspace
     else
       sweep_sibling_workspaces!
       clone_and_checkout
+      WorkflowWorkspaceLifecycle.created!(@workflow)
       ensure_exclude_entry
       record_stack_base_preparation!
     end
     configure_git_author
     verify_required_branch!
+  end
+
+  # Rebuild a missing checkout from a ref whose object identity was already
+  # verified by the recovery state machine. Keeping this override in memory
+  # avoids changing the Workflow's normal checkout contract for later Runs.
+  def reconstruct_from!(ref)
+    raise ArgumentError, "workspace already exists at #{path}" if path.exist?
+
+    @recovery_checkpoint_ref = ref
+    setup
+  ensure
+    @recovery_checkpoint_ref = nil
   end
 
   def cleanup
