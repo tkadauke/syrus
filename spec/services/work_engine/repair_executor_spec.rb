@@ -40,6 +40,9 @@ RSpec.describe WorkEngine::RepairExecutor do
 
     it "fails an unsafe reconstruction with a typed retryable infrastructure outcome" do
       workflow.update_columns(state: "running", started_at: 5.minutes.ago)
+      work_unit = workflow.work_unit
+      expect(work_unit).to be_active
+      expect(work_unit.work_unit_locks.active).to exist
       result = WorkflowWorkspaceRecovery::Result.new(
         status: "retry_required", workflow: workflow, run: workflow.runs.last,
         message: "durable head validation failed"
@@ -71,6 +74,8 @@ RSpec.describe WorkEngine::RepairExecutor do
         retry_kind: "retry_workflow",
         failure_classification: "workspace_recovery_failed"
       )
+      expect(work_unit.reload).to be_failed
+      expect(work_unit.work_unit_locks.active).not_to exist
     end
   end
 
