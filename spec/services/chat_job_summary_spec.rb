@@ -35,6 +35,37 @@ RSpec.describe ChatJobSummary do
     expect(described_class.for(chat_sessions: [ later_chat ], user: user).fetch(later_chat.id, { jobs: [] })[:jobs]).to be_empty
   end
 
+  # The sidebar reads four workflow columns and two step columns to render a
+  # status pill, but used to load whole rows -- including workflows.artifacts,
+  # which averages 152KB in production and exceeds 11MB at the tail. That made
+  # a chat list cost seconds of transfer and parsing for data it discards.
+  it "never loads the artifacts column when summarizing" do
+    job = Factories.job_record(user: user, repository: repository, state: "running")
+    proposal_for(job)
+    workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running", started_at: 1.minute.ago)
+    workflow.update!(artifacts: { "bulky" => "x" * 50_000 })
+    Step.create!(workflow: workflow, kind: "implement", state: "running", position: 1)
+
+    selected = []
+    counter = ->(_name, _start, _finish, _id, payload) do
+      sql = payload[:sql].to_s
+      # Quote-agnostic: the test database quotes identifiers differently
+      # from production, and matching only backticks silently matched nothing.
+      selected << sql if sql.match?(/\bFROM\s+.?workflows.?\b/i) || sql.match?(/\bFROM\s+.?steps.?\b/i)
+    end
+
+    row = nil
+    ActiveSupport::Notifications.subscribed(counter, "sql.active_record") { row = summary }
+
+    expect(selected).to be_present
+    # The status pill still renders from the narrowed columns.
+    expect(row[:jobs].first[:step]).to eq("implement")
+    expect(row[:jobs].first[:group]).to eq("running")
+    # ...and no query pulled the artifacts column.
+    expect(selected.grep(/artifacts/)).to be_empty
+    expect(selected.grep(/SELECT\s+.?workflows.?\.\*/i)).to be_empty
+  end
+
   it "counts implementation workflows but excludes landing and CI repair" do
     active = Factories.job_record(user: user, repository: repository, state: "running")
     landing = Factories.job_record(user: user, repository: repository, state: "landing")

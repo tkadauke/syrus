@@ -24,14 +24,17 @@ class ChatJobSummary
 
     read_at = participant_read_times
     jobs = Job.where(id: associations.values.flatten.uniq)
-      .includes(:epic, :auto_retry_attempts, workflows: :steps)
+      .includes(:epic, :auto_retry_attempts)
       .index_by(&:id)
+    workflows_by_job = summary_workflows_by_job(jobs.keys)
+    steps_by_workflow = summary_steps_by_workflow(workflows_by_job.values.flatten.map(&:id))
     epic_counts = epic_progress(jobs.values.filter_map(&:epic_id).uniq)
     transition_times = outcome_transition_times(jobs.keys)
 
     associations.to_h do |chat_id, job_ids|
       rows = job_ids.filter_map { |id| jobs[id] }.map do |job|
-        row_for(job, read_at[chat_id], transition_times[job.id], epic_counts[job.epic_id])
+        row_for(job, read_at[chat_id], transition_times[job.id], epic_counts[job.epic_id],
+          workflows_by_job[job.id] || [], steps_by_workflow)
       end
       active_count = rows.count { |row| row[:group] == "running" }
       outcome = rows.any? { |row| row[:group] == "failed" } ? "failed" : rows.any? { |row| row[:group] == "ready" } ? "ready" : nil
@@ -92,13 +95,40 @@ class ChatJobSummary
     VISUAL_STATE_BY_JOB_STATE.fetch(state, state)
   end
 
+  # The sidebar reads four workflow columns and two step columns to show a
+  # status pill. Loading the full rows meant hauling `workflows.artifacts`
+  # -- averaging 152KB and peaking above 11MB -- for every workflow of every
+  # linked Job, then discarding it. Measured at 2.7s for the workflows query
+  # and 2.0s for the steps query on a single sidebar load.
+  WORKFLOW_SUMMARY_COLUMNS = %i[ id job_id state trigger_kind created_at started_at ].freeze
+  STEP_SUMMARY_COLUMNS = %i[ id workflow_id state kind ].freeze
+
+  def summary_workflows_by_job(job_ids)
+    return {} if job_ids.empty?
+
+    Workflow.where(job_id: job_ids).select(*WORKFLOW_SUMMARY_COLUMNS).group_by(&:job_id)
+  end
+
+  def summary_steps_by_workflow(workflow_ids)
+    return {} if workflow_ids.empty?
+
+    Step.where(workflow_id: workflow_ids).select(*STEP_SUMMARY_COLUMNS).group_by(&:workflow_id)
+  end
+
   def outcome_transition_times(job_ids)
     StateTransition.where(subject_type: "Job", subject_id: job_ids, to_state: %w[implemented failed])
       .group(:subject_id).maximum(:created_at)
   end
 
-  def row_for(job, read_at, transition_time, progress)
-    workflow = job.workflows.select { |item| Workflow::TriggerKind::ACTIVE_STATES.include?(item.state) }
+  def active_step_kind(workflow, steps_by_workflow)
+    return nil unless workflow
+
+    (steps_by_workflow[workflow.id] || [])
+      .find { |step| Workflow::TriggerKind::ACTIVE_STATES.include?(step.state) }&.kind
+  end
+
+  def row_for(job, read_at, transition_time, progress, job_workflows, steps_by_workflow)
+    workflow = job_workflows.select { |item| Workflow::TriggerKind::ACTIVE_STATES.include?(item.state) }
       .reject { |item| item.landing_workflow? || item.trigger_kind == "ci_failure" }
       .max_by { |item| [ item.created_at, item.id ] }
     group = if workflow || pending_retry?(job)
@@ -113,7 +143,7 @@ class ChatJobSummary
       id: job.id,
       slug: job.slug,
       state: job.state,
-      step: workflow&.steps&.find { |step| Workflow::TriggerKind::ACTIVE_STATES.include?(step.state) }&.kind || workflow&.trigger_kind,
+      step: active_step_kind(workflow, steps_by_workflow) || workflow&.trigger_kind,
       group: group,
       started_at: workflow&.started_at&.iso8601,
       finished_at: group.in?(%w[failed ready]) ? (transition_time || job.updated_at)&.iso8601 : nil,
