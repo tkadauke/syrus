@@ -61,6 +61,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | GET | `/api/v1/app/chats/:id/coding_commits` | `api/v1/app/chats#coding_commits` |
 | core | GET | `/api/v1/app/chats/:id/coding_diff` | `api/v1/app/chats#coding_diff` |
 | core | GET | `/api/v1/app/chats/:id/coding_file` | `api/v1/app/chats#coding_file` |
+| core | GET | `/api/v1/app/chats/:id/coding_file_preview` | `api/v1/app/chats#coding_file_preview` |
 | core | GET | `/api/v1/app/chats/:id/coding_files` | `api/v1/app/chats#coding_files` |
 | core | POST | `/api/v1/app/chats/:id/coding_handoff` | `api/v1/app/chats#create_coding_handoff` |
 | core | POST | `/api/v1/app/chats/:id/daemon_connection` | `api/v1/app/chats#daemon_connection` |
