@@ -3,7 +3,7 @@ class ChatPendingActionConfirmationJob < ApplicationJob
 
   def perform(chat_pending_action_id)
     pending_action = ChatPendingAction
-      .includes(:chat_session, :user, :subject, authorization_items: :authorized_invocation)
+      .includes(:chat_session, :user, :subject)
       .find(chat_pending_action_id)
     if pending_action.origin_type == "ChatSession" && pending_action.origin_id == pending_action.chat_session_id
       pending_action.association(:origin).target = pending_action.chat_session

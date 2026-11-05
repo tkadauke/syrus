@@ -299,7 +299,7 @@ class ChatPendingAction < ApplicationRecord
   # with_lock re-query the chat session and user we had already loaded. Those
   # records are not the locked row, so carry them across the reload.
   def lock!(*)
-    preserved = %i[chat_session user origin subject authorization_items].filter_map do |name|
+    preserved = %i[chat_session user origin subject].filter_map do |name|
       assoc = association(name)
       [ name, assoc.target ] if assoc.loaded?
     end
@@ -307,9 +307,7 @@ class ChatPendingAction < ApplicationRecord
       preserved.each do |name, target|
         assoc = association(name)
         reflection = assoc.reflection
-        same_record = if reflection.collection?
-          target.all? { |record| record.public_send(reflection.foreign_key) == id }
-        elsif !reflection.belongs_to?
+        same_record = if !reflection.belongs_to?
           target.nil? || target.public_send(reflection.foreign_key) == id
         elsif target.nil?
           public_send(reflection.foreign_key).nil?
@@ -319,7 +317,6 @@ class ChatPendingAction < ApplicationRecord
         end
         if same_record
           assoc.target = target
-          assoc.loaded!
         end
       end
     end
