@@ -55,11 +55,14 @@ scheduler-hot placement is a column.
 If an active Workflow's owning worker or storage disappears, reconciliation
 rebuilds its mutable checkout on a live worker from the newest remotely
 verified source snapshot, published agent checkpoint, or safe durable branch.
-The rebuilt checkout must resolve to the recorded commit before ownership is
-transferred. A stranded `grader_collect` Run is then safely requeued and later
-phases continue normally. Syrus never replays a running mutable Step: when no
-durable head exists, validation disagrees, or a mutable Run may still have
-side effects, the attempt fails with the retryable
+When a mutation Step has succeeded, that source must be the exact head recorded
+by the latest successful mutation; an older but otherwise valid snapshot is not
+a recovery candidate. The rebuilt checkout must resolve to the recorded commit
+before ownership is transferred. Stranded immutable grader Runs are requeued
+before their `grader_collect` barrier, and later phases continue normally.
+Syrus never replays a running mutable Step: when no durable head exists,
+validation disagrees, or a mutable Run may still have side effects, the attempt
+fails with the retryable
 `workspace_recovery_failed` outcome. Normal automatic retry then releases the
 old WorkUnit locks and starts a fresh Workflow from the Job's effective base,
 including approved dependency branches.

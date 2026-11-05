@@ -50,16 +50,24 @@ class WorkflowWorkspaceRecovery
 
   class Resume < State
     def call
-      run = machine.active_run
-      return machine.success(nil, "workspace reconstructed; no active Run needed reconciliation") unless run
-      return machine.retry_required("active #{run.step.kind} Run may mutate state and cannot be replayed safely") if run.running? && run.step.kind != "grader_collect"
-
-      if run.step.kind == "grader_collect" && run.running?
-        run.update_columns(state: "queued", started_at: nil, finished_at: nil, updated_at: Time.current)
-        run.step.update_columns(state: "queued", started_at: nil, finished_at: nil, updated_at: Time.current)
+      unsafe_run = machine.active_runs.detect do |run|
+        run.running? && !run.step.kind.in?(%w[grader grader_collect])
       end
-      RunJob.perform_later(run.id)
-      machine.success(run, "workspace reconstructed and #{run.step.kind} resumed")
+      if unsafe_run
+        return machine.retry_required("active #{unsafe_run.step.kind} Run may mutate state and cannot be replayed safely")
+      end
+
+      grader_runs = machine.active_runs.select { |run| run.step.kind == "grader" }
+      grader_runs.each { |run| machine.requeue!(run) }
+
+      control_run = machine.active_runs.reject { |run| run.step.kind == "grader" }.last
+      machine.requeue!(control_run) if control_run
+
+      resumed = grader_runs + Array(control_run)
+      return machine.success(nil, "workspace reconstructed; no active Run needed reconciliation") if resumed.empty?
+
+      machine.success(control_run || grader_runs.last,
+        "workspace reconstructed and #{resumed.size} stranded Run#{'s' unless resumed.one?} resumed")
     end
   end
 
@@ -106,35 +114,66 @@ class WorkflowWorkspaceRecovery
   end
 
   def active_run
-    @active_run ||= workflow.runs.active.order(:created_at, :id).last
+    active_runs.last
+  end
+
+  def active_runs
+    @active_runs ||= workflow.runs.active.includes(:step).order(:created_at, :id).to_a
+  end
+
+  def requeue!(run)
+    if run.running?
+      now = Time.current
+      run.update_columns(state: "queued", started_at: nil, finished_at: nil, updated_at: now)
+      run.step.update_columns(state: "queued", started_at: nil, finished_at: nil, updated_at: now)
+    end
+    run.reenqueue!(ignore_workflow_affinity: true)
   end
 
   def durable_candidates
     candidates = []
     WorkflowSourceSnapshots.current_for(workflow)&.then do |snapshot|
       candidates << Candidate.new(ref: snapshot.source_ref, sha: snapshot.source_sha,
-        published_at: snapshot.published_at, id: snapshot.id, source: "source_snapshot") if remote_sha(snapshot.source_ref) == snapshot.source_sha
+        published_at: snapshot.published_at, id: snapshot.id, source: "source_snapshot") if durable_head?(snapshot.source_ref, snapshot.source_sha)
     end
     RunCheckpoint.published.where(workflow_id: workflow.id).recent.each do |checkpoint|
-      next unless remote_sha(checkpoint.remote_ref) == checkpoint.commit_sha
+      next unless durable_head?(checkpoint.remote_ref, checkpoint.commit_sha)
 
       candidates << Candidate.new(ref: checkpoint.remote_ref, sha: checkpoint.commit_sha,
         published_at: checkpoint.published_at, id: checkpoint.id, source: "run_checkpoint")
     end
     branch = workflow.job.branch_name.presence
-    if branch && (sha = remote_sha("refs/heads/#{branch}"))
-      mutation_heads = workflow.runs.joins(:step)
-        .where(steps: { kind: RunCheckpointPublisher::MUTATION_STEP_KINDS }, state: "succeeded")
-        .where.not(head_sha: [ nil, "" ]).pluck(:head_sha)
-      if mutation_heads.empty? || mutation_heads.include?(sha)
-        candidates << Candidate.new(ref: "refs/heads/#{branch}", sha: sha,
-          published_at: workflow.created_at, id: 0, source: "durable_branch")
-      end
+    if branch && (sha = remote_sha("refs/heads/#{branch}")) && preserves_latest_mutation?(sha)
+      candidates << Candidate.new(ref: "refs/heads/#{branch}", sha: sha,
+        published_at: workflow.created_at, id: 0, source: "durable_branch")
     end
     candidates
   end
 
   private
+
+  def durable_head?(ref, sha)
+    remote_sha(ref) == sha && preserves_latest_mutation?(sha)
+  end
+
+  # A snapshot or checkpoint from before the latest successful mutation is a
+  # valid Git object but not a valid recovery point. Choosing it would silently
+  # grade or publish a checkout without the implementation. Be conservative:
+  # when the exact mutation head was not published, fail into the fresh
+  # workflow retry path instead of attempting to replay mutable work.
+  def preserves_latest_mutation?(sha)
+    latest_mutation_head.blank? || sha == latest_mutation_head
+  end
+
+  def latest_mutation_head
+    return @latest_mutation_head if defined?(@latest_mutation_head)
+
+    @latest_mutation_head = workflow.runs.joins(:step)
+      .where(steps: { kind: RunCheckpointPublisher::MUTATION_STEP_KINDS }, state: "succeeded")
+      .where.not(head_sha: [ nil, "" ])
+      .order(Arel.sql("COALESCE(runs.finished_at, runs.created_at) DESC, runs.id DESC"))
+      .pick(:head_sha)
+  end
 
   def remote_sha(ref)
     output = GithubAuthenticatedGit.run(
