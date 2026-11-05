@@ -100,10 +100,10 @@ RSpec.describe StepDispatcher, :ci_only do
       described_class.fail_from(collect)
 
       inserted = train_workflow.reload.steps.where("position > ?", collect.position).order(:position).limit(5)
-      expect(inserted.pluck(:kind)).to eq(%w[merge_train_agent prepare grader_fanout grader_collect merge_train_land])
+      expect(inserted.pluck(:kind)).to eq(%w[landing_fix grader_fanout grader_collect merge_train_land])
       expect(inserted.last.position).to be > inserted.find { |step| step.kind == "grader_collect" }.position
-      expect(train_workflow.steps.where(kind: "merge_train_land").order(:position).first).to be_queued
-      expect(train_workflow.steps.where(kind: "merge_train_land").order(:position).last).to be_cancelled
+      expect(inserted.last).to be_queued
+      expect(train_workflow.steps.where(kind: "merge_train_land").count).to eq(1)
       expect(train_workflow).to be_running
     end
   end
