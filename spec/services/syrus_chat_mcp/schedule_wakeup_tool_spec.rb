@@ -20,6 +20,7 @@ RSpec.describe Mcp::Tools::ScheduleWakeupTool do
   end
 
   def call_tool(arguments)
+    grant_full_chat_access(chat_session.user)
     jsonrpc(server, "tools/call", params: { name: "schedule_wakeup", arguments: arguments })
   end
 

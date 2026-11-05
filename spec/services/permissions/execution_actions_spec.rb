@@ -155,9 +155,10 @@ RSpec.describe Permissions::ExecutionActions do
   end
 
   describe Permissions::ExecutionGate do
+    let(:owner) { Factories.user }
     let(:request) do
       Execution::Request.new(**Execution::Request.members.index_with { nil }, command: %w[ls], network: "agent", env: {},
-        workload_policy: instance_double(Execution::ChatWorkloadPolicy, fail_closed?: true))
+        job: Job.new(user: owner), workload_policy: instance_double(Execution::ChatWorkloadPolicy, fail_closed?: true))
     end
 
     it "denies a host start under a fail-closed workload and allows a container start" do
@@ -179,6 +180,18 @@ RSpec.describe Permissions::ExecutionActions do
       plain = request.with(env: { "GITHUB_TOKEN" => "x" }, workload_policy: nil)
 
       expect(described_class.new.call(plain, location: :container)).to be_allowed
+    end
+
+    it "does not treat unattributed internal process plumbing as an agent invocation" do
+      plain = request.with(job: nil, workload_policy: nil)
+
+      expect(described_class.new.call(plain, location: :host)).to be_nil
+    end
+
+    it "leaves deterministic grader commands to workload and backend policy" do
+      grader = request.with(kind: "grader")
+
+      expect(described_class.new.call(grader, location: :host)).to be_nil
     end
   end
 

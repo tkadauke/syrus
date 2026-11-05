@@ -62,8 +62,10 @@ module Permissions
     end
 
     def candidate_durations
+      # The adaptive option is derived from the current canonical descriptor
+      # through RuleDraft. requested_durations describes the original one-shot
+      # approval UI and must not hide a now-valid durable rule option.
       CANDIDATES.select do |duration|
-        next false unless item.requested_durations.include?(duration)
         next false if duration_above_request?(duration)
 
         case duration

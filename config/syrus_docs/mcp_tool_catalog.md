@@ -65,6 +65,7 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `remove_job_tag` | chat | deferred | write | no | - | - | - | - |
 | `remove_pinned_context` | chat | deferred | write | no | - | - | - | - |
 | `reopen_job` | chat | deferred | write | no | - | - | - | - |
+| `request_permission` | chat | deferred | write | no | - | - | - | - |
 | `resolve_delivery_policy` | chat | deferred | read | no | - | - | - | - |
 | `resume_landing_queue` | chat | deferred | write | no | - | - | - | - |
 | `revoke_permission` | chat | deferred | write | no | - | - | - | - |

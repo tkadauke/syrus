@@ -9,6 +9,7 @@ RSpec.describe Mcp::Tools::SpawnChatsTool do
   let!(:chat_session) { ChatSession.create!(user: user, repository: repository) }
 
   def call_tool(chats:, reason: nil)
+    grant_full_chat_access(chat_session.user)
     described_class.call(chats: chats, reason: reason, server_context: { chat_session: chat_session })
   end
 

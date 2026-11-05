@@ -42,7 +42,13 @@ module Permissions
       def build_legacy(tool_name:, capability:, mutation:, roles:, policy: nil)
         family = identifier_component(capability.presence || tool_name)
         operation = identifier_component(tool_name)
-        policy ||= mutation ? :ask : :allow
+        # Compatibility descriptors preserve the established ordinary-agent
+        # behavior. Surfaces that require approval declare an explicit
+        # descriptor/default; coworker registrations are separately validated
+        # against CoworkerDefaultPolicy and normally supply their policy here.
+        defaults = roles.index_with do |role|
+          policy || ([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ].include?(role) ? :ask : :allow)
+        end
         effects = mutation ? [ :internal_write ] : [ :local_read ]
 
         CapabilityDescriptor.new(
@@ -51,7 +57,7 @@ module Permissions
           effects: effects,
           risk: mutation ? :medium : :low,
           requestable_roles: roles,
-          defaults: roles.index_with { policy },
+          defaults: defaults,
           maximum_autonomy: mutation ? :invocation : :permanent,
           authority_durations: mutation ? [ :invocation ] : CapabilityDescriptor::AUTHORITY_DURATIONS,
           resource_scope: { type: :none },

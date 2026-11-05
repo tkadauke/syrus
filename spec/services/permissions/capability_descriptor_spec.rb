@@ -125,6 +125,17 @@ RSpec.describe Permissions::CapabilityDescriptorAdapter do
     )
   end
 
+  it "preserves ordinary chat automation while asking for coworker compatibility access" do
+    descriptor = described_class.for_registry_entry(
+      tool_name: "read_status", capability: "status.read", mutation: false,
+      required_roles: [ AgentRole::CHAT_PLANNER, AgentRole::COWORKER_CHAT ]
+    )
+
+    expect(descriptor.defaults).to include(
+      AgentRole::CHAT_PLANNER => :allow, AgentRole::COWORKER_CHAT => :ask
+    )
+  end
+
   it "maps declared coworker defaults into unified compatibility policy" do
     allowed = described_class.for_plugin_definition(
       name: "write_workspace", capability: "workspace.files", coworker_safe: true,

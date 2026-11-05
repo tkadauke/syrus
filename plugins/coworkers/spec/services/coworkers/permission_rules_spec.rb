@@ -32,7 +32,7 @@ RSpec.describe Coworkers::PermissionRules do
     permissions.update!(capability: "syrus.read_jobs", approval_policy: "confirm", actor: owner)
 
     expect(PermissionRule.where(id: old_ids)).to all be_revoked_at
-    expect(permissions.rules).to all have_attributes(policy: "ask")
+    expect(permissions.rules).to all have_attributes(policy: "ask", delegable: true)
     expect(PermissionRuleAuditEvent.where(permission_rule_id: old_ids, event_type: "revoked").count).to eq(old_ids.length)
   end
 

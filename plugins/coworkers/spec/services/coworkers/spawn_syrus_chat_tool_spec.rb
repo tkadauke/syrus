@@ -17,7 +17,10 @@ RSpec.describe Coworkers::SpawnSyrusChatTool do
     PluginRecord.find_or_create_by!(name: "coworkers").update!(enabled: true, disableable: true)
     Syrus::PluginRegistry.clear_plugin_record_cache!
     Coworkers::Chat.create!(coworker:, chat_session: chat, role: "main")
-    coworker.grants.create!(capability: "syrus.spawn_chat", approval_policy: "confirm", scope: [ repository.id ])
+    Coworkers::GrantUpdate.call(
+      owner:, coworker:, capability: "syrus.spawn_chat", approval_policy: "confirm",
+      scope: [ repository.id ], confirmed: true
+    )
     Coworkers::ChatExtension.install_into(scope)
   end
   after { scope.dispose }
@@ -77,8 +80,9 @@ RSpec.describe Coworkers::SpawnSyrusChatTool do
   end
 
   it "uses independent per-run caps" do
-    coworker.grants.find_by!(capability: "syrus.spawn_chat").update!(
-      constraints: { "max_spawns_per_run" => 1, "max_spawns_per_day" => 2 }
+    Coworkers::GrantUpdate.call(
+      owner:, coworker:, capability: "syrus.spawn_chat", approval_policy: "confirm",
+      constraints: { "max_spawns_per_run" => 1, "max_spawns_per_day" => 2 }, confirmed: true
     )
     expect(described_class.call(repository_id: repository.id, prompt: "One", server_context: context)).not_to be_error
     response = described_class.call(repository_id: repository.id, prompt: "Two", server_context: context)

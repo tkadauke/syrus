@@ -21,6 +21,7 @@ RSpec.describe "Mcp::Tools workflow inspection tools" do
   end
 
   def call_tool(name, arguments)
+    grant_full_chat_access(chat_session.user)
     raw = server.handle_json({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: name, arguments: arguments } }.to_json)
     JSON.parse(raw, symbolize_names: true)
   end

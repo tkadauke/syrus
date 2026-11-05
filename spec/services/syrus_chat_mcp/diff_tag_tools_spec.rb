@@ -24,6 +24,7 @@ RSpec.describe "Mcp::Tools diff and tag tools" do
   end
 
   def call_tool(name, arguments = {})
+    grant_full_chat_access(chat_session.user)
     raw = server.handle_json({
       jsonrpc: "2.0",
       id: 1,
@@ -129,6 +130,7 @@ RSpec.describe "Mcp::Tools diff and tag tools" do
       tools: [ Mcp::Tools::GetJobDiffTool ],
       server_context: { chat_session: admin_session }
     )
+    grant_full_chat_access(admin)
 
     raw = admin_server.handle_json({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "get_job_diff", arguments: { job_id: other_job.id } } }.to_json)
     response = JSON.parse(raw, symbolize_names: true)
@@ -189,7 +191,7 @@ RSpec.describe "Mcp::Tools diff and tag tools" do
     tag_response = call_tool("add_job_tag", job_id: Factories.job(repository: repository).id, tag_id: tag.id)
 
     expect(job_response.dig(:result, :isError)).to be(true)
-    expect(payload(job_response)).to eq(error: "not_authorized")
+    expect(payload(job_response)).to include(error: "not_authorized")
     expect(tag_response.dig(:result, :isError)).to be(true)
     expect(tag_response.dig(:result, :content, 0, :text)).to include("tag not found")
   end

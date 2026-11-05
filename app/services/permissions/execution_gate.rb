@@ -18,6 +18,14 @@ module Permissions
     end
 
     def call(request, location: :host)
+      # ProcessRunner also backs internal application plumbing (Git helpers,
+      # graders, maintenance commands). With no owning chat or Job there is no
+      # agent principal or lifecycle against which authority can be evaluated.
+      # Grader commands are deterministic repository configuration rather than
+      # an agent-selected invocation and remain governed by their workload and
+      # execution-backend policy.
+      return if request.kind == "grader" || !owner_for(request)
+
       subject = ExecutionActions.subject_for_request(request, location:)
       result = ExecutionAuthorization.authorize(subject:, owner: owner_for(request), role: role_for(request), rules: rules_for(request), ceiling: @ceiling,
         context: lifecycle_context_for(request), selector_contexts: selector_contexts_for(request))

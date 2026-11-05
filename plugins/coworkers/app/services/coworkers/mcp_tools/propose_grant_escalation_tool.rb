@@ -54,7 +54,8 @@ module Coworkers::McpTools
           Coworkers::PrivilegedGrantGate.ensure_available!(descriptor) unless policy == "off"
           raise ArgumentError, "approval policy exceeds maximum #{descriptor.maximum_policy}" unless Coworkers::GrantCatalog.policy_allowed?(descriptor, policy)
           scope = attributes.key?("scope") ? attributes["scope"] : Coworkers::GrantUpdate::SCOPE_UNCHANGED
-          if policy != "off" && descriptor.scopeable? && scope.equal?(Coworkers::GrantUpdate::SCOPE_UNCHANGED) && held_grants[descriptor.name]&.fetch(:approval_policy) == "off"
+          if policy != "off" && descriptor.scopeable? && scope.equal?(Coworkers::GrantUpdate::SCOPE_UNCHANGED) &&
+              held_grants.fetch(descriptor.name, { approval_policy: "off" }).fetch(:approval_policy) == "off"
             raise ArgumentError, "scope is required for #{descriptor.name}"
           end
           unless policy == "off" || scope.equal?(Coworkers::GrantUpdate::SCOPE_UNCHANGED) || descriptor.valid_scope?(scope, user: owner)

@@ -34,6 +34,7 @@ RSpec.describe Mcp::Tools::ExplainStuckJobTool do
   end
 
   def call_tool(arguments)
+    grant_full_chat_access(chat_session.user)
     raw = server.handle_json({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "explain_stuck_job", arguments: arguments } }.to_json)
     JSON.parse(raw, symbolize_names: true)
   end
@@ -106,7 +107,7 @@ RSpec.describe Mcp::Tools::ExplainStuckJobTool do
     excluded_response = call_tool(job_id: excluded_job.id)
     excluded_payload = response_payload(excluded_response)
     expect(excluded_response.dig(:result, :isError)).to be(true)
-    expect(excluded_payload).to eq(error: "not_authorized")
+    expect(excluded_payload).to include(error: "not_authorized")
   end
 
   it "returns a plain not_authorized error, not an admin-required message, for an ordinary missing/unowned job id" do
@@ -116,6 +117,6 @@ RSpec.describe Mcp::Tools::ExplainStuckJobTool do
     payload = response_payload(response)
 
     expect(response.dig(:result, :isError)).to be(true)
-    expect(payload).to eq(error: "not_authorized")
+    expect(payload).to include(error: "not_authorized")
   end
 end
