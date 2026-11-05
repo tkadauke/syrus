@@ -5,7 +5,10 @@ RSpec.describe Mcp::Tools::RuntimeListSessionsTool, full_chat_access: :all do
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository, mode: "coding") }
 
-  before { enable_coding_mode! }
+  before do
+    enable_coding_mode!
+    Mcp::Sidecar.authorize_tool(described_class)
+  end
 
   def call(server_context: { chat_session: chat_session })
     described_class.call(server_context: server_context)
@@ -51,6 +54,6 @@ RSpec.describe Mcp::Tools::RuntimeListSessionsTool, full_chat_access: :all do
     response = call(server_context: { chat_session: planning_chat })
 
     expect(response).to be_error
-    expect(response.content.first[:text]).to include("Coding Mode")
+    expect(payload(response)).to include(error: "not_authorized")
   end
 end
