@@ -132,6 +132,7 @@ RSpec.describe "Coworker chat surface" do
     )
     expect(proposal.messages).to contain_exactly(have_attributes(role: "assistant"))
     expect(Job.where(issue_title: "Improve release notes")).to be_empty
+    expect(chat.pending_actions.where(action: "coworker_tool_call")).to be_empty
   end
 
   it "creates an ordinary pending Epic card and child cards with coworker provenance" do
@@ -163,6 +164,7 @@ RSpec.describe "Coworker chat surface" do
     expect(proposal.messages).to contain_exactly(have_attributes(role: "assistant"))
     expect(Epic.where(title: "Release readiness")).to be_empty
     expect(Job.where(issue_title: "Prepare release")).to be_empty
+    expect(chat.pending_actions.where(action: "coworker_tool_call")).to be_empty
   end
 
   it "preserves proposal validation and repository visibility for coworkers" do

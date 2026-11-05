@@ -279,7 +279,7 @@ RSpec.describe "Coworker background runs" do
     )
   end
 
-  it "queues confirm and queue mutations from unattended runs and replays an approval in its run context" do
+  it "does not put a generic gate in front of proposal confirmation cards from unattended runs" do
     coworker.grants.create!(capability: "syrus.propose_job", approval_policy: "confirm")
     rule_for(Mcp::Tools::ProposeJobTool, :ask)
     workflow = Coworkers::Workflow.instantiate(job: job)
@@ -290,51 +290,18 @@ RSpec.describe "Coworker background runs" do
       planned_execution: { capabilities: { os: [ "linux" ] } }
     }
 
-    response = Mcp::Tools::AuthorizationSupport.pending_coworker_approval(
-      Mcp::Tools::ProposeJobTool, { run: run }, arguments
-    )
-    action = main_chat.pending_actions.find(JSON.parse(response.content.first[:text]).fetch("pending_action_id"))
-
-    expect(response).not_to be_error
-    expect(action).to be_pending
-    expect(action.payload).to include(
-      "run_id" => run.id, "tool_name" => "propose_job", "approval_policy" => "queue", "approval_inbox" => true,
-      "arguments" => include("title" => "Prepare the report")
-    )
-    operation = action.authorization_items.find_by!(kind: "operation")
     expect {
-      decision = Permissions::CoworkerAuthorizationDecision.new(request: action, item: operation, user: owner)
-        .call(decision: "approved")
-      expect(decision.execution_enqueued).to be(true)
-      clear_enqueued_jobs
-      ChatPendingActionConfirmationJob.perform_now(action.id)
-    }.to change(main_chat.proposals, :count).by(1)
-      .and change { main_chat.messages.where(role: "system").count }.by(1)
-      .and have_enqueued_job(ChatTurnJob).with(main_chat.id, kind_of(Integer)).once
-    expect(action.reload).to be_confirmed
-    expect(action.payload.fetch("tool_result")).to include("Prepare the report")
-    expect(main_chat.messages.where(role: "system").order(:id).last.content.fetch("text"))
-      .to include("Coworker tool approved and executed", "Prepare the report")
-    expect {
-      expect(action.confirm!(user: owner)).to be(false)
-    }.not_to have_enqueued_job(ChatTurnJob)
+      expect(Mcp::Tools::AuthorizationSupport.pending_coworker_approval(
+        Mcp::Tools::ProposeJobTool, { run: run }, arguments
+      )).to be_nil
+    }.not_to change { main_chat.pending_actions.where(action: "coworker_tool_call").count }
 
     coworker.grants.find_by!(capability: "syrus.propose_job").update!(approval_policy: "queue")
-    queued = Mcp::Tools::AuthorizationSupport.pending_coworker_approval(
-      Mcp::Tools::ProposeJobTool, { run: run }, arguments.merge(title: "Queue the report")
-    )
-    queued_action = main_chat.pending_actions.find(JSON.parse(queued.content.first[:text]).fetch("pending_action_id"))
-    expect(queued_action).to be_pending
-    expect(queued_action.payload).to include("approval_policy" => "queue", "approval_inbox" => true)
-    expect(JSON.parse(queued.content.first[:text])).to include("approval_policy" => "queue")
-
-    expired = main_chat.pending_actions.create!(
-      action: "coworker_tool_call", requested_by: "agent",
-      payload: { "tool_name" => "propose_job", "arguments" => arguments.stringify_keys, "run_id" => -1 }
-    )
-    expect { expired.confirm!(user: owner) }.to raise_error(ArgumentError, "originating run is no longer available")
-    expect(expired.reload).to be_failed
-    expect(expired.execution_error).to include("originating run is no longer available")
+    expect {
+      expect(Mcp::Tools::AuthorizationSupport.pending_coworker_approval(
+        Mcp::Tools::ProposeJobTool, { run: run }, arguments.merge(title: "Queue the report")
+      )).to be_nil
+    }.not_to change { main_chat.pending_actions.where(action: "coworker_tool_call").count }
   end
 
   it "posts a completed result to the main chat without triggering a turn" do

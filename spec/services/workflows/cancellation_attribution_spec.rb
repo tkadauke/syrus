@@ -110,6 +110,8 @@ RSpec.describe Workflows::CancellationAttribution do
       newer = Workflow.create!(job: root_job, trigger_kind: "initial", state: "queued")
 
       expect(root[0].reload.artifacts.dig("cancellation", "source", "replacement_workflow_id")).to eq(newer.id)
+      expect(root[0].attributes_before_type_cast.fetch("artifacts")).to eq("{}")
+      expect(root[0].workflow_artifact_values.find_by!(key: "cancellation")).to be_present
       expect(described_class.payload_for(root[0])["replacement_workflow_ids"]).to eq([ newer.id ])
       expect(later).to be_present
     end

@@ -9,6 +9,7 @@ const grantCatalog = [
   "chats.read_shared",
   "coworker.message",
   "coworker.spawn_chat",
+  "syrus.spawn_chat",
   "schedule.manage_self",
   "workspace.files",
   "workspace.shell",
@@ -537,6 +538,50 @@ it("confirms before removing a protected workspace path", async () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/coworkers/7/grants",
       expect.objectContaining({ method: "PATCH", body: expect.stringContaining('"confirmed":true') })
+    )
+  )
+})
+
+it("surfaces and saves per-run and per-day Syrus chat spawn limits", async () => {
+  const payload = {
+    coworker: {
+      ...detailPayload.coworker,
+      grants: [
+        {
+          capability: "syrus.spawn_chat",
+          approval_policy: "confirm",
+          constraints: { max_spawns_per_run: 2, max_spawns_per_day: 8 },
+          scope: [11]
+        }
+      ]
+    }
+  }
+  const fetchSpy = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === "PATCH") return jsonResponse(payload)
+    return jsonResponse(payload)
+  })
+  vi.stubGlobal("fetch", fetchSpy)
+  renderRoute("/coworkers/7")
+  await screen.findByRole("heading", { name: "Maya" })
+  fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
+
+  const runInput = screen.getAllByRole("spinbutton", { name: "Maximum per run" }).find((input) => input.getAttribute("value") === "2")
+  const dayInput = screen.getAllByRole("spinbutton", { name: "Maximum per day" }).find((input) => input.getAttribute("value") === "8")
+  const save = screen.getAllByRole("button", { name: "Save spawn limits" }).find((button) => !button.hasAttribute("disabled"))
+  expect(runInput).toBeDefined()
+  expect(dayInput).toBeDefined()
+  expect(save).toBeDefined()
+  fireEvent.change(runInput!, { target: { value: "1" } })
+  fireEvent.change(dayInput!, { target: { value: "6" } })
+  fireEvent.click(save!)
+
+  await waitFor(() =>
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/coworkers/7/grants",
+      expect.objectContaining({
+        method: "PATCH",
+        body: expect.stringContaining('"max_spawns_per_run":1,"max_spawns_per_day":6')
+      })
     )
   )
 })

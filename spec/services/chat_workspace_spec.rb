@@ -715,6 +715,7 @@ RSpec.describe ChatWorkspace, :ci_only do
       expect(result[:binary]).to eq(false)
       expect(result[:too_large]).to eq(false)
       expect(result[:content]).to include("Widgets")
+      expect(result[:preview_kind]).to eq("markdown")
     end
 
     it "preserves UTF-8 symbols in file content" do
@@ -795,6 +796,55 @@ RSpec.describe ChatWorkspace, :ci_only do
       expect(result).not_to be_nil
       expect(result[:content]).to eq("Step → Run\n")
       expect(result[:content]).not_to include("���")
+    end
+  end
+
+  describe ".file_bytes" do
+    it "returns exact binary bytes from the jailed checkout" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      bytes = "\x89PNG\r\n\x1A\n\x00preview".b
+      File.binwrite(checkout_path.join("logo.png"), bytes)
+
+      expect(described_class.file_bytes(chat_session, repository, "logo.png")).to eq(bytes)
+    end
+
+    it "returns exact bytes from a selected ref" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      File.binwrite(checkout_path.join("logo.png"), "old".b)
+      sh("git -C #{checkout_path} add logo.png")
+      sh("git -C #{checkout_path} commit -q -m 'add image'")
+      sha = sh("git -C #{checkout_path} rev-parse HEAD").strip
+      File.binwrite(checkout_path.join("logo.png"), "new".b)
+
+      expect(described_class.file_bytes(chat_session, repository, "logo.png", ref: sha)).to eq("old".b)
+    end
+
+    it "rejects traversal and symlink escapes" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      outside = Pathname.new(Dir.mktmpdir("syrus-chatws-preview"))
+      File.binwrite(outside.join("secret.png"), "secret")
+      FileUtils.ln_s(outside.join("secret.png"), checkout_path.join("secret.png"))
+
+      expect(described_class.file_bytes(chat_session, repository, "../secret.png")).to be_nil
+      expect(described_class.file_bytes(chat_session, repository, "secret.png")).to be_nil
+    ensure
+      FileUtils.rm_rf(outside.to_s) if outside
+    end
+
+    it "denies binary bytes when a workspace read policy applies" do
+      described_class.ensure_coding_checkout!(chat_session, repository)
+      checkout_path = described_class.repo_path_for(chat_session, repository)
+      File.binwrite(checkout_path.join("logo.png"), "\x89PNG\r\n\x1A\n\x00preview".b)
+      workspace = described_class.new(chat_session)
+      allow(workspace).to receive(:workspace_file_read_policy).with("logo.png").and_return(double(max_bytes: 100))
+
+      result = workspace.file_bytes_result(repository, "logo.png")
+
+      expect(result.status).to eq(:forbidden)
+      expect(result.bytes).to be_nil
     end
   end
 

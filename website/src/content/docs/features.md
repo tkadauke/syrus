@@ -264,6 +264,11 @@ admin can turn it off instance-wide from Admin → Features.
 The coding sidebar includes a file tree, a diff browser, and a compact commit
 selector. Operators can inspect the live working tree at HEAD or choose a recent
 commit on the checkout branch to view file contents and that commit's diff.
+Markdown files open as raw source and can be switched to a sanitized rendered
+view. Images and SVG open as sandboxed image resources, and PDF uses the
+browser's isolated native viewer. HTML and ordinary source files remain
+raw-only. Choosing another file or commit resets
+Markdown to Raw, and Find in file is available only for raw text.
 
 A planning-mode chat with an attached repository gets a read-only version of
 the same **Files** tab — just the file tree and file content, with no Diff
@@ -2103,6 +2108,10 @@ read. The grant unlocks read-only checkout attachment in chats, capped and
 secret-redacted file browsing and code search, plus pull-request and Job diffs;
 background runs receive the same non-attachment reads. Product checkouts have
 write bits removed independently of the coworker's writable identity workspace.
+Large code searches and file listings report incomplete coverage, its cause,
+and the number of paths covered instead of presenting an empty partial result
+as a definitive no-match. The agent and operator-facing tool card both advise
+narrowing the path or retrying.
 Coworkers can start a direct exchange with `message_coworker`. An incoming
 coworker message automatically sends the receiving coworker's final answer
 back to its author, carrying the original turn through a maximum of three
@@ -2116,6 +2125,14 @@ different coworker. Requests follow the grant's approval policy; live
 confirmation becomes a queued approval during unattended work. The defaults
 allow three requests per turn or background run and ten per calendar day, and
 owners can lower or raise both positive limits in the grant constraints.
+
+Side chats are deliberately different from ordinary Syrus planner chats. With
+the repository-scoped `syrus.spawn_chat` grant, a coworker can ask the owner to
+open a regular engineering chat with an initial message. The owner sees one
+confirmation card; approval creates the chat in the normal chat list and opens
+a bounded cross-chat bridge so the coworker can receive answers and send
+follow-ups. The new chat records which coworker opened it, and the action is
+audited and limited per run and per day.
 
 When an owner opens a cross-chat bridge thread to a coworker's chat, the
 coworker can reply through that existing thread without an additional grant or

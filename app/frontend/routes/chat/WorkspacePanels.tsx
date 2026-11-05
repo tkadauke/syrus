@@ -22,6 +22,7 @@ import {
   fetchCodingFileTree,
   fetchCodingCommits,
   fetchCodingFileContent,
+  codingFilePreviewUrl,
   fetchCodingDiff,
   updateChatMode,
   updateChatPreviewPanelVisibility,
@@ -49,6 +50,7 @@ import { ChatJobStatusPanel } from "../ChatJobStatusPanel"
 import { RuntimePanel } from "../RuntimePanel"
 import { errorMessage } from "../../lib/errorMessage"
 import { SourceCodeTable, type SourceCodeMatch } from "../../components/FilePreviewModal"
+import { Markdown } from "../../lib/Markdown"
 import { cloneWhiteboardScene, normalizeWhiteboardScene, withFreshElementIds } from "./whiteboardScene"
 import {
   CHAT_DIFF_FILES_COLLAPSED_KEY,
@@ -100,7 +102,6 @@ import { useMediaQuery } from "../dashboard/components"
 import { pluginWorkspaceTabComponentFor } from "../../pluginWorkspaceTabs"
 import { parseUnifiedDiff } from "../../components/diff/diffRendering"
 import { UnifiedDiffTable } from "../../components/diff/ReviewableDiff"
-import { Markdown } from "../../lib/Markdown"
 import { ContextFindBar } from "../../components/ContextFindBar"
 
 // Chat workspace panels extracted from Chat.tsx: the workspace tab shell
@@ -1600,6 +1601,7 @@ function CodingFilesPanel({
   const [findOpen, setFindOpen] = useState(false)
   const [findQuery, setFindQuery] = useState("")
   const [activeFindIndex, setActiveFindIndex] = useState(0)
+  const [fileViewSelection, setFileViewSelection] = useState<{ key: string; mode: "raw" | "rendered" } | null>(null)
   const sourceScrollRef = useRef<HTMLDivElement | null>(null)
   // Below lg there's no room for a resizable side-by-side split (matches the
   // pre-splitter fixed grid, which only became two columns at lg:) -- the
@@ -1629,6 +1631,7 @@ function CodingFilesPanel({
   const filesPath = payload.paths.app_coding_files_path
   const commitsPath = payload.paths.app_coding_commits_path
   const fileContentBasePath = payload.paths.app_coding_file_path
+  const filePreviewBasePath = payload.paths.app_coding_file_preview_path
   const diffPath = payload.paths.app_coding_diff_path
   const agentBusy = payload.agent_busy
   const [relayBackoffUntil, setRelayBackoffUntil] = useState(0)
@@ -1702,6 +1705,11 @@ function CodingFilesPanel({
   }
 
   const treeNodes = fileTree.data ? buildFileTree(fileTree.data.files) : []
+  const fileRenderKind = fileContent.data?.preview_kind ?? null
+  const fileViewKey = `${selectedFile ?? ""}\0${selectedRef}`
+  const defaultFileViewMode = fileRenderKind === "image" || fileRenderKind === "pdf" ? "rendered" : "raw"
+  const fileViewMode = fileViewSelection?.key === fileViewKey ? fileViewSelection.mode : defaultFileViewMode
+  const setFileViewMode = (mode: "raw" | "rendered") => setFileViewSelection({ key: fileViewKey, mode })
   const fileText = fileContent.data?.content ?? ""
   const findMatches = useMemo(() => fileFindMatches(fileText, findQuery), [fileText, findQuery])
   const activeFindMatch = findMatches[activeFindIndex] ?? null
@@ -1740,7 +1748,8 @@ function CodingFilesPanel({
     }
   }, [fileTree.data, selectedFile])
 
-  const canFindInFile = view === "files" && Boolean(selectedFile) && fileContent.isSuccess && !fileContent.data?.binary && !fileContent.data?.too_large
+  const canFindInFile =
+    view === "files" && fileViewMode === "raw" && Boolean(selectedFile) && fileContent.isSuccess && !fileContent.data?.binary && !fileContent.data?.too_large
   const openFind = useCallback(() => {
     if (!canFindInFile) return false
     setFindOpen(true)
@@ -1761,6 +1770,10 @@ function CodingFilesPanel({
     setFindQuery("")
     setActiveFindIndex(0)
   }, [selectedFile, selectedRef, view])
+
+  useEffect(() => {
+    if (fileViewMode === "rendered") setFindOpen(false)
+  }, [fileViewMode])
 
   useEffect(() => {
     setActiveFindIndex(0)
@@ -1902,10 +1915,47 @@ function CodingFilesPanel({
               </p>
             ) : fileContent.isError ? (
               <p className="px-4 py-3 text-xs text-red-600 dark:text-red-400">{t("file_content_error")}</p>
-            ) : fileContent.data?.binary ? (
-              <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{t("file_content_binary")}</p>
             ) : fileContent.data?.too_large ? (
               <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{t("file_content_too_large")}</p>
+            ) : fileRenderKind ? (
+              <div className="min-w-0">
+                {fileRenderKind === "markdown" ? (
+                  <div className="sticky top-0 z-10 flex justify-end border-b border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-900">
+                    <div aria-label={t("file_view_mode")} className="flex max-w-full rounded border border-gray-300 dark:border-gray-700" role="group">
+                      {(["raw", "rendered"] as const).map((mode) => (
+                        <button
+                          aria-pressed={fileViewMode === mode}
+                          className={`min-w-0 px-3 py-1 text-xs first:rounded-l last:rounded-r focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand ${fileViewMode === mode ? "bg-brand font-medium text-on-brand" : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"}`}
+                          key={mode}
+                          onClick={() => setFileViewMode(mode)}
+                          type="button"
+                        >
+                          {t(mode === "raw" ? "file_view_raw" : "file_view_rendered")}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {fileViewMode === "raw" && fileRenderKind === "markdown" ? (
+                  <SourceCodeTable
+                    content={fileContent.data?.content ?? ""}
+                    matches={findTableMatches}
+                    path={selectedFile}
+                    targetLine={null}
+                    testId="coding-source-viewer"
+                  />
+                ) : fileRenderKind === "markdown" ? (
+                  <Markdown className="min-w-0 overflow-x-auto px-4 py-3" text={fileContent.data?.content ?? ""} />
+                ) : filePreviewBasePath ? (
+                  <BinaryFilePreview
+                    kind={fileRenderKind}
+                    path={selectedFile}
+                    src={codingFilePreviewUrl(filePreviewBasePath, selectedFile, selectedRef || null)}
+                  />
+                ) : null}
+              </div>
+            ) : fileContent.data?.binary ? (
+              <p className="px-4 py-3 text-xs text-gray-500 dark:text-gray-400">{t("file_content_binary")}</p>
             ) : (
               <SourceCodeTable
                 content={fileContent.data?.content ?? ""}
@@ -1976,6 +2026,16 @@ function CodingFilesPanel({
       )}
     </div>
   )
+}
+
+type FileRenderKind = "markdown" | "image" | "pdf"
+
+function BinaryFilePreview({ kind, path, src }: { kind: Exclude<FileRenderKind, "markdown">; path: string; src: string }) {
+  if (kind === "pdf") {
+    return <iframe className="h-[70vh] min-h-80 w-full border-0" src={src} title={path} />
+  }
+
+  return <img alt={path} className="mx-auto block max-h-[70vh] max-w-full object-contain p-3" src={src} />
 }
 
 type CodingDiffFile = {

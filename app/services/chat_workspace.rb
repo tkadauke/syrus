@@ -6,6 +6,7 @@ require "open3"
 # Unlike WorkflowWorkspace, this workspace is long-lived and is not reset
 # between turns. Repositories are cloned lazily under the session root.
 class ChatWorkspace
+  FileBytesResult = Data.define(:status, :bytes)
   include WorkspaceGitTransportPreference
 
   class ResetRefused < StandardError
@@ -194,6 +195,14 @@ class ChatWorkspace
   # Returns nil if the file or checkout does not exist.
   def self.file_content(chat_session, repository, relative_path, ref: nil)
     new(chat_session).file_content(repository, relative_path, ref: ref)
+  end
+
+  def self.file_bytes(chat_session, repository, relative_path, ref: nil)
+    new(chat_session).file_bytes(repository, relative_path, ref: ref)
+  end
+
+  def self.file_bytes_result(chat_session, repository, relative_path, ref: nil)
+    new(chat_session).file_bytes_result(repository, relative_path, ref: ref)
   end
 
   # Returns the unified diff for the coding checkout.
@@ -855,17 +864,40 @@ class ChatWorkspace
     end
 
     raw = safe.binread([ limit + 1, size ].min)
-    if raw.include?("\x00")
-      return { content: nil, binary: true, too_large: false }
-    end
+    binary = raw.include?("\x00")
+    preview_kind = ChatFilePreview.viewer_kind(raw, path: normalized_relative_path, binary: binary)
+    return { content: nil, binary: true, too_large: false, preview_kind: preview_kind }.compact if binary
 
     result = {
       content: bounded_file_content(raw, policy, size),
       binary: false,
-      too_large: false
+      too_large: false,
+      preview_kind: preview_kind
     }
     result[:truncated] = true if policy.present? && size > limit
     result
+  end
+
+  def file_bytes(repository, relative_path, ref: nil)
+    result = file_bytes_result(repository, relative_path, ref: ref)
+    result.status == :ok ? result.bytes : nil
+  end
+
+  def file_bytes_result(repository, relative_path, ref: nil)
+    path = self.class.repo_path_for(@chat_session, repository)
+    return FileBytesResult.new(status: :not_found, bytes: nil) unless path.join(".git").directory?
+
+    safe = safe_checkout_path(path, relative_path)
+    return FileBytesResult.new(status: :not_found, bytes: nil) unless safe
+    normalized_relative_path = safe.relative_path_from(path).to_s
+    return FileBytesResult.new(status: :forbidden, bytes: nil) if workspace_file_read_policy(normalized_relative_path)
+    return file_bytes_at_ref_result(path, normalized_relative_path, ref) if ref.present?
+
+    safe = safe_checkout_path(path, normalized_relative_path, resolve_symlinks: true)
+    return FileBytesResult.new(status: :not_found, bytes: nil) unless safe&.file?
+    return FileBytesResult.new(status: :too_large, bytes: nil) if safe.size > self.class::MAX_FILE_BYTES
+
+    FileBytesResult.new(status: :ok, bytes: safe.binread)
   end
 
   def coding_diff(repository, mode: :cumulative, ref: nil)
@@ -1250,17 +1282,34 @@ class ChatWorkspace
     return nil unless show_capture.success?
     raw = show_capture.stdout
 
-    if raw.include?("\x00")
-      return { content: nil, binary: true, too_large: false }
-    end
+    binary = raw.include?("\x00")
+    preview_kind = ChatFilePreview.viewer_kind(raw, path: relative_path, binary: binary)
+    return { content: nil, binary: true, too_large: false, preview_kind: preview_kind }.compact if binary
 
     result = {
       content: bounded_file_content(raw, policy, size),
       binary: false,
-      too_large: false
+      too_large: false,
+      preview_kind: preview_kind
     }
     result[:truncated] = true if policy.present? && size > limit
     result
+  end
+
+  def file_bytes_at_ref_result(checkout_dir, relative_path, ref)
+    return FileBytesResult.new(status: :not_found, bytes: nil) unless valid_commit_ref?(ref)
+
+    spec = "#{ref}:#{relative_path}"
+    size_capture = checked_git_capture("file size", "cat-file", "-s", spec,
+      chdir: checkout_dir.to_s, env: @env, limit: 1.kilobyte)
+    return FileBytesResult.new(status: :not_found, bytes: nil) unless size_capture.success?
+    return FileBytesResult.new(status: :too_large, bytes: nil) if size_capture.stdout.to_i > self.class::MAX_FILE_BYTES
+
+    capture = checked_git_capture("file bytes", "show", spec, chdir: checkout_dir.to_s, env: @env,
+      limit: self.class::MAX_FILE_BYTES + 1)
+    return FileBytesResult.new(status: :not_found, bytes: nil) unless capture.success?
+
+    FileBytesResult.new(status: :ok, bytes: capture.stdout.b)
   end
 
   def workspace_file_read_policy(relative_path)

@@ -441,10 +441,25 @@ function CoworkerApprovals({ id }: { id: string }) {
 }
 
 const POLICY_RANK = { off: 0, queue: 1, confirm: 2, auto: 3 } as const
+const SPAWN_CAPABILITIES = new Set(["coworker.spawn_chat", "syrus.spawn_chat"])
+const DEFAULT_SPAWN_CAPS = { max_spawns_per_run: 3, max_spawns_per_day: 10 }
 
 function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetail; onChanged: () => void }) {
   const { t } = useT("coworkers")
   const [paths, setPaths] = useState(coworker.grants.find((grant) => grant.capability === "workspace.files")?.constraints.confirm_paths?.join(", ") || "")
+  const [spawnCaps, setSpawnCaps] = useState<Record<string, typeof DEFAULT_SPAWN_CAPS>>(() =>
+    Object.fromEntries(
+      coworker.grants
+        .filter((grant) => SPAWN_CAPABILITIES.has(grant.capability))
+        .map((grant) => [
+          grant.capability,
+          {
+            max_spawns_per_run: grant.constraints.max_spawns_per_run || DEFAULT_SPAWN_CAPS.max_spawns_per_run,
+            max_spawns_per_day: grant.constraints.max_spawns_per_day || DEFAULT_SPAWN_CAPS.max_spawns_per_day
+          }
+        ])
+    )
+  )
   const [scopes, setScopes] = useState<Record<string, unknown>>(() => Object.fromEntries(coworker.grants.map((grant) => [grant.capability, grant.scope])))
   const mutation = useMutation({
     mutationFn: ({ capability, policy, confirmed, scope }: { capability: string; policy: string; confirmed: boolean; scope?: unknown }) =>
@@ -459,7 +474,9 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
                 .map((path) => path.trim())
                 .filter(Boolean)
             }
-          : {},
+          : SPAWN_CAPABILITIES.has(capability)
+            ? spawnCaps[capability] || DEFAULT_SPAWN_CAPS
+            : {},
         confirmed,
         scope
       ),
@@ -494,6 +511,15 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
     const removesProtection = (grant.constraints.confirm_paths || []).some((path) => !nextPaths.has(path))
     if (removesProtection && !window.confirm(t("capabilities.confirm_escalation"))) return
     mutation.mutate({ capability: grant.capability, policy: grant.approval_policy, confirmed: removesProtection })
+  }
+
+  function saveSpawnCaps(grant: CoworkerDetail["grants"][number]) {
+    const next = spawnCaps[grant.capability] || DEFAULT_SPAWN_CAPS
+    const escalation =
+      next.max_spawns_per_run > (grant.constraints.max_spawns_per_run ?? DEFAULT_SPAWN_CAPS.max_spawns_per_run) ||
+      next.max_spawns_per_day > (grant.constraints.max_spawns_per_day ?? DEFAULT_SPAWN_CAPS.max_spawns_per_day)
+    if (escalation && !window.confirm(t("capabilities.confirm_escalation"))) return
+    mutation.mutate({ capability: grant.capability, policy: grant.approval_policy, confirmed: escalation })
   }
 
   return (
@@ -534,6 +560,38 @@ function CoworkerCapabilities({ coworker, onChanged }: { coworker: CoworkerDetai
                       type="button"
                     >
                       {t("capabilities.save_constraints")}
+                    </button>
+                  </div>
+                ) : null}
+                {SPAWN_CAPABILITIES.has(capability) ? (
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {(["max_spawns_per_run", "max_spawns_per_day"] as const).map((key) => (
+                      <label className="block text-xs text-text-secondary" key={key}>
+                        {t(`capabilities.${key}`)}
+                        <Input
+                          className="mt-1"
+                          min={1}
+                          onChange={(event) =>
+                            setSpawnCaps((current) => ({
+                              ...current,
+                              [capability]: {
+                                ...(current[capability] || DEFAULT_SPAWN_CAPS),
+                                [key]: Math.max(1, Number.parseInt(event.target.value, 10) || 1)
+                              }
+                            }))
+                          }
+                          type="number"
+                          value={(spawnCaps[capability] || DEFAULT_SPAWN_CAPS)[key]}
+                        />
+                      </label>
+                    ))}
+                    <button
+                      className="col-span-2 rounded border border-border px-2 py-1 text-xs disabled:opacity-50"
+                      disabled={!grant || mutation.isPending}
+                      onClick={() => grant && saveSpawnCaps(grant)}
+                      type="button"
+                    >
+                      {t("capabilities.save_spawn_caps")}
                     </button>
                   </div>
                 ) : null}

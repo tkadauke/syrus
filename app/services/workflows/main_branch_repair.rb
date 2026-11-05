@@ -49,8 +49,9 @@ module Workflows
     # ci_health to healthy, notify MainHealthChangedService of the transition
     # so landing can resume, and close the anchor job.
     def self.after_success(workflow)
-      artifacts = workflow.class.where(id: workflow.id).pick(:artifacts) || workflow.artifacts || {}
-      return unless artifacts["preflight_passed"]
+      # Read through the artifact abstraction so this remains correct now that
+      # workflow artifacts live in the side table rather than the JSON column.
+      return unless workflow.class.find(workflow.id).artifact("preflight_passed")
 
       repository = workflow.job.repository.reload
       previous_health = repository.main_health

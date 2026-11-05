@@ -240,6 +240,10 @@ RSpec.describe StepDispatcher, :ci_only do
         "sticky_resume_queue" => true,
         "blocked" => false
       )
+      expect(workflow.artifact("run_queue_admission_decision").dig("live_workers", 0)).to include("capabilities")
+      expect(workflow.artifact("run_queue_admission_decisions").last.dig("live_workers", 0)).not_to include(
+        "capabilities", "capability_diagnostics"
+      )
     end
 
     it "keeps control-plane workflow phases on broad compute queues for macOS-planned workflows" do

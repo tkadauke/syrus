@@ -33,6 +33,14 @@ class RunQueueResolver
 
   Decision = Data.define(:queue_name, :requirements, :sticky_resume, :blocked_reason, :details) do
     def blocked? = blocked_reason.present?
+
+    def history_details
+      details.merge(
+        "live_workers" => Array(details["live_workers"]).map do |worker|
+          worker.slice("hostname", "worker_storage_key", "selected_queue", "eligible", "draining")
+        end
+      )
+    end
   end
 
   def self.resolve(...) = new(...).resolve

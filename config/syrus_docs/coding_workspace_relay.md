@@ -30,6 +30,7 @@ These routes are served by the relay:
 | `GET /workspace/files?session_id=N[&ref=<sha>]` | File tree for the live checkout or a commit |
 | `GET /workspace/commits?session_id=N` | Up to 50 recent commits on the checkout branch |
 | `GET /workspace/file?session_id=N&path=<rel>[&ref=<sha>]` | File content from the live checkout or a commit |
+| `GET /workspace/file-preview?session_id=N&path=<rel>[&ref=<sha>]` | Bytes for an allowlisted image, SVG, or PDF preview |
 | `GET /workspace/diff?session_id=N&mode=<cumulative\|turn>[&ref=<sha>]` | Live checkout diff or a single-commit diff |
 
 ## Read-only file browsing outside Coding Mode
@@ -51,6 +52,17 @@ shows the same "relay unavailable, refresh queued" state Coding Mode's panel
 shows while its checkout is still warming up. A Coding Mode chat with an
 active checkout still gets the full read/write-adjacent panel (`Files` +
 `Diff` tabs, commit selector) via `codingFilesTabVisible`.
+
+Text files open as raw source. Markdown additionally offers a sanitized
+**Rendered** view and always resets to **Raw** when the file or ref changes.
+Allowlisted raster images, SVG, and PDF open directly as rendered resources;
+their authenticated response is signature-inspected, uses an exact content
+type and `X-Content-Type-Options: nosniff`. Images use a sandbox CSP; PDFs use
+the browser's isolated native PDF viewer with scripts and subresources denied.
+HTML and all other text formats remain raw-only. SVG is loaded as an image
+resource and PDF uses a native viewer frame, so repository content is never
+inserted as active application-origin markup. Chats with a restricted workspace
+read policy do not expose binary preview bytes.
 
 ## Configuration
 

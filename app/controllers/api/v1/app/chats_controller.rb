@@ -1,5 +1,6 @@
 require "net/http"
 require "uri"
+require "base64"
 
 module Api
   module V1
@@ -1353,6 +1354,63 @@ module Api
           end
 
           render json: result
+        end
+
+        def coding_file_preview
+          chat_session = find_chat_session
+          unless chat_session.repository
+            render_error("not_found", t("api.chats.errors.repository_not_attached"), status: :not_found)
+            return
+          end
+
+          file_path = params[:path].to_s.strip
+          if file_path.blank?
+            render_error("validation_failed", t("api.chats.errors.path_required"), status: :unprocessable_content)
+            return
+          end
+
+          relay_params = { path: file_path }
+          relay_params[:ref] = params[:ref].to_s.strip if params[:ref].present?
+          relay_response = proxy_to_coding_relay_response(chat_session, "file-preview", params: relay_params)
+          if relay_response.nil?
+            render_coding_relay_unavailable!(chat_session)
+            return
+          end
+
+          status, payload = relay_response
+          if status >= 500
+            render_coding_relay_unavailable!(chat_session)
+            return
+          end
+          if status == 413
+            render_error("payload_too_large", t("api.chats.errors.coding_file_preview_too_large"), status: :content_too_large)
+            return
+          end
+          if status == 403
+            render_error("forbidden", t("api.chats.errors.coding_file_preview_forbidden"), status: :forbidden)
+            return
+          end
+          unless status == 200 && payload["content_base64"]
+            render_error("not_found", t("api.chats.errors.coding_file_not_found"), status: :not_found)
+            return
+          end
+
+          inspected = ChatFilePreview.inspect(Base64.strict_decode64(payload["content_base64"]), path: file_path)
+          unless inspected
+            render_error("unsupported_media_type", t("api.chats.errors.coding_file_preview_unsupported"), status: :unsupported_media_type)
+            return
+          end
+
+          response.set_header("X-Content-Type-Options", "nosniff")
+          content_security_policy = if inspected.content_type == "application/pdf"
+            "default-src 'none'; script-src 'none'; object-src 'none'"
+          else
+            "sandbox; default-src 'none'; style-src 'unsafe-inline'"
+          end
+          response.set_header("Content-Security-Policy", content_security_policy)
+          send_data inspected.bytes, type: inspected.content_type, disposition: "inline"
+        rescue ArgumentError
+          render_error("unsupported_media_type", t("api.chats.errors.coding_file_preview_unsupported"), status: :unsupported_media_type)
         end
 
         def coding_diff

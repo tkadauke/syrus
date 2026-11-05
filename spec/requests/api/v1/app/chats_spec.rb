@@ -3614,6 +3614,111 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     end
   end
 
+  describe "GET /api/v1/app/chats/:id/coding_file_preview" do
+    let(:preview_chat) do
+      ChatSession.create!(user: user, repository: repository,
+        coding_relay_address: "127.0.0.1:9283", coding_relay_token: "test-relay-token")
+    end
+
+    def stub_preview_relay(path, bytes:, status: 200)
+      body = status == 200 ? { content_base64: Base64.strict_encode64(bytes) }.to_json : {}.to_json
+      stub_request(:get, "http://127.0.0.1:9283/workspace/file-preview")
+        .with(query: hash_including("session_id" => preview_chat.id.to_s, "path" => path),
+          headers: { "Authorization" => "Bearer test-relay-token" })
+        .to_return(status: status, body: body)
+    end
+
+    it "requires authentication" do
+      get "/api/v1/app/chats/#{preview_chat.id}/coding_file_preview", params: { path: "logo.png" }
+
+      expect(response).to have_http_status(:unauthorized)
+    end
+
+    it "serves allowlisted inspected bytes with exact security headers" do
+      sign_in_as(user)
+      png = "\x89PNG\r\n\x1A\nimage".b
+      stub_preview_relay("logo.png", bytes: png)
+
+      get "/api/v1/app/chats/#{preview_chat.id}/coding_file_preview", params: { path: "logo.png" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq("image/png")
+      expect(response.body.b).to eq(png)
+      expect(response.headers["X-Content-Type-Options"]).to eq("nosniff")
+      expect(response.headers["Content-Security-Policy"]).to include("sandbox", "default-src 'none'")
+    end
+
+    it "uses the native scriptless viewer policy for PDFs" do
+      sign_in_as(user)
+      stub_preview_relay("manual.pdf", bytes: "%PDF-1.7 preview".b)
+
+      get "/api/v1/app/chats/#{preview_chat.id}/coding_file_preview", params: { path: "manual.pdf" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq("application/pdf")
+      expect(response.headers["Content-Security-Policy"]).to eq("default-src 'none'; script-src 'none'; object-src 'none'")
+    end
+
+    it "preserves oversized and relay failure responses" do
+      sign_in_as(user)
+      stub_preview_relay("large.png", bytes: "", status: 413)
+
+      get "/api/v1/app/chats/#{preview_chat.id}/coding_file_preview", params: { path: "large.png" }
+
+      expect(response).to have_http_status(:content_too_large)
+      expect(parse_body.dig("error", "message")).to eq("File is too large to preview.")
+
+      stub_preview_relay("logo.png", bytes: "", status: 500)
+      get "/api/v1/app/chats/#{preview_chat.id}/coding_file_preview", params: { path: "logo.png" }
+
+      expect(response).to have_http_status(:service_unavailable)
+      expect(parse_body.dig("error", "code")).to eq("relay_unavailable")
+    end
+
+    it "forwards the ref and rejects unsupported bytes despite a renderable extension" do
+      sign_in_as(user)
+      sha = "a" * 40
+      stub_request(:get, "http://127.0.0.1:9283/workspace/file-preview")
+        .with(query: hash_including("session_id" => preview_chat.id.to_s, "path" => "hostile.png", "ref" => sha))
+        .to_return(status: 200, body: { content_base64: Base64.strict_encode64("<html><script>alert(1)</script></html>") }.to_json)
+
+      get "/api/v1/app/chats/#{preview_chat.id}/coding_file_preview", params: { path: "hostile.png", ref: sha }
+
+      expect(response).to have_http_status(:unsupported_media_type)
+    end
+
+    it "rejects path traversal through the jailed relay read" do
+      sign_in_as(user)
+      stub_preview_relay("../secret.png", bytes: "", status: 404)
+
+      get "/api/v1/app/chats/#{preview_chat.id}/coding_file_preview", params: { path: "../secret.png" }
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it "serves hostile SVG only as a sandboxed image resource" do
+      sign_in_as(user)
+      svg = '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(2)</script></svg>'
+      stub_preview_relay("hostile.svg", bytes: svg)
+
+      get "/api/v1/app/chats/#{preview_chat.id}/coding_file_preview", params: { path: "hostile.svg" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq("image/svg+xml")
+      expect(response.headers["X-Content-Type-Options"]).to eq("nosniff")
+      expect(response.headers["Content-Security-Policy"]).to start_with("sandbox")
+    end
+
+    it "keeps HTML raw-only even when its bytes identify as an allowlisted image" do
+      sign_in_as(user)
+      stub_preview_relay("hostile.html", bytes: '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>')
+
+      get "/api/v1/app/chats/#{preview_chat.id}/coding_file_preview", params: { path: "hostile.html" }
+
+      expect(response).to have_http_status(:unsupported_media_type)
+    end
+  end
+
   describe "GET /api/v1/app/chats/:id/source_file" do
     it "returns file content proxied from the relay for a planning chat with an attached repository" do
       sign_in_as(user)

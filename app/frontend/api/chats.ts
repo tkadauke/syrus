@@ -32,6 +32,7 @@ export type ChatRecord = {
   system_kind?: string | null
   conversation_kind?: ChatConversationKind
   origin_platform?: string | null
+  opened_by_coworker?: { id: number; handle: string; name: string } | null
   chat_type?: ChatType
   participants?: ChatParticipant[]
   pinned: boolean
@@ -960,6 +961,13 @@ export type CodingFileContentPayload = {
   binary: boolean
   too_large: boolean
   size?: number
+  preview_kind?: "markdown" | "image" | "pdf"
+}
+
+export function codingFilePreviewUrl(basePath: string, filePath: string, ref?: string | null) {
+  const params = new URLSearchParams({ path: filePath })
+  if (ref) params.set("ref", ref)
+  return `${basePath}?${params}`
 }
 
 export type CodingDiffPayload = {
@@ -1041,6 +1049,7 @@ export type ChatPayload = {
     app_coding_files_path?: string
     app_coding_commits_path?: string
     app_coding_file_path?: string
+    app_coding_file_preview_path?: string
     app_coding_diff_path?: string
     app_source_file_path?: string
     app_source_file_raw_path?: string

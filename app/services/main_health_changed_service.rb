@@ -325,7 +325,8 @@ class MainHealthChangedService
 
     candidates = Workflow
       .where(id: recent_failed_ids)
-      .where("workflows.artifacts LIKE ?", '%"main_broken":true%')
+      .joins(:workflow_artifact_values)
+      .where(workflow_artifact_values: { key: "main_broken", value: true })
 
     candidate_ids_and_job_ids = candidates.pluck(:id, :job_id)
     return retried if candidate_ids_and_job_ids.empty?

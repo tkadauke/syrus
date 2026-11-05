@@ -22,7 +22,12 @@ export type CoworkerDetail = CoworkerSummary & {
   soul: string | null
   spend_usd: number
   chats: { id: number; link_id: number; role: "main" | "side"; title: string; path: string; unsaved_workspace: UnsavedWorkspace | null }[]
-  grants: { capability: string; approval_policy: string; constraints: { confirm_paths?: string[] }; scope?: unknown }[]
+  grants: {
+    capability: string
+    approval_policy: string
+    constraints: { confirm_paths?: string[]; max_spawns_per_run?: number; max_spawns_per_day?: number }
+    scope?: unknown
+  }[]
   permission_cutover_report: PermissionCutoverReport
   grant_catalog: {
     name: string

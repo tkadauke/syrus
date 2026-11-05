@@ -5,6 +5,23 @@ RSpec.describe "API: coworkers", type: :request do
 
   before { PluginRecord.find_by!(name: "coworkers").update!(enabled: true) }
 
+  it "shows coworker provenance on an ordinary spawned chat" do
+    chat = ChatSession.create!(
+      user: owner,
+      title: "Engineering plan",
+      last_message_at: Time.current,
+      artifacts: { "opened_by_coworker" => { "id" => 7, "handle" => "maya", "name" => "Maya" } }
+    )
+    sign_in_as(owner)
+
+    get "/api/v1/app/chats"
+
+    chats = response.parsed_body.fetch("groups").flat_map { |group| group.fetch("chats") }
+    expect(chats.find { |entry| entry.fetch("id") == chat.id }).to include(
+      "opened_by_coworker" => { "id" => 7, "handle" => "maya", "name" => "Maya" }
+    )
+  end
+
   it "hides coworker workspace repositories from the repository list" do
     visible = Factories.repository(user: owner, owner: "acme", name: "application")
     workspace = Factories.repository(user: owner, owner: "acme", name: "coworker-home")

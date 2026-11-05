@@ -2118,6 +2118,9 @@ function ChatColumn({
                 <span>{t("local_daemon_connected", { repo: payload.chat.local_daemon_repo ?? "", branch: payload.chat.local_daemon_branch ?? "" })}</span>
               </div>
             ) : null}
+            {payload.chat.opened_by_coworker ? (
+              <div className="mt-1 text-sm text-text-secondary">{t("opened_by_coworker", { handle: payload.chat.opened_by_coworker.handle })}</div>
+            ) : null}
             {payload.chat.conversation_kind === "group" ? (
               <GroupChatParticipants payload={payload} prefix={prefix} queryKey={queryKey} onNotice={onNotice} />
             ) : null}

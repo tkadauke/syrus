@@ -23,6 +23,7 @@ RSpec.describe "Coworker repository code access" do
       "app/models/widget.rb" => "class Widget\n  API_TOKEN=super-secret-value\nend\n",
       "src/match.rb" => "prefix #{'x' * 995} token=secret-after-boundary Widget\n",
       "src2/not_a_match.rb" => "class WrongPrefixWidget\nend\n",
+      "node_modules/dependency/index.js" => "class DependencyNeedle {}\n",
       "README.md" => "Widgets are useful\n"
     })
   end
@@ -66,6 +67,90 @@ RSpec.describe "Coworker repository code access" do
 
     refused = Mcp::Tools::ReadRepositoryFileTool.call(repository_id: outside_repository.id, path: "README.md", server_context: { chat_session: chat })
     expect(refused).to be_error
+  end
+
+  it "distinguishes definitive empty searches from incomplete empty searches" do
+    complete = payload(Mcp::Tools::SearchRepositoryCodeTool.call(
+      repository_id: repository.id, query: "DefinitelyAbsent", path: "src", server_context: { chat_session: chat }
+    ))
+    expect(complete).to include("status" => "no_match", "incomplete" => false, "reason" => nil, "truncated" => false)
+    expect(complete.fetch("coverage")).to include("candidate_files" => 1, "searched_files" => 1, "percent" => 100.0)
+
+    stub_const("Mcp::Tools::SearchRepositoryCodeTool::MAX_FILES", 1)
+    incomplete = payload(Mcp::Tools::SearchRepositoryCodeTool.call(
+      repository_id: repository.id, query: "DefinitelyAbsent", server_context: { chat_session: chat }
+    ))
+    expect(incomplete).to include("status" => "inconclusive", "incomplete" => true,
+      "reason" => "file_limit", "truncated" => true)
+    expect(incomplete.fetch("searched_paths").length).to eq(1)
+    expect(incomplete.fetch("hint")).to match(/searched portion only.*Narrow path or retry/i)
+  end
+
+  it "turns a repository read timeout into an incomplete search result" do
+    reader = RepositoryContent.for(repository, user: owner)
+    allow(RepositoryContent).to receive(:for).with(repository, user: owner).and_return(reader)
+    allow(reader).to receive(:read).and_raise(Net::ReadTimeout)
+
+    result = payload(Mcp::Tools::SearchRepositoryCodeTool.call(
+      repository_id: repository.id, query: "Widget", server_context: { chat_session: chat }
+    ))
+
+    expect(result).to include("status" => "inconclusive", "incomplete" => true,
+      "reason" => "time_budget", "results" => [])
+    expect(result.fetch("hint")).to match(/Narrow path or retry/i)
+  end
+
+  it "turns a repository tree timeout into an incomplete search result" do
+    reader = RepositoryContent.for(repository, user: owner)
+    allow(RepositoryContent).to receive(:for).with(repository, user: owner).and_return(reader)
+    allow(reader).to receive(:tree).and_raise(Net::ReadTimeout)
+
+    result = payload(Mcp::Tools::SearchRepositoryCodeTool.call(
+      repository_id: repository.id, query: "Widget", server_context: { chat_session: chat }
+    ))
+
+    expect(result).to include("status" => "inconclusive", "incomplete" => true,
+      "reason" => "time_budget", "results" => [], "searched_paths" => [])
+    expect(result.fetch("coverage")).to include(
+      "candidate_files" => nil, "searched_files" => 0, "percent" => nil
+    )
+  end
+
+  it "turns a repository revision timeout into an incomplete search result" do
+    reader = RepositoryContent.for(repository, user: owner)
+    allow(RepositoryContent).to receive(:for).with(repository, user: owner).and_return(reader)
+    allow(reader).to receive(:resolve).and_raise(RepositoryContent::Unavailable, "provider timeout")
+
+    result = payload(Mcp::Tools::SearchRepositoryCodeTool.call(
+      repository_id: repository.id, query: "Widget", server_context: { chat_session: chat }
+    ))
+
+    expect(result).to include("status" => "inconclusive", "incomplete" => true,
+      "reason" => "time_budget", "revision" => nil, "results" => [])
+  end
+
+  it "skips dependency trees for broad searches but honors an explicitly narrowed path" do
+    broad = payload(Mcp::Tools::SearchRepositoryCodeTool.call(
+      repository_id: repository.id, query: "DependencyNeedle", server_context: { chat_session: chat }
+    ))
+    narrowed = payload(Mcp::Tools::SearchRepositoryCodeTool.call(
+      repository_id: repository.id, query: "DependencyNeedle", path: "node_modules", server_context: { chat_session: chat }
+    ))
+
+    expect(broad).to include("status" => "no_match", "results" => [])
+    expect(narrowed.fetch("results")).to include(include("path" => "node_modules/dependency/index.js"))
+  end
+
+  it "reports file-list coverage when the requested limit truncates the listing" do
+    result = payload(Mcp::Tools::ListRepositoryFilesTool.call(
+      repository_id: repository.id, limit: 2, server_context: { chat_session: chat }
+    ))
+
+    expect(result).to include("status" => "incomplete", "incomplete" => true,
+      "reason" => "result_limit", "truncated" => true)
+    expect(result.fetch("searched_paths")).to eq(result.fetch("entries").pluck("path"))
+    expect(result.fetch("coverage")).to include("candidate_entries" => 5, "returned_entries" => 2, "percent" => 40.0)
+    expect(result.fetch("hint")).to match(/Narrow path or retry/i)
   end
 
   it "refuses PR and Job diff reads outside the grant scope" do

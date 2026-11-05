@@ -48,9 +48,14 @@
   },
   "new": { "action": "New coworker", "title": "New coworker", "create": "Create coworker", "test_push": "Test push access", "push_ok": "Push access verified" },
   "tool_card": {
-    "spawn_chat_title": "Spawn coworker side chat",
+    "spawn_chat_title": "Start side chat of this coworker",
+    "spawn_chat_kind": "Not a Syrus planner chat",
+    "spawn_chat_use_syrus": "Use spawn_syrus_chat for engineering or planning work.",
     "spawn_chat_prompt": "Initial message",
     "spawn_chat_pending": "Pending side chat",
+    "spawn_syrus_chat_title": "Start Syrus engineering chat",
+    "spawn_syrus_chat_pending": "Pending Syrus engineering chat",
+    "repository": "Repository",
     "title": "Proposed coworker",
     "summary": "Proposed coworker @{{handle}}",
     "grant_title": "Proposed capability grant",
@@ -160,7 +165,8 @@
       "workspace_files": "This coworker can read and edit workspace files.",
       "workspace_shell": "This coworker can run commands in its workspace.",
       "syrus_read_jobs": "This coworker can read Syrus Jobs.",
-      "syrus_propose_job": "This coworker can propose Syrus Jobs."
+      "syrus_propose_job": "This coworker can propose Syrus Jobs.",
+      "syrus_spawn_chat": "This coworker can start ordinary Syrus engineering chats."
     },
     "policies": { "auto": "Auto", "confirm": "Confirm", "queue": "Queue", "off": "Off" },
     "policy_for": "Approval policy for {{capability}}",
@@ -171,6 +177,9 @@
     "confirm_paths": "Always confirm edits to these paths (comma-separated)",
     "confirm_paths_placeholder": "SOUL.md, AGENTS.md",
     "save_constraints": "Save constraints",
+    "max_spawns_per_run": "Maximum per run",
+    "max_spawns_per_day": "Maximum per day",
+    "save_spawn_caps": "Save spawn limits",
     "unavailable": {
       "confinement_unavailable": "Unavailable until a live worker verifies confined coworker execution.",
       "confinement_worker_unavailable": "Unavailable because no live worker can admit a confined coworker turn.",

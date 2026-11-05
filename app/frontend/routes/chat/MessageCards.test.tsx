@@ -1017,10 +1017,10 @@ describe("tool result rendering", () => {
     const detail = screen.getByText(/Unpublished memory #21/)
     const count = screen.getByText("3")
 
-    expect(summary).toHaveClass("grid", "whitespace-nowrap", "overflow-hidden")
+    expect(summary).toHaveClass("grid", "overflow-hidden", "sm:grid-cols-[auto_minmax(0,max-content)_auto_auto_minmax(0,1fr)]")
     expect(label).toHaveClass("min-w-0", "truncate")
     expect(label).toHaveAttribute("title", "Unpublish memory (3)")
-    expect(detail).toHaveClass("min-w-0", "truncate")
+    expect(detail).toHaveClass("min-w-0", "break-words", "sm:truncate")
     expect(count.parentElement).toHaveClass("shrink-0")
     expect(count.parentElement?.nextElementSibling).toBe(detail)
   })
@@ -1167,8 +1167,8 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={{ type: "tool_group", tool: "Read", summary_label: "Inspected 18 sources", calls }} />)
 
     const metadata = screen.getByText(Array(18).fill(`A long result summary · ${detail}`).join(", "))
-    expect(metadata).toHaveClass("min-w-0", "truncate")
-    expect(metadata.closest("summary")).toHaveClass("grid", "whitespace-nowrap", "overflow-hidden")
+    expect(metadata).toHaveClass("min-w-0", "break-words", "sm:truncate")
+    expect(metadata.closest("summary")).toHaveClass("grid", "overflow-hidden")
     expect(screen.getByText("Inspected 18 sources")).toBeVisible()
     expect(screen.getByText("Done")).toBeVisible()
     const count = screen.getByText("18")
@@ -1762,12 +1762,60 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={item} />)
 
     const summary = screen.getByText("Git status unavailable: Local Mode daemon is not connected")
-    expect(summary).toHaveClass("min-w-0", "truncate")
+    expect(summary).toHaveClass("min-w-0", "break-words", "sm:truncate")
 
     expandToolGroup("Git status")
 
     expect(screen.getAllByText("Git status unavailable: Local Mode daemon is not connected")).toHaveLength(2)
     expect(screen.getByText("Raw details")).toBeInTheDocument()
+  })
+
+  it.each([
+    {
+      tool: "Repository code search",
+      toolName: "search_repository_code",
+      result: { status: "inconclusive", incomplete: true, reason: "time_budget", results: [], coverage: { candidate_files: 812, searched_files: 127 } },
+      summary: "Incomplete search · 0 matches"
+    },
+    {
+      tool: "Repository files",
+      toolName: "list_repository_files",
+      result: { status: "incomplete", incomplete: true, reason: "result_limit", entries: [{ path: "app/models/widget.rb" }] },
+      summary: "Incomplete listing · 1 paths"
+    }
+  ])("wraps $tool incomplete details on mobile instead of clipping them", ({ tool, toolName, result, summary }) => {
+    const item: ChatToolGroupItem = {
+      type: "tool_group",
+      tool,
+      calls: [
+        {
+          message_id: 1,
+          tool_name: toolName,
+          raw_name: toolName,
+          detail: "",
+          display_label: tool,
+          progress_label: "Reading",
+          raw_payload: {},
+          result_body: JSON.stringify(result),
+          result_json: result,
+          result_error: false,
+          result_kind: "json",
+          result_summary: "",
+          result_settled: true
+        }
+      ],
+      collapsed_by_default: false
+    }
+
+    render(<ToolGroup item={item} />)
+
+    const details = screen.getByTitle(summary)
+    const header = details.closest("summary")
+    const outcome = screen.getByText("Done").parentElement
+    expect(header).toHaveClass("list-none", "grid-cols-[auto_minmax(0,1fr)_auto_auto]")
+    expect(outcome).toHaveClass("shrink-0", "justify-self-end")
+    expect(details).toHaveClass("col-start-2", "col-end-5", "break-words", "sm:col-start-5", "sm:truncate")
+    expect(details).not.toHaveClass("truncate")
   })
 
   it("renders plugin card bodies for settled Browser calls with empty result content", () => {
@@ -1871,8 +1919,8 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={item} />)
 
     const details = screen.getByText('Approval requested · 3 JOBs · pending group #5 · {"job_ids":[53,54,55]}')
-    expect(details).toHaveClass("min-w-0", "truncate")
-    expect(details.closest("summary")).toHaveClass("max-w-full", "grid", "whitespace-nowrap")
+    expect(details).toHaveClass("min-w-0", "break-words", "sm:truncate")
+    expect(details.closest("summary")).toHaveClass("max-w-full", "grid")
     expect(details.closest("details")).toHaveClass("max-w-full", "overflow-hidden")
   })
 
@@ -2314,9 +2362,9 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={item} />)
 
     const resultSummary = screen.getByText(`${title} (running)`)
-    expect(resultSummary).toHaveClass("min-w-0", "truncate")
+    expect(resultSummary).toHaveClass("min-w-0", "break-words", "sm:truncate")
     expect(resultSummary).not.toHaveClass("order-2", "pl-5")
-    expect(resultSummary.closest("summary")).toHaveClass("grid", "whitespace-nowrap")
+    expect(resultSummary.closest("summary")).toHaveClass("grid")
   })
 
   it("renders a plugin-registered card for a plugin-owned tool, without core naming that plugin", () => {

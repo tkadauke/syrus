@@ -76,7 +76,7 @@ module Api
         end
 
         def show
-          job = find_job_by_ref(Job.includes(workflows: { steps: :runs }), params[:id])
+          job = find_job_by_ref(Job.includes(workflows: [ :workflow_artifact_values, { steps: :runs } ]), params[:id])
           payload = serialize(job)
           payload[:github_pr] = github_pr_snapshot(job) if truthy?(params[:include_github])
           render json: payload
@@ -370,7 +370,7 @@ module Api
             pr_checks_attribution: (PrCheckAttribution.for(job)&.to_h if job.pr_checks_state == "failing"),
             created_at: job.created_at,
             updated_at: job.updated_at,
-            workflows: job.workflows.order(:created_at).map { |wf| ::Admin::JobStateSerializer.workflow(wf) }
+            workflows: job.workflows.sort_by(&:created_at).map { |wf| ::Admin::JobStateSerializer.workflow(wf) }
           }
         rescue => e
           ::Admin::JobStateSerializer.per_record_error(job, e)

@@ -154,6 +154,7 @@ function makeCodingPayload(overrides: Partial<ChatPayload> = {}): ChatPayload {
       app_coding_files_path: "/api/v1/app/chats/1/coding_files",
       app_coding_commits_path: "/api/v1/app/chats/1/coding_commits",
       app_coding_file_path: "/api/v1/app/chats/1/coding_file",
+      app_coding_file_preview_path: "/api/v1/app/chats/1/coding_file_preview",
       app_coding_diff_path: "/api/v1/app/chats/1/coding_diff",
       ...overrides.paths
     }
@@ -175,6 +176,7 @@ function makePlanningFilesPayload(overrides: Partial<ChatPayload> = {}): ChatPay
       ...payload.paths,
       app_coding_files_path: "/api/v1/app/chats/1/coding_files",
       app_coding_file_path: "/api/v1/app/chats/1/coding_file",
+      app_coding_file_preview_path: "/api/v1/app/chats/1/coding_file_preview",
       ...overrides.paths
     }
   }
@@ -317,6 +319,7 @@ describe("ChatSettingsDialog", () => {
 describe("ChatWorkspacePanel coding files", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 })
     window.localStorage.removeItem(CHAT_FILES_TREE_COLLAPSED_KEY)
     window.localStorage.removeItem(CHAT_FILES_TREE_WIDTH_KEY)
     window.localStorage.removeItem(CHAT_DIFF_FILES_COLLAPSED_KEY)
@@ -391,6 +394,112 @@ describe("ChatWorkspacePanel coding files", () => {
     expect(keyword.tagName).toBe("SPAN")
     expect(keyword.style.color).toBe("var(--shiki-token-keyword)")
     expect(container.querySelector("pre code")).not.toBeInTheDocument()
+  })
+
+  it("defaults Markdown to Raw, renders it safely, and switches back", async () => {
+    vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: ["README.md"] })
+    vi.mocked(fetchCodingFileContent).mockResolvedValue({
+      binary: false,
+      content: "# Widgets\n<script>window.pwned = true</script>\n",
+      path: "README.md",
+      preview_kind: "markdown",
+      too_large: false
+    })
+
+    const contextFindOpenerRef = { current: null as (() => boolean) | null }
+    renderWorkspacePanel(makeCodingPayload(), { contextFindOpenerRef })
+    fireEvent.click(await screen.findByRole("button", { name: "README.md" }))
+
+    expect(await screen.findByTestId("coding-source-viewer")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Raw" })).toHaveAttribute("aria-pressed", "true")
+    expect(contextFindOpenerRef.current?.()).toBe(true)
+    fireEvent.click(screen.getByRole("button", { name: "Rendered" }))
+
+    expect(await screen.findByRole("heading", { name: "Widgets" })).toBeInTheDocument()
+    expect(document.querySelector("script")).not.toBeInTheDocument()
+    expect(screen.getByText("<script>window.pwned = true</script>")).toBeInTheDocument()
+    expect(contextFindOpenerRef.current?.()).toBe(false)
+    fireEvent.click(screen.getByRole("button", { name: "Raw" }))
+    expect(await screen.findByTestId("coding-source-viewer")).toBeInTheDocument()
+  })
+
+  it("resets Markdown to Raw when the selected file changes", async () => {
+    vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: ["first.md", "second.md"] })
+    vi.mocked(fetchCodingFileContent).mockImplementation(async (_path, filePath) => ({
+      binary: false,
+      content: `# ${filePath}`,
+      path: filePath,
+      preview_kind: "markdown",
+      too_large: false
+    }))
+
+    renderWorkspacePanel(makeCodingPayload())
+    fireEvent.click(await screen.findByRole("button", { name: "first.md" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Rendered" }))
+    expect(await screen.findByRole("heading", { name: "first.md" })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "second.md" }))
+    expect(await screen.findByTestId("coding-source-viewer")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Raw" })).toHaveAttribute("aria-pressed", "true")
+  })
+
+  it("keeps the mode control and rendered Markdown contained at mobile width", async () => {
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 402 })
+    window.dispatchEvent(new Event("resize"))
+    vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: ["README.md"] })
+    vi.mocked(fetchCodingFileContent).mockResolvedValue({
+      binary: false,
+      content: "| A | B |\n|---|---|\n| one | two |",
+      path: "README.md",
+      preview_kind: "markdown",
+      too_large: false
+    })
+
+    renderWorkspacePanel(makeCodingPayload())
+    fireEvent.click(await screen.findByRole("button", { name: "README.md" }))
+    const group = await screen.findByRole("group", { name: "File view mode" })
+    expect(group).toHaveClass("max-w-full")
+    fireEvent.click(screen.getByRole("button", { name: "Rendered" }))
+    expect(document.querySelector(".chat-prose")).toHaveClass("min-w-0", "overflow-x-auto")
+  })
+
+  it("keeps source and HTML Raw-only and opens binary renderables directly", async () => {
+    vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: ["index.html", "logo.svg", "manual.pdf"] })
+    vi.mocked(fetchCodingFileContent).mockImplementation(async (_path, filePath) => ({
+      binary: filePath !== "index.html",
+      content: filePath === "index.html" ? "<script>alert(1)</script>" : null,
+      path: filePath,
+      preview_kind: filePath === "logo.svg" ? ("image" as const) : filePath === "manual.pdf" ? ("pdf" as const) : undefined,
+      too_large: false
+    }))
+
+    renderWorkspacePanel(makeCodingPayload())
+    fireEvent.click(await screen.findByRole("button", { name: "index.html" }))
+    expect(await screen.findByTestId("coding-source-viewer")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Rendered" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "logo.svg" }))
+    const image = await screen.findByRole("img", { name: "logo.svg" })
+    expect(image).toHaveAttribute("src", "/api/v1/app/chats/1/coding_file_preview?path=logo.svg")
+    expect(screen.queryByRole("button", { name: "Raw" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "manual.pdf" }))
+    const frame = await waitFor(() => {
+      const element = document.querySelector("iframe[title='manual.pdf']")
+      expect(element).not.toBeNull()
+      return element!
+    })
+    expect(frame).not.toHaveAttribute("sandbox")
+  })
+
+  it("does not infer Markdown rendering from an untrusted extension", async () => {
+    vi.mocked(fetchCodingFileTree).mockResolvedValue({ checkout_branch: "syrus/chat-1", files: ["hostile.md"] })
+    vi.mocked(fetchCodingFileContent).mockResolvedValue({ binary: true, content: null, path: "hostile.md", too_large: false })
+
+    renderWorkspacePanel(makeCodingPayload())
+    fireEvent.click(await screen.findByRole("button", { name: "hostile.md" }))
+
+    expect(await screen.findByText("Binary file — cannot display.")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Rendered" })).not.toBeInTheDocument()
   })
 
   it("opens file-scoped find from Cmd-F and navigates highlighted matches", async () => {

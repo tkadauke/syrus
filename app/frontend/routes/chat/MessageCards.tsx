@@ -1235,27 +1235,30 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item, payload,
   return (
     <details className="group/tool min-w-0 max-w-full overflow-hidden" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
       <summary
-        className="grid min-w-0 max-w-full cursor-pointer grid-cols-[auto_minmax(0,max-content)_auto_auto_minmax(0,1fr)] items-baseline gap-x-2 overflow-hidden whitespace-nowrap py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+        className="grid min-w-0 max-w-full list-none cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto_auto] items-baseline gap-x-2 overflow-hidden py-0.5 text-sm text-gray-700 hover:text-gray-900 sm:grid-cols-[auto_minmax(0,max-content)_auto_auto_minmax(0,1fr)] dark:text-gray-300 dark:hover:text-gray-100"
         onClick={(event) => {
           event.preventDefault()
           setOpen((value) => !value)
         }}
       >
         <span className="shrink-0 text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
-        <span className="min-w-0 truncate font-medium text-gray-900 dark:text-gray-100" title={summary}>
+        <span className="min-w-0 truncate whitespace-nowrap font-medium text-gray-900 dark:text-gray-100" title={summary}>
           {summary}
         </span>
-        <Pill className="shrink-0 text-xs" tone={outcomeState === "failed" ? "danger" : outcomeState === "running" ? "info" : "neutral"}>
+        <Pill className="shrink-0 justify-self-end text-xs" tone={outcomeState === "failed" ? "danger" : outcomeState === "running" ? "info" : "neutral"}>
           {outcome}
         </Pill>
         {item.calls.length > 1 ? (
-          <Pill className="shrink-0 text-xs" tone="neutral">
+          <Pill className="shrink-0 justify-self-end text-xs" tone="neutral">
             {item.calls.length}
           </Pill>
         ) : (
           <span aria-hidden="true" />
         )}
-        <span className="min-w-0 truncate font-mono text-gray-600 dark:text-gray-400" title={details || undefined}>
+        <span
+          className="col-start-2 col-end-5 min-w-0 break-words font-mono text-gray-600 [overflow-wrap:anywhere] sm:col-start-5 sm:col-end-auto sm:truncate sm:whitespace-nowrap dark:text-gray-400"
+          title={details || undefined}
+        >
           {details}
         </span>
       </summary>
