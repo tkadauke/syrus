@@ -407,12 +407,14 @@ module Api
         end
 
         def log_oauth_exchange_failure(provider:, response:, reason:, message:)
+          safe_message = reason.to_s == "upstream_rejected" ? "OAuth provider rejected the exchange." : message
+
           Rails.logger.warn(
             event: "oauth_exchange_rejected",
             provider: provider,
             response: response,
             reason: reason.to_s,
-            message: message
+            message: safe_message
           )
         end
 

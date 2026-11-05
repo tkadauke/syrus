@@ -784,6 +784,35 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(logged_payload.to_json).not_to include(secret_code, state)
   end
 
+  it "does not log secrets echoed by an upstream OAuth rejection" do
+    sign_in_as(user)
+    allow(CodexOauth).to receive(:start_callback_listener).and_return(true)
+    logged_payload = nil
+    allow(Rails.logger).to receive(:warn) { |payload| logged_payload = payload }
+    post "/api/v1/app/credentials/codex_oauth_start"
+    state = Rack::Utils.parse_query(URI(parse_body["authorize_url"]).query)["state"]
+    secret_code = "ac.2.secret-authorization-code"
+    secret_token = "secret-token-from-upstream"
+    stub_request(:post, CodexOauth::TOKEN_URL)
+      .to_return(
+        status: 400,
+        body: { error_description: "Rejected code #{secret_code}, state #{state}, token #{secret_token}" }.to_json,
+        headers: { "Content-Type" => "application/json" }
+      )
+
+    post "/api/v1/app/credentials/codex_oauth_exchange", params: { code: secret_code }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(logged_payload).to include(
+      event: "oauth_exchange_rejected",
+      provider: "codex",
+      response: "oauth_exchange_failed",
+      reason: "upstream_rejected",
+      message: "OAuth provider rejected the exchange."
+    )
+    expect(logged_payload.to_json).not_to include(secret_code, state, secret_token)
+  end
+
   it "uploads and deletes personal documents" do
     sign_in_as(user)
 
