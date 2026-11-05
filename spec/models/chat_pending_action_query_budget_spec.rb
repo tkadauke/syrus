@@ -11,6 +11,7 @@ RSpec.describe ChatPendingActionConfirmationJob, "query budget" do
   let(:owner) { Factories.user }
   let(:repository) { Factories.repository(user: owner) }
   let(:chat) { ChatSession.create!(user: owner, repository:) }
+  let(:participant) { Factories.user }
   let(:coworker) do
     Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", workspace_repo: repository.remote_url)
   end
@@ -46,6 +47,15 @@ RSpec.describe ChatPendingActionConfirmationJob, "query budget" do
 
   before do
     Coworkers::Chat.create!(coworker:, chat_session: chat, role: "main")
+    chat.chat_participants.create!(user: participant, role: "member", joined_at: Time.current)
+    ChatMessage.insert_all!(24.times.map do |index|
+      {
+        chat_session_id: chat.id, role: index.even? ? "user" : "assistant",
+        content: { "text" => "Production-scale history message #{index}" },
+        created_at: index.minutes.ago, updated_at: index.minutes.ago,
+        entity_revision: 1
+      }
+    end)
     catalog = Mcp::CoworkerToolCatalog::Descriptor.new(
       tool_name: "read_custom_data", capability: "custom.read", ungated: false,
       tier: :essential, tool:, provider: nil
@@ -66,33 +76,41 @@ RSpec.describe ChatPendingActionConfirmationJob, "query budget" do
 
   def count_queries
     statements = []
-    callback = lambda do |_n, _s, _f, _id, payload|
+    sql_time = 0.0
+    callback = lambda do |_n, started, finished, _id, payload|
       statements << payload[:sql] unless payload[:name] == "SCHEMA" || payload[:cached] ||
         payload[:sql].match?(/\A\s*(BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE SAVEPOINT|PRAGMA)\b/i) ||
         payload[:sql].match?(/sqlite_master/)
+      sql_time += finished - started unless payload[:name] == "SCHEMA" || payload[:cached]
     end
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
-    statements
+    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+    { statements:, sql_time:, elapsed: }
   end
 
   it "confirms a representative pending action within the SQL budget" do
     item = request.authorization_items.first
     Permissions::CoworkerAuthorizationDecision.new(request:, item:, user: owner).call(decision: "approved")
 
-    statements = count_queries { described_class.perform_now(request.id) }
+    profile = count_queries { described_class.perform_now(request.id) }
+    statements = profile.fetch(:statements)
 
     expect(request.reload.state).to eq("confirmed")
     expect(request.payload["tool_result"]).to eq("ok")
     # Baseline before the fix was 87 statements here (100 in production).
-    expect(statements.size).to be <= SQL_BUDGET,
-      "expected <= #{SQL_BUDGET} statements, got #{statements.size}:\n#{statements.join("\n")}"
+    failure_message =
+      "expected <= #{SQL_BUDGET} statements, got #{statements.size} " \
+      "(SQL #{(profile.fetch(:sql_time) * 1000).round(1)}ms, wall #{(profile.fetch(:elapsed) * 1000).round(1)}ms):\n" \
+      "#{statements.join("\n")}"
+    expect(statements.size).to be <= SQL_BUDGET, failure_message
   end
 
   it "loads each chat-session scoped record once during a confirmation" do
     item = request.authorization_items.first
     Permissions::CoworkerAuthorizationDecision.new(request:, item:, user: owner).call(decision: "approved")
 
-    statements = count_queries { described_class.perform_now(request.id) }
+    statements = count_queries { described_class.perform_now(request.id) }.fetch(:statements)
 
     # chat attachments -> repository used to be resolved a dozen times.
     expect(statements.count { |sql| sql.include?(%(INNER JOIN "chat_attachments")) }).to be <= 2

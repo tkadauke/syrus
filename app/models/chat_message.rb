@@ -25,6 +25,10 @@ class ChatMessage < ApplicationRecord
   # after_create callback below doesn't flip turn_in_flight on for a turn
   # that will never run and clear it.
   attr_accessor :skip_turn_trigger
+  # Callers that only need to announce a durable message can request a focused
+  # refetch instead of serializing the entire recent-message tail in their
+  # transaction. The normal sidebar and participant deliveries still run.
+  attr_accessor :invalidate_realtime_tail
 
   before_validation :resolve_mentions_once, on: :create
   after_create :record_chat_turn_state
@@ -164,7 +168,7 @@ class ChatMessage < ApplicationRecord
   def broadcast_app_event
     chat = chat_session
     agent_busy = chat.agent_busy?
-    tail_payload = realtime_tail_payload(chat)
+    tail_payload = realtime_tail_payload(chat) unless invalidate_realtime_tail
 
     detail_payload = if tail_payload
       {
@@ -185,7 +189,7 @@ class ChatMessage < ApplicationRecord
         turn_retry_state: App::ChatTurnRetryState.for(chat),
         stop_requested_at: chat.stop_requested_at&.iso8601,
         queued_messages: chat.queued_messages_payload,
-        reason: "tail_payload_too_large"
+        reason: invalidate_realtime_tail ? "targeted_invalidation" : "tail_payload_too_large"
       }
     end
 
