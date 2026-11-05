@@ -512,6 +512,10 @@ target and has no unnamed-provider fallback. Missing, paused, revoked,
 unauthorized, or plugin-unavailable targets fail deterministically before the
 reviewer is invoked.
 
+`coworker_review` is a registered agentic Step with a dedicated verdict tool
+and audit artifact. It cannot use a Job pin, default provider, hold, or unnamed
+fallback; every candidate must resolve to an authorized coworker.
+
 Panel resolutions are deliberately separate from the ordinary single-candidate
 fallback path: `Resolver.call` and `AvailabilitySelector.call` reject them
 rather than silently selecting the first available member. Panel-aware workflow
