@@ -1229,6 +1229,37 @@ terminal after its relay is ready. They run from the target workspace before
 the reviewer receives control; interactive reviewer input still requires the
 normal short-lived input lease.
 
+A target may opt into repository-defined process variables with `environment`:
+
+```yaml
+environment:
+  static:
+    APP_MODE: visual-review
+  command:
+    argv: [bin/visual-review-env]
+    inputs: [run_api_endpoint, run_api_credential]
+    allow_output: [APP_URL, APP_INVOCATION_CONTEXT]
+```
+
+`static` is a literal mapping for non-secret scalar configuration. Syrus does
+not expand it, read matching worker variables, or interpolate secrets. The
+optional repository-owned `command.argv` is executed directly in the prepared
+workspace (never through a shell) with only the named, registered inputs in a
+private JSON object on stdin. Available inputs are `run_api_endpoint` and a
+short-lived, Run-scoped `run_api_credential`.
+
+The command writes UTF-8 `KEY=value` records. Only keys in `allow_output` reach
+the reviewed process; ordinary undeclared keys are dropped. `allow_output`
+filters command output only and does not govern `static`. Malformed records,
+duplicate output keys, duplicate static/generated keys, unavailable inputs,
+timeouts, nonzero exits, invalid encoding, NULs, and oversized streams fail
+terminal coverage. Process-control and loader names such as `PATH`, `HOME`,
+`BASH_ENV`, `ENV`, `LD_PRELOAD`, `RUBYOPT`, and `PYTHONPATH` are forbidden in
+static declarations, allowlists, and all emitted output—even when an emitted
+key would otherwise be dropped. Input and output values are resolved only in
+memory at terminal startup and are never stored in session metadata, artifacts,
+logs, transcripts, diagnostics, or workspace files.
+
 Nested `.syrus.yml` files may declare `visual_review:` alongside `preview:`.
 For project-aware visual review, Syrus first selects affected preview-capable
 projects, then uses the affected projects' visual-review settings. When

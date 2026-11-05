@@ -54,7 +54,7 @@ module RuntimeTerminal
           "captured_at" => Time.current.iso8601(3),
           "runtime_session_id" => runtime_session.id
         }.merge(metadata.to_h.stringify_keys),
-        **TypedArtifactProvenance.for_run(run)
+        **SyrusMcp::TypedArtifactProvenance.for_run(run)
       )
       runtime_session.update!(
         latest_frame_url: "/api/v1/app/workflows/#{workflow.id}/visual_artifact?type=#{CGI.escape(stored_type)}",

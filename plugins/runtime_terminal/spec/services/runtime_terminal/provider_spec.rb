@@ -84,6 +84,38 @@ RSpec.describe RuntimeTerminal::Provider do
       relay&.stop
     end
 
+    it "persists a labeled full-color workflow screenshot with Run provenance" do
+      job = Factories.job(repository: repository, user: user)
+      run = job.runs.last
+      workflow_session = RuntimeSession.create!(
+        repository: repository, job: job, workflow: run.workflow, run: run,
+        workspace_ref: "/workspace/review", provider_key: "cli_tui",
+        display_name: "Terminal review", state: "running",
+        metadata: { "visual_review_target" => { "name" => "CLI TUI" } }
+      )
+      relay = RuntimeTerminalFakeRelay.new(replay: "\e[48;2;12;34;56m full color \e[0m\n")
+      terminal_session = Terminal::Session.create!(
+        user: user, workflow: run.workflow, name: "Runtime Terminal",
+        working_directory: workflow_session.workspace_ref, relay_address: relay.address,
+        started_at: 1.minute.ago
+      )
+      RuntimeTerminal::SessionLink.create!(runtime_session: workflow_session, terminal_session: terminal_session)
+
+      result = provider.snapshot(workflow_session.id, checkpoint_label: "inbox loaded")
+
+      artifact = run.workflow.reload.artifact("typed_artifacts").find { |entry| entry["type"] == result.fetch(:document_id) }
+      expect(result).to include(title: "Terminal — inbox loaded", checkpoint_label: "inbox loaded")
+      expect(artifact).to include(
+        "title" => "Terminal — inbox loaded",
+        "original_type" => "visual_review_terminal_screenshot",
+        "run_id" => run.id,
+        "step_id" => run.step_id
+      )
+      expect(run.workflow.visual_artifact_for(result.fetch(:document_id)).download).to start_with("\x89PNG\r\n\x1a\n".b)
+    ensure
+      relay&.stop
+    end
+
     it "fails a capture after the bounded relay-ready timeout" do
       stub_const("RuntimeTerminal::Provider::RELAY_ADDRESS_TIMEOUT", 0.seconds)
       terminal_session = Terminal::Session.create!(
