@@ -229,10 +229,10 @@ class ChatPendingAction < ApplicationRecord
     non_actionable_at.nil? && !dismissed? && !non_actionable?
   end
 
-  def ready_for_authorized_invocation?
+  def ready_for_authorized_invocation?(reload: true)
     return false unless authorization_request?
 
-    items = authorization_items.reload
+    items = reload ? authorization_items.reload : authorization_items.load
     items.any? && items.all?(&:approved?)
   end
 
@@ -316,7 +316,9 @@ class ChatPendingAction < ApplicationRecord
           target.id == public_send(reflection.foreign_key) &&
             (!reflection.polymorphic? || target.class.polymorphic_name == public_send(reflection.foreign_type))
         end
-        assoc.target = target if same_record
+        if same_record
+          assoc.target = target
+        end
       end
     end
   end
@@ -469,13 +471,17 @@ class ChatPendingAction < ApplicationRecord
 
   def fail_confirmation!(error)
     rejected = error.is_a?(RepairEligibility::Ineligible)
-    update!(
-      state: "failed",
-      execution_status: rejected ? "rejected" : "failed",
-      execution_step: rejected ? "Rejected after eligibility revalidation." : "Failed.",
-      execution_error: "#{error.class}: #{error.message}",
-      execution_finished_at: Time.current
-    )
+    with_lock do
+      return false unless confirming?
+
+      update!(
+        state: "failed",
+        execution_status: rejected ? "rejected" : "failed",
+        execution_step: rejected ? "Rejected after eligibility revalidation." : "Failed.",
+        execution_error: "#{error.class}: #{error.message}",
+        execution_finished_at: Time.current
+      )
+    end
   end
 
   def reject!(user: nil)
@@ -529,6 +535,7 @@ class ChatPendingAction < ApplicationRecord
         text = ChatPendingActionOutcomeNotification.new(self).acknowledgment(outcome: state)
         message = chat_session.messages.create!(
           role: "system",
+          invalidate_realtime_tail: true,
           content: {
             "text" => text,
             "source" => ChatPendingActionOutcomeNotification::SOURCE,
@@ -538,7 +545,6 @@ class ChatPendingAction < ApplicationRecord
             "execution_status" => execution_status
           }
         )
-        chat_session.update!(last_message_at: Time.current)
         chat_session.pin_chat_provider!
       end
       update_columns(outcome_message_id: message.id, updated_at: Time.current) if outcome_message_id != message.id

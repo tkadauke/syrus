@@ -92,6 +92,17 @@ RSpec.describe StepDispatcher, :ci_only do
         iteration: AppSetting.grade_max_iterations,
         finished_at: Time.current
       )
+      AppSetting.grade_max_iterations.times do |index|
+        repair = Step.create!(
+          workflow: train_workflow,
+          kind: "landing_fix",
+          position: 0,
+          iteration: index + 1,
+          loop_id: collect.loop_id,
+          state: "succeeded"
+        )
+        LandingRepairOutcome.record!(step: repair, outcome: "committed_repair")
+      end
       dispatcher = described_class.new(train_workflow, advancing_from: collect)
       loop_node = dispatcher.send(:loop_node_for, collect)
 

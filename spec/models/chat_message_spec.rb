@@ -178,6 +178,24 @@ RSpec.describe ChatMessage do
       }.not_to raise_error
     end
 
+    it "supports targeted message invalidation without loading the realtime tail" do
+      expect_any_instance_of(described_class).not_to receive(:realtime_tail_payload)
+
+      expect(AppEvents).to receive(:broadcast_chat_resource) do |payload|
+        expect(payload[:payload]).to include(
+          action: "invalidate_messages",
+          reason: "targeted_invalidation"
+        )
+      end
+
+      described_class.create!(
+        chat_session: session,
+        role: "system",
+        content: { "text" => "Action complete" },
+        invalidate_realtime_tail: true
+      )
+    end
+
     it "broadcasts message ordering and unread state to the global per-user channel for the recent-chats sidebar" do
       allow(AppEvents).to receive(:broadcast_chat_resource)
 
