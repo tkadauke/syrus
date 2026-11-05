@@ -9,9 +9,9 @@ class Coworkers::PushFailure
   def transient? = false
   def kind = "permanent"
 
-  class Transient < Coworkers::PushFailure
+  Transient = Class.new(self) do
     def transient? = true
     def kind = "transient"
   end
-  class Permanent < Coworkers::PushFailure; end
+  Permanent = Class.new(self)
 end
