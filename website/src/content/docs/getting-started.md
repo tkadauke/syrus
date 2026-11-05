@@ -317,7 +317,8 @@ Watch these checkpoints:
   failure.
 - `implement` starts a Run, streams transcript output, and captures the
   agent's commits.
-- Review loops run only when adversarial or visual review is configured.
+- Review loops run only when configured. Routing rules may attach accountable
+  coworkers; dedicated coworker review never falls back to an unnamed reviewer.
 - The grade loop runs the configured review-phase graders and can feed a
   bounded repair iteration.
 - The Run or Workflow shows the captured diff.

@@ -36,7 +36,7 @@ RSpec.describe Admin::CapabilitySurfaceRegistry do
     capabilities = described_class.capabilities
     keys = capabilities.map(&:key)
 
-    expect(keys).to include("submit_summary", "submit_security_review", "cancel_job", "personal_api_token")
+    expect(keys).to include("submit_summary", "submit_security_review", "submit_coworker_review", "cancel_job", "personal_api_token")
     expect(keys).to eq(keys.uniq)
     expect(capabilities).to all(have_attributes(decisions: include(*described_class::SURFACES)))
 
