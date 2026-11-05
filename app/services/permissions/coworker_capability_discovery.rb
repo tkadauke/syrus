@@ -86,11 +86,7 @@ module Permissions
       scope_options = grant ? scope_options_for(grant) : []
       availability, grant_block = refine_availability(availability, grant:, scope_options:)
       state, reason = state_and_reason(availability:, eligible:, policy:)
-      granted = grant.nil? || context.granted_capabilities.include?(capability)
-      if state.in?(%w[available requestable]) && !granted
-        state = "requestable"
-        reason = "capability_not_granted"
-      end
+      granted = policy == :allow
       reason = grant_block if grant_block && state.in?(%w[unavailable resource_unconfigured])
 
       Result.new(

@@ -47,6 +47,29 @@ RSpec.describe Permissions::ExecutionActions do
     expect(result).to be_ask
   end
 
+  it "allows routine open-network workflow commands without a lease" do
+    expect(authorize(host([ "bundle", "install" ]))).to be_allowed
+    expect(authorize(host([ "git", "fetch", "origin" ]))).to be_allowed
+  end
+
+  it "audits an execution decision with its owner and invocation identity" do
+    owner = Factories.user
+    subject = host(%w[ls], network: "grader")
+    allow(OperationalLogging).to receive(:ingest)
+
+    Permissions::ExecutionAuthorization.authorize(
+      subject:, owner:, role:, context: { job_id: 42 }
+    )
+
+    expect(OperationalLogging).to have_received(:ingest).with(hash_including(
+      source: Permissions::DecisionAudit::LOG_SOURCE,
+      context: hash_including(
+        actor_type: "User", actor_id: owner.id, user_id: owner.id,
+        role:, job_id: 42, invocation_fingerprint: kind_of(String)
+      )
+    ))
+  end
+
   it "lets an explicit deny rule win" do
     subject = host(%w[ls])
     descriptor = described_class.descriptor_for(:host)
@@ -122,12 +145,12 @@ RSpec.describe Permissions::ExecutionActions do
       expect(seen).to eq(:host)
     end
 
-    it "lets an ask through unless enforce_ask is set" do
+    it "fails closed on ask because raw processes have no resumable approval boundary" do
       asking = ->(_req, location:) { result(:ask) }
 
-      expect(Execution::Router.new(local:, authorizer: asking).run(request)).to eq(:ran)
-      expect { Execution::Router.new(local:, authorizer: asking, enforce_ask: true).run(request) }
-        .to raise_error(Execution::Router::NotAuthorized)
+      expect(local).not_to receive(:run)
+      expect { Execution::Router.new(local:, authorizer: asking).run(request) }
+        .to raise_error(Execution::Router::NotAuthorized, /execution ask/)
     end
   end
 
@@ -144,9 +167,9 @@ RSpec.describe Permissions::ExecutionActions do
       expect(gate.call(request, location: :container)).to be_allowed
     end
 
-    it "logs, but does not block, a request that would ask" do
+    it "records the redacted reason for an ask that the router will block" do
       logger = instance_double(Logger)
-      expect(logger).to receive(:info).with(/would ask.*"executable":"sudo"/)
+      expect(logger).to receive(:info).with(/requires approval.*"executable":"sudo"/)
       plain = request.with(command: [ "sudo", "ls" ], workload_policy: nil)
 
       expect(described_class.new(logger:).call(plain, location: :container)).to be_ask
@@ -184,6 +207,17 @@ RSpec.describe "persisted execution deny rules" do
     )
   end
 
+  def allow_execution(job, selector_type, id: nil, duration: "job", command: [ "sudo", "ls" ], role: AgentRole::WORKFLOW_IMPLEMENT)
+    Permissions::Management.new(user).lease!(
+      { "capability" => Permissions::ExecutionActions::CAPABILITY, "operation" => Permissions::ExecutionActions.operation_for(:host),
+        "role" => role, "subject_selector_type" => selector_type, "subject_selector_id" => id,
+        "duration" => duration, "job_id" => (job.id if duration == "job"),
+        "arguments" => { "location" => "host", "command" => command, "network" => "agent",
+          "env_keys" => [], "writable_paths" => [], "provider" => "", "tool" => "" } }.compact,
+      actor: user
+    )
+  end
+
   it "lists the execution operations in the permission catalog so rules can be created" do
     expect(Permissions::Catalog.find!(capability: Permissions::ExecutionActions::CAPABILITY, operation: Permissions::ExecutionActions.operation_for(:host)))
       .to have_attributes(operation: Permissions::ExecutionActions.operation_for(:host))
@@ -210,5 +244,90 @@ RSpec.describe "persisted execution deny rules" do
     req = request(chat_session:, mounts: ProcessRunner::Mounts.new(workdir: Dir.pwd, read_write: [ Dir.pwd ]), timeout: 5)
 
     expect { Execution::Router.new(local:).run(req) }.to raise_error(Execution::Router::NotAuthorized)
+  end
+
+  it "does not start a sensitive process when durable authority is absent" do
+    local = Execution::Local.new
+    expect(local).not_to receive(:run)
+    req = request(
+      command: [ "sudo", "ls" ], job: Job.new(user: user), agent: AgentRole::WORKFLOW_IMPLEMENT,
+      mounts: ProcessRunner::Mounts.new(workdir: Dir.pwd, read_write: [ Dir.pwd ]), timeout: 5
+    )
+
+    expect { Execution::Router.new(local:).run(req) }
+      .to raise_error(Execution::Router::NotAuthorized, /execution ask/)
+  end
+
+  it "starts a sensitive workflow process covered by durable Job-owner authority" do
+    job = Factories.job_record(user: user)
+    lease = allow_execution(job, "workflow_role", id: AgentRole::WORKFLOW_IMPLEMENT)
+    local = Execution::Local.new.tap { |backend| allow(backend).to receive(:run).and_return(:ran) }
+    req = request(
+      command: [ "sudo", "ls" ], job:, agent: AgentRole::WORKFLOW_IMPLEMENT,
+      mounts: ProcessRunner::Mounts.new(workdir: Dir.pwd, read_write: [ Dir.pwd ]), timeout: 5
+    )
+
+    expect(Execution::Router.new(local:).run(req)).to eq(:ran)
+    expect(lease.effects).to include("operator_host_access", "network_read", "privilege_change")
+  end
+
+  it "does not consume invocation authority when a ceiling blocks execution" do
+    job = Factories.job_record(user: user)
+    lease = allow_execution(job, "workflow_role", id: AgentRole::WORKFLOW_IMPLEMENT, duration: "invocation")
+    workload_policy = instance_double(Execution::ChatWorkloadPolicy, fail_closed?: true)
+    req = request(command: [ "sudo", "ls" ], job:, agent: AgentRole::WORKFLOW_IMPLEMENT, workload_policy:)
+
+    result = Permissions::ExecutionGate.new.call(req, location: :host)
+
+    expect(result).to be_denied
+    expect(lease.reload.used_count).to eq(0)
+  end
+
+  it "releases invocation authority when the backend fails before spawning" do
+    job = Factories.job_record(user: user)
+    lease = allow_execution(job, "workflow_role", id: AgentRole::WORKFLOW_IMPLEMENT, duration: "invocation")
+    req = request(
+      command: [ "sudo", "ls" ], job:, agent: AgentRole::WORKFLOW_IMPLEMENT,
+      mounts: ProcessRunner::Mounts.new(workdir: Dir.pwd, read_write: [ Dir.pwd ]), timeout: 5
+    )
+    local = Execution::Local.new
+    allow(local).to receive(:run).and_raise(Errno::ENOENT)
+
+    expect { Execution::Router.new(local:).run(req) }.to raise_error(Errno::ENOENT)
+    expect(lease.reload.used_count).to eq(0)
+  end
+
+  it "commits invocation authority when the backend reports a spawned process" do
+    job = Factories.job_record(user: user)
+    lease = allow_execution(job, "workflow_role", id: AgentRole::WORKFLOW_IMPLEMENT, duration: "invocation")
+    callback = instance_double(Proc)
+    req = request(
+      command: [ "sudo", "ls" ], job:, agent: AgentRole::WORKFLOW_IMPLEMENT, on_spawned_process: callback,
+      mounts: ProcessRunner::Mounts.new(workdir: Dir.pwd, read_write: [ Dir.pwd ]), timeout: 5
+    )
+    local = Execution::Local.new
+    allow(callback).to receive(:call).with(:process)
+    allow(local).to receive(:run) do |authorized_request|
+      authorized_request.on_spawned_process.call(:process)
+      raise Errno::EIO
+    end
+
+    expect { Execution::Router.new(local:).run(req) }.to raise_error(Errno::EIO)
+    expect(lease.reload.used_count).to eq(1)
+    expect(callback).to have_received(:call).with(:process)
+  end
+
+  it "does not refund invocation authority when local execution raises after spawning" do
+    job = Factories.job_record(user: user)
+    command = [ RbConfig.ruby, "-e", "exit 0" ]
+    lease = allow_execution(job, "workflow_role", id: AgentRole::WORKFLOW_MANUAL, duration: "invocation", command:, role: AgentRole::WORKFLOW_MANUAL)
+    runner = ProcessRunner.new(
+      env: {}, command:, mounts: ProcessRunner.mounts(Dir.pwd), network: "agent", timeout: 5,
+      kind: "agent", job:,
+      on_spawned_process: ->(_process) { raise Errno::EIO }
+    )
+
+    expect { runner.run }.to raise_error(Errno::EIO)
+    expect(lease.reload.used_count).to eq(1)
   end
 end

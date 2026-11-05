@@ -2,7 +2,7 @@ require "rails_helper"
 require "tmpdir"
 require "fileutils"
 
-RSpec.describe "Mcp::Tools delivery-track tools" do
+RSpec.describe "Mcp::Tools delivery-track tools", :full_chat_access do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user, default_branch: "main") }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }

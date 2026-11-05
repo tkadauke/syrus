@@ -34,7 +34,19 @@ export type InheritedPermission = {
   explanation: string
 }
 
-export type PermissionsPayload = { rules: PermissionRule[]; inherited: InheritedPermission[] }
+export type PermissionProfile = { key: string; label: string; description: string }
+export type PermissionProfilePreview = {
+  profile: PermissionProfile
+  subject_selector_type: string
+  revoked: PermissionRule[]
+  replacements: Array<{ policy: "allow" | "ask" | "deny"; capability: string; operation: string; resource_scope_label: string }>
+}
+export type PermissionsPayload = {
+  rules: PermissionRule[]
+  inherited: InheritedPermission[]
+  profiles: PermissionProfile[]
+  current_profiles: Record<string, string | null>
+}
 
 export type PermissionReference = { type: string; id: number; label: string }
 export type PermissionLease = {
@@ -65,6 +77,17 @@ export type PermissionHistoryPayload = { active_leases: PermissionLease[]; histo
 export const fetchPermissions = () => {
   return getJson<PermissionsPayload>("/api/v1/app/permission_rules")
 }
+export const previewPermissionProfile = (profile: string, subject_selector_type: string) =>
+  postJson<{ preview: PermissionProfilePreview; confirmation_digest: string }>("/api/v1/app/permission_rules/preview_profile", {
+    profile,
+    subject_selector_type
+  })
+export const applyPermissionProfile = (profile: string, subject_selector_type: string, confirmation_digest: string) =>
+  postJson<{ rules: PermissionRule[]; profile: string; subject_selector_type: string }>("/api/v1/app/permission_rules/apply_profile", {
+    profile,
+    subject_selector_type,
+    confirmation_digest
+  })
 export const fetchPermissionHistory = () => {
   return getJson<PermissionHistoryPayload>("/api/v1/app/permission_rules/history")
 }
@@ -114,9 +137,12 @@ export type ApprovalDelegationsPayload = {
   human_only: { effects: string[]; capabilities: string[] }
   history: ApprovalDecision[]
 }
-export const fetchApprovalDelegations = () =>
-  getJson<ApprovalDelegationsPayload>("/api/v1/app/approval_delegations")
-export const createApprovalDelegation = (approval_delegation: Record<string, unknown>) =>
-  postJson<{ delegation: ApprovalDelegation }>("/api/v1/app/approval_delegations", { approval_delegation })
-export const revokeApprovalDelegation = (id: number) =>
-  postJson<{ delegation: ApprovalDelegation }>(`/api/v1/app/approval_delegations/${id}/revoke`)
+export const fetchApprovalDelegations = () => {
+  return getJson<ApprovalDelegationsPayload>("/api/v1/app/approval_delegations")
+}
+export const createApprovalDelegation = (approval_delegation: Record<string, unknown>) => {
+  return postJson<{ delegation: ApprovalDelegation }>("/api/v1/app/approval_delegations", { approval_delegation })
+}
+export const revokeApprovalDelegation = (id: number) => {
+  return postJson<{ delegation: ApprovalDelegation }>(`/api/v1/app/approval_delegations/${id}/revoke`)
+}

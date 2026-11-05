@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "Mcp::Tools ref-movement action tools" do
+RSpec.describe "Mcp::Tools ref-movement action tools", full_chat_access: :all do
   let(:user) { Factories.user }
   let(:canonical) { Factories.repository(user: user, default_branch: "main") }
   let(:fork_repo) { Factories.repository(user: user, default_branch: "main", upstream_repository: canonical) }

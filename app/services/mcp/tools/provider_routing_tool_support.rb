@@ -34,7 +34,7 @@ module Mcp::Tools
       scope = current_user.admin? ? Repository.active : Repository.accessible_to(current_user).active
       scope.find(id)
     rescue ActiveRecord::RecordNotFound
-      raise AuthorizationSupport::AuthorizationError, "repository not found or not accessible"
+      raise AuthorizationSupport::NotAccessible, "repository not found or not accessible"
     end
 
     def authorize_provider_routing_repository!(repository)

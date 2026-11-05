@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "API: /api/v1/app/direct_jobs", type: :request do
+RSpec.describe "API: /api/v1/app/direct_jobs", :full_chat_access, type: :request do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
 

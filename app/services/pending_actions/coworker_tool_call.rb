@@ -1,8 +1,6 @@
 module PendingActions
   class CoworkerToolCall < Base
     action_key "coworker_tool_call"
-    requires_chat_session!
-
     def authorize_execution!
       return super unless @action.authorization_request?
 
@@ -21,24 +19,24 @@ module PendingActions
     end
 
     def execute
-      raise ArgumentError, "originating conversation is no longer available" unless chat_session&.persisted?
+      if action.origin.is_a?(ChatSession) && !chat_session&.persisted?
+        raise ArgumentError, "originating conversation is no longer available"
+      end
 
       server_context = replay_server_context
       context = McpToolContext.from_server_context(server_context)
-      unless context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
-        raise ArgumentError, "coworker context is no longer available"
-      end
-
-      descriptor = Mcp::CoworkerToolCatalog.resolve(payload.fetch("tool_name"), chat_session: chat_session)
-      raise ArgumentError, "tool is not available to coworkers" unless descriptor
-
-      callable = if descriptor.provider
+      descriptor = tool_descriptor(context)
+      tool_name = payload.fetch("tool_name")
+      callable = if descriptor.respond_to?(:provider) && descriptor.provider
         ->(server_context:, **arguments) { descriptor.provider.new.handle(descriptor.tool_name, arguments, server_context) }
-      else
+      elsif coworker_context?(context)
         Mcp::Sidecar.chat_tools(chat_session, tier: descriptor.tier, agent_actor: action.subject)
-          .find { |candidate| McpToolRegistry.tool_name_for(candidate) == descriptor.tool_name }
+          .find { |candidate| McpToolRegistry.tool_name_for(candidate) == tool_name }
+      else
+        actor_tools(context)
+          .find { |candidate| McpToolRegistry.tool_name_for(candidate) == tool_name }
       end
-      raise ArgumentError, "tool is no longer available to coworkers" unless callable
+      raise ArgumentError, "tool is no longer available to this actor" unless callable
 
       invocation = operation_item.authorized_invocation
       raise ArgumentError, "authorized invocation is missing" unless invocation
@@ -69,9 +67,10 @@ module PendingActions
       invocation.complete!(claim_key:, status: :succeeded)
       stored = result_text.byteslice(0, 64.kilobytes).scrub
       @action.update!(payload: payload.merge("tool_result" => stored))
+      AuthorizationContinuations::Coordinator.call(request: action, outcome: "approved", tool_result: stored) if action.checkpoint_state.present?
       Rails.logger.info(
         "[coworker_tool_call] result stored pending_action=#{action.id} tool=#{payload['tool_name']} " \
-        "chat_session=#{chat_session.id} bytes=#{stored.bytesize} truncated=#{result_text.bytesize > stored.bytesize}"
+        "origin=#{action.origin_type}:#{action.origin_id} bytes=#{stored.bytesize} truncated=#{result_text.bytesize > stored.bytesize}"
       )
 
       nil
@@ -104,6 +103,13 @@ module PendingActions
     end
 
     def permission_descriptor
+      unless action.runtime_role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+        surface = action.chat_session_id? ? :chat : :workflow
+        return McpToolRegistry.entries(surface:).find do |entry|
+          McpToolRegistry.tool_name_for(entry.tool) == payload.fetch("tool_name")
+        end&.descriptor || raise(ArgumentError, "tool has no permission descriptor")
+      end
+
       catalog_entry = Mcp::CoworkerToolCatalog.resolve(payload.fetch("tool_name"), chat_session: chat_session)
       raise ArgumentError, "tool is not available to coworkers" unless catalog_entry
 
@@ -115,13 +121,30 @@ module PendingActions
       descriptor || raise(ArgumentError, "tool has no permission descriptor")
     end
 
+    def coworker_context?(context)
+      context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+    end
+
+    def tool_descriptor(context)
+      return Mcp::CoworkerToolCatalog.resolve(payload.fetch("tool_name"), chat_session:) if coworker_context?(context)
+
+      surface = context.chat? ? :chat : :workflow
+      McpToolRegistry.entries(surface:).find { |entry| McpToolRegistry.tool_name_for(entry.tool) == payload.fetch("tool_name") }
+    end
+
+    def actor_tools(context)
+      return Mcp::Sidecar.chat_tools(chat_session, tier: :all) if context.chat?
+
+      McpToolPolicy.for(context) + Mcp::Sidecar.plugin_workflow_tools_for(context)
+    end
+
     def replay_server_context
       return { chat_session: chat_session, agent_actor: action.subject } if payload["run_id"].blank?
 
       run = Run.find_by(id: payload["run_id"])
       raise ArgumentError, "originating run is no longer available" unless run
 
-      { run: run, chat_session: chat_session }
+      { run: run }
     end
 
     def origin_resumable?
@@ -137,8 +160,8 @@ module PendingActions
         context: {
           role: context.role,
           agent_id: context.agent_actor&.id,
-          subject_selector_type: "agent",
-          subject_selector_id: context.agent_actor&.id&.to_s,
+          subject_selector_type: context.agent_actor ? "agent" : "workflow_role",
+          subject_selector_id: context.agent_actor&.id&.to_s || context.role,
           subject_repository_id: context.repository&.id,
           chat_session_id: context.chat_session&.id,
           job_id: context.job&.id

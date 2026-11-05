@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "Mcp::Tools diff and tag tools" do
+RSpec.describe "Mcp::Tools diff and tag tools", :full_chat_access do
   include ActiveSupport::Testing::TimeHelpers
 
   let!(:_bootstrap_admin) { Factories.user(admin: true) }
@@ -122,6 +122,7 @@ RSpec.describe "Mcp::Tools diff and tag tools" do
 
   it "allows an admin to read another user's job diff" do
     admin = Factories.user(admin: true)
+    grant_full_chat_access(admin)
     other_job = Factories.job(repository: Factories.repository(user: Factories.user))
     admin_session = ChatSession.create!(user: admin)
     admin_server = MCP::Server.new(

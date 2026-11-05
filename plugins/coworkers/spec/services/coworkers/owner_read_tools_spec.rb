@@ -35,7 +35,11 @@ RSpec.describe "owner-scoped coworker read tools" do
       scope_label_callback: ->(value) { "Connection #{value}" }, valid_scope_callback: ->(value, user:) { value == user.id }
     )
     allow(Coworkers::GrantCatalog).to receive(:all).and_return([ descriptor ])
-    coworker.grants.create!(capability: descriptor.name, approval_policy: "confirm", scope: owner.id)
+    PermissionRule.create!(owner_user: owner, created_by_user: owner, updated_by_user: owner,
+      subject_selector_type: "agent", subject_selector_id: coworker.id.to_s, subject_role_keys: [],
+      capability: "database.read@v1", operation: "database.read/list_database_tables@v1",
+      resource_type: "database", resource_scope: { "connection_id" => owner.id }, constraints: {},
+      policy: "ask", policy_layer: "agent", source: "coworker_permission", provenance: {}, delegable: false)
 
     result = payload(Coworkers::McpTools::ListCoworkerGrantsTool.call(server_context: context)).fetch("coworkers").sole
 
@@ -44,6 +48,23 @@ RSpec.describe "owner-scoped coworker read tools" do
       "capability" => "database.read", "approval_policy" => "confirm", "scope" => owner.id,
       "scope_label" => "Connection #{owner.id}", "tools" => [ "list_database_tables" ]
     )
+  end
+
+  it "loads canonical rules once for the complete coworker list" do
+    3.times do |index|
+      coworker = create_coworker(name: "Agent #{index}", handle: "agent-#{index}")
+      coworker.permission_rules.update!(capability: "syrus.read_jobs", approval_policy: "auto", actor: owner)
+    end
+    queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      queries << payload[:sql] if !payload[:cached] && payload[:sql].include?(%("permission_rules"))
+    end
+
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
+      Coworkers::McpTools::ListCoworkerGrantsTool.call(server_context: context)
+    end
+
+    expect(queries.length).to eq(1)
   end
 
   it "filters by state and bounded text across name, handle, and role summary" do
@@ -75,7 +96,8 @@ RSpec.describe "owner-scoped coworker read tools" do
   it "returns a compact dedicated configuration shape with grants and chats but no credentials" do
     coworker = create_coworker(name: "Maya", handle: "maya-shape", chat_model: "gpt-example")
     coworker.update_column(:workspace_repo, "https://oauth-secret@github.com/acme/workspace.git")
-    coworker.grants.create!(capability: "workspace.files", approval_policy: "confirm", constraints: { "confirm_paths" => [ "SOUL.md" ] })
+    coworker.permission_rules.update!(capability: "workspace.files", approval_policy: "confirm", actor: owner,
+      constraints: { "confirm_paths" => [ "SOUL.md" ] })
     main_chat = ChatSession.create!(user: owner, title: "Maya main")
     Coworkers::Chat.create!(coworker: coworker, chat_session: main_chat, role: "main")
 

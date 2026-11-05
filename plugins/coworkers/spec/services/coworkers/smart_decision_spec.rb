@@ -36,6 +36,9 @@ RSpec.describe Permissions::SmartDecision do
 
   def stub_catalog(descriptor)
     allow(Permissions::Catalog).to receive(:descriptors) { [ descriptor ] }
+    # The pending request records the durations the requesting descriptor
+    # offers; mirror the catalog variant onto the already-created item.
+    item.update!(requested_durations: descriptor.authority_durations.map(&:to_s))
   end
 
   def request_action

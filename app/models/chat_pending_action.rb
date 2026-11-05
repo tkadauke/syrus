@@ -81,6 +81,7 @@ class ChatPendingAction < ApplicationRecord
     override_job_planned_execution
     local_tool_call
     coworker_tool_call
+    authorized_tool_call
     coworker_permission_request
     coworker_permission_revocation
     spawn_chat

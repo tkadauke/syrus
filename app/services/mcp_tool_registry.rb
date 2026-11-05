@@ -76,13 +76,7 @@ class McpToolRegistry
 
     def entries_for_context(context, surface: nil, tier: nil)
       candidates = matching_entries(surface: surface, tier: tier)
-      allowed = candidates.select { |entry| allowed_entry?(entry, context) }
-      begin
-        Permissions::ShadowEvaluator.compare(entries: candidates, context:, current_entries: allowed)
-      rescue StandardError => error
-        Rails.logger.warn("[McpToolRegistry] permission shadow evaluation failed: #{error.class}: #{error.message}")
-      end
-      allowed
+      candidates.select { |entry| allowed_entry?(entry, context) }
     end
 
     def tools_for_context(context, surface: nil, tier: nil)
@@ -225,6 +219,7 @@ class McpToolRegistry
         legacy_chat(Mcp::Tools::DeleteProposalTool, mutation: true),
         legacy_chat(Mcp::Tools::WithdrawPendingActionTool, mutation: true),
         permission_management_chat(Mcp::Tools::ListPermissionsTool),
+        permission_management_chat(Mcp::Tools::RequestPermissionTool, mutation: true, ungated: true),
         permission_management_chat(Mcp::Tools::ExplainPermissionTool),
         permission_management_chat(Mcp::Tools::GrantPermissionTool, mutation: true),
         permission_management_chat(Mcp::Tools::DenyPermissionTool, mutation: true),
@@ -618,14 +613,14 @@ class McpToolRegistry
       chat(tool, **metadata, descriptor:)
     end
 
-    def permission_management_chat(tool, mutation: false)
+    def permission_management_chat(tool, mutation: false, ungated: false)
       descriptor = Permissions::CapabilityDescriptorAdapter.for_registry_entry(
         tool_name: tool_name_for(tool),
         capability: "syrus.permissions",
         mutation: mutation,
         required_roles: AgentRole::CHAT_ROLES
       )
-      chat(tool, tier: :deferred, mutation:, descriptor:)
+      chat(tool, tier: :deferred, mutation:, ungated:, descriptor:)
     end
 
     def entry(tool, surface:, tier: nil, admin_only: false, feature_flag: nil, feature_flags_by_role: nil,

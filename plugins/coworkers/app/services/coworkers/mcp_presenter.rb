@@ -33,7 +33,7 @@ module Coworkers
           repository: safe_workspace_repository,
           home_branch: "coworkers/#{coworker.handle}"
         },
-        grants: coworker.grants.sort_by(&:capability).map { |grant| grant_payload(grant) },
+        grants: coworker.permission_rules.entries.reject { |entry| entry[:approval_policy] == "off" },
         chats: coworker.coworker_chats.sort_by { |link| [ link.main? ? 0 : 1, link.id ] }.map { |link| chat_payload(link) },
         active_schedules: coworker.schedules.active.order(:id).map { |task| schedule_payload(task) }
       )
@@ -45,11 +45,6 @@ module Coworkers
 
     def configured_value(value, default = nil)
       value.present? ? { value: value, source: "coworker" } : { value: default, source: "account_default" }
-    end
-
-    def grant_payload(grant)
-      { capability: grant.capability, approval_policy: grant.approval_policy, constraints: grant.constraints || {} }
-        .merge(grant.scope.nil? ? {} : { scope: grant.scope })
     end
 
     def safe_workspace_repository

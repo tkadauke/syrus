@@ -7,6 +7,7 @@ RSpec.describe "chat MCP share access" do
   let(:shared_chat) { ChatSession.create!(user: owner, title: "Shared MCP chat") }
 
   def call_tool(user, tool, arguments = {})
+    grant_full_chat_access(user)
     context_chat = ChatSession.create!(user: user, title: "Tool context")
     server = MCP::Server.new(
       name: "syrus-chat-sidecar",

@@ -4,7 +4,8 @@ module Permissions
   class CapabilityRegistryValidator
     COMPATIBILITY_DIGEST_PATTERN = /\A[0-9a-f]{64}\z/
 
-    Registration = Data.define(:tool_name, :surface, :source, :descriptor, :explicit_descriptor, :compatibility_descriptor)
+    Registration = Data.define(:tool_name, :surface, :source, :descriptor, :explicit_descriptor,
+      :compatibility_descriptor, :ungated)
     Finding = Data.define(:code, :message, :registrations) do
       def to_h = { code: code, message: message, registrations: registrations }
     end
@@ -25,7 +26,7 @@ module Permissions
         Registration.new(
           tool_name: entry.tool_name, surface: entry.surface, source: "core",
           descriptor: entry.descriptor, explicit_descriptor: entry.explicit_descriptor,
-          compatibility_descriptor: entry.compatibility_descriptor?
+          compatibility_descriptor: entry.compatibility_descriptor?, ungated: entry.ungated
         )
       end
       plugin = %i[mcp_tool_set chat_mcp_tool_set].flat_map do |extension_point|
@@ -39,7 +40,7 @@ module Permissions
             tool_name: descriptor.operation, surface: :permission_provider,
             source: provider.name.presence || provider.to_s,
             descriptor: descriptor, explicit_descriptor: true,
-            compatibility_descriptor: nil
+            compatibility_descriptor: nil, ungated: false
           )
         end
       end
@@ -58,7 +59,8 @@ module Permissions
           source: provider.name.presence || provider.to_s,
           descriptor: descriptor,
           explicit_descriptor: definition[:capability_descriptor].present?,
-          compatibility_descriptor: compatibility_digest
+          compatibility_descriptor: compatibility_digest,
+          ungated: definition[:ungated] == true
         )
       end
     end
@@ -84,7 +86,7 @@ module Permissions
     end
 
     def findings
-      missing_descriptor_findings + tool_mapping_findings + descriptor_conflict_findings + identifier_findings
+      missing_descriptor_findings + bundle_findings + tool_mapping_findings + descriptor_conflict_findings + identifier_findings
     end
 
     def coverage
@@ -99,18 +101,31 @@ module Permissions
         described_tools: descriptors.length,
         explicit_descriptors: explicit_descriptors,
         legacy_descriptors: descriptors.length - explicit_descriptors,
+        ungated_tools: registrations.count(&:ungated),
         roles: roles.index_with do |role|
           role_descriptors = descriptors.select { |descriptor| descriptor.requestable_roles.include?(role) }
           { descriptors: role_descriptors.length, defaults: role_descriptors.map { |descriptor| descriptor.defaults.fetch(role) }.tally }
         end,
-        effects: effects
+        effects: effects,
+        tool_set_bundles: descriptors.map(&:tool_set_bundle).tally
       }
     end
 
     private
 
+    def bundle_findings
+      registrations.filter_map do |registration|
+        next unless registration.descriptor
+        next if ToolSetBundles::DEFINITIONS.key?(registration.descriptor.tool_set_bundle)
+
+        finding(:unknown_tool_set_bundle, registration,
+          "references unknown tool-set bundle #{registration.descriptor.tool_set_bundle.inspect}")
+      end
+    end
+
     def missing_descriptor_findings
       registrations.filter_map do |registration|
+        next if registration.ungated
         next if registration.descriptor && (registration.explicit_descriptor || legacy_registration_allowed?(registration))
         finding(:missing_descriptor, registration,
           I18n.t("server.permissions.capability_registry.missing_descriptor_detail"))

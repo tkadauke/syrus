@@ -1,7 +1,7 @@
 require "rails_helper"
 require "ostruct"
 
-RSpec.describe "Mcp::Tools PR classification tools" do
+RSpec.describe "Mcp::Tools PR classification tools", :full_chat_access do
   let(:user) { Factories.user(github_token: "ghp_test_token") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets", external_pr_ingestion_enabled: true) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }

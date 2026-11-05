@@ -14,6 +14,7 @@ RSpec.describe Mcp::Tools::ReadEpicTool do
   end
 
   def call_tool(arguments)
+    grant_full_chat_access(user)
     raw = server.handle_json({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "read_epic", arguments: arguments } }.to_json)
     JSON.parse(raw, symbolize_names: true)
   end

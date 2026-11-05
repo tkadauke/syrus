@@ -66,7 +66,7 @@ module Mcp::Tools
       def find_reply_thread!(thread_id, chat_session)
         thread = ChatBridgeThread.find_by(id: thread_id)
         member = thread && (thread.origin_chat_session_id == chat_session.id || thread.target_chat_session_id == chat_session.id)
-        raise AuthorizationSupport::AuthorizationError, "chat bridge thread not found or not accessible" unless member
+        raise AuthorizationSupport::NotAccessible, "chat bridge thread not found or not accessible" unless member
 
         thread
       end

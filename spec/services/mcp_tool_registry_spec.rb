@@ -117,7 +117,7 @@ RSpec.describe McpToolRegistry do
       expect(entries.map(&:tool_name)).to contain_exactly(
         "list_permissions", "explain_permission", "grant_permission", "deny_permission",
         "revoke_permission", "create_permission_lease", "revoke_permission_lease",
-        "apply_permission_preset", "cancel_authorization_request"
+         "apply_permission_preset", "cancel_authorization_request", "request_permission"
       )
       expect(entries).to all(have_attributes(explicit_descriptor: true, compatibility_descriptor: false, tier: :deferred))
     end
@@ -144,15 +144,6 @@ RSpec.describe McpToolRegistry do
       expect(tool_names_for(context, tier: :essential)).to include("list_jobs")
       expect(described_class.entries(surface: :coworker).find { |entry| entry.tool_name == "list_jobs" }.descriptor.requestable_roles)
         .to include(AgentRole::COWORKER_CHAT, AgentRole::COWORKER)
-    end
-
-    it "returns the legacy tool set when shadow comparison raises" do
-      run = Factories.job.initial_run
-      context = McpToolContext.from_run(run)
-      expected = described_class.tools_for_context(context)
-      allow(Permissions::ShadowEvaluator).to receive(:compare).and_raise("policy infrastructure unavailable")
-
-      expect(described_class.tools_for_context(context)).to eq(expected)
     end
 
     it "keeps the planner chat tool set unchanged" do

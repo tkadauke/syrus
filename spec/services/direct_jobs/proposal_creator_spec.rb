@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe DirectJobs::ProposalCreator do
+RSpec.describe DirectJobs::ProposalCreator, :full_chat_access do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:epic) { Factories.epic(user: user, repository: repository) }

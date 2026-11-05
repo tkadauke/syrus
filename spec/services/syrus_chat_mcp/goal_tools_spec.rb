@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "goal MCP tools" do
+RSpec.describe "goal MCP tools", :full_chat_access do
   let(:user) { Factories.user }
   let(:chat) { ChatSession.create!(user: user) }
   let(:server_context) { { chat_session: chat } }

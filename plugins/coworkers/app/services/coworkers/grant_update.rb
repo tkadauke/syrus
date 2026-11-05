@@ -21,21 +21,19 @@ class Coworkers::GrantUpdate
     raise ArgumentError, "approval policy exceeds maximum #{descriptor.maximum_policy}" unless Coworkers::GrantCatalog.policy_allowed?(descriptor, @approval_policy)
 
     target = Coworkers::GrantPolicy.for(@approval_policy)
-    grant = @coworker.grants.find_by(capability: @capability)
-    return grant&.destroy! if @approval_policy == "off"
-    scope = @scope.equal?(SCOPE_UNCHANGED) ? grant&.scope : @scope
+    current_entry = @coworker.permission_rules.entries.find { |entry| entry.fetch(:capability) == @capability }
+    current_entry ||= { approval_policy: "off", constraints: {}, scope: nil }
+    scope = @scope.equal?(SCOPE_UNCHANGED) ? current_entry[:scope] : @scope
     raise ArgumentError, "invalid scope for #{@capability}" unless descriptor.valid_scope?(scope, user: @owner)
-    current = grant&.approval_policy || "off"
-    scope_escalated = grant && descriptor.scopeable? && grant.scope != scope
-    constraints_escalated = constraints_more_permissive?(grant)
+    current = current_entry.fetch(:approval_policy)
+    scope_escalated = current != "off" && descriptor.scopeable? && current_entry[:scope] != scope
+    constraints_escalated = constraints_more_permissive?(current_entry)
     if (target.escalation_from?(current) || constraints_escalated || scope_escalated) && !@confirmed
       raise ConfirmationRequired, "grant escalation requires confirmation"
     end
 
-    Coworkers::Grant.transaction do
-      grant ||= @coworker.grants.build(capability: @capability)
-      grant.update!(approval_policy: @approval_policy, constraints: normalized_constraints, scope: scope)
-    end
+    @coworker.permission_rules.update!(capability: @capability, approval_policy: @approval_policy,
+      constraints: normalized_constraints, scope:, actor: @owner, provenance: { "coworker_grant_editor" => true })
   end
 
   private
@@ -63,14 +61,15 @@ class Coworkers::GrantUpdate
     paths.empty? ? {} : { "confirm_paths" => paths }
   end
 
-  def constraints_more_permissive?(grant)
+  def constraints_more_permissive?(entry)
     return false if @approval_policy == "off"
-    return false unless grant
+    return false unless entry
+    return false if entry[:approval_policy] == "off"
     if @capability.in?([ "coworker.spawn_chat", "syrus.spawn_chat" ])
       current = {
         "max_spawns_per_run" => Coworkers::SpawnChatTool::DEFAULT_PER_RUN_CAP,
         "max_spawns_per_day" => Coworkers::SpawnChatTool::DEFAULT_PER_DAY_CAP
-      }.merge(grant.constraints.to_h)
+      }.merge(entry[:constraints].to_h)
       target = normalized_constraints
       return %w[max_spawns_per_run max_spawns_per_day].any? do |key|
         target.fetch(key) > current.fetch(key, 0).to_i
@@ -78,7 +77,7 @@ class Coworkers::GrantUpdate
     end
     return false unless @capability == "workspace.files"
 
-    current_paths = Array(grant.constraints["confirm_paths"]).map { |path| normalized_workspace_path(path) }.to_set
+    current_paths = Array(entry[:constraints]["confirm_paths"]).map { |path| normalized_workspace_path(path) }.to_set
     target_paths = Array(normalized_constraints["confirm_paths"]).map(&:to_s).to_set
     (current_paths - target_paths).any?
   end

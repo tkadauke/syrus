@@ -266,9 +266,7 @@ module Api
 
         def scope = CoworkerPolicy::Scope.new(Current.user, Coworkers::Coworker.all).resolve
 
-        def find_coworker
-          scope.includes(:grants, coworker_chats: :chat_session).find(params[:id])
-        end
+        def find_coworker = scope.includes(coworker_chats: :chat_session).find(params[:id])
 
         def owned_chat
           ChatSession.active.find_by!(id: params[:chat_id], user_id: Current.user.id)
@@ -351,10 +349,7 @@ module Api
               { id: link.chat_session_id, link_id: link.id, role: link.role, title: link.chat_session.title,
                 path: "/chats/#{link.chat_session_id}", unsaved_workspace: link.unsaved_workspace_json }
             },
-            grants: coworker.grants.order(:capability).map { |grant|
-              { capability: grant.capability, approval_policy: grant.approval_policy, constraints: grant.constraints }
-                .merge(grant.scope.nil? ? {} : { scope: grant.scope })
-            },
+            grants: coworker.permission_rules.entries.reject { |entry| entry[:approval_policy] == "off" },
             permission_cutover_report: Coworkers::PermissionCutoverReport.new(coworker: coworker).as_json,
             grant_catalog: grant_catalog_json,
             schedules: coworker.schedules.alive.order(:created_at).map { |task| schedule_json(task) },

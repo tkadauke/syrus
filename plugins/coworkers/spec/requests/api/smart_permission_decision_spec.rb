@@ -33,7 +33,11 @@ RSpec.describe "Smart permission decisions", type: :request do
   let(:action) do
     tool = Mcp::Sidecar.chat_tools(chat.reload, tier: :essential).find { |t| McpToolRegistry.tool_name_for(t) == "message_coworker" }
     payload = JSON.parse(tool.call(handle: "maya", text: "Hello", server_context: { chat_session: chat }).content.first.fetch(:text))
-    chat.pending_actions.find(payload.fetch("pending_action_id"))
+    chat.pending_actions.find(payload.fetch("pending_action_id")).tap do |pending|
+      # The request records the durations its requesting descriptor offers;
+      # mirror the catalog variant stubbed above onto it.
+      pending.authorization_items.update_all(requested_durations: descriptor.authority_durations.map(&:to_s))
+    end
   end
   let(:item) { action.authorization_items.find_by!(kind: "operation") }
 

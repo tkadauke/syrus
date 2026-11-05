@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Coworkers::RemoteWorkspace do
+RSpec.describe Coworkers::RemoteWorkspace, :allow_host_execution do
   let(:user) { Factories.user }
 
   around do |example|

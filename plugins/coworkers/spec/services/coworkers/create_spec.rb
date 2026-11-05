@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Coworkers::Create do
+RSpec.describe Coworkers::Create, :allow_host_execution do
   class FakeCoworkerRemote
     attr_reader :repository, :seeded_files, :seeded_identity, :deleted_branches
     attr_accessor :branch_exists, :fail_access, :fail_seed, :delete_error
@@ -105,12 +105,53 @@ RSpec.describe Coworkers::Create do
     )
     expect(remote.seeded_identity).to have_attributes(git_name: "Maya (@maya)", git_email: "maya@coworkers.syrus.invalid")
     expect(coworker).to have_attributes(accent_hex: "#0090FF", role_summary: "not set up yet")
-    expect(coworker.grants.pluck(:capability, :approval_policy).to_h).to eq(described_class::DEFAULT_GRANTS)
-    expect(coworker.grants.find_by!(capability: "chat.message_owner")).to have_attributes(approval_policy: "confirm")
+    policies = coworker.permission_rules.entries.to_h { |entry| [ entry[:capability], entry[:approval_policy] ] }
+    expect(policies.slice(*described_class::DEFAULT_GRANTS.keys)).to eq(described_class::DEFAULT_GRANTS)
+    expect(coworker.grants).to be_empty
     expect(coworker.coworker_chats.find_by!(role: "main").chat_session.repository).to eq(repository)
     expect(coworker.schedules.where(system_key: "journaling")).to contain_exactly(
       have_attributes(name: "Journaling", kind: "cron", after_run: "quiet")
     )
+  end
+
+  it "preserves configured grant constraints in canonical rules" do
+    coworker = create_service(grants: [ { capability: "workspace.files",
+      constraints: { "confirm_paths" => [ "SOUL.md" ] } } ]).call
+
+    expect(coworker.permission_rules.entries).to include(include(
+      capability: "workspace.files", approval_policy: "auto",
+      constraints: { "confirm_paths" => [ "SOUL.md" ] }
+    ))
+  end
+
+  it "preserves configured grant constraints in canonical rules" do
+    coworker = create_service(grants: [ { capability: "workspace.files",
+      constraints: { "confirm_paths" => [ "SOUL.md" ] } } ]).call
+
+    expect(coworker.permission_rules.entries).to include(include(
+      capability: "workspace.files", approval_policy: "auto",
+      constraints: { "confirm_paths" => [ "SOUL.md" ] }
+    ))
+  end
+
+  it "preserves configured grant constraints in canonical rules" do
+    coworker = create_service(grants: [ { capability: "workspace.files",
+      constraints: { "confirm_paths" => [ "SOUL.md" ] } } ]).call
+
+    expect(coworker.permission_rules.entries).to include(include(
+      capability: "workspace.files", approval_policy: "auto",
+      constraints: { "confirm_paths" => [ "SOUL.md" ] }
+    ))
+  end
+
+  it "preserves configured grant constraints in canonical rules" do
+    coworker = create_service(grants: [ { capability: "workspace.files",
+      constraints: { "confirm_paths" => [ "SOUL.md" ] } } ]).call
+
+    expect(coworker.permission_rules.entries).to include(include(
+      capability: "workspace.files", approval_policy: "auto",
+      constraints: { "confirm_paths" => [ "SOUL.md" ] }
+    ))
   end
 
   it "returns the completed coworker for duplicate delivery without duplicating records or branches" do

@@ -249,6 +249,7 @@ RSpec.describe Mcp::Sidecar do
 
     it "keeps one deferred tool from each new MCP epic callable after deferred resolution" do
       admin = Factories.user(admin: true)
+      grant_full_chat_access(admin)
       admin_repository = Factories.repository(user: admin)
       admin_session = ChatSession.create!(user: admin, repository: admin_repository, title: "Admin chat")
       server = server_for(admin_session, tier: :deferred)

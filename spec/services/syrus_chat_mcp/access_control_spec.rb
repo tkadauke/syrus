@@ -1,7 +1,7 @@
 require "rails_helper"
 require "ostruct"
 
-RSpec.describe "Mcp::Tools access control" do
+RSpec.describe "Mcp::Tools access control", :full_chat_access do
   # Consume the first-user admin-promotion slot so subsequent users are not auto-promoted.
   let!(:_bootstrap_admin) { Factories.user(admin: true) }
 

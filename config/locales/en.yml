@@ -42,6 +42,7 @@ en:
   server:
     permissions:
       coworker_request_waiting: "Waiting for the owner to decide the required permissions."
+      policy_evaluated: "Canonical permission policy evaluated"
       coworker_permission:
         requested: "Permission request sent to the owner. It grants nothing until the owner approves it."
         deduplicated: "An equivalent permission request is already waiting for the owner."

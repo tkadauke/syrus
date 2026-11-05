@@ -16,7 +16,6 @@ module Coworkers::McpTools
       def call(server_context:, coworker_id: nil, handle: nil)
         owner = server_context.fetch(:chat_session).user
         coworker = Coworkers::OwnerResolver.new(owner: owner).find!(id: coworker_id, handle: handle)
-        coworker.grants.load
         coworker.coworker_chats.includes(:chat_session).load
         Mcp::Tools.success(coworker: Coworkers::McpPresenter.new(coworker).detail)
       rescue ActiveRecord::RecordNotFound

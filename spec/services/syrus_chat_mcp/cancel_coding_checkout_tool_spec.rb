@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Mcp::Tools::CancelCodingCheckoutTool do
+RSpec.describe Mcp::Tools::CancelCodingCheckoutTool, full_chat_access: :all do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user, default_branch: "main") }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository, mode: "coding", coding_checkout_branch: "syrus/job-42") }

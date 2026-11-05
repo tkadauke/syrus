@@ -5,7 +5,7 @@ module Permissions
   # name). Shared by the chat card and the approval inbox so both render the
   # same payload and apply it through the same code path.
   class SmartDecision
-    SUPPORTED_ACTIONS = %w[ coworker_tool_call coworker_permission_request ].freeze
+    SUPPORTED_ACTIONS = %w[ authorized_tool_call coworker_tool_call coworker_permission_request ].freeze
     DURATION_RANK = { "chat_session" => 0, "job" => 1, "permanent" => 2 }.freeze
     # Strongest first. Permanent authority is only ever offered for the exact
     # coworker that asked; "similar" never widens to a role or chat type.
@@ -63,6 +63,7 @@ module Permissions
 
     def candidate_durations
       CANDIDATES.select do |duration|
+        next false unless item.requested_durations.include?(duration)
         next false if duration_above_request?(duration)
 
         case duration
@@ -83,7 +84,10 @@ module Permissions
     end
 
     def permitted?(duration, preview)
-      duration != "permanent" || preview.draft.dig(:subject, :type) == "agent"
+      return true unless duration == "permanent" && request.action == CoworkerPermissionRequest::ACTION
+      return true unless request.runtime_role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+
+      preview.draft.dig(:subject, :type) == "agent"
     end
 
     def draft_for(duration)

@@ -321,9 +321,11 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | PATCH | `/api/v1/app/permission_rules/:id` | `api/v1/app/permission_rules#update` |
 | core | POST | `/api/v1/app/permission_rules/:id/revoke` | `api/v1/app/permission_rules#revoke` |
 | core | POST | `/api/v1/app/permission_rules/apply_preset` | `api/v1/app/permission_rules#apply_preset` |
+| core | POST | `/api/v1/app/permission_rules/apply_profile` | `api/v1/app/permission_rules#apply_profile` |
 | core | POST | `/api/v1/app/permission_rules/bulk` | `api/v1/app/permission_rules#bulk` |
 | core | GET | `/api/v1/app/permission_rules/history` | `api/v1/app/permission_rules#history` |
 | core | POST | `/api/v1/app/permission_rules/preview_bulk` | `api/v1/app/permission_rules#preview_bulk` |
+| core | POST | `/api/v1/app/permission_rules/preview_profile` | `api/v1/app/permission_rules#preview_profile` |
 | core | GET | `/api/v1/app/platform_identities` | `api/v1/app/platform_identities#index` |
 | core | DELETE | `/api/v1/app/platform_identities/:id` | `api/v1/app/platform_identities#destroy` |
 | core | POST | `/api/v1/app/platform_identities/linking_token` | `api/v1/app/platform_identities#linking_token` |

@@ -531,7 +531,7 @@ RSpec.describe BaseRevisionRetry do
     )
   end
 
-  it "kills a hung base command when the timeout expires" do
+  it "kills a hung base command when the timeout expires", :allow_host_execution do
     stub_const("#{described_class}::TIMEOUT_SECONDS", 1)
     child_pid_path = @workspace_path.join("child.pid")
     grader_step.update!(details: grader_step.details.merge(

@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "runtime_* MCP tools (DOC-17)" do
+RSpec.describe "runtime_* MCP tools (DOC-17)", full_chat_access: :all do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository, mode: "coding") }

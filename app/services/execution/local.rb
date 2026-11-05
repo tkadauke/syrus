@@ -5,7 +5,7 @@ module Execution
       unless request.local_runner.respond_to?(:run_with_local_backend)
         raise InvalidRequest, "local_runner must implement #run_with_local_backend"
       end
-      request.local_runner.run_with_local_backend
+      request.local_runner.run_with_local_backend(on_spawned_process: request.on_spawned_process)
     end
   end
 end

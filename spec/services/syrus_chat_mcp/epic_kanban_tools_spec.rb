@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "Mcp::Tools epic kanban tools" do
+RSpec.describe "Mcp::Tools epic kanban tools", :full_chat_access do
   let!(:_bootstrap_admin) { Factories.user(admin: true) }
   let!(:_enabled_chat_providers) do
     %w[claude_agent codex_agent agy_agent].each do |plugin_name|
@@ -330,6 +330,7 @@ RSpec.describe "Mcp::Tools epic kanban tools" do
 
     it "allows an admin to update another user's Epic" do
       admin = Factories.user(admin: true)
+      grant_full_chat_access(admin)
       other_user = Factories.user
       other_epic = Factories.epic(user: other_user, repository: Factories.repository(user: other_user), title: "Old")
       admin_session = ChatSession.create!(user: admin, chat_provider: "claude")

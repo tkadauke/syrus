@@ -1,5 +1,6 @@
 require "digest"
 require_dependency "permissions/resource_scope_schema"
+require_dependency "permissions/tool_set_bundles"
 
 module Permissions
   class CapabilityDescriptor
@@ -32,13 +33,13 @@ module Permissions
       :defaults, :maximum_autonomy, :authority_durations, :maximum_duration,
       :resource_scope, :classifier, :fingerprint_normalizer, :redactor, :presets,
       :capability_aliases, :operation_aliases, :constraint_fields,
-      :fresh_authentication_window, :budget_dimensions, :benign_internal
+      :fresh_authentication_window, :budget_dimensions, :benign_internal, :tool_set_bundle
 
     def initialize(capability:, operation:, effects:, risk:, requestable_roles:, defaults:,
       maximum_autonomy:, authority_durations:, resource_scope:, classifier:,
       fingerprint_normalizer:, redactor:, maximum_duration: nil, presets: [],
       capability_aliases: [], operation_aliases: [], constraint_fields: {},
-      fresh_authentication_window: nil, budget_dimensions: [], benign_internal: nil)
+      fresh_authentication_window: nil, budget_dimensions: [], benign_internal: nil, tool_set_bundle: nil)
       @capability = versioned_identifier(capability, :capability)
       @operation = versioned_identifier(operation, :operation)
       @effects = Array(effects).map(&:to_sym).uniq.freeze
@@ -57,6 +58,7 @@ module Permissions
       @fresh_authentication_window = fresh_authentication_window
       @budget_dimensions = Array(budget_dimensions).map(&:to_sym).uniq.freeze
       @benign_internal = benign_internal&.to_sym
+      @tool_set_bundle = (tool_set_bundle.presence || ToolSetBundles.classify(@effects)).to_s.freeze
       @capability_aliases = aliases(capability_aliases, :capability_aliases)
       @operation_aliases = aliases(operation_aliases, :operation_aliases)
       validate!
@@ -101,7 +103,8 @@ module Permissions
         constraint_fields: constraint_fields,
         fresh_authentication_window: fresh_authentication_window,
         budget_dimensions: budget_dimensions,
-        benign_internal: benign_internal
+        benign_internal: benign_internal,
+        tool_set_bundle: tool_set_bundle
       }
     end
 
@@ -144,6 +147,11 @@ module Permissions
       end
       unknown_budget = budget_dimensions - BUDGET_DIMENSIONS
       raise ArgumentError, "unknown budget dimensions: #{unknown_budget.join(', ')}" if unknown_budget.any?
+      ToolSetBundles.fetch(tool_set_bundle)
+      expected_bundle = ToolSetBundles.classify(effects) if effects.present?
+      if expected_bundle && tool_set_bundle != expected_bundle
+        raise ArgumentError, "tool-set bundle #{tool_set_bundle.inspect} conflicts with effect-derived #{expected_bundle.inspect}"
+      end
       if benign_internal
         raise ArgumentError, "unknown benign internal kind: #{benign_internal}" unless BENIGN_INTERNAL_KINDS.include?(benign_internal)
         unless risk == :low && (effects - %i[internal_write local_read]).empty? && effects.include?(:internal_write)

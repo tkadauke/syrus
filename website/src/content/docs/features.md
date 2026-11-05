@@ -30,6 +30,24 @@ lifecycle, origins and use counts, requests and decisions, escalations,
 dismissals, policy changes, revocations, and execution outcomes. Stored
 evidence is redacted before display.
 
+Interactive, Coding, Local, coworker, scheduled, and workflow agents share one
+authorization-request path. When policy requires approval, Syrus deduplicates
+the exact redacted operation, releases the waiting chat turn or workflow Run,
+and resumes that same operation once with the approved result or a structured
+denial. Ordinary chats can also ask for narrowly scoped authority for
+themselves; persistent coworkers retain additional request limits and safety
+boundaries.
+
+Being available to an ordinary Syrus Chat does not itself authorize a tool.
+Each call goes through the same permission evaluator. Safe defaults remain
+frictionless; an ask-on-first-use decision shows one compact approval for the
+tool's capability bundle and the scopes that are actually safe to grant. You
+can allow only the waiting call, the current chat, or a durable scoped rule
+when the capability supports it. Syrus then resumes the exact fingerprinted
+call once. Denials stop before execution and explain why. A proposal or
+transaction that already has its own confirmation does not add a redundant
+permission prompt in front of that review.
+
 The approval inbox at `/permissions/inbox` collects operational requests from
 chats and background work. A compact global drawer and inline Job cards show
 the same durable request in the same plain-English wording as the chat card:
@@ -80,6 +98,14 @@ scope and status, the always-human exclusions, and the history of AI decisions.
 The view stays inert until a provider plugin is installed and you add an
 explicit delegation. Revoking a delegation takes effect immediately, and
 workflow agents cannot create or revoke delegations.
+
+The same canonical policy evaluator governs ordinary chat, coworkers, Local
+Mode, scheduled work, and workflow agents. Benign descriptor defaults remain
+automatic; an `ask` always pauses at an approval boundary and never becomes an
+implicit allow. Exact-invocation fingerprints make approved work resumable,
+while revocation is checked again when queued work is claimed or an effect is
+dispatched. Administrators can inspect redacted effective-policy diagnostics
+grouped by actor, role, capability, and invocation without exposing arguments.
 
 Each approval provider declares an operator-facing disclosure of where evidence
 is processed and how it is retained. A provider receives the complete role-labelled
@@ -1763,6 +1789,27 @@ automatic post-approval export trigger.
 
 ## Lifecycle-bound permission authority
 
+Permission setup has three versioned starting profiles. **Full access** grants
+every eligible delegable capability, **Ask on first use** pauses at the first
+consequential use, and **Restricted** permits safe isolated workspace work
+while denying other capabilities. Profiles use the same evaluator as custom
+rules, so resource authorization, provider ceilings, confinement, credentials,
+nondelegable operations, and invocation-time safety classification still apply.
+Quiet isolated work is limited to low-risk reads and workspace writes; code
+execution still asks under Ask on first use and remains denied by Restricted.
+Operators select or change these profiles per interactive, Coding, or Local chat
+surface at the top of the Permissions Hub. The confirmation explains that a
+profile replaces that surface's custom rules, lists the exact rules removed and
+allow/ask/deny rules added, and previews the boundaries that remain enforced.
+Syrus refuses a stale confirmation if those rules change meanwhile.
+Fine-grained capability and resource controls stay available
+below, but are not required for initial setup.
+
+Core and plugin tools share five human-sized bundles: Workspace, Knowledge,
+Collaboration, Operations, and Administration. Plugin capabilities join these
+bundles by their declared effects rather than receiving authority merely
+because the plugin is installed or enabled.
+
 Syrus's permission foundation distinguishes permanent scoped rules from
 temporary authority. Temporary authority can cover one exact invocation, the
 current chat session, or the current Job; Workflow and Run retries do not create
@@ -1774,6 +1821,23 @@ Before each invocation, Syrus rechecks the current policy ceilings, subject,
 resource scope, lifecycle, fingerprint, and remaining uses. Authority that was
 valid when granted cannot override a later deny or execute after its scope has
 ended.
+
+Workflow tools derive their owner and repository scope from the Job and their
+runtime role from the current Step. When one needs approval, the Run releases
+its provider process at a durable checkpoint and resumes the exact invocation
+after approval, or resumes with a structured denial. Scheduled tools use the
+schedule owner's durable preauthorization; equivalent later fires share one
+request and skip only the gated operation instead of treating silence as
+approval.
+
+Processes launched through Syrus's execution router require an explicit allow:
+both deny and ask stop the process before spawn because an arbitrary command has
+no safe exact-invocation replay boundary. One-use authority is committed only
+when the backend reports a spawned process, so a ceiling rejection or startup
+failure does not consume it. Provider-native shell, file, browser,
+and web tools remain outside this broker when they execute inside a provider
+CLI. For hard enforcement, disable or restrict those native tools and use
+brokered Syrus tools or confined execution instead.
 
 Agents can list and explain the operator's permissions, but they cannot silently
 change them. Grant, deny, revoke, temporary-lease, preset, and obsolete-request
@@ -1803,6 +1867,11 @@ fingerprinted operation request, and equivalent active requests are reused.
 Approval issues a single-use invocation lease. The worker atomically claims it,
 re-evaluates current policy, verifies the exact arguments, and refuses duplicate
 or revoked execution. Explicitly safe local operations remain ungated.
+
+During upgrade, existing coworker grants become exact-coworker permission
+rules with migration provenance. The original records remain as historical
+evidence, while all new coworker setup and permission changes use the same
+canonical rules shown in Settings → Permissions.
 
 ## Permission parity diagnostics
 

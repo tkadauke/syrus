@@ -12,8 +12,35 @@ module Api
           render json: {
             rules: management.rules(active: false).map { |rule| serialize_rule(rule) },
             inherited: Permissions::Catalog.descriptors.map { |descriptor| serialize_descriptor(descriptor, management:, active_rules:) },
+            profiles: Permissions::PermissionProfiles.all.map(&:to_h),
+            current_profiles: PermissionRule::SUBJECT_SELECTORS.filter_map { |subject, definition|
+              next unless definition[:role]
+              [ subject, management.current_profile(subject_selector_type: subject) ]
+            }.to_h,
             ownership: { editable_layer: "agent", owner_user_id: Current.user.id }
           }
+        end
+
+        def preview_profile
+          plan = profile_plan
+          render json: { preview: serialize_profile_plan(plan), confirmation_digest: profile_digest(plan) }
+        rescue ActiveRecord::RecordInvalid, ArgumentError, KeyError => error
+          render_error("invalid_permission_profile", error.message, status: :unprocessable_entity)
+        end
+
+        def apply_profile
+          subject = params.require(:subject_selector_type)
+          rules = PermissionRule.transaction do
+            plan = profile_plan(lock: true)
+            unless ActiveSupport::SecurityUtils.secure_compare(params[:confirmation_digest].to_s, profile_digest(plan))
+              return render_error("stale_permission_preview", I18n.t("api.permission_rules.stale_preview"), status: :conflict)
+            end
+
+            Permissions::Management.new(Current.user).apply_profile!(plan:, actor: Current.user)
+          end
+          render json: { rules: rules.map { |rule| serialize_rule(rule) }, profile: params[:profile], subject_selector_type: subject }
+        rescue ActiveRecord::RecordInvalid, ArgumentError, KeyError => error
+          render_error("invalid_permission_profile", error.message, status: :unprocessable_entity)
         end
 
         def history
@@ -93,6 +120,31 @@ module Api
             :capability, :operation, :rationale, :dynamic_future_roles,
             subject_role_keys: [], resource_scope: {}, constraints: {}
           )
+        end
+
+        def profile_plan(lock: false)
+          Permissions::Management.new(Current.user).profile_plan(
+            profile_key: params.require(:profile), subject_selector_type: params.require(:subject_selector_type), lock:
+          )
+        end
+
+        def serialize_profile_plan(plan)
+          {
+            profile: plan.fetch(:profile).to_h,
+            subject_selector_type: plan.fetch(:subject_selector_type),
+            revoked: plan.fetch(:revoked_rules).map { |rule| serialize_rule(rule) },
+            replacements: plan.fetch(:replacements).map do |replacement|
+              descriptor = replacement.fetch(:descriptor)
+              {
+                policy: replacement.fetch(:policy), capability: descriptor.capability,
+                operation: descriptor.operation, resource_scope_label: scope_label(descriptor, {})
+              }
+            end
+          }
+        end
+
+        def profile_digest(plan)
+          OpenSSL::HMAC.hexdigest("SHA256", Rails.application.secret_key_base, JSON.generate(serialize_profile_plan(plan)))
         end
 
         def permission_preset_params

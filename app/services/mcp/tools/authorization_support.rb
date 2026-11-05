@@ -15,6 +15,10 @@ module Mcp::Tools
   module AuthorizationSupport
     class AuthorizationError < StandardError; end
 
+    # Ownership/visibility failures stay opaque: the refusal never says whether
+    # the record exists or why it cannot be read.
+    class NotAccessible < AuthorizationError; end
+
     module ToolDispatch
       def call(*args, server_context: nil, **kwargs, &block)
         Mcp::Tools::AuthorizationSupport.with_server_context(server_context) do
@@ -22,11 +26,13 @@ module Mcp::Tools
           return scheduled if scheduled
           pending = Mcp::Tools::AuthorizationSupport.pending_coworker_approval(self, server_context, kwargs)
           return pending if pending
+          pending = Mcp::Tools::AuthorizationSupport.pending_actor_approval(self, server_context, kwargs)
+          return pending if pending
 
           super(*args, server_context: server_context, **kwargs, &block)
         end
-      rescue Mcp::Tools::AuthorizationSupport::AuthorizationError
-        Mcp::Tools.not_authorized
+      rescue Mcp::Tools::AuthorizationSupport::AuthorizationError => error
+        error.is_a?(Mcp::Tools::AuthorizationSupport::NotAccessible) ? Mcp::Tools.not_authorized : Mcp::Tools.not_authorized(reason: error.message)
       end
     end
 
@@ -68,11 +74,64 @@ module Mcp::Tools
           arguments:, always_pending: protected_path)
       end
 
+      def pending_actor_approval(tool, server_context, arguments)
+        context = McpToolContext.from_server_context(server_context)
+        return if context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+
+        # The chat descriptor describes chat authority; run-surface tools resolve
+        # through their own enforcement and must not be judged by it.
+        return unless context.chat?
+
+        entry = McpToolRegistry.entry_for(tool)
+        return unless entry
+
+        descriptor = entry.descriptor
+        return if entry.ungated
+        # Local command/file effects have their own canonical evaluator and
+        # resumable local_tool_call boundary inside the tool. Do not create a
+        # second generic request in front of that same decision.
+        return if context.role == AgentRole::CHAT_LOCAL && Permissions::LocalModeActions.covers?(McpToolRegistry.tool_name_for(tool))
+        # A tool whose result is itself a PendingAction already stops at the
+        # established operator-confirmation boundary. Wrapping that tool call
+        # in another authorization request hides its preflight and creates a
+        # redundant approval before the real action can even be reviewed.
+        return if pending_action_tool?(tool)
+        return if claimed_actor_invocation_authorizes?(descriptor, context, server_context, arguments, tool)
+
+        result = Permissions::AuthorizationRequest.new(
+          context:, descriptor:, arguments:, purpose: "Invoke #{McpToolRegistry.tool_name_for(tool)}",
+          action: "authorized_tool_call",
+          payload: {
+            "tool_name" => McpToolRegistry.tool_name_for(tool), "arguments" => arguments.stringify_keys,
+            "tool_set_bundle" => descriptor.tool_set_bundle,
+            "run_id" => context.run&.id, "origin_message_id" => server_context[:current_message]&.id,
+            "approval_policy" => context.interactive ? "inline" : "queue", "approval_inbox" => true,
+            "actor" => approval_actor(context.agent_actor || context.user)
+          }.compact
+        ).call
+        return if result.request.nil?
+
+        request = result.request
+        request.checkpoint_authorization!(payload: {
+          tool_name: McpToolRegistry.tool_name_for(tool), arguments: arguments,
+          invocation_fingerprint: request.authorization_items.first.invocation_fingerprint
+        })
+        server_context[:current_message]&.update_columns(pending_action_id: request.id)
+        Mcp::Tools.success(
+          authorization_request_id: request.id, pending_action_id: request.id,
+          authorization_status: "waiting", requested_durations: request.authorization_items.first.requested_durations,
+          tool_set_bundle: descriptor.tool_set_bundle,
+          message: I18n.t("server.permissions.coworker_request_waiting")
+        )
+      end
+
       def protected_coworker_workspace_path?(context, descriptor, arguments)
         return false unless descriptor.capability == "workspace.files"
 
-        grant = context.agent_actor&.grants&.find_by(capability: "workspace.files")
-        protected_paths = Array(grant&.constraints&.fetch("confirm_paths", nil)).filter_map do |path|
+        rules = context.agent_actor&.permission_rules&.rules || PermissionRule.none
+        protected_paths = rules.where(capability: [ "workspace.files", "workspace.files@v1" ]).flat_map do |rule|
+          Array(rule.constraints["confirm_paths"])
+        end.filter_map do |path|
           normalized_coworker_workspace_path(path)
         end
         requested_paths = [ arguments[:path], arguments[:source], arguments[:destination] ].compact.filter_map do |path|
@@ -200,6 +259,29 @@ module Mcp::Tools
         ActiveSupport::SecurityUtils.secure_compare(invocation.invocation_fingerprint, fingerprint) ||
           raise(AuthorizationError, "authorized invocation fingerprint does not match")
       end
+
+      def claimed_actor_invocation_authorizes?(descriptor, context, server_context, arguments, tool)
+        invocation_id = server_context[:authorized_invocation_id]
+        return false if invocation_id.blank?
+
+        invocation = AuthorizedInvocation.find_by(id: invocation_id)
+        claimant = context.agent_actor || context.user
+        raise AuthorizationError, "authorized invocation is unavailable" unless invocation&.claimed?
+        raise AuthorizationError, "authorized invocation claim does not match" unless
+          invocation.claim_key == server_context[:authorized_invocation_claim_key] &&
+          invocation.claimed_by == claimant && invocation.tool_name == McpToolRegistry.tool_name_for(tool)
+
+        fingerprint = Permissions::InvocationFingerprint.call(descriptor:, arguments:)
+        ActiveSupport::SecurityUtils.secure_compare(invocation.invocation_fingerprint, fingerprint) ||
+          raise(AuthorizationError, "authorized invocation fingerprint does not match")
+      end
+
+      def pending_action_tool?(tool)
+        PendingActions.for(McpToolRegistry.tool_name_for(tool))
+        true
+      rescue PendingActions::UnknownAction
+        false
+      end
     end
 
     def admin?
@@ -220,7 +302,7 @@ module Mcp::Tools
       scope = scope.includes(includes) if includes
       scope.find_by!(id: id)
     rescue ActiveRecord::RecordNotFound
-      raise AuthorizationError, "job not found or not accessible"
+      raise NotAccessible, "job not found or not accessible"
     end
 
     def find_epic!(id, includes: nil)
@@ -228,7 +310,7 @@ module Mcp::Tools
       scope = scope.includes(includes) if includes
       scope.find_by!(id: id)
     rescue ActiveRecord::RecordNotFound
-      raise AuthorizationError, "epic not found or not accessible"
+      raise NotAccessible, "epic not found or not accessible"
     end
 
     def find_workflow!(id, includes: nil)
@@ -237,7 +319,7 @@ module Mcp::Tools
       scope = scope.includes(includes) if includes
       scope.find_by!(id: id)
     rescue ActiveRecord::RecordNotFound
-      raise AuthorizationError, "workflow not found or not accessible"
+      raise NotAccessible, "workflow not found or not accessible"
     end
 
     def find_run!(id)
@@ -245,14 +327,14 @@ module Mcp::Tools
       scope = scope.where(id: mcp_context.allowed_run_ids) if mcp_context&.allowed_run_ids
       scope.find_by!(id: id)
     rescue ActiveRecord::RecordNotFound
-      raise AuthorizationError, "run not found or not accessible"
+      raise NotAccessible, "run not found or not accessible"
     end
 
     def find_chat_session!(id)
       scope = accessible_chat_sessions_scope
       scope.find_by!(id: id)
     rescue ActiveRecord::RecordNotFound
-      raise AuthorizationError, "chat session not found or not accessible"
+      raise NotAccessible, "chat session not found or not accessible"
     end
 
     def accessible_chat_sessions_scope
@@ -266,7 +348,7 @@ module Mcp::Tools
       return resource if admin?
 
       owner = resource.try(:user) || resource.try(:repository)&.user
-      raise AuthorizationError, "not authorized" unless owner == current_user
+      raise NotAccessible, "not authorized" unless owner == current_user
 
       resource
     end

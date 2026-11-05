@@ -120,6 +120,7 @@ module Admin
       apply_permission_preset
       approve_job
       archive_epic
+      authorized_tool_call
       base_refresh_retry_job
       cancel_authorization_request
       cancel_job
@@ -257,6 +258,14 @@ module Admin
 
       def descriptor_coverage
         Permissions::CapabilityRegistryValidator.for_application.coverage
+      end
+
+      def permission_profiles
+        Permissions::PermissionProfiles.all.map(&:to_h)
+      end
+
+      def tool_set_bundles
+        Permissions::ToolSetBundles.all.map(&:to_h)
       end
 
       def validate_descriptors!

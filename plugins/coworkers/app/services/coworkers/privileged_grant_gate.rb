@@ -28,9 +28,10 @@ module Coworkers
       end
 
       def allowed_capabilities(coworker)
-        coworker.grants.filter_map do |grant|
-          descriptor = Coworkers::GrantCatalog.fetch(grant.capability)
-          grant.capability if availability(descriptor).available?
+        coworker.permission_rules.entries.filter_map do |entry|
+          next if entry[:approval_policy] == "off"
+          descriptor = Coworkers::GrantCatalog.fetch(entry[:capability])
+          entry[:capability] if availability(descriptor).available?
         rescue KeyError
           nil
         end
@@ -38,7 +39,9 @@ module Coworkers
 
       def confinement_required?(coworker)
         privileged_names = Coworkers::GrantCatalog.all.select(&:privileged).map(&:name)
-        coworker.grants.where(capability: privileged_names).exists?
+        coworker.permission_rules.entries.any? do |entry|
+          privileged_names.include?(entry[:capability]) && entry[:approval_policy] != "off"
+        end
       end
 
       private
