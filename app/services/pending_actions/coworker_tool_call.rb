@@ -4,7 +4,7 @@ module PendingActions
     def authorize_execution!
       return super unless @action.authorization_request?
 
-      unless @action.ready_for_authorized_invocation?(reload: false)
+      unless @action.ready_for_authorized_invocation?
         raise ArgumentError, "authorization request prerequisites are not approved"
       end
 

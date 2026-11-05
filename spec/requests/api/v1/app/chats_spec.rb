@@ -8139,6 +8139,31 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(action.reload).to be_pending
     end
 
+    it "does not let a participant confirm the owner's pending action" do
+      action = owner_chat.pending_actions.create!(action: "pause_landing_queue", payload: {})
+      sign_in_as(participant)
+
+      expect {
+        post "/api/v1/app/chats/#{owner_chat.id}/pending_actions/#{action.id}/confirm"
+      }.not_to have_enqueued_job(ChatPendingActionConfirmationJob)
+
+      expect(response).to have_http_status(:not_found)
+      expect(action.reload).to be_pending
+    end
+
+    it "does not let a chat-share recipient confirm the owner's pending action" do
+      owner_chat.chat_shares.create!(target: stranger, shared_by_user: owner)
+      action = owner_chat.pending_actions.create!(action: "pause_landing_queue", payload: {})
+      sign_in_as(stranger)
+
+      expect {
+        post "/api/v1/app/chats/#{owner_chat.id}/pending_actions/#{action.id}/confirm"
+      }.not_to have_enqueued_job(ChatPendingActionConfirmationJob)
+
+      expect(response).to have_http_status(:forbidden)
+      expect(action.reload).to be_pending
+    end
+
     it "does not let a participant reject the owner's pending action group" do
       job = Factories.job_record(repository: owner_repository, state: "closed")
       group = PendingActionGroup.create_with_members!(
