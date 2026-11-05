@@ -1578,21 +1578,20 @@ function SidebarContent({
           </div>
         </div>
       </div>
-      <div className={mobileDrawer ? "flex-none" : "min-h-0 flex-1 overflow-y-auto"}>
-        <div
-          className={
-            mobileDrawer ? "contents" : `sticky top-0 z-20 space-y-3 bg-white py-4 dark:bg-gray-950 ${collapsed ? "flex flex-col items-center px-0" : "px-3"}`
-          }
-        >
-          {mobileDrawer ? (
-            <div className="sticky top-0 z-20 bg-white px-3 py-3 shadow-sm dark:bg-gray-950" data-sidebar-pinned-actions="new-chat">
-              <NewChatLauncher collapsed={collapsed} disabled={!user || startingChat} onStartChat={onStartChat} />
-            </div>
-          ) : (
-            <NewChatLauncher collapsed={collapsed} disabled={!user || startingChat} onStartChat={onStartChat} />
-          )}
-          {mobileDrawer ? <div className="space-y-3 px-3 pt-3">{secondaryActions}</div> : secondaryActions}
+      {mobileDrawer ? (
+        <div className="sticky top-0 z-20 bg-white px-3 py-3 shadow-sm dark:bg-gray-950" data-sidebar-pinned-actions="new-chat">
+          <NewChatLauncher collapsed={collapsed} disabled={!user || startingChat} onStartChat={onStartChat} />
         </div>
+      ) : null}
+      <div className={mobileDrawer ? "flex-none" : "min-h-0 flex-1 overflow-y-auto"}>
+        {mobileDrawer ? (
+          <div className="space-y-3 px-3 pt-3">{secondaryActions}</div>
+        ) : (
+          <div className={`sticky top-0 z-20 space-y-3 bg-white py-4 dark:bg-gray-950 ${collapsed ? "flex flex-col items-center px-0" : "px-3"}`}>
+            <NewChatLauncher collapsed={collapsed} disabled={!user || startingChat} onStartChat={onStartChat} />
+            {secondaryActions}
+          </div>
+        )}
         <div className={`${collapsed ? "px-0" : "px-3"} pb-4`}>
           <nav aria-label={t("nav:primary_nav_aria")} className={`flex flex-col gap-1 text-sm ${collapsed ? "items-center" : ""}`}>
             {setupItem ? (

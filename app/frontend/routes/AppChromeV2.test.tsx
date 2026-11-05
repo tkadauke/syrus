@@ -1826,6 +1826,7 @@ describe("AppChromeV2 mobile header pinning", () => {
       expect(scrollRegion).toContainElement(notices)
       expect(scrollRegion).toContainElement(account)
       expect(pinnedActions).toHaveClass("sticky", "top-0")
+      expect(pinnedActions.parentElement).toBe(scrollRegion)
       expect(pinnedActions).toContainElement(newChat)
       expect(pinnedActions).not.toContainElement(newGroupChat)
       expect(pinnedActions).not.toContainElement(search)
