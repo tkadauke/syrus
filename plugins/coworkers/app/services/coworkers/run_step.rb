@@ -19,7 +19,8 @@ module Coworkers
       outcome = Coworkers::PostToChat.finalize_once!(
         chat:, workflow:, source_run: run, path: workspace.path
       )
-      return if outcome == :merged
+      verify_claimed_paths! if outcome == :merged
+      return if %i[merged pending_resolution].include?(outcome)
 
       fail_persistence!(
         "Workspace persistence #{outcome}. The run output remains recoverable from the workspace and its background-run ref; " \
@@ -29,6 +30,22 @@ module Coworkers
       fail_persistence!(
         "Workspace persistence failed while pushing the background run: #{error.message}. " \
         "The run output remains recoverable in its workflow workspace; restore repository access, then retry the run."
+      )
+    end
+
+    def verify_claimed_paths!
+      claimed = Coworkers::ClaimedWorkspacePaths.from(run.agent_summary)
+      return if claimed.empty?
+
+      persisted = GitRunner.new.run("ls-tree", "-r", "--name-only", "HEAD", chdir: workspace.path.to_s).lines.map(&:strip).to_set
+      missing = claimed - persisted.to_a
+      return if missing.empty?
+
+      subject = missing.one? ? "that path was" : "those paths were"
+      fail_persistence!(
+        "Workspace persistence warning: the run claimed to write #{missing.join(', ')}, but " \
+        "#{subject} not present in the persisted background-run tree. " \
+        "The run was marked failed instead of reporting a false success."
       )
     end
 

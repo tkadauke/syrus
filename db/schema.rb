@@ -1095,8 +1095,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_162251) do
     t.string "role", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "unsaved_workspace_branch"
+    t.string "unsaved_workspace_path"
+    t.text "unsaved_workspace_error"
+    t.string "unsaved_workspace_failure_kind"
+    t.string "unsaved_workspace_operation"
+    t.datetime "unsaved_workspace_first_failed_at"
+    t.datetime "unsaved_workspace_last_failed_at"
+    t.integer "unsaved_workspace_attempt_count"
+    t.bigint "unsaved_workspace_notice_message_id"
+    t.datetime "unsaved_workspace_retry_exhausted_at"
+    t.datetime "unsaved_workspace_retry_scheduled_at"
+    t.string "unsaved_workspace_retry_token"
     t.index ["chat_session_id"], name: "index_coworker_chats_on_chat_session_id", unique: true
     t.index ["coworker_id"], name: "index_coworker_chats_one_main", unique: true, where: "role = 'main'"
+    t.index ["unsaved_workspace_notice_message_id"], name: "index_coworker_chats_on_unsaved_workspace_notice_message_id"
   end
 
   create_table "coworker_grants", force: :cascade do |t|
@@ -1137,6 +1150,26 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_162251) do
     t.index ["owner_user_id", "idempotency_key"], name: "idx_coworker_provisioning_attempts_idempotency", unique: true
     t.index ["owner_user_id"], name: "index_coworker_provisioning_attempts_on_owner_user_id"
     t.index ["state", "updated_at"], name: "idx_coworker_provisioning_attempts_reconciliation"
+  end
+
+  create_table "coworker_workspace_conflicts", force: :cascade do |t|
+    t.integer "chat_session_id", null: false
+    t.integer "repository_id", null: false
+    t.string "source_branch", null: false
+    t.string "recovery_ref"
+    t.json "files", null: false
+    t.json "versions", null: false
+    t.text "detail"
+    t.string "state", default: "pending", null: false
+    t.integer "attempt_count", default: 0, null: false
+    t.datetime "notified_at"
+    t.datetime "resolved_at"
+    t.datetime "expires_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["chat_session_id", "repository_id", "state"], name: "idx_coworker_workspace_conflicts_active"
+    t.index ["chat_session_id"], name: "index_coworker_workspace_conflicts_on_chat_session_id"
+    t.index ["repository_id"], name: "index_coworker_workspace_conflicts_on_repository_id"
   end
 
   create_table "coworker_workspace_repositories", force: :cascade do |t|

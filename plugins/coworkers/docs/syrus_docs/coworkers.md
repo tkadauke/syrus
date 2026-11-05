@@ -1,5 +1,7 @@
 # Coworkers
 
+Workspace pushes that fail because of a transient remote or network problem are retried during the turn and then by a background job. Until saving succeeds, Syrus preserves the local checkout and shows one updating warning in the chat and on the coworker's Workspace tab. The owner can use **Retry save now** there; permanent authorization, protected-ref, and conflict failures require attention and are not retried automatically.
+
 Coworker tool dispatch is enforced by the unified permission evaluator. Capability
 descriptors supply the recommended defaults, while operator rules and temporary
 leases can narrow or extend those defaults within each descriptor's ceiling.
@@ -246,15 +248,23 @@ Each coworker chat runs in its own disposable checkout and immutable-id branch,
 git identity, pushes the chat branch, and merges it into the home branch. Clean
 and file-disjoint changes merge automatically; append-oriented files under
 `memory/` use Git's union merge driver. A conflict keeps both refs and the
-conflicted local checkout intact and posts the affected file links into the
-chat. A missing local checkout is re-cloned from the canonical remote.
+conflicted local checkout intact, then privately gives the coworker a bounded
+opportunity to reconcile both sides on a later turn. Syrus verifies that the
+index is merged, text conflict markers are gone, `git diff --check` succeeds,
+and the result reaches the home branch. Unchanged turns do not spend a retry.
+Only exhausted retries, a one-hour resolution deadline, failed validation, or
+inaccessible recovery data produce one owner-facing warning. The Workspace
+Browser lists pending and failed-but-unresolved conflicts and drops them as
+soon as resolution succeeds. A missing local checkout is re-cloned from the
+canonical remote.
 
 Background runs use the same lifecycle before their agent step can succeed:
 Syrus captures modified, added, moved, deleted, and untracked files in a commit
 authored with the coworker's Git identity, then merges that immutable run ref
-into the home branch. Agents leave changes uncommitted. A conflict or push
-failure makes the run unsuccessful, preserves recoverable output, and posts an
-actionable result to the main chat before the anchor Job closes.
+into the home branch. Agents leave changes uncommitted. A conflict first
+preserves the immutable run ref and enters the same silent recovery path as a
+chat turn. A terminal conflict or push failure posts one actionable result to
+the main chat before the anchor Job closes.
 
 Changing a coworker's handle moves its home branch in the same locked
 operation. Deleting a coworker preserves the home branch under
@@ -302,6 +312,11 @@ other coworker workspaces are outside that boundary. The tools only mutate the
 working tree; branch commits, merges, pushes, and conflict recovery remain part
 of the orchestrated coworker branch lifecycle. Paths listed in `confirm_paths`
 still require owner confirmation when the grant's general policy is `auto`.
+During a scheduled background run, these tools and the agent's shell share the
+workflow checkout that Syrus commits and merges. If the final result explicitly
+claims a workspace or memory path that is absent from the persisted run tree,
+Syrus reports a persistence warning and fails the run instead of posting a false
+success. Runs that claim no paths and runs that make no changes are unaffected.
 
 When enabled, the plugin adds a Coworkers page and a badge counting pending
 approvals across the signed-in owner's coworkers. Syrus is

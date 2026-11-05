@@ -93,6 +93,32 @@ RSpec.describe Coworkers::PromptSection do
     expect(section).to include("### Tool grants", "not held")
   end
 
+  it "privately supplies both conflicted sides without creating an owner-facing message" do
+    @root.join("USER.md").write("<<<<<<< HEAD\nowner preference\n=======\ncoworker preference\n>>>>>>> home\n")
+    Coworkers::WorkspaceConflict.create!(chat_session: chat, repository:, source_branch: "coworkers/chat/source",
+      files: [ "USER.md" ], versions: { "USER.md" => @root.join("USER.md").read }, detail: "merge failed",
+      expires_at: 1.hour.from_now)
+
+    section = described_class.chat_prompt_section(chat_session: chat, repository: repository)
+
+    expect(section).to include("Private workspace conflict recovery", "owner preference", "coworker preference")
+    expect(section).to include("without mentioning the conflict to the owner", "Preserve the intent of both sides")
+    expect(chat.messages).to be_empty
+  end
+
+  it "does not follow a conflict symlink outside the workspace" do
+    outside = @root.dirname.join("prompt-secret")
+    outside.write("worker credential material")
+    File.symlink(outside, @root.join("USER.md"))
+    Coworkers::WorkspaceConflict.create!(chat_session: chat, repository:, source_branch: "coworkers/chat/source",
+      files: [ "USER.md" ], versions: { "USER.md" => nil }, detail: "merge failed", expires_at: 1.hour.from_now)
+
+    section = described_class.chat_prompt_section(chat_session: chat, repository: repository)
+
+    expect(section).to include("Private workspace conflict recovery", "USER.md")
+    expect(section).not_to include("worker credential material")
+  end
+
   it "lists held policy and scope alongside missing catalog grants" do
     descriptor = Coworkers::GrantCatalog::Descriptor.new(
       name: "database.read", label: "Read database", description: "Read it", default_policy: "confirm", maximum_policy: "auto",

@@ -25,6 +25,9 @@ module Mcp::Tools
       Modes are: auto (compatible smart retry), failed_step (same source
       snapshot), implementation (fresh implementation attempt from the
       effective base), and refresh_base (checkpoint-aware base refresh).
+      An explicitly requested implementation mode is an operator-confirmed
+      escalation even when failed_step is the initial recommendation; it does
+      not relax active-work, duplicate-retry, passing-PR, or landing gates.
     DESC
 
     input_schema(
@@ -54,7 +57,9 @@ module Mcp::Tools
 
         mode_class = RetryJobs::Mode.for(mode)
         preflights = jobs.to_h do |job|
-          result = mode_class.new(job: job, source_workflow_id: source_workflow_id, reason: reason).preflight
+          mode_arguments = { job: job, source_workflow_id: source_workflow_id, reason: reason }
+          mode_arguments[:explicit_operator_intent] = true if mode.to_s == "implementation"
+          result = mode_class.new(**mode_arguments).preflight
           [ job.id, result ]
         end
         selected_job_ids = jobs.map(&:id)

@@ -463,6 +463,55 @@ RSpec.describe "Coworker background runs" do
     expect(workflow.reload.artifact(Coworkers::PostToChat::MERGE_ARTIFACT)).to eq("merged")
   end
 
+  it "writes coworker file-tool changes into the same checkout that the run persists" do
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    step = workflow.steps.find_by!(kind: "coworker_run")
+    run = Run.create!(job: job, user: owner, step:, trigger_kind: "coworker_run", agent_provider: "codex")
+    workflow_root = Pathname(Dir.mktmpdir("coworker-run-tools-"))
+    chat_root = Pathname(Dir.mktmpdir("coworker-chat-tools-"))
+    FileUtils.mkdir_p(workflow_root.join(".git"))
+    FileUtils.mkdir_p(chat_root.join(".git"))
+    allow(StepWorkspace).to receive(:for).with(step, run: run).and_return(instance_double(WorkflowWorkspace, path: workflow_root))
+    allow(ChatWorkspace).to receive(:repo_path_for).with(main_chat, repository).and_return(chat_root)
+
+    response = Coworkers::WorkspaceFileTools::Write.call(
+      path: "memory/daily/today.md", content: "remembered\n", server_context: { chat_session: main_chat, run: run }
+    )
+
+    expect(response).not_to be_error
+    expect(workflow_root.join("memory/daily/today.md").read).to eq("remembered\n")
+    expect(chat_root.join("memory/daily/today.md")).not_to exist
+  ensure
+    FileUtils.rm_rf(workflow_root) if workflow_root
+    FileUtils.rm_rf(chat_root) if chat_root
+  end
+
+  it "fails with a card-ready warning when the summary claims a path absent from the persisted tree" do
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    step = workflow.steps.find_by!(kind: "coworker_run")
+    run = Run.create!(job: job, user: owner, step:, trigger_kind: "coworker_run", agent_provider: "codex")
+    workspace = instance_double(WorkflowWorkspace, setup: nil, path: Pathname.new(Dir.tmpdir))
+    handler = Coworkers::RunStep.new(run)
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:run_agent).and_return(
+      instance_double(AgentInvocation::Result, final_text: "Wrote `memory/daily/today.md`.")
+    )
+    allow_any_instance_of(GitRunner).to receive(:run).with(
+      "ls-tree", "-r", "--name-only", "HEAD", chdir: workspace.path.to_s
+    ).and_return("SOUL.md\n")
+
+    expect { handler.call }.to raise_error(Coworkers::RunStep::PersistenceFailed, /claimed to write memory\/daily\/today\.md/)
+    expect(run.reload.agent_summary).to include("marked failed instead of reporting a false success")
+    expect(workflow.reload.artifact(Coworkers::PostToChat::MERGE_ARTIFACT)).to eq("failed")
+
+    run.update_columns(state: "failed", finished_at: Time.current)
+    step.update_columns(state: "failed")
+    Coworkers::PostToChat.post_failure!(workflow)
+    expect(main_chat.messages.last.content.fetch("background_run")).to include(
+      "state" => "failed", "summary" => include("Workspace persistence warning")
+    )
+  end
+
   it "fails before the successor step can clean uncommitted workspace output" do
     workflow = Coworkers::Workflow.instantiate(job: job)
     step = workflow.steps.find_by!(kind: "coworker_run")
@@ -483,6 +532,27 @@ RSpec.describe "Coworker background runs" do
     expect(main_chat.messages.last.content.fetch("background_run")).to include(
       "state" => "failed", "summary" => include("resolve the workspace conflict")
     )
+  end
+
+  it "keeps a recoverable background conflict silent for the successor turn" do
+    workflow = Coworkers::Workflow.instantiate(job: job)
+    step = workflow.steps.find_by!(kind: "coworker_run")
+    run = Run.create!(job: job, user: owner, step:, trigger_kind: "coworker_run", agent_provider: "codex")
+    workspace = instance_double(WorkflowWorkspace, setup: nil, path: Pathname.new(Dir.tmpdir))
+    handler = Coworkers::RunStep.new(run)
+    allow(handler).to receive(:workspace).and_return(workspace)
+    allow(handler).to receive(:run_agent).and_return(instance_double(AgentInvocation::Result, final_text: "Memory updated."))
+    allow(lifecycle).to receive(:finalize_background!).and_return(:pending_resolution)
+
+    expect { handler.call }.not_to change(main_chat.messages, :count)
+    expect(run.reload.agent_summary).to eq("Memory updated.")
+    expect(workflow.reload.artifact(Coworkers::PostToChat::MERGE_ARTIFACT)).to eq("pending_resolution")
+
+    run.update_columns(state: "succeeded", finished_at: Time.current)
+    post_run = Run.new(job: job, user: owner, step: workflow.steps.find_by!(kind: "post_to_chat"),
+      trigger_kind: "coworker_run", agent_provider: "codex")
+    expect { Coworkers::PostToChat.new(post_run).call }.not_to change(main_chat.messages, :count)
+    expect(main_chat.chat_queued_messages).to be_empty
   end
 
   it "uses the final top-level assistant transcript when the stored summary is blank" do

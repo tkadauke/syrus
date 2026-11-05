@@ -11,3 +11,11 @@ en:
 
         %{files}
       workspace_conflict_label: "Workspace conflict"
+      workspace_already_saved: "This workspace has already been saved."
+      workspace_save_label: "Workspace save"
+      workspace_save_failed: "Changes on `%{branch}` are preserved locally after %{attempts} failed save attempts. %{status}"
+      retry_pending: "Syrus will retry automatically; you can also retry now."
+      retry_exhausted: "Automatic retries are exhausted; retry when the remote is healthy."
+      needs_attention: "This failure needs your attention; use Retry save after correcting it."
+      workspace_save_resolved: "The preserved workspace changes were saved successfully."
+      retry_save: "Review workspace and retry"

@@ -31,6 +31,8 @@ module Coworkers
       source_run = workflow.steps.find_by!(kind: "coworker_run").runs.where(state: "succeeded").order(:created_at).last!
       summary = self.class.summary_for(source_run, fallback: "Background task completed.")
       merge = self.class.finalize_once!(chat:, workflow:, source_run:, path: workspace.path)
+      return if merge == :pending_resolution
+
       duration = (source_run.finished_at - source_run.started_at).round(1) if source_run.started_at && source_run.finished_at
 
       self.class.post_once!(workflow:, chat:, merge:, content: {
