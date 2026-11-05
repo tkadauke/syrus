@@ -66,7 +66,8 @@ module ProviderRoutingRuleSerialization
         chat_roles: AgentRole::CHAT_ROLES.map do |role|
           provider_routing_option_json(role, role.delete_prefix("chat:").humanize)
         end,
-        step_kinds: Step::Kind.entries.select(&:agentic).map { |entry| provider_routing_kind_entry_json(entry) }
+        step_kinds: Step::Kind.entries.select(&:agentic).map { |entry| provider_routing_kind_entry_json(entry) } +
+          [ { value: "coworker_review", label: "Coworker review", panel_capable: true } ]
       },
       conditions: {
         workflow_trigger_kinds: Workflow::TriggerKind.entries.map { |entry| provider_routing_kind_entry_json(entry) }
@@ -85,6 +86,7 @@ module ProviderRoutingRuleSerialization
 
   def provider_routing_options_json(user = Current.user)
     registry = provider_routing_registry_options_json
+    registry[:reviewer_targets] = ReviewerTargets.options(user: user)
     registry[:conditions] = registry[:conditions].merge(
       provider_usage: provider_routing_usage_json(user),
       job_kinds: Job::Kind.user_facing_values.map { |kind| provider_routing_option_json(kind, kind.humanize) },
@@ -143,7 +145,8 @@ module ProviderRoutingRuleSerialization
     {
       provider: candidate["provider"].to_s,
       model: candidate["model"].presence,
-      effort_level: candidate["effort_level"].presence
+      effort_level: candidate["effort_level"].presence,
+      reviewer_target: candidate["reviewer_target"].presence
     }.compact
   end
 
@@ -155,7 +158,7 @@ module ProviderRoutingRuleSerialization
       trigger: {},
       conditions: {},
       action: {},
-      candidates: [ :provider, :model, :effort_level ]
+      candidates: [ :provider, :model, :effort_level, reviewer_target: {} ]
     )
 
     task_key = attrs[:task_key].to_s.strip.presence || ProviderRoutingRule::DEFAULT_TASK_KEY
@@ -199,7 +202,7 @@ module ProviderRoutingRuleSerialization
       next unless candidate.respond_to?(:to_h)
 
       candidate.to_h
-        .slice("provider", "model", "effort_level")
+        .slice("provider", "model", "effort_level", "reviewer_target")
         .transform_values { |value| value.to_s.strip.presence }
         .compact
     end.compact

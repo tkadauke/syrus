@@ -22,12 +22,14 @@ const options: ProviderRoutingOptions = {
     { value: "low", label: "Low" },
     { value: "high", label: "High" }
   ],
+  reviewer_targets: [{ type: "coworker", reference: "opaque-maya", display: { name: "Maya", handle: "maya" } }],
   triggers: {
     step_kinds: [
       { value: "implement", label: "Implement" },
       { value: "rebase", label: "Rebase" },
       { value: "adversarial_review", label: "Adversarial review", panel_capable: true },
-      { value: "security_review", label: "Security review", panel_capable: true }
+      { value: "security_review", label: "Security review", panel_capable: true },
+      { value: "coworker_review", label: "Coworker review", panel_capable: true }
     ],
     chat_roles: [{ value: "chat:supervisor", label: "Supervisor" }]
   },
@@ -230,6 +232,36 @@ describe("ProviderRoutingRulesEditor", () => {
             min_members: 2,
             candidates: [{ provider: "codex" }, { provider: "claude" }]
           })
+        })
+      )
+    )
+  })
+
+  it("edits provider/model and coworker reviewer identity independently", async () => {
+    const onUpdateRule = vi.fn()
+    const reviewerTarget = options.reviewer_targets![0]
+    const coworkerRule: ProviderRoutingRule = {
+      id: 52,
+      scope_type: "repository",
+      scope_id: 7,
+      task_key: "coworker_review",
+      trigger: { type: "step", kind: "coworker_review" },
+      conditions: {},
+      action: { strategy: "fallback_order", name: "Maya review", candidates: [{ provider: "codex", reviewer_target: reviewerTarget }] },
+      candidates: [{ provider: "codex", reviewer_target: reviewerTarget }]
+    }
+    renderPanel({ onUpdateRule, rules: [coworkerRule] })
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
+    expect(within(dialog).getByLabelText("Coworker reviewer")).toHaveValue("coworker:opaque-maya")
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save rule" }))
+
+    await waitFor(() =>
+      expect(onUpdateRule).toHaveBeenCalledWith(
+        coworkerRule,
+        expect.objectContaining({
+          action: expect.objectContaining({ candidates: [expect.objectContaining({ provider: "codex", reviewer_target: reviewerTarget })] })
         })
       )
     )

@@ -469,6 +469,18 @@ RSpec.describe ProviderRouting::Resolver, ".preview_provider" do
   end
 end
 
+RSpec.describe ProviderRouting::Resolver, "dedicated coworker review" do
+  it "never falls back to an unnamed provider reviewer" do
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    job = Factories.job(repository: repository, user: user, owner_user: user, job_provider_setting: "default")
+
+    expect {
+      described_class.resolve(job: job, task_key: "coworker_review", trigger: { type: "step", kind: "coworker_review" })
+    }.to raise_error(ProviderRouting::Resolver::CoworkerReviewTargetRequired)
+  end
+end
+
 RSpec.describe ProviderRoutingRule, "user condition" do
   let(:owner) { Factories.user }
   let(:member) { Factories.user }

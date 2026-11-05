@@ -17,7 +17,7 @@ Admins can change the instance default in Admin Settings. A repository's detail
 page shows its default-branch `.syrus.yml` security review rounds and criteria
 alongside the other repository review configuration.
 
-The reviewer is read-only. A `needs_work` verdict feeds its critique to the next repair step; `approved` ends the loop. Provider routing rules can select a provider with the `security_review` step-kind trigger.
+The reviewer is read-only. A `needs_work` verdict feeds its critique to the next repair step; `approved` ends the loop. Provider routing rules can select a provider with the `security_review` step-kind trigger. Review rules may also name an installation-local coworker reviewer separately from the provider/model that executes the review. Only active coworkers owned by the Job owner and granted `code.read` for the repository are selectable. The rule stores an opaque target reference plus a safe display snapshot; coworker identities never belong in `.syrus.yml`.
 Every new security reviewer Run records the same immutable, SHA-bound evidence
 as adversarial review. Verdict submission rejects a changed head or canonical
 diff and permanently marks that evidence stale; only a fresh rereview can
