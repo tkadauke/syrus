@@ -574,7 +574,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
         "topology missing local workspace",
         target: { workflow_id: workflow.id },
         expected_issue: :workspace_missing,
-        expected_action: :operator_review_missing_workspace
+        expected_action: :recover_missing_workspace
       )
     end
 
@@ -1303,7 +1303,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
         "missing local workspace",
         target: { workflow_id: workflow.id },
         expected_issue: :workspace_missing,
-        expected_action: :operator_review_missing_workspace
+        expected_action: :recover_missing_workspace
       )
     end
 
@@ -1319,7 +1319,7 @@ RSpec.describe "Work engine reconciler chaos simulation" do
         "missing workspace on another live worker",
         target: { workflow_id: workflow.id },
         forbidden_issues: %i[workspace_missing],
-        forbidden_actions: %i[operator_review_missing_workspace]
+        forbidden_actions: %i[recover_missing_workspace]
       )
     end
 

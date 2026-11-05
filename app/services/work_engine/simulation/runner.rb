@@ -1638,9 +1638,10 @@ module WorkEngine
           run.reenqueue!(ignore_workflow_affinity: true)
         end
         events << "workspace reconstructed for workflow #{workflow.id}; resumed #{stranded.size} stranded runs"
+        recovery_message = "workspace reconstructed and #{stranded.size} stranded runs resumed"
         WorkflowWorkspaceRecovery::Result.new(
           status: "recovered", workflow: workflow, run: stranded.last,
-          message: "workspace reconstructed and #{stranded.size} stranded runs resumed"
+          message: recovery_message
         )
       end
 
