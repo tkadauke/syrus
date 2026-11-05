@@ -43,7 +43,10 @@ RSpec.describe "coworker MySQL capability discovery" do
 
     entry = discover
 
-    expect(entry).to include(state: "requestable", lock_reason: "capability_not_granted", blocker: "permission")
+    expect(entry).to include(state: "requestable", lock_reason: "operation_requires_approval", blocker: "permission")
+    expect(entry[:prerequisites]).to include(
+      a_hash_including(id: "permission", satisfied: false, reason: "capability_not_granted")
+    )
     expect(entry[:permitted_scope][:options]).to include(a_hash_including(value: connection.id))
     action = entry.fetch(:next_action)
     expect(action).to include(type: "request_permission", grants_authority: false)
