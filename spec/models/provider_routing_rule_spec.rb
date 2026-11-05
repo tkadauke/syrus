@@ -227,6 +227,24 @@ RSpec.describe ProviderRoutingRule do
     expect(security).to be_valid
   end
 
+  it "refreshes reviewer display snapshots during rule mutation" do
+    name = "Maya"
+    provider = class_double("ReviewerTargetProvider", target_type: "coworker")
+    allow(provider).to receive(:resolve) do |reference:, **|
+      record = Struct.new(:id) { def self.polymorphic_name = "User" }.new(user.id)
+      { type: "coworker", reference: reference, display: { "name" => name }, record: record }
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:reviewer_target_provider).and_return([ provider ])
+    record = rule(trigger: { type: "step", kind: "coworker_review" }, action: { strategy: "fallback_order", candidates: [
+      { provider: "codex", reviewer_target: { type: "coworker", reference: "opaque" } }
+    ] })
+    expect(record).to be_valid
+    name = "Maya Updated"
+    expect(record).to be_valid
+    expect(record.action_candidates.first.dig("reviewer_target", "display", "name")).to eq("Maya Updated")
+  end
+
   it "validates panel membership, consensus, unavailable policy, and minimum members" do
     attrs = { trigger: { type: "step", kind: "adversarial_review" } }
 
