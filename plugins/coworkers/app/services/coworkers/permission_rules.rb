@@ -21,9 +21,10 @@ module Coworkers
     def entries
       grouped = loaded_rules.group_by { |rule| unversioned(rule.capability) }
       Coworkers::GrantCatalog.all.map do |descriptor|
-        matching = canonical_descriptors(descriptor.name).flat_map do |canonical|
-          grouped.fetch(unversioned(canonical.capability), [])
-        end.uniq
+        capability_names = [ descriptor.name ] + coworker_tool_descriptors(descriptor.name).map do |canonical|
+          unversioned(canonical.capability)
+        end
+        matching = capability_names.uniq.flat_map { |name| grouped.fetch(name, []) }.uniq
         policy = matching.map(&:policy).min_by { |value| policy_rank(value) }
         source = matching.first
         {
@@ -88,7 +89,20 @@ module Coworkers
         descriptor = registration.descriptor
         descriptor if descriptor && unversioned(descriptor.capability) == capability.to_s
       end
-      catalog = Mcp::CoworkerToolCatalog.all.filter_map do |tool|
+      catalog = coworker_tool_descriptors(capability)
+      descriptors = (registered + catalog).uniq { |descriptor| [ descriptor.capability, descriptor.operation ] }
+      return descriptors if descriptors.any?
+
+      grant = Coworkers::GrantCatalog.fetch(capability)
+      [ Permissions::CapabilityDescriptorAdapter.for_registry_entry(
+        tool_name: "#{capability}.access", capability:, mutation: grant.default_policy != "auto",
+        required_roles: [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ],
+        default_policy: POLICY.fetch(grant.default_policy).to_sym
+      ) ]
+    end
+
+    def coworker_tool_descriptors(capability)
+      Mcp::CoworkerToolCatalog.all.filter_map do |tool|
         next unless tool.capability.to_s == capability.to_s
 
         if tool.tool
@@ -101,15 +115,6 @@ module Coworkers
           Permissions::CapabilityDescriptorAdapter.for_plugin_definition(tool.definition)
         end
       end
-      descriptors = (registered + catalog).uniq { |descriptor| [ descriptor.capability, descriptor.operation ] }
-      return descriptors if descriptors.any?
-
-      grant = Coworkers::GrantCatalog.fetch(capability)
-      [ Permissions::CapabilityDescriptorAdapter.for_registry_entry(
-        tool_name: "#{capability}.access", capability:, mutation: grant.default_policy != "auto",
-        required_roles: [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ],
-        default_policy: POLICY.fetch(grant.default_policy).to_sym
-      ) ]
     end
 
     def scopes_for(descriptor, legacy_scope)
