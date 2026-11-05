@@ -22,7 +22,10 @@ RSpec.describe WorkEngine::RepairExecutor do
 
   describe "recover_missing_workspace" do
     it "keeps a successfully reconstructed workflow active" do
-      workflow.update_columns(state: "running", started_at: 5.minutes.ago)
+      workflow.update_columns(
+        state: "running", started_at: 5.minutes.ago,
+        worker_hostname: "retired-worker", worker_storage_key: "retired-storage"
+      )
       result = WorkflowWorkspaceRecovery::Result.new(
         status: "recovered", workflow: workflow, run: nil, message: "workspace reconstructed"
       )
@@ -35,7 +38,19 @@ RSpec.describe WorkEngine::RepairExecutor do
       ).sole
 
       expect(execution).to have_attributes(status: "applied", message: "workspace reconstructed")
-      expect(workflow.reload).to be_running
+      expect(workflow.reload).to have_attributes(
+        state: "running",
+        workspace_lifecycle_state: "storage_lost",
+        worker_hostname: nil,
+        worker_storage_key: nil,
+        last_workspace_hostname: "retired-worker",
+        last_workspace_storage_key: "retired-storage"
+      )
+      expect(workflow.workflow_workspace_events.last).to have_attributes(
+        event_type: "storage_lost",
+        actor: "work_engine_repair",
+        reason: "workspace missing from inactive storage owner"
+      )
     end
 
     it "fails an unsafe reconstruction with a typed retryable infrastructure outcome" do

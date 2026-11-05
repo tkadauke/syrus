@@ -524,6 +524,7 @@ module WorkEngine
           return skipped("Workflow is no longer active") unless workflow.running? || workflow.queued?
           return skipped("workspace is already present") if File.directory?(WorkflowWorkspace.path_for(workflow))
 
+          record_storage_loss!(workflow)
           result = WorkflowWorkspaceRecovery.call(workflow: workflow)
           return success(result.message) if result.recovered?
 
@@ -565,6 +566,22 @@ module WorkEngine
             job: workflow.job,
             respect_provider_circuit: false
           )
+        end
+
+        def record_storage_loss!(workflow)
+          if workflow.worker_hostname.present? || workflow.worker_storage_key.present?
+            WorkflowWorkspaceLifecycle.clear_routing_affinity!(
+              workflow,
+              actor: "work_engine_repair",
+              reason: "workspace missing from inactive storage owner"
+            )
+          elsif workflow.workspace_lifecycle_state != "storage_lost"
+            WorkflowWorkspaceLifecycle.storage_lost!(
+              workflow,
+              actor: "work_engine_repair",
+              reason: "active workflow workspace is missing"
+            )
+          end
         end
       end
 
