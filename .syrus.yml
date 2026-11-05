@@ -135,6 +135,15 @@ visual_review:
       provider: browser
       launch:
         path: /
+      review_notes: |
+        For any tool-card change, inspect representative cards in
+        /admin/tool_cards and a seeded chat at narrow-phone and desktop widths.
+        Include a running Bash card with long multiline details. Every collapsed
+        card must be exactly one visual line in disclosure, title, outcome pill,
+        optional metadata pills, and clipped/ellipsized preview order, with no
+        horizontal overflow. Two lines is automatically needs_work. Expand Bash
+        and verify its complete details remain readable. Flag any removal or
+        weakening of the operator design-lock comments, tests, or fixtures.
       when_files_changed:
         - "app/frontend/**/*"
         - "app/views/**/*"
@@ -194,6 +203,16 @@ merge_train:
 adversarial_review:
   rounds: 1
   criteria:
+    - |-
+      Reject any collapsed tool-card header that exceeds one visual line at any
+      width; reorders disclosure/title, outcome and metadata pills, then preview;
+      hides or stacks pills; wraps preview details; or creates horizontal
+      overflow. Inspect the diff and tests rather than trusting the PR
+      description. Reject removal, weakening, fixture manipulation, or
+      expectation updates in the operator design-locked implementation/tests.
+      Any claimed relaxation to the shared header or locked tests requires
+      explicit written approval from Thomas Kadauke in the Job, issue, or PR
+      record.
     - |-
       If the diff adds or changes operator-facing behavior (AppSetting columns,
       .syrus.yml keys, step or trigger kinds, feature flags, MCP tools), verify
