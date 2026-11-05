@@ -70,6 +70,7 @@ class Workflow < ApplicationRecord
 
   EXTERNALIZED_ARTIFACT_KEYS = %w[
     adversarial_review_iterations
+    coworker_review_iterations
     security_review_iterations
     iterations
     typed_artifacts
