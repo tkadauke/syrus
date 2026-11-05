@@ -4399,6 +4399,20 @@ RSpec.describe StepDispatcher, "linear Epic sibling implementation gate", :ci_on
     expect(queued_workflow.reload.artifact("start_blocked_reason")).to eq(described_class::EPIC_SIBLING_BLOCK_REASON)
   end
 
+  it "keeps the sibling slot while the admitted workflow Run is still queued" do
+    first_job = epic_job(issue_number: 210)
+    second_job = epic_job(issue_number: 211)
+    first_workflow, first_step = build_workflow(job: first_job, trigger_kind: "initial")
+    second_workflow, = build_workflow(job: second_job, trigger_kind: "initial")
+
+    expect { described_class.start_workflow(first_workflow) }
+      .to change { first_step.runs.queued.count }.by(1)
+    expect(first_workflow.reload).to be_queued
+
+    expect { described_class.start_workflow(second_workflow) }.not_to change { Run.count }
+    expect(second_workflow.reload.artifact("start_blocked_reason")).to eq(described_class::EPIC_SIBLING_BLOCK_REASON)
+  end
+
   it "elects a newer ready retry ahead of an older dependency-blocked downstream workflow" do
     retrying_job = epic_job(issue_number: 206)
     downstream_job = epic_job(issue_number: 207)

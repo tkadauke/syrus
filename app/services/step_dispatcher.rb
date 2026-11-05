@@ -384,7 +384,13 @@ class StepDispatcher
       workflow.first_step
     end
     return false if first_step.nil?
-    return false if first_step.runs.loaded? ? first_step.runs.any? : first_step.runs.exists?
+
+    runs = first_step.runs.loaded? ? first_step.runs : first_step.runs.to_a
+    # Workflow state changes to running when its queued Run is claimed. During
+    # that gap the Workflow has already won admission and must retain the slot,
+    # or a sibling can enqueue a second implementation Run concurrently.
+    return true if runs.any? { |run| Run::ACTIVE_STATES.include?(run.state) }
+    return false if runs.any?
 
     job = workflow.job
     return false unless job.queued? || job.running? || job.implemented?
