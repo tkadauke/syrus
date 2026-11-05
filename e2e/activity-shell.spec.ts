@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test"
 import { signInAsDemo } from "./support/auth"
 
 const MOBILE = { width: 390, height: 780 }
-const LANDSCAPE = { width: 780, height: 390 }
+const LANDSCAPE = { width: 767, height: 390 }
 const DESKTOP = { width: 1280, height: 800 }
 
 test.describe("Activity shell", () => {
