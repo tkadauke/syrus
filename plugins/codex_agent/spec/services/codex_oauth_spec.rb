@@ -103,6 +103,37 @@ RSpec.describe CodexOauth do
       expect(JSON.parse(auth_json).dig("tokens", "refresh_token")).to eq("refresh-token")
     end
 
+    it "accepts a scheme-less pasted callback URL with extra query parameters" do
+      stub_request(:post, token_url)
+        .with(body: hash_including("code" => "url-code"))
+        .to_return(status: 200, body: token_response.to_json, headers: { "Content-Type" => "application/json" })
+
+      described_class.exchange(
+        code: "localhost:1455/auth/callback?scope=openid&code=url-code&state=session-state",
+        verifier: "ver",
+        state: "session-state",
+        redirect_uri: "http://localhost:1455/auth/callback"
+      )
+
+      expect(a_request(:post, token_url).with(body: hash_including("code" => "url-code"))).to have_been_made.once
+    end
+
+    it "preserves a very long bare authorization code" do
+      long_code = "ac.2.#{'x' * 800}"
+      stub_request(:post, token_url)
+        .with(body: hash_including("code" => long_code))
+        .to_return(status: 200, body: token_response.to_json, headers: { "Content-Type" => "application/json" })
+
+      described_class.exchange(
+        code: long_code,
+        verifier: "ver",
+        state: "session-state",
+        redirect_uri: "http://localhost:1455/auth/callback"
+      )
+
+      expect(a_request(:post, token_url).with(body: hash_including("code" => long_code))).to have_been_made.once
+    end
+
     it "raises when the pasted state does not match the session" do
       expect {
         described_class.exchange(
