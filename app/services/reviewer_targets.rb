@@ -1,5 +1,9 @@
 module ReviewerTargets
-  ResolutionError = Class.new(StandardError)
+  class ResolutionError < StandardError
+    def deterministic? = true
+  end
+  PluginUnavailable = Class.new(ResolutionError)
+  TargetUnavailable = Class.new(ResolutionError)
 
   module_function
 
@@ -10,11 +14,11 @@ module ReviewerTargets
   def resolve(payload, owner:, repository:)
     target = payload.to_h.deep_stringify_keys
     provider = providers.find { |candidate| candidate.target_type == target["type"] }
-    raise ResolutionError, "reviewer target plugin is unavailable" unless provider
+    raise PluginUnavailable, "reviewer target plugin is unavailable" unless provider
 
     provider.resolve(reference: target["reference"], owner: owner, repository: repository)
   rescue ActiveRecord::RecordNotFound => e
-    raise ResolutionError, e.message
+    raise TargetUnavailable, e.message
   end
 
   def snapshot(payload, owner:, repository:)
