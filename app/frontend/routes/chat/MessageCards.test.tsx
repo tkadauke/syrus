@@ -1258,6 +1258,7 @@ describe("tool result rendering", () => {
   })
 
   it("keeps a live in-progress tool call collapsed until the operator expands it", () => {
+    const command = "bin/rspec spec/models/job_spec.rb\n  && npm run lint"
     const item: ChatToolGroupItem = {
       type: "tool_group",
       tool: "Bash",
@@ -1266,10 +1267,10 @@ describe("tool result rendering", () => {
           message_id: 1,
           tool_name: "Bash",
           raw_name: "Bash",
-          detail: "bin/rspec",
+          detail: command,
           display_label: "Bash",
           progress_label: "Running command",
-          raw_payload: { command: "bin/rspec" },
+          raw_payload: { command },
           result_body: "",
           result_error: false,
           result_kind: "unknown",
@@ -1286,11 +1287,14 @@ describe("tool result rendering", () => {
 
     expect(screen.getByText("Bash")).toBeInTheDocument()
     expect(screen.getByText("Running")).toBeInTheDocument()
-    expect(screen.getByText("bin/rspec")).toBeInTheDocument()
+    const preview = screen.getByTestId("tool-group-preview")
+    expect(preview).toHaveTextContent("bin/rspec spec/models/job_spec.rb && npm run lint")
+    expect(preview).toHaveAttribute("title", "bin/rspec spec/models/job_spec.rb && npm run lint")
     expect(screen.queryByText("Raw details")).not.toBeInTheDocument()
 
     expandToolGroup("Bash")
 
+    expect(screen.getByText((_, element) => element?.textContent === `Bash(${command})`)).toBeInTheDocument()
     expect(screen.getByText("Raw details")).toBeInTheDocument()
   })
 
