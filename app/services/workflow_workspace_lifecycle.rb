@@ -7,25 +7,32 @@ class WorkflowWorkspaceLifecycle
 
       previous_hostname = workflow.last_workspace_hostname.presence
       previous_storage_key = workflow.last_workspace_storage_key.presence
-      changed = previous_hostname != hostname || previous_storage_key != storage_key
+      current_hostname = hostname || workflow.worker_hostname.presence
+      current_storage_key = storage_key || workflow.worker_storage_key.presence
+      ownership_changed = previous_hostname != current_hostname || previous_storage_key != current_storage_key
+      updates = {
+        worker_hostname: current_hostname,
+        worker_storage_key: current_storage_key,
+        last_workspace_hostname: current_hostname || previous_hostname,
+        last_workspace_storage_key: current_storage_key || previous_storage_key
+      }.select { |column, value| workflow.public_send(column) != value }
 
-      workflow.update_columns(
-        worker_hostname: hostname,
-        worker_storage_key: storage_key,
-        last_workspace_hostname: hostname || previous_hostname,
-        last_workspace_storage_key: storage_key || previous_storage_key
-      )
-      return unless changed && (previous_hostname.present? || previous_storage_key.present?)
+      workflow.update_columns(updates) if updates.any?
+      return unless ownership_changed && (previous_hostname.present? || previous_storage_key.present?)
 
-      record!(workflow, "ownership_transferred", actor: actor, hostname: hostname,
-        storage_key: storage_key, details: {
+      record!(workflow, "ownership_transferred", actor: actor, hostname: current_hostname,
+        storage_key: current_storage_key, details: {
           "previous_hostname" => previous_hostname,
           "previous_storage_key" => previous_storage_key
         })
     end
 
     def created!(workflow, actor: "workflow_workspace")
-      event_type = workflow.workflow_workspace_events.exists? ? "reconstructed" : "created"
+      event_type = if workflow.workspace_lifecycle_state.present? || workflow.workflow_workspace_events.exists?
+        "reconstructed"
+      else
+        "created"
+      end
       state = event_type == "created" ? "created" : "reconstructed"
       record!(workflow, event_type, actor: actor)
       workflow.update_columns(workspace_lifecycle_state: state, cleaned_up_at: nil)
@@ -43,6 +50,8 @@ class WorkflowWorkspaceLifecycle
     end
 
     def clear_routing_affinity!(workflow, actor:, reason:, storage_lost: true)
+      return if workflow.worker_hostname.blank? && workflow.worker_storage_key.blank?
+
       if storage_lost
         storage_lost!(workflow, actor: actor, reason: reason)
       else

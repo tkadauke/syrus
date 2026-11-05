@@ -855,7 +855,7 @@ class Workflow < ApplicationRecord
   def record_worker_identity!
     host = SyrusVersion.hostname
     storage_key = WorkerStorageIdentity.queue_key
-    WorkflowWorkspaceLifecycle.record_identity!(self, hostname: host, storage_key: storage_key)
+    WorkflowWorkspaceLifecycle.record_identity!(self, hostname: host, storage_key: storage_key, actor: "workflow")
   end
   alias_method :record_worker_hostname!, :record_worker_identity!
 
