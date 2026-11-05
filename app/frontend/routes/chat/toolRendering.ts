@@ -131,7 +131,7 @@ function toolArgumentSummary(name: string, input: Record<string, unknown>) {
 
   switch (name) {
     case "Bash":
-      detail = firstLine(stringValue(input.command))
+      detail = stringValue(input.command)
       break
     case "Read":
     case "Edit":
@@ -175,7 +175,7 @@ function toolArgumentSummary(name: string, input: Record<string, unknown>) {
     // Muse Code's native tools use snake_case names and their own param
     // vocabulary, distinct from the capitalised Claude tool names above.
     case "bash":
-      detail = firstLine(commandArgumentSummary(input.command))
+      detail = commandArgumentSummary(input.command)
       break
     case "read_file":
       detail = stringValue(input.path) || stringValue(input.file_path)

@@ -105,12 +105,21 @@ describe("toolDetail", () => {
 
   it("summarizes Muse Code's snake_case native tool calls with their own param names", () => {
     expect(toolDetail("bash", { command: "ls -la" })).toBe("ls -la")
+    expect(toolDetail("bash", { command: "rg -n tool_cards app\n  && sed -n '1,220p' app/frontend/routes/chat/MessageCards.tsx" })).toBe(
+      "rg -n tool_cards app\n  && sed -n '1,220p' app/frontend/routes/chat/MessageCards.tsx"
+    )
     expect(toolDetail("bash", { command: ["bash", "-lc", "bin/rails test"] })).toBe("bash -lc bin/rails test")
     expect(toolDetail("bash", { command: { command: "bash", args: ["-lc", "bin/rails test"] } })).toBe("bash -lc bin/rails test")
     expect(toolDetail("read_file", { path: "app/models/run.rb" })).toBe("app/models/run.rb")
     expect(toolDetail("search", { query: "def perform" })).toBe("def perform")
     expect(toolDetail("tool_search", { query: "read_job" })).toBe("read_job")
     expect(toolDetail("attach_repository", { slug: "tkadauke/syrus" })).toBe("tkadauke/syrus")
+  })
+
+  it("preserves every line of a Claude Bash command for collapsed normalization and expanded detail", () => {
+    const command = "rg -n tool_cards app spec\n  && sed -n '1,220p' app/frontend/routes/chat/MessageCards.tsx"
+
+    expect(toolDetail("Bash", { command })).toBe(command)
   })
 })
 
