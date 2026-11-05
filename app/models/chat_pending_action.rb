@@ -228,10 +228,10 @@ class ChatPendingAction < ApplicationRecord
     non_actionable_at.nil? && !dismissed? && !non_actionable?
   end
 
-  def ready_for_authorized_invocation?
+  def ready_for_authorized_invocation?(reload: true)
     return false unless authorization_request?
 
-    items = authorization_items.reload
+    items = reload ? authorization_items.reload : authorization_items.load
     items.any? && items.all?(&:approved?)
   end
 
@@ -299,7 +299,7 @@ class ChatPendingAction < ApplicationRecord
   # with_lock re-query the chat session and user we had already loaded. Those
   # records are not the locked row, so carry them across the reload.
   def lock!(*)
-    preserved = %i[chat_session user origin subject].filter_map do |name|
+    preserved = %i[chat_session user origin subject authorization_items].filter_map do |name|
       assoc = association(name)
       [ name, assoc.target ] if assoc.loaded?
     end
@@ -307,7 +307,9 @@ class ChatPendingAction < ApplicationRecord
       preserved.each do |name, target|
         assoc = association(name)
         reflection = assoc.reflection
-        same_record = if !reflection.belongs_to?
+        same_record = if reflection.collection?
+          target.all? { |record| record.public_send(reflection.foreign_key) == id }
+        elsif !reflection.belongs_to?
           target.nil? || target.public_send(reflection.foreign_key) == id
         elsif target.nil?
           public_send(reflection.foreign_key).nil?
@@ -315,7 +317,10 @@ class ChatPendingAction < ApplicationRecord
           target.id == public_send(reflection.foreign_key) &&
             (!reflection.polymorphic? || target.class.polymorphic_name == public_send(reflection.foreign_type))
         end
-        assoc.target = target if same_record
+        if same_record
+          assoc.target = target
+          assoc.loaded!
+        end
       end
     end
   end
@@ -528,6 +533,7 @@ class ChatPendingAction < ApplicationRecord
         text = ChatPendingActionOutcomeNotification.new(self).acknowledgment(outcome: state)
         message = chat_session.messages.create!(
           role: "system",
+          invalidate_realtime_tail: true,
           content: {
             "text" => text,
             "source" => ChatPendingActionOutcomeNotification::SOURCE,
@@ -537,7 +543,6 @@ class ChatPendingAction < ApplicationRecord
             "execution_status" => execution_status
           }
         )
-        chat_session.update!(last_message_at: Time.current)
         chat_session.pin_chat_provider!
       end
       update_columns(outcome_message_id: message.id, updated_at: Time.current) if outcome_message_id != message.id
