@@ -111,6 +111,12 @@ Run: queued -> running -> succeeded
 Terminal Workflow transitions own workspace cleanup. Successful and
 cancelled Workflows clean up immediately; failed Workflows keep their
 workspace for retry until the prune job removes old terminal workspaces.
+Live worker hostname and storage affinity are routing data and may be cleared
+when a dead worker or queue is repaired. Syrus separately retains the
+workspace's last-known host and storage plus durable creation, ownership
+transfer, cleanup, storage-loss, and reconstruction events. This preserves the
+evidence needed to distinguish intentional cleanup from lost storage after
+short-lived operational logs expire.
 
 ## Core Files
 
