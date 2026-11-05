@@ -62,7 +62,9 @@ RSpec.describe MysqlDbBrowser::ExecuteQueryTool do
     connection.update!(allow_writes: true)
     coworker = Coworkers::Coworker.create!(owner_user: user, name: "Maya", handle: "maya-mysql",
       workspace_repo: repository.remote_url)
-    coworker.grants.create!(capability: "mysql.read", approval_policy: "auto", scope: connection.id)
+    coworker.permission_rules.update!(
+      capability: "mysql.read", approval_policy: "auto", scope: connection.id, actor: user
+    )
     chat_session = ChatSession.create!(user: user, repository: repository)
     Coworkers::Chat.create!(coworker: coworker, chat_session: chat_session, role: "main")
     chat_session.define_singleton_method(:coworker) { coworker }
@@ -81,7 +83,9 @@ RSpec.describe MysqlDbBrowser::ExecuteQueryTool do
     Syrus::PluginRegistry.clear_plugin_record_cache!
     coworker = Coworkers::Coworker.create!(owner_user: user, name: "Maya", handle: "maya-blank-mysql",
       workspace_repo: repository.remote_url)
-    coworker.grants.create!(capability: "mysql.read", approval_policy: "auto", scope: connection.id)
+    coworker.permission_rules.update!(
+      capability: "mysql.read", approval_policy: "auto", scope: connection.id, actor: user
+    )
     chat_session = ChatSession.create!(user: user, repository: repository)
     Coworkers::Chat.create!(coworker: coworker, chat_session: chat_session, role: "main")
     chat_session.define_singleton_method(:coworker) { coworker }
