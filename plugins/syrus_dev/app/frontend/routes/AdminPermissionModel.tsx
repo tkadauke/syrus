@@ -54,28 +54,38 @@ export function AdminPermissionModel() {
           {t("permission_model.scope_heading")}
         </h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-medium text-text-secondary">
-            {t("permission_model.scope_label")}
-            <Select className="mt-1" value={scopeType} onChange={(event) => changeScope(event.target.value as PermissionResetScope)}>
+          <div>
+            <label className="text-sm font-medium text-text-secondary" htmlFor="permission-reset-scope-type">
+              {t("permission_model.scope_label")}
+            </label>
+            <Select
+              className="mt-1"
+              id="permission-reset-scope-type"
+              value={scopeType}
+              onChange={(event) => changeScope(event.target.value as PermissionResetScope)}
+            >
               {permissionResetScopes.map((scope) => (
                 <option key={scope} value={scope}>
                   {t(`permission_model.scope_${scope}`)}
                 </option>
               ))}
             </Select>
-          </label>
+          </div>
           {requiresId ? (
-            <label className="text-sm font-medium text-text-secondary">
-              {t("permission_model.scope_id")}
+            <div>
+              <label className="text-sm font-medium text-text-secondary" htmlFor="permission-reset-scope-id">
+                {t("permission_model.scope_id")}
+              </label>
               <Input
                 className="mt-1"
+                id="permission-reset-scope-id"
                 value={scopeId}
                 onChange={(event) => {
                   setScopeId(event.target.value)
                   setPreview(null)
                 }}
               />
-            </label>
+            </div>
           ) : null}
         </div>
         <Button
