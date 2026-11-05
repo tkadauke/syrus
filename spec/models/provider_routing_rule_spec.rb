@@ -195,6 +195,38 @@ RSpec.describe ProviderRoutingRule do
     expect(rule(trigger: { type: "chat_role", role: AgentRole::CHAT_PLANNER }, action: panel)).not_to be_valid
   end
 
+  it "accepts distinct reviewer targets using the same execution provider" do
+    provider = class_double("ReviewerTargetProvider", target_type: "coworker")
+    allow(provider).to receive(:resolve) do |reference:, **|
+      record = Struct.new(:id) { def self.polymorphic_name = "TestReviewer" }.new(reference.to_i)
+      { type: "coworker", reference: reference, display: { "name" => "Reviewer #{reference}" }, record: record }
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:reviewer_target_provider).and_return([ provider ])
+    panel = {
+      strategy: "panel",
+      candidates: [
+        { provider: "claude", reviewer_target: { type: "coworker", reference: "1" } },
+        { provider: "claude", reviewer_target: { type: "coworker", reference: "2" } }
+      ],
+      consensus: "majority", on_unavailable: "fail", min_members: 2
+    }
+
+    record = rule(trigger: { type: "step", kind: "coworker_review" }, action: panel)
+
+    expect(record).to be_valid
+    expect(record.action_candidates.map { |candidate| candidate.dig("reviewer_target", "display", "name") }).to eq([ "Reviewer 1", "Reviewer 2" ])
+  end
+
+  it "requires named targets for dedicated coworker review but preserves provider-only security review" do
+    coworker = rule(trigger: { type: "step", kind: "coworker_review" })
+    security = rule(trigger: { type: "step", kind: "security_review" })
+
+    expect(coworker).not_to be_valid
+    expect(coworker.errors[:candidates]).to be_present
+    expect(security).to be_valid
+  end
+
   it "validates panel membership, consensus, unavailable policy, and minimum members" do
     attrs = { trigger: { type: "step", kind: "adversarial_review" } }
 

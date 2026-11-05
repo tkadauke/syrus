@@ -217,7 +217,10 @@ Confirm these settings:
 - **Polling enabled** is on for issue ingestion.
 - **Agent routing** is configured with provider routing rules on the
   repository's edit page. Without repository rules, your own routing rules
-  and default provider apply.
+  and default provider apply. Review-step rules can separately select an
+  authorized, installation-local coworker identity and the provider/model that
+  runs it, including ordered reviewer panels. Coworker references remain in
+  Syrus routing data rather than repository `.syrus.yml`.
 - **Run prepare step** is on unless this repository intentionally needs no
   setup.
 

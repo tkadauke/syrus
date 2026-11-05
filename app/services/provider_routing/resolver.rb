@@ -6,8 +6,13 @@ module ProviderRouting
   # then a hardcoded fallback. Returns a list so callers can fail over.
   class Resolver
     PanelResolutionRequired = Class.new(StandardError)
+    CoworkerReviewTargetRequired = Class.new(StandardError)
 
-    Candidate = Data.define(:provider, :model, :effort_level) do
+    Candidate = Data.define(:provider, :model, :effort_level, :reviewer_target) do
+      def initialize(provider:, model:, effort_level:, reviewer_target: nil)
+        super
+      end
+
       def to_h = super.compact
     end
     PanelResolution = Data.define(:members, :consensus, :on_unavailable, :min_members, :source_scope, :source_id, :matched_rule, :match_details) do
@@ -95,7 +100,7 @@ module ProviderRouting
       end
     end
 
-    HARDCODED_FALLBACK = [ Candidate.new(provider: "claude", model: nil, effort_level: nil) ].freeze
+    HARDCODED_FALLBACK = [ Candidate.new(provider: "claude", model: nil, effort_level: nil, reviewer_target: nil) ].freeze
 
     def self.call(job:, task_key:, trigger: nil, workflow_trigger_kind: nil)
       resolution = resolve(job: job, task_key: task_key, trigger: trigger, workflow_trigger_kind: workflow_trigger_kind)
@@ -134,11 +139,15 @@ module ProviderRouting
     end
 
     def resolve
-      job_override_resolution ||
+      resolution = job_override_resolution ||
         rule_resolution(scope_type: "job", scope_id: job.id) ||
         rule_resolution(scope_type: "repository", scope_id: repository_id) ||
         user_scoped_resolution ||
         hardcoded_fallback_resolution
+      if invocation_kind == "coworker_review" && (resolution.matched_rule.nil? || resolution.candidates.any? { |candidate| candidate.reviewer_target.blank? })
+        raise CoworkerReviewTargetRequired, "coworker_review requires a matching valid coworker routing rule"
+      end
+      resolution
     end
 
     private
@@ -153,10 +162,12 @@ module ProviderRouting
       # here. switch_job_provider_setting! keeps agent_provider in sync for
       # presentation and legacy callers, but the setting remains the source of
       # truth for explicit pins.
-      [ Candidate.new(provider: job.workflow_agent_provider, model: job.model, effort_level: job.effort_level) ]
+      [ Candidate.new(provider: job.workflow_agent_provider, model: job.model, effort_level: job.effort_level, reviewer_target: nil) ]
     end
 
     def job_override_resolution
+      return nil if invocation_kind == "coworker_review"
+
       candidates = job_override_candidates
       return nil if candidates.blank?
 
@@ -182,7 +193,7 @@ module ProviderRouting
       provider = effective_user&.agent_provider
       return nil if provider.blank?
 
-      [ Candidate.new(provider: provider, model: job.model, effort_level: job.effort_level) ]
+      [ Candidate.new(provider: provider, model: job.model, effort_level: job.effort_level, reviewer_target: nil) ]
     end
 
     def default_provider_resolution
@@ -251,7 +262,10 @@ module ProviderRouting
 
     def candidate_from_hash(hash)
       hash = hash.stringify_keys
-      Candidate.new(provider: hash["provider"], model: hash["model"], effort_level: hash["effort_level"])
+      target = hash["reviewer_target"]&.then do |payload|
+        ReviewerTargets.snapshot(payload, owner: effective_user, repository: job.repository)
+      end
+      Candidate.new(provider: hash["provider"], model: hash["model"], effort_level: hash["effort_level"], reviewer_target: target)
     end
 
     def repository_id
@@ -260,6 +274,10 @@ module ProviderRouting
 
     def effective_user
       job.owner_user || job.user
+    end
+
+    def invocation_kind
+      trigger.to_h.deep_stringify_keys["kind"].presence || task_key
     end
 
     def rule_configured?(include_default:)
