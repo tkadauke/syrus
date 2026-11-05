@@ -203,6 +203,8 @@ RSpec.describe "Syrus grader configuration" do
     expect(RepositoryContent::Glob.match?(config.visual_review.when_files_changed, "cli/cmd/inbox.go")).to be(true)
     expect(RepositoryContent::Glob.match?(config.visual_review.when_files_changed, "app/frontend/routes/JobDetail.tsx")).to be(true)
     expect(RepositoryContent::Glob.match?(config.visual_review.when_files_changed, "README.md")).to be(false)
+    browser_notes = targets.find { |target| target.provider == "browser" }.review_notes
+    expect(browser_notes).to include("/admin/tool_cards", "running Bash", "exactly one visual line", "automatically needs_work")
     expect(targets.find { |target| target.provider == "cli_tui" }).to have_attributes(
       build: { "command" => "mise exec go@1.26.5 -- go build -o tmp/syrus-visual-review ./cli" },
       launch: { "command" => "tmp/syrus-visual-review inbox --watch" },
@@ -222,6 +224,19 @@ RSpec.describe "Syrus grader configuration" do
     expect(selected_for.call("cli/cmd/inbox.go")).to eq([ "cli_tui" ])
     expect(selected_for.call("app/frontend/routes/JobDetail.tsx")).to eq([ "browser" ])
     expect(selected_for.call("README.md")).to be_empty
+  end
+
+  it "requires adversarial review to enforce the collapsed tool-card design lock" do
+    config = SyrusYml.new(Rails.root.join(".syrus.yml").read).parse
+    criteria = config.adversarial_review.criteria.join("\n")
+
+    expect(criteria).to include(
+      "collapsed tool-card header",
+      "one visual line",
+      "hides or stacks pills",
+      "fixture manipulation",
+      "explicit written approval from Thomas Kadauke"
+    )
   end
 
   it "fails clearly for malformed or unavailable terminal visual-review configuration" do

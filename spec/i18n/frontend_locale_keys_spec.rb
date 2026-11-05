@@ -90,6 +90,7 @@ RSpec.describe "Frontend locale keys", type: :unit do
       "account_settings.passkeys_heading" => "established technical term",
       "scheduled_tasks.system" => "shared German UI term",
       "scheduled_tasks.name" => "shared German UI term",
+      "scheduled_tasks.system" => "shared German technical term",
       "scheduled_tasks.col_repository" => "approved domain noun",
       "scheduled_tasks.task_source_skill" => "product terminology",
       "scheduled_tasks.skill_heading" => "product terminology",
