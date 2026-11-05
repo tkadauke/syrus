@@ -16,6 +16,8 @@
 #   bin/deploy --build-only          # build + push images, skip rollout
 #   bin/deploy --skip-build           # assume both :<sha> already pushed
 #                                       (just roll out pinned images)
+#   bin/deploy --dry-run             # change nothing; print the command
+#                                       stream this deploy would run
 #
 # After a successful build+push, bin/deploy prunes stale local Syrus image tags
 # and BuildKit cache entries that were not used during this deploy. Disable with
@@ -60,14 +62,16 @@ DEPLOY_STAGING=true
 DEPLOY_PRODUCTION=true
 SKIP_BUILD=false
 BUILD_ONLY=false
+DRY_RUN=false
 while [ $# -gt 0 ]; do
   case "$1" in
     --staging)        DEPLOY_PRODUCTION=false ;;
     --production)     DEPLOY_STAGING=false ;;
     --build-only)     BUILD_ONLY=true ;;
     --skip-build)     SKIP_BUILD=true ;;
+    --dry-run)        DRY_RUN=true; SKIP_BUILD=true ;;
     -h|--help)
-      sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *) echo "unknown arg: $1" >&2; exit 2 ;;
@@ -76,6 +80,108 @@ while [ $# -gt 0 ]; do
 done
 
 cd "$(git rev-parse --show-toplevel)"
+
+# --- dry run ---------------------------------------------------------
+# `--dry-run` exists to answer one question mechanically: what sequence of
+# commands does a deploy actually run? Diffing that stream between two
+# implementations is how a rewrite proves it preserved behaviour, instead of
+# asking a reviewer to believe it did.
+#
+# Reads still execute. The script derives manifests and decisions from live
+# cluster state -- the db-prepare Job is built from the running web
+# deployment, Flux overrides are snapshotted before being pinned -- so a dry
+# run that could not read would describe a deploy against a cluster it never
+# looked at, which is worse than no answer. Only state-changing verbs are
+# intercepted.
+#
+# Shadowing `kubectl` and `docker` as functions catches every call site at
+# once, including the ones inside other functions and behind `VAR=x kubectl`
+# prefixes, without editing 45 functions and risking a missed one. `command`
+# reaches the real binary.
+# Classifying by an allowlist of reads, and treating anything unrecognised as
+# a write, is deliberate. A read wrongly skipped makes the dry run less
+# faithful; a write wrongly executed makes it a liability. Only the first
+# argument matching a known verb is considered, because global flags take
+# values -- `kubectl -n syrus delete job/foo` must not read its verb as
+# "syrus".
+KUBECTL_READ_VERBS=" get describe logs version config explain api-resources api-versions cluster-info top auth diff events "
+KUBECTL_KNOWN_VERBS=" get describe logs version config explain api-resources api-versions cluster-info top auth diff events apply create delete patch replace scale annotate label set rollout wait exec cp drain taint cordon uncordon edit run expose autoscale "
+
+# Many call sites end in `>/dev/null` -- the Flux and cronjob suspend patches
+# among them -- so emitting on stdout silently dropped exactly the commands
+# whose output the script discards. A stream missing its writes is worse than
+# no stream, so this writes to a dedicated descriptor that call-site
+# redirection cannot reach. DRY_RUN_STREAM captures it to a file for diffing.
+dry_run_open_stream() {
+  [ "$DRY_RUN" = true ] || return 0
+  if [ -n "${DRY_RUN_STREAM:-}" ]; then
+    exec 9>"$DRY_RUN_STREAM"
+  else
+    exec 9>&1
+  fi
+}
+
+dry_run_emit() {
+  printf 'DRYRUN %s\n' "$*" >&9
+}
+
+# A dry run creates nothing, so anything that waits for a resource to appear
+# would poll until its own deadline -- ten minutes of hot spin for the
+# db-prepare wait, since the backoff is skipped too. These waits report
+# success immediately instead; what a real deploy waits for is not part of the
+# command stream being compared.
+dry_run_skips_wait() {
+  [ "$DRY_RUN" = true ]
+}
+
+kubectl() {
+  if [ "$DRY_RUN" != true ]; then
+    command kubectl "$@"
+    return
+  fi
+
+  local verb="" arg
+  for arg in "$@"; do
+    case "$KUBECTL_KNOWN_VERBS" in
+      *" $arg "*) verb="$arg"; break ;;
+    esac
+  done
+
+  case "$KUBECTL_READ_VERBS" in
+    *" $verb "*) command kubectl "$@"; return ;;
+  esac
+
+  dry_run_emit kubectl "$@"
+  # A write fed from a pipeline (`... | kubectl apply -f -`) must still drain
+  # stdin, or the producer upstream dies of SIGPIPE and takes the whole run
+  # with it under `set -o pipefail`.
+  case " $* " in
+    *" -f - "*|*" -f- "*|*" --filename=- "*) cat >/dev/null 2>&1 || true ;;
+  esac
+  return 0
+}
+
+# Every docker invocation is skipped: --dry-run implies --skip-build, so
+# nothing in the dry path needs a real image, and "build or push nothing" is
+# easier to be sure of than classifying docker's subcommands.
+docker() {
+  if [ "$DRY_RUN" != true ]; then
+    command docker "$@"
+    return
+  fi
+
+  dry_run_emit docker "$@"
+  return 0
+}
+
+# Backoffs are real time, not behaviour. A dry run that honours them takes as
+# long as a deploy while changing nothing, so nobody would run it.
+sleep() {
+  [ "$DRY_RUN" = true ] && return 0
+  command sleep "$@"
+}
+
+dry_run_open_stream
 
 # --- preflight: clean tree, sane HEAD --------------------------------
 # `diff-index` trusts cached stat information and can report a false positive
@@ -753,6 +859,7 @@ apply_and_wait_db_prepare_job() {
 
 wait_for_db_prepare_job() {
   local kubeconfig="$1" namespace="$2" job_name="$3"
+  dry_run_skips_wait && return 0
   local total_seconds deadline state
   total_seconds="$(duration_to_seconds "$DB_PREPARE_TIMEOUT")"
   deadline=$((SECONDS + total_seconds))
@@ -904,6 +1011,7 @@ resume_mysql_backup() {
 }
 
 drain_mysql_backup_pods() {
+  dry_run_skips_wait && return 0
   local kubeconfig="$1" namespace="$2" label="$3"
   local deadline=$((SECONDS + MYSQL_BACKUP_DRAIN_SECONDS))
   local running
@@ -934,6 +1042,7 @@ running_mysql_backup_jobs() {
 }
 
 wait_for_rollout_target() {
+  dry_run_skips_wait && return 0
   local label="$1" kubeconfig="$2" namespace="$3" target="$4"
   local total_seconds poll_seconds min_poll_seconds deadline started_at elapsed status_log
   total_seconds="$(duration_to_seconds "$ROLLOUT_TIMEOUT")"
@@ -1249,6 +1358,9 @@ flux_desired_images_patch() {
 verify_flux_desired_images() {
   local kubeconfig="$1" label="$2"
   local missing
+  # The pin patch was skipped, so the live overrides still name the previously
+  # deployed revision. That is the dry run behaving correctly, not a fault.
+  dry_run_skips_wait && return 0
   if ! flux_kustomization_exists "$kubeconfig"; then
     return 0
   fi
@@ -1393,6 +1505,10 @@ EOF
 verify_sha() {
   local label="$1" kubeconfig="$2" namespace="$3"
   local mismatch=0
+  # Nothing was rolled out, so the running pods legitimately report a
+  # different revision. Checking would fail a dry run that did exactly what
+  # it was asked to do.
+  dry_run_skips_wait && return 0
   for dep in "${DEPLOYMENTS[@]}"; do
     local actual
     if ! KUBECONFIG="$kubeconfig" kubectl get -n "$namespace" "$dep" >/dev/null 2>&1; then
@@ -1481,6 +1597,7 @@ MSG
 
 verify_coworker_confinement() {
   local label="$1" kubeconfig="$2" namespace="$3" workload required output status
+  dry_run_skips_wait && return 0
 
   for workload in "${WORKER_WORKLOADS[@]}"; do
     KUBECONFIG="$kubeconfig" kubectl get -n "$namespace" "$workload" >/dev/null 2>&1 || continue
@@ -1519,15 +1636,25 @@ verify_coworker_confinement() {
 # --- restart -----------------------------------------------------------
 if [ "$DEPLOY_STAGING" = true ]; then
   rollout "staging" "$STAGING_KUBECONFIG" "$NAMESPACE_STAGING"
-  git tag -f staging "$SHA"
-  git push --force origin staging
+  if [ "$DRY_RUN" = true ]; then
+    dry_run_emit git tag -f staging "$SHA"
+    dry_run_emit git push --force origin staging
+  else
+    git tag -f staging "$SHA"
+    git push --force origin staging
+  fi
   echo "→ staging tag → ${SHA}"
 fi
 
 if [ "$DEPLOY_PRODUCTION" = true ]; then
   rollout "production" "$PRODUCTION_KUBECONFIG" "$NAMESPACE_PRODUCTION"
-  git tag -f production "$SHA"
-  git push --force origin production
+  if [ "$DRY_RUN" = true ]; then
+    dry_run_emit git tag -f production "$SHA"
+    dry_run_emit git push --force origin production
+  else
+    git tag -f production "$SHA"
+    git push --force origin production
+  fi
   echo "→ production tag → ${SHA}"
 fi
 
