@@ -30,6 +30,7 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     merge_train_unverified_member_reconciles_after_land
     non_agentic_claim_without_process_retries
     linear_epic_siblings_implement_in_turn
+    linear_epic_retry_bypasses_blocked_downstream
     parallel_grader_worker_loss_retries
     pinned_host_admission_deferral_budget_reenqueues_elsewhere
     queued_job_with_published_pr_converges
@@ -185,6 +186,17 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     expect(result).to be_success
     jobs = Job.where(id: result.job_ids).order(:id).to_a
     expect(jobs).to all(be_implemented)
+  end
+
+  it "starts a newer retry before older downstream siblings that depend on it" do
+    result = run_scenario("linear_epic_retry_bypasses_blocked_downstream")
+
+    expect(result).to be_success
+    completed, downstream, retrying, tail = Job.where(id: result.job_ids).order(:id).to_a
+    expect([ completed, downstream, retrying, tail ]).to all(be_implemented)
+    expect(retrying.workflows.first.created_at).to be > downstream.workflows.first.created_at
+    expect(WorkUnitMember.joins(:work_unit).where(job_id: result.job_ids, work_units: { state: WorkUnits::Ownership::ACTIVE_STATES })).to be_empty
+    expect(Run.where(job_id: result.job_ids, state: %w[queued running])).to be_empty
   end
 
   it "lets an urgent landing preempt and then resume a blocked Epic train without duplicate work" do

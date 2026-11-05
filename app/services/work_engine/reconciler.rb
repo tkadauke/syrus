@@ -269,6 +269,7 @@ module WorkEngine
       issues.concat(classify_unambiguous_job_state_drift)
       issues.concat(classify_completed_infrastructure_jobs)
       issues.concat(classify_stuck_main_branch_repair_jobs)
+      issues.concat(classify_stale_epic_sibling_start_blocks)
       issues.concat(classify_start_blocks)
       issues.concat(classify_main_broken_workflows)
       issues.concat(classify_resource_congestion)
@@ -2616,6 +2617,28 @@ module WorkEngine
             unsatisfied_dependencies: workflow.job.unsatisfied_dependencies.map(&:id)
           ),
           explanation: "Workflow ##{workflow.id} is intentionally blocked before start: #{reason}."
+        )
+      end
+    end
+
+    def classify_stale_epic_sibling_start_blocks
+      workflows.filter_map do |workflow|
+        next unless workflow.queued?
+        next unless start_block_reason(workflow).to_s == StepDispatcher::EPIC_SIBLING_BLOCK_REASON
+        next if StepDispatcher.epic_sibling_blocking?(workflow)
+        next unless StepDispatcher.epic_sibling_candidate_eligible?(workflow)
+
+        issue(
+          kind: :stale_epic_sibling_start_block,
+          severity: :warning,
+          affected_ids: ids_for(workflow),
+          safe_to_auto_repair: true,
+          recommended_repair_action: "clear_stale_epic_sibling_start_block_and_start_workflow",
+          evidence: workflow_evidence(workflow).merge(
+            start_blocked_reason: StepDispatcher::EPIC_SIBLING_BLOCK_REASON,
+            work_unit_blocked_reason: workflow.work_unit&.blocked_reason
+          ),
+          explanation: "Workflow ##{workflow.id} retains an Epic sibling projection although it is now the eligible implementation candidate."
         )
       end
     end

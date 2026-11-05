@@ -359,9 +359,26 @@ class StepDispatcher
     winner = implementation_workflows
       .where(state: "queued")
       .order(:created_at, :id)
-      .first
+      .detect { |candidate| epic_sibling_candidate_eligible?(candidate) }
 
     winner.present? && winner.job_id != workflow.job_id
+  end
+
+  # Sibling serialization is an admission election, not a queue-age election.
+  # A downstream workflow which cannot pass its dependency/stack gates must not
+  # reserve the slot needed by the ancestor that would make it runnable.
+  def self.epic_sibling_candidate_eligible?(workflow)
+    return false unless workflow.queued?
+    return false unless WorkIntents::Fulfillment::IMPLEMENTATION_TRIGGER_KINDS.include?(workflow.trigger_kind)
+    return false if workflow.first_step.nil? || workflow.first_step.runs.exists?
+
+    job = workflow.job
+    return false unless job.queued? || job.running? || job.implemented?
+    return false if job.dependencies_failed_for_execution?
+    return false unless job.dependencies_satisfied_for_execution?
+    return false unless JobStackResolver.new(job, workflow: workflow).resolve!(apply: false).ready?
+
+    job.ready_for_execution?
   end
 
   def self.start_blocked_backoff_active?(workflow, reason)

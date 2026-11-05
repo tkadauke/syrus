@@ -4389,6 +4389,22 @@ RSpec.describe StepDispatcher, "linear Epic sibling implementation gate", :ci_on
     expect(queued_workflow.reload.artifact("start_blocked_reason")).to eq(described_class::EPIC_SIBLING_BLOCK_REASON)
   end
 
+  it "elects a newer ready retry ahead of an older dependency-blocked downstream workflow" do
+    retrying_job = epic_job(issue_number: 206)
+    downstream_job = epic_job(issue_number: 207)
+    downstream_workflow, = build_workflow(job: downstream_job, trigger_kind: "initial")
+    downstream_job.dependencies.create!(depends_on_job: retrying_job, source: "manual")
+    retry_workflow, retry_step = build_workflow(job: retrying_job, trigger_kind: "retry")
+
+    expect(downstream_workflow.created_at).to be <= retry_workflow.created_at
+    expect(described_class.epic_sibling_candidate_eligible?(downstream_workflow)).to be(false)
+    expect(described_class.epic_sibling_candidate_eligible?(retry_workflow)).to be(true)
+
+    expect { described_class.start_workflow(retry_workflow) }
+      .to change { retry_step.runs.count }.by(1)
+    expect(retry_workflow.reload.artifact("start_blocked_reason")).to be_nil
+  end
+
   it "does not serialize landing, recovery, or main-grader workflows behind implementation" do
     implementing_job = epic_job(issue_number: 203, state: "running")
     implementing_workflow, = build_workflow(job: implementing_job, trigger_kind: "initial")

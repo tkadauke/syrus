@@ -895,6 +895,22 @@ module WorkEngine
         end
       end
 
+      class ClearStaleEpicSiblingStartBlockAndStartWorkflow < Base
+        def perform
+          workflow = target_workflow
+          return skipped("Workflow no longer exists") unless workflow
+          return skipped("Workflow is #{workflow.state}, not queued") unless workflow.queued?
+          return skipped("Workflow is not sibling-blocked") unless WorkUnits::StartBlock.for(workflow).blocked_for?(StepDispatcher::EPIC_SIBLING_BLOCK_REASON)
+          return skipped("An eligible sibling still owns the slot") if StepDispatcher.epic_sibling_blocking?(workflow)
+          return skipped("Workflow is no longer eligible for the sibling slot") unless StepDispatcher.epic_sibling_candidate_eligible?(workflow)
+
+          StepDispatcher.clear_start_blocked!(workflow, StepDispatcher::EPIC_SIBLING_BLOCK_REASON)
+          workflow.work_unit&.unblock! if workflow.work_unit&.blocked_reason == StepDispatcher::EPIC_SIBLING_BLOCK_REASON
+          run = WorkUnits::Launcher.start!(workflow.reload).run
+          run ? success("cleared stale Epic sibling block and started #{workflow_label(workflow)} with #{run_label(run)}") : skipped("workflow start remained blocked")
+        end
+      end
+
       class ResumeDeferredPhase < Base
         def perform
           workflow = target_workflow

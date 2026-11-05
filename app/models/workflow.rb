@@ -134,6 +134,7 @@ class Workflow < ApplicationRecord
   after_update_commit :schedule_auto_retry!, if: :saved_change_to_state_to_failed?
   after_update_commit :enforce_job_workflow_runaway_limits_on_fail!, if: :saved_change_to_state_to_failed?
   after_update_commit :wake_workflow_admission_after_completion!, if: :saved_change_to_state_to_terminal?
+  after_update_commit :wake_linear_epic_siblings_after_completion!, if: :saved_change_to_state_to_terminal?
   after_create_commit :enforce_job_workflow_runaway_limits_on_create!
   after_create_commit :record_workflow_activity_created!
   after_create_commit :link_as_replacement_in_cancellation_attribution
@@ -215,6 +216,17 @@ class Workflow < ApplicationRecord
     WorkflowAdmissionCapacityWakeupJob.perform_later if WorkflowAdmissionCapacityWakeup.deferred_sleepers_exist?
   rescue StandardError => e
     Rails.logger.warn("[WorkflowAdmissionCapacityWakeup] failed to enqueue after Workflow ##{id}: #{e.class}: #{e.message}")
+    nil
+  end
+
+  def wake_linear_epic_siblings_after_completion!
+    epic = job&.epic
+    return unless epic&.resolved_epic_dependency_policy == "linear"
+    return unless WorkIntents::Fulfillment::IMPLEMENTATION_TRIGGER_KINDS.include?(trigger_kind)
+
+    epic.jobs.where(state: %w[queued running implemented]).find_each(&:recheck_queued_workflow_start_blocks!)
+  rescue StandardError => e
+    Rails.logger.warn("[StepDispatcher] failed to wake linear Epic siblings after Workflow ##{id}: #{e.class}: #{e.message}")
     nil
   end
 

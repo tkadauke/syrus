@@ -1,0 +1,56 @@
+name: linear epic retry bypasses blocked downstream
+repository:
+  owner: simulation
+  name: linear-epic-retry-bypasses-blocked-downstream
+epics:
+  feature:
+    title: Retried serialized stack
+jobs:
+  completed:
+    title: Earlier completed child
+    epic: feature
+    state: implemented
+  downstream:
+    title: Older downstream child
+    epic: feature
+    state: queued
+    depends_on:
+      - retrying
+    workflow:
+      template: true
+      kind: initial
+  retrying:
+    title: Newer retry after workspace loss
+    epic: feature
+    state: queued
+    workflow:
+      template: true
+      kind: retry
+  tail:
+    title: Serialized tail child
+    epic: feature
+    state: queued
+    depends_on:
+      - downstream
+    workflow:
+      template: true
+      kind: initial
+outcomes:
+  default: success
+success_states:
+  retrying:
+    - implemented
+  downstream:
+    - implemented
+  tail:
+    - implemented
+expect:
+  jobs:
+    completed:
+      - implemented
+    retrying:
+      - implemented
+    downstream:
+      - implemented
+    tail:
+      - implemented

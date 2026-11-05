@@ -5148,6 +5148,50 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(plan(result, :wait_for_resource_admission)).to have_attributes(auto_executable: false, target_id: unit.id)
   end
 
+  it "clears a persisted obsolete Epic sibling projection and starts the eligible workflow" do
+    repository = Factories.repository(user: job.user)
+    epic = Factories.epic(
+      user: job.user,
+      repository: repository,
+      epic_dependency_policy: "linear",
+      state: "in_progress"
+    )
+    candidate_job = Factories.job_record(
+      user: job.user,
+      repository: repository,
+      epic: epic,
+      issue_number: 812,
+      issue_title: "Retry candidate",
+      state: "queued"
+    )
+    candidate = Workflow.create!(
+      job: candidate_job,
+      trigger_kind: "retry",
+      artifacts: {
+        "start_blocked_reason" => StepDispatcher::EPIC_SIBLING_BLOCK_REASON,
+        "start_blocked_next_check_at" => 1.hour.from_now.iso8601
+      }
+    )
+    first_step = candidate.steps.create!(kind: "implement", position: 0)
+    unit = attach_work_unit(
+      candidate,
+      kind: "retry",
+      state: "blocked",
+      blocked_reason: StepDispatcher::EPIC_SIBLING_BLOCK_REASON,
+      blocked_until: 1.hour.from_now,
+      blocked_details: { "start_blocked_reason" => StepDispatcher::EPIC_SIBLING_BLOCK_REASON }
+    )
+
+    result = reconcile_and_execute(workflow_id: candidate.id)
+
+    expect(kind(result, :stale_epic_sibling_start_block)).to be_present
+    expect(plan(result, :clear_stale_epic_sibling_start_block_and_start_workflow).auto_executable).to be(true)
+    expect(first_step.reload.runs.count).to eq(1)
+    expect(candidate.reload.artifact("start_blocked_reason")).to be_nil
+    expect(unit.reload).to be_queued
+    expect(unit.blocked_reason).to be_nil
+  end
+
   it "rechecks expired WorkUnit-only admission start blocks by starting the workflow again" do
     run.destroy!
     workflow.update_columns(state: "queued", artifacts: {}, created_at: 5.minutes.ago, updated_at: 5.minutes.ago)

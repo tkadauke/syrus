@@ -1064,6 +1064,21 @@ module WorkEngine
         end
       end
 
+      class StaleEpicSiblingStartBlock < Base
+        def plan
+          automatic_plan(
+            "clear_stale_epic_sibling_start_block_and_start_workflow",
+            primary_workflow,
+            "No eligible sibling owns the implementation slot, so clear the obsolete projection and dispatch the elected workflow.",
+            execution_steps: [ "StepDispatcher.clear_start_blocked!", "WorkUnit#unblock!", "WorkUnits::Launcher.start!" ],
+            preconditions: {
+              workflow_state: "queued",
+              start_blocked_reason: StepDispatcher::EPIC_SIBLING_BLOCK_REASON
+            }
+          )
+        end
+      end
+
       class LandingStartBlocked < Base
         def plan
           if issue.recommended_repair_action == "release_landing_slot_for_main_repair"
