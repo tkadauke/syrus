@@ -235,6 +235,8 @@ RSpec.describe Coworkers::Create do
   end
 
   it "removes the real remote branch after a post-seed creation failure outside a Git repository" do
+    allow(ProcessRunner).to receive(:backend).and_return(Execution::Router.new(authorizer: nil))
+
     Dir.mktmpdir("coworker-create-spec-") do |root|
       bare_remote = File.join(root, "coworker-homes.git")
       caller_directory = File.join(root, "not-a-repository")
