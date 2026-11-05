@@ -16,5 +16,6 @@ RSpec.describe "Unified permission cutover" do
   it "has no observational shadow authority path" do
     expect(defined?(Permissions::ShadowEvaluator)).to be_nil
     expect(Rails.root.join("app/services/mcp_tool_registry.rb").read).not_to include("ShadowEvaluator")
+    expect(Rails.root.join("website/src/content/docs/features.md").read).not_to include("remain in\nshadow mode")
   end
 end

@@ -1875,12 +1875,12 @@ canonical rules shown in Settings → Permissions.
 
 ## Permission parity diagnostics
 
-Coworker roles enforce the evaluator directly. Other agent roles remain in
-shadow mode alongside their existing dispatch filters while Syrus records
-differences from the unified policy. Admin diagnostics summarize recent
-mismatches and evaluator failures by capability and agent role. Safe local
-reads, isolated workspace writes, and isolated execution remain available if
-shadow infrastructure fails.
+The unified evaluator is authoritative for coworker, ordinary Chat, scheduled,
+and workflow agents. Syrus records each effective decision as a redacted
+diagnostic event, including its capability, agent role, policy, actor, and
+stable invocation fingerprint. Admin diagnostics summarize those recent
+decisions without becoming a second authorization path; diagnostic persistence
+can fail open, while authorization itself continues to fail closed.
 
 ## Skills
 
