@@ -66,8 +66,7 @@ module ProviderRoutingRuleSerialization
         chat_roles: AgentRole::CHAT_ROLES.map do |role|
           provider_routing_option_json(role, role.delete_prefix("chat:").humanize)
         end,
-        step_kinds: Step::Kind.entries.select(&:agentic).map { |entry| provider_routing_kind_entry_json(entry) } +
-          [ { value: "coworker_review", label: "Coworker review", panel_capable: true } ]
+        step_kinds: Step::Kind.entries.select(&:agentic).map { |entry| provider_routing_kind_entry_json(entry) }
       },
       conditions: {
         workflow_trigger_kinds: Workflow::TriggerKind.entries.map { |entry| provider_routing_kind_entry_json(entry) }

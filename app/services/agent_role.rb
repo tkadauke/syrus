@@ -13,6 +13,7 @@ module AgentRole
   WORKFLOW_SUMMARY_TEST_PLAN        = "workflow:summary_test_plan"
   WORKFLOW_ADVERSARIAL_REVIEWER     = "workflow:adversarial_reviewer"
   WORKFLOW_SECURITY_REVIEWER        = "workflow:security_reviewer"
+  WORKFLOW_COWORKER_REVIEWER        = "workflow:coworker_reviewer"
   WORKFLOW_VISUAL_REVIEWER          = "workflow:visual_reviewer"
   WORKFLOW_MANUAL                   = "workflow:manual"
 
@@ -35,6 +36,7 @@ module AgentRole
     WORKFLOW_SUMMARY_TEST_PLAN,
     WORKFLOW_ADVERSARIAL_REVIEWER,
     WORKFLOW_SECURITY_REVIEWER,
+    WORKFLOW_COWORKER_REVIEWER,
     WORKFLOW_VISUAL_REVIEWER,
     WORKFLOW_MANUAL
   ].freeze
