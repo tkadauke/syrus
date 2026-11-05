@@ -426,10 +426,10 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     expect(result.events.join("\n")).to include("retry #{job.slug}")
   end
 
-  it "can opt into workspace availability diagnostics" do
+  it "can opt into workspace availability recovery" do
     result = run_scenario("workspace_missing_diagnostic", max_ticks: 1)
 
-    expect(result).to be_stuck
+    expect(result).to be_success
     expect(result.events.join("\n")).to include("workspace_missing")
   end
 

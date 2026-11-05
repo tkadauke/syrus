@@ -191,7 +191,8 @@ module WorkEngine
       end
     end
 
-    def initialize(source:, job_id: nil, workflow_id: nil, run_id: nil, work_intent_id: nil, now: Time.current, execute_repairs: false)
+    def initialize(source:, job_id: nil, workflow_id: nil, run_id: nil, work_intent_id: nil, now: Time.current, execute_repairs: false,
+      skipped_repair_issue_kinds: [])
       @source = source.to_s
       @job_id = job_id
       @workflow_id = workflow_id
@@ -199,6 +200,7 @@ module WorkEngine
       @work_intent_id = work_intent_id
       @now = now
       @execute_repairs = execute_repairs
+      @skipped_repair_issue_kinds = Array(skipped_repair_issue_kinds).map(&:to_s)
     end
 
     def call
@@ -300,7 +302,10 @@ module WorkEngine
         return result
       end
 
-      result = result.with(repair_executions: WorkEngine::RepairExecutor.call(result: result, now: now))
+      executable_result = result.with(
+        repair_plans: repair_plans.reject { |plan| skipped_repair_issue_kinds.include?(plan.issue_kind) }
+      )
+      result = result.with(repair_executions: WorkEngine::RepairExecutor.call(result: executable_result, now: now))
       WorkEngine::ReconcilerActivity.record_result!(
         source: source,
         job_id: job_id,
@@ -333,7 +338,8 @@ module WorkEngine
 
     private
 
-    attr_reader :source, :job_id, :workflow_id, :run_id, :work_intent_id, :now, :jobs, :workflows, :work_intents, :work_units, :runs, :steps, :solid_queue
+    attr_reader :source, :job_id, :workflow_id, :run_id, :work_intent_id, :now, :jobs, :workflows, :work_intents, :work_units, :runs, :steps, :solid_queue,
+      :skipped_repair_issue_kinds
 
     def execute_repairs?
       @execute_repairs
