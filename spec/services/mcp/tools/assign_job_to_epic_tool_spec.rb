@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Mcp::Tools::AssignJobToEpicTool do
+RSpec.describe Mcp::Tools::AssignJobToEpicTool, :full_chat_access do
   let(:user)         { Factories.user }
   let(:other_user)   { Factories.user }
   let(:repository)   { Factories.repository(user: user) }

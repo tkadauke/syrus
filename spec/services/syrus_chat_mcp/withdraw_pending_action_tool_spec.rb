@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Mcp::Tools::WithdrawPendingActionTool do
+RSpec.describe Mcp::Tools::WithdrawPendingActionTool, :full_chat_access do
   include ActiveJob::TestHelper
 
   let(:user) { Factories.user }

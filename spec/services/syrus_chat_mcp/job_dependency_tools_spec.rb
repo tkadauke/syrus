@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "Mcp::Tools job dependency tools" do
+RSpec.describe "Mcp::Tools job dependency tools", :full_chat_access do
   let!(:_bootstrap_admin) { Factories.user(admin: true) }
 
   let(:user) { Factories.user }

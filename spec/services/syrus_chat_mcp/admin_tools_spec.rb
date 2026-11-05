@@ -65,6 +65,7 @@ RSpec.describe "Mcp::Tools admin tools" do
   end
 
   def call_tool(chat_session, name, arguments = {})
+    grant_full_chat_access(chat_session.user)
     raw = server_for(chat_session).handle_json(
       { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: name, arguments: arguments } }.to_json
     )

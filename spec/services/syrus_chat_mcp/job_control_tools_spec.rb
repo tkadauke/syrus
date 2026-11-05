@@ -2,7 +2,7 @@ require "rails_helper"
 require "support/unlanding_feature"
 require "ostruct"
 
-RSpec.describe "Mcp::Tools job control tools" do
+RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
   let!(:_bootstrap_admin) { Factories.user(admin: true) }
 
   let(:user) { Factories.user }
