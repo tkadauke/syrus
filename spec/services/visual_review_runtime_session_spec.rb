@@ -14,7 +14,8 @@ RSpec.describe VisualReviewRuntimeSession do
       review_notes: "Open the jobs screen",
       when_files_changed: [ "cli/**" ],
       captures: [ "jobs loaded" ],
-      legacy_browser: false
+      legacy_browser: false,
+      environment: nil
     )
   end
   let(:provider) do

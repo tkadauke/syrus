@@ -1,7 +1,5 @@
 require "json"
-require "open3"
 require "set"
-require "timeout"
 
 module RuntimeTerminal
   class VisualReviewEnvironment
@@ -9,6 +7,7 @@ module RuntimeTerminal
     MAX_OUTPUT_BYTES = 64.kilobytes
     MAX_STDERR_BYTES = 8.kilobytes
     TIMEOUT = 10.seconds
+    COMMAND_PATH = "/usr/local/bin:/usr/bin:/bin"
     NAME = /\A[A-Za-z_][A-Za-z0-9_]*\z/
     FORBIDDEN = SyrusYml::VISUAL_REVIEW_FORBIDDEN_ENV.to_set.freeze
 
@@ -74,7 +73,7 @@ module RuntimeTerminal
       raise Error, "visual-review environment input envelope is too large" if payload.bytesize > MAX_INPUT_BYTES
 
       stdout, stderr, status = capture(Array(command["argv"]), payload)
-      raise Error, "visual-review environment command exited with status #{status.exitstatus}; stderr: #{diagnostic(stderr)}" unless status.success?
+      raise Error, "visual-review environment command exited with status #{status.exit_status}; stderr: #{diagnostic(stderr)}" unless status.success?
 
       parse_output(stdout, Array(command["allow_output"]))
     rescue Errno::ENOENT
@@ -82,50 +81,21 @@ module RuntimeTerminal
     end
 
     def capture(argv, payload)
-      stdout = +"".b
-      stderr = +"".b
-      status = nil
-      Timeout.timeout(TIMEOUT) do
-        stdin, out, err, wait = Open3.popen3(
-          ProcessRunner.forwarded_env([]), *argv,
-          chdir: runtime_session.workspace_ref, pgroup: true
-        )
-        begin
-          stdin.write(payload)
-          stdin.close
-          readers = [ [ out, stdout, MAX_OUTPUT_BYTES, "stdout" ], [ err, stderr, MAX_STDERR_BYTES, "stderr" ] ].map do |io, buffer, limit, label|
-            Thread.new do
-              Thread.current.report_on_exception = false
-              loop do
-                chunk = io.readpartial(4096)
-                raise Error, "visual-review environment command #{label} exceeded #{limit} bytes" if buffer.bytesize + chunk.bytesize > limit
-                buffer << chunk
-              rescue EOFError, IOError
-                break
-              end
-            end
-          end
-          readers.each(&:value)
-          status = wait.value
-        ensure
-          terminate(wait)
-          [ stdin, out, err ].each { |io| io.close unless io.closed? }
-        end
+      capture = ProcessRunner.new(
+        env: { "PATH" => COMMAND_PATH }, command: argv,
+        mounts: ProcessRunner.mounts(runtime_session.workspace_ref), network: "grader",
+        timeout: TIMEOUT, stdin_data: payload, kind: "grader",
+        run: runtime_session.run, workflow: runtime_session.workflow, job: runtime_session.job
+      ).capture(limit: MAX_OUTPUT_BYTES)
+      raise Error, "visual-review environment command stdout exceeded #{MAX_OUTPUT_BYTES} bytes" if capture.stdout_truncated
+      if capture.stderr_truncated || capture.stderr.bytesize > MAX_STDERR_BYTES
+        raise Error, "visual-review environment command stderr exceeded #{MAX_STDERR_BYTES} bytes"
       end
-      [ stdout.force_encoding(Encoding::UTF_8), stderr.force_encoding(Encoding::UTF_8), status ]
-    rescue Timeout::Error
-      raise Error, "visual-review environment command timed out after #{TIMEOUT.to_i} seconds"
-    end
+      raise Error, "visual-review environment command timed out after #{TIMEOUT.to_i} seconds" if capture.result.timed_out?
 
-    def terminate(wait)
-      return unless wait&.alive?
-
-      Process.kill("TERM", -wait.pid)
-      wait.join(0.5)
-      Process.kill("KILL", -wait.pid) if wait.alive?
-      wait.join
-    rescue Errno::ESRCH, Errno::ECHILD
-      nil
+      stdout = capture.stdout.force_encoding(Encoding::UTF_8)
+      stderr = capture.stderr.force_encoding(Encoding::UTF_8)
+      [ stdout, stderr, capture.result ]
     end
 
     def parse_output(stdout, allow_output)

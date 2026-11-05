@@ -168,7 +168,7 @@ RSpec.describe Steps::VisualReview do
     target = App::VisualReviewRuntimeTargets::Target.new(
       name: "CLI", provider: "cli_tui", workspace_path: "/tmp/workspace",
       launch: {}, build: {}, dimensions: nil, review_notes: nil,
-      when_files_changed: [], captures: [], legacy_browser: false
+      when_files_changed: [], captures: [], legacy_browser: false, environment: nil
     )
     lifecycle = instance_double(VisualReviewRuntimeSession, start!: true, stop!: true)
     allow(handler).to receive(:visual_review_runtime_targets).and_return([ target ])
