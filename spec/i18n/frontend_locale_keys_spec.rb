@@ -88,6 +88,7 @@ RSpec.describe "Frontend locale keys", type: :unit do
       "account_settings.codex_chatgpt_login" => "product names and code filename",
       "account_settings.lang_deutsch" => "language endonym",
       "account_settings.passkeys_heading" => "established technical term",
+      "scheduled_tasks.system" => "shared German UI term",
       "scheduled_tasks.name" => "shared German UI term",
       "scheduled_tasks.system" => "shared German technical term",
       "scheduled_tasks.col_repository" => "approved domain noun",
