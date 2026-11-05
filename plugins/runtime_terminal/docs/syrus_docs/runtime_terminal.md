@@ -143,6 +143,15 @@ and the Runtime panel all see the same retained artifact.
 (0.2s), for `TerminalSessionJob` to publish a `relay_address` onto the
 mapped `Terminal::Session` before attempting to connect.
 
+For workflow visual review, the provider resolves a target's optional
+repository-defined environment immediately before the PTY starts. The terminal
+job receives only the resulting in-memory mapping; neither `Terminal::Session`
+nor `RuntimeSession` stores resolved values. Static configuration is validated,
+and generated configuration runs a repository executable by argv with bounded
+JSON input and bounded output. Unknown inputs fail before execution,
+non-allowlisted output is dropped, forbidden startup-hook names fail closed,
+and stderr diagnostics reveal only a byte count.
+
 Screen inspection accepts deterministic synchronization options:
 `after_generation` waits for a strictly newer screen, `wait_for_change: true`
 uses the generation at call time as its baseline, and `wait_for_text` matches

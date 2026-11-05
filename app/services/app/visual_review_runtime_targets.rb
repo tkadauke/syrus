@@ -6,7 +6,7 @@ module App
   class VisualReviewRuntimeTargets
     Target = Data.define(
       :name, :provider, :workspace_path, :launch, :build, :dimensions,
-      :review_notes, :when_files_changed, :captures, :legacy_browser
+      :review_notes, :when_files_changed, :captures, :legacy_browser, :environment
     ) do
       def to_h
         {
@@ -19,8 +19,18 @@ module App
           "review_notes" => review_notes,
           "when_files_changed" => when_files_changed,
           "captures" => captures,
-          "legacy_browser" => legacy_browser
+          "legacy_browser" => legacy_browser,
+          "environment" => environment_to_h
         }.compact
+      end
+
+      def environment_to_h
+        return unless environment
+
+        { "static" => environment.static }.tap do |value|
+          command = environment.command
+          value["command"] = { "argv" => command.argv, "inputs" => command.inputs, "allow_output" => command.allow_output } if command
+        end
       end
     end
 
@@ -49,7 +59,8 @@ module App
           launch: {}, build: {}, dimensions: nil,
           review_notes: project["seed_notes"],
           when_files_changed: project["when_files_changed"],
-          captures: [], legacy_browser: true
+          captures: [], legacy_browser: true,
+          environment: nil
         )
       end
     end
@@ -78,7 +89,8 @@ module App
         review_notes: target.review_notes,
         when_files_changed: patterns,
         captures: target.captures,
-        legacy_browser: false
+        legacy_browser: false,
+        environment: target.environment
       )
     end
   end

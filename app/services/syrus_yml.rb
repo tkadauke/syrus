@@ -260,9 +260,11 @@ class SyrusYml
   AdversarialReviewConfig = Data.define(:rounds, :criteria, :required)
   SecurityReviewConfig = Data.define(:rounds, :criteria, :required)
   ReviewNotesConfig = Data.define(:criteria, :low_signal)
+  VisualReviewEnvironmentCommand = Data.define(:argv, :inputs, :allow_output)
+  VisualReviewEnvironment = Data.define(:static, :command)
   VisualReviewRuntimeTarget = Data.define(
     :name, :provider, :launch, :build, :dimensions, :review_notes,
-    :when_files_changed, :captures
+    :when_files_changed, :captures, :environment
   )
   VisualReviewConfig = Data.define(:enabled, :rounds, :when_files_changed, :seed_notes, :required, :targets) do
     def initialize(targets: [], **attributes)
@@ -506,8 +508,62 @@ class SyrusYml
         dimensions: dimensions,
         review_notes: target["review_notes"].to_s.strip.presence,
         when_files_changed: parse_string_array(target["when_files_changed"], "#{label}.when_files_changed"),
-        captures: parse_string_array(target["captures"], "#{label}.captures")
+        captures: parse_string_array(target["captures"], "#{label}.captures"),
+        environment: parse_visual_review_environment(target["environment"], "#{label}.environment")
       )
+    end
+  end
+
+  VISUAL_REVIEW_ENV_NAME = /\A[A-Za-z_][A-Za-z0-9_]*\z/
+  VISUAL_REVIEW_FORBIDDEN_ENV = %w[
+    PATH HOME SHELL BASH_ENV ENV CDPATH GLOBIGNORE IFS BASHOPTS SHELLOPTS
+    PROMPT_COMMAND PS4 ZDOTDIR INPUTRC GIT_ASKPASS SSH_ASKPASS
+    LD_PRELOAD LD_LIBRARY_PATH DYLD_INSERT_LIBRARIES DYLD_LIBRARY_PATH
+    RUBYOPT RUBYLIB GEM_HOME GEM_PATH BUNDLE_GEMFILE
+    PYTHONPATH PYTHONHOME PYTHONINSPECT NODE_OPTIONS PERL5OPT PERL5LIB LUA_INIT
+    JAVA_TOOL_OPTIONS _JAVA_OPTIONS CLASSPATH RUSTC_WRAPPER
+  ].freeze
+
+  def parse_visual_review_environment(raw, label)
+    return nil if raw.nil?
+    raise ParseError, "#{label}: must be a mapping" unless raw.is_a?(Hash)
+
+    static = raw.fetch("static", {})
+    raise ParseError, "#{label}.static: must be a mapping" unless static.is_a?(Hash)
+    static = static.each_with_object({}) do |(name, value), result|
+      name = name.to_s
+      validate_visual_review_env_name!(name, "#{label}.static")
+      unless value.is_a?(String) || value.is_a?(Numeric) || value == true || value == false
+        raise ParseError, "#{label}.static.#{name}: must be a scalar string, number, or boolean"
+      end
+      raise ParseError, "#{label}.static.#{name}: must not contain NUL" if value.to_s.include?("\0")
+      result[name] = value.to_s
+    end
+
+    command_raw = raw["command"]
+    command = if command_raw.nil?
+      nil
+    else
+      raise ParseError, "#{label}.command: must be a mapping" unless command_raw.is_a?(Hash)
+      argv = command_raw["argv"]
+      unless argv.is_a?(Array) && argv.any? && argv.all? { |value| value.is_a?(String) && value.present? && !value.include?("\0") }
+        raise ParseError, "#{label}.command.argv: must be a non-empty array of non-empty strings without NUL"
+      end
+      inputs = parse_string_array(command_raw["inputs"], "#{label}.command.inputs")
+      allow_output = parse_string_array(command_raw["allow_output"], "#{label}.command.allow_output")
+      raise ParseError, "#{label}.command.inputs: contains duplicate names" unless inputs.uniq.length == inputs.length
+      raise ParseError, "#{label}.command.allow_output: contains duplicate names" unless allow_output.uniq.length == allow_output.length
+      allow_output.each { |name| validate_visual_review_env_name!(name, "#{label}.command.allow_output") }
+      VisualReviewEnvironmentCommand.new(argv: argv, inputs: inputs, allow_output: allow_output)
+    end
+
+    VisualReviewEnvironment.new(static: static.freeze, command: command)
+  end
+
+  def validate_visual_review_env_name!(name, label)
+    raise ParseError, "#{label}: invalid environment variable name #{name.inspect}" unless VISUAL_REVIEW_ENV_NAME.match?(name)
+    if VISUAL_REVIEW_FORBIDDEN_ENV.include?(name)
+      raise ParseError, "#{label}: environment variable #{name} is forbidden for process safety"
     end
   end
 

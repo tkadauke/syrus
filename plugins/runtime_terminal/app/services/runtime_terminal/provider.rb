@@ -98,6 +98,13 @@ module RuntimeTerminal
       raise
     end
 
+    def environment_for_terminal(terminal_session)
+      link = RuntimeTerminal::SessionLink.find_by(terminal_session_id: terminal_session.id)
+      return unless link
+
+      VisualReviewEnvironment.new(link.runtime_session).call
+    end
+
     def build_or_reload(session_id, options)
       execute_configured_command(session_id, options, operation: "build")
     end

@@ -206,6 +206,14 @@ RSpec.describe "Syrus grader configuration" do
     browser_notes = targets.find { |target| target.provider == "browser" }.review_notes
     expect(browser_notes).to include("/admin/tool_cards", "running Bash", "exactly one visual line", "automatically needs_work")
     expect(targets.find { |target| target.provider == "cli_tui" }).to have_attributes(
+      environment: have_attributes(
+        static: {},
+        command: have_attributes(
+          argv: [ "bin/visual-review-env" ],
+          inputs: %w[run_api_endpoint run_api_credential],
+          allow_output: %w[SYRUS_CLI_URL SYRUS_CLI_INVOCATION_CONTEXT]
+        )
+      ),
       build: { "command" => "mise exec go@1.26.5 -- go build -o tmp/syrus-visual-review ./cli" },
       launch: { "command" => "tmp/syrus-visual-review inbox --watch" },
       dimensions: { "columns" => 100, "rows" => 32 },
@@ -224,6 +232,44 @@ RSpec.describe "Syrus grader configuration" do
     expect(selected_for.call("cli/cmd/inbox.go")).to eq([ "cli_tui" ])
     expect(selected_for.call("app/frontend/routes/JobDetail.tsx")).to eq([ "browser" ])
     expect(selected_for.call("README.md")).to be_empty
+  end
+
+  it "validates static and generated visual-review environment declarations" do
+    config = SyrusYml.new(<<~YAML).parse
+      visual_review:
+        targets:
+          - provider: cli_tui
+            environment:
+              static:
+                APP_MODE: visual-review
+                FEATURE_ENABLED: true
+              command:
+                argv: [bin/review-env]
+                inputs: [run_api_endpoint]
+                allow_output: [APP_URL]
+    YAML
+
+    expect(config.visual_review.targets.first.environment).to have_attributes(
+      static: { "APP_MODE" => "visual-review", "FEATURE_ENABLED" => "true" },
+      command: have_attributes(argv: [ "bin/review-env" ], inputs: [ "run_api_endpoint" ], allow_output: [ "APP_URL" ])
+    )
+
+    [
+      "static: { PATH: /tmp/bin }",
+      "static: { BAD-NAME: value }",
+      "static: { NESTED: { value: no } }",
+      "command: { argv: [bin/env], allow_output: [LD_PRELOAD] }"
+    ].each do |environment|
+      expect do
+        SyrusYml.new(<<~YAML).parse
+          visual_review:
+            targets:
+              - provider: cli_tui
+                environment:
+                  #{environment}
+        YAML
+      end.to raise_error(SyrusYml::ParseError)
+    end
   end
 
   it "requires adversarial review to enforce the collapsed tool-card design lock" do

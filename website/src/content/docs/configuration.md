@@ -103,6 +103,7 @@ Schema:
 | `visual_review.rounds` | Integer | Number of visual review rounds to allow before grading |
 | `visual_review.required` | Boolean | Fail the workflow when visual review cannot execute instead of recording a skipped warning |
 | `visual_review.when_files_changed` | Array of globs | Only run visual review when matching files changed |
+| `visual_review.targets[].environment` | Mapping | Optional static and runtime-generated environment for a CLI/TUI target |
 | `preview` | Mapping | Commands and metadata used by the preview action and visual review |
 | `hooks.post_checkout` | Array of strings | Shell commands the CLI runs after `syrus checkout` succeeds |
 
@@ -292,6 +293,15 @@ warning, and continues. Set `required: true` to fail the workflow instead.
 Configured terminal runtime targets are stricter: failure to start the terminal
 on the prepared workspace worker or establish its relay always fails the review
 step, so missing terminal coverage cannot be reported as a successful skip.
+
+CLI/TUI targets can opt into repository-defined environment values. Literal
+`static` values are for non-secret switches. A generated environment command
+is an argv array (not a shell command), requests registered runtime inputs by
+name, receives them as JSON on stdin, and emits `KEY=value` records. Only keys
+listed in `allow_output` reach the reviewed program; other ordinary keys are
+dropped, while unsafe process-control or loader variables always fail the
+review. Runtime inputs and generated values are kept in memory and are not
+saved to session metadata or logs.
 
 ### `preview`
 
