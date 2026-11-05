@@ -115,6 +115,12 @@ RSpec.describe PendingActions::RepairQueueAffinity do
     expect(SolidQueue::ReadyExecution.where(job_id: stale_queue_job.id)).to be_empty
     expect(workflow.reload.worker_hostname).to be_nil
     expect(workflow.worker_storage_key).to be_nil
+    expect(workflow.last_workspace_hostname).to eq("dead-host")
+    expect(workflow.last_workspace_storage_key).to eq("dead-storage")
+    expect(workflow.workflow_workspace_events.last).to have_attributes(
+      event_type: "storage_lost",
+      actor: "repair_queue_affinity"
+    )
     expect(JobLog.where(run: run).pluck(:chunk)).to include(a_string_matching(/repaired queue affinity/))
     audit = AdminAction.where(action: "repair_repair_queue_affinity").last
     expect(JSON.generate(audit.params).bytesize).to be <= PendingActions::RepairAuditPayload::MAX_BYTES

@@ -376,7 +376,11 @@ class RunJob < ApplicationJob
   end
 
   def clear_workflow_storage_affinity!
-    @workflow.update_columns(worker_hostname: nil, worker_storage_key: nil)
+    WorkflowWorkspaceLifecycle.clear_routing_affinity!(
+      @workflow,
+      actor: "run_job",
+      reason: "pinned host admission deferral budget exhausted"
+    )
     @workflow.reload
     @step.association(:workflow).reset
     @run.association(:step).reset
