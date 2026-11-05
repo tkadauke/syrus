@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_04_195733) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_05_130253) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -4617,6 +4617,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_195733) do
     t.index ["workflow_id"], name: "index_workflow_warnings_on_workflow_id"
   end
 
+  create_table "workflow_workspace_events", force: :cascade do |t|
+    t.integer "workflow_id", null: false
+    t.string "event_type", null: false
+    t.string "hostname"
+    t.string "storage_key"
+    t.string "actor", null: false
+    t.string "reason"
+    t.json "details"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["workflow_id", "created_at", "id"], name: "idx_workflow_workspace_events_timeline"
+    t.index ["workflow_id"], name: "index_workflow_workspace_events_on_workflow_id"
+  end
+
   create_table "workflows", force: :cascade do |t|
     t.string "agent_provider", default: "claude", null: false
     t.text "artifacts", limit: 16777215
@@ -4644,6 +4658,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_195733) do
     t.string "planned_execution_target_label"
     t.json "planned_execution_capabilities"
     t.string "planned_execution_source"
+    t.string "workspace_lifecycle_state"
+    t.string "last_workspace_hostname"
+    t.string "last_workspace_storage_key"
     t.index ["cleaned_up_at"], name: "index_workflows_on_cleaned_up_at"
     t.index ["job_id", "created_at"], name: "index_workflows_on_job_id_and_created_at"
     t.index ["job_id", "finished_at", "id"], name: "idx_workflows_job_finished_latest"
@@ -4651,6 +4668,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_04_195733) do
     t.index ["job_id", "state"], name: "idx_workflows_job_state"
     t.index ["job_id", "trigger_kind", "created_at", "id"], name: "idx_workflows_job_trigger_created_id"
     t.index ["job_id"], name: "index_workflows_on_job_id"
+    t.index ["last_workspace_storage_key"], name: "index_workflows_on_last_workspace_storage_key"
     t.index ["state", "created_at", "id"], name: "idx_workflows_state_created_at"
     t.index ["state", "finished_at", "job_id"], name: "idx_workflows_state_finished_job"
     t.index ["state", "started_at", "id"], name: "idx_workflows_state_started_at"

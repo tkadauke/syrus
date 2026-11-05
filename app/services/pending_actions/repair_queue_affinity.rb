@@ -73,7 +73,11 @@ module PendingActions
           return { outcome: "no_longer_eligible", run: run } unless repairable_run?(run)
           validate_unsatisfied_affinity!(run, queue_jobs)
 
-          workflow.update_columns(worker_hostname: nil, worker_storage_key: nil)
+          WorkflowWorkspaceLifecycle.clear_routing_affinity!(
+            workflow,
+            actor: "repair_queue_affinity",
+            reason: "resume queue has no live worker"
+          )
           set_in_memory_affinity!(workflow, hostname: nil, storage_key: nil)
         end
 
@@ -84,7 +88,12 @@ module PendingActions
       return { outcome: "no_longer_eligible", run: run, deleted_solid_queue_job_ids: deleted_job_ids } unless repairable_run?(run)
 
       run.reenqueue!(ignore_workflow_affinity: true)
-      run.workflow.update_columns(worker_hostname: nil, worker_storage_key: nil)
+      WorkflowWorkspaceLifecycle.clear_routing_affinity!(
+        run.workflow,
+        actor: "repair_queue_affinity",
+        reason: "re-enqueued without stale queue affinity",
+        storage_lost: false
+      )
 
       { outcome: "applied", run: run, deleted_solid_queue_job_ids: deleted_job_ids }
     end

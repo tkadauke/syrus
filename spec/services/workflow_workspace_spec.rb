@@ -1468,6 +1468,12 @@ RSpec.describe WorkflowWorkspace, :ci_only do
       workflow.save!
 
       expect(ws.path).not_to exist
+      expect(workflow.reload.workspace_lifecycle_state).to eq("cleaned_up")
+      expect(workflow.workflow_workspace_events.order(:id).pluck(:event_type)).to eq(%w[created cleaned_up])
+      expect(workflow.workflow_workspace_events.last).to have_attributes(
+        actor: "workflow_workspace",
+        reason: "workflow cleanup"
+      )
     end
 
     it "preserves the only copy of a successful mutation when checkpoint publication failed" do
@@ -1509,6 +1515,7 @@ RSpec.describe WorkflowWorkspace, :ci_only do
       WorkflowWorkspacePruneJob.perform_now
       expect(ws.path).not_to exist
       expect(workflow.reload.cleaned_up_at).to be_present
+      expect(workflow.workflow_workspace_events.last.event_type).to eq("cleaned_up")
     end
 
     it "tears the workspace down on Workflow.cancel!" do

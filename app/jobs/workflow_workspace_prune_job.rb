@@ -267,7 +267,12 @@ class WorkflowWorkspacePruneJob < ApplicationJob
 
   def cleanup_workflow(workflow, force_local: false)
     if force_local
-      WorkflowWorkspace.cleanup_for(workflow, force_local: true)
+      WorkflowWorkspace.cleanup_for(
+        workflow,
+        force_local: true,
+        actor: "workflow_workspace_prune_job",
+        reason: "retention or storage budget pruning"
+      )
     else
       workflow.cleanup_workspace!
     end

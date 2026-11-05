@@ -454,7 +454,11 @@ class AutoRetryJob < ApplicationJob
     return unless workflow
     return unless workflow.worker_hostname.present? || workflow.worker_storage_key.present?
 
-    workflow.update_columns(worker_hostname: nil, worker_storage_key: nil)
+    WorkflowWorkspaceLifecycle.clear_routing_affinity!(
+      workflow,
+      actor: "auto_retry_job",
+      reason: "owning worker died"
+    )
     workflow.reload
     attempt.run&.association(:step)&.reset
   end

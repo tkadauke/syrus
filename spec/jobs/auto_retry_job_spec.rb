@@ -108,6 +108,9 @@ RSpec.describe AutoRetryJob do
     expect(replacement).not_to eq(run)
     expect(workflow.reload.worker_hostname).to be_nil
     expect(workflow.worker_storage_key).to be_nil
+    expect(workflow.last_workspace_hostname).to eq("worker-old")
+    expect(workflow.last_workspace_storage_key).to eq("storage-old")
+    expect(workflow.workflow_workspace_events.last.event_type).to eq("storage_lost")
   end
 
   it "targets the Step that produced the automatic retry" do

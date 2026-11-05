@@ -82,9 +82,13 @@ class Operation
       job.save!
       if workflow
         replacement.assign_to(workflow)
-        workflow.worker_hostname = nil
-        workflow.worker_storage_key = nil
         workflow.save!
+        WorkflowWorkspaceLifecycle.clear_routing_affinity!(
+          workflow,
+          actor: "planned_execution_override",
+          reason: "execution requirement changed",
+          storage_lost: false
+        )
       end
       audit = ::PlannedExecutionOverride.create!(
         job: job, workflow: workflow, user: actor, profile: profile.name,

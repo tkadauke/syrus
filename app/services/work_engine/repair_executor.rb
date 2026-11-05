@@ -577,7 +577,11 @@ module WorkEngine
           workflow = run.workflow
           return unless workflow
 
-          workflow.update_columns(worker_hostname: nil, worker_storage_key: nil)
+          WorkflowWorkspaceLifecycle.clear_routing_affinity!(
+            workflow,
+            actor: "work_engine_repair",
+            reason: plan.issue_kind.humanize(capitalize: false)
+          )
           run.step&.association(:workflow)&.reset
           run.association(:step).reset
           run.association(:job).reset
