@@ -73,7 +73,7 @@ module WorkEngine
       end
 
       def self.translate_reference(key, value, world)
-        if key.in?(%w[job approve fail close set_pr_checks landing_front])
+        if key.in?(%w[job approve fail close set_pr_checks landing_front lose_storage])
           return translate_job_reference(value, world)
         end
 

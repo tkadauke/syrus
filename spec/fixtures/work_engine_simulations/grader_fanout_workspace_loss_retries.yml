@@ -1,0 +1,63 @@
+name: grader fanout workspace loss retries
+reconciler:
+  ignored_issue_kinds: []
+repository:
+  owner: simulation
+  name: grader-fanout-workspace-loss-retries
+jobs:
+  job:
+    title: Grader fanout workspace loss retries
+    state: running
+    workflow:
+      kind: initial
+      state: running
+      worker_hostname: worker-lost
+      worker_storage_key: storage-lost
+      workspace_lifecycle_state: created
+      work_unit:
+        state: running
+      steps:
+        - kind: grader
+          state: running
+          details: { name: active }
+          run:
+            state: running
+            spawned_processes:
+              - hostname: worker-lost
+                last_chunk_at: "2099-01-01 00:00:00 UTC"
+        - kind: grader_collect
+          state: queued
+        - kind: pr_open
+          state: queued
+runtime:
+  workspace:
+    exists: true
+    reconstructable: false
+    failure_reason: no durable mutation head is available
+outcomes:
+  default: success
+events:
+  - name: unreconstructable storage disappears
+    do:
+      lose_worker: { hostname: worker-lost }
+      lose_storage: { job: job, reason: simulated irrecoverable storage loss }
+expect:
+  jobs:
+    job: [implemented]
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  workspace_events:
+    - { job: job, event_type: storage_lost, actor: simulation }
+  workflow_artifacts:
+    - job: job
+      values:
+        workspace_recovery_failure:
+          classification: workspace_recovery_failed
+          retryable: true
+  events:
+    - workspace_missing
+    - workspace reconstruction failed
+    - workspace reconstruction was unsafe; failed the attempt for automatic retry
+    - auto retry
+    - pr_open -> success

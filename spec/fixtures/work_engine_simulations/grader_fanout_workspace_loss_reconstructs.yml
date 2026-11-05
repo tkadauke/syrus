@@ -1,0 +1,129 @@
+name: grader fanout workspace loss reconstructs
+features:
+  distributed_workflow_dag: true
+reconciler:
+  ignored_issue_kinds: []
+repository:
+  owner: simulation
+  name: grader-fanout-workspace-loss-reconstructs
+  distributed_workflow_dag_enabled: true
+jobs:
+  job:
+    title: Grader fanout workspace loss reconstructs
+    state: running
+    workflow:
+      kind: initial
+      state: running
+      worker_hostname: worker-lost
+      worker_storage_key: storage-lost
+      workspace_lifecycle_state: created
+      chain_template:
+        - type: retry_until
+          repair_first: false
+          repair: [implement]
+          check: [grader_fanout, grader_collect]
+        - type: step
+          kind: summarize
+        - type: step
+          kind: pr_open
+      work_unit:
+        state: running
+      steps:
+        - key: fanout
+          kind: grader_fanout
+          state: succeeded
+          loop_id: grade-loop
+        - key: passed
+          kind: grader
+          state: succeeded
+          loop_id: grade-loop
+          details: { name: passed }
+          run: { state: succeeded }
+        - key: died_one
+          kind: grader
+          state: failed
+          loop_id: grade-loop
+          details: { name: died-one }
+          run:
+            state: failed
+            agent_outcome: worker_died
+            classification: { classification: worker_died, retryable: true }
+        - key: died_two
+          kind: grader
+          state: failed
+          loop_id: grade-loop
+          details: { name: died-two }
+          run:
+            state: failed
+            agent_outcome: worker_died
+            classification: { classification: worker_died, retryable: true }
+        - key: active
+          kind: grader
+          state: running
+          loop_id: grade-loop
+          details: { name: active }
+          run:
+            state: running
+            spawned_processes:
+              - hostname: worker-lost
+                last_chunk_at: "2099-01-01 00:00:00 UTC"
+        - key: pinned_one
+          kind: grader
+          state: queued
+          loop_id: grade-loop
+          details: { name: pinned-one }
+          run:
+            state: queued
+            solid_queue: { ready: true, queue_name: resume-storage-lost }
+        - key: pinned_two
+          kind: grader
+          state: queued
+          loop_id: grade-loop
+          details: { name: pinned-two }
+          run:
+            state: queued
+            solid_queue: { ready: true, queue_name: resume-storage-lost }
+        - key: collect
+          kind: grader_collect
+          state: queued
+          loop_id: grade-loop
+          depends_on: [passed, died_one, died_two, active, pinned_one, pinned_two]
+        - key: summarize
+          kind: summarize
+          state: queued
+          depends_on: [collect]
+        - key: pr_open
+          kind: pr_open
+          state: queued
+runtime:
+  workspace:
+    exists: true
+    reconstructable: true
+    recovered_worker: worker-live
+    recovered_storage_key: storage-live
+outcomes:
+  default: success
+events:
+  - name: owning worker and storage disappear
+    do:
+      lose_worker: { hostname: worker-lost }
+      lose_storage: { job: job, reason: simulated storage pressure loss }
+expect:
+  jobs:
+    job: [implemented]
+  queues:
+    active_runs: empty
+    active_work_units: empty
+  workspace_events:
+    - { job: job, event_type: storage_lost, actor: simulation }
+    - { job: job, event_type: reconstructed, actor: workspace_recovery }
+    - { job: job, event_type: ownership_transferred, actor: workspace_recovery }
+  run_evidence:
+    - { job: job, step: grader, agent_outcome: worker_died, classification: worker_died }
+  events:
+    - lost worker worker-lost
+    - lost workspace storage
+    - workspace_missing
+    - workspace reconstructed
+    - grader_collect -> success
+    - pr_open -> success

@@ -17,6 +17,8 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     failed_unit_running_workflow_queued_tail
     failed_unit_unfailed_intent
     grader_fanout_worker_loss_stays_in_loop
+    grader_fanout_workspace_loss_reconstructs
+    grader_fanout_workspace_loss_retries
     healthy_reenqueue_loop_clears_affinity
     happy_path_epic_job_depends_on_external_job_lands
     happy_path_epic_merge_train_lands
@@ -431,6 +433,20 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
 
     expect(result).to be_success
     expect(result.events.join("\n")).to include("workspace_missing")
+  end
+
+  it "reconstructs lost grader-fanout storage and resumes every stranded run" do
+    result = run_scenario("grader_fanout_workspace_loss_reconstructs")
+
+    expect(result).to be_success
+    expect(result.events.join("\n")).to include("workspace reconstructed")
+  end
+
+  it "fails unreconstructable grader-fanout storage into an automatic retry path" do
+    result = run_scenario("grader_fanout_workspace_loss_retries")
+
+    expect(result).to be_success
+    expect(result.events.join("\n")).to include("workspace reconstruction failed")
   end
 
   it "cancels a CI repair blocked on a superseded base instead of waiting forever" do

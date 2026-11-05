@@ -447,6 +447,9 @@ module WorkEngine
           artifacts: config.fetch("artifacts", {})
         )
         workflow.save!(validate: false)
+        if config.key?("workspace_lifecycle_state")
+          workflow.update_columns(workspace_lifecycle_state: config["workspace_lifecycle_state"])
+        end
         workflow.update_columns(created_at: parse_optional_time(config["created_at"])) if config["created_at"].present?
         step_configs = Array(config.fetch("steps"))
         step_keys = {}
