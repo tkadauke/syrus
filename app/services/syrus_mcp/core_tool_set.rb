@@ -29,7 +29,8 @@ module SyrusMcp
       ReadArtifactTool,
       ::Mcp::Tools::SubmitJobMetadataTool,
       ::Mcp::Tools::SubmitAdversarialReviewTool,
-      ::Mcp::Tools::SubmitSecurityReviewTool
+      ::Mcp::Tools::SubmitSecurityReviewTool,
+      ::Mcp::Tools::SubmitCoworkerReviewTool
     ].freeze
 
     # The set of tool names managed by McpToolPolicy role filtering.
