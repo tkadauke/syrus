@@ -88,6 +88,7 @@ module PendingActions
       return { outcome: "no_longer_eligible", run: run, deleted_solid_queue_job_ids: deleted_job_ids } unless repairable_run?(run)
 
       run.reenqueue!(ignore_workflow_affinity: true)
+      run.workflow.reload
       WorkflowWorkspaceLifecycle.clear_routing_affinity!(
         run.workflow,
         actor: "repair_queue_affinity",
