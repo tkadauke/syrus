@@ -133,7 +133,12 @@ class WorkflowWorkspaceRecovery
       run.update_columns(state: "queued", started_at: nil, finished_at: nil, updated_at: now)
       run.step.update_columns(state: "queued", started_at: nil, finished_at: nil, updated_at: now)
     end
+    retire_pending_queue_jobs!(run)
     run.reenqueue!(ignore_workflow_affinity: true)
+  end
+
+  def retire_pending_queue_jobs!(run)
+    SolidQueueRunJobPruner.delete_pending_for_run!(run.id)
   end
 
   def durable_candidates

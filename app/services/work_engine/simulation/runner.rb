@@ -1634,7 +1634,7 @@ module WorkEngine
             run.update_columns(state: "queued", started_at: nil, finished_at: nil, updated_at: Time.current)
             run.step.update_columns(state: "queued", started_at: nil, finished_at: nil, updated_at: Time.current)
           end
-          delete_solid_queue_jobs_for_run!(run)
+          SolidQueueRunJobPruner.delete_pending_for_run!(run.id)
           run.reenqueue!(ignore_workflow_affinity: true)
         end
         events << "workspace reconstructed for workflow #{workflow.id}; resumed #{stranded.size} stranded runs"
