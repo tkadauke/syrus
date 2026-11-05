@@ -793,6 +793,7 @@ class StepDispatcher
   def self.step_specific_provider_task_key?(step, workflow)
     return false if step.blank?
     return false unless Step::AGENTIC_KINDS.include?(step.kind)
+    return true if Step::Kind.fetch(step.kind).reviewer_target_required
 
     ProviderRouting::Resolver.rule_configured?(
       job: workflow.job,

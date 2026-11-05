@@ -5,8 +5,8 @@ module Coworkers
     def self.context_attributes(run:, role:)
       target = run.step.details.to_h["reviewer_target"]
       if target.present?
-        coworker = Coworkers::Coworker.find_by(id: target["record_id"])
-        return reviewer_context(coworker, run) if coworker
+        coworker = ReviewerTargets.resolve(target, owner: run.job.owner_user || run.job.user, repository: run.job.repository).fetch(:record)
+        return reviewer_context(coworker, run)
       end
       return {} unless role == AgentRole::COWORKER && run.job.origin == "coworkers"
 
@@ -25,7 +25,7 @@ module Coworkers
     end
 
     def self.reviewer_context(coworker, run)
-      raise ArgumentError, "coworker reviewer is not active" unless coworker.state == "active"
+      raise ReviewerTargets::TargetUnavailable, "coworker reviewer is not active" unless coworker.state == "active"
       raise ArgumentError, "coworker reviewer owner does not match the Job owner" unless coworker.owner_user_id == run.job.effective_owner_id
       scope = capability_scopes(coworker)
       raise ArgumentError, "coworker reviewer is not authorized for this repository" unless Array(scope["code.read"]).map(&:to_i).include?(run.job.repository_id)
