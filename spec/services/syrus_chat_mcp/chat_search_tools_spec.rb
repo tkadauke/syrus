@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "Mcp::Tools chat search tools" do
+RSpec.describe "Mcp::Tools chat search tools", :full_chat_access do
   # Consume the first-user admin-promotion slot so `user` below is not auto-promoted.
   let!(:_bootstrap_admin) { Factories.user(admin: true) }
 
@@ -352,6 +352,7 @@ RSpec.describe "Mcp::Tools chat search tools" do
     end
 
     it "includes soft-deleted messages for an admin caller, annotated with who deleted them" do
+      grant_full_chat_access(admin)
       kept = message(admin_chat_session, text: "kept")
       cleared = message(admin_chat_session, text: "cleared")
       cleared.soft_delete_by!(admin)
@@ -368,6 +369,7 @@ RSpec.describe "Mcp::Tools chat search tools" do
     end
 
     it "lets an admin caller read a fully soft-deleted chat session, annotated with session deletion metadata" do
+      grant_full_chat_access(admin)
       still_here = message(admin_chat_session, text: "still here")
       admin_chat_session.soft_delete_by!(admin)
 

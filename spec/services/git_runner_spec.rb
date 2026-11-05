@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe GitRunner do
+RSpec.describe GitRunner, :allow_host_execution do
   it "returns merged stdout/stderr on success" do
     output = described_class.new.run("--version")
     expect(output).to match(/git version/)

@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe "SyrusChatMcp CI repair tools" do
+RSpec.describe "SyrusChatMcp CI repair tools", :full_chat_access do
   let(:admin) { Factories.user(admin: true, github_token: "ghp_admin") }
   let(:repository) { Factories.repository(user: admin, owner: "acme", name: "widgets") }
   let(:chat_session) { ChatSession.create!(user: admin) }

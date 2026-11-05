@@ -15,6 +15,10 @@ module Mcp::Tools
   module AuthorizationSupport
     class AuthorizationError < StandardError; end
 
+    # Ownership/visibility failures stay opaque: the refusal never says whether
+    # the record exists or why it cannot be read.
+    class NotAccessible < AuthorizationError; end
+
     module ToolDispatch
       def call(*args, server_context: nil, **kwargs, &block)
         Mcp::Tools::AuthorizationSupport.with_server_context(server_context) do
@@ -28,7 +32,7 @@ module Mcp::Tools
           super(*args, server_context: server_context, **kwargs, &block)
         end
       rescue Mcp::Tools::AuthorizationSupport::AuthorizationError => error
-        Mcp::Tools.not_authorized(reason: error.message)
+        error.is_a?(Mcp::Tools::AuthorizationSupport::NotAccessible) ? Mcp::Tools.not_authorized : Mcp::Tools.not_authorized(reason: error.message)
       end
     end
 
@@ -73,6 +77,10 @@ module Mcp::Tools
       def pending_actor_approval(tool, server_context, arguments)
         context = McpToolContext.from_server_context(server_context)
         return if context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+
+        # The chat descriptor describes chat authority; run-surface tools resolve
+        # through their own enforcement and must not be judged by it.
+        return unless context.chat?
 
         entry = McpToolRegistry.entry_for(tool)
         return unless entry
@@ -294,7 +302,7 @@ module Mcp::Tools
       scope = scope.includes(includes) if includes
       scope.find_by!(id: id)
     rescue ActiveRecord::RecordNotFound
-      raise AuthorizationError, "job not found or not accessible"
+      raise NotAccessible, "job not found or not accessible"
     end
 
     def find_epic!(id, includes: nil)
@@ -302,7 +310,7 @@ module Mcp::Tools
       scope = scope.includes(includes) if includes
       scope.find_by!(id: id)
     rescue ActiveRecord::RecordNotFound
-      raise AuthorizationError, "epic not found or not accessible"
+      raise NotAccessible, "epic not found or not accessible"
     end
 
     def find_workflow!(id, includes: nil)
@@ -311,7 +319,7 @@ module Mcp::Tools
       scope = scope.includes(includes) if includes
       scope.find_by!(id: id)
     rescue ActiveRecord::RecordNotFound
-      raise AuthorizationError, "workflow not found or not accessible"
+      raise NotAccessible, "workflow not found or not accessible"
     end
 
     def find_run!(id)
@@ -319,14 +327,14 @@ module Mcp::Tools
       scope = scope.where(id: mcp_context.allowed_run_ids) if mcp_context&.allowed_run_ids
       scope.find_by!(id: id)
     rescue ActiveRecord::RecordNotFound
-      raise AuthorizationError, "run not found or not accessible"
+      raise NotAccessible, "run not found or not accessible"
     end
 
     def find_chat_session!(id)
       scope = accessible_chat_sessions_scope
       scope.find_by!(id: id)
     rescue ActiveRecord::RecordNotFound
-      raise AuthorizationError, "chat session not found or not accessible"
+      raise NotAccessible, "chat session not found or not accessible"
     end
 
     def accessible_chat_sessions_scope
@@ -340,7 +348,7 @@ module Mcp::Tools
       return resource if admin?
 
       owner = resource.try(:user) || resource.try(:repository)&.user
-      raise AuthorizationError, "not authorized" unless owner == current_user
+      raise NotAccessible, "not authorized" unless owner == current_user
 
       resource
     end

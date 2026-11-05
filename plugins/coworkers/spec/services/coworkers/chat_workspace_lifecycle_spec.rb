@@ -2,7 +2,7 @@ require "rails_helper"
 require "fileutils"
 require "tmpdir"
 
-RSpec.describe Coworkers::ChatWorkspaceLifecycle do
+RSpec.describe Coworkers::ChatWorkspaceLifecycle, :allow_host_execution do
   let(:owner) { Factories.user }
   let(:repository) { Factories.repository(user: owner) }
   let(:coworker) do

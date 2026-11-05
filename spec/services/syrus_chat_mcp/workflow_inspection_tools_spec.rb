@@ -1,7 +1,7 @@
 require "rails_helper"
 require "base64"
 
-RSpec.describe "Mcp::Tools workflow inspection tools" do
+RSpec.describe "Mcp::Tools workflow inspection tools", :full_chat_access do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }

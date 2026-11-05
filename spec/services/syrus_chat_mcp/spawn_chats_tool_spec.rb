@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Mcp::Tools::SpawnChatsTool do
+RSpec.describe Mcp::Tools::SpawnChatsTool, :full_chat_access do
   include ActiveJob::TestHelper
 
   let!(:_bootstrap_admin) { Factories.user(admin: true) }

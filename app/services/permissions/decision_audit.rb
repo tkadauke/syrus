@@ -20,7 +20,7 @@ module Permissions
       OperationalLogging.ingest(
         level: :info,
         source: LOG_SOURCE,
-        message: "Canonical permission policy evaluated",
+        message: I18n.t("server.permissions.policy_evaluated", locale: :en),
         context: diagnostic_context,
         role: "permission_policy"
       )

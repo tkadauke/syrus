@@ -57,7 +57,9 @@ module Coworkers
               provenance: { "coworker_id" => coworker.id }.tap { |value|
                 value["coworker_scope"] = scope unless scope.nil?
               }.merge(provenance.stringify_keys),
-              rationale: "Coworker permission configured by the owner", delegable: false
+              rationale: "Coworker permission configured by the owner",
+              # An ask must stay approvable by a lease; allow and deny are final.
+              delegable: policy == "ask"
             )
           end
         end

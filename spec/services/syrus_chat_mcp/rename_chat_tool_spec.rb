@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Mcp::Tools::RenameChatTool do
+RSpec.describe Mcp::Tools::RenameChatTool, :full_chat_access do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository, title: "Old title") }

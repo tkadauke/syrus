@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Coworkers::Create do
+RSpec.describe Coworkers::Create, :allow_host_execution do
   class FakeCoworkerRemote
     attr_reader :repository, :seeded_files, :seeded_identity, :deleted_branches
     attr_accessor :branch_exists, :fail_access, :fail_seed, :delete_error
