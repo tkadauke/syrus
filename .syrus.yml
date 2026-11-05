@@ -153,6 +153,16 @@ visual_review:
         - affected UI state
     - name: CLI TUI
       provider: cli_tui
+      environment:
+        command:
+          argv:
+            - bin/visual-review-env
+          inputs:
+            - run_api_endpoint
+            - run_api_credential
+          allow_output:
+            - SYRUS_CLI_URL
+            - SYRUS_CLI_INVOCATION_CONTEXT
       build:
         command: mise exec go@1.26.5 -- go build -o tmp/syrus-visual-review ./cli
       launch:

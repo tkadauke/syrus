@@ -1,0 +1,12 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "json"
+
+payload = JSON.parse($stdin.read)
+inputs = payload.fetch("inputs")
+expected = %w[run_api_credential run_api_endpoint]
+abort "expected exactly #{expected.join(', ')}" unless inputs.keys.sort == expected
+
+puts "SYRUS_CLI_URL=#{inputs.fetch('run_api_endpoint')}"
+puts "SYRUS_CLI_INVOCATION_CONTEXT=#{inputs.fetch('run_api_credential')}"

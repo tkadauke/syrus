@@ -16,10 +16,14 @@ class TerminalSessionJob < ApplicationJob
 
     session.update!(relay_started_at: Time.current)
 
+    provider_env = RuntimeSessionProviders.all.lazy.filter_map do |provider|
+      provider.new.environment_for_terminal(session)
+    end.first || {}
+
     Terminal::Relay.new(
       session: session,
       command: [ "bash" ],
-      env: ProcessRunner.forwarded_env([])
+      env: ProcessRunner.forwarded_env([]).merge(provider_env)
     ).run
   end
 end
