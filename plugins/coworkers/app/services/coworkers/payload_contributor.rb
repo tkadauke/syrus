@@ -32,15 +32,24 @@ module Coworkers
       coworkers = Coworkers::Coworker.where(id: ids, owner_user_id: owner_ids)
         .includes(avatar_attachment: :blob)
         .index_by { |coworker| [ coworker.owner_user_id, coworker.id ] }
+      bridge_chat_ids = payloads.filter_map do |payload|
+        bridge = payload[:cross_chat_bridge]
+        bridge[:counterpart_chat_session_id] if bridge&.fetch(:direction, nil) == "inbound"
+      end.uniq
+      bridge_coworkers = Coworkers::Chat.where(chat_session_id: bridge_chat_ids)
+        .includes(coworker: { avatar_attachment: :blob }, chat_session: :user)
+        .index_by { |link| [ link.chat_session.user_id, link.chat_session_id ] }
 
       payloads.zip(messages, metadata).map do |payload, message, entry|
-        next payload unless entry
-
         decorated = payload.dup
         owner_id = message.chat_session.user_id
-        if entry["direction"] == "incoming" && (coworker = coworkers[[ owner_id, entry["sender_id"].to_i ]])
+        bridge = payload[:cross_chat_bridge]
+        bridge_link = bridge_coworkers[[ owner_id, bridge&.fetch(:counterpart_chat_session_id, nil) ]]
+        if bridge&.fetch(:direction, nil) == "inbound" && bridge_link
+          decorated[:coworker_sender] = appearance_json(bridge_link.coworker)
+        elsif entry&.fetch("direction", nil) == "incoming" && (coworker = coworkers[[ owner_id, entry["sender_id"].to_i ]])
           decorated[:coworker_sender] = appearance_json(coworker)
-        elsif entry["direction"] == "outgoing" && (coworker = coworkers[[ owner_id, entry["receiver_id"].to_i ]])
+        elsif entry&.fetch("direction", nil) == "outgoing" && (coworker = coworkers[[ owner_id, entry["receiver_id"].to_i ]])
           decorated[:coworker_receiver] = appearance_json(coworker)
         end
         decorated

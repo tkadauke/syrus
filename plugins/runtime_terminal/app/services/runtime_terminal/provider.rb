@@ -89,13 +89,21 @@ module RuntimeTerminal
         runtime_session: runtime_session,
         terminal_session: terminal_session
       )
-      TerminalSessionJob.set(queue: terminal_session.target_queue_name).perform_later(terminal_session.id)
+      TerminalSessionJob.set(queue: terminal_session.target_queue_name).perform_later(
+        terminal_session.id,
+        runtime_session_id: runtime_session.id,
+        provider_key: self.class.provider_key
+      )
       wait_for_relay_ready!(terminal_session) if workflow
 
       { terminal_session_id: terminal_session.id, initial_dimensions: initial_dimensions }.compact
     rescue StandardError
       Terminal::KillSession.call(terminal_session) if terminal_session&.persisted?
       raise
+    end
+
+    def environment_for_terminal(runtime_session)
+      VisualReviewEnvironment.new(runtime_session).call
     end
 
     def build_or_reload(session_id, options)
@@ -267,9 +275,16 @@ module RuntimeTerminal
     def relay_ready_terminal_session_for_record(terminal_session)
       deadline = Time.current + RELAY_ADDRESS_TIMEOUT
 
-      until terminal_session.relay_ready? || Time.current > deadline
+      until terminal_session.relay_ready? || terminal_session.finished? || Time.current > deadline
         sleep RELAY_ADDRESS_POLL_INTERVAL
         terminal_session.reload
+      end
+
+      if terminal_session.finished?
+        runtime_session = RuntimeTerminal::SessionLink.find_by(terminal_session_id: terminal_session.id)&.runtime_session
+        detail = runtime_session&.failed? ? runtime_session.last_error : nil
+        raise RuntimeSessionProviders::ConfigurationError,
+              detail.presence || "runtime terminal exited before its relay became ready"
       end
 
       terminal_session

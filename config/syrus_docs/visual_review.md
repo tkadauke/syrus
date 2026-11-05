@@ -216,6 +216,14 @@ visual_review:
   authenticated or populated state in the preview app. Read by the reviewer
   agent as a hint, not executed.
 
+CLI/TUI targets may declare an opt-in `environment` block with literal
+non-secret `static` values and/or a repository-owned argv command that maps
+explicit generic runtime inputs to allowlisted output variables. Commands get
+JSON on stdin and emit `KEY=value` records; undeclared output is dropped,
+hard-forbidden process-control names fail coverage, and resolved values are
+never persisted. See [`syrus_yml.md`](syrus_yml.md#visual_review) for the full
+schema and security rules.
+
 See [`syrus_yml.md`](syrus_yml.md) for the full `.syrus.yml` reference.
 
 Nested `visual_review:` blocks are scoped to their project. Their

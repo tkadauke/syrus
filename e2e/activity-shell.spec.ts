@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test"
 import { signInAsDemo } from "./support/auth"
 
 const MOBILE = { width: 390, height: 780 }
-const LANDSCAPE = { width: 780, height: 390 }
+const MOBILE_LANDSCAPE = { width: 740, height: 390 }
 const DESKTOP = { width: 1280, height: 800 }
 
 test.describe("Activity shell", () => {
@@ -77,7 +77,7 @@ test.describe("Activity shell", () => {
       .click()
     await expect(page.getByRole("dialog", { name: "Activity" })).toBeVisible()
 
-    await page.setViewportSize(LANDSCAPE)
+    await page.setViewportSize(MOBILE_LANDSCAPE)
     await expect(page.getByRole("dialog", { name: "Activity" })).toBeVisible()
     await page.setViewportSize(DESKTOP)
     await expect(page.getByRole("dialog", { name: "Activity" })).toBeHidden()

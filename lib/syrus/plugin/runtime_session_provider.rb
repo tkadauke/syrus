@@ -124,6 +124,12 @@ module Syrus
       def stop_session(_session_id)
         raise NotImplementedError, "#{self.class}#stop_session is required"
       end
+
+      # Returns an ephemeral environment for a provider-owned terminal. Values
+      # must be resolved at process start and must never be persisted.
+      def environment_for_terminal(_runtime_session)
+        nil
+      end
     end
   end
 end

@@ -205,7 +205,7 @@ RSpec.describe Steps::SummarizeAmend, :ci_only do
         handler.call
       }.to raise_error(
         WorkflowSourceSnapshots::InfrastructureStateError,
-        /Run ##{upstream_run.id} head #{upstream_run.head_sha} is absent from the workspace/
+        /Run ##{upstream_run.id} head #{upstream_run.head_sha} is absent from the workspace; no trusted workflow source snapshot is available/
       )
       expect(workflow.reload.artifact("amend_commit_subject")).to be_nil
       expect(commit_message).to eq("Different workspace HEAD")

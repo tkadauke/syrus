@@ -131,7 +131,9 @@ module Api
 
           stash = session[:claude_oauth].to_h
           if stash["verifier"].blank?
-            render_error("oauth_not_started", I18n.t("api.credentials.claude_oauth_not_started"), status: :unprocessable_content)
+            message = I18n.t("api.credentials.claude_oauth_not_started")
+            log_oauth_exchange_failure(provider: "claude", response: "oauth_not_started", reason: "not_started", message: message)
+            render_error("oauth_not_started", message, status: :unprocessable_content)
             return
           end
 
@@ -150,6 +152,7 @@ module Api
         rescue StandardError => e
           raise unless oauth_exchange_error?(e)
 
+          log_oauth_exchange_failure(provider: "claude", response: "oauth_exchange_failed", reason: e.try(:reason) || "upstream_rejected", message: e.message)
           render_error("oauth_exchange_failed", I18n.t("api.credentials.oauth_exchange_failed", error: e.message), status: :unprocessable_content)
         end
 
@@ -169,7 +172,9 @@ module Api
           oauth = codex_oauth!
           stash = session[:codex_oauth].to_h
           if stash["verifier"].blank?
-            render_error("oauth_not_started", I18n.t("api.credentials.chatgpt_oauth_not_started"), status: :unprocessable_content)
+            message = I18n.t("api.credentials.chatgpt_oauth_not_started")
+            log_oauth_exchange_failure(provider: "codex", response: "oauth_not_started", reason: "not_started", message: message)
+            render_error("oauth_not_started", message, status: :unprocessable_content)
             return
           end
 
@@ -188,6 +193,7 @@ module Api
         rescue StandardError => e
           raise unless oauth_exchange_error?(e)
 
+          log_oauth_exchange_failure(provider: "codex", response: "oauth_exchange_failed", reason: e.try(:reason) || "upstream_rejected", message: e.message)
           render_error("oauth_exchange_failed", I18n.t("api.credentials.oauth_exchange_failed", error: e.message), status: :unprocessable_content)
         end
 
@@ -398,6 +404,18 @@ module Api
         def oauth_exchange_error?(error)
           error.is_a?(ChatProviders::ConfigurationError) ||
             error.class.name.in?([ "ClaudeOauth::Error", "CodexOauth::Error" ])
+        end
+
+        def log_oauth_exchange_failure(provider:, response:, reason:, message:)
+          safe_message = reason.to_s == "upstream_rejected" ? "OAuth provider rejected the exchange." : message
+
+          Rails.logger.warn(
+            event: "oauth_exchange_rejected",
+            provider: provider,
+            response: response,
+            reason: reason.to_s,
+            message: safe_message
+          )
         end
 
         def credentials_params

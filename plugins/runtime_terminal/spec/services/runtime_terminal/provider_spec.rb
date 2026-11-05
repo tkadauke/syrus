@@ -46,6 +46,15 @@ RSpec.describe RuntimeTerminal::Provider do
     end
   end
 
+  describe "#environment_for_terminal" do
+    it "resolves the environment for the supplied owning runtime session" do
+      environment = instance_double(RuntimeTerminal::VisualReviewEnvironment, call: { "APP_MODE" => "review" })
+      expect(RuntimeTerminal::VisualReviewEnvironment).to receive(:new).with(runtime_session).and_return(environment)
+
+      expect(provider.environment_for_terminal(runtime_session)).to eq("APP_MODE" => "review")
+    end
+  end
+
   describe "#snapshot" do
     it "renders the authoritative screen and files it as the Runtime Session's latest chat frame" do
       relay = RuntimeTerminalFakeRelay.new(replay: "\e[?1049h\e[48;2;1;2;3m┌─┐\n│界│")
@@ -80,6 +89,38 @@ RSpec.describe RuntimeTerminal::Provider do
       expect(chat_session.chat_attachments.find_by(attachable: document)).to be_present
       expect(runtime_session.metadata["latest_frame_document_id"]).to eq(document.id)
       expect(runtime_session.latest_frame_at).to be_present
+    ensure
+      relay&.stop
+    end
+
+    it "persists a labeled full-color workflow screenshot with Run provenance" do
+      job = Factories.job(repository: repository, user: user)
+      run = job.runs.last
+      workflow_session = RuntimeSession.create!(
+        repository: repository, job: job, workflow: run.workflow, run: run,
+        workspace_ref: "/workspace/review", provider_key: "cli_tui",
+        display_name: "Terminal review", state: "running",
+        metadata: { "visual_review_target" => { "name" => "CLI TUI" } }
+      )
+      relay = RuntimeTerminalFakeRelay.new(replay: "\e[48;2;12;34;56m full color \e[0m\n")
+      terminal_session = Terminal::Session.create!(
+        user: user, workflow: run.workflow, name: "Runtime Terminal",
+        working_directory: workflow_session.workspace_ref, relay_address: relay.address,
+        started_at: 1.minute.ago
+      )
+      RuntimeTerminal::SessionLink.create!(runtime_session: workflow_session, terminal_session: terminal_session)
+
+      result = provider.snapshot(workflow_session.id, checkpoint_label: "inbox loaded")
+
+      artifact = run.workflow.reload.artifact("typed_artifacts").find { |entry| entry["type"] == result.fetch(:document_id) }
+      expect(result).to include(title: "Terminal — inbox loaded", checkpoint_label: "inbox loaded")
+      expect(artifact).to include(
+        "title" => "Terminal — inbox loaded",
+        "original_type" => "visual_review_terminal_screenshot",
+        "run_id" => run.id,
+        "step_id" => run.step_id
+      )
+      expect(run.workflow.visual_artifact_for(result.fetch(:document_id)).download).to start_with("\x89PNG\r\n\x1a\n".b)
     ensure
       relay&.stop
     end
@@ -230,6 +271,24 @@ RSpec.describe RuntimeTerminal::Provider do
           columns: 100
         )
       end.to raise_error(ArgumentError, /terminal dimensions/)
+    end
+  end
+
+  describe "relay startup failure" do
+    it "surfaces the runtime-session diagnostic when the terminal finishes before becoming ready" do
+      terminal_session = Terminal::Session.create!(
+        user: user,
+        name: "Runtime Terminal",
+        working_directory: runtime_session.workspace_ref,
+        started_at: 1.minute.ago,
+        finished_at: Time.current,
+        outcome: "exited"
+      )
+      RuntimeTerminal::SessionLink.create!(runtime_session: runtime_session, terminal_session: terminal_session)
+      runtime_session.update!(state: "failed", last_error: "environment input run_api_credential is unavailable")
+
+      expect { provider.send(:wait_for_relay_ready!, terminal_session) }
+        .to raise_error(RuntimeSessionProviders::ConfigurationError, /run_api_credential is unavailable/)
     end
   end
 
