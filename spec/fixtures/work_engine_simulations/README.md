@@ -154,6 +154,29 @@ runtime:
     worker-b: storage-b
 ```
 
+Workspace-loss scenarios can opt into explicit filesystem state and deterministic
+reconstruction. `lose_storage` removes the owning workflow's simulated checkout,
+records durable lifecycle evidence, and clears stale routing affinity. A
+reconstructable workspace is recreated on the configured live storage and its
+stranded Runs are requeued; an unreconstructable workspace exercises the real
+automatic workflow-retry path:
+
+```yaml
+runtime:
+  workspace:
+    exists: true
+    reconstructable: true
+    recovered_worker: worker-b
+    recovered_storage_key: storage-b
+events:
+  - when: { workflow: { job: feature, state: running } }
+    do: { lose_storage: { job: feature } }
+```
+
+Use `expect.workspace_events`, `expect.workflow_artifacts`, and
+`expect.run_evidence` to assert persisted lifecycle events, recovery
+diagnostics, and failure classifications in addition to final queue state.
+
 Use `lose_worker` to model a host disappearing while a Run is active. The event
 stales the worker heartbeat, Solid Queue process heartbeat, spawned-process
 heartbeat, and Run heartbeat; the simulator then leaves that Run alone so the

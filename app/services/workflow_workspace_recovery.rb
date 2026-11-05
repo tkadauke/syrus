@@ -1,4 +1,6 @@
 class WorkflowWorkspaceRecovery
+  class_attribute :simulation_runner, instance_accessor: false, default: nil
+
   Result = Data.define(:status, :workflow, :run, :message) do
     def recovered? = status == "recovered"
     def retry_required? = status == "retry_required"
@@ -78,7 +80,11 @@ class WorkflowWorkspaceRecovery
   attr_reader :workflow, :workspace, :git, :candidate
   attr_writer :candidate
 
-  def self.call(...) = new(...).call
+  def self.call(...)
+    return simulation_runner.call(...) if simulation_runner
+
+    new(...).call
+  end
 
   def initialize(workflow:, workspace: nil, git: nil)
     @workflow = workflow

@@ -326,8 +326,8 @@ RSpec.describe "Work engine resilience regression matrix" do
     },
     "workspace missing" => {
       issue_kind: :workspace_missing,
-      action: :operator_review_missing_workspace,
-      auto_executable: false,
+      action: :recover_missing_workspace,
+      auto_executable: true,
       setup: lambda {
         _job, workflow, step, run = matrix_graph
         age_active_run!(workflow, step, run, heartbeat_age: 5.minutes)
