@@ -21,6 +21,7 @@ class MergeTrainFixReplay
     latest_workflow = workflow_for(train)
     return false unless latest_workflow
     return false unless MergeTrainFailurePolicy.resolve_for(workflow: latest_workflow).preserve_branch_for_replay?
+    return true if stale_base_rebuild_required?(latest_workflow)
 
     successful_repair_runs(latest_workflow).any?
   end
