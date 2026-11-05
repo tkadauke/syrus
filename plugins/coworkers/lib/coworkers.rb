@@ -33,7 +33,8 @@ module Coworkers
              chat_list_group: "Coworkers::ChatListGroup",
              chat_payload_contributor: "Coworkers::PayloadContributor",
              chat_turn_finalizer: [ "Coworkers::HomeBranchPersistence", "Coworkers::MessageReply" ],
-             chat_mcp_tool_set: "Coworkers::ChatToolSet"
+             chat_mcp_tool_set: "Coworkers::ChatToolSet",
+             reviewer_target_provider: "Coworkers::ReviewerTargetProvider"
     tick_interval 5.minutes
     route :get, "/api/v1/app/coworkers", to: "api/v1/app/coworkers#index"
     route :get, "/api/v1/app/coworkers/options", to: "api/v1/app/coworkers#options"

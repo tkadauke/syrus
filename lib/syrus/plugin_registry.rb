@@ -69,6 +69,7 @@ module Syrus
       workspace_git_transport
       slug_type
       permission_provider
+      reviewer_target_provider
     ].freeze
 
     # Lambdas defer constant resolution until call time (autoload-friendly).
@@ -140,7 +141,8 @@ module Syrus
       purge_contributor:       -> { Syrus::Plugin::PurgeContributor },
       workspace_git_transport: -> { Syrus::Plugin::WorkspaceGitTransport },
       slug_type:               -> { Syrus::Plugin::SlugType },
-      permission_provider:     -> { Syrus::Plugin::PermissionProvider }
+      permission_provider:     -> { Syrus::Plugin::PermissionProvider },
+      reviewer_target_provider: -> { Syrus::Plugin::ReviewerTargetProvider }
     }.freeze
 
     RegistrationError = Class.new(StandardError)

@@ -503,6 +503,15 @@ recomputes count-based quorum, subject to `min_members`; `hold` defers admission
 through the provider-routing hold path; and `fail` reports the panel as unable
 to proceed. If fewer than `min_members` non-skipped verdicts remain, consensus
 is `skipped`.
+
+Review-panel members may optionally identify an authorized coworker target in
+addition to their execution provider/model. This allows ordered named reviewers
+and named panels without inferring identity from prompts or titles. A dedicated
+`coworker_review` routing outcome requires every member to have a valid coworker
+target and has no unnamed-provider fallback. Missing, paused, revoked,
+unauthorized, or plugin-unavailable targets fail deterministically before the
+reviewer is invoked.
+
 Panel resolutions are deliberately separate from the ordinary single-candidate
 fallback path: `Resolver.call` and `AvailabilitySelector.call` reject them
 rather than silently selecting the first available member. Panel-aware workflow
