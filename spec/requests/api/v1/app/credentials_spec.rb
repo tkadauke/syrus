@@ -655,11 +655,18 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
   it "rejects an exchange that was never started" do
     sign_in_as(user)
+    allow(Rails.logger).to receive(:warn)
 
     post "/api/v1/app/credentials/claude_oauth_exchange", params: { code: "x" }
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "code")).to eq("oauth_not_started")
+    expect(Rails.logger).to have_received(:warn).with(hash_including(
+      event: "oauth_exchange_rejected",
+      provider: "claude",
+      response: "oauth_not_started",
+      reason: "not_started"
+    ))
   end
 
   it "saves a long-lived token directly when a sk-ant- value is pasted instead of an auth code" do
@@ -752,6 +759,29 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body.dig("error", "code")).to eq("oauth_not_started")
+  end
+
+  it "logs a Codex exchange failure reason without OAuth secrets" do
+    sign_in_as(user)
+    allow(CodexOauth).to receive(:start_callback_listener).and_return(true)
+    logged_payload = nil
+    allow(Rails.logger).to receive(:warn) { |payload| logged_payload = payload }
+    post "/api/v1/app/credentials/codex_oauth_start"
+    state = Rack::Utils.parse_query(URI(parse_body["authorize_url"]).query)["state"]
+    secret_code = "ac.2.secret-authorization-code"
+
+    post "/api/v1/app/credentials/codex_oauth_exchange", params: { code: "#{secret_code}#wrong-state" }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("oauth_exchange_failed")
+    expect(logged_payload).to include(
+      event: "oauth_exchange_rejected",
+      provider: "codex",
+      response: "oauth_exchange_failed",
+      reason: "state_mismatch",
+      message: include("state did not match")
+    )
+    expect(logged_payload.to_json).not_to include(secret_code, state)
   end
 
   it "uploads and deletes personal documents" do
