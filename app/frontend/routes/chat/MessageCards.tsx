@@ -1234,34 +1234,17 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item, payload,
   const expanded = open
   return (
     <details className="group/tool min-w-0 max-w-full overflow-hidden" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
-      <summary
-        className="grid min-w-0 max-w-full list-none cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto_auto] items-baseline gap-x-2 overflow-hidden py-0.5 text-sm text-gray-700 hover:text-gray-900 sm:grid-cols-[auto_minmax(0,max-content)_auto_auto_minmax(0,1fr)] dark:text-gray-300 dark:hover:text-gray-100"
+      <CollapsedToolGroupHeader
+        count={item.calls.length > 1 ? item.calls.length : undefined}
+        details={details}
+        outcome={outcome}
+        outcomeTone={outcomeState === "failed" ? "danger" : outcomeState === "running" ? "info" : "neutral"}
+        summary={summary}
         onClick={(event) => {
           event.preventDefault()
           setOpen((value) => !value)
         }}
-      >
-        <span className="shrink-0 text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">▸</span>
-        <span className="min-w-0 truncate whitespace-nowrap font-medium text-gray-900 dark:text-gray-100" title={summary}>
-          {summary}
-        </span>
-        <Pill className="shrink-0 justify-self-end text-xs" tone={outcomeState === "failed" ? "danger" : outcomeState === "running" ? "info" : "neutral"}>
-          {outcome}
-        </Pill>
-        {item.calls.length > 1 ? (
-          <Pill className="shrink-0 justify-self-end text-xs" tone="neutral">
-            {item.calls.length}
-          </Pill>
-        ) : (
-          <span aria-hidden="true" />
-        )}
-        <span
-          className="col-start-2 col-end-5 min-w-0 break-words font-mono text-gray-600 [overflow-wrap:anywhere] sm:col-start-5 sm:col-end-auto sm:truncate sm:whitespace-nowrap dark:text-gray-400"
-          title={details || undefined}
-        >
-          {details}
-        </span>
-      </summary>
+      />
       <div className="mt-1 min-w-0 max-w-full space-y-2 border-l border-gray-200 pl-3 text-xs sm:ml-5 dark:border-gray-700">
         {item.calls.map((call) => {
           const detail = informativeDetail(call.detail)
@@ -1309,6 +1292,57 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item, payload,
     </details>
   )
 }, sameToolGroupProps)
+
+type CollapsedToolGroupHeaderProps = {
+  count?: number
+  details: string
+  onClick: (event: MouseEvent<HTMLElement>) => void
+  outcome: string
+  outcomeTone: "danger" | "info" | "neutral"
+  summary: string
+}
+
+function collapsedPreview(value: string) {
+  return value.replace(/\s+/g, " ").trim()
+}
+
+// OPERATOR DESIGN LOCK — DO NOT REMOVE, WEAKEN, REWRITE, OR UPDATE THIS
+// IMPLEMENTATION TO PERMIT A MULTI-LINE COLLAPSED TOOL CARD WITHOUT EXPLICIT
+// WRITTEN APPROVAL FROM THOMAS KADAUKE. A collapsed tool card is exactly one
+// visual line at every width: disclosure marker, title without a line break,
+// outcome and metadata pills, then a clipped/ellipsized details preview. Full
+// details belong only in the expanded state. Preserve the contract tests in
+// MessageCards.test.tsx, e2e/chat-tool-group-layout.spec.ts, and
+// spec/architecture/collapsed_tool_group_header_design_lock_spec.rb.
+function CollapsedToolGroupHeader({ count, details, onClick, outcome, outcomeTone, summary }: CollapsedToolGroupHeaderProps) {
+  const preview = collapsedPreview(details)
+
+  return (
+    <summary
+      className="flex min-w-0 max-w-full cursor-pointer list-none items-baseline gap-2 overflow-hidden whitespace-nowrap py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+      data-testid="collapsed-tool-group-header"
+      onClick={onClick}
+    >
+      <span aria-hidden="true" className="shrink-0 text-gray-400 group-open/tool:rotate-90 dark:text-gray-500">
+        ▸
+      </span>
+      <span className="min-w-0 max-w-[40%] shrink truncate font-medium text-gray-900 dark:text-gray-100" data-testid="tool-group-title" title={summary}>
+        {summary}
+      </span>
+      <Pill className="shrink-0 text-xs" tone={outcomeTone}>
+        {outcome}
+      </Pill>
+      {count ? (
+        <Pill className="shrink-0 text-xs" tone="neutral">
+          {count}
+        </Pill>
+      ) : null}
+      <span className="min-w-0 flex-1 truncate font-mono text-gray-600 dark:text-gray-400" data-testid="tool-group-preview" title={preview || undefined}>
+        {preview}
+      </span>
+    </summary>
+  )
+}
 
 function sameToolGroupProps(previous: ToolGroupProps, next: ToolGroupProps) {
   return (

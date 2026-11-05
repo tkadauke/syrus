@@ -193,6 +193,18 @@ High-frequency reminders:
   `plugins/<name>/app/frontend/tool_cards/`, or register an explicit
   `generic`/`hidden`/`deferred` status in
   `Admin::McpToolCardCoverage::EXPLICIT_CARD_STATUSES`.
+- **Collapsed tool-card headers are operator design-locked.** Every collapsed
+  generic, core, plugin, pending, completed, failed, grouped, and single-call
+  tool card is exactly one visual line at every width, ordered disclosure
+  marker, non-wrapping title, outcome pill, optional metadata/count pills, then
+  a clipped or ellipsized details preview using only the remaining width.
+  Preview whitespace is normalized; pills never wrap, stack, reorder, or
+  disappear; and the row never creates horizontal overflow. Full details remain
+  available after expansion. Tool-specific cards may provide labels and
+  summaries but may not alter this shared geometry. The shared implementation
+  and its component, browser-geometry, and architecture assertions/fixtures
+  must not be removed, weakened, or updated to permit wrapping without explicit
+  written approval from Thomas Kadauke.
 - Searchable/filterable product surfaces use the shared Filters AST and
   `FilterBar`; deliberately decide whether the surface also needs
   `SmartFolder` persistence. SmartFolder-backed endpoints must return and

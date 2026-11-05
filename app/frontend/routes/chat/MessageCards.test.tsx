@@ -1,3 +1,9 @@
+// OPERATOR DESIGN LOCK — DO NOT REMOVE, WEAKEN, REWRITE, OR UPDATE THESE
+// ASSERTIONS/FIXTURES TO PERMIT A MULTI-LINE COLLAPSED TOOL CARD WITHOUT
+// EXPLICIT WRITTEN APPROVAL FROM THOMAS KADAUKE. A collapsed tool card is
+// exactly one visual line at every width: title without a line break, then
+// pills, then a clipped/ellipsized details preview. Full details belong only
+// in the expanded state.
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
@@ -902,6 +908,78 @@ describe("tool result rendering", () => {
     return rawDetails
   }
 
+  // OPERATOR DESIGN LOCK — this table is intentionally broad. Changes to a
+  // tool's renderer may change its labels or expanded body, but may not bypass
+  // or relax the shared one-line collapsed-header geometry.
+  it.each([
+    { kind: "generic running single", rawName: "UnknownTool", title: "Unknown tool", detail: "first\n  second\tthird", resultBody: "", error: false, count: 1 },
+    { kind: "core done grouped", rawName: "Read", title: "Read a source", detail: "short detail", resultBody: "complete", error: false, count: 2 },
+    {
+      kind: "registered core with huge detail",
+      rawName: "admin_version",
+      title: "Admin version",
+      detail: `huge ${"detail ".repeat(80)}`,
+      resultBody: '{"version":"1.0"}',
+      error: false,
+      count: 1
+    },
+    {
+      kind: "plugin failed with unbroken token",
+      rawName: "list_design_docs",
+      title: "List design docs",
+      detail: "x".repeat(500),
+      resultBody: "failed completely",
+      error: true,
+      count: 1
+    },
+    {
+      kind: "extremely long title without detail",
+      rawName: "UnknownTool",
+      title: "InspectUnusuallyLongRepositorySourceNamesWithoutOverflowingTheChatColumn".repeat(4),
+      detail: "",
+      resultBody: "complete",
+      error: false,
+      count: 1
+    }
+  ])("enforces the collapsed and expanded contract for $kind", ({ rawName, title, detail, resultBody, error, count }) => {
+    const calls: ChatToolGroupItem["calls"] = Array.from({ length: count }, (_, index) => ({
+      message_id: 50_000 + index,
+      tool_name: rawName,
+      raw_name: rawName,
+      detail,
+      display_label: title,
+      progress_label: title,
+      raw_payload: { detail },
+      result_body: resultBody,
+      result_error: error,
+      result_kind: "text",
+      result_summary: resultBody ? `summary ${index + 1}` : "",
+      result_settled: resultBody !== "" || error
+    }))
+
+    render(<ToolGroup item={{ type: "tool_group", tool: title, summary_label: title, calls }} />)
+
+    const header = screen.getByTestId("collapsed-tool-group-header")
+    const titleElement = within(header).getByTestId("tool-group-title")
+    const preview = within(header).getByTestId("tool-group-preview")
+    const pills = header.querySelectorAll('[class*="rounded-[var(--radius-pill)]"]')
+
+    expect(header).toHaveClass("flex", "whitespace-nowrap", "overflow-hidden")
+    expect(header.className).not.toMatch(/(?:sm|md|lg|xl):/)
+    expect(titleElement).toHaveClass("truncate")
+    expect(preview).toHaveClass("flex-1", "truncate")
+    const expectedPreview = [resultBody ? "summary 1" : "", detail].filter(Boolean).join(" · ")
+    expect(preview).toHaveTextContent(expectedPreview.replace(/\s+/g, " ").trim())
+    expect(pills).toHaveLength(count > 1 ? 2 : 1)
+    expect(titleElement.compareDocumentPosition(pills[0])).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(pills[pills.length - 1].compareDocumentPosition(preview)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+
+    fireEvent.click(header)
+    expect(header.closest("details")).toHaveAttribute("open")
+    if (detail) expect(screen.getAllByText((_, element) => element?.textContent === `${title}(${detail})`)).toHaveLength(count)
+    expect(screen.getAllByText(/Raw details/)).toHaveLength(count)
+  })
+
   it("routes tool-card markdown workspace links through the chat source preview", async () => {
     vi.mocked(fetchSourceFileContent).mockResolvedValue({ path: "app/models/job.rb", content: "class Job\nend\n", binary: false, too_large: false })
     const result = { thread_id: 7, state: "open", hop_count: 1, max_hops: 6, hops_remaining: 5, target_chat_session_id: 42, message_id: 99 }
@@ -1017,10 +1095,10 @@ describe("tool result rendering", () => {
     const detail = screen.getByText(/Unpublished memory #21/)
     const count = screen.getByText("3")
 
-    expect(summary).toHaveClass("grid", "overflow-hidden", "sm:grid-cols-[auto_minmax(0,max-content)_auto_auto_minmax(0,1fr)]")
+    expect(summary).toHaveClass("flex", "overflow-hidden", "whitespace-nowrap")
     expect(label).toHaveClass("min-w-0", "truncate")
     expect(label).toHaveAttribute("title", "Unpublish memory (3)")
-    expect(detail).toHaveClass("min-w-0", "break-words", "sm:truncate")
+    expect(detail).toHaveClass("min-w-0", "flex-1", "truncate")
     expect(count.parentElement).toHaveClass("shrink-0")
     expect(count.parentElement?.nextElementSibling).toBe(detail)
   })
@@ -1167,8 +1245,8 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={{ type: "tool_group", tool: "Read", summary_label: "Inspected 18 sources", calls }} />)
 
     const metadata = screen.getByText(Array(18).fill(`A long result summary · ${detail}`).join(", "))
-    expect(metadata).toHaveClass("min-w-0", "break-words", "sm:truncate")
-    expect(metadata.closest("summary")).toHaveClass("grid", "overflow-hidden")
+    expect(metadata).toHaveClass("min-w-0", "flex-1", "truncate")
+    expect(metadata.closest("summary")).toHaveClass("flex", "overflow-hidden", "whitespace-nowrap")
     expect(screen.getByText("Inspected 18 sources")).toBeVisible()
     expect(screen.getByText("Done")).toBeVisible()
     const count = screen.getByText("18")
@@ -1762,7 +1840,7 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={item} />)
 
     const summary = screen.getByText("Git status unavailable: Local Mode daemon is not connected")
-    expect(summary).toHaveClass("min-w-0", "break-words", "sm:truncate")
+    expect(summary).toHaveClass("min-w-0", "flex-1", "truncate")
 
     expandToolGroup("Git status")
 
@@ -1783,7 +1861,7 @@ describe("tool result rendering", () => {
       result: { status: "incomplete", incomplete: true, reason: "result_limit", entries: [{ path: "app/models/widget.rb" }] },
       summary: "Incomplete listing · 1 paths"
     }
-  ])("wraps $tool incomplete details on mobile instead of clipping them", ({ tool, toolName, result, summary }) => {
+  ])("clips $tool incomplete details on every width without wrapping", ({ tool, toolName, result, summary }) => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
       tool,
@@ -1812,10 +1890,9 @@ describe("tool result rendering", () => {
     const details = screen.getByTitle(summary)
     const header = details.closest("summary")
     const outcome = screen.getByText("Done").parentElement
-    expect(header).toHaveClass("list-none", "grid-cols-[auto_minmax(0,1fr)_auto_auto]")
-    expect(outcome).toHaveClass("shrink-0", "justify-self-end")
-    expect(details).toHaveClass("col-start-2", "col-end-5", "break-words", "sm:col-start-5", "sm:truncate")
-    expect(details).not.toHaveClass("truncate")
+    expect(header).toHaveClass("list-none", "flex", "whitespace-nowrap")
+    expect(outcome).toHaveClass("shrink-0")
+    expect(details).toHaveClass("min-w-0", "flex-1", "truncate")
   })
 
   it("renders plugin card bodies for settled Browser calls with empty result content", () => {
@@ -1919,8 +1996,8 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={item} />)
 
     const details = screen.getByText('Approval requested · 3 JOBs · pending group #5 · {"job_ids":[53,54,55]}')
-    expect(details).toHaveClass("min-w-0", "break-words", "sm:truncate")
-    expect(details.closest("summary")).toHaveClass("max-w-full", "grid")
+    expect(details).toHaveClass("min-w-0", "flex-1", "truncate")
+    expect(details.closest("summary")).toHaveClass("max-w-full", "flex", "whitespace-nowrap")
     expect(details.closest("details")).toHaveClass("max-w-full", "overflow-hidden")
   })
 
@@ -2334,7 +2411,7 @@ describe("tool result rendering", () => {
     expect(summary).not.toHaveClass("shrink-0")
   })
 
-  it("wraps long registered-card summaries on mobile and truncates them on desktop", () => {
+  it("truncates long registered-card summaries on every width", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 402 })
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 812 })
     const title = "Rebuild the repository search index while preserving visibility across a deliberately long maintenance-task title"
@@ -2362,9 +2439,9 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={item} />)
 
     const resultSummary = screen.getByText(`${title} (running)`)
-    expect(resultSummary).toHaveClass("min-w-0", "break-words", "sm:truncate")
+    expect(resultSummary).toHaveClass("min-w-0", "flex-1", "truncate")
     expect(resultSummary).not.toHaveClass("order-2", "pl-5")
-    expect(resultSummary.closest("summary")).toHaveClass("grid")
+    expect(resultSummary.closest("summary")).toHaveClass("flex", "whitespace-nowrap")
   })
 
   it("renders a plugin-registered card for a plugin-owned tool, without core naming that plugin", () => {
