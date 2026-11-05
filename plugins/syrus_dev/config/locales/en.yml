@@ -1,0 +1,6 @@
+en:
+  syrus_dev:
+    permission_factory_reset:
+      errors:
+        counts_not_object: "must be a JSON object"
+        completed_immutable: "Completed permission factory reset records are immutable"

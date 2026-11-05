@@ -12,6 +12,24 @@ self-contained Rails engine plugin, installed but disabled by default
 disabled on ordinary customer/project installations — it exists to make Syrus
 better at building and debugging Syrus.
 
+The plugin also owns the development-only permission factory-reset service.
+`SyrusDev::PermissionFactoryReset` previews chat, actor, user, repository, or
+instance scope before an administrator confirms the exact set. Confirmation
+revokes custom rules and leases, invalidates unclaimed invocations, safely
+cancels pending authorization checkpoints, and reinstalls the versioned
+Ask-on-first-use factory profile. It preserves permission history and unrelated
+users, coworkers, repositories, credentials, connections, and plugin settings.
+Repeating a completed reset is a no-op. Every attempt records its initiating
+administrator, scope, factory version, counts, and outcome.
+
+Administrators use **Admin → Syrus Dev → Permission Model**
+(`/admin/permission_model`) to select one of those scopes and inspect the exact
+revocation, cancellation, replacement, and creation counts before applying a
+reset. The preview also identifies retained history and unrelated resources.
+Application carries a digest of those counts and fails if the preview has gone
+stale; instance-wide resets additionally require typing `RESET INSTANCE`.
+Successful and already-converged resets show the immutable reset audit ID.
+
 When the instance has an active `tkadauke/syrus` repository, or a repository
 whose upstream is `tkadauke/syrus`, the Admin Plugins page recommends enabling
 this plugin. That gives self-development instances a visible nudge to turn on

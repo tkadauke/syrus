@@ -3909,6 +3909,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_05_130253) do
     t.index ["workflow_id"], name: "index_steps_on_workflow_id"
   end
 
+  create_table "syrus_dev_permission_factory_resets", force: :cascade do |t|
+    t.integer "initiated_by_user_id", null: false
+    t.string "scope_type", null: false
+    t.string "scope_id"
+    t.string "default_version", null: false
+    t.string "outcome", null: false
+    t.json "counts", null: false
+    t.text "error_message"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["initiated_by_user_id"], name: "idx_on_initiated_by_user_id_e5cdfec8e8"
+    t.index ["scope_type", "scope_id", "created_at"], name: "idx_syrus_dev_permission_resets_scope"
+  end
+
   create_table "system_alert_notifications", force: :cascade do |t|
     t.string "dismissal_key", null: false
     t.string "alert_id", null: false
