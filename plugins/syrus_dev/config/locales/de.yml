@@ -1,0 +1,6 @@
+de:
+  syrus_dev:
+    permission_factory_reset:
+      errors:
+        counts_not_object: "muss ein JSON-Objekt sein"
+        completed_immutable: "Abgeschlossene Berechtigungszurücksetzungen auf Werkseinstellungen sind unveränderlich"

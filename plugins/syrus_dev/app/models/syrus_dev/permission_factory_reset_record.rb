@@ -8,7 +8,7 @@ module SyrusDev
 
     validates :scope_type, :default_version, presence: true
     validates :outcome, inclusion: { in: OUTCOMES }
-    validate { errors.add(:counts, "must be a JSON object") unless counts.is_a?(Hash) }
+    validate { errors.add(:counts, I18n.t("syrus_dev.permission_factory_reset.errors.counts_not_object")) unless counts.is_a?(Hash) }
 
     before_destroy { raise ActiveRecord::ReadOnlyRecord, "Permission factory reset records are immutable" }
     validate :completed_record_is_immutable, on: :update
@@ -19,7 +19,7 @@ module SyrusDev
       return if outcome_in_database == "started"
       return unless changes_to_save.except("updated_at").any?
 
-      errors.add(:base, "Completed permission factory reset records are immutable")
+      errors.add(:base, I18n.t("syrus_dev.permission_factory_reset.errors.completed_immutable"))
     end
   end
 end
