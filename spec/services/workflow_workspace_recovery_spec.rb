@@ -22,6 +22,25 @@ RSpec.describe WorkflowWorkspaceRecovery do
     allow(WorkflowWorkspaceLifecycle).to receive(:record_identity!)
   end
 
+  def pending_run_job(run, queue_name:)
+    ensure_solid_queue_test_tables!
+    job = SolidQueue::Job.create!(
+      class_name: "RunJob",
+      queue_name: queue_name,
+      priority: 10,
+      arguments: { "arguments" => [ run.id ] },
+      created_at: 5.minutes.ago,
+      updated_at: 5.minutes.ago
+    )
+    SolidQueue::ReadyExecution.create!(
+      job: job,
+      priority: job.priority,
+      queue_name: job.queue_name,
+      created_at: job.created_at
+    )
+    job
+  end
+
   it "reconstructs the exact durable head and resumes stranded graders before their collector" do
     grader_runs = 2.times.map do |index|
       step = workflow.steps.create!(
@@ -38,6 +57,7 @@ RSpec.describe WorkflowWorkspaceRecovery do
       job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider,
       state: "running", started_at: 2.minutes.ago
     )
+    stale_jobs = grader_runs.map { |run| pending_run_job(run, queue_name: "resume-dead-storage") }
     recovery = described_class.new(workflow: workflow, workspace: workspace, git: git)
     allow(recovery).to receive(:durable_candidates).and_return([ candidate ])
 
@@ -53,6 +73,11 @@ RSpec.describe WorkflowWorkspaceRecovery do
     expect(grader_runs.map { |run| run.reload.state }).to eq(%w[queued queued])
     expect(collector.reload).to be_queued
     expect(step.reload).to be_queued
+    expect(SolidQueue::Job.where(id: stale_jobs.map(&:id))).to be_empty
+    grader_runs.each do |run|
+      replacements = enqueued_jobs.last(3).count { |entry| entry.fetch(:args).first == run.id }
+      expect(replacements).to eq(1)
+    end
     expect(WorkflowWorkspaceLifecycle).to have_received(:record_identity!).with(
       workflow, hostname: SyrusVersion.hostname, storage_key: WorkerStorageIdentity.queue_key,
       actor: "workspace_recovery"
