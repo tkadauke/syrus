@@ -1,0 +1,6 @@
+la:
+  syrus_dev:
+    permission_factory_reset:
+      errors:
+        counts_not_object: "obiectum JSON esse debet"
+        completed_immutable: "Relationes restitutionum facultatum perfectarum immutabiles sunt"
