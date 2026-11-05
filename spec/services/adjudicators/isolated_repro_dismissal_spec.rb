@@ -89,6 +89,24 @@ RSpec.describe Adjudicators::IsolatedReproDismissal do
     )
   end
 
+  it "does not dismiss a landing failure from an isolated pass without a full equivalent rerun" do
+    workflow.update!(trigger_kind: "auto_merge")
+    stub_provider(fake_provider(
+      failed_test_cases: [ { "suite_name" => "spec/pr_lookup_spec.rb", "name" => "finds the PR after the suite" } ],
+      evidence: {
+        [ "spec/pr_lookup_spec.rb", "finds the PR after the suite", sha ] => {
+          reproduced: false,
+          recorded_at: Time.current
+        }
+      }
+    ))
+
+    verdict = adjudicate
+
+    expect(verdict).to be_inconclusive
+    expect(verdict.reason).to eq("landing_requires_equivalent_full_rerun")
+  end
+
   it "declines when the recorded evidence is for a different SHA" do
     other_sha = "b" * 40
     stub_provider(fake_provider(

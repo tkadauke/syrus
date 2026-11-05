@@ -608,11 +608,7 @@ class MergeTrainFailureHandler
   end
 
   def resolved_failure_policy
-    @resolved_failure_policy ||= MergeTrainFailurePolicy.resolve(
-      repository: @workflow.job&.repository,
-      attempt_number: failure_policy_attempt_number,
-      retry_classification: failure_policy_retry_classification
-    ).tap do |rung|
+    @resolved_failure_policy ||= MergeTrainFailurePolicy.resolve_for(workflow: @workflow).tap do |rung|
       # A week of failed trains left no record of what the ladder decided --
       # not the rung, not why preservation was refused, not which multisect
       # guard declined. Tuning a ladder you cannot observe is guesswork, so

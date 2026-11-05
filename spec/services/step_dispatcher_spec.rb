@@ -2421,6 +2421,224 @@ RSpec.describe StepDispatcher, :ci_only do
       )
     end
 
+    it "does not charge an inconclusive landing no-op to the repair budget and regrades immediately" do
+      retry_workflow = workflow_with_grader_retry_until(max_iterations: 2)
+      first_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 1)
+      add_failed_grader!(retry_workflow, first_collect, failed_tests: %w[spec/pr_lookup_spec.rb])
+      described_class.fail_from(first_collect)
+
+      landing_fix = retry_workflow.steps.find_by!(kind: "landing_fix", iteration: 2)
+      LandingRepairOutcome.record!(
+        step: landing_fix,
+        outcome: "inconclusive_no_op",
+        evidence: {
+          "repair_head_sha" => "unchanged-head",
+          "failing_context" => [ { "grader" => "rspec", "command" => "bin/rspec" } ]
+        }
+      )
+      retry_workflow.set_artifact!(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY, "unchanged-head")
+      second_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 2)
+      add_failed_grader!(retry_workflow, second_collect, failed_tests: %w[spec/pr_lookup_spec.rb])
+
+      WorkflowActivity.synchronously do
+        expect { described_class.fail_from(second_collect) }.to change { Run.count }.by(1)
+      end
+
+      expect(retry_workflow.reload).to be_queued
+      expect(retry_workflow.steps.find_by!(kind: "landing_fix", iteration: 3)).to be_present
+      expect(grader_loop_decision_for(second_collect).metadata.fetch("landing_repair")).to include(
+        "repair_iterations" => 0,
+        "no_progress_attempts" => 1
+      )
+    end
+
+    it "terminates a landing loop deterministically after repeated inconclusive no-op turns" do
+      retry_workflow = workflow_with_grader_retry_until(max_iterations: 2)
+      first_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 1)
+      add_failed_grader!(retry_workflow, first_collect, failed_tests: %w[spec/pr_lookup_spec.rb])
+      described_class.fail_from(first_collect)
+
+      (2..3).each do |iteration|
+        landing_fix = retry_workflow.steps.find_by!(kind: "landing_fix", iteration: iteration)
+        LandingRepairOutcome.record!(step: landing_fix, outcome: "inconclusive_no_op")
+        collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: iteration)
+        add_failed_grader!(retry_workflow, collect, failed_tests: %w[spec/pr_lookup_spec.rb])
+        described_class.fail_from(collect)
+      end
+
+      expect(retry_workflow.reload).to be_failed
+      expect(retry_workflow.failure_reason).to eq("landing_repair_no_progress_exhausted")
+      expect(retry_workflow.artifact("landing_repair_summary")).to include(
+        "repair_iterations" => 0,
+        "no_progress_attempts" => 2,
+        "no_progress_limit" => 2,
+        "reason" => "landing_repair_no_progress_exhausted"
+      )
+      expect(retry_workflow.steps.find_by(kind: "landing_fix", iteration: 4)).to be_nil
+    end
+
+    it "upgrades a clean-tree turn when the equivalent full grader rerun succeeds" do
+      retry_workflow = workflow_with_grader_retry_until(max_iterations: 2)
+      first_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 1)
+      add_failed_grader!(retry_workflow, first_collect, failed_tests: %w[spec/pr_lookup_spec.rb])
+      described_class.fail_from(first_collect)
+
+      landing_fix = retry_workflow.steps.find_by!(kind: "landing_fix", iteration: 2)
+      LandingRepairOutcome.record!(
+        step: landing_fix,
+        outcome: "inconclusive_no_op",
+        evidence: {
+          "repair_head_sha" => "unchanged-head",
+          "failing_context" => [ { "grader" => "rspec", "command" => "bin/rspec" } ]
+        }
+      )
+      retry_workflow.set_artifact!(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY, "unchanged-head")
+      second_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 2)
+      successful_grader = Step.create!(
+        workflow: retry_workflow,
+        kind: "grader",
+        position: second_collect.position,
+        iteration: 2,
+        loop_id: second_collect.loop_id,
+        state: "succeeded",
+        details: { "name" => "rspec", "command" => "bin/rspec" }
+      )
+      successful_grader.runs.create!(
+        job: job,
+        trigger_kind: retry_workflow.trigger_kind,
+        state: "succeeded",
+        iteration: 2
+      )
+      second_collect.update_columns(state: "succeeded", finished_at: Time.current)
+
+      described_class.advance_from(second_collect)
+
+      outcome = retry_workflow.reload.artifact("landing_repair_outcomes").last
+      expect(outcome).to include("outcome" => "verified_no_change_resolution")
+      expect(outcome.dig("evidence", "successful_equivalent_rerun")).to contain_exactly(
+        include("grader" => "rspec", "command" => "bin/rspec", "state" => "succeeded")
+      )
+      expect(outcome.dig("evidence", "rerun_head_sha")).to eq("unchanged-head")
+      expect(outcome.dig("evidence", "failing_context")).to contain_exactly(
+        include("grader" => "rspec", "command" => "bin/rspec")
+      )
+    end
+
+    it "does not verify an older no-op after an intervening committed repair changes the landing head" do
+      retry_workflow = workflow_with_grader_retry_until(max_iterations: 3)
+      old_fix = Step.create!(
+        workflow: retry_workflow,
+        kind: "landing_fix",
+        position: 20,
+        iteration: 2,
+        loop_id: "grade-loop"
+      )
+      LandingRepairOutcome.record!(
+        step: old_fix,
+        outcome: "inconclusive_no_op",
+        evidence: {
+          "repair_head_sha" => "head-before-repair",
+          "failing_context" => [ { "grader" => "rspec", "command" => "bin/rspec" } ]
+        }
+      )
+      committed_fix = Step.create!(
+        workflow: retry_workflow,
+        kind: "landing_fix",
+        position: 21,
+        iteration: 3,
+        loop_id: "grade-loop"
+      )
+      LandingRepairOutcome.record!(
+        step: committed_fix,
+        outcome: "committed_repair",
+        evidence: { "head_sha" => "head-after-repair" }
+      )
+      collect = Step.create!(
+        workflow: retry_workflow,
+        kind: "grader_collect",
+        position: 22,
+        iteration: 3,
+        loop_id: "grade-loop",
+        state: "succeeded"
+      )
+      retry_workflow.set_artifact!(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY, "head-after-repair")
+
+      LandingRepairOutcome.verify_latest_no_change!(collect)
+
+      expect(retry_workflow.reload.artifact("landing_repair_outcomes").first).to include(
+        "outcome" => "inconclusive_no_op"
+      )
+    end
+
+    it "does not verify a no-op when the successful rerun did not include the failing grader command" do
+      retry_workflow = workflow_with_grader_retry_until(max_iterations: 2)
+      landing_fix = Step.create!(
+        workflow: retry_workflow,
+        kind: "landing_fix",
+        position: 20,
+        iteration: 2,
+        loop_id: "grade-loop"
+      )
+      LandingRepairOutcome.record!(
+        step: landing_fix,
+        outcome: "inconclusive_no_op",
+        evidence: {
+          "repair_head_sha" => "unchanged-head",
+          "failing_context" => [ { "grader" => "rspec", "command" => "bin/rspec" } ]
+        }
+      )
+      collect = Step.create!(
+        workflow: retry_workflow,
+        kind: "grader_collect",
+        position: 22,
+        iteration: 2,
+        loop_id: "grade-loop",
+        state: "succeeded"
+      )
+      Step.create!(
+        workflow: retry_workflow,
+        kind: "grader",
+        position: 21,
+        iteration: 2,
+        loop_id: "grade-loop",
+        state: "succeeded",
+        details: { "name" => "frontend-lint", "command" => "npm run lint" }
+      )
+      retry_workflow.set_artifact!(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY, "unchanged-head")
+
+      LandingRepairOutcome.verify_latest_no_change!(collect)
+
+      expect(retry_workflow.reload.artifact("landing_repair_outcomes").last).to include(
+        "outcome" => "inconclusive_no_op"
+      )
+    end
+
+    it "charges the landing repair budget only when a repair commit was produced" do
+      retry_workflow = workflow_with_grader_retry_until(max_iterations: 2)
+      first_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 1)
+      add_failed_grader!(retry_workflow, first_collect, failed_tests: %w[spec/a_spec.rb spec/b_spec.rb])
+      described_class.fail_from(first_collect)
+
+      first_fix = retry_workflow.steps.find_by!(kind: "landing_fix", iteration: 2)
+      LandingRepairOutcome.record!(step: first_fix, outcome: "committed_repair")
+      second_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 2)
+      add_failed_grader!(retry_workflow, second_collect, failed_tests: %w[spec/b_spec.rb])
+      described_class.fail_from(second_collect)
+
+      second_fix = retry_workflow.steps.find_by!(kind: "landing_fix", iteration: 3)
+      LandingRepairOutcome.record!(step: second_fix, outcome: "committed_repair")
+      third_collect = retry_workflow.steps.find_by!(kind: "grader_collect", iteration: 3)
+      add_failed_grader!(retry_workflow, third_collect, failed_tests: %w[spec/c_spec.rb])
+      described_class.fail_from(third_collect)
+
+      expect(retry_workflow.reload).to be_failed
+      expect(retry_workflow.failure_reason).to eq("loop_exhausted_after_grader_failure")
+      expect(LandingRepairOutcome.counters(workflow: retry_workflow, loop_id: "grade-loop")).to include(
+        "repair_iterations" => 2,
+        "no_progress_attempts" => 0
+      )
+    end
+
     # A grader that timed out was killed before it judged anything, so it is
     # not evidence that the repair stopped making progress. Counting it as a
     # failure stopped merge trains that were still converging -- the failing

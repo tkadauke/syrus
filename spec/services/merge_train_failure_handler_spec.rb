@@ -614,6 +614,9 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
         failure_reason: "merge_train: base moved from oldbase to newbase; rebuild required"
       )
       workflow.set_artifact!("merge_train_base_sha", "oldbase")
+      repair = Step.create!(workflow: workflow, kind: "landing_fix", state: "succeeded", position: 1)
+      Run.create!(job: a, step: repair, trigger_kind: "merge_train", state: "succeeded",
+        base_sha: "oldint122", head_sha: "oldint123")
       client = instance_double(GithubClient)
       allow(GithubClient).to receive(:for).and_return(client)
       allow(client).to receive(:delete_branch)
@@ -646,6 +649,34 @@ RSpec.describe MergeTrainFailureHandler, :ci_only do
       expect(client).to have_received(:delete_branch).with(repository.slug, train.integration_branch)
       expect(train.reload).to be_terminal
       expect(train.members.first.reload.state).to eq("failed")
+    end
+
+    it "keeps verified landing fixes after non-retryable grader exhaustion when the repository rung says keep_fixes" do
+      AppSetting.current.update!(merge_train_failure_policy: "restart")
+      a = member_job(issue_number: 1)
+      stub_repository_content(a.repository, files: {
+        SyrusYml::CONFIG_FILE => "merge_train:\n  failure_policy:\n    - keep_fixes\n    - keep_assembly\n    - restart\n"
+      })
+      train = build_train([ a ])
+      train.update!(integration_sha: "repair123")
+      workflow = build_workflow(train, a, failure_reason: "loop_exhausted_after_grader_failure")
+      workflow.set_artifact!("merge_train_base_sha", "base123")
+      repair = Step.create!(workflow: workflow, kind: "landing_fix", state: "succeeded", position: 1)
+      Run.create!(job: a, step: repair, trigger_kind: "merge_train", state: "succeeded",
+        base_sha: "member123", head_sha: "repair123")
+      grader = Step.create!(workflow: workflow, kind: "grader_collect", state: "failed", position: 2)
+      failed_run = Run.create!(job: a, step: grader, trigger_kind: "merge_train", state: "failed",
+        agent_outcome: "grader_failure")
+      RunFailureClassification.create!(run: failed_run, classification: "grader_failure", retryable: false,
+        classified_at: Time.current)
+      client = instance_double(GithubClient)
+      allow(GithubClient).to receive(:for).and_return(client)
+      allow(client).to receive(:delete_branch).and_return(true)
+
+      described_class.call(workflow: workflow)
+
+      expect(client).not_to have_received(:delete_branch)
+      expect(train.reload.state).to eq("failed")
     end
 
     it "reverts members with no evidence of landing back to a re-landable state" do

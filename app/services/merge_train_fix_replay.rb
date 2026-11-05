@@ -15,14 +15,23 @@ class MergeTrainFixReplay
   end
 
   def self.eligible_source?(train)
-    return false unless AppSetting.merge_train_keeps_fixes_on_failure?
     return false unless train
     return false if train.integration_branch.blank? || train.integration_sha.blank?
 
     latest_workflow = workflow_for(train)
+    return false unless latest_workflow
+    return false unless MergeTrainFailurePolicy.resolve_for(workflow: latest_workflow).preserve_branch_for_replay?
     return true if stale_base_rebuild_required?(latest_workflow)
 
-    failed_run_for(latest_workflow)&.run_failure_classification&.retryable == true
+    successful_repair_runs(latest_workflow).any?
+  end
+
+  def self.successful_repair_runs(workflow)
+    Run.joins(:step)
+       .where(steps: { workflow_id: workflow.id, kind: "landing_fix" }, state: "succeeded")
+       .where.not(base_sha: [ nil, "" ], head_sha: [ nil, "" ])
+       .where("runs.head_sha <> runs.base_sha")
+       .order(:id)
   end
 
   def self.workflow_for(train)
@@ -66,7 +75,8 @@ class MergeTrainFixReplay
     return skip!("source train is not eligible") unless self.class.eligible_source?(source_train)
     return skip!("member set changed") unless same_members?(source_train)
 
-    repair_commits = repair_commits_for(source_train)
+    repair_commits, audit = repair_commits_for(source_train)
+    record_discovery!(source_train, audit)
     return skip!("no repair commits found") if repair_commits.empty?
 
     replay!(source_train, repair_commits)
@@ -94,7 +104,7 @@ class MergeTrainFixReplay
   def repair_commits_for(source_train)
     source_workflow = self.class.workflow_for(source_train)
     source_base = source_workflow&.artifact(Steps::MergeTrainLand::BASE_SHA_ARTIFACT).to_s.presence
-    return [] if source_base.blank?
+    return [ [], { "rejected" => [ { "reason" => "missing source base" } ] } ] if source_base.blank?
 
     @fetch_branch.call(source_train.integration_branch)
     all_commits = @git.run("rev-list", "--reverse", "#{source_base}..#{source_train.integration_sha}", chdir: @chdir)
@@ -104,7 +114,33 @@ class MergeTrainFixReplay
       .pluck(:sha)
       .to_set
 
-    all_commits.reject { |sha| member_commits.include?(sha) }
+    # A successful mutation Run's recorded head is the durable commit
+    # provenance we can prove. Do not infer that every non-member commit in
+    # the surrounding branch range belongs to that Run: another actor can
+    # update the published integration branch between repair turns.
+    repair_run_commits = self.class.successful_repair_runs(source_workflow).each_with_object({}) do |run, commits|
+      commits[run.head_sha] = run.id unless run.base_sha == run.head_sha
+    end
+    discovered = all_commits.select { |sha| repair_run_commits.key?(sha) }
+    member = discovered.select { |sha| member_commits.include?(sha) }
+    repair = discovered - member
+    unrelated = all_commits - discovered - member_commits.to_a
+    missing = repair_run_commits.keys - all_commits
+
+    [ repair, {
+      "discovered" => discovered.map do |sha|
+        { "sha" => sha, "run_id" => repair_run_commits.fetch(sha), "reason" => "successful landing_fix run head" }
+      end,
+      "skipped" => member.map { |sha| { "sha" => sha, "reason" => "member implementation commit" } } +
+        unrelated.map { |sha| { "sha" => sha, "reason" => "not produced by a successful landing_fix run" } },
+      "rejected" => missing.map do |sha|
+        {
+          "sha" => sha,
+          "run_id" => repair_run_commits.fetch(sha),
+          "reason" => "successful landing_fix run head is not reachable from the recorded source integration range"
+        }
+      end
+    } ]
   end
 
   def replay!(source_train, repair_commits)
@@ -114,10 +150,13 @@ class MergeTrainFixReplay
     rescue GitRunner::GitError => e
       abort_cherry_pick
       @git.run("reset", "--hard", pre_replay_sha, chdir: @chdir)
-      return conflict!("repair commit #{sha} from merge train #{source_train.id} conflicted: #{e.message}")
+      return conflict!("repair commit #{sha} from merge train #{source_train.id} conflicted: #{e.message}", sha: sha,
+        skipped: repair_commits.drop_while { |commit| commit != sha }.drop(1))
     end
 
-    @workflow.set_artifact!(STATUS_ARTIFACT, { "status" => "replayed", "source_train_id" => source_train.id, "commit_shas" => repair_commits })
+    update_status!("status" => "replayed", "source_train_id" => source_train.id,
+      "commit_shas" => repair_commits,
+      "replayed" => repair_commits.map { |sha| { "sha" => sha, "reason" => "cherry-picked onto rebuilt member assembly" } })
     @log.call("merge_train: replayed #{repair_commits.size} repair commit(s) from previous train #{source_train.id}", kind: "system")
     Result.new(status: "replayed", commits: repair_commits, reason: nil)
   end
@@ -129,14 +168,30 @@ class MergeTrainFixReplay
   end
 
   def skip!(reason)
-    @workflow.set_artifact!(STATUS_ARTIFACT, { "status" => "skipped", "reason" => reason })
+    update_status!("status" => "skipped", "reason" => reason)
     @log.call("merge_train: skipped previous repair replay (#{reason})", kind: "system")
     Result.new(status: "skipped", commits: [], reason: reason)
   end
 
-  def conflict!(reason)
-    @workflow.set_artifact!(STATUS_ARTIFACT, { "status" => "conflicted", "reason" => reason })
+  def conflict!(reason, sha:, skipped:)
+    update_status!("status" => "conflicted", "reason" => reason,
+      "replayed" => [],
+      "rejected" => [ { "sha" => sha, "reason" => "cherry-pick conflict" } ],
+      "skipped" => skipped.map { |commit| { "sha" => commit, "reason" => "replay aborted after conflict" } })
     @log.call("merge_train: previous repair replay conflicted; continuing with rebuilt member assembly only (#{reason})", kind: "system")
     Result.new(status: "conflicted", commits: [], reason: reason)
+  end
+
+  def record_discovery!(source_train, audit)
+    update_status!(audit.merge("status" => "discovered", "source_train_id" => source_train.id))
+  end
+
+  def update_status!(attributes)
+    current = @workflow.artifact(STATUS_ARTIFACT).to_h
+    merged = current.merge(attributes)
+    %w[discovered replayed skipped rejected].each do |key|
+      merged[key] = Array(current[key]) + Array(attributes[key]) if current.key?(key) && attributes.key?(key)
+    end
+    @workflow.set_artifact!(STATUS_ARTIFACT, merged)
   end
 end

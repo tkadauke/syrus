@@ -1,0 +1,136 @@
+class LandingRepairOutcome
+  ARTIFACT_KEY = "landing_repair_outcomes".freeze
+  SUMMARY_ARTIFACT_KEY = "landing_repair_summary".freeze
+  NO_PROGRESS_LIMIT = 2
+  FLAKY_RETRY_LIMIT = 1
+
+  OUTCOMES = %w[
+    committed_repair
+    verified_no_change_resolution
+    explicit_flaky_retry
+    inconclusive_no_op
+  ].freeze
+
+  def self.record!(step:, outcome:, evidence: {})
+    raise ArgumentError, "unknown landing repair outcome: #{outcome}" unless OUTCOMES.include?(outcome.to_s)
+
+    workflow = step.workflow
+    entry = {
+      "outcome" => outcome.to_s,
+      "loop_id" => step.loop_id,
+      "iteration" => step.iteration,
+      "step_id" => step.id,
+      "run_id" => step.runs.order(:created_at).last&.id,
+      "evidence" => evidence.to_h.compact,
+      "recorded_at" => Time.current.iso8601
+    }
+    entries = Array(workflow.artifact(ARTIFACT_KEY)).reject { |item| item["step_id"] == step.id }
+    workflow.set_artifact!(ARTIFACT_KEY, entries + [ entry ])
+    step.update!(details: step.details.to_h.merge("landing_repair_outcome" => entry))
+    entry
+  end
+
+  def self.record_flaky_retry!(collect_step)
+    record!(
+      step: collect_step,
+      outcome: "explicit_flaky_retry",
+      evidence: {
+        "reason" => "transient_or_infrastructure_failure",
+        "failing_context" => collect_step.details.to_h.slice(
+          Steps::GraderCollect::TRANSIENT_ONLY_FAILURE_DETAIL_KEY,
+          "failure_code"
+        )
+      }
+    )
+  end
+
+  def self.counters(workflow:, loop_id:)
+    scoped = Array(workflow.artifact(ARTIFACT_KEY)).select { |entry| entry["loop_id"] == loop_id }
+    counts = scoped.each_with_object(Hash.new(0)) { |entry, result| result[entry.fetch("outcome")] += 1 }
+    {
+      "repair_iterations" => counts["committed_repair"],
+      "no_progress_attempts" => counts["inconclusive_no_op"],
+      "flaky_retries" => counts["explicit_flaky_retry"],
+      "verified_resolutions" => counts["verified_no_change_resolution"],
+      "outcomes" => scoped
+    }
+  end
+
+  def self.record_summary!(workflow:, loop_id:, repair_limit:, reason: nil)
+    summary = counters(workflow: workflow, loop_id: loop_id).merge(
+      "repair_limit" => repair_limit,
+      "no_progress_limit" => NO_PROGRESS_LIMIT,
+      "flaky_retry_limit" => FLAKY_RETRY_LIMIT,
+      "reason" => reason,
+      "recorded_at" => Time.current.iso8601
+    ).compact
+    workflow.set_artifact!(SUMMARY_ARTIFACT_KEY, summary)
+    summary
+  end
+
+  def self.verify_latest_no_change!(collect_step)
+    workflow = collect_step.workflow
+    entries = Array(workflow.artifact(ARTIFACT_KEY))
+    index = entries.rindex do |entry|
+      entry["loop_id"] == collect_step.loop_id &&
+        entry["iteration"] == collect_step.iteration &&
+        entry["outcome"] == "inconclusive_no_op"
+    end
+    return unless index
+
+    repair_head_sha = entries[index].dig("evidence", "repair_head_sha").presence
+    failing_context = grader_identities(entries[index].dig("evidence", "failing_context"))
+    rerun_head_sha = workflow.artifact(GraderConclusionCache::ARTIFACT_HEAD_SHA_KEY).presence
+    return unless repair_head_sha && failing_context.present? && rerun_head_sha == repair_head_sha
+    return unless matching_grade_context?(workflow, entries[index])
+
+    grader_steps = workflow.steps.where(
+      loop_id: collect_step.loop_id,
+      iteration: collect_step.iteration,
+      kind: "grader"
+    ).order(:position)
+    successful_rerun = grader_steps.select(&:succeeded?)
+    return unless (failing_context - grader_identities(successful_rerun.map(&:details))).empty?
+
+    entries[index] = entries[index].merge(
+      "outcome" => "verified_no_change_resolution",
+      "evidence" => entries[index].fetch("evidence", {}).merge(
+        "successful_equivalent_rerun" => grader_steps.map do |grader|
+          {
+            "grader" => grader.details.to_h["name"],
+            "command" => grader.details.to_h["command"],
+            "step_id" => grader.id,
+            "run_id" => grader.runs.order(:created_at).last&.id,
+            "state" => grader.state
+          }.compact
+        end,
+        "rerun_head_sha" => rerun_head_sha,
+        "collect_step_id" => collect_step.id
+      ),
+      "verified_at" => Time.current.iso8601
+    )
+    workflow.set_artifact!(ARTIFACT_KEY, entries)
+  end
+
+  def self.grader_identities(contexts)
+    Array(contexts).filter_map do |context|
+      details = context.to_h
+      grader = details["grader"].presence || details["name"].presence
+      command = details["command"].presence
+      [ grader, command ] if grader && command
+    end.uniq
+  end
+  private_class_method :grader_identities
+
+  def self.matching_grade_context?(workflow, entry)
+    evidence = entry.fetch("evidence", {})
+    {
+      "grade_plan_fingerprint" => GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY,
+      "grade_plan_base_sha" => GraderConclusionCache::ARTIFACT_BASE_SHA_KEY
+    }.all? do |evidence_key, artifact_key|
+      expected = evidence[evidence_key].presence
+      expected.nil? || workflow.artifact(artifact_key).presence == expected
+    end
+  end
+  private_class_method :matching_grade_context?
+end
