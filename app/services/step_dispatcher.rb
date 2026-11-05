@@ -358,6 +358,14 @@ class StepDispatcher
 
     winner = implementation_workflows
       .where(state: "queued")
+      .preload(
+        steps: :runs,
+        job: [
+          :parent_job,
+          { epic: { dependencies: [ :depends_on_epic, :depends_on_job ] } },
+          { dependencies: [ :depends_on_epic, { depends_on_job: [ :repository, :deployment_stage_statuses ] } ] }
+        ]
+      )
       .order(:created_at, :id)
       .detect { |candidate| epic_sibling_candidate_eligible?(candidate) }
 
@@ -370,7 +378,13 @@ class StepDispatcher
   def self.epic_sibling_candidate_eligible?(workflow)
     return false unless workflow.queued?
     return false unless WorkIntents::Fulfillment::IMPLEMENTATION_TRIGGER_KINDS.include?(workflow.trigger_kind)
-    return false if workflow.first_step.nil? || workflow.first_step.runs.exists?
+    first_step = if workflow.steps.loaded?
+      workflow.steps.find { |step| step.position.zero? }
+    else
+      workflow.first_step
+    end
+    return false if first_step.nil?
+    return false if first_step.runs.loaded? ? first_step.runs.any? : first_step.runs.exists?
 
     job = workflow.job
     return false unless job.queued? || job.running? || job.implemented?

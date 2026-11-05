@@ -23,7 +23,11 @@ class JobStackResolver
     return force_main! if @job.stack_base_forces_main?
     return ready_result(@job.parent_job) if @job.dependencies_overridden_at.present?
 
-    dependencies = @job.dependencies.includes(:depends_on_job).to_a
+    dependencies = if @job.dependencies.loaded?
+      @job.dependencies.to_a
+    else
+      @job.dependencies.includes(:depends_on_job).to_a
+    end
     return update_parent!(@job.parent_job) if dependencies.empty? && stackable_parent_ready?(@job.parent_job)
     return force_main! if dependencies.empty?
 

@@ -4359,6 +4359,16 @@ RSpec.describe StepDispatcher, "linear Epic sibling implementation gate", :ci_on
     )
   end
 
+  def counted_selects
+    statements = []
+    subscriber = lambda do |*, payload|
+      sql = payload[:sql].to_s
+      statements << sql if sql.match?(/\A\s*SELECT/i) && !payload[:cached] && payload[:name] != "SCHEMA"
+    end
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") { yield }
+    statements
+  end
+
   it "admits one sibling at a time and automatically admits the next after backoff" do
     first_job = epic_job(issue_number: 201)
     second_job = epic_job(issue_number: 202)
@@ -4403,6 +4413,26 @@ RSpec.describe StepDispatcher, "linear Epic sibling implementation gate", :ci_on
     expect { described_class.start_workflow(retry_workflow) }
       .to change { retry_step.runs.count }.by(1)
     expect(retry_workflow.reload.artifact("start_blocked_reason")).to be_nil
+  end
+
+  it "elects among queued sibling attempts with a bounded number of queries" do
+    retrying_job = epic_job(issue_number: 208)
+    downstream_job = epic_job(issue_number: 209)
+    downstream_job.dependencies.create!(depends_on_job: retrying_job, source: "manual")
+    build_workflow(job: downstream_job, trigger_kind: "initial")
+    retry_workflow, = build_workflow(job: retrying_job, trigger_kind: "retry")
+
+    baseline_statements = counted_selects do
+      expect(described_class.epic_sibling_blocking?(retry_workflow.reload)).to be(false)
+    end
+    3.times { build_workflow(job: downstream_job, trigger_kind: "initial") }
+    expanded_statements = counted_selects do
+      expect(described_class.epic_sibling_blocking?(retry_workflow.reload)).to be(false)
+    end
+
+    expect(expanded_statements.size).to eq(baseline_statements.size),
+      "expected sibling election queries not to grow per candidate; " \
+      "baseline #{baseline_statements.size}, expanded #{expanded_statements.size}:\n#{expanded_statements.join("\n")}"
   end
 
   it "does not serialize landing, recovery, or main-grader workflows behind implementation" do
