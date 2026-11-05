@@ -48,4 +48,34 @@ RSpec.describe WorkflowPhaseAdmissionJob do
       described_class.perform_now(123)
     }.to have_enqueued_job(described_class).with(123).once
   end
+
+  it "retries transient lock conflicts with a fresh phase resume call" do
+    calls = 0
+    allow(WorkUnits::DeferredPhaseResume).to receive(:call) do
+      calls += 1
+      raise ActiveRecord::Deadlocked, "deadlock" if calls == 1
+
+      :resumed
+    end
+
+    expect(described_class.perform_now(123, 456)).to eq(:resumed)
+    expect(calls).to eq(2)
+  end
+
+  it "queues a later recheck when lock conflicts persist" do
+    allow(WorkUnits::DeferredPhaseResume)
+      .to receive(:call)
+      .and_raise(ActiveRecord::LockWaitTimeout, "lock wait timed out")
+
+    expect {
+      described_class.perform_now(123, 456)
+    }.to have_enqueued_job(described_class)
+      .with(123, 456)
+      .at(be_within(2.seconds).of(described_class::LOCK_RETRY_DELAY.from_now))
+
+    expect(WorkUnits::DeferredPhaseResume)
+      .to have_received(:call)
+      .with(123, 456)
+      .exactly(described_class::LOCK_RETRY_ATTEMPTS + 1).times
+  end
 end

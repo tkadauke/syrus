@@ -3,6 +3,12 @@ class WorkflowPhaseAdmissionJob < ApplicationJob
 
   DEDUPE_TTL_BUFFER = 30.seconds
   MIN_DEDUPE_TTL = 30.seconds
+  LOCK_RETRY_ERRORS = [
+    ActiveRecord::Deadlocked,
+    ActiveRecord::LockWaitTimeout
+  ].freeze
+  LOCK_RETRY_ATTEMPTS = 3
+  LOCK_RETRY_DELAY = 5.seconds
 
   discard_on ActiveRecord::RecordNotFound
 
@@ -25,7 +31,33 @@ class WorkflowPhaseAdmissionJob < ApplicationJob
 
   def perform(workflow_id, step_id = nil)
     self.class.release_dedupe(workflow_id, step_id)
-    WorkUnits::DeferredPhaseResume.call(workflow_id, step_id)
+
+    attempts = 0
+    begin
+      WorkUnits::DeferredPhaseResume.call(workflow_id, step_id)
+    rescue *LOCK_RETRY_ERRORS => e
+      attempts += 1
+      if attempts <= LOCK_RETRY_ATTEMPTS
+        Rails.logger.warn(
+          "[WorkflowPhaseAdmissionJob] lock conflict (#{e.class}); " \
+          "retrying attempt #{attempts}/#{LOCK_RETRY_ATTEMPTS}"
+        )
+        sleep(0.05 * attempts) unless Rails.env.test?
+        retry
+      end
+
+      Rails.logger.warn(
+        "[WorkflowPhaseAdmissionJob] lock conflict persisted (#{e.class}); " \
+        "queueing phase admission retry"
+      )
+      self.class.enqueue_once(
+        workflow_id,
+        step_id,
+        wait: LOCK_RETRY_DELAY,
+        force: true
+      )
+      nil
+    end
   end
 
   def self.release_dedupe(workflow_id, step_id)
