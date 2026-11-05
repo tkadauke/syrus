@@ -117,7 +117,7 @@ RSpec.describe PersistentMcpDaemon do
       let(:user) { Factories.user }
       let(:job) { Factories.job(user: user) }
       let(:run) { job.initial_run }
-      let(:worker_id) { WorkerStorageIdentity.key(data_root: data_root) }
+      let(:worker_id) { daemon.identity.fetch(:worker_id) }
 
       before do
         PluginRecord.find_or_create_by!(name: "design_docs").update!(enabled: true, disableable: true)
@@ -347,7 +347,7 @@ RSpec.describe PersistentMcpDaemon do
       let(:user) { Factories.user }
       let(:repository) { Factories.repository(user: user) }
       let(:chat) { ChatSession.create!(user: user, repository: repository) }
-      let(:worker_id) { WorkerStorageIdentity.key(data_root: data_root) }
+      let(:worker_id) { daemon.identity.fetch(:worker_id) }
 
       def call_tool(name, token:, arguments: {})
         call(
