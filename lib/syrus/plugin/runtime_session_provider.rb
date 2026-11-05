@@ -127,7 +127,7 @@ module Syrus
 
       # Returns an ephemeral environment for a provider-owned terminal. Values
       # must be resolved at process start and must never be persisted.
-      def environment_for_terminal(_terminal_session)
+      def environment_for_terminal(_runtime_session)
         nil
       end
     end

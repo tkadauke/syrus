@@ -2,6 +2,8 @@ require "rails_helper"
 require_relative "../../../fixtures/terminal_app_transcripts"
 
 RSpec.describe "runtime_terminal lifecycle through runtime_* MCP tools" do
+  include ActiveJob::TestHelper
+
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository, mode: "coding") }
@@ -19,6 +21,7 @@ RSpec.describe "runtime_terminal lifecycle through runtime_* MCP tools" do
   end
 
   it "starts and stops a mapped terminal session without using the terminal HTTP API" do
+    clear_enqueued_jobs
     Dir.mktmpdir do |workspace|
       allow(ChatWorkspace).to receive(:repo_path_for).with(chat_session, repository).and_return(Pathname.new(workspace))
 
@@ -40,7 +43,11 @@ RSpec.describe "runtime_terminal lifecycle through runtime_* MCP tools" do
       )
       expect(runtime_session.metadata).to include("terminal_session_id" => terminal_session.id)
       expect(terminal_session).to have_attributes(user_id: user.id, workflow_id: nil, working_directory: workspace)
-      expect(TerminalSessionJob).to have_been_enqueued.with(terminal_session.id).on_queue("chat")
+      expect(TerminalSessionJob).to have_been_enqueued.with(
+        terminal_session.id,
+        runtime_session_id: runtime_session.id,
+        provider_key: "cli_tui"
+      ).on_queue("chat")
 
       stop_response = Mcp::Tools::RuntimeStopTool.call(
         session_id: runtime_session.id,

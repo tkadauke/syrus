@@ -46,6 +46,15 @@ RSpec.describe RuntimeTerminal::Provider do
     end
   end
 
+  describe "#environment_for_terminal" do
+    it "resolves the environment for the supplied owning runtime session" do
+      environment = instance_double(RuntimeTerminal::VisualReviewEnvironment, call: { "APP_MODE" => "review" })
+      expect(RuntimeTerminal::VisualReviewEnvironment).to receive(:new).with(runtime_session).and_return(environment)
+
+      expect(provider.environment_for_terminal(runtime_session)).to eq("APP_MODE" => "review")
+    end
+  end
+
   describe "#snapshot" do
     it "renders the authoritative screen and files it as the Runtime Session's latest chat frame" do
       relay = RuntimeTerminalFakeRelay.new(replay: "\e[?1049h\e[48;2;1;2;3m┌─┐\n│界│")
@@ -262,6 +271,24 @@ RSpec.describe RuntimeTerminal::Provider do
           columns: 100
         )
       end.to raise_error(ArgumentError, /terminal dimensions/)
+    end
+  end
+
+  describe "relay startup failure" do
+    it "surfaces the runtime-session diagnostic when the terminal finishes before becoming ready" do
+      terminal_session = Terminal::Session.create!(
+        user: user,
+        name: "Runtime Terminal",
+        working_directory: runtime_session.workspace_ref,
+        started_at: 1.minute.ago,
+        finished_at: Time.current,
+        outcome: "exited"
+      )
+      RuntimeTerminal::SessionLink.create!(runtime_session: runtime_session, terminal_session: terminal_session)
+      runtime_session.update!(state: "failed", last_error: "environment input run_api_credential is unavailable")
+
+      expect { provider.send(:wait_for_relay_ready!, terminal_session) }
+        .to raise_error(RuntimeSessionProviders::ConfigurationError, /run_api_credential is unavailable/)
     end
   end
 
