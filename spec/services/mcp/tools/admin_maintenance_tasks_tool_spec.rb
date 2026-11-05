@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Mcp::Tools::AdminMaintenanceTasksTool do
+RSpec.describe Mcp::Tools::AdminMaintenanceTasksTool, :full_chat_access do
   include ActiveJob::TestHelper
 
   let(:admin) { Factories.user(admin: true, email_address: "admin-maintenance@example.test") }

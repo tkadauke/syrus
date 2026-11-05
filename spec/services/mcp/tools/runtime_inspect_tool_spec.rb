@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Mcp::Tools::RuntimeInspectTool, :full_chat_access do
+RSpec.describe Mcp::Tools::RuntimeInspectTool, full_chat_access: :all do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository, mode: "coding") }
