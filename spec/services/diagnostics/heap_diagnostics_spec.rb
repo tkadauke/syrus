@@ -100,6 +100,12 @@ RSpec.describe Diagnostics::HeapDiagnostics do
       allow(RunProcessParallelism).to receive(:effective_memory_limit_bytes).and_return(limit)
     end
 
+    def stub_heap_walk
+      allow(ObjectSpace).to receive(:dump_all) do |output:|
+        output.write(%({"type":"ROOT"}\n))
+      end
+    end
+
     # dump_all allocates while writing and produces output several times the
     # size of the heap, so on a nearly-full pod it kills the process holding
     # the evidence.
@@ -112,11 +118,13 @@ RSpec.describe Diagnostics::HeapDiagnostics do
 
     it "proceeds when the request explicitly forces it" do
       stub_memory(current: 9_000, limit: 10_000)
+      stub_heap_walk
 
       path = run({ "kind" => "heap_dump", "force" => true })
 
       expect(path).to end_with(".json.gz")
       expect(File.size(path)).to be_positive
+      expect(ObjectSpace).to have_received(:dump_all)
     end
 
     it "proceeds when there is headroom, and writes gzipped" do
@@ -129,8 +137,10 @@ RSpec.describe Diagnostics::HeapDiagnostics do
 
     it "proceeds when the cgroup is unreadable rather than refusing blindly" do
       stub_memory(current: nil, limit: nil)
+      stub_heap_walk
 
       expect(run({ "kind" => "heap_dump" })).to end_with(".json.gz")
+      expect(ObjectSpace).to have_received(:dump_all)
     end
   end
 end
