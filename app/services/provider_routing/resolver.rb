@@ -6,7 +6,7 @@ module ProviderRouting
   # then a hardcoded fallback. Returns a list so callers can fail over.
   class Resolver
     PanelResolutionRequired = Class.new(StandardError)
-    CoworkerReviewTargetRequired = Class.new(StandardError)
+    CoworkerReviewTargetRequired = Class.new(ReviewerTargets::ResolutionError)
 
     Candidate = Data.define(:provider, :model, :effort_level, :reviewer_target) do
       def initialize(provider:, model:, effort_level:, reviewer_target: nil)
@@ -144,7 +144,7 @@ module ProviderRouting
         rule_resolution(scope_type: "repository", scope_id: repository_id) ||
         user_scoped_resolution ||
         hardcoded_fallback_resolution
-      if invocation_kind == "coworker_review" && (resolution.matched_rule.nil? || resolution.candidates.any? { |candidate| candidate.reviewer_target.blank? })
+      if reviewer_target_required? && (resolution.held? || resolution.matched_rule.nil? || resolution.candidates.any? { |candidate| candidate.reviewer_target.blank? })
         raise CoworkerReviewTargetRequired, "coworker_review requires a matching valid coworker routing rule"
       end
       resolution
@@ -166,7 +166,7 @@ module ProviderRouting
     end
 
     def job_override_resolution
-      return nil if invocation_kind == "coworker_review"
+      return nil if reviewer_target_required?
 
       candidates = job_override_candidates
       return nil if candidates.blank?
@@ -278,6 +278,10 @@ module ProviderRouting
 
     def invocation_kind
       trigger.to_h.deep_stringify_keys["kind"].presence || task_key
+    end
+
+    def reviewer_target_required?
+      Step::Kind.by_kind[invocation_kind]&.reviewer_target_required || false
     end
 
     def rule_configured?(include_default:)

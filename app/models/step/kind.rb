@@ -52,7 +52,7 @@ class Step
                         :advance_handler, :agent_role,
                         :resource_profile_step_kinds, :resource_profile_grader_name_key,
                         :resource_profile_fallback_step_kinds, :resource_profile_default_overrides, :waits_for_terminal_step_kind,
-                        :review_gate, :panel_capable, :runtime_inserted, :placement_policy) do
+                        :review_gate, :panel_capable, :reviewer_target_required, :runtime_inserted, :placement_policy) do
       def initialize(kind:, handler:, label:, style:, agentic:,
                      required_mcp_tools: [],
                      dynamic_required_mcp_tools: nil,
@@ -70,6 +70,7 @@ class Step
                      waits_for_terminal_step_kind: nil,
                      review_gate: nil,
                      panel_capable: false,
+                     reviewer_target_required: false,
                      runtime_inserted: false,
                      placement_policy: Step::PlacementPolicy::PINNED_WORKFLOW_WORKSPACE)
         repair_semantics ||= agentic ? :agentic : :operator_review
@@ -184,6 +185,10 @@ class Step
                   exit_verdicts: %w[approved skipped],
                   cancellation_reason: "security_review_approved"
                 }),
+      Entry.new(kind: "coworker_review", handler: "CoworkerReview", label: "Coworker review", style: "bg-violet-100 text-violet-700", agentic: true,
+                agent_role: AgentRole::WORKFLOW_COWORKER_REVIEWER, panel_capable: true, reviewer_target_required: true,
+                required_mcp_tools: %w[submit_coworker_review], resource_profile_fallback_step_kinds: %w[implement],
+                review_gate: { artifact_key: "coworker_review_iterations", exit_verdicts: %w[approved skipped], cancellation_reason: "coworker_review_approved" }),
       Entry.new(kind: "review_panel_collect", handler: "ReviewPanelCollect", label: "Aggregate review panel", style: "bg-rose-100 text-rose-700", agentic: false,
                 repair_semantics: :deterministic_idempotent,
                 runtime_inserted: true,
