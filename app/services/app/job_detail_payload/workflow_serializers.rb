@@ -857,6 +857,7 @@ module App
 
         safe = artifacts.slice(
           "adversarial_review_iterations",
+          "coworker_review_iterations",
           "security_review_iterations",
           "visual_review_iterations",
           "auto_rebase_reason",
@@ -874,7 +875,7 @@ module App
           "summary",
           "test_plan"
         )
-        %w[adversarial_review_iterations security_review_iterations].each do |key|
+        %w[adversarial_review_iterations coworker_review_iterations security_review_iterations].each do |key|
           if safe.key?(key)
             safe[key] = ReviewEvidence::ArtifactPresentation.call(
               safe[key], evidence_by_id: review_evidence_by_id
@@ -889,7 +890,7 @@ module App
       def review_evidence_by_id
         @review_evidence_by_id ||= begin
           ids = serialized_workflows.flat_map do |workflow|
-            %w[adversarial_review_iterations security_review_iterations].flat_map do |key|
+            %w[adversarial_review_iterations coworker_review_iterations security_review_iterations].flat_map do |key|
               ReviewEvidence::ArtifactPresentation.evidence_ids(workflow.artifact(key))
             end
           end
