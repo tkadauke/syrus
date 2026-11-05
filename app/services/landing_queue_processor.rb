@@ -1145,10 +1145,12 @@ class LandingQueueProcessor
   # passes with Job state changes in between).
   def active_urgent_jobs_for_repository(repository_id)
     @active_urgent_jobs_by_repository_id ||= {}
-    @active_urgent_jobs_by_repository_id[repository_id] ||= Job
-      .where(repository_id: repository_id, priority: "urgent")
-      .where(state: URGENT_ACTIVE_STATES)
-      .to_a
+    @active_urgent_jobs_by_repository_id[repository_id] ||= UrgentWorkGate.progressing(
+      Job
+        .where(repository_id: repository_id, priority: "urgent")
+        .where(state: URGENT_ACTIVE_STATES)
+        .to_a
+    )
   end
 
   def reset_blockage_caches!

@@ -338,8 +338,10 @@ class StepDispatcher
         .or(blocking_jobs.where.not(system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR))
     end
 
-    blocking_jobs
-      .exists?
+    # Only urgent Jobs that are actually moving may hold this gate; a parked
+    # one would otherwise starve every non-urgent Job in the repository for as
+    # long as it sat there.
+    UrgentWorkGate.progressing(blocking_jobs.to_a).any?
   end
 
   def self.epic_sibling_blocking?(workflow)

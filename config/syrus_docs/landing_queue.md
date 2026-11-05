@@ -354,6 +354,25 @@ the urgent Job finishes, normal queue processing wakes the original Workflow,
 which must reacquire the repository slot through ordinary lock-conflict
 handling before its first Run is created.
 
+That last step assumed the urgent Job finishes. An urgent Job that cannot
+finish -- a pull request whose checks keep failing, so it can neither land nor
+leave `approved` -- used to hold the gate open for as long as it sat there,
+and because the gate is repository-wide it starved ordinary `initial` and
+`retry` work as well as landing. Priority decided who went at all, rather than
+who went first.
+
+An urgent Job now holds the gate only while it is making progress: it has a
+queued or running Workflow, or it changed state within
+`UrgentWorkGate::STALLED_AFTER` (30 minutes). Past that, with nothing in
+flight, it stops blocking non-urgent work and takes the gate back as soon as
+it moves again. The window is wide enough to cover an urgent Job sitting
+between workflows while its landing attempt is picked up. Nothing about
+ordering changes: urgent work still sorts ahead of everything else, and a
+stalled urgent Job keeps its place in the queue. Operators who see non-urgent
+work waiting on `urgent_job_active` should check whether the urgent blocker is
+actually advancing; if it is parked, the gate releases itself within the
+window rather than needing intervention.
+
 When the capability does arrive, the unit re-acquires the slot through
 `ensure_active_locks!` on its next start; if another landing holds it by then
 it waits its turn, which is ordinary contention rather than starvation.
