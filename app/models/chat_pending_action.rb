@@ -471,13 +471,17 @@ class ChatPendingAction < ApplicationRecord
 
   def fail_confirmation!(error)
     rejected = error.is_a?(RepairEligibility::Ineligible)
-    update!(
-      state: "failed",
-      execution_status: rejected ? "rejected" : "failed",
-      execution_step: rejected ? "Rejected after eligibility revalidation." : "Failed.",
-      execution_error: "#{error.class}: #{error.message}",
-      execution_finished_at: Time.current
-    )
+    with_lock do
+      return false unless confirming?
+
+      update!(
+        state: "failed",
+        execution_status: rejected ? "rejected" : "failed",
+        execution_step: rejected ? "Rejected after eligibility revalidation." : "Failed.",
+        execution_error: "#{error.class}: #{error.message}",
+        execution_finished_at: Time.current
+      )
+    end
   end
 
   def reject!(user: nil)
