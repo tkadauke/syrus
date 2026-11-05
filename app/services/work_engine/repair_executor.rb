@@ -517,6 +517,57 @@ module WorkEngine
 
       class Default < Base; end
 
+      class RecoverMissingWorkspace < Base
+        def perform
+          workflow = target_workflow
+          return skipped("Workflow no longer exists") unless workflow
+          return skipped("Workflow is no longer active") unless workflow.running? || workflow.queued?
+          return skipped("workspace is already present") if File.directory?(WorkflowWorkspace.path_for(workflow))
+
+          result = WorkflowWorkspaceRecovery.call(workflow: workflow)
+          return success(result.message) if result.recovered?
+
+          fail_for_retry!(workflow, result.message)
+          success("workspace reconstruction was unsafe; failed the attempt for automatic retry: #{result.message}")
+        end
+
+        def fail_for_retry!(workflow, reason)
+          now = Time.current
+          workflow.set_artifact!("failure_reason", "workspace_recovery_failed")
+          workflow.set_artifact!("workspace_recovery_failure", {
+            "classification" => "workspace_recovery_failed",
+            "retryable" => true,
+            "reason" => reason,
+            "failed_at" => now.iso8601
+          })
+          active_runs = workflow.runs.active.to_a
+          active_runs.each do |run|
+            classification = run.run_failure_classification || run.build_run_failure_classification
+            classification.assign_attributes(
+              classification: "workspace_recovery_failed",
+              retryable: true,
+              confidence: 1.0,
+              reason: reason,
+              diagnostic_summary: "The workflow workspace could not be reconstructed safely from durable state.",
+              classifier_inputs: { "workflow_id" => workflow.id, "workspace_lifecycle_state" => workflow.workspace_lifecycle_state },
+              classified_at: now
+            )
+            classification.save!
+          end
+          workflow.runs.active.update_all(state: "failed", finished_at: now, agent_outcome: "workspace_recovery_failed", updated_at: now)
+          workflow.steps.active.update_all(state: "failed", finished_at: now, updated_at: now)
+          workflow.finished_at = now
+          workflow.fail! if workflow.may_fail?
+          schedule_auto_retry!(
+            retry_kind: "retry_workflow",
+            source_run: active_runs.last,
+            workflow: workflow,
+            job: workflow.job,
+            respect_provider_circuit: false
+          )
+        end
+      end
+
       class ReenqueueRun < Base
         def perform
           run = target_run

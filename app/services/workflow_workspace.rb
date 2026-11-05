@@ -325,6 +325,18 @@ class WorkflowWorkspace
     verify_required_branch!
   end
 
+  # Rebuild a missing checkout from a ref whose object identity was already
+  # verified by the recovery state machine. Keeping this override in memory
+  # avoids changing the Workflow's normal checkout contract for later Runs.
+  def reconstruct_from!(ref)
+    raise ArgumentError, "workspace already exists at #{path}" if path.exist?
+
+    @recovery_checkpoint_ref = ref
+    setup
+  ensure
+    @recovery_checkpoint_ref = nil
+  end
+
   def cleanup
     self.class.cleanup_for(@workflow)
   end

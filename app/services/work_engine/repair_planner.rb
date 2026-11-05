@@ -1465,9 +1465,11 @@ module WorkEngine
 
       class WorkspaceMissing < Base
         def plan
-          operator_plan(
-            "operator_review_missing_workspace",
-            "The workspace needed for an in-place repair is missing; starting over must be chosen deliberately."
+          automatic_plan(
+            "recover_missing_workspace",
+            primary_workflow,
+            "Reconstruct the missing workspace from durable source evidence, or fail it into the automatic retry path.",
+            execution_steps: [ "WorkflowWorkspaceRecovery" ]
           )
         end
       end

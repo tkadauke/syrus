@@ -20,6 +20,60 @@ RSpec.describe WorkEngine::RepairExecutor do
     )
   end
 
+  describe "recover_missing_workspace" do
+    it "keeps a successfully reconstructed workflow active" do
+      workflow.update_columns(state: "running", started_at: 5.minutes.ago)
+      result = WorkflowWorkspaceRecovery::Result.new(
+        status: "recovered", workflow: workflow, run: nil, message: "workspace reconstructed"
+      )
+      allow(File).to receive(:directory?).and_call_original
+      allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(false)
+      allow(WorkflowWorkspaceRecovery).to receive(:call).with(workflow: workflow).and_return(result)
+
+      execution = described_class.call(
+        result: RepairResult.new([ repair_plan(action: "recover_missing_workspace", target: workflow) ])
+      ).sole
+
+      expect(execution).to have_attributes(status: "applied", message: "workspace reconstructed")
+      expect(workflow.reload).to be_running
+    end
+
+    it "fails an unsafe reconstruction with a typed retryable infrastructure outcome" do
+      workflow.update_columns(state: "running", started_at: 5.minutes.ago)
+      result = WorkflowWorkspaceRecovery::Result.new(
+        status: "retry_required", workflow: workflow, run: workflow.runs.last,
+        message: "durable head validation failed"
+      )
+      allow(File).to receive(:directory?).and_call_original
+      allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(false)
+      allow(WorkflowWorkspaceRecovery).to receive(:call).with(workflow: workflow).and_return(result)
+
+      execution = nil
+      expect {
+        execution = described_class.call(
+          result: RepairResult.new([ repair_plan(action: "recover_missing_workspace", target: workflow) ])
+        ).sole
+      }.to have_enqueued_job(AutoRetryJob)
+
+      expect(execution).to have_attributes(status: "applied")
+      expect(workflow.reload).to be_failed
+      expect(workflow.artifact("workspace_recovery_failure")).to include(
+        "classification" => "workspace_recovery_failed",
+        "retryable" => true,
+        "reason" => "durable head validation failed"
+      )
+      expect(result.run.run_failure_classification.reload).to have_attributes(
+        classification: "workspace_recovery_failed",
+        retryable: true,
+        confidence: 1.0
+      )
+      expect(workflow.auto_retry_attempts.last).to have_attributes(
+        retry_kind: "retry_workflow",
+        failure_classification: "workspace_recovery_failed"
+      )
+    end
+  end
+
   describe "release_urgent_blocked_landing_slot" do
     def urgent_slot_plan(unit)
       repair_plan(action: "release_urgent_blocked_landing_slot", target: unit)
