@@ -732,7 +732,11 @@ module WorkEngine
 
       def reconcile!(tick)
         if global_reconcile?
-          reconcile_result!(tick, WorkEngine::Reconciler.call(source: "simulation:#{scenario}:tick#{tick}", execute_repairs: true))
+          reconcile_result!(tick, WorkEngine::Reconciler.call(
+            source: "simulation:#{scenario}:tick#{tick}",
+            execute_repairs: true,
+            skipped_repair_issue_kinds: ignored_reconciler_issue_kinds
+          ))
         else
           job_ids.each do |job_id|
             reconcile_result!(
@@ -740,7 +744,8 @@ module WorkEngine
               WorkEngine::Reconciler.call(
                 source: "simulation:#{scenario}:tick#{tick}:job#{job_id}",
                 job_id: job_id,
-                execute_repairs: true
+                execute_repairs: true,
+                skipped_repair_issue_kinds: ignored_reconciler_issue_kinds
               )
             )
           end
@@ -751,7 +756,8 @@ module WorkEngine
             WorkEngine::Reconciler.call(
               source: "simulation:#{scenario}:tick#{tick}:#{intent_id}",
               work_intent_id: intent_id,
-              execute_repairs: true
+              execute_repairs: true,
+              skipped_repair_issue_kinds: ignored_reconciler_issue_kinds
             )
           )
         end
