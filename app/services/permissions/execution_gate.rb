@@ -17,8 +17,31 @@ module Permissions
       @logger = logger
     end
 
+    # Kinds whose command a model or an operator wrote, and which therefore
+    # have intent worth evaluating. Everything else Execution::Router starts
+    # is harness code: the command is argv the harness composed from values
+    # it chose, run as deterministic plumbing with nobody to ask and nothing
+    # to decide.
+    #
+    # Over a week of production that distinction is about 825,000 executions
+    # to 3. Gating the harness with a policy meant for agents stopped the
+    # harness with itself -- `git push` read as an external write blocked
+    # branches from publishing, `git checkout --detach` read as destructive
+    # blocked every distributed grader -- and each surfaced as its own
+    # outage because an allowlist of harness kinds only grows one at a time.
+    #
+    # `agent` stays gated even though the harness composes its argv too: it
+    # is the process that runs the model, and the FailClosedHost ceiling that
+    # forces it into a container is applied through this path.
+    #
+    # spec/architecture/execution_kind_authorship_spec.rb requires every
+    # SpawnedProcess::KIND to be declared on one side of this line, so a new
+    # kind cannot default into either posture unnoticed.
+    GATED_KINDS = %w[ agent chat_shell_command ].freeze
+
     def call(request, location: :host)
       return if unattributed?(request)
+      return unless gated?(request)
 
       subject = ExecutionActions.subject_for_request(request, location:)
       result = ExecutionAuthorization.authorize(subject:, owner: owner_for(request), role: role_for(request), rules: rules_for(request), ceiling: @ceiling,
@@ -43,6 +66,10 @@ module Permissions
     # able to construct an Execution::Request directly is already running
     # arbitrary code in the app process, so this is not a bypass worth
     # defending against here.
+    # A missing kind keeps the stricter reading: an execution that has not
+    # declared itself harness plumbing is not assumed to be any.
+    def gated?(request) = request.kind.blank? || GATED_KINDS.include?(request.kind.to_s)
+
     def unattributed?(request)
       request.kind.blank? && request.run.nil? && request.workflow.nil? &&
         request.job.nil? && request.chat_session.nil?

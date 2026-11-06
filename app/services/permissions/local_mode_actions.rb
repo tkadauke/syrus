@@ -32,7 +32,17 @@ module Permissions
     NETWORK_COMMAND = /(?:\A|[\s;&|(])(?:curl|wget|ssh|scp|sftp|rsync|nc|ncat|telnet|ftp|ping|dig|nslookup|npm\s+(?:install|i|ci|publish)|yarn\s+(?:add|install)|pnpm\s+(?:add|install)|pip3?\s+install|gem\s+install|bundle\s+install|brew\s+install|apt(?:-get)?\s+install|docker\s+pull|git\s+(?:clone|fetch|pull|push|ls-remote|remote\s+update))\b/
     PUSH_COMMAND = /(?:\A|[\s;&|(])(?:git\s+push|npm\s+publish|gem\s+push|docker\s+push)\b/
     CREDENTIAL_COMMAND = %r{(?:~|\$HOME|/home/[^/\s]+|/Users/[^/\s]+)?/?\.(?:ssh|aws|gnupg|netrc|npmrc|pypirc|kube|docker/config\.json)|\.env\b|id_(?:rsa|ed25519|ecdsa)|credentials|secrets?\b|\btoken\b|(?:\A|[\s;&|(])(?:printenv|env|export\s+-p|security\s+find-\w+-password|gh\s+auth\s+token)(?:\s|\z)}i
-    DESTRUCTIVE_COMMAND = /(?:\A|[\s;&|(])(?:rm\s+-\w*[rf]|git\s+(?:reset\s+--hard|clean|checkout\s+--|push\s+.*--force|push\s+-f)|mkfs|dd\s+|truncate|shred|chmod\s+-R|chown\s+-R|kill\s+-9|pkill|killall)\b|>\s*\/(?!dev\/null)/
+    # `git checkout --` is split out of the alternation below because the
+    # shared trailing \b inverted it: after `--` a word boundary only exists
+    # when a word character follows, so the branch matched flags like
+    # `checkout --detach` and never the `git checkout -- <path>` discard it
+    # was written for. Syrus checks out an immutable grader snapshot with
+    # `git checkout --detach <sha>`, so every distributed grader run was
+    # classified destructive -- a sensitive effect, which turns the allow
+    # default into ask and fails closed -- while an actual discard of local
+    # changes went unclassified.
+    DESTRUCTIVE_CHECKOUT_PATHSPEC = /(?:\A|[\s;&|(])git\s+checkout\s+--(?=\s|\z)/
+    DESTRUCTIVE_COMMAND = /(?:\A|[\s;&|(])(?:rm\s+-\w*[rf]|git\s+(?:reset\s+--hard|clean|push\s+.*--force|push\s+-f)|mkfs|dd\s+|truncate|shred|chmod\s+-R|chown\s+-R|kill\s+-9|pkill|killall)\b|>\s*\/(?!dev\/null)/
     PRIVILEGED_COMMAND = /(?:\A|[\s;&|(])(?:sudo|su|doas)\s/
 
     PROTECTED_PATH_PATTERNS = {
@@ -157,7 +167,7 @@ module Permissions
         effects << :network_read if command.match?(NETWORK_COMMAND)
         effects << :external_write if command.match?(PUSH_COMMAND)
         effects << :credential_use if command.match?(CREDENTIAL_COMMAND)
-        effects << :destructive if command.match?(DESTRUCTIVE_COMMAND)
+        effects << :destructive if command.match?(DESTRUCTIVE_COMMAND) || command.match?(DESTRUCTIVE_CHECKOUT_PATHSPEC)
         effects << :privilege_change if command.match?(PRIVILEGED_COMMAND)
         effects
       end

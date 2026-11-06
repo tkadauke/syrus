@@ -24,7 +24,7 @@ RSpec.describe Permissions::ExecutionGate do
   end
 
   it "still evaluates a tracked execution with no actor" do
-    expect(described_class.new.call(request(kind: "grader"))).not_to be_nil
+    expect(described_class.new.call(request(kind: "agent"))).not_to be_nil
   end
 
   it "still evaluates an execution that has an actor but no kind" do
@@ -37,6 +37,34 @@ RSpec.describe Permissions::ExecutionGate do
     workflow = Factories.job.workflows.first
 
     expect(described_class.new.call(request(kind: nil, workflow: workflow))).not_to be_nil
+  end
+
+  describe "harness plumbing" do
+    # The outage this closes: the harness composes its own argv, so an agent
+    # policy had nothing to decide and failed closed on it. `git push` read
+    # as an external write blocked branches from publishing and
+    # `git checkout --detach` read as destructive blocked every distributed
+    # grader -- each as a separate incident, because an allowlist of harness
+    # kinds only grows one outage at a time.
+    %w[git grader prepare filesystem archive runtime_probe preview].each do |kind|
+      it "holds no opinion on #{kind}" do
+        expect(described_class.new.call(request(kind: kind, job: Factories.job))).to be_nil
+      end
+    end
+
+    it "does not gate a force push the harness composed" do
+      push = [ "git", "push", "--force-with-lease", "https://x-access-token:s@github.com/o/r.git", "HEAD:b" ]
+
+      expect(described_class.new.call(request(kind: "git", job: Factories.job, command: push))).to be_nil
+    end
+
+    it "still evaluates the process that runs the model" do
+      expect(described_class.new.call(request(kind: "agent", job: Factories.job))).not_to be_nil
+    end
+
+    it "still evaluates an operator-written shell command" do
+      expect(described_class.new.call(request(kind: "chat_shell_command", job: Factories.job))).not_to be_nil
+    end
   end
 
   describe "through Execution::Router" do
