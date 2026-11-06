@@ -8,15 +8,12 @@ module RuntimeTerminal
     CELL_WIDTH = 10
     CELL_HEIGHT = 20
     FONT_SIZE = 16
-    # A full-em block pins Pango's cropped text surface to the font's logical
-    # line box. Cropping it away leaves every glyph at the same baseline and
-    # logical cell origin instead of centering each glyph's ink bounds.
-    METRICS_ANCHOR = "██ "
-    # Pango advances at 16 px for the bundled faces. Keep these separate from
-    # the terminal's 10 px cell advance: they locate the cropped-away metrics
-    # anchor, while cells themselves always advance by CELL_WIDTH.
-    FONT_ADVANCE = 9.6328125
-    CJK_FONT_ADVANCE = 13.328125
+    # Font-owned anchors pin Pango's cropped surface to repeatable line and x
+    # origins. The CJK face's 15 px line is inset in the shared 20 px row.
+    # Cropping the measured anchor away avoids centering individual ink bounds.
+    METRICS_ANCHOR = "██"
+    CJK_METRICS_ANCHOR = "界界"
+    CJK_LINE_TOP = 2
     FONT_PATH = File.expand_path("../../../assets/DejaVuSansMono.ttf", __dir__)
     CJK_FONT_PATH = File.expand_path("../../../assets/XiaolaiCjkSubset.ttf", __dir__)
     DEFAULT_FOREGROUND = "#d8dee9"
@@ -77,10 +74,19 @@ module RuntimeTerminal
 
     def text_mask(text, styles, cell_width, wide:)
       family, path = wide ? [ "Xiaolai SC", CJK_FONT_PATH ] : [ "DejaVu Sans Mono", FONT_PATH ]
-      markup = styled_markup("#{METRICS_ANCHOR}#{text}", styles)
+      anchor_text = wide ? CJK_METRICS_ANCHOR : METRICS_ANCHOR
+      markup = styled_markup("#{anchor_text}#{text}", styles)
       glyph = Vips::Image.text(markup, font: "#{family} #{FONT_SIZE}", fontfile: path, rgba: false)
-      anchor_width = (METRICS_ANCHOR.length * (wide ? CJK_FONT_ADVANCE : FONT_ADVANCE)).round
-      clip_to_cell(glyph, cell_width, anchor_width: anchor_width)
+      anchor_width = metrics_anchor_width(anchor_text, styles, family, path)
+      clip_to_cell(glyph, cell_width, anchor_width: anchor_width, line_top: wide ? CJK_LINE_TOP : 0)
+    end
+
+    def metrics_anchor_width(anchor_text, styles, family, path)
+      @metrics_anchor_widths ||= {}
+      @metrics_anchor_widths.fetch([ anchor_text, styles.join("\0") ]) do |key|
+        markup = styled_markup(anchor_text, styles)
+        @metrics_anchor_widths[key] = Vips::Image.text(markup, font: "#{family} #{FONT_SIZE}", fontfile: path, rgba: false).width
+      end
     end
 
     def styled_markup(text, styles)
@@ -93,14 +99,14 @@ module RuntimeTerminal
       "<span fallback='false'>#{markup}</span>"
     end
 
-    def clip_to_cell(glyph, cell_width, anchor_width:)
+    def clip_to_cell(glyph, cell_width, anchor_width:, line_top:)
       source_left = [ anchor_width, glyph.width ].min
       clipped_width = [ glyph.width - source_left, cell_width ].min
-      clipped_height = [ glyph.height, CELL_HEIGHT ].min
+      clipped_height = [ glyph.height, CELL_HEIGHT - line_top ].min
       canvas = Vips::Image.black(cell_width, CELL_HEIGHT)
       return canvas unless clipped_width.positive? && clipped_height.positive?
 
-      canvas.insert(glyph.crop(source_left, 0, clipped_width, clipped_height), 0, 0)
+      canvas.insert(glyph.crop(source_left, 0, clipped_width, clipped_height), 0, line_top)
     end
 
     def color(value, fallback)
