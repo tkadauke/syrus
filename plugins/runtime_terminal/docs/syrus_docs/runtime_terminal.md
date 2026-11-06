@@ -126,7 +126,10 @@ the complete current viewport to PNG. The renderer supports ANSI 16-color,
 alternate buffers; wide/combining Unicode and box-drawing glyphs; and
 visible/hidden cursor state. It uses plugin-bundled DejaVu Sans Mono and a
 bundled Xiaolai CJK subset, disables system-font fallback, and clips every
-glyph to its cell rectangle. Fixed cell metrics make output size exactly
+glyph to its cell rectangle. Each bundled face uses a glyph from that face to
+measure a stable logical line box; glyph masks are cropped from that shared
+baseline and fixed cell origin rather than centering each glyph's individual
+ink bounds. Fixed cell metrics make output size exactly
 `columns × 10` by `rows × 20` pixels without depending on fonts installed on
 the worker.
 
