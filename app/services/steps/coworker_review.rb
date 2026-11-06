@@ -36,7 +36,7 @@ module Steps
     def reviewer_prompt
       Prompts::CoworkerReview.new(issue: review_issue, diff: latest_agentic_diff, prior_findings: review_iterations,
         base_ref: review_base_ref, workflow_kind: workflow.trigger_kind, feedback_context: feedback_context_text,
-        criteria: review_criteria, affected_projects: adversarial_review_projects.to_a).to_s
+        criteria: [], affected_projects: adversarial_review_projects.to_a).to_s
     end
   end
 end

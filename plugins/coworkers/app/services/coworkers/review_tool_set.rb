@@ -7,7 +7,10 @@ class Coworkers::ReviewToolSet
   def self.available_for_context?(context) = available_for?(context.repository) && context.role == AgentRole::WORKFLOW_COWORKER_REVIEWER
   def self.tool_definitions(context: nil)
     return [] if context && !available_for_context?(context)
-    TOOL_CLASSES.map { |tool| { name: tool.tool_name, description: tool.description_value, input_schema: tool.input_schema_value.to_h } }
+    TOOL_CLASSES.map do |tool|
+      { name: tool.tool_name, description: tool.description_value, input_schema: tool.input_schema_value.to_h,
+        capability: "review.memory.write", mutation: true, coworker_safe: true }
+    end
   end
 
   def handle(tool_name, params, server_context)

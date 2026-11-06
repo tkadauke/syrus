@@ -14,6 +14,8 @@ class Coworkers::ReviewContext < ApplicationRecord
   validates :persistence_state, inclusion: { in: STATES }
   validates :manifest, :exact_context, :workspace_path, presence: true
 
+  scope :retention_candidates, -> { where.not(persistence_state: "tombstoned") }
+
   def tombstone!
     update!(exact_context: "[tombstoned]", workspace_path: "[tombstoned]",
             persistence_state: "tombstoned", tombstoned_at: Time.current)

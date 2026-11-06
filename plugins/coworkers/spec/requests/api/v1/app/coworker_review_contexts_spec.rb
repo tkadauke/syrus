@@ -18,7 +18,7 @@ RSpec.describe "API: coworker review contexts", type: :request do
   end
   let!(:review_context) do
     Coworkers::ReviewContext.create!(run:, review_evidence: evidence, coworker:,
-      manifest: { "identity" => { "sha256" => "safe" } }, exact_context: { "identity" => "restricted" },
+      manifest: { "protected_prompt" => { "sha256" => "safe" } }, exact_context: { "protected_prompt" => "restricted" },
       workspace_path: "/recoverable/reviewer/context")
   end
 
@@ -29,7 +29,7 @@ RSpec.describe "API: coworker review contexts", type: :request do
     get "/api/v1/app/coworkers/#{coworker.id}/review_contexts/#{run.id}"
 
     expect(response).to have_http_status(:ok)
-    expect(response.parsed_body).to include("exact_context" => { "identity" => "restricted" })
+    expect(response.parsed_body).to include("exact_context" => { "protected_prompt" => "restricted" })
     expect(AdminAction.last).to have_attributes(action: "coworker_review_context_read")
   end
 
@@ -39,5 +39,12 @@ RSpec.describe "API: coworker review contexts", type: :request do
 
     expect(response).to have_http_status(:forbidden)
     expect(response.body).not_to include("restricted")
+  end
+
+  it "authorizes before resolving restricted evidence" do
+    sign_in_as(Factories.user(email_address: "another-reviewer@example.com"))
+    get "/api/v1/app/coworkers/#{coworker.id}/review_contexts/999999"
+
+    expect(response).to have_http_status(:forbidden)
   end
 end

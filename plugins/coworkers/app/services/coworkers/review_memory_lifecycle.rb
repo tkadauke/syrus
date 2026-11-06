@@ -1,4 +1,7 @@
 require "fileutils"
+require "shellwords"
+require "tempfile"
+require "uri"
 
 class Coworkers::ReviewMemoryLifecycle
   PersistenceError = Class.new(StandardError)
@@ -12,18 +15,22 @@ class Coworkers::ReviewMemoryLifecycle
       selected = eligible_memories(coworker, run)
       identity = [ "Name: #{coworker.name}", "Handle: @#{coworker.handle}", "Role: #{coworker.role_summary}" ].join("\n")
       memory_text = selected.map { |entry| "[memory #{entry.id} revision #{entry.updated_at.iso8601}]\n#{entry.content}" }.join("\n\n")
-      exact = { "identity" => identity, "repository_criteria" => Array(criteria).join("\n\n"), "repository_memories" => memory_text }
+      criteria_text = Array(criteria).map { |criterion| "- #{criterion}" }.join("\n")
+      protected_prompt = [ "# Protected coworker reviewer context", identity,
+        "## Review instructions\n#{Prompts::CoworkerReview.protected_instructions}",
+        criteria_text.present? && "## Applicable repository criteria\n#{criteria_text}",
+        memory_text.present? && "## Selected repository memories\n#{memory_text}" ].compact.join("\n\n")
+      exact = { "protected_prompt" => protected_prompt }
       path = checkout_path(run)
       clone_home!(coworker, run, path)
-      manifest = exact.transform_values { |text| { "bytes" => text.bytesize, "sha256" => Digest::SHA256.hexdigest(text) } }
+      manifest = { "protected_prompt" => { "bytes" => protected_prompt.bytesize,
+        "sha256" => Digest::SHA256.hexdigest(protected_prompt) } }
       manifest["memories"] = selected.map { |entry| { "id" => entry.id, "revision" => entry.updated_at.iso8601, "sha256" => Digest::SHA256.hexdigest(entry.content) } }
       Coworkers::ReviewContext.create!(run:, review_evidence: evidence, coworker:, manifest:, exact_context: exact, workspace_path: path.to_s)
     end
 
     def prompt_section(context)
-      exact = context.exact_context
-      [ "# Protected coworker reviewer context", exact.fetch("identity"),
-        exact.fetch("repository_memories").presence && "## Selected repository memories\n#{exact.fetch('repository_memories')}" ].compact.join("\n\n")
+      context.exact_context.fetch("protected_prompt")
     end
 
     def update!(coworker:, run:, path:, content:)
@@ -39,12 +46,14 @@ class Coworkers::ReviewMemoryLifecycle
     end
 
     def persist!(coworker:, run:, key_learning:, verdict:)
-      context = context_for!(coworker, run)
-      return context if context.persistence_state == "persisted"
+      context = nil
+      Coworkers::OperationLock.with(coworker, wait: 30) do
+        context = context_for!(coworker, run)
+        return context if context.persistence_state == "persisted"
 
-      journal = safe_destination(context, "reviews/journal/run-#{run.id}.md")
-      FileUtils.mkdir_p(journal.dirname)
-      File.write(journal, <<~TEXT)
+        journal = safe_destination(context, "reviews/journal/evidence-#{context.review_evidence_id}.md")
+        FileUtils.mkdir_p(journal.dirname)
+        File.write(journal, <<~TEXT)
         # Repository review
         Job: #{run.job_id}
         Workflow: #{run.workflow_id}
@@ -53,12 +62,13 @@ class Coworkers::ReviewMemoryLifecycle
         Verdict: #{verdict}
         Key learning: #{key_learning}
         Evidence: #{context.review_evidence_id}
-      TEXT
-      persist_checkout!(coworker, run, context)
+        TEXT
+        persist_checkout!(coworker, run, context)
+      end
     rescue StandardError => error
       context&.update!(persistence_state: "failed", persistence_error_code: "coworker_memory_persistence_failed",
-                       persistence_error_details: { "class" => error.class.name, "message" => error.message.to_s.truncate(500) })
-      raise PersistenceError, error.message
+                       persistence_error_details: { "class" => error.class.name, "message" => "coworker memory persistence failed" })
+      raise PersistenceError, "coworker memory persistence failed"
     end
 
     private
@@ -66,8 +76,11 @@ class Coworkers::ReviewMemoryLifecycle
     def eligible_memories(coworker, run)
       return [] unless defined?(AgentMemory::Entry)
 
+      ids = Array(run.step.details.to_h["review_memory_ids"]).filter_map { |value| Integer(value, exception: false) }.uniq
+      return [] if ids.empty?
+
       AgentMemory::Entry.active.repository_scope(run.job.repository_id)
-        .where(user_id: coworker.owner_user_id, published: true).order(:id).to_a
+        .where(id: ids, user_id: coworker.owner_user_id, published: true).order(:id).to_a
     end
 
     def checkout_path(run)
@@ -78,9 +91,9 @@ class Coworkers::ReviewMemoryLifecycle
       FileUtils.rm_rf(path)
       FileUtils.mkdir_p(path.dirname)
       repository = coworker.workspace_repository or raise ArgumentError, "coworker workspace repository is unavailable"
-      GitRunner.new.run("clone", "--branch", "coworkers/#{coworker.handle}", "--single-branch",
-                        repository.authenticated_url(user: run.job.owner_user || run.job.user), path.to_s,
-                        env: { "GIT_TERMINAL_PROMPT" => "0" })
+      with_git_auth(repository, run, operation_type: "coworker_review_clone") do |url, env|
+        GitRunner.new.run("clone", "--branch", "coworkers/#{coworker.handle}", "--single-branch", url, path.to_s, env:)
+      end
     end
 
     def context_for!(coworker, run)
@@ -109,16 +122,40 @@ class Coworkers::ReviewMemoryLifecycle
       end
       branch = "coworkers/#{coworker.handle}"
       repository = coworker.workspace_repository
-      url = repository.authenticated_url(user: run.job.owner_user || run.job.user)
       3.times do |attempt|
         begin
-          git.run("push", url, "HEAD:refs/heads/#{branch}", chdir: path, env: { "GIT_TERMINAL_PROMPT" => "0" })
+          with_git_auth(repository, run, operation_type: "coworker_review_reconcile") do |url, env|
+            git.run("fetch", url, "+refs/heads/#{branch}:refs/remotes/origin/#{branch}", chdir: path, env:)
+          end
+          git.run("rebase", "origin/#{branch}", chdir: path)
+          expected_sha = git.run("rev-parse", "origin/#{branch}", chdir: path).strip
+          lease = "--force-with-lease=refs/heads/#{branch}:#{expected_sha}"
+          with_git_auth(repository, run, operation_type: "coworker_review_push") do |url, env|
+            git.run("push", lease, url, "HEAD:refs/heads/#{branch}", chdir: path, env:)
+          end
           sha = git.run("rev-parse", "HEAD", chdir: path).strip
           return context.update!(persistence_state: "persisted", persisted_commit_sha: sha, persisted_at: Time.current,
                                  persistence_error_code: nil, persistence_error_details: {})
-        rescue GitRunner::GitError => error
-          raise unless error.message.match?(/non-fast-forward|fetch first|rejected.*behind/i) && attempt < 2
-          git.run("pull", "--rebase", url, branch, chdir: path, env: { "GIT_TERMINAL_PROMPT" => "0" })
+        rescue GitRunner::GitError
+          git.run("rebase", "--abort", chdir: path) rescue nil
+          raise PersistenceError, "the coworker home branch contains conflicting memory changes" if attempt == 2
+        end
+      end
+    end
+
+    def with_git_auth(repository, run, operation_type:)
+      user = run.job.owner_user || run.job.user
+      git = GitRunner.new
+      GithubAuthenticatedGit.run(repository:, user:, git:, operation_type:) do |authenticated_url|
+        uri = URI.parse(authenticated_url)
+        username, password = uri.userinfo.to_s.split(":", 2)
+        uri.user = nil
+        uri.password = nil
+        Tempfile.create([ "coworker-review-askpass-", ".sh" ]) do |file|
+          file.write("#!/bin/sh\ncase \"$1\" in\n  *Username*) printf '%s\\n' #{Shellwords.escape(username.to_s)} ;;\n  *) printf '%s\\n' #{Shellwords.escape(password.to_s)} ;;\nesac\n")
+          file.flush
+          File.chmod(0o700, file.path)
+          yield uri.to_s, { "GIT_ASKPASS" => file.path, "GIT_TERMINAL_PROMPT" => "0" }
         end
       end
     end

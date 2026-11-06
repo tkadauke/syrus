@@ -57,20 +57,21 @@ completed attempts do not accumulate.
 Named coworker review Runs use the normal read-only workflow checkout for the
 repository under review and a separate checkout of that coworker's home branch
 for durable learning. The reviewer receives only its identity, applicable
-repository criteria, and published repository-scoped memories selected for the
-Run. Normal evidence stores hashes, revisions, and byte counts; the exact
+repository criteria, and explicitly selected published repository-scoped
+memories for the Run. Normal evidence stores hashes, revisions, and byte counts; the exact
 selected text is encrypted and is available only through the audited
 owner/admin restricted-evidence endpoint.
 
 The reviewer can update only `memory/*.md` through its dedicated memory tool.
-Submitting a verdict also writes a deterministic `reviews/journal/run-<id>.md`
+Submitting a verdict also writes a deterministic `reviews/journal/evidence-<id>.md`
 entry with the reviewed revision and evidence reference, then rebases and
 pushes the isolated checkout. The Run cannot succeed until that push succeeds.
 Repeated submission for the same Run reuses its journal and verdict rather
 than duplicating either. Failed persistence retains the isolated checkout and
 reports `coworker_memory_persistence_failed` for recovery. Tombstoning removes
 the encrypted text and checkout pointer while retaining the safe manifest and
-lineage, matching the evidence retention lifecycle.
+lineage. The central retention-policy registry applies that tombstone after 30
+days by default, aligned with detailed Run evidence retention.
 
 Background runs use the same unified permission policy as interactive turns.
 They never receive the interactive-only tool surface. Operations whose effective
