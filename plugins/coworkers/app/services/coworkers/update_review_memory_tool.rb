@@ -11,6 +11,8 @@ class Coworkers::UpdateReviewMemoryTool < MCP::Tool
   class << self
     def call(path:, content:, server_context:)
       run = Mcp::Tools.run_from_context(server_context)
+      context = McpToolContext.from_run(run)
+      return Mcp::Tools.not_authorized unless context.role == AgentRole::WORKFLOW_COWORKER_REVIEWER
       reviewer = run.review_evidence&.reviewer
       return Mcp::Tools.invalid("coworker review context is unavailable") unless reviewer&.respond_to?(:update_review_memory!)
       relative = reviewer.update_review_memory!(run:, path:, content: Mcp::Tools.utf8(content))

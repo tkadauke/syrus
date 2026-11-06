@@ -27,7 +27,7 @@ RSpec.describe Coworkers::ReviewMemoryLifecycle do
 
   def context
     Coworkers::ReviewContext.create!(run:, review_evidence: evidence, coworker:,
-      manifest: { "identity" => { "sha256" => "safe" } }, exact_context: { "identity" => "secret" },
+      manifest: { "protected_prompt" => { "sha256" => "safe" } }, exact_context: { "protected_prompt" => "secret" },
       workspace_path: @directory.to_s)
   end
 
@@ -38,7 +38,7 @@ RSpec.describe Coworkers::ReviewMemoryLifecycle do
     expect(@directory.join("memory/preferences.md").read).to eq("Keep it terse.")
     expect { described_class.update!(coworker:, run:, path: "../credentials", content: "bad") }
       .to raise_error(ArgumentError, /memory/)
-    expect(record.reload.exact_context).to eq("identity" => "secret")
+    expect(record.reload.exact_context).to eq("protected_prompt" => "secret")
   end
 
   it "writes one deterministic journal and makes persistence retry-idempotent" do
@@ -49,7 +49,7 @@ RSpec.describe Coworkers::ReviewMemoryLifecycle do
 
     2.times { described_class.persist!(coworker:, run:, key_learning: "Check authorization boundaries.", verdict: "approved") }
 
-    journal = @directory.join("reviews/journal/run-#{run.id}.md").read
+    journal = @directory.join("reviews/journal/evidence-#{evidence.id}.md").read
     expect(journal).to include("Reviewed SHA: #{evidence.reviewed_head_sha}", "Key learning: Check authorization boundaries.")
     expect(described_class).to have_received(:persist_checkout!).once
   end
@@ -58,6 +58,40 @@ RSpec.describe Coworkers::ReviewMemoryLifecycle do
     record = context
     record.tombstone!
     expect(record.reload).to have_attributes(exact_context: "[tombstoned]", persistence_state: "tombstoned",
-      manifest: { "identity" => { "sha256" => "safe" } }, run_id: run.id)
+      manifest: { "protected_prompt" => { "sha256" => "safe" } }, run_id: run.id)
+  end
+
+  it "serializes persistence for the coworker home branch" do
+    record = context
+    allow(Coworkers::OperationLock).to receive(:with).with(coworker, wait: 30).and_yield
+    allow(described_class).to receive(:persist_checkout!) { record.update!(persistence_state: "persisted") }
+
+    described_class.persist!(coworker:, run:, key_learning: "Keep boundaries narrow.", verdict: "approved")
+
+    expect(Coworkers::OperationLock).to have_received(:with).with(coworker, wait: 30)
+  end
+
+  it "records only redacted persistence failure details" do
+    record = context
+    error = GitRunner::GitError.new([ "push" ], 1, "https://x-access-token:secret@github.com failed")
+    allow(described_class).to receive(:persist_checkout!).and_raise(error)
+
+    expect { described_class.persist!(coworker:, run:, key_learning: "No secrets.", verdict: "needs_work") }
+      .to raise_error(described_class::PersistenceError, "coworker memory persistence failed")
+    expect(record.reload.persistence_error_details.to_json).not_to include("secret", "github.com")
+  end
+
+  it "keeps Git credentials out of command arguments and removes the askpass helper" do
+    allow(GithubAuthenticatedGit).to receive(:run).and_yield("https://x-access-token:top-secret@github.com/acme/home.git")
+    captured = nil
+
+    described_class.send(:with_git_auth, workspace_repository, run, operation_type: "review_test") do |url, env|
+      captured = [ url, env.fetch("GIT_ASKPASS") ]
+      expect(url).to eq("https://github.com/acme/home.git")
+      expect(File.read(env.fetch("GIT_ASKPASS"))).to include("top-secret")
+    end
+
+    expect(captured.first).not_to include("top-secret", "x-access-token")
+    expect(File).not_to exist(captured.last)
   end
 end

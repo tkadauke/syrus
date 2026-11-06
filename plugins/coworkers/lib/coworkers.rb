@@ -35,7 +35,8 @@ module Coworkers
              chat_turn_finalizer: [ "Coworkers::HomeBranchPersistence", "Coworkers::MessageReply" ],
              chat_mcp_tool_set: "Coworkers::ChatToolSet",
              reviewer_target_provider: "Coworkers::ReviewerTargetProvider",
-             mcp_tool_set: "Coworkers::ReviewToolSet"
+             mcp_tool_set: "Coworkers::ReviewToolSet",
+             retention_policy: "Coworkers::ReviewContextRetentionPolicy"
     tick_interval 5.minutes
     route :get, "/api/v1/app/coworkers", to: "api/v1/app/coworkers#index"
     route :get, "/api/v1/app/coworkers/options", to: "api/v1/app/coworkers#options"

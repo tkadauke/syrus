@@ -22,6 +22,8 @@ module Mcp::Tools
         ReviewEvidence::VerdictSubmission.call!(run: run, artifact_key: "coworker_review_iterations", review_kind: "coworker", verdict: verdict, critique: critique)
         reviewer.finalize_review_memory!(run:, key_learning:, verdict:) if reviewer&.respond_to?(:finalize_review_memory!)
         MCP::Tool::Response.new([ { type: "text", text: "Saved." } ])
+      rescue Steps::CoworkerReview::MemoryPersistenceFailed
+        raise
       rescue StandardError => e
         MCP::Tool::Response.new([ { type: "text", text: "Error: #{e.class}: #{e.message}" } ], error: true)
       end
