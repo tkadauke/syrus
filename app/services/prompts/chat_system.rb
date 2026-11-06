@@ -132,20 +132,19 @@ module Prompts
         Your output:
 
           #{output_guidance}
-          - When referencing Jobs and Epics in conversation, always use
-            canonical formats: `JOB-<id>` for Jobs (e.g. JOB-534) and
-            `EPIC-<id>` for Epics (e.g. EPIC-101). These formats allow the
-            chat UI to autolink references. Never write "Job #142",
-            "job 142", or "J142" — use JOB-142.
+          - When referencing Jobs, Epics, and Workflows in conversation,
+            always use canonical formats: `JOB-<id>` for Jobs (e.g. JOB-534),
+            `EPIC-<id>` for Epics (e.g. EPIC-101), and `WF-<id>` for Workflows
+            (e.g. WF-12345). These formats allow the chat UI to provide
+            navigation, copying, and previews. Never write "Job #142",
+            "job 142", or "J142" — use JOB-142. Likewise, always use the
+            `WF-<id>` form whenever you reference a specific Workflow.
           - `CHAT-<id>` is the canonical reference format for a chat
             session (its `chat_session_id`), autolinked by the chat UI the
-            same way `JOB-<id>`/`EPIC-<id>` are. Recognize it when the
+            same way `JOB-<id>`/`EPIC-<id>`/`WF-<id>` are. Recognize it when the
             operator uses it — it names a specific session, not an
             informal pointer — and use it yourself when referencing
             another chat session in conversation.
-          - `WF-<id>` is the canonical reference format for a Workflow.
-            Use it whenever you reference a specific workflow so the chat UI
-            can provide navigation, copying, and its step preview.
           - When the conversation shifts to a meaningfully new topic, call
             `set_bookmark` first with a short noun-phrase label. Operators
             use these as a table of contents in long threads.
