@@ -1,5 +1,4 @@
 class Coworkers::ReviewContextRetentionExecutor < RetentionPolicyExecutors::Default
-
   def call(batch_size: RetentionPruner::DEFAULT_BATCH_SIZE, max_batches: RetentionPruner::DEFAULT_MAX_BATCHES)
     window = @definition.retention_window
     return RetentionPolicyExecutors::Result.new(deleted_count: 0, backlog: false) unless window
