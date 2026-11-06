@@ -507,7 +507,10 @@ class PollPullRequestJob < ApplicationJob
        (!state.in?(%w[failing pending]) || (@job.pr_checks_sha.present? && @job.pr_checks_sha != head_sha))
       attrs[:landing_failure_reason] = nil
     end
-    @job.update_columns(attrs)
+    PollingPersistenceRetry.call(job: @job, boundary: "pr_checks") do |retry_number|
+      @job.reload if retry_number.positive?
+      @job.update_columns(attrs)
+    end
   end
 
   def record_target_health_from_ci_checks(head_sha, detail)

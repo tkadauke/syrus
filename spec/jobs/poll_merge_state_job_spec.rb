@@ -54,6 +54,27 @@ RSpec.describe PollMergeStateJob, :ci_only do
     expect(job.approved_at).to be_present
   end
 
+  it "retries only mergeability persistence after lock contention" do
+    attempts = 0
+    allow(PollingPersistenceRetry).to receive(:sleep)
+    allow_any_instance_of(Job).to receive(:update!).and_wrap_original do |original, *args|
+      next original.call(*args) unless original.receiver.id == job.id
+
+      attempts += 1
+      raise ActiveRecord::LockWaitTimeout, "lock wait timed out" if attempts == 1
+
+      original.call(*args)
+    end
+    expect_any_instance_of(GithubClient).to receive(:pull_request).once.and_return(pr)
+
+    expect {
+      described_class.perform_now(job.id)
+    }.to change { job.reload.state }.to("approved")
+
+    expect(attempts).to eq(2)
+    expect(job.workflows.where(trigger_kind: "rebase")).to be_empty
+  end
+
   it "interleaves landing and merge-state ticks without a throwaway auto-merge or duplicate rebase" do
     job.approve!(via: "github_review")
     job.update!(github_mergeable_state: "dirty", mergeability_checked_at: Time.current)

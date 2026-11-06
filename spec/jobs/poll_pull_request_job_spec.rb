@@ -851,6 +851,31 @@ RSpec.describe PollPullRequestJob, :ci_only do
       }.to change { job.workflows.where(trigger_kind: "ci_failure").count }.by(1)
     end
 
+    it "retries only the check-cache write and dispatches one CI reaction" do
+      repository.update!(ci_repair_enabled: true)
+      stub_check_runs(sha, [
+        { name: "test", status: "completed", conclusion: "failure", html_url: "u", output: { summary: "fail" } }
+      ])
+      attempts = 0
+      allow(PollingPersistenceRetry).to receive(:sleep)
+      allow_any_instance_of(Job).to receive(:update_columns).and_wrap_original do |original, *args|
+        next original.call(*args) unless original.receiver.id == job.id && args.first.key?(:pr_checks_sha)
+
+        attempts += 1
+        raise ActiveRecord::LockWaitTimeout, "lock wait timed out" if attempts == 1
+
+        original.call(*args)
+      end
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.workflows.where(trigger_kind: "ci_failure").count }.by(1)
+
+      expect(attempts).to eq(2)
+      expect(a_request(:get, %r{/commits/#{sha}/check-runs})).to have_been_made.once
+      expect(job.reload).to have_attributes(pr_checks_sha: sha, pr_checks_state: "failing")
+    end
+
     it "lets a manual poll dispatch repair when repository CI repair is disabled" do
       repository.update!(ci_repair_enabled: false)
       stub_check_runs(sha, [

@@ -1,20 +1,24 @@
 class MergeabilityRecorder
   def self.record_github!(job:, pr:, checked_at: Time.current)
-    github_mergeable = mergeable(pr)
-    github_mergeable_state = mergeable_state(pr)
+    PollingPersistenceRetry.call(job: job, boundary: "mergeability") do |retry_number|
+      # A failed UPDATE can leave this instance stale while another writer
+      # commits. Refresh before retrying so GitHub's nil response preserves
+      # the latest known mergeability rather than an older in-memory value.
+      job.reload if retry_number.positive?
+      github_mergeable = mergeable(pr)
+      github_mergeable_state = mergeable_state(pr)
 
-    attrs = {
-      pr_mergeable: github_mergeable.nil? ? job.pr_mergeable : github_mergeable,
-      pr_mergeable_checked_at: checked_at,
-      github_mergeable: github_mergeable.nil? ? job.github_mergeable : github_mergeable,
-      github_mergeable_state: github_mergeable_state.nil? ? job.github_mergeable_state : github_mergeable_state,
-      mergeability_head_sha: pr_head_sha(pr),
-      mergeability_base_sha: pr_base_sha(pr),
-      mergeability_base_ref: pr_base_ref(pr),
-      mergeability_checked_at: checked_at
-    }
-
-    job.update!(attrs)
+      job.update!(
+        pr_mergeable: github_mergeable.nil? ? job.pr_mergeable : github_mergeable,
+        pr_mergeable_checked_at: checked_at,
+        github_mergeable: github_mergeable.nil? ? job.github_mergeable : github_mergeable,
+        github_mergeable_state: github_mergeable_state.nil? ? job.github_mergeable_state : github_mergeable_state,
+        mergeability_head_sha: pr_head_sha(pr),
+        mergeability_base_sha: pr_base_sha(pr),
+        mergeability_base_ref: pr_base_ref(pr),
+        mergeability_checked_at: checked_at
+      )
+    end
   end
 
   def self.record_local!(job:, result:, checked_at: Time.current)
