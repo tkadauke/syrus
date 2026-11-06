@@ -6,6 +6,11 @@
 # of truth for commit access; this groundwork matters more once self-hosted
 # git removes GitHub as a required central host.
 class GithubPermissionSyncer
+  TRANSIENT_GITHUB_ERROR_CLASSES = [
+    Faraday::TimeoutError,
+    Faraday::ConnectionFailed
+  ].freeze
+
   # Floor tier both directions care about. Read-tier Syrus access grants no
   # mutation rights, so a read/read-only mismatch isn't a dangerous signal;
   # a GH collaborator with only read access isn't a meaningful direction-2
@@ -28,7 +33,7 @@ class GithubPermissionSyncer
 
     flag_membership_mismatches!(repository, collaborators, checked_at)
     record_collaborator_only_discrepancies!(repository, collaborators, checked_at)
-  rescue Octokit::Error => e
+  rescue Octokit::Error, *TRANSIENT_GITHUB_ERROR_CLASSES => e
     Rails.logger.warn("[GithubPermissionSyncer] #{repository.slug} sync failed: #{e.class}: #{e.message}")
   end
 
