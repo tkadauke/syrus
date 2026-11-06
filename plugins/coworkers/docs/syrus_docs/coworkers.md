@@ -69,8 +69,9 @@ pushes the isolated checkout. The Run cannot succeed until that push succeeds.
 Repeated submission for the same Run reuses its journal and verdict rather
 than duplicating either. Failed persistence retains the isolated checkout and
 reports `coworker_memory_persistence_failed` for recovery. Tombstoning removes
-the encrypted text and checkout pointer while retaining the safe manifest and
-lineage. The central retention-policy registry applies that tombstone after 30
+the validated run-owned checkout, encrypted text, and checkout pointer while
+retaining the safe manifest and lineage. Cleanup refuses unrelated or symlinked
+paths. The central retention-policy registry applies that tombstone after 30
 days by default, aligned with detailed Run evidence retention.
 
 Background runs use the same unified permission policy as interactive turns.

@@ -84,7 +84,7 @@ class Coworkers::ReviewMemoryLifecycle
     end
 
     def checkout_path(run)
-      WorkflowWorkspace.new(run.workflow).path.dirname.join("coworker-review-workspaces", run.id.to_s)
+      Coworkers::ReviewWorkspace.path_for(run)
     end
 
     def clone_home!(coworker, run, path)
