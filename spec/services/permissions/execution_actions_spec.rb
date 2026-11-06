@@ -155,8 +155,13 @@ RSpec.describe Permissions::ExecutionActions do
   end
 
   describe Permissions::ExecutionGate do
+    # `kind:` is what makes this a tracked execution, and the gate only judges
+    # tracked work -- an untracked process with no actor is build plumbing the
+    # gate deliberately has no opinion on. Every real caller passes a kind, so
+    # these examples need one to exercise policy at all.
     let(:request) do
       Execution::Request.new(**Execution::Request.members.index_with { nil }, command: %w[ls], network: "agent", env: {},
+        kind: "agent",
         workload_policy: instance_double(Execution::ChatWorkloadPolicy, fail_closed?: true))
     end
 

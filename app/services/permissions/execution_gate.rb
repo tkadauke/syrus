@@ -18,6 +18,8 @@ module Permissions
     end
 
     def call(request, location: :host)
+      return if unattributed?(request)
+
       subject = ExecutionActions.subject_for_request(request, location:)
       result = ExecutionAuthorization.authorize(subject:, owner: owner_for(request), role: role_for(request), rules: rules_for(request), ceiling: @ceiling,
         context: lifecycle_context_for(request), selector_contexts: selector_contexts_for(request))
@@ -26,6 +28,25 @@ module Permissions
     end
 
     private
+
+    # A tracked execution carries a +kind+ (agent, grader, git, prepare) and an
+    # actor to attribute it to. One with neither is the application running its
+    # own tooling: asset precompilation shelling out to brotli during
+    # `docker build`, a rake task probing whether a binary is on PATH. There is
+    # no owner whose rules could allow it and nobody to ask, so the gate holds
+    # no opinion rather than failing closed on work that was never an agent's
+    # to request. Without this, `assets:precompile` raised NotAuthorized and no
+    # image could be built at all.
+    #
+    # Both conditions are required. An agent path that omitted +kind+ still
+    # carries a run, workflow, job or chat session, and stays gated. Anything
+    # able to construct an Execution::Request directly is already running
+    # arbitrary code in the app process, so this is not a bypass worth
+    # defending against here.
+    def unattributed?(request)
+      request.kind.blank? && request.run.nil? && request.workflow.nil? &&
+        request.job.nil? && request.chat_session.nil?
+    end
 
     def role_for(request)
       candidate = request.agent.to_s
