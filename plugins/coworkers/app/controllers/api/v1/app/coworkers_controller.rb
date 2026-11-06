@@ -25,6 +25,18 @@ module Api
           render json: { coworker: detail_json(coworker) }
         end
 
+        def review_context
+          coworker = Coworkers::Coworker.find(params[:id])
+          context = Coworkers::ReviewContext.find_by!(coworker:, run_id: params[:run_id])
+          unless Current.user.admin? || coworker.owner_user_id == Current.user.id
+            return head :forbidden
+          end
+          AdminAction.log!(user: Current.user, action: "coworker_review_context_read",
+            params: { "coworker_id" => coworker.id, "run_id" => context.run_id })
+          render json: { run_id: context.run_id, manifest: context.manifest, exact_context: context.exact_context,
+                         persistence_state: context.persistence_state, tombstoned_at: context.tombstoned_at }
+        end
+
         def create
           coworker = Coworkers::Coworker.new(owner_user: Current.user)
           authorize coworker, :create?, policy_class: CoworkerPolicy

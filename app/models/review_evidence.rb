@@ -1,6 +1,6 @@
 class ReviewEvidence < ApplicationRecord
   STATES = %w[pending submitted failed stale].freeze
-  REVIEW_KINDS = %w[adversarial security].freeze
+  REVIEW_KINDS = %w[adversarial security coworker].freeze
 
   belongs_to :run
   belongs_to :workflow
