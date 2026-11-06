@@ -6,7 +6,10 @@ class Coworkers::ReviewContextRetentionExecutor < RetentionPolicyExecutors::Defa
 
     scope = @definition.model_class.public_send(@definition.scope_name).where(created_at: ...Time.current - window)
     records = scope.order(:id).limit(batch_size * max_batches).to_a
-    records.each(&:tombstone!)
+    records.each do |context|
+      Coworkers::ReviewWorkspace.remove!(context)
+      context.tombstone!
+    end
     RetentionPolicyExecutors::Result.new(deleted_count: records.size, backlog: scope.exists?)
   end
 end
