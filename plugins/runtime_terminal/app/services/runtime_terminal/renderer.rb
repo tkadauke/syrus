@@ -8,6 +8,15 @@ module RuntimeTerminal
     CELL_WIDTH = 10
     CELL_HEIGHT = 20
     FONT_SIZE = 16
+    # A full-em block pins Pango's cropped text surface to the font's logical
+    # line box. Cropping it away leaves every glyph at the same baseline and
+    # logical cell origin instead of centering each glyph's ink bounds.
+    METRICS_ANCHOR = "██ "
+    # Pango advances at 16 px for the bundled faces. Keep these separate from
+    # the terminal's 10 px cell advance: they locate the cropped-away metrics
+    # anchor, while cells themselves always advance by CELL_WIDTH.
+    FONT_ADVANCE = 9.6328125
+    CJK_FONT_ADVANCE = 13.328125
     FONT_PATH = File.expand_path("../../../assets/DejaVuSansMono.ttf", __dir__)
     CJK_FONT_PATH = File.expand_path("../../../assets/XiaolaiCjkSubset.ttf", __dir__)
     DEFAULT_FOREGROUND = "#d8dee9"
@@ -67,31 +76,31 @@ module RuntimeTerminal
     end
 
     def text_mask(text, styles, cell_width, wide:)
+      family, path = wide ? [ "Xiaolai SC", CJK_FONT_PATH ] : [ "DejaVu Sans Mono", FONT_PATH ]
+      markup = styled_markup("#{METRICS_ANCHOR}#{text}", styles)
+      glyph = Vips::Image.text(markup, font: "#{family} #{FONT_SIZE}", fontfile: path, rgba: false)
+      anchor_width = (METRICS_ANCHOR.length * (wide ? CJK_FONT_ADVANCE : FONT_ADVANCE)).round
+      clip_to_cell(glyph, cell_width, anchor_width: anchor_width)
+    end
+
+    def styled_markup(text, styles)
       markup = CGI.escapeHTML(text)
       markup = "<b>#{markup}</b>" if styles.include?("bold")
       markup = "<i>#{markup}</i>" if styles.include?("italic")
       markup = "<u>#{markup}</u>" if styles.include?("underline")
       markup = "<s>#{markup}</s>" if styles.include?("strikethrough")
       markup = "<span alpha='60%'>#{markup}</span>" if styles.include?("dim")
-      markup = "<span fallback='false'>#{markup}</span>"
-      family, path = wide ? [ "Xiaolai SC", CJK_FONT_PATH ] : [ "DejaVu Sans Mono", FONT_PATH ]
-      glyph = Vips::Image.text(markup, font: "#{family} #{FONT_SIZE}", fontfile: path, rgba: false)
-      clip_to_cell(glyph, cell_width)
+      "<span fallback='false'>#{markup}</span>"
     end
 
-    def clip_to_cell(glyph, cell_width)
-      left = (cell_width - glyph.width) / 2
-      top = (CELL_HEIGHT - glyph.height) / 2
-      source_left = [ -left, 0 ].max
-      source_top = [ -top, 0 ].max
-      target_left = [ left, 0 ].max
-      target_top = [ top, 0 ].max
-      clipped_width = [ glyph.width - source_left, cell_width - target_left ].min
-      clipped_height = [ glyph.height - source_top, CELL_HEIGHT - target_top ].min
+    def clip_to_cell(glyph, cell_width, anchor_width:)
+      source_left = [ anchor_width, glyph.width ].min
+      clipped_width = [ glyph.width - source_left, cell_width ].min
+      clipped_height = [ glyph.height, CELL_HEIGHT ].min
       canvas = Vips::Image.black(cell_width, CELL_HEIGHT)
       return canvas unless clipped_width.positive? && clipped_height.positive?
 
-      canvas.insert(glyph.crop(source_left, source_top, clipped_width, clipped_height), target_left, target_top)
+      canvas.insert(glyph.crop(source_left, 0, clipped_width, clipped_height), 0, 0)
     end
 
     def color(value, fallback)
