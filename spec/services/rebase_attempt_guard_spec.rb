@@ -356,5 +356,4 @@ RSpec.describe RebaseAttemptGuard do
       expect(described_class).not_to be_blocking_landing(other.reload)
     end
   end
-
 end
