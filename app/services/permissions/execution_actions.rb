@@ -35,6 +35,34 @@ module Permissions
 
     CREDENTIAL_ENV = /(?:TOKEN|SECRET|PASSWORD|PASSWD|API_?KEY|PRIVATE_KEY|CREDENTIAL|ACCESS_KEY)/i
 
+    # Syrus builds every git URL as `https://x-access-token:<token>@github.com/...`,
+    # so its own credential sits in the command line of every clone, fetch and
+    # push it runs. Two things went wrong because of it.
+    #
+    # CommandRedactor scrubs the secret but keeps the `x-access-token`
+    # identifier, and LocalModeActions::CREDENTIAL_COMMAND matches a bare
+    # `token`, so every git command classified as +credential_use+. That is a
+    # sensitive effect, which downgrades the +allow+ default to +ask+, and an
+    # ask fails closed -- halting every workflow step that touches a
+    # repository. RunFailureClassifier hit the identical false positive once
+    # before and documents it.
+    #
+    # The token is also short-lived, so carrying it into the fingerprint meant
+    # an approved invocation could never be replayed: the next attempt has a
+    # different token, the fingerprint no longer matches, and revalidation
+    # fails.
+    #
+    # Only the URL forms Syrus injects are scrubbed, identifier included. An
+    # agent embedding its own credential in some other URL still classifies as
+    # credential use. This mirrors the reasoning already applied to
+    # environment variables below: a credential Syrus injected says nothing
+    # about intent.
+    INJECTED_URL_CREDENTIALS = [
+      [ %r{https://x-access-token:[^@\s]*@}i, "https://" ],
+      [ %r{https://oauth2:[^@\s]*@}i, "https://" ],
+      [ %r{https://[^:/@\s]+:[^@\s]*@github\.com\b}i, "https://github.com" ]
+    ].freeze
+
     Subject = Data.define(:location, :command, :network, :env_keys, :writable_paths, :provider, :tool, :container_backend)
 
     class << self
@@ -101,7 +129,7 @@ module Permissions
         arguments = arguments.to_h.transform_keys(&:to_s)
         location = location.to_sym
         effects = location == :host ? %i[operator_host_access] : %i[isolated_execution]
-        command = Array(arguments["command"]).map(&:to_s).join(" ")
+        command = scrub_injected_credentials(Array(arguments["command"]).map(&:to_s)).join(" ")
         command = LocalModeActions.normalize_command(command)
 
         effects << :network_read if network_open?(arguments["network"])
@@ -122,7 +150,7 @@ module Permissions
         arguments = arguments.to_h.transform_keys(&:to_s)
         {
           "location" => location.to_s,
-          "command" => Array(arguments["command"]).map(&:to_s),
+          "command" => scrub_injected_credentials(Array(arguments["command"]).map(&:to_s)),
           "network" => arguments["network"].to_s,
           "env_keys" => Array(arguments["env_keys"]).map(&:to_s).sort,
           "writable_paths" => Array(arguments["writable_paths"]).map(&:to_s).sort,
@@ -150,6 +178,14 @@ module Permissions
       end
 
       def credential_env?(keys) = Array(keys).any? { |key| key.to_s.match?(CREDENTIAL_ENV) }
+
+      # Removes the credential Syrus injects into its own git URLs, including
+      # the `x-access-token` identifier that a bare `token` match would catch.
+      def scrub_injected_credentials(command)
+        command.map do |part|
+          INJECTED_URL_CREDENTIALS.reduce(part.to_s) { |acc, (pattern, replacement)| acc.gsub(pattern, replacement) }
+        end
+      end
 
       private
 

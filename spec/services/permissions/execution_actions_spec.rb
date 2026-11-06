@@ -154,6 +154,54 @@ RSpec.describe Permissions::ExecutionActions do
     end
   end
 
+  describe "credentials Syrus injects into its own git URLs" do
+    def classify(cmd, network: "git_fetch")
+      described_class.classify(:host, { "command" => cmd, "network" => network, "env_keys" => [], "writable_paths" => [] })
+    end
+
+    def fingerprint(cmd, network: "git_fetch")
+      described_class.normalize_arguments(:host, { "command" => cmd, "network" => network })["command"].join(" ")
+    end
+
+    def clone_with(token)
+      [ "git", "clone", "--depth", "1", "https://x-access-token:#{token}@github.com/tkadauke/syrus.git", "/tmp/x" ]
+    end
+
+    # The regression that halted the pipeline: CommandRedactor scrubs the
+    # secret but keeps the `x-access-token` identifier, a bare `token` matched
+    # it, every git command became credential_use -- a sensitive effect, which
+    # turns the allow default into ask, and an ask fails closed.
+    it "does not read its own git credential as credential use" do
+      effects = classify(clone_with("ghs_SECRET"))[:effects]
+
+      expect(effects).to include(:network_read)
+      expect(effects).not_to include(:credential_use)
+      expect(effects & described_class::SENSITIVE_EFFECTS).to be_empty
+    end
+
+    # The token is short-lived, so a fingerprint carrying it could never be
+    # replayed: the next attempt has a different token, the fingerprint no
+    # longer matches, and revalidation fails after the operator approved.
+    it "fingerprints the same command identically across token rotation" do
+      expect(fingerprint(clone_with("ghs_FIRST"))).to eq(fingerprint(clone_with("ghs_SECOND")))
+      expect(fingerprint(clone_with("ghs_FIRST"))).not_to include("x-access-token")
+    end
+
+    it "scrubs the oauth2 and generic github userinfo forms too" do
+      expect(fingerprint([ "git", "push", "https://oauth2:tok@github.com/o/r.git" ])).not_to include("tok")
+      expect(fingerprint([ "git", "push", "https://someuser:tok@github.com/o/r.git" ])).not_to include("tok")
+    end
+
+    it "leaves a credential the agent supplied to another host alone" do
+      expect(fingerprint([ "curl", "https://user:hunter2@evil.example.com/x" ])).to include("hunter2")
+    end
+
+    it "still flags genuinely sensitive commands" do
+      expect(classify([ "bash", "-c", "rm -rf /tmp/thing" ], network: "grader")[:effects]).to include(:destructive)
+      expect(classify([ "cat", "/home/me/.ssh/id_rsa" ], network: "grader")[:effects]).to include(:credential_use)
+    end
+  end
+
   describe Permissions::ExecutionGate do
     # `kind:` is what makes this a tracked execution, and the gate only judges
     # tracked work -- an untracked process with no actor is build plumbing the
