@@ -17,6 +17,8 @@ RSpec.describe TestInsights::Query do
     # These examples exercise case aggregation, not ingestion. Reusing one
     # parent run avoids constructing a complete Job/Workflow/Step graph for
     # every individual case while preserving the real associations queried.
+    # Identity summaries are explicit fixture attributes here: refreshing one
+    # after every case would exercise ingestion work unrelated to this query.
     test_run = test_run_for(identity.repository)
 
     TestInsights::TestCase.create!(
@@ -29,7 +31,7 @@ RSpec.describe TestInsights::Query do
       duration_ms: duration_ms,
       created_at: created_at,
       updated_at: created_at
-    ).tap { identity.refresh_summary! }
+    )
   end
 
   def test_run_for(repository)
@@ -349,7 +351,7 @@ RSpec.describe TestInsights::Query do
   end
 
   it "degrades a malformed identity instead of failing the whole list" do
-    identity = create_identity!(name: "breaks on serialize")
+    identity = create_identity!(name: "breaks on serialize", attrs: { last_seen_at: 1.minute.ago })
     create_case!(identity: identity, status: "passed", created_at: 1.minute.ago)
     allow_any_instance_of(TestInsights::TestIdentity).to receive(:interesting_reasons).and_raise(RuntimeError, "boom")
 
