@@ -72,12 +72,13 @@ RSpec.describe Diagnostics::SignalTrigger do
     it "runs at most one diagnostic at a time" do
       started = Queue.new
       release = Queue.new
-      completed = Queue.new
+      diagnostic_thread = nil
+      allow(Thread).to receive(:new).and_wrap_original do |original, *args, &block|
+        diagnostic_thread = original.call(*args, &block)
+      end
       allow(described_class).to receive(:run) do
         started << true
         release.pop
-      ensure
-        completed << true
       end
 
       expect(described_class.request).to be(true)
@@ -85,7 +86,7 @@ RSpec.describe Diagnostics::SignalTrigger do
       expect(described_class.request).to be(false)
     ensure
       release << true if release
-      completed.pop if completed
+      diagnostic_thread&.join
     end
 
     it "never raises, and releases the guard when spawning fails" do
