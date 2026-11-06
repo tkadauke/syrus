@@ -862,20 +862,15 @@ module Steps
 
     def publish_source_snapshot_ref!(source_sha, remote_ref)
       log("[grader_fanout] publishing source snapshot #{source_sha.first(7)} to #{remote_ref}")
-      authenticated_git("git_workflow_source_snapshot_push") do |url|
-        GitRunner.new.run(
-          "push",
-          url,
-          "#{source_sha}:#{remote_ref}",
-          chdir: workspace.path.to_s,
-          env: { "GIT_TERMINAL_PROMPT" => "0" }
-        )
-      end
+      WorkflowSourceSnapshots::RefPublisher.publish!(
+        run: run,
+        workspace: workspace,
+        source_sha: source_sha,
+        remote_ref: remote_ref,
+        log: method(:log)
+      )
       log("[grader_fanout] published source snapshot #{source_sha.first(7)} to #{remote_ref}")
       remote_ref
-    rescue GitRunner::GitError => e
-      raise WorkflowSourceSnapshots::InfrastructureStateError,
-            "workflow source snapshot ref publish failed for #{source_sha}: #{e.message}"
     end
 
     def grader_barrier_group
