@@ -213,14 +213,17 @@ RSpec.describe Prompts::ChatSystem do
     expect(out).to match(/Skip it when no\s+follow-up is natural/)
   end
 
-  it "instructs chat to use canonical Job and Epic reference formats" do
+  it "instructs chat to use canonical Job, Epic, and Workflow reference formats" do
     out = described_class.new(repository: repo).to_s
 
     expect(out).to include("JOB-142 is stuck in landing because PR #98 has a base-branch")
     expect(out).to include("instead of just \"JOB-142 is running.\"")
-    expect(out).to include("canonical formats: `JOB-<id>` for Jobs (e.g. JOB-534) and")
-    expect(out).to include("`EPIC-<id>` for Epics (e.g. EPIC-101)")
+    expect(out).to include("When referencing Jobs, Epics, and Workflows in conversation,")
+    expect(out).to include("canonical formats: `JOB-<id>` for Jobs (e.g. JOB-534),")
+    expect(out).to include("`EPIC-<id>` for Epics (e.g. EPIC-101), and `WF-<id>` for Workflows")
+    expect(out).to include("(e.g. WF-12345)")
     expect(out).to match(/Never write "Job #142",\s+"job 142", or "J142" — use JOB-142\./)
+    expect(out).to match(/always use the\s+`WF-<id>` form whenever you reference a specific Workflow\./)
   end
 
   it "derives its exact Job state inventory from the Job state machine" do
@@ -236,15 +239,8 @@ RSpec.describe Prompts::ChatSystem do
     out = described_class.new(repository: repo).to_s
 
     expect(out).to include("`CHAT-<id>` is the canonical reference format for a chat")
-    expect(out).to match(/session \(its `chat_session_id`\), autolinked by the chat UI the\s+same way `JOB-<id>`\/`EPIC-<id>` are\./)
+    expect(out).to match(/session \(its `chat_session_id`\), autolinked by the chat UI the\s+same way `JOB-<id>`\/`EPIC-<id>`\/`WF-<id>` are\./)
     expect(out).to match(/Recognize it when the\s+operator uses it/)
-  end
-
-  it "instructs chat to use canonical Workflow reference formats" do
-    out = described_class.new(repository: repo).to_s
-
-    expect(out).to include("`WF-<id>` is the canonical reference format for a Workflow")
-    expect(out).to include("navigation, copying, and its step preview")
   end
 
   it "instructs chat to resolve a specific chat id directly instead of guessing search_chats keywords" do
