@@ -85,10 +85,10 @@ module Api
 
         def review_context
           coworker = Coworkers::Coworker.find(params[:id])
-          context = Coworkers::ReviewContext.find_by!(coworker:, run_id: params[:run_id])
           unless Current.user.admin? || coworker.owner_user_id == Current.user.id
             return head :forbidden
           end
+          context = Coworkers::ReviewContext.find_by!(coworker:, run_id: params[:run_id])
           AdminAction.log!(user: Current.user, action: "coworker_review_context_read",
             params: { "coworker_id" => coworker.id, "run_id" => context.run_id })
           render json: { run_id: context.run_id, manifest: context.manifest, exact_context: context.exact_context,
