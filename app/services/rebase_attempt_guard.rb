@@ -90,8 +90,33 @@ class RebaseAttemptGuard
   end
   private_class_method :latest_failed_agent_rebase_run
 
+  # Mergeable states that AutoMergeGate routes to `needs_rebase`, and that
+  # AutoMergeControl therefore fails once the attempt cap is reached.
+  REBASE_NEEDING_MERGEABLE_STATES = %w[ behind dirty ].freeze
+
+  # A PR that needs a rebase is not always unmergeable. GitHub reports
+  # `mergeable: true` for one that is merely `behind` its base, and `false`
+  # only for a `dirty` one with conflicts. Gating on `pr_mergeable == false`
+  # therefore blocked the conflict case and ignored the behind-the-base case,
+  # even though AutoMergeGate routes both to `needs_rebase` and
+  # AutoMergeControl raises on both once the cap is reached.
+  #
+  # The two sides then disagreed: the step failed the landing every time
+  # while the queue saw nothing blocking and immediately selected the Job
+  # again. One Job produced a failed auto_merge workflow every ten seconds
+  # until landing was paused by hand.
+  # The cheap column check stays first: cap_reached? scans this Job's recent
+  # rebase workflows, and the landing queue asks this of every entry on every
+  # pass.
   def self.blocking_landing?(job)
-    job.pr_mergeable == false && cap_reached?(job)
+    return false unless rebase_needed?(job)
+
+    cap_reached?(job)
+  end
+
+  def self.rebase_needed?(job)
+    job.pr_mergeable == false ||
+      REBASE_NEEDING_MERGEABLE_STATES.include?(job.github_mergeable_state.to_s)
   end
 
   def self.consecutive_failures(job, pr: nil)

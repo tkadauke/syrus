@@ -317,4 +317,44 @@ RSpec.describe RebaseAttemptGuard do
 
     expect(described_class.cap_reached?(job)).to be(true)
   end
+  describe ".blocking_landing?" do
+    before { RebaseAttemptGuard::ATTEMPT_CAP.times { failed_rebase! } }
+
+    # The regression. GitHub reports `mergeable: true` for a PR that is only
+    # behind its base, so gating on `pr_mergeable == false` left the cap
+    # unenforced for exactly the case AutoMergeControl fails on. The queue
+    # kept selecting the Job while the step kept raising, producing a failed
+    # auto_merge workflow every ten seconds.
+    it "blocks a mergeable PR that is behind its base" do
+      job.update_columns(pr_mergeable: true, github_mergeable_state: "behind")
+
+      expect(described_class).to be_blocking_landing(job.reload)
+    end
+
+    it "still blocks a conflicted PR" do
+      job.update_columns(pr_mergeable: false, github_mergeable_state: "dirty")
+
+      expect(described_class).to be_blocking_landing(job.reload)
+    end
+
+    # Both are states AutoMergeGate routes to needs_rebase, so both have to
+    # agree with the step that fails on them.
+    it "covers every mergeable state that routes to needs_rebase" do
+      expect(described_class::REBASE_NEEDING_MERGEABLE_STATES).to match_array(%w[behind dirty])
+    end
+
+    it "does not block a PR that needs no rebase" do
+      job.update_columns(pr_mergeable: true, github_mergeable_state: "unstable")
+
+      expect(described_class).not_to be_blocking_landing(job.reload)
+    end
+
+    it "does not block before the cap is reached" do
+      other = Factories.job
+      other.update_columns(pr_mergeable: true, github_mergeable_state: "behind")
+
+      expect(described_class).not_to be_blocking_landing(other.reload)
+    end
+  end
+
 end
