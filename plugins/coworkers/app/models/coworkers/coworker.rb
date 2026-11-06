@@ -64,6 +64,12 @@ class Coworkers::Coworker < ApplicationRecord
   end
 
   def permission_rules = Coworkers::PermissionRules.new(self)
+  def prepare_review_context!(run:, evidence:, criteria:) = Coworkers::ReviewMemoryLifecycle.prepare!(coworker: self, run:, evidence:, criteria:)
+  def review_context_prompt(context) = Coworkers::ReviewMemoryLifecycle.prompt_section(context)
+  def review_context_for(run) = Coworkers::ReviewContext.find_by(run:, coworker: self)
+  def review_context_manifest(run) = review_context_for(run)&.manifest
+  def update_review_memory!(run:, path:, content:) = Coworkers::ReviewMemoryLifecycle.update!(coworker: self, run:, path:, content:)
+  def finalize_review_memory!(run:, key_learning:, verdict:) = Coworkers::ReviewMemoryLifecycle.persist!(coworker: self, run:, key_learning:, verdict:)
 
   private
 

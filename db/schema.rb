@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_05_130253) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_06_105035) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -1150,6 +1150,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_05_130253) do
     t.index ["owner_user_id", "idempotency_key"], name: "idx_coworker_provisioning_attempts_idempotency", unique: true
     t.index ["owner_user_id"], name: "index_coworker_provisioning_attempts_on_owner_user_id"
     t.index ["state", "updated_at"], name: "idx_coworker_provisioning_attempts_reconciliation"
+  end
+
+  create_table "coworker_review_contexts", force: :cascade do |t|
+    t.integer "run_id", null: false
+    t.integer "review_evidence_id", null: false
+    t.integer "coworker_id"
+    t.json "manifest"
+    t.text "exact_context"
+    t.string "workspace_path"
+    t.string "persistence_state", default: "prepared", null: false
+    t.string "persisted_commit_sha"
+    t.string "persistence_error_code"
+    t.json "persistence_error_details"
+    t.datetime "persisted_at"
+    t.datetime "tombstoned_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["review_evidence_id"], name: "index_coworker_review_contexts_on_review_evidence_id", unique: true
+    t.index ["run_id"], name: "index_coworker_review_contexts_on_run_id", unique: true
   end
 
   create_table "coworker_workspace_conflicts", force: :cascade do |t|

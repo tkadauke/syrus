@@ -2224,6 +2224,18 @@ Large code searches and file listings report incomplete coverage, its cause,
 and the number of paths covered instead of presenting an empty partial result
 as a definitive no-match. The agent and operator-facing tool card both advise
 narrowing the path or retrying.
+
+When provider routing selects a named coworker for repository review, Syrus
+freezes a protected context containing only that identity, applicable
+repository criteria, and the published repository memories actually shown to
+the reviewer. Safe hashes and revisions remain with normal review evidence;
+the exact text is encrypted and restricted to audited owner/admin access. The
+review reads the normal workflow checkout while memory updates go through a
+separate isolated checkout with access limited to curated `memory/*.md` files.
+Every verdict writes a SHA-bound review journal entry and must persist that
+checkout before the Step can succeed. Concurrent panel reviewers stay isolated,
+home-branch updates rebase deterministically, and retrying one Run does not
+duplicate its journal or verdict.
 Coworkers can start a direct exchange with `message_coworker`. An incoming
 coworker message automatically sends the receiving coworker's final answer
 back to its author, carrying the original turn through a maximum of three

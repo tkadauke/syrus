@@ -46,11 +46,31 @@ retry after partial completion cannot duplicate either a success or failure
 card. The card also reports whether workspace changes merged, conflicted, or
 were unavailable. Background Git operations use a short timeout so delivery
 cannot spend multiple default Git timeout windows finalizing the workspace.
-Workspace changes merge into the home branch through
-the same retrying merge path as chat turns; conflicts preserve the run branch
-and appear in the main chat for resolution. Failed scheduled runs post the same
-kind of block, count toward consecutive-failure auto-pause, and close their
-infrastructure Jobs so completed attempts do not accumulate.
+Workspace changes merge into the home branch through the same retrying merge
+path as chat turns; conflicts preserve the run branch and appear in the main
+chat for resolution. Failed scheduled runs post the same kind of block, count
+toward consecutive-failure auto-pause, and close their infrastructure Jobs so
+completed attempts do not accumulate.
+
+## Protected repository-review memory
+
+Named coworker review Runs use the normal read-only workflow checkout for the
+repository under review and a separate checkout of that coworker's home branch
+for durable learning. The reviewer receives only its identity, applicable
+repository criteria, and published repository-scoped memories selected for the
+Run. Normal evidence stores hashes, revisions, and byte counts; the exact
+selected text is encrypted and is available only through the audited
+owner/admin restricted-evidence endpoint.
+
+The reviewer can update only `memory/*.md` through its dedicated memory tool.
+Submitting a verdict also writes a deterministic `reviews/journal/run-<id>.md`
+entry with the reviewed revision and evidence reference, then rebases and
+pushes the isolated checkout. The Run cannot succeed until that push succeeds.
+Repeated submission for the same Run reuses its journal and verdict rather
+than duplicating either. Failed persistence retains the isolated checkout and
+reports `coworker_memory_persistence_failed` for recovery. Tombstoning removes
+the encrypted text and checkout pointer while retaining the safe manifest and
+lineage, matching the evidence retention lifecycle.
 
 Background runs use the same unified permission policy as interactive turns.
 They never receive the interactive-only tool surface. Operations whose effective
