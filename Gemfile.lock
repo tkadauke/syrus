@@ -643,7 +643,7 @@ GEM
       openssl (> 2.0)
     ostruct (0.6.3)
     parallel (2.3.0)
-    parallel_tests (5.8.0)
+    parallel_tests (5.9.0)
       parallel
     parser (3.3.13.0)
       ast (~> 2.4.1)
@@ -951,7 +951,7 @@ DEPENDENCIES
   mysql_db_browser!
   octokit (~> 10.0)
   operator_briefing!
-  parallel_tests (~> 5.8)
+  parallel_tests (~> 5.9)
   pdf-reader
   plugin_runtime!
   propshaft
@@ -1170,7 +1170,7 @@ CHECKSUMS
   operator_briefing (0.1.0)
   ostruct (0.6.3) sha256=95a2ed4a4bd1d190784e666b47b2d3f078e4a9efda2fccf18f84ddc6538ed912
   parallel (2.3.0) sha256=f75a3e904101ce6a1ccb6b8dc800cbafd42166d83330192438dcf29395167a6f
-  parallel_tests (5.8.0) sha256=181898cbee2ffb1c796274ce31d27f792a421324609bfc7e9b5531d929d91eda
+  parallel_tests (5.9.0) sha256=593169873cfeefe54f233103238cb3b078320e6eac0155d0f1107b39233f98f8
   parser (3.3.13.0) sha256=e02f9b63c2fe05b0c68f692ba4df89b3cb113b663964f75d988fbebfd6c3deca
   pdf-reader (2.16.0) sha256=bf1b5564c085264d8279bde3cf1467778b75841494d20c0fe7da3dad475f3732
   plugin_runtime (0.1.0)
