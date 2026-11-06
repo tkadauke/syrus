@@ -34,7 +34,7 @@ module Steps
 
       workspace.setup
       capture_review_evidence!
-      run.update!(prompt: reviewer_prompt) if run.prompt.blank?
+      run.update!(prompt: materialize_reviewer_prompt) if run.prompt.blank?
 
       before_count = review_iterations.size
       log("invoking agent for #{review_step_kind} step (#{workflow.slug}, step ##{step.id}, iteration #{step.iteration})")
@@ -78,6 +78,7 @@ module Steps
           evidence: { review_evidence_id: evidence.id, state: evidence.state }
         )
       end
+      verify_reviewer_side_effects!
     rescue StandardError => e
       raise unless skippable_review_failure?(e)
 
@@ -93,6 +94,9 @@ module Steps
     end
 
     private
+
+    def materialize_reviewer_prompt = reviewer_prompt
+    def verify_reviewer_side_effects! = nil
 
     def parent_session_id
       return nil if agent_resume_disabled?
