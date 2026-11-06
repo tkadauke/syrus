@@ -196,7 +196,7 @@ group :test do
   # for the suite's per-example overhead before this gem was added.
   gem "stackprof", require: false
 
-  gem "parallel_tests", "~> 5.8", require: false
+  gem "parallel_tests", "~> 5.9", require: false
 
   # JUnit XML formatter — feeds the rspec grader's junit_output ingestion
   # (Steps::Grader#ingest_test_output!) so TestRun/TestCase rows record
