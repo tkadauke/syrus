@@ -798,7 +798,7 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     expect(@git).to receive(:run)
       .with("push", "file://remote", /\Aabc123:refs\/syrus\/source-snapshots\/runs\/\d+\z/, chdir: anything, env: { "GIT_TERMINAL_PROMPT" => "0" })
       .ordered
-      .and_raise(GitRunner::GitError.new([ "push" ], 128, "connection lost"))
+      .and_raise(GitRunner::GitError.new([ "push" ], 128, "authentication failed"))
     expect(@git).to receive(:run)
       .with("push", "file://remote", /\Aabc123:refs\/syrus\/source-snapshots\/runs\/\d+\z/, chdir: anything, env: { "GIT_TERMINAL_PROMPT" => "0" })
       .ordered
