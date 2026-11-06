@@ -217,7 +217,7 @@ class McpToolRegistry
         legacy_chat(Mcp::Tools::ProposeEpicWithJobsTool, mutation: true),
         legacy_chat(Mcp::Tools::ListProposalsTool),
         legacy_chat(Mcp::Tools::DeleteProposalTool, mutation: true),
-        legacy_chat(Mcp::Tools::WithdrawPendingActionTool, mutation: true),
+        legacy_chat(Mcp::Tools::WithdrawPendingActionTool, mutation: true, default_policy: :allow),
         permission_management_chat(Mcp::Tools::ListPermissionsTool),
         permission_management_chat(Mcp::Tools::RequestPermissionTool, mutation: true, ungated: true),
         permission_management_chat(Mcp::Tools::ExplainPermissionTool),
@@ -247,14 +247,14 @@ class McpToolRegistry
         lifecycle_chat(Mcp::Tools::BaseRefreshRetryJobTool, mutation: true),
         legacy_chat(Mcp::Tools::SetJobPriorityTool, mutation: true),
         legacy_chat(Mcp::Tools::RepoInfoTool),
-        legacy_chat(Mcp::Tools::SubmitChatFeedbackTool, mutation: true),
-        legacy_chat(Mcp::Tools::RenameChatTool, mutation: true),
-        legacy_chat(Mcp::Tools::PinChatTool, mutation: true),
-        legacy_chat(Mcp::Tools::UnpinChatTool, mutation: true),
+        legacy_chat(Mcp::Tools::SubmitChatFeedbackTool, mutation: true, default_policy: :allow),
+        legacy_chat(Mcp::Tools::RenameChatTool, mutation: true, default_policy: :allow),
+        legacy_chat(Mcp::Tools::PinChatTool, mutation: true, default_policy: :allow),
+        legacy_chat(Mcp::Tools::UnpinChatTool, mutation: true, default_policy: :allow),
         legacy_chat(Mcp::Tools::SuggestNextStepTool, mutation: true, default_policy: :allow),
-        legacy_chat(Mcp::Tools::AskUserQuestionTool, mutation: true),
-        legacy_chat(Mcp::Tools::MarkGoalCompletedTool, mutation: true),
-        legacy_chat(Mcp::Tools::MarkGoalBlockedTool, mutation: true),
+        legacy_chat(Mcp::Tools::AskUserQuestionTool, mutation: true, default_policy: :allow),
+        legacy_chat(Mcp::Tools::MarkGoalCompletedTool, mutation: true, default_policy: :allow),
+        legacy_chat(Mcp::Tools::MarkGoalBlockedTool, mutation: true, default_policy: :allow),
         legacy_chat(Mcp::Tools::ResetWorkspaceTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
         legacy_chat(Mcp::Tools::CancelCodingCheckoutTool, feature_flag: :coding_mode, required_roles: [ AgentRole::CHAT_CODING ], mutation: true),
         legacy_chat(Mcp::Tools::CompleteImplementStepTool,
@@ -343,8 +343,8 @@ class McpToolRegistry
         legacy_chat(Mcp::Tools::OpenInLocalModeTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ], mutation: true),
         legacy_chat(Mcp::Tools::CancelLocalModeTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ], mutation: true),
         lifecycle_chat(Mcp::Tools::CreateCodingJobTool, feature_flag: :local_mode, required_roles: [ AgentRole::CHAT_LOCAL ], mutation: true),
-        legacy_chat(Mcp::Tools::UpdatePinnedContextTool, tier: :deferred, mutation: true),
-        legacy_chat(Mcp::Tools::RemovePinnedContextTool, tier: :deferred, mutation: true),
+        legacy_chat(Mcp::Tools::UpdatePinnedContextTool, tier: :deferred, mutation: true, default_policy: :allow),
+        legacy_chat(Mcp::Tools::RemovePinnedContextTool, tier: :deferred, mutation: true, default_policy: :allow),
         legacy_chat(Mcp::Tools::ListChatsTool, tier: :deferred),
         legacy_chat(Mcp::Tools::ListRepositoriesTool, tier: :deferred),
         ingestion_chat(Mcp::Tools::GetJobDiffTool, tier: :deferred),
@@ -613,12 +613,19 @@ class McpToolRegistry
       chat(tool, **metadata, descriptor:)
     end
 
+    # `ungated` is read by Mcp::CoworkerToolCatalog but was never consulted on
+    # the chat surface, so request_permission -- registered ungated -- still
+    # inherited `mutation ? :ask`. An agent then needed approval in order to
+    # ask for approval, which is not a gate anyone can pass. Honouring the
+    # flag here makes it mean on this surface what it already means on the
+    # other one.
     def permission_management_chat(tool, mutation: false, ungated: false)
       descriptor = Permissions::CapabilityDescriptorAdapter.for_registry_entry(
         tool_name: tool_name_for(tool),
         capability: "syrus.permissions",
         mutation: mutation,
-        required_roles: AgentRole::CHAT_ROLES
+        required_roles: AgentRole::CHAT_ROLES,
+        default_policy: (:allow if ungated)
       )
       chat(tool, tier: :deferred, mutation:, ungated:, descriptor:)
     end

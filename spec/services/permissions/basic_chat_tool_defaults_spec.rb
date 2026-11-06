@@ -24,6 +24,47 @@ RSpec.describe "defaults for basic chat tools" do
     end
   end
 
+  # Circular gates. An agent needed the operator's approval in order to ask
+  # the operator a question, or to request a permission -- a gate nobody can
+  # pass, since passing it is the thing being gated. Both are allowed on the
+  # coworker surface, so the same tool behaved differently depending on which
+  # agent asked.
+  {
+    "ask_user_question" => "asking the operator a question",
+    "request_permission" => "requesting a permission"
+  }.each do |tool, why|
+    it "does not gate #{why}" do
+      expect(chat_defaults(tool)).to eq([ :allow ])
+    end
+  end
+
+  # Chat-local state: reversible, confined to the chat the operator is in,
+  # touching no repository, external service or other user. These were never
+  # chosen as ask; the blanket mutation rule picked it for them.
+  %w[
+    pin_chat unpin_chat rename_chat update_pinned_context remove_pinned_context
+    submit_chat_feedback withdraw_pending_action mark_goal_completed mark_goal_blocked
+  ].each do |tool|
+    it "allows #{tool}, which only changes the operator's own chat" do
+      expect(chat_defaults(tool)).to eq([ :allow ])
+    end
+  end
+
+  # `ungated` is read by the coworker catalog and was ignored on the chat
+  # surface, which is how request_permission ended up gated despite being
+  # registered ungated.
+  it "honours the ungated flag on the chat surface" do
+    entry = McpToolRegistry.entries(surface: :chat).find { |e| McpToolRegistry.tool_name_for(e.tool).to_s == "request_permission" }
+
+    expect(entry.ungated).to be true
+    expect((entry.descriptor.defaults || {}).values.uniq).to eq([ :allow ])
+  end
+
+  # Authority changes that are not ungated keep asking.
+  it "still asks before revoking a permission" do
+    expect(chat_defaults("revoke_permission")).to eq([ :ask ])
+  end
+
   # The pairs that made the inconsistency obvious: each of these was already
   # allowed while its sibling asked.
   it "matches each tool to the sibling it was inconsistent with" do
