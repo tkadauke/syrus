@@ -143,12 +143,23 @@ module Mcp
         McpToolPolicy.for(context).map { |tool| authorize_tool(tool) } +
           plugin_tools_for(chat_session, tier: :evaluator, policy: :evaluator, agent_actor:)
       else
-        registry_tier = tier.to_s == "all" ? :essential : tier
+        # `:all` means every tier. It resolved to `:essential`, which silently
+        # dropped the deferred tools -- so a deferred tool could be offered,
+        # called and approved, but never replayed: the pending-action executor
+        # rebuilds the callable through this path and raised "tool is no
+        # longer available to this actor" when it could not find it. A nil
+        # tier matches every tier in the registry.
+        all_tiers = tier.to_s == "all"
+        registry_tier = all_tiers ? nil : tier
         surface = context.role == AgentRole::COWORKER_CHAT ? :coworker : :chat
         allowed = McpToolRegistry.tools_for_context(context, surface: surface, tier: registry_tier)
         tools = allowed.map { |tool| authorize_tool(tool) }
-        tools << authorize_tool(Tools::ExplainStuckJobTool) if tier.to_s == "all" && !tools.include?(Tools::ExplainStuckJobTool)
-        tools + plugin_tools_for(chat_session, tier: registry_tier, policy: surface, agent_actor:)
+        tools << authorize_tool(Tools::ExplainStuckJobTool) if all_tiers && !tools.include?(Tools::ExplainStuckJobTool)
+        # Plugins are asked tier by tier rather than with a nil tier, because
+        # `available_for?` is a plugin contract that has only ever been handed
+        # a concrete tier.
+        plugin_tiers = all_tiers ? %i[essential deferred] : [ registry_tier ]
+        tools + plugin_tiers.flat_map { |t| plugin_tools_for(chat_session, tier: t, policy: surface, agent_actor:) }.uniq
       end
     end
 

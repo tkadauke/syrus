@@ -12,16 +12,24 @@ RSpec.describe Permissions::IngestionActions do
     end
   end
 
-  it "asks before ingesting, reading confidential records, and binding a repository" do
-    %w[ingest_pull_request read_artifact read_run_transcript get_job_diff read_chat_messages attach_repository].each do |name|
+  it "asks before ingesting and reading confidential records" do
+    %w[ingest_pull_request read_artifact read_run_transcript get_job_diff].each do |name|
       expect(described_class.descriptor_for(name).defaults.values.uniq).to eq([ :ask ])
     end
     expect(described_class.descriptor_for("read_run_transcript").classify({})[:effects]).to include(:confidential_read)
     expect(described_class.descriptor_for("ingest_pull_request").classify({})[:effects]).to include(:network_read, :internal_write)
   end
 
+  # read_chat_messages and attach_repository moved here from the ask list.
+  # Each sat opposite a sibling that was already allowed -- search_chats could
+  # search every chat while read_chat_messages could not open one, and
+  # detach_repository was automatic while attach_repository was not -- and the
+  # prompts stopped ordinary work in the operator's own chat. The access
+  # boundary is enforced regardless: the tool resolves its target through
+  # current_user.accessible_chat_sessions.
   it "keeps plain observation and narrowing automatic" do
-    %w[read_pr list_open_issues list_open_prs list_chat_media search_chats detach_repository].each do |name|
+    %w[read_pr list_open_issues list_open_prs list_chat_media search_chats detach_repository
+       read_chat_messages attach_repository].each do |name|
       expect(described_class.descriptor_for(name).defaults.values.uniq).to eq([ :allow ])
     end
   end

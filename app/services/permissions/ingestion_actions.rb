@@ -49,9 +49,18 @@ module Permissions
       "read_artifact" => Operation.new(ATTACHMENTS, "read_artifact", %i[confidential_read], :medium, :ask, :chat_session, SESSION, INTERNAL, :none),
       "read_run_transcript" => Operation.new(CONFIDENTIAL_READS, "read_run_transcript", %i[confidential_read], :medium, :ask, :chat_session, SESSION, INTERNAL, :none),
       "get_job_diff" => Operation.new(CONFIDENTIAL_READS, "read_job_diff", %i[confidential_read], :medium, :ask, :chat_session, SESSION, INTERNAL, :none),
-      "read_chat_messages" => Operation.new(CONFIDENTIAL_READS, "read_chat_messages", %i[confidential_read], :medium, :ask, :chat_session, SESSION, INTERNAL, :none),
+      # Allowed, like its sibling search_chats: the tool resolves the target
+      # through current_user.accessible_chat_sessions, so the confidentiality
+      # boundary is enforced before the read happens and the prompt confirmed
+      # an access check that had already passed. Asking here meant an agent
+      # could search every chat without interruption but not open one.
+      "read_chat_messages" => Operation.new(CONFIDENTIAL_READS, "read_chat_messages", %i[confidential_read], :medium, :allow, :chat_session, SESSION, INTERNAL, :none),
       "search_chats" => Operation.new(CONFIDENTIAL_READS, "search_chats", %i[confidential_read], :low, :allow, :permanent, ANY_DURATION, INTERNAL, :none),
-      "attach_repository" => Operation.new(RESOURCE_BINDINGS, "attach_repository", %i[internal_write], :medium, :ask, :chat_session, SESSION, INTERNAL, :repository),
+      # Allowed, like detach_repository below and like the coworker surface,
+      # which has always allowed it. Binding a repository the owner can
+      # already see to their own chat is how work starts; gating it stopped
+      # the agent before it could read anything at all.
+      "attach_repository" => Operation.new(RESOURCE_BINDINGS, "attach_repository", %i[internal_write], :medium, :allow, :chat_session, SESSION, INTERNAL, :repository),
       "detach_repository" => Operation.new(RESOURCE_BINDINGS, "detach_repository", %i[internal_write], :low, :allow, :permanent, ANY_DURATION, INTERNAL, :none)
     }.freeze
 
