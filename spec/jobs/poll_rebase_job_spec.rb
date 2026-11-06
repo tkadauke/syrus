@@ -58,6 +58,28 @@ RSpec.describe PollRebaseJob, :ci_only do
       )
     end
 
+    it "retries only mergeability persistence and dispatches one rebase" do
+      resource = pr_resource(mergeable: false)
+      attempts = 0
+      stub_pr(resource)
+      allow(PollingPersistenceRetry).to receive(:sleep)
+      allow_any_instance_of(Job).to receive(:update!).and_wrap_original do |original, *args|
+        next original.call(*args) unless original.receiver.id == job.id
+
+        attempts += 1
+        raise ActiveRecord::LockWaitTimeout, "lock wait timed out" if attempts == 1
+
+        original.call(*args)
+      end
+      expect_any_instance_of(GithubClient).to receive(:pull_request).once.and_return(resource)
+
+      expect {
+        described_class.perform_now(job.id)
+      }.to change { job.workflows.where(trigger_kind: "rebase").count }.by(1)
+
+      expect(attempts).to eq(2)
+    end
+
     it "stores the live PR base on the rebase workflow" do
       stub_pr(pr_resource(mergeable: false, base_ref: "syrus/parent", base_sha: "parent-sha"))
 
