@@ -168,6 +168,35 @@ RSpec.describe ChatMessageSearchIndex do
     expect(results.map { |row| row[:chat_message_id] }).to eq([ other_message.id ])
   end
 
+  it "merges ranked session matches across authorization batches" do
+    now = Time.current
+    rows = 501.times.map do |index|
+      {
+        user_id: user.id,
+        title: "Batch chat #{index}",
+        chat_provider: session.chat_provider,
+        artifacts: {},
+        created_at: now,
+        updated_at: now
+      }
+    end
+    inserted = ChatSession.insert_all!(rows, returning: %w[id])
+    session_ids = inserted.rows.flatten.map(&:to_i)
+    first_batch_chat = ChatSession.find(session_ids.first)
+    second_batch_chat = ChatSession.find(session_ids.last)
+    weaker = ChatMessage.create!(chat_session: first_batch_chat, role: "assistant", content: { "text" => "batchneedle result" })
+    stronger = ChatMessage.create!(chat_session: second_batch_chat, role: "assistant", content: { "text" => "batchneedle batchneedle batchneedle result" })
+    unauthorized = ChatMessage.create!(chat_session: other_session, role: "assistant", content: { "text" => "batchneedle batchneedle private" })
+    [ weaker, stronger, unauthorized ].each { |message| described_class.insert(message) }
+    authorized_scope = ChatSession.where(id: session_ids).select(:id)
+
+    first_page = described_class.matching_chat_session_page("batchneedle", chat_session_ids: authorized_scope, limit: 1, offset: 0)
+    second_page = described_class.matching_chat_session_page("batchneedle", chat_session_ids: authorized_scope, limit: 1, offset: 1)
+
+    expect(first_page).to eq(chat_session_ids: [ second_batch_chat.id ], total: 2)
+    expect(second_page).to eq(chat_session_ids: [ first_batch_chat.id ], total: 2)
+  end
+
   it "returns no results without an explicit chat-session scope" do
     message = ChatMessage.create!(
       chat_session: session,
