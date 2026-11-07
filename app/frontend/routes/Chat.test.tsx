@@ -7807,9 +7807,62 @@ describe("chat agent roster", () => {
   })
 })
 
-function renderRoute(initialEntry = "/app-shell/chats/8") {
+describe("open chat read tracking", () => {
+  it("marks the chat read again after its last message changes", async () => {
+    const focus = vi.spyOn(document, "hasFocus").mockReturnValue(true)
+    const payload = chatPayload({ chat: { last_message_at: "2026-11-06T10:00:00Z" } })
+    const markReadRequests: string[] = []
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path.endsWith("/mark_read") && init?.method === "PATCH") {
+        markReadRequests.push(path)
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      return Promise.resolve(jsonResponse(payload))
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    renderRoute("/app-shell/chats/8", queryClient)
+
+    await screen.findByText("Discuss aqueducts.")
+    await waitFor(() => expect(markReadRequests).toHaveLength(1))
+    act(() => {
+      queryClient.setQueryData<ChatPayload>(chatQueryKey("8", ""), (current) =>
+        current ? { ...current, chat: { ...current.chat, last_message_at: "2026-11-06T10:01:00Z" } } : current
+      )
+    })
+
+    await waitFor(() => expect(markReadRequests).toHaveLength(2))
+    focus.mockRestore()
+  })
+
+  it("refetches and retries when marking the open chat read fails", async () => {
+    const focus = vi.spyOn(document, "hasFocus").mockReturnValue(true)
+    const payload = chatPayload({ chat: { last_message_at: "2026-11-06T10:00:00Z" } })
+    let markReadRequests = 0
+    let chatFetches = 0
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path.endsWith("/mark_read") && init?.method === "PATCH") {
+        markReadRequests += 1
+        return Promise.resolve(new Response(null, { status: markReadRequests === 1 ? 503 : 204 }))
+      }
+      chatFetches += 1
+      return Promise.resolve(jsonResponse(payload))
+    })
+
+    renderRoute()
+
+    await screen.findByText("Discuss aqueducts.")
+    await waitFor(() => expect(markReadRequests).toBe(2), { timeout: 3_000 })
+    expect(chatFetches).toBeGreaterThanOrEqual(2)
+    focus.mockRestore()
+  })
+})
+
+function renderRoute(initialEntry = "/app-shell/chats/8", queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route element={<ChatRoute />} path="/app-shell/chats/:id" />

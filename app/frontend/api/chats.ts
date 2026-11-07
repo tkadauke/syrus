@@ -55,6 +55,7 @@ export type ChatRecord = {
   agent_activity?: ChatAgentActivity | null
   turn_retry_state?: ChatTurnRetryState | null
   stop_requested_at: string | null
+  last_message_at?: string | null
   suggested_next_step?: string | null
   cumulative_input_tokens: number
   cumulative_output_tokens: number

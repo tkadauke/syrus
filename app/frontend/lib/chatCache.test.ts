@@ -1,4 +1,4 @@
-import { QueryClient } from "@tanstack/react-query"
+import { QueryClient, QueryObserver } from "@tanstack/react-query"
 import { describe, expect, it, vi } from "vitest"
 import { mergeChatPayloadUpdate, recentChatsQueryKey, updateChatUnread, updateRecentChatCache } from "./chatCache"
 import { updateRecentChatMessageStateCache } from "./chatRecentCache"
@@ -325,6 +325,25 @@ describe("updateChatUnread", () => {
       [2, "2026-06-25T11:00:00Z", true]
     ])
     expect(updated?.groups[1].chats).toEqual([])
+  })
+
+  it("does not let a sidebar broadcast re-mark the visible open chat unread", () => {
+    const queryClient = new QueryClient()
+    const key = recentChatsQueryKey({ group_by: "status" })
+    queryClient.setQueryData(key, {
+      repositories: [],
+      groups: [statusGroup("status-active", { chats: [chatRecord({ id: 1, title: "Open chat", lastMessageAt: "2026-06-25T10:00:00Z" })] })]
+    })
+    const focus = vi.spyOn(document, "hasFocus").mockReturnValue(true)
+    const observer = new QueryObserver(queryClient, { queryKey: ["chats", "1"], queryFn: () => ({}) })
+    const unsubscribe = observer.subscribe(() => undefined)
+
+    updateRecentChatMessageStateCache(queryClient, 1, { turn_in_flight: false, agent_busy: false, last_message_at: "2026-06-25T12:00:00Z", unread: true })
+
+    const updated = queryClient.getQueryData<ChatsIndexPayload>(key)
+    expect(updated?.groups[0].chats[0]).toMatchObject({ last_message_at: "2026-06-25T12:00:00Z", unread: false })
+    unsubscribe()
+    focus.mockRestore()
   })
 })
 

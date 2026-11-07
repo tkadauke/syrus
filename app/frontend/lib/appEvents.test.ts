@@ -472,6 +472,7 @@ describe("applyAppEvent", () => {
         turn_in_flight: false,
         agent_busy: true,
         stop_requested_at: "2026-05-30T12:00:00Z",
+        last_message_at: "2026-05-30T12:01:00Z",
         messages: [
           message(3, "tool_use", "read b again", { tool_name: "Read", content: { input: { file_path: "b.rb" } } }),
           message(4, "tool_result", "b result", { tool_name: "Read", content: { result: [{ type: "text", text: "b" }] } }),
@@ -485,6 +486,7 @@ describe("applyAppEvent", () => {
     expect(updated?.turn_in_flight).toBe(false)
     expect(updated?.agent_busy).toBe(true)
     expect(updated?.chat.stop_requested_at).toBe("2026-05-30T12:00:00Z")
+    expect(updated?.chat.last_message_at).toBe("2026-05-30T12:01:00Z")
     expect(updated?.messages).toEqual([
       message(1, "user", "old"),
       message(2, "tool_use", "read a", { tool_name: "Read", content: { input: { file_path: "a.rb" } } }),

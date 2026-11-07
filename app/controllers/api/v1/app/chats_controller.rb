@@ -532,16 +532,24 @@ module Api
         end
 
         def mark_read
-          current_participant_for(find_chat_session)&.update_columns(last_read_at: Time.current)
+          update_chat_read_at(find_chat_session, Time.current)
 
           head :no_content
         end
 
         def mark_unread
-          current_participant_for(find_chat_session)&.update_columns(last_read_at: nil)
+          update_chat_read_at(find_chat_session, nil)
 
           head :no_content
         end
+
+        def update_chat_read_at(chat_session, timestamp)
+          participant = current_participant_for(chat_session) || chat_session.chat_participants.find_or_create_by!(user: Current.user) do |new_participant|
+            new_participant.role = chat_session.user_id == Current.user.id ? "owner" : "member"
+          end
+          participant.update_columns(last_read_at: timestamp)
+        end
+        private :update_chat_read_at
 
         def hide
           chat_session = find_chat_session
@@ -2061,6 +2069,7 @@ module Api
             agent_busy: agent_busy.nil? ? chat_session.agent_busy? : agent_busy,
             turn_retry_state: turn_retry_state.nil? ? ::App::ChatTurnRetryState.for(chat_session) : turn_retry_state,
             stop_requested_at: chat_session.stop_requested_at&.iso8601,
+            last_message_at: chat_session.last_message_at&.iso8601,
             active_goal: PerformanceLogging.phase("chat_json.active_goal", chat_id: chat_session.id) { chat_goal_json(chat_session.active_goal) },
             suggested_next_step: chat_session.suggested_next_step,
             cumulative_input_tokens: chat_session.cumulative_input_tokens.to_i,
