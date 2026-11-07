@@ -27,7 +27,9 @@ File attachments live one level down, on `PreviewPanelVersion` (`belongs_to
 :preview_panel`, `has_many_attached :files`, ordered newest-first by
 default) — one row per published revision, following the same append-only
 pattern as `WhiteboardSnapshot`. Each version stores its selected
-`entry_file`, defaulting to `index.html` for old and HTML-first panels.
+`entry_file`, a `file_count`, and the derived `entry_viewer_kind`, defaulting
+to `index.html` for old and HTML-first panels. The stored summary keeps chat
+polling and mockup listings from loading attachments just to render metadata.
 `PreviewPanel#current_version` is the first (newest) row;
 `PreviewPanel#file_for(relative_path, version: nil)` resolves a file within a
 version, defaulting to the current one. A blank/root path resolves to the
@@ -50,6 +52,11 @@ pruning job. `PreviewPanel::Service` is the sole sanctioned mutation path:
 Every mutation broadcasts an `AppUserChannel` app event
 (`resource: "chat"`, `changed: ["preview_panels"]`) so the chat sidebar
 updates live.
+
+Panel payloads include only the current version summary by default. The
+standalone panel endpoint accepts `?include=versions` when the version picker
+needs the complete history. Export archives are cached by immutable version id,
+so repeated downloads do not rebuild the same zip in memory.
 
 ## Routing: `PreviewProxyMiddleware`
 

@@ -618,7 +618,7 @@ export function PreviewPanelFrame({
   const [selectedVersionId, setSelectedVersionId] = useState(panel.current_version_id)
   const lastCurrentVersionId = useRef(panel.current_version_id)
   const historyQuery = useQuery({
-    queryKey: ["preview_panel_versions", panel.id],
+    queryKey: ["preview_panel_versions", panel.id, panel.current_version_id],
     queryFn: async () => (await fetchPreviewPanelHistory(panel.id)) ?? panel,
     staleTime: Infinity
   })
