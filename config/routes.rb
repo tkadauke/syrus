@@ -222,6 +222,10 @@ Rails.application.routes.draw do
         get "epics", to: "epics#index"
         get "epics/graph", to: "epics#graph"
         get "epics/new", to: "epics#new"
+        get "epics/:id/preview", to: "epics#preview", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        get "epics/:id/history", to: "epics#history", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        get "epics/:id/dependencies", to: "epics#dependency_detail", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        get "epics/:id/provider_availability", to: "epics#provider_availability", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "epics/:id", to: "epics#show", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "epics/:id/edit", to: "epics#edit", constraints: { id: /[a-zA-Z0-9_-]+/ }
         post "epics", to: "epics#create"
