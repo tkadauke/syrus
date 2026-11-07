@@ -108,6 +108,7 @@
   "chat_view_pipeline": "Pipeline videre",
   "history_loading": "Historia oneratur…",
   "history_empty": "In hoc tempore nullae mutationes notatae sunt. Tempus longius elige.",
+  "history_incomplete": "Testimonia historiae huius temporis imperfecta sunt; Syrus eventus tuto restituere non potest.",
   "history_error": "Historia onerari non potuit. Fistula viva adhuc monstratur.",
   "retry_history": "Historiam iterum tenta",
   "history_controls_unavailable": "Historiae instrumenta non praesto sunt donec eventa adsint",
