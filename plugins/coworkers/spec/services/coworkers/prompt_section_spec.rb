@@ -76,6 +76,22 @@ RSpec.describe Coworkers::PromptSection do
     end
   end
 
+  it "selects daily memory using the owner's calendar across a UTC date boundary" do
+    owner.update!(time_zone: "America/Los_Angeles")
+    local_today = @root.join("memory/daily/2026-10-28.md")
+    utc_today = @root.join("memory/daily/2026-10-29.md")
+    local_today.dirname.mkpath
+    local_today.write("owner-local today")
+    utc_today.write("server today")
+
+    travel_to(Time.utc(2026, 10, 29, 2)) do
+      section = described_class.chat_prompt_section(chat_session: chat, repository: repository)
+
+      expect(section).to include("owner-local today")
+      expect(section).not_to include("server today")
+    end
+  end
+
   it "ignores missing files, including a participant without a people file" do
     participant = Factories.user
     ChatParticipant.create!(chat_session: chat, user: participant, role: "member")

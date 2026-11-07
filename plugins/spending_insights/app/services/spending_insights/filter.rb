@@ -17,7 +17,7 @@ module SpendingInsights
       q_tree = Filters::QueryParam.decode(params[Filters::QueryParam::PARAM_NAME])
       url_tree = build_tree_from_url_params(params)
       trees = [ q_tree, url_tree ].compact
-      trees.unshift(default_tree) unless trees.any? { |tree| positive_top_level_fields(tree).include?("created_at") }
+      trees.unshift(default_tree(user)) unless trees.any? { |tree| positive_top_level_fields(tree).include?("created_at") }
       tree = trees.reduce { |acc, next_tree| merge_and(acc, next_tree) }
 
       new(tree, user: user)
@@ -121,8 +121,8 @@ module SpendingInsights
     end
     private_class_method :build_tree_from_url_params
 
-    def self.default_tree
-      end_date = Time.zone.today
+    def self.default_tree(user)
+      end_date = Time.current.in_time_zone(user.time_zone).to_date
       start_date = end_date - DEFAULT_WINDOW_DAYS.days
       { "and" => [ chip("created_at", "between", [ start_date.iso8601, end_date.iso8601 ]) ] }
     end
