@@ -3,6 +3,7 @@ import type { ProviderAvailability } from "./providerAvailability"
 import type { TypedArtifact } from "./artifacts"
 import type { RuleDraftPreview } from "./permissionRuleDrafts"
 import type { PermissionAuthorityReference, PermissionPresentation, SmartPermissionOption } from "./permissionRequests"
+import { readInitialBootstrap } from "./bootstrap"
 
 export type ChatRepository = {
   id: number
@@ -1187,7 +1188,15 @@ export type ChatSearchMessagesPayload = {
 }
 
 export function fetchChat(id: string, search = "") {
-  return getJson<ChatPayload>(`/api/v1/app/chats/${id}${search}`)
+  return getJson<ChatPayload>(`/api/v1/app/chats/${id}${search}`).then((payload) => {
+    const capabilities = readInitialBootstrap()?.chat_capabilities
+    return {
+      ...payload,
+      speech_to_text: capabilities?.speech_to_text,
+      coding_mode_enabled: Boolean(capabilities?.coding_mode_enabled),
+      local_mode_enabled: Boolean(capabilities?.local_mode_enabled)
+    }
+  })
 }
 
 // Slim payload for the CHAT-<id> hover preview card — mirrors fetchJobDetail

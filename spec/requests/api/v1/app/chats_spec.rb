@@ -80,6 +80,21 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(response.headers.fetch("ETag")).not_to eq(etag)
   end
 
+  it "invalidates the chat payload ETag when callback-free turn state changes" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository)
+
+    get "/api/v1/app/chats/#{chat.id}"
+    etag = response.headers.fetch("ETag")
+    chat.update_columns(turn_in_flight: true)
+
+    get "/api/v1/app/chats/#{chat.id}", headers: { "If-None-Match" => etag }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("chat", "turn_in_flight")).to eq(true)
+    expect(response.headers.fetch("ETag")).not_to eq(etag)
+  end
+
   it "conditionally serves older message pages" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository)
@@ -2777,12 +2792,11 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
   it "reports speech-to-text disabled by default" do
     sign_in_as(user)
-    chat = ChatSession.create!(user: user)
     stub_no_chat_speech_to_text_backend!
 
-    get "/api/v1/app/chats/#{chat.id}"
+    get "/api/v1/app/bootstrap"
 
-    expect(parse_body["speech_to_text"]).to eq(
+    expect(parse_body.dig("chat_capabilities", "speech_to_text")).to eq(
       "enabled" => false,
       "backend" => {
         "configured" => false,
@@ -2798,16 +2812,15 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
   it "reports browser speech-to-text fallback when the labs flag is on without backend config" do
     sign_in_as(user)
-    chat = ChatSession.create!(user: user)
     Feature.find_or_create_by!(slug: "chat_speech_to_text") do |feature|
       feature.category = "Labs"
       feature.name = "Chat speech-to-text"
     end.update!(enabled: true)
     stub_no_chat_speech_to_text_backend!
 
-    get "/api/v1/app/chats/#{chat.id}"
+    get "/api/v1/app/bootstrap"
 
-    expect(parse_body["speech_to_text"]).to eq(
+    expect(parse_body.dig("chat_capabilities", "speech_to_text")).to eq(
       "enabled" => true,
       "backend" => {
         "configured" => false,
@@ -2823,7 +2836,6 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
   it "reports backend speech-to-text modes without leaking runtime config values" do
     sign_in_as(user)
-    chat = ChatSession.create!(user: user)
     Feature.find_or_create_by!(slug: "chat_speech_to_text") do |feature|
       feature.category = "Labs"
       feature.name = "Chat speech-to-text"
@@ -2831,14 +2843,14 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     provider = instance_double(ChatSpeechToText::Providers::Base, batch?: true, streaming?: false)
     allow(ChatSpeechToText::Providers).to receive(:configured).with(user: user).and_return(provider)
 
-    get "/api/v1/app/chats/#{chat.id}"
+    get "/api/v1/app/bootstrap"
 
-    expect(parse_body.dig("speech_to_text", "modes")).to eq(
+    expect(parse_body.dig("chat_capabilities", "speech_to_text", "modes")).to eq(
       "backend_streaming" => { "available" => false, "unavailable_reason" => "provider_streaming_unavailable" },
       "backend_batch" => { "available" => true },
       "browser" => { "available" => true }
     )
-    expect(parse_body.dig("speech_to_text", "backend")).to eq("configured" => true)
+    expect(parse_body.dig("chat_capabilities", "speech_to_text", "backend")).to eq("configured" => true)
     expect(response.body).not_to include("backend-secret")
   end
 
@@ -2870,25 +2882,22 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
   it "reports coding_mode_enabled false by default" do
     sign_in_as(user)
-    chat = ChatSession.create!(user: user)
+    get "/api/v1/app/bootstrap"
 
-    get "/api/v1/app/chats/#{chat.id}"
-
-    expect(parse_body["coding_mode_enabled"]).to eq(false)
+    expect(parse_body.dig("chat_capabilities", "coding_mode_enabled")).to eq(false)
   end
 
   it "reports coding_mode_enabled true when the labs flag is on" do
     sign_in_as(user)
-    chat = ChatSession.create!(user: user)
     feature = Feature.find_or_create_by!(slug: "coding_mode") do |record|
       record.category = "Labs"
       record.name = "Coding Mode"
     end
     feature.update!(enabled: true)
 
-    get "/api/v1/app/chats/#{chat.id}"
+    get "/api/v1/app/bootstrap"
 
-    expect(parse_body["coding_mode_enabled"]).to eq(true)
+    expect(parse_body.dig("chat_capabilities", "coding_mode_enabled")).to eq(true)
   end
 
   describe "PATCH /api/v1/app/chats/:id (mode)" do
@@ -7083,6 +7092,26 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(detail).to eq("Implemented a dark mode toggle in the settings panel.")
     expect(detail).not_to include("**Branch:**")
     expect(detail).not_to include("coding_handoff")
+  end
+
+  it "serializes an anchored pending action only with its message" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    job = Factories.job_record(repository: repository)
+    action = chat.pending_actions.create!(action: "cancel_job", requested_by: "agent", payload: { "job_id" => job.id })
+    message = chat.messages.create!(
+      role: "tool_use",
+      tool_name: "cancel_job",
+      pending_action: action,
+      content: { "text" => "Cancel it?" }
+    )
+    action.update!(chat_message_id: message.id)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(parse_body.fetch("pending_actions")).to be_empty
+    anchored = parse_body.fetch("messages").find { |item| item.fetch("id") == message.id }
+    expect(anchored.fetch("pending_action")).to include("id" => action.id, "state" => "pending")
   end
 
   it "labels an unanchored reconcile_job_state repair action and links its target Job instead of rendering a blank card" do

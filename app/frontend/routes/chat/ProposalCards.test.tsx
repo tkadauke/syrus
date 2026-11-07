@@ -308,8 +308,6 @@ function payloadFor(queryKey: ChatQueryKey, p: ChatProposal): ChatPayload {
       cumulative_cost_usd: 0
     },
     chat_available: true,
-    turn_in_flight: false,
-    agent_busy: false,
     switching_provider: false,
     has_more_older: false,
     messages: [

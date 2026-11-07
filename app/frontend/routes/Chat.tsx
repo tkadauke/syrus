@@ -438,8 +438,6 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
     },
     chat_available: false,
     chat_provider_display_name: "Claude",
-    turn_in_flight: false,
-    agent_busy: false,
     switching_provider: false,
     has_more_older: false,
     active_goal: null,
