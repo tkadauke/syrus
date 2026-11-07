@@ -129,7 +129,7 @@ describe("RepositoryTargetGraphRoute", () => {
     const fetchSpy = renderRoute()
 
     expect((await screen.findAllByText("//:grade/tests")).length).toBeGreaterThan(0)
-    expect(screen.getByText("npm run build")).toBeInTheDocument()
+    expect(screen.getByText(/npm run build/)).toBeInTheDocument()
     expect(screen.getAllByText("changed files matched").length).toBeGreaterThan(0)
     expect(screen.queryByText("Selection Explanations")).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Show explanations" }))
@@ -140,7 +140,13 @@ describe("RepositoryTargetGraphRoute", () => {
     expect(screen.getAllByText("THR-123").length).toBeGreaterThan(0)
     expect(screen.getByText("Visual review preview project")).toBeInTheDocument()
     expect(screen.getByText("Web")).toBeInTheDocument()
-    expect(screen.getAllByRole("button", { name: "//:app" }).length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByRole("button", { name: "Open details for //:grade/tests" }))
+    expect(screen.getByRole("dialog", { name: "Target details" })).toBeInTheDocument()
+    expect(screen.getByText("Depends on")).toBeInTheDocument()
+    expect(screen.getByText("Used by / dependents")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "//:app" })).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(screen.queryByRole("dialog", { name: "Target details" })).not.toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/1/target_graph?mode=neighborhood&direction=both&depth=1&limit=100", expect.any(Object))
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/repositories/1/target_graph?mode=neighborhood&direction=both&depth=1&limit=100&include=explanations",
@@ -210,6 +216,24 @@ describe("RepositoryTargetGraphRoute", () => {
     })
   })
 
+  it("keeps project filtering in the compact toolbar and uses a horizontally scrollable table on narrow screens", async () => {
+    const fetchSpy = renderRoute()
+
+    await screen.findAllByText("//:grade/tests")
+    fireEvent.change(screen.getByRole("combobox", { name: "Projects" }), { target: { value: "repo" } })
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenLastCalledWith(
+        "/api/v1/app/repositories/1/target_graph?mode=neighborhood&project_id=repo&direction=both&depth=1&limit=100",
+        expect.any(Object)
+      )
+    })
+    await screen.findByRole("button", { name: "Open details for //:grade/tests" })
+    const table = screen.getByRole("list")
+    expect(table).toHaveClass("min-w-[52rem]", "overflow-auto")
+    expect(screen.getByText(/Each row is one target/)).toBeInTheDocument()
+  })
+
   it("pages browse rows without eagerly requesting diagnostic labels", async () => {
     const fetchSpy = renderRoute(
       payload({
@@ -238,9 +262,9 @@ describe("RepositoryTargetGraphRoute", () => {
     renderRoute()
 
     await screen.findAllByText("//:grade/tests")
-    expect(screen.getByRole("button", { name: "Selected" })).toBeDisabled()
-    expect(screen.getByRole("button", { name: "Skipped" })).toBeDisabled()
-    expect(screen.getByRole("button", { name: "Cached" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: /^Selected/ })).toBeDisabled()
+    expect(screen.getByRole("button", { name: /^Skipped/ })).toBeDisabled()
+    expect(screen.getByRole("button", { name: /^Cached/ })).toBeDisabled()
     expect(screen.getByRole("button", { name: "Failing" })).not.toBeDisabled()
   })
 
@@ -265,10 +289,10 @@ describe("RepositoryTargetGraphRoute", () => {
     )
 
     expect(await screen.findByText("Workflow WF-42")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Selected" })).not.toBeDisabled()
+    expect(screen.getByRole("button", { name: /^Selected/ })).not.toBeDisabled()
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/target_graph?mode=neighborhood&direction=both&depth=1&limit=100", expect.any(Object))
 
-    fireEvent.click(screen.getByRole("button", { name: "Selected" }))
+    fireEvent.click(screen.getByRole("button", { name: /^Selected/ }))
 
     await waitFor(() => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/jobs/1?tab=target_graph&focus_state=selected")
