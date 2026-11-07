@@ -11,6 +11,7 @@ import {
   decideAuthorizationItem,
   smartDecideAuthorizationItem,
   fetchChatMedia,
+  fetchChatProposal,
   rejectChatProposal,
   rejectPendingAction,
   searchChatEpics,
@@ -533,6 +534,7 @@ export function ProposalCard({
   onSelectWorkspaceTab?: () => void
 }) {
   const { t } = useT("chat")
+  const actionableProposal = proposalWithActionPaths(proposal, queryKey[1])
   const queryClient = useQueryClient()
   const search = queryKey[2]
   const [editingProposal, setEditingProposal] = useState<EditableProposal | null>(null)
@@ -583,14 +585,14 @@ export function ProposalCard({
             <div className="flex items-start justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-200">
-                  {proposal.epic_bundle ? t("epic") : proposal.kind_label}
+                  {proposal.epic_bundle ? t("epic") : proposal.kind_label || humanizeProposalValue(proposal.kind)}
                 </span>
                 {proposal.proposed ? null : (
                   <span
                     className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300"
                     data-testid="proposal-state-pill"
                   >
-                    {proposal.state_label}
+                    {proposal.state_label || humanizeProposalValue(proposal.state)}
                   </span>
                 )}
                 {proposal.epic_bundle ? (
@@ -599,7 +601,7 @@ export function ProposalCard({
                   </span>
                 ) : null}
               </div>
-              {proposal.proposed ? <ProposalEditButton label={`Edit ${proposal.slug}`} onClick={() => setEditingProposal(proposal)} /> : null}
+              {proposal.proposed ? <ProposalEditButton label={`Edit ${proposal.slug}`} onClick={() => setEditingProposal(actionableProposal)} /> : null}
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
               <CopyableSlug className="text-xs text-gray-500 dark:text-gray-400" slug={proposal.slug} />
@@ -624,16 +626,17 @@ export function ProposalCard({
         }
         body={
           <>
-            <Markdown className="chat-prose text-sm text-gray-800 dark:text-gray-100" text={proposal.body} />
+            <ProposalBody body={proposal.body} bodyPath={proposal.body_path} className="chat-prose text-sm text-gray-800 dark:text-gray-100" />
             {proposal.epic_bundle ? (
               <ProposalChildren
                 children={proposal.children || []}
+                chatId={queryKey[1]}
                 media={media.data}
                 parentProposed={proposal.proposed}
                 mutation={proposalAction}
                 prefix={prefix}
                 previewPanels={payload?.preview_panels || []}
-                onEdit={(child) => setEditingProposal(editableChildProposal(child))}
+                onEdit={(child) => setEditingProposal(editableChildProposal(proposalChildWithActionPaths(child, queryKey[1])))}
               />
             ) : (
               <ProposalMeta proposal={proposal} />
@@ -652,7 +655,7 @@ export function ProposalCard({
                       aria-label={t("aria_confirm_proposal_to_backlog")}
                       className={proposalActionButton("secondary")}
                       disabled={proposalAction.isPending}
-                      onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path, routeToBacklog: true })}
+                      onClick={() => proposalAction.mutate({ action: "confirm", path: actionableProposal.app_confirm_path, routeToBacklog: true })}
                       title={t("aria_confirm_proposal_to_backlog")}
                       type="button"
                     >
@@ -665,7 +668,7 @@ export function ProposalCard({
                       onClick={() =>
                         proposalAction.mutate({
                           action: "confirm",
-                          path: proposal.app_confirm_path,
+                          path: actionableProposal.app_confirm_path,
                           routeToBacklog: false,
                           start: proposal.epic_bundle
                         })
@@ -681,7 +684,7 @@ export function ProposalCard({
                     aria-label={proposalConfirmAriaLabel(proposal, childJobCount)}
                     className={proposalActionButton(showConfirmAndStart ? "secondary" : "primary")}
                     disabled={proposalAction.isPending}
-                    onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path })}
+                    onClick={() => proposalAction.mutate({ action: "confirm", path: actionableProposal.app_confirm_path })}
                     title={proposalConfirmAriaLabel(proposal, childJobCount)}
                     type="button"
                   >
@@ -693,7 +696,7 @@ export function ProposalCard({
                     aria-label={t("create_epic_and_start")}
                     className={proposalActionButton("primary")}
                     disabled={proposalAction.isPending}
-                    onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path, start: true })}
+                    onClick={() => proposalAction.mutate({ action: "confirm", path: actionableProposal.app_confirm_path, start: true })}
                     title={t("create_epic_and_start")}
                     type="button"
                   >
@@ -704,7 +707,7 @@ export function ProposalCard({
                   aria-label="Reject proposal"
                   className={proposalActionButton("secondary")}
                   disabled={proposalAction.isPending}
-                  onClick={() => proposalAction.mutate({ action: "reject", path: proposal.app_reject_path })}
+                  onClick={() => proposalAction.mutate({ action: "reject", path: actionableProposal.app_reject_path })}
                   title="Reject proposal"
                   type="button"
                 >
@@ -730,6 +733,38 @@ export function ProposalCard({
       ) : null}
     </>
   )
+}
+
+function humanizeProposalValue(value: string) {
+  return value.replaceAll("_", " ").replace(/^./, (character) => character.toUpperCase())
+}
+
+function proposalWithActionPaths(proposal: ChatProposal, chatId: string | number): ChatProposal {
+  const base = `/api/v1/app/chats/${chatId}/proposals/${proposal.id}`
+  return { ...proposal, app_update_path: base, app_confirm_path: `${base}/confirm`, app_reject_path: `${base}/reject` }
+}
+
+function proposalChildWithActionPaths(child: ChatProposalChild, chatId: string | number): ChatProposalChild {
+  const base = `/api/v1/app/chats/${chatId}/proposals/${child.id}`
+  return { ...child, app_update_path: base, app_reject_path: `${base}/reject` }
+}
+
+function ProposalBody({ body, bodyPath, className }: { body?: string; bodyPath?: string; className: string }) {
+  const { t } = useT("chat")
+  const [expanded, setExpanded] = useState(false)
+  const proposal = useQuery({ queryKey: ["chat_proposal_body", bodyPath], queryFn: () => fetchChatProposal(bodyPath!), enabled: expanded && !!bodyPath })
+  if (body != null) return <Markdown className={className} text={body} />
+  if (!bodyPath) return null
+  if (!expanded) {
+    return (
+      <button className="text-sm font-medium text-brand hover:underline" onClick={() => setExpanded(true)} type="button">
+        {t("proposal_show_body")}
+      </button>
+    )
+  }
+  if (proposal.isPending) return <div className="text-sm text-text-muted">{t("loading")}</div>
+  if (proposal.isError) return <div className="text-sm text-danger">{t("proposal_body_load_failed")}</div>
+  return <Markdown className={className} text={proposal.data.proposal.body} />
 }
 
 function applyProposalActionResult(current: ChatPayload | undefined, updated: ChatPayload | ChatProposalMutationPayload, chatId: string | number) {
@@ -1550,10 +1585,11 @@ function ProposalMaterializedResult({ proposal, prefix }: { proposal: ChatPropos
   const materialized = proposal.materialized
   if (materialized?.kind === "job") {
     const label = proposal.materialized_label || `JOB-${materialized.job_id}`
+    const path = proposal.materialized_path || `/jobs/${materialized.job_id}`
     return (
       <span>
         →{" "}
-        <ProposalResultLink path={proposal.materialized_path} prefix={prefix}>
+        <ProposalResultLink path={path} prefix={prefix}>
           {label}
         </ProposalResultLink>
         {materialized.job_title ? ` "${materialized.job_title}"` : ""}
@@ -1562,6 +1598,7 @@ function ProposalMaterializedResult({ proposal, prefix }: { proposal: ChatPropos
   }
 
   if (materialized?.kind === "epic") {
+    const path = proposal.materialized_path || `/epics/${materialized.epic_id}`
     const children = materialized.child_jobs.filter((job): job is { job_id: number; title: string | null } => job.job_id != null)
     return (
       <>
@@ -1573,7 +1610,7 @@ function ProposalMaterializedResult({ proposal, prefix }: { proposal: ChatPropos
           {materialized.epic_title ? (
             <>
               {' "'}
-              <ProposalResultLink path={proposal.materialized_path} prefix={prefix}>
+              <ProposalResultLink path={path} prefix={prefix}>
                 {materialized.epic_title}
               </ProposalResultLink>
               {'"'}
@@ -1753,6 +1790,7 @@ function ProposalChildDependencyStrip({ child, prefix }: { child: ChatProposalCh
 
 function ProposalChildren({
   children,
+  chatId,
   media,
   parentProposed,
   mutation,
@@ -1761,6 +1799,7 @@ function ProposalChildren({
   onEdit
 }: {
   children: ChatProposalChild[]
+  chatId: string | number
   media?: ChatMediaPayload
   parentProposed: boolean
   mutation: UseMutationResult<ChatPayload | ChatProposalMutationPayload, Error, ProposalActionInput>
@@ -1780,7 +1819,7 @@ function ProposalChildren({
             <span className="min-w-0 flex-1 truncate font-medium text-gray-900 dark:text-gray-100">{child.title}</span>
             {child.proposed ? null : (
               <span className="shrink-0 rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                {child.state_label}
+                {child.state_label || humanizeProposalValue(child.state)}
               </span>
             )}
             {child.proposed && parentProposed ? (
@@ -1811,7 +1850,7 @@ function ProposalChildren({
                 </span>
               ) : null}
             </div>
-            <Markdown className="chat-prose mt-2 text-sm text-text-primary" text={child.body} />
+            <ProposalBody body={child.body} bodyPath={child.body_path} className="chat-prose mt-2 text-sm text-text-primary" />
             {child.goal_provenance ? (
               <div className="mt-2 text-xs text-text-secondary" title={child.goal_provenance.prompt_snapshot.prompt || undefined}>
                 {t("goal_provenance_value", { id: child.goal_provenance.chat_goal_id })}
@@ -1823,7 +1862,7 @@ function ProposalChildren({
               <div className="mt-3">
                 <Button
                   disabled={mutation.isPending}
-                  onClick={() => mutation.mutate({ action: "reject", path: child.app_reject_path })}
+                  onClick={() => mutation.mutate({ action: "reject", path: proposalChildWithActionPaths(child, chatId).app_reject_path })}
                   size="sm"
                   type="button"
                   variant="danger"

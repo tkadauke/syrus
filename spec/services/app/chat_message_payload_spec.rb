@@ -100,7 +100,7 @@ RSpec.describe App::ChatMessagePayload do
 
     # Participant membership is fetched as ids rather than preloading every
     # participant and User record into each paginated message's session.
-    expect(mention_lookup_queries.size).to be <= 10
+    expect(mention_lookup_queries.size).to be <= 5
   end
   it "includes the message's revision so the frontend entity store can order/dedupe events against this snapshot" do
     message = chat.messages.create!(role: "assistant", content: { "text" => "Hello." })
@@ -139,9 +139,22 @@ RSpec.describe App::ChatMessagePayload do
     payload = described_class.messages([ message ], repository: repository).sole
 
     expect(payload.fetch(:content)).to eq(
+      "type" => "tool_result",
       "truncated" => true,
       "content_path" => "/api/v1/app/chats/#{chat.id}/messages/#{message.id}/content"
     )
+  end
+
+  it "keeps tool routing identifiers when oversized content is truncated" do
+    use = chat.messages.create!(role: "tool_use", tool_name: "Read",
+      content: { "type" => "tool_use", "id" => "tool-1", "name" => "Read", "input" => { "value" => "x" * described_class::MAX_TOOL_CONTENT_BYTES } })
+    result = chat.messages.create!(role: "tool_result", tool_name: "Read",
+      content: { "type" => "tool_result", "tool_use_id" => "tool-1", "content" => "x" * described_class::MAX_TOOL_CONTENT_BYTES })
+
+    payloads = described_class.messages([ use, result ], repository: repository)
+
+    expect(payloads.first.fetch(:content)).to include("id" => "tool-1", "name" => "Read", "truncated" => true)
+    expect(payloads.last.fetch(:content)).to include("tool_use_id" => "tool-1", "truncated" => true)
   end
 
   it "omits running shell output and bounds completed shell output" do
@@ -607,6 +620,8 @@ RSpec.describe App::ChatMessagePayload do
       job_title: "Add inspection tools",
       job_state: "open"
     )
+    expect(payload).to include(body_path: "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}")
+    expect(payload).not_to include(:body, :kind_label, :state_label, :route_label, :app_update_path, :app_confirm_path, :app_reject_path, :materialized_label, :materialized_path)
   end
 
   it "returns materialized epic details and child jobs for a confirmed epic bundle" do
@@ -643,6 +658,8 @@ RSpec.describe App::ChatMessagePayload do
         { job_id: child_job.id, title: "Add trigger" }
       ]
     )
+    expect(payload.fetch(:children).sole).to include(body_path: "/api/v1/app/chats/#{chat.id}/proposals/#{parent.child_proposals.sole.id}")
+    expect(payload.fetch(:children).sole).not_to include(:body, :state_label, :provider_setting, :planned_execution, :goal_provenance, :dependency_details)
   end
 
   it "includes inline pending action details with a job resource" do
