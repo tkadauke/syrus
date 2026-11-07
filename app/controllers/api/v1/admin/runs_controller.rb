@@ -54,7 +54,8 @@ module Api
         # dropping to kubectl/Rails runner.
         def artifacts
           run = Run.includes(step: :workflow).find(params[:run_id])
-          logs = run.job_logs
+          includes = params[:include].to_s.split(",")
+          logs = includes.include?("logs") ? run.job_logs
             .order(:sequence)
             .pluck(:id, :sequence, :kind, :chunk, :created_at)
             .map do |id, sequence, kind, chunk, created_at|
@@ -65,7 +66,7 @@ module Api
                 chunk: chunk,
                 created_at: created_at&.iso8601
               }
-            end
+            end : []
 
           render json: {
             job_id: run.job_id,
@@ -75,8 +76,8 @@ module Api
             run_id: run.id,
             state: run.state,
             trigger_kind: run.trigger_kind,
-            agent_diff: run.agent_diff,
-            agent_diff_bytes: run.agent_diff&.bytesize || 0,
+            agent_diff: includes.include?("diff") ? run.agent_diff : nil,
+            agent_diff_bytes: includes.include?("diff") ? (run.agent_diff&.bytesize || 0) : nil,
             host_admission: ::RunHostAdmissionAttribution.for(run),
             logs_count: logs.size,
             logs: logs
@@ -155,7 +156,6 @@ module Api
             retryable: classification.retryable,
             reason: classification.reason,
             diagnostic_summary: classification.diagnostic_summary,
-            classifier_inputs: classification.classifier_inputs,
             classified_at: classification.classified_at
           }
         end

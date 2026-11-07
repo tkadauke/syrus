@@ -14,10 +14,9 @@ module Api
         MAX_PER = 200
 
         def index
+          message_count_sql = ChatMessage.where("chat_messages.chat_session_id = chat_sessions.id").select("COUNT(*)").to_sql
           scope = ChatSession.preload(:user, chat_attachments: :attachable)
-                             .left_joins(:messages)
-                             .group("chat_sessions.id")
-                             .select("chat_sessions.*, COUNT(chat_messages.id) AS messages_count")
+                             .select("chat_sessions.*, (#{message_count_sql}) AS messages_count")
                              .order(Arel.sql("COALESCE(chat_sessions.last_message_at, chat_sessions.updated_at, chat_sessions.created_at) DESC"))
           scope = scope.joins(:user).where("users.email_address LIKE ?", "%#{params[:user]}%") if params[:user].present?
           scope = filter_by_repository(scope) if params[:repo].present?
@@ -25,7 +24,11 @@ module Api
 
           per = per_param
           page = page_param
-          total = scope.unscope(:select, :order).count.size
+          total = if params.values_at(:user, :repo, :since).all?(&:blank?)
+            ChatSession.count
+          else
+            scope.unscope(:select, :order).distinct.count
+          end
           chats = scope.offset((page - 1) * per).limit(per).to_a
 
           render json: {
@@ -144,12 +147,23 @@ module Api
             role: message.role,
             tool_name: message.tool_name,
             tool_use_id: message.tool_use_id,
-            content: message.content,
+            content: message_content(message),
             proposal: message.proposal ? proposal_payload(message.proposal) : nil,
             bookmarks: message.bookmarks.map { |bookmark| bookmark_payload(bookmark) },
             created_at: message.created_at,
             updated_at: message.updated_at
           }
+        end
+
+        def message_content(message)
+          return nil if message.role == "tool_result" && params[:tool_results].to_s == "false"
+
+          content = message.content
+          max = Integer(params[:content_max], exception: false)
+          return content unless max&.positive?
+
+          serialized = content.to_json
+          serialized.bytesize > max ? { "truncated" => true, "preview" => serialized.byteslice(0, max) } : content
         end
 
         def attachment_payload(attachment)

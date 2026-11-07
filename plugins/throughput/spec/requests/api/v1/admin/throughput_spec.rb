@@ -53,7 +53,8 @@ RSpec.describe "API: /api/v1/admin/throughput", type: :request do
 
     get "/api/v1/admin/throughput", headers: auth(admin_token), params: {
       since: (base - 2.hours).iso8601,
-      until: (base + 2.hours).iso8601
+      until: (base + 2.hours).iso8601,
+      granularity: "hourly"
     }
 
     expect(response).to have_http_status(:ok)
@@ -69,11 +70,7 @@ RSpec.describe "API: /api/v1/admin/throughput", type: :request do
     expect(hourly_bucket.dig("cycle_time_seconds", "sample_count")).to eq(1)
     expect(hourly_bucket.dig("cycle_time_seconds", "median")).to eq(3600) # 50min + 10min
 
-    daily_bucket = body.dig("daily", "buckets").find { |b| b["bucket_start"] == base.beginning_of_day.iso8601 }
-    # Both created_job (base+10m) and merged_job (base-50m, still same UTC day) land here.
-    expect(daily_bucket["jobs_created"]).to eq(2)
-    expect(daily_bucket["jobs_closed"]).to eq(2)
-    expect(daily_bucket["jobs_implemented"]).to eq(1)
+    expect(body).not_to have_key("daily")
   end
 
   it "filters by repository id or owner/name slug" do
@@ -86,7 +83,8 @@ RSpec.describe "API: /api/v1/admin/throughput", type: :request do
     get "/api/v1/admin/throughput", headers: auth(admin_token), params: {
       repository: "acme/target",
       since: (base - 1.hour).iso8601,
-      until: (base + 1.hour).iso8601
+      until: (base + 1.hour).iso8601,
+      granularity: "hourly"
     }
 
     expect(response).to have_http_status(:ok)
