@@ -1,7 +1,5 @@
 module App
   class DiffReviewCommentsPayload
-    REVIEW_GROUP_KEY = "__review__".freeze
-
     def self.build(job:, comments:, version: nil)
       new(job: job, comments: comments, version: version).payload
     end
@@ -13,36 +11,27 @@ module App
     end
 
     def payload
-      serialized = @comments.map { |comment| comment_json(comment) }
-
       {
         job_id: @job.id,
         diff_review_version_id: @version&.id,
         latest_version_id: DiffReviewVersion.default_for_review(@job)&.id,
-        comments: serialized,
-        by_path: grouped_by_path(serialized)
+        diff_review_version: diff_review_version_json(@version),
+        users: @comments.filter_map(&:user).uniq(&:id).to_h { |user| [ user.id, user_json(user) ] },
+        workflows: @comments.filter_map(&:workflow).uniq(&:id).to_h { |workflow| [ workflow.id, workflow_json(workflow) ] },
+        comments: @comments.map { |comment| comment_json(comment) }
       }
     end
 
     private
-
-    def grouped_by_path(serialized)
-      serialized.group_by { |comment| comment[:path] || REVIEW_GROUP_KEY }.transform_values do |path_comments|
-        path_comments.group_by { |comment| comment[:anchor_key] }
-      end
-    end
 
     def comment_json(comment)
       {
         id: comment.id,
         job_id: comment.job_id,
         diff_review_version_id: comment.diff_review_version_id,
-        diff_review_version: diff_review_version_json(comment.diff_review_version),
         parent_id: comment.parent_id,
         user_id: comment.user_id,
-        user: user_json(comment.user),
         workflow_id: comment.workflow_id,
-        workflow: workflow_json(comment.workflow),
         run_id: comment.run_id,
         surface: comment.surface,
         base_ref: comment.base_ref,

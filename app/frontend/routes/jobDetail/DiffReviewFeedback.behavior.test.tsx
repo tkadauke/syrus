@@ -58,8 +58,7 @@ const payload: DiffReviewCommentsPayload = {
   job_id: 1,
   diff_review_version_id: 2,
   latest_version_id: 2,
-  comments: [comment],
-  by_path: { [file.path]: { [comment.anchor_key]: [comment] } }
+  comments: [comment]
 }
 
 function FeedbackHarness() {

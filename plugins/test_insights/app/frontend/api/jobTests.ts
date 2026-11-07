@@ -36,7 +36,7 @@ export type JobTestRun = {
   skipped_count: number
   error_count: number
   duration_ms: number | null
-  suites: JobTestSuite[]
+  suites?: JobTestSuite[]
 }
 
 export type JobTestResultsPayload = {
