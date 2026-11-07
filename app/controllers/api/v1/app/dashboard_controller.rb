@@ -9,11 +9,13 @@ module Api
         end
 
         def controls
-          payload = ::App::DashboardPayload.call(user: Current.user, params: params.merge(section: "controls"))
+          subject = params.require(:subject).to_s
+          raise ::App::DashboardPayload::InvalidScope, "Invalid dashboard subject" unless subject.in?(::App::DashboardPayload::SUBJECTS)
+          payload = ::App::DashboardPayload.call(user: Current.user, params: params.merge(subject: subject, section: "controls"))
           response.headers["Cache-Control"] = "private, max-age=3600"
           fresh_when(etag: payload, public: false)
           render json: payload unless performed?
-        rescue ::App::DashboardPayload::InvalidScope => e
+        rescue ActionController::ParameterMissing, ::App::DashboardPayload::InvalidScope => e
           render_error("validation_failed", e.message, status: :unprocessable_content)
         end
 
