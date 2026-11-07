@@ -164,14 +164,18 @@ function NotificationsPanel({
   const markAll = useMutation({
     mutationFn: markAllNotificationsRead,
     onSuccess(payload) {
-      queryClient.setQueryData<NotificationsPayload>(notificationsQueryKey, (current) => current ? {
-        ...current,
-        unread_count: payload.unread_count,
-        notifications: current.notifications.map((notification) => ({
-          ...notification,
-          read_at: notification.read_at ?? new Date().toISOString()
-        }))
-      } : current)
+      queryClient.setQueryData<NotificationsPayload>(notificationsQueryKey, (current) =>
+        current
+          ? {
+              ...current,
+              unread_count: payload.unread_count,
+              notifications: current.notifications.map((notification) => ({
+                ...notification,
+                read_at: notification.read_at ?? new Date().toISOString()
+              }))
+            }
+          : current
+      )
     }
   })
 

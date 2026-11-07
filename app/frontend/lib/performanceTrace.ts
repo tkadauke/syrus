@@ -167,10 +167,13 @@ function scheduleTraceFlush(): void {
   }
   if (idleFlushId != null || fallbackFlushTimer != null) return
   if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
-    idleFlushId = window.requestIdleCallback(() => {
-      idleFlushId = null
-      flushBrowserTraceQueue()
-    }, { timeout: TRACE_FLUSH_TIMEOUT_MS })
+    idleFlushId = window.requestIdleCallback(
+      () => {
+        idleFlushId = null
+        flushBrowserTraceQueue()
+      },
+      { timeout: TRACE_FLUSH_TIMEOUT_MS }
+    )
   } else {
     fallbackFlushTimer = setTimeout(() => {
       fallbackFlushTimer = null
