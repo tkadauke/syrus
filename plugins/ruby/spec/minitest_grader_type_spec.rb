@@ -144,6 +144,15 @@ RSpec.describe Ruby::MinitestGraderType do
     }.to raise_error(ArgumentError, "timeout_minutes must be a positive integer")
   end
 
+  it "allows timeouts up to the repository grader ceiling" do
+    steps = described_class.grade_steps(
+      config: { "timeout_minutes" => 120 },
+      default_failures: "strict"
+    )
+
+    expect(steps.map(&:timeout_minutes)).to all(eq(120))
+  end
+
   it "expands from a type: minitest .syrus.yml declaration" do
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:grader_type).and_return([ described_class ])
 
