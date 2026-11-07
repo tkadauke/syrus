@@ -110,13 +110,29 @@ RSpec.describe "App API runtime sessions", type: :request do
       document.save!
       session = build_runtime_session(metadata: { "latest_frame_document_id" => document.id })
 
-      get "/api/v1/app/chats/#{chat_session.id}/runtime_sessions/#{session.id}/frame"
+      get "/api/v1/app/chats/#{chat_session.id}/runtime_sessions/#{session.id}/frame", params: { latest_frame_at: "2026-11-06T12:00:00Z" }
 
       expect(response).to have_http_status(:ok)
       expect(response.content_type).to eq("image/png")
       expect(response.headers["Content-Disposition"]).to include("inline")
       expect(response.headers["X-Content-Type-Options"]).to eq("nosniff")
       expect(response.headers["Content-Security-Policy"]).to eq("sandbox")
+      expect(response.headers["Cache-Control"]).to include("private", "max-age=31536000", "immutable")
+    end
+
+    it "validates an unversioned latest-frame URL with the blob checksum" do
+      sign_in_as(user)
+      document = Document.new(kind: "file", attachable: user, user: user, title: "Frame", filename: "frame.png", content_type: "image/png")
+      document.file.attach(io: StringIO.new("\x89PNG".b), filename: "frame.png", content_type: "image/png")
+      document.save!
+      session = build_runtime_session(metadata: { "latest_frame_document_id" => document.id })
+
+      get "/api/v1/app/chats/#{chat_session.id}/runtime_sessions/#{session.id}/frame"
+      etag = response.headers.fetch("ETag")
+      get "/api/v1/app/chats/#{chat_session.id}/runtime_sessions/#{session.id}/frame", headers: { "If-None-Match" => etag }
+
+      expect(response).to have_http_status(:not_modified)
+      expect(response.body).to be_empty
     end
 
     it "404s when no frame has been captured yet" do

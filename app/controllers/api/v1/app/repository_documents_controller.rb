@@ -38,11 +38,7 @@ module Api
           document = find_document
           raise ActiveRecord::RecordNotFound, "Document file not found" unless document.file.attached?
 
-          send_secure_file(
-            document.file.download,
-            filename: document.filename || "document",
-            type: document.content_type || "application/octet-stream"
-          )
+          send_secure_blob(document.file.blob, immutable: true)
         end
 
         private

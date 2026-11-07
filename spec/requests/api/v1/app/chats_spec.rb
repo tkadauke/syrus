@@ -5262,6 +5262,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       expect(response.body).to eq("pixels")
       expect(response.media_type).to eq("image/png")
+      expect(response.headers["Cache-Control"]).to include("private", "max-age=31536000", "immutable")
     end
 
     it "includes inline chat image attachments in chat_images" do
