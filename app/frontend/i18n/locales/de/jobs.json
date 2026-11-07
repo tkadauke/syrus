@@ -558,6 +558,8 @@
   "artifact_header_security_review": "Sicherheitsüberprüfung",
   "artifact_header_visual_review": "Visuelle Überprüfung",
   "artifact_no_diff": "Für diesen Lauf wurde kein Diff erfasst.",
+  "artifact_diff_truncated": "Dieses Diff ist größer als 2 MB. Die ersten 2 MB werden angezeigt.",
+  "artifact_diff_load_full": "Vollständiges Diff laden",
   "artifact_no_transcript": "Für diesen Lauf wurden keine Transkriptzeilen erfasst.",
   "transcript_older_rows_hidden": "Ältere Transkriptzeilen werden nicht angezeigt.",
   "transcript_page": "Seite {{page}} von {{total}}",

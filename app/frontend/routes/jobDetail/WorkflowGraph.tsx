@@ -1,7 +1,7 @@
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import type { ReactNode } from "react"
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { PluginUiSlot } from "../../pluginUiSlots"
 import { useT } from "../../hooks/useT"
@@ -22,6 +22,7 @@ import {
   type JobDetailPayload,
   type JobPrLinkRole,
   type JobRun,
+  type JobRunArtifactsPayload,
   type JobStep,
   type JobVisualReviewIteration,
   type JobWorkflow,
@@ -77,6 +78,7 @@ import { artifactPanelClass, disabledPaginationClass, formatCurrency, formatDura
 import { stepArtifactAdversarialReview, stepArtifactSecurityReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
 import type { BranchDivergence, BranchDivergenceCommitList, BranchDivergenceComparison } from "./branchDivergence"
 import { workflowBranchDivergence } from "./branchDivergence"
+import { mergeTranscriptLogs } from "./transcript"
 
 // Workflow / step / run execution-graph rendering extracted from JobDetail.tsx.
 //
@@ -536,7 +538,11 @@ function WorkflowCard({
           {workflow.blocked_reason_text ? <p className="min-w-0 flex-1 truncate text-xs text-text-muted">{workflow.blocked_reason_text}</p> : null}
           <CommandButton
             command={command}
-            input={{ method: "post", path: workflow.app_dismiss_path, confirm: t(workflow.state === "blocked" ? "workflow_dismiss_confirm" : "workflow_cancel_confirm") }}
+            input={{
+              method: "post",
+              path: workflow.app_dismiss_path,
+              confirm: t(workflow.state === "blocked" ? "workflow_dismiss_confirm" : "workflow_cancel_confirm")
+            }}
             tone="secondary"
           >
             {t(workflow.state === "blocked" ? "workflow_dismiss" : "workflow_cancel")}
@@ -1924,6 +1930,9 @@ function RunRow({
     "transcript" | "diff" | "step_diff" | "summary" | "test_plan" | "adversarial_review" | "security_review" | "visual_review" | null
   >(null)
   const [transcriptPage, setTranscriptPage] = useState(1)
+  const [fullDiff, setFullDiff] = useState(false)
+  const transcriptSequenceRef = useRef<number | undefined>(undefined)
+  const [liveTranscriptLogs, setLiveTranscriptLogs] = useState<JobRunArtifactsPayload["logs"]>(undefined)
   const isRunArtifactView = artifactView === "transcript" || artifactView === "diff" || artifactView === "step_diff"
   const gradeLog = useMutation({
     mutationFn: (path: string) => fetchJobGradeLog(path),
@@ -1933,13 +1942,24 @@ function RunRow({
     }
   })
   const artifacts = useQuery({
-    queryKey: ["job_run_artifacts", String(payload.job.id), String(run.id), artifactView, transcriptPage],
-    queryFn: () =>
-      fetchJobRunArtifacts(
+    queryKey: ["job_run_artifacts", String(payload.job.id), String(run.id), artifactView, transcriptPage, fullDiff],
+    queryFn: async () => {
+      const payload = await fetchJobRunArtifacts(
         run.app_artifacts_path,
         artifactView === "diff" ? "agent_diff" : artifactView === "step_diff" ? "step_agent_diff" : "transcript",
-        transcriptPage
-      ),
+        transcriptPage,
+        artifactView === "transcript" && transcriptPage === 1 ? transcriptSequenceRef.current : undefined,
+        fullDiff
+      )
+      if (artifactView === "transcript" && transcriptPage === 1) {
+        setLiveTranscriptLogs((current) => {
+          if (transcriptSequenceRef.current == null) return payload.logs
+          return mergeTranscriptLogs(current, payload.logs)
+        })
+        if (payload.logs_max_sequence != null) transcriptSequenceRef.current = payload.logs_max_sequence
+      }
+      return payload
+    },
     enabled: isRunArtifactView,
     refetchInterval: artifactView === "transcript" && transcriptPage === 1 && isActiveState(run.state) ? 2000 : false
   })
@@ -1947,7 +1967,12 @@ function RunRow({
 
   function showArtifacts(view: "transcript" | "diff" | "step_diff") {
     setGradeLogOpen(false)
-    if (view === "transcript") setTranscriptPage(1)
+    setFullDiff(false)
+    if (view === "transcript") {
+      transcriptSequenceRef.current = undefined
+      setLiveTranscriptLogs(undefined)
+      setTranscriptPage(1)
+    }
     setArtifactView((current) => (current === view ? null : view))
   }
 
@@ -2127,8 +2152,15 @@ function RunRow({
         <RunArtifactsPanel
           agentic={agentic}
           onClose={() => setArtifactView(null)}
-          onTranscriptPageChange={setTranscriptPage}
-          payload={artifacts.data}
+          onLoadFullDiff={() => setFullDiff(true)}
+          onTranscriptPageChange={(page) => {
+            transcriptSequenceRef.current = undefined
+            setLiveTranscriptLogs(undefined)
+            setTranscriptPage(page)
+          }}
+          payload={
+            artifactView === "transcript" && transcriptPage === 1 && liveTranscriptLogs ? { ...artifacts.data, logs: liveTranscriptLogs } : artifacts.data
+          }
           view={artifactView as "transcript" | "diff" | "step_diff"}
         />
       ) : null}
@@ -2209,12 +2241,14 @@ function RunArtifactsPanel({
   payload,
   view,
   onClose,
+  onLoadFullDiff,
   onTranscriptPageChange
 }: {
   agentic: boolean
   payload: Awaited<ReturnType<typeof fetchJobRunArtifacts>>
   view: "transcript" | "diff" | "step_diff"
   onClose: () => void
+  onLoadFullDiff: () => void
   onTranscriptPageChange: (page: number) => void
 }) {
   const { t } = useT("jobs")
@@ -2234,6 +2268,7 @@ function RunArtifactsPanel({
         ) : (
           <p className="p-3 text-sm text-text-muted">{t("artifact_no_diff")}</p>
         )}
+        {payload.agent_diff_truncated ? <TruncatedDiffNotice onLoadFullDiff={onLoadFullDiff} /> : null}
       </section>
     )
   }
@@ -2252,6 +2287,7 @@ function RunArtifactsPanel({
         ) : (
           <p className="p-3 text-sm text-text-muted">{t("artifact_no_diff")}</p>
         )}
+        {payload.step_agent_diff_truncated ? <TruncatedDiffNotice onLoadFullDiff={onLoadFullDiff} /> : null}
       </section>
     )
   }
@@ -2271,6 +2307,18 @@ function RunArtifactsPanel({
         totalPages={payload.logs_total_pages || 1}
       />
     </section>
+  )
+}
+
+function TruncatedDiffNotice({ onLoadFullDiff }: { onLoadFullDiff: () => void }) {
+  const { t } = useT("jobs")
+  return (
+    <div className="flex items-center justify-between gap-3 p-3 text-xs text-warning-text">
+      <p>{t("artifact_diff_truncated")}</p>
+      <button className="shrink-0 underline hover:no-underline" onClick={onLoadFullDiff} type="button">
+        {t("artifact_diff_load_full")}
+      </button>
+    </div>
   )
 }
 

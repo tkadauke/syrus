@@ -95,7 +95,9 @@ their own `transcript_path`:
   the artifact-specific payload shape can't drift between the two routes --
   only the authorization/lookup path differs. Transcript requests pass
   `artifact=transcript` and receive the newest bounded page of log chunks,
-  `logs_count`, and page metadata without loading either Run diff blob. The
+  `logs_count`, and page metadata without loading either Run diff blob. Active
+  transcript clients can pass `after_sequence` to receive only new rows; the
+  response ETag also changes for Run and Job state transitions. The
   drawer exposes Older/Newer controls while additional transcript pages exist.
 
 Chat-backed session cards do not open an inline transcript drawer. They carry

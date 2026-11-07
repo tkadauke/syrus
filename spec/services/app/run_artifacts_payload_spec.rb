@@ -65,6 +65,20 @@ RSpec.describe App::RunArtifactsPayload do
     expect(newer_page).to include(logs_count: 4, logs_page: 1, logs_per_page: 2, logs_total_pages: 2, logs_has_older: true)
     expect(newer_page[:logs].map { |log| log[:chunk] }).to eq(%w[call result after])
     expect(older_page[:logs].map { |log| log[:chunk] }).to eq(%w[before call result])
+    expect(newer_page[:logs].first).to include(tool_input: { "file_path" => "app.rb" })
+    expect(newer_page[:logs].second).to include(tool_result_content: "contents")
+  end
+
+  it "returns only transcript rows after the requested sequence" do
+    job = Factories.job_with_run
+    run = job.runs.last
+    run.job_logs.delete_all
+    4.times { |sequence| run.job_logs.create!(sequence: sequence, kind: "stdout", chunk: "line #{sequence}") }
+
+    payload = described_class.build(run: run, after_sequence: 1)
+
+    expect(payload).to include(logs_count: 4, logs_max_sequence: 3, logs_has_newer: false)
+    expect(payload[:logs].map { |log| log[:sequence] }).to eq([ 2, 3 ])
   end
 
   it "reads only the requested diff artifact" do
@@ -78,6 +92,19 @@ RSpec.describe App::RunArtifactsPayload do
     expect(agent_payload).not_to include(:step_agent_diff, :logs)
     expect(step_payload).to include(artifact: "step_agent_diff", step_agent_diff: "step diff", step_agent_diff_bytes: 9)
     expect(step_payload).not_to include(:agent_diff, :logs)
+  end
+
+  it "caps oversized diff JSON while reporting its full byte size" do
+    diff = "x" * (described_class::MAX_DIFF_BYTES + 10)
+    job = Factories.job_with_run(run_attrs: { agent_diff: diff })
+
+    payload = described_class.build(run: job.runs.last, artifact: "agent_diff")
+
+    expect(payload[:agent_diff].bytesize).to eq(described_class::MAX_DIFF_BYTES)
+    expect(payload).to include(agent_diff_bytes: diff.bytesize, agent_diff_truncated: true)
+
+    full_payload = described_class.build(run: job.runs.last, artifact: "agent_diff", full: true)
+    expect(full_payload).to include(agent_diff: diff, agent_diff_bytes: diff.bytesize, agent_diff_truncated: false)
   end
 
   it "defaults workflow_id to nil when the run has no step" do

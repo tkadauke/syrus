@@ -11,6 +11,12 @@ const RUN_TRANSCRIPT_BOTTOM_THRESHOLD_PX = 24
 export type TranscriptLog = NonNullable<Awaited<ReturnType<typeof fetchJobRunArtifacts>>["logs"]>[number]
 export type DisplayTranscriptLog = TranscriptLog & { sourceKey: string }
 
+export function mergeTranscriptLogs(current: TranscriptLog[] | undefined, incoming: TranscriptLog[] | undefined) {
+  const byId = new Map((current || []).map((log) => [log.id, log]))
+  for (const log of incoming || []) byId.set(log.id, log)
+  return [...byId.values()].sort((left, right) => left.sequence - right.sequence)
+}
+
 export function coalesceTranscriptLogs(logs: TranscriptLog[]) {
   const displayLogs: DisplayTranscriptLog[] = []
   const sourceByKind = new Map<string, string>()
