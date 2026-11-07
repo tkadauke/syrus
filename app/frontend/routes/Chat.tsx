@@ -366,12 +366,12 @@ export function SharedChatRoute() {
     >
       {chat.isPending ? <PanelMessage>{t("loading_shared_chat")}</PanelMessage> : null}
       {chat.isError ? <PanelMessage tone="error">{errorMessage(chat.error, t("error_load_shared_chat"))}</PanelMessage> : null}
-      {chat.isSuccess ? <SharedChatView payload={chat.data} /> : null}
+      {chat.isSuccess ? <SharedChatView payload={chat.data} token={token} /> : null}
     </main>
   )
 }
 
-function SharedChatView({ payload }: { payload: SharedChatPayload }) {
+function SharedChatView({ payload, token }: { payload: SharedChatPayload; token: string }) {
   const { t } = useT("chat")
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
@@ -382,17 +382,35 @@ function SharedChatView({ payload }: { payload: SharedChatPayload }) {
         <span className="rounded border border-brand/30 bg-brand/10 px-3 py-1 text-sm font-medium text-brand">{t("view_only")}</span>
       </header>
       <section className="min-h-0 flex-1 overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-950">
-        <ReadOnlyMessageStream payload={payload} />
+        <ReadOnlyMessageStream payload={payload} token={token} />
       </section>
     </div>
   )
 }
 
-function ReadOnlyMessageStream({ payload }: { payload: SharedChatPayload }) {
+function ReadOnlyMessageStream({ payload, token }: { payload: SharedChatPayload; token: string }) {
   const renderCache = useRef(createChatRenderCache())
-  const items = useMemo(() => renderChatMessages(payload.messages, renderCache.current), [payload.messages])
-  const placeholderPayload = useMemo(() => sharedChatRenderPayload(payload), [payload])
+  const [messages, setMessages] = useState(payload.messages)
+  const [beforeId, setBeforeId] = useState(payload.before_id)
+  const [hasMoreOlder, setHasMoreOlder] = useState(payload.has_more_older)
+  const pagePayload = useMemo(() => ({ ...payload, messages, before_id: beforeId, has_more_older: hasMoreOlder }), [beforeId, hasMoreOlder, messages, payload])
+  const items = useMemo(() => renderChatMessages(messages, renderCache.current), [messages])
+  const placeholderPayload = useMemo(() => sharedChatRenderPayload(pagePayload), [pagePayload])
   const { t } = useT("chat")
+  const loadOlder = useMutation({
+    mutationFn: () => fetchSharedChat(token, beforeId),
+    onSuccess: (page) => {
+      setMessages((current) => mergeChatMessages(page.messages, current))
+      setBeforeId(page.before_id)
+      setHasMoreOlder(page.has_more_older)
+    }
+  })
+
+  useEffect(() => {
+    setMessages(payload.messages)
+    setBeforeId(payload.before_id)
+    setHasMoreOlder(payload.has_more_older)
+  }, [payload])
 
   if (items.length === 0) {
     return (
@@ -407,6 +425,13 @@ function ReadOnlyMessageStream({ payload }: { payload: SharedChatPayload }) {
 
   return (
     <div className="h-full min-h-0 space-y-4 overflow-x-hidden overflow-y-auto p-3 sm:p-4" data-testid="chat-message-stream">
+      {hasMoreOlder ? (
+        <div className="flex justify-center">
+          <Button disabled={loadOlder.isPending} onClick={() => loadOlder.mutate()} size="sm" type="button" variant="secondary">
+            {t("load_earlier_messages")}
+          </Button>
+        </div>
+      ) : null}
       {items.map((item) =>
         item.type === "tool_group" ? (
           <SharedMessageRenderer compact key={renderItemKey(item)} readOnly>
@@ -447,7 +472,7 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
     chat_available: false,
     chat_provider_display_name: "Claude",
     switching_provider: false,
-    has_more_older: false,
+    has_more_older: payload.has_more_older,
     active_goal: null,
     attached_coding_job: null,
     messages: payload.messages,

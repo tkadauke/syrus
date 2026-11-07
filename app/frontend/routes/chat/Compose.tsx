@@ -431,8 +431,9 @@ export function Compose({
   const updateRepository = useMutation({
     mutationFn: (nextRepositoryId: string) => updateChatRepository(chatId, nextRepositoryId || null),
     onSuccess: (updated) => {
-      mergeChatPayloadUpdate(queryClient, queryKey, updated)
-      updateRecentChatCache(queryClient, currentRecentChat(updated) || updated.chat)
+      const merged = mergeChatPayloadUpdate(queryClient, queryKey, updated)
+      updateRecentChatCache(queryClient, currentRecentChat(merged))
+      void queryClient.invalidateQueries({ queryKey })
       onNotice(null)
     },
     onError: (error) => {
@@ -2952,7 +2953,7 @@ function useChatDictation({
     chunksRef.current = []
     discardOnStopRef.current = false
     startedAtRef.current = Date.now()
-    const recorder = new MediaRecorder(mediaStream, { mimeType: recorderMimeType() })
+    const recorder = new MediaRecorder(mediaStream, { mimeType: recorderMimeType(), audioBitsPerSecond: 32_000 })
     recorderRef.current = recorder
     recorder.ondataavailable = (event: BlobEvent) => {
       if (!event.data || event.data.size === 0) return

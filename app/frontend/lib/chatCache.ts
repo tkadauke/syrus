@@ -26,14 +26,7 @@ export function mergeChatPayloadUpdate(queryClient: QueryClient, queryKey: Query
       return merged
     }
 
-    merged = {
-      ...current,
-      message: update.message ?? current.message,
-      chat: {
-        ...current.chat,
-        ...update.chat
-      }
-    }
+    merged = { ...current, ...update, chat: { ...current.chat, ...update.chat } }
     return merged
   })
 
@@ -41,7 +34,7 @@ export function mergeChatPayloadUpdate(queryClient: QueryClient, queryKey: Query
 }
 
 function isFullChatPayload(update: ChatPayloadUpdate): update is ChatPayload {
-  return "messages" in update
+  return "chat_available" in update
 }
 
 export function recentChatsQueryKey(settings: Partial<ChatSidebarSettings> = {}): QueryKey {

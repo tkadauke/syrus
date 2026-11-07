@@ -884,6 +884,29 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
     return patched
   }
 
+  const upsertMessages = chatUpsertMessagesPayload(event.payload)
+  if (upsertMessages) {
+    upsertMessages.messages.forEach((message) => normalizeChatMessage(message, "app_event"))
+    let patched = false
+    if (typeof upsertMessages.turn_in_flight === "boolean")
+      updateRecentChatTurnCache(queryClient, event.id, { turn_in_flight: upsertMessages.turn_in_flight, agent_busy: upsertMessages.agent_busy })
+    queryClient.setQueriesData<ChatPayload>({ queryKey: ["chats", String(event.id)] }, (current) => {
+      if (!current || !Array.isArray(current.messages)) return current
+      patched = true
+      return {
+        ...current,
+        messages: upsertMessagesIntoTail(current.messages, upsertMessages.messages),
+        chat: patchCachedChatRecord(current.chat, {
+          turn_in_flight: upsertMessages.turn_in_flight ?? current.chat?.turn_in_flight,
+          agent_busy: upsertMessages.agent_busy ?? current.chat?.agent_busy,
+          turn_retry_state: upsertMessages.turn_retry_state !== undefined ? upsertMessages.turn_retry_state : current.chat?.turn_retry_state,
+          stop_requested_at: upsertMessages.stop_requested_at ?? current.chat?.stop_requested_at
+        })
+      }
+    })
+    return patched
+  }
+
   const invalidateMessages = chatInvalidateMessagesPayload(event.payload)
   if (invalidateMessages) {
     updateRecentChatTurnCache(queryClient, event.id, { turn_in_flight: invalidateMessages.turn_in_flight, agent_busy: invalidateMessages.agent_busy })
@@ -1061,11 +1084,14 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
             return item
           }
           if (entry.kind !== "epic") return entry
-          return { ...entry, children: entry.children.map((child) => {
-            if (child.job_id !== jobStatusChanged.job_id || item.kind !== "job") return child
-            found = true
-            return item
-          }) }
+          return {
+            ...entry,
+            children: entry.children.map((child) => {
+              if (child.job_id !== jobStatusChanged.job_id || item.kind !== "job") return child
+              found = true
+              return item
+            })
+          }
         })
         return { ...current, items: found ? items : [item, ...items] }
       })
@@ -1536,7 +1562,7 @@ function chatJobStatusChangedPayload(payload: unknown): ChatJobStatusChangedPayl
   if (candidate.action !== "job_status_changed") return null
   if (typeof candidate.job_id !== "number") return null
 
-  const item = candidate.item && typeof candidate.item === "object" ? candidate.item as ChatJobStatusItem : undefined
+  const item = candidate.item && typeof candidate.item === "object" ? (candidate.item as ChatJobStatusItem) : undefined
   return { action: "job_status_changed", job_id: candidate.job_id, item }
 }
 

@@ -1835,6 +1835,39 @@ describe("chat composer dictation", () => {
     })
   })
 
+  it("caps recorder audio bitrate before uploading speech", async () => {
+    let recorderOptions: MediaRecorderOptions | undefined
+    class BitrateMediaRecorder {
+      static isTypeSupported() {
+        return true
+      }
+
+      state: RecordingState = "inactive"
+      ondataavailable: ((event: BlobEvent) => void) | null = null
+      onstop: (() => void) | null = null
+
+      constructor(_stream: MediaStream, options?: MediaRecorderOptions) {
+        recorderOptions = options
+      }
+
+      start() {
+        this.state = "recording"
+      }
+
+      stop() {
+        this.state = "inactive"
+      }
+    }
+    vi.stubGlobal("MediaRecorder", BitrateMediaRecorder)
+    mockAudioPermission()
+    mockDictationFetch(chatPayloadWithDictation({ batch: true }))
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Start dictation" }))
+
+    await waitFor(() => expect(recorderOptions?.audioBitsPerSecond).toBe(32_000))
+  })
+
   it("replaces interim streaming hypotheses and commits the final text once", async () => {
     installMediaRecorderMock()
     mockAudioPermission()
@@ -9194,12 +9227,16 @@ describe("new chat repository selector in composer", () => {
 
   it("renders on the blank composer and can clear the attached repository with the x button", async () => {
     const clearedPayload = landingPayload(null)
+    let currentPayload = landingPayload()
     const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
       if (path === "/api/v1/app/chats/new") return Promise.resolve(jsonResponse({ default_repository_id: 3, repositories }))
-      if (path === "/api/v1/app/chats/8" && (init as RequestInit)?.method === "PATCH") return Promise.resolve(jsonResponse(clearedPayload))
-      return Promise.resolve(jsonResponse(landingPayload()))
+      if (path === "/api/v1/app/chats/8" && (init as RequestInit)?.method === "PATCH") {
+        currentPayload = clearedPayload
+        return Promise.resolve(jsonResponse(clearedPayload))
+      }
+      return Promise.resolve(jsonResponse(currentPayload))
     })
 
     renderRoute()
@@ -9223,12 +9260,16 @@ describe("new chat repository selector in composer", () => {
 
   it("offers all accessible repositories plus no repository on the blank composer", async () => {
     const switchedPayload = landingPayload(repositories[1])
+    let currentPayload = landingPayload()
     const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/mark_read" && (init as RequestInit)?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
       if (path === "/api/v1/app/chats/new") return Promise.resolve(jsonResponse({ default_repository_id: 3, repositories }))
-      if (path === "/api/v1/app/chats/8" && (init as RequestInit)?.method === "PATCH") return Promise.resolve(jsonResponse(switchedPayload))
-      return Promise.resolve(jsonResponse(landingPayload()))
+      if (path === "/api/v1/app/chats/8" && (init as RequestInit)?.method === "PATCH") {
+        currentPayload = switchedPayload
+        return Promise.resolve(jsonResponse(switchedPayload))
+      }
+      return Promise.resolve(jsonResponse(currentPayload))
     })
 
     renderRoute()
