@@ -97,12 +97,18 @@ export const examples: ToolCardExample[] = [
   {
     id: "pending_markdown_prompt",
     label: "Pending recurring task",
-    input: { label: "Weekly review", prompt: "Review **open work** and link JOB-42.", schedule_input: "Every Monday at 9:00 AM" },
+    input: {
+      label: "Weekly review",
+      prompt: "Review **open work** and link JOB-42.",
+      schedule_input: "Every Monday at 9:00 AM",
+      schedule_timezone: "America/New_York"
+    },
     parsedResult: {
       pending_confirmation_id: 501,
-      schedule_explanation: "Runs every Monday at 9:00 AM UTC",
+      schedule_explanation: "Runs every Monday at 9:00 AM America/New_York",
       cron_expression: "0 9 * * 1",
-      next_fire_at: "2026-09-08T09:00:00Z"
+      schedule_timezone: "America/New_York",
+      next_fire_at: "2026-09-07T13:00:00Z"
     }
   },
   { id: "write_access_error", label: "Write access error", resultBody: "repository write access is required to create a scheduled task", resultError: true }

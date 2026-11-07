@@ -86,4 +86,12 @@ describe("schedule_recurring tool card", () => {
     expect(scheduleRecurringToolCard.renderExpanded(context({ parsedResult: null }))).toBeNull()
     expect(examples.map((example) => example.id)).toEqual(["pending_markdown_prompt", "write_access_error"])
   })
+
+  it("shows the stored timezone in the catalog example", () => {
+    const example = examples[0]
+    render(<>{scheduleRecurringToolCard.renderExpanded(context({ input: example.input, parsedResult: example.parsedResult }))}</>)
+
+    expect(screen.getByText("America/New_York")).toBeInTheDocument()
+    expect(screen.getByText("Runs every Monday at 9:00 AM America/New_York")).toBeInTheDocument()
+  })
 })
