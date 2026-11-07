@@ -44,7 +44,7 @@ module Api
 
         def apply
           rule = apply_draft!
-          render json: { authority: serialize_authority(rule) }, status: :created
+          render json: { authority: serialize_authority(rule), permissions: Permissions::RulesPayload.new(Current.user).as_json }, status: :created
         rescue ActiveRecord::RecordNotFound
           render_error("not_found", I18n.t("api.permission_rule_drafts.errors.unknown_rule"), status: :not_found)
         rescue Permissions::RuleDraft::Stale => error
