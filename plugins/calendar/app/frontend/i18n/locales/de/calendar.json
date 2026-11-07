@@ -30,6 +30,7 @@
     "fallback": "30-Minuten-Standardwert"
   },
   "running": "läuft",
+  "close_details": "Details schließen",
   "open_owner": "Zugehörige Funktion öffnen",
   "open_schedule": "Geplanten Task öffnen",
   "open_main_chat": "Hauptchat öffnen",
