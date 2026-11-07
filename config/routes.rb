@@ -338,6 +338,7 @@ Rails.application.routes.draw do
         get "chats/:id/preview_panels/:panel_id/files/*path", to: "chats#preview_panel_file", constraints: { id: /\d+/, panel_id: /\d+/ }, format: false
         post "chats/:id/preview_panels/:panel_id/token", to: "chats#preview_panel_token", constraints: { id: /\d+/, panel_id: /\d+/ }
         get "chats/:id/proposals/search", to: "chats#search_proposals", constraints: { id: /\d+/ }
+        get "chats/:id/proposals/:proposal_id", to: "chats#proposal", constraints: { id: /\d+/, proposal_id: /\d+/ }
         patch "chats/:id/proposals/:proposal_id", to: "chats#update_proposal", constraints: { id: /\d+/, proposal_id: /\d+/ }
         post "chats/:id/proposals/:proposal_id/confirm", to: "chats#confirm_proposal", constraints: { id: /\d+/, proposal_id: /\d+/ }
         post "chats/:id/proposals/:proposal_id/reject", to: "chats#reject_proposal", constraints: { id: /\d+/, proposal_id: /\d+/ }

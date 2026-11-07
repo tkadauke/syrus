@@ -99,6 +99,7 @@ function renderChatMessagesUnmeasured(messages: ChatMessageItem[], cache?: ChatR
       const container = containerByParentKey.get(parentKey) as ChatRenderItem[]
       const call: ChatToolGroupCall = {
         message_id: message.id,
+        content_path: contentRecord(message.content)?.truncated === true ? String(contentRecord(message.content)?.content_path || "") : undefined,
         tool_name: presentation.name,
         raw_name: presentation.raw_name,
         detail: presentation.argument_summary,
@@ -165,6 +166,7 @@ function renderChatMessagesUnmeasured(messages: ChatMessageItem[], cache?: ChatR
         cache?.results.set(message.id, derived)
         const { unboundedBody, body, parsed: parsedResult } = derived
         open.call.result_body = body
+        if (content?.truncated === true) open.call.content_path = String(content.content_path || "")
         open.call.result_json = parsedResult
         open.call.result_settled = true
         open.call.result_error = content?.is_error === true
