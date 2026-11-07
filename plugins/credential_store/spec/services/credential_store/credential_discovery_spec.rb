@@ -93,6 +93,47 @@ RSpec.describe CredentialStore::CredentialDiscovery do
     expect(CredentialStore::CredentialAccessEvent.count).to eq(0)
   end
 
+  it "batches scope authorization queries as credential volume grows" do
+    team = Team.create!(name: "Release Engineering")
+    team.team_memberships.create!(user: user, role: "member")
+    run = Factories.job_with_run(user: user, repository: repository).runs.first
+    context = McpToolContext.from_run(run)
+
+    query_count = lambda do
+      queries = []
+      subscriber = lambda do |_name, _started, _finished, _id, payload|
+        queries << payload[:sql] unless payload[:name] == "SCHEMA" || payload[:cached]
+      end
+      ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+        described_class.call(context: context, limit: described_class::MAX_LIMIT)
+      end
+      queries.size
+    end
+
+    create_credential(name: "repository credential 0")
+    create_credential(name: "team credential 0", scope_type: "team", scope_id: team.id)
+    baseline = query_count.call
+
+    4.times do |index|
+      create_credential(name: "repository credential #{index + 1}")
+      create_credential(name: "team credential #{index + 1}", scope_type: "team", scope_id: team.id)
+    end
+
+    expect(query_count.call).to eq(baseline)
+  end
+
+  it "pages past surface-ineligible credentials without loading an unbounded relation" do
+    50.times do |index|
+      create_credential(name: "a chat credential #{index}", allowed_surfaces: [ "chat" ])
+    end
+    create_credential(name: "z workflow credential", allowed_surfaces: [ "workflow" ])
+    run = Factories.job_with_run(user: user, repository: repository).runs.first
+
+    payload = described_class.call(context: McpToolContext.from_run(run), limit: 1)
+
+    expect(names(payload)).to eq([ "z workflow credential" ])
+  end
+
   it "never selects or returns encrypted payload material in success or error text" do
     credential = create_credential(name: "production token")
     run = Factories.job_with_run(user: user, repository: repository).runs.first
