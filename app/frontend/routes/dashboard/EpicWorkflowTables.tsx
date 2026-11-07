@@ -27,6 +27,7 @@ import { NoticeToast } from "../../components/NoticeToast"
 import { StatusPill } from "../../components/StatusPill"
 import { bulkDashboardEpics, type DashboardBulkEpicAction, type DashboardEpicItem, type DashboardWorkflowItem } from "../../api/dashboard"
 import { errorMessage } from "../../lib/errorMessage"
+import { patchDashboardRowsForBulk } from "../../lib/appEvents"
 import { WorkflowReference } from "../../components/WorkflowReference"
 
 // Dashboard epic + workflow tables extracted from Dashboard.tsx: EpicsTable and
@@ -145,6 +146,7 @@ function BulkEpicActions({ selectedIds }: { selectedIds: number[] }) {
   const cancelRequestedRef = useRef(false)
   const action = useMutation({
     mutationFn: async ({ bulkAction, epicIds }: { bulkAction: DashboardBulkEpicAction; epicIds: number[] }) => {
+      const affectedEpicIds: number[] = []
       let failed = 0
       let lastMessage = ""
       let processed = 0
@@ -156,6 +158,7 @@ function BulkEpicActions({ selectedIds }: { selectedIds: number[] }) {
         try {
           const payload = await bulkDashboardEpics({ epic_ids: [epicId], bulk_action: bulkAction })
           lastMessage = payload.message
+          affectedEpicIds.push(...(payload.affected_epic_ids ?? [epicId]))
           succeeded += payload.affected_epic_ids?.length ?? 1
           failed += payload.skipped_epic_ids?.length ?? 0
         } catch (_error) {
@@ -166,15 +169,16 @@ function BulkEpicActions({ selectedIds }: { selectedIds: number[] }) {
         setProgress({ completed: succeeded, total: epicIds.length })
       }
 
-      return { canceled: cancelRequestedRef.current && processed < epicIds.length, failed, lastMessage, processed, succeeded, total: epicIds.length }
+      return { affectedEpicIds, canceled: cancelRequestedRef.current && processed < epicIds.length, failed, lastMessage, processed, succeeded, total: epicIds.length }
     },
     onSuccess: (result) => {
       if (result.canceled) setNotice(t("bulk_epic_action_canceled", { completed: result.processed, total: result.total }))
       else if (result.failed > 0) setNotice(t("bulk_epic_action_partial", { failed: result.failed, succeeded: result.succeeded, total: result.total }))
       else setNotice(result.lastMessage)
+      patchDashboardRowsForBulk(queryClient, "epic", result.affectedEpicIds)
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "chrome"] })
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ["dashboard", "rows"] })
       setProgress(null)
       setCancellationRequested(false)
       cancelRequestedRef.current = false

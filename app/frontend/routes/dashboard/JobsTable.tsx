@@ -46,6 +46,7 @@ import { type LandingQueueBlockerJob } from "../../api/jobs"
 import { errorMessage } from "../../lib/errorMessage"
 import { useConfirm } from "../../hooks/useConfirm"
 import { createDashboardJobNavigationContext, jobNavigationHref, storeJobNavigationContext } from "../../lib/jobNavigationContext"
+import { patchDashboardRowsForBulk } from "../../lib/appEvents"
 import { PluginUiSlotCarousel, type UiSlotPanel } from "../../pluginUiSlots"
 
 // Dashboard jobs table extracted from Dashboard.tsx: JobsDashboardTable and its
@@ -214,6 +215,8 @@ function BulkJobActions({ controls, items, selectedIds }: { controls: DashboardP
             priority: bulkAction === "set_priority" ? priority : undefined
           })
           lastMessage = payload.message
+          patchDashboardRowsForBulk(queryClient, "job", payload.affected_job_ids)
+          void queryClient.invalidateQueries({ queryKey: ["dashboard", "chrome"] })
           succeeded += payload.affected_job_ids?.length ?? 1
           failed += payload.skipped_job_ids?.length ?? 0
         } catch (_error) {
@@ -233,7 +236,6 @@ function BulkJobActions({ controls, items, selectedIds }: { controls: DashboardP
       else setNotice(result.lastMessage)
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ["dashboard", "rows"] })
       setProgress(null)
       setCancellationRequested(false)
       cancelRequestedRef.current = false
