@@ -12,6 +12,10 @@ you may access. Recurring and one-shot slots use each task's configured
 timezone, including daylight-saving transitions. Past slots link the planned
 time to the Job and Workflow that actually ran; paused, auto-paused, fired,
 skipped, and failed slots remain distinguishable. Occurrences are bounded by
-the task's creation and archive times. Coworker-owned
-schedules are omitted because Coworkers presents those itself. Calendar stays
+the task's creation and archive times. Coworker-owned schedules are omitted
+from that source because Coworkers presents them with the coworker's identity,
+avatar, main-chat and schedule links, follow-up policy, and system-schedule
+identity. Their occurrences distinguish work waiting for a serialized turn
+from work that actually started, and correlate the resulting background
+Workflow's actual start, finish, duration, and outcome. Calendar stays
 optional: turning it off never pauses or otherwise changes a scheduled task.
