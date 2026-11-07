@@ -5,6 +5,7 @@ class PreviewPanel < ApplicationRecord
 
   belongs_to :chat_session
   has_many :preview_panel_versions, dependent: :destroy
+  has_one :latest_version, -> { reorder(created_at: :desc, id: :desc) }, class_name: "PreviewPanelVersion"
 
   validates :title, presence: true
   validates :state, presence: true, inclusion: { in: STATES }
@@ -49,7 +50,7 @@ class PreviewPanel < ApplicationRecord
   # preview_panel_versions is newest-first (PreviewPanelVersion's default
   # scope), so the first row is always the latest published snapshot.
   def current_version
-    preview_panel_versions.first
+    latest_version
   end
 
   # Looks up an attached file by its stored relative path (e.g.
@@ -73,6 +74,10 @@ class PreviewPanel < ApplicationRecord
         metadata: { "relative_path" => relative_path.to_s }
       )
     end
+    version.update!(
+      file_count: files_by_path.size,
+      entry_viewer_kind: PreviewPanel::EntryMetadata.viewer_kind(version.entry_file)
+    )
     version
   end
 
@@ -95,7 +100,7 @@ class PreviewPanel < ApplicationRecord
       "title" => title,
       "state" => state,
       "visibility" => visibility,
-      "file_count" => current_version&.files&.size || 0,
+      "file_count" => current_version&.file_count || 0,
       "entry_file" => current_version&.entry_file || DEFAULT_ENTRY_FILENAME
     }
   end

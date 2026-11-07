@@ -25,6 +25,21 @@ RSpec.describe "API: /api/v1/app/preview_panels", type: :request do
     expect(body["entry_viewer_kind"]).to eq("html")
   end
 
+  it "returns only the current version unless history is requested" do
+    panel = panel_for(user)
+    first_version_id = panel.current_version.id
+    PreviewPanel::Service.new(panel).update!(files: { "notes.md" => "# Latest" }, entry_file: "notes.md")
+    sign_in_as(user)
+
+    get "/api/v1/app/preview_panels/#{panel.id}"
+    body = JSON.parse(response.body)
+    expect(body["versions"].map { |version| version["id"] }).to eq([ panel.reload.current_version.id ])
+    expect(body).to include("file_count" => 1, "entry_viewer_kind" => "markdown")
+
+    get "/api/v1/app/preview_panels/#{panel.id}?include=versions"
+    expect(JSON.parse(response.body)["versions"].map { |version| version["id"] }).to eq([ panel.reload.current_version.id, first_version_id ])
+  end
+
   it "updates visibility outside any chat" do
     panel = panel_for(user)
     sign_in_as(user)

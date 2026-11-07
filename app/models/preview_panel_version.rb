@@ -5,6 +5,8 @@ class PreviewPanelVersion < ApplicationRecord
   default_scope -> { order(created_at: :desc, id: :desc) }
 
   validates :entry_file, presence: true
+  validates :file_count, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
+  validates :entry_viewer_kind, presence: true
 
   # Mirrors PreviewPanel#file_for: looks up an attached file by its stored
   # relative path, going through blob metadata since ActiveStorage sanitizes
@@ -16,5 +18,4 @@ class PreviewPanelVersion < ApplicationRecord
 
   def entry_attachment = file_for(entry_file)
   def entry_content_type = PreviewPanel::EntryMetadata.content_type(entry_file)
-  def entry_viewer_kind = PreviewPanel::EntryMetadata.viewer_kind(entry_file)
 end
