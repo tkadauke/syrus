@@ -32,6 +32,7 @@ class Coworkers::ReviewContextContributor
   end
 
   def self.tool_set(_target) = Coworkers::ReviewToolSet
+  def self.tool_capability(_target) = :submit_coworker_review
   def self.retention(_target) = { "policy" => "coworker_review_context", "tombstones" => true }
 
   def self.tombstone(context, reason:)

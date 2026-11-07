@@ -240,8 +240,11 @@ module Mcp
       end
       target = context.run&.step&.details.to_h&.dig("reviewer_target")
       if target.present?
-        contributed = ReviewContextContributions.tool_set(target)
-        tool_sets = (tool_sets + [ contributed ]).compact.uniq
+        capability = ReviewContextContributions.tool_capability(target)
+        if capability && McpToolPolicy.capability_permitted?(context, capability)
+          contributed = ReviewContextContributions.tool_set(target)
+          tool_sets = (tool_sets + [ contributed ]).compact.uniq
+        end
       end
 
       tool_sets
