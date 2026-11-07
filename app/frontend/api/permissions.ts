@@ -38,7 +38,7 @@ export type PermissionProfile = { key: string; label: string; description: strin
 export type PermissionProfilePreview = {
   profile: PermissionProfile
   subject_selector_type: string
-  revoked: PermissionRule[]
+  revoked: Array<Pick<PermissionRule, "id" | "policy" | "capability" | "operation" | "resource_scope" | "resource_scope_label">>
   replacements: Array<{ policy: "allow" | "ask" | "deny"; capability: string; operation: string; resource_scope_label: string }>
 }
 export type PermissionsPayload = {
@@ -74,8 +74,24 @@ export type PermissionHistoryEntry = Record<string, unknown> & {
 }
 export type PermissionHistoryPayload = { active_leases: PermissionLease[]; history: PermissionHistoryEntry[] }
 
-export const fetchPermissions = () => {
-  return getJson<PermissionsPayload>("/api/v1/app/permission_rules")
+export type PermissionRulesDynamicPayload = Omit<PermissionsPayload, "inherited" | "profiles"> & {
+  matrix_states?: Record<string, InheritedPermission["matrix_states"]>
+}
+type PermissionRulesCatalogPayload = Pick<PermissionsPayload, "inherited" | "profiles">
+
+export const fetchPermissions = async () => {
+  const [dynamic, catalog] = await Promise.all([
+    getJson<PermissionRulesDynamicPayload>("/api/v1/app/permission_rules"),
+    getJson<PermissionRulesCatalogPayload>("/api/v1/app/permission_rules/catalog")
+  ])
+  return {
+    ...dynamic,
+    profiles: catalog.profiles,
+    inherited: catalog.inherited.map((descriptor) => ({
+      ...descriptor,
+      matrix_states: dynamic.matrix_states?.[`${descriptor.capability}|${descriptor.operation}`] ?? descriptor.matrix_states ?? {}
+    }))
+  } satisfies PermissionsPayload
 }
 export const previewPermissionProfile = (profile: string, subject_selector_type: string) =>
   postJson<{ preview: PermissionProfilePreview; confirmation_digest: string }>("/api/v1/app/permission_rules/preview_profile", {
@@ -83,7 +99,7 @@ export const previewPermissionProfile = (profile: string, subject_selector_type:
     subject_selector_type
   })
 export const applyPermissionProfile = (profile: string, subject_selector_type: string, confirmation_digest: string) =>
-  postJson<{ rules: PermissionRule[]; profile: string; subject_selector_type: string }>("/api/v1/app/permission_rules/apply_profile", {
+  postJson<PermissionRulesDynamicPayload & { profile: string; subject_selector_type: string }>("/api/v1/app/permission_rules/apply_profile", {
     profile,
     subject_selector_type,
     confirmation_digest
@@ -92,20 +108,20 @@ export const fetchPermissionHistory = () => {
   return getJson<PermissionHistoryPayload>("/api/v1/app/permission_rules/history")
 }
 export const createPermissionRule = (permission_rule: Record<string, unknown>) =>
-  postJson<{ rule: PermissionRule }>("/api/v1/app/permission_rules", { permission_rule })
+  postJson<PermissionRulesDynamicPayload & { rule_id: number }>("/api/v1/app/permission_rules", { permission_rule })
 export const updatePermissionRule = (id: number, permission_rule: Record<string, unknown>) =>
-  patchJson<{ rule: PermissionRule }>(`/api/v1/app/permission_rules/${id}`, { permission_rule })
+  patchJson<PermissionRulesDynamicPayload & { rule_id: number }>(`/api/v1/app/permission_rules/${id}`, { permission_rule })
 export const applyPermissionPreset = (permission_rule: Record<string, unknown>) =>
-  postJson<{ rule: PermissionRule }>("/api/v1/app/permission_rules/apply_preset", { permission_rule })
+  postJson<PermissionRulesDynamicPayload & { rule_id: number }>("/api/v1/app/permission_rules/apply_preset", { permission_rule })
 export const revokePermissionRule = (id: number) => {
-  return postJson<{ rule: PermissionRule }>(`/api/v1/app/permission_rules/${id}/revoke`)
+  return postJson<PermissionRulesDynamicPayload & { rule_id: number }>(`/api/v1/app/permission_rules/${id}/revoke`)
 }
 export type PermissionBulkOperation = Record<string, unknown> & { action: "grant" | "revoke" }
 export type PermissionPreview = { action: string; policy: string; subject: string; capability: string; operation: string; resource_scope_label: string }
 export const previewPermissionBulk = (operations: PermissionBulkOperation[]) =>
   postJson<{ preview: PermissionPreview[]; confirmation_digest: string }>("/api/v1/app/permission_rules/preview_bulk", { operations })
 export const applyPermissionBulk = (operations: PermissionBulkOperation[], confirmation_digest: string) =>
-  postJson<{ rules: PermissionRule[] }>("/api/v1/app/permission_rules/bulk", { operations, confirmation_digest })
+  postJson<PermissionRulesDynamicPayload & { changed_rule_ids: number[] }>("/api/v1/app/permission_rules/bulk", { operations, confirmation_digest })
 
 export type ApprovalProvider = { provider_key: string; display_name: string; data_sharing: string; default_guidance: string }
 export type ApprovalDelegation = {

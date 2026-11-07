@@ -9,7 +9,7 @@ describe("PermissionsSettingsRoute", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("separates editable user rules from inherited read-only policy", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(payload()))
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(payload())))
     renderRoute()
 
     fireEvent.click(await screen.findByRole("button", { name: "Rules" }))
@@ -111,7 +111,15 @@ describe("PermissionsSettingsRoute", () => {
       if (path.includes("/permission_rule_drafts/options")) return Promise.resolve(jsonResponse({ options: hubOptions }))
       if (path.endsWith("/permission_rule_drafts/preview")) return Promise.resolve(jsonResponse({ preview: hubPreview }))
       if (path.endsWith("/permission_rule_drafts/apply"))
-        return Promise.resolve(jsonResponse({ authority: { kind: "PermissionRule", id: 9, capability: "syrus.jobs@v1", operation: "cancel@v1" } }, 201))
+        return Promise.resolve(
+          jsonResponse(
+            {
+              authority: { kind: "PermissionRule", id: 9, capability: "syrus.jobs@v1", operation: "cancel@v1" },
+              permissions: data
+            },
+            201
+          )
+        )
       return Promise.resolve(jsonResponse(data))
     })
     renderRoute()
@@ -148,9 +156,13 @@ describe("PermissionsSettingsRoute", () => {
   })
 
   it("shows a failed revoke instead of silently leaving the rule active", async () => {
-    vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(jsonResponse(payload()))
-      .mockResolvedValueOnce(jsonResponse({ error: { code: "invalid_permission_rule", message: "rule could not be revoked" } }, 422))
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) =>
+      Promise.resolve(
+        String(input).endsWith("/revoke")
+          ? jsonResponse({ error: { code: "invalid_permission_rule", message: "rule could not be revoked" } }, 422)
+          : jsonResponse(payload())
+      )
+    )
     renderRoute()
 
     fireEvent.click(await screen.findByRole("button", { name: "Rules" }))
@@ -161,26 +173,27 @@ describe("PermissionsSettingsRoute", () => {
   })
 
   it("previews every selected matrix grant before applying it", async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(jsonResponse(payload()))
-      .mockResolvedValueOnce(
-        jsonResponse({
-          preview: [
-            {
-              action: "grant",
-              policy: "allow",
-              subject: "interactive_chat",
-              capability: "syrus.jobs@v1",
-              operation: "cancel@v1",
-              resource_scope_label: "All resources"
-            }
-          ],
-          confirmation_digest: "signed-preview"
-        })
-      )
-      .mockResolvedValueOnce(jsonResponse({ rules: [] }))
-      .mockResolvedValue(jsonResponse(payload()))
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path.endsWith("/preview_bulk"))
+        return Promise.resolve(
+          jsonResponse({
+            preview: [
+              {
+                action: "grant",
+                policy: "allow",
+                subject: "interactive_chat",
+                capability: "syrus.jobs@v1",
+                operation: "cancel@v1",
+                resource_scope_label: "All resources"
+              }
+            ],
+            confirmation_digest: "signed-preview"
+          })
+        )
+      if (path.endsWith("/bulk")) return Promise.resolve(jsonResponse({ rules: [] }))
+      return Promise.resolve(jsonResponse(payload()))
+    })
     renderRoute()
 
     fireEvent.click(await screen.findByRole("checkbox", { name: "Select syrus.jobs@v1 cancel@v1" }))
@@ -196,7 +209,7 @@ describe("PermissionsSettingsRoute", () => {
   it("shows when an effective matrix state varies by resource", async () => {
     const response = payload()
     response.inherited[0].matrix_states.interactive_chat = "scoped"
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(response))
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(response)))
 
     renderRoute()
 
@@ -328,7 +341,15 @@ function mockHub() {
     if (path.endsWith("/permission_rule_drafts/preview") || path.endsWith("/permission_rule_drafts/from_request"))
       return Promise.resolve(jsonResponse({ preview: hubPreview }))
     if (path.endsWith("/permission_rule_drafts/apply"))
-      return Promise.resolve(jsonResponse({ authority: { kind: "PermissionRule", id: 5, capability: "syrus.jobs@v1", operation: "cancel@v1" } }, 201))
+      return Promise.resolve(
+        jsonResponse(
+          {
+            authority: { kind: "PermissionRule", id: 5, capability: "syrus.jobs@v1", operation: "cancel@v1" },
+            permissions: payload()
+          },
+          201
+        )
+      )
     return Promise.resolve(jsonResponse(payload()))
   })
 }

@@ -6,28 +6,50 @@ module Api
 
         def index
           page = [ params[:page].to_i, 1 ].max
+          summary_view = params[:view] == "summary"
+          requested_limit = params[:limit].presence&.to_i || 5
+          per_page = summary_view ? [[requested_limit, 1].max, 5].min : PER_PAGE
           filter = Permissions::RequestFilter.new(scope, ::Filters::QueryParam.decode(params[:q]))
           relation = filter.apply.preload(:origin, :subject, :repository, authorization_items: [ :prerequisites, :resulting_authority ]).order(created_at: :desc)
           total = relation.count
-          requests = relation.offset((page - 1) * PER_PAGE).limit(PER_PAGE)
-          render json: {
-            requests: requests.map { |request| present(request) },
-            summary: request_summary(scope),
-            filter_options: filter.options,
-            pagination: { page:, per_page: PER_PAGE, total:, total_pages: (total.to_f / PER_PAGE).ceil }
+          requests = relation.offset((page - 1) * per_page).limit(per_page)
+          summary = request_summary(scope)
+          fresh_when(etag: [ "permission-requests", Current.user.id, summary_view, page, per_page, total, summary,
+            relation.maximum(:updated_at)&.to_i,
+            PendingActionItem.where(chat_pending_action_id: relation.select(:id)).maximum(:updated_at)&.to_i,
+            scope.maximum(:updated_at)&.to_i ], public: false)
+          return if performed?
+          payload = {
+            requests: requests.map { |request| present(request, summary: summary_view) },
+            summary:,
+            pagination: { page:, per_page:, total:, total_pages: (total.to_f / per_page).ceil }
           }
+          payload[:filter_options] = filter.options unless summary_view
+          render json: payload
+        end
+
+        def count
+          summary = request_summary(scope)
+          fresh_when(etag: [ "permission-request-count", Current.user.id, summary, scope.maximum(:updated_at)&.to_i ], public: false)
+          render json: { summary: } unless performed?
+        end
+
+        def show
+          request = scope.preload(:origin, :subject, :repository,
+            authorization_items: [ :prerequisites, :resulting_authority ]).find(params[:id])
+          render json: { request: present(request) }
         end
 
         def decide
           requests = decide_requests!([ params[:id] ])
-          render json: { request: present(requests.first.reload) }
+          render json: { request: slim_request(requests.first.reload) }
         rescue ArgumentError, ActiveRecord::RecordInvalid => error
           render_error("invalid_permission_decision", error.message, status: :unprocessable_content)
         end
 
         def batch_decide
           requests = decide_requests!(params.require(:request_ids))
-          render json: { requests: requests.map { |request| present(request.reload) } }
+          render json: { requests: requests.map { |request| slim_request(request.reload) } }
         rescue ArgumentError, ActiveRecord::RecordInvalid => error
           render_error("invalid_permission_decision", error.message, status: :unprocessable_content)
         end
@@ -39,7 +61,7 @@ module Api
           item = request.authorization_items.find(params[:item_id])
           Permissions::AuthorizationDecision.new(request:, item:, user: Current.user)
             .call(decision: "approved", smart: { duration: params.require(:duration).to_s, digest: params[:digest].to_s })
-          render json: { request: present(request.reload) }
+          render json: { request: slim_request(request.reload) }
         rescue Permissions::SmartDecision::AlreadyDecided, Permissions::RuleDraft::Stale => error
           render_error("stale_permission_decision", error.message, status: :conflict)
         rescue ArgumentError, ActiveRecord::RecordInvalid => error
@@ -49,7 +71,7 @@ module Api
         def dismiss
           request = scope.find(params[:id])
           if request.dismiss!
-            render json: { request: present(request.reload) }
+            render json: { request: slim_request(request.reload) }
           else
             render_error("permission_request_not_dismissible", I18n.t("api.permission_requests.not_dismissible"), status: :unprocessable_content)
           end
@@ -128,8 +150,12 @@ module Api
           duration
         end
 
-        def present(request)
-          Permissions::RequestPresenter.new(request, current_user: Current.user).as_json
+        def present(request, summary: false)
+          Permissions::RequestPresenter.new(request, current_user: Current.user, summary:).as_json
+        end
+
+        def slim_request(request)
+          { id: request.id, state: request.state, checkpoint_state: request.checkpoint_state }
         end
 
         def request_summary(relation)

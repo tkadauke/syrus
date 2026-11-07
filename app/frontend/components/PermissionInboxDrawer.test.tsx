@@ -1,17 +1,26 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import * as api from "../api/permissionRequests"
 import type { PermissionRequestsPayload } from "../api/permissionRequests"
 import { PermissionInboxDrawer } from "./PermissionInboxDrawer"
 
 vi.mock("../api/permissionRequests", async () => {
   const actual = await vi.importActual<typeof import("../api/permissionRequests")>("../api/permissionRequests")
-  return { ...actual, fetchPermissionRequests: vi.fn(), decidePermissionRequest: vi.fn() }
+  return {
+    ...actual,
+    fetchPermissionRequests: vi.fn(),
+    fetchPermissionRequestCount: vi.fn(),
+    fetchPermissionRequest: vi.fn(),
+    decidePermissionRequest: vi.fn()
+  }
 })
 
 describe("PermissionInboxDrawer", () => {
+  beforeEach(() => {
+    vi.mocked(api.fetchPermissionRequestCount).mockResolvedValue({ summary: { pending_count: 0, blocked_agent_count: 0 } })
+  })
   afterEach(() => vi.useRealTimers())
 
   it("renders the open drawer in a body portal above the app chrome", async () => {
@@ -36,6 +45,7 @@ describe("PermissionInboxDrawer", () => {
   })
 
   it("shows plain-English context on compact request cards", async () => {
+    vi.mocked(api.fetchPermissionRequestCount).mockResolvedValue({ summary: { pending_count: 1, blocked_agent_count: 1 } })
     vi.mocked(api.fetchPermissionRequests).mockResolvedValue({
       requests: [
         {
@@ -86,6 +96,7 @@ describe("PermissionInboxDrawer", () => {
         checkpoint_state: "denied"
       }
     })
+    vi.mocked(api.fetchPermissionRequest).mockResolvedValue({ request: (await api.fetchPermissionRequests()).requests[0] })
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={client}>
@@ -155,10 +166,7 @@ describe("PermissionInboxDrawer", () => {
     vi.useFakeTimers()
 
     act(() => {
-      client.setQueryData<PermissionRequestsPayload>(["permission_requests", 1], {
-        ...empty,
-        summary: { pending_count: 1, blocked_agent_count: 1 }
-      })
+      client.setQueryData(["permission_requests", "count"], { summary: { pending_count: 1, blocked_agent_count: 1 } })
       vi.advanceTimersByTime(0)
     })
     expect(screen.getByTestId("approval-newly-blocked-ping")).toBeInTheDocument()
@@ -167,20 +175,17 @@ describe("PermissionInboxDrawer", () => {
     expect(screen.queryByTestId("approval-newly-blocked-ping")).not.toBeInTheDocument()
 
     act(() => {
-      client.setQueryData<PermissionRequestsPayload>(["permission_requests", 1], empty)
+      client.setQueryData(["permission_requests", "count"], { summary: empty.summary })
       vi.advanceTimersByTime(0)
     })
     act(() => {
-      client.setQueryData<PermissionRequestsPayload>(["permission_requests", 1], {
-        ...empty,
-        summary: { pending_count: 1, blocked_agent_count: 1 }
-      })
+      client.setQueryData(["permission_requests", "count"], { summary: { pending_count: 1, blocked_agent_count: 1 } })
       vi.advanceTimersByTime(0)
     })
     expect(screen.getByTestId("approval-newly-blocked-ping")).toBeInTheDocument()
 
     act(() => {
-      client.setQueryData<PermissionRequestsPayload>(["permission_requests", 1], empty)
+      client.setQueryData(["permission_requests", "count"], { summary: empty.summary })
       vi.advanceTimersByTime(0)
     })
     expect(screen.queryByTestId("approval-newly-blocked-ping")).not.toBeInTheDocument()
