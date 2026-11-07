@@ -28,6 +28,19 @@ RSpec.describe "Operator briefing personalization API", type: :request do
       .to include("jobs", "spend")
   end
 
+  it "returns only the changed subscription when toggling a repository" do
+    subscription = OperatorBriefing::BriefingSubscription.create!(user: user, repository: repository, enabled: true)
+
+    patch "/api/v1/app/briefing/subscriptions/#{subscription.id}",
+          params: { subscription: { enabled: false } },
+          as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.dig("subscription", "id")).to eq(subscription.id)
+    expect(response.parsed_body.dig("subscription", "enabled")).to eq(false)
+    expect(response.parsed_body.keys).to contain_exactly("subscription")
+  end
+
   it "updates a source preference by creating a new confirmed preference" do
     preference = OperatorBriefing::SourcePreference.effective_for_user(user).fetch("spend")
 
@@ -37,7 +50,9 @@ RSpec.describe "Operator briefing personalization API", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(OperatorBriefing::SourcePreference.effective_for_user(user).fetch("spend")).not_to be_enabled
-    expect(response.parsed_body.fetch("source_preferences").find { |row| row.fetch("source_key") == "spend" }.fetch("enabled")).to eq(false)
+    expect(response.parsed_body.dig("source_preference", "source_key")).to eq("spend")
+    expect(response.parsed_body.dig("source_preference", "enabled")).to eq(false)
+    expect(response.parsed_body).not_to have_key("repositories")
   end
 
   it "confirms a pending AI source preference suggestion" do
@@ -49,6 +64,7 @@ RSpec.describe "Operator briefing personalization API", type: :request do
     expect(suggestion.reload.confirmed_at).to be_present
     expect(suggestion.suggested_by).to eq("ai")
     expect(OperatorBriefing::SourcePreference.effective_for_user(user).fetch("spend")).not_to be_enabled
+    expect(response.parsed_body.dig("source_preference", "id")).to eq(suggestion.id)
   end
 
   it "creates feedback and a linked memory entry" do
@@ -60,6 +76,7 @@ RSpec.describe "Operator briefing personalization API", type: :request do
     feedback = OperatorBriefing::Feedback.sole
     expect(feedback.memory_entry).to be_present
     expect(response.parsed_body.dig("feedback", "memory_entry_id")).to eq(feedback.memory_entry_id)
+    expect(response.parsed_body).not_to have_key("briefing")
   end
 
   it "starts a briefing dive workflow with the selected text context" do
@@ -91,6 +108,45 @@ RSpec.describe "Operator briefing personalization API", type: :request do
         )
       )
     )
+    expect(response.parsed_body.keys).to contain_exactly("workflow_id", "status")
+  end
+
+  it "loads archived briefing content only from the history endpoint" do
+    job.close_with_reason!("briefing_superseded") if job.may_close?
+    briefing.revisions.create!(
+      revision_number: 1,
+      generated_at: Time.current,
+      content_blocks: [ { "kind" => "narrative", "payload" => { "text" => "Archived detail" } } ]
+    )
+    OperatorBriefing::BriefingSubscription.create!(user: user, repository: repository, enabled: true)
+
+    get "/api/v1/app/briefing"
+
+    history_stub = response.parsed_body.fetch("repositories").sole.fetch("history").sole
+    expect(history_stub).not_to have_key("latest_revision")
+
+    get "/api/v1/app/briefing/history", params: { briefing_id: briefing.id }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.dig("briefing", "latest_revision", "content_blocks", 0, "payload", "text")).to eq("Archived detail")
+  end
+
+  it "paginates topic revisions three at a time" do
+    topic = OperatorBriefing::BriefingTopic.create!(repository: repository, slug: "architecture", title: "Architecture")
+    5.times do |index|
+      topic.revisions.create!(revision_number: index + 1, generated_at: Time.current, narrative: "Revision #{index + 1}")
+    end
+
+    get "/api/v1/app/briefing/topics/#{topic.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.fetch("revisions").pluck("revision_number")).to eq([ 5, 4, 3 ])
+    expect(response.parsed_body.fetch("next_cursor")).to eq(3)
+
+    get "/api/v1/app/briefing/topics/#{topic.id}", params: { cursor: 3 }
+
+    expect(response.parsed_body.fetch("revisions").pluck("revision_number")).to eq([ 2, 1 ])
+    expect(response.parsed_body.fetch("next_cursor")).to be_nil
   end
 
   it "opens a briefing discussion chat with context" do

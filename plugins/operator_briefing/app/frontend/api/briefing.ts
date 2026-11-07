@@ -17,7 +17,7 @@ export type BriefingRevision = {
 export type BriefingRecord = {
   id: number
   slug: string
-  live: boolean
+  live?: boolean
   window_start: string | null
   window_end: string | null
   job: {
@@ -27,15 +27,21 @@ export type BriefingRecord = {
     state: string
     path: string
   }
-  latest_revision: BriefingRevision | null
+  latest_revision?: BriefingRevision | null
 }
 
 export type BriefingBlock =
   | { kind: "narrative"; payload: { text?: string | null; dive_candidates?: BriefingDiveCandidate[] | null } }
-  | { kind: "chart"; payload: { chart_type?: "count_by_severity" | "count_by_state" | string | null; title?: string | null; data?: BriefingChartDatum[] | null } }
+  | {
+      kind: "chart"
+      payload: { chart_type?: "count_by_severity" | "count_by_state" | string | null; title?: string | null; data?: BriefingChartDatum[] | null }
+    }
   | { kind: "image"; payload: BriefingArtifactReference }
   | { kind: "artifact"; payload: BriefingArtifactReference }
-  | { kind: "link_card"; payload: { entity_type?: string | null; entity_id?: number | string | null; title?: string | null; path?: string | null; description?: string | null } }
+  | {
+      kind: "link_card"
+      payload: { entity_type?: string | null; entity_id?: number | string | null; title?: string | null; path?: string | null; description?: string | null }
+    }
 
 export type BriefingDiveCandidate = {
   text: string
@@ -118,6 +124,7 @@ export type BriefingTopicPayload = {
     briefing_id: number | null
     workflow_id: number | null
   }>
+  next_cursor: number | null
 }
 
 export type BriefingFeedbackResponse = {
@@ -127,23 +134,30 @@ export type BriefingFeedbackResponse = {
     sentiment: string | null
     note: string | null
   }
-  briefing: BriefingPayload
 }
+
+export type BriefingSubscriptionResponse = { subscription: BriefingSubscription }
+export type BriefingSourcePreferenceResponse = { source_preference: BriefingSourcePreference }
+export type BriefingMutationResponse = { briefing: BriefingRecord | null; status: string; reason: string | null }
 
 export function fetchBriefing() {
   return getJson<BriefingPayload>("/api/v1/app/briefing")
 }
 
-export function fetchBriefingTopic(id: string | number) {
-  return getJson<BriefingTopicPayload>(`/api/v1/app/briefing/topics/${id}`)
+export function fetchBriefingHistory(briefingId: number) {
+  return getJson<{ briefing: BriefingRecord }>(`/api/v1/app/briefing/history?briefing_id=${briefingId}`)
+}
+
+export function fetchBriefingTopic(id: string | number, cursor?: number) {
+  return getJson<BriefingTopicPayload>(`/api/v1/app/briefing/topics/${id}${cursor ? `?cursor=${cursor}` : ""}`)
 }
 
 export function regenerateBriefing(repositoryId: number) {
-  return postJson<BriefingPayload>(`/api/v1/app/briefing/repositories/${repositoryId}/regenerate`)
+  return postJson<BriefingMutationResponse>(`/api/v1/app/briefing/repositories/${repositoryId}/regenerate`)
 }
 
 export function startBriefingDive(briefingId: number, input: { selected_text: string; prompt?: string; evidence?: unknown[] }) {
-  return postJson<{ workflow_id: number; status: string; briefing: BriefingPayload }>(`/api/v1/app/briefing/${briefingId}/dive`, {
+  return postJson<{ workflow_id: number; status: string }>(`/api/v1/app/briefing/${briefingId}/dive`, {
     dive: input
   })
 }
@@ -155,19 +169,19 @@ export function discussBriefing(briefingId: number, message?: string) {
 }
 
 export function updateBriefingSubscription(id: number, enabled: boolean) {
-  return patchJson<BriefingPayload>(`/api/v1/app/briefing/subscriptions/${id}`, {
+  return patchJson<BriefingSubscriptionResponse>(`/api/v1/app/briefing/subscriptions/${id}`, {
     subscription: { enabled }
   })
 }
 
 export function updateBriefingSourcePreference(id: number, enabled: boolean) {
-  return patchJson<BriefingPayload>(`/api/v1/app/briefing/source_preferences/${id}`, {
+  return patchJson<BriefingSourcePreferenceResponse>(`/api/v1/app/briefing/source_preferences/${id}`, {
     source_preference: { enabled }
   })
 }
 
 export function confirmBriefingSourcePreference(id: number) {
-  return postJson<BriefingPayload>(`/api/v1/app/briefing/source_preferences/${id}/confirm`)
+  return postJson<BriefingSourcePreferenceResponse>(`/api/v1/app/briefing/source_preferences/${id}/confirm`)
 }
 
 export function createBriefingFeedback(input: { briefing_id?: number; briefing_item_id?: number; sentiment?: string; note?: string }) {

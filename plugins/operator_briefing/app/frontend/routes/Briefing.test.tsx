@@ -37,13 +37,13 @@ function briefingPayload(overrides: Partial<BriefingPayload> = {}): BriefingPayl
   }
 }
 
-function renderBriefing(payload: BriefingPayload) {
+function renderBriefing(payload: BriefingPayload, path = "/app-shell/briefing") {
   vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={["/app-shell/briefing"]}>
+      <MemoryRouter initialEntries={[path]}>
         <BriefingRoute />
       </MemoryRouter>
     </QueryClientProvider>
@@ -52,18 +52,20 @@ function renderBriefing(payload: BriefingPayload) {
 
 describe("BriefingRoute", () => {
   it("surfaces unenforced budget checks when the backend reports a gate reason", async () => {
-    renderBriefing(briefingPayload({
-      settings: {
-        cadence_expression: "daily",
-        budget_check_enabled: true,
-        agent_provider: null,
-        last_scheduled_at: null,
-        budget_gate: {
-          skip: false,
-          reason: "no_budget_allowance_available"
+    renderBriefing(
+      briefingPayload({
+        settings: {
+          cadence_expression: "daily",
+          budget_check_enabled: true,
+          agent_provider: null,
+          last_scheduled_at: null,
+          budget_gate: {
+            skip: false,
+            reason: "no_budget_allowance_available"
+          }
         }
-      }
-    }))
+      })
+    )
 
     fireEvent.click(await screen.findByRole("button", { name: "Settings" }))
 
@@ -78,5 +80,57 @@ describe("BriefingRoute", () => {
 
     await waitFor(() => expect(screen.getByRole("dialog", { name: "Settings" })).toBeInTheDocument())
     expect(screen.queryByText(/Budget checks are enabled/)).not.toBeInTheDocument()
+  })
+
+  it("loads archived briefing content from the history endpoint on demand", async () => {
+    const archived = {
+      id: 44,
+      slug: "BRIEFING-44",
+      window_start: "2026-09-20T00:00:00Z",
+      window_end: "2026-09-21T00:00:00Z",
+      job: { id: 9, slug: "JOB-9", title: "Archived briefing", state: "closed", path: "/jobs/9" }
+    }
+    const fetchMock = vi
+      .spyOn(window, "fetch")
+      .mockResolvedValueOnce(
+        jsonResponse(
+          briefingPayload({
+            repositories: [
+              {
+                repository: { id: 1, slug: "acme/widgets", path: "/repositories/1" },
+                current: null,
+                history: [archived],
+                status: { kind: "no_activity", message: null }
+              }
+            ]
+          })
+        )
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          briefing: {
+            ...archived,
+            live: false,
+            latest_revision: {
+              id: 3,
+              revision_number: 1,
+              generated_at: "2026-09-21T00:00:00Z",
+              content_blocks: [{ kind: "narrative", payload: { text: "Archived detail" } }]
+            }
+          }
+        })
+      )
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/app-shell/briefing/history?briefing_id=44"]}>
+          <BriefingRoute />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("Archived detail")).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "/api/v1/app/briefing/history?briefing_id=44", expect.anything())
   })
 })
