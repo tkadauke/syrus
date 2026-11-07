@@ -1835,6 +1835,39 @@ describe("chat composer dictation", () => {
     })
   })
 
+  it("caps recorder audio bitrate before uploading speech", async () => {
+    let recorderOptions: MediaRecorderOptions | undefined
+    class BitrateMediaRecorder {
+      static isTypeSupported() {
+        return true
+      }
+
+      state: RecordingState = "inactive"
+      ondataavailable: ((event: BlobEvent) => void) | null = null
+      onstop: (() => void) | null = null
+
+      constructor(_stream: MediaStream, options?: MediaRecorderOptions) {
+        recorderOptions = options
+      }
+
+      start() {
+        this.state = "recording"
+      }
+
+      stop() {
+        this.state = "inactive"
+      }
+    }
+    vi.stubGlobal("MediaRecorder", BitrateMediaRecorder)
+    mockAudioPermission()
+    mockDictationFetch(chatPayloadWithDictation({ batch: true }))
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Start dictation" }))
+
+    await waitFor(() => expect(recorderOptions?.audioBitsPerSecond).toBe(32_000))
+  })
+
   it("replaces interim streaming hypotheses and commits the final text once", async () => {
     installMediaRecorderMock()
     mockAudioPermission()

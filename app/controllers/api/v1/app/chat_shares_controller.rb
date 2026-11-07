@@ -39,11 +39,14 @@ module Api
           end
           excluded_ids = chat.chat_participants.pluck(:user_id) + chat.chat_shares.where(target_type: "User").pluck(:target_id)
           users = scope.where.not(id: excluded_ids).distinct.limit(20)
+          shared_targets = chat.chat_shares.pluck(:target_type, :target_id).to_set
           coworkers = filtered_plugin_share_candidates(query).reject do |candidate|
-            chat.chat_shares.exists?(target_type: candidate.class.polymorphic_name, target_id: candidate.id)
-          end
-          people = users.map { |user| target_json(user, chat) }
-          render json: { people: people, targets: people + coworkers.map { |coworker| target_json(coworker, chat) } }
+            shared_targets.include?([ candidate.class.polymorphic_name, candidate.id ])
+          end.first(20)
+          access = repository_access_by_user_id(chat, users)
+          targets = users.map { |user| target_json(user, chat, repository_access_by_user_id: access) }
+          targets.concat(coworkers.map { |coworker| target_json(coworker, chat) })
+          render json: { targets: targets }
         end
 
         private
@@ -61,10 +64,17 @@ module Api
         end
 
         def payload(chat)
-          { shares: chat.chat_shares.includes(:target).order(:created_at, :id).map { |share| target_json(share.target, chat).merge(id: share.id) } }
+          shares = chat.chat_shares.includes(:target).order(:created_at, :id).to_a
+          users = shares.filter_map { |share| share.target if share.target.is_a?(User) }
+          access = repository_access_by_user_id(chat, users)
+          {
+            shares: shares.map do |share|
+              target_json(share.target, chat, repository_access_by_user_id: access).merge(id: share.id)
+            end
+          }
         end
 
-        def target_json(target, chat)
+        def target_json(target, chat, repository_access_by_user_id: nil)
           repository = chat.repository
           {
             target_type: target.class.polymorphic_name,
@@ -74,8 +84,20 @@ module Api
             name: target.display_name,
             handle: target.handle,
             avatar_url: target.avatar_url,
-            repository_access_warning: target.is_a?(User) && repository.present? && !Repository.accessible_to(target).exists?(id: repository.id)
+            repository_access_warning: target.is_a?(User) && repository.present? && !repository_access_by_user_id&.fetch(target.id, false)
           }
+        end
+
+        def repository_access_by_user_id(chat, users)
+          return {} unless chat.repository
+
+          user_ids = users.map(&:id)
+          member_ids = RepositoryMembership.where(repository_id: chat.repository.id, user_id: user_ids).pluck(:user_id)
+          team_member_ids = TeamMembership.joins("INNER JOIN team_repositories ON team_repositories.team_id = team_memberships.team_id")
+                                          .where(user_id: user_ids, team_repositories: { repository_id: chat.repository.id })
+                                          .pluck(:user_id)
+          admin_ids = User.admin.where(id: user_ids).pluck(:id)
+          (member_ids + team_member_ids + admin_ids).to_set.index_with(true)
         end
 
         def share_target

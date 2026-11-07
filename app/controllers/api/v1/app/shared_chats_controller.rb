@@ -4,8 +4,10 @@ module Api
       class SharedChatsController < BaseController
         def show
           chat_session = ChatSession.where.not(share_token: nil).find_by!(share_token: params[:token])
-
-          render json: shared_chat_payload(chat_session)
+          payload = shared_chat_payload(chat_session)
+          expires_in 1.minute, public: true, stale_while_revalidate: 5.minutes
+          fresh_when(etag: [ chat_session.cache_key_with_version, payload[:before_id], payload[:messages].pluck(:id) ], public: true)
+          render json: payload unless performed?
         end
 
         def attachment
@@ -21,14 +23,21 @@ module Api
         private
 
         def shared_chat_payload(chat_session)
-          messages = chat_session.messages.active.order(:created_at, :id).to_a
+          page_size = params.fetch(:limit, 50).to_i.clamp(1, 100)
+          scope = chat_session.messages.active.where.not(role: "tool_result")
+          scope = scope.where("id < ?", params[:before_id].to_i) if params[:before_id].present?
+          rows = scope.order(id: :desc).limit(page_size + 1).to_a
+          has_more = rows.length > page_size
+          messages = rows.first(page_size).reverse
           ChatAttachmentRef.preload(messages)
           {
             chat: {
               id: chat_session.id,
               title: chat_session.title.presence || ChatSession.fallback_title_for(chat_session.repository)
             },
-            messages: messages.map { |message| shared_message_json(message) }
+            messages: messages.map { |message| shared_message_json(message) },
+            has_more_older: has_more,
+            before_id: (messages.first.id if has_more)
           }
         end
 
