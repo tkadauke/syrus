@@ -19,6 +19,7 @@ import {
   type JobDependencyTarget,
   type JobDetailPayload
 } from "../../api/jobs"
+import type { ChatToolGroupItem } from "../../api/chats"
 import { FilePreviewModal } from "../../components/FilePreviewModal"
 import { DocumentPreviewModal, isImageContentType, isPreviewableTextContentType } from "../../components/DocumentPreviewModal"
 import { CommandButton, useJobCommand } from "./command"
@@ -220,6 +221,17 @@ function transcriptLogKindLabel(kind: string | null | undefined, t: ReturnType<t
   return kind ? labels[kind] || kind : t("transcript_kind_system")
 }
 
+function transcriptToolGroupCopyText(item: ChatToolGroupItem): string {
+  return item.calls
+    .map((call) => {
+      const label = call.display_label || item.tool
+      const heading = `${label}${call.detail ? `(${call.detail})` : ""}`
+      const nested = call.nested?.map(transcriptToolGroupCopyText).filter(Boolean).join("\n\n")
+      return [heading, call.result_body, nested].filter(Boolean).join("\n")
+    })
+    .join("\n\n")
+}
+
 export function RunTranscriptLogs({
   logs,
   fillHeight = false,
@@ -254,7 +266,14 @@ export function RunTranscriptLogs({
         ? renderItems.map((item, index) => {
             if (item.type === "tool_group") {
               return (
-                <SharedMessageRenderer as="li" compact key={`tool-${item.calls[0]?.message_id ?? index}`} readOnly testId="run-transcript-tool-group">
+                <SharedMessageRenderer
+                  as="li"
+                  compact
+                  copyText={transcriptToolGroupCopyText(item)}
+                  key={`tool-${item.calls[0]?.message_id ?? index}`}
+                  readOnly
+                  testId="run-transcript-tool-group"
+                >
                   <ToolGroup item={item} />
                 </SharedMessageRenderer>
               )

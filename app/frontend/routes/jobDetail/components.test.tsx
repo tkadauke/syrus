@@ -219,6 +219,47 @@ describe("RunTranscriptLogs", () => {
     expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith("compact full log")
   })
 
+  it("copies the displayed tool call and result text from an agentic transcript row", () => {
+    render(
+      <MemoryRouter>
+        <RunTranscriptLogs
+          agentic
+          logs={[
+            {
+              id: 1,
+              sequence: 1,
+              kind: "tool_call",
+              chunk: "raw command marker",
+              tool_name: "bash",
+              tool_input: { command: "bundle exec rspec spec/models/job_spec.rb" },
+              tool_use_id: "cmd-1",
+              created_at: null
+            },
+            {
+              id: 2,
+              sequence: 2,
+              kind: "tool_result",
+              chunk: "raw result marker",
+              tool_name: "bash",
+              tool_use_id: "cmd-1",
+              tool_result_content: "12 examples, 0 failures",
+              tool_result_error: false,
+              created_at: null
+            }
+          ]}
+        />
+      </MemoryRouter>
+    )
+
+    const toolRow = screen.getByTestId("run-transcript-tool-group")
+    fireEvent.pointerDown(toolRow, { pointerType: "touch", clientX: 5, clientY: 5 })
+    act(() => vi.advanceTimersByTime(500))
+    fireEvent.click(within(toolRow).getByRole("button", { name: "Copy" }))
+
+    expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith(expect.stringContaining("bundle exec rspec spec/models/job_spec.rb"))
+    expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith(expect.stringContaining("12 examples, 0 failures"))
+  })
+
   it("renders assistant, system, and structured tools with the chat surfaces", () => {
     render(
       <MemoryRouter>
