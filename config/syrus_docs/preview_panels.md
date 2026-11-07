@@ -31,6 +31,11 @@ Mode use their writable checkout tools instead.
 that exact version to an implementation Job. The implementing agent receives
 the source files as reference material.
 
+Panel payloads include only the current version summary by default. The
+standalone panel endpoint accepts `?include=versions` when the version picker
+needs the complete history. Export archives are cached by immutable version id,
+so repeated downloads do not rebuild the same zip in memory.
+
 Preview panels reuse `SYRUS_PREVIEW_BASE_DOMAIN`. See [Preview
 Environments](preview_environments.md). Internal storage, proxy, authentication,
 payload, exporter, and viewer-extension details live in [preview-panel
