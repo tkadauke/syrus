@@ -68,9 +68,16 @@ RSpec.describe "API: chat attachments", :ci_only, type: :request do
     expect(chat.chat_file_attachments).to be_empty
   end
 
-  it "enforces the total attachment size limit" do
+  it "does not count attachments from earlier messages against later uploads" do
     sign_in_as(user)
-    existing = chat.chat_file_attachments.build(name: "existing.txt", mime_type: "text/plain", byte_size: ChatMessageParams::CHAT_ATTACHMENT_TOTAL_MAX_BYTES, checksum: "pending")
+    message = chat.messages.create!(role: "user", sender_user: user, content: { "text" => "Earlier attachment" })
+    existing = chat.chat_file_attachments.build(
+      attachable: message,
+      name: "existing.txt",
+      mime_type: "text/plain",
+      byte_size: ChatMessageParams::CHAT_ATTACHMENT_TOTAL_MAX_BYTES,
+      checksum: "pending"
+    )
     existing.file.attach(io: StringIO.new("x"), filename: "existing.txt", content_type: "text/plain")
     existing.save!
     existing.update_column(:byte_size, ChatMessageParams::CHAT_ATTACHMENT_TOTAL_MAX_BYTES)
@@ -78,27 +85,27 @@ RSpec.describe "API: chat attachments", :ci_only, type: :request do
 
     post "/api/v1/app/chats/#{chat.id}/attachments", params: { file: file }
 
-    expect(response).to have_http_status(:unprocessable_content)
-    expect(chat.chat_file_attachments.count).to eq(1)
+    expect(response).to have_http_status(:created)
+    expect(chat.chat_file_attachments.pluck(:name)).to contain_exactly("existing.txt", "extra.txt")
   end
 
-  it "rechecks the total attachment size after serializing uploads for the chat" do
+  it "enforces the aggregate size limit when uploaded refs are submitted with a message" do
     sign_in_as(user)
-    file = Rack::Test::UploadedFile.new(StringIO.new("x"), "text/plain", original_filename: "extra.txt")
-    allow_any_instance_of(ChatSession).to receive(:with_lock).and_wrap_original do |method, *args, &block|
+    attachments = 5.times.map do |index|
       chat.chat_file_attachments.create!(
-        name: "concurrent.txt",
+        name: "attachment-#{index}.txt",
         mime_type: "text/plain",
-        byte_size: ChatMessageParams::CHAT_ATTACHMENT_TOTAL_MAX_BYTES,
-        checksum: "checksum"
+        byte_size: ChatMessageParams::CHAT_ATTACHMENT_MAX_BYTES,
+        checksum: "checksum-#{index}"
       )
-      method.call(*args, &block)
     end
 
-    post "/api/v1/app/chats/#{chat.id}/attachments", params: { file: file }
+    post "/api/v1/app/chats/#{chat.id}/message", params: {
+      chat_message: { text: "Too many attachments", attachments: attachments.map { |attachment| { id: attachment.id } } }
+    }
 
     expect(response).to have_http_status(:unprocessable_content)
-    expect(chat.chat_file_attachments.pluck(:name)).to eq([ "concurrent.txt" ])
+    expect(chat.messages).to be_empty
   end
 
   it "rejects invalid UTF-8 text uploads" do
