@@ -247,18 +247,12 @@ RSpec.describe PersistentMcpDaemon do
         [ owner_message, hidden_owner_message, other_coworker_message, inaccessible_message ].each do |message|
           ChatMessageSearchIndex.insert(message)
         end
-        coworker.grants.create!(capability: "chats.read_shared", approval_policy: "auto")
-        # Cross-chat reads are descriptor-gated by default; an explicit owner rule allows them.
-        [ Mcp::Tools::ListChatsTool, Mcp::Tools::SearchChatsTool, Mcp::Tools::ReadChatMessagesTool ].each do |tool_class|
-          descriptor = McpToolRegistry.entries(surface: :coworker).find { |entry| entry.tool == tool_class }.descriptor
-          PermissionRule.create!(
-            owner_user: user, created_by_user: user, updated_by_user: user,
-            subject_selector_type: "agent", subject_selector_id: coworker.id.to_s,
-            subject_role_keys: [], capability: descriptor.capability, operation: descriptor.operation,
-            resource_type: descriptor.resource_scope.type.to_s, resource_scope: {}, constraints: {},
-            policy: "allow", policy_layer: "agent", source: "operator", provenance: {}
-          )
-        end
+        # Cross-chat reads are descriptor-gated by default. Grant through the
+        # production permission API so this exercises the same canonical
+        # descriptors and cache invalidation as an operator update.
+        coworker.permission_rules.update!(
+          capability: "chats.read_shared", approval_policy: "auto", actor: user
+        )
         coworker_job = Job.create!(
           user: user, repository: job.repository, kind: "coworker_task", priority: "low",
           origin: "coworkers", origin_id: coworker.id.to_s, issue_title: "Read chats"

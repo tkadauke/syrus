@@ -343,7 +343,7 @@ test("Permission Model previews a whole-instance reset and repeated application 
 
   await page.goto("/admin/permission_model")
   await expect(page.getByRole("heading", { name: "Permission Model" })).toBeVisible()
-  await page.getByLabel("Scope").selectOption("instance")
+  await page.getByRole("combobox", { name: "Scope", exact: true }).selectOption("instance")
   await page.getByRole("button", { name: "Preview reset" }).click()
   await expect(page.getByLabel("Exact reset counts")).toContainText("Active rules to revoke3")
   await expect(page.getByText("Permission rule and lease audit history")).toBeVisible()
