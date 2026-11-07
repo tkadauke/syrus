@@ -290,6 +290,7 @@
   "snapshot_element_limit_error": "Loading this snapshot would exceed the {{count}} element limit.",
   "snapshot_before_load": "Before load · {{date}}",
   "snapshot_whiteboard_changed": "Whiteboard changed before the snapshot could load. Try again.",
+  "canvas_clear_conflict": "Whiteboard changed while it was being cleared. Try again.",
   "image_attachment": "Image attachment",
   "attachment_size_error": "Each attachment must be 5 MB or smaller.",
   "attachments_total_size_error": "Attachments must total 20 MB or less.",
