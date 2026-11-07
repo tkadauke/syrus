@@ -210,14 +210,44 @@ export const examples: ToolCardExample[] = [
         visibility: "public",
         state: "draft",
         current_version_number: 3,
+        version_number: 3,
         repository_ids: [1],
         collaborators: [{ id: 2, name: "Ada" }],
         markdown: "# Plan\nSee JOB-42 and https://example.test.",
+        total_bytes: 98_304,
+        start_offset: 0,
+        end_offset: 65_536,
+        truncated: true,
+        next_cursor: "signed-version-pinned-cursor",
+        discussion_included: true,
         threads: [],
         suggestions: [],
         permissions: { can_suggest: true }
       },
       read_only: false
+    }
+  },
+  {
+    id: "continuation_page",
+    label: "Continuation page",
+    input: { doc_ref: "DOC-20", cursor: "signed-version-pinned-cursor", max_bytes: 32_768 },
+    parsedResult: {
+      design_doc: {
+        doc_ref: "DOC-20",
+        title: "Target graphs",
+        visibility: "public",
+        state: "draft",
+        current_version_number: 4,
+        version_number: 3,
+        markdown: "## Rollout\nThis page continues the version 3 design.",
+        total_bytes: 98_304,
+        start_offset: 65_536,
+        end_offset: 98_304,
+        truncated: false,
+        next_cursor: null,
+        discussion_included: false
+      },
+      read_only: true
     }
   },
   {
