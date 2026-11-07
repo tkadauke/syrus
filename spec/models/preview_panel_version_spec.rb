@@ -53,6 +53,13 @@ RSpec.describe PreviewPanelVersion, type: :model do
     expect(version.entry_viewer_kind).to eq("image")
   end
 
+  it "derives summary defaults for versions created outside the panel helper" do
+    version = panel.preview_panel_versions.create!(entry_file: "notes.md", file_count: nil, entry_viewer_kind: nil)
+
+    expect(version.file_count).to eq(0)
+    expect(version.entry_viewer_kind).to eq("markdown")
+  end
+
   describe "ordering" do
     it "orders newest-first by default" do
       first_version = panel.preview_panel_versions.create!(created_at: 2.hours.ago)
