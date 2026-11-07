@@ -7,7 +7,7 @@ RSpec.describe "Docker image scripts" do
   let(:publish_image) { File.read(File.join(root, "bin/publish-image")) }
   let(:release) { File.read(File.join(root, "bin/release")) }
   let(:release_macos_worker) { File.read(File.join(root, "bin/release-macos-worker")) }
-  let(:deploy) { File.read(File.join(root, "bin/deploy")) }
+  let(:deploy) { File.read(File.join(root, "bin/deploy-legacy")) }
   let(:test_docker) { File.read(File.join(root, "bin/test-docker")) }
   let(:compose_yml) { File.read(File.join(root, "docker-compose.yml")) }
   let(:persistent_mcp_daemon) { File.read(File.join(root, "app/services/persistent_mcp_daemon.rb")) }

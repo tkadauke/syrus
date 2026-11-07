@@ -158,10 +158,40 @@ class WorkflowWorkspaceRecovery
       candidates << Candidate.new(ref: "refs/heads/#{branch}", sha: sha,
         published_at: workflow.created_at, id: 0, source: "durable_branch")
     end
+    candidates.concat(base_branch_candidates)
     candidates
   end
 
   private
+
+  # Between a successful prepare and the first mutation, a workflow has no
+  # source snapshot, no published checkpoint, and no branch of its own. That is
+  # the normal state of a freshly prepared Job, not a corrupt one -- and
+  # without a candidate here the ordinary event of "the worker holding a
+  # just-prepared workspace was replaced" has no recovery point at all, so the
+  # workflow is failed instead of simply re-prepared.
+  #
+  # The base branch is the same ref prepare checked out, and with no mutation
+  # recorded there is nothing of the agent's to lose by going back to it. The
+  # guard is `latest_mutation_head` being blank, not merely
+  # `preserves_latest_mutation?`: once any mutation has succeeded, the base
+  # branch is categorically the wrong answer, because reconstructing from it
+  # would silently grade or publish a checkout without the implementation.
+  #
+  # `id: -1` keeps it the lowest-priority candidate, so a tie with the Job's
+  # own branch at the same timestamp resolves to the more specific ref.
+  def base_branch_candidates
+    return [] if latest_mutation_head.present?
+
+    base = workflow.job.effective_base_branch.presence
+    return [] unless base
+
+    ref = "refs/heads/#{base}"
+    sha = remote_sha(ref)
+    return [] unless sha
+
+    [ Candidate.new(ref: ref, sha: sha, published_at: workflow.created_at, id: -1, source: "base_branch") ]
+  end
 
   def durable_head?(ref, sha)
     remote_sha(ref) == sha && preserves_latest_mutation?(sha)
@@ -186,13 +216,25 @@ class WorkflowWorkspaceRecovery
       .pick(:head_sha)
   end
 
+  # A best-effort probe: the answer is this ref's remote sha, or nothing.
+  #
+  # Every caller treats nil as "not a usable recovery point", so any failure to
+  # ask is that same answer -- and failing to ask has more causes than a git
+  # error. Authenticating the request raises ArgumentError when the Job's user
+  # has no usable GitHub token, which escaped this rescue and took the whole
+  # repair down with it, turning "I could not reach the remote" into a crashed
+  # reconciler pass. Logged rather than silent, because a token that never
+  # works is worth seeing in the log even though it is not worth failing on.
   def remote_sha(ref)
     output = GithubAuthenticatedGit.run(
       repository: workflow.job.repository, user: workflow.job.user, git: git,
       operation_type: "git_workspace_recovery_ls_remote"
     ) { |url| git.run("ls-remote", url, ref, chdir: workspace.path.dirname.to_s, env: { "GIT_TERMINAL_PROMPT" => "0" }) }
     output.to_s.lines.first.to_s.split(/\s+/).first.presence
-  rescue GitRunner::GitError
+  rescue StandardError => e
+    Rails.logger.info(
+      "[WorkflowWorkspaceRecovery] could not resolve #{ref} for Workflow ##{workflow.id}: #{e.class}: #{e.message}"
+    )
     nil
   end
 end

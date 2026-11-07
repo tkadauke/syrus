@@ -2544,6 +2544,14 @@ session outcome.
   `SYRUS_DEPLOYMENTS`, ...); a single-cluster deployment overrides them
   rather than editing the script. Diagnostic recipes are in `CLAUDE.md`
   under "Debugging staging / production via kubectl".
+- `bin/deploy` is a Ruby program that loads no Rails: it runs on an
+  operator's machine, against a cluster, before the image it deploys
+  exists. One file per phase under `lib/deploy/`, excluded from the
+  application's autoload paths; `lib/deploy/cluster_rollout.rb` is the
+  order a rollout runs in, and `lib/deploy/shell.rb` is the single door
+  to every external command, where `--dry-run` records mutations instead
+  of making them. The previous Bash implementation is kept as
+  `bin/deploy-legacy` with identical flags, as the fallback.
 - Kubernetes deploys use `bin/deploy` to build and push the web and
   worker images for the configured cluster architecture. That path uses
   plain `docker build` plus `docker push` through `bin/docker-image-lib`

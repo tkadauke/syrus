@@ -7,13 +7,13 @@ require "tmpdir"
 # is only worth that if it provably changes nothing, so these examples assert
 # the negative -- that a write never reached the fake binary -- rather than
 # just that something got printed.
-RSpec.describe "bin/deploy --dry-run" do
+RSpec.describe "bin/deploy-legacy --dry-run" do
   let(:root) { File.expand_path("../..", __dir__) }
-  let(:deploy) { File.read(File.join(root, "bin/deploy")) }
+  let(:deploy) { File.read(File.join(root, "bin/deploy-legacy")) }
 
   def dry_run_functions
     %w[dry_run_open_stream dry_run_emit dry_run_skips_wait kubectl docker sleep].map do |name|
-      deploy[/^#{name}\(\) \{.*?\n\}/m] or raise "#{name} not found in bin/deploy"
+      deploy[/^#{name}\(\) \{.*?\n\}/m] or raise "#{name} not found in bin/deploy-legacy"
     end.join("\n")
   end
 
@@ -119,7 +119,7 @@ RSpec.describe "bin/deploy --dry-run" do
   it "accepts the flag and implies --skip-build" do
     expect(deploy).to match(/--dry-run\)\s+DRY_RUN=true;\s+SKIP_BUILD=true/)
 
-    stdout, _err, status = Open3.capture3("bash", File.join(root, "bin/deploy"), "--dry-run", "--help", chdir: root)
+    stdout, _err, status = Open3.capture3("bash", File.join(root, "bin/deploy-legacy"), "--dry-run", "--help", chdir: root)
 
     expect(status).to be_success
     expect(stdout).to include("--dry-run")

@@ -3,32 +3,17 @@ require "json"
 require "open3"
 require "tmpdir"
 
-RSpec.describe "bin/deploy plugin service images" do
+RSpec.describe "bin/deploy-legacy plugin service images" do
   let(:root) { File.expand_path("../..", __dir__) }
-  let(:deploy) { File.read(File.join(root, "bin/deploy")) }
+  let(:deploy) { File.read(File.join(root, "bin/deploy-legacy")) }
 
   def bash(script, env = {})
     Open3.capture3(env, "bash", "-c", script, chdir: root)
   end
 
-  # One naming rule for every script, or a deploy pushes an image the
-  # cluster's manifests (or a release) name differently.
-  it "names plugin images in one shared helper" do
-    out, _err, status = bash(". bin/docker-image-lib; syrus_plugin_images ghcr.io/tkadauke")
-
-    expect(status).to be_success
-    expect(out).to include("plugins/git_mirror/container ghcr.io/tkadauke/syrus-plugin-git-mirror")
-    expect(out).to include("plugins/plugin_runtime/container ghcr.io/tkadauke/syrus-plugin-runtime")
-    image_publishers = %w[
-      bin/deploy
-      bin/publish-plugin-images
-      .github/workflows/release.yml
-      .github/workflows/promote-release-images.yml
-    ]
-    image_publishers.each do |path|
-      expect(File.read(File.join(root, path))).to include("syrus_plugin_images"), "#{path} should use the shared helper"
-    end
-  end
+  # The repo-wide invariant -- that every image publisher derives these names
+  # from the one shared helper -- lives in spec/deploy/images_spec.rb, which
+  # covers both implementations.
 
   # A git-mirror Deployment would otherwise never get a new image: nothing
   # built or pushed one, and nothing pinned it.
