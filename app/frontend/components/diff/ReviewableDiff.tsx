@@ -296,7 +296,11 @@ function createFileCacheEntry(patch: string | null | undefined): FileCacheEntry 
 // than mirroring it into component state -- so the entry (and thus its
 // contents) has one persistent identity per file path regardless of how
 // many times its DiffFileSection mounts and unmounts.
-function useFileCacheEntry(cache: Map<string, FileCacheEntry>, path: string, patch: string | null | undefined): [FileCacheEntry, (patch: Partial<FileCacheEntry>) => void] {
+function useFileCacheEntry(
+  cache: Map<string, FileCacheEntry>,
+  path: string,
+  patch: string | null | undefined
+): [FileCacheEntry, (patch: Partial<FileCacheEntry>) => void] {
   if (cache.get(path)?.patch !== (patch ?? null)) cache.set(path, createFileCacheEntry(patch))
   const entry = cache.get(path)!
   const [, forceUpdate] = useReducer((count: number) => count + 1, 0)
@@ -1510,7 +1514,12 @@ function DiffFileSection({
         patchLoadState === "idle" || patchLoadState === "loading" ? (
           <div className="px-4 py-8 text-center font-sans text-sm text-gray-400 dark:text-gray-500">{t("diff_review.loading_full_diff")}</div>
         ) : (
-          <OmittedPatchPlaceholder downloadUrl={fileDiffDownloadUrl?.(file)} limitMessage={patchLimitMessage} loadState={patchLoadState} onLoad={loadFullDiff} />
+          <OmittedPatchPlaceholder
+            downloadUrl={fileDiffDownloadUrl?.(file)}
+            limitMessage={patchLimitMessage}
+            loadState={patchLoadState}
+            onLoad={loadFullDiff}
+          />
         )
       ) : file.patch_status === "oversized" && onLoadFileDiff ? (
         <OmittedPatchPlaceholder downloadUrl={fileDiffDownloadUrl?.(file)} limitMessage={patchLimitMessage} loadState={patchLoadState} onLoad={loadFullDiff} />
