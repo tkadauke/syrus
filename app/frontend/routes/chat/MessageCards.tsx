@@ -39,7 +39,6 @@ import { redactToolCardText, redactToolCardValue, toolCardPayloadSizeLabel } fro
 import { isChatRasterImage, type ChatQueryKey } from "./constants"
 import { chatPinsPath, chatPinsQueryKey, useChatPins } from "./pins"
 import {
-  NO_ARGUMENTS_SENTINEL,
   TOOL_RESULT_PREVIEW_LINE_CHARS,
   isPlainObject,
   normalizedToolCardParsedResult,
@@ -1278,7 +1277,7 @@ const ToolGroupContent = memo(function ToolGroupContent({ chatSessionId, item, p
   }
 
   const details = item.calls
-    .map((call) => [toolCardAwareResultSummary(call, presentation, timeZone), informativeDetail(call.detail)].filter(Boolean).join(" · "))
+    .map((call) => toolCardAwareResultSummary(call, presentation, timeZone))
     .filter(Boolean)
     .join(", ")
   const summary = item.summary_label || item.tool
@@ -1304,14 +1303,10 @@ const ToolGroupContent = memo(function ToolGroupContent({ chatSessionId, item, p
       />
       <div className="mt-1 min-w-0 max-w-full space-y-2 border-l border-gray-200 pl-3 text-xs sm:ml-5 dark:border-gray-700">
         {item.calls.map((call) => {
-          const detail = informativeDetail(call.detail)
           const resultSummary = toolCardAwareResultSummary(call, presentation, timeZone)
           return (
             <div className="min-w-0 max-w-full overflow-hidden" key={call.message_id}>
-              <div className="break-words font-mono text-gray-700 dark:text-gray-300">
-                {call.display_label || item.tool}
-                {detail ? `(${detail})` : ""}
-              </div>
+              <div className="break-words font-mono text-gray-700 dark:text-gray-300">{call.display_label || item.tool}</div>
               {!callHasExpandedCard(call) && resultSummary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{resultSummary}</div> : null}
               {expanded && (toolCallSettled(call) || callRendersWhilePending(call)) ? (
                 <ToolResultBody
@@ -1435,16 +1430,6 @@ function sameToolGroupProps(previous: ToolGroupProps, next: ToolGroupProps) {
     sameSerializable(previous.payload?.preview_panels, next.payload?.preview_panels) &&
     sameSerializable(previous.payload?.paths, next.payload?.paths)
   )
-}
-
-// The zero-argument sentinel (see NO_ARGUMENTS_SENTINEL) carries no
-// information, so it never earns space in the collapsed subtitle or the
-// parenthesized expanded label — same precedent as sourceLabel in
-// streamBuilders.ts. Returns the redacted detail, or null when there is
-// nothing informative to show.
-function informativeDetail(detail: string) {
-  if (!detail || detail === NO_ARGUMENTS_SENTINEL) return null
-  return redactToolCardText(detail) || null
 }
 
 // Single ownership for the collapsed summary: it lives in the header. When a
