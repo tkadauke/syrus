@@ -439,7 +439,7 @@ func NewWhoamiCommand() *cobra.Command {
 			}
 			if jsonOut {
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]any{
-					"email": who.CurrentUser.EmailAddress,
+					"email":    who.CurrentUser.EmailAddress,
 					"instance": creds.URL,
 				})
 			}

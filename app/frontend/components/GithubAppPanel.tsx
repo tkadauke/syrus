@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { fetchAdminGithubAppConfirm, fetchAdminGithubAppRegister, syncAdminGithubAppInstallations } from "../api/adminGithubApp"
-import type { SetupStatusPayload } from "../api/setup"
+import type { FullSetupStatusPayload } from "../api/setup"
 import { ApiError } from "../api/client"
 import { openInNewTab } from "../lib/desktopShell"
 import { useT } from "../hooks/useT"
@@ -71,7 +71,7 @@ export function GithubAppPanel({
       setAwaitingInstall(true)
     }
     setAwaiting(false)
-    queryClient.setQueryData<SetupStatusPayload>(["setup"], (current) => {
+    queryClient.setQueryData<FullSetupStatusPayload>(["setup"], (current) => {
       if (!current) return current
       return {
         ...current,
