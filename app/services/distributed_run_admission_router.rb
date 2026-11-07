@@ -42,7 +42,7 @@ class DistributedRunAdmissionRouter
           "excluded_workers" => exclusions,
           "healthy_alternatives_considered" => considered,
           "routed_worker" => alternative.fetch("hostname"),
-          "routed_worker_storage_key" => alternative.fetch("worker_storage_key")
+          "routed_worker_storage_key" => alternative["worker_storage_key"]
         }
       )
     end
