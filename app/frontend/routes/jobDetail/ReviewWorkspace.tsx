@@ -632,7 +632,12 @@ export function VisualEvidenceGallery({ approved, gallery }: { approved: boolean
             return (
               <figure className={`${surfaceClasses("panel", "sm")} max-w-lg`} key={screenshot.id}>
                 <a className="flex justify-center" href={screenshot.image_url} rel="noreferrer" target="_blank">
-                  <img alt={pageLabel} className="max-h-72 max-w-full rounded-md border border-border object-contain" loading="lazy" src={screenshot.image_url} />
+                  <img
+                    alt={pageLabel}
+                    className="max-h-72 max-w-full rounded-md border border-border object-contain"
+                    loading="lazy"
+                    src={screenshot.image_url}
+                  />
                 </a>
                 <figcaption className="mt-2 space-y-1 text-xs text-text-muted">
                   <p className="font-medium text-text-primary">{pageLabel}</p>
