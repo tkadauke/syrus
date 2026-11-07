@@ -1,4 +1,4 @@
-import i18n, { allPluginNamespacesForTests, i18nReady } from "../i18n"
+import i18n, { i18nReady, supportedLocales } from "../i18n"
 import "@testing-library/jest-dom/vitest"
 import { resetApiClientStateForTests } from "../api/clientTestState"
 import { cleanup, configure } from "@testing-library/react"
@@ -6,7 +6,10 @@ import { afterEach, vi } from "vitest"
 import { _clearRecentApiRequestsForTest } from "../api/client"
 
 await i18nReady
-await i18n.loadNamespaces(allPluginNamespacesForTests())
+// Keep core locale assertions deterministic without masking missing production
+// plugin boundaries. Plugin resources must be loaded by the UI module that
+// owns them, just as they are in the application.
+await i18n.loadLanguages([...supportedLocales])
 
 // Components that use the shared Action Cable consumer must not open real
 // sockets from jsdom. Individual cable-focused specs can still provide their
