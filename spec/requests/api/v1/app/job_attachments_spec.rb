@@ -74,6 +74,7 @@ RSpec.describe "App API job attachments", type: :request do
     expect(response.headers["Content-Disposition"]).to include("notes.txt")
     expect(response.headers["X-Content-Type-Options"]).to eq("nosniff")
     expect(response.headers["Content-Security-Policy"]).to eq("sandbox")
+    expect(response.headers["Cache-Control"]).to include("private", "max-age=31536000", "immutable")
     expect(response.body).to eq("hello from storage")
   end
 
@@ -129,6 +130,25 @@ RSpec.describe "App API job attachments", type: :request do
       "binary" => false,
       "too_large" => false
     )
+    expect(response.headers["Cache-Control"]).to include("private", "max-age=31536000", "immutable")
+
+    get app_attachment_content_path(job, attachment), headers: { "If-None-Match" => response.headers.fetch("ETag") }
+
+    expect(response).to have_http_status(:not_modified)
+    expect(response.body).to be_empty
+  end
+
+  it "does not expose cache metadata before authorizing attachment access" do
+    attachment = job.job_attachments.build(attachment_type: "uploaded_file", title: "Private")
+    attachment.file.attach(io: StringIO.new("private"), filename: "private.txt", content_type: "text/plain")
+    attachment.save!
+    delete "/session"
+
+    get app_attachment_file_path(job, attachment)
+
+    expect(response).to have_http_status(:unauthorized)
+    expect(response.headers).not_to include("ETag")
+    expect(response.headers["Cache-Control"]).to eq("no-cache")
   end
 
   it "flags binary attachment content instead of inlining it" do

@@ -93,10 +93,12 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     get gallery.fetch("screenshots").first.fetch("image_url")
     expect(response).to have_http_status(:ok)
     expect(response.body).to eq("png-data")
+    expect(response.headers["Cache-Control"]).to include("private", "max-age=31536000", "immutable")
 
     sign_in_as(Factories.user)
     get gallery.fetch("screenshots").first.fetch("image_url")
     expect(response).to have_http_status(:not_found)
+    expect(response.headers["Cache-Control"]).to eq("no-cache")
   end
 
   it "rejects Job unland preflight and mutation without resolving commits while the flag is off" do

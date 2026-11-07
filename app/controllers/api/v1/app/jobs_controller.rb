@@ -75,11 +75,7 @@ module Api
             .find_by!(stable_id: params[:evidence_id])
           raise ActiveRecord::RecordNotFound, "Visual evidence not found" unless evidence.image.attached?
 
-          send_secure_file(
-            evidence.image.download,
-            filename: evidence.image.filename.to_s,
-            type: evidence.image.content_type || "application/octet-stream"
-          )
+          send_secure_blob(evidence.image.blob, immutable: true)
         rescue StandardError => e
           raise unless StorageConnectivity.transient_error?(e)
 
@@ -284,7 +280,11 @@ module Api
             return
           end
 
-          send_secure_file blob.bytes, filename: File.basename(path), type: Marcel::MimeType.for(name: path)
+          send_secure_file blob.bytes,
+            filename: File.basename(path),
+            type: Marcel::MimeType.for(name: path),
+            etag: blob.content_id,
+            immutable: ref.match?(/\A[0-9a-f]{7,64}\z/i)
         rescue RepositoryContent::NoProvider
           render_error("no_github_token", t("api.jobs.errors.github_token_required"), status: :unprocessable_content)
         rescue RepositoryContent::UnknownRevision
