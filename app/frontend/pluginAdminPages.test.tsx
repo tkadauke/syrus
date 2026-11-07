@@ -6,6 +6,7 @@ import * as adminPluginPagesApi from "./api/adminPluginPages"
 import type { AdminPluginPage } from "./api/adminPluginPages"
 import { ThemeProvider } from "./contexts/ThemeContext"
 import { PluginAdminPageRoute, pluginAdminComponentFor, pluginAdminComponentKeys, usePluginAdminPage } from "./pluginAdminPages"
+import i18n from "./i18n"
 
 vi.mock("./api/adminPluginPages", () => ({ fetchAdminPluginPages: vi.fn() }))
 
@@ -97,9 +98,11 @@ describe("PluginAdminPageRoute", () => {
   }
 
   it("renders the matched plugin page's own heading for a plainly declared path", async () => {
+    i18n.removeResourceBundle("en", "admin_mysql")
     renderRoute("/admin/mysql", [{ id: "admin_mysql.mysql", paths: ["/admin/mysql"], component: "admin_mysql/AdminMysql" }])
 
     expect(await screen.findByRole("heading", { level: 1, name: "MySQL" })).toBeInTheDocument()
+    expect(i18n.hasResourceBundle("en", "admin_mysql")).toBe(true)
   })
 
   it("renders the matched plugin page's own heading for a path carrying a route parameter", async () => {

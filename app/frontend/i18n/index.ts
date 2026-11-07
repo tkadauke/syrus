@@ -71,6 +71,15 @@ export async function loadPluginLocales(plugin: string) {
   if (namespaces.length > 0) await i18n.loadNamespaces(namespaces)
 }
 
+export async function loadPluginModule<T>(plugin: string, loader: () => Promise<T>) {
+  const [, module] = await Promise.all([loadPluginLocales(plugin), loader()])
+  return module
+}
+
+export function pluginNamespacesFor(plugin: string | null | undefined) {
+  return plugin ? [...(pluginNamespaces.get(plugin) ?? [])] : []
+}
+
 export function allPluginNamespacesForTests() {
   return [...new Set([...pluginNamespaces.values()].flatMap((namespaces) => [...namespaces]))]
 }

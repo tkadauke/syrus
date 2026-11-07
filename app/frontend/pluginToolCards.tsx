@@ -245,6 +245,11 @@ export function pluginToolCardRendererFor(toolName: string): ToolCardRenderer | 
   return registeredToolCardRenderers.find((renderer) => renderer.toolName === toolName) ?? null
 }
 
+export function pluginToolCardOwnerFor(toolName: string): string | null {
+  const entry = discoveredToolCardEntries.find((candidate) => candidate.renderer.toolName === toolName)
+  return entry?.owner.ownerType === "plugin" ? entry.owner.ownerName : null
+}
+
 export function pluginToolCardArgumentSummary(toolName: string, input: Record<string, unknown>): string | null {
   return pluginToolCardRendererFor(toolName)?.argumentSummary?.(input) ?? null
 }

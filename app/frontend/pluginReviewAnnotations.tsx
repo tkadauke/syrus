@@ -3,6 +3,7 @@ import type { DiffReviewAnnotation, DiffReviewAnnotationAction, DiffReviewAnnota
 import { Button, buttonClasses } from "./components/Button"
 import { useT } from "./hooks/useT"
 import { Markdown } from "./lib/Markdown"
+import { loadPluginModule } from "./i18n"
 
 export type PluginReviewAnnotationComponentProps = {
   item: DiffReviewAnnotation | DiffReviewAnnotationPanel | DiffReviewAnnotationAction
@@ -44,7 +45,7 @@ export function pluginReviewAnnotationComponentFor(key: string | null | undefine
   if (!loader) return null
 
   const Component = lazy(async () => {
-    const mod = await loader()
+    const mod = await loadPluginModule(key.split("/", 1)[0], loader)
     if (!mod.default) throw new Error(`Plugin review annotation component ${key} has no default export`)
     return { default: mod.default }
   })

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { memo, useRef, useState } from "react"
+import { memo, Suspense, useRef, useState } from "react"
 import type { ComponentProps, CSSProperties, ReactNode } from "react"
 import type { FormEvent, KeyboardEvent, MouseEvent, TouchEvent } from "react"
 import { useEffect } from "react"
@@ -52,9 +52,11 @@ import {
   pluginToolCardCollapsedSummary,
   pluginToolCardExpandedBody,
   pluginToolCardPendingBody,
+  pluginToolCardOwnerFor,
   pluginToolCardRendererFor,
   type ToolCardContext
 } from "../../pluginToolCards"
+import { pluginNamespacesFor } from "../../i18n"
 import { appendSearch, primaryButton, secondaryButton, withRoutePrefix } from "./utils"
 import { ProposalCard } from "./ProposalCards"
 import type { ChatMessageImageAttachment } from "./messageDisplay"
@@ -1254,7 +1256,7 @@ type ToolGroupProps = {
   presentation?: ToolCardContext["presentation"]
 }
 
-export const ToolGroup = memo(function ToolGroup({ chatSessionId, item, payload, chatMedia, presentation: suppliedPresentation }: ToolGroupProps) {
+const ToolGroupContent = memo(function ToolGroupContent({ chatSessionId, item, payload, chatMedia, presentation: suppliedPresentation }: ToolGroupProps) {
   const { t } = useT("chat")
   const [open, setOpen] = useState(false)
   const presentation = suppliedPresentation ?? (payload ? { chatId: payload.chat.id, chatMedia, previewPanels: payload.preview_panels } : undefined)
@@ -1342,6 +1344,24 @@ export const ToolGroup = memo(function ToolGroup({ chatSessionId, item, payload,
       </div>
       {sourcePreview && payload ? <ChatSourcePreviewModal link={sourcePreview} payload={payload} onClose={() => setSourcePreview(null)} /> : null}
     </details>
+  )
+}, sameToolGroupProps)
+
+function PluginToolCardLocaleGate({ namespaces, children }: { namespaces: string[]; children: ReactNode }) {
+  useT(namespaces)
+  return children
+}
+
+export const ToolGroup = memo(function ToolGroup(props: ToolGroupProps) {
+  const namespaces = [...new Set(props.item.calls.flatMap((call) => pluginNamespacesFor(pluginToolCardOwnerFor(toolCardName(call)))))]
+  if (namespaces.length === 0) return <ToolGroupContent {...props} />
+
+  return (
+    <Suspense fallback={null}>
+      <PluginToolCardLocaleGate namespaces={namespaces}>
+        <ToolGroupContent {...props} />
+      </PluginToolCardLocaleGate>
+    </Suspense>
   )
 }, sameToolGroupProps)
 

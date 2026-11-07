@@ -1,4 +1,5 @@
 require "pathname"
+require "json"
 
 module Syrus
   # Fails the production asset build when a published SPA module points at a
@@ -16,12 +17,16 @@ module Syrus
     # is relative to the `/assets/` base. Only JS and CSS: library bundles also
     # carry data paths (Excalidraw's `./fonts/...`) they resolve elsewhere.
     REFERENCE = %r{["'`](\./[^"'`\s]+?\.(?:js|mjs|css)|/assets/[^"'`\s]+?\.(?:js|mjs|css)|spa-[^"'`\s/]+?\.(?:js|mjs|css))["'`]}
+    LOCALE_SOURCE = %r{(?:app/frontend|plugins/[^/]+/app/frontend)/i18n/locales/[^/]+/[^/]+\.json\z}
+    HASHED_CHUNK = /\Aspa-.+-[A-Za-z0-9_-]{6,}\.digested\.js\z/
 
-    def initialize(output_path:)
+    def initialize(output_path:, manifest_path: nil)
       @output_path = Pathname.new(output_path)
+      @manifest_path = Pathname.new(manifest_path) if manifest_path
     end
 
     def call
+      verify_locale_chunks if manifest_path
       broken = spa_modules.flat_map do |path|
         path.read.scan(REFERENCE).flatten.uniq.filter_map do |reference|
           target = resolve(path, reference)
@@ -34,7 +39,22 @@ module Syrus
     end
 
     private
-      attr_reader :output_path
+      attr_reader :output_path, :manifest_path
+
+      def verify_locale_chunks
+        manifest = JSON.parse(manifest_path.read)
+        locale_chunks = manifest.select { |source, _chunk| source.match?(LOCALE_SOURCE) }
+        invalid = locale_chunks.filter_map do |source, chunk|
+          file = chunk["file"].to_s
+          source unless chunk["isDynamicEntry"] == true && file.match?(HASHED_CHUNK)
+        end
+        return if locale_chunks.any? && invalid.empty?
+
+        detail = locale_chunks.empty? ? "no locale entries" : "non-dynamic or unhashed entries: #{invalid.join(", ")}"
+        raise BrokenReferences, "Vite manifest does not contain separate hashed locale chunks (#{detail})"
+      rescue Errno::ENOENT
+        raise BrokenReferences, "Vite manifest is missing: #{manifest_path}"
+      end
 
       def spa_modules
         output_path.glob("spa-*.digested.js")

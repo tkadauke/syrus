@@ -22,5 +22,8 @@ describe("lazy locale loading", () => {
 
     expect(i18n.hasResourceBundle("de", "git_history")).toBe(true)
     expect(i18n.hasResourceBundle("en", "git_history")).toBe(true)
+
+    await i18n.changeLanguage("la")
+    expect(i18n.hasResourceBundle("la", "git_history")).toBe(true)
   })
 })
