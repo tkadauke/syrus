@@ -19,5 +19,7 @@ recovering Syrus itself. Operator feature instructions remain in
   macOS workers, storage remediation, and capacity sizing.
 - [Metrics operations](metrics.md) — scrape authentication, readiness, alert
   rules, and the operator metric catalog.
+- [Observability operations](observability.md) — on-demand process diagnostics
+  with SIGUSR2 and Kubernetes.
 
 Return to the [engineering documentation index](../README.md).
