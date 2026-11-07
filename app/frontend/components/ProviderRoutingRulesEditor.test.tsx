@@ -143,6 +143,32 @@ describe("ProviderRoutingRulesEditor", () => {
     expect(screen.getByText("Read-only")).toBeInTheDocument()
   })
 
+  it("renders bordered rows with icon actions and reorders from the drag handle", () => {
+    const onReorderRules = vi.fn()
+    renderPanel({ onReorderRules, rules })
+
+    const rulesList = screen.getByRole("list", { name: "Provider routing rules" })
+    expect(rulesList.parentElement).toHaveClass("border")
+
+    const edit = screen.getByRole("button", { name: "Edit CI fast path" })
+    const duplicate = screen.getByRole("button", { name: "Duplicate CI fast path" })
+    const remove = screen.getByRole("button", { name: "Delete CI fast path" })
+    expect(edit).toHaveTextContent("")
+    expect(duplicate).toHaveTextContent("")
+    expect(remove).toHaveTextContent("")
+    expect(edit.parentElement).toHaveAttribute("role", "group")
+
+    const handle = screen.getByRole("button", { name: "Reorder CI fast path" })
+    const target = screen.getAllByTestId("routing-rule-row")[1]
+    const dataTransfer = { dropEffect: "none", effectAllowed: "none", setData: vi.fn() }
+    fireEvent.dragStart(handle, { dataTransfer })
+    fireEvent.dragOver(target, { dataTransfer })
+    fireEvent.drop(target, { dataTransfer })
+
+    expect(dataTransfer.setData).toHaveBeenCalledWith("text/plain", "11")
+    expect(onReorderRules).toHaveBeenCalledWith([12, 11])
+  })
+
   it("opens and closes the modal and displays validation errors", () => {
     renderPanel({ rules: [] })
 
@@ -214,7 +240,7 @@ describe("ProviderRoutingRulesEditor", () => {
     }
     renderPanel({ onUpdateRule, rules: [panelRule] })
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    fireEvent.click(screen.getByRole("button", { name: /^Edit / }))
     const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
     fireEvent.click(within(dialog).getByRole("button", { name: "Save rule" }))
 
@@ -257,7 +283,7 @@ describe("ProviderRoutingRulesEditor", () => {
     }
     renderPanel({ onUpdateRule, rules: [rich] })
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    fireEvent.click(screen.getByRole("button", { name: /^Edit / }))
     const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
     fireEvent.click(within(dialog).getByLabelText("CI failure"))
     fireEvent.click(within(dialog).getByRole("button", { name: "Save rule" }))
@@ -335,7 +361,7 @@ describe("ProviderRoutingRulesEditor", () => {
     const rule: ProviderRoutingRule = { ...rules[0], conditions: { usage: { provider: "codex", remaining_percent_less_than: 25 } } }
     renderPanel({ onUpdateRule, rules: [rule] })
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    fireEvent.click(screen.getByRole("button", { name: /^Edit / }))
     const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
     fireEvent.click(within(dialog).getByRole("button", { name: "More" }))
     fireEvent.click(within(dialog).getByRole("button", { name: "Rate limited" }))
@@ -354,7 +380,7 @@ describe("ProviderRoutingRulesEditor", () => {
     const rule: ProviderRoutingRule = { ...rules[0], conditions: { usage: { provider: "codex", remaining_percent_less_than: 25 } } }
     renderPanel({ onUpdateRule, rules: [rule] })
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    fireEvent.click(screen.getByRole("button", { name: /^Edit / }))
     const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
     fireEvent.change(within(dialog).getByLabelText("Comparator"), { target: { value: "remaining_percent_greater_than_or_equal_to" } })
     fireEvent.change(within(dialog).getByLabelText("Percent left"), { target: { value: "" } })
@@ -375,7 +401,7 @@ describe("ProviderRoutingRulesEditor", () => {
     const rule: ProviderRoutingRule = { ...rules[0], conditions: { usage: { provider: "codex", remaining_percent_less_than: 25 } } }
     renderPanel({ onUpdateRule, rules: [rule] })
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    fireEvent.click(screen.getByRole("button", { name: /^Edit / }))
     const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
     fireEvent.change(within(dialog).getByLabelText("Percent left"), { target: { value: "150" } })
     expect(within(dialog).getByText("Enter a percent from 0 to 100.")).toBeInTheDocument()
@@ -388,7 +414,7 @@ describe("ProviderRoutingRulesEditor", () => {
     renderPanel({ rules: [rule] })
 
     expect(screen.getByText("Codex < 25% left")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    fireEvent.click(screen.getByRole("button", { name: /^Edit / }))
     expect(within(screen.getByRole("dialog", { name: "Edit routing rule" })).getByText("Codex: 20% left now - matches")).toBeInTheDocument()
   })
 
@@ -480,7 +506,7 @@ describe("ProviderRoutingRulesEditor", () => {
     renderPanel({ onUpdateRule, rules: [rule] })
     expect(screen.getByText("High/Urgent")).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    fireEvent.click(screen.getByRole("button", { name: /^Edit / }))
     const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
     fireEvent.click(within(dialog).getByRole("button", { name: "High" }))
     fireEvent.click(within(dialog).getByRole("button", { name: "Urgent" }))
@@ -519,7 +545,7 @@ describe("ProviderRoutingRulesEditor", () => {
     const rule: ProviderRoutingRule = { ...rules[0], conditions: { repository: { owners: ["acme"] } } }
     const onUpdateRule = vi.fn()
     renderPanel({ onUpdateRule, rules: [rule], scope: "repository" })
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    fireEvent.click(screen.getByRole("button", { name: /^Edit / }))
     const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
     expect(within(dialog).queryByRole("button", { name: "Remove condition: Repository" })).toBeNull()
     fireEvent.click(within(dialog).getByRole("button", { name: "Save rule" }))
@@ -555,7 +581,7 @@ describe("ProviderRoutingRulesEditor", () => {
     const onReorderRules = vi.fn()
     renderPanel({ onCreateRule, onDeleteRule, onReorderRules, onUpdateRule, rules })
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0])
+    fireEvent.click(screen.getByRole("button", { name: "Edit CI fast path" }))
     const editDialog = screen.getByRole("dialog", { name: "Edit routing rule" })
     fireEvent.change(within(editDialog).getByLabelText(/Rule name/), { target: { value: "Rebase lane" } })
     fireEvent.change(within(editDialog).getByLabelText(/Trigger/), { target: { value: "step:rebase" } })
@@ -572,7 +598,7 @@ describe("ProviderRoutingRulesEditor", () => {
       )
     )
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Duplicate" })[0])
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate CI fast path" }))
     const duplicateDialog = screen.getByRole("dialog", { name: "New routing rule" })
     expect(within(duplicateDialog).getByLabelText(/Rule name/)).toHaveValue("CI fast path copy")
     fireEvent.click(within(duplicateDialog).getByRole("button", { name: "Create rule" }))
@@ -584,10 +610,10 @@ describe("ProviderRoutingRulesEditor", () => {
       )
     )
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Delete" })[0])
+    fireEvent.click(screen.getByRole("button", { name: "Delete CI fast path" }))
     expect(onDeleteRule).toHaveBeenCalledWith(rules[0])
 
-    fireEvent.click(screen.getByRole("button", { name: "Move CI fast path down" }))
+    fireEvent.keyDown(screen.getByRole("button", { name: "Reorder CI fast path" }), { key: "ArrowDown" })
     expect(onReorderRules).toHaveBeenCalledWith([12, 11])
   })
 
@@ -607,7 +633,7 @@ describe("ProviderRoutingRulesEditor", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Enable Maintenance window" }))
     expect(onToggleRule).toHaveBeenCalledWith(holdRule, true)
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0])
+    fireEvent.click(screen.getByRole("button", { name: "Edit Maintenance window" }))
     const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
     expect(within(dialog).getByLabelText("Action type")).toHaveValue("hold")
     expect(within(dialog).queryByText("Provider candidates")).not.toBeInTheDocument()
@@ -630,10 +656,10 @@ describe("ProviderRoutingRulesEditor", () => {
     const onDeleteRule = vi.fn()
     renderPanel({ onDeleteRule, rules })
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0])
+    fireEvent.click(screen.getByRole("button", { name: "Edit CI fast path" }))
     expect(screen.getByRole("dialog", { name: "Edit routing rule" })).toBeInTheDocument()
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Delete" })[0])
+    fireEvent.click(screen.getByRole("button", { name: "Delete CI fast path" }))
 
     await waitFor(() => expect(onDeleteRule).toHaveBeenCalledWith(rules[0]))
     expect(screen.queryByRole("dialog", { name: "Edit routing rule" })).not.toBeInTheDocument()
@@ -649,7 +675,7 @@ describe("ProviderRoutingRulesEditor", () => {
     vi.stubGlobal("fetch", fetchMock)
     renderEditor({ rules })
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0])
+    fireEvent.click(screen.getByRole("button", { name: "Edit CI fast path" }))
     const editDialog = screen.getByRole("dialog", { name: "Edit routing rule" })
     fireEvent.change(within(editDialog).getByLabelText(/Rule name/), { target: { value: "Rebase lane" } })
     fireEvent.change(within(editDialog).getByLabelText(/Trigger/), { target: { value: "step:rebase" } })
@@ -662,16 +688,16 @@ describe("ProviderRoutingRulesEditor", () => {
       action: { name: "Rebase lane", strategy: "fallback_order" }
     })
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Duplicate" })[0])
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate CI fast path" }))
     const duplicateDialog = screen.getByRole("dialog", { name: "New routing rule" })
     expect(within(duplicateDialog).getByLabelText(/Rule name/)).toHaveValue("CI fast path copy")
     fireEvent.click(within(duplicateDialog).getByRole("button", { name: "Create rule" }))
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/test/provider_routing_rules", expect.objectContaining({ method: "POST" })))
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Delete" })[0])
+    fireEvent.click(screen.getByRole("button", { name: "Delete CI fast path" }))
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/test/provider_routing_rules/11", expect.objectContaining({ method: "DELETE" })))
 
-    fireEvent.click(screen.getByRole("button", { name: "Move CI fast path down" }))
+    fireEvent.keyDown(screen.getByRole("button", { name: "Reorder CI fast path" }), { key: "ArrowDown" })
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/test/provider_routing_rules/reorder", expect.objectContaining({ method: "PATCH" })))
     const reorderBody = JSON.parse(String(fetchMock.mock.calls.at(-1)?.[1]?.body))
     expect(reorderBody.provider_routing_rule_ids).toEqual([12, 11])
@@ -692,7 +718,7 @@ describe("ProviderRoutingRulesEditor", () => {
     )
     renderEditor({ rules })
 
-    fireEvent.click(screen.getByRole("button", { name: "Move CI fast path down" }))
+    fireEvent.keyDown(screen.getByRole("button", { name: "Reorder CI fast path" }), { key: "ArrowDown" })
     expect(ruleRowNames()).toEqual(["General fallback", "CI fast path"])
 
     await waitFor(() => expect(rejectReorder).toBeTypeOf("function"))
@@ -707,7 +733,7 @@ describe("ProviderRoutingRulesEditor", () => {
     renderPanel({ onUpdateRule, rules: legacyRules })
 
     expect(screen.getByText("Legacy task: ci_failure")).toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    fireEvent.click(screen.getByRole("button", { name: /^Edit / }))
     const editDialog = screen.getByRole("dialog", { name: "Edit routing rule" })
     expect(within(editDialog).getByLabelText(/Trigger/)).toHaveValue("legacy_task:ci_failure")
 
