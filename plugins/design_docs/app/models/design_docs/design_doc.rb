@@ -42,6 +42,7 @@ module DesignDocs
     validates :visibility, presence: true, inclusion: { in: VISIBILITIES }
     validates :state, presence: true, inclusion: { in: STATES }
     validate :current_version_belongs_to_doc
+    validate :visible_markdown_present
 
     scope :newest_first, -> { order(updated_at: :desc, id: :desc) }
     scope :publicly_visible, -> { where(visibility: "public") }
@@ -160,6 +161,12 @@ module DesignDocs
       return if current_version.design_doc_id.nil? || current_version.design_doc_id == id
 
       errors.add(:current_version, "must belong to this design doc")
+    end
+
+    def visible_markdown_present
+      return if DesignDocs::AnchorMarkers.strip(markdown).present?
+
+      errors.add(:markdown, "visible body can't be blank")
     end
 
     def clear_current_version_reference
