@@ -86,9 +86,10 @@ module Api
 
         def show
           chat_session = find_chat_session
-          return unless stale?(etag: chat_payload_etag(chat_session))
+          payload = chat_payload(chat_session)
+          return unless stale?(etag: chat_payload_etag(chat_session, payload))
 
-          render json: chat_payload(chat_session)
+          render json: payload
         end
 
         def mentionables
@@ -245,21 +246,24 @@ module Api
         def messages
           chat_session = find_chat_session
           before_id = Integer(params[:before], exception: false)
-          return unless stale?(etag: chat_payload_etag(chat_session))
-
           messages, has_more_older = paginated_before(chat_session, before_id)
-
-          render json: PerformanceLogging.phase("chat_messages_payload", chat_id: chat_session.id, before_id: before_id) {
+          payload = PerformanceLogging.phase("chat_messages_payload", chat_id: chat_session.id, before_id: before_id) {
             {
               has_more_older: has_more_older,
               messages: PerformanceLogging.phase("chat_messages.messages_json", chat_id: chat_session.id, message_count: messages.size) { messages_json(messages, repository: chat_session.repository) }
             }
           }
+          return unless stale?(etag: chat_payload_etag(chat_session, payload))
+
+          render json: payload
         end
 
-        def chat_payload_etag(chat_session)
+        def chat_payload_etag(chat_session, payload)
           last_message = chat_session.messages.active.order(id: :desc).pick(:id, :updated_at)
-          [ chat_session.entity_revision, last_message, Current.user.id ]
+          # Chat payloads combine the session revision with independently
+          # updated records and live process/plugin state. Hash the assembled
+          # representation so a 304 can never hide one of those transitions.
+          [ chat_session.entity_revision, last_message, Current.user.id, Digest::SHA256.hexdigest(payload.to_json) ]
         end
 
         def new

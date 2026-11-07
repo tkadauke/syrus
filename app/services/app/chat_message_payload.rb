@@ -295,6 +295,19 @@ module App
     def pending_action_json(action, chat_session:)
       return nil unless action&.visible_in_chat_payload?
 
+      if ChatPendingAction::TERMINAL_REQUEST_STATES.include?(action.state)
+        resolved = {
+          id: action.id,
+          state: action.state,
+          label: pending_action_label(action)
+        }
+        presenter = PendingActions.for(action.action.presence || action.action_type).new(action)
+        outcome = @pending_action_outcomes[action.id]
+        outcome ||= presenter.tool_card_outcome if presenter.respond_to?(:tool_card_outcome)
+        resolved[:outcome] = outcome if outcome.present?
+        return resolved
+      end
+
       payload = action.payload || {}
       base = {
         id: action.id,
