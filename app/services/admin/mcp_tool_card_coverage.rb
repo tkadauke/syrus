@@ -361,18 +361,23 @@ module Admin
         -row[:calls].to_i,
         -row[:errors].to_i,
         -row[:result_bytes].to_i,
-        row[:last_used_at].present? ? -Time.zone.parse(row[:last_used_at].to_s).to_i : 0,
+        row[:last_used_at].present? ? -utc_time(row[:last_used_at]).to_i : 0,
         row[:tool_name].to_s
       ]
     end
 
     def iso8601_time(value)
       return if value.blank?
-      return value.iso8601 if value.respond_to?(:iso8601)
 
-      Time.zone.parse(value.to_s)&.iso8601
+      utc_time(value)&.iso8601
     rescue ArgumentError, TypeError
       nil
+    end
+
+    def utc_time(value)
+      return value.utc if value.respond_to?(:utc)
+
+      Time.find_zone!("UTC").parse(value.to_s)
     end
 
     def owners
