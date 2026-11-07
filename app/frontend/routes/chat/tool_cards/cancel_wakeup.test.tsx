@@ -23,10 +23,11 @@ describe("cancel_wakeup tool card", () => {
       structured_content: { cancelled: true, wakeup_id: 7, fire_at: "2026-12-01T15:30:00Z", prompt: "Review JOB-42" }
     })
 
-    render(<>{cancelWakeupToolCard.renderExpanded(context({ parsedResult, chatSessionId: 9 }))}</>)
+    render(<>{cancelWakeupToolCard.renderExpanded(context({ parsedResult, chatSessionId: 9, timeZone: "Pacific/Honolulu" }))}</>)
 
     expect(screen.getByRole("link", { name: "WAKEUP-7" })).toHaveAttribute("href", "/chats/9")
     expect(screen.getByTestId("markdown-preview-content")).toHaveTextContent("Review JOB-42")
+    expect(document.querySelector('time[datetime="2026-12-01T15:30:00Z"]')).toHaveTextContent("5:30 AM")
     expect(screen.getByText("2026-12-01T15:30:00.000Z UTC")).toBeInTheDocument()
   })
 

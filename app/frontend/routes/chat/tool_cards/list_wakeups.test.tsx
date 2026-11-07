@@ -90,6 +90,15 @@ describe("list_wakeups tool card", () => {
     expect(screen.getByText("prompt").tagName).toBe("STRONG")
   })
 
+  it("uses the selected timezone for wakeup calendar phrases", () => {
+    const zonedWakeup = { ...wakeup, fire_at: "2026-09-08T08:00:00Z" }
+    render(
+      <MemoryRouter>{listWakeupsToolCard.renderExpanded(context({ parsedResult: { wakeups: [zonedWakeup] }, timeZone: "Pacific/Honolulu" }))}</MemoryRouter>
+    )
+
+    expect(document.querySelector('time[datetime="2026-09-08T08:00:00Z"]')).toHaveTextContent("today")
+  })
+
   it("falls back to null for malformed payloads", () => {
     expect(listWakeupsToolCard.renderExpanded(context({ parsedResult: { oops: true } }))).toBeNull()
     expect(listWakeupsToolCard.renderExpanded(context({ parsedResult: "not json" }))).toBeNull()

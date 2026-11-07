@@ -46,14 +46,14 @@ function collapsedSummary(context: ToolCardContext) {
   return i18n.t("chat:tool_card_list_wakeups_summary", { count: rows.length })
 }
 
-function WakeupTime({ value }: { value: string }) {
+function WakeupTime({ value, timeZone }: { value: string; timeZone: string }) {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return <>{value}</>
-  const local = new Intl.DateTimeFormat(intlLocale(), { dateStyle: "medium", timeStyle: "short" }).format(date)
+  const local = new Intl.DateTimeFormat(intlLocale(), { dateStyle: "medium", timeStyle: "short", timeZone }).format(date)
   return (
     <time className="flex flex-col" dateTime={value} title={value}>
       <span>{local}</span>
-      <span className="text-2xs text-text-subtle">{formatRelativeDate(date)}</span>
+      <span className="text-2xs text-text-subtle">{formatRelativeDate(date, Date.now(), timeZone)}</span>
     </time>
   )
 }
@@ -64,6 +64,7 @@ function renderExpanded(context: ToolCardContext) {
   const rows = wakeupRows(context)
   if (!rows) return null
   if (rows.length === 0) return <EmptyState>{i18n.t("chat:tool_card_list_wakeups_empty")}</EmptyState>
+  const timeZone = context.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
 
   return (
     <div className="mt-1 min-w-0 max-w-full overflow-hidden rounded border border-border">
@@ -95,14 +96,10 @@ function renderExpanded(context: ToolCardContext) {
                 </div>
               </td>
               <td className="min-w-0 break-words text-text-muted md:px-2 md:py-2">
-                <WakeupTime value={row.fireAt} />
+                <WakeupTime timeZone={timeZone} value={row.fireAt} />
               </td>
               <td className="min-w-0 text-text-muted md:px-2 md:py-2">
-                {row.delayRemainingMinutes != null ? (
-                  <Badge>{i18n.t("chat:tool_card_list_wakeups_minutes", { count: row.delayRemainingMinutes })}</Badge>
-                ) : (
-                  "—"
-                )}
+                {row.delayRemainingMinutes != null ? <Badge>{i18n.t("chat:tool_card_list_wakeups_minutes", { count: row.delayRemainingMinutes })}</Badge> : "—"}
               </td>
               <td className="min-w-0 max-w-full text-text-muted md:px-2 md:py-2">
                 <MarkdownPreview

@@ -45,15 +45,19 @@ function validDate(value: string | null) {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
-function localFireTime(value: string) {
-  return new Intl.DateTimeFormat(intlLocale(), { dateStyle: "medium", timeStyle: "short" }).format(new Date(value))
+function effectiveTimeZone(context: ToolCardContext) {
+  return context.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
+}
+
+function localFireTime(value: string, timeZone: string) {
+  return new Intl.DateTimeFormat(intlLocale(), { dateStyle: "medium", timeStyle: "short", timeZone }).format(new Date(value))
 }
 
 function collapsedSummary(context: ToolCardContext) {
   const result = parseScheduleWakeup(context)
   if (result.error) return `Wakeup scheduling failed: ${result.error}`
   const fireDate = validDate(result.fireAt)
-  if (result.wakeupId && fireDate) return `Wakeup scheduled ${formatRelativeDate(fireDate)}`
+  if (result.wakeupId && fireDate) return `Wakeup scheduled ${formatRelativeDate(fireDate, Date.now(), effectiveTimeZone(context))}`
   if (result.pending) return "Scheduling wakeup..."
   return null
 }
@@ -61,6 +65,7 @@ function collapsedSummary(context: ToolCardContext) {
 function renderExpanded(context: ToolCardContext) {
   const result = parseScheduleWakeup(context)
   const fireDate = validDate(result.fireAt)
+  const timeZone = effectiveTimeZone(context)
 
   return (
     <CardShell tone={result.error ? "danger" : result.pending ? "info" : "success"}>
@@ -74,8 +79,8 @@ function renderExpanded(context: ToolCardContext) {
           <div className="min-w-0 sm:col-span-2">
             <div className="text-2xs font-semibold uppercase text-text-muted">Fires at</div>
             <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-1 text-xs text-text-primary">
-              <time dateTime={result.fireAt}>{localFireTime(result.fireAt)}</time>
-              <span className="text-text-muted">({formatRelativeDate(fireDate)})</span>
+              <time dateTime={result.fireAt}>{localFireTime(result.fireAt, timeZone)}</time>
+              <span className="text-text-muted">({formatRelativeDate(fireDate, Date.now(), timeZone)})</span>
               <span className="break-all font-mono text-text-muted">{fireDate.toISOString()} UTC</span>
             </div>
           </div>

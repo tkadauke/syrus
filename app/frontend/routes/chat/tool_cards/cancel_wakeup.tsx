@@ -89,6 +89,7 @@ function renderExpanded(context: ToolCardContext) {
   }
 
   const fireDate = validDate(result.fireAt)
+  const timeZone = context.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
   return (
     <CardShell tone="success">
       <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -101,8 +102,10 @@ function renderExpanded(context: ToolCardContext) {
           value={
             fireDate ? (
               <span className="flex min-w-0 flex-wrap gap-x-2 gap-y-1">
-                <time dateTime={result.fireAt}>{new Intl.DateTimeFormat(intlLocale(), { dateStyle: "medium", timeStyle: "short" }).format(fireDate)}</time>
-                <span className="text-text-muted">({formatRelativeDate(fireDate)})</span>
+                <time dateTime={result.fireAt}>
+                  {new Intl.DateTimeFormat(intlLocale(), { dateStyle: "medium", timeStyle: "short", timeZone }).format(fireDate)}
+                </time>
+                <span className="text-text-muted">({formatRelativeDate(fireDate, Date.now(), timeZone)})</span>
                 <span className="break-all font-mono text-text-muted">{fireDate.toISOString()} UTC</span>
               </span>
             ) : (
