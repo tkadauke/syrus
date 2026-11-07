@@ -149,6 +149,17 @@ RSpec.describe Mcp::Sidecar do
 
       expect(tools.map { |tool| McpToolRegistry.tool_name_for(tool) }).to eq([ "synthetic_context_mutation" ])
     end
+
+    it "denies a contributed definition whose capability descriptor excludes the workflow role" do
+      allow(ReviewContextContributions).to receive(:tool_capability).with(target).and_return(:submit_summary)
+      allow(tool_set).to receive(:tool_definitions).and_return([
+        {
+          name: "synthetic_context_mutation", description: "Mutates context", input_schema: {},
+          capability: "review.memory.write", mutation: true, requestable_roles: [ AgentRole::CHAT_PLANNER ]
+        }
+      ])
+      expect(described_class.plugin_workflow_tools_for(context)).to be_empty
+    end
   end
 
   describe "tools/call read_live_state" do

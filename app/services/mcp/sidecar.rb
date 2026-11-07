@@ -238,7 +238,8 @@ module Mcp
       tool_sets = PerformanceLogging.phase("workflow_mcp_sidecar.plugin_tool_sets", repository_id: context.repository&.id) do
         Syrus::PluginRegistry.providers_for(:mcp_tool_set)
       end
-      target = context.run&.step&.details.to_h&.dig("reviewer_target")
+      step_details = context.run&.step&.respond_to?(:details) ? context.run.step.details : nil
+      target = step_details.to_h.dig("reviewer_target")
       if target.present?
         capability = ReviewContextContributions.tool_capability(target)
         if capability && McpToolPolicy.capability_permitted?(context, capability)
@@ -274,6 +275,7 @@ module Mcp
       end
       policy_managed_names = defined?(SyrusMcp::CoreToolSet::POLICY_MANAGED_NAMES) ? SyrusMcp::CoreToolSet::POLICY_MANAGED_NAMES : []
       definitions = definitions.map { |definition| Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition).then { |descriptor| definition.merge(capability_descriptor: descriptor) } }
+      definitions.select! { |definition| definition.fetch(:capability_descriptor).requestable_roles.include?(context.role) }
 
       definitions.reject { |defn| policy_managed_names.include?(defn[:name]) }.map do |defn|
         tool = MCP::Tool.define(
@@ -286,7 +288,7 @@ module Mcp
           end
         end
         tool.define_singleton_method(:capability_descriptor) { defn.fetch(:capability_descriptor) }
-        tool
+        authorize_tool(tool)
       end
     end
 
