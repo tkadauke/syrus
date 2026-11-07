@@ -112,6 +112,7 @@ function invalidateInFlightJsonReadsAfterWrite() {
 async function performJsonRead<T>(path: string, options: { signal?: AbortSignal } = {}): Promise<{ data: T; meta: JsonResponseMeta }> {
   const startedAt = performanceNow()
   const response = await fetch(path, {
+    cache: "no-cache",
     credentials: "same-origin",
     headers: {
       Accept: "application/json"

@@ -66,6 +66,15 @@ describe("GET request single-flight", () => {
     expect(getRecentApiRequests()).toHaveLength(1)
   })
 
+  it("revalidates GET requests instead of accepting a fresh browser cache entry", async () => {
+    const { getJson } = await import("./client")
+    const fetch = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ ok: true }))
+
+    await getJson("/api/v1/app/chats")
+
+    expect(fetch).toHaveBeenCalledWith("/api/v1/app/chats", expect.objectContaining({ cache: "no-cache" }))
+  })
+
   it("does not coalesce reads that carry abort signals", async () => {
     const { getJson } = await import("./client")
     vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse({ ok: true })))
