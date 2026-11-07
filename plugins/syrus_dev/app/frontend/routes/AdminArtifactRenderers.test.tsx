@@ -24,14 +24,16 @@ vi.mock("react-router-dom", async (importOriginal) => {
 
 vi.mock("@app/api/chats", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@app/api/chats")>()
-  return { ...actual, createChat: vi.fn() }
+  return { ...actual, createEmptyChat: vi.fn(), sendChatMessage: vi.fn(), uploadChatAttachment: vi.fn() }
 })
 
 vi.mock("html2canvas-pro", () => ({
   default: vi.fn()
 }))
 
-const mockCreateChat = vi.mocked(chatsApi.createChat)
+const mockCreateEmptyChat = vi.mocked(chatsApi.createEmptyChat)
+const mockSendChatMessage = vi.mocked(chatsApi.sendChatMessage)
+const mockUploadChatAttachment = vi.mocked(chatsApi.uploadChatAttachment)
 const mockHtml2canvas = vi.mocked(html2canvasModule)
 
 function fakeT(key: string, options?: Record<string, unknown>): string {
@@ -47,7 +49,7 @@ describe("payloadSummary", () => {
     expect(payloadSummary(null, fakeT)).toBe("empty")
     expect(payloadSummary(undefined, fakeT)).toBe("empty")
     expect(payloadSummary({}, fakeT)).toBe("object (no fields)")
-    expect(payloadSummary([ 1, 2, 3 ], fakeT)).toBe("array (3 item(s))")
+    expect(payloadSummary([1, 2, 3], fakeT)).toBe("array (3 item(s))")
     expect(payloadSummary({ headers: [], rows: [] }, fakeT)).toBe("object (2 field(s): headers, rows)")
   })
 })
@@ -55,7 +57,7 @@ describe("payloadSummary", () => {
 describe("artifact renderer feedback metadata", () => {
   it("carries renderer, artifact, viewport, deep-link, annotation, metadata, and full payload context", () => {
     const artifact = provenanceEntry.examples[0].artifact
-    const shapes = [ { id: "s1", kind: "text" as const, x: 1, y: 2, value: "check table", color: "#ef4444" } ]
+    const shapes = [{ id: "s1", kind: "text" as const, x: 1, y: 2, value: "check table", color: "#ef4444" }]
 
     const metadata = buildArtifactRendererFeedbackMetadata(
       provenanceEntry,
@@ -96,7 +98,13 @@ describe("artifact renderer feedback metadata", () => {
   })
 
   it("builds a readable prompt before the raw JSON block", () => {
-    const metadata = buildArtifactRendererFeedbackMetadata(provenanceEntry, provenanceEntry.examples[0].artifact, "with_provenance", "desktop", "https://syrus.test/admin/artifact_renderers")
+    const metadata = buildArtifactRendererFeedbackMetadata(
+      provenanceEntry,
+      provenanceEntry.examples[0].artifact,
+      "with_provenance",
+      "desktop",
+      "https://syrus.test/admin/artifact_renderers"
+    )
     const text = buildArtifactRendererFeedbackPrompt("The layout breaks on mobile.", metadata)
 
     expect(text.startsWith("The layout breaks on mobile.")).toBe(true)
@@ -110,7 +118,9 @@ describe("artifact renderer feedback metadata", () => {
 describe("AdminArtifactRenderers", () => {
   beforeEach(() => {
     mockNavigate.mockClear()
-    mockCreateChat.mockReset()
+    mockCreateEmptyChat.mockReset()
+    mockSendChatMessage.mockReset()
+    mockUploadChatAttachment.mockReset()
     mockHtml2canvas.mockReset()
   })
 
@@ -250,39 +260,43 @@ describe("AdminArtifactRenderers", () => {
 
   it("carries screenshot, prompt, deep link, renderer metadata, artifact metadata, and full payload into a new chat", async () => {
     mockHtml2canvas.mockResolvedValue({ toDataURL: () => "data:image/png;base64,YXJ0aWZhY3Q=" } as unknown as HTMLCanvasElement)
-    mockCreateChat.mockResolvedValue({ message: "Chat created.", redirect_to: "/chats/99", chat: {} } as unknown as chatsApi.ChatCreatedPayload)
+    mockCreateEmptyChat.mockResolvedValue({ message: "Chat created.", redirect_to: "/chats/99", chat: { id: 99 } } as unknown as chatsApi.ChatCreatedPayload)
+    mockUploadChatAttachment.mockResolvedValue({ id: 9, name: "erd_diagram-artifact-renderer.png", mime_type: "image/png", size: 10, url: "/attachment/9" })
+    mockSendChatMessage.mockResolvedValue({ messages: [] } as unknown as chatsApi.ChatPayload)
 
     renderRoute("/admin/artifact_renderers?renderer_type=erd_diagram&viewport=phone")
 
     const region = screen.getByRole("region", { name: "Rails schema ERD" })
     fireEvent.click(within(region).getByRole("button", { name: "Discuss this renderer" }))
 
-    await waitFor(() => expect(screen.getByRole("img", { name: "Screenshot of the Rails schema ERD renderer" })).toHaveAttribute("src", "data:image/png;base64,YXJ0aWZhY3Q="))
+    await waitFor(() =>
+      expect(screen.getByRole("img", { name: "Screenshot of the Rails schema ERD renderer" })).toHaveAttribute("src", "data:image/png;base64,YXJ0aWZhY3Q=")
+    )
     expect(mockHtml2canvas.mock.calls[0][0]).toBe(within(region).getByLabelText("Renderer preview constrained to 390px"))
 
     fireEvent.change(screen.getByLabelText("What should the assistant know?"), { target: { value: "The schema labels crowd each other." } })
     fireEvent.click(screen.getByRole("button", { name: "Open chat" }))
 
-    await waitFor(() => expect(mockCreateChat).toHaveBeenCalledTimes(1))
-    const [input] = mockCreateChat.mock.calls[0]
-    expect(input.text).toContain("The schema labels crowd each other.")
-    expect(input.text).toContain('"renderer_type": "erd_diagram"')
-    expect(input.text).toContain('"artifact_type": "rails_schema_erd"')
-    expect(input.text).toContain('"owner_type": "plugin"')
-    expect(input.text).toContain('"plugin_name": "rails"')
-    expect(input.text).toContain('"selected_viewport_preset": "phone"')
-    expect(input.text).toContain('"selected_payload"')
-    expect(input.text).toContain('"full_artifact"')
-    expect(input.text).toContain('"catalog_deep_link"')
-    expect(input.attachments).toEqual([
-      { name: "erd_diagram-artifact-renderer.png", mimeType: "image/png", dataUrl: "data:image/png;base64,YXJ0aWZhY3Q=" }
-    ])
+    await waitFor(() => expect(mockCreateEmptyChat).toHaveBeenCalledTimes(1))
+    expect(mockUploadChatAttachment).toHaveBeenCalledWith(99, expect.objectContaining({ name: "erd_diagram-artifact-renderer.png", type: "image/png" }))
+    const [, text, attachments] = mockSendChatMessage.mock.calls[0]
+    expect(text).toContain("The schema labels crowd each other.")
+    expect(text).toContain('"renderer_type": "erd_diagram"')
+    expect(text).toContain('"artifact_type": "rails_schema_erd"')
+    expect(text).toContain('"owner_type": "plugin"')
+    expect(text).toContain('"plugin_name": "rails"')
+    expect(text).toContain('"selected_viewport_preset": "phone"')
+    expect(text).toContain('"selected_payload"')
+    expect(text).toContain('"full_artifact"')
+    expect(text).toContain('"catalog_deep_link"')
+    expect(attachments).toEqual([{ id: 9, name: "erd_diagram-artifact-renderer.png", mimeType: "image/png", size: 10, url: "/attachment/9" }])
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/chats/99"))
   })
 
   it("keeps raw artifact metadata available when screenshot capture fails", async () => {
     mockHtml2canvas.mockRejectedValue(new Error("tainted canvas"))
-    mockCreateChat.mockResolvedValue({ message: "Chat created.", redirect_to: "/chats/100", chat: {} } as unknown as chatsApi.ChatCreatedPayload)
+    mockCreateEmptyChat.mockResolvedValue({ message: "Chat created.", redirect_to: "/chats/100", chat: { id: 100 } } as unknown as chatsApi.ChatCreatedPayload)
+    mockSendChatMessage.mockResolvedValue({ messages: [] } as unknown as chatsApi.ChatPayload)
 
     renderRoute("/admin/artifact_renderers?renderer_type=erd_diagram")
 
@@ -294,8 +308,9 @@ describe("AdminArtifactRenderers", () => {
     expect(screen.getByText(/"renderer_type": "erd_diagram"/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Open chat" }))
-    await waitFor(() => expect(mockCreateChat).toHaveBeenCalledTimes(1))
-    expect(mockCreateChat.mock.calls[0][0].attachments).toEqual([])
+    await waitFor(() => expect(mockCreateEmptyChat).toHaveBeenCalledTimes(1))
+    expect(mockUploadChatAttachment).not.toHaveBeenCalled()
+    expect(mockSendChatMessage.mock.calls[0][2]).toEqual([])
   })
 
   it("shows title, type, renderer type, owner, created-at, and a payload summary around the preview", () => {
@@ -415,7 +430,7 @@ function renderRoute(initialEntry = "/admin/artifact_renderers") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[ initialEntry ]}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route element={<AdminArtifactRenderers />} path="/admin/artifact_renderers" />
         </Routes>
@@ -428,9 +443,7 @@ function renderEntry(element: ReactElement) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>
-        {element}
-      </MemoryRouter>
+      <MemoryRouter>{element}</MemoryRouter>
     </QueryClientProvider>
   )
 }

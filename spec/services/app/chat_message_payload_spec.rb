@@ -20,7 +20,7 @@ RSpec.describe App::ChatMessagePayload do
     payload = described_class.messages([ message ], repository: repository).first
 
     expect(payload.fetch(:text)).to eq("Hello legacy.")
-    expect(payload.fetch(:content)).to eq({ "text" => "Hello legacy." })
+    expect(payload.fetch(:content)).to eq({})
   end
 
   it "preserves an explicitly empty attachment array" do
@@ -45,6 +45,19 @@ RSpec.describe App::ChatMessagePayload do
       "url" => "/api/v1/app/chats/#{chat.id}/attachments/#{attachment.id}/file"
     )
     expect(payload.fetch(:attachments).sole).not_to have_key("data")
+    expect(payload.fetch(:content)).to eq({})
+  end
+
+  it "serializes legacy inline attachments behind a download URL without exposing base64" do
+    message = chat.messages.create!(role: "user", sender_user: user, content: {
+      "text" => "Legacy", "attachments" => [ { "name" => "notes.txt", "mime_type" => "text/plain", "data" => Base64.strict_encode64("hello") } ]
+    }, skip_turn_trigger: true)
+
+    payload = described_class.messages([ message ], repository: repository).first
+
+    expect(payload.fetch(:content)).to eq({})
+    expect(payload.fetch(:attachments).sole).to include("url" => "/api/v1/app/chats/#{chat.id}/messages/#{message.id}/attachments/0")
+    expect(payload.to_json).not_to include(Base64.strict_encode64("hello"))
   end
 
   it "renders a stored mention with the mentionable's current handle" do
@@ -424,13 +437,18 @@ RSpec.describe App::ChatMessagePayload do
     expect(payloads.second.fetch(:pinnable)).to eq(false)
   end
 
-  it "includes stored chat message attachments" do
+  it "includes legacy chat message attachments as URL references" do
     attachment = { "name" => "diagram.png", "mime_type" => "image/png", "data" => "cGl4ZWxz" }
     message = chat.messages.create!(role: "user", content: { "text" => "Inspect this.", "attachments" => [ attachment ] })
 
     payload = described_class.messages([ message ], repository: repository).first
 
-    expect(payload.fetch(:attachments)).to eq([ attachment ])
+    expect(payload.fetch(:attachments).sole).to include(
+      "name" => "diagram.png",
+      "mime_type" => "image/png",
+      "url" => "/api/v1/app/chats/#{chat.id}/messages/#{message.id}/attachments/0"
+    )
+    expect(payload.fetch(:attachments).sole).not_to have_key("data")
   end
 
   it "includes the full chat shell command record for a message referencing one" do

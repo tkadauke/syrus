@@ -14,7 +14,8 @@ module Api
           end
 
           attachment = chat.with_lock do
-            next if chat.chat_file_attachments.sum(:byte_size) + bytes.bytesize > ChatMessageParams::CHAT_ATTACHMENT_TOTAL_MAX_BYTES
+            pending_bytes = chat.chat_file_attachments.where(attachable_id: nil).sum(:byte_size)
+            next if pending_bytes + bytes.bytesize > ChatMessageParams::CHAT_ATTACHMENT_TOTAL_MAX_BYTES
 
             record = chat.chat_file_attachments.build(name: upload.original_filename, mime_type: policy.mime_type, byte_size: bytes.bytesize, checksum: "pending")
             record.file.attach(io: StringIO.new(bytes), filename: ChatAttachmentPolicy.sanitize_filename(upload.original_filename), content_type: policy.mime_type)
@@ -29,7 +30,17 @@ module Api
         def show
           attachment = find_chat.chat_file_attachments.find(params[:id])
           raise ActiveRecord::RecordNotFound, "Attachment file not found" unless attachment.file.attached?
+          expires_in 1.year, public: false, immutable: true
           send_secure_file attachment.file.download, filename: attachment.name, type: attachment.mime_type
+        end
+
+        def legacy
+          message = find_chat.messages.find(params[:message_id])
+          attachment = ChatAttachmentRef.for(message).fetch(Integer(params[:index], 10))
+          raise ActiveRecord::RecordNotFound, "Attachment file not found" unless attachment.bytes_present?
+
+          expires_in 1.year, public: false, immutable: true
+          send_secure_file attachment.bytes, filename: attachment.name, type: attachment.mime_type
         end
 
         private

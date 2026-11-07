@@ -1,7 +1,7 @@
 import { useMutation } from "@tanstack/react-query"
 import { type FormEvent, type RefObject, useMemo, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
-import { type ChatMessageAttachmentInput, createChat } from "@app/api/chats"
+import { createEmptyChat, sendChatMessage, uploadChatAttachment } from "@app/api/chats"
 import { Button } from "@app/components/Button"
 import { CloseIcon } from "@app/components/CloseIcon"
 import { ImageAnnotationModal, type Shape } from "@app/components/ImageAnnotationModal"
@@ -84,7 +84,17 @@ export function CatalogFeedbackDialog<Metadata extends CatalogFeedbackMetadata>(
   const [promptText, setPromptText] = useState("")
 
   const startChat = useMutation({
-    mutationFn: (input: { attachments: ChatMessageAttachmentInput[]; text: string }) => createChat({ attachments: input.attachments, text: input.text }),
+    mutationFn: async (input: { screenshot: ScreenshotState | null; text: string }) => {
+      const created = await createEmptyChat()
+      const attachments = input.screenshot
+        ? await fetch(input.screenshot.dataUrl)
+            .then((response) => response.blob())
+            .then((blob) => uploadChatAttachment(created.chat.id, new File([blob], attachmentName, { type: "image/png" })))
+            .then((attachment) => [{ id: attachment.id, name: attachment.name, mimeType: attachment.mime_type, size: attachment.size, url: attachment.url }])
+        : []
+      await sendChatMessage(`/api/v1/app/chats/${created.chat.id}/message`, input.text, attachments)
+      return created
+    },
     onSuccess: (payload) => {
       setOpen(false)
       navigate(withRoutePrefix(payload.redirect_to, routePrefix(location.pathname)))
@@ -143,10 +153,7 @@ export function CatalogFeedbackDialog<Metadata extends CatalogFeedbackMetadata>(
 
   function submitChat() {
     const text = buildPrompt(promptText, metadata)
-    const attachments: ChatMessageAttachmentInput[] = screenshot
-      ? [{ dataUrl: screenshot.dataUrl, mimeType: "image/png", name: attachmentName }]
-      : []
-    startChat.mutate({ attachments, text })
+    startChat.mutate({ screenshot, text })
   }
 
   // When a createJob action is configured, the form's primary submit action
@@ -215,11 +222,7 @@ export function CatalogFeedbackDialog<Metadata extends CatalogFeedbackMetadata>(
 
             {screenshot ? (
               <div className="space-y-2">
-                <img
-                  alt={copy.screenshotAlt}
-                  className="max-h-64 w-full rounded border border-border object-contain"
-                  src={screenshot.dataUrl}
-                />
+                <img alt={copy.screenshotAlt} className="max-h-64 w-full rounded border border-border object-contain" src={screenshot.dataUrl} />
                 <div className="flex justify-end">
                   <Button onClick={() => setAnnotating(true)} size="sm" type="button" variant="secondary">
                     {copy.annotate}
@@ -243,9 +246,7 @@ export function CatalogFeedbackDialog<Metadata extends CatalogFeedbackMetadata>(
               <summary className="cursor-pointer list-none px-3 py-2 text-sm font-medium text-text-secondary hover:bg-surface-raised">
                 {copy.metadataSummary}
               </summary>
-              <pre className="max-h-48 overflow-auto border-t border-border px-3 py-2 text-xs text-text-secondary">
-                {JSON.stringify(metadata, null, 2)}
-              </pre>
+              <pre className="max-h-48 overflow-auto border-t border-border px-3 py-2 text-xs text-text-secondary">{JSON.stringify(metadata, null, 2)}</pre>
             </details>
 
             {startChat.isError ? (
@@ -264,12 +265,7 @@ export function CatalogFeedbackDialog<Metadata extends CatalogFeedbackMetadata>(
                 {copy.cancel}
               </Button>
               {createJob ? (
-                <Button
-                  disabled={startChat.isPending || createJobMutation.isPending || capturing}
-                  onClick={submitChat}
-                  type="button"
-                  variant="secondary"
-                >
+                <Button disabled={startChat.isPending || createJobMutation.isPending || capturing} onClick={submitChat} type="button" variant="secondary">
                   {startChat.isPending ? copy.starting : copy.submit}
                 </Button>
               ) : null}
@@ -278,13 +274,7 @@ export function CatalogFeedbackDialog<Metadata extends CatalogFeedbackMetadata>(
                 title={createJob && promptIsBlank ? copy.createJobRequiresPrompt : undefined}
                 type="submit"
               >
-                {createJob
-                  ? createJobMutation.isPending
-                    ? copy.creatingJob
-                    : copy.createJob
-                  : startChat.isPending
-                    ? copy.starting
-                    : copy.submit}
+                {createJob ? (createJobMutation.isPending ? copy.creatingJob : copy.createJob) : startChat.isPending ? copy.starting : copy.submit}
               </Button>
             </div>
           </form>

@@ -86,6 +86,20 @@ vi.mock("html2canvas-pro", () => ({
   default: html2canvasMock
 }))
 
+vi.mock("../api/chats", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/chats")>()
+  return {
+    ...actual,
+    uploadChatAttachment: vi.fn(async (_chatId: string | number, file: File) => ({
+      id: 991,
+      name: file.name,
+      mime_type: file.type || "application/octet-stream",
+      size: file.size,
+      url: `/api/v1/app/chats/8/attachments/991/file`
+    }))
+  }
+})
+
 let restoreClipboardMock: (() => void) | null = null
 
 async function openWhiteboardPanel() {
@@ -13379,9 +13393,7 @@ describe("App", () => {
         "/api/v1/app/chats/8/message",
         expect.objectContaining({
           method: "POST",
-          body: expect.stringContaining(
-            '"chat_message":{"text":"Review this diagram","attachments":[{"name":"flow-chart.png","mime_type":"image/png","data":"Y2hhcnQ="}]}'
-          )
+          body: expect.stringContaining('"chat_message":{"text":"Review this diagram","attachments":[{"id":991}]}')
         })
       )
     })
