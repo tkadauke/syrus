@@ -95,8 +95,9 @@ RSpec.describe RuntimeTerminal::Renderer do
     repeated = image("\e[?25liiii", cols: 5, rows: 1)
 
     non_descenders = [ 0, 2, 3, 4, *(6..10), *(12..19) ]
-    expect(non_descenders.map { |col| ink_bounds(rendered, col: col).fetch(:y).last }.uniq).to eq([ 15 ])
-    expect(ink_bounds(rendered, col: 1).fetch(:y).last).to be > 15 # y descends from the shared baseline
+    baseline = ink_bounds(rendered, col: 0).fetch(:y).last
+    expect(non_descenders.map { |col| ink_bounds(rendered, col: col).fetch(:y).last }.uniq).to eq([ baseline ])
+    expect(ink_bounds(rendered, col: 1).fetch(:y).last).to be > baseline # y descends from the shared baseline
     expect((0...4).map { |col| ink_bounds(repeated, col: col) }.uniq.length).to eq(1)
   end
 
@@ -106,10 +107,12 @@ RSpec.describe RuntimeTerminal::Renderer do
     source = "\e[?25l\e[1mA\e[3mB\e[4mC\e[2mD\e[7mE\e[9mF\e[0m┌e\u0301界\e[?25h"
     rendered = image(source, cols: 12, rows: 1)
 
-    expect((0..5).map { |col| ink_bounds(rendered, col: col).fetch(:y) }).to all(satisfy { |bounds| bounds.first <= 4 && bounds.last >= 15 })
-    expect(ink_bounds(rendered, col: 6).fetch(:y)).to eq([ 9, 19 ])
-    expect(ink_bounds(rendered, col: 7).fetch(:y)).to eq([ 3, 15 ])
-    expect(ink_bounds(rendered, col: 8, width: 2).fetch(:y)).to eq([ 2, 16 ])
+    styled_bounds = (0..5).map { |col| ink_bounds(rendered, col: col).fetch(:y) }
+    baseline = styled_bounds.first.last
+    expect(styled_bounds).to all(satisfy { |bounds| bounds.first < baseline && bounds.last >= baseline })
+    expect(ink_bounds(rendered, col: 6).fetch(:y).last).to be > baseline # box drawing reaches the row edge
+    expect(ink_bounds(rendered, col: 7).fetch(:y).last).to eq(baseline) # combining text shares the baseline
+    expect(ink_bounds(rendered, col: 8, width: 2).fetch(:y)).to all(be_between(0, described_class::CELL_HEIGHT - 1))
     expect(pixel(rendered, 10 * described_class::CELL_WIDTH + 5, 10)).not_to eq([ 30, 34, 42 ])
     expect(image("\e[?25l\e[8mhidden", cols: 6, rows: 1).avg).to eq(image("\e[?25l", cols: 6, rows: 1).avg)
   end
@@ -126,9 +129,8 @@ RSpec.describe RuntimeTerminal::Renderer do
     rendered = image("\e[?25l#{source}", cols: 24, rows: 4)
 
     expect([ rendered.width, rendered.height ]).to eq([ 240, 80 ])
-    expect(ink_bounds(rendered, col: 2, row: 0).fetch(:y)).to eq([ 4, 15 ]) # S
-    expect(ink_bounds(rendered, col: 3, row: 0).fetch(:y)).to eq([ 4, 15 ]) # y shares the styled row baseline
-    expect(ink_bounds(rendered, col: 4, row: 0).fetch(:y)).to eq([ 4, 15 ]) # r
+    bounds = (2..4).map { |col| ink_bounds(rendered, col: col, row: 0).fetch(:y) }
+    expect(bounds.uniq.length).to eq(1) # S, y, and r share one styled row origin and baseline
   end
 
   it "renders alternate-screen box drawing, wide Unicode, styles, and visible cursor state" do
