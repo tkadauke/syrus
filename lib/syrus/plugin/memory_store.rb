@@ -23,6 +23,10 @@ module Syrus
     #   # names belong to whoever provides the tools, so the copy does too.
     #   def self.chat_instructions -> String
     #
+    #   # Explicitly selected, published repository memories for protected
+    #   # reviewer context. Returns hashes with id, revision, and content.
+    #   def self.selected_review_memories(user:, repository_id:, ids:) -> Array<Hash>
+    #
     # Every method is optional; a provider that omits one contributes nothing
     # for it. Core reaches the registered provider through `Syrus::Memory`,
     # never directly.

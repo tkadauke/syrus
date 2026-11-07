@@ -59,6 +59,55 @@ module Api
           render json: { schedules: coworker.schedules.alive.order(:created_at).map { |task| schedule_json(task) } }
         end
 
+        def review_context
+          coworker = Coworkers::Coworker.find(params[:id])
+          unless Current.user.admin? || coworker.owner_user_id == Current.user.id
+            return head :forbidden
+          end
+          context = Coworkers::ReviewContext.find_by!(coworker:, run_id: params[:run_id])
+          AdminAction.log!(user: Current.user, action: "coworker_review_context_read",
+            params: { "coworker_id" => coworker.id, "run_id" => context.run_id })
+          render json: { run_id: context.run_id, manifest: context.manifest, exact_context: context.exact_context,
+                         persistence_state: context.persistence_state, tombstoned_at: context.tombstoned_at }
+        end
+
+        def review_context
+          coworker = Coworkers::Coworker.find(params[:id])
+          unless Current.user.admin? || coworker.owner_user_id == Current.user.id
+            return head :forbidden
+          end
+          context = Coworkers::ReviewContext.find_by!(coworker:, run_id: params[:run_id])
+          AdminAction.log!(user: Current.user, action: "coworker_review_context_read",
+            params: { "coworker_id" => coworker.id, "run_id" => context.run_id })
+          render json: { run_id: context.run_id, manifest: context.manifest, exact_context: context.exact_context,
+                         persistence_state: context.persistence_state, tombstoned_at: context.tombstoned_at }
+        end
+
+        def review_context
+          coworker = authorized_review_coworker
+          return unless coworker
+          context = Coworkers::ReviewContext.find_by!(coworker:, run_id: params[:run_id])
+          AdminAction.log!(user: Current.user, action: "coworker_review_context_read",
+            params: { "coworker_id" => coworker.id, "run_id" => context.run_id })
+          render json: { run_id: context.run_id, manifest: context.manifest, exact_context: context.exact_context,
+                         persistence_state: context.persistence_state, tombstoned_at: context.tombstoned_at }
+        end
+
+        def review_journal
+          coworker = authorized_review_coworker
+          return unless coworker
+          context = Coworkers::ReviewContext.find_by!(coworker:, run_id: params[:run_id])
+          repository = coworker.workspace_repository or raise ActiveRecord::RecordNotFound
+          reader = RepositoryContent.for(repository, user: Current.user)
+          revision = reader.resolve("coworkers/#{coworker.handle}")
+          path = "reviews/journal/evidence-#{context.review_evidence_id}.md"
+          journal = reader.read(revision, path, max_bytes: 64.kilobytes)
+          AdminAction.log!(user: Current.user, action: "coworker_review_journal_read",
+            params: { "coworker_id" => coworker.id, "run_id" => context.run_id, "review_evidence_id" => context.review_evidence_id })
+          render json: { run_id: context.run_id, review_evidence_id: context.review_evidence_id, path:, content: journal.text,
+                         truncated: journal.truncated, persisted_commit_sha: context.persisted_commit_sha }
+        end
+
         def create
           coworker = Coworkers::Coworker.new(owner_user: Current.user)
           authorize coworker, :create?, policy_class: CoworkerPolicy
@@ -298,6 +347,14 @@ module Api
         end
 
         private
+
+        def authorized_review_coworker
+          coworker = Coworkers::Coworker.find(params[:id])
+          return coworker if Current.user.admin? || coworker.owner_user_id == Current.user.id
+
+          head :forbidden
+          nil
+        end
 
         def provisioning_attempt
           Coworkers::ProvisioningAttempt.where(owner_user: Current.user).find(params[:attempt_id])

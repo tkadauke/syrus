@@ -14,6 +14,7 @@ RSpec.describe Steps::SecurityReview do
       step_agent_diff: "diff --git a/app.rb b/app.rb\n+protected endpoint\n", base_sha: "base-sha")
     workspace = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/security-workspace"), base_ref: "origin/main")
     allow(handler).to receive(:workspace).and_return(workspace)
+    allow(ReviewEvidence::Capture).to receive(:call)
     allow(App::SecurityReviewProjects).to receive(:call).and_return(
       App::AdversarialReviewProjects::Result.new(projects: [])
     )
@@ -28,6 +29,20 @@ RSpec.describe Steps::SecurityReview do
     end
 
     handler.call
+  end
+
+  it "augments the security prompt with only the selected reviewer's protected context" do
+    context = double("review context")
+    reviewer = double("coworker reviewer")
+    evidence = instance_double(ReviewEvidence, reviewer: reviewer)
+    allow(run).to receive(:review_evidence).and_return(evidence)
+    allow(reviewer).to receive(:prepare_review_context!)
+      .with(run:, evidence:, criteria: []).and_return(context)
+    allow(reviewer).to receive(:review_context_prompt).with(context).and_return("protected reviewer memory")
+
+    prompt = handler.send(:materialize_reviewer_prompt)
+
+    expect(prompt).to include("submit_security_review", "protected reviewer memory")
   end
 
   it "resumes only a prior security reviewer in the same loop" do

@@ -36,6 +36,11 @@ RSpec.describe AgentProviders::Claude do
     end
   end
 
+  it "resolves the CLI default model for immutable provenance" do
+    expect(described_class.resolve_model(nil)).to eq("claude-sonnet-4-6")
+    expect(described_class.resolve_model("claude-opus-4-7")).to eq("claude-opus-4-7")
+  end
+
   describe ".refresh_stale_usage!" do
     it "refreshes when the user has a Claude token and the probe is stale" do
       user = Factories.user(claude_oauth_token: "oat-test")

@@ -70,6 +70,31 @@ RSpec.describe "serial review panels" do
     expect(ProviderRouting::AvailabilitySelector).to have_received(:panel).once
   end
 
+  it "reauthorizes a pinned coworker panel member for every Run" do
+    target = { "type" => "coworker", "reference" => "7", "display" => { "name" => "Monica" } }
+    member = Step.create!(workflow: workflow, kind: "security_review", position: 101, iteration: 1,
+      loop_id: "security-loop", details: { "panel_member" => true, "provider" => "codex",
+                                          "model" => "gpt-5", "reviewer_target" => target })
+    refreshed = target.merge("record_type" => "Coworkers::Coworker", "record_id" => 7)
+    expect(ReviewerTargets).to receive(:snapshot).twice.and_return(refreshed)
+
+    2.times do
+      candidate = StepDispatcher.run_provider_candidate_for(member, workflow)
+      expect(candidate.reviewer_target).to eq(refreshed)
+    end
+  end
+
+  it "fails closed when a pinned coworker is revoked before a retry" do
+    target = { "type" => "coworker", "reference" => "7", "display" => { "name" => "Monica" } }
+    member = Step.create!(workflow: workflow, kind: "adversarial_review", position: 101, iteration: 1,
+      loop_id: "review-loop", details: { "panel_member" => true, "provider" => "codex",
+                                        "reviewer_target" => target })
+    allow(ReviewerTargets).to receive(:snapshot).and_raise(ReviewerTargets::TargetUnavailable, "reviewer is paused")
+
+    expect { StepDispatcher.run_provider_candidate_for(member, workflow) }
+      .to raise_error(ReviewerTargets::TargetUnavailable, /paused/)
+  end
+
   it "holds at admission without creating a Run candidate" do
     hold = panel_decision(available: [], unavailable: members, disposition: "hold")
     allow(ProviderRouting::AvailabilitySelector).to receive(:panel).and_return(hold)
@@ -172,6 +197,23 @@ RSpec.describe "serial review panels" do
     expect(aggregate["non_blocking_findings"]).to contain_exactly(include("provider" => "codex", "critique" => "Minor concern."))
   end
 
+  it "collects dedicated coworker votes with the configured consensus" do
+    collect = Step.create!(
+      workflow: workflow, kind: "review_panel_collect", position: 100, iteration: 1, loop_id: "coworker-loop",
+      details: { "panel_review_kind" => "coworker_review", "panel_id" => "routing-rule-44",
+                 "consensus" => "unanimous", "min_members" => 2, "dropped_members" => [] }
+    )
+    workflow.set_artifact!("coworker_review_iterations", [
+      { "iteration" => 1, "panel_id" => "routing-rule-44", "provider" => "claude", "verdict" => "approved", "critique" => "Ready." },
+      { "iteration" => 1, "panel_id" => "routing-rule-44", "provider" => "codex", "verdict" => "needs_work", "critique" => "Name an owner." }
+    ])
+
+    Steps::ReviewPanelCollect.new(Run.create!(job: job, step: collect, trigger_kind: workflow.trigger_kind)).call
+
+    aggregate = workflow.reload.artifact("coworker_review_iterations").last
+    expect(aggregate).to include("aggregate" => true, "verdict" => "needs_work", "consensus" => "unanimous")
+  end
+
   it "resumes only the same panel member's prior provider session" do
     prior_steps = %w[claude codex].map.with_index do |provider, index|
       step = Step.create!(workflow: workflow, kind: "adversarial_review", position: 100 + index, iteration: 1, loop_id: "review-loop",
@@ -197,5 +239,16 @@ RSpec.describe "serial review panels" do
     handler = Steps::Implement.new(Run.create!(job: job, step: implement, trigger_kind: workflow.trigger_kind))
 
     expect(handler.send(:needs_work_review_section, "adversarial_review_iterations", "Review feedback:")).to be_nil
+  end
+
+  it "feeds a dedicated coworker needs-work verdict to the repair agent" do
+    workflow.set_artifact!("coworker_review_iterations", [
+      { "iteration" => 1, "verdict" => "needs_work", "critique" => "Assign rollout ownership." }
+    ])
+    implement = workflow.steps.find_by!(kind: "implement")
+    handler = Steps::Implement.new(Run.create!(job: job, step: implement, trigger_kind: workflow.trigger_kind))
+
+    expect(handler.send(:needs_work_review_section, "coworker_review_iterations", "Coworker feedback:"))
+      .to include("Assign rollout ownership.")
   end
 end

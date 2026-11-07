@@ -33,18 +33,19 @@ module App
     end
     declare_metrics!
 
-    def self.fetch(job:, page:, admin:, &block)
-      new(job: job, page: page, admin: admin).fetch(&block)
+    def self.fetch(job:, page:, admin:, evidence_access: false, &block)
+      new(job: job, page: page, admin: admin, evidence_access:).fetch(&block)
     end
 
-    def self.fingerprint(job:, page:, admin:)
-      new(job: job, page: page, admin: admin).fingerprint
+    def self.fingerprint(job:, page:, admin:, evidence_access: false)
+      new(job: job, page: page, admin: admin, evidence_access:).fingerprint
     end
 
-    def initialize(job:, page:, admin:)
+    def initialize(job:, page:, admin:, evidence_access: false)
       @job = job
       @page = page
       @admin = admin
+      @evidence_access = evidence_access
     end
 
     def fingerprint
@@ -61,8 +62,10 @@ module App
         provider_session_stats,
         run_diagnostic_stats,
         run_failure_classification_stats,
+        review_evidence_stats,
         @page,
-        @admin
+        @admin,
+        @evidence_access
       ].join(":")
     end
 
@@ -121,6 +124,10 @@ module App
 
     def run_child_stats_for(model, table_name)
       stats_for(run_child_scope_for(model, table_name), table_name)
+    end
+
+    def review_evidence_stats
+      run_child_stats_for(ReviewEvidence, "review_evidences")
     end
 
     def run_child_scope_for(model, table_name)

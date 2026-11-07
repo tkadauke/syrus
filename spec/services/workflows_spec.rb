@@ -12,6 +12,12 @@ RSpec.describe Workflows do
     visual_review_plan = RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
     allow(RepoVisualReviewPlan).to receive(:for_job).and_return(visual_review_plan)
     allow(RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(visual_review_plan)
+
+    coworker_review_plan = RepoCoworkerReviewPlan::Result.new(
+      enabled: false, rounds: 0, source: "none", note: "disabled", criteria: [], required: false
+    )
+    allow(RepoCoworkerReviewPlan).to receive(:for_job).and_return(coworker_review_plan)
+    allow(RepoCoworkerReviewPlan).to receive(:from_syrus_yml).and_return(coworker_review_plan)
   end
 
   describe ".for(trigger_kind:)" do
@@ -232,6 +238,52 @@ RSpec.describe Workflows do
         { "type" => "step", "kind" => "pr_open" }
       ])
       expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ adversarial_review format generate grader_fanout grader_collect ])
+    end
+
+    it "places the enabled coworker gate after technical reviews and before visual review and graders" do
+      config = SyrusYml.new(<<~YAML).parse
+        adversarial_review:
+          rounds: 1
+        security_review:
+          rounds: 1
+        coworker_review:
+          enabled: true
+          rounds: 2
+          required: true
+      YAML
+      allow(RepoDefaultBranchSyrusYml).to receive(:for_job).with(job).and_return(
+        RepoDefaultBranchSyrusYml::Result.new(config: config, source: ".syrus.yml", note: nil)
+      )
+      allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml).and_call_original
+      allow(RepoSecurityReviewPlan).to receive(:from_syrus_yml).and_call_original
+      allow(RepoCoworkerReviewPlan).to receive(:from_syrus_yml).and_call_original
+      visual = RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
+      allow(RepoVisualReviewPlan).to receive(:for_job).and_return(visual)
+
+      wf = Workflows::Initial.instantiate(job: job)
+
+      expect(wf.steps.pluck(:kind)).to eq(%w[
+        prepare implement adversarial_review security_review coworker_review visual_review
+        format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open
+      ])
+      expect(wf.chain_template).to include(
+        { "type" => "loop", "max_iterations" => 2, "steps" => %w[implement coworker_review] }
+      )
+    end
+
+    [ nil, "coworker_review:\n  enabled: false\n  rounds: 0\n" ].each do |yaml|
+      label = yaml ? "disabled" : "absent"
+      it "does not materialize a coworker gate when the mapping is #{label}" do
+        config = SyrusYml.new(yaml || "prepare: false\n").parse
+        allow(RepoDefaultBranchSyrusYml).to receive(:for_job).with(job).and_return(
+          RepoDefaultBranchSyrusYml::Result.new(config: config, source: ".syrus.yml", note: nil)
+        )
+        allow(RepoCoworkerReviewPlan).to receive(:from_syrus_yml).and_call_original
+
+        workflow = Workflows::Initial.instantiate(job: job)
+
+        expect(workflow.steps.pluck(:kind)).not_to include("coworker_review")
+      end
     end
 
     it "keeps the Initial chain unchanged when adversarial review rounds is zero" do

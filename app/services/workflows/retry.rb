@@ -14,6 +14,7 @@ module Workflows
         :implement,
         adversarial_review_loop(job, agent_step: :implement, syrus_yml: syrus_yml),
         security_review_loop(job, agent_step: :implement, syrus_yml: syrus_yml),
+        coworker_review_loop(job, agent_step: :implement, syrus_yml: syrus_yml),
         visual_review_loop(job, agent_step: :implement, syrus_yml: syrus_yml),
         grader_retry_loop(job, :implement, autofix: true, repair_first: false, syrus_yml: syrus_yml),
         "coverage_analyze",

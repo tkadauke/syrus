@@ -99,6 +99,9 @@ en:
   errors:
     messages:
       inclusion: "is not included in the list"
+      review_evidence_run_lineage: "must match the Run lineage"
+      review_evidence_provenance_immutable: "review evidence provenance is immutable: %{attributes}"
+      review_evidence_stale_monotonic: "cannot leave stale"
       must_be_object: "must be an object"
       unknown_type: "has unknown type %{value}"
       unknown_strategy: "has unknown strategy %{value}"

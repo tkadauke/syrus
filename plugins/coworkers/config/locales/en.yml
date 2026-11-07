@@ -3,6 +3,7 @@ en:
     coworkers:
       approval_inactive: "This approval is no longer pending."
       memory_unavailable: "The coworker's memory cannot be reached right now."
+      review_memory_persistence_failed: "Coworker memory persistence failed."
       chat_group: "Coworkers"
       invalid_workspace_remote: "Workspace remote must be a GitHub repository URL."
       push_access_verified: "Push access verified."

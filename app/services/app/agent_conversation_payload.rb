@@ -302,6 +302,7 @@ module App
       DETERMINISTIC_KINDS = DETERMINISTIC_PRESENTERS.keys.freeze
       REVIEW_ARTIFACT_KEYS = {
         "adversarial_review" => "adversarial_review_iterations",
+        "coworker_review" => "coworker_review_iterations",
         "security_review" => "security_review_iterations",
         "visual_review" => "visual_review_iterations"
       }.freeze
@@ -318,6 +319,10 @@ module App
         @exit_ids = {}
         @nodes = []
         @edges = []
+        evidence_ids = REVIEW_ARTIFACT_KEYS.values.flat_map do |key|
+          ReviewEvidence::ArtifactPresentation.evidence_ids(@workflow.artifact(key))
+        end
+        @review_evidence_by_id = ReviewEvidence.where(id: evidence_ids).index_by(&:id)
 
         build!
       end
@@ -438,7 +443,9 @@ module App
       def review_or_summary_outcome(step, run)
         artifact_key = REVIEW_ARTIFACT_KEYS[step.kind]
         if artifact_key
-          entries = Array(@workflow.artifact(artifact_key))
+          entries = ReviewEvidence::ArtifactPresentation.call(
+            @workflow.artifact(artifact_key), evidence_by_id: @review_evidence_by_id
+          )
           entry = entries.find do |candidate|
             next false unless candidate.is_a?(Hash) && candidate["iteration"].to_i == step.iteration.to_i
 

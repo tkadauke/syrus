@@ -17,6 +17,7 @@ RSpec.describe AgentRole do
       expect(described_class::WORKFLOW_SUMMARY_TEST_PLAN).to        eq("workflow:summary_test_plan")
       expect(described_class::WORKFLOW_ADVERSARIAL_REVIEWER).to     eq("workflow:adversarial_reviewer")
       expect(described_class::WORKFLOW_SECURITY_REVIEWER).to        eq("workflow:security_reviewer")
+      expect(described_class::WORKFLOW_COWORKER_REVIEWER).to        eq("workflow:coworker_reviewer")
       expect(described_class::WORKFLOW_VISUAL_REVIEWER).to          eq("workflow:visual_reviewer")
       expect(described_class::WORKFLOW_MANUAL).to                   eq("workflow:manual")
     end
@@ -42,6 +43,7 @@ RSpec.describe AgentRole do
         described_class::WORKFLOW_SUMMARY_TEST_PLAN,
         described_class::WORKFLOW_ADVERSARIAL_REVIEWER,
         described_class::WORKFLOW_SECURITY_REVIEWER,
+        described_class::WORKFLOW_COWORKER_REVIEWER,
         described_class::WORKFLOW_VISUAL_REVIEWER,
         described_class::WORKFLOW_MANUAL
       )
@@ -112,7 +114,7 @@ RSpec.describe AgentRole do
 
     it "declares every specialized core role on its Step::Kind entry" do
       specialized_kinds = %w[
-        agent_rebase stack_agent_rebase push_agent_rebase merge_train_agent_rebase
+        agent_rebase stack_agent_rebase push_agent_rebase merge_train_agent_rebase coworker_review
         summarize summarize_amend test_plan refresh_job_metadata submit_report
         adversarial_review security_review visual_review
       ]

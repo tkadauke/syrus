@@ -3,6 +3,7 @@ la:
     coworkers:
       approval_inactive: "Haec approbatio iam non pendet."
       memory_unavailable: "Memoria collegae nunc attingi non potest."
+      review_memory_persistence_failed: "Memoria collegae servari non potuit."
       chat_group: "Collegae"
       invalid_workspace_remote: "Remotum spatii laboris URL repositorii GitHub esse debet."
       push_access_verified: "Accessus ad mittendum comprobatus est."

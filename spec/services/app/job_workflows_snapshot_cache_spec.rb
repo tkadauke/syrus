@@ -23,8 +23,8 @@ RSpec.describe App::JobWorkflowsSnapshotCache do
       .to_h { |labels, value| [ labels[:outcome], value ] }
   end
 
-  def fetch(admin: false, page: 1, &block)
-    described_class.fetch(job: job, page: page, admin: admin, &block)
+  def fetch(admin: false, evidence_access: false, page: 1, &block)
+    described_class.fetch(job: job, page: page, admin: admin, evidence_access: evidence_access, &block)
   end
 
   it "computes and caches the block result on a miss, recording a computed outcome" do
@@ -73,6 +73,27 @@ RSpec.describe App::JobWorkflowsSnapshotCache do
       run_state: run.state,
       hint: "diagnosed"
     )
+
+    calls = 0
+    result = fetch { calls += 1; [ "rebuilt" ] }
+
+    expect(run.reload.entity_revision).to eq(run_revision_before)
+    expect(result).to eq([ "rebuilt" ])
+    expect(calls).to eq(1)
+  end
+
+  it "recomputes when bound review evidence becomes stale without saving its Run" do
+    run = job.runs.first
+    evidence = ReviewEvidence.create!(
+      run: run, workflow: workflow, step: run.step, review_kind: "adversarial",
+      provider: "codex", model: "gpt-test", reviewed_base_sha: "a" * 40,
+      reviewed_head_sha: "b" * 40, canonical_diff_sha256: "c" * 64,
+      prompt_version: "1", checklist_version: "d" * 64, tool_policy_version: "1"
+    )
+    fetch { [ "built" ] }
+    run_revision_before = run.reload.entity_revision
+
+    evidence.mark_stale!(code: "review_evidence_mismatch")
 
     calls = 0
     result = fetch { calls += 1; [ "rebuilt" ] }
@@ -186,6 +207,14 @@ RSpec.describe App::JobWorkflowsSnapshotCache do
 
     expect(fetch(admin: false) { [ "unexpected" ] }).to eq([ "non-admin" ])
     expect(fetch(admin: true) { [ "unexpected" ] }).to eq([ "admin" ])
+  end
+
+  it "keeps authorized evidence links out of other non-admin snapshots" do
+    fetch(evidence_access: false) { [ "redacted" ] }
+    fetch(evidence_access: true) { [ "authorized" ] }
+
+    expect(fetch(evidence_access: false) { [ "unexpected" ] }).to eq([ "redacted" ])
+    expect(fetch(evidence_access: true) { [ "unexpected" ] }).to eq([ "authorized" ])
   end
 
   it "keeps different pages in separate cache entries" do

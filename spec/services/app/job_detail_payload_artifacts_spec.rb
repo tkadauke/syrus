@@ -68,8 +68,42 @@ RSpec.describe App::JobDetailPayload do
 
     serialized = workflows_payload_for(job).fetch(:workflows).find { |entry| entry[:id] == workflow.id }
     expect(serialized.dig(:artifacts, "security_review_iterations")).to contain_exactly(
-      include("verdict" => "approved", "critique" => "No blocking security issues.")
+      include(
+        "verdict" => "approved",
+        "critique" => "No blocking security issues.",
+        "review_evidence" => { "state" => "legacy" }
+      )
     )
+  end
+
+  it "pairs a needs-work review with the following repair Run response" do
+    job = Factories.job_record(user: user, repository: repo)
+    workflow = Workflow.create!(job: job, trigger_kind: "initial")
+    review = Step.create!(workflow:, kind: "coworker_review", position: 1, iteration: 1, loop_id: "coworker-loop")
+    repair = Step.create!(workflow:, kind: "implement", position: 2, iteration: 2, loop_id: "coworker-loop")
+    repair.runs.create!(job:, trigger_kind: "initial", agent_summary: "Clarified rollout ownership.")
+    workflow.set_artifact!("coworker_review_iterations", [
+      { "iteration" => 1, "step_id" => review.id, "verdict" => "needs_work", "critique" => "Ownership is unclear." }
+    ])
+
+    serialized = workflows_payload_for(job).fetch(:workflows).find { |entry| entry[:id] == workflow.id }
+
+    expect(serialized.dig(:artifacts, "coworker_review_iterations").sole).to include(
+      "repair_response" => "Clarified rollout ownership."
+    )
+  end
+
+  it "separates effective repository coworker-review configuration from participant routing" do
+    job = Factories.job_record(user: user, repository: repo)
+    plan = RepoCoworkerReviewPlan::Result.new(enabled: true, rounds: 2, source: ".syrus.yml", note: nil,
+      criteria: [ "Check maintainability" ], required: true)
+    allow(RepoCoworkerReviewPlan).to receive(:for_job).with(job).and_return(plan)
+
+    result = payload_for(job).fetch(:job).fetch(:coworker_review_configuration)
+
+    expect(result).to eq(enabled: true, rounds: 2, required: true, criteria: [ "Check maintainability" ],
+      source: ".syrus.yml", note: nil)
+    expect(result).not_to have_key(:reviewer_target)
   end
 
   it "preserves review panel members, consensus, unavailable members, and notes" do
@@ -87,7 +121,9 @@ RSpec.describe App::JobDetailPayload do
 
     serialized = workflows_payload_for(job).fetch(:workflows).find { |entry| entry[:id] == workflow.id }
 
-    expect(serialized.dig(:artifacts, "adversarial_review_iterations")).to eq(panel_entries)
+    expect(serialized.dig(:artifacts, "adversarial_review_iterations")).to eq(
+      panel_entries.map { |entry| entry.merge("review_evidence" => { "state" => "legacy" }) }
+    )
   end
 
   describe "resource admission diagnostics visibility" do

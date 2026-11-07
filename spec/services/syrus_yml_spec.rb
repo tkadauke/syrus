@@ -33,6 +33,36 @@ RSpec.describe SyrusYml do
     expect(parse("security_review:\n  rounds: 11\n").security_review.rounds).to eq(10)
   end
 
+  it "parses explicitly enabled coworker review configuration" do
+    config = parse(<<~YAML)
+      coworker_review:
+        enabled: true
+        rounds: 3
+        required: true
+        criteria:
+          - Check operational fit.
+    YAML
+
+    expect(config.coworker_review).to eq(described_class::CoworkerReviewConfig.new(
+      enabled: true, rounds: 3, required: true, criteria: [ "Check operational fit." ]
+    ))
+  end
+
+  it "keeps coworker review disabled unless explicitly enabled" do
+    expect(parse("coworker_review:\n  rounds: 2\n").coworker_review.enabled).to be(false)
+  end
+
+  it "accepts a zero round budget when coworker review is explicitly disabled" do
+    config = parse("coworker_review:\n  enabled: false\n  rounds: 0\n").coworker_review
+
+    expect(config).to have_attributes(enabled: false, rounds: 0)
+  end
+
+  it "rejects an invalid coworker review round budget deterministically" do
+    expect { parse("coworker_review:\n  enabled: true\n  rounds: 11\n") }
+      .to raise_error(described_class::ParseError, /coworker_review\.rounds: must be between 1 and 10/)
+  end
+
   it "wraps disallowed YAML classes as parse errors" do
     expect { parse("preview:\n  env:\n    RELEASE: 2024-01-01\n") }
       .to raise_error(described_class::ParseError, /YAML parse error.*Date/)

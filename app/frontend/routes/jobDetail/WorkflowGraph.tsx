@@ -18,6 +18,7 @@ import {
   fetchJobRunArtifacts,
   fetchJobSourceFileContent,
   type JobAdversarialReviewIteration,
+  type JobCoworkerReviewIteration,
   type JobSecurityReviewIteration,
   type JobDetailPayload,
   type JobPrLinkRole,
@@ -74,7 +75,13 @@ import { AgentDiff, ActiveRunBanner, PanelMessage, RunTranscriptLogs, SmallPill,
 import { ProviderFailoverNotice } from "../../components/ProviderAvailabilityWarning"
 import { WorkflowReference } from "../../components/WorkflowReference"
 import { artifactPanelClass, disabledPaginationClass, formatCurrency, formatDuration, paginationLinkClass, shortSha, withRoutePrefix } from "./formatting"
-import { stepArtifactAdversarialReview, stepArtifactSecurityReview, stepArtifactTestPlan, stepArtifactVisualReview } from "./stepArtifacts"
+import {
+  stepArtifactAdversarialReview,
+  stepArtifactCoworkerReview,
+  stepArtifactSecurityReview,
+  stepArtifactTestPlan,
+  stepArtifactVisualReview
+} from "./stepArtifacts"
 import type { BranchDivergence, BranchDivergenceCommitList, BranchDivergenceComparison } from "./branchDivergence"
 import { workflowBranchDivergence } from "./branchDivergence"
 
@@ -536,7 +543,11 @@ function WorkflowCard({
           {workflow.blocked_reason_text ? <p className="min-w-0 flex-1 truncate text-xs text-text-muted">{workflow.blocked_reason_text}</p> : null}
           <CommandButton
             command={command}
-            input={{ method: "post", path: workflow.app_dismiss_path, confirm: t(workflow.state === "blocked" ? "workflow_dismiss_confirm" : "workflow_cancel_confirm") }}
+            input={{
+              method: "post",
+              path: workflow.app_dismiss_path,
+              confirm: t(workflow.state === "blocked" ? "workflow_dismiss_confirm" : "workflow_cancel_confirm")
+            }}
             tone="secondary"
           >
             {t(workflow.state === "blocked" ? "workflow_dismiss" : "workflow_cancel")}
@@ -1357,6 +1368,7 @@ function StepCard({
   const testPlanArtifact = step.kind === "test_plan" ? stepArtifactTestPlan(artifacts.test_plan) : null
   const adversarialReviewArtifact = step.kind === "adversarial_review" ? stepArtifactAdversarialReview(artifacts.adversarial_review_iterations) : null
   const securityReviewArtifact = step.kind === "security_review" ? stepArtifactSecurityReview(artifacts.security_review_iterations) : null
+  const coworkerReviewArtifact = step.kind === "coworker_review" ? stepArtifactCoworkerReview(artifacts.coworker_review_iterations) : null
   const visualReviewArtifactsForRun = (run: JobRun) =>
     step.kind === "visual_review"
       ? stepArtifactVisualReview(artifacts.visual_review_iterations, { stepId: step.id, runId: run.id, iteration: step.iteration })
@@ -1431,6 +1443,7 @@ function StepCard({
                   run={run}
                   stepAdversarialReviewArtifact={idx === 0 ? adversarialReviewArtifact : null}
                   stepSecurityReviewArtifact={idx === 0 ? securityReviewArtifact : null}
+                  stepCoworkerReviewArtifact={idx === 0 ? coworkerReviewArtifact : null}
                   stepSummaryArtifact={idx === 0 ? summaryArtifact : null}
                   stepTestPlanArtifact={idx === 0 ? testPlanArtifact : null}
                   stepVisualReviewArtifact={visualReviewArtifactsForRun(run)}
@@ -1588,6 +1601,86 @@ export function StepAdversarialReviewPanel({ iterations, onClose }: { iterations
 
 export function StepSecurityReviewPanel({ iterations, onClose }: { iterations: JobSecurityReviewIteration[]; onClose: () => void }) {
   return <StepTextReviewPanel iterations={iterations} kind="security_review" onClose={onClose} />
+}
+
+export function StepCoworkerReviewPanel({ iterations, onClose }: { iterations: JobCoworkerReviewIteration[]; onClose: () => void }) {
+  const { t } = useT("jobs")
+  return (
+    <section aria-label={t("coworker_review_panel_accessibility")} className={artifactPanelClass()}>
+      <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_coworker_review")}</ArtifactPanelHeader>
+      <div className="divide-y divide-border overflow-auto max-md:min-h-0 max-md:flex-1">
+        {iterations.map((iteration) => (
+          <div className="space-y-3 p-3" key={`${iteration.run_id || "legacy"}-${iteration.iteration}`}>
+            <div className="flex flex-wrap items-center gap-2">
+              <h5 className="text-xs font-semibold uppercase text-text-muted">{t("coworker_review_round", { n: iteration.iteration })}</h5>
+              <SmallPill>{t(`coworker_review_verdict_${iteration.verdict}`)}</SmallPill>
+              {iteration.review_evidence?.state === "stale" ? <SmallPill tone="warning">{t("coworker_review_stale")}</SmallPill> : null}
+            </div>
+            <p className="text-sm font-medium text-text-primary">{iteration.reviewer?.label || t("coworker_review_unknown_reviewer")}</p>
+            <p className="text-xs text-text-secondary">
+              {t("coworker_review_provider_model", {
+                provider: iteration.reviewer?.provider || iteration.review_evidence?.provider || "—",
+                model: iteration.reviewer?.model || iteration.review_evidence?.model || t("coworker_review_default_model")
+              })}
+            </p>
+            {iteration.critique ? <Markdown className="chat-prose text-sm text-text-secondary" text={iteration.critique} /> : null}
+            <dl className="grid gap-2 text-xs sm:grid-cols-2">
+              <div>
+                <dt className="font-medium text-text-muted">{t("coworker_review_revisions")}</dt>
+                <dd className="break-all text-text-secondary">
+                  {shortSha(iteration.review_evidence?.reviewed_base_sha || "")} → {shortSha(iteration.review_evidence?.reviewed_head_sha || "")}
+                </dd>
+              </div>
+              <div>
+                <dt className="font-medium text-text-muted">{t("coworker_review_diff_hash")}</dt>
+                <dd className="break-all text-text-secondary">{iteration.review_evidence?.canonical_diff_sha256 || "—"}</dd>
+              </div>
+              <div>
+                <dt className="font-medium text-text-muted">{t("coworker_review_memory")}</dt>
+                <dd className="text-text-secondary">
+                  {iteration.memory_persistence?.state || "—"}
+                  {iteration.memory_persistence?.persisted_commit_sha ? ` · ${shortSha(iteration.memory_persistence.persisted_commit_sha)}` : ""}
+                </dd>
+              </div>
+              <div>
+                <dt className="font-medium text-text-muted">{t("coworker_review_context")}</dt>
+                <dd className="text-text-secondary">
+                  {iteration.review_context_manifest
+                    ? t("coworker_review_context_safe", { count: Object.keys(iteration.review_context_manifest).length })
+                    : "—"}
+                </dd>
+              </div>
+              <div>
+                <dt className="font-medium text-text-muted">{t("coworker_review_cost")}</dt>
+                <dd className="text-text-secondary">{iteration.cost_usd == null ? "—" : formatCurrency(iteration.cost_usd)}</dd>
+              </div>
+              <div>
+                <dt className="font-medium text-text-muted">{t("coworker_review_repair_response")}</dt>
+                <dd className="text-text-secondary">{iteration.repair_response || "—"}</dd>
+              </div>
+            </dl>
+            {iteration.review_evidence?.terminal_failure_code || iteration.memory_persistence?.error_code ? (
+              <Notice tone="danger">{iteration.review_evidence?.terminal_failure_code || iteration.memory_persistence?.error_code}</Notice>
+            ) : null}
+            {iteration.operator_links?.journal || iteration.operator_links?.restricted_context ? (
+              <div className="flex flex-wrap gap-2">
+                {iteration.operator_links.journal ? (
+                  <a className={buttonClasses("secondary")} href={iteration.operator_links.journal} target="_blank" rel="noreferrer">
+                    {t("coworker_review_open_journal")}
+                  </a>
+                ) : null}
+                {iteration.operator_links.restricted_context ? (
+                  <a className={buttonClasses("secondary")} href={iteration.operator_links.restricted_context} target="_blank" rel="noreferrer">
+                    {t("coworker_review_inspect_evidence")}
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </section>
+  )
 }
 
 function StepTextReviewPanel({
@@ -1875,6 +1968,7 @@ function RunRow({
   stepTestPlanArtifact = null,
   stepAdversarialReviewArtifact = null,
   stepSecurityReviewArtifact = null,
+  stepCoworkerReviewArtifact = null,
   stepVisualReviewArtifact = null,
   targetLabel = null,
   workflowId
@@ -1891,6 +1985,7 @@ function RunRow({
   stepTestPlanArtifact?: { steps: string[]; notes: string | null } | null
   stepAdversarialReviewArtifact?: JobAdversarialReviewIteration[] | null
   stepSecurityReviewArtifact?: JobSecurityReviewIteration[] | null
+  stepCoworkerReviewArtifact?: JobCoworkerReviewIteration[] | null
   stepVisualReviewArtifact?: JobVisualReviewIteration[] | null
   targetLabel?: string | null
   workflowId: number
@@ -1902,6 +1997,7 @@ function RunRow({
     stepTestPlanArtifact ||
     stepAdversarialReviewArtifact ||
     stepSecurityReviewArtifact ||
+    stepCoworkerReviewArtifact ||
     stepVisualReviewArtifact ||
     run.agent_diff_present ||
     run.step_agent_diff_present ||
@@ -1921,7 +2017,7 @@ function RunRow({
   )
   const [gradeLogOpen, setGradeLogOpen] = useState(false)
   const [artifactView, setArtifactView] = useState<
-    "transcript" | "diff" | "step_diff" | "summary" | "test_plan" | "adversarial_review" | "security_review" | "visual_review" | null
+    "transcript" | "diff" | "step_diff" | "summary" | "test_plan" | "adversarial_review" | "security_review" | "coworker_review" | "visual_review" | null
   >(null)
   const [transcriptPage, setTranscriptPage] = useState(1)
   const isRunArtifactView = artifactView === "transcript" || artifactView === "diff" || artifactView === "step_diff"
@@ -1951,7 +2047,7 @@ function RunRow({
     setArtifactView((current) => (current === view ? null : view))
   }
 
-  function toggleStepArtifact(view: "summary" | "test_plan" | "adversarial_review" | "security_review" | "visual_review") {
+  function toggleStepArtifact(view: "summary" | "test_plan" | "adversarial_review" | "security_review" | "coworker_review" | "visual_review") {
     setGradeLogOpen(false)
     setArtifactView((current) => (current === view ? null : view))
   }
@@ -2081,6 +2177,11 @@ function RunRow({
               {t("step_btn_security_review")}
             </Button>
           ) : null}
+          {stepCoworkerReviewArtifact !== null ? (
+            <Button onClick={() => toggleStepArtifact("coworker_review")} variant="secondary">
+              {t("step_btn_coworker_review")}
+            </Button>
+          ) : null}
           {stepVisualReviewArtifact !== null ? (
             <Button onClick={() => toggleStepArtifact("visual_review")} variant="secondary">
               {t("step_btn_visual_review")}
@@ -2141,6 +2242,9 @@ function RunRow({
       ) : null}
       {artifactView === "security_review" && stepSecurityReviewArtifact ? (
         <StepSecurityReviewPanel iterations={stepSecurityReviewArtifact} onClose={() => setArtifactView(null)} />
+      ) : null}
+      {artifactView === "coworker_review" && stepCoworkerReviewArtifact ? (
+        <StepCoworkerReviewPanel iterations={stepCoworkerReviewArtifact} onClose={() => setArtifactView(null)} />
       ) : null}
       {artifactView === "visual_review" && stepVisualReviewArtifact ? (
         <StepVisualReviewPanel iterations={stepVisualReviewArtifact} onClose={() => setArtifactView(null)} />

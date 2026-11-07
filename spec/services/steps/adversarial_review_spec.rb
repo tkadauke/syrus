@@ -23,6 +23,7 @@ RSpec.describe Steps::AdversarialReview do
   before do
     fake_ws = instance_double(WorkflowWorkspace, setup: true, path: Pathname.new("/tmp/workspace"), base_ref: "origin/main")
     allow(handler).to receive(:workspace).and_return(fake_ws)
+    allow(ReviewEvidence::Capture).to receive(:call)
     allow(App::AdversarialReviewProjects).to receive(:call).and_return(
       App::AdversarialReviewProjects::Result.new(projects: [])
     )
@@ -88,6 +89,45 @@ RSpec.describe Steps::AdversarialReview do
     expect(run.reload.prompt).to include("Review the implementation independently.")
   end
 
+  it "re-verifies submitted evidence before the review gate advances" do
+    evidence = ReviewEvidence.create!(
+      run: run, workflow: workflow, step: review_step, review_kind: "adversarial",
+      provider: run.agent_provider, model: "gpt-test", reviewed_base_sha: "a" * 40,
+      reviewed_head_sha: "b" * 40, canonical_diff_sha256: "c" * 64,
+      prompt_version: "1", checklist_version: "d" * 64, tool_policy_version: "1",
+      state: "submitted", submitted_at: Time.current
+    )
+    allow(handler).to receive(:run_agent) do
+      workflow.set_artifact!("adversarial_review_iterations", [
+        { "iteration" => review_step.iteration, "review_evidence_id" => evidence.id,
+          "critique" => "Looks sound.", "verdict" => "approved" }
+      ])
+    end
+    expect(ReviewEvidence::VerifySubmission).to receive(:call!).with(
+      evidence: evidence,
+      workspace_path: Pathname.new("/tmp/workspace")
+    ).and_return(evidence)
+
+    handler.call
+  end
+
+  it "does not advance when an artifact is bound to pending evidence" do
+    evidence = ReviewEvidence.create!(
+      run: run, workflow: workflow, step: review_step, review_kind: "adversarial",
+      provider: run.agent_provider, model: "gpt-test", reviewed_base_sha: "a" * 40,
+      reviewed_head_sha: "b" * 40, canonical_diff_sha256: "c" * 64,
+      prompt_version: "1", checklist_version: "d" * 64, tool_policy_version: "1"
+    )
+    allow(handler).to receive(:run_agent) do
+      workflow.set_artifact!("adversarial_review_iterations", [
+        { "iteration" => review_step.iteration, "review_evidence_id" => evidence.id,
+          "critique" => "Looks sound.", "verdict" => "approved" }
+      ])
+    end
+
+    expect { handler.call }.to raise_error(Steps::AdversarialReview::EvidenceVerificationFailed)
+  end
+
   it "reviews only the latest implement step diff for stacked jobs" do
     implement_run.update!(
       base_sha: "parent-branch-head",
@@ -140,6 +180,27 @@ RSpec.describe Steps::AdversarialReview do
     allow(handler).to receive(:run_agent)
 
     expect { handler.call }.to raise_error(Steps::Base::StepFailed, /submit_adversarial_review/)
+  end
+
+  it "fails the step when the submitted coworker verdict has no persisted memory" do
+    reviewer = double("coworker reviewer")
+    context = double("review context", persistence_state: "failed", persistence_error_details: { "message" => "push failed" })
+    evidence = instance_double(ReviewEvidence, id: 42, state: "submitted", reviewer: reviewer)
+    allow(run).to receive(:review_evidence).and_return(evidence)
+    allow(run).to receive(:reload).and_return(run)
+    allow(reviewer).to receive(:prepare_review_context!).and_return(context)
+    allow(reviewer).to receive(:review_context_prompt).and_return("protected reviewer context")
+    allow(reviewer).to receive(:finalize_review_memory!)
+    allow(reviewer).to receive(:review_context_for).with(run).and_return(context)
+    allow(handler).to receive(:run_agent) do
+      workflow.set_artifact!("adversarial_review_iterations", [
+        { "iteration" => review_step.iteration, "critique" => "Needs repair.", "verdict" => "needs_work" }
+      ])
+    end
+    allow(ReviewEvidence::VerifySubmission).to receive(:call!).and_return(evidence)
+
+    expect { handler.call }
+      .to raise_error(Steps::AdversarialReview::MemoryPersistenceFailed, /memory was not persisted/)
   end
 
   it "skips review and records a warning when the provider rejects the prompt as too long" do

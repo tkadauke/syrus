@@ -46,11 +46,42 @@ retry after partial completion cannot duplicate either a success or failure
 card. The card also reports whether workspace changes merged, conflicted, or
 were unavailable. Background Git operations use a short timeout so delivery
 cannot spend multiple default Git timeout windows finalizing the workspace.
-Workspace changes merge into the home branch through
-the same retrying merge path as chat turns; conflicts preserve the run branch
-and appear in the main chat for resolution. Failed scheduled runs post the same
-kind of block, count toward consecutive-failure auto-pause, and close their
-infrastructure Jobs so completed attempts do not accumulate.
+Workspace changes merge into the home branch through the same retrying merge
+path as chat turns; conflicts preserve the run branch and appear in the main
+chat for resolution. Failed scheduled runs post the same kind of block, count
+toward consecutive-failure auto-pause, and close their infrastructure Jobs so
+completed attempts do not accumulate.
+
+## Protected repository-review memory
+
+Named coworker review Runs, including coworkers selected for configured
+adversarial and security review rounds, use the normal read-only workflow checkout for the
+repository under review and a separate checkout of that coworker's home branch
+for durable learning. The reviewer receives only its identity, applicable
+repository criteria, and explicitly selected published repository-scoped
+memories for the Run. Normal evidence stores hashes, revisions, and byte counts; the exact
+selected text is encrypted and is available only through the audited
+owner/admin restricted-evidence endpoint.
+
+The reviewer can update only `memory/*.md` through its dedicated memory tool.
+Submitting a verdict also writes a deterministic `reviews/journal/evidence-<id>.md`
+entry with the reviewed revision and evidence reference, then rebases and
+pushes the isolated checkout. The Run cannot succeed until that push succeeds.
+Repeated submission for the same Run reuses its journal and verdict rather
+than duplicating either. Failed persistence retains the isolated checkout and
+reports `coworker_memory_persistence_failed` for recovery. Tombstoning removes
+the validated run-owned checkout, encrypted text, and checkout pointer while
+retaining the safe manifest and lineage. Cleanup refuses unrelated or symlinked
+paths. The central retention-policy registry applies that tombstone after 30
+days by default, aligned with detailed Run evidence retention.
+
+Adversarial and security review keep their existing criteria, project scope,
+rounds, structured verdict tool, repair loop, and narrow reviewer role. A
+provider rule may replace only the reviewer identity with one coworker or a
+panel. Every new Run resolves that coworker's current repository permission
+again; pausing or revoking a coworker prevents a retry or later round but does
+not interrupt a provider process that has already started. These automated
+verdicts are review evidence only and never count as a human Job approval.
 
 Background runs use the same unified permission policy as interactive turns.
 They never receive the interactive-only tool surface. Operations whose effective

@@ -4,9 +4,62 @@ import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
 import type { JobDetailPayload } from "../../api/jobs"
 import { stubVirtualizerMeasurements } from "../../test/virtualizerMeasurements"
-import { WorkflowsTab } from "./WorkflowGraph"
+import { StepCoworkerReviewPanel, WorkflowsTab } from "./WorkflowGraph"
 
 stubVirtualizerMeasurements()
+
+describe("StepCoworkerReviewPanel", () => {
+  it("distinguishes named identity, provider provenance, immutable evidence, and durable memory", () => {
+    render(
+      <StepCoworkerReviewPanel
+        iterations={[
+          {
+            iteration: 1,
+            verdict: "approved",
+            critique: "The rollout contract is coherent.",
+            run_id: 81,
+            reviewer: { label: "Maya · Codex", reference: "7", provider: "codex", model: "gpt-5" },
+            review_context_manifest: { protected_prompt: { sha256: "safe" } },
+            memory_persistence: { state: "persisted", persisted_commit_sha: "a".repeat(40) },
+            cost_usd: 0.125,
+            repair_response: "Updated the rollout ownership notes.",
+            operator_links: {
+              journal: "/api/v1/app/coworkers/7/review_journal/81",
+              restricted_context: "/api/v1/app/coworkers/7/review_contexts/81"
+            },
+            review_evidence: {
+              state: "submitted",
+              reviewed_base_sha: "b".repeat(40),
+              reviewed_head_sha: "c".repeat(40),
+              canonical_diff_sha256: "d".repeat(64)
+            }
+          }
+        ]}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText("Maya · Codex")).toBeInTheDocument()
+    expect(screen.getByText(/Execution provider: codex · model: gpt-5/)).toBeInTheDocument()
+    expect(screen.getByText("persisted · aaaaaaa")).toBeInTheDocument()
+    expect(screen.getByText("$0.1250")).toBeInTheDocument()
+    expect(screen.getByText("Updated the rollout ownership notes.")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open durable review journal (audited)" })).toHaveAttribute("href", "/api/v1/app/coworkers/7/review_journal/81")
+    expect(screen.getByRole("link", { name: "Inspect restricted evidence (audited)" })).toHaveAttribute("href", "/api/v1/app/coworkers/7/review_contexts/81")
+  })
+
+  it("does not offer restricted evidence actions without server authorization", () => {
+    render(
+      <StepCoworkerReviewPanel
+        iterations={[{ iteration: 1, verdict: "failed", critique: "", review_evidence: { state: "failed", terminal_failure_code: "review_failed" } }]}
+        onClose={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText("review_failed")).toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: /audited/i })).not.toBeInTheDocument()
+  })
+})
 
 function payload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload {
   return {

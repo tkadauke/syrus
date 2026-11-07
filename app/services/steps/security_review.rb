@@ -8,6 +8,8 @@ module Steps
     def review_config = security_review_config
     def review_skip_label = "Security review"
 
+    def review_criteria = security_review_criteria
+
     def reviewer_prompt
       Prompts::SecurityReview.new(
         issue: review_issue,

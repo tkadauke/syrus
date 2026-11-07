@@ -15,7 +15,9 @@ RSpec.describe RetryFailedStepEnqueuer do
 
   it "retries the latest failed step instead of an obsolete earlier failure" do
     job = Factories.job_record(state: "failed")
-    workflow = Workflow.create!(job: job, trigger_kind: "initial")
+    workflow = Workflow.create!(
+      job: job, trigger_kind: "initial", model: "gpt-pinned", effort_level: "high"
+    )
     workflow.update_columns(state: "failed", started_at: 10.minutes.ago, finished_at: 1.minute.ago)
 
     old_failure = Step.create!(workflow: workflow, kind: "grader_collect", position: 7)
@@ -31,6 +33,7 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(result.step).to eq(terminal_failure)
     expect(terminal_failure.reload).to be_queued
     expect(terminal_failure.runs.last).to eq(result.run)
+    expect(result.run).to have_attributes(model: "gpt-pinned", effort_level: "high")
     expect(old_failure.reload).to be_failed
     expect(old_failure.runs).to be_empty
   end
