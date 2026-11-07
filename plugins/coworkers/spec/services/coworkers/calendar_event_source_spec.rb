@@ -31,7 +31,10 @@ RSpec.describe Coworkers::CalendarEventSource do
     queries
   end
 
-  before { Coworkers::Chat.create!(coworker:, chat_session: main_chat, role: "main") }
+  before do
+    PluginRecord.find_or_create_by!(name: "coworkers").update!(enabled: true, disableable: true)
+    Coworkers::Chat.create!(coworker:, chat_session: main_chat, role: "main")
+  end
 
   it "presents owner-authorized coworker occurrences with identity and destinations" do
     scheduled = task
