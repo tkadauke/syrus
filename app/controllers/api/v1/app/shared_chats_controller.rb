@@ -6,7 +6,7 @@ module Api
           chat_session = ChatSession.where.not(share_token: nil).find_by!(share_token: params[:token])
           payload = shared_chat_payload(chat_session)
           expires_in 1.minute, public: true, stale_while_revalidate: 5.minutes
-          fresh_when(etag: [ chat_session.cache_key_with_version, payload[:before_id], payload[:messages].pluck(:id) ], public: true)
+          fresh_when(etag: [ chat_session.cache_key_with_version, Digest::SHA256.hexdigest(payload.to_json) ], public: true)
           render json: payload unless performed?
         end
 
