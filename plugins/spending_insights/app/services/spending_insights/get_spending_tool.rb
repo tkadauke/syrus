@@ -26,7 +26,7 @@ module SpendingInsights
         window = window.to_s.presence || "30d"
         return Mcp::Tools.invalid("window must be one of 7d, 30d, 90d") unless WINDOW_DAYS.key?(window)
 
-        params = payload_params(window: window, repository_id: repository_id, epic_id: epic_id)
+        params = payload_params(window: window, repository_id: repository_id, epic_id: epic_id, user: chat_session.user)
         payload = SpendingInsights::Payload.new(user: chat_session.user, params: params).as_json
 
         Mcp::Tools.success(
@@ -40,9 +40,9 @@ module SpendingInsights
 
       private
 
-      def payload_params(window:, repository_id:, epic_id:)
+      def payload_params(window:, repository_id:, epic_id:, user:)
         days = WINDOW_DAYS.fetch(window)
-        end_date = Time.zone.today
+        end_date = Time.current.in_time_zone(user.time_zone).to_date
         {
           start_date: (end_date - (days - 1).days).iso8601,
           end_date: end_date.iso8601,
@@ -54,7 +54,8 @@ module SpendingInsights
       def windowed_runs(user, params)
         start_date = Date.iso8601(params.fetch(:start_date))
         end_date = Date.iso8601(params.fetch(:end_date))
-        relation = Run.where(finished_at: start_date.beginning_of_day..end_date.end_of_day)
+        zone = ActiveSupport::TimeZone[user.time_zone]
+        relation = Run.where(finished_at: zone.local(start_date.year, start_date.month, start_date.day)...zone.local(end_date.next_day.year, end_date.next_day.month, end_date.next_day.day))
         relation = relation.joins(:job).where(jobs: { repository_id: params[:repository_id] }) if params[:repository_id].present?
         relation = relation.joins(:job).where(jobs: { epic_id: params[:epic_id] }) if params[:epic_id].present?
         return relation if user.admin?

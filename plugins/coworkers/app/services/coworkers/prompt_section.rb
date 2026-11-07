@@ -32,7 +32,8 @@ class Coworkers::PromptSection
   end
 
   def self.paths_for(chat_session:, repository:, message:)
-    dates = [ Time.zone.today, Time.zone.yesterday ]
+    today = Time.current.in_time_zone(chat_session.user.time_zone).to_date
+    dates = [ today, today - 1 ]
     people = (chat_session.participants.to_a + [ message&.sender_user ]).compact.filter_map(&:handle).uniq
 
     IDENTITY_FILES +

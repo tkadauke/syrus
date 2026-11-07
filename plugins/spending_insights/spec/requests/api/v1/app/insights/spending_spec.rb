@@ -45,6 +45,22 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
     end
   end
 
+  it "uses the viewer's timezone for date filters and daily trend buckets" do
+    travel_to Time.utc(2026, 6, 2, 12) do
+      user = Factories.user(time_zone: "America/Los_Angeles")
+      repository = Factories.repository(user: user)
+      local_evening = Factories.job(user: user, repository: repository, issue_number: 303)
+      next_local_day = Factories.job(user: user, repository: repository, issue_number: 304)
+      set_run_cost(initial_run(local_evening), 1.25, created_at: Time.utc(2026, 6, 2, 6, 30))
+      set_run_cost(initial_run(next_local_day), 9.99, created_at: Time.utc(2026, 6, 2, 7, 30))
+
+      sign_in_as(user)
+      get "/api/v1/app/insights/spending", params: { start_date: "2026-06-01", end_date: "2026-06-01" }
+
+      expect(parse_body.fetch("trend")).to eq([ { "date" => "2026-06-01", "total_usd" => 1.25 } ])
+    end
+  end
+
   def initial_run(job)
     job.runs.find_by!(trigger_kind: "initial")
   end
