@@ -65,7 +65,12 @@ class PreviewPanel < ApplicationRecord
   # later show_preview call republishes the panel.
   def create_version!(files_by_path = nil, entry_file: DEFAULT_ENTRY_FILENAME, **keyword_files_by_path)
     files_by_path = (files_by_path || {}).merge(keyword_files_by_path)
-    version = preview_panel_versions.create!(entry_file: entry_file.to_s.presence || DEFAULT_ENTRY_FILENAME)
+    resolved_entry_file = entry_file.to_s.presence || DEFAULT_ENTRY_FILENAME
+    version = preview_panel_versions.build(
+      entry_file: resolved_entry_file,
+      file_count: files_by_path.size,
+      entry_viewer_kind: PreviewPanel::EntryMetadata.viewer_kind(resolved_entry_file)
+    )
     files_by_path.each do |relative_path, content|
       io = content.respond_to?(:read) ? content : StringIO.new(content.to_s)
       version.files.attach(
@@ -74,10 +79,7 @@ class PreviewPanel < ApplicationRecord
         metadata: { "relative_path" => relative_path.to_s }
       )
     end
-    version.update!(
-      file_count: files_by_path.size,
-      entry_viewer_kind: PreviewPanel::EntryMetadata.viewer_kind(version.entry_file)
-    )
+    version.save!
     version
   end
 

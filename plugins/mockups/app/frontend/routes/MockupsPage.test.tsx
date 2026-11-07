@@ -86,6 +86,28 @@ describe("MockupsPage", () => {
     expect(screen.getByText("Nav sketch")).toBeInTheDocument()
   })
 
+  it("keeps filter controls available when a later page omits its schema", async () => {
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/mockups?schema=1") {
+        return Promise.resolve(jsonResponse({
+          filter_schema: [ { field: "title", label: "Title", bucket: "text", operators: [ "contains" ] } ]
+        }))
+      }
+      return Promise.resolve(jsonResponse({
+        mockups: [ summary() ],
+        filter: null,
+        filter_schema: null,
+        pagination: { page: 2, per_page: 30, has_next_page: false, has_previous_page: true }
+      }))
+    })
+
+    renderPage("/mockups?page=2")
+    fireEvent.click(await screen.findByRole("button", { name: "+ Add filter" }))
+
+    expect(await screen.findByText("Title")).toBeInTheDocument()
+  })
+
   it("says so when there are none, rather than showing an empty frame", async () => {
     vi.spyOn(window, "fetch").mockImplementation(() =>
       Promise.resolve(jsonResponse({ mockups: [], filter: null, filter_schema: [], pagination: { page: 1, per_page: 30, total: 0, has_next_page: false, has_previous_page: false } })))

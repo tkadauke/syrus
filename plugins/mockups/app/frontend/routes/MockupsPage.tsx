@@ -9,7 +9,7 @@ import { Notice, Page, PageHeading, Section, Text } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { withRoutePrefix } from "@app/lib/routing"
-import { fetchMockup, fetchMockups, type MockupDetailPayload, type MockupPanel, type MockupSummary } from "../api/mockups"
+import { fetchMockup, fetchMockups, fetchMockupsFilterSchema, type MockupDetailPayload, type MockupPanel, type MockupSummary } from "../api/mockups"
 import { MockupPreviewPanel } from "./MockupPreviewPanel"
 
 // The list and the quick preview are one page: selecting a mockup opens it in
@@ -31,6 +31,12 @@ export default function MockupsPage() {
     queryFn: () => fetchMockups(location.search)
   })
 
+  const filterSchemaQuery = useQuery({
+    queryKey: ["mockups", "filter_schema"],
+    queryFn: fetchMockupsFilterSchema,
+    staleTime: Infinity
+  })
+
   const detailQuery = useQuery({
     queryKey: detailQueryKey,
     queryFn: () => fetchMockup(selectedRef!),
@@ -49,7 +55,7 @@ export default function MockupsPage() {
 
       <FilterBar
         filter={listQuery.data?.filter}
-        filterSchema={listQuery.data?.filter_schema ?? []}
+        filterSchema={listQuery.data?.filter_schema ?? filterSchemaQuery.data?.filter_schema ?? []}
         pathname="/mockups"
         search={location.search}
       />

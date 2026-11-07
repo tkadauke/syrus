@@ -35,9 +35,17 @@ export type MockupDetailPayload = {
   panel: MockupPanel
 }
 
+export type MockupsFilterSchemaPayload = {
+  filter_schema: FilterSchemaField[]
+}
+
 export function fetchMockups(search: string): Promise<MockupsIndexPayload> {
   const query = search && search !== "?" ? search : ""
   return getJson<MockupsIndexPayload>(`/api/v1/app/mockups${query}`)
+}
+
+export function fetchMockupsFilterSchema(): Promise<MockupsFilterSchemaPayload> {
+  return getJson<MockupsFilterSchemaPayload>("/api/v1/app/mockups?schema=1")
 }
 
 export function fetchMockup(ref: string): Promise<MockupDetailPayload> {

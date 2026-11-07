@@ -92,6 +92,16 @@ RSpec.describe "API: /api/v1/app/mockups", type: :request do
     expect(body["pagination"]).not_to have_key("total")
   end
 
+  it "serves the filter schema independently for clients that cache it" do
+    sign_in_as(user)
+
+    get "/api/v1/app/mockups?schema=1"
+
+    body = JSON.parse(response.body)
+    expect(body.keys).to eq([ "filter_schema" ])
+    expect(body["filter_schema"].map { |field| field["field"] }).to include("title")
+  end
+
   it "keeps a mockup viewable after its chat panel is closed" do
     mockup = mockup_for(user, files: { "index.html" => "<h1>saved mockup</h1>" })
     mockup.preview_panel.update!(state: "closed")

@@ -5,6 +5,11 @@ module Api
         PER_PAGE = 30
 
         def index
+          if params[:schema] == "1"
+            render json: { filter_schema: filter_schema }
+            return
+          end
+
           filter = Mockups::Filter.from_params(params, user: Current.user)
           scope = filter.apply(base_scope).recent_first
 
@@ -16,7 +21,7 @@ module Api
           render json: {
             mockups: rows.map { |mockup| summary_json(mockup) },
             filter: filter.as_tree,
-            filter_schema: page == 1 ? ::Filters::Schema.for(subject: :mockup, user: Current.user) : nil,
+            filter_schema: page == 1 ? filter_schema : nil,
             pagination: { page: page, per_page: PER_PAGE, has_next_page: has_next, has_previous_page: page > 1 }
           }
         end
@@ -45,7 +50,11 @@ module Api
         def base_scope
           Mockups::Mockup
             .where(preview_panel_id: PreviewPanel.accessible_to(Current.user).select(:id))
-            .includes(:preview_panel)
+            .includes(preview_panel: :latest_version)
+        end
+
+        def filter_schema
+          ::Filters::Schema.for(subject: :mockup, user: Current.user)
         end
 
         def summary_json(mockup)

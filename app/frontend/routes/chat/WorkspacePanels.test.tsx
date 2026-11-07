@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router-dom"
-import { ChatSettingsDialog, ChatWorkspacePanel } from "./WorkspacePanels"
+import { ChatSettingsDialog, ChatWorkspacePanel, PreviewPanelFrame } from "./WorkspacePanels"
 import type { ChatPayload } from "../../api/chats"
 import {
   closeChatPreviewPanel,
@@ -1567,6 +1567,26 @@ describe("ChatWorkspacePanel preview panels", () => {
     renderWorkspacePanel(payloadWithPanel(), { activeTab: "preview:7" as WorkspaceTab })
 
     await waitFor(() => expect(fetchPreviewPanelHistory).toHaveBeenCalledWith(7))
+  })
+
+  it("reloads version history when polling reports a new current version", async () => {
+    const initial = { ...payloadWithPanel().preview_panels[0], current_version_id: 9 }
+    const updated = { ...initial, current_version_id: 10 }
+    vi.mocked(fetchPreviewPanelHistory).mockResolvedValue({ ...updated, versions: [] })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const view = (panel: typeof initial) => (
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <PreviewPanelFrame onNotice={() => {}} panel={panel} queryKey={["chats", "1", ""]} />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    const rendered = render(view(initial))
+    await waitFor(() => expect(fetchPreviewPanelHistory).toHaveBeenCalledTimes(1))
+
+    rendered.rerender(view(updated))
+    await waitFor(() => expect(fetchPreviewPanelHistory).toHaveBeenCalledTimes(2))
   })
 
   it("renders an https panel URL verbatim in the iframe src", () => {
