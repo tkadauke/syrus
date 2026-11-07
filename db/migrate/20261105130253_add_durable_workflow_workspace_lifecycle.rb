@@ -6,7 +6,7 @@ class AddDurableWorkflowWorkspaceLifecycle < ActiveRecord::Migration[8.1]
 
     unless table_exists?(:workflow_workspace_events)
       create_table :workflow_workspace_events do |t|
-        t.references :workflow, null: false
+        t.references :workflow, null: false, foreign_key: false
         t.string :event_type, null: false
         t.string :hostname
         t.string :storage_key
