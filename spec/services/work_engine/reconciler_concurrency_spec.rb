@@ -27,6 +27,14 @@ RSpec.describe "WorkEngine::Reconciler.call_locked!" do
     enqueued_jobs.select { |enqueued| enqueued["job_class"] == "RunJob" }.map { |enqueued| enqueued["arguments"].first }
   end
 
+  def acquire_semaphore!(job)
+    semaphore_id = SolidQueue::Semaphore.wait(job)
+    expect(semaphore_id).to be_present
+    job.define_singleton_method(:acquired_semaphore_id) { semaphore_id }
+    job.define_singleton_method(:acquired_concurrency_limit) { concurrency_limit }
+    job
+  end
+
   # Regression coverage for a production "run storm": two
   # concurrent reconcile passes read the same stale state (a queued Run with
   # no SolidQueue claim) and both independently decided to repair it,
@@ -41,7 +49,7 @@ RSpec.describe "WorkEngine::Reconciler.call_locked!" do
     clear_enqueued_jobs
 
     concurrent_reconcile = WorkEngine::ReconcileJob.new(source: "other-worker", job_id: job.id)
-    expect(SolidQueue::Semaphore.wait(concurrent_reconcile)).to eq(true)
+    acquire_semaphore!(concurrent_reconcile)
 
     result = WorkEngine::Reconciler.call_locked!(source: "spec", job_id: job.id, execute_repairs: true)
 
@@ -62,7 +70,7 @@ RSpec.describe "WorkEngine::Reconciler.call_locked!" do
     other_job = Factories.job(agent_provider: "claude")
 
     concurrent_reconcile = WorkEngine::ReconcileJob.new(source: "other-worker", job_id: job.id)
-    expect(SolidQueue::Semaphore.wait(concurrent_reconcile)).to eq(true)
+    acquire_semaphore!(concurrent_reconcile)
 
     result = WorkEngine::Reconciler.call_locked!(source: "spec", job_id: other_job.id, execute_repairs: true)
 
@@ -74,7 +82,7 @@ RSpec.describe "WorkEngine::Reconciler.call_locked!" do
     expect(result).to be_a(WorkEngine::Reconciler::Result)
 
     still_locked = WorkEngine::ReconcileJob.new(source: "spec-check", job_id: job.id)
-    expect(SolidQueue::Semaphore.wait(still_locked)).to eq(true)
+    acquire_semaphore!(still_locked)
     SolidQueue::Semaphore.signal(still_locked)
   end
 
@@ -85,7 +93,7 @@ RSpec.describe "WorkEngine::Reconciler.call_locked!" do
       .to raise_error(RuntimeError, "boom")
 
     still_locked = WorkEngine::ReconcileJob.new(source: "spec-check", job_id: job.id)
-    expect(SolidQueue::Semaphore.wait(still_locked)).to eq(true)
+    acquire_semaphore!(still_locked)
     SolidQueue::Semaphore.signal(still_locked)
   end
 
