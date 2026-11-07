@@ -250,12 +250,14 @@ results without an N+1.
   `TestIdentity::HISTORY_LIMIT` (100) runs regardless of the history page.
 - **Job test results** — `GET /api/v1/app/jobs/:job_id/test_results`
   (`Api::V1::App::JobTestResultsController`) returns each `TestInsights::TestRun`
-  ingested for a Job's most recent Workflow that has test data, grouped by
-  grader and suite. Case detail is capped at 20 cases per run by default (100
-  maximum through `case_limit`), with failures prioritized and omission counts
-  in `truncation`. Failure message, backtrace, and output fields are each
-  limited to 2 KiB. Returned cases are annotated with their current flakiness
-  score via bounded, batched history lookups.
+  ingested for a Job's most recent Workflow that has test data. The default
+  response contains grader summaries; pass `grader_name` and
+  `include_suites=true` to load suite and case detail on demand. Case detail is
+  capped at 20 cases per run by default (100 maximum through `case_limit`),
+  with failures prioritized and omission counts in `truncation`. Failure
+  message, backtrace, and output fields are each limited to 2 KiB. Returned
+  cases are annotated with their current flakiness score via bounded, batched
+  history lookups.
 - **Flaky badge on failing test cases** — `app/frontend/routes/JobDetail.tsx`
   (around line 1251) renders an amber "flaky" badge with a `failed/total`
   sparkline next to a failing test case's name when its `flakiness_score` is

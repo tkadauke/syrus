@@ -6,7 +6,8 @@ module Api
           job = find_job
           render json: TestInsights::RunResults.for_job(
             job: job,
-            include_suites: true,
+            grader_name: params[:grader_name],
+            include_suites: ActiveModel::Type::Boolean.new.cast(params[:include_suites]),
             case_limit: params[:case_limit]
           )
         end

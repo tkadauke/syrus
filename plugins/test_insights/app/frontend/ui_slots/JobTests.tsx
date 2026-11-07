@@ -105,9 +105,19 @@ function SuiteGroup({ suite }: { suite: JobTestSuite }) {
   )
 }
 
-function TestRunSection({ testRun }: { testRun: JobTestRun }) {
+function TestRunSection({ jobId, testRun }: { jobId: number; testRun: JobTestRun }) {
   const { t } = useT("test_insights")
   const allPassing = testRun.failed_count === 0 && testRun.error_count === 0
+  const [expanded, setExpanded] = useState(false)
+  const detail = useQuery({
+    enabled: expanded,
+    queryKey: ["jobs", String(jobId), "test_results", testRun.grader_name, "suites"],
+    queryFn: () =>
+      fetchJobTestResults(
+        `/api/v1/app/jobs/${jobId}/test_results?grader_name=${encodeURIComponent(testRun.grader_name)}&include_suites=true`
+      )
+  })
+  const suites = detail.data?.test_runs.find((candidate) => candidate.id === testRun.id)?.suites ?? []
 
   return (
     <Section.Root className="p-0">
@@ -126,15 +136,22 @@ function TestRunSection({ testRun }: { testRun: JobTestRun }) {
           <Text as="span" variant="caption" tone="muted">
             {t("tests_total_count", { count: testRun.total_count })}
           </Text>
+          <button aria-expanded={expanded} className="text-brand hover:underline" onClick={() => setExpanded((value) => !value)} type="button">
+            {expanded ? t("tests_hide_detail") : t("tests_show_detail")}
+          </button>
         </div>
       </div>
-      {allPassing ? (
+      {!expanded ? null : detail.isPending ? (
+        <Notice className="border-t border-border">{t("common:loading")}</Notice>
+      ) : detail.isError ? (
+        <Notice className="border-t border-border" tone="danger">{t("tests_load_error")}</Notice>
+      ) : allPassing && suites.length === 0 ? (
         <Text className="border-t border-border px-4 py-3" tone="success">
           {t("tests_all_passing")}
         </Text>
       ) : (
         <div className="border-t border-border">
-          {testRun.suites.map((suite) => (
+          {suites.map((suite) => (
             <SuiteGroup key={suite.suite_name} suite={suite} />
           ))}
         </div>
@@ -157,7 +174,7 @@ function TestsPanel({ jobId }: { jobId: number }) {
   return (
     <div className="space-y-4">
       {data.test_runs.map((testRun) => (
-        <TestRunSection key={testRun.id} testRun={testRun} />
+        <TestRunSection jobId={jobId} key={testRun.id} testRun={testRun} />
       ))}
     </div>
   )
