@@ -227,6 +227,21 @@ RSpec.describe "Coworker scheduled tasks" do
     )
   end
 
+  it "redacts credentials from durable catch-up failure details" do
+    journaling = Coworkers::SystemSchedules.reconcile!(coworker)
+    journaling.update_columns(last_journaled_on: nil, created_at: Time.utc(2026, 11, 3, 9))
+    secret = "ghp_abcdefghijklmnopqrstuvwxyz123456"
+    allow(journaling).to receive(:system_schedule_definition).and_return(Coworkers::Prompts::Journaling.new)
+
+    journaling.record_fire_failure!(
+      RuntimeError.new("push rejected for token=#{secret}"), at: Time.utc(2026, 11, 4, 3, 15)
+    )
+
+    journaling.reload
+    expect(journaling.last_system_result_reason).to eq("RuntimeError: push rejected for token=[REDACTED]")
+    expect(journaling.system_result_history.to_json).not_to include(secret)
+  end
+
   it "backs off a failed catch-up fire before retrying it" do
     journaling = Coworkers::SystemSchedules.reconcile!(coworker)
     journaling.update_columns(
