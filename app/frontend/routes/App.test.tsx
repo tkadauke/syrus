@@ -2306,27 +2306,9 @@ describe("App", () => {
     script.textContent = JSON.stringify(incompleteOnboardingBootstrap())
     document.body.appendChild(script)
 
-    const started = bootstrapPayload({
-      setup: setupStatusPayload({
-        complete: false,
-        chat_started: true,
-        first_epic_landed: false,
-        onboarding_chat_started: true,
-        onboarding_chat_path: "/chats/5",
-        next_step: "epic"
-      }),
-      setup_status: setupStatus({
-        state: "first_chat_started",
-        next_step: "start_first_chat",
-        next_step_path: "/onboarding",
-        first_successful_job_completed: false,
-        first_epic_landed: false,
-        onboarding_chat_started: true
-      })
-    })
     setupApiMock.mockResolvedValue(setupStatus({ first_epic_landed: false, onboarding_chat_started: false }))
 
-    vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
       const url = String(input)
       if (url.endsWith("/api/v1/app/chats/onboarding") && (init as RequestInit)?.method === "POST") {
         setupApiMock.mockResolvedValue(setupStatus({ first_epic_landed: false, onboarding_chat_started: true }))
@@ -2343,9 +2325,6 @@ describe("App", () => {
       }
       if (url.endsWith("/api/v1/app/chats/5")) {
         return new Response(JSON.stringify(chatPayload({ id: 5, chatPath: "/chats/5" })), { status: 200, headers: { "Content-Type": "application/json" } })
-      }
-      if (url.endsWith("/api/v1/app/bootstrap")) {
-        return new Response(JSON.stringify(started), { status: 200, headers: { "Content-Type": "application/json" } })
       }
       return new Response(JSON.stringify({}), { status: 200, headers: { "Content-Type": "application/json" } })
     })
@@ -2365,8 +2344,10 @@ describe("App", () => {
 
       fireEvent.click(await screen.findByRole("button", { name: "Start Syrus chat" }))
 
-      // Starting the chat refreshes bootstrap, revealing the nav tabs in place.
+      // Starting the chat patches the bootstrap setup delta, revealing the nav
+      // tabs in place without downloading the full bootstrap again.
       expect(await screen.findByRole("link", { name: "Dashboard" })).toBeInTheDocument()
+      expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/bootstrap", expect.anything())
     } finally {
       script.remove()
     }
