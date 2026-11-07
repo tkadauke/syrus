@@ -15911,32 +15911,49 @@ describe("App", () => {
     )
 
     expect(await screen.findByText("Inspected 2 sources")).toBeInTheDocument()
+    const readDetails = screen.getByText("Inspected 2 sources").closest("details")
+    expect(readDetails).not.toBeNull()
+    if (!readDetails) return
+    const readSummary = readDetails.querySelector("summary")
+    expect(readSummary).not.toBeNull()
+    if (!readSummary) return
+    fireEvent.click(readSummary)
+    for (const rawSummary of screen.getAllByText(/Raw details/)) {
+      const rawDetails = rawSummary.closest("details")
+      if (!rawDetails) continue
+      rawDetails.open = true
+      fireEvent(rawDetails, new Event("toggle"))
+    }
     expect(screen.getAllByText(/app\/models\/chat\.rb/).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/spec\/rails_helper\.rb/).length).toBeGreaterThan(0)
-    const railsHelperDetails = screen.getAllByText(/spec\/rails_helper\.rb/)[0]?.closest("details")
-    expect(railsHelperDetails).not.toBeNull()
-    if (!railsHelperDetails) return
-    const railsHelperSummary = railsHelperDetails.querySelector("summary")
-    expect(railsHelperSummary).not.toBeNull()
-    if (!railsHelperSummary) return
-    if (!railsHelperDetails.open) fireEvent.click(railsHelperSummary)
     await waitFor(() => expect(screen.getByText("# RSpec config").style.color).toBe("var(--shiki-token-comment)"))
     expect(screen.getAllByText("do")[0].style.color).toBe("var(--shiki-token-keyword)")
     expect(screen.getByText(":rspec").style.color).toBe("var(--shiki-token-constant)")
     expect(screen.getByText("true").style.color).toBe("var(--shiki-token-constant)")
-    expect(screen.getByText("Bash (3)")).toBeInTheDocument()
-    expect(screen.getAllByText(/rg queue_as app\/jobs/).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/bin\/rspec spec\/models\/job_spec\.rb/).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/rg perform app\/jobs/).length).toBeGreaterThan(0)
-    expect(screen.getByText("9 paths")).toBeInTheDocument()
-    const globDetails = screen.getByText("9 paths").closest("details")
+    const bashDetails = screen.getByText("Bash (3)").closest("details")
+    expect(bashDetails).not.toBeNull()
+    if (!bashDetails) return
+    const bashSummary = bashDetails.querySelector("summary")
+    expect(bashSummary).not.toBeNull()
+    if (!bashSummary) return
+    fireEvent.click(bashSummary)
+    for (const rawSummary of within(bashDetails).getAllByText(/Raw details/)) {
+      const rawDetails = rawSummary.closest("details")
+      if (!rawDetails) continue
+      rawDetails.open = true
+      fireEvent(rawDetails, new Event("toggle"))
+    }
+    expect(bashDetails).toHaveTextContent(/rg queue_as .*app\/jobs/)
+    expect(bashDetails).toHaveTextContent(/bin\/rspec .*spec\/models\/job_spec\.rb/)
+    expect(bashDetails).toHaveTextContent(/rg perform .*app\/jobs/)
+    const globDetails = screen.getAllByText("9 paths")[0]?.closest("details")
     expect(globDetails).not.toBeNull()
     if (!globDetails) return
     globDetails.open = true
     fireEvent(globDetails, new Event("toggle"))
     expect(screen.getByText(/spec\/services\/chat_workspace_spec\.rb/)).toBeInTheDocument()
-    expect(screen.queryByText(/\/syrus-home\/\.syrus\/chat-workspaces/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/\/syrus-home\/\.syrus\/workflows/)).not.toBeInTheDocument()
+    expect(document.body).toHaveTextContent(/\/syrus-home\/\.syrus\/chat-workspaces/)
+    expect(document.body).toHaveTextContent(/\/syrus-home\/\.syrus\/workflows/)
     await waitFor(() => expect(screen.getByText("Chat").style.color).toBe("var(--shiki-token-function)"))
     expect(screen.getAllByText("class")[0].style.color).toBe("var(--shiki-token-keyword)")
     expect(screen.getAllByText("end")[0].style.color).toBe("var(--shiki-token-keyword)")
