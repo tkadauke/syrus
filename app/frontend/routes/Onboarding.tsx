@@ -73,6 +73,9 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
     setStartingChat(true)
     try {
       const result = await startOnboardingChat()
+      queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) =>
+        current?.setup ? { ...current, setup: { ...current.setup, chat_started: true, onboarding_chat_started: true } } : current
+      )
       await queryClient.invalidateQueries({ queryKey: ["setup"] })
       navigate(withRoutePrefix(result.redirect_to, prefix))
     } catch {
