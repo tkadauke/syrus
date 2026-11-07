@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, RefObject } from "react"
 import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { Button } from "../../components/Button"
+import { DocumentPreviewModal } from "../../components/DocumentPreviewModal"
 import { GearIcon } from "../../components/GearIcon"
 import { SectionHeading } from "../../components/Heading"
 import { ArtifactBody } from "../../components/artifacts/TypedArtifactPanel"
@@ -615,6 +616,7 @@ export function VisualEvidenceGallery({
 }) {
   const { t } = useT("jobs")
   const [showAll, setShowAll] = useState(false)
+  const [preview, setPreview] = useState<{ title: string; url: string } | null>(null)
   const evidence = gallery || { captured_count: 0, submitted_count: 0, screenshots: [] }
   const submitted = evidence.screenshots.filter((screenshot) => screenshot.status === "submitted")
   const screenshots = showAll ? evidence.screenshots : submitted
@@ -660,9 +662,9 @@ export function VisualEvidenceGallery({
             const viewport = screenshot.viewport?.width && screenshot.viewport?.height ? `${screenshot.viewport.width}×${screenshot.viewport.height}` : null
             return (
               <figure className={surfaceClasses("panel", "sm")} key={screenshot.id}>
-                <a href={screenshot.image_url} rel="noreferrer" target="_blank">
+                <button className="block w-full cursor-zoom-in" onClick={() => setPreview({ title: pageLabel, url: screenshot.image_url })} type="button">
                   <img alt={pageLabel} className="w-full rounded-md border border-border object-contain" loading="lazy" src={screenshot.image_url} />
-                </a>
+                </button>
                 <figcaption className="mt-2 space-y-1 text-xs text-text-muted">
                   <p className="font-medium text-text-primary">{pageLabel}</p>
                   <p>
@@ -683,6 +685,12 @@ export function VisualEvidenceGallery({
         <div className="mt-4">
           <VersionedArtifactsList artifacts={artifacts} selectedRange={selectedRange} selectedVersion={selectedVersion} versions={versions} />
         </div>
+      ) : null}
+      {preview ? (
+        <DocumentPreviewModal
+          file={{ contentType: "image/png", rawUrl: preview.url, title: preview.title }}
+          onClose={() => setPreview(null)}
+        />
       ) : null}
     </Section.Root>
   )
