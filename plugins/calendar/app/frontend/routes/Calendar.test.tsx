@@ -130,4 +130,50 @@ describe("CalendarRoute", () => {
     expect(screen.getByRole("link", { name: "Open owning feature" })).toHaveAttribute("href", "/jobs/7")
     expect(screen.getByRole("link", { name: "Open scheduled task" })).toHaveAttribute("href", "/scheduled_tasks/1")
   })
+
+  it("renders coworker identity, operational policy, and drill-through destinations", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        events: [
+          {
+            source_id: "coworkers:scheduled_work",
+            id: "coworker-task-1-slot",
+            kind: "coworker_scheduled_task",
+            title: "Morning briefing",
+            starts_at: new Date().toISOString(),
+            destination_path: "/jobs/7",
+            state: "delayed",
+            metadata: {
+              coworker_name: "Maya",
+              coworker_handle: "maya",
+              coworker_path: "/coworkers/2",
+              coworker_avatar_url: null,
+              coworker_accent_hex: "#b6492e",
+              main_chat_path: "/chats/12",
+              scheduled_task_path: "/coworkers/2?tab=schedules",
+              after_run: "wake",
+              system_key: "journaling"
+            }
+          }
+        ],
+        failures: []
+      })
+    )
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/calendar"]}>
+          <CalendarRoute />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(await screen.findByRole("button", { name: "Morning briefing" }))
+    expect(screen.getByText("Maya @maya")).toBeInTheDocument()
+    expect(screen.getByText("After run: wake")).toBeInTheDocument()
+    expect(screen.getByText("System schedule: journaling")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open scheduled task" })).toHaveAttribute("href", "/coworkers/2?tab=schedules")
+    expect(screen.getByRole("link", { name: "Open main chat" })).toHaveAttribute("href", "/chats/12")
+    expect(screen.getByRole("link", { name: "Open coworker" })).toHaveAttribute("href", "/coworkers/2")
+  })
 })

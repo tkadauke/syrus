@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { FilterBar, topFilterChildren, type FilterChip, type FilterSchemaField, type FilterTree } from "@app/components/FilterBar"
+import { Avatar } from "@app/components/Avatar"
 import { Notice, Page, PageHeading, Section, Text } from "@app/components/ui"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
@@ -115,10 +116,21 @@ function EventCard({ event, formatter }: { event: CalendarEvent; formatter: Intl
   const [expanded, setExpanded] = useState(false)
   const duration = typeof event.metadata.duration_seconds === "number" ? event.metadata.duration_seconds : null
   const taskPath = typeof event.metadata.scheduled_task_path === "string" ? event.metadata.scheduled_task_path : null
+  const coworkerName = typeof event.metadata.coworker_name === "string" ? event.metadata.coworker_name : null
+  const coworkerHandle = typeof event.metadata.coworker_handle === "string" ? event.metadata.coworker_handle : null
+  const coworkerPath = typeof event.metadata.coworker_path === "string" ? event.metadata.coworker_path : null
+  const mainChatPath = typeof event.metadata.main_chat_path === "string" ? event.metadata.main_chat_path : null
+  const avatarUrl = typeof event.metadata.coworker_avatar_url === "string" ? event.metadata.coworker_avatar_url : null
+  const accentHex = typeof event.metadata.coworker_accent_hex === "string" ? event.metadata.coworker_accent_hex : null
+  const afterRun = typeof event.metadata.after_run === "string" ? event.metadata.after_run : null
+  const systemKey = typeof event.metadata.system_key === "string" ? event.metadata.system_key : null
   return (
     <article className="min-w-0 rounded border border-border bg-surface-subtle p-2">
       <button className="w-full min-w-0 text-left" type="button" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
-        <Text className="truncate font-medium">{event.title}</Text>
+        <span className="flex min-w-0 items-center gap-2">
+          {coworkerName ? <Avatar name={coworkerName} avatarUrl={avatarUrl} accentHex={accentHex} size="xs" /> : null}
+          <Text className="truncate font-medium">{event.title}</Text>
+        </span>
       </button>
       <Text variant="caption" tone="muted">
         {event.cadence?.band ? event.cadence.label : formatter.format(new Date(event.starts_at))}
@@ -142,12 +154,29 @@ function EventCard({ event, formatter }: { event: CalendarEvent; formatter: Intl
               {t("duration", { seconds: duration.toFixed(1) })}
             </Text>
           ) : null}
+          {coworkerName ? (
+            <Text variant="caption" tone="muted">
+              {t("coworker_identity", { name: coworkerName, handle: coworkerHandle ? `@${coworkerHandle}` : "" })}
+            </Text>
+          ) : null}
+          {afterRun ? <Text variant="caption" tone="muted">{t("after_run", { policy: afterRun })}</Text> : null}
+          {systemKey ? <Text variant="caption" tone="muted">{t("system_schedule", { key: systemKey })}</Text> : null}
           <Link className="inline-block text-sm text-brand hover:underline" to={event.destination_path}>
             {t("open_owner")}
           </Link>
           {taskPath && taskPath !== event.destination_path ? (
             <Link className="ml-3 inline-block text-sm text-brand hover:underline" to={taskPath}>
               {t("open_schedule")}
+            </Link>
+          ) : null}
+          {mainChatPath ? (
+            <Link className="ml-3 inline-block text-sm text-brand hover:underline" to={mainChatPath}>
+              {t("open_main_chat")}
+            </Link>
+          ) : null}
+          {coworkerPath && coworkerPath !== event.destination_path ? (
+            <Link className="ml-3 inline-block text-sm text-brand hover:underline" to={coworkerPath}>
+              {t("open_coworker")}
             </Link>
           ) : null}
         </div>

@@ -8,6 +8,28 @@ RSpec.describe "Coworkers plugin" do
 
     expect(manifest).to be_experimental
     expect(manifest).not_to be_default_enabled
+    expect(manifest.optionally_depends_on).to include("calendar")
+    expect(Array(manifest.provides["calendar:event_source"])).to include(Coworkers::CalendarEventSource)
+  end
+
+  it "removes its Calendar contribution without disabling Coworkers", :reset_plugin_registry do
+    AppSetting.current.update!(beta_mode_enabled: true)
+    Syrus::PluginRegistry.clear_beta_mode_cache!
+    calendar = PluginRecord.find_or_initialize_by(name: "calendar")
+    coworkers = PluginRecord.find_or_initialize_by(name: "coworkers")
+    calendar.update!(enabled: true)
+    coworkers.update!(enabled: false)
+    Syrus::Installer.sync!
+    coworkers.update!(enabled: true)
+    Syrus::Installer.sync!
+    expect(Syrus::PluginRegistry.providers_for("calendar:event_source"))
+      .to include(Coworkers::CalendarEventSource)
+
+    calendar.update!(enabled: false)
+    Syrus::Installer.sync!
+    expect(Syrus::PluginRegistry.providers_for("calendar:event_source"))
+      .not_to include(Coworkers::CalendarEventSource)
+    expect(coworkers.reload.enabled?).to be(true)
   end
 
   it "keeps its capability compatibility baseline aligned with its chat tool inventory" do
