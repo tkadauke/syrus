@@ -5,6 +5,12 @@ chat provider such as Muse or Antigravity. Each chat stores a concrete
 `chat_provider` when it is created. The seed value comes from the user's chat
 provider setting, then the user's default agent provider, then Claude.
 
+Touch and pen users can long-press a live message to reveal the same timestamp,
+copy, and applicable pin or bookmark actions available on desktop hover. Run transcript
+messages and compact log rows expose Copy through the same gesture. Meaningful
+pointer movement or early release cancels the gesture, and opening another
+message or tapping elsewhere dismisses the current actions.
+
 If a chat is created through an indirect path that somehow leaves the provider
 blank, the first message/admission path pins `chat_sessions.chat_provider`
 before title generation or turn execution. Later changes to the user's defaults
