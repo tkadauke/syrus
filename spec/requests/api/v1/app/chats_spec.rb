@@ -583,20 +583,20 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body["groups"].size).to eq(24)
+    expect(body["groups"].size).to eq(8)
     expect(body["groups_has_more"]).to eq(true)
-    expect(body["groups_next_offset"]).to eq(24)
+    expect(body["groups_next_offset"]).to eq(8)
     expect(body["groups"].first["chats"].map { |chat| chat["id"] }).to eq([ chats.first.id ])
-    expect(body["groups"].last["chats"].map { |chat| chat["id"] }).to eq([ chats[23].id ])
+    expect(body["groups"].last["chats"].map { |chat| chat["id"] }).to eq([ chats[7].id ])
 
-    get "/api/v1/app/chats", params: { group_by: "date", group_offset: "24" }
+    get "/api/v1/app/chats", params: { group_by: "date", group_offset: "8" }
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body["groups"].size).to eq(2)
-    expect(body["groups_has_more"]).to eq(false)
-    expect(body["groups_next_offset"]).to be_nil
-    expect(body["groups"].flat_map { |group| group["chats"].map { |chat| chat["id"] } }).to eq(chats.last(2).map(&:id))
+    expect(body["groups"].size).to eq(8)
+    expect(body["groups_has_more"]).to eq(true)
+    expect(body["groups_next_offset"]).to eq(16)
+    expect(body["groups"].flat_map { |group| group["chats"].map { |chat| chat["id"] } }).to eq(chats.slice(8, 8).map(&:id))
   end
 
   it "groups and labels chat dates in the current user's timezone" do
@@ -614,6 +614,24 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     end
   end
 
+  it "caps initial groups at five chats while preserving the requested size for group expansion" do
+    sign_in_as(user)
+    user.update!(recent_chats_group_size: 20)
+    chats = 7.times.map do |index|
+      ChatSession.create!(user: user, title: "Chat #{index}", last_message_at: index.minutes.ago)
+    end
+
+    get "/api/v1/app/chats"
+
+    group = parse_body.fetch("groups").find { |item| item.fetch("key") == "general" }
+    expect(group.fetch("chats").map { |chat| chat.fetch("id") }).to eq(chats.first(5).map(&:id))
+    expect(group.fetch("has_more")).to eq(true)
+
+    get "/api/v1/app/chats/more", params: { group_by: "repository", group_key: "general", before_id: group.fetch("chats").last.fetch("id"), per_group: 20 }
+
+    expect(parse_body.fetch("chats").map { |chat| chat.fetch("id") }).to eq(chats.last(2).map(&:id))
+  end
+
   it "loads initial sidebar chat groups without one chat query per repository" do
     sign_in_as(user)
     8.times do |index|
@@ -625,9 +643,12 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     queries = capture_sql { get "/api/v1/app/chats" }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body["groups"].size).to eq(9)
+    expect(parse_body["groups"].size).to eq(8)
     chat_group_selects = queries.grep(/FROM ["`]?chat_sessions["`]?.*chat_attachments/im)
     expect(chat_group_selects.size).to be <= 2
+    expect(queries.grep(/FROM ["`]?repositories["`]?/i).size).to be <= 3
+    expect(queries.grep(/FROM ["`]?chat_messages["`]?/i).size).to be <= 1
+    expect(queries.grep(/FROM ["`]?workflows["`]?/i).size).to be <= 1
   end
 
   it "groups plugin chats in one batched lookup without exposing inaccessible or shared chats" do
@@ -1211,13 +1232,11 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
         .to eq([ stronger_chat.id, weaker_chat.id ])
       expect(body["results"].first).to include(
         "chat_title" => "Stronger",
-        "best_match_message_id" => stronger.id,
         "total_match_count" => 1,
         "has_more_matches" => false
       )
-      expect(body["results"].first["best_snippet"]).to include("<b>needle</b>")
       expect(body["results"].first["top_matches"]).to contain_exactly(
-        include("message_id" => stronger.id, "role" => "assistant")
+        include("message_id" => stronger.id, "role" => "assistant", "snippet" => a_string_including("<b>needle</b>"))
       )
     end
 
@@ -1237,7 +1256,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
       get "/api/v1/app/chats/search", params: { q: "needle" }
 
-      snippet = parse_body.dig("results", 0, "best_snippet")
+      snippet = parse_body.dig("results", 0, "top_matches", 0, "snippet")
       expect(snippet).to include("First <b>needle</b> line.\nSecond visible block.")
       expect(snippet).not_to include("[{", '"type"', "thinking", "needlereasoning", "\\n")
     end
@@ -1272,7 +1291,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body["results"]).to contain_exactly(
-        include("chat_session_id" => visible_chat.id, "best_match_message_id" => visible_message.id)
+        include("chat_session_id" => visible_chat.id, "top_matches" => include(include("message_id" => visible_message.id)))
       )
       expect(parse_body.to_s).not_to include("Hidden")
     end
@@ -1298,7 +1317,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       expect(parse_body["total"]).to eq(1)
       expect(parse_body["results"]).to contain_exactly(
-        include("chat_session_id" => matching.id, "chat_title" => "Matching", "top_matches" => [])
+        { "chat_session_id" => matching.id, "chat_title" => "Matching", "badges" => [] }
       )
       expect(parse_body.to_s).not_to include(nonmatching.title)
     end
@@ -1318,7 +1337,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       expect(parse_body["total"]).to eq(1)
       expect(parse_body["results"]).to contain_exactly(
-        include("chat_session_id" => matching.id, "best_match_message_id" => message.id)
+        include("chat_session_id" => matching.id, "top_matches" => include(include("message_id" => message.id)))
       )
       expect(parse_body.to_s).not_to include(text_only.title)
       expect(parse_body.to_s).not_to include(epic_only.title)
@@ -1331,16 +1350,15 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(parse_body).to include("results" => [], "total" => 0)
     end
 
-    it "returns all matching messages for a chat and query" do
+    it "limits matching messages and reports whether more are available" do
       chat = ChatSession.create!(user: user, repository: repository, title: "Memory")
-      first = create_indexed_message(chat, text: "needle first", role: "user")
-      second = create_indexed_message(chat, text: "needle second", role: "assistant")
+      51.times { |index| create_indexed_message(chat, text: "needle #{index}", role: index.even? ? "user" : "assistant") }
 
       get "/api/v1/app/chats/search/messages", params: { chat_session_id: chat.id, q: "needle" }
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body["matches"].map { |match| match["message_id"] })
-        .to contain_exactly(first.id, second.id)
+      expect(parse_body["matches"].size).to eq(50)
+      expect(parse_body["has_more"]).to eq(true)
       expect(parse_body["matches"]).to all(include("snippet", "role", "created_at"))
     end
 
@@ -1385,7 +1403,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body["results"]).to contain_exactly(
-        include("chat_session_id" => shared_chat.id, "best_match_message_id" => message.id)
+        include("chat_session_id" => shared_chat.id, "top_matches" => include(include("message_id" => message.id)))
       )
 
       get "/api/v1/app/chats/search/messages", params: { chat_session_id: shared_chat.id, q: "participantneedle" }
@@ -1427,7 +1445,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(parse_body["total"]).to eq(2)
       expect(parse_body["results"]).to contain_exactly(
         include("chat_session_id" => dense_chat.id, "total_match_count" => 1_001, "has_more_matches" => true),
-        include("chat_session_id" => other_chat.id, "best_match_message_id" => other_message.id)
+        include("chat_session_id" => other_chat.id, "top_matches" => include(include("message_id" => other_message.id)))
       )
     end
   end

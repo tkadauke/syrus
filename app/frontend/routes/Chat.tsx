@@ -820,7 +820,10 @@ function MessageStream({
         ? t("context_find_searching")
         : findMatches.length === 0
           ? t("context_find_count_zero")
-          : t("context_find_count", { current: activeFindIndex + 1, total: findMatches.length })
+          : t("context_find_count", {
+              current: activeFindIndex + 1,
+              total: findResults.data?.has_more ? `${findMatches.length}+` : findMatches.length
+            })
 
   useEffect(() => {
     // A confirmed/rejected/edited proposal only patches the React Query cache
