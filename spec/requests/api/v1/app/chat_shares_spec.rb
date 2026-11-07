@@ -16,10 +16,10 @@ RSpec.describe "API: chat shares", type: :request do
 
   it "lets a recipient read the full chat API but never post" do
     prepare_chat_search
-    stored = chat.chat_file_attachments.build(name: "notes.txt", mime_type: "text/plain", byte_size: 2, checksum: "pending")
-    stored.file.attach(io: StringIO.new("hi"), filename: "notes.txt", content_type: "text/plain")
-    stored.save!
-    chat.messages.create!(role: "assistant", content: { "text" => "live history", "attachments" => [ { "id" => stored.id } ] })
+    attachment = chat.chat_file_attachments.build(name: "notes.txt", mime_type: "text/plain", byte_size: 5, checksum: "pending")
+    attachment.file.attach(io: StringIO.new("notes"), filename: "notes.txt", content_type: "text/plain")
+    attachment.save!
+    chat.messages.create!(role: "assistant", content: { "text" => "live history", "attachments" => [ { "id" => attachment.id } ] })
     share = ChatShare.create!(chat_session: chat, target: recipient, shared_by_user: owner)
     sign_in_as(recipient)
 
@@ -76,7 +76,7 @@ RSpec.describe "API: chat shares", type: :request do
   it "returns one capped targets list with repository access warnings" do
     repository = Factories.repository(user: owner)
     chat.chat_attachments.create!(attachable: repository)
-    RepositoryMembership.create!(repository: repository, user: recipient, role: "viewer")
+    RepositoryMembership.create!(repository: repository, user: recipient, role: "read")
     sign_in_as(owner)
 
     get "/api/v1/app/chats/#{chat.id}/share_candidates"
