@@ -25,6 +25,10 @@ RSpec.describe Coworkers::ReviewContextContributor do
       .to eq(manifest: context.manifest, restricted_text: "restricted exact text", persistence_token: "19")
   end
 
+  it "binds its contributed tools to the coworker-review workflow capability" do
+    expect(described_class.tool_capability(type: "coworker", reference: "7")).to eq(:submit_coworker_review)
+  end
+
   it "returns an opaque idempotent persistence receipt" do
     expect(described_class.persist(
       target: { type: "coworker", reference: "7" }, run:, context: {}, verdict: "approved",
