@@ -70,6 +70,7 @@ export function MainBranchHealthSection({
       queryClient.setQueryData(queryKey, updated)
       void queryClient.invalidateQueries({ queryKey: healthQueryKey })
       void queryClient.invalidateQueries({ queryKey: ["repositories", String(repository.id), "jobs"] })
+      void queryClient.invalidateQueries({ queryKey: ["repositories", String(repository.id), "delivery"] })
       onNotice(updated.message || null)
     }
   })
@@ -79,6 +80,7 @@ export function MainBranchHealthSection({
       queryClient.setQueryData(queryKey, updated)
       void queryClient.invalidateQueries({ queryKey: healthQueryKey })
       void queryClient.invalidateQueries({ queryKey: ["repositories", String(repository.id), "jobs"] })
+      void queryClient.invalidateQueries({ queryKey: ["repositories", String(repository.id), "delivery"] })
       onNotice(updated.message || null)
     }
   })
@@ -88,6 +90,7 @@ export function MainBranchHealthSection({
       queryClient.setQueryData(queryKey, updated)
       void queryClient.invalidateQueries({ queryKey: healthQueryKey })
       void queryClient.invalidateQueries({ queryKey: ["repositories", String(repository.id), "jobs"] })
+      void queryClient.invalidateQueries({ queryKey: ["repositories", String(repository.id), "delivery"] })
       onNotice(updated.message || null)
     }
   })
@@ -97,6 +100,7 @@ export function MainBranchHealthSection({
       queryClient.setQueryData(queryKey, updated)
       void queryClient.invalidateQueries({ queryKey: healthQueryKey })
       void queryClient.invalidateQueries({ queryKey: ["repositories", String(repository.id), "jobs"] })
+      void queryClient.invalidateQueries({ queryKey: ["repositories", String(repository.id), "delivery"] })
       onNotice(updated.message || null)
     }
   })
