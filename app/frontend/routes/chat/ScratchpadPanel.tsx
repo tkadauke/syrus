@@ -1,7 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import type { DragEvent } from "react"
 import { useEffect, useRef, useState } from "react"
-import "@excalidraw/excalidraw/index.css"
 import {
   createScratchpadItem,
   deleteScratchpadItem,

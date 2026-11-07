@@ -4,7 +4,6 @@ import type { FormEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react"
 import { useCallback, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { createPortal } from "react-dom"
-import "@excalidraw/excalidraw/index.css"
 import {
   cancelPendingAction,
   confirmChatProposal,
