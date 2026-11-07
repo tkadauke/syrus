@@ -223,8 +223,8 @@ describe("CronTemplateFormRoute cadence preview", () => {
             schedule_input: "Every Monday at 9:00 AM",
             schedule_format: "rrule",
             schedule_expression: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
-            schedule_timezone: "UTC",
-            schedule_explanation: "Every Monday at 9:00 AM UTC",
+            schedule_timezone: "America/New_York",
+            schedule_explanation: "Every Monday at 9:00 AM America/New_York",
             next_fire_at: null,
             cron_expression: null,
             errors: [],
@@ -240,7 +240,7 @@ describe("CronTemplateFormRoute cadence preview", () => {
 
     expect(await screen.findByDisplayValue("Every Monday at 9:00 AM")).toBeInTheDocument()
     await waitFor(() => {
-      expect(screen.getByText("Every Monday at 9:00 AM UTC")).toBeInTheDocument()
+      expect(screen.getByText("Every Monday at 9:00 AM America/New_York")).toBeInTheDocument()
     })
   })
 
@@ -301,8 +301,8 @@ describe("CronTemplateFormRoute cadence preview", () => {
               schedule_input: "moday at 9am in tjhe mornin",
               schedule_format: "rrule",
               schedule_expression: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
-              schedule_timezone: "UTC",
-              schedule_explanation: "Every Monday at 9:00 AM UTC",
+              schedule_timezone: "America/New_York",
+              schedule_explanation: "Every Monday at 9:00 AM America/New_York",
               next_fire_at: null,
               cron_expression: null,
               errors: [],
@@ -317,8 +317,8 @@ describe("CronTemplateFormRoute cadence preview", () => {
             schedule_input: body.schedule_input,
             schedule_format: "rrule",
             schedule_expression: "",
-            schedule_timezone: "UTC",
-            schedule_explanation: "Every Monday at 9:00 AM UTC",
+            schedule_timezone: "America/New_York",
+            schedule_explanation: "Every Monday at 9:00 AM America/New_York",
             next_fire_at: null,
             cron_expression: null,
             errors: [],

@@ -37,7 +37,7 @@ module Coworkers
       private
 
       def attributes_for(coworker)
-        zone = coworker.owner_user.approval_delivery_preferences["time_zone"].presence || "UTC"
+        zone = coworker.owner_user.time_zone
         {
           user: coworker.owner_user, repository: coworker.workspace_repository, coworker_id: coworker.id,
           name: "Journaling", kind: "cron", prompt: nil, schedule_input: "30 0 * * *", schedule_timezone: zone,
