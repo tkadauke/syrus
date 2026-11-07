@@ -232,6 +232,13 @@ function renderWithPayload(payload: unknown, initialEntry = "/search?query=needl
 }
 
 describe("SearchRoute results", () => {
+  it("loads controls through the controls-only search path", async () => {
+    const fetchSpy = renderWithPayload(searchPayload([]))
+
+    await screen.findByRole("link", { name: "Jobs" })
+    expect(fetchSpy.mock.calls.some((call) => new URL(String(call[0]), "http://example.test").searchParams.get("controls") === "only")).toBe(true)
+  })
+
   it("localizes plugin-owned search copy and preserves dynamic values", async () => {
     await i18n.changeLanguage("de")
     renderWithPayload(
