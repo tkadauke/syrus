@@ -3,7 +3,7 @@ import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "@app/lib/slugReferenceRegistry"
-import readDesignDocToolCard from "./read_design_doc"
+import readDesignDocToolCard, { examples } from "./read_design_doc"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return { toolName: "read_design_doc", resultBody: "result", resultError: false, parsedResult: null, ...overrides }
@@ -62,6 +62,32 @@ describe("read_design_doc tool card", () => {
       pluginPreviewComponent: null
     })
     setSlugReferenceRegistryForTests([entry("JOB", "job"), entry("EPIC", "epic")])
+  })
+
+  it("keeps paginated first-page and continuation states in the Tool Card Catalog", () => {
+    const firstPage = examples.find((example) => example.id === "full_document")
+    const continuation = examples.find((example) => example.id === "continuation_page")
+
+    expect(firstPage?.parsedResult).toMatchObject({
+      design_doc: {
+        version_number: 3,
+        total_bytes: 98_304,
+        start_offset: 0,
+        end_offset: 65_536,
+        truncated: true,
+        discussion_included: true
+      }
+    })
+    expect(continuation?.parsedResult).toMatchObject({
+      design_doc: {
+        version_number: 3,
+        total_bytes: 98_304,
+        start_offset: 65_536,
+        end_offset: 98_304,
+        truncated: false,
+        discussion_included: false
+      }
+    })
   })
 
   it("renders all full-detail metadata, linked entities, markdown, threads, and suggestions", () => {
