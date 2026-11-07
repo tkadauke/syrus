@@ -346,6 +346,14 @@ const openQuestionsDocDetail = {
 
 function renderSurface(path = "/design_docs") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
+  client.setQueryData(["repositories", "10", "plugin_tabs"], {
+    tabs: [
+      { key: "overview", label: "Overview", path: "/repositories/10" },
+      { key: "documents", label: "Documents", path: "/repositories/10/documents" },
+      { key: "members", label: "Members", path: "/repositories/10/memberships" },
+      { key: "design_docs.repository", label: "Design Docs", path: "/repositories/10/plugin/design_docs" }
+    ]
+  })
   return {
     ...render(
       <QueryClientProvider client={client}>
@@ -1469,7 +1477,7 @@ describe("DesignDocsSurface", () => {
     await screen.findByRole("link", { name: "Design Docs" })
     const tabs = screen.getByRole("navigation", { name: "Repository tabs" })
     expect(within(tabs).getByRole("link", { name: "Overview" })).toBeInTheDocument()
-    expect(screen.getByRole("heading", { name: "acme/widgets" })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "acme/widgets" })).toBeInTheDocument()
   })
 
   it("uses the explicit chat design doc instead of treating the chat route id as a doc id", async () => {

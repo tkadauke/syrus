@@ -142,6 +142,7 @@ function throughputPayload(): RepositoryThroughputMetricsPayload {
 
 function renderRoute() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  client.setQueryData(["repositories", "1", "plugin_tabs"], { tabs: TABS })
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>

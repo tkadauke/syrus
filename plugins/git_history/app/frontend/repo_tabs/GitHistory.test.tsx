@@ -33,8 +33,11 @@ function mockMatchMedia(matches: boolean) {
 }
 
 function renderRoute(children: ReactNode, initialEntry = "/repositories/7/plugin/git_history") {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  client.setQueryData(["repositories", "7", "plugin_tabs"], { tabs: page([]).tabs })
+
   render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route element={children} path="/repositories/:repositoryId/plugin/git_history" />

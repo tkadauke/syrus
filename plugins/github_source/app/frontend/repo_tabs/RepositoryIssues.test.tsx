@@ -103,6 +103,7 @@ function encodeFilterTree(tree: Record<string, unknown>): string {
 
 function renderRoute(initialEntry = "/repositories/1/plugin/issues") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  client.setQueryData(["repositories", "1", "plugin_tabs"], { tabs: tabs() })
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[initialEntry]}>

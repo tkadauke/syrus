@@ -5,6 +5,14 @@ import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { RepositoryPipelineRoute } from "./RepositoryPipeline"
 
+function queryClient() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  client.setQueryData(["repositories", "1", "plugin_tabs"], {
+    tabs: [{ key: "sdlc_pipeline.repository", label: "Pipeline", path: "/repositories/1/plugin/sdlc-pipeline" }]
+  })
+  return client
+}
+
 describe("RepositoryPipelineRoute", () => {
   afterEach(() => vi.restoreAllMocks())
 
@@ -46,7 +54,7 @@ describe("RepositoryPipelineRoute", () => {
     )
 
     render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <QueryClientProvider client={queryClient()}>
         <MemoryRouter initialEntries={["/repositories/1/plugin/sdlc-pipeline?q=chat-filter&syrus_presentation=embedded"]}>
           <RepositoryPipelineRoute repositoryId="1" prefix="" />
         </MemoryRouter>
@@ -109,7 +117,7 @@ describe("RepositoryPipelineRoute", () => {
     )
 
     render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <QueryClientProvider client={queryClient()}>
         <MemoryRouter>
           <RepositoryPipelineRoute repositoryId="1" prefix="" />
         </MemoryRouter>
@@ -173,7 +181,7 @@ describe("RepositoryPipelineRoute", () => {
     })
 
     render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <QueryClientProvider client={queryClient()}>
         <MemoryRouter>
           <RepositoryPipelineRoute repositoryId="1" prefix="" />
         </MemoryRouter>
@@ -226,7 +234,7 @@ describe("RepositoryPipelineRoute", () => {
     )
 
     render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <QueryClientProvider client={queryClient()}>
         <MemoryRouter initialEntries={["/repositories/1/plugin/sdlc-pipeline?q=encoded-tree"]}>
           <RepositoryPipelineRoute repositoryId="1" prefix="" />
         </MemoryRouter>
@@ -295,7 +303,7 @@ describe("RepositoryPipelineRoute", () => {
     )
 
     render(
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <QueryClientProvider client={queryClient()}>
         <MemoryRouter initialEntries={["/repositories/1/plugin/sdlc-pipeline?q=associated-chat&at=2026-10-31T10%3A00%3A00Z"]}>
           <RepositoryPipelineRoute repositoryId="1" prefix="" />
         </MemoryRouter>
@@ -371,7 +379,7 @@ describe("RepositoryPipelineRoute", () => {
     }
     function renderRoute(search = "") {
       render(
-        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <QueryClientProvider client={queryClient()}>
           <MemoryRouter initialEntries={[`/repositories/1/plugin/sdlc-pipeline${search}`]}>
             <RepositoryPipelineRoute repositoryId="1" prefix="" />
           </MemoryRouter>
