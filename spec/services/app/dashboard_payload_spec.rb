@@ -717,7 +717,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(result[:active_smart_folder_id]).to be_nil
     end
 
-    it "includes folder-specific chrome fields in rows payloads" do
+    it "keeps folder-specific chrome fields out of rows payloads" do
       user.update_dashboard_folder_preferences!(
         subject: "job",
         smart_folder_id: inbox_folder.id,
@@ -727,10 +727,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
 
       result = call(subject: "job", view: "list", section: "rows")
 
-      expect(result[:active_smart_folder_id]).to eq(inbox_folder.id)
-      expect(result[:filter]).to be_present
-      expect(result[:preferences][:sort]).to include(column: "started_at", direction: "asc")
-      expect(result.dig(:controls, :columns, :required)).to be_present
+      expect(result).not_to include(:active_smart_folder_id, :active_smart_folder_filter, :filter, :preferences, :controls)
       expect(result).not_to have_key(:smart_folders)
     end
   end
@@ -821,7 +818,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
 
   describe "dashboard parity columns" do
     it "exposes requested job fields as column options and sortable columns alongside matching filters" do
-      result = call(subject: "job", section: "chrome")
+      result = call(subject: "job", section: "controls")
 
       optional_columns = result.dig(:controls, :columns, :optional).map { |column| column.fetch(:key) }
       filter_fields = result.dig(:controls, :filter_schema).map { |field| field[:field] || field.fetch("field") }
@@ -2334,13 +2331,15 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(result[:ui_panels]).to be_empty
     end
 
-    it "includes resolved plugin panels in rows payloads too" do
+    it "keeps resolved plugin panels in chrome rather than rows" do
       panel = { id: "test.notice", component: "test/Notice", order: 10 }
       allow(App::UiSlotsPayload).to receive(:panels_for).and_return([ panel ])
 
-      result = call(subject: "job", section: "rows", smart_folder_id: inbox_folder.id)
+      rows = call(subject: "job", section: "rows", smart_folder_id: inbox_folder.id)
+      chrome = call(subject: "job", section: "chrome", smart_folder_id: inbox_folder.id)
 
-      expect(result[:ui_panels]).to eq([ panel ])
+      expect(rows).not_to have_key(:ui_panels)
+      expect(chrome[:ui_panels]).to eq([ panel ])
     end
 
     it "does not expose the old core-owned untagged issues payload" do
@@ -2422,14 +2421,14 @@ RSpec.describe App::DashboardPayload, :ci_only do
       RepositoryMembership.create!(repository: repo, user: teammate, role: "write")
       epic = Factories.epic(user: user, repository: repo, state: "ready", owner: nil, owner_user: nil)
 
-      chrome = I18n.with_locale(:de) { call(subject: "job", section: "chrome") }
+      controls = I18n.with_locale(:de) { call(subject: "job", section: "controls") }
       rows = I18n.with_locale(:de) { call(subject: "job", section: "rows") }
       epic_rows = I18n.with_locale(:de) { call(subject: "epic", view: "list", section: "rows", ownership_scope: "team") }
 
-      expect(chrome.dig(:controls, :priorities)).to include(value: "urgent", label: "Dringend")
-      expect(chrome.dig(:controls, :ownership_scopes)).to include(value: "claimable", label: "Übernehmbar")
-      expect(chrome.dig(:controls, :columns, :required)).to include(key: "issue", title: "Issue")
-      expect(chrome.dig(:controls, :kanban_lanes)).to include(key: "running", title: "Läuft")
+      expect(controls.dig(:controls, :priorities)).to include(value: "urgent", label: "Dringend")
+      expect(controls.dig(:controls, :ownership_scopes)).to include(value: "claimable", label: "Übernehmbar")
+      expect(controls.dig(:controls, :columns, :required)).to include(key: "issue", title: "Issue")
+      expect(controls.dig(:controls, :kanban_lanes)).to include(key: "running", title: "Läuft")
 
       direct_row = rows.fetch(:items).find { |row| row.fetch(:id) == direct_job.id }
       expect(direct_row).to include(kind: "direct", title: "Direkt")
@@ -2440,7 +2439,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
 
     it "localizes Latin presentation labels while preserving domain nouns and raw keys" do
-      result = I18n.with_locale(:la) { call(subject: "workflow", section: "chrome") }
+      result = I18n.with_locale(:la) { call(subject: "workflow", section: "controls") }
 
       expect(result.dig(:controls, :priorities)).to include(value: "medium", label: "Media")
       expect(result.dig(:controls, :ownership_scopes)).to include(value: "mine", label: "Mea")

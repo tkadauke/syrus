@@ -56,8 +56,7 @@ function buildPayload(items: DashboardJobItem[]): DashboardPayload {
       kanban_lanes: [],
       ownership_scope: "mine",
       owner_user_id: null,
-      owner_id: null,
-      raw: {}
+      owner_id: null
     },
     filter: null,
     controls: {
@@ -67,7 +66,10 @@ function buildPayload(items: DashboardJobItem[]): DashboardPayload {
       sort_columns: ["priority", "created_at"],
       sort_directions: ["asc", "desc"],
       columns: {
-        required: [{ key: "priority", title: "Priority" }, { key: "issue", title: "Issue" }],
+        required: [
+          { key: "priority", title: "Priority" },
+          { key: "issue", title: "Issue" }
+        ],
         optional: []
       },
       kanban_lanes: [],
@@ -106,25 +108,25 @@ function renderTable(items: DashboardJobItem[]) {
 
 describe("delivery status badge", () => {
   it("renders a pill for waiting_for_upstream_approval", () => {
-    renderTable([ jobItem({ delivery_status: "waiting_for_upstream_approval" }) ])
+    renderTable([jobItem({ delivery_status: "waiting_for_upstream_approval" })])
 
     expect(screen.getByText("Waiting for upstream approval")).toBeInTheDocument()
   })
 
   it("renders a pill for delivery_needs_attention", () => {
-    renderTable([ jobItem({ delivery_status: "delivery_needs_attention" }) ])
+    renderTable([jobItem({ delivery_status: "delivery_needs_attention" })])
 
     expect(screen.getByText("Delivery needs attention")).toBeInTheDocument()
   })
 
   it("does not render a pill for the default waiting_for_local_approval status", () => {
-    renderTable([ jobItem({ delivery_status: "waiting_for_local_approval" }) ])
+    renderTable([jobItem({ delivery_status: "waiting_for_local_approval" })])
 
     expect(screen.queryByText("Waiting for local approval")).not.toBeInTheDocument()
   })
 
   it("does not render a pill for the default approved_for_local_landing status", () => {
-    renderTable([ jobItem({ delivery_status: "approved_for_local_landing" }) ])
+    renderTable([jobItem({ delivery_status: "approved_for_local_landing" })])
 
     expect(screen.queryByText("Approved for local landing")).not.toBeInTheDocument()
   })
