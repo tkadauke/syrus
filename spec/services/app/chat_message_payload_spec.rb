@@ -219,7 +219,7 @@ RSpec.describe App::ChatMessagePayload do
     expect(payload.dig(:pending_action, :outcome)).to eq(chat_ids: [ 101, 102 ])
   end
 
-  it "serializes bulk retry Workflow outcomes with one Workflow query" do
+  it "omits bulk retry Workflow outcomes for resolved actions without querying Workflows" do
     jobs = [
       Factories.job(user: user, repository: repository, issue_number: 41),
       Factories.job(user: user, repository: repository, issue_number: 42)
@@ -238,15 +238,14 @@ RSpec.describe App::ChatMessagePayload do
 
     queries = capture_sql do
       payload = described_class.messages([ message ], repository: repository).sole
-      expect(payload.dig(:pending_action, :outcome, :workflows)).to eq(
-        workflows.map { |workflow| { workflow_id: workflow.id, job_id: workflow.job_id } }
-      )
+      expect(payload[:pending_action]).to include(id: members.first.id, state: "confirmed", label: be_present)
+      expect(payload[:pending_action].keys).to contain_exactly(:id, :state, :label)
     end
 
-    expect(queries.grep(/FROM ["`]?workflows["`]?/i).size).to eq(1)
+    expect(queries.grep(/FROM ["`]?workflows["`]?/i)).to be_empty
   end
 
-  it "serializes live visual review screenshots from the resulting Workflow" do
+  it "omits live visual review screenshots from resolved actions" do
     job = Factories.job(user: user, repository: repository, issue_number: 43)
     workflow = job.latest_workflow
     image_url = "/api/v1/app/workflows/#{workflow.id}/visual_artifact?type=visual_review_screenshot_run_1_1"
@@ -268,11 +267,8 @@ RSpec.describe App::ChatMessagePayload do
 
     payload = described_class.messages([ message ], repository: repository).sole
 
-    expect(payload.dig(:pending_action, :outcome)).to eq(
-      workflow_id: workflow.id,
-      job_id: job.id,
-      media: [ { type: "visual_review_screenshot_run_1_1", title: "Desktop result", image_url: image_url, content_type: "image/png" } ]
-    )
+    expect(payload[:pending_action]).to include(id: action.id, state: "confirmed", label: be_present)
+    expect(payload[:pending_action].keys).to contain_exactly(:id, :state, :label)
   end
 
   it "serializes visual diff pending actions with their Job resource and comparison outcome" do
@@ -337,7 +333,7 @@ RSpec.describe App::ChatMessagePayload do
     )
   end
 
-  it "includes the authoritative grouped outcome for bulk unapproval" do
+  it "omits authoritative grouped outcomes from resolved actions" do
     jobs = 2.times.map do |index|
       job = Factories.job_record(user: user, repository: repository, issue_number: 40 + index, state: "implemented")
       job.approve!(via: "operator", by_user: user)
@@ -355,12 +351,8 @@ RSpec.describe App::ChatMessagePayload do
 
     payload = described_class.messages([ message.reload ], repository: repository).sole
 
-    expect(payload.dig(:pending_action, :outcome)).to eq(
-      status: "partial_failure",
-      succeeded_job_ids: [ jobs.first.id ],
-      failed_job_ids: [ jobs.second.id ],
-      message: "Unapproved 1 of 2 Jobs; #{jobs.second.slug}: job must be in approved state"
-    )
+    expect(payload[:pending_action]).to include(id: anchor.id, state: "confirmed", label: be_present)
+    expect(payload[:pending_action].keys).to contain_exactly(:id, :state, :label)
   end
 
   it "retires a successful bulk unapproval after recording its durable outcome" do
@@ -650,6 +642,28 @@ RSpec.describe App::ChatMessagePayload do
       resource_title: "Inject memories into chat system prompt",
       resource_url: "/jobs/#{job.id}"
     )
+  end
+
+  it "caches stable pending action presentation until the action changes" do
+    action = chat.pending_actions.create!(action: "cancel_job", payload: { "job_id" => 1 })
+    serializer = described_class.new(repository: repository)
+    cache = ActiveSupport::Cache::MemoryStore.new
+    review_calls = 0
+    presenter = Object.new
+    presenter.define_singleton_method(:tool_card_review) do
+      review_calls += 1
+      { "summary" => "Review #{review_calls}" }
+    end
+    allow(Rails).to receive(:cache).and_return(cache)
+
+    first = serializer.send(:cached_pending_action_presentation, action, presenter)
+    second = serializer.send(:cached_pending_action_presentation, action, presenter)
+    action.update!(payload: { "job_id" => 2 })
+    changed = serializer.send(:cached_pending_action_presentation, action, presenter)
+
+    expect(first).to eq(second)
+    expect(changed).not_to eq(first)
+    expect(review_calls).to eq(2)
   end
 
   it "includes the tracked pull request in a feedback poll pending action outcome" do
