@@ -136,12 +136,10 @@ class ProviderRoutingRule < ApplicationRecord
   def validate_step_trigger
     kind = trigger["kind"].to_s
     errors.add(:trigger, :step_kind_required) if kind.blank?
-    errors.add(:trigger, :step_kind_not_agentic) if kind.present? && !Step::Kind.agentic_values.include?(kind) && kind != "coworker_review"
+    errors.add(:trigger, :step_kind_not_agentic) if kind.present? && !Step::Kind.agentic_values.include?(kind)
   end
 
   def panel_capable_trigger?
-    return true if trigger["type"] == "step" && trigger["kind"] == "coworker_review"
-
     trigger["type"] == "step" && Step::Kind.fetch(trigger["kind"]).panel_capable
   rescue KeyError
     false

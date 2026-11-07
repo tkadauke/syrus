@@ -27,9 +27,10 @@ RSpec.describe "Mcp::Tools provider routing tools" do
       registry_options: a_hash_including(
         agent_providers: include(a_hash_including(value: "claude")),
         action_strategies: include("panel"),
-        panel_capable_step_kinds: contain_exactly("adversarial_review", "security_review")
+        panel_capable_step_kinds: contain_exactly("adversarial_review", "security_review", "coworker_review")
       )
     )
+    expect(payload(response).dig(:registry_options, :step_kinds).count("coworker_review")).to eq(1)
   end
 
   it "rejects a repository the caller cannot manage" do
