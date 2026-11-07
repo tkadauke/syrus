@@ -165,8 +165,6 @@ export type ChatNavRecord = {
   last_message_at?: string | null
   created_at?: string
   updated_at?: string
-  chat_type?: ChatType
-  origin_platform?: string | null
 }
 
 export type ChatJobSummary = {
