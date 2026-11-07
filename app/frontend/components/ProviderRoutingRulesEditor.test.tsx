@@ -196,6 +196,9 @@ describe("ProviderRoutingRulesEditor", () => {
     expect(screen.getByText("Panel: Codex · Claude")).toBeInTheDocument()
     expect(screen.getByText("Hold: Outside support hours · Manual release")).toBeInTheDocument()
     expect(screen.queryByRole("list", { name: /Codex/ })).not.toBeInTheDocument()
+    for (const divider of screen.getAllByTestId("condition-action-divider")) {
+      expect(divider).toHaveClass("hidden", "sm:block")
+    }
   })
 
   it("renders bordered rows with icon actions and reorders from the drag handle", () => {

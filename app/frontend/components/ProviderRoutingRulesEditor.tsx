@@ -465,7 +465,7 @@ function RulesTable({
                     {label}
                   </Pill>
                 ))}
-                <span aria-hidden="true" className="mx-0.5 h-4 border-l border-border" />
+                <span aria-hidden="true" className="mx-0.5 hidden h-4 border-l border-border sm:block" data-testid="condition-action-divider" />
                 <span className="min-w-0 font-medium text-text-primary">{compactActionSummary(rule, options, t)}</span>
               </div>
             </div>
