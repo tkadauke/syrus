@@ -3,7 +3,7 @@
 // Library behind bin/style-debt-report, split out so its formatting/aggregation
 // logic is unit-testable without shelling out or touching the real
 // app/frontend tree. See that script's header comment for usage, and
-// config/syrus_docs/style_debt_report.md for the feature writeup.
+// docs/engineering/conventions/style_debt_report.md for the feature writeup.
 
 const fs = require("node:fs")
 const path = require("node:path")

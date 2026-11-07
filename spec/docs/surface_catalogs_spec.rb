@@ -11,7 +11,7 @@ RSpec.describe "Surface catalogs" do
   it "keeps the generated catalogs in the intended documentation surfaces" do
     expect(Syrus::SurfaceCatalogs::CATALOGS).to eq(
       user_api: "website/src/content/docs/generated/user-api-catalog.md",
-      admin_api: "config/syrus_docs/admin_api_catalog.md",
+      admin_api: "docs/engineering/architecture/admin_api_catalog.md",
       mcp: "config/syrus_docs/mcp_tool_catalog.md",
       cli: "website/src/content/docs/generated/cli-catalog.md"
     )
