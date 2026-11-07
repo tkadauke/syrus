@@ -3656,7 +3656,7 @@ describe("chat proposal cards", () => {
     expect(screen.queryByText(/depends on/)).not.toBeInTheDocument()
   })
 
-  it("shortens the visible Epic confirmation label while preserving the full accessible name", async () => {
+  it("shows explicit backlog and implement routes for an Epic proposal", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
@@ -3687,13 +3687,13 @@ describe("chat proposal cards", () => {
 
     renderRoute()
 
-    const confirmButton = await screen.findByRole("button", { name: "Confirm Epic" })
-    expect(confirmButton).toHaveTextContent("Backlog")
-    expect(confirmButton).toHaveAttribute("title", "Confirm Epic")
-    expect(screen.queryByText("Confirm Epic")).not.toBeInTheDocument()
+    const backlogButton = await screen.findByRole("button", { name: "Confirm proposal to backlog" })
+    expect(backlogButton).toHaveTextContent("Backlog")
+    expect(backlogButton).toHaveAttribute("title", "Confirm proposal to backlog")
+    expect(screen.getByRole("button", { name: "Confirm proposal and implement" })).toHaveTextContent("Implement")
   })
 
-  it("shortens the visible Epic and Jobs confirmation label while preserving the full accessible name", async () => {
+  it("shows explicit backlog and implement routes for an Epic proposal with Jobs", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
@@ -3738,13 +3738,13 @@ describe("chat proposal cards", () => {
 
     renderRoute()
 
-    const confirmButton = await screen.findByRole("button", { name: "Confirm Epic and Jobs" })
-    expect(confirmButton).toHaveTextContent("Backlog")
-    expect(confirmButton).toHaveAttribute("title", "Confirm Epic and Jobs")
-    expect(screen.queryByText("Confirm Epic and Jobs")).not.toBeInTheDocument()
+    const backlogButton = await screen.findByRole("button", { name: "Confirm proposal to backlog" })
+    expect(backlogButton).toHaveTextContent("Backlog")
+    expect(backlogButton).toHaveAttribute("title", "Confirm proposal to backlog")
+    expect(screen.getByRole("button", { name: "Confirm proposal and implement" })).toHaveTextContent("Implement")
   })
 
-  it("offers Create Epic & Start Implementing on Epic proposals to developers and sends the start flag", async () => {
+  it("offers Implement on Epic proposals to developers and sends route and start flags", async () => {
     const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
@@ -3781,20 +3781,20 @@ describe("chat proposal cards", () => {
 
     renderRoute()
 
-    const startButton = await screen.findByRole("button", { name: "Create Epic & Start Implementing" })
+    const startButton = await screen.findByRole("button", { name: "Confirm proposal and implement" })
     expect(startButton).toHaveTextContent("Implement")
-    expect(startButton).toHaveAttribute("title", "Create Epic & Start Implementing")
+    expect(startButton).toHaveAttribute("title", "Confirm proposal and implement")
 
     fireEvent.click(startButton)
 
     await waitFor(() => {
       const confirmCall = fetchMock.mock.calls.find((call) => String(call[0]).startsWith("/api/v1/app/chats/8/proposals/1/confirm"))
       expect(confirmCall).toBeTruthy()
-      expect(JSON.parse(confirmCall?.[1]?.body as string)).toEqual({ start: true })
+      expect(JSON.parse(confirmCall?.[1]?.body as string)).toEqual({ start: true, route_to_backlog: false })
     })
   })
 
-  it("hides Create Epic & Start Implementing from non-developers on Epic proposals", async () => {
+  it("offers backlog and implement routes to non-developers on Epic proposals", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
@@ -3828,8 +3828,8 @@ describe("chat proposal cards", () => {
 
     renderRoute()
 
-    expect(await screen.findByRole("button", { name: "Confirm Epic" })).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "Create Epic & Start Implementing" })).not.toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "Confirm proposal to backlog" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Confirm proposal and implement" })).toBeInTheDocument()
   })
 
   it("keeps Epic proposal action labels on one row at mobile width", async () => {
@@ -3881,7 +3881,7 @@ describe("chat proposal cards", () => {
 
     renderRoute()
 
-    await screen.findByRole("button", { name: "Confirm Epic and Jobs" })
+    await screen.findByRole("button", { name: "Confirm proposal to backlog" })
     const footer = screen.getByTestId("proposal-action-footer")
     await within(footer).findByText("Implement")
     expect(footer).toHaveClass("flex-nowrap", "overflow-hidden")

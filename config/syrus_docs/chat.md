@@ -943,24 +943,22 @@ Job's denormalized lifecycle state has become stale.
 The state check and definition update hold the Job row lock together, so a
 concurrent start cannot race a late edit.
 
-`propose_job` also accepts `route_to_backlog` for a single direct Job proposal
-card. It defaults to false, preserving the current confirmation path: the Job
-starts normally after dependency wiring and triage advancement when it is not
-blocked. When true, the card shows the route as Backlog before confirmation,
-and confirming creates an owned `direct` Job in `state: "backlog"`, links it
-to the originating chat, wires dependencies, attaches proposal media, and does
-not call `advance_after_triage!`, so no initial Workflow or Run is created
-until an operator releases the Job from backlog. The route is editable only on
-the standalone direct Job proposal card; grouped Epic proposal children keep
-their existing materialization behavior and cannot be routed to backlog by this
-v1 control.
+Standalone direct Job and Epic bundle proposals accept `route_to_backlog`. It
+defaults to false, preserving normal confirmation behavior. For a direct Job,
+Backlog creates the owned Job without advancing triage. For an Epic bundle, it
+creates the Epic in `backlog` with its complete child Job chain, proposal media,
+chat link, and goal link intact. Its children remain blocked by the Epic, and
+no initial Workflow or Run is created until an operator starts the Epic through
+the normal lifecycle. Grouped Epic proposal children cannot be routed
+individually.
 
 The Jobs workspace's Proposed section adds selection checkboxes to these
 pending Job and Epic proposals, including a select-all control. Once anything
-is selected, operators can backlog, implement, or reject the selection. A
-selection containing an Epic cannot use Backlog, because backlog routing is a
-direct Job capability; Implement starts a newly materialized Epic just like
-the Epic proposal card's Implement action.
+is selected, operators can backlog, implement, or reject Job-only, Epic-only,
+or mixed selections. Implement starts a newly materialized Epic just like the
+Epic proposal card's Implement action. Confirmations retain dependency-safe
+ordering, and a failure is reported after the remaining selected proposals
+have been attempted.
 
 `propose_job` also accepts `investigation` for a read-only "go look into X and
 tell me what you find" request (a QA walkthrough, an audit, answering a

@@ -729,9 +729,11 @@ that Epic's existing Jobs.
 When a Job proposal card targets an Epic, editing the card shows the target
 Epic as a removable pill so an operator can clear it before confirming,
 turning the proposal back into an epicless direct Job.
-The per-card Backlog route is intentionally scoped to standalone direct Job
-cards. Child Jobs inside grouped Epic proposal cards keep the normal Epic
-materialization path and are not individually routed to the Job backlog.
+The per-card Backlog route supports standalone direct Job cards and complete
+Epic bundles. A backlogged Epic keeps its child Job chain and attachments but
+does not start any Workflow or Run until the Epic is started normally. Child
+Jobs inside grouped Epic proposal cards are not individually routed to the Job
+backlog.
 
 ### Epic reconciliation
 
@@ -1737,11 +1739,12 @@ default/Linux compute, iOS/Xcode work uses macOS, mixed iOS plus backend
 work uses macOS as the primary placement, and ambiguous cross-host
 requests ask for a split or explicit host instead of guessing.
 
-Chat proposal cards for a single direct Job can be routed to Backlog before
-confirmation. The default remains Start normally. A Backlog-routed direct Job
-is created as owned planned work, keeps its chat link, dependencies, and media
-attachments, and does not create an initial Workflow or Run until it is
-released from backlog.
+Chat proposal cards for a direct Job or complete Epic bundle can be routed to
+Backlog before confirmation. The default remains Start normally. Backlogged
+work keeps its chat link, dependencies, and media attachments. A direct Job
+does not create an initial Workflow or Run until released; an Epic materializes
+its complete blocked child chain and starts no Workflow or Run until the Epic
+is started through its normal lifecycle.
 
 When the creator is a `product_owner`, Syrus holds the Job in
 `needs_triage` instead of starting implementation. A developer or admin can
