@@ -104,9 +104,23 @@ module CredentialStore
       raise_audited OperatorConfirmationRequired, "chat SSH calls cannot self-authorize unconstrained hosts" if context.chat? && allow_unconstrained_host
       # Interactive chat calls pass through the generic permission classifier
       # before reaching the broker. Workflow calls retain the explicit flag.
-      if risky_command? && !allow_risky_command && !(context.chat? && context.permission_authorized)
+      if risky_command? && !allow_risky_command && !permission_authorized?
         raise_audited RiskyCommand, "command requires explicit risky-command allowance"
       end
+    end
+
+    def permission_authorized?
+      return false unless context.chat?
+
+      descriptor = PermissionProvider.capability_descriptor("ssh.execute/risky@v1")
+      context.permission_authorized_for?(
+        tool_name: TOOL_NAME,
+        descriptor:,
+        arguments: {
+          credential:, host:, user:, command:, port:,
+          allow_unconstrained_host:, allow_risky_command:
+        }
+      )
     end
 
     def raise_audited(error_class, message)

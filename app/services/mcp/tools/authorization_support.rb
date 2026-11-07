@@ -21,15 +21,16 @@ module Mcp::Tools
 
     module ToolDispatch
       def call(*args, server_context: nil, **kwargs, &block)
-        Mcp::Tools::AuthorizationSupport.with_server_context(server_context) do
-          scheduled = Mcp::Tools::AuthorizationSupport.pending_scheduled_authorization(self, server_context, kwargs)
+        call_context = server_context&.dup
+        Mcp::Tools::AuthorizationSupport.with_server_context(call_context) do
+          scheduled = Mcp::Tools::AuthorizationSupport.pending_scheduled_authorization(self, call_context, kwargs)
           return scheduled if scheduled
-          pending = Mcp::Tools::AuthorizationSupport.pending_coworker_approval(self, server_context, kwargs)
+          pending = Mcp::Tools::AuthorizationSupport.pending_coworker_approval(self, call_context, kwargs)
           return pending if pending
-          pending = Mcp::Tools::AuthorizationSupport.pending_actor_approval(self, server_context, kwargs)
+          pending = Mcp::Tools::AuthorizationSupport.pending_actor_approval(self, call_context, kwargs)
           return pending if pending
 
-          super(*args, server_context: server_context, **kwargs, &block)
+          super(*args, server_context: call_context, **kwargs, &block)
         end
       rescue Mcp::Tools::AuthorizationSupport::AuthorizationError => error
         error.is_a?(Mcp::Tools::AuthorizationSupport::NotAccessible) ? Mcp::Tools.not_authorized : Mcp::Tools.not_authorized(reason: error.message)
@@ -97,7 +98,7 @@ module Mcp::Tools
         # redundant approval before the real action can even be reviewed.
         return if pending_action_tool?(tool)
         if claimed_actor_invocation_authorizes?(descriptor, context, server_context, arguments, tool)
-          server_context[:permission_authorized] = true
+          mark_actor_invocation_authorized!(server_context, descriptor, arguments, tool)
           return
         end
 
@@ -112,8 +113,11 @@ module Mcp::Tools
             "actor" => approval_actor(context.agent_actor || context.user)
           }.compact
         ).call
+        if result.reused_result
+          return MCP::Tool::Response.new([ { type: "text", text: result.reused_result } ])
+        end
         if result.request.nil?
-          server_context[:permission_authorized] = true
+          mark_actor_invocation_authorized!(server_context, descriptor, arguments, tool)
           return
         end
 
@@ -280,6 +284,13 @@ module Mcp::Tools
         fingerprint = Permissions::InvocationFingerprint.call(descriptor:, arguments:)
         ActiveSupport::SecurityUtils.secure_compare(invocation.invocation_fingerprint, fingerprint) ||
           raise(AuthorizationError, "authorized invocation fingerprint does not match")
+      end
+
+      def mark_actor_invocation_authorized!(server_context, descriptor, arguments, tool)
+        server_context[:permission_authorization] = {
+          "tool_name" => McpToolRegistry.tool_name_for(tool),
+          "invocation_fingerprint" => Permissions::InvocationFingerprint.call(descriptor:, arguments:)
+        }.freeze
       end
 
       def pending_action_tool?(tool)

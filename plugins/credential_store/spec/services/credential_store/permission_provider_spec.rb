@@ -98,6 +98,26 @@ RSpec.describe CredentialStore::PermissionProvider do
     expect(Permissions::InvocationFingerprint.call(descriptor:, arguments:)).not_to eq(changed_destination)
   end
 
+  it "redacts common SSH command secrets and fails closed without a reviewable command" do
+    descriptor = described_class.capability_descriptor("ssh.execute/risky@v1")
+    base = { credential: "production", host: "api.example.com", user: "deploy" }
+
+    password = descriptor.redact(base.merge(command: "curl --password=hunter2 https://api.example.com"))["command"]
+    authorization = descriptor.redact(base.merge(command: "curl -H 'Authorization: Bearer abcdefghijklmnop' https://api.example.com"))["command"]
+    url = descriptor.redact(base.merge(command: "curl https://deploy:hunter2@api.example.com"))["command"]
+
+    expect(password).to include("--password=[redacted]")
+    expect(password).not_to include("hunter2")
+    expect(authorization).to include("Bearer [redacted]")
+    expect(authorization).not_to include("abcdefghijklmnop")
+    expect(url).to include("deploy:[redacted]@")
+    expect(url).not_to include("hunter2")
+
+    expect {
+      descriptor.redact(base.merge(command: "sk-abcdefghijklmnopqrstuvwxyz"))
+    }.to raise_error(Mcp::Tools::AuthorizationSupport::AuthorizationError, /cannot be represented safely/)
+  end
+
   it "creates exact chat and permanent approvals that do not cross commands, destinations, or classifications" do
     owner = Factories.user
     chat = ChatSession.create!(user: owner, title: "SSH approval")
