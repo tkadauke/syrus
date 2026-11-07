@@ -166,7 +166,7 @@ function BulkEpicActions({ selectedIds }: { selectedIds: number[] }) {
         setProgress({ completed: succeeded, total: epicIds.length })
       }
 
-      return { canceled: cancelRequestedRef.current, failed, lastMessage, processed, succeeded, total: epicIds.length }
+      return { canceled: cancelRequestedRef.current && processed < epicIds.length, failed, lastMessage, processed, succeeded, total: epicIds.length }
     },
     onSuccess: (result) => {
       if (result.canceled) setNotice(t("bulk_epic_action_canceled", { completed: result.processed, total: result.total }))
