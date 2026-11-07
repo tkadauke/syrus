@@ -30,13 +30,22 @@ RSpec.describe "App API job source image", type: :request do
   end
 
   it "caches content addressed revisions as immutable" do
-    sha = "a" * 40
-    stub_repository_content(repo, ref: sha, files: { "logo.png" => png_bytes })
+    revision = stub_repository_content(repo, ref: "main", files: { "logo.png" => png_bytes })
 
-    get "/api/v1/app/jobs/#{job.id}/source_image", params: { path: "logo.png", ref: sha }
+    get "/api/v1/app/jobs/#{job.id}/source_image", params: { path: "logo.png", ref: revision.id }
 
     expect(response).to have_http_status(:ok)
     expect(response.headers["Cache-Control"]).to include("private", "max-age=31536000", "immutable")
+  end
+
+  it "does not cache a hex-looking mutable ref as immutable" do
+    stub_repository_content(repo, ref: "deadbeef", files: { "logo.png" => png_bytes })
+
+    get "/api/v1/app/jobs/#{job.id}/source_image", params: { path: "logo.png", ref: "deadbeef" }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.headers["Cache-Control"]).not_to include("immutable")
+    expect(response.headers["ETag"]).to be_present
   end
 
   it "downloads repository HTML instead of serving it inline" do
