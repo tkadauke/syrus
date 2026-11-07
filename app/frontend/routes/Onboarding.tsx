@@ -62,7 +62,9 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
   const readinessProbe = useQuery({
     queryKey: ["repository-readiness-probe", repositoryId],
     queryFn: () => fetchRepositoryReadinessProbe(repositoryId!),
-    enabled: Boolean(repositoryId) && (readiness.data?.readiness?.execution_probe?.status === "queued" || readiness.data?.readiness?.execution_probe?.status === "running"),
+    enabled:
+      Boolean(repositoryId) &&
+      (readiness.data?.readiness?.execution_probe?.status === "queued" || readiness.data?.readiness?.execution_probe?.status === "running"),
     refetchInterval: (query) => {
       const status = query.state.data?.execution_probe?.status
       return status === "queued" || status === "running" ? Math.min(1_000 * 2 ** query.state.dataUpdateCount, 8_000) : false

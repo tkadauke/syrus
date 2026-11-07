@@ -96,5 +96,4 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/team_grants", type:
       expect(repository.repository_memberships.exists?(user: owner)).to be true
     end
   end
-
 end
