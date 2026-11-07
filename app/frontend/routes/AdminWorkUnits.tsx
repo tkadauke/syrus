@@ -32,6 +32,7 @@ export function AdminWorkUnits() {
   const workUnits = useQuery({
     queryKey: ["admin", "work_units", location.search],
     queryFn: ({ signal }) => fetchAdminWorkUnits(location.search, signal),
+    staleTime: 0,
     refetchInterval: POLL_INTERVAL_MS
   })
   const toggleDebug = useMutation({

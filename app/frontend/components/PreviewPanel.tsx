@@ -111,6 +111,7 @@ export function PreviewPanel({
     queryKey: previewQueryKey,
     queryFn: () => fetchPreview(previewPath),
     initialData: { preview: initialPreview, preview_projects: initialPreviewProjects },
+    staleTime: 0,
     refetchInterval: (query) => {
       const env = query.state.data?.preview
       return env && isActive(env.state) ? POLL_INTERVAL_MS : false
@@ -150,6 +151,7 @@ export function PreviewPanel({
     select: (data) => data.deploy,
     initialData: { deploy: initialDeploy ?? null },
     enabled: Boolean(deployPath),
+    staleTime: 0,
     refetchInterval: (query) => {
       const workflow = query.state.data?.deploy
       return workflow && isDeployActive(workflow.state) ? POLL_INTERVAL_MS : false
@@ -336,6 +338,7 @@ function PreviewLogsModal({
   const logs = useQuery({
     queryKey: [`${queryKeyPrefix}-preview-logs`, entityId],
     queryFn: () => fetchPreviewLogs(previewLogsPath),
+    staleTime: 0,
     refetchInterval: running ? POLL_INTERVAL_MS : false
   })
 

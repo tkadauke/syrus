@@ -1,6 +1,6 @@
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { QueryClientProvider } from "@tanstack/react-query"
 import { BrowserRouter } from "react-router-dom"
 import { I18nextProvider } from "react-i18next"
 import { App } from "./routes/App"
@@ -12,6 +12,7 @@ import { markStartupMilestone } from "./lib/startupDiagnostics"
 import { installStaleChunkRecovery } from "./lib/staleChunkRecovery"
 import { configureExcalidrawAssets } from "./lib/excalidrawAssets"
 import { StartupRenderMarker } from "./lib/StartupRenderMarker"
+import { createQueryClient } from "./queryClient"
 
 installStaleChunkRecovery()
 configureExcalidrawAssets()
@@ -20,7 +21,7 @@ startBrowserPerformanceObservers()
 markStartupMilestone("react_module_evaluated")
 
 const root = document.getElementById("syrus-spa-root")
-const queryClient = new QueryClient()
+const queryClient = createQueryClient()
 
 if (root) {
   createRoot(root).render(
