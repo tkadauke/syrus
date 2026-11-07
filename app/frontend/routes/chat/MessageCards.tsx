@@ -31,6 +31,7 @@ import { linkifySlugs } from "../../lib/linkifySlugs"
 import { CodeSurface, Pill, Text } from "../../components/ui"
 import { detectHighlighterLanguage } from "../../lib/highlighter"
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard"
+import { useLongPressMenu } from "../../hooks/useLongPressMenu"
 import { useT } from "../../hooks/useT"
 import { errorMessage } from "../../lib/errorMessage"
 import { mergeChatPayloadUpdate } from "../../lib/chatCache"
@@ -101,6 +102,7 @@ export const ChatMessage = memo(function ChatMessage({
   // Motion-safe entrance; reduced-motion users stay at rest.
   const entranceClass = animateIn ? " motion-safe:animate-chat-message-in" : ""
   const [sourcePreview, setSourcePreview] = useState<WorkspaceFileLink | null>(null)
+  const messageMenu = useLongPressMenu(!readOnly && !!item.text)
 
   function handleMarkdownLink(href: string, event: MouseEvent<HTMLAnchorElement>) {
     const resolved = resolveWorkspaceFileLink(href, payload)
@@ -151,9 +153,9 @@ export const ChatMessage = memo(function ChatMessage({
 
   if (item.role === "user") {
     return (
-      <article className={`group/message relative flex justify-end pt-6${entranceClass}`} id={`chat_message_${item.id}`}>
+      <article className={`group/message relative flex justify-end pt-6${entranceClass}`} id={`chat_message_${item.id}`} {...messageMenu.targetProps}>
         <span className="absolute -top-4" id={`message-${item.id}`} />
-        {readOnly ? null : <MessageActions item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} />}
+        {readOnly ? null : <MessageActions item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} menu={messageMenu} />}
         <div className="max-w-[min(42rem,85%)] space-y-2">
           {payload.chat.conversation_kind === "group" && item.sender_user ? (
             <div className="pr-1 text-right text-xs font-medium text-gray-500 dark:text-gray-400">{item.sender_user.name}</div>
@@ -189,9 +191,9 @@ export const ChatMessage = memo(function ChatMessage({
     const appearance = payload.agent_appearance
     const appearanceColor = appearance ? accentRamp(appearance.accent_hex) : null
     return (
-      <SharedMessageRenderer animateClass={entranceClass} id={`chat_message_${item.id}`} readOnly={readOnly}>
+      <SharedMessageRenderer animateClass={entranceClass} id={`chat_message_${item.id}`} readOnly={readOnly} targetProps={messageMenu.targetProps}>
         <span className="absolute -top-4" id={`message-${item.id}`} />
-        {readOnly ? null : <MessageActions item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} />}
+        {readOnly ? null : <MessageActions item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} menu={messageMenu} />}
         <div
           className={`space-y-3 ${appearance ? "rounded-r border-l-4 p-4" : ""}`}
           style={appearanceColor ? { backgroundColor: appearanceColor.wash, borderLeftColor: appearanceColor.solid } : undefined}
@@ -289,6 +291,7 @@ function CoworkerMessage({
   systemNote?: boolean
 }) {
   const { t } = useT("chat")
+  const messageMenu = useLongPressMenu(!readOnly && !!item.text)
   const colors = appearance ? accentRamp(appearance.accent_hex) : null
   const label = appearance?.name || (fallbackHandle ? `@${fallbackHandle}` : "—")
   const accentStyle = colors
@@ -298,9 +301,9 @@ function CoworkerMessage({
       } as CSSProperties)
     : undefined
   return (
-    <SharedMessageRenderer animateClass={entranceClass} id={`chat_message_${item.id}`} readOnly={readOnly}>
+    <SharedMessageRenderer animateClass={entranceClass} id={`chat_message_${item.id}`} readOnly={readOnly} targetProps={messageMenu.targetProps}>
       <span className="absolute -top-4" id={`message-${item.id}`} />
-      {readOnly ? null : <MessageActions item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} />}
+      {readOnly ? null : <MessageActions item={item} payload={payload} queryKey={queryKey} onNotice={onNotice} menu={messageMenu} />}
       <div
         className={`min-w-0 space-y-2 rounded-r border-l-4 p-4 text-text-primary ${colors ? "" : "border-border bg-surface-subtle"}`}
         style={accentStyle}
@@ -442,26 +445,53 @@ export function SharedMessageRenderer({
   as = "article",
   children,
   compact = false,
+  copyText,
   id,
   readOnly = false,
-  testId
+  testId,
+  targetProps
 }: {
   animateClass?: string
   as?: "article" | "li"
   children: ReactNode
   compact?: boolean
+  copyText?: string
   id?: string
   readOnly?: boolean
   testId?: string
+  targetProps?: ReturnType<typeof useLongPressMenu>["targetProps"]
 }) {
   const Component = as
+  const copyMenu = useLongPressMenu(!!copyText)
+  const { copied, copy } = useCopyToClipboard()
+  const { t } = useT("chat")
+  const resolvedTargetProps = copyText ? copyMenu.targetProps : targetProps
   return (
     <Component
       className={`group/message relative min-w-0 ${compact ? "pt-1" : "pt-6"} text-sm text-text-primary${animateClass}`}
       data-message-mode={readOnly ? "read-only" : "interactive"}
       data-testid={testId}
       id={id}
+      {...resolvedTargetProps}
     >
+      {copyText ? (
+        <div
+          className={`absolute right-0 top-0 z-10 max-w-full justify-end ${copyMenu.open ? "flex" : "hidden group-hover/message:flex group-focus-within/message:flex"}`}
+          ref={copyMenu.menuRef}
+        >
+          <button
+            aria-label={t("copy")}
+            className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+            onClick={() => {
+              copy(copyText)
+              copyMenu.close()
+            }}
+            type="button"
+          >
+            {copied ? t("shared.copied") : t("copy")}
+          </button>
+        </div>
+      ) : null}
       {children}
     </Component>
   )
@@ -993,12 +1023,14 @@ function MessageActions({
   item,
   payload,
   queryKey,
-  onNotice
+  onNotice,
+  menu
 }: {
   item: Extract<ChatRenderItem, { type: "message" }>
   payload: ChatPayload
   queryKey: ChatQueryKey
   onNotice: (message: string | null) => void
+  menu: ReturnType<typeof useLongPressMenu>
 }) {
   const { t } = useT("chat")
   const [bookmarkFormOpen, setBookmarkFormOpen] = useState(false)
@@ -1008,10 +1040,17 @@ function MessageActions({
 
   function handleCopy() {
     copy(item.text)
+    menu.close()
   }
 
   return (
-    <div className={`absolute right-0 top-0 z-10 flex gap-1 ${bookmarkFormOpen ? "flex" : "hidden group-hover/message:flex"}`}>
+    <div
+      className={`absolute right-0 top-0 z-10 max-w-full flex-wrap justify-end gap-1 ${bookmarkFormOpen || menu.open ? "flex" : "hidden group-hover/message:flex group-focus-within/message:flex"}`}
+      onClick={(event) => {
+        if ((event.target as Element).closest("button") && !bookmarkFormOpen) menu.close()
+      }}
+      ref={menu.menuRef}
+    >
       {item.created_at ? (
         <time
           className="flex items-center rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-400 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500"
@@ -1684,7 +1723,7 @@ export function SystemMessage({
         <button
           aria-expanded={expanded}
           aria-label={expanded ? t("system_message_hide_details") : t("system_message_show_details")}
-          className="shrink-0 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+          className="shrink-0 text-text-muted hover:text-text-secondary"
           onClick={() => setExpanded((value) => !value)}
           type="button"
         >
