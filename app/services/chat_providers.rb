@@ -1,6 +1,14 @@
 module ChatProviders
   class ConfigurationError < StandardError; end
 
+  CHAT_MODELS = {
+    "claude" => [
+      { value: "claude-opus-4-7", label: "Claude Opus 4.7" },
+      { value: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
+      { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5" }
+    ].freeze
+  }.freeze
+
   def self.for(provider)
     provider_key = provider.to_s
     klass = PerformanceLogging.phase("chat_providers.lookup", provider: provider_key) do
@@ -26,5 +34,9 @@ module ChatProviders
     self.for(provider).display_name
   rescue ConfigurationError
     provider.to_s.titleize
+  end
+
+  def self.available_models(provider)
+    CHAT_MODELS.fetch(provider.to_s, [])
   end
 end

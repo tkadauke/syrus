@@ -1266,11 +1266,22 @@ function ChatTurnIndicator({
   retryNowPending?: boolean
   onRetryNow?: () => void
 }) {
-  const retry = payload.chat.turn_retry_state
+  const legacy = payload as ChatPayload & {
+    agent_activity?: ChatPayload["chat"]["agent_activity"]
+    agent_busy?: boolean
+    turn_retry_state?: ChatPayload["chat"]["turn_retry_state"]
+  }
+  const retry = payload.chat.turn_retry_state ?? legacy.turn_retry_state
   if (retry && agentActive) return <TurnRetryIndicator retry={retry} retryNowPending={retryNowPending} onRetryNow={onRetryNow} />
   if (payload.switching_provider)
     return <SwitchingProviderIndicator provider={payload.chat.chat_provider ?? ""} providerLabel={switchingProviderLabel(payload)} />
-  if (agentActive) return <AgentActivityIndicator activity={payload.chat.agent_activity ?? null} running={Boolean(payload.chat.agent_busy)} />
+  if (agentActive)
+    return (
+      <AgentActivityIndicator
+        activity={payload.chat.agent_activity ?? legacy.agent_activity ?? null}
+        running={Boolean(payload.chat.agent_busy ?? legacy.agent_busy)}
+      />
+    )
 
   return null
 }
