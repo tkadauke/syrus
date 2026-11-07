@@ -2952,7 +2952,7 @@ function useChatDictation({
     chunksRef.current = []
     discardOnStopRef.current = false
     startedAtRef.current = Date.now()
-    const recorder = new MediaRecorder(mediaStream, { mimeType: recorderMimeType() })
+    const recorder = new MediaRecorder(mediaStream, { mimeType: recorderMimeType(), audioBitsPerSecond: 32_000 })
     recorderRef.current = recorder
     recorder.ondataavailable = (event: BlobEvent) => {
       if (!event.data || event.data.size === 0) return
