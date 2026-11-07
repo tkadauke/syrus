@@ -3,6 +3,7 @@ import type { DiffReviewAnnotation, DiffReviewAnnotationAction, DiffReviewAnnota
 import { Button, buttonClasses } from "./components/Button"
 import { useT } from "./hooks/useT"
 import { Markdown } from "./lib/Markdown"
+import { loadPluginModule } from "./i18n"
 
 export type PluginReviewAnnotationComponentProps = {
   item: DiffReviewAnnotation | DiffReviewAnnotationPanel | DiffReviewAnnotationAction
@@ -15,7 +16,10 @@ type PluginModule = {
   default?: ComponentType<PluginReviewAnnotationComponentProps>
 }
 
-const annotationModules = import.meta.glob<PluginModule>([ "../../plugins/*/app/frontend/review_annotations/*.tsx", "!../../plugins/*/app/frontend/review_annotations/*.test.tsx" ])
+const annotationModules = import.meta.glob<PluginModule>([
+  "../../plugins/*/app/frontend/review_annotations/*.tsx",
+  "!../../plugins/*/app/frontend/review_annotations/*.test.tsx"
+])
 
 export const pluginReviewAnnotationComponentKeys = Object.keys(annotationModules)
   .map((path) => path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/review_annotations\/([^/.]+)\.tsx$/))
@@ -44,7 +48,7 @@ export function pluginReviewAnnotationComponentFor(key: string | null | undefine
   if (!loader) return null
 
   const Component = lazy(async () => {
-    const mod = await loader()
+    const mod = await loadPluginModule(key.split("/", 1)[0], loader)
     if (!mod.default) throw new Error(`Plugin review annotation component ${key} has no default export`)
     return { default: mod.default }
   })

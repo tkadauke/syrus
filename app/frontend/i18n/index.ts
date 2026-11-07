@@ -1,120 +1,86 @@
-import i18n from "i18next"
-import type { Resource, ResourceLanguage } from "i18next"
+import i18n, { type BackendModule, type ReadCallback, type ResourceLanguage } from "i18next"
 import { initReactI18next } from "react-i18next"
 
-import enCommon from "./locales/en/common.json"
-import enNav from "./locales/en/nav.json"
-import enJobs from "./locales/en/jobs.json"
-import enEpics from "./locales/en/epics.json"
-import enDashboard from "./locales/en/dashboard.json"
-import enChat from "./locales/en/chat.json"
-import enSettings from "./locales/en/settings.json"
-import enAdmin from "./locales/en/admin.json"
-import enAuth from "./locales/en/auth.json"
-import enLanding from "./locales/en/landing.json"
-import enTours from "./locales/en/tours.json"
-
-import deCommon from "./locales/de/common.json"
-import deNav from "./locales/de/nav.json"
-import deJobs from "./locales/de/jobs.json"
-import deEpics from "./locales/de/epics.json"
-import deDashboard from "./locales/de/dashboard.json"
-import deChat from "./locales/de/chat.json"
-import deSettings from "./locales/de/settings.json"
-import deAdmin from "./locales/de/admin.json"
-import deAuth from "./locales/de/auth.json"
-import deLanding from "./locales/de/landing.json"
-import deTours from "./locales/de/tours.json"
-
-import laCommon from "./locales/la/common.json"
-import laNav from "./locales/la/nav.json"
-import laJobs from "./locales/la/jobs.json"
-import laEpics from "./locales/la/epics.json"
-import laDashboard from "./locales/la/dashboard.json"
-import laChat from "./locales/la/chat.json"
-import laSettings from "./locales/la/settings.json"
-import laAdmin from "./locales/la/admin.json"
-import laAuth from "./locales/la/auth.json"
-import laLanding from "./locales/la/landing.json"
-import laTours from "./locales/la/tours.json"
-
 import { readInitialBootstrap } from "../api/bootstrap"
+
+type LocaleModule = { default: ResourceLanguage }
+type LocaleLoader = () => Promise<LocaleModule>
+
+export const supportedLocales = ["en", "de", "la"] as const
+export type SupportedLocale = (typeof supportedLocales)[number]
+export const coreNamespaces = ["common", "nav", "jobs", "epics", "dashboard", "chat", "settings", "admin", "auth", "landing", "tours"] as const
+
+const coreLocaleModules = import.meta.glob<LocaleModule>("./locales/*/*.json")
+const pluginLocaleModules = import.meta.glob<LocaleModule>("../../../plugins/*/app/frontend/i18n/locales/*/*.json")
+const localeLoaders = new Map<string, LocaleLoader>()
+const pluginNamespaces = new Map<string, Set<string>>()
+
+for (const [path, loader] of Object.entries(coreLocaleModules)) {
+  const match = path.match(/\/locales\/([^/]+)\/([^/.]+)\.json$/)
+  if (match) localeLoaders.set(`${match[1]}:${match[2]}`, loader)
+}
+
+for (const [path, loader] of Object.entries(pluginLocaleModules)) {
+  const match = path.match(/\/plugins\/([^/]+)\/app\/frontend\/i18n\/locales\/([^/]+)\/([^/.]+)\.json$/)
+  if (!match) continue
+
+  const [, plugin, locale, namespace] = match
+  localeLoaders.set(`${locale}:${namespace}`, loader)
+  const namespaces = pluginNamespaces.get(plugin) ?? new Set<string>()
+  namespaces.add(namespace)
+  pluginNamespaces.set(plugin, namespaces)
+}
+
+const localeBackend: BackendModule = {
+  type: "backend",
+  init: () => undefined,
+  read(language: string, namespace: string, callback: ReadCallback) {
+    const loader = localeLoaders.get(`${language}:${namespace}`)
+    if (!loader) {
+      callback(new Error(`No locale module for ${language}:${namespace}`), false)
+      return
+    }
+
+    void loader().then(
+      (module) => callback(null, module.default),
+      (error: unknown) => callback(error instanceof Error ? error : new Error(String(error)), false)
+    )
+  }
+}
 
 const bootstrap = readInitialBootstrap()
 const storedLocale = bootstrap?.current_user?.locale
 const browserLocale = navigator.language?.split("-")[0]
-const supportedLocales = ["en", "de", "la"]
-const detectedLocale = storedLocale ?? (supportedLocales.includes(browserLocale) ? browserLocale : undefined)
-const pluginLocaleModules = import.meta.glob<Record<string, unknown>>(
-  "../../../plugins/*/app/frontend/i18n/locales/*/*.json",
-  { eager: true, import: "default" }
-)
-const pluginNamespaces = new Set<string>()
-const resources: Resource = {
-  en: {
-    common: enCommon,
-    nav: enNav,
-    jobs: enJobs,
-    epics: enEpics,
-    dashboard: enDashboard,
-    chat: enChat,
-    settings: enSettings,
-    admin: enAdmin,
-    auth: enAuth,
-    landing: enLanding,
-    tours: enTours
-  },
-  de: {
-    common: deCommon,
-    nav: deNav,
-    jobs: deJobs,
-    epics: deEpics,
-    dashboard: deDashboard,
-    chat: deChat,
-    settings: deSettings,
-    admin: deAdmin,
-    auth: deAuth,
-    landing: deLanding,
-    tours: deTours
-  },
-  la: {
-    common: laCommon,
-    nav: laNav,
-    jobs: laJobs,
-    epics: laEpics,
-    dashboard: laDashboard,
-    chat: laChat,
-    settings: laSettings,
-    admin: laAdmin,
-    auth: laAuth,
-    landing: laLanding,
-    tours: laTours
-  }
+const detectedLocale = storedLocale ?? (supportedLocales.includes(browserLocale as SupportedLocale) ? browserLocale : "en")
+
+export const i18nReady = i18n
+  .use(localeBackend)
+  .use(initReactI18next)
+  .init({
+    lng: detectedLocale,
+    fallbackLng: "en",
+    supportedLngs: [...supportedLocales],
+    load: "languageOnly",
+    defaultNS: "common",
+    ns: [...coreNamespaces],
+    interpolation: { escapeValue: false },
+    react: { useSuspense: true }
+  })
+
+/** Load a plugin's translations at the same lazy boundary as its UI module. */
+export async function loadPluginLocales(plugin: string) {
+  await i18nReady
+  const namespaces = [...(pluginNamespaces.get(plugin) ?? [])]
+  if (namespaces.length > 0) await i18n.loadNamespaces(namespaces)
 }
 
-for (const [path, messages] of Object.entries(pluginLocaleModules)) {
-  const match = path.match(/\/locales\/([^/]+)\/([^/.]+)\.json$/)
-  if (!match) continue
-
-  const [, locale, namespace] = match
-  if (!supportedLocales.includes(locale)) continue
-
-  pluginNamespaces.add(namespace)
-  resources[locale as keyof typeof resources] = {
-    ...resources[locale as keyof typeof resources],
-    [namespace]: messages as ResourceLanguage
-  }
+export async function loadPluginModule<T>(plugin: string, loader: () => Promise<T>) {
+  const [, module] = await Promise.all([loadPluginLocales(plugin), loader()])
+  return module
 }
 
-i18n.use(initReactI18next).init({
-  lng: detectedLocale,
-  fallbackLng: "en",
-  defaultNS: "common",
-  ns: ["common", "nav", "jobs", "epics", "dashboard", "chat", "settings", "admin", "auth", "landing", "tours", ...pluginNamespaces],
-  resources,
-  interpolation: {
-    escapeValue: false
-  }
-})
+export function pluginNamespacesFor(plugin: string | null | undefined) {
+  return plugin ? [...(pluginNamespaces.get(plugin) ?? [])] : []
+}
 
 export default i18n
