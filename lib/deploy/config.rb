@@ -50,6 +50,7 @@ module Deploy
     def worker_dev_registry = fetch("WORKER_DEV_REGISTRY", DEFAULT_WORKER_DEV_REGISTRY)
     def plugin_registry_root = fetch("SYRUS_PLUGIN_REGISTRY_ROOT", DEFAULT_PLUGIN_REGISTRY_ROOT)
     def ghcr_user = fetch("GHCR_USER", "tkadauke")
+    def ghcr_token = fetch("GHCR_TOKEN", nil)
 
     def ghcr_token_file
       fetch("SYRUS_GHCR_TOKEN_FILE", File.join(Dir.home, ".config", "syrus", "ghcr-token"))

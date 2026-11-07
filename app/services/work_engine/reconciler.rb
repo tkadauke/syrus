@@ -169,14 +169,21 @@ module WorkEngine
     def self.call_locked!(source:, job_id: nil, workflow_id: nil, run_id: nil, work_intent_id: nil, now: Time.current, execute_repairs: false)
       lock_job = ReconcileJob.new(source: source.to_s, job_id: job_id, workflow_id: workflow_id, run_id: run_id, work_intent_id: work_intent_id)
 
+      semaphore_available = true
       locked =
         begin
           SolidQueue::Semaphore.wait(lock_job)
         rescue ActiveRecord::StatementInvalid, ActiveRecord::ConnectionNotEstablished, NameError => e
           Rails.logger.warn("[WorkEngine::Reconciler] SolidQueue semaphore unavailable (#{e.class}: #{e.message}); running #{source} reconcile without a concurrency lock")
+          semaphore_available = false
           nil
         end
-      return nil if locked == false
+      return nil if semaphore_available && !locked
+
+      if locked
+        lock_job.define_singleton_method(:acquired_semaphore_id) { locked }
+        lock_job.define_singleton_method(:acquired_concurrency_limit) { concurrency_limit }
+      end
 
       begin
         call(source: source, job_id: job_id, workflow_id: workflow_id, run_id: run_id, work_intent_id: work_intent_id, now: now, execute_repairs: execute_repairs)

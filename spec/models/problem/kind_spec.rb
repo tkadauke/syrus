@@ -12,7 +12,7 @@ RSpec.describe Problem::Kind do
       classifier_source.scan(/result\(\s*"([a-z_]+)"/).flatten +
         repair_executor_source.scan(/classification:\s*"([a-z_]+)"/).flatten +
         step_sources.flat_map { |path| File.read(path).scan(/(?:fail_with!\(|problem_code )[:\s]*:([a-z0-9_]+)/).flatten } +
-        [ ProviderUsageLimit::CLASSIFICATION, ProviderModelUnsupported::CLASSIFICATION ]
+        [ RunFailureClassifier::UNCLASSIFIED, ProviderUsageLimit::CLASSIFICATION, ProviderModelUnsupported::CLASSIFICATION ]
     end
 
     # The registry is only useful if it is exhaustive: an unregistered
