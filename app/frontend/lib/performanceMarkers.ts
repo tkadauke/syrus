@@ -17,10 +17,10 @@
 import { useEffect, useRef } from "react"
 import {
   browserTraceId,
+  flushBrowserTraceQueue,
   performanceLoggingEnabled,
-  postBrowserTraces,
+  recordBrowserTrace,
   type BrowserTraceApiRequest,
-  type BrowserTracePayload,
   type BrowserTraceSpan
 } from "./performanceTrace"
 
@@ -57,13 +57,6 @@ export type PerformanceMarkerHandle = {
 const DEFAULT_SAMPLE_RATE = 1
 const DEFAULT_MAX_PER_SESSION = 50
 const DEFAULT_THRESHOLD_MS = 0
-const QUEUE_FLUSH_DELAY_MS = 2_000
-const QUEUE_FLUSH_SIZE = 20
-
-let queue: BrowserTracePayload[] = []
-let flushTimer: ReturnType<typeof setTimeout> | null = null
-let lifecycleListenersInstalled = false
-let lifecycleCleanups: Array<() => void> = []
 const sessionCounts = new Map<string, number>()
 
 // Explicit start/end pair for spans that don't fit a single function call --
@@ -170,26 +163,18 @@ export function useMarkedRender(name: string, options: PerformanceMarkerOptions 
 }
 
 export function flushPerformanceMarkerQueue(options: { beacon?: boolean } = {}): void {
-  flushQueue(options)
+  flushBrowserTraceQueue(options)
 }
 
 export function resetPerformanceMarkersForTest(): void {
-  queue = []
-  if (flushTimer != null) {
-    clearTimeout(flushTimer)
-    flushTimer = null
-  }
   sessionCounts.clear()
-  lifecycleCleanups.forEach((cleanup) => cleanup())
-  lifecycleCleanups = []
-  lifecycleListenersInstalled = false
 }
 
 function enqueueMarkerEvent(name: string, durationMs: number | null, options: PerformanceMarkerOptions, traceId?: string): void {
   if (!markerLoggingEnabled(options)) return
   if (!shouldRecordMarker(name, durationMs, options)) return
 
-  queue.push({
+  recordBrowserTrace({
     trace_id: traceId ?? browserTraceId(markerPrefix(name)),
     parent_id: options.parentId ?? undefined,
     interaction_id: options.interactionId ?? undefined,
@@ -200,8 +185,7 @@ function enqueueMarkerEvent(name: string, durationMs: number | null, options: Pe
     metadata: compactMetadata(options.metadata),
     api_requests: options.apiRequests,
     spans: options.spans
-  })
-  scheduleFlush()
+  }, { enabled: true })
 }
 
 function shouldRecordMarker(name: string, durationMs: number | null, options: PerformanceMarkerOptions): boolean {
@@ -223,47 +207,6 @@ function markerLoggingEnabled(options: PerformanceMarkerOptions): boolean {
   if (options.enabled === false) return false
   if (options.enabled === true) return true
   return performanceLoggingEnabled()
-}
-
-function scheduleFlush(): void {
-  ensureLifecycleListeners()
-  if (queue.length >= QUEUE_FLUSH_SIZE) {
-    flushQueue()
-    return
-  }
-  if (flushTimer != null) return
-  flushTimer = setTimeout(() => flushQueue(), QUEUE_FLUSH_DELAY_MS)
-}
-
-function flushQueue(options: { beacon?: boolean } = {}): void {
-  if (flushTimer != null) {
-    clearTimeout(flushTimer)
-    flushTimer = null
-  }
-  if (queue.length === 0) return
-  const batch = queue
-  queue = []
-  // Already gated per-event in enqueueMarkerEvent; force-send here so a flag
-  // flip between enqueue and flush can't silently drop an approved batch.
-  postBrowserTraces(batch, { beacon: options.beacon, enabled: true })
-}
-
-function ensureLifecycleListeners(): void {
-  if (lifecycleListenersInstalled) return
-  if (typeof document === "undefined") return
-  lifecycleListenersInstalled = true
-
-  const flushWithBeacon = () => flushQueue({ beacon: true })
-  const onVisibilityChange = () => {
-    if (document.visibilityState === "hidden") flushWithBeacon()
-  }
-  document.addEventListener("visibilitychange", onVisibilityChange)
-  lifecycleCleanups.push(() => document.removeEventListener("visibilitychange", onVisibilityChange))
-
-  if (typeof window !== "undefined") {
-    window.addEventListener("pagehide", flushWithBeacon)
-    lifecycleCleanups.push(() => window.removeEventListener("pagehide", flushWithBeacon))
-  }
 }
 
 function compactMetadata(metadata?: PerformanceMarkerMetadata): Record<string, string | number | boolean> | undefined {

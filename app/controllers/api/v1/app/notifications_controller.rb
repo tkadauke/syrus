@@ -7,7 +7,9 @@ module Api
         PER_PAGE = 20
 
         def index
-          render json: notifications_payload
+          relation = filtered_notifications
+          fresh_when etag: notifications_etag(relation), public: false
+          render json: notifications_payload(relation) unless performed?
         end
 
         def mark_all_read
@@ -15,7 +17,7 @@ module Api
           Current.user.notifications.unread.update_all(read_at: read_at)
           broadcast_read_update(all_read: true, read_at: read_at)
 
-          render json: notifications_payload
+          render json: { unread_count: 0 }
         end
 
         def mark_read
@@ -33,26 +35,35 @@ module Api
 
         private
 
-        def notifications_payload
-          relation = filtered_notifications
-          total = relation.count
+        def notifications_payload(relation)
           page = page_param
-          total_pages = (total.to_f / PER_PAGE).ceil
           notifications = relation
             .recent
             .offset((page - 1) * PER_PAGE)
             .limit(PER_PAGE)
 
-          {
+          payload = {
             notifications: notifications.map { |notification| notification_json(notification) },
-            unread_count: unread_count,
-            pagination: {
+            unread_count: unread_count
+          }
+          if include_pagination?
+            total = relation.count
+            payload[:pagination] = {
               page: page,
               per_page: PER_PAGE,
               total: total,
-              total_pages: total_pages
+              total_pages: (total.to_f / PER_PAGE).ceil
             }
-          }
+          end
+          payload
+        end
+
+        def include_pagination?
+          params[:pagination] != "false"
+        end
+
+        def notifications_etag(relation)
+          [ relation.maximum(:updated_at), relation.maximum(:id), unread_count, page_param, include_pagination? ]
         end
 
         def filtered_notifications

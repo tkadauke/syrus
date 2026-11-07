@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { fetchInvitableUsers, type InvitableUser } from "../../api/chats"
 import { Avatar } from "../../components/Avatar"
 import { Checkbox } from "../../components/Checkbox"
@@ -31,20 +31,20 @@ export function ParticipantPickerModal({
 }) {
   const { t } = useT("chat")
   const [query, setQuery] = useState("")
+  const [debouncedQuery, setDebouncedQuery] = useState("")
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const inputRef = useRef<HTMLInputElement | null>(null)
 
   const invitableQuery = useQuery({
-    queryKey: ["invitable-users", excludeChatId ?? null],
-    queryFn: () => fetchInvitableUsers(excludeChatId)
+    queryKey: ["invitable-users", excludeChatId ?? null, debouncedQuery],
+    queryFn: () => fetchInvitableUsers(excludeChatId, debouncedQuery)
   })
   const users = invitableQuery.data ?? []
 
-  const filteredUsers = useMemo<InvitableUser[]>(() => {
-    if (!query.trim()) return users
-    const lower = query.toLowerCase()
-    return users.filter((user) => user.name.toLowerCase().includes(lower))
-  }, [users, query])
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query), 200)
+    return () => window.clearTimeout(timer)
+  }, [query])
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -92,11 +92,11 @@ export function ParticipantPickerModal({
         <div className="max-h-[min(20rem,calc(100dvh-14rem))] overflow-y-auto p-2" role="listbox" aria-multiselectable="true">
           {invitableQuery.isPending ? (
             <div className="px-2 py-6 text-center text-sm text-gray-500 dark:text-gray-400">{t("group_picker_loading")}</div>
-          ) : filteredUsers.length === 0 ? (
+          ) : users.length === 0 ? (
             <div className="px-2 py-6 text-center text-sm text-gray-500 dark:text-gray-400">{t("group_picker_no_users")}</div>
           ) : (
             <div className="space-y-1">
-              {filteredUsers.map((user) => {
+              {users.map((user: InvitableUser) => {
                 const selected = selectedIds.includes(user.id)
                 return (
                   <button
