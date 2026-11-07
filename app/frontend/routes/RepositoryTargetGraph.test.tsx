@@ -38,7 +38,7 @@ function payload(overrides: Partial<TargetGraphPayload> = {}): TargetGraphPayloa
       { from: "//:app", to: "//:grade/tests", kind: "dependency", in_window: true },
       { from: "//:assets", to: "//:grade/tests", kind: "dependency", in_window: true }
     ],
-    page: { offset: 0, limit: 180, total: 3, next_offset: null },
+    page: { offset: 0, limit: 100, total: 3, next_offset: null },
     health: { scope: "page", targets: {}, summary: {} },
     explanations: {
       projects: [
@@ -132,7 +132,9 @@ describe("RepositoryTargetGraphRoute", () => {
     expect((await screen.findAllByText("//:grade/tests")).length).toBeGreaterThan(0)
     expect(screen.getByText("npm run build")).toBeInTheDocument()
     expect(screen.getAllByText("changed files matched").length).toBeGreaterThan(0)
-    expect(screen.getByText("Selection Explanations")).toBeInTheDocument()
+    expect(screen.queryByText("Selection Explanations")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Show explanations" }))
+    expect(await screen.findByText("Selection Explanations")).toBeInTheDocument()
     expect(screen.getByText("Executable Targets Selected")).toBeInTheDocument()
     expect(screen.getByText("Skipped Targets")).toBeInTheDocument()
     expect(screen.getByText("Cached Targets")).toBeInTheDocument()
@@ -141,7 +143,11 @@ describe("RepositoryTargetGraphRoute", () => {
     expect(screen.getByText("Web")).toBeInTheDocument()
     expect(screen.getAllByRole("button", { name: "//:app" }).length).toBeGreaterThan(0)
     expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/repositories/1/target_graph?mode=neighborhood&direction=both&depth=1&limit=180",
+      "/api/v1/app/repositories/1/target_graph?mode=neighborhood&direction=both&depth=1&limit=100",
+      expect.any(Object)
+    )
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/repositories/1/target_graph?mode=neighborhood&direction=both&depth=1&limit=100&include=explanations",
       expect.any(Object)
     )
   })
@@ -151,7 +157,7 @@ describe("RepositoryTargetGraphRoute", () => {
     renderRoute(payload({
       targets,
       edges: [],
-      page: { offset: 0, limit: 180, total: 1_000, next_offset: null }
+      page: { offset: 0, limit: 100, total: 1_000, next_offset: null }
     }))
 
     expect(await screen.findByText("//pkg:lib0000")).toBeInTheDocument()
@@ -168,7 +174,7 @@ describe("RepositoryTargetGraphRoute", () => {
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenLastCalledWith(
-        "/api/v1/app/repositories/1/target_graph?mode=neighborhood&focus_label=%2F%2F%3Aassets&direction=both&depth=1&limit=180",
+        "/api/v1/app/repositories/1/target_graph?mode=neighborhood&focus_label=%2F%2F%3Aassets&direction=both&depth=1&limit=100",
         expect.any(Object)
       )
     })
@@ -185,7 +191,7 @@ describe("RepositoryTargetGraphRoute", () => {
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenLastCalledWith(
-        `/api/v1/app/repositories/1/target_graph?mode=neighborhood&q=${encodeURIComponent(encodeFilterTree({ and: [{ field: "kind", op: "is", value: "builder" }] }))}&direction=both&depth=1&limit=180`,
+        `/api/v1/app/repositories/1/target_graph?mode=neighborhood&q=${encodeURIComponent(encodeFilterTree({ and: [{ field: "kind", op: "is", value: "builder" }] }))}&direction=both&depth=1&limit=100`,
         expect.any(Object)
       )
     })
@@ -200,10 +206,34 @@ describe("RepositoryTargetGraphRoute", () => {
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenLastCalledWith(
-        "/api/v1/app/repositories/1/target_graph?search=app%2Ffrontend&direction=both&depth=1&limit=180&offset=0",
+        "/api/v1/app/repositories/1/target_graph?search=app%2Ffrontend&direction=both&depth=1&limit=100&offset=0",
         expect.any(Object)
       )
     })
+  })
+
+  it("pages browse rows without eagerly requesting diagnostic labels", async () => {
+    const fetchSpy = renderRoute(payload({
+      page: { offset: 0, limit: 100, total: 250, next_offset: 100 },
+      diagnostics: { source: ".syrus.yml", target_labels: ["//:app", "//:assets"] }
+    }), "/app-shell/repositories/1/target_graph?mode=window")
+
+    await screen.findAllByText("//:grade/tests")
+    expect(screen.queryByText("2 target labels")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }))
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenLastCalledWith(
+        "/api/v1/app/repositories/1/target_graph?direction=both&depth=1&limit=100&offset=100",
+        expect.any(Object)
+      )
+    })
+
+    fireEvent.click(await screen.findByRole("button", { name: "Show diagnostics" }))
+    expect(await screen.findByText("2 target labels")).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      "/api/v1/app/repositories/1/target_graph?direction=both&depth=1&limit=100&offset=100&include=diagnostics",
+      expect.any(Object)
+    )
   })
 
   it("disables workflow overlay focus controls for repository graphs", async () => {
@@ -233,7 +263,7 @@ describe("RepositoryTargetGraphRoute", () => {
     expect(await screen.findByText("Workflow WF-42")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Selected" })).not.toBeDisabled()
     expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/jobs/1/target_graph?mode=neighborhood&direction=both&depth=1&limit=180",
+      "/api/v1/app/jobs/1/target_graph?mode=neighborhood&direction=both&depth=1&limit=100",
       expect.any(Object)
     )
 
@@ -242,7 +272,7 @@ describe("RepositoryTargetGraphRoute", () => {
     await waitFor(() => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/jobs/1?tab=target_graph&focus_state=selected")
       expect(fetchSpy).toHaveBeenLastCalledWith(
-        "/api/v1/app/jobs/1/target_graph?mode=neighborhood&focus_state=selected&direction=both&depth=1&limit=180",
+        "/api/v1/app/jobs/1/target_graph?mode=neighborhood&focus_state=selected&direction=both&depth=1&limit=100",
         expect.any(Object)
       )
     })
@@ -263,7 +293,7 @@ describe("RepositoryTargetGraphRoute", () => {
 
     expect(await screen.findByText("Workflow WF-7")).toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/jobs/1/target_graph?mode=neighborhood&focus_label=%2F%2F%3Agrade%2Ftests&workflow_id=7&direction=both&depth=1&limit=180",
+      "/api/v1/app/jobs/1/target_graph?mode=neighborhood&focus_label=%2F%2F%3Agrade%2Ftests&workflow_id=7&direction=both&depth=1&limit=100",
       expect.any(Object)
     )
   })

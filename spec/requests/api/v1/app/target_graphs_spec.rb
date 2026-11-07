@@ -159,6 +159,19 @@ RSpec.describe "App API target graph inspection", type: :request do
       expect(body["health"]["summary"]).to include("passed" => 1)
       expect(body["filter"]).to eq("and" => [])
       expect(body["filter_schema"].map { |field| field["field"] }).to include("project_id", "label", "kind", "status", "path", "job_id", "workflow_id")
+      expect(body["explanations"]).to be_nil
+      expect(body.dig("diagnostics", "target_labels")).to be_nil
+    end
+
+    it "serves explanations and diagnostic target labels only when requested" do
+      with_graph_checkout(graph_yaml)
+
+      get "/api/v1/app/repositories/#{repository.id}/target_graph", params: { include: "explanations,diagnostics" }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["explanations"]).to include("projects" => anything, "selected_targets" => anything)
+      expect(body.dig("diagnostics", "target_labels")).to contain_exactly("//:app", "//:assets", "//:grade/tests", "//:repo")
     end
 
     it "returns a bounded neighborhood around a focused target" do
@@ -344,7 +357,7 @@ RSpec.describe "App API target graph inspection", type: :request do
       )
 
       with_cleaned_workflow_workspace do
-        get "/api/v1/app/workflows/#{workflow.id}/target_graph", params: { q: "grade/tests" }
+        get "/api/v1/app/workflows/#{workflow.id}/target_graph", params: { q: "grade/tests", include: "explanations" }
       end
 
       expect(response).to have_http_status(:ok)
