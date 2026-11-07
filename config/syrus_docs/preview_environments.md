@@ -1,79 +1,11 @@
 # Preview Environments
 
-Preview environments let operators and reviewers access a live, running copy of the target application for testing before approving a PR, or a live copy of a repository's current default branch with no Job involved at all. The web process handles subdomain-based routing to the preview service.
+Preview environments run a live copy of a Job branch for review, or a
+repository's default branch through **Preview main**. Start and stop them from
+the Job or repository preview panel. Workflow agents can use `start_preview`
+and inspect configured application logs with `read_preview_log`.
 
-`PreviewEnvironment` belongs to exactly one of `job` or `repository` (never both, never neither) — Job-scoped previews are the PR-review case above; repository-scoped previews (`job_id` nil, `repository_id` set) are the job-less "Preview main" case, started from the repository detail page. Both flow through the same `PreviewWorkspace`/`PreviewService`/`PreviewProxyMiddleware` machinery; a repository-scoped preview simply clones the repository's default branch with no revision override, since there is no Job to derive a branch/SHA from.
-
-## URL routing
-
-Preview environments are accessed via subdomains, not paths, keyed on the `PreviewEnvironment` id (not the Job id — a Job can accumulate several preview environments over its lifetime, and a repository-scoped preview has no Job id to key off at all):
-
-```
-http://preview-{preview_environment_id}.{SYRUS_PREVIEW_BASE_DOMAIN}?token={signed_access_token}
-```
-
-The signed `token` query parameter is required for the first request to a
-running preview. It is minted only by authenticated app endpoints that already
-authorize the current user to see that Job or repository preview, and it is
-validated by `PreviewProxyMiddleware` before any traffic is proxied to the
-preview app. After a valid token request, the middleware sets a short-lived
-`_syrus_preview_environment_access` cookie scoped to the preview origin so
-same-origin follow-up requests for relative CSS, JavaScript, images, and
-navigation do not need to carry the query token. The middleware strips the
-`token` parameter before forwarding the request upstream.
-
-Path-based proxying is intentionally not used — it causes CSRF failures, broken absolute URL generation, and broken redirects in most web frameworks.
-
-## Configuration
-
-### `SYRUS_PREVIEW_BASE_DOMAIN`
-
-Controls the base domain for preview subdomains. Default: `lvh.me`.
-
-| Environment | Setting |
-|---|---|
-| Local dev | Use the default `lvh.me` — all `*.lvh.me` subdomains resolve to `127.0.0.1` via public DNS, requiring no `/etc/hosts` changes |
-| Production | Set to your domain (e.g. `syrus.yourdomain.com`) and add a wildcard DNS record (`*.syrus.yourdomain.com → your web server IP`) |
-
-### `SYRUS_PREVIEW_PORT_MIN` / `SYRUS_PREVIEW_PORT_MAX`
-
-Port range the preview service allocates from when spawning preview apps. Defaults: `20000`–`29999`.
-
-### `SYRUS_PREVIEW_CONTROL_PORT`
-
-Fixed port the `preview` service binds its internal control endpoint on (see "Preview service process" below). Default: `4568`. Distinct from the `SYRUS_PREVIEW_PORT_MIN`/`MAX` range, which is for per-environment app ports, not this shared control port.
-
-### `SYRUS_PREVIEW_ENVIRONMENT_TOKEN_TTL_HOURS`
-
-Controls the signed preview environment access-token lifetime. Default: `24`
-hours. This token only authorizes access to the matching
-`PreviewEnvironment`; the preview environment's own inactivity TTL still stops
-running previews after 10 minutes without proxied traffic.
-
-## Architecture
-
-### Web process: `PreviewProxyMiddleware`
-
-The middleware is inserted at position 0 (first in the stack) so preview subdomains are handled before host authorization or SSL redirect middleware can reject them.
-
-For each incoming request:
-
-1. The `Host` header is matched against `preview-(\d+).{base_domain}`.
-2. If matched, Syrus looks up a `PreviewEnvironment` with that id in `running` state, regardless of whether it's job-scoped or repository-scoped.
-3. If found, the middleware requires either a valid `token` query parameter or a valid `_syrus_preview_environment_access` cookie for that exact environment. Missing, expired, or wrong-environment tokens get a 401 response.
-4. If authorized: the request is reverse-proxied to the preview app at `internal_host:port`, and `last_activity_at` / `expires_at` are refreshed to extend the TTL. Token query parameters are removed before forwarding the request to the preview app.
-5. If not found (environment not running, never started, or expired): a 503 response is returned with a message directing the user to the Syrus UI.
-6. If the host doesn't match the preview pattern: the request falls through to the normal Rails application.
-
-Preview environment access cookies use `SameSite=Lax` rather than
-`SameSite=None` so the default local `http://preview-*.lvh.me` flow works in
-modern browsers without HTTPS. The initial tokenized URL should be opened from
-the Syrus UI/API payload; copying only the bare `preview-{id}` host is not
-enough to authorize a fresh browser session.
-
-The proxy sends `Host: localhost:<port>` and `X-Forwarded-Host: localhost:<port>` to the preview app so frameworks such as Rails running in development mode accept the request without app-specific preview host allowlists. Syrus preserves the browser-facing hostname separately in `X-Syrus-Preview-Host` / `X-Syrus-Preview-Proto` for apps that explicitly want to inspect the public preview URL.
-
-Preview command configuration lives in the target repository's `.syrus.yml`:
+Configure a preview in the owning `.syrus.yml`:
 
 ```yaml
 preview:
@@ -82,6 +14,7 @@ preview:
   start: bin/rails server -p $PORT -b 0.0.0.0 -e development
   seed: bin/rails db:prepare db:seed
   health_check: /up
+  health_check_timeout_seconds: 60
   logs:
     - log/development.log
   env:
@@ -90,133 +23,25 @@ preview:
     - DATABASE_URL
 ```
 
-`start` may use `$PORT` or `${PORT}`; Syrus replaces it with a dynamically allocated port. `setup` runs first in the fresh preview checkout, then `seed` runs before the server starts. Setup, seed, and server commands receive the same preview environment. Each setup and seed command has a 10-minute wall-clock timeout; nonzero exits, timeouts, or operator kills fail or stop the preview before Syrus starts a partially prepared app. `env` sets repository-specific variables and `unset_env` strips inherited variables such as production database URLs. Use these keys for repo-specific preview guardrails rather than hardcoding repository checks into Syrus.
+`start` may use `$PORT` or `${PORT}`. Setup and seed run before the server and
+receive the same environment. Make seeding idempotent because every spin-up
+uses a fresh checkout. `env` adds preview-only variables; `unset_env` removes
+unsafe inherited values. `logs` lists workspace-relative files available in
+the UI and through `read_preview_log`. `health_check_timeout_seconds` changes
+the workflow agent's default 60-second startup wait.
 
-Monorepo repositories can define `preview:` in nested `.syrus.yml` files. A
-nested preview belongs to the project declared by that `.syrus.yml` location,
-and Syrus starts its setup, seed, start, health-check, and log commands from
-that project's directory. Setup and seed commands still have read/write access
-to the whole fresh checkout, so nested projects can use root lockfiles, shared
-scripts, workspace package-manager state, or root `.syrus/deps` content.
-Root-only repositories keep the legacy behavior: a root `preview:` block starts
-from the repository root, and plugin-provided preview detection is still used
-only when no explicit `.syrus.yml` preview is configured.
+Monorepos may define `preview:` in nested `.syrus.yml` files. Commands run from
+that project's directory while retaining access to the whole checkout. Job
+previews offer affected previewable projects; Preview main offers all
+configured projects.
 
-For Job previews, Syrus compares the Job branch against its effective base and
-offers only affected projects that have a preview. If exactly one affected
-project is previewable, the existing Start Preview action starts it directly.
-If multiple affected projects are previewable, the Job detail Preview panel
-shows a project selector and remembers the last selected project for that Job.
-If none of the affected projects has a preview, the panel explains that no
-affected project has a preview configured instead of starting an unrelated
-project. Repository-scoped "Preview main" is not diff-scoped, so it can offer
-all configured preview projects for the repository.
+Previews stop after 10 minutes without proxied traffic, and each request resets
+that TTL. Failures expose logs and diagnostics. A Job preview that is locally
+healthy but unreachable because it binds only to localhost offers **Fix
+preview**, which creates a direct Job to change the start command to bind to
+`0.0.0.0`.
 
-When a repository has both a root preview and nested project previews, the root
-preview represents files that are not owned by a nested preview project. A diff
-that only touches `desktop/` selects the `desktop` preview without also
-offering the root preview; a mixed diff that touches both `desktop/` and
-root-owned Rails files offers both.
-
-`logs` declares files, relative to the preview workspace, that should be
-available to operators and agents while debugging a running preview. The Job
-detail Preview panel exposes these logs on demand, and workflow agents can read
-them through `read_preview_log`. The bundled Rails provider exposes both
-`log/development.log` and `log/vite.log`.
-
-Workflow-agent `start_preview` waits 60 seconds by default for the server
-health check, preserving the historical workflow behavior. Repositories that
-need longer boot time can set `preview.health_check_timeout_seconds` in the
-owning `.syrus.yml`; nested project previews use the value from that nested
-file. When the health check times out, the MCP response includes the effective
-timeout, health-check URL and path, selected `project_id` when present, a
-redacted start-command summary, the startup stdout/stderr file under
-`.syrus/preview/`, configured app log paths, and a short tail of recent startup
-output. The response intentionally does not inline full logs; use
-`read_preview_log` for configured app logs or inspect the startup-output path
-for the spawned server's own stdout/stderr.
-
-The web process does not share a filesystem with `preview` (they are separate
-Deployments), so `GET /api/v1/app/jobs/:job_id/preview/logs` cannot read the
-preview workspace directly. Instead it makes an internal HTTP request to the
-`preview` service's control endpoint (`PreviewControlServer`), which runs
-inside the `preview` process where the workspace actually lives on disk and
-reads the log files locally via `PreviewLogReader`. If that internal request
-fails (e.g. the preview pod is mid-restart), the API responds with
-`503 preview_logs_unavailable` rather than a misleading empty log list.
-
-The bundled Rails preview provider installs JavaScript dependencies when a
-package-manager lockfile is present, starts `npm run dev` alongside
-`bin/rails server` when the repo has `package.json`, and forces
-`VITE_RUBY_SKIP_PROXY=false` so Rails apps using vite-ruby emit same-origin
-asset paths instead of browser-facing `localhost:<vite-port>` URLs. The preview
-proxy also rewrites browser-facing `localhost:<port>` origins out of HTML
-responses, which covers apps that hardcode Vite dev-server tags. Same-origin
-asset requests go back through the preview Rails process, and vite-ruby's Rack
-proxy forwards them to the app's local Vite dev server.
-
-Rails apps that do not expose a `dev` script still need to boot whatever
-frontend pipeline their development layout expects. Syrus itself uses
-`bin/syrus-preview-dev` in `.syrus.yml`: it starts Tailwind and Vite build
-watchers, waits until Vite has written its build manifest
-(`app/assets/builds/.vite/manifest.json`) and `app/assets/builds/tailwind.css`
-exists, then starts Rails. That keeps visual
-review from inspecting a healthy Rails shell before React and CSS have
-compiled.
-
-### Seeding must be idempotent
-
-`seed` (or, for auto-detected Rails repos, `SyrusRails::PreviewProvider#seed_command`) runs against a **fresh checkout on every preview spin-up**, not once. A seed script that isn't idempotent (a bare, unguarded insert) fails or duplicates rows on the second preview. The "Seed preview demo data" Job template (`lib/agent_skills/configure-preview-seed-data.md`, exposed via `PromptTemplate`) is a one-time, per-repo onboarding pass an operator runs to detect the repo's seed mechanism (Rails `db/seeds.rb`, Django, Laravel, Node/Prisma, or a hand-rolled equivalent) and make it idempotent, add a demo user and representative sample data if the repo has none, and record how to reach an authenticated/populated view in the repo's `.syrus.yml` `visual_review.seed_notes` (see [`syrus_yml.md`](syrus_yml.md)).
-
-Syrus's own `db/seeds.rb` uses the same idempotent pattern (`find_or_initialize_by` + `assign_attributes`) for its seeded demo repository/epic/Jobs. One of those seeded Jobs also carries a development-only diff-review fixture: `Job#diff_fixture` (a JSON column populated only by `db/seeds.rb`) gives `App::JobSourceDiffPayload` real file/patch content to render in the Review tab, since the synthetic `demo/syrus-preview` repository has no GitHub installation or token for `source_available?` to authorize a real GitHub compare. The fixture is gated on both the column being present and an explicit `Rails.env.development?` check, so it can't become a generic bypass of `source_available?` for any other repository or Job. The Source tab (`App::JobSourcePayload`) shares the same gate but does not yet have fixture coverage.
-
-### Preview service process
-
-The `preview` service (`bin/preview`, `Procfile.dev`) is a separate long-running process that manages preview app child processes. It is not involved in app request routing.
-
-Alongside its poll loop, `bin/preview` also starts `PreviewControlServer`, a small internal-only HTTP responder bound to `0.0.0.0:SYRUS_PREVIEW_CONTROL_PORT`. It exposes `GET /environments/:id/logs?lines=N`, used by the web process (`PreviewLogClient`) to read preview app logs without a shared volume — see above. Like the terminal relay, this endpoint is internal/private network only and must never be exposed through public ingress.
-
-Preview apps do not reuse workflow workspaces: successful workflow workspaces are cleaned up as part of normal workflow lifecycle. When an operator starts a preview, the preview service materializes a fresh checkout under `$SYRUS_DATA_ROOT/previews/<preview_environment_id>/` at the Job's PR branch, runs preview setup and seed commands there, and starts the app from that checkout. Stopping or expiring an environment removes that checkout and nulls the `workspace_path` column so a stopped/expired environment's row never points at a deleted directory.
-
-### Post-land previews
-
-A Job stays previewable after it lands (`Job#previewable?` allows a `closed?`
-Job once `landed_sha` is present — the merge commit SHA Syrus records on
-successful auto-merge and merge-train landing). Syrus deletes the PR branch
-right after merge, so `PreviewWorkspace` cannot clone it by name anymore for a
-landed Job. Instead `PreviewService#workspace_revision_for` selects
-`revision: :commit_sha` for closed, landed Jobs: `PreviewWorkspace` clones the
-repository's default branch (always present, non-shallow) and checks out
-`job.landed_sha` directly rather than passing `--branch job.branch_name`. Every
-other previewable state keeps cloning by branch name (`revision: :head`).
-
-Preview setup, seed, and server child processes are recorded as `SpawnedProcess` rows with `kind=preview`, including `pid`, `pgid`, command, workdir, and available job/repository attribution. This keeps preview processes visible in the admin Spawned Processes UI and lets the normal spawned-process supervisor/audit path detect exits and honor operator kill requests.
-
-### Repository-scoped previews ("Preview main")
-
-The repository detail page offers a "Preview main" action independent of any Job — useful for checking the current default branch works before filing new work, or just to poke at a repo's running app. It creates a `PreviewEnvironment` with `job_id` nil and `repository_id` set to the repository. `PreviewWorkspace` treats a nil Job the same as the post-land `:commit_sha` case for clone purposes: it clones the repository's default branch (`:head` revision, no override) since there's no Job branch/SHA to check out instead. Authentication for the clone falls back to `Repository#user` (the same fallback `PullRequestOpener` and `ForkSyncService` use for repo-level Git operations with no Job in scope) since there's no Job user to borrow credentials from.
-
-`GET/POST/DELETE /api/v1/app/repositories/:repository_id/preview` (and `.../preview/logs`) mirror the job-scoped `/api/v1/app/jobs/:job_id/preview` endpoints one-for-one — same `PreviewEnvironment` states, same TTL/health-check/log-tailing behavior — just scoped by `repository_id` instead of `job_id`. A repository can have at most one active repository-scoped preview at a time, independent of (and not conflicting with) any active job-scoped previews for Jobs under that repository.
-
-## Lifecycle
-
-- Start: operator clicks "Start Preview" on a Job detail page for an implemented, approved, or landing Job, or for a closed Job that has landed (see "Post-land previews" above); or clicks "Preview main" on a repository detail page for any non-archived repository (see "Repository-scoped previews" above) → preview service creates a fresh preview checkout, runs setup/seed commands, then spawns the app.
-- Inactivity TTL: 10 minutes of no proxied traffic causes the preview service to stop the environment.
-- TTL reset: each proxied request through `PreviewProxyMiddleware` resets `last_activity_at` and extends `expires_at`.
-- Failure: if the checkout, preview command resolution, port allocation, setup/seed/app start, or health check fails, the environment is marked `failed` with an error message. It must not remain indefinitely in `starting` or `seeding`.
-
-### Fix preview
-
-`PreviewEnvironment#error_reason` is an optional machine-readable tag alongside the free-text `error_message`, set only for failure modes the UI can offer a one-click remediation for. Today the only tagged reason is `not_reachable`: the app passed its local (`127.0.0.1`) health check but a connection to the internal proxy host (`INTERNAL_HOST`, e.g. `syrus-preview`) was refused, timed out, or failed at the socket layer — almost always because the preview start command binds only to `127.0.0.1`/`localhost` instead of `0.0.0.0`.
-
-An app that answers through the internal host with a non-success HTTP response instead fails with a status-aware message. A 403 also points operators toward Rails host authorization and `config.hosts`. These HTTP failures do not receive the `not_reachable` remediation tag because changing the bind address would not fix an application-level response. Syrus's own development environment allows `syrus-preview`, `preview`, and the configured `SYRUS_PREVIEW_INTERNAL_HOST`; production host authorization is unchanged.
-
-When a Job's preview is `failed` with `error_reason: "not_reachable"`, the Job detail Preview panel shows a "Fix preview" button next to the error message. Clicking it creates a new `direct` Job on the same repository with a pre-filled prompt describing the diagnosis and asking the agent to fix the repo's preview start command to bind to `0.0.0.0`, then navigates to that Job. No other failure reason currently offers this shortcut — the operator falls back to "View logs" and manual investigation.
-
-## Production setup
-
-1. Set `SYRUS_PREVIEW_BASE_DOMAIN` to your domain.
-2. Add a wildcard DNS record: `*.{your_domain} → your web server IP`.
-3. Ensure your TLS terminator (Traefik, nginx, etc.) passes the `Host` header through to Rails.
-4. The preview service must run alongside web and worker (`SYRUS_ROLE=preview bin/preview`).
-5. The web pod must be able to reach the preview pod's `SYRUS_PREVIEW_CONTROL_PORT` (default `4568`) over the internal cluster network — this is how preview logs are fetched. Do not expose this port through public ingress.
+Internal proxy, control-server, workspace, and failure-record details live in
+[preview-environment architecture](../../docs/engineering/architecture/preview-environments.md).
+Deployment variables and production setup live in the [preview-environment
+runbook](../../docs/engineering/operations/preview-environments.md).

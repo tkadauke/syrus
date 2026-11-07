@@ -27,5 +27,13 @@ recovering Syrus itself. Operator feature instructions remain in
   rules, and the operator metric catalog.
 - [Observability operations](observability.md) — on-demand process diagnostics
   with SIGUSR2 and Kubernetes.
+- [Preview environments](preview-environments.md) — deployment variables,
+  wildcard routing, preview processes, and production setup.
+- [Admin recovery](admin-recovery.md) — deployed restart and stuck-work
+  recovery procedures.
+- [iOS and macOS compute](ios-compute.md) — native worker installation,
+  launchd, environment, updates, and pool topology.
+- [Speech-to-text](chat-speech-to-text.md) — transcription daemon deployment,
+  configuration, logs, and diagnosis.
 
 Return to the [engineering documentation index](../README.md).
