@@ -1,11 +1,5 @@
 class ChatJobSummary
   READY_STATES = %w[implemented approved landing].freeze
-  VISUAL_STATE_BY_JOB_STATE = {
-    "landing" => "approved",
-    "no_change_needed" => "implemented"
-  }.freeze
-  VISUAL_STATE_BY_CLOSURE_REASON = Epic::MERGED_JOB_CLOSURE_REASONS.index_with { "merged" }
-    .merge("no_changes" => "implemented").freeze
   # A chat owns Job visibility through either confirmed proposal lineage or the
   # Job attachment selected by Job#discussion_chat. Ordinary Job attachments
   # after the earliest one are context only and deliberately do not associate
@@ -24,21 +18,20 @@ class ChatJobSummary
 
     read_at = participant_read_times
     jobs = Job.where(id: associations.values.flatten.uniq)
-      .includes(:epic, :auto_retry_attempts)
+      .includes(:auto_retry_attempts)
       .index_by(&:id)
     workflows_by_job = summary_workflows_by_job(jobs.keys)
     steps_by_workflow = summary_steps_by_workflow(workflows_by_job.values.flatten.map(&:id))
-    epic_counts = epic_progress(jobs.values.filter_map(&:epic_id).uniq)
     transition_times = outcome_transition_times(jobs.keys)
 
     associations.to_h do |chat_id, job_ids|
       rows = job_ids.filter_map { |id| jobs[id] }.map do |job|
-        row_for(job, read_at[chat_id], transition_times[job.id], epic_counts[job.epic_id],
+        row_for(job, read_at[chat_id], transition_times[job.id],
           workflows_by_job[job.id] || [], steps_by_workflow)
       end
       active_count = rows.count { |row| row[:group] == "running" }
       outcome = rows.any? { |row| row[:group] == "failed" } ? "failed" : rows.any? { |row| row[:group] == "ready" } ? "ready" : nil
-      [ chat_id, { active_count: active_count, outcome: outcome, jobs: rows } ]
+      [ chat_id, { active_count: active_count, outcome: outcome, jobs: rows.select { |row| row[:group] } } ]
     end
   end
 
@@ -64,35 +57,6 @@ class ChatJobSummary
       pairs.concat(candidate_attachments.select { |chat_id, job_id| first_chat_by_job[job_id] == chat_id })
       pairs.group_by(&:first).transform_values { |items| items.map(&:last).uniq }
     end
-  end
-
-  def epic_progress(epic_ids)
-    return {} if epic_ids.empty?
-
-    grouped_counts = Job.where(epic_id: epic_ids).group(:epic_id, :state, :closure_reason).count
-    attention_counts = Job.where(epic_id: epic_ids, needs_attention: true).group(:epic_id).count
-    epic_ids.to_h do |id|
-      counts = Hash.new(0)
-      total = 0
-      grouped_counts.each do |(epic_id, state, closure_reason), count|
-        next unless epic_id == id
-
-        total += count
-        visual_state = visual_state_for(state, closure_reason)
-        counts[visual_state] += count if visual_state
-      end
-      [ id, {
-        total: total,
-        state_counts: counts.to_h,
-        needs_attention: counts["failed"].positive? || attention_counts[id].to_i.positive?
-      } ]
-    end
-  end
-
-  def visual_state_for(state, closure_reason)
-    return VISUAL_STATE_BY_CLOSURE_REASON[closure_reason] if state == "closed"
-
-    VISUAL_STATE_BY_JOB_STATE.fetch(state, state)
   end
 
   # The sidebar reads four workflow columns and two step columns to show a
@@ -127,7 +91,7 @@ class ChatJobSummary
       .find { |step| Workflow::TriggerKind::ACTIVE_STATES.include?(step.state) }&.kind
   end
 
-  def row_for(job, read_at, transition_time, progress, job_workflows, steps_by_workflow)
+  def row_for(job, read_at, transition_time, job_workflows, steps_by_workflow)
     workflow = job_workflows.select { |item| Workflow::TriggerKind::ACTIVE_STATES.include?(item.state) }
       .reject { |item| item.landing_workflow? || item.trigger_kind == "ci_failure" }
       .max_by { |item| [ item.created_at, item.id ] }
@@ -147,15 +111,7 @@ class ChatJobSummary
       group: group,
       started_at: workflow&.started_at&.iso8601,
       finished_at: group.in?(%w[failed ready]) ? (transition_time || job.updated_at)&.iso8601 : nil,
-      app_path: "/jobs/#{job.id}",
-      epic: job.epic && progress ? {
-        id: job.epic.id,
-        slug: job.epic.slug,
-        title: job.epic.title,
-        total: progress[:total],
-        state_counts: progress[:state_counts],
-        needs_attention: progress[:needs_attention]
-      } : nil
+      app_path: "/jobs/#{job.id}"
     }.compact
   end
 

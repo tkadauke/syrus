@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { MemoryRouter, useLocation } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { ChatBookmark, ChatGoal, ChatGroupRecord, ChatNavRecord, ChatPayload, ChatsIndexPayload } from "../../api/chats"
+import type { ProviderAvailability } from "../../api/providerAvailability"
 import { jsonResponse } from "../../testSupport"
 import { applyAppEvent } from "../../lib/appEvents"
 import { RecentChatsSidebar } from "./RecentChatsSidebar"
@@ -24,6 +25,7 @@ function renderSidebar(
     onCloseDrawer?: () => void
     onStartChat?: (repositoryId?: number | null) => void
     prefix?: string
+    providerAvailability?: Record<string, ProviderAvailability>
     renderOptions?: Parameters<typeof render>[1]
   } = {}
 ) {
@@ -46,6 +48,7 @@ function renderSidebar(
           onNotice={() => {}}
           onStartChat={options.onStartChat}
           prefix={options.prefix ?? ""}
+          providerAvailability={options.providerAvailability}
           userPresent
         />
         <LocationProbe />
@@ -79,11 +82,13 @@ function withMatchMedia(matches: boolean) {
 
 describe("RecentChatsSidebar active chat highlighting", () => {
   it("shows a red usage-limit warning for affected chats", () => {
-    renderSidebar([
-      chatNav({
+    renderSidebar(
+      [chatNav({
         id: 1,
         title: "Codex chat",
-        provider_availability: {
+        effective_chat_provider: "codex"
+      })],
+      { providerAvailability: { codex: {
           provider: "codex",
           label: "Codex",
           model: null,
@@ -93,19 +98,20 @@ describe("RecentChatsSidebar active chat highlighting", () => {
           retry_after: null,
           reason: "Provider usage limit exhausted.",
           message: "Codex usage limit reached. This item uses Codex until usage resets."
-        }
-      })
-    ])
+        } } }
+    )
 
     expect(screen.getByRole("img", { name: /Codex usage limit reached/ })).toBeInTheDocument()
   })
 
   it("includes provider evidence details in usage warning labels", () => {
-    renderSidebar([
-      chatNav({
+    renderSidebar(
+      [chatNav({
         id: 1,
         title: "Codex chat",
-        provider_availability: {
+        effective_chat_provider: "codex"
+      })],
+      { providerAvailability: { codex: {
           provider: "codex",
           label: "Codex",
           model: "gpt-5.5",
@@ -126,9 +132,8 @@ describe("RecentChatsSidebar active chat highlighting", () => {
               http_status: 200
             }
           }
-        }
-      })
-    ])
+        } } }
+    )
 
     const warning = screen.getByRole("img", { name: /Evidence: exhausted from usage_probe/ })
     expect(warning).toHaveAttribute("title", expect.stringContaining("scope codex / account account-123 / model gpt-5.5"))
@@ -840,7 +845,8 @@ describe("RecentChatsSidebar action and marker slot", () => {
     expect(within(popover).queryByRole("link", { name: "JOB-41" })).not.toBeInTheDocument()
     fireEvent.click(within(popover).getByRole("button", { name: "Expand Jobs in EPIC-9" }))
     expect(within(popover).getByRole("link", { name: "JOB-41" })).toBeInTheDocument()
-    expect(within(popover).getByText(/Ship the sidebar/)).toBeInTheDocument()
+    expect(within(popover).getByText("Active")).toBeInTheDocument()
+    expect(within(popover).queryByText(/Ship the sidebar/)).not.toBeInTheDocument()
     expect(within(popover).getByText("2 pending actions")).toBeInTheDocument()
     expect(within(popover).getByText("3 entries")).toBeInTheDocument()
   })
@@ -1376,14 +1382,8 @@ function chatNav(overrides: Partial<ChatNavRecord> = {}): ChatNavRecord {
     title: "Chat",
     title_pending: false,
     pinned: false,
-    pinned_context: null,
-    chat_provider: "claude",
     chat_path: `/chats/${overrides.id ?? 1}`,
     repository: null,
-    stop_requested_at: null,
-    cumulative_input_tokens: 0,
-    cumulative_output_tokens: 0,
-    cumulative_cost_usd: 0,
     pending_proposal_count: 0,
     scratchpad_items_count: 0,
     current: false,
