@@ -1,7 +1,6 @@
 import { type DashboardEpicItem, type DashboardJobItem, type DashboardPayload, type DashboardSubject, type DashboardWorkflowItem } from "../../api/dashboard"
 import { visibleColumnKeys, type DataTableColumnDef } from "../../components/dataTable"
 
-
 // Pure dashboard helpers extracted from Dashboard.tsx: link/query-string builders,
 // column/sort resolution, date/currency/pluralization formatting, and small label
 // utilities. No JSX and no hooks — a leaf the dashboard view and its extracted
@@ -56,13 +55,14 @@ export function pageLink(pathname: string, search: string, page: number) {
 
 export function bulkButtonClass(disabled: boolean, tone: "default" | "danger" = "default") {
   if (disabled) return "rounded border border-gray-200 px-3 py-1 text-gray-300 dark:border-gray-800 dark:text-gray-600"
-  if (tone === "danger") return "rounded border border-red-300 px-3 py-1 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950"
+  if (tone === "danger")
+    return "rounded border border-red-300 px-3 py-1 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950"
 
   return "rounded border border-gray-300 px-3 py-1 text-gray-700 hover:bg-white dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
 }
 
 export function epicTableColumns(columns: string[]) {
-  return [ "checkbox", ...columns.filter((column) => column !== "checkbox") ]
+  return ["checkbox", ...columns.filter((column) => column !== "checkbox")]
 }
 
 export function uniqueValue(value: string, index: number, values: string[]) {
@@ -130,17 +130,16 @@ export function dashboardVisibleColumns(payload: DashboardPayload) {
 // some smart folders). renderCell is never invoked for a picker-only column
 // list; it exists only to satisfy DataTableColumnDef's shape.
 export function dashboardColumnDefs(controls: DashboardPayload["controls"]): DataTableColumnDef<unknown>[] {
-  const toColumnDef = (required: boolean) => (column: { key: string; title: string }): DataTableColumnDef<unknown> => ({
-    key: column.key,
-    label: column.title,
-    required,
-    renderCell: () => null
-  })
+  const toColumnDef =
+    (required: boolean) =>
+    (column: { key: string; title: string }): DataTableColumnDef<unknown> => ({
+      key: column.key,
+      label: column.title,
+      required,
+      renderCell: () => null
+    })
 
-  return [
-    ...controls.columns.required.map(toColumnDef(true)),
-    ...controls.columns.optional.map(toColumnDef(false))
-  ]
+  return [...controls.columns.required.map(toColumnDef(true)), ...controls.columns.optional.map(toColumnDef(false))]
 }
 
 export function normalizeDashboardColumn(subject: DashboardSubject, column: string) {
@@ -194,7 +193,6 @@ export function humanizeOption(value: string) {
   return value.replace(/_/g, " ").replace(/^\w/, (match) => match.toUpperCase())
 }
 
-
 export { formatRelativeDate } from "../../lib/relativeTime"
 
 export function dashboardEmptyFallbackPath(payload: DashboardPayload) {
@@ -204,9 +202,7 @@ export function dashboardEmptyFallbackPath(payload: DashboardPayload) {
 export function dashboardEmptyState(payload: DashboardPayload, t: (key: string, opts?: Record<string, unknown>) => string) {
   const subject = subjectLabel(payload.subject, 2)
   if (payload.setup && !payload.setup.complete) {
-    const setupDescription = payload.setup.next_step === "credentials"
-      ? t("setup_credentials_description")
-      : t("setup_description")
+    const setupDescription = payload.setup.next_step === "credentials" ? t("setup_credentials_description") : t("setup_description")
 
     return {
       title: t("empty_title", { subject: capitalizeLabel(subject) }),
