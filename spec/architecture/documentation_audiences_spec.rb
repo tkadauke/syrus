@@ -86,7 +86,6 @@ RSpec.describe "documentation audiences" do
     expect(chat).to include("`submit_coding_changes`")
     expect(chat).to include("`reset_workspace`")
   end
-
   it "keeps plugin authoring out of the searchable behavior guide" do
     searchable = root.join("config/syrus_docs/plugins.md").read
     authoring = root.join("docs/engineering/conventions/plugins/authoring.md").read
