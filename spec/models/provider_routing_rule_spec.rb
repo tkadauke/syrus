@@ -197,6 +197,9 @@ RSpec.describe ProviderRoutingRule do
 
   it "accepts distinct reviewer targets using the same execution provider" do
     provider = class_double("ReviewerTargetProvider", target_type: "coworker")
+    allow(provider).to receive(:available?).and_return(true)
+    allow(provider).to receive(:audit_snapshot) { |resolution:| resolution.fetch(:display) }
+    allow(provider).to receive(:uniqueness_key) { |resolution:| "coworker:#{resolution.fetch(:reference)}" }
     allow(provider).to receive(:resolve) do |reference:, **|
       record = Struct.new(:id) { def self.polymorphic_name = "TestReviewer" }.new(reference.to_i)
       { type: "coworker", reference: reference, display: { "name" => "Reviewer #{reference}" }, record: record }
@@ -230,6 +233,9 @@ RSpec.describe ProviderRoutingRule do
   it "refreshes reviewer display snapshots during rule mutation" do
     name = "Maya"
     provider = class_double("ReviewerTargetProvider", target_type: "coworker")
+    allow(provider).to receive(:available?).and_return(true)
+    allow(provider).to receive(:audit_snapshot) { |resolution:| resolution.fetch(:display) }
+    allow(provider).to receive(:uniqueness_key) { |resolution:| "coworker:#{resolution.fetch(:reference)}" }
     allow(provider).to receive(:resolve) do |reference:, **|
       record = Struct.new(:id) { def self.polymorphic_name = "User" }.new(user.id)
       { type: "coworker", reference: reference, display: { "name" => name }, record: record }

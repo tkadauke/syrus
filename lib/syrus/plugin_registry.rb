@@ -70,6 +70,9 @@ module Syrus
       slug_type
       permission_provider
       reviewer_target_provider
+      review_context_contributor
+      review_presentation_contributor
+      problem_provider
       repository_configuration
       review_gate
     ].freeze
@@ -145,6 +148,9 @@ module Syrus
       slug_type:               -> { Syrus::Plugin::SlugType },
       permission_provider:     -> { Syrus::Plugin::PermissionProvider },
       reviewer_target_provider: -> { Syrus::Plugin::ReviewerTargetProvider },
+      review_context_contributor: -> { Syrus::Plugin::ReviewContextContributor },
+      review_presentation_contributor: -> { Syrus::Plugin::ReviewPresentationContributor },
+      problem_provider:          -> { Syrus::Plugin::ProblemProvider },
       repository_configuration: -> { Syrus::Plugin::RepositoryConfiguration },
       review_gate:             -> { Syrus::Plugin::ReviewGate }
     }.freeze
