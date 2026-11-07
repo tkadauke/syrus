@@ -41,15 +41,9 @@ function payload(overrides: Partial<TargetGraphPayload> = {}): TargetGraphPayloa
     page: { offset: 0, limit: 100, total: 3, next_offset: null },
     health: { scope: "page", targets: {}, summary: {} },
     explanations: {
-      projects: [
-        { id: "repo", label: "Repository", selected_target_count: 1, skipped_target_count: 1, cached_target_count: 1 }
-      ],
-      selected_targets: [
-        { state: "selected", target_label: "//:grade/tests", project_label: "Repository", required: true, reason: "changed files matched" }
-      ],
-      skipped_targets: [
-        { state: "skipped", target_label: "//:grade/docs", project_label: "Repository", reason: "no matching files changed" }
-      ],
+      projects: [{ id: "repo", label: "Repository", selected_target_count: 1, skipped_target_count: 1, cached_target_count: 1 }],
+      selected_targets: [{ state: "selected", target_label: "//:grade/tests", project_label: "Repository", required: true, reason: "changed files matched" }],
+      skipped_targets: [{ state: "skipped", target_label: "//:grade/docs", project_label: "Repository", reason: "no matching files changed" }],
       cached_targets: [
         {
           state: "cached",
@@ -120,7 +114,12 @@ function renderRoute(responsePayload: TargetGraphPayload = payload(), initialEnt
 
 function LocationProbe() {
   const location = useLocation()
-  return <span data-testid="location">{location.pathname}{location.search}</span>
+  return (
+    <span data-testid="location">
+      {location.pathname}
+      {location.search}
+    </span>
+  )
 }
 
 describe("RepositoryTargetGraphRoute", () => {
@@ -142,10 +141,7 @@ describe("RepositoryTargetGraphRoute", () => {
     expect(screen.getByText("Visual review preview project")).toBeInTheDocument()
     expect(screen.getByText("Web")).toBeInTheDocument()
     expect(screen.getAllByRole("button", { name: "//:app" }).length).toBeGreaterThan(0)
-    expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/repositories/1/target_graph?mode=neighborhood&direction=both&depth=1&limit=100",
-      expect.any(Object)
-    )
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/1/target_graph?mode=neighborhood&direction=both&depth=1&limit=100", expect.any(Object))
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/repositories/1/target_graph?mode=neighborhood&direction=both&depth=1&limit=100&include=explanations",
       expect.any(Object)
@@ -154,11 +150,13 @@ describe("RepositoryTargetGraphRoute", () => {
 
   it("keeps large graph rendering bounded to the virtualized window", async () => {
     const targets = Array.from({ length: 1_000 }, (_, index) => target(`//pkg:lib${String(index).padStart(4, "0")}`))
-    renderRoute(payload({
-      targets,
-      edges: [],
-      page: { offset: 0, limit: 100, total: 1_000, next_offset: null }
-    }))
+    renderRoute(
+      payload({
+        targets,
+        edges: [],
+        page: { offset: 0, limit: 100, total: 1_000, next_offset: null }
+      })
+    )
 
     expect(await screen.findByText("//pkg:lib0000")).toBeInTheDocument()
     expect(screen.queryByText("//pkg:lib0999")).not.toBeInTheDocument()
@@ -213,19 +211,19 @@ describe("RepositoryTargetGraphRoute", () => {
   })
 
   it("pages browse rows without eagerly requesting diagnostic labels", async () => {
-    const fetchSpy = renderRoute(payload({
-      page: { offset: 0, limit: 100, total: 250, next_offset: 100 },
-      diagnostics: { source: ".syrus.yml", target_labels: ["//:app", "//:assets"] }
-    }), "/app-shell/repositories/1/target_graph?mode=window")
+    const fetchSpy = renderRoute(
+      payload({
+        page: { offset: 0, limit: 100, total: 250, next_offset: 100 },
+        diagnostics: { source: ".syrus.yml", target_labels: ["//:app", "//:assets"] }
+      }),
+      "/app-shell/repositories/1/target_graph?mode=window"
+    )
 
     await screen.findAllByText("//:grade/tests")
     expect(screen.queryByText("2 target labels")).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Next page" }))
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenLastCalledWith(
-        "/api/v1/app/repositories/1/target_graph?direction=both&depth=1&limit=100&offset=100",
-        expect.any(Object)
-      )
+      expect(fetchSpy).toHaveBeenLastCalledWith("/api/v1/app/repositories/1/target_graph?direction=both&depth=1&limit=100&offset=100", expect.any(Object))
     })
 
     fireEvent.click(await screen.findByRole("button", { name: "Show diagnostics" }))
@@ -247,9 +245,15 @@ describe("RepositoryTargetGraphRoute", () => {
   })
 
   it("fetches job-scoped graph data so workflow overlay focus controls are available", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(payload({
-      workflow: { id: 42, slug: "WF-42", job_id: 1, trigger_kind: "initial", state: "running" }
-    }))))
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse(
+          payload({
+            workflow: { id: 42, slug: "WF-42", job_id: 1, trigger_kind: "initial", state: "running" }
+          })
+        )
+      )
+    )
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={client}>
@@ -262,10 +266,7 @@ describe("RepositoryTargetGraphRoute", () => {
 
     expect(await screen.findByText("Workflow WF-42")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Selected" })).not.toBeDisabled()
-    expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/jobs/1/target_graph?mode=neighborhood&direction=both&depth=1&limit=100",
-      expect.any(Object)
-    )
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/target_graph?mode=neighborhood&direction=both&depth=1&limit=100", expect.any(Object))
 
     fireEvent.click(screen.getByRole("button", { name: "Selected" }))
 
@@ -279,9 +280,15 @@ describe("RepositoryTargetGraphRoute", () => {
   })
 
   it("passes workflow_id through job target graph links", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(payload({
-      workflow: { id: 7, slug: "WF-7", job_id: 1, trigger_kind: "retry", state: "failed" }
-    }))))
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse(
+          payload({
+            workflow: { id: 7, slug: "WF-7", job_id: 1, trigger_kind: "retry", state: "failed" }
+          })
+        )
+      )
+    )
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={client}>
@@ -337,7 +344,9 @@ function encodeFilterTree(tree: Record<string, unknown>) {
   const json = JSON.stringify(tree)
   const bytes = new TextEncoder().encode(json)
   let binary = ""
-  bytes.forEach((byte) => { binary += String.fromCharCode(byte) })
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte)
+  })
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
 }
 
