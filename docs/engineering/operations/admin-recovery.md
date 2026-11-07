@@ -1,0 +1,199 @@
+# Admin Recovery
+
+Syrus exposes narrow admin-only recovery actions for Jobs that are open but
+stuck outside the normal workflow state propagation path.
+
+## Dead worker queues
+
+Queued Runs on an explicit `worker-*` or storage-affinity `resume-*` queue are
+reported after a five-minute grace period when no live worker consumes that
+queue. The read-only detector records the Job, Workflow, Run, queue, age,
+claim state, Run state, and whether workflow affinity remains. Admin Stuck Jobs
+surfaces the same reconciler condition. Shared queues such as `runs` are never
+repair candidates, and a dead explicit queue is excluded until current routing
+has compatible live replacement capacity.
+
+Admins can call `repair_queue_affinity` with one `run_id`, up to 100 `run_ids`,
+or `detector_scope: true`. Bulk requests produce one grouped confirmation card
+with the affected Run and Workflow ids and dead queues. Confirmation locks and
+revalidates each Run independently: claimed work is never disturbed, Runs that
+have already moved on become no-ops, stale unclaimed queue rows are removed,
+and the Run is re-enqueued through current capability and admission routing.
+Terminal Runs are not repair candidates; periodic Solid Queue cleanup removes
+their leftover unclaimed rows separately.
+
+Repair audit records contain bounded snapshot references (byte count and
+SHA-256 digest) rather than two complete snapshots in `admin_actions.params`.
+Because Solid Queue can use a separate database, repair first commits a compact
+intent record on the primary database. Queue mutation is idempotent and
+revalidated, then final audit evidence and the confirmation outcome commit
+together on the primary database. If final evidence cannot be persisted after
+queue mutation, the durable intent remains and the action reports `partial`
+instead of falsely reporting `failed`.
+
+## Force Fail Job
+
+`POST /api/v1/admin/jobs/:id/force_fail` moves a non-closed, non-failed Job to
+`failed` and returns the updated admin Job JSON. This is intended for recovery
+cases such as a Job left `running` after its Workflow was cancelled or otherwise
+stopped without propagating failure back to the Job.
+
+The action is deliberately not a generic force-state endpoint. It only targets
+`failed`, which keeps the Job open and lets operators use the normal Retry
+workflow afterward. Closed Jobs return `422 validation_failed`.
+
+The React admin stuck page surfaces a `Force fail` button for stuck Jobs in
+`running`, `queued`, `implemented`, `approved`, or `landing`. Chat agents can
+request the same recovery through the admin-only `force_fail_job` MCP tool; the
+tool creates a pending action and does not mutate the Job until the operator
+confirms it. Passing `job_ids` (an array) instead of `job_id` force-fails
+multiple Jobs as one grouped pending action, but only once a non-blank
+`reason` is supplied as the shared root-cause justification for the whole
+batch -- see [Grouped pending actions](../architecture/chat.md#grouped-pending-actions) for
+the shared infrastructure, the justification requirement, and the other
+conditional-tier tools that use it.
+
+## Close Job Successfully
+
+Chat agents can request `close_job_successfully(job_id, closure_reason:, comment:)`
+when an existing Job should be semantically closed as successful rather than
+cancelled. The tool creates a pending action and never changes Job or PR state
+until the operator confirms it. Passing `job_ids` (an array) instead of
+`job_id` closes multiple Jobs with the same `closure_reason` as one grouped
+pending action the operator confirms or rejects together; see
+[Grouped pending actions](../architecture/chat.md#grouped-pending-actions) for the shared
+infrastructure and the other tools that use it.
+
+`closure_reason` must be one of `Job::SUCCESSFUL_CLOSURE_REASONS`; the common
+repair case is `no_changes`, which satisfies Job dependencies and Epic progress.
+This is distinct from `cancel_job`, whose `cancelled` closure remains
+non-successful.
+
+On confirmation, Syrus cancels active execution records for the Job only to make
+the close coherent, preserves the historical Workflow/Run rows, and calls
+`Job#close_with_reason!`. If the Job tracks a PR and GitHub credentials are
+available, Syrus posts the optional explanatory comment and closes the PR. If
+GitHub comment or PR close fails, the Job still records the successful closure
+and the chat outcome message reports the partial PR cleanup result.
+
+## Explain Stuck Job
+
+Chat agents can call `explain_stuck_job(job_id)` to get a read-only structured
+diagnosis for one Job, whether or not the Job currently appears in the global
+admin stuck list. The payload includes the Job state, latest and active
+Workflow summaries, Run heartbeat evidence, dependency blockers, selected stack
+parent and effective base, and landing queue and merge-train blockers, including
+cached PR check and mergeability state.
+
+The tool returns both machine-readable fields and a concise `human_summary`.
+Its `recommended_action.action` is one of the operator-facing repair choices
+such as `confirm_rebase`, `close_successfully_no_changes`, `retry_job`, `wait`,
+`inspect_logs`, or `manual_intervention`. The tool never mutates Job, Workflow,
+Run, PR, dependency, or queue state; actions that would mutate state still
+require the separate pending-confirmation tools.
+
+## Restart Web / Worker
+
+The operator console's Maintenance section and `POST /api/v1/admin/restart`
+(bearer-token API) / `POST /api/v1/app/admin/restart` (session-authenticated,
+used by the React admin UI) restart web and/or worker processes without any
+environment-specific code — no `kubectl`, no Kubernetes API access, no RBAC.
+
+The mechanism is a shared cache "poison pill": `Admin::RestartService` writes
+a UTC timestamp to `Rails.cache` under `syrus:restart_web` and/or
+`syrus:restart_worker` (component `all` writes both). Every web and worker
+process runs a `RestartWatcher` background thread (started by
+`config/initializers/restart_watcher.rb`, gated the same way as
+`InstanceVersionSupervisor` — only when `SyrusVersion.server_process?`, so it
+never runs in the console, test suite, or asset compilation) that polls its
+own role-scoped key every 10 seconds. When it finds a timestamp newer than
+its own start time, it logs, sleeps a random 0-20s jitter (staggers
+multi-pod/container restarts so the platform can replace one instance before
+the next goes down), then sends itself `SIGTERM`. The platform's existing
+restart policy brings the process back — Kubernetes' pod restart policy,
+Docker Compose's `restart: unless-stopped` (already set on `web` and `worker`
+in `docker-compose.yml`), or foreman in local dev.
+
+Because each process compares the poison-pill timestamp against its own boot
+time, a freshly restarted process ignores the old timestamp instead of
+restarting in a loop. The cache entry expires after 5 minutes.
+
+Restarting `worker` or `all` is refused with `409` (`initiated: false`,
+`active_runs: N`) when Runs are in `queued`/`running` state, unless the
+request passes `force: true`. Restarting `web` alone never checks active Runs.
+Every restart request — successful or refused-then-forced — is recorded via
+`AdminAction.log!` (`action: "restart"`) with `component`, `source`
+(`"api"` or `"app"`), `force`, and the active-run count observed at request
+time, visible in the console's Recent Admin Actions table.
+
+## Stale Run Reap
+
+The admin-only stale-run reap action defers to the unified work-engine
+reconciler, which handles stale Runs, orphaned queued Runs, queued Workflows
+with no first Run, terminal orphan Workflows, and missed worker-death
+auto-retries.
+
+The reconciler also cancels queued automatic retry Workflows when the failed
+source Workflow has already been superseded by a newer successful Workflow. In
+that case cancellation takes precedence over re-enqueueing any stale queued Run
+inside the retry Workflow, so old auto-retry debris does not re-open completed
+work.
+
+## Admin mutation feedback
+
+Admin pages surface mutation failures inline and refresh the affected data so
+an operator does not continue acting on a stale row. This applies to
+maintenance-task actions and discovery, user role and scheduling changes,
+operator-console toggles, and Work Unit debug visibility.
+
+The Processes list and detail page poll while a process is active. Sending
+`SIGKILL` requires confirmation; if the process finishes before the request,
+the returned conflict is shown and the process data is refreshed. The GitHub
+App installations page shows the queued-sync acknowledgement and polls briefly
+after a refresh request so the latest sync status replaces the pre-sync data.
+
+## Queue Affinity Repair
+
+Chat agents can request `repair_queue_affinity(job_id, run_id, reason:)` when a
+queued Run is pinned to worker affinity that no live capable worker satisfies.
+The pending action refuses Runs that are not queued, Workflows that are not
+active, Runs with no recorded affinity, and affinity that still has a live
+matching worker. In those cases the Run is either not eligible for this repair
+or is waiting for capacity rather than wedged behind impossible affinity.
+
+On confirmation, the action locks the Run, Workflow, and matching unclaimed
+Solid Queue `RunJob` rows. It refuses if any matching queue row is already
+claimed by a worker. Otherwise it deletes the matching ready, scheduled,
+blocked, and failed queue executions first, clears `worker_hostname` and
+`worker_storage_key` second, and force re-enqueues the Run third. Keeping that
+order in one transaction prevents an old resume-queue delivery from
+re-stamping the stale affinity between the clear and replacement enqueue.
+
+The action records an operator-repair audit entry and captures the same
+before/after repair snapshots as the other `PendingActions` repairs.
+
+## Planned execution placement override
+
+The Job management surface can change a Job's complete planned-execution
+profile while the Job is still in triage/backlog, or while its initial
+Workflow is queued with no started Run and no mutable workspace. The operator
+chooses a validated profile (`linux`, `macos_desktop`, or `ios_xcode`), reviews
+the exact before/after capabilities and worker availability, and supplies an
+audit reason. macOS desktop deliberately does not imply Xcode or an iOS
+simulator.
+
+The admin chat tool `override_job_planned_execution` exposes the same domain
+operation. `dry_run: true` reports eligibility, affected Workflow and Runs,
+worker availability, and the exact repair without mutation. A live request
+creates a PendingAction; confirmation rechecks the Job revision and safety
+conditions under row locks before atomically updating the Job and queued
+initial Workflow. Started/running work and any recorded mutable workspace are
+refused; use a fresh retry/Workflow for those cases rather than moving an
+active workspace between hosts. Every successful change records actor, reason,
+provenance, timestamp, and the complete previous and replacement placement.
+Eligibility examines the Job's complete Workflow and Run history and refuses
+multiple or non-initial attempts rather than updating a stale subset. Queue
+deliveries are replaced only after the placement transaction commits; if the
+replacement enqueue fails, Syrus requests WorkEngine reconciliation and the
+recurring stale-work reconciler remains the durable fallback for the queued
+Run or zero-Run Workflow.

@@ -320,4 +320,50 @@ RSpec.describe "documentation audiences" do
     end
     expect(offenders).to be_empty
   end
+
+  it "splits remaining mixed feature guides by audience" do
+    architecture_pages = %w[
+      preview-panels preview-environments admin-recovery delivery-tracks
+      typed-artifacts workflow-warnings chat-speech-to-text
+      github-permission-sync external-platforms dashboard-views
+      chat-scheduled-messages
+    ]
+    operations_pages = %w[
+      preview-environments admin-recovery ios-compute chat-speech-to-text
+    ]
+    architecture_index = root.join("docs/engineering/architecture/README.md").read
+    operations_index = root.join("docs/engineering/operations/README.md").read
+
+    architecture_pages.each do |page|
+      expect(root.join("docs/engineering/architecture/#{page}.md")).to exist
+      expect(architecture_index).to include("(#{page}.md)")
+    end
+    operations_pages.each do |page|
+      expect(root.join("docs/engineering/operations/#{page}.md")).to exist
+      expect(operations_index).to include("(#{page}.md)")
+    end
+
+    expect(root.join("config/syrus_docs/preview_panels.md").read)
+      .not_to include("PreviewProxyMiddleware")
+    expect(root.join("config/syrus_docs/preview_environments.md").read)
+      .not_to include("PreviewControlServer")
+    expect(root.join("config/syrus_docs/admin_recovery.md").read)
+      .not_to include("RestartWatcher")
+    expect(root.join("config/syrus_docs/delivery_tracks.md").read)
+      .not_to include("LandingQueueProcessor")
+    expect(root.join("config/syrus_docs/typed_artifacts.md").read)
+      .not_to include("WorkspacePanels.tsx")
+    expect(root.join("config/syrus_docs/workflow_warnings.md").read)
+      .not_to include("WorkflowWarnings.record!")
+    expect(root.join("config/syrus_docs/chat_speech_to_text.md").read)
+      .not_to include("ActionCable")
+    expect(root.join("config/syrus_docs/github_permission_sync.md").read)
+      .not_to include("GithubPermissionSyncer")
+    expect(root.join("config/syrus_docs/external_platforms.md").read)
+      .not_to include("InboundMessageRouter")
+    expect(root.join("config/syrus_docs/dashboard_views.md").read)
+      .not_to include("Filters::SmartFolderResolution")
+    expect(root.join("config/syrus_docs/chat_scheduled_messages.md").read)
+      .not_to include("ScheduledChatMessageFireJob")
+  end
 end
