@@ -227,7 +227,10 @@ bin/compose-up                       # restart / pick up changes
 
 ## What runs
 
-- **web** — Rails app served by Thruster on `localhost:3000`.
+- **web** — Rails app served by Thruster on `localhost:3000`. Dynamic JSON,
+  JSONL, and HTML responses larger than 1 KiB are gzip-compressed when the
+  client sends `Accept-Encoding: gzip`; Rails provides the same behavior when
+  Syrus runs without Thruster.
 - **worker** — Solid Queue worker: pollers, prepare steps, agent runs,
   pushes, PR creation, reapers, and workspace pruning.
 - **setup** — a one-shot container that runs `db:prepare` and makes the data

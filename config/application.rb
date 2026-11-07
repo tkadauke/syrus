@@ -13,6 +13,7 @@ require "syrus/plugin/grader_type"
 require "syrus/plugin/focused_test_command"
 require "syrus/plugin/execution_backend"
 require "syrus/precompressed_asset_server"
+require "syrus/response_compression"
 
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.
@@ -46,6 +47,10 @@ module Syrus
         prefix: app.config.assets.prefix,
         headers: app.config.public_file_server.headers
     end
+
+    config.middleware.use Rack::Deflater,
+      include: Syrus::ResponseCompression::CONTENT_TYPES,
+      if: Syrus::ResponseCompression.method(:compress?)
 
     config.i18n.available_locales = %i[en de la]
     config.i18n.default_locale = :en

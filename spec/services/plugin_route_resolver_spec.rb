@@ -13,6 +13,26 @@ RSpec.describe PluginRouteResolver do
   after { Syrus::PluginRegistry.reset! }
 
   describe ".find / .match?" do
+    it "builds the route table once per plugin registry generation" do
+      register_plugin("widgets", [
+        { verb: "GET", path: "/api/v1/app/widgets", controller: "api/v1/app/widgets#index" }
+      ])
+      request = instance_double(ActionDispatch::Request, request_method: "GET", path: "/api/v1/app/widgets")
+      allow(Syrus::PluginRegistry).to receive(:all_plugins).and_call_original
+
+      2.times { described_class.find(request, controller_prefix: "api/v1/app/") }
+
+      expect(Syrus::PluginRegistry).to have_received(:all_plugins).once
+
+      register_plugin("gadgets", [
+        { verb: "GET", path: "/api/v1/app/gadgets", controller: "api/v1/app/gadgets#index" }
+      ])
+      gadget_request = instance_double(ActionDispatch::Request, request_method: "GET", path: "/api/v1/app/gadgets")
+
+      expect(described_class.find(gadget_request, controller_prefix: "api/v1/app/")).to be_present
+      expect(Syrus::PluginRegistry).to have_received(:all_plugins).twice
+    end
+
     it "finds a plugin-declared API route matching verb, path shape, and controller prefix" do
       register_plugin("widgets", [
         { verb: "GET", path: "/api/v1/app/admin/widgets/:id", controller: "api/v1/app/admin/widgets#show" }

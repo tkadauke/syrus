@@ -46,9 +46,14 @@ class PluginRouteResolver
     private
 
     def plugin_routes(enabled:)
-      Syrus::PluginRegistry.all_plugins.flat_map do |manifest|
-        next [] unless enabled.nil? || manifest.enabled? == enabled
+      route_table.select { |route| enabled.nil? || route.enabled == enabled }
+    end
 
+    def route_table
+      generation = Syrus::PluginRegistry.generation
+      return @route_table if defined?(@route_table_generation) && @route_table_generation == generation
+
+      @route_table = Syrus::PluginRegistry.all_plugins.flat_map do |manifest|
         metadata = manifest.metadata.with_indifferent_access
         Array(metadata[:routes]).filter_map do |raw_route|
           route = raw_route.to_h.with_indifferent_access
@@ -64,6 +69,8 @@ class PluginRouteResolver
           )
         end
       end
+      @route_table_generation = generation
+      @route_table
     end
 
     def controller_allowed?(controller, prefix)

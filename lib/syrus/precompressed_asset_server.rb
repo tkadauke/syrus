@@ -14,6 +14,8 @@ module Syrus
       @root = Pathname.new(root)
       @prefix = prefix.to_s.end_with?("/") ? prefix.to_s : "#{prefix}/"
       @headers = headers.to_h
+      @asset_metadata = {}
+      @asset_metadata_mutex = Mutex.new
     end
 
     def call(env)
@@ -73,13 +75,30 @@ module Syrus
 
       def response_headers(plain_path, variant)
         encoded_path = variant.fetch(:path)
+        metadata = asset_metadata(encoded_path)
         @headers.merge(
           Rack::CONTENT_TYPE => Rack::Mime.mime_type(plain_path.extname, "application/octet-stream"),
-          Rack::CONTENT_LENGTH => encoded_path.size.to_s,
-          Rack::ETAG => %("#{Digest::SHA256.file(encoded_path).hexdigest}"),
+          Rack::CONTENT_LENGTH => metadata.fetch(:size).to_s,
+          Rack::ETAG => %("#{metadata.fetch(:digest)}"),
           "Vary" => "Accept-Encoding"
         ).tap do |headers|
           headers["Content-Encoding"] = variant.fetch(:encoding) if variant.fetch(:encoding)
+        end
+      end
+
+      def asset_metadata(path)
+        stat = path.stat
+        cache_key = path.to_s
+
+        @asset_metadata_mutex.synchronize do
+          cached = @asset_metadata[cache_key]
+          return cached if cached && cached.fetch(:mtime) == stat.mtime
+
+          @asset_metadata[cache_key] = {
+            mtime: stat.mtime,
+            size: stat.size,
+            digest: Digest::SHA256.file(path).hexdigest
+          }
         end
       end
 
