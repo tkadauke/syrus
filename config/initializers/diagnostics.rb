@@ -1,6 +1,6 @@
 # On-demand process diagnostics, triggered by SIGUSR2 and parameterised by a
 # request file. See Diagnostics::SignalTrigger for why this is a signal rather
-# than an endpoint, and config/syrus_docs/observability.md for operator usage.
+# than an endpoint, and docs/engineering/operations/observability.md for operator usage.
 #
 # Installed in every process, web included: the handler only sets a flag until
 # the signal arrives, so an unsignalled process pays nothing. Installing here
