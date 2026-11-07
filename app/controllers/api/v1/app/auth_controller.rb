@@ -3,7 +3,7 @@ module Api
     module App
       class AuthController < BaseController
         skip_before_action :require_authentication,
-                           only: %i[signup create_session create_user create_password update_password]
+                           only: %i[status signup create_session create_user create_password update_password]
         # Mirrors the HTML fallback controllers' limits (SessionsController /
         # PasswordsController); these JSON endpoints are the ones the React
         # forms actually hit, so they need the same brute-force brake.
@@ -11,6 +11,15 @@ module Api
                    only: %i[create_session create_password update_password],
                    if: -> { AuthRateLimit.enabled? },
                    with: -> { render_error("rate_limited", "Try again later.", status: :too_many_requests) }
+
+        def status
+          resume_session
+
+          render json: AppApi::PublicAuthState.new(
+            user: Current.user,
+            invitation_token: params[:token]
+          ).as_json
+        end
 
         def signup
           invitation = invitation_from_params
