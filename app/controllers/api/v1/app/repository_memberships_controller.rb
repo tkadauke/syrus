@@ -33,8 +33,8 @@ module Api
             return
           end
 
-          repository.repository_memberships.create!(user: target_user, role: role)
-          render json: repository_members_payload(repository.reload).merge(message: I18n.t("api.repository_memberships.added", email: target_user.email_address, role: role)), status: :created
+          membership = repository.repository_memberships.create!(user: target_user, role: role)
+          render json: { membership: repository_membership_json(membership), message: I18n.t("api.repository_memberships.added", email: target_user.email_address, role: role) }, status: :created
         end
 
         def update
@@ -53,7 +53,7 @@ module Api
           end
 
           membership.update!(role: role)
-          render json: repository_members_payload(repository.reload).merge(message: I18n.t("api.repository_memberships.role_updated", role: role))
+          render json: { membership: repository_membership_json(membership), message: I18n.t("api.repository_memberships.role_updated", role: role) }
         end
 
         def destroy
@@ -66,7 +66,7 @@ module Api
           end
 
           membership.destroy!
-          render json: repository_members_payload(repository.reload).merge(message: I18n.t("api.repository_memberships.removed"))
+          render json: { id: membership.id, message: I18n.t("api.repository_memberships.removed") }
         end
 
         private

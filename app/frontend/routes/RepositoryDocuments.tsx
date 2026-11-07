@@ -13,6 +13,7 @@ import {
   type RepositoryDocumentInput,
   type RepositoryDocumentsPayload
 } from "../api/repositoryDocuments"
+import { REPOSITORY_DOCUMENT_ACCEPTED_FILE_CONTENT_TYPES } from "../api/repositoryDocuments"
 import { RepositoryPageShell } from "../components/RepositoryPageShell"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { useT } from "../hooks/useT"
@@ -28,10 +29,11 @@ export function RepositoryDocumentsRoute() {
   const location = useLocation()
   const params = useParams()
   const repositoryId = params.repositoryId || ""
+  const page = Math.max(Number(new URLSearchParams(location.search).get("page")) || 1, 1)
   const prefix = routePrefix(location.pathname)
   const documents = useQuery({
-    queryKey: ["repositories", repositoryId, "documents"],
-    queryFn: () => fetchRepositoryDocuments(repositoryId),
+    queryKey: ["repositories", repositoryId, "documents", page],
+    queryFn: () => fetchRepositoryDocuments(repositoryId, page),
     enabled: repositoryId.length > 0
   })
   const payload = documents.data
@@ -65,11 +67,13 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
   const queryClient = useQueryClient()
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const [previewDocument, setPreviewDocument] = useState<RepositoryDocument | null>(null)
-  const queryKey = ["repositories", String(payload.repository.id), "documents"] as const
+  const queryKey = ["repositories", String(payload.repository.id), "documents", payload.pagination.page] as const
   const destroy = useMutation({
     mutationFn: (document: RepositoryDocument) => deleteRepositoryDocument(document.id),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      queryClient.setQueryData<RepositoryDocumentsPayload>(queryKey, (current) =>
+        current ? { ...current, documents: current.documents.filter((row) => row.id !== updated.id), pagination: { ...current.pagination, total: current.pagination.total - 1 } } : current
+      )
       setNotice(updated.message || t("repository_documents.removed"))
     }
   })
@@ -135,7 +139,14 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
         )}
       </section>
 
-      {payload.can_write ? <DocumentForms acceptedTypes={payload.accepted_file_content_types} onNotice={setNotice} payload={payload} /> : null}
+      {payload.pagination.total_pages > 1 ? (
+        <nav className="flex justify-end gap-2" aria-label="Document pages">
+          {payload.pagination.page > 1 ? <Link to={`?page=${payload.pagination.page - 1}`}>Previous</Link> : null}
+          {payload.pagination.page < payload.pagination.total_pages ? <Link to={`?page=${payload.pagination.page + 1}`}>Next</Link> : null}
+        </nav>
+      ) : null}
+
+      {payload.can_write ? <DocumentForms acceptedTypes={REPOSITORY_DOCUMENT_ACCEPTED_FILE_CONTENT_TYPES} onNotice={setNotice} payload={payload} /> : null}
       {previewDocument && previewDocument.file_path ? (
         <DocumentPreviewModal
           file={{ title: previewDocument.title, rawUrl: previewDocument.file_path, contentType: previewDocument.content_type }}
@@ -166,7 +177,9 @@ function DocumentForms({
   const save = useMutation({
     mutationFn: (input: RepositoryDocumentInput) => createRepositoryDocument(payload.repository.id, input),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      queryClient.setQueryData<RepositoryDocumentsPayload>(queryKey, (current) =>
+        current ? { ...current, documents: [updated.document, ...current.documents].slice(0, current.pagination.per_page), pagination: { ...current.pagination, total: current.pagination.total + 1 } } : current
+      )
       setFileTitle("")
       setFile(null)
       setDocTitle("")

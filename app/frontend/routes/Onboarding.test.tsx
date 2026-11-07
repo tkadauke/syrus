@@ -135,7 +135,7 @@ describe("OnboardingRoute — revisiting completed steps", () => {
   })
 
   it("keeps the report inside the Repository step modal", async () => {
-    vi.mocked(window.fetch).mockResolvedValue(
+    vi.mocked(window.fetch).mockImplementation(() => Promise.resolve(
       jsonResponse({
         readiness: {
           status: "ready_with_warnings",
@@ -159,7 +159,7 @@ describe("OnboardingRoute — revisiting completed steps", () => {
           ]
         }
       })
-    )
+    ))
 
     renderOnboarding(
       bootstrap({
@@ -173,7 +173,7 @@ describe("OnboardingRoute — revisiting completed steps", () => {
     trigger.focus()
     fireEvent.click(trigger)
 
-    expect(screen.getByRole("dialog", { name: "Repository readiness" })).toBeInTheDocument()
+    expect(await screen.findByRole("dialog", { name: "Repository readiness" })).toBeInTheDocument()
     expect(screen.getByText("$ bundle install")).toBeInTheDocument()
     expect(screen.getByText("$ bin/rspec")).toBeInTheDocument()
     const scopeDescription = screen.getByText(/Workflow workspace: os=linux · runs/)
@@ -187,7 +187,7 @@ describe("OnboardingRoute — revisiting completed steps", () => {
   })
 
   it("does not show an orphaned worker heading when readiness fails before scopes are computed", async () => {
-    vi.mocked(window.fetch).mockResolvedValue(
+    vi.mocked(window.fetch).mockImplementation(() => Promise.resolve(
       jsonResponse({
         readiness: {
           status: "needs_configuration",
@@ -202,7 +202,7 @@ describe("OnboardingRoute — revisiting completed steps", () => {
           execution_scopes: []
         }
       })
-    )
+    ))
 
     renderOnboarding(
       bootstrap({
@@ -211,12 +211,12 @@ describe("OnboardingRoute — revisiting completed steps", () => {
     )
 
     fireEvent.click(await screen.findByRole("button", { name: "Needs configuration" }))
-    expect(screen.getByText(/Repository content is unavailable\./)).toBeInTheDocument()
+    expect(await screen.findByText(/Repository content is unavailable\./)).toBeInTheDocument()
     expect(screen.queryByText("Execution scopes and workers")).not.toBeInTheDocument()
   })
 
   it("shows actionable disposable probe failures and cleanup evidence", async () => {
-    vi.mocked(window.fetch).mockResolvedValue(
+    vi.mocked(window.fetch).mockImplementation(() => Promise.resolve(
       jsonResponse({
         readiness: {
           status: "ready",
@@ -247,7 +247,7 @@ describe("OnboardingRoute — revisiting completed steps", () => {
           }
         }
       })
-    )
+    ))
 
     renderOnboarding(bootstrap({ setup_status: { ...bootstrap().setup_status!, onboarding_repository_id: 7 } }))
 
@@ -268,11 +268,21 @@ describe("OnboardingRoute — revisiting completed steps", () => {
 
   it("polls an active execution probe until its terminal result arrives", async () => {
     let reads = 0
-    vi.mocked(window.fetch).mockImplementation(() => {
-      reads += 1
-      const active = reads === 1
+    vi.mocked(window.fetch).mockImplementation((input) => {
+      const probeRead = String(input).endsWith("/readiness_probe")
+      if (probeRead) reads += 1
+      const active = reads === 0
+      const executionProbe = {
+        id: 9,
+        status: active ? "queued" : "succeeded",
+        revision: active ? null : "abc123",
+        warning_override: false,
+        started_at: null,
+        completed_at: active ? null : "2026-10-17T00:00:02Z",
+        result: active ? {} : { summary: "Prepare and bounded grader probe succeeded.", cleanup: "completed" }
+      }
       return Promise.resolve(
-        jsonResponse({
+        jsonResponse(probeRead ? { execution_probe: executionProbe } : {
           readiness: {
             status: "ready",
             summary: "Ready",
@@ -284,15 +294,7 @@ describe("OnboardingRoute — revisiting completed steps", () => {
             grader_commands: [],
             required_capabilities: { os: ["linux"] },
             execution_scopes: [],
-            execution_probe: {
-              id: 9,
-              status: active ? "queued" : "succeeded",
-              revision: active ? null : "abc123",
-              warning_override: false,
-              started_at: null,
-              completed_at: active ? null : "2026-10-17T00:00:02Z",
-              result: active ? {} : { summary: "Prepare and bounded grader probe succeeded.", cleanup: "completed" }
-            }
+            execution_probe: executionProbe
           }
         })
       )
@@ -300,9 +302,8 @@ describe("OnboardingRoute — revisiting completed steps", () => {
 
     renderOnboarding(bootstrap({ setup_status: { ...bootstrap().setup_status!, onboarding_repository_id: 7 } }))
     fireEvent.click(await screen.findByRole("button", { name: "Ready" }))
-    expect(await screen.findByText("queued")).toBeInTheDocument()
     expect(await screen.findByText(/Prepare and bounded grader probe succeeded/, {}, { timeout: 3_000 })).toBeInTheDocument()
-    expect(reads).toBe(2)
+    expect(reads).toBe(1)
   })
 
   it("keeps every completed step actionable instead of collapsing to a static badge", () => {

@@ -49,7 +49,7 @@ import {
   type RepositoryFeatureRecommendation
 } from "../api/repositories"
 import { errorMessage } from "../lib/errorMessage"
-import { fetchRepositoryReadiness } from "../api/repositories"
+import { fetchRepositoryReadiness, fetchRepositoryReadinessProbe, fetchRepositoryReadinessSummary } from "../api/repositories"
 import { RepositoryReadinessModal, readinessTone } from "../components/RepositoryReadinessModal"
 
 const MERGE_TRAIN_FAILURE_RUNGS = [
@@ -169,15 +169,24 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
   const { t } = useT("settings")
   const { t: commonT } = useT("common")
   const [readinessOpen, setReadinessOpen] = useState(false)
+  const readinessSummary = useQuery({
+    queryKey: ["repository-readiness-summary", payload.repository.id],
+    queryFn: () => fetchRepositoryReadinessSummary(payload.repository.id),
+    staleTime: 60_000
+  })
   const readiness = useQuery({
     queryKey: ["repository-readiness", payload.repository.id],
     queryFn: () => fetchRepositoryReadiness(payload.repository.id),
-    staleTime: 60_000,
+    enabled: readinessOpen,
+    staleTime: 60_000
+  })
+  const readinessProbe = useQuery({
+    queryKey: ["repository-readiness-probe", payload.repository.id],
+    queryFn: () => fetchRepositoryReadinessProbe(payload.repository.id),
+    enabled: readiness.data?.readiness?.execution_probe?.status === "queued" || readiness.data?.readiness?.execution_probe?.status === "running",
     refetchInterval: (query) => {
-      const data = query.state.data
-      if (!data || !("readiness" in data) || !data.readiness) return false
-      const status = data.readiness.execution_probe?.status
-      return status === "queued" || status === "running" ? 1_000 : false
+      const status = query.state.data?.execution_probe?.status
+      return status === "queued" || status === "running" ? Math.min(1_000 * 2 ** query.state.dataUpdateCount, 8_000) : false
     }
   })
   const repository = payload.repository
@@ -193,21 +202,23 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
       <TonePill tone={repository.polling_enabled ? "green" : "gray"}>
         {repository.polling_enabled ? t("repository.polling_enabled") : t("repository.polling_paused")}
       </TonePill>
-      {readiness.data?.readiness ? (
+      {readinessSummary.data?.readiness ? (
         <>
           <button
-            className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${repositoryReadinessTriggerClass(readinessTone(readiness.data.readiness.status))}`}
+            className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${repositoryReadinessTriggerClass(readinessTone(readinessSummary.data.readiness.status))}`}
             onClick={() => setReadinessOpen(true)}
             type="button"
           >
-            {commonT("onboarding.readiness_status", { status: readiness.data.readiness.summary })}
+            {commonT("onboarding.readiness_status", { status: readinessSummary.data.readiness.summary })}
           </button>
-          <RepositoryReadinessModal
-            onClose={() => setReadinessOpen(false)}
-            open={readinessOpen}
-            repositoryId={payload.repository.id}
-            report={readiness.data.readiness}
-          />
+          {readiness.data?.readiness ? (
+            <RepositoryReadinessModal
+              onClose={() => setReadinessOpen(false)}
+              open={readinessOpen}
+              repositoryId={payload.repository.id}
+              report={{ ...readiness.data.readiness, execution_probe: readinessProbe.data?.execution_probe ?? readiness.data.readiness.execution_probe }}
+            />
+          ) : null}
         </>
       ) : null}
       {pollIssueErrors.length > 0 ? <TonePill tone="amber">{t("repository.poll_quarantined", { count: pollIssueErrors.length })}</TonePill> : null}
@@ -433,8 +444,10 @@ export function RecommendedActions({
       runRepositoryRecommendation(appendSearch(recommendation.cta.path, search), payload.pagination.page),
     onSuccess: (updated, recommendation) => {
       dismiss(recommendation)
-      if ("repository" in updated && "tabs" in updated) {
-        queryClient.setQueryData(queryKey, updated)
+      if ("repository" in updated) {
+        queryClient.setQueryData(queryKey, (current: RepositoryDetailPayload | undefined) =>
+          current ? { ...current, repository: { ...current.repository, ...updated.repository }, recommended_actions: updated.recommended_actions } : current
+        )
         onNotice(updated.message || null)
       } else {
         onNotice(updated.message || t("repository.recommendation_job_created"))
@@ -808,7 +821,7 @@ function Actions({
   const poll = useMutation({
     mutationFn: () => pollRepositoryDetail(appendSearch(payload.paths.app_poll_repository_path, search), payload.pagination.page),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      void queryClient.invalidateQueries({ queryKey })
       onNotice(updated.message || null)
     }
   })
@@ -983,7 +996,15 @@ function NeedsTriageJobs({
     mutationFn: (jobId: number) =>
       releaseNeedsTriageRepositoryJob(appendSearch(payload.paths.app_release_needs_triage_job_repository_path, search), jobId, payload.pagination.page),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      queryClient.setQueryData(queryKey, (current: RepositoryDetailPayload | undefined) =>
+        current
+          ? {
+              ...current,
+              needs_triage_count: updated.needs_triage_count,
+              needs_triage_jobs: current.needs_triage_jobs.filter((job) => job.id !== updated.released_job_id)
+            }
+          : current
+      )
       void queryClient.invalidateQueries({ queryKey: ["repositories", String(payload.repository.id), "jobs"] })
       void queryClient.invalidateQueries({ queryKey: ["repositories", String(payload.repository.id), "delivery"] })
       onNotice(updated.message || null)

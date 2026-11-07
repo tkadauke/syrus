@@ -24,7 +24,7 @@ function documentsPayload(overrides: Record<string, unknown> = {}) {
         created_at: "2026-01-01T00:00:00Z"
       }
     ],
-    accepted_file_content_types: ["image/*", "application/pdf"],
+    pagination: { page: 1, per_page: 25, total: 1, total_pages: 1 },
     ...overrides
   }
 }
@@ -100,7 +100,7 @@ describe("RepositoryDocumentsRoute delete", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
       if (url === "/api/v1/app/repository_documents/20" && init?.method === "DELETE") {
-        return Promise.resolve(jsonResponse(documentsPayload({ documents: [], message: "Document removed." })))
+        return Promise.resolve(jsonResponse({ id: 20, message: "Document removed." }))
       }
       return Promise.resolve(jsonResponse(documentsPayload()))
     })

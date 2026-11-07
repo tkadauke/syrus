@@ -34,8 +34,8 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/final_approvers", t
 
       expect(response).to have_http_status(:created)
       expect(repository.final_approver_ids).to eq([ approver.id ])
-      expect(parse_body["final_approvers"]).to contain_exactly(
-        include("user" => include("id" => approver.id, "email_address" => "approver@example.com"))
+      expect(parse_body["final_approver"]).to include(
+        "user" => include("id" => approver.id, "email_address" => "approver@example.com")
       )
     end
 
@@ -63,7 +63,7 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/final_approvers", t
         delete "/api/v1/app/repositories/#{repository.id}/final_approvers/#{final_approver.id}"
       }.to change(RepositoryFinalApprover, :count).by(-1)
 
-      expect(response).to have_http_status(:ok)
+      expect(response).to have_http_status(:no_content)
       expect(RepositoryFinalApprover.exists?(final_approver.id)).to be false
     end
   end

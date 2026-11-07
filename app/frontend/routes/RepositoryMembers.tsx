@@ -56,7 +56,9 @@ function RepositoryMembersView({ payload }: { payload: RepositoryMembershipsPayl
     mutationFn: ({ membershipId, role }: { membershipId: number; role: RepositoryMembershipRole }) =>
       updateRepositoryMembershipRole(payload.repository.id, membershipId, role),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      queryClient.setQueryData<RepositoryMembershipsPayload>(queryKey, (current) =>
+        current ? { ...current, memberships: current.memberships.map((row) => (row.id === updated.membership.id ? updated.membership : row)) } : current
+      )
       setNotice(updated.message || null)
     }
   })
@@ -64,7 +66,9 @@ function RepositoryMembersView({ payload }: { payload: RepositoryMembershipsPayl
   const destroy = useMutation({
     mutationFn: (membership: RepositoryMembership) => deleteRepositoryMembership(payload.repository.id, membership.id),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      queryClient.setQueryData<RepositoryMembershipsPayload>(queryKey, (current) =>
+        current ? { ...current, memberships: current.memberships.filter((row) => row.id !== updated.id) } : current
+      )
       setNotice(updated.message || null)
     }
   })
@@ -184,7 +188,9 @@ function TeamGrants({ payload, onNotice }: { payload: RepositoryMembershipsPaylo
   const updateRole = useMutation({
     mutationFn: ({ grantId, role }: { grantId: number; role: RepositoryMembershipRole }) => updateRepositoryTeamGrantRole(payload.repository.id, grantId, role),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      queryClient.setQueryData<RepositoryMembershipsPayload>(queryKey, (current) =>
+        current ? { ...current, team_grants: current.team_grants.map((row) => (row.id === updated.team_grant.id ? updated.team_grant : row)) } : current
+      )
       onNotice(updated.message || null)
     }
   })
@@ -192,7 +198,9 @@ function TeamGrants({ payload, onNotice }: { payload: RepositoryMembershipsPaylo
   const destroy = useMutation({
     mutationFn: (grant: TeamRepositoryGrant) => deleteRepositoryTeamGrant(payload.repository.id, grant.id),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      queryClient.setQueryData<RepositoryMembershipsPayload>(queryKey, (current) =>
+        current ? { ...current, team_grants: current.team_grants.filter((row) => row.id !== updated.id) } : current
+      )
       onNotice(updated.message || null)
     }
   })
@@ -263,7 +271,9 @@ function AddTeamGrantForm({ payload, onNotice }: { payload: RepositoryMembership
   const create = useMutation({
     mutationFn: () => createRepositoryTeamGrant(payload.repository.id, { team_name: teamName, role }),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      queryClient.setQueryData<RepositoryMembershipsPayload>(queryKey, (current) =>
+        current ? { ...current, team_grants: [...current.team_grants, updated.team_grant] } : current
+      )
       setTeamName("")
       setRole("read")
       onNotice(updated.message || null)
@@ -334,7 +344,9 @@ function AddMemberForm({ payload, onNotice }: { payload: RepositoryMembershipsPa
   const create = useMutation({
     mutationFn: () => createRepositoryMembership(payload.repository.id, { email, role }),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      queryClient.setQueryData<RepositoryMembershipsPayload>(queryKey, (current) =>
+        current ? { ...current, memberships: [...current.memberships, updated.membership] } : current
+      )
       setEmail("")
       setRole("read")
       onNotice(updated.message || null)

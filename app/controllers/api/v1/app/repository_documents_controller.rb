@@ -3,6 +3,7 @@ module Api
     module App
       class RepositoryDocumentsController < BaseController
         include RepositoryTabsSerialization
+        PER_PAGE = 25
         def index
           repository = find_repository
           render json: documents_payload(repository)
@@ -16,7 +17,7 @@ module Api
           document.user = Current.user
 
           if document.save
-            render json: documents_payload(repository.reload).merge(message: I18n.t("api.repository_documents.added")), status: :created
+            render json: { document: document_json(document), message: I18n.t("api.repository_documents.added") }, status: :created
           else
             render_error("validation_failed", document.errors.full_messages.to_sentence,
                          status: :unprocessable_content)
@@ -31,7 +32,7 @@ module Api
           document.file.purge if document.file.attached?
           document.destroy!
 
-          render json: documents_payload(repository.reload).merge(message: I18n.t("api.repository_documents.removed"))
+          render json: { id: document.id, message: I18n.t("api.repository_documents.removed") }
         end
 
         def file
@@ -48,16 +49,15 @@ module Api
         private
 
         def documents_payload(repository)
+          page = [ params.fetch(:page, 1).to_i, 1 ].max
+          scope = repository.repository_documents.includes(:user, file_attachment: :blob).newest_first
+          total = scope.count
           {
             repository: repository_json(repository),
             can_write: RepositoryPolicy.new(Current.user, repository).write?,
             tabs: repository_tabs_json(repository),
-            documents: repository
-              .repository_documents
-              .includes(:user, file_attachment: :blob)
-              .newest_first
-              .map { |document| document_json(document) },
-            accepted_file_content_types: Document::ACCEPTED_FILE_CONTENT_TYPES
+            documents: scope.offset((page - 1) * PER_PAGE).limit(PER_PAGE).map { |document| document_json(document) },
+            pagination: { page: page, per_page: PER_PAGE, total: total, total_pages: (total.to_f / PER_PAGE).ceil }
           }
         end
 

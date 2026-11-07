@@ -92,23 +92,17 @@ function mockFetch(repositoryOverrides: Record<string, unknown> = {}, finalAppro
     }
     if (url === "/api/v1/app/repositories/1/memberships" && method === "POST") {
       return Promise.resolve(
-        jsonResponse(
-          membershipsPayload({
-            ...membershipsOverrides,
-            memberships: [
-              ...((membershipsOverrides.memberships as unknown[]) ?? []),
-              {
-                id: 12,
-                role: "write",
-                created_at: "2026-01-03T00:00:00Z",
-                github_permission_mismatch_reason: null,
-                github_permission_mismatch_checked_at: null,
-                user: { id: 3, email_address: "writer@example.com", name: "Writer Person" }
-              }
-            ],
-            message: "writer@example.com added as write."
-          })
-        )
+        jsonResponse({
+          membership: {
+            id: 12,
+            role: "write",
+            created_at: "2026-01-03T00:00:00Z",
+            github_permission_mismatch_reason: null,
+            github_permission_mismatch_checked_at: null,
+            user: { id: 3, email_address: "writer@example.com", name: "Writer Person" }
+          },
+          message: "writer@example.com added as write."
+        })
       )
     }
     if (url === "/api/v1/app/repositories/owners") {
@@ -164,10 +158,7 @@ function mockFetch(repositoryOverrides: Record<string, unknown> = {}, finalAppro
     if (url === "/api/v1/app/repositories/1/final_approvers" && method === "POST") {
       return Promise.resolve(
         jsonResponse({
-          final_approvers: [
-            ...finalApprovers,
-            { id: 99, created_at: "2026-01-01T00:00:00Z", user: { id: 5, name: "New Approver", email_address: "new-approver@example.com" } }
-          ],
+          final_approver: { id: 99, created_at: "2026-01-01T00:00:00Z", user: { id: 5, name: "New Approver", email_address: "new-approver@example.com" } },
           message: "new-approver@example.com added as final approver."
         })
       )
