@@ -664,6 +664,7 @@
   "declined": "Recusatum",
   "aria_multi_select_option": "{{option}} commuta",
   "media_empty": "Nulla media communicata adhuc.",
+  "media_load_more": "Plura onerare",
   "snapshots_loading": "Imagines onerantur...",
   "canvas_busy": "Scaena occupata est. Exspecta dum pictura conficiatur antequam imaginem oneraveris.",
   "chat_busy": "Colloquium occupatum est. Exspecta dum vices praesentes conficiantur antequam imaginem oneraveris.",

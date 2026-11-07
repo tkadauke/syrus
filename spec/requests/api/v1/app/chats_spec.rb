@@ -5244,9 +5244,10 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
           "filename" => "diagram.png",
           "content_type" => "image/png",
           "file_path" => "/api/v1/app/chats/#{chat.id}/media/chat_images/#{doc.id}/file",
-          "image_url" => "/api/v1/app/repository_documents/#{doc.id}/file"
+          "thumbnail_url" => "/api/v1/app/chats/#{chat.id}/media/chat_images/#{doc.id}/file?thumbnail=1"
         )
       )
+      expect(body["pagination"]).to include("image_page" => 1, "images_has_more" => false, "artifact_page" => 1, "artifacts_has_more" => false)
     end
 
     it "serves chat image files through the chat-scoped media path" do
@@ -5264,7 +5265,23 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response.media_type).to eq("image/png")
     end
 
-    it "includes inline chat image attachments in chat_images" do
+    it "serves a processed Active Storage variant for thumbnail requests" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+      png = Base64.decode64("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
+      doc = Document.new(kind: "file", attachable: user, user: user)
+      doc.file.attach(io: StringIO.new(png), filename: "pixel.png", content_type: "image/png")
+      doc.save!
+      ChatAttachment.create!(chat_session: chat, attachable: doc, suppress_header_broadcast: true)
+
+      get "/api/v1/app/chats/#{chat.id}/media/chat_images/#{doc.id}/file", params: { thumbnail: 1 }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq("image/png")
+      expect(response.body).to be_present
+    end
+
+    it "does not materialize inline chat image attachments during the GET" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
       chat.messages.create!(
@@ -5284,16 +5301,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       get "/api/v1/app/chats/#{chat.id}/media"
 
       expect(response).to have_http_status(:ok)
-      doc = chat.reload.attached_repository_documents.sole
-      expect(parse_body["chat_images"]).to contain_exactly(
-        include(
-          "id" => doc.id,
-          "filename" => "bug-report-viewport.png",
-          "content_type" => "image/png",
-          "file_path" => "/api/v1/app/chats/#{chat.id}/media/chat_images/#{doc.id}/file",
-          "image_url" => "/api/v1/app/credentials/documents/#{doc.id}/file"
-        )
-      )
+      expect(parse_body["chat_images"]).to eq([])
+      expect(chat.reload.attached_repository_documents).to be_empty
     end
 
     it "excludes non-image documents from chat_images" do
@@ -5393,10 +5402,42 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
           entry = parse_body["typed_artifacts"].find { |e| e["type"] == "rails_schema_erd" }
           expect(entry).to be_present
           expect(entry["renderer_type"]).to eq("erd_diagram")
+          expect(entry).not_to have_key("payload")
+
+          get "/api/v1/app/chats/#{chat.id}/media/typed_artifacts/#{entry.fetch("artifact_index")}"
+
+          expect(response).to have_http_status(:ok)
+          expect(parse_body.dig("payload", "tables", 0, "name")).to eq("users")
         ensure
           Syrus::PluginRegistry.reset! unless registered_before
         end
       end
+    end
+
+
+    it "paginates images without returning duplicate full-size URLs" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+      stub_const("Api::V1::App::ChatsController::MEDIA_PAGE_SIZE", 1)
+      documents = 2.times.map do |index|
+        Document.new(kind: "file", attachable: user, user: user, title: "Image #{index}").tap do |document|
+          document.file.attach(io: StringIO.new("pixels-#{index}"), filename: "image-#{index}.png", content_type: "image/png")
+          document.save!
+          ChatAttachment.create!(chat_session: chat, attachable: document, suppress_header_broadcast: true)
+        end
+      end
+
+      get "/api/v1/app/chats/#{chat.id}/media", params: { image_page: 2 }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["chat_images"].pluck("id")).to eq([ documents.second.id ])
+      expect(body["chat_images"].sole).to include(
+        "file_path" => "/api/v1/app/chats/#{chat.id}/media/chat_images/#{documents.second.id}/file",
+        "thumbnail_url" => "/api/v1/app/chats/#{chat.id}/media/chat_images/#{documents.second.id}/file?thumbnail=1"
+      )
+      expect(body["chat_images"].sole).not_to have_key("image_url")
+      expect(body.dig("pagination", "images_has_more")).to be(false)
     end
   end
 

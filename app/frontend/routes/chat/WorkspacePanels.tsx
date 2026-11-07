@@ -1,7 +1,7 @@
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { Button } from "../../components/Button"
 import { PanelMessage } from "../../components/PanelMessage"
-import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query"
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query"
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, MutableRefObject } from "react"
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link } from "react-router-dom"
@@ -13,6 +13,7 @@ import {
   closeChatPreviewPanel,
   createWhiteboardSnapshot,
   fetchChatMedia,
+  fetchChatMediaArtifact,
   fetchChatPreviewPanelAccessToken,
   fetchChatPreviewPanelFile,
   fetchPreviewPanelHistory,
@@ -1056,28 +1057,34 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
   const [lightboxImageIndex, setLightboxImageIndex] = useState<number | null>(null)
   const [loadingSnapshotId, setLoadingSnapshotId] = useState<number | null>(null)
   const [snapshotError, setSnapshotError] = useState<string | null>(null)
-  const [selectedArtifactType, setSelectedArtifactType] = useState<string | null>(null)
+  const [selectedArtifactIndex, setSelectedArtifactIndex] = useState<number | null>(null)
   const queryClient = useQueryClient()
   const snapshots = useQuery({
     queryKey: ["whiteboard_snapshots", String(payload.chat.id)],
     queryFn: () => fetchWhiteboardSnapshots(payload.chat.id),
     enabled: payload.chat.id != null
   })
-  const media = useQuery({
+  const media = useInfiniteQuery({
     queryKey: ["chat_media", String(payload.chat.id)],
-    queryFn: () => fetchChatMedia(payload.chat.id),
+    queryFn: ({ pageParam }) => fetchChatMedia(payload.chat.id, pageParam),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.pagination?.images_has_more || lastPage.pagination?.artifacts_has_more ? (lastPage.pagination?.image_page || 1) + 1 : undefined,
     enabled: payload.chat.id != null
   })
   const chatBusy = payload.agent_busy
   const snapshotLoading = loadingSnapshotId != null
   const snapshotItems = snapshots.data?.whiteboard_snapshots || []
-  const artifactItems = media.data?.typed_artifacts || []
-  // Sourced from the chat's full history via GET /media (which also
-  // materializes any not-yet-materialized inline attachments into
-  // Documents), not payload.messages -- the currently loaded message window
-  // is paginated, so an older image would otherwise be invisible here even
-  // though the chat has media.
-  const images = media.data?.chat_images || []
+  const mediaPages = media.data?.pages || []
+  const artifactItems = mediaPages.flatMap((page) => page.typed_artifacts || [])
+  const selectedArtifact = useQuery({
+    queryKey: ["chat_media_artifact", String(payload.chat.id), selectedArtifactIndex],
+    queryFn: () => fetchChatMediaArtifact(payload.chat.id, selectedArtifactIndex!),
+    enabled: selectedArtifactIndex != null && !artifactItems.find((artifact, index) => (artifact.artifact_index ?? index) === selectedArtifactIndex)?.payload
+  })
+  // Sourced from the chat's attachment records rather than the currently
+  // loaded transcript window, which is independently paginated.
+  const images = mediaPages.flatMap((page) => page.chat_images || [])
   const lightboxImage = lightboxImageIndex == null ? null : images[lightboxImageIndex] || null
   const previousLightboxImage = lightboxImageIndex != null && lightboxImageIndex > 0 ? images[lightboxImageIndex - 1] : null
   const nextLightboxImage = lightboxImageIndex != null && lightboxImageIndex < images.length - 1 ? images[lightboxImageIndex + 1] : null
@@ -1187,10 +1194,11 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
         <section className="space-y-2">
           <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("chat_artifacts")}</h2>
           <div className="space-y-2">
-            {artifactItems.map((artifact) => {
-              const selected = selectedArtifactType === artifact.type
+            {artifactItems.map((artifact, artifactPosition) => {
+              const artifactIndex = artifact.artifact_index ?? artifactPosition
+              const selected = selectedArtifactIndex === artifactIndex
               return (
-                <article className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-950" key={artifact.type}>
+                <article className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-950" key={artifact.artifact_index ?? `${artifact.type}-${artifact.created_at}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100" title={artifact.title}>
@@ -1205,15 +1213,17 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
                     </div>
                     <button
                       className={`${secondaryButton()} shrink-0 px-2 py-1 text-xs`}
-                      onClick={() => setSelectedArtifactType(selected ? null : artifact.type)}
+                      onClick={() => setSelectedArtifactIndex(selected ? null : artifactIndex)}
                       type="button"
                     >
                       {selected ? t("artifact_hide") : t("artifact_view")}
                     </button>
                   </div>
-                  {selected ? (
+                  {selected && !artifact.payload && selectedArtifact.isPending ? <PanelMessage>{t("common:loading")}</PanelMessage> : null}
+                  {selected && selectedArtifact.isError ? <PanelMessage tone="error">{errorMessage(selectedArtifact.error, t("artifacts_load_error"))}</PanelMessage> : null}
+                  {selected && (artifact.payload || selectedArtifact.data) ? (
                     <div className="mt-3">
-                      <TypedArtifactPanel artifacts={[artifact]} />
+                      <TypedArtifactPanel artifacts={[artifact.payload ? { ...artifact, payload: artifact.payload } : selectedArtifact.data!]} />
                     </div>
                   ) : null}
                 </article>
@@ -1306,6 +1316,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
           <div className="grid grid-cols-3 gap-2">
             {images.map((image, index) => {
               const src = image.image_url || image.file_path || ""
+              const thumbnailSrc = image.thumbnail_url || src
               const name = image.title || image.filename || "image attachment"
 
               return (
@@ -1318,7 +1329,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
                       title={name}
                       type="button"
                     >
-                      <img alt={name} className="h-full w-full object-contain transition group-hover/media:scale-105" src={src} />
+                      <img alt={name} className="h-full w-full object-contain transition group-hover/media:scale-105" src={thumbnailSrc} />
                     </button>
                     <a
                       aria-label={t("image_download_aria", { name })}
@@ -1345,6 +1356,11 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
             })}
           </div>
         </section>
+      ) : null}
+      {media.hasNextPage ? (
+        <button className={`${secondaryButton()} w-full px-3 py-2 text-sm`} disabled={media.isFetchingNextPage} onClick={() => void media.fetchNextPage()} type="button">
+          {media.isFetchingNextPage ? t("common:loading") : t("media_load_more")}
+        </button>
       ) : null}
       {lightboxImage ? (
         <ImageLightbox

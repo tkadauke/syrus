@@ -23,6 +23,7 @@ module Api
         include ChatIngressIdempotency
 
         HIDDEN_CHATS_PAGE_SIZE = 20
+        MEDIA_PAGE_SIZE = 24
         CODING_RELAY_RETRY_AFTER_SECONDS = 30
         CODING_RELAY_READ_TIMEOUT_SECONDS = 10
         PRODUCT_OWNER_EPIC_JOB_MESSAGE = "Product owners cannot add Jobs to Epics directly — " \
@@ -1138,28 +1139,48 @@ module Api
 
         def media
           chat_session = find_chat_session
-          ChatMediaLibrary.materialize_inline_images!(chat_session)
-
-          chat_images = chat_session.attached_repository_documents
+          image_page = positive_page_param(:image_page)
+          artifact_page = positive_page_param(:artifact_page)
+          image_scope = chat_session.attached_repository_documents
+                                    .joins(file_attachment: :blob)
                                     .with_attached_file
                                     .where(kind: "file")
+                                    .where("documents.content_type LIKE :image OR active_storage_blobs.content_type LIKE :image", image: "image/%")
                                     .order(:created_at, :id)
-                                    .select { |doc| doc.content_type.to_s.start_with?("image/") }
-                                    .map do |doc|
+          image_documents = image_scope.offset((image_page - 1) * MEDIA_PAGE_SIZE).limit(MEDIA_PAGE_SIZE + 1).to_a
+          image_has_more = image_documents.length > MEDIA_PAGE_SIZE
+          chat_images = image_documents.first(MEDIA_PAGE_SIZE).map do |doc|
             {
               id: doc.id,
               title: doc.title,
               filename: doc.filename,
               content_type: doc.content_type,
               file_path: "/api/v1/app/chats/#{chat_session.id}/media/chat_images/#{doc.id}/file",
-              image_url: chat_media_image_url(doc)
+              thumbnail_url: "/api/v1/app/chats/#{chat_session.id}/media/chat_images/#{doc.id}/file?thumbnail=1"
             }
           end
+          artifacts = TypedArtifactRenderer.enrich(chat_session.artifact("typed_artifacts"))
+          artifact_offset = (artifact_page - 1) * MEDIA_PAGE_SIZE
+          artifact_page_items = artifacts.slice(artifact_offset, MEDIA_PAGE_SIZE) || []
 
           render json: {
             chat_images: chat_images,
-            typed_artifacts: TypedArtifactRenderer.enrich(chat_session.artifact("typed_artifacts"))
+            typed_artifacts: artifact_page_items.each_with_index.map { |artifact, index| artifact.except("payload").merge("artifact_index" => artifact_offset + index) },
+            pagination: {
+              image_page: image_page,
+              images_has_more: image_has_more,
+              artifact_page: artifact_page,
+              artifacts_has_more: artifact_offset + artifact_page_items.length < artifacts.length
+            }
           }.merge(ChatMediaSources.panel(chat_session: chat_session))
+        end
+
+        def media_typed_artifact
+          chat_session = find_chat_session
+          artifact = TypedArtifactRenderer.enrich(chat_session.artifact("typed_artifacts"))[params[:artifact_index].to_i]
+          raise ActiveRecord::RecordNotFound, "Typed artifact not found" unless artifact
+
+          render json: artifact.merge("artifact_index" => params[:artifact_index].to_i)
         end
 
         def media_chat_image
@@ -1171,22 +1192,16 @@ module Api
           raise ActiveRecord::RecordNotFound, "Chat image not found" unless document.content_type.to_s.start_with?("image/")
           raise ActiveRecord::RecordNotFound, "Chat image file not found" unless document.file.attached?
 
+          attachment = params[:thumbnail] == "1" ? document.file.variant(resize_to_limit: [ 480, 480 ]).processed : document.file
           send_secure_file(
-            document.file.download,
+            attachment.download,
             filename: document.filename || "image",
             type: document.content_type || "application/octet-stream"
           )
         end
 
-        def chat_media_image_url(document)
-          return nil unless document.file.attached?
-
-          case document.attachable_type
-          when "User"
-            "/api/v1/app/credentials/documents/#{document.id}/file"
-          when "Repository"
-            "/api/v1/app/repository_documents/#{document.id}/file"
-          end
+        def positive_page_param(name)
+          [ params[name].to_i, 1 ].max
         end
 
         def cancel_coding_checkout

@@ -3,6 +3,7 @@
 // neither client depends on the other.
 
 export type TypedArtifact = {
+  artifact_index?: number
   type: string
   title: string
   payload: SchemaErdPayload | MigrationDiffPayload | ImageDiffPayload | BeforeAfterVisualDiffPayload | Record<string, unknown>

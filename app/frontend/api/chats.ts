@@ -366,13 +366,20 @@ export type ChatMediaImage = {
   content_type: string
   file_path?: string | null
   image_url?: string | null
+  thumbnail_url?: string | null
 }
 
 export type ChatMediaPayload = {
   snapshots: ChatMediaSnapshot[]
   chat_images: ChatMediaImage[]
-  typed_artifacts: TypedArtifact[]
+  typed_artifacts: Array<Omit<TypedArtifact, "payload"> & { payload?: TypedArtifact["payload"] }>
   whiteboard_has_unsaved_content: boolean
+  pagination?: {
+    image_page: number
+    images_has_more: boolean
+    artifact_page: number
+    artifacts_has_more: boolean
+  }
 }
 
 export type ChatProposalSearchResult = {
@@ -1330,8 +1337,14 @@ export function fetchWhiteboardSnapshot(chatSessionId: string | number, snapshot
   )
 }
 
-export function fetchChatMedia(chatId: string | number) {
-  return getJson<ChatMediaPayload>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/media`)
+export function fetchChatMedia(chatId: string | number, page = 1) {
+  return getJson<ChatMediaPayload>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/media?image_page=${page}&artifact_page=${page}`)
+}
+
+export function fetchChatMediaArtifact(chatId: string | number, artifactIndex: number) {
+  return getJson<TypedArtifact>(
+    `/api/v1/app/chats/${encodeURIComponent(String(chatId))}/media/typed_artifacts/${encodeURIComponent(String(artifactIndex))}`
+  )
 }
 
 export function postSnapshotPng(jobAttachmentsPath: string, blob: Blob, filename: string) {

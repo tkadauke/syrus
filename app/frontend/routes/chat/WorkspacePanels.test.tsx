@@ -7,6 +7,7 @@ import type { ChatPayload } from "../../api/chats"
 import {
   closeChatPreviewPanel,
   fetchChatMedia,
+  fetchChatMediaArtifact,
   fetchChatMessagePins,
   fetchChatPreviewPanelAccessToken,
   fetchChatPreviewPanelFile,
@@ -44,6 +45,7 @@ vi.mock("../../api/chats", async (importOriginal) => {
     ...actual,
     closeChatPreviewPanel: vi.fn(),
     fetchChatMedia: vi.fn(),
+    fetchChatMediaArtifact: vi.fn(),
     fetchChatMessagePins: vi.fn(),
     fetchChatPreviewPanelAccessToken: vi.fn(),
     fetchChatPreviewPanelFile: vi.fn(),
@@ -1066,6 +1068,34 @@ describe("MediaGallery artifacts", () => {
     vi.mocked(fetchWhiteboardSnapshots).mockResolvedValue({ whiteboard_snapshots: [] })
   })
 
+  it("fetches an artifact body only when its metadata row is opened", async () => {
+    vi.mocked(fetchChatMedia).mockResolvedValue({
+      snapshots: [],
+      chat_images: [],
+      typed_artifacts: [
+        { artifact_index: 4, type: "rails_schema_erd", title: "Schema ERD", created_at: "2026-08-06T10:00:00Z", renderer_type: "erd_diagram" }
+      ],
+      whiteboard_has_unsaved_content: false
+    })
+    vi.mocked(fetchChatMediaArtifact).mockResolvedValue({
+      artifact_index: 4,
+      type: "rails_schema_erd",
+      title: "Schema ERD",
+      created_at: "2026-08-06T10:00:00Z",
+      renderer_type: "erd_diagram",
+      payload: { tables: [{ name: "users", columns: [] }] }
+    })
+
+    renderWorkspacePanel(makePayload(), { activeTab: "media" })
+
+    expect(await screen.findByText("Schema ERD")).toBeInTheDocument()
+    expect(fetchChatMediaArtifact).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "View" }))
+
+    expect(await screen.findByText("users")).toBeInTheDocument()
+    expect(fetchChatMediaArtifact).toHaveBeenCalledWith(1, 4)
+  })
+
   it("lists a submitted rails_schema_erd artifact and renders it via TypedArtifactPanel when viewed", async () => {
     vi.mocked(fetchChatMedia).mockResolvedValue({
       snapshots: [],
@@ -1160,6 +1190,32 @@ describe("MediaGallery images", () => {
     vi.mocked(fetchWhiteboardSnapshots).mockResolvedValue({ whiteboard_snapshots: [] })
   })
 
+  it("loads and appends the next media page on demand", async () => {
+    vi.mocked(fetchChatMedia)
+      .mockResolvedValueOnce({
+        snapshots: [],
+        chat_images: [{ id: 1, title: "first.png", filename: "first.png", content_type: "image/png", file_path: "/media/first" }],
+        typed_artifacts: [],
+        whiteboard_has_unsaved_content: false,
+        pagination: { image_page: 1, images_has_more: true, artifact_page: 1, artifacts_has_more: false }
+      })
+      .mockResolvedValueOnce({
+        snapshots: [],
+        chat_images: [{ id: 2, title: "second.png", filename: "second.png", content_type: "image/png", file_path: "/media/second" }],
+        typed_artifacts: [],
+        whiteboard_has_unsaved_content: false,
+        pagination: { image_page: 2, images_has_more: false, artifact_page: 2, artifacts_has_more: false }
+      })
+
+    renderWorkspacePanel(makePayload(), { activeTab: "media" })
+
+    expect(await screen.findByAltText("first.png")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Load more" }))
+
+    expect(await screen.findByAltText("second.png")).toBeInTheDocument()
+    expect(fetchChatMedia).toHaveBeenLastCalledWith(1, 2)
+  })
+
   it("renders images from the full chat_images history instead of the currently loaded message window, with download and lightbox preview", async () => {
     // The payload's own `messages` array is the paginated window shown in
     // the transcript; chat_images comes from GET /media, which is scoped to
@@ -1174,7 +1230,8 @@ describe("MediaGallery images", () => {
           filename: "old.png",
           content_type: "image/png",
           file_path: "/api/v1/app/chats/1/media/chat_images/1/file",
-          image_url: "/api/v1/app/repository_documents/1/file"
+          image_url: "/api/v1/app/repository_documents/1/file",
+          thumbnail_url: "/api/v1/app/chats/1/media/chat_images/1/file?thumbnail=1"
         }
       ],
       typed_artifacts: [],
@@ -1184,7 +1241,7 @@ describe("MediaGallery images", () => {
     renderWorkspacePanel(makePayload(), { activeTab: "media" })
 
     const thumbnail = await screen.findByRole("button", { name: "Open old.png" })
-    expect(within(thumbnail).getByAltText("old.png")).toHaveAttribute("src", "/api/v1/app/repository_documents/1/file")
+    expect(within(thumbnail).getByAltText("old.png")).toHaveAttribute("src", "/api/v1/app/chats/1/media/chat_images/1/file?thumbnail=1")
 
     const download = screen.getByRole("link", { name: "Download old.png" })
     expect(download).toHaveAttribute("href", "/api/v1/app/repository_documents/1/file")

@@ -939,6 +939,7 @@
   "declined": "Declined",
   "aria_multi_select_option": "Toggle {{option}}",
   "media_empty": "No media shared yet.",
+  "media_load_more": "Load more",
   "snapshots_loading": "Loading snapshots...",
   "canvas_busy": "Canvas is busy. Wait for drawing to finish before loading a snapshot.",
   "chat_busy": "Chat is busy. Wait for the current turn to finish before loading a snapshot.",
