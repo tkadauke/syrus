@@ -56,6 +56,11 @@ module CredentialStore
         matches.first
       end
 
+      def surface_allowed?(credential, surface:)
+        allowed = Array(credential.allowed_surfaces).map(&:to_s)
+        allowed.empty? || allowed.include?(surface.to_s)
+      end
+
       private
 
       def integer_ref?(credential_ref)
@@ -151,8 +156,7 @@ module CredentialStore
     end
 
     def surface_allowed?(credential)
-      allowed = Array(credential.allowed_surfaces).map(&:to_s)
-      allowed.empty? || allowed.include?(event_surface)
+      self.class.surface_allowed?(credential, surface: event_surface)
     end
 
     def tool_allowed?(credential)
