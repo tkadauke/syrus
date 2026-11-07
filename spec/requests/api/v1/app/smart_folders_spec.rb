@@ -25,8 +25,8 @@ RSpec.describe "API: /api/v1/app/smart_folders", type: :request do
     expect(folder.filter).to eq("and" => [ { "field" => "state", "op" => "is", "value" => "ready" } ])
     expect(parse_body).to include(
       "message" => "Smart folder saved.",
-      "redirect_to" => dashboard_epics_path(smart_folder_id: folder.id),
-      "subject_type" => "epic"
+        "redirect_to" => dashboard_epics_path(smart_folder_id: folder.id),
+        "smart_folder" => include("id" => folder.id, "filter" => folder.filter)
     )
     expect(parse_body["smart_folder"]).to include("id" => folder.id, "name" => "Ready Epics")
   end
@@ -49,8 +49,8 @@ RSpec.describe "API: /api/v1/app/smart_folders", type: :request do
     expect(folder.filter).to eq("and" => [ { "field" => "queue_name", "op" => "is", "value" => "runs" } ])
     expect(parse_body).to include(
       "message" => "Smart folder saved.",
-      "redirect_to" => admin_queue_root_path(smart_folder_id: folder.id),
-      "subject_type" => "admin_queue"
+        "redirect_to" => admin_queue_root_path(smart_folder_id: folder.id),
+        "smart_folder" => include("id" => folder.id, "filter" => folder.filter)
     )
     expect(parse_body["smart_folder"]).to include("id" => folder.id, "name" => "Runs queue")
   end
@@ -72,8 +72,8 @@ RSpec.describe "API: /api/v1/app/smart_folders", type: :request do
     expect(folder.filter).to eq("and" => [ { "field" => "github_owner", "op" => "is", "value" => "acme" } ])
     expect(parse_body).to include(
       "message" => "Smart folder saved.",
-      "redirect_to" => repositories_path(smart_folder_id: folder.id),
-      "subject_type" => "repository"
+        "redirect_to" => repositories_path(smart_folder_id: folder.id),
+        "smart_folder" => include("id" => folder.id, "filter" => folder.filter)
     )
     expect(parse_body["smart_folder"]).to include("id" => folder.id, "name" => "Acme repos")
   end
@@ -104,7 +104,8 @@ RSpec.describe "API: /api/v1/app/smart_folders", type: :request do
     expect(folder.reload.name).to eq("New")
     expect(folder.position).to eq(4)
     expect(folder.filter).to eq("and" => [ { "field" => "state", "op" => "is", "value" => "open" } ])
-    expect(parse_body["subject_type"]).to eq("workflow")
+    expect(parse_body["smart_folder"]).to include("id" => folder.id, "name" => "New", "position" => 4)
+    expect(parse_body).not_to have_key("smart_folders")
     expect(parse_body["message"]).to eq("Smart folder updated.")
   end
 
@@ -128,9 +129,7 @@ RSpec.describe "API: /api/v1/app/smart_folders", type: :request do
         { "field" => "state", "op" => "is", "value" => "running" }
       ]
     )
-    expect(parse_body["smart_folders"].find { |row| row["id"] == folder.id }).to include(
-      "filter" => folder.filter
-    )
+    expect(parse_body["smart_folder"]).to include("id" => folder.id, "filter" => folder.filter)
   end
 
   it "rejects smart folder updates with an empty filter" do
@@ -171,7 +170,8 @@ RSpec.describe "API: /api/v1/app/smart_folders", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Smart folder deleted.")
-    expect(parse_body["smart_folders"]).to eq([])
+    expect(parse_body).to include("deleted_id" => folder.id, "message" => "Smart folder deleted.")
+    expect(parse_body).not_to have_key("smart_folders")
   end
 
   it "does not allow managing another user's smart folders" do

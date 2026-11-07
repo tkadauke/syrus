@@ -44,7 +44,7 @@ import type { ProviderAvailability } from "../../api/providerAvailability"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { Surface, surfaceClasses } from "../../components/ui"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
-import { recentChatsQueryKey, updateChatUnread, updateRecentChatCache } from "../../lib/chatCache"
+import { recentChatsQueryKey, updateRecentChatCache } from "../../lib/chatCache"
 import { useChatBookmarks } from "../chat/bookmarks"
 import { EpicProgressSegments } from "../dashboard/components"
 
@@ -362,15 +362,14 @@ export function RecentChatsSidebar({
     if (hidingChatIds.has(chat.id)) return
 
     setHidingChatIds((current) => new Set(current).add(chat.id))
-    removeChatFromRecentLists(chat.id)
     void hideChat(chat.id)
-      .then(() => {
-        void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
+      .then(({ chat: updatedChat }) => {
+        updateRecentChatCache(queryClient, updatedChat)
         void queryClient.invalidateQueries({ queryKey: ["hidden-chats"] })
         if (chat.id === activeChatId) navigate(`${prefix}/dashboard/jobs`)
       })
       .catch(() => {
-        void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
+        onNotice(t("chat:unable_to_hide"))
       })
       .finally(() => {
         setHidingChatIds((current) => {
@@ -389,14 +388,12 @@ export function RecentChatsSidebar({
       .then(() => {
         removeChatFromRecentLists(chat.id)
         queryClient.removeQueries({ queryKey: ["chats", String(chat.id)] })
-        void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
         void queryClient.invalidateQueries({ queryKey: ["hidden-chats"] })
         onNotice(t("chat:chat_deleted"))
         if (chat.id === activeChatId) navigate(`${prefix}/dashboard/jobs`)
       })
       .catch((error) => {
         onNotice(error instanceof ApiError && error.message ? error.message : t("chat:unable_to_delete"))
-        void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
       })
       .finally(() => {
         setDeletingChatIds((current) => {
@@ -409,9 +406,9 @@ export function RecentChatsSidebar({
 
   function togglePin(chat: ChatNavRecord) {
     void updateChatPinned(chat.id, !chat.pinned)
-      .then(() => {
+      .then((payload) => {
         onNotice(null)
-        void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
+        updateRecentChatCache(queryClient, payload.chat)
       })
       .catch(() => {
         onNotice(t("chat:unable_to_update_pin"))
@@ -1446,16 +1443,16 @@ function RecentChatActionsMenu({
 
   const markRead = useMutation({
     mutationFn: () => markChatRead(chat.id),
-    onSuccess: () => {
-      updateChatUnread(queryClient, chat.id, false)
+    onSuccess: (payload) => {
+      updateRecentChatCache(queryClient, payload.chat)
       setOpen(false)
     }
   })
 
   const markUnread = useMutation({
     mutationFn: () => markChatUnread(chat.id),
-    onSuccess: () => {
-      updateChatUnread(queryClient, chat.id, true)
+    onSuccess: (payload) => {
+      updateRecentChatCache(queryClient, payload.chat)
       setOpen(false)
     }
   })
@@ -1464,8 +1461,9 @@ function RecentChatActionsMenu({
     mutationFn: (title: string) => renameChat(`/api/v1/app/chats/${chat.id}/rename`, title),
     onSuccess: (payload) => {
       updateRecentChatCache(queryClient, payload.chat)
-      void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
-      void queryClient.invalidateQueries({ queryKey: ["chats", String(chat.id)] })
+      queryClient.setQueriesData({ queryKey: ["chats", String(chat.id)] }, (current: unknown) => current && typeof current === "object"
+        ? { ...current, chat: { ...(current as { chat?: object }).chat, ...payload.chat } }
+        : current)
       setRenameOpen(false)
       onNotice(null)
     },
@@ -1476,9 +1474,9 @@ function RecentChatActionsMenu({
 
   const discardCodingChanges = useMutation({
     mutationFn: () => cancelCodingCheckout(`/api/v1/app/chats/${chat.id}/coding_checkout`),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
-      void queryClient.invalidateQueries({ queryKey: ["chats", String(chat.id)] })
+    onSuccess: (payload) => {
+      updateRecentChatCache(queryClient, payload.chat)
+      queryClient.setQueriesData({ queryKey: ["chats", String(chat.id)] }, payload)
       setOpen(false)
       onNotice(t("chat:coding_checkout_cancelled_notice"))
     },

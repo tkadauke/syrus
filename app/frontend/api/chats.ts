@@ -1253,11 +1253,11 @@ export function fetchSharedChat(token: string) {
 }
 
 export function markChatRead(id: string | number) {
-  return patchJson<void>(`/api/v1/app/chats/${id}/mark_read`)
+  return patchJson<{ chat: ChatNavRecord }>(`/api/v1/app/chats/${id}/mark_read`)
 }
 
 export function markChatUnread(id: string | number) {
-  return patchJson<void>(`/api/v1/app/chats/${id}/mark_unread`)
+  return patchJson<{ chat: ChatNavRecord }>(`/api/v1/app/chats/${id}/mark_unread`)
 }
 
 export function hideChat(id: string | number) {
@@ -1457,7 +1457,7 @@ export function sendChatMessage(
 }
 
 export function renameChat(path: string, title: string) {
-  return patchJson<ChatPayload>(path, { chat: { title } })
+  return patchJson<ChatPayloadUpdate>(path, { chat: { title } })
 }
 
 export function updateChatPinned(id: number | string, pinned: boolean) {

@@ -63,7 +63,7 @@ describe("Tags", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/tags/4" && init?.method === "DELETE") {
-        return Promise.resolve(jsonResponse(tagsPayload({ tags: [], message: "Tag deleted." })))
+        return Promise.resolve(jsonResponse({ deleted_id: 4, message: "Tag deleted." }))
       }
       return Promise.resolve(jsonResponse(tagsPayload()))
     })

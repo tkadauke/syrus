@@ -133,16 +133,17 @@ export function FilterBar({
     let cancelled = false
     const controller = new AbortController()
 
-    void loadFilterSuggestions(suggestionSearch, suggestionQuery, activeSuggestionQ, controller.signal).then((loadedSuggestions) => {
-      if (!cancelled) setSearchedSuggestions(loadedSuggestions)
-    }).catch((error: unknown) => {
-      if (!cancelled && !(error instanceof DOMException && error.name === "AbortError")) {
-        setSearchedSuggestions([])
-      }
-    })
+    const timer = window.setTimeout(() => {
+      void loadFilterSuggestions(suggestionSearch, suggestionQuery, activeSuggestionQ, controller.signal).then((loadedSuggestions) => {
+        if (!cancelled) setSearchedSuggestions(loadedSuggestions)
+      }).catch((error: unknown) => {
+        if (!cancelled && !(error instanceof DOMException && error.name === "AbortError")) setSearchedSuggestions([])
+      })
+    }, 200)
 
     return () => {
       cancelled = true
+      window.clearTimeout(timer)
       controller.abort()
     }
   }, [activeSuggestionQ, suggestionQuery, suggestionSearch?.subject, suggestionSearch?.surface, usesRemoteSuggestions])
@@ -623,14 +624,17 @@ function TypeaheadFilterValueEditor({ chip, meta, multi, onChange }: { chip: Fil
       return
     }
 
-    void loadFkOptions(meta.field, { q: trimmedQuery }).then((loadedOptions) => {
-      if (!cancelled) setOptions(loadedOptions.filter((option) => !selectedSet.has(String(option.value))))
-    }).catch(() => {
-      if (!cancelled) setOptions([])
-    })
+    const timer = window.setTimeout(() => {
+      void loadFkOptions(meta.field, { q: trimmedQuery }).then((loadedOptions) => {
+        if (!cancelled) setOptions(loadedOptions.filter((option) => !selectedSet.has(String(option.value))))
+      }).catch(() => {
+        if (!cancelled) setOptions([])
+      })
+    }, 200)
 
     return () => {
       cancelled = true
+      window.clearTimeout(timer)
     }
   }, [meta.field, query, selected.join("\0")])
 
