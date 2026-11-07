@@ -1061,7 +1061,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
     queryFn: () => fetchChatMedia(payload.chat.id),
     enabled: payload.chat.id != null
   })
-  const chatBusy = payload.agent_busy
+  const chatBusy = Boolean(payload.chat.agent_busy ?? (payload as ChatPayload & { agent_busy?: boolean }).agent_busy)
   const snapshotLoading = loadingSnapshotId != null
   const snapshotItems = snapshots.data?.whiteboard_snapshots || []
   const artifactItems = media.data?.typed_artifacts || []
@@ -1633,7 +1633,7 @@ function CodingFilesPanel({
   const fileContentBasePath = payload.paths.app_coding_file_path
   const filePreviewBasePath = payload.paths.app_coding_file_preview_path
   const diffPath = payload.paths.app_coding_diff_path
-  const agentBusy = payload.agent_busy
+  const agentBusy = Boolean(payload.chat.agent_busy ?? (payload as ChatPayload & { agent_busy?: boolean }).agent_busy)
   const [relayBackoffUntil, setRelayBackoffUntil] = useState(0)
   const relayBackoffActive = relayBackoffUntil > Date.now()
   const refetchInterval = relayBackoffActive ? false : agentBusy ? 3000 : 15000

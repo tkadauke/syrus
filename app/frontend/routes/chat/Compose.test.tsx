@@ -46,8 +46,6 @@ function makePayload(): ChatPayload {
       chat_provider_options: []
     },
     chat_available: true,
-    turn_in_flight: false,
-    agent_busy: false,
     switching_provider: false,
     has_more_older: false,
     messages: [],

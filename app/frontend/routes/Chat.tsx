@@ -467,8 +467,6 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
     },
     chat_available: false,
     chat_provider_display_name: "Claude",
-    turn_in_flight: false,
-    agent_busy: false,
     switching_provider: false,
     has_more_older: false,
     active_goal: null,
@@ -1287,11 +1285,22 @@ function ChatTurnIndicator({
   retryNowPending?: boolean
   onRetryNow?: () => void
 }) {
-  const retry = payload.turn_retry_state ?? payload.chat.turn_retry_state
+  const legacy = payload as ChatPayload & {
+    agent_activity?: ChatPayload["chat"]["agent_activity"]
+    agent_busy?: boolean
+    turn_retry_state?: ChatPayload["chat"]["turn_retry_state"]
+  }
+  const retry = payload.chat.turn_retry_state ?? legacy.turn_retry_state
   if (retry && agentActive) return <TurnRetryIndicator retry={retry} retryNowPending={retryNowPending} onRetryNow={onRetryNow} />
   if (payload.switching_provider)
     return <SwitchingProviderIndicator provider={payload.chat.chat_provider ?? ""} providerLabel={switchingProviderLabel(payload)} />
-  if (agentActive) return <AgentActivityIndicator activity={payload.agent_activity ?? payload.chat.agent_activity ?? null} running={payload.agent_busy} />
+  if (agentActive)
+    return (
+      <AgentActivityIndicator
+        activity={payload.chat.agent_activity ?? legacy.agent_activity ?? null}
+        running={Boolean(payload.chat.agent_busy ?? legacy.agent_busy)}
+      />
+    )
 
   return null
 }
@@ -1323,7 +1332,7 @@ function useMediaQuery(query: string, defaultMatches: boolean) {
 }
 
 function mobileWorkspaceTabsVisible(payload: ChatPayload) {
-  return payload.messages.length > 0 || payload.has_more_older || payload.turn_in_flight || payload.agent_busy
+  return payload.messages.length > 0 || payload.has_more_older || Boolean(payload.chat.turn_in_flight) || Boolean(payload.chat.agent_busy)
 }
 
 function initialWorkspacePanelState(payload: ChatPayload) {

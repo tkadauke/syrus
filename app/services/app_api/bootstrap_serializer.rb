@@ -15,6 +15,7 @@ module AppApi
           app: PerformanceLogging.phase("bootstrap.app") { app_payload },
           setup_status: PerformanceLogging.phase("bootstrap.setup_status") { setup_status_payload },
           provider_availability: PerformanceLogging.phase("bootstrap.provider_availability") { provider_availability_payload },
+          chat_capabilities: PerformanceLogging.phase("bootstrap.chat_capabilities") { chat_capabilities_payload },
           public: PerformanceLogging.phase("bootstrap.public") { public_payload },
           navigation: navigation_payload,
           setup: PerformanceLogging.phase("bootstrap.setup") { setup_payload },
@@ -88,6 +89,26 @@ module AppApi
       PerformanceLogging.phase("bootstrap.provider_availability.all_for_user") do
         ::App::ProviderAvailability.all_for_user(user)
       end
+    end
+
+    def chat_capabilities_payload
+      return {} unless user
+
+      {
+        speech_to_text: ChatSpeechToText::Capability.for(user: user).as_json,
+        coding_mode_enabled: Feature.coding_mode_enabled?,
+        local_mode_enabled: Feature.local_mode_enabled?,
+        chat_provider_options: User.chat_providers.map do |provider|
+          {
+            value: provider,
+            label: ChatProviders.display_name(provider),
+            configured: user.chat_provider_configured?(provider),
+            effective_provider: provider,
+            effective_label: ChatProviders.display_name(provider)
+          }
+        end,
+        available_chat_models: User.chat_providers.to_h { |provider| [ provider, ChatProviders.available_models(provider) ] }
+      }
     end
 
     def public_payload

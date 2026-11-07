@@ -1,5 +1,10 @@
 # Chat
 
+The browser bootstrap payload carries user-level chat capabilities such as
+speech-to-text availability and the Coding/Local Mode feature gates. Individual
+chat polling responses contain only session-specific state, so these static
+capabilities are not recomputed and retransmitted on every poll.
+
 Syrus Chat can run turns through Claude, Codex, or any enabled plugin-provided
 chat provider such as Muse or Antigravity. Each chat stores a concrete
 `chat_provider` when it is created. The seed value comes from the user's chat

@@ -3,6 +3,7 @@ import type { ProviderAvailability } from "./providerAvailability"
 import type { SetupStatusPayload } from "./setup"
 import type { ColorTheme } from "./themes"
 import type { ReviewDiffSettings } from "./reviewDiffSettings"
+import type { ChatModelOption, ChatProviderOption, ChatSpeechToTextCapability } from "./chats"
 
 export type SystemAlertAction =
   | {
@@ -49,6 +50,13 @@ export type BootstrapPayload = {
   } | null
   team_user_count: number
   provider_availability?: Record<string, ProviderAvailability>
+  chat_capabilities?: {
+    speech_to_text?: ChatSpeechToTextCapability
+    coding_mode_enabled?: boolean
+    local_mode_enabled?: boolean
+    chat_provider_options?: ChatProviderOption[]
+    available_chat_models?: Record<string, ChatModelOption[]>
+  }
   app: {
     revision: string
     revision_url: string | null

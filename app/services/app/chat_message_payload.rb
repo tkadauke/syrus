@@ -295,6 +295,18 @@ module App
     def pending_action_json(action, chat_session:)
       return nil unless action&.visible_in_chat_payload?
 
+      if ChatPendingAction::TERMINAL_REQUEST_STATES.include?(action.state)
+        return {
+          id: action.id,
+          state: action.state,
+          label: pending_action_label(action)
+        }
+      end
+
+      pending_action_detail_json(action, chat_session: chat_session)
+    end
+
+    def pending_action_detail_json(action, chat_session:)
       payload = action.payload || {}
       base = {
         id: action.id,
@@ -313,12 +325,8 @@ module App
         base[:app_update_path] = "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}"
       end
       base[:reason] = action.reason if action.reason.present?
-      base[:before_snapshot] = action.before_snapshot if action.before_snapshot.present?
-      base[:after_snapshot] = action.after_snapshot if action.after_snapshot.present?
       presenter = PendingActions.for(action.action.presence || action.action_type).new(action)
-      if (review = presenter.tool_card_review).present?
-        base[:review] = review
-      end
+      base.merge!(cached_pending_action_presentation(action, presenter))
       outcome = @pending_action_outcomes[action.id]
       outcome ||= presenter.tool_card_outcome if presenter.respond_to?(:tool_card_outcome)
       if outcome.present?
@@ -365,6 +373,17 @@ module App
         end
       else
         base
+      end
+    end
+
+    def cached_pending_action_presentation(action, presenter)
+      fingerprint = Digest::SHA256.hexdigest(action.attributes.slice("action", "action_type", "payload", "before_snapshot", "after_snapshot").to_json)
+      Rails.cache.fetch([ "chat-pending-action-message-presentation", action.cache_key_with_version, Current.user&.id, fingerprint ]) do
+        {
+          before_snapshot: action.before_snapshot.presence,
+          after_snapshot: action.after_snapshot.presence,
+          review: presenter.tool_card_review.presence
+        }.compact
       end
     end
 
