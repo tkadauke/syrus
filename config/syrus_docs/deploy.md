@@ -86,7 +86,7 @@ release must be compatible with the one before it in both directions: new code
 against the old schema, and old code against the new schema. Both halves have
 caused production incidents here. The rule, the expand/migrate/contract
 sequence, and how to read a new column defensively are in
-[Rollout Compatibility](rollout_compatibility.md).
+[Rollout Compatibility](../../docs/engineering/conventions/rollout_compatibility.md).
 
 ## Client behavior during a rollout
 

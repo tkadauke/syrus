@@ -85,7 +85,7 @@ surface, sharing the same query services and payload shape:
   - `GET /api/v1/admin/worker_timeline/macro` — flat query params:
     `repository_id`, `epic_id`, `job_id`, `hostname`, `status`, `job_type`,
     `from`/`to` (ISO8601; default window is the last hour). See
-    `config/syrus_docs/worker_activity_timeline.md` for the full param and
+    `docs/engineering/architecture/worker_activity_timeline.md` for the full param and
     response shape.
   - `GET /api/v1/admin/worker_timeline/live` — flat query params:
     `hostname`, `status` (`idle`, `busy`, `degraded`, `overloaded`), and
@@ -178,7 +178,7 @@ This ordering prevents predicates from probing workflows in repositories the
 operator cannot access. Idle `InstanceVersion` lanes have no repository
 ownership and are evaluated only against the source-appropriate predicates.
 The separate bearer-token `GET /api/v1/admin/worker_timeline/macro` endpoint
-(see `config/syrus_docs/worker_activity_timeline.md`) keeps its own flat
+(see `docs/engineering/architecture/worker_activity_timeline.md`) keeps its own flat
 `repository_id=`/`epic_id=`/`job_id=`/`hostname=`/`status=`/`job_type=`/
 `from=`/`to=` params and 1-hour default. `job_type=system` filters to
 system/infrastructure Job kinds, `job_type=user` filters to user-facing
@@ -238,7 +238,7 @@ way `test_insights` imports shared core components.
 `components/timeline/constants.ts` (`CHART_WIDTH`, `ROW_HEIGHT`,
 `STATUS_COLORS`) stays plugin-local; `TimeAxis` takes chart `width` as a prop
 rather than importing a plugin constant. See
-`config/syrus_docs/worker_activity_timeline.md` for the separate,
+`docs/engineering/architecture/worker_activity_timeline.md` for the separate,
 non-admin-safe `GET /api/v1/app/jobs/:id/waterfall` endpoint that also wraps
 `Timeline::WorkflowWaterfallQuery` for a Job detail page Timeline tab.
 
