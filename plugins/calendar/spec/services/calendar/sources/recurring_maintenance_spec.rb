@@ -12,7 +12,7 @@ RSpec.describe Calendar::Sources::RecurringMaintenance do
   let(:ends_at) { starts_at + 1.day }
 
   it "renders high-frequency administrator schedules as a single cadence band" do
-    allow(described_class).to receive(:definitions).and_return("poll" => { "class" => "PollJob", "queue" => "polling", "schedule" => "every 5 minutes" })
+    allow(described_class).to receive(:definitions).and_return("poll" => { "class" => "PollAllRepositoriesJob", "queue" => "polling", "schedule" => "every 5 minutes" })
     allow(described_class).to receive(:execution_observations_by_class).and_return({})
 
     events = described_class.calendar_events(user: admin, starts_at:, ends_at:)
@@ -22,6 +22,7 @@ RSpec.describe Calendar::Sources::RecurringMaintenance do
     expect(event.cadence).to eq(label: "every 5 minutes", band: true)
     expect(event.starts_at).to eq(starts_at)
     expect(event.ends_at).to eq(ends_at)
+    expect(event.title).to eq("Poll all repositories")
     expect(event.destination_path).to eq("/admin/queues")
   end
 
