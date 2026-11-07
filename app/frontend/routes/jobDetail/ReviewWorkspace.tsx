@@ -17,6 +17,7 @@ import {
   fetchJobSourceDiff,
   fetchJobSourceFileContent,
   fetchJobSourceFileDiff,
+  fetchDiffReviewVersions,
   jobSourceFileDiffDownloadUrl,
   fetchDiffReviewVersion,
   type DiffReviewAnnotationsPayload,
@@ -120,6 +121,11 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
     queryFn: fetchReviewDiffSettings,
     staleTime: Infinity
   })
+  const versionsQuery = useQuery({
+    queryKey: ["jobs", String(jobId), "diff_review_versions"],
+    queryFn: () => fetchDiffReviewVersions(jobId),
+    staleTime: 30_000
+  })
   const reviewSettings = settingsQuery.data?.review_diff_settings ?? DEFAULT_REVIEW_DIFF_SETTINGS
   // Paint-phase (not just commit-phase) because the diff view keeps doing
   // virtualizer/Shiki work across several frames after the initial commit;
@@ -151,7 +157,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
     resizeEdge: "start",
     clampWidth: clampReviewCommentsWidth
   })
-  const versions = sourceDiff.data?.versions || []
+  const versions = versionsQuery.data?.versions || sourceDiff.data?.versions || []
   const payloadVersionId = sourceDiff.data?.version?.id ?? null
   const defaultVersionId = preferredReviewVersionId(sourceDiff.data ?? null, versions)
   const rangeSearch = selectedRange ? `?${new URLSearchParams({ base: selectedRange.baseSha, head: selectedRange.headSha }).toString()}` : ""
