@@ -1,8 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
-import type { ChatPayload, ChatPendingAction, ChatPendingActionGroup } from "../../api/chats"
+import { updateChatRepository, type ChatPayload, type ChatPendingAction, type ChatPendingActionGroup } from "../../api/chats"
 import { useWalkthroughRecorder } from "../../components/WalkthroughRecorder"
 import { Compose, PendingActionCarousel } from "./Compose"
 
@@ -18,6 +18,7 @@ vi.mock("../../api/chats", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/chats")>()
   return {
     ...actual,
+    updateChatRepository: vi.fn(),
     uploadChatAttachment: vi.fn(async (_chatId: string | number, file: File) => ({
       id: 991,
       name: file.name,
@@ -88,21 +89,25 @@ function makePayload(): ChatPayload {
 
 function renderCompose(payload = makePayload()) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter>
-        <Compose
-          chatId="1"
-          commandHandlers={{ openBookmarks: vi.fn(), openSettings: vi.fn() }}
-          floating={false}
-          onNotice={() => {}}
-          payload={payload}
-          prefix=""
-          queryKey={["chats", "1", ""]}
-        />
-      </MemoryRouter>
-    </QueryClientProvider>
-  )
+  client.setQueryData(["chats", "1", ""], payload)
+  return {
+    client,
+    ...render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <Compose
+            chatId="1"
+            commandHandlers={{ openBookmarks: vi.fn(), openSettings: vi.fn() }}
+            floating={false}
+            onNotice={() => {}}
+            payload={payload}
+            prefix=""
+            queryKey={["chats", "1", ""]}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+  }
 }
 
 function pendingAction(id: number, label: string, overrides: Partial<ChatPendingAction> = {}): ChatPendingAction {
@@ -218,6 +223,47 @@ describe("pending action carousel", () => {
     expect(screen.getByTestId("pending-action-carousel").className).not.toContain("border")
     expect(screen.queryByRole("button", { name: "Previous pending action" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Next pending action" })).not.toBeInTheDocument()
+  })
+})
+
+describe("Compose repository selection", () => {
+  it("invalidates the full chat payload after applying the compact repository patch", async () => {
+    vi.mocked(useWalkthroughRecorder).mockReturnValue({
+      state: { phase: "idle" },
+      elapsed: 0,
+      start: vi.fn(),
+      stop: vi.fn(),
+      annotationAvailable: false,
+      annotationHold: false,
+      annotationReason: null,
+      displaySurface: null,
+      drawing: false
+    })
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input) === "/api/v1/app/chats/new") {
+          return new Response(JSON.stringify({ repositories: [{ id: 7, slug: "acme/canals" }] }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          })
+        }
+        throw new Error(`Unexpected request: ${String(input)}`)
+      })
+    )
+    vi.mocked(updateChatRepository).mockResolvedValue({
+      message: "Chat repository updated.",
+      chat: { id: 1, repository: { id: 7, slug: "acme/canals" } }
+    })
+
+    const { client } = renderCompose()
+    const invalidate = vi.spyOn(client, "invalidateQueries")
+    const repositoryButton = await screen.findByRole("button", { name: "Repository for new chat" })
+    await waitFor(() => expect(repositoryButton).toBeEnabled())
+    fireEvent.click(repositoryButton)
+    fireEvent.click(await screen.findByRole("option", { name: "acme/canals" }))
+
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "1", ""] }))
   })
 })
 

@@ -574,7 +574,10 @@ module Api
             chat_session.update!(last_message_at: nil, stop_requested_at: nil)
           end
 
-          render json: chat_mutation_payload(chat_session, message: "Chat history cleared.")
+          render json: chat_mutation_payload(chat_session, message: "Chat history cleared.", include: :queued_messages).merge(
+            messages: [],
+            has_more_older: false
+          )
         end
 
         def mark_read
