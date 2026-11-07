@@ -16,7 +16,10 @@ RSpec.describe "App API whiteboard snapshots", type: :request do
       get snapshots_path(chat), as: :json
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body).to eq("whiteboard_snapshots" => [])
+      expect(parse_body).to eq(
+        "whiteboard_snapshots" => [],
+        "pagination" => { "page" => 1, "per_page" => 30, "total" => 0, "total_pages" => 0, "has_next_page" => false, "has_previous_page" => false }
+      )
     end
 
     it "returns snapshots for the chat newest first without scene JSON" do
@@ -40,8 +43,8 @@ RSpec.describe "App API whiteboard snapshots", type: :request do
       get snapshots_path(chat), as: :json
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body).to eq(
-        "whiteboard_snapshots" => [
+      expect(parse_body.fetch("whiteboard_snapshots")).to eq(
+        [
           {
             "id" => newer.id,
             "name" => "Before clear - Jun 25 15:00",
@@ -58,6 +61,7 @@ RSpec.describe "App API whiteboard snapshots", type: :request do
           }
         ]
       )
+      expect(parse_body.fetch("pagination")).to include("page" => 1, "total" => 2, "has_next_page" => false)
     end
   end
 
@@ -139,8 +143,20 @@ RSpec.describe "App API whiteboard snapshots", type: :request do
         "id" => snapshot.id,
         "name" => "Before load - Jun 26 10:00",
         "snapshot_kind" => "auto_before_load",
-        "element_count" => 1,
-        "scene_json" => scene_json
+        "element_count" => 1
+      )
+      expect(parse_body).not_to have_key("scene_json")
+    end
+
+
+    it "paginates snapshots" do
+      31.times { |index| create_snapshot(name: "Snapshot #{index}") }
+
+      get snapshots_path(chat), params: { page: 2 }, as: :json
+
+      expect(parse_body.fetch("whiteboard_snapshots").size).to eq(1)
+      expect(parse_body.fetch("pagination")).to include(
+        "page" => 2, "total" => 31, "has_next_page" => false, "has_previous_page" => true
       )
     end
   end

@@ -19,8 +19,8 @@ module ChatPayloadContributions
     merge_each(existing_keys) { |provider| provider.chat_payload_paths(chat_session: chat_session) }
   end
 
-  def self.counts(chat_session:, existing_keys:)
-    merge_each(existing_keys) { |provider| provider.chat_payload_counts(chat_session: chat_session) }
+  def self.counts(chat_session:, context:, existing_keys:)
+    merge_each(existing_keys) { |provider| provider.chat_payload_counts(chat_session: chat_session, context: context) }
   end
 
   def self.message_payload(messages:, payloads:)
