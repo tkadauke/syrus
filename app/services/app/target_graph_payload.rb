@@ -2,7 +2,7 @@ require "set"
 
 module App
   class TargetGraphPayload
-    DEFAULT_LIMIT = 500
+    DEFAULT_LIMIT = 100
     MAX_LIMIT = 2_000
     COMPILED_GRAPH_CACHE_VERSION = 1
     COMPILED_GRAPH_CACHE_TTL = 1.day
@@ -168,7 +168,7 @@ module App
         edges: [],
         page: page_json(params, 0),
         health: { targets: {}, summary: empty_health_summary },
-        explanations: { projects: [], selected_targets: [], skipped_targets: [], cached_targets: [], ambiguous: [] },
+        explanations: nil,
         workflow: workflow && workflow_json(workflow),
         diagnostics: nil,
         error: error.message
@@ -249,7 +249,7 @@ module App
       {
         repository: self.class.repository_json(repository),
         source: source_json,
-        projects: projects_json,
+        projects: projects_json(page_targets),
         targets: page_targets.map { |target| target_json(target, overlays.fetch(target.label.to_s, {}), page_health_by_label[target.label.to_s]) },
         edges: edges_json(labels),
         page: {
@@ -261,9 +261,9 @@ module App
         filter: filter_tree,
         filter_schema: filter_schema,
         health: health_json(page_health_by_label),
-        explanations: explanations_json,
+        explanations: include_explanations? ? explanations_json : nil,
         workflow: workflow && self.class.workflow_json(workflow),
-        diagnostics: diagnostics&.to_h,
+        diagnostics: diagnostics_json,
         error: diagnostics&.error
       }
     end
@@ -326,8 +326,9 @@ module App
       workflow ? self.class.workflow_source_json(workflow) : { scope: "repository", ref: repository.default_branch }
     end
 
-    def projects_json
-      graph.projects.values.sort_by(&:id).map do |project|
+    def projects_json(page_targets)
+      project_ids = page_targets.map(&:project_id).to_set
+      graph.projects.values.select { |project| project_ids.include?(project.id) }.sort_by(&:id).map do |project|
         {
           id: project.id,
           label: project.label,
@@ -343,6 +344,26 @@ module App
           target_count: graph.targets_for_project(project.id).size
         }.compact
       end
+    end
+
+    def diagnostics_json
+      return nil unless diagnostics
+
+      value = diagnostics.to_h
+      value = value.except("target_labels", :target_labels) unless include_diagnostics?
+      value
+    end
+
+    def include_explanations?
+      included_details.include?("explanations")
+    end
+
+    def include_diagnostics?
+      included_details.include?("diagnostics")
+    end
+
+    def included_details
+      @included_details ||= params[:include].to_s.split(",").map(&:strip).to_set
     end
 
     def filtered_targets

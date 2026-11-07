@@ -11,11 +11,12 @@ import { Button } from "../components/Button"
 import { Select } from "../components/Select"
 import { FilterBar } from "../components/FilterBar"
 import { TonePill, type PillTone } from "../components/StatusPill"
+import { Surface } from "../components/ui"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { errorMessage } from "../lib/errorMessage"
 import { useT } from "../hooks/useT"
 
-const DEFAULT_LIMIT = 180
+const DEFAULT_LIMIT = 100
 const FOCUS_STATES = ["selected", "failing", "skipped", "cached"] as const
 const DIRECTIONS = ["both", "dependencies", "dependents"] as const
 
@@ -137,6 +138,22 @@ export function TargetGraphExplorer({
   const [draft, setDraft] = useState(query.search || query.q || query.focusLabel || "")
   const rows = useMemo(() => buildGraphRows(payload.targets, payload.edges), [payload.targets, payload.edges])
   const visibleLabels = useMemo(() => new Set(payload.targets.map((target) => target.label)), [payload.targets])
+  const [showExplanations, setShowExplanations] = useState(false)
+  const [showDiagnostics, setShowDiagnostics] = useState(false)
+  const detailsQuery = useQuery({
+    queryKey: ["target_graph_details", payload.source, query, showExplanations, showDiagnostics],
+    queryFn: () => payload.workflow
+      ? fetchJobTargetGraph(payload.workflow.job_id, { ...query, workflowId: String(payload.workflow.id), include: [
+          ...(showExplanations ? ["explanations" as const] : []),
+          ...(showDiagnostics ? ["diagnostics" as const] : [])
+        ] })
+      : fetchRepositoryTargetGraph(payload.repository.id, { ...query, include: [
+          ...(showExplanations ? ["explanations" as const] : []),
+          ...(showDiagnostics ? ["diagnostics" as const] : [])
+        ] }),
+    enabled: showExplanations || showDiagnostics
+  })
+  const detailPayload = detailsQuery.data
 
   function updateQuery(next: TargetGraphQuery) {
     navigate(`${location.pathname}${targetGraphSearchFromQuery({ ...query, ...next }, persistentSearchParams)}`)
@@ -174,7 +191,18 @@ export function TargetGraphExplorer({
         onUpdate={updateQuery}
       />
       <TargetGraphStats payload={payload} query={query} />
-      <TargetGraphExplanations payload={payload} />
+      <section className="flex flex-wrap gap-2">
+        <Button onClick={() => setShowExplanations((value) => !value)} size="sm" type="button" variant="secondary">
+          {showExplanations ? t("target_graph.hide_explanations") : t("target_graph.show_explanations")}
+        </Button>
+        <Button onClick={() => setShowDiagnostics((value) => !value)} size="sm" type="button" variant="secondary">
+          {showDiagnostics ? t("target_graph.hide_diagnostics") : t("target_graph.show_diagnostics")}
+        </Button>
+      </section>
+      {detailsQuery.isError ? <PanelMessage tone="error">{errorMessage(detailsQuery.error, t("target_graph.error_load_details"))}</PanelMessage> : null}
+      {showExplanations && detailsQuery.isPending ? <PanelMessage>{t("target_graph.loading_explanations")}</PanelMessage> : null}
+      {showExplanations && detailPayload ? <TargetGraphExplanations payload={detailPayload} /> : null}
+      {showDiagnostics && detailPayload?.diagnostics ? <TargetGraphDiagnostics diagnostics={detailPayload.diagnostics} /> : null}
       {payload.targets.length === 0 ? (
         <PanelMessage>
           {t("target_graph.empty")}
@@ -193,6 +221,16 @@ export function TargetGraphExplorer({
               updateQuery({ mode: "neighborhood", focusLabel: label, focusState: undefined, q: undefined, search: undefined, offset: 0 })
             }}
           />
+          {query.mode === "window" && (payload.page.offset > 0 || payload.page.next_offset !== null) ? (
+            <div className="flex items-center justify-end gap-2 border-t border-gray-200 px-4 py-3 dark:border-gray-700">
+              <Button disabled={payload.page.offset === 0} onClick={() => updateQuery({ offset: Math.max(0, payload.page.offset - payload.page.limit) })} size="sm" type="button" variant="secondary">
+                {t("target_graph.previous_page")}
+              </Button>
+              <Button disabled={payload.page.next_offset === null} onClick={() => updateQuery({ offset: payload.page.next_offset ?? payload.page.offset })} size="sm" type="button" variant="secondary">
+                {t("target_graph.next_page")}
+              </Button>
+            </div>
+          ) : null}
         </section>
       )}
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
@@ -202,6 +240,18 @@ export function TargetGraphExplorer({
         {backLink ? <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(backLink.path, prefix)}>{backLink.label}</Link> : null}
       </div>
     </div>
+  )
+}
+
+function TargetGraphDiagnostics({ diagnostics }: { diagnostics: NonNullable<TargetGraphPayload["diagnostics"]> }) {
+  const { t } = useT("settings")
+  const labels = diagnostics.target_labels ?? []
+  return (
+    <Surface>
+      <SectionHeading>{t("target_graph.diagnostics")}</SectionHeading>
+      <div className="mt-2 text-xs text-text-secondary">{t("target_graph.diagnostic_target_count", { count: labels.length })}</div>
+      {labels.length > 0 ? <Surface className="mt-2 max-h-48 whitespace-pre-wrap overflow-auto font-mono text-xs" padding="sm" variant="inset">{labels.join("\n")}</Surface> : null}
+    </Surface>
   )
 }
 
@@ -546,7 +596,7 @@ function EdgeList({ empty, labels, title, visibleLabels, onFocus }: { empty: str
             {label}
           </Button>
         ))}
-        {labels.length > 10 ? <span className="text-xs text-gray-500 dark:text-gray-400">+{labels.length - 10}</span> : null}
+        {labels.length > 10 ? <span className="text-xs text-text-secondary">+{labels.length - 10}</span> : null}
       </div>
     </div>
   )

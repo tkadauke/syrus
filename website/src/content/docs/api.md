@@ -244,15 +244,18 @@ latest Workflow unless `workflow_id` is provided, and the Workflow endpoint
 inspects that concrete Workflow.
 
 The endpoints accept `limit`, `offset`, `project_id`, `kind`, and `q`.
-`limit` defaults to 500 and is capped at 2,000. They also accept
+`limit` defaults to 100 and is capped at 2,000. They also accept
 `mode=neighborhood` for progressive graph rendering. Neighborhood requests can
 send `focus_label`, `focus_state` (`failing`, `selected`, `skipped`, or
 `cached`), `direction` (`both`, `dependencies`, or `dependents`), and `depth`
 (capped at 4). `selected`, `skipped`, and `cached` come from workflow artifacts,
 so use the Job or Workflow endpoint for those runtime states; repository graphs
 support label, project/filter, and failing-health entry points. Responses
-include projects, windowed or neighborhood targets, dependency edges, compiler
-diagnostics, and page-scoped target health:
+include projects referenced by the current page, windowed or neighborhood
+targets, dependency edges, compiler diagnostics, and page-scoped target
+health. Selection explanations and the compiler's complete target-label list
+are opt-in through `include=explanations,diagnostics` so normal paging remains
+compact:
 
 ```bash
 curl "https://syrus.example.com/api/v1/app/jobs/123/target_graph?limit=100&kind=grader" \
