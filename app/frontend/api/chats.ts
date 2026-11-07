@@ -1314,7 +1314,9 @@ export function fetchMoreChatsForGroup(
   return getJson<MoreChatsPayload>(`/api/v1/app/chats/more?${search.toString()}`).then(withChatNavAppearances)
 }
 
-function withChatNavAppearances<T extends { agent_appearances?: Record<string, ChatAgentAppearance> } & ({ groups: ChatGroupRecord[] } | { chats: ChatNavRecord[] })>(payload: T): T {
+function withChatNavAppearances<
+  T extends { agent_appearances?: Record<string, ChatAgentAppearance> } & ({ groups: ChatGroupRecord[] } | { chats: ChatNavRecord[] })
+>(payload: T): T {
   const appearances = payload.agent_appearances || {}
   const attach = (chat: ChatNavRecord) => ({ ...chat, agent_appearance: appearances[String(chat.id)] })
   if ("groups" in payload) return { ...payload, groups: payload.groups.map((group) => ({ ...group, chats: group.chats.map(attach) })) }
