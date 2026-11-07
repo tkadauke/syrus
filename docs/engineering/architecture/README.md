@@ -69,8 +69,8 @@ system-wide overview and routes here for detail.
   admin mutation feedback.
 - [Delivery tracks](delivery-tracks.md) — policy objects, landing, PR links,
   ingestion, ref movement, and delivery payloads.
-- [Typed artifacts](typed-artifacts.md) — storage, renderer enrichment, and
-  review/media rendering internals.
+- [Typed artifacts](typed-artifacts.md) — artifact persistence, renderer
+  enrichment, and review/media rendering internals.
 - [Workflow warnings](workflow-warnings.md) — warning persistence, recording,
   evidence, and frontend rendering.
 - [Chat speech-to-text](chat-speech-to-text.md) — streaming channel, frame,
