@@ -13,6 +13,7 @@ module Workflows
         :respond,
         adversarial_review_loop(job, agent_step: :respond),
         security_review_loop(job, agent_step: :respond),
+        coworker_review_loop(job, agent_step: :respond),
         visual_review_loop(job, agent_step: :respond),
         grader_retry_loop(job, :respond, autofix: true, repair_first: false),
         feedback_finish_steps(job)

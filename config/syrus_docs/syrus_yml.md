@@ -90,6 +90,8 @@ the rest of the tree.
 | `preview:` | Root preview, preserving legacy behavior. | Project preview; Job previews select affected preview-capable projects. |
 | `visual_review:` | Root visual review settings. | Project visual review settings used with affected project previews. |
 | `adversarial_review:` | Repo-wide criteria. | Criteria added only when the project is affected. |
+| `security_review:` | Repo-wide security criteria. | Criteria added only when the project is affected. |
+| `coworker_review:` | Explicit repository gate and repo-wide criteria. | Criteria added only when the project is affected. |
 | `review_notes:` | Repo-wide Review Notes policy. | Review Notes policy added only when the project is affected. |
 | `coverage:` | Repository-wide coverage plan. | Project coverage plan selected when the project is affected. |
 | `hooks.post_checkout:` | Always runs after `syrus checkout`. | Runs when the checked-out diff touches the project, or as a fallback when the CLI cannot compute the diff. |
@@ -1167,6 +1169,30 @@ instead. This does not change genuine review findings: a reviewer that runs
 and returns `needs_work` still triggers the normal repair loop.
 
 `criteria` is an optional array of strings directing the reviewer toward repository- or project-specific concerns. Root `.syrus.yml` criteria apply repo-wide by declaration scope, preserving legacy root-only behavior. Nested `.syrus.yml` files may also declare `adversarial_review.criteria`; Syrus adds those project criteria only when the diff under review touches that project directory. The reviewer prompt receives affected project metadata plus the de-duplicated union of relevant root and project criteria. Omitting `criteria` or supplying an empty array keeps existing behaviour. Blank entries are silently dropped.
+
+## coworker_review
+
+Explicitly enables an organizational-judgment gate backed only by coworkers
+selected through provider-routing rules.
+
+```yaml
+coworker_review:
+  enabled: true
+  rounds: 2
+  required: false
+  criteria:
+    - Check operational and product fit
+```
+
+The mapping is inert when absent or when `enabled` is false. `rounds` defaults
+to 1 and must be between 1 and 10 when enabled; an explicitly disabled gate
+may set it to 0. `required` defaults to false and controls
+eligible transient reviewer failures; routing/configuration errors always
+fail. Criteria follow the same root and affected-project scoping as the other
+review gates. The gate runs after adversarial/security review and before visual
+review and graders. A matching routing outcome must contain one or more valid
+coworker targets; Syrus never falls back to an ordinary provider reviewer.
+See [`coworker_review.md`](coworker_review.md).
 
 ## visual_review
 

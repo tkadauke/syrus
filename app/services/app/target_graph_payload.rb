@@ -298,6 +298,7 @@ module App
           visual_review: project.visual_review,
           adversarial_review: project.adversarial_review,
           security_review: project.security_review,
+          coworker_review: project.coworker_review,
           coverage: project.coverage,
           capabilities: capabilities_json(project.capabilities),
           target_count: graph.targets_for_project(project.id).size

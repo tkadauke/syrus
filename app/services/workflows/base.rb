@@ -254,6 +254,13 @@ module Workflows
       Workflows::Loop.new(max_iterations: rounds, steps: [ agent_step, :security_review ])
     end
 
+    def self.coworker_review_loop(job, agent_step:, syrus_yml: nil)
+      plan = resolve_plan(RepoCoworkerReviewPlan, job, syrus_yml)
+      return nil unless plan.enabled?
+
+      Workflows::Loop.new(max_iterations: plan.rounds, steps: [ agent_step, :coworker_review ])
+    end
+
     def self.visual_review_loop(job, agent_step:, syrus_yml: nil)
       plan = syrus_yml ? RepoVisualReviewPlan.for_job(job, loaded: syrus_yml) : RepoVisualReviewPlan.for_job(job)
       return nil unless plan.enabled? && plan.rounds.positive?
