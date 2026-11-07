@@ -576,6 +576,31 @@ describe("dashboard DataTable migrations", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1)
   })
 
+  it("reports success when cancellation is requested during the final epic", async () => {
+    setDesktop(true)
+    let resolveRequest: ((response: Response) => void) | undefined
+    const request = new Promise<Response>((resolve) => {
+      resolveRequest = resolve
+    })
+    vi.spyOn(window, "fetch").mockReturnValue(request)
+
+    renderWithProviders(<EpicsTable columns={["checkbox", "epic", "state"]} items={[epic()]} prefix="" sortState={sortState()} />)
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all Epics" }))
+    fireEvent.click(screen.getByRole("button", { name: "Move to In Progress" }))
+    await waitFor(() => expect(window.fetch).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+    resolveRequest?.(
+      new Response(JSON.stringify({ message: "Started 1 epic.", affected_epic_ids: [1], skipped_epic_ids: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    )
+
+    expect(await screen.findByText("Started 1 epic.")).toBeInTheDocument()
+    expect(screen.queryByText(/Bulk action canceled/)).not.toBeInTheDocument()
+  })
+
   it("continues epic bulk actions after an individual request fails", async () => {
     setDesktop(true)
     let request = 0
