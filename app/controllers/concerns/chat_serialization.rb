@@ -263,7 +263,8 @@ module ChatSerialization
         }
       end
 
-      {
+      Rails.cache.fetch([ "chat-pending-action-top-level-payload", action.cache_key_with_version, Current.user.id ]) do
+        {
         id: action.id,
         label: pending_action_label(action),
         detail: pending_action_detail(action),
@@ -278,12 +279,13 @@ module ChatSerialization
         app_confirm_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/confirm",
         app_reject_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/reject",
         app_cancel_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}"
-      }.tap do |payload|
+        }.tap do |payload|
         payload[:app_update_path] = "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}" if action.action == "create_coworker" && action.pending?
         payload[:reason] = action.reason if action.reason.present?
         payload.merge!(cached_pending_action_presentation(action, chat_session))
         resource = pending_action_resource(action)
         payload.merge!(resource) if resource
+        end
       end
     end
   end
