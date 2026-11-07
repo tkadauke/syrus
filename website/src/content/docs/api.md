@@ -100,6 +100,19 @@ engagement telemetry is enabled. Every percentile includes its cleaned sample
 count, and small samples return `not_enough_data` instead of a number. The
 window defaults to 7 days and is limited to 1–90 days.
 
+## Repository API payloads
+
+`GET /api/v1/app/repositories` returns the active and archived rows used by
+the web application. CLI clients request `?shape=cli` to additionally receive
+the compact `repositories` list with active-job and latest-job summaries.
+Create and update responses are intentionally compact: they contain the saved
+repository `id`, localized `message`, `redirect_to`, and `credential_status`.
+
+The repository owner, repository, and branch selector endpoints accept an
+optional `q` substring filter. Their responses are cached briefly per user and
+include ETags. Repository coverage trends also include ETags, and their `days`
+window is limited to 1–365 days.
+
 ## Throughput Metrics
 
 Authenticated app clients can read the versioned repository snapshot at
