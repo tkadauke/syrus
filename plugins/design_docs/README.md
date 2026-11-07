@@ -160,6 +160,13 @@ Workflow agents receive read-only tools:
 
 Workflow access is additionally scoped to the run repository. Agents should use
 `DOC-<id>` references returned by `list_design_docs` and `propose_design_doc`.
+Full reads return at most 64 KiB of Markdown per call. Larger documents provide
+an opaque `next_cursor`; pass it as `cursor` on the next call to continue from
+the same immutable version. Responses include the exact version, total byte
+size, returned byte range, and truncation state. Discussion and suggestions are
+included only on the first page and do not reduce the Markdown page budget.
+Pagination offsets are bytes into canonical Markdown, while
+`list_design_doc_sections` reports character offsets into rendered Markdown.
 For existing docs, content changes must go through
 `suggest_design_doc_change`; the tool and service layer never mutate canonical
 Markdown directly for agent actors. Suggestions must include
