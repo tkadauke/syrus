@@ -120,9 +120,13 @@ function decodeQ(url: string) {
 function setupFetchMock(sessionsOverrides: Record<string, unknown> = {}) {
   const calls: string[] = []
 
-  vi.spyOn(window, "fetch").mockImplementation(((input: RequestInfo | URL) => {
+  vi.spyOn(window, "fetch").mockImplementation(((input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     calls.push(url)
+
+    if (url === "/api/v1/app/smart_folders" && init?.method === "POST") {
+      return Promise.resolve(jsonResponse({ message: "Smart folder created.", redirect_to: null }))
+    }
 
     if (url.startsWith("/api/v1/app/agent_activity/sessions") || (url.startsWith("/api/v1/app/admin/agent_activity/sessions") && !url.includes("/artifacts"))) {
       return Promise.resolve(jsonResponse(sessionsPayload({ filter: decodeQ(url) || { and: [] }, ...sessionsOverrides })))
@@ -335,6 +339,27 @@ describe("AgentActivityFeed", () => {
 
     expect(await screen.findByLabelText("Folder name")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Save as new folder" })).toBeInTheDocument()
+  })
+
+  it("refetches chrome and rows after a SmartFolder mutation", async () => {
+    const calls = setupFetchMock({
+      active_smart_folder_id: 11,
+      filter: {
+        and: [
+          { field: "status", op: "is", value: "running" },
+          { field: "agent_provider", op: "is", value: "codex" }
+        ]
+      }
+    })
+    renderFeed("admin", "/admin/agent_activity")
+
+    fireEvent.change(await screen.findByLabelText("Folder name"), { target: { value: "Codex sessions" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save as new folder" }))
+
+    await waitFor(() => {
+      expect(calls.filter((url) => url.includes("section=chrome"))).toHaveLength(2)
+      expect(calls.filter((url) => url.includes("section=rows"))).toHaveLength(2)
+    })
   })
 
   it("opens a transcript drawer reusing the shared transcript log renderer when a card is expanded", async () => {

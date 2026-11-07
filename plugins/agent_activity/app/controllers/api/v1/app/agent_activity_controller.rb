@@ -43,6 +43,7 @@ module Api
           }
         end
 
+        private :chrome_payload
         private
 
         def current_filter
