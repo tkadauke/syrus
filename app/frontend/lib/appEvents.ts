@@ -15,6 +15,7 @@ import type {
   ChatRepository
 } from "../api/chats"
 import type { JobDetailPayload, JobRun, JobStep, JobWorkflow, JobWorkflowsPayload } from "../api/jobs"
+import type { DashboardRowsPayload } from "../api/dashboard"
 import { updateRecentChatHeaderCache, updateRecentChatMessageStateCache, updateRecentChatScratchpadCache, updateRecentChatTurnCache } from "./chatRecentCache"
 import { dispatchNativeNotification, httpNotificationUrl, type NativeNotificationPayload } from "./nativeNotifications"
 import { replaceProposalInMessages } from "../routes/chat/messageStreamItems"
@@ -78,6 +79,7 @@ type DashboardInvalidationState = {
 }
 
 const dashboardInvalidations = new WeakMap<QueryClient, DashboardInvalidationState>()
+const dashboardChromeInvalidations = new WeakMap<QueryClient, DashboardInvalidationState>()
 const jobDetailInvalidations = new WeakMap<QueryClient, Map<string, DashboardInvalidationState>>()
 const chatDetailInvalidations = new WeakMap<QueryClient, Map<string, DashboardInvalidationState>>()
 const hiddenInvalidations = new WeakMap<QueryClient, Map<string, InvalidationTarget>>()
@@ -368,6 +370,7 @@ export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
 
   if (applyChatPayloadEvent(queryClient, event)) return
 
+  const bulkPatched = patchDashboardBulkRows(queryClient, event)
   let dashboardChanged = false
   for (const queryKey of queryKeysFor(event)) {
     if (isDashboardQueryKey(queryKey)) {
@@ -392,7 +395,33 @@ export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
 
     invalidateAppQuery(queryClient, exactListTarget(queryKey))
   }
-  if (dashboardChanged) scheduleDashboardInvalidation(queryClient)
+  if (dashboardChanged) {
+    if (!bulkPatched) scheduleDashboardInvalidation(queryClient)
+    scheduleDashboardChromeInvalidation(queryClient)
+  }
+}
+
+function patchDashboardBulkRows(queryClient: QueryClient, event: AppEvent) {
+  if (!event.changed?.includes("bulk") || !event.payload || typeof event.payload !== "object") return false
+  const payload = event.payload as { affected_job_ids?: unknown; affected_epic_ids?: unknown }
+  const value = event.resource === "job" ? payload.affected_job_ids : event.resource === "epic" ? payload.affected_epic_ids : null
+  if (!Array.isArray(value)) return false
+  return patchDashboardRowsForBulk(queryClient, event.resource, value.filter((id): id is number => typeof id === "number"))
+}
+
+export function patchDashboardRowsForBulk(queryClient: QueryClient, subject: string | undefined, affectedIds: number[]) {
+  if (subject !== "job" && subject !== "epic") return false
+  const ids = new Set(affectedIds)
+  if (ids.size === 0) return false
+  queryClient.setQueriesData<DashboardRowsPayload>({ predicate: dashboardRowsQuery }, (current) => {
+    if (!current || current.subject !== subject) return current
+    const items = current.items.filter((item) => !ids.has(item.id))
+    const lanes = current.lanes.map((lane) => ({ ...lane, items: lane.items.filter((item) => !ids.has(item.id)) }))
+    if (items.length === current.items.length && lanes.every((lane, index) => lane.items.length === current.lanes[index].items.length)) return current
+    const removed = current.items.length - items.length
+    return { ...current, items, lanes, total: Math.max(0, current.total - removed), total_pages: Math.ceil(Math.max(0, current.total - removed) / current.per_page) }
+  })
+  return true
 }
 
 // A detected sequence gap means *some* event for this user was dropped --
@@ -659,6 +688,23 @@ function flushDashboardInvalidation(queryClient: QueryClient) {
   state.pending = false
   state.lastInvalidatedAt = Date.now()
   invalidateAppQuery(queryClient, exactListTarget(["dashboard"]))
+}
+
+function scheduleDashboardChromeInvalidation(queryClient: QueryClient) {
+  const state = dashboardChromeInvalidations.get(queryClient) ?? { lastInvalidatedAt: 0, pending: false, timer: null }
+  state.pending = true
+  dashboardChromeInvalidations.set(queryClient, state)
+  if (state.timer) return
+  state.timer = setTimeout(() => flushDashboardChromeInvalidation(queryClient), 15_000)
+}
+
+function flushDashboardChromeInvalidation(queryClient: QueryClient) {
+  const state = dashboardChromeInvalidations.get(queryClient)
+  if (!state?.pending) return
+  state.timer = null
+  state.pending = false
+  state.lastInvalidatedAt = Date.now()
+  invalidateAppQuery(queryClient, { queryKey: ["dashboard", "chrome"] })
 }
 
 export function scheduleJobDetailInvalidation(queryClient: QueryClient, queryKey: QueryKey) {
