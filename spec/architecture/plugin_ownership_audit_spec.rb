@@ -73,6 +73,20 @@ RSpec.describe Admin::PluginOwnershipAudit do
     end
   end
 
+  it "does not follow core-file symlinks outside the audit root" do
+    Dir.mktmpdir do |directory|
+      root = Pathname.new(directory).join("repository")
+      root.join("app/services").mkpath
+      outside = Pathname.new(directory).join("outside.rb")
+      outside.write("forecast_widget = true\n")
+      root.join("app/services/outside.rb").make_symlink(outside)
+
+      audit = described_class.new(root:, ownerships: [ synthetic_ownership ])
+
+      expect(audit.findings).to eq([])
+    end
+  end
+
   it "loads categorical ownership and the compatibility quarantine from a plugin manifest" do
     Dir.mktmpdir do |directory|
       root = Pathname.new(directory)
