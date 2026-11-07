@@ -51,6 +51,23 @@ RSpec.describe EpicDependencyGraphRenderer do
     )
   end
 
+  it "renders one graph edge for overlapping historical explicit and derived rows" do
+    epic = Factories.epic(user: user, repository: repo, title: "Forum restoration")
+    blocker = Factories.epic(user: user, repository: repo, title: "Marble delivery")
+    now = Time.current
+    EpicDependency.insert_all!([
+      { epic_id: epic.id, depends_on_epic_id: blocker.id, derived: false, created_at: now, updated_at: now },
+      { epic_id: epic.id, depends_on_epic_id: blocker.id, derived: true, created_at: now, updated_at: now }
+    ])
+
+    result = described_class.new(epic).render
+
+    expect(result.epic_dependency_count).to eq(1)
+    expect(result.edges).to contain_exactly(
+      { from_id: "epic_#{blocker.id}", to_id: "epic_#{epic.id}" }
+    )
+  end
+
   it "renders an external blocker Job in another Epic" do
     epic = Factories.epic(user: user, repository: repo, title: "Forum restoration")
     other_epic = Factories.epic(user: user, repository: repo, title: "Marble delivery")
