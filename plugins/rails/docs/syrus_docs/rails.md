@@ -35,6 +35,27 @@ as analytics stores. Both `schema.rb` and adapter-native `structure.sql` baselin
 loaded through Rails' schema task; structure-only fallback comparisons normalize SQL
 statements and show the cumulative additions and removals.
 
+Data-only migrations use `no_schema_changes`; setup, execution, introspection,
+or cleanup failures use `error` rather than an empty successful-looking diff.
+The migration renderer continues to accept the legacy single-table
+`before`/`after` plus `changes` payload shape for artifacts stored by older
+workflows.
+
+## Artifact storage and failures
+
+Visual artifact bytes are decoded and attached to the Workflow through
+ActiveStorage (`Workflow#visual_artifacts`) and are capped at 10 MB decoded.
+The typed artifact payload stores `content_type`, `byte_size`, `source`,
+`captured_at`, and the `image_url` used by the UI. Replacing an artifact type
+purges the previous blob rather than orphaning it.
+
+If the ActiveStorage backend is temporarily unreachable while serving that
+URL, including a transient MinIO connection refusal, the app API returns `503`
+JSON with `error.code = "storage_unavailable"` and a short `Retry-After` header
+instead of raising a 500. The admin overview's Artifact storage tile uses the
+same probe so operators can distinguish a storage outage from a broken
+workflow artifact.
+
 ## Auto-detection
 
 The plugin activates for repositories that contain **all three** of:

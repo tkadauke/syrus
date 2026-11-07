@@ -4156,7 +4156,6 @@ Bundled plugins:
   both workflow transcript routes share `App::RunArtifactsPayload.build(run:)`
   for the JSON shape so they can't drift apart — see
   `plugins/agent_activity/docs/syrus_docs/agent_activity.md`.
-
 ### Repository configuration contributions
 
 Plugins may register `repository_configuration` providers for versioned,
@@ -4194,7 +4193,6 @@ later loop iteration, so disabling or reloading a plugin prevents another
 plugin-owned review invocation while preserving the already-recorded repair.
 
 ## Adding a new external messaging platform
-
 
 **Core platform** (built directly into `app/`, like Telegram):
 
