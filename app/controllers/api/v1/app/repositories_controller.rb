@@ -309,6 +309,7 @@ module Api
             job.save!
           end
           continue_released_job_triage(job)
+          expire_repository_detail_counts(repository)
 
           render json: repository_detail_payload(
             repository.reload,
@@ -320,6 +321,7 @@ module Api
           return unless (repository = find_repository_for_admin_mutation)
           repository.update!(landing_paused: false)
           LandingQueueProcessorJob.perform_later
+          expire_repository_detail_counts(repository)
 
           render json: repository_detail_payload(
             repository.reload,
@@ -424,15 +426,16 @@ module Api
 
         def repository_detail_payload(repository, message: nil, extra: {})
           PerformanceLogging.phase("repository_detail_payload", repository_id: repository.id) do
+            effective_provider = ProviderRouting::Resolver.preview_provider(repository: repository)
             payload = {
               message: message,
-              repository: PerformanceLogging.phase("repository_detail.repository", repository_id: repository.id) { repository_detail_json(repository) },
+              repository: PerformanceLogging.phase("repository_detail.repository", repository_id: repository.id) { repository_detail_json(repository, effective_provider: effective_provider) },
               tabs: PerformanceLogging.phase("repository_detail.tabs", repository_id: repository.id) { repository_tabs_json(repository) },
               ui_panels: PerformanceLogging.phase("repository_detail.ui_panels", repository_id: repository.id) do
                 ::App::UiSlotsPayload.panels_for(slot: "repository.detail", context: { repository: repository, user: Current.user })
               end,
               counts: PerformanceLogging.phase("repository_detail.counts", repository_id: repository.id) { cached_repository_counts_json(repository) },
-              provider_retry_status: PerformanceLogging.phase("repository_detail.provider_retry_status", repository_id: repository.id) { provider_retry_status_json(repository) },
+              provider_retry_status: PerformanceLogging.phase("repository_detail.provider_retry_status", repository_id: repository.id) { provider_retry_status_json(repository, provider: effective_provider) },
               can_edit: RepositoryPolicy.new(Current.user, repository).admin?,
               can_release_triage_jobs: can_release_triage_jobs?(repository),
               needs_triage_count: PerformanceLogging.phase("repository_detail.needs_triage_count", repository_id: repository.id) { needs_triage_jobs_count(repository) },
@@ -702,19 +705,22 @@ module Api
         end
 
         def cached_repository_counts_json(repository)
-          Rails.cache.fetch([ "repository_detail_counts", repository.id ], expires_in: 30.seconds) do
+          Rails.cache.fetch([ "repository_detail_counts", repository.id, Current.user.id ], expires_in: 30.seconds) do
             repository_counts_json(repository)
           end
         end
 
         def cached_syrus_yml_summary_json(repository)
-          Rails.cache.fetch([ "repository_syrus_yml_summary", repository.id, repository.default_branch, repository.updated_at.to_i ], expires_in: 1.minute) do
+          revision = RepositoryContent.for(repository, user: Current.user).resolve(repository.default_branch)
+          Rails.cache.fetch([ "repository_syrus_yml_summary", repository.id, revision.id ], expires_in: 5.minutes) do
             syrus_yml_summary_json(repository)
           end
+        rescue RepositoryContent::Error
+          Rails.cache.fetch([ "repository_syrus_yml_summary", repository.id, repository.default_branch, Current.user.id ], expires_in: 30.seconds) { syrus_yml_summary_json(repository) }
         end
 
-        def provider_retry_status_json(repository)
-          provider = ProviderRouting::Resolver.preview_provider(repository: repository)
+        def provider_retry_status_json(repository, provider: nil)
+          provider ||= ProviderRouting::Resolver.preview_provider(repository: repository)
           circuit = ProviderCircuitBreaker.call(provider, include_logs: false)
           {
             agent_provider: provider,
@@ -1092,11 +1098,16 @@ module Api
         end
 
         def repository_command_payload(repository, message:)
+          expire_repository_detail_counts(repository)
           if params[:return_to] == "detail"
             repository_detail_payload(repository.reload, message: message)
           else
             repositories_payload(message: message)
           end
+        end
+
+        def expire_repository_detail_counts(repository)
+          Rails.cache.delete([ "repository_detail_counts", repository.id, Current.user.id ])
         end
 
         def main_branch_repair_blocked_message(status, repository)
@@ -1424,7 +1435,9 @@ module Api
 
         def provider_availability_for(provider)
           @repository_detail_provider_availability_by_provider ||= {}
-          @repository_detail_provider_availability_by_provider[provider] ||= ::App::ProviderAvailability.for_user(Current.user, provider)
+          return @repository_detail_provider_availability_by_provider[provider] if @repository_detail_provider_availability_by_provider.key?(provider)
+
+          @repository_detail_provider_availability_by_provider[provider] = ::App::ProviderAvailability.for_user(Current.user, provider)
         end
 
         def provider_failover_for(job, configured_provider:)

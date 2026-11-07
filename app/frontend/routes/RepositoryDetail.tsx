@@ -65,17 +65,23 @@ export function RepositoryDetailRoute() {
   const tab = "overview" as const
   const search = repositoryDetailPageSearch(location.search)
   const prefix = routePrefix(location.pathname)
-  const detailQueryKey = repositoryDetailQueryKey(id, search)
+  const detailQueryKey = repositoryDetailQueryKey(id)
   const detail = useQuery({
     queryKey: detailQueryKey,
-    queryFn: () => fetchRepositoryDetail(id, search),
+    queryFn: () => fetchRepositoryDetail(id),
     enabled: id.length > 0
   })
   const jobs = useQuery({ queryKey: ["repositories", id, "jobs", search], queryFn: () => fetchRepositoryJobs(id, search), enabled: id.length > 0 })
   const delivery = useQuery({ queryKey: ["repositories", id, "delivery"], queryFn: () => fetchRepositoryDelivery(id), enabled: id.length > 0 })
   const syrusYml = useQuery({ queryKey: ["repositories", id, "syrus_yml"], queryFn: () => fetchRepositorySyrusYml(id), enabled: id.length > 0 })
-  const payload = detail.data && jobs.data ? { ...detail.data, ...jobs.data, ...delivery.data, ...syrusYml.data } : undefined
-  const composedDetail = { ...detail, data: payload, isPending: detail.isPending || jobs.isPending }
+  const payload = detail.data && jobs.data && delivery.data && syrusYml.data ? { ...detail.data, ...jobs.data, ...delivery.data, ...syrusYml.data } : undefined
+  const composedDetail = {
+    ...detail,
+    data: payload,
+    error: detail.error || jobs.error || delivery.error || syrusYml.error,
+    isError: detail.isError || jobs.isError || delivery.isError || syrusYml.isError,
+    isPending: detail.isPending || jobs.isPending || delivery.isPending || syrusYml.isPending
+  }
   usePageTitle(payload?.repository.slug)
 
   return <RepositoryDetail activeTab={tab} detail={composedDetail} prefix={prefix} queryKey={detailQueryKey} />
@@ -419,7 +425,7 @@ export function RecommendedActions({
   const { t } = useT("settings")
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const search = queryKey[3]
+  const search = ""
   const [dismissed, setDismissed] = useState<Set<string>>(() => readDismissedRecommendations(payload.repository.id))
   const [currentIndex, setCurrentIndex] = useState(0)
   const recommendationAction = useMutation({
@@ -795,7 +801,7 @@ function Actions({
 }) {
   const { t } = useT("settings")
   const queryClient = useQueryClient()
-  const search = queryKey[3]
+  const search = ""
   const [moreOpen, setMoreOpen] = useState(false)
   const moreMenuRef = useDismissiblePopup<HTMLDivElement>(moreOpen, () => setMoreOpen(false))
   const retryStatus = payload.provider_retry_status
@@ -971,13 +977,15 @@ function NeedsTriageJobs({
 }) {
   const { t } = useT("settings")
   const queryClient = useQueryClient()
-  const search = queryKey[3]
+  const search = ""
   const contentGutter = useRepositoryContentGutterClassName()
   const release = useMutation({
     mutationFn: (jobId: number) =>
       releaseNeedsTriageRepositoryJob(appendSearch(payload.paths.app_release_needs_triage_job_repository_path, search), jobId, payload.pagination.page),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
+      void queryClient.invalidateQueries({ queryKey: ["repositories", String(payload.repository.id), "jobs"] })
+      void queryClient.invalidateQueries({ queryKey: ["repositories", String(payload.repository.id), "delivery"] })
       onNotice(updated.message || null)
     }
   })

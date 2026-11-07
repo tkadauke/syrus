@@ -2308,6 +2308,19 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       expect(parse_body).to have_key("cognitive_debt")
     end
 
+    it "bounds summary collections and honors the ETag" do
+      sign_in_as(user)
+      payload = { summary: { score: 1 }, subsystems: Array.new(6) { |i| { name: "s#{i}" } }, files: Array.new(6) { |i| { path: "f#{i}" } }, review_queue: Array.new(10) { |i| { id: i } } }
+      allow(App::CognitiveDebtPayload).to receive(:cached).and_return(payload)
+
+      get "/api/v1/app/repositories/#{repository.id}/cognitive_debt", params: { view: "summary" }
+      expect(parse_body.dig("cognitive_debt", "subsystems").size).to eq(4)
+      etag = response.headers.fetch("ETag")
+
+      get "/api/v1/app/repositories/#{repository.id}/cognitive_debt", params: { view: "summary" }, headers: { "If-None-Match" => etag }
+      expect(response).to have_http_status(:not_modified)
+    end
+
     # The rollup walks every DiffReviewVersion in the repository and expands
     # every line of every file into a LineFact. Inlining that in the detail
     # payload put seconds onto every repository page load, so the page must
@@ -2353,6 +2366,61 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body.keys).to contain_exactly("health_history")
+    end
+
+    it "serves delivery independently" do
+      sign_in_as(user)
+      get "/api/v1/app/repositories/#{repository.id}/delivery"
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.keys).to contain_exactly("delivery")
+    end
+
+    it "serves and caches the syrus config summary in the viewer's credential context" do
+      sign_in_as(user)
+      cache_fetches = []
+      allow(Rails.cache).to receive(:fetch) do |key, **options, &block|
+        cache_fetches << [ key, options ]
+        block.call
+      end
+
+      get "/api/v1/app/repositories/#{repository.id}/syrus_yml"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.keys).to contain_exactly("syrus_yml")
+      expect(cache_fetches).to include(
+        satisfy("a revision-keyed syrus_yml cache entry") do |key, options|
+          key.first(2) == [ "repository_syrus_yml_summary", repository.id ] && key.length == 3 && options == { expires_in: 5.minutes }
+        end
+      )
+    end
+
+    it "isolates cached job counts by viewer" do
+      sign_in_as(user)
+      allow(Rails.cache).to receive(:fetch).and_call_original
+
+      get "/api/v1/app/repositories/#{repository.id}"
+
+      expect(response).to have_http_status(:ok)
+      expect(Rails.cache).to have_received(:fetch).with(
+        [ "repository_detail_counts", repository.id, user.id ],
+        expires_in: 30.seconds
+      )
+    end
+
+    it "combines explicitly included sections and memoizes provider availability" do
+      sign_in_as(user)
+      2.times { |index| Factories.job_record(repository: repository, issue_number: index + 1) }
+      provider_calls = []
+      original_for_user = App::ProviderAvailability.method(:for_user)
+      allow(App::ProviderAvailability).to receive(:for_user) do |*args|
+        provider_calls << args
+        original_for_user.call(*args)
+      end
+
+      get "/api/v1/app/repositories/#{repository.id}", params: { include: "jobs,delivery,health_history" }
+
+      expect(parse_body.keys).to include("jobs", "pagination", "provider_availability", "delivery", "health_history")
+      expect(provider_calls.group_by(&:last).transform_values(&:size).values).to all(eq(1))
     end
   end
 
