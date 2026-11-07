@@ -62,7 +62,7 @@ function goalContinuationContent(content: Record<string, unknown> | null) {
 }
 
 export function isAgentActive(payload: ChatPayload) {
-  return payload.agent_busy || payload.turn_in_flight || payload.switching_provider
+  return Boolean(payload.chat.agent_busy || payload.chat.turn_in_flight || payload.switching_provider)
 }
 
 // The text a "Retry now" button under an error system message should resend:
