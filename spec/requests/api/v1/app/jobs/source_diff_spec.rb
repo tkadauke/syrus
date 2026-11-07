@@ -141,6 +141,42 @@ RSpec.describe "App API job source diff browser", type: :request do
     expect(response.body).to eq(patch)
   end
 
+  it "loads a per-file patch using the refs returned for a development preview fixture" do
+    base = "abc1234"
+    head = "def5678"
+    patch = "@@ -1 +1 @@\n-old preview\n+new preview\n"
+    job.update!(diff_fixture: {
+      base_ref: "main",
+      head_ref: head,
+      merge_base_sha: base,
+      files: [ { path: "app/services/dashboard_payload.rb", status: "modified", patch: patch } ]
+    })
+    allow(Rails.env).to receive(:development?).and_return(true)
+
+    get "/api/v1/app/jobs/#{job.id}/source_diff"
+    expect(response).to have_http_status(:ok)
+    source_diff = parse_body
+    job.diff_review_versions.delete_all
+    expect(RepositoryContent).not_to receive(:for)
+
+    get "/api/v1/app/jobs/#{job.id}/source_file_diff", params: {
+      base: source_diff.fetch("base_sha"),
+      head: source_diff.fetch("head_sha"),
+      path: source_diff.fetch("files").first.fetch("path")
+    }
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("patch" => patch)
+    expect(response.headers["Cache-Control"]).not_to include("immutable")
+
+    get "/api/v1/app/jobs/#{job.id}/source_file_diff_download", params: {
+      base: source_diff.fetch("base_sha"),
+      head: source_diff.fetch("head_sha"),
+      path: source_diff.fetch("files").first.fetch("path")
+    }
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to eq(patch)
+  end
+
   it "passes the previous path for renamed files and serializes UTF-8 patches" do
     patch = "@@ -1 +1 @@\n-café\n+Kaffee\n".dup.force_encoding(Encoding::BINARY)
     expect_any_instance_of(RepositoryContent::Reader).to receive(:file_patch)
@@ -158,6 +194,9 @@ RSpec.describe "App API job source diff browser", type: :request do
     get "/api/v1/app/jobs/#{job.id}/source_file_diff", params: { base: "main", head: "b" * 40, path: "../secret" }
     expect(response).to have_http_status(:bad_request)
     expect(parse_body.dig("error", "code")).to eq("bad_request")
+
+    get "/api/v1/app/jobs/#{job.id}/source_file_diff", params: { base: "main", head: "b" * 40, path: "safe.txt" }
+    expect(response).to have_http_status(:bad_request)
   end
 
   it "does not expose another user's raw file diff" do
