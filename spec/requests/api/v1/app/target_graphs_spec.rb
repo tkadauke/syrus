@@ -125,6 +125,21 @@ RSpec.describe "App API target graph inspection", type: :request do
       end
     end
 
+    it "returns a fresh payload when target health changes at the same head" do
+      with_graph_checkout(graph_yaml)
+
+      with_memory_cache do
+        get "/api/v1/app/repositories/#{repository.id}/target_graph"
+        etag = response.headers.fetch("ETag")
+        create_target_health(target_label: "//:grade/tests", status: "failed")
+
+        get "/api/v1/app/repositories/#{repository.id}/target_graph", headers: { "If-None-Match" => etag }
+
+        expect(response).to have_http_status(:ok)
+        expect(parse_body.dig("health", "summary", "failed")).to eq(1)
+      end
+    end
+
     it "returns projects, targets, dependency edges, executable metadata, health, and pagination" do
       with_graph_checkout(graph_yaml)
       create_target_health(
@@ -294,6 +309,37 @@ RSpec.describe "App API target graph inspection", type: :request do
         expect(response).to have_http_status(:not_modified)
         expect(TargetGraph::Compiler).to have_received(:compile).once
       end
+    end
+
+    it "recompiles a live workspace when its target graph config changes without a commit" do
+      job = Factories.job_with_run(repository: repository, user: user)
+      workflow = job.workflows.sole
+      allow(TargetGraph::Compiler).to receive(:compile).and_call_original
+
+      Dir.mktmpdir("target-graph-live-workspace-spec-") do |dir|
+        path = Pathname.new(dir)
+        git = GitRunner.new
+        git.run("init", "-q", "-b", "main", chdir: dir)
+        File.write(path.join(".syrus.yml"), "targets:\n  - name: before\n    kind: library\n")
+        git.run("add", ".syrus.yml", chdir: dir)
+        git.run("-c", "user.name=Syrus Spec", "-c", "user.email=syrus@example.test", "commit", "-q", "-m", "initial", chdir: dir)
+        allow(WorkflowWorkspace).to receive(:path_for).and_return(path)
+
+        with_memory_cache do
+          get "/api/v1/app/workflows/#{workflow.id}/target_graph"
+          etag = response.headers.fetch("ETag")
+          File.write(path.join(".syrus.yml"), "targets:\n  - name: after\n    kind: library\n")
+
+          get "/api/v1/app/workflows/#{workflow.id}/target_graph", headers: { "If-None-Match" => etag }
+
+          expect(response).to have_http_status(:ok)
+          labels = parse_body["targets"].map { |target| target["label"] }
+          expect(labels).to include("//:after")
+          expect(labels).not_to include("//:before")
+        end
+      end
+
+      expect(TargetGraph::Compiler).to have_received(:compile).twice
     end
 
     it "returns workflow-scoped selection and cache overlays" do

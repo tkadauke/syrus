@@ -1,3 +1,4 @@
+require "digest"
 require "set"
 
 module App
@@ -89,11 +90,25 @@ module App
     def self.workspace_cache_revision(workflow, path)
       head = workspace_revision(path)
       snapshot = WorkflowSourceSnapshots.current_for(workflow)
-      snapshot&.source_sha == head ? snapshot.tree_identity : head
+      source_identity = snapshot&.source_sha == head ? snapshot.tree_identity : head
+      [ source_identity, target_graph_config_digest(path) ].join(":")
     end
 
     def self.workspace_revision(path)
       GitRunner.new.run("rev-parse", "HEAD", chdir: path.to_s).strip
+    end
+
+    def self.target_graph_config_digest(path)
+      digest = Digest::SHA256.new
+      config_paths = [ path.join(SyrusYml::CONFIG_FILE) ]
+      config_paths.concat(
+        TargetGraph::NestedConfigDiscovery.call(path).map { |dir| path.join(dir, SyrusYml::CONFIG_FILE) }
+      )
+      config_paths.select(&:file?).each do |config_path|
+        digest << config_path.relative_path_from(path).to_s << "\0"
+        digest << config_path.binread << "\0"
+      end
+      digest.hexdigest
     end
 
     def self.graph_revision_candidates(workflow)
@@ -142,7 +157,8 @@ module App
 
     private_class_method :graph_revision_candidates, :workflow_checkpoints, :job_checkpoints,
       :workflow_publication_branch_name,
-      :checkpoint_revision, :branch_revision, :landed_revision, :workspace_cache_revision, :workspace_revision
+      :checkpoint_revision, :branch_revision, :landed_revision, :workspace_cache_revision, :workspace_revision,
+      :target_graph_config_digest
 
     def self.error_payload(repository:, params:, source:, error:, workflow: nil)
       {

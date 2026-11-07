@@ -7,9 +7,10 @@ module Api
         def repository
           repository = Repository.accessible_to(Current.user).find(params[:repository_id] || params[:id])
           response = ::App::TargetGraphPayload.for_repository(repository: repository, user: Current.user, params: params)
-          return unless target_graph_stale?(response)
+          payload = response.payload.merge(tabs: repository_tabs_json(repository))
+          return unless target_graph_stale?(response, payload)
 
-          render json: response.payload.merge(tabs: repository_tabs_json(repository))
+          render json: payload
         end
 
         def job
@@ -31,13 +32,16 @@ module Api
         private
 
         def render_target_graph(response)
-          return unless target_graph_stale?(response)
+          return unless target_graph_stale?(response, response.payload)
 
           render json: response.payload
         end
 
-        def target_graph_stale?(response)
-          response.cache_key.blank? || stale?(etag: response.cache_key, public: false)
+        def target_graph_stale?(response, payload)
+          response.cache_key.blank? || stale?(
+            etag: [ response.cache_key, Digest::SHA256.hexdigest(JSON.generate(payload)) ],
+            public: false
+          )
         end
 
         def workflow_for(job)
