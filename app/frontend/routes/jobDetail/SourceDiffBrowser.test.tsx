@@ -82,13 +82,9 @@ function payload(overrides: Partial<JobSourceDiffPayload> = {}): JobSourceDiffPa
         deletions: 0,
         path: "app/models/user.rb",
         status: "modified",
-        patch: [
-          "diff --git a/app/models/user.rb b/app/models/user.rb",
-          "--- a/app/models/user.rb",
-          "+++ b/app/models/user.rb",
-          "@@ -1,1 +1,1 @@",
-          "+new"
-        ].join("\n")
+        patch: ["diff --git a/app/models/user.rb b/app/models/user.rb", "--- a/app/models/user.rb", "+++ b/app/models/user.rb", "@@ -1,1 +1,1 @@", "+new"].join(
+          "\n"
+        )
       }
     ],
     ...overrides
@@ -112,11 +108,13 @@ describe("SourceDiffBrowser", () => {
       })
     })
 
-    renderBrowser(payload({
-      coverage_annotations: {
-        "app/models/user.rb": { "1": "covered" }
-      }
-    }))
+    renderBrowser(
+      payload({
+        coverage_annotations: {
+          "app/models/user.rb": { "1": "covered" }
+        }
+      })
+    )
 
     fireEvent.click(await screen.findByRole("button", { name: /app\/models\/user\.rb/ }))
     fireEvent.click(await screen.findByRole("button", { name: "Review settings" }))
@@ -134,9 +132,11 @@ describe("SourceDiffBrowser", () => {
   })
 
   it("keeps metric gutter controls hidden when source diff coverage annotations are empty", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      review_diff_settings: DEFAULT_REVIEW_DIFF_SETTINGS
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        review_diff_settings: DEFAULT_REVIEW_DIFF_SETTINGS
+      })
+    )
 
     renderBrowser(payload())
 
