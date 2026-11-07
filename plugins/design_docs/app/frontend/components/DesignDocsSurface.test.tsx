@@ -3501,9 +3501,10 @@ describe("DesignDocsSurface", () => {
           ...currentDoc,
           title: payload.design_doc.title,
           markdown: payload.design_doc.markdown,
-          rendered_markdown: payload.design_doc.markdown
+          rendered_markdown: payload.design_doc.markdown,
+          canonical_revision: "revision-2"
         }
-        return jsonResponse({ design_doc: currentDoc, mode: "canonical", message: "Design doc updated." })
+        return jsonResponse({ canonical_revision: "revision-2", mode: "canonical", message: "Design doc updated." })
       }
       return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
     })

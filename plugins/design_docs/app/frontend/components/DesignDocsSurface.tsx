@@ -250,6 +250,7 @@ export function DesignDocsSurface({
             onSelect={(docId) => navigate(docPath(docId))}
             prefix={prefix}
             preferences={indexQuery.data?.preferences ?? null}
+            pagination={indexQuery.data?.pagination ?? null}
             sort={indexQuery.data?.sort ?? null}
           />
         </div>
@@ -364,6 +365,7 @@ function DesignDocsIndexTable({
   onSelect,
   prefix,
   preferences,
+  pagination,
   sort
 }: {
   constrainedColumns: boolean
@@ -373,6 +375,7 @@ function DesignDocsIndexTable({
   onSelect: (id: number) => void
   prefix: string
   preferences: RepositoryDesignDocsPayload["preferences"] | null
+  pagination: RepositoryDesignDocsPayload["pagination"] | null
   sort: RepositoryDesignDocsPayload["sort"] | null
 }) {
   const { t } = useT("design_docs")
@@ -452,6 +455,21 @@ function DesignDocsIndexTable({
           ))}
         </div>
       )}
+      {pagination && pagination.total_pages > 1 ? (
+        <nav aria-label={t("pagination_aria")} className="flex items-center justify-end gap-3 text-sm text-text-secondary">
+          {pagination.page > 1 ? (
+            <Link className={buttonClasses("secondary", "sm")} to={designDocPageLink(location.pathname, location.search, pagination.page - 1)}>
+              {t("pagination_previous")}
+            </Link>
+          ) : null}
+          <span>{t("pagination_page", { page: pagination.page, total: pagination.total_pages })}</span>
+          {pagination.page < pagination.total_pages ? (
+            <Link className={buttonClasses("secondary", "sm")} to={designDocPageLink(location.pathname, location.search, pagination.page + 1)}>
+              {t("pagination_next")}
+            </Link>
+          ) : null}
+        </nav>
+      ) : null}
     </section>
   )
 }
@@ -619,6 +637,12 @@ function designDocSortLink(pathname: string, search: string, sort: DesignDocSort
   return `${pathname}?${params.toString()}`
 }
 
+function designDocPageLink(pathname: string, search: string, page: number) {
+  const params = new URLSearchParams(search)
+  params.set("page", String(page))
+  return `${pathname}?${params.toString()}`
+}
+
 function designDocSortDirection(sort: DesignDocSort): DataTableSortDirection {
   return sort.direction === "asc" ? "ascending" : "descending"
 }
@@ -629,6 +653,21 @@ function repositoryLabel(doc: DesignDocSummary, t: DesignDocT) {
 
 function persistedDraftFingerprint(docId: string | number, title: string, markdown: string) {
   return `${docId}:${title}:${markdown}`
+}
+
+function applyWriteDelta(doc: DesignDocDetail, payload: DesignDocWritePayload, canonical: Partial<Pick<DesignDocDetail, "title" | "rendered_markdown">> = {}) {
+  if (payload.design_doc) return payload.design_doc
+
+  const threads = payload.thread ? [...doc.threads.filter((thread) => thread.id !== payload.thread?.id), payload.thread] : doc.threads
+  let suggestions = doc.suggestions
+  if (payload.suggestion) {
+    const suggestion = {
+      ...payload.suggestion,
+      thread: payload.suggestion.thread_id == null ? null : (threads.find((thread) => thread.id === payload.suggestion?.thread_id) ?? null)
+    }
+    suggestions = [...suggestions.filter((candidate) => candidate.id !== suggestion.id), suggestion]
+  }
+  return { ...doc, ...canonical, canonical_revision: payload.canonical_revision, threads, suggestions }
 }
 
 function emptySelection(): SelectionRange {
@@ -651,7 +690,7 @@ function DesignDocEditor({
   onDocChange: (doc: DesignDocDetail, message?: string) => void
 }) {
   const { t } = useT("design_docs")
-  const [draft, setDraft] = useState(doc.rendered_markdown || doc.markdown)
+  const [draft, setDraft] = useState(doc.rendered_markdown)
   const [editorMode, setEditorMode] = useState<EditorMode>("rich_text")
   const [title, setTitle] = useState(doc.title)
   const [summary, setSummary] = useState("")
@@ -660,8 +699,8 @@ function DesignDocEditor({
   const [focusedThreadId, setFocusedThreadId] = useState<number | null>(null)
   const [focusedSuggestionId, setFocusedSuggestionId] = useState<number | null>(null)
   const [replyBodies, setReplyBodies] = useState<Record<number, string>>({})
-  const [collaborators, setCollaborators] = useState(doc.collaborator_ids.join(", "))
-  const [repoIds, setRepoIds] = useState(doc.repository_ids.map(String))
+  const [collaborators, setCollaborators] = useState(doc.collaborators.map((user) => user.id).join(", "))
+  const [repoIds, setRepoIds] = useState(doc.repositories.map((repository) => String(repository.id)))
   const [repositoryPickerOpen, setRepositoryPickerOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [versionsOpen, setVersionsOpen] = useState(false)
@@ -698,7 +737,7 @@ function DesignDocEditor({
   const suggestionRefs = useRef<Record<number, HTMLDivElement | null>>({})
   const railStackRef = useRef<HTMLDivElement | null>(null)
   const railContainerRef = useRef<HTMLDivElement | null>(null)
-  const persistedDraftRef = useRef(persistedDraftFingerprint(doc.id, doc.title, doc.rendered_markdown || doc.markdown))
+  const persistedDraftRef = useRef(persistedDraftFingerprint(doc.id, doc.title, doc.rendered_markdown))
   const canonicalRevisionRef = useRef(doc.canonical_revision)
   const autosaveAttemptFingerprintRef = useRef<string | null>(null)
   const autosavePromiseRef = useRef<Promise<DesignDocWritePayload> | null>(null)
@@ -746,13 +785,14 @@ function DesignDocEditor({
           }),
     onMutate: () => setWriteError(null),
     onSuccess: (payload) => {
-      canonicalRevisionRef.current = payload.design_doc.canonical_revision
+      canonicalRevisionRef.current = payload.canonical_revision ?? payload.design_doc?.canonical_revision
       failedAutosaveFingerprintRef.current = null
       setAutosaveError(null)
       persistedDraftRef.current = persistedDraftFingerprint(doc.id, title, draft)
       setSummary("")
       setSummaryVisible(false)
-      onDocChange(payload.design_doc, effectiveChangeMode === "suggest" || payload.mode === "suggestion" ? t("notice_saved_suggestion") : t("notice_saved"))
+      const nextDoc = applyWriteDelta(doc, payload, { title, rendered_markdown: draft })
+      onDocChange(nextDoc, effectiveChangeMode === "suggest" || payload.mode === "suggestion" ? t("notice_saved_suggestion") : t("notice_saved"))
     },
     onError: handleWriteError
   })
@@ -774,11 +814,11 @@ function DesignDocEditor({
           })
     },
     onSuccess: (payload, snapshot) => {
-      canonicalRevisionRef.current = payload.design_doc.canonical_revision
+      canonicalRevisionRef.current = payload.canonical_revision ?? payload.design_doc?.canonical_revision
       failedAutosaveFingerprintRef.current = null
       setAutosaveError(null)
       persistedDraftRef.current = snapshot.fingerprint
-      onDocChange(payload.design_doc)
+      onDocChange(applyWriteDelta(doc, payload, { title: snapshot.title, rendered_markdown: snapshot.markdown }))
     },
     onError: (error) => {
       failedAutosaveFingerprintRef.current = autosaveAttemptFingerprintRef.current
@@ -793,7 +833,17 @@ function DesignDocEditor({
       collaborator_user_ids?: number[]
     }) => updateDesignDoc(doc.id, input),
     onMutate: () => setWriteError(null),
-    onSuccess: (payload) => onDocChange(payload.design_doc, t("notice_controls_updated")),
+    onSuccess: (payload, input) => {
+      if (payload.design_doc) {
+        onDocChange(payload.design_doc, t("notice_controls_updated"))
+        return
+      }
+      canonicalRevisionRef.current = payload.canonical_revision
+      onDocChange(
+        { ...doc, canonical_revision: payload.canonical_revision, state: input.state ?? doc.state, visibility: input.visibility ?? doc.visibility },
+        t("notice_controls_updated")
+      )
+    },
     onError: handleWriteError
   })
   const commentMutation = useMutation({
@@ -801,7 +851,7 @@ function DesignDocEditor({
     onMutate: () => setWriteError(null),
     onSuccess: (payload) => {
       setSelection(emptySelection())
-      onDocChange(payload.design_doc, t("notice_comment_added"))
+      onDocChange(applyWriteDelta(doc, payload), t("notice_comment_added"))
     },
     onError: handleWriteError
   })
@@ -810,7 +860,7 @@ function DesignDocEditor({
     onMutate: () => setWriteError(null),
     onSuccess: (payload, variables) => {
       setReplyBodies((current) => ({ ...current, [variables.threadId]: "" }))
-      onDocChange(payload.design_doc, t("notice_reply_added"))
+      onDocChange(applyWriteDelta(doc, payload), t("notice_reply_added"))
     },
     onError: handleWriteError
   })
@@ -858,8 +908,9 @@ function DesignDocEditor({
       }
     },
     onSuccess: (payload, _variables, scrollSnapshot) => {
+      if (!payload.design_doc) return
       canonicalRevisionRef.current = payload.design_doc.canonical_revision
-      const nextDraft = payload.design_doc.rendered_markdown || payload.design_doc.markdown
+      const nextDraft = payload.design_doc.rendered_markdown
       setDraft(nextDraft)
       setTitle(payload.design_doc.title)
       setSelection(emptySelection())
@@ -878,11 +929,7 @@ function DesignDocEditor({
   const resolveMutation = useMutation({
     mutationFn: (threadId: number) => resolveDesignDocThread(doc.id, threadId),
     onMutate: () => setWriteError(null),
-    onSuccess: (_payload, threadId) =>
-      onDocChange(
-        { ...doc, threads: doc.threads.map((thread) => (thread.id === threadId ? { ...thread, state: "resolved" } : thread)) },
-        t("notice_thread_resolved")
-      ),
+    onSuccess: (payload) => onDocChange(applyWriteDelta(doc, payload), t("notice_thread_resolved")),
     onError: handleWriteError
   })
 
@@ -904,10 +951,7 @@ function DesignDocEditor({
     reviewMutation.mutate({ id, decision, snapshot })
   }
   const highlights = useMemo(() => buildAnchorHighlights(doc), [doc])
-  const activeHighlights = useMemo(
-    () => (draft === (doc.rendered_markdown || doc.markdown) ? highlights : []),
-    [doc.markdown, doc.rendered_markdown, draft, highlights]
-  )
+  const activeHighlights = useMemo(() => (draft === doc.rendered_markdown ? highlights : []), [doc.rendered_markdown, draft, highlights])
   const historicalVersionForRail = isViewingHistoricalVersion ? (versionThreadsQuery.data ?? null) : null
   const historicalVersionLoadingForRail = isViewingHistoricalVersion && versionThreadsQuery.isPending
   const { entries: railEntries, viewingHistory: railViewingHistory } = useMemo(
@@ -1076,7 +1120,7 @@ function DesignDocEditor({
       window.setTimeout(() => {
         if (!wysiwygRef.current) return
 
-        const nextHighlights = result.markdown === (doc.rendered_markdown || doc.markdown) ? activeHighlights : []
+        const nextHighlights = result.markdown === doc.rendered_markdown ? activeHighlights : []
         wysiwygRef.current.innerHTML = markdownToWysiwygHtml(result.markdown, nextHighlights, focusedThreadId, focusedSuggestionId)
         wysiwygRef.current.focus()
       }, 0)
@@ -1216,8 +1260,13 @@ function DesignDocEditor({
   }, [doc.canonical_revision, doc.id])
 
   useEffect(() => {
-    persistedDraftRef.current = persistedDraftFingerprint(doc.id, doc.title, doc.rendered_markdown || doc.markdown)
+    persistedDraftRef.current = persistedDraftFingerprint(doc.id, doc.title, doc.rendered_markdown)
   }, [canWriteCanonical, doc.id])
+
+  useEffect(() => {
+    const markdown = versionThreadsQuery.data?.version.markdown
+    if (isViewingHistoricalVersion && markdown != null) setDraft(markdown)
+  }, [isViewingHistoricalVersion, versionThreadsQuery.data?.version.markdown])
 
   useEffect(() => {
     const fingerprint = persistedDraftFingerprint(doc.id, title, draft)
@@ -1260,14 +1309,14 @@ function DesignDocEditor({
     setVersionsOpen(true)
     setSelectedVersionId(versionId)
     if (versionId === "current") {
-      setDraft(doc.rendered_markdown || doc.markdown)
+      setDraft(doc.rendered_markdown)
       return
     }
 
     const version = versions.data?.versions.find((candidate) => String(candidate.id) === versionId)
     if (!version) return
 
-    setDraft(version.markdown)
+    if (version.markdown != null) setDraft(version.markdown)
     setSummary(version.change_summary ?? "")
   }
 

@@ -404,7 +404,8 @@ docs through `/api/v1/admin/design_docs` instead of the SPA's session-shaped
 app API. `GET /api/v1/admin/design_docs` lists docs across every owner,
 filterable by `state` (`draft`/`accepted`/`archived`), `visibility`
 (`private`/`public`), and `user` (a substring match against the owner's
-email address).
+email address). Results are paginated 50 at a time with `page`; the response
+includes `pagination.page`, `per_page`, `total`, and `total_pages`.
 
 ```bash
 curl -X POST https://syrus.example.com/api/v1/admin/design_docs \
@@ -419,6 +420,8 @@ curl -X POST https://syrus.example.com/api/v1/admin/design_docs \
 ```
 
 `GET /api/v1/admin/design_docs/:id` returns the full detail payload including
+`rendered_markdown` (the editable body with internal anchor markers removed),
+but does not duplicate it under a second `markdown` key. It also includes
 `canonical_revision`, a SHA-256 fingerprint covering title, Markdown, state,
 visibility, repositories, and collaborators. Updates may send that fingerprint
 as `base_revision`; if an intervening suggestion review or canonical edit
@@ -431,7 +434,13 @@ every admin `PATCH` checkpoints by default, so it always produces a version
 row the way an explicit `Save` does in the editor. Archived docs are
 non-destructive records; owners can restore them to `draft` from the Design
 Docs editor. `GET
-/api/v1/admin/design_docs/:id/versions` returns the version history.
+/api/v1/admin/design_docs/:id/versions` returns paginated version metadata
+without document bodies. Pass `include=markdown` when a token client explicitly
+needs bodies for the returned page. App clients fetch one selected version's
+body from its version-threads endpoint. Mutation responses are deltas containing
+the new `canonical_revision` and any changed version or suggestion rather than
+echoing the full document; accepting a suggestion is the exception because it
+replaces the editor's canonical document.
 With the plugin disabled, every endpoint answers `plugin_disabled`.
 
 ## Scheduled Tasks

@@ -104,13 +104,14 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
       "id" => doc.id,
       "display_id" => "DOC-#{doc.id}",
       "title" => "Design Brief",
-      "markdown" => "# Brief",
+      "rendered_markdown" => "# Brief",
       "visibility" => "public",
       "origin_chat_session_id" => chat.id,
       "current_version_number" => 1
     )
-    expect(body.fetch("repository_ids")).to eq([ repository.id ])
-    expect(body.fetch("collaborator_ids")).to eq([ collaborator.id ])
+    expect(body.fetch("repositories").map { |item| item.fetch("id") }).to eq([ repository.id ])
+    expect(body.fetch("collaborators").map { |item| item.fetch("id") }).to eq([ collaborator.id ])
+    expect(body).not_to have_key("markdown")
     expect(doc.current_version.markdown).to eq("# Brief")
   end
 
@@ -171,6 +172,7 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
       "current_version_number" => 2,
       "preview_text" => "Dense index layout"
     )
+    expect(row).not_to have_key("repository_ids")
     expect(row.fetch("collaborators").map { |user| user.fetch("id") }).to eq([ collaborator.id ])
   end
 
@@ -184,6 +186,17 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body.fetch("sort")).to eq("column" => "title", "direction" => "asc")
     expect(parse_body.fetch("design_docs").map { |doc| doc.fetch("id") }).to eq([ earlier.id, later.id ])
+  end
+
+  it "paginates the global design docs list" do
+    26.times { |index| create_design_doc(title: "Page doc #{index}") }
+    sign_in_as(owner)
+
+    get "/api/v1/app/design_docs", params: { page: 2 }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("design_docs").size).to eq(1)
+    expect(parse_body.fetch("pagination")).to include("page" => 2, "per_page" => 25, "total" => 26, "total_pages" => 2)
   end
 
   it "sorts repository-scoped design docs without changing repository filtering" do
@@ -430,7 +443,7 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     }
 
     expect(response).to have_http_status(:created)
-    expect(parse_body.dig("design_doc", "id")).to eq(doc.id)
+    expect(parse_body.fetch("canonical_revision")).to eq(doc.reload.canonical_revision)
     expect(parse_body.dig("comment", "body")).to eq("Needs evidence")
   end
 
@@ -545,14 +558,8 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.fetch("mode")).to eq("canonical")
-    expect(parse_body.dig("design_doc", "state")).to eq("archived")
-    expect(parse_body.dig("design_doc", "permissions")).to include(
-      "can_write_canonical" => false,
-      "can_suggest" => false,
-      "can_review_suggestions" => false,
-      "can_archive" => false,
-      "can_unarchive" => true
-    )
+    expect(parse_body).not_to have_key("design_doc")
+    expect(doc.reload.state).to eq("archived")
     expect(DesignDoc.exists?(doc.id)).to be(true)
     expect(DesignDocVersion.where(design_doc_id: doc.id)).to exist
     expect(DesignDocComment.exists?(comment.id)).to be(true)
@@ -585,15 +592,7 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.fetch("mode")).to eq("canonical")
-    expect(parse_body.dig("design_doc", "state")).to eq("draft")
-    expect(parse_body.dig("design_doc", "markdown")).to eq("Archived body")
-    expect(parse_body.dig("design_doc", "permissions")).to include(
-      "can_write_canonical" => true,
-      "can_suggest" => true,
-      "can_review_suggestions" => true,
-      "can_archive" => true,
-      "can_unarchive" => false
-    )
+    expect(parse_body).not_to have_key("design_doc")
     expect(doc.reload.state).to eq("draft")
 
     doc.update!(state: "archived")
@@ -617,7 +616,8 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("design_doc", "state")).to eq("archived")
-    expect(parse_body.dig("design_doc", "markdown")).to eq("Archived body")
+    expect(parse_body.dig("design_doc", "rendered_markdown")).to eq("Archived body")
+    expect(parse_body.fetch("design_doc")).not_to have_key("markdown")
     expect(parse_body.dig("design_doc", "permissions")).to include(
       "can_write_canonical" => false,
       "can_suggest" => false,
@@ -682,7 +682,7 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(parse_body.fetch("mode")).to eq("canonical")
     expect(doc.reload.markdown).to eq(marked_markdown)
     expect(doc.markdown).to include("<!-- syrus:range-start id=\"#{comment_result.anchor.marker_id}\" -->")
-    expect(parse_body.dig("design_doc", "rendered_markdown")).to eq("Alpha beta gamma")
+    expect(parse_body).not_to have_key("design_doc")
   end
 
   it "projects hidden anchor markers when owners save formatted visible markdown nearby" do
@@ -706,7 +706,7 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(response).to have_http_status(:ok)
     doc.reload
     expect(parse_body.fetch("mode")).to eq("canonical")
-    expect(parse_body.dig("design_doc", "rendered_markdown")).to eq("Intro Alpha **beta** gamma")
+    expect(parse_body).not_to have_key("design_doc")
     expect(doc.markdown).to include("<!-- syrus:range-start id=\"#{marker_id}\" -->")
     expect(doc.markdown).to include("<!-- syrus:range-end id=\"#{marker_id}\" -->")
     expect(DesignDocs::AnchorMarkers.strip(doc.markdown)).to eq("Intro Alpha **beta** gamma")
@@ -755,7 +755,7 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
       proposed_markdown: "Syrus"
     )
     expect(doc.reload.markdown).to include("<!-- syrus:range-start id=\"#{suggestion.anchor.marker_id}\" -->")
-    expect(parse_body.dig("design_doc", "rendered_markdown")).to eq("Hello world")
+    expect(parse_body).not_to have_key("design_doc")
     expect(DesignDocs::AnchorMarkers.strip(doc.markdown)).to eq("Hello world")
   end
 
@@ -951,7 +951,7 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
       "selected_text" => "beta"
     )
     expect(parse_body.dig("comment", "body")).to eq("Needs evidence")
-    expect(parse_body.dig("design_doc", "rendered_markdown")).to eq("Alpha beta gamma")
+    expect(parse_body).not_to have_key("design_doc")
     expect(doc.reload.markdown).to include("<!-- syrus:range-start id=\"#{thread.anchor.marker_id}\" -->")
 
     post "/api/v1/app/design_docs/#{doc.id}/threads/#{thread.id}/resolve"
@@ -1137,11 +1137,8 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
       "proposed_markdown" => "delta",
       "change_type" => "replace"
     )
-    expect(body.dig("suggestions", 0, "thread")).to include(
-      "id" => suggestion_thread.id,
-      "state" => "open"
-    )
-    expect(body.dig("suggestions", 0, "thread", "comments", 0)).to include(
+    expect(body.dig("suggestions", 0, "thread_id")).to eq(suggestion_thread.id)
+    expect(body.fetch("threads").find { |thread| thread.fetch("id") == suggestion_thread.id }.dig("comments", 0)).to include(
       "body" => "Why this wording?"
     )
     expect(body.fetch("permissions")).to include(
@@ -1171,8 +1168,8 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
 
     expect(response).to have_http_status(:created)
     suggestion = DesignDocSuggestion.last
-    expect(parse_body.dig("suggestion", "thread", "id")).to eq(suggestion.thread.id)
-    expect(parse_body.dig("design_doc", "suggestions", 0, "thread", "id")).to eq(suggestion.thread.id)
+    expect(parse_body.dig("suggestion", "thread_id")).to eq(suggestion.thread.id)
+    expect(parse_body.dig("thread", "id")).to eq(suggestion.thread.id)
 
     post "/api/v1/app/design_docs/#{doc.id}/comments", params: {
       comment: {
@@ -1184,8 +1181,7 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(response).to have_http_status(:created)
     expect(parse_body.dig("thread", "id")).to eq(suggestion.thread.id)
     expect(parse_body.dig("comment", "body")).to eq("Agreed")
-    expect(parse_body.dig("design_doc", "suggestions", 0, "state")).to eq("pending")
-    expect(parse_body.dig("design_doc", "suggestions", 0, "thread", "comments", 0, "body")).to eq("Agreed")
+    expect(parse_body.dig("thread", "comments", 0, "body")).to eq("Agreed")
   end
 
   it "repairs legacy pending suggestions without threads before detail serialization" do
@@ -1220,7 +1216,7 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     }.to change(DesignDocThread, :count).by(1)
 
     expect(response).to have_http_status(:ok)
-    thread_id = parse_body.dig("design_doc", "suggestions", 0, "thread", "id")
+    thread_id = parse_body.dig("design_doc", "suggestions", 0, "thread_id")
     expect(thread_id).to eq(suggestion.reload.thread.id)
 
     post "/api/v1/app/design_docs/#{doc.id}/comments", params: {
@@ -1247,8 +1243,7 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     post "/api/v1/app/design_docs/#{doc.id}/suggestions/#{suggestion.id}/reject"
 
     expect(response).to have_http_status(:ok)
-    states = parse_body.dig("design_doc", "suggestions").map { |payload| payload.fetch("state") }
-    expect(states).not_to include("pending")
+    expect(parse_body).not_to have_key("design_doc")
     expect(parse_body.dig("suggestion", "state")).to eq("rejected")
   end
 
@@ -1743,6 +1738,8 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.fetch("versions").map { |version| version.fetch("version_number") }).to eq([ 2, 1 ])
+    expect(parse_body.fetch("versions")).to all(satisfy { |version| !version.key?("markdown") })
+    expect(parse_body.fetch("pagination")).to include("page" => 1, "per_page" => 25, "total" => 2)
     expect(parse_body.fetch("design_doc")).to include("display_id" => "DOC-#{doc.id}")
   end
 
