@@ -20,8 +20,10 @@ module ScheduledTasks
 
       selected_tasks.flat_map do |task|
         planned_times = occurrences(task)
-        jobs_by_occurrence = correlate_jobs(planned_times, jobs_by_task.fetch(task.id, []))
-        planned_times.map { |planned_at| event(task, planned_at, jobs_by_occurrence[planned_at]) }
+        task_jobs = jobs_by_task.fetch(task.id, [])
+        jobs_by_occurrence = correlate_jobs(planned_times, task_jobs)
+        estimate = representative_duration(task_jobs)
+        planned_times.map { |planned_at| event(task, planned_at, jobs_by_occurrence[planned_at], estimate) }
       end
     end
 
@@ -84,8 +86,9 @@ module ScheduledTasks
       end
     end
 
-    def event(task, planned_at, job)
+    def event(task, planned_at, job, representative_duration)
       workflow = job&.workflows&.min_by(&:created_at)
+      estimated_duration = representative_duration || 30.minutes.to_i
       {
         source_id: "scheduled_tasks:tasks",
         id: "task-#{task.id}-#{planned_at.utc.strftime('%Y%m%dT%H%M%SZ')}",
@@ -94,6 +97,8 @@ module ScheduledTasks
         starts_at: planned_at,
         actual_started_at: workflow&.started_at || job&.started_at || job&.created_at,
         actual_finished_at: workflow&.finished_at || job&.finished_at,
+        estimated_duration_seconds: estimated_duration,
+        duration_estimate_provenance: representative_duration ? "representative" : "source",
         cadence: task.cron? ? { label: task.schedule_explanation || task.schedule_expression, band: false } : nil,
         destination_path: job ? "/jobs/#{job.id}" : "/scheduled_tasks/#{task.id}",
         state: occurrence_state(task, planned_at, job, workflow),
@@ -110,6 +115,17 @@ module ScheduledTasks
           workflow_state: workflow&.state
         }.compact
       }
+    end
+
+    def representative_duration(jobs)
+      durations = jobs.filter_map do |job|
+        workflow = job.workflows.min_by(&:created_at)
+        (workflow.finished_at - workflow.started_at).to_f if workflow&.succeeded? && workflow.started_at && workflow.finished_at
+      end.sort
+      return if durations.empty?
+
+      middle = durations.length / 2
+      durations.length.odd? ? durations[middle] : (durations[middle - 1] + durations[middle]) / 2.0
     end
 
     def occurrence_state(task, planned_at, job, workflow)

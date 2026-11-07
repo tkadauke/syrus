@@ -15,4 +15,14 @@ RSpec.describe Calendar::Event do
   it "rejects timestamps whose ordering is impossible" do
     expect { described_class.new(**attributes.merge(ends_at: 1.hour.ago)) }.to raise_error(ArgumentError, /must not precede/)
   end
+
+  it "validates normalized duration estimates and their provenance" do
+    expect { described_class.new(**attributes.merge(estimated_duration_seconds: 60)) }
+      .to raise_error(ArgumentError, /supplied together/)
+    expect { described_class.new(**attributes.merge(estimated_duration_seconds: -1, duration_estimate_provenance: "source")) }
+      .to raise_error(ArgumentError, /must be positive/)
+    expect(described_class.new(**attributes.merge(estimated_duration_seconds: 60,
+      duration_estimate_provenance: "representative")).as_json)
+      .to include(estimated_duration_seconds: 60, duration_estimate_provenance: "representative")
+  end
 end
