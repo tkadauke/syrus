@@ -17,7 +17,7 @@ RSpec.describe App::DiffReviewCommentsPayload do
     )
   end
 
-  it "returns comments as a flat list and grouped by file and line anchor" do
+  it "returns comments with shared version, user, and workflow lookups" do
     first = job.diff_review_comments.create!(
       user: user,
       diff_review_version: version,
@@ -47,19 +47,19 @@ RSpec.describe App::DiffReviewCommentsPayload do
     expect(payload[:diff_review_version_id]).to eq(version.id)
     expect(payload[:latest_version_id]).to eq(version.id)
     expect(payload[:comments].map { |comment| comment[:id] }).to eq([ first.id, second.id ])
-    expect(payload.dig(:by_path, "app/models/widget.rb", "right::12").first).to include(
+    expect(payload[:diff_review_version]).to include(id: version.id, version_index: 1)
+    expect(payload.dig(:users, user.id)).to include(id: user.id, display_name: user.display_name)
+    expect(payload.dig(:workflows, first.workflow_id)).to include(id: first.workflow_id, trigger_kind: "chat_feedback", state: "running")
+    expect(payload[:comments].first).to include(
       id: first.id,
       diff_review_version_id: version.id,
-      diff_review_version: include(id: version.id, version_index: 1),
       path: "app/models/widget.rb",
       side: "right",
       new_line: 12,
       anchor_key: "right::12",
-      user: include(id: user.id, display_name: user.display_name),
-      workflow: include(id: first.workflow_id, trigger_kind: "chat_feedback", state: "running"),
       context: { "severity" => "medium" }
     )
-    expect(payload.dig(:by_path, "app/models/widget.rb", "left:8:").first[:id]).to eq(second.id)
+    expect(payload).not_to have_key(:by_path)
   end
 
   it "includes the parent id for reply comments" do
@@ -99,7 +99,7 @@ RSpec.describe App::DiffReviewCommentsPayload do
     expect(payload[:latest_version_id]).to eq(all_changes.id)
   end
 
-  it "groups whole-review comments under a stable key instead of a nil path" do
+  it "returns whole-review comments with a nil path" do
     global = job.diff_review_comments.create!(
       user: user,
       diff_review_version: version,
@@ -111,6 +111,6 @@ RSpec.describe App::DiffReviewCommentsPayload do
     payload = described_class.build(job: job, comments: [ global ], version: version)
 
     expect(payload[:comments].first).to include(anchor_kind: "review", path: nil, anchor_key: "review")
-    expect(payload.dig(:by_path, "__review__", "review").first[:id]).to eq(global.id)
+    expect(payload).not_to have_key(:by_path)
   end
 end

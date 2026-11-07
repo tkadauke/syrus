@@ -42,7 +42,7 @@ RSpec.describe "App API diff review comments", type: :request do
   end
 
   describe "GET /api/v1/app/jobs/:job_id/diff_review_comments" do
-    it "lists comments filtered by diff context and keyed by path and line anchor" do
+    it "lists comments filtered by diff context without duplicating them by path" do
       matching = create_comment
       create_comment(path: "app/models/other.rb")
 
@@ -57,12 +57,15 @@ RSpec.describe "App API diff review comments", type: :request do
       body = parse_body
       expect(body["job_id"]).to eq(job.id)
       expect(body["comments"].map { |comment| comment["id"] }).to eq([ matching.id ])
-      expect(body.dig("by_path", "app/models/widget.rb", "right::12").first).to include(
+      expect(body["comments"].first).to include(
         "id" => matching.id,
         "path" => "app/models/widget.rb",
         "new_line" => 12,
         "anchor_key" => "right::12"
       )
+      expect(body).not_to have_key("by_path")
+      expect(body["diff_review_version"]).to include("id" => version.id)
+      expect(body.dig("users", user.id.to_s)).to include("id" => user.id)
     end
 
     it "lists comments from multiple requested surfaces" do
