@@ -70,14 +70,12 @@ module Api
             .find_by!(stable_id: params[:evidence_id])
           raise ActiveRecord::RecordNotFound, "Visual evidence not found" unless evidence.image.attached?
 
-          send_secure_file(
-            evidence.image.download,
-            filename: evidence.image.filename.to_s,
-            type: evidence.image.content_type || "application/octet-stream"
-          )
+          send_secure_blob(evidence.image.blob, immutable: true)
         rescue StandardError => e
           raise unless StorageConnectivity.transient_error?(e)
+          raise if response.committed?
 
+          expires_now
           response.set_header("Retry-After", StorageConnectivity::RETRY_AFTER_SECONDS.to_s)
           render json: { error: { code: "storage_unavailable", message: "Visual evidence storage is temporarily unavailable. Please retry shortly." } },
             status: :service_unavailable
@@ -240,13 +238,18 @@ module Api
           end
 
           content = RepositoryContent.for(job.repository, user: Current.user)
-          blob = content.read_if_present(content.resolve(ref), path)
+          revision = content.resolve(ref)
+          blob = content.read_if_present(revision, path)
           unless blob
             render_error("not_found", t("api.jobs.errors.file_not_found_at_ref"), status: :not_found)
             return
           end
 
-          send_secure_file blob.bytes, filename: File.basename(path), type: Marcel::MimeType.for(name: path)
+          send_secure_file blob.bytes,
+            filename: File.basename(path),
+            type: Marcel::MimeType.for(name: path),
+            etag: blob.content_id,
+            immutable: ref == revision.id
         rescue RepositoryContent::NoProvider
           render_error("no_github_token", t("api.jobs.errors.github_token_required"), status: :unprocessable_content)
         rescue RepositoryContent::UnknownRevision

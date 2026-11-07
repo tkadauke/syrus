@@ -147,6 +147,7 @@ RSpec.describe "API: /api/v1/app/workflows/:workflow_id/visual_artifact", type: 
     expect(response.headers["Content-Disposition"]).to include("inline")
     expect(response.headers["X-Content-Type-Options"]).to eq("nosniff")
     expect(response.headers["Content-Security-Policy"]).to eq("sandbox")
+    expect(response.headers["Cache-Control"]).to include("private", "max-age=31536000", "immutable")
   end
 
   it "returns 404 when no visual artifact is attached for the type" do
@@ -204,17 +205,13 @@ RSpec.describe "API: /api/v1/app/workflows/:workflow_id/visual_artifact", type: 
     sign_in_as(user)
     workflow = workflow_for(user)
     workflow.attach_visual_artifact!(type: "visual_review_screenshot", data: png_bytes, content_type: "image/png", filename: "screenshot.png")
-    unavailable_artifact = Struct.new(:filename, :content_type) do
-      def download
-        raise Errno::ECONNREFUSED, "minio:9000"
-      end
-    end.new("screenshot.png", "image/png")
-    allow_any_instance_of(Workflow).to receive(:visual_artifact_for).and_return(unavailable_artifact)
+    allow_any_instance_of(ActiveStorage::Blob).to receive(:download).and_raise(Errno::ECONNREFUSED, "minio:9000")
 
     get "/api/v1/app/workflows/#{workflow.id}/visual_artifact", params: { type: "visual_review_screenshot" }
 
     expect(response).to have_http_status(:service_unavailable)
     expect(response.headers["Retry-After"]).to eq(StorageConnectivity::RETRY_AFTER_SECONDS.to_s)
+    expect(response.headers["Cache-Control"]).not_to include("immutable")
     expect(JSON.parse(response.body)).to eq(
       "error" => {
         "code" => "storage_unavailable",

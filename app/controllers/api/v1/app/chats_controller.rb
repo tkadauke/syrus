@@ -783,9 +783,7 @@ module Api
 
           content_type = Marcel::MimeType.for(name: attachment.blob.metadata["relative_path"].to_s)
           if ActiveModel::Type::Boolean.new.cast(params[:raw])
-            send_secure_file attachment.download,
-              type: content_type,
-              filename: File.basename(file_path)
+            send_secure_blob attachment.blob, immutable: params[:v].present?
             return
           end
 
@@ -1186,11 +1184,7 @@ module Api
           raise ActiveRecord::RecordNotFound, "Chat image not found" unless document.content_type.to_s.start_with?("image/")
           raise ActiveRecord::RecordNotFound, "Chat image file not found" unless document.file.attached?
 
-          send_secure_file(
-            document.file.download,
-            filename: document.filename || "image",
-            type: document.content_type || "application/octet-stream"
-          )
+          send_secure_blob(document.file.blob, immutable: true)
         end
 
         def chat_media_image_url(document)

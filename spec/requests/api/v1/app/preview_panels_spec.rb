@@ -57,6 +57,21 @@ RSpec.describe "API: /api/v1/app/preview_panels", type: :request do
     expect(response.headers["Content-Disposition"]).to include("attachment")
     expect(response.headers["X-Content-Type-Options"]).to eq("nosniff")
     expect(response.headers["Content-Security-Policy"]).to eq("sandbox")
+    etag = response.headers.fetch("ETag")
+
+    get "/api/v1/app/preview_panels/#{panel.id}/files/index.html?raw=1", headers: { "If-None-Match" => etag }
+
+    expect(response).to have_http_status(:not_modified)
+  end
+
+  it "caches an explicitly versioned file as immutable" do
+    panel = panel_for(user)
+    sign_in_as(user)
+
+    get "/api/v1/app/preview_panels/#{panel.id}/files/index.html", params: { raw: 1, v: panel.current_version.id }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.headers["Cache-Control"]).to include("private", "max-age=31536000", "immutable")
   end
 
   it "issues an access token for a private panel" do

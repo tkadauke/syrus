@@ -7,11 +7,7 @@ module Api
           attachment = job.job_attachments.find(params[:id])
           raise ActiveRecord::RecordNotFound, "Attachment file not found" unless attachment.file.attached?
 
-          send_secure_file(
-            attachment.file.download,
-            filename: attachment.filename || "attachment",
-            type: attachment.content_type || "application/octet-stream"
-          )
+          send_secure_blob(attachment.file.blob, immutable: true)
         end
 
         # JSON content endpoint backing the shared FilePreviewModal (see
@@ -23,6 +19,9 @@ module Api
           job = find_readable_job
           attachment = job.job_attachments.find(params[:id])
           raise ActiveRecord::RecordNotFound, "Attachment file not found" unless attachment.file.attached?
+
+          expires_in 31_536_000.seconds, public: false, immutable: true
+          return unless stale?(etag: attachment.file.blob.checksum)
 
           render json: attachment_content_json(attachment)
         end
@@ -171,7 +170,7 @@ module Api
 
           {
             path: attachment.filename,
-            content: raw.encode(Encoding::UTF_8, invalid: :replace, undef: :replace),
+            content: raw.force_encoding(Encoding::UTF_8).scrub,
             binary: false,
             too_large: false
           }
