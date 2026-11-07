@@ -33,6 +33,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `retention_policy`
 - `repository_content_provider`
 - `repository_configuration`
+- `review_gate`
 - `execution_backend`
 - `workspace_git_transport`
 - `purge_contributor`
@@ -4151,3 +4152,19 @@ whether a project is affected by changed files. Parsed values remain opaque to
 core and are available from `SyrusYml::Config#plugin_configurations` and
 `TargetGraph::Project#plugin_configurations`. Disabled, unavailable, and absent
 providers produce explicit diagnostics and do not materialize live behavior.
+
+### Review gate contributions
+
+Plugins may register `review_gate` providers to insert review loops at the
+stable `after_agent` workflow slot. Each definition supplies stable gate and
+step-kind keys, `before`/`after` ordering constraints, an enablement resolver,
+a loop budget and repair-step relationship, handler/prompt/tool providers, a
+verdict artifact contract, failure policy, evidence metadata, and optional
+panel capability. Ordering cycles and duplicate keys are rejected.
+
+Initial, retry, PR/chat feedback, external-PR feedback, and coding-handoff
+builders all resolve this registry instead of naming feature-specific gates.
+Resolved definitions are snapshotted in the Workflow's
+`review_gate_contributions` artifact. Providers are resolved again before a
+later loop iteration, so disabling or reloading a plugin prevents another
+plugin-owned review invocation while preserving the already-recorded repair.
