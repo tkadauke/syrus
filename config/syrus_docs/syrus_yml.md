@@ -997,7 +997,7 @@ grade:
 
 Glob matching uses `File::FNM_DOTMATCH` so `*` and `**` cross directory separators — `website/**` matches any file under the `website/` directory at any depth, including dotfiles. If the git diff command fails (e.g. no commits on the branch yet), Syrus logs a warning, treats the changed-file list as empty, and skips any grader with `when_files_changed` set while still running graders without it.
 
-If a registered `:affected_test_analyzer` plugin (see [`plugins.md`](plugins.md#affected_test_analyzer)) can confidently analyze the diff, Syrus adds its reported files to the changed-file set before glob matching — this can only turn a would-be skip into a run (e.g. a grader whose glob only matches spec files still runs when a changed source file transitively affects one of those specs), never the reverse. No registered analyzer, a declining analyzer, or an analyzer error all behave identically to plain glob matching against the raw diff.
+If a registered `:affected_test_analyzer` plugin (see `plugins.md`, "Autofix, audits, affected tests, and review criteria") can confidently analyze the diff, Syrus adds its reported files to the changed-file set before glob matching — this can only turn a would-be skip into a run (e.g. a grader whose glob only matches spec files still runs when a changed source file transitively affects one of those specs), never the reverse. No registered analyzer, a declining analyzer, or an analyzer error all behave identically to plain glob matching against the raw diff.
 
 ### grade.max_iterations
 
@@ -1102,7 +1102,7 @@ formatters:
 
 Each entry's `command` runs only when this iteration's diff (`git diff --name-only <base>...HEAD`) touches at least one file matching its `files` glob (same `File::FNM_DOTMATCH` semantics as a grader's `when_files_changed`); an entry whose glob matches nothing is skipped. `command` and `files` are both required.
 
-Omitting `formatters:` entirely runs no formatting at all — this is the safe default. To opt into Syrus's plugin-provided defaults (RuboCop, ESLint/Prettier, gofmt, ruff/black — see [`plugins.md`](plugins.md#autofix_command)), set `formatters: []` (an explicit blank array): each applicable plugin default then runs, gated on the plugin detecting its own config signal in the repo and on this iteration's diff being non-empty.
+Omitting `formatters:` entirely runs no formatting at all — this is the safe default. To opt into Syrus's plugin-provided defaults (RuboCop, ESLint/Prettier, gofmt, ruff/black — see the "Autofix, audits, affected tests, and review criteria" section of `plugins.md`), set `formatters: []` (an explicit blank array): each applicable plugin default then runs, gated on the plugin detecting its own config signal in the repo and on this iteration's diff being non-empty.
 
 Set `formatters: false` (or `off`) to disable formatting altogether for this repository, including the plugin defaults. This is mostly redundant with omitting the key, but it lets an operator record the choice explicitly and is future-proofed against any later change to what "absent" means.
 

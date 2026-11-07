@@ -8,7 +8,7 @@ repository pages, search sources, scheduled work, and other focused product
 features.
 
 The complete installed inventory is available under **Admin → Plugins**. Plugin
-authors should use the [engineering authoring reference](../../docs/engineering/conventions/plugins/authoring.md); this page describes behavior that operators and agents need when using plugins.
+authors should use the engineering plugin-authoring reference (`docs/engineering/conventions/plugins/authoring.md` in the Syrus repository); this page describes behavior that operators and agents need when using plugins.
 
 ## Per-origin Job visibility
 

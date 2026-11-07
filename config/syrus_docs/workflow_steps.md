@@ -791,7 +791,7 @@ format, generate ], check: [ grader_fanout, grader_collect ]`), so they rerun
 on every retry iteration right before graders check again — a style
 regression or stale generated output the agent's latest edit reintroduced
 gets fixed for free before the next grade rather than costing another agent
-turn. See [`plugins.md`](plugins.md#autofix_command) for the
+turn. See the "Autofix, audits, affected tests, and review criteria" section of `plugins.md` for the
 `:autofix_command` extension point contract and the bundled providers `format`
 falls back to.
 
@@ -920,7 +920,7 @@ separate repository grader failures from rollout infrastructure failures.
 
 Before matching a grader's `when_files_changed` globs, this step also asks
 every registered `:affected_test_analyzer` plugin (see
-[`plugins.md`](plugins.md#affected_test_analyzer)) whether it can more
+`plugins.md`, "Autofix, audits, affected tests, and review criteria") whether it can more
 precisely resolve which files this diff actually affects — real
 import/dependency-graph analysis instead of a glob's path-pattern guess. A
 confident answer is added to the matched-file set (never removed from it),
@@ -1039,7 +1039,7 @@ failures the records already know about; the archived log is still offered for
 the detail behind each failure. A summary also survives a grader whose log did
 not — test output written just before the process died is still ingested — and
 is shown in that case too. Core never interprets these lines; see
-`grader_failure_summarizer` in `plugins.md`.
+`grader_failure_summarizer` in the engineering plugin-authoring reference (`docs/engineering/conventions/plugins/authoring.md`).
 
 When every failing required grader this iteration has an already-persisted
 `RunFailureClassification` naming a transient/infrastructure cause (a worker
@@ -1487,7 +1487,7 @@ Non-agentic. Posts the formatted coverage summary as a PR comment when `pr_comme
 
 ### dependency_audit
 
-Non-agentic. Runs after `coverage_analyze`, in `initial`, `retry`, `pr_comment`, and `chat_feedback` workflows. Always present in these chains, but self-skips at runtime unless the PR diff (`git diff <default>...HEAD`) touched a lockfile owned by a registered `:dependency_audit_command` plugin (Ruby's `Gemfile.lock`, JavaScript's `yarn.lock`/`pnpm-lock.yaml`/`package-lock.json`, Python's `uv.lock`/`poetry.lock`/`requirements.txt`, Go's `go.sum`) — see [`plugins.md`](plugins.md#dependency_audit_command) for the extension point contract.
+Non-agentic. Runs after `coverage_analyze`, in `initial`, `retry`, `pr_comment`, and `chat_feedback` workflows. Always present in these chains, but self-skips at runtime unless the PR diff (`git diff <default>...HEAD`) touched a lockfile owned by a registered `:dependency_audit_command` plugin (Ruby's `Gemfile.lock`, JavaScript's `yarn.lock`/`pnpm-lock.yaml`/`package-lock.json`, Python's `uv.lock`/`poetry.lock`/`requirements.txt`, Go's `go.sum`) — see `plugins.md`, "Autofix, audits, affected tests, and review criteria" for the extension point contract.
 
 When a matching lockfile changed, runs each matching provider's audit command (`bundle-audit check --update`, `npm`/`yarn`/`pnpm audit --json`, `pip-audit`, `govulncheck ./...`) and stores the results as the `dependency_audit` workflow artifact. A non-zero exit status is not a step failure — it is how these tools report that vulnerabilities were found, and `dependency_audit`'s `fail_policy` is `:advance` so a broken audit tool never blocks the chain. A clean scan across every scanned ecosystem leaves no `pr_comment_body` in the artifact, so nothing gets posted — a clean scan is a silent no-op. `Steps::PrOpen` posts the formatted findings as a PR comment (alongside the coverage comment) when it opens or updates the PR in `initial`/`retry` workflows.
 
