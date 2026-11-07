@@ -190,6 +190,8 @@ module Api
             run_cursor: request.query_parameters["run_cursor"],
             side_chat_cursor: request.query_parameters["side_chat_cursor"]
           ).merge(message_traffic: message_traffic_json(coworker))
+        rescue Coworkers::Activity::InvalidCursor
+          render_error("invalid_cursor", I18n.t("api.coworkers.invalid_activity_cursor"), status: :bad_request)
         end
 
         def approvals
@@ -406,7 +408,7 @@ module Api
         def message_traffic_json(coworker)
           main_chat = coworker.coworker_chats.find(&:main?)&.chat_session
           messages = main_chat ? main_chat.messages.active.where("created_at >= ?", 30.days.ago) : ChatMessage.none
-          delivered = messages.where("content ->> '$.coworker_message.status' IS NULL")
+          delivered = messages.where("content ->> '$.coworker_message.status' IS NULL OR content ->> '$.coworker_message.status' IN ('', 'null')")
           counts = delivered.group("content ->> '$.coworker_message.direction'").count
           events = messages.where("content ->> '$.coworker_message.status' IN (?)", %w[refused rate_limited])
             .order(created_at: :desc, id: :desc).limit(20).filter_map do |message|

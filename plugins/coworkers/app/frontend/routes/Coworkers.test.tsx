@@ -74,7 +74,6 @@ const detailPayload = {
     effective_model: "gpt-6.1-sol",
     workspace_repo: "https://github.com/acme/workspace.git",
     soul: "role: Researcher\n\nCurious and concise.",
-    spend_usd: 1.25,
     chats: [{ id: 12, role: "main", title: "Maya", path: "/chats/12" }],
     available_chats: [{ id: 22, title: "Planning", rostered: false, implicit: false }],
     grants: [{ capability: "workspace.files", approval_policy: "auto", constraints: {} }],
@@ -115,20 +114,21 @@ const detailPayload = {
         last_fired_at: "2026-10-29T09:00:00Z",
         after_run: "quiet"
       }
-    ],
-    message_traffic: {
-      sent: 4,
-      received: 7,
-      window_days: 30,
-      delivery_events: [{ status: "refused", receiver_handle: "rin", reason: "Three-hop limit reached", occurred_at: "2026-10-29T10:00:00Z" }]
-    }
+    ]
   }
 }
 
 const activityPayload = {
   spend: { week_usd: 0.75, total_usd: 1.25 },
   runs: [],
-  side_chats: []
+  side_chats: [],
+  next_cursors: { runs: null, side_chats: null },
+  message_traffic: {
+    sent: 4,
+    received: 7,
+    window_days: 30,
+    delivery_events: [{ status: "refused", receiver_handle: "rin", reason: "Three-hop limit reached", occurred_at: "2026-10-29T10:00:00Z" }]
+  }
 }
 
 afterEach(() => vi.unstubAllGlobals())
@@ -309,6 +309,31 @@ it("shows sent and received message traffic on the Activity tab", async () => {
   expect(screen.getByText("Last 30 days")).toBeInTheDocument()
   expect(screen.getByText("4")).toBeInTheDocument()
   expect(screen.getByText("7")).toBeInTheDocument()
+})
+
+it("loads older activity collections from their independent cursors", async () => {
+  const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
+    const path = String(input)
+    if (path.includes("side_chat_cursor=next-side")) {
+      return jsonResponse({
+        ...activityPayload,
+        side_chats: [{ id: 42, title: "Older research", path: "/chats/42", cost_usd: 0.5 }]
+      })
+    }
+    if (path.endsWith("/activity")) {
+      return jsonResponse({ ...activityPayload, next_cursors: { runs: null, side_chats: "next-side" } })
+    }
+    return jsonResponse(detailPayload)
+  })
+  vi.stubGlobal("fetch", fetchSpy)
+  renderRoute("/coworkers/7")
+
+  fireEvent.click(await screen.findByRole("button", { name: "Activity" }))
+  fireEvent.click(await screen.findByRole("button", { name: "Load more side chats" }))
+
+  expect(await screen.findByRole("link", { name: "Older research" })).toHaveAttribute("href", "/chats/42")
+  expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/coworkers/7/activity?side_chat_cursor=next-side", expect.anything())
+  expect(screen.queryByRole("button", { name: "Load more side chats" })).not.toBeInTheDocument()
 })
 
 it("does not offer removal for the coworker's implicit own chat", async () => {

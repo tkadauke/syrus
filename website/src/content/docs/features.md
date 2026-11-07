@@ -2138,6 +2138,9 @@ available commit attribution, and unmerged chat branches holding conflicts.
 Incomplete trees and capped files are labeled. **Test push access** verifies
 credentials with a randomized throwaway `coworkers/` ref that is deleted
 immediately; it does not expose a general push path.
+The Activity tab loads background runs and side chats in bounded pages. When
+more than 50 entries exist, separate **Load more** controls reveal older runs
+or chats without loading the coworker's full history up front.
 Creation is tracked as a durable provisioning attempt. If database creation
 fails after the home branch is seeded, Syrus verifies and removes that exact
 commit or queues bounded cleanup retries. The Coworkers page shows cleanup

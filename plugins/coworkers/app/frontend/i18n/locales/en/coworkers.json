@@ -133,8 +133,11 @@
     "tool_calls_one": "{{count}} tool call",
     "tool_calls_other": "{{count}} tool calls",
     "no_runs": "No background runs yet.",
+    "load_more_runs": "Load more runs",
+    "loading_more": "Loading more…",
     "side_chats": "Side chats",
     "no_side_chats": "No side chats yet.",
+    "load_more_side_chats": "Load more side chats",
     "untitled_chat": "Untitled chat"
   },
   "schedule": {

@@ -1,5 +1,6 @@
 class Coworkers::Activity
   PAGE_SIZE = 50
+  class InvalidCursor < StandardError; end
   def self.weekly_spend_by_coworker(coworkers:, user:, now: Time.current)
     coworker_ids = coworkers.map(&:id)
     return {} if coworker_ids.empty?
@@ -73,19 +74,29 @@ class Coworkers::Activity
 
   def page(relation, cursor, timestamp:)
     if cursor.present?
-      encoded_time, id = Base64.urlsafe_decode64(cursor).split("|", 2)
-      time = Time.iso8601(encoded_time)
-      relation = relation.where("#{timestamp} < ? OR (#{timestamp} = ? AND id < ?)", time, time, id)
+      time, id = decode_cursor(cursor)
+      relation = if time
+        relation.where("#{timestamp} < ? OR #{timestamp} IS NULL OR (#{timestamp} = ? AND id < ?)", time, time, id)
+      else
+        relation.where(timestamp => nil).where("id < ?", id)
+      end
     end
-    records = relation.order(timestamp => :desc, id: :desc).limit(PAGE_SIZE + 1).to_a
+    records = relation.order(Arel.sql("#{timestamp} IS NULL ASC"), timestamp => :desc, id: :desc).limit(PAGE_SIZE + 1).to_a
     page_records = records.first(PAGE_SIZE)
     [ page_records, records.length > PAGE_SIZE ? cursor_for(page_records.last, timestamp:) : nil ]
-  rescue ArgumentError
-    [ [], nil ]
   end
 
   def cursor_for(record, timestamp:)
     Base64.urlsafe_encode64("#{record.public_send(timestamp)&.iso8601(6)}|#{record.id}", padding: false)
+  end
+
+  def decode_cursor(cursor)
+    encoded_time, encoded_id = Base64.urlsafe_decode64(cursor).split("|", 2)
+    raise InvalidCursor if encoded_id.blank? || encoded_id !~ /\A[1-9]\d*\z/
+
+    [ encoded_time.present? ? Time.iso8601(encoded_time) : nil, encoded_id.to_i ]
+  rescue ArgumentError
+    raise InvalidCursor
   end
 
   def chat_spend_entries

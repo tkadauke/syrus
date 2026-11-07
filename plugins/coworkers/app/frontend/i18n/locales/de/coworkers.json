@@ -144,8 +144,11 @@
     "tool_calls_one": "{{count}} Werkzeugaufruf",
     "tool_calls_other": "{{count}} Werkzeugaufrufe",
     "no_runs": "Noch keine Hintergrundläufe.",
+    "load_more_runs": "Weitere Läufe laden",
+    "loading_more": "Weitere werden geladen…",
     "side_chats": "Nebenchats",
     "no_side_chats": "Noch keine Nebenchats.",
+    "load_more_side_chats": "Weitere Nebenchats laden",
     "untitled_chat": "Unbenannter Chat"
   },
   "schedule": {

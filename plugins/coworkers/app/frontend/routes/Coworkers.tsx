@@ -40,6 +40,7 @@ import {
   testCoworkerRemote,
   updateCoworkerGrant,
   type CoworkerDetail,
+  type CoworkerActivityPayload,
   type CoworkerSchedule,
   type CoworkerMemoryFile,
   type CoworkerSummary
@@ -404,7 +405,7 @@ function CoworkerPage({ id }: { id: string }) {
       {tab === "schedule" ? <CoworkerSchedules coworker={coworker} onChanged={() => void tabQuery.refetch()} /> : null}
       {tab === "memory" ? <CoworkerMemory id={id} /> : null}
       {tab === "workspace" ? <CoworkerWorkspace id={id} remote={coworker.workspace_repo} /> : null}
-      {tab === "activity" ? <CoworkerActivity id={id} fallbackTraffic={query.data.coworker.message_traffic} /> : null}
+      {tab === "activity" ? <CoworkerActivity id={id} /> : null}
       {!["chat", "profile", "capabilities", "approvals", "schedule", "memory", "workspace", "activity"].includes(tab) ? (
         <PanelMessage>{t("coming_later")}</PanelMessage>
       ) : null}
@@ -883,14 +884,39 @@ function SystemScheduleTime({ coworkerId, schedule, onChanged }: { coworkerId: s
   )
 }
 
-function CoworkerActivity({ id, fallbackTraffic }: { id: string; fallbackTraffic?: CoworkerDetail["message_traffic"] }) {
+function CoworkerActivity({ id }: { id: string }) {
   const { t } = useT("coworkers")
   const query = useQuery({ queryKey: ["coworkers", id, "activity"], queryFn: () => fetchCoworkerActivity(id) })
+  const [additionalRuns, setAdditionalRuns] = useState<CoworkerActivityPayload["runs"]>([])
+  const [additionalSideChats, setAdditionalSideChats] = useState<CoworkerActivityPayload["side_chats"]>([])
+  const [runCursor, setRunCursor] = useState<string | null>(null)
+  const [sideChatCursor, setSideChatCursor] = useState<string | null>(null)
+  useEffect(() => {
+    setAdditionalRuns([])
+    setAdditionalSideChats([])
+    setRunCursor(query.data?.next_cursors.runs ?? null)
+    setSideChatCursor(query.data?.next_cursors.side_chats ?? null)
+  }, [id, query.data])
+  const moreRuns = useMutation({
+    mutationFn: (cursor: string) => fetchCoworkerActivity(id, { runCursor: cursor }),
+    onSuccess: (page) => {
+      setAdditionalRuns((runs) => [...runs, ...page.runs])
+      setRunCursor(page.next_cursors.runs)
+    }
+  })
+  const moreSideChats = useMutation({
+    mutationFn: (cursor: string) => fetchCoworkerActivity(id, { sideChatCursor: cursor }),
+    onSuccess: (page) => {
+      setAdditionalSideChats((chats) => [...chats, ...page.side_chats])
+      setSideChatCursor(page.next_cursors.side_chats)
+    }
+  })
   if (query.isPending) return <PanelMessage>{t("activity.loading")}</PanelMessage>
   if (query.isError || !query.data) return <PanelMessage>{t("activity.unavailable")}</PanelMessage>
   const activity = query.data
-  const traffic = activity.message_traffic || fallbackTraffic
-  if (!traffic) return <PanelMessage>{t("activity.unavailable")}</PanelMessage>
+  const runs = [...activity.runs, ...additionalRuns]
+  const sideChats = [...activity.side_chats, ...additionalSideChats]
+  const traffic = activity.message_traffic
   return (
     <section className="space-y-6 rounded border border-border bg-surface p-5">
       <div>
@@ -909,9 +935,9 @@ function CoworkerActivity({ id, fallbackTraffic }: { id: string; fallbackTraffic
       </div>
       <div>
         <h2 className="font-semibold">{t("activity.runs")}</h2>
-        {activity.runs.length ? (
+        {runs.length ? (
           <ul className="mt-3 divide-y divide-border rounded border border-border">
-            {activity.runs.map((run) => (
+            {runs.map((run) => (
               <li className="grid gap-2 p-3 text-sm sm:grid-cols-4" key={run.id}>
                 <span>{t("activity.run_label", { id: run.id })}</span>
                 <span>{t(`activity.status.${run.state}`, { defaultValue: run.state })}</span>
@@ -923,12 +949,21 @@ function CoworkerActivity({ id, fallbackTraffic }: { id: string; fallbackTraffic
         ) : (
           <p className="mt-2 text-sm text-text-secondary">{t("activity.no_runs")}</p>
         )}
+        {runCursor ? (
+          <button
+            className="mt-3 rounded border border-border px-3 py-1 text-sm hover:bg-surface-subtle"
+            disabled={moreRuns.isPending}
+            onClick={() => moreRuns.mutate(runCursor)}
+          >
+            {moreRuns.isPending ? t("activity.loading_more") : t("activity.load_more_runs")}
+          </button>
+        ) : null}
       </div>
       <div>
         <h2 className="font-semibold">{t("activity.side_chats")}</h2>
-        {activity.side_chats.length ? (
+        {sideChats.length ? (
           <ul className="mt-3 space-y-2">
-            {activity.side_chats.map((chat) => (
+            {sideChats.map((chat) => (
               <li className="flex justify-between rounded border border-border p-3 text-sm" key={chat.id}>
                 <Link className="text-brand" to={chat.path}>
                   {chat.title || t("activity.untitled_chat")}
@@ -940,6 +975,15 @@ function CoworkerActivity({ id, fallbackTraffic }: { id: string; fallbackTraffic
         ) : (
           <p className="mt-2 text-sm text-text-secondary">{t("activity.no_side_chats")}</p>
         )}
+        {sideChatCursor ? (
+          <button
+            className="mt-3 rounded border border-border px-3 py-1 text-sm hover:bg-surface-subtle"
+            disabled={moreSideChats.isPending}
+            onClick={() => moreSideChats.mutate(sideChatCursor)}
+          >
+            {moreSideChats.isPending ? t("activity.loading_more") : t("activity.load_more_side_chats")}
+          </button>
+        ) : null}
       </div>
       <div>
         <h2 className="font-semibold">{t("activity.message_traffic")}</h2>

@@ -413,6 +413,7 @@ RSpec.describe "API: coworkers", type: :request do
     chat.messages.create!(role: "system", content: { "text" => "Sent", "coworker_message" => { "direction" => "outgoing" } })
     chat.update!(cumulative_cost_usd: 1.25)
     chat.messages.create!(role: "user", content: { "text" => "Received", "coworker_message" => { "direction" => "incoming" } }, skip_turn_trigger: true)
+    chat.messages.create!(role: "user", content: { "text" => "Received with null status", "coworker_message" => { "direction" => "incoming", "status" => nil } }, skip_turn_trigger: true)
     chat.messages.create!(role: "system", content: { "text" => "Message to @rin was not delivered", "coworker_message" => { "direction" => "outgoing", "status" => "refused", "receiver_handle" => "rin" } })
     old = chat.messages.create!(role: "system", content: { "text" => "Old", "coworker_message" => { "direction" => "outgoing" } })
     old.update_columns(created_at: 31.days.ago)
@@ -421,7 +422,7 @@ RSpec.describe "API: coworkers", type: :request do
     get "/api/v1/app/coworkers/#{coworker.id}/activity"
 
     traffic = response.parsed_body.fetch("message_traffic")
-    expect(traffic).to include("sent" => 1, "received" => 1, "window_days" => 30)
+    expect(traffic).to include("sent" => 1, "received" => 2, "window_days" => 30)
     expect(traffic.fetch("delivery_events")).to contain_exactly(
       include("status" => "refused", "receiver_handle" => "rin", "reason" => "Message to @rin was not delivered")
     )
@@ -446,6 +447,16 @@ RSpec.describe "API: coworkers", type: :request do
 
     expect(response.parsed_body.fetch("side_chats").length).to eq(1)
     expect(response.parsed_body.dig("next_cursors", "side_chats")).to be_nil
+  end
+
+  it "returns a client error for an invalid activity cursor" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-invalid-activity-cursor", workspace_repo: "https://github.com/acme/workspace.git")
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/activity?run_cursor=invalid"
+
+    expect(response).to have_http_status(:bad_request)
+    expect(response.parsed_body.dig("error", "code")).to eq("invalid_cursor")
   end
 
   it "refuses to add another user's coworker" do

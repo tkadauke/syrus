@@ -179,9 +179,7 @@ export function fetchCoworker(id: string) {
   return getJson<{ coworker: CoworkerDetail }>(`/api/v1/app/coworkers/${id}`)
 }
 export function fetchCoworkerTab(id: string, tab: "profile" | "chats" | "capabilities" | "schedules") {
-  return getJson<Partial<CoworkerDetail> | { coworker: CoworkerDetail }>(`/api/v1/app/coworkers/${id}/${tab}`).then((payload) =>
-    "coworker" in payload ? payload.coworker : payload
-  )
+  return getJson<Partial<CoworkerDetail>>(`/api/v1/app/coworkers/${id}/${tab}`)
 }
 export function fetchCoworkerMemory(id: string, search: string) {
   return getJson<CoworkerMemoryPayload>(`/api/v1/app/coworkers/${id}/memory${search}`)
@@ -190,8 +188,12 @@ export function fetchCoworkerWorkspace(id: string, path?: string) {
   return getJson<CoworkerWorkspacePayload>(`/api/v1/app/coworkers/${id}/workspace${path ? `?path=${encodeURIComponent(path)}` : ""}`)
 }
 export const retryCoworkerWorkspaceSave = (id: string, chatLinkId: number) => postJson(`/api/v1/app/coworkers/${id}/workspace/retry`, { chat_id: chatLinkId })
-export function fetchCoworkerActivity(id: string) {
-  return getJson<CoworkerActivityPayload>(`/api/v1/app/coworkers/${id}/activity`)
+export function fetchCoworkerActivity(id: string, cursors: { runCursor?: string; sideChatCursor?: string } = {}) {
+  const params = new URLSearchParams()
+  if (cursors.runCursor) params.set("run_cursor", cursors.runCursor)
+  if (cursors.sideChatCursor) params.set("side_chat_cursor", cursors.sideChatCursor)
+  const query = params.size ? `?${params}` : ""
+  return getJson<CoworkerActivityPayload>(`/api/v1/app/coworkers/${id}/activity${query}`)
 }
 export function fetchCoworkerApprovals(id: string) {
   return getJson<{ approvals: CoworkerApproval[] }>(`/api/v1/app/coworkers/${id}/approvals`)

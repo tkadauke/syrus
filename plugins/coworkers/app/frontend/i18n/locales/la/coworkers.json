@@ -139,8 +139,11 @@
     "tool_calls_one": "{{count}} vocatio instrumenti",
     "tool_calls_other": "{{count}} vocationes instrumentorum",
     "no_runs": "Nulli cursus posteriores adhuc.",
+    "load_more_runs": "Plures cursus onera",
+    "loading_more": "Plura onerantur…",
     "side_chats": "Colloquia secundaria",
     "no_side_chats": "Nulla colloquia secundaria adhuc.",
+    "load_more_side_chats": "Plura colloquia secundaria onera",
     "untitled_chat": "Colloquium sine titulo"
   },
   "schedule": {

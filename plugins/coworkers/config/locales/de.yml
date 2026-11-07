@@ -3,6 +3,7 @@ de:
     coworkers:
       approval_inactive: "Diese Genehmigung ist nicht mehr ausstehend."
       memory_unavailable: "Der Speicher des Coworkers ist gerade nicht erreichbar."
+      invalid_activity_cursor: "Der Aktivitätscursor ist ungültig."
       chat_group: "Mitarbeiter"
       invalid_workspace_remote: "Die Workspace-Remote-URL muss auf ein GitHub-Repository verweisen."
       push_access_verified: "Push-Zugriff bestätigt."

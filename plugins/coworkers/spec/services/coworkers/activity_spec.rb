@@ -73,6 +73,31 @@ RSpec.describe Coworkers::Activity do
     expect(queries.grep(/FROM ["`]runs["`]/i).size).to eq(1)
   end
 
+  it "paginates side chats with null timestamps after dated chats" do
+    stub_const("Coworkers::Activity::PAGE_SIZE", 2)
+    dated = ChatSession.create!(user: owner, title: "Dated", last_message_at: 1.hour.ago)
+    older_null = ChatSession.create!(user: owner, title: "Older null", last_message_at: nil)
+    newer_null = ChatSession.create!(user: owner, title: "Newer null", last_message_at: nil)
+    [ dated, older_null, newer_null ].each do |chat|
+      Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "side")
+    end
+
+    first_page = described_class.new(coworker: coworker, user: owner).call
+    second_page = described_class.new(coworker: coworker, user: owner).call(
+      side_chat_cursor: first_page.dig(:next_cursors, :side_chats)
+    )
+
+    expect(first_page.fetch(:side_chats).pluck(:id)).to eq([ dated.id, newer_null.id ])
+    expect(second_page.fetch(:side_chats).pluck(:id)).to eq([ older_null.id ])
+    expect(second_page.dig(:next_cursors, :side_chats)).to be_nil
+  end
+
+  it "rejects malformed cursors" do
+    expect {
+      described_class.new(coworker: coworker, user: owner).call(run_cursor: "not-a-cursor")
+    }.to raise_error(Coworkers::Activity::InvalidCursor)
+  end
+
   private
 
   def sql_queries
