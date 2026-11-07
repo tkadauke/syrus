@@ -587,8 +587,25 @@ describe("ProviderRoutingRulesEditor", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Delete" })[0])
     expect(onDeleteRule).toHaveBeenCalledWith(rules[0])
 
-    fireEvent.click(screen.getByRole("button", { name: "Move CI fast path down" }))
+    fireEvent.keyDown(screen.getByRole("button", { name: "Reorder CI fast path" }), { key: "ArrowDown" })
     expect(onReorderRules).toHaveBeenCalledWith([12, 11])
+  })
+
+  it("reorders rules by dragging the dedicated handle", () => {
+    const onReorderRules = vi.fn()
+    renderPanel({ onReorderRules, rules })
+    const transfer = { effectAllowed: "none", setData: vi.fn() }
+    const source = screen.getByRole("button", { name: "Reorder CI fast path" })
+    const target = screen.getByRole("button", { name: "Reorder General fallback" })
+
+    fireEvent.dragStart(source, { dataTransfer: transfer })
+    fireEvent.dragOver(target, { dataTransfer: transfer })
+    fireEvent.drop(target, { dataTransfer: transfer })
+
+    expect(transfer.effectAllowed).toBe("move")
+    expect(transfer.setData).toHaveBeenCalledWith("text/plain", "11")
+    expect(onReorderRules).toHaveBeenCalledWith([12, 11])
+    expect(screen.queryByRole("button", { name: /Move .* (up|down)/ })).not.toBeInTheDocument()
   })
 
   it("toggles disabled rules in place and edits hold actions without provider candidates", async () => {
@@ -671,7 +688,7 @@ describe("ProviderRoutingRulesEditor", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Delete" })[0])
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/test/provider_routing_rules/11", expect.objectContaining({ method: "DELETE" })))
 
-    fireEvent.click(screen.getByRole("button", { name: "Move CI fast path down" }))
+    fireEvent.keyDown(screen.getByRole("button", { name: "Reorder CI fast path" }), { key: "ArrowDown" })
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/test/provider_routing_rules/reorder", expect.objectContaining({ method: "PATCH" })))
     const reorderBody = JSON.parse(String(fetchMock.mock.calls.at(-1)?.[1]?.body))
     expect(reorderBody.provider_routing_rule_ids).toEqual([12, 11])
@@ -692,7 +709,7 @@ describe("ProviderRoutingRulesEditor", () => {
     )
     renderEditor({ rules })
 
-    fireEvent.click(screen.getByRole("button", { name: "Move CI fast path down" }))
+    fireEvent.keyDown(screen.getByRole("button", { name: "Reorder CI fast path" }), { key: "ArrowDown" })
     expect(ruleRowNames()).toEqual(["General fallback", "CI fast path"])
 
     await waitFor(() => expect(rejectReorder).toBeTypeOf("function"))

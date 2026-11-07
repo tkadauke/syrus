@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react"
-import type { KeyboardEvent } from "react"
+import { useEffect, useRef, useState } from "react"
+import type { DragEvent, KeyboardEvent, PointerEvent } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Button } from "./Button"
-import { ChevronIcon } from "./ChevronIcon"
 import { Modal } from "./Modal"
 import { RoutingTestPanel } from "./ProviderRoutingTestPanel"
 import { PanelMessage } from "./PanelMessage"
@@ -248,9 +247,8 @@ export function RoutingRulesPanel({
     if (draft?.id === rule.id) closeEditor()
   }
 
-  function move(rule: ProviderRoutingRule, direction: -1 | 1) {
+  function reorder(rule: ProviderRoutingRule, nextIndex: number) {
     const index = routingRules.findIndex((candidate) => candidate.id === rule.id)
-    const nextIndex = index + direction
     if (index < 0 || nextIndex < 0 || nextIndex >= routingRules.length) return
 
     const ids = routingRules.map((candidate) => candidate.id)
@@ -288,7 +286,7 @@ export function RoutingRulesPanel({
             onDelete={deleteRule}
             onDuplicate={duplicate}
             onEdit={edit}
-            onMove={move}
+            onReorder={reorder}
             onToggle={onToggleRule}
             options={routingOptions}
             reorderPending={reorderPending}
@@ -341,7 +339,7 @@ function RulesTable({
   onDelete,
   onDuplicate,
   onEdit,
-  onMove,
+  onReorder,
   onToggle,
   options,
   readOnly = false,
@@ -354,7 +352,7 @@ function RulesTable({
   onDelete?: (rule: ProviderRoutingRule) => void
   onDuplicate?: (rule: ProviderRoutingRule) => void
   onEdit?: (rule: ProviderRoutingRule) => void
-  onMove?: (rule: ProviderRoutingRule, direction: -1 | 1) => void
+  onReorder?: (rule: ProviderRoutingRule, index: number) => void
   onToggle?: (rule: ProviderRoutingRule, enabled: boolean) => void
   options: ProviderRoutingOptions
   readOnly?: boolean
@@ -362,91 +360,159 @@ function RulesTable({
   rules: ProviderRoutingRule[]
   t: (key: string, options?: Record<string, unknown>) => string
 }) {
+  const dragIndex = useRef<number | null>(null)
+  const pointerTargetIndex = useRef<number | null>(null)
+
+  function startDrag(index: number, event: DragEvent<HTMLButtonElement>) {
+    dragIndex.current = index
+    event.dataTransfer.effectAllowed = "move"
+    event.dataTransfer.setData("text/plain", String(rules[index].id))
+  }
+
+  function finishDrag(index: number) {
+    const sourceIndex = dragIndex.current
+    dragIndex.current = null
+    if (sourceIndex === null || sourceIndex === index) return
+    onReorder?.(rules[sourceIndex], index)
+  }
+
+  function startPointerReorder(index: number, event: PointerEvent<HTMLButtonElement>) {
+    if (event.pointerType === "mouse") return
+    dragIndex.current = index
+    pointerTargetIndex.current = index
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  function trackPointerReorder(event: PointerEvent<HTMLButtonElement>) {
+    if (dragIndex.current === null || event.pointerType === "mouse") return
+    const row = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-routing-rule-index]")
+    if (row) pointerTargetIndex.current = Number(row.dataset.routingRuleIndex)
+  }
+
+  function finishPointerReorder(event: PointerEvent<HTMLButtonElement>) {
+    if (event.pointerType === "mouse") return
+    const sourceIndex = dragIndex.current
+    const targetIndex = pointerTargetIndex.current
+    dragIndex.current = null
+    pointerTargetIndex.current = null
+    if (sourceIndex === null || targetIndex === null || sourceIndex === targetIndex) return
+    onReorder?.(rules[sourceIndex], targetIndex)
+  }
+
   const table = (
     <ul aria-label={inheritedLabel || t("provider_routing.rules_table")} className="divide-y divide-border">
       {rules.map((rule, index) => (
         <li
-          className={`space-y-1.5 px-3 py-2.5 ${readOnly ? "bg-surface-subtle/50" : "bg-surface"} ${rule.enabled === false ? "opacity-55" : ""}`}
+          className={`grid grid-cols-[auto_minmax(0,1fr)_auto] gap-2 px-2 py-2.5 sm:gap-3 sm:px-3 ${readOnly ? "bg-surface-subtle/50" : "bg-surface"} ${rule.enabled === false ? "opacity-55" : ""}`}
+          data-routing-rule-index={index}
           data-testid="routing-rule-row"
           key={rule.id}
         >
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="w-5 text-xs font-medium text-text-secondary">{index + 1}</span>
-            {!readOnly ? (
-              <Checkbox
-                aria-label={t("provider_routing.enabled_aria", { name: ruleName(rule, t) })}
-                checked={rule.enabled !== false}
-                className="h-4 w-4 accent-brand"
-                onChange={(event) => {
-                  void onToggle?.(rule, event.target.checked)
-                }}
-              />
-            ) : null}
-            <span className="min-w-0 break-words font-medium text-text-primary">{ruleName(rule, t)}</span>
-            {rule.enabled === false ? <Pill tone="neutral">{t("provider_routing.disabled")}</Pill> : null}
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Pill tone="info" wrap>
-              {triggerLabel(rule.trigger, options, t)}
-            </Pill>
-            <span className="text-xs font-medium text-text-primary">{actionLabel(rule, options, t)}</span>
-            {conditionSummaries(rule.conditions, options, t).map((label) => (
-              <Pill key={label} tone="neutral" wrap>
-                {label}
+          {!readOnly ? (
+            <Button
+              aria-label={t("provider_routing.reorder_aria", { name: ruleName(rule, t) })}
+              className="h-10 w-10 cursor-grab touch-none self-start text-text-secondary active:cursor-grabbing sm:h-8 sm:w-8"
+              disabled={reorderPending}
+              draggable={!reorderPending}
+              onDragEnd={() => {
+                dragIndex.current = null
+              }}
+              onDragOver={(event) => event.preventDefault()}
+              onDragStart={(event) => startDrag(index, event)}
+              onDrop={() => finishDrag(index)}
+              onKeyDown={(event) => {
+                if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return
+                event.preventDefault()
+                onReorder?.(rule, index + (event.key === "ArrowUp" ? -1 : 1))
+              }}
+              onPointerCancel={() => {
+                dragIndex.current = null
+                pointerTargetIndex.current = null
+              }}
+              onPointerDown={(event) => startPointerReorder(index, event)}
+              onPointerMove={trackPointerReorder}
+              onPointerUp={finishPointerReorder}
+              size="icon"
+              variant="secondary"
+            >
+              <GripIcon />
+            </Button>
+          ) : (
+            <span aria-hidden="true" className="w-8" />
+          )}
+          <div className="min-w-0 space-y-1.5">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="text-xs font-medium text-text-secondary">{index + 1}</span>
+              {!readOnly ? (
+                <Checkbox
+                  aria-label={t("provider_routing.enabled_aria", { name: ruleName(rule, t) })}
+                  checked={rule.enabled !== false}
+                  className="h-4 w-4 accent-brand"
+                  onChange={(event) => {
+                    void onToggle?.(rule, event.target.checked)
+                  }}
+                />
+              ) : null}
+              <span className="min-w-0 break-words font-medium text-text-primary">{ruleName(rule, t)}</span>
+              {rule.enabled === false ? <Pill tone="neutral">{t("provider_routing.disabled")}</Pill> : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Pill tone="info" wrap>
+                {triggerLabel(rule.trigger, options, t)}
               </Pill>
-            ))}
+              <span className="text-xs font-medium text-text-primary">{actionLabel(rule, options, t)}</span>
+              {conditionSummaries(rule.conditions, options, t).map((label) => (
+                <Pill key={label} tone="neutral" wrap>
+                  {label}
+                </Pill>
+              ))}
+            </div>
+            <div className="text-xs text-text-secondary">
+              {rule.action?.type === "hold" ? (
+                <div>{holdSummary(rule.action, t)}</div>
+              ) : (
+                <ol className="list-decimal space-y-0.5 pl-4">
+                  {ruleCandidates(rule).map((candidate, candidateIndex) => (
+                    <li key={`${rule.id}-${candidateIndex}`}>{candidateLabel(candidate, options, t)}</li>
+                  ))}
+                </ol>
+              )}
+            </div>
           </div>
-          <div className="text-xs text-text-secondary">
-            {rule.action?.type === "hold" ? (
-              <div>{holdSummary(rule.action, t)}</div>
-            ) : (
-              <ol className="list-decimal space-y-0.5 pl-4">
-                {ruleCandidates(rule).map((candidate, candidateIndex) => (
-                  <li key={`${rule.id}-${candidateIndex}`}>{candidateLabel(candidate, options, t)}</li>
-                ))}
-              </ol>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex flex-col items-center gap-1 self-start sm:flex-row">
             {readOnly ? (
               <Pill tone="neutral">{t("provider_routing.read_only")}</Pill>
             ) : (
               <>
                 <Button
-                  aria-label={t("provider_routing.move_up_aria", { name: ruleName(rule, t) })}
-                  className="h-7 w-7"
-                  disabled={index === 0 || reorderPending}
-                  onClick={() => onMove?.(rule, -1)}
+                  aria-label={t("provider_routing.edit")}
+                  className="h-10 w-10 sm:h-8 sm:w-8"
+                  onClick={() => onEdit?.(rule)}
                   size="icon"
                   variant="secondary"
                 >
-                  <ChevronIcon className="h-4 w-4 -rotate-90" />
+                  <PencilIcon />
                 </Button>
                 <Button
-                  aria-label={t("provider_routing.move_down_aria", { name: ruleName(rule, t) })}
-                  className="h-7 w-7"
-                  disabled={index === rules.length - 1 || reorderPending}
-                  onClick={() => onMove?.(rule, 1)}
+                  aria-label={t("provider_routing.duplicate")}
+                  className="h-10 w-10 sm:h-8 sm:w-8"
+                  onClick={() => onDuplicate?.(rule)}
                   size="icon"
                   variant="secondary"
                 >
-                  <ChevronIcon className="h-4 w-4 rotate-90" />
-                </Button>
-                <Button onClick={() => onEdit?.(rule)} size="sm" variant="secondary">
-                  {t("provider_routing.edit")}
-                </Button>
-                <Button onClick={() => onDuplicate?.(rule)} size="sm" variant="secondary">
-                  {t("provider_routing.duplicate")}
+                  <DuplicateIcon />
                 </Button>
                 <Button
+                  aria-label={t("provider_routing.delete")}
+                  className="h-10 w-10 sm:h-8 sm:w-8"
                   disabled={destroyPending}
                   onClick={() => {
                     void onDelete?.(rule)
                   }}
-                  size="sm"
+                  size="icon"
                   variant="danger"
                 >
-                  {t("provider_routing.delete")}
+                  <TrashIcon />
                 </Button>
               </>
             )}
@@ -455,8 +521,6 @@ function RulesTable({
       ))}
     </ul>
   )
-
-  if (!inheritedLabel) return table
 
   return (
     <div className="overflow-hidden rounded-[var(--radius-panel)] border border-[length:var(--border-width)] border-border bg-surface">
@@ -468,6 +532,63 @@ function RulesTable({
       ) : null}
       {table}
     </div>
+  )
+}
+
+function GripIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4" fill="currentColor" viewBox="0 0 16 16">
+      <circle cx="6" cy="4" r="1" />
+      <circle cx="10" cy="4" r="1" />
+      <circle cx="6" cy="8" r="1" />
+      <circle cx="10" cy="8" r="1" />
+      <circle cx="6" cy="12" r="1" />
+      <circle cx="10" cy="12" r="1" />
+    </svg>
+  )
+}
+
+function PencilIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z" />
+    </svg>
+  )
+}
+
+function DuplicateIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24">
+      <rect height="13" rx="2" width="13" x="8" y="8" />
+      <path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3" />
+    </svg>
+  )
+}
+
+function TrashIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v5M14 11v5" />
+    </svg>
   )
 }
 

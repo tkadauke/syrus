@@ -1591,6 +1591,7 @@
     "disabled": "Deaktiviert",
     "enabled_aria": "{{name}} aktivieren",
     "duplicate": "Duplizieren",
+    "reorder_aria": "{{name}} neu anordnen",
     "move_up_aria": "{{name}} nach oben verschieben",
     "move_down_aria": "{{name}} nach unten verschieben",
     "default_task_key": "Standard",

@@ -1591,6 +1591,7 @@
     "disabled": "Inactiva",
     "enabled_aria": "{{name}} activa",
     "duplicate": "Duplicare",
+    "reorder_aria": "{{name}} ordinare",
     "move_up_aria": "{{name}} sursum move",
     "move_down_aria": "{{name}} deorsum move",
     "default_task_key": "defectus",
