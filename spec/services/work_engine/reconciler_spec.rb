@@ -16,22 +16,24 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     clear_performed_jobs
   end
 
-  before do
-    # Reconciler examples model persisted workflow state, not worker-local
-    # filesystem loss, unless they explicitly stub the workspace path below.
-    # Keep the ordinary baseline present so workspace recovery cannot preempt
-    # the state transition each example is exercising.
-    workspace_path = %r{/workflows/\d+\z}
-    allow(File).to receive(:directory?).and_call_original
-    allow(File).to receive(:directory?).with(satisfy { |path| path.to_s.match?(workspace_path) }).and_return(true)
-  end
-
   def reconcile(**attrs)
+    materialize_workflow_workspaces
     described_class.call(source: "spec", **attrs)
   end
 
   def reconcile_and_execute(**attrs)
+    materialize_workflow_workspaces
     described_class.call(source: "spec", execute_repairs: true, **attrs)
+  end
+
+  # Most examples model persisted workflow state rather than worker-local
+  # filesystem loss. Materialize that ordinary baseline only when invoking the
+  # reconciler so the suite does not partial-double File.directory? globally.
+  # Missing-workspace examples explicitly stub their workflow path to false.
+  def materialize_workflow_workspaces
+    Workflow.find_each do |workflow|
+      FileUtils.mkdir_p(WorkflowWorkspace.path_for(workflow))
+    end
   end
 
   def kind(result, name)
