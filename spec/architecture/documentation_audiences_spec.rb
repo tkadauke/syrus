@@ -137,6 +137,34 @@ RSpec.describe "documentation audiences" do
     expect(operations_observability).to include("### On-demand process diagnostics")
   end
 
+  it "splits chat, worker, metrics, and observability docs by audience" do
+    architecture_index = root.join("docs/engineering/architecture/README.md").read
+    operations_index = root.join("docs/engineering/operations/README.md").read
+
+    %w[chat multi-worker metrics observability].each do |page|
+      expect(root.join("docs/engineering/architecture/#{page}.md")).to exist
+      expect(architecture_index).to include("(#{page}.md)")
+    end
+
+    %w[multi-worker metrics].each do |page|
+      expect(root.join("docs/engineering/operations/#{page}.md")).to exist
+      expect(operations_index).to include("(#{page}.md)")
+    end
+
+    expect(root.join("config/syrus_docs/metrics.md")).not_to exist
+
+    searchable_chat = root.join("config/syrus_docs/chat.md").read
+    searchable_workers = root.join("config/syrus_docs/multi_worker.md").read
+    searchable_observability = root.join("config/syrus_docs/observability.md").read
+
+    expect(searchable_chat).to include("`submit_coding_changes`")
+    expect(searchable_chat).not_to include("CodexRolloutSanitizer")
+    expect(searchable_workers).to include("SYRUS_WORKER_CAPABILITIES")
+    expect(searchable_workers).not_to include("db/search_migrate")
+    expect(searchable_observability).to include("SYRUS_ALERT_WEBHOOK_URL")
+    expect(searchable_observability).not_to include("Observability::EventSink")
+  end
+
   it "keeps plugin authoring out of the searchable behavior guide" do
     searchable = root.join("config/syrus_docs/plugins.md").read
     authoring = root.join("docs/engineering/conventions/plugins/authoring.md").read
