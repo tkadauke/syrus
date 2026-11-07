@@ -1780,6 +1780,7 @@
     "allow_once": "Einmal erlauben",
     "deny": "Ablehnen",
     "always_allow_similar": "Ähnliches immer erlauben",
+    "always_allow_command": "Diesen Befehl immer erlauben",
     "allow_job": "Für diesen Job erlauben",
     "allow_chat": "Für diesen Chat erlauben",
     "preview_title": "Diese Berechtigung prüfen",

@@ -134,6 +134,7 @@ RSpec.describe CredentialStore::PermissionProvider do
     ).call
     request = result.request
     item = request.authorization_items.sole
+    options = Permissions::SmartDecision.new(request:, item:, user: owner).options
 
     expect(item).to have_attributes(
       operation: "ssh.execute/read", risk: "high",
@@ -146,6 +147,10 @@ RSpec.describe CredentialStore::PermissionProvider do
       "credential_name" => "production", "command" => "uname -a",
       "command_sha256" => Digest::SHA256.hexdigest("uname -a")
     )
+    expect(options.pluck(:kind, :duration)).to eq([
+      [ "allow_chat", "chat_session" ],
+      [ "always_allow_command", "permanent" ]
+    ])
 
     preview = Permissions::RuleDraft.from_request_item(user: owner, request:, item:, duration: "permanent").preview
     rule = preview.valid? && preview.then { Permissions::SmartDecision.new(request:, item:, user: owner).apply_rule!(duration: "permanent", digest: preview.digest) }

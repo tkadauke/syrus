@@ -16,6 +16,13 @@ const option: SmartPermissionOption = {
   ceiling: {},
   context: { coworker: "Maya", operation: "mail.send/draft", repository: null, resource_scope_label: "Drafts folder", duration: "permanent" }
 }
+const chatOption: SmartPermissionOption = {
+  ...option,
+  kind: "allow_chat",
+  duration: "chat_session",
+  digest: "digest-chat",
+  context: { ...option.context, duration: "chat_session" }
+}
 
 function setup(props: Partial<React.ComponentProps<typeof SmartPermissionActions>> = {}) {
   const handlers = { onAllowOnce: vi.fn(), onDeny: vi.fn(), onConfirm: vi.fn(), onStale: vi.fn() }
@@ -31,6 +38,16 @@ describe("SmartPermissionActions", () => {
   it("keeps the default footprint to three decisions", () => {
     setup()
     expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["Allow once", "Always allow similar", "Deny"])
+  })
+
+  it("presents chat-scoped and permanent choices separately", () => {
+    const handlers = setup({ options: [chatOption, option] })
+
+    expect(screen.getAllByRole("button").map((button) => button.textContent)).toEqual(["Allow once", "Allow for this chat", "Always allow similar", "Deny"])
+    fireEvent.click(screen.getByRole("button", { name: "Allow for this chat" }))
+    expect(screen.getByText("This chat only")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+    expect(handlers.onConfirm).toHaveBeenCalledWith(chatOption)
   })
 
   it("offers only Allow once and Deny without an adaptive option", () => {
