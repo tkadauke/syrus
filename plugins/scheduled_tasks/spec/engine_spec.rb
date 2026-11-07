@@ -8,10 +8,29 @@ RSpec.describe ScheduledTasks::Engine do
     expect(manifest.default_enabled?).to be(true)
     expect(manifest.tick_interval).to eq(1.minute)
     expect(Array(manifest.provides[:callbacks])).to include(ScheduledTasks::Callbacks)
+    expect(manifest.optionally_depends_on).to include("calendar")
+    expect(Syrus::PluginRegistry.providers_for("calendar:event_source"))
+      .to include(ScheduledTasks::CalendarEventSource)
   end
 
   it "registers the scoped permission provider" do
     expect(Syrus::PluginRegistry.providers_for(:permission_provider)).to include(ScheduledTasks::PermissionProvider)
+  end
+
+  it "removes its Calendar contribution while either plugin is disabled", :reset_plugin_registry do
+    calendar = PluginRecord.find_or_initialize_by(name: "calendar")
+    scheduled_tasks = PluginRecord.find_or_initialize_by(name: "scheduled_tasks")
+    calendar.update!(enabled: true)
+    scheduled_tasks.update!(enabled: true)
+    Syrus::Installer.sync!
+    expect(Syrus::PluginRegistry.providers_for("calendar:event_source"))
+      .to include(ScheduledTasks::CalendarEventSource)
+
+    calendar.update!(enabled: false)
+    Syrus::Installer.sync!
+    expect(Syrus::PluginRegistry.providers_for("calendar:event_source"))
+      .not_to include(ScheduledTasks::CalendarEventSource)
+    expect(scheduled_tasks.reload.enabled?).to be(true)
   end
 
   # Plugin metrics follow while_enabled semantics: a disabled plugin emits no
