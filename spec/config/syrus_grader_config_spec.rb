@@ -428,6 +428,7 @@ RSpec.describe "Syrus grader configuration" do
     # read them and fail on drift, so a docs-only diff must not skip rspec.
     catalog_scope = %w[
       config/syrus_docs/**/*.md
+      docs/engineering/**/*.md
       website/src/content/docs/generated/**/*.md
       docs/metrics-catalog.md
     ]

@@ -43,7 +43,7 @@ through instead of failing the whole run. Two things actually run it:
 
 `no-raw-status-colors`, `no-panel-shell-repeats`, `no-raw-table-classes`, and
 `no-long-class-strings` graduated from report-only rules under
-`eslint-rules/style_debt/` — see `config/syrus_docs/style_debt_report.md` for
+`eslint-rules/style_debt/` — see `style_debt_report.md` for
 the report that still tracks not-yet-enforced categories (currently just
 `plugin-ui-imports`) and the process for graduating another one.
 

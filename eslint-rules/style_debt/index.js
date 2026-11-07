@@ -6,7 +6,7 @@
 // fail every PR immediately. bin/style-debt-report loads this module
 // directly, lints with every rule set to "warn" (so ESLint never exits
 // nonzero on their account), and aggregates the resulting messages into
-// counts. See config/syrus_docs/style_debt_report.md.
+// counts. See docs/engineering/conventions/style_debt_report.md.
 //
 // raw-status-colors, panel-shell-repeats, raw-table-classes, and
 // long-class-strings previously lived here and have graduated into the

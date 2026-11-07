@@ -5,6 +5,34 @@ speech-to-text availability and the Coding/Local Mode feature gates. Individual
 chat polling responses contain only session-specific state, so these static
 capabilities are not recomputed and retransmitted on every poll.
 
+## Repository files and Coding Mode workspaces
+
+With a repository attached, the workspace panel exposes a read-only **Files**
+tab outside Coding Mode as soon as the chat's checkout is available. It shows
+the live file tree and file contents, but no Diff tab or commit selector.
+Allowlisted images, SVGs, and PDFs can be previewed; oversized files and binary
+files outside that preview policy are not exposed as text or preview bytes.
+
+Before each Coding Mode turn, Syrus creates or restores the writable checkout
+and starts repository preparation when needed. The environment snapshot reports
+the checkout path, branch/ref, default branch, and preparation status. A turn
+may inspect the checkout while preparation is running, but should not edit or
+submit changes until preparation succeeds.
+
+After an accepted `submit_coding_changes`, Syrus commits the captured work and
+starts a coding-handoff workflow. The chat checkout remains in place and moves
+onto the handoff result, so the next submission stacks on the prior handoff
+rather than silently starting again from the default branch. Capture failures
+leave the checkout and its uncommitted work intact.
+
+`reset_workspace` is the explicit fresh-default-branch escape hatch. With
+`confirm_discard: true`, it discards checkout changes, resets to the current
+default branch, clears the submission lineage, and runs preparation again. The
+next submission then starts a new independent stack.
+
+For relay and storage implementation details, see
+`docs/engineering/architecture/coding_workspace_relay.md`.
+
 Syrus Chat can run turns through Claude, Codex, or any enabled plugin-provided
 chat provider such as Muse or Antigravity. Each chat stores a concrete
 `chat_provider` when it is created. The seed value comes from the user's chat
@@ -894,7 +922,7 @@ The right-side workspace panel's tab set (`WorkspaceTab` in
 `WorkspacePanels.tsx`) is not a fixed list. Beyond the built-in singleton tabs
 (Whiteboard, Context, Media, Pinned, Files — read/write with a Diff sub-tab in
 Coding Mode, read-only tree-and-content in planning mode once a repository is
-attached, see `coding_workspace_relay.md` — Local Diff, Jobs) and the
+attached, see [Repository files and Coding Mode workspaces](#repository-files-and-coding-mode-workspaces) — Local Diff, Jobs) and the
 multi-instance preview panel tabs (`preview:<id>`, see `preview_panels.md`), a
 plugin can register additional tabs through the `:workspace_tab` extension
 point (`Syrus::Plugin::WorkspaceTab`) — declarative id/label/component
