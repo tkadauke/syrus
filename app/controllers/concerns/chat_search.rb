@@ -11,9 +11,10 @@ module ChatSearch
 
   SEARCH_PAGE_SIZE = 20
   SEARCH_TOP_MATCHES = 3
+  SEARCH_MESSAGE_PAGE_SIZE = 50
 
   def search_payload_for_query(scope, query, page)
-    allowed_session_ids = scope.distinct.pluck(:id).map(&:to_i)
+    allowed_session_ids = scope.distinct.select(:id)
     session_page = ChatMessageSearchIndex.matching_chat_session_page(
       query,
       chat_session_ids: allowed_session_ids,
@@ -160,8 +161,6 @@ module ChatSearch
       chat_session_id: chat_session.id,
       chat_title: chat_search_title(chat_session),
       badges: badges_by_chat_id.fetch(chat_session.id, []),
-      best_snippet: top_matches.first&.fetch(:snippet),
-      best_match_message_id: top_matches.first&.fetch(:message_id),
       top_matches: top_matches,
       total_match_count: rows.first.fetch(:match_count).to_i,
       has_more_matches: rows.first.fetch(:match_count).to_i > SEARCH_TOP_MATCHES
@@ -172,12 +171,7 @@ module ChatSearch
     {
       chat_session_id: chat_session.id,
       chat_title: chat_search_title(chat_session),
-      badges: badges_by_chat_id.fetch(chat_session.id, []),
-      best_snippet: nil,
-      best_match_message_id: nil,
-      top_matches: [],
-      total_match_count: 0,
-      has_more_matches: false
+      badges: badges_by_chat_id.fetch(chat_session.id, [])
     }
   end
 
