@@ -98,4 +98,36 @@ describe("CalendarRoute", () => {
     expect(screen.getByRole("link", { name: "Open owning feature" })).toHaveAttribute("href", "/admin/queues")
     expect(screen.getByText(/Times shown in/)).toBeInTheDocument()
   })
+
+  it("links a scheduled execution to both its Job and owning task", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        events: [
+          {
+            source_id: "scheduled_tasks:tasks",
+            id: "task-1-slot",
+            kind: "scheduled_task",
+            title: "Repository sweep",
+            starts_at: new Date().toISOString(),
+            destination_path: "/jobs/7",
+            state: "fired",
+            metadata: { scheduled_task_path: "/scheduled_tasks/1", job_id: 7 }
+          }
+        ],
+        failures: []
+      })
+    )
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/calendar"]}>
+          <CalendarRoute />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(await screen.findByRole("button", { name: "Repository sweep" }))
+    expect(screen.getByRole("link", { name: "Open owning feature" })).toHaveAttribute("href", "/jobs/7")
+    expect(screen.getByRole("link", { name: "Open scheduled task" })).toHaveAttribute("href", "/scheduled_tasks/1")
+  })
 })
