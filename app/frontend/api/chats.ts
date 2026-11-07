@@ -489,6 +489,11 @@ export type ChatMessageItem = {
   coworker_receiver?: ChatCoworkerAppearance | null
 }
 
+export type TruncatedChatMessageContent = {
+  truncated: true
+  content_path: string
+}
+
 export type ChatCoworkerAppearance = {
   id: number
   name: string
@@ -899,6 +904,8 @@ export type ChatShellCommandResult = {
   id: number
   command: string
   output: string | null
+  output_truncated?: boolean
+  output_path?: string
   outcome: ChatShellCommandOutcome | null
   exit_status: number | null
   started_at: string | null

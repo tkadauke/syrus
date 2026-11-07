@@ -281,6 +281,7 @@ Rails.application.routes.draw do
         delete "chats/:id", to: "chats#destroy", constraints: { id: /\d+/ }
         get "chats/:id/preview", to: "chats#preview", constraints: { id: /\d+/ }
         get "chats/:id/messages", to: "chats#messages", constraints: { id: /\d+/ }
+        get "chats/:id/messages/:message_id/content", to: "chats#full_message_content", constraints: { id: /\d+/, message_id: /\d+/ }
         post "chats/:chat_id/participants", to: "chat_participants#create", constraints: { chat_id: /\d+/ }
         post "chats/:chat_id/attachments", to: "chat_attachments#create", constraints: { chat_id: /\d+/ }
         get "chats/:chat_id/attachments/:id/file", to: "chat_attachments#show", constraints: { chat_id: /\d+/, id: /\d+/ }
