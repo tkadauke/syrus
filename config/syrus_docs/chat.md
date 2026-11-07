@@ -5,6 +5,34 @@ speech-to-text availability and the Coding/Local Mode feature gates. Individual
 chat polling responses contain only session-specific state, so these static
 capabilities are not recomputed and retransmitted on every poll.
 
+## Repository files and Coding Mode workspaces
+
+With a repository attached, the workspace panel exposes a read-only **Files**
+tab outside Coding Mode as soon as the chat's checkout is available. It shows
+the live file tree and file contents, but no Diff tab or commit selector.
+Allowlisted images, SVGs, and PDFs can be previewed; oversized files and binary
+files outside that preview policy are not exposed as text or preview bytes.
+
+Before each Coding Mode turn, Syrus creates or restores the writable checkout
+and starts repository preparation when needed. The environment snapshot reports
+the checkout path, branch/ref, default branch, and preparation status. A turn
+may inspect the checkout while preparation is running, but should not edit or
+submit changes until preparation succeeds.
+
+After an accepted `submit_coding_changes`, Syrus commits the captured work and
+starts a coding-handoff workflow. The chat checkout remains in place and moves
+onto the handoff result, so the next submission stacks on the prior handoff
+rather than silently starting again from the default branch. Capture failures
+leave the checkout and its uncommitted work intact.
+
+`reset_workspace` is the explicit fresh-default-branch escape hatch. With
+`confirm_discard: true`, it discards checkout changes, resets to the current
+default branch, clears the submission lineage, and runs preparation again. The
+next submission then starts a new independent stack.
+
+For relay and storage implementation details, see
+`docs/engineering/architecture/coding_workspace_relay.md`.
+
 Syrus Chat can run turns through Claude, Codex, or any enabled plugin-provided
 chat provider such as Muse or Antigravity. Each chat stores a concrete
 `chat_provider` when it is created. The seed value comes from the user's chat
@@ -334,11 +362,6 @@ untouched in the DB for audit. The chat workspace directory, per-chat agent
 homes, and FTS search-index rows are still purged post-commit by
 `ChatSessionCleanupJob`, since those are local checkout state rather than
 audit history. `ChatSession.active`/`.deleted` scopes mirror `ChatMessage`'s.
-Chat message files are Active Storage attachments referenced by message JSON;
-message content never embeds their bytes. Soft deletion retains those files
-with the audit history. A later hard destroy of the chat destroys its
-`ChatFileAttachment` rows and purges the corresponding blobs through
-`dependent: :purge`.
 Every operator-facing lookup (chat index, show, search, participants, local
 daemon sessions, the SPA `/chats/:id` gate) and every chat-reading MCP tool
 (`list_chats`, `search_chats`, `read_chat_messages`) scope through
@@ -393,14 +416,6 @@ For `list_chats`, `list_repositories`, `read_chat_messages`, and
 `read_run_transcript`, one-based page numbers are capped at 10,000 before SQL
 offset calculation. A normal page beyond the result set still returns an empty
 page; callers should not use the cap as a deep-pagination discovery mechanism.
-
-`read_run_transcript` returns transcript chunks plus an `agent_diff_bytes` size
-hint; it does not include the diff itself (use `get_job_diff`). `read_workflow`
-omits each Step's `details` excerpt by default and reports `details_bytes`; pass
-`step_id` for one Step's excerpt or `include_details: true` for all of them.
-Stored `tool_result` chat messages are capped at 256 KB: a larger result is
-saved as `{truncated, original_bytes, preview}` and the tool card shows a
-truncation notice in its expanded details.
 
 Sidebar pinning is exposed separately from pinned context. `pin_chat` and
 `unpin_chat` mutate `ChatSession#pinned`, the same state the recent-chats
@@ -866,11 +881,7 @@ Requirements enforced by the endpoint and `ChatShellCommandJob`:
   on a `ChatShellCommand` row, and a `role: "user"` `ChatMessage` carrying
   `content["chat_shell_command_id"]` is always posted and a normal
   `ChatTurnJob` is enqueued so the agent sees and responds to the command and
-  its output. Transcript payloads omit output while the command is running and
-  bound completed output to a preview; the complete stored output remains
-  available from the message content endpoint. Oversized tool-call and
-  tool-result content uses that same lazy endpoint instead of being repeated
-  in every transcript page or realtime event.
+  its output.
 
 Independently of bookmarks, user and assistant messages can be pinned via
 `ChatMessagePin` (`POST`/`GET`/`DELETE /api/v1/app/chats/:id/pins`), gated on
@@ -894,7 +905,7 @@ The right-side workspace panel's tab set (`WorkspaceTab` in
 `WorkspacePanels.tsx`) is not a fixed list. Beyond the built-in singleton tabs
 (Whiteboard, Context, Media, Pinned, Files — read/write with a Diff sub-tab in
 Coding Mode, read-only tree-and-content in planning mode once a repository is
-attached, see `coding_workspace_relay.md` — Local Diff, Jobs) and the
+attached, see [Repository files and Coding Mode workspaces](#repository-files-and-coding-mode-workspaces) — Local Diff, Jobs) and the
 multi-instance preview panel tabs (`preview:<id>`, see `preview_panels.md`), a
 plugin can register additional tabs through the `:workspace_tab` extension
 point (`Syrus::Plugin::WorkspaceTab`) — declarative id/label/component
@@ -912,10 +923,8 @@ configuration, diagnostic, changeset, and source-code files. The shared
 extensionless build filenames with compatible MIME types; this permits the
 `text/plain` and `application/octet-stream` values browsers commonly assign to
 source files without permitting arbitrary binary uploads. Text payloads must
-be NUL-free valid UTF-8. Files upload before message submission; messages,
-queued messages, and scratchpad items persist only attachment references, and
-chat payloads expose metadata plus secure file URLs rather than inline bytes.
-Each attachment is limited to 5 MB and a message's attachments to 20 MB total.
+be strictly Base64 encoded, NUL-free valid UTF-8. Each attachment is limited to
+5 MB and a message's attachments to 20 MB total.
 
 Every accepted file is materialized under the chat workspace's `attachments/`
 directory with a collision-safe prefix and a sanitized recognizable basename.
@@ -1030,14 +1039,9 @@ advance-after-triage ordering. Proposal payloads and the chat proposal card
 surface the override for confirmation display; dependency and linear-chain
 validation are unchanged.
 
-Priority is an operator-only scheduling decision. `propose_job` accepts an
-optional `priority`, and `propose_epic_with_jobs` an optional `jobs[].priority`
-for each child, but the assistant passes them only when the operator explicitly
-specifies `urgent`, `high`, `medium`, or `low`. Severity, impact, recency, or
-the assistant's recommendation never authorize an override, and relative
-priorities among Epic children are never inferred. Without an explicit
-operator choice the field is omitted and the default (`medium`) applies. The
-operator can still choose any priority. The proposal card displays the
+`propose_job` accepts `priority`, and `propose_epic_with_jobs` accepts a
+`jobs[].priority` for each child. Valid values are `urgent`, `high`, `medium`,
+and `low`; omission defaults to `medium`. The proposal card displays the
 selected priority, and confirmation copies it onto the Job before the initial
 state transition, so admission and the first queued Run use that priority.
 

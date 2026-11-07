@@ -30,6 +30,6 @@ German copy addresses the operator with informal *du*, retains Job, Workflow,
 and Epic, and calls a Run *Lauf* (plural *Läufe*, including *Agentenlauf*).
 Repository, Issue, and Polling follow the established catalog usage. Latin
 keeps the existing domain nouns until the pending entries in the
-[core localization glossary](../../docs/i18n-glossary.md) receive competent
+[core localization glossary](../../i18n-glossary.md) receive competent
 review; implementation must not normalize Latin domain nouns before that
 approval. Ordinary grammar and accidental English should still be corrected.
