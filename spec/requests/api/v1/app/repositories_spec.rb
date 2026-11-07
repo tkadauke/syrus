@@ -696,7 +696,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       "main_branch_repair_blocks_work" => false
     )
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}?include=health_history"
 
     expect(response).to have_http_status(:ok)
     body = parse_body
@@ -754,7 +754,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     other_repository = Factories.repository(user: user, owner: "acme", name: "other")
     Factories.job_record(repository: other_repository, issue_number: 99, issue_title: "Private")
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}?include=jobs,health_history,syrus_yml"
 
     expect(response).to have_http_status(:ok)
     body = parse_body
@@ -917,7 +917,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     loaded = RepoDefaultBranchSyrusYml::Result.new(config: config, source: ".syrus.yml", note: nil)
     allow(RepoDefaultBranchSyrusYml).to receive(:new).and_return(instance_double(RepoDefaultBranchSyrusYml, resolve: loaded))
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}?include=syrus_yml"
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["syrus_yml"]).to include(
@@ -948,7 +948,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     )
     cron_job = Factories.job_record(user: user, repository: repository, kind: "cron", issue_number: nil, scheduled_task_id: task.id)
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}?include=jobs"
 
     expect(response).to have_http_status(:ok)
     body = parse_body
@@ -997,7 +997,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     2.times { |index| Factories.job_with_run(repository: repository, issue_number: index + 2) }
 
     queries = capture_sql do
-      get "/api/v1/app/repositories/#{repository.id}"
+      get "/api/v1/app/repositories/#{repository.id}?include=jobs"
     end
 
     expect(response).to have_http_status(:ok)
@@ -1059,7 +1059,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     owner = Factories.job_with_run(repository: repository, issue_number: 2, issue_title: "Owner work")
     attach_active_work_unit(owner_job: owner, member_job: member)
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}?include=jobs"
 
     expect(response).to have_http_status(:ok)
     member_payload = parse_body.fetch("jobs").find { |job| job.fetch("id") == member.id }
@@ -1073,7 +1073,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     Run.create!(job: job, user: user, trigger_kind: "retry", agent_provider: "claude", state: "queued")
 
     queries = capture_sql do
-      get "/api/v1/app/repositories/#{repository.id}"
+      get "/api/v1/app/repositories/#{repository.id}?include=jobs"
     end
 
     expect(response).to have_http_status(:ok)
@@ -1172,7 +1172,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       repository: repository, sha: "def456", ci_health: "healthy"
     )
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}?include=health_history"
 
     expect(response).to have_http_status(:ok)
     records = parse_body.dig("health_history", "records")
@@ -1202,7 +1202,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       landing_paused: true
     )
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}?include=health_history"
 
     expect(response).to have_http_status(:ok)
     health = parse_body.fetch("health_history")
@@ -1247,7 +1247,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       landing_paused: true
     )
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}?include=health_history"
 
     expect(response).to have_http_status(:ok)
     health = parse_body.fetch("health_history")
@@ -2049,6 +2049,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     fix_job = repository.jobs.where(system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR).last
     expect(parse_body["message"]).to eq("Repair job #{fix_job.slug} started.")
+    get "/api/v1/app/repositories/#{repository.id}/health_history"
     expect(parse_body.dig("health_history", "main_branch_repair")).to include(
       "blocked_reason" => "active",
       "blocking_job" => include("slug" => fix_job.slug, "job_path" => job_path(fix_job))
@@ -2307,6 +2308,19 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       expect(parse_body).to have_key("cognitive_debt")
     end
 
+    it "bounds summary collections and honors the ETag" do
+      sign_in_as(user)
+      payload = { summary: { score: 1 }, subsystems: Array.new(6) { |i| { name: "s#{i}" } }, files: Array.new(6) { |i| { path: "f#{i}" } }, review_queue: Array.new(10) { |i| { id: i } } }
+      allow(App::CognitiveDebtPayload).to receive(:cached).and_return(payload)
+
+      get "/api/v1/app/repositories/#{repository.id}/cognitive_debt", params: { view: "summary" }
+      expect(parse_body.dig("cognitive_debt", "subsystems").size).to eq(4)
+      etag = response.headers.fetch("ETag")
+
+      get "/api/v1/app/repositories/#{repository.id}/cognitive_debt", params: { view: "summary" }, headers: { "If-None-Match" => etag }
+      expect(response).to have_http_status(:not_modified)
+    end
+
     # The rollup walks every DiffReviewVersion in the repository and expands
     # every line of every file into a LineFact. Inlining that in the detail
     # payload put seconds onto every repository page load, so the page must
@@ -2318,6 +2332,95 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body).not_to have_key("cognitive_debt")
+    end
+  end
+
+  describe "repository detail sections" do
+    let(:repository) { Factories.repository(user: user, default_branch: "main") }
+
+    it "keeps section payloads out of the base response" do
+      sign_in_as(user)
+
+      get "/api/v1/app/repositories/#{repository.id}"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.keys).not_to include("jobs", "pagination", "health_history", "delivery", "syrus_yml")
+    end
+
+    it "paginates jobs independently" do
+      sign_in_as(user)
+      Factories.job_record(repository: repository, issue_number: 1)
+
+      get "/api/v1/app/repositories/#{repository.id}/jobs", params: { page: 1 }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to include("jobs" => include(include("issue_number" => 1)), "pagination" => include("page" => 1, "total_jobs" => 1))
+      expect(parse_body.keys).to contain_exactly("jobs", "pagination", "provider_availability")
+      expect(parse_body.fetch("jobs").first).not_to have_key("provider_availability")
+    end
+
+    it "serves health history without the overview payload" do
+      sign_in_as(user)
+
+      get "/api/v1/app/repositories/#{repository.id}/health_history"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.keys).to contain_exactly("health_history")
+    end
+
+    it "serves delivery independently" do
+      sign_in_as(user)
+      get "/api/v1/app/repositories/#{repository.id}/delivery"
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.keys).to contain_exactly("delivery")
+    end
+
+    it "serves and caches the syrus config summary in the viewer's credential context" do
+      sign_in_as(user)
+      cache_fetches = []
+      allow(Rails.cache).to receive(:fetch) do |key, **options, &block|
+        cache_fetches << [ key, options ]
+        block.call
+      end
+
+      get "/api/v1/app/repositories/#{repository.id}/syrus_yml"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.keys).to contain_exactly("syrus_yml")
+      expect(cache_fetches).to include(
+        satisfy("a revision-keyed syrus_yml cache entry") do |key, options|
+          key.first(2) == [ "repository_syrus_yml_summary", repository.id ] && key.length == 3 && options == { expires_in: 5.minutes }
+        end
+      )
+    end
+
+    it "isolates cached job counts by viewer" do
+      sign_in_as(user)
+      allow(Rails.cache).to receive(:fetch).and_call_original
+
+      get "/api/v1/app/repositories/#{repository.id}"
+
+      expect(response).to have_http_status(:ok)
+      expect(Rails.cache).to have_received(:fetch).with(
+        [ "repository_detail_counts", repository.id, user.id ],
+        expires_in: 30.seconds
+      )
+    end
+
+    it "combines explicitly included sections and memoizes provider availability" do
+      sign_in_as(user)
+      2.times { |index| Factories.job_record(repository: repository, issue_number: index + 1) }
+      provider_calls = []
+      original_for_user = App::ProviderAvailability.method(:for_user)
+      allow(App::ProviderAvailability).to receive(:for_user) do |*args|
+        provider_calls << args
+        original_for_user.call(*args)
+      end
+
+      get "/api/v1/app/repositories/#{repository.id}", params: { include: "jobs,delivery,health_history" }
+
+      expect(parse_body.keys).to include("jobs", "pagination", "provider_availability", "delivery", "health_history")
+      expect(provider_calls.group_by(&:last).transform_values(&:size).values).to all(eq(1))
     end
   end
 

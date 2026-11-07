@@ -122,7 +122,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
 
   const owners = useQuery({
     queryKey: ["repositories", "owners"],
-    queryFn: fetchRepositoryOwners,
+    queryFn: () => fetchRepositoryOwners(),
     staleTime: 60_000
   })
 

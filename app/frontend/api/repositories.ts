@@ -633,6 +633,7 @@ export type RepositoryTab = {
 
 export type RepositoryDetailJob = {
   id: number
+  repository_slug: string
   state: string
   priority: string
   issue_number: number | null
@@ -694,15 +695,55 @@ export function fetchRepositories(search = "") {
   return getJson<RepositoriesPayload>(`/api/v1/app/repositories${search}`)
 }
 
+function hydrateRepositoryJobs<T extends { jobs?: RepositoryDetailJob[]; provider_availability?: Record<string, ProviderAvailability> }>(payload: T): T {
+  if (!payload.jobs) return payload
+
+  return {
+    ...payload,
+    jobs: payload.jobs.map((job) => ({
+      ...job,
+      provider_availability: job.agent_provider ? payload.provider_availability?.[job.agent_provider] : undefined,
+      job_path: `/jobs/${job.id}`,
+      pr_url: job.pr_number ? `https://github.com/${job.repository_slug}/pull/${job.pr_number}` : null,
+      external_pr_url: job.external_pr_number ? `https://github.com/${job.repository_slug}/pull/${job.external_pr_number}` : null
+    }))
+  } as T
+}
+
 export function fetchRepositoryDetail(id: string, search = "") {
-  return getJson<RepositoryDetailPayload>(`/api/v1/app/repositories/${id}${search}`)
+  return getJson<RepositoryDetailPayload & { provider_availability?: Record<string, ProviderAvailability> }>(`/api/v1/app/repositories/${id}${search}`).then(
+    hydrateRepositoryJobs
+  )
+}
+
+export function fetchRepositoryJobs(id: string, search = "") {
+  return getJson<Pick<RepositoryDetailPayload, "jobs" | "pagination"> & { provider_availability?: Record<string, ProviderAvailability> }>(
+    `/api/v1/app/repositories/${id}/jobs${search}`
+  )
+    .then(hydrateRepositoryJobs)
+    .then(({ jobs, pagination }) => ({ jobs, pagination }))
+}
+
+export function fetchRepositoryHealthHistory(id: string) {
+  return getJson<Pick<RepositoryDetailPayload, "health_history">>(`/api/v1/app/repositories/${id}/health_history`).then(({ health_history }) => ({
+    health_history
+  }))
+}
+
+export function fetchRepositoryDelivery(id: string) {
+  return getJson<Pick<RepositoryDetailPayload, "delivery">>(`/api/v1/app/repositories/${id}/delivery`).then(({ delivery }) => ({ delivery }))
+}
+
+export function fetchRepositorySyrusYml(id: string) {
+  return getJson<Pick<RepositoryDetailPayload, "syrus_yml">>(`/api/v1/app/repositories/${id}/syrus_yml`).then(({ syrus_yml }) => ({ syrus_yml }))
 }
 
 // Fetched on its own rather than inside the detail payload: the rollup walks
 // every diff review version in the repository, so inlining it delayed the
 // whole page. See Api::V1::App::RepositoriesController#cognitive_debt.
-export function fetchRepositoryCognitiveDebt(id: string) {
-  return getJson<{ cognitive_debt?: RepositoryCognitiveDebtPayload }>(`/api/v1/app/repositories/${id}/cognitive_debt`)
+export function fetchRepositoryCognitiveDebt(id: string, view?: "summary") {
+  const suffix = view ? `?view=${view}` : ""
+  return getJson<{ cognitive_debt?: RepositoryCognitiveDebtPayload }>(`/api/v1/app/repositories/${id}/cognitive_debt${suffix}`)
 }
 
 export function pollRepositoryDetail(path: string, page: number) {

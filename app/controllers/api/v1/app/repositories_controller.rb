@@ -24,8 +24,38 @@ module Api
 
         def show
           repository = find_repository
+          payload = repository_detail_payload(repository)
+          requested = params[:include].to_s.split(",")
+          payload.merge!(repository_jobs_payload(repository, page: detail_page)) if requested.include?("jobs")
+          payload[:health_history] = health_history_json(repository) if requested.include?("health_history")
+          payload[:delivery] = ::App::DeliveryTracksPayload.for(repository: repository, user: Current.user) if requested.include?("delivery")
+          payload[:syrus_yml] = cached_syrus_yml_summary_json(repository) if requested.include?("syrus_yml")
 
-          render json: repository_detail_payload(repository, page: detail_page)
+          render json: payload
+        end
+
+        def jobs
+          repository = find_repository
+
+          render json: repository_jobs_payload(repository, page: detail_page)
+        end
+
+        def health_history
+          repository = find_repository
+
+          render json: { health_history: health_history_json(repository) }
+        end
+
+        def delivery
+          repository = find_repository
+
+          render json: { delivery: ::App::DeliveryTracksPayload.for(repository: repository, user: Current.user) }
+        end
+
+        def syrus_yml
+          repository = find_repository
+
+          render json: { syrus_yml: cached_syrus_yml_summary_json(repository) }
         end
 
         # Served separately from #show because computing it walks every
@@ -36,7 +66,17 @@ module Api
         def cognitive_debt
           repository = find_repository
 
-          render json: { cognitive_debt: ::App::CognitiveDebtPayload.cached(repository: repository) }
+          payload = ::App::CognitiveDebtPayload.cached(repository: repository)
+          if params[:view] == "summary"
+            payload = payload.merge(
+              subsystems: Array(payload[:subsystems]).first(4),
+              files: Array(payload[:files]).first(4),
+              review_queue: Array(payload[:review_queue]).first(8)
+            )
+          end
+          return unless stale?(etag: payload)
+
+          render json: { cognitive_debt: payload }
         end
 
         def new
@@ -269,10 +309,10 @@ module Api
             job.save!
           end
           continue_released_job_triage(job)
+          expire_repository_detail_counts(repository)
 
           render json: repository_detail_payload(
             repository.reload,
-            page: detail_page,
             message: I18n.t("api.repositories.released_triage", slug: job.slug)
           )
         end
@@ -281,10 +321,10 @@ module Api
           return unless (repository = find_repository_for_admin_mutation)
           repository.update!(landing_paused: false)
           LandingQueueProcessorJob.perform_later
+          expire_repository_detail_counts(repository)
 
           render json: repository_detail_payload(
             repository.reload,
-            page: detail_page,
             message: I18n.t("api.repositories.repository_landing_resumed", slug: repository.slug)
           )
         end
@@ -384,8 +424,36 @@ module Api
           }
         end
 
-        def repository_detail_payload(repository, page:, message: nil, extra: {})
-          PerformanceLogging.phase("repository_detail_payload", repository_id: repository.id, page: page) do
+        def repository_detail_payload(repository, message: nil, extra: {})
+          PerformanceLogging.phase("repository_detail_payload", repository_id: repository.id) do
+            effective_provider = ProviderRouting::Resolver.preview_provider(repository: repository)
+            payload = {
+              message: message,
+              repository: PerformanceLogging.phase("repository_detail.repository", repository_id: repository.id) { repository_detail_json(repository, effective_provider: effective_provider) },
+              tabs: PerformanceLogging.phase("repository_detail.tabs", repository_id: repository.id) { repository_tabs_json(repository) },
+              ui_panels: PerformanceLogging.phase("repository_detail.ui_panels", repository_id: repository.id) do
+                ::App::UiSlotsPayload.panels_for(slot: "repository.detail", context: { repository: repository, user: Current.user })
+              end,
+              counts: PerformanceLogging.phase("repository_detail.counts", repository_id: repository.id) { cached_repository_counts_json(repository) },
+              provider_retry_status: PerformanceLogging.phase("repository_detail.provider_retry_status", repository_id: repository.id) { provider_retry_status_json(repository, provider: effective_provider) },
+              can_edit: RepositoryPolicy.new(Current.user, repository).admin?,
+              can_release_triage_jobs: can_release_triage_jobs?(repository),
+              needs_triage_count: PerformanceLogging.phase("repository_detail.needs_triage_count", repository_id: repository.id) { needs_triage_jobs_count(repository) },
+              needs_triage_jobs: PerformanceLogging.phase("repository_detail.needs_triage_jobs", repository_id: repository.id) { needs_triage_jobs_json(repository) },
+              credential_status: PerformanceLogging.phase("repository_detail.credential_status", repository_id: repository.id) { credential_status_json(repository) },
+              recommended_actions: PerformanceLogging.phase("repository_detail.recommended_actions", repository_id: repository.id) do
+                ::App::RepositoryFeatureRecommendations.for(repository: repository, user: Current.user)
+              end,
+              preview: PerformanceLogging.phase("repository_detail.preview", repository_id: repository.id) { repository_preview_json(repository) },
+              paths: repository_detail_paths(repository)
+            }
+
+            payload.merge(extra)
+          end
+        end
+
+        def repository_jobs_payload(repository, page:)
+          PerformanceLogging.phase("repository_jobs_payload", repository_id: repository.id, page: page) do
             total_jobs = PerformanceLogging.phase("repository_detail.total_jobs", repository_id: repository.id) do
               visible_repository_jobs(repository).count
             end
@@ -398,32 +466,17 @@ module Api
               preload_repository_detail_job_state(jobs)
             end
 
-            payload = {
-              message: message,
-              repository: PerformanceLogging.phase("repository_detail.repository", repository_id: repository.id) { repository_detail_json(repository) },
-              syrus_yml: PerformanceLogging.phase("repository_detail.syrus_yml", repository_id: repository.id) { syrus_yml_summary_json(repository) },
-              tabs: PerformanceLogging.phase("repository_detail.tabs", repository_id: repository.id) { repository_tabs_json(repository) },
-              ui_panels: PerformanceLogging.phase("repository_detail.ui_panels", repository_id: repository.id) do
-                ::App::UiSlotsPayload.panels_for(slot: "repository.detail", context: { repository: repository, user: Current.user })
-              end,
-              counts: PerformanceLogging.phase("repository_detail.counts", repository_id: repository.id) { repository_counts_json(repository) },
-              provider_retry_status: PerformanceLogging.phase("repository_detail.provider_retry_status", repository_id: repository.id) { provider_retry_status_json(repository) },
-              can_edit: RepositoryPolicy.new(Current.user, repository).admin?,
-              can_release_triage_jobs: can_release_triage_jobs?(repository),
-              needs_triage_count: PerformanceLogging.phase("repository_detail.needs_triage_count", repository_id: repository.id) { needs_triage_jobs_count(repository) },
-              needs_triage_jobs: PerformanceLogging.phase("repository_detail.needs_triage_jobs", repository_id: repository.id) { needs_triage_jobs_json(repository) },
-              credential_status: PerformanceLogging.phase("repository_detail.credential_status", repository_id: repository.id) { credential_status_json(repository) },
-              health_history: PerformanceLogging.phase("repository_detail.health_history", repository_id: repository.id) { health_history_json(repository) },
-              delivery: PerformanceLogging.phase("repository_detail.delivery", repository_id: repository.id) do
-                ::App::DeliveryTracksPayload.for(repository: repository, user: Current.user)
-              end,
-              recommended_actions: PerformanceLogging.phase("repository_detail.recommended_actions", repository_id: repository.id) do
-                ::App::RepositoryFeatureRecommendations.for(repository: repository, user: Current.user)
-              end,
-              jobs: PerformanceLogging.phase("repository_detail.jobs_json", repository_id: repository.id, job_count: jobs.size) { jobs.map { |job| job_json(job) } },
-              pagination: pagination_json(page: page, total_jobs: total_jobs, total_pages: total_pages, repository: repository),
-              preview: PerformanceLogging.phase("repository_detail.preview", repository_id: repository.id) { repository_preview_json(repository) },
-              paths: {
+            serialized_jobs = PerformanceLogging.phase("repository_detail.jobs_json", repository_id: repository.id, job_count: jobs.size) { jobs.map { |job| job_json(job) } }
+            {
+              jobs: serialized_jobs,
+              provider_availability: @repository_detail_provider_availability_by_provider || {},
+              pagination: pagination_json(page: page, total_jobs: total_jobs, total_pages: total_pages, repository: repository)
+            }
+          end
+        end
+
+        def repository_detail_paths(repository)
+          {
                 new_job_path: new_job_path(repository_id: repository.id),
                 new_repository_skill_job_path: new_repository_skill_job_path(repository),
                 edit_repository_path: edit_repository_path(repository),
@@ -440,11 +493,7 @@ module Api
                 repository_scheduled_tasks_path: "/repositories/#{repository.id}/scheduled_tasks",
                 app_preview_path: "/api/v1/app/repositories/#{repository.id}/preview",
                 app_preview_logs_path: "/api/v1/app/repositories/#{repository.id}/preview/logs"
-              }
-            }
-
-            payload.merge(extra)
-          end
+          }
         end
 
         def repositories_payload(message: nil)
@@ -655,8 +704,23 @@ module Api
           { running: counts[:running], queued: counts[:queued], failed_7d: counts[:failed_7d] }
         end
 
-        def provider_retry_status_json(repository)
-          provider = ProviderRouting::Resolver.preview_provider(repository: repository)
+        def cached_repository_counts_json(repository)
+          Rails.cache.fetch([ "repository_detail_counts", repository.id, Current.user.id ], expires_in: 30.seconds) do
+            repository_counts_json(repository)
+          end
+        end
+
+        def cached_syrus_yml_summary_json(repository)
+          revision = RepositoryContent.for(repository, user: Current.user).resolve(repository.default_branch)
+          Rails.cache.fetch([ "repository_syrus_yml_summary", repository.id, revision.id ], expires_in: 5.minutes) do
+            syrus_yml_summary_json(repository)
+          end
+        rescue RepositoryContent::Error
+          Rails.cache.fetch([ "repository_syrus_yml_summary", repository.id, repository.default_branch, Current.user.id ], expires_in: 30.seconds) { syrus_yml_summary_json(repository) }
+        end
+
+        def provider_retry_status_json(repository, provider: nil)
+          provider ||= ProviderRouting::Resolver.preview_provider(repository: repository)
           circuit = ProviderCircuitBreaker.call(provider, include_logs: false)
           {
             agent_provider: provider,
@@ -668,12 +732,14 @@ module Api
         def needs_triage_jobs_json(repository)
           return [] unless can_release_triage_jobs?(repository)
 
-          visible_repository_jobs(repository)
+          jobs = visible_repository_jobs(repository)
             .needs_triage
             .includes(:owner_user)
             .order(created_at: :asc)
             .limit(PER_PAGE)
-            .map { |job| needs_triage_job_json(job) }
+            .to_a
+          @repository_detail_latest_workflows_by_job_id = latest_workflows_by_job_id(jobs.map(&:id))
+          jobs.map { |job| needs_triage_job_json(job) }
         end
 
         def needs_triage_jobs_count(repository)
@@ -689,7 +755,7 @@ module Api
             issue_number: job.issue_number,
             agent_provider: job.workflow_agent_provider,
             job_provider_setting: job.job_provider_setting,
-            provider_availability: ::App::ProviderAvailability.for_user(Current.user, job.workflow_agent_provider),
+            provider_availability: provider_availability_for(job.workflow_agent_provider),
             job_path: job_path(job),
             source: job_source_json(job),
             owner_user: job.owner_user ? owner_user_json(job.owner_user) : nil,
@@ -765,20 +831,17 @@ module Api
 
           {
             id: job.id,
+            repository_slug: job.repository.slug,
             state: ::App::Presentation.job_summary_state(job),
             priority: job.priority,
             issue_number: job.issue_number,
             issue_title: job.issue_title.to_s,
             agent_provider: workflow_agent_provider,
             job_provider_setting: job.job_provider_setting,
-            provider_availability: provider_availability,
             provider_failover: provider_failover_for(job, configured_provider: workflow_agent_provider),
-            job_path: job_path(job),
             source: job_source_json(job),
             pr_number: job.pr_number,
-            pr_url: ::App::Presentation.job_pr_url(job),
             external_pr_number: job.external_pr_number,
-            external_pr_url: ::App::Presentation.external_pr_url(job),
             current_step_caption: current_step_caption,
             retry_state: retry_state,
             runs_count: runs_count_for(job),
@@ -1035,11 +1098,16 @@ module Api
         end
 
         def repository_command_payload(repository, message:)
+          expire_repository_detail_counts(repository)
           if params[:return_to] == "detail"
-            repository_detail_payload(repository.reload, page: detail_page, message: message)
+            repository_detail_payload(repository.reload, message: message)
           else
             repositories_payload(message: message)
           end
+        end
+
+        def expire_repository_detail_counts(repository)
+          Rails.cache.delete([ "repository_detail_counts", repository.id, Current.user.id ])
         end
 
         def main_branch_repair_blocked_message(status, repository)
@@ -1367,7 +1435,9 @@ module Api
 
         def provider_availability_for(provider)
           @repository_detail_provider_availability_by_provider ||= {}
-          @repository_detail_provider_availability_by_provider[provider] ||= ::App::ProviderAvailability.for_user(Current.user, provider)
+          return @repository_detail_provider_availability_by_provider[provider] if @repository_detail_provider_availability_by_provider.key?(provider)
+
+          @repository_detail_provider_availability_by_provider[provider] = ::App::ProviderAvailability.for_user(Current.user, provider)
         end
 
         def provider_failover_for(job, configured_provider:)
