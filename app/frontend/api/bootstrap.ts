@@ -47,6 +47,10 @@ export type BootstrapPayload = {
     mobile_chat_auto_hide_header?: boolean
     review_diff_settings?: ReviewDiffSettings
   } | null
+  time_zones: {
+    server: { name: string; source: "SYRUS_TIME_ZONE" | "TZ" | "default" }
+    user: { name: string; mode: "automatic" | "manual" } | null
+  }
   team_user_count: number
   provider_availability?: Record<string, ProviderAvailability>
   app: {
