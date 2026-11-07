@@ -20,6 +20,7 @@ module Whiteboard
              chat_payload_contributor: "Whiteboard::PayloadContributor",
              chat_prompt_injector: "Whiteboard::PromptSection"
     route :get, "/api/v1/app/chats/:id/whiteboard", to: "api/v1/app/chat_whiteboards#show"
+    route :get, "/api/v1/app/chats/:id/whiteboard/files", to: "api/v1/app/chat_whiteboards#files"
     route :patch, "/api/v1/app/chats/:id/whiteboard", to: "api/v1/app/chat_whiteboards#update"
     route :get, "/api/v1/app/chats/:chat_id/whiteboard_snapshots", to: "api/v1/app/whiteboard_snapshots#index"
     route :post, "/api/v1/app/chats/:chat_id/whiteboard_snapshots", to: "api/v1/app/whiteboard_snapshots#create"

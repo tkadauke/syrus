@@ -3,7 +3,17 @@ module Api
     module App
       class ChatWhiteboardsController < BaseController
         def show
-          render json: whiteboard_payload(Whiteboard::Board.for(find_chat_session))
+          whiteboard = Whiteboard::Board.for(find_chat_session)
+          fresh_when(etag: whiteboard&.version || 0, public: false)
+          return if performed?
+          render json: whiteboard_payload(whiteboard, fields: params[:fields])
+        end
+
+        def files
+          whiteboard = Whiteboard::Board.for(find_chat_session)
+          fresh_when(etag: whiteboard&.version || 0, public: false)
+          return if performed?
+          render json: { files: whiteboard&.files || {} }
         end
 
         def update
@@ -37,7 +47,8 @@ module Api
             end
           end
 
-          render json: whiteboard_payload(whiteboard), status: status
+          payload = status == :conflict ? whiteboard_payload(whiteboard, include_files: true) : { version: whiteboard.version }
+          render json: payload, status: status
         rescue ArgumentError => e
           render_error("bad_request", e.message, status: :bad_request)
         end
@@ -48,9 +59,12 @@ module Api
           Current.user.accessible_chat_sessions.find(params[:id])
         end
 
-        def whiteboard_payload(whiteboard)
+        def whiteboard_payload(whiteboard, fields: nil, include_files: false)
+          return { version: whiteboard&.version || 0 } if fields == "version"
+          scene = whiteboard ? whiteboard.current_state.except("version") : Whiteboard::Board.default_scene
+          scene = scene.except("files") unless include_files
           {
-            scene_json: whiteboard ? whiteboard.current_state.except("version") : Whiteboard::Board.default_scene,
+            scene_json: scene,
             version: whiteboard&.version || 0
           }
         end

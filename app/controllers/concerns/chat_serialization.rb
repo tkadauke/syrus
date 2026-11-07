@@ -141,7 +141,7 @@ module ChatSerialization
     paths = ChatPayloadContributions.paths(chat_session: chat_session, existing_keys: payload.fetch(:paths).keys)
     # Counts live inside `chat`, beside core's own, because that is where the
     # page reads them from.
-    counts = ChatPayloadContributions.counts(chat_session: chat_session, existing_keys: payload.fetch(:chat).keys)
+    counts = ChatPayloadContributions.counts(chat_session: chat_session, context: context, existing_keys: payload.fetch(:chat).keys)
 
     payload.merge(contributed).merge(
       chat: payload.fetch(:chat).merge(counts),

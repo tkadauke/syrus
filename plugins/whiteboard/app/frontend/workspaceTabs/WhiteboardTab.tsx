@@ -116,8 +116,8 @@ function WhiteboardPanel({ payload }: { payload: ChatPayload }) {
   const saveInFlightRef = useRef(false)
   const savePendingRef = useRef<() => Promise<void>>(async () => {})
   const saveTimerRef = useRef<number | null>(null)
-  const versionRef = useRef(payload.whiteboard.version)
-  const whiteboardLoaded = payload.whiteboard.loaded ?? payload.whiteboard.elements.length > 0
+  const versionRef = useRef(payload.whiteboard?.version ?? 0)
+  const whiteboardLoaded = payload.whiteboard?.loaded ?? false
   const whiteboard = useQuery({
     queryKey: ["chat_whiteboard", String(payload.chat.id)],
     queryFn: () => fetchChatWhiteboard(payload.paths.app_whiteboard_path),
@@ -200,7 +200,7 @@ function WhiteboardPanel({ payload }: { payload: ChatPayload }) {
       if (pendingSceneRef.current) {
         versionRef.current = result.payload.version
       } else {
-        applyRemoteScene(normalizeWhiteboardScene(result.payload.scene_json), result.payload.version)
+        applyRemoteScene(pendingScene, result.payload.version)
       }
     } catch (error) {
       setSaveError(errorMessage(errorAsError(error), "Whiteboard save failed."))
@@ -239,10 +239,10 @@ function WhiteboardPanel({ payload }: { payload: ChatPayload }) {
   useEffect(() => {
     const nextScene = whiteboardScene(payload)
     const chatChanged = chatIdRef.current !== payload.chat.id
-    if (!chatChanged && payload.whiteboard.version <= versionRef.current) return
+    if (!chatChanged && (payload.whiteboard?.version ?? 0) <= versionRef.current) return
 
     chatIdRef.current = payload.chat.id
-    applyRemoteScene(nextScene, payload.whiteboard.version)
+    applyRemoteScene(nextScene, payload.whiteboard?.version ?? 0)
   }, [applyRemoteScene, payload])
 
   useEffect(() => {

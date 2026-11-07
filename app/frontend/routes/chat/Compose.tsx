@@ -47,7 +47,7 @@ import {
   deleteQueuedChatMessage,
   enqueueChatMessage,
   fetchChatMentionables,
-  fetchChatWhiteboard,
+  fetchChatWhiteboardVersion,
   fetchNewChat,
   NEW_CHAT_PICKER_STALE_TIME,
   patchChatGoal,
@@ -764,7 +764,7 @@ export function Compose({
         return { payload: await upsertChatGoal(chatId, { prompt: action.prompt || "" }), notice: t("goal_updated_notice") }
       }
 
-      const current = await fetchChatWhiteboard(appendSearch(payload.paths.app_whiteboard_path, search))
+      const current = await fetchChatWhiteboardVersion(appendSearch(payload.paths.app_whiteboard_path, search))
       let result = await patchChatWhiteboard(appendSearch(payload.paths.app_whiteboard_path, search), {
         elements: [],
         appState: {},
@@ -785,9 +785,7 @@ export function Compose({
               ...currentPayload,
               whiteboard: {
                 version: result.payload.version,
-                elements: result.payload.scene_json.elements,
-                appState: result.payload.scene_json.appState,
-                files: result.payload.scene_json.files
+                elements: [], appState: {}, files: {}, loaded: true
               }
             }
           : currentPayload
