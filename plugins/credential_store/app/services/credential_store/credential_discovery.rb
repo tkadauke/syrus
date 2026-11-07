@@ -23,8 +23,10 @@ module CredentialStore
 
     def call
       validate_scope!
-      credentials = filtered_scope.select(*SAFE_COLUMNS).order(Arel.sql("LOWER(name) ASC"), :id).to_a
-      visible = credentials.select { |credential| visible?(credential) }.first(limit)
+      credentials = CredentialScope::Base.visible_relation(filtered_scope, context)
+        .select(*SAFE_COLUMNS)
+        .order(Arel.sql("LOWER(name) ASC"), :id)
+      visible = visible_credentials(credentials)
       labels = scope_labels(visible)
 
       {
@@ -51,14 +53,21 @@ module CredentialStore
       relation
     end
 
-    def visible?(credential)
-      credential.scope_policy.usable_by?(credential, context) && surface_allowed?(credential)
-    rescue KeyError
-      false
-    end
-
     def surface_allowed?(credential)
       Broker.surface_allowed?(credential, surface: context.run? ? "workflow" : context.surface)
+    end
+
+    def visible_credentials(relation)
+      results = []
+      offset = 0
+
+      loop do
+        rows = relation.limit(MAX_LIMIT).offset(offset).to_a
+        results.concat(rows.select { |credential| surface_allowed?(credential) })
+        return results.first(limit) if results.size >= limit || rows.size < MAX_LIMIT
+
+        offset += rows.size
+      end
     end
 
     def validate_scope!
