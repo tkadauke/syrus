@@ -39,7 +39,7 @@ function searchPayload(results: unknown[]) {
 }
 
 function renderRoute(results: unknown[], initialEntry = "/search?query=preview+environment") {
-  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(searchPayload(results)))
+  vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(searchPayload(results))))
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>

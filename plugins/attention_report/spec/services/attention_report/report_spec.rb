@@ -112,4 +112,13 @@ RSpec.describe AttentionReport::Report do
       telemetry_state: "off", by_page_type: {}
     )
   end
+
+  it "caps supporting job ids without changing the reported count" do
+    report = described_class.new(user: user, window_days: 7)
+
+    expect(report.send(:figure, 150, job_ids: report.send(:capped_job_ids, (1..150).to_a))).to include(
+      count: 150,
+      job_ids: (1..100).to_a
+    )
+  end
 end

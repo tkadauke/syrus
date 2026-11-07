@@ -20,6 +20,9 @@ attention and that Syrus cannot measure thinking or work outside the app.
 
 The same data is available from `GET /api/v1/app/insights/attention`.
 `window_days` selects a window from 1 to 90 days and defaults to 7.
+Responses are cached per operator and window for up to five minutes and support
+conditional requests with an ETag. Supporting Job links are capped at 100 per
+rule while each rule's count continues to report the full total.
 
 The response keeps each inferred rule separate and marks estimates. Agent
 runtime and queue wait are reported under `machine_time` and are never included
