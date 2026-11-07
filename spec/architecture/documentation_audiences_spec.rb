@@ -138,6 +138,35 @@ RSpec.describe "documentation audiences" do
     expect(operations_observability).to include("### On-demand process diagnostics")
   end
 
+  it "splits workflow, settings, feature-flag, deploy, and MCP docs by audience" do
+    architecture_pages = %w[workflow-steps app-settings feature-flags mcp-tool-usage]
+    operations_pages = %w[data-retention deploying-syrus resource-limits]
+    architecture_index = root.join("docs/engineering/architecture/README.md").read
+    operations_index = root.join("docs/engineering/operations/README.md").read
+
+    architecture_pages.each do |page|
+      expect(root.join("docs/engineering/architecture/#{page}.md")).to exist
+      expect(architecture_index).to include("(#{page}.md)")
+    end
+    operations_pages.each do |page|
+      expect(root.join("docs/engineering/operations/#{page}.md")).to exist
+      expect(operations_index).to include("(#{page}.md)")
+    end
+
+    expect(root.join("config/syrus_docs/mcp_tool_usage.md").read.lines.length).to be <= 45
+    expect(root.join("config/syrus_docs/deploy.md").read).not_to include("## Two-version compatibility")
+    expect(root.join("config/syrus_docs/feature_flags.md").read).not_to include("## performance_logging")
+    expect(root.join("config/syrus_docs/workflow_steps.md").read).not_to include("## Grader command spans")
+    expect(root.join("config/syrus_docs/app_settings.md").read).not_to include("RetentionPolicyRegistry")
+
+    expect(root.join("docs/engineering/operations/deploying-syrus.md").read).to include("DB_PREPARE_ATTEMPTS")
+    expect(root.join("docs/engineering/operations/data-retention.md").read).to include("RetentionPolicyRegistry")
+    expect(root.join("docs/engineering/architecture/mcp-tool-usage.md").read).to include("custom_card_gaps")
+    expect(root.join("docs/engineering/architecture/feature-flags.md").read).to include("per_spawn_resource_limits")
+    expect(root.join("docs/engineering/architecture/app-settings.md").read).to include("WorkflowStepResourceProfile")
+    expect(root.join("docs/engineering/architecture/workflow-steps.md").read).to include("CommandSpan")
+  end
+
   it "keeps plugin authoring out of the searchable behavior guide" do
     searchable = root.join("config/syrus_docs/plugins.md").read
     authoring = root.join("docs/engineering/conventions/plugins/authoring.md").read
