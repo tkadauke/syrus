@@ -115,7 +115,6 @@ export function GeminiSetupSheet({
 
       await updateCredentials({ gemini_api_key: candidate } as never)
       await queryClient.invalidateQueries({ queryKey: ["credentials"] })
-      await queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
       setSaved(true)
       // A beat to let the ✓ cascade land, then hand control back.
       await pause(600)

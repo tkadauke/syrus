@@ -31,7 +31,7 @@ export function ConfigureAgentModal({ onClose, onSaved }: { onClose: () => void;
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["credentials"] }),
-        queryClient.invalidateQueries({ queryKey: ["bootstrap"] }),
+        queryClient.invalidateQueries({ queryKey: ["me"] }),
         queryClient.invalidateQueries({ queryKey: ["setup"] })
       ])
       onSaved?.()

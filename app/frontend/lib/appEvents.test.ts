@@ -39,7 +39,7 @@ afterEach(() => {
 
 describe("queryKeysFor", () => {
   it("maps resource events to the query keys they invalidate", () => {
-    expect(queryKeysFor(event("user", null))).toEqual([["bootstrap"]])
+    expect(queryKeysFor(event("user", null))).toEqual([["me"]])
     expect(queryKeysFor(event("job", 42))).toEqual([["dashboard"], ["jobs"], ["jobs", "42"], ["jobs", "42", "detail"], ["job_run_artifacts", "42"]])
     expect(queryKeysFor(event("workflow", 7))).toEqual([["dashboard"], ["workflows"], ["workflows", "7"]])
     expect(queryKeysFor(event("epic", 5))).toEqual([["dashboard"], ["epics"], ["epics", "5"]])
@@ -68,6 +68,16 @@ describe("queryKeysFor", () => {
 })
 
 describe("applyAppEvent", () => {
+  it("refreshes the small current-user query for user events", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, event("user", 1))
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["me"] })
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["bootstrap"] })
+  })
+
   it("invalidates dashboard and chats when provider availability changes", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
@@ -107,6 +117,7 @@ describe("applyAppEvent", () => {
   it("updates and invalidates notification cache when a notification is created", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+    queryClient.setQueryData(["bootstrap"], { unread_notifications_count: 0 })
 
     applyAppEvent(queryClient, { type: "notification_created", unread_count: 3 })
 
@@ -114,6 +125,7 @@ describe("applyAppEvent", () => {
       notifications: [],
       unread_count: 3
     })
+    expect(queryClient.getQueryData(["bootstrap"])).toMatchObject({ unread_notifications_count: 3 })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["notifications"], exact: true })
   })
 

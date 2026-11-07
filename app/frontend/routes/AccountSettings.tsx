@@ -11,6 +11,7 @@ import { useEffect, useState } from "react"
 import type { TFunction } from "i18next"
 import { Link, useLocation } from "react-router-dom"
 import i18n from "../i18n"
+import type { BootstrapPayload } from "../api/bootstrap"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { NoticeToast } from "../components/NoticeToast"
@@ -233,9 +234,11 @@ function CredentialsForm({
   const [values, setValues] = useState<CredentialsInput>(inputFromPayload(payload))
 
   const resetTours = useMutation({
-    mutationFn: () => deleteJson("/api/v1/app/tours/reset"),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
+    mutationFn: () => deleteJson<{ seen_tours: string[] }>("/api/v1/app/tours/reset"),
+    onSuccess: (result) => {
+      queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) =>
+        current?.current_user ? { ...current, current_user: { ...current.current_user, seen_tours: result.seen_tours } } : current
+      )
       onNotice(t("account_settings.reset_tours_notice"))
     }
   })
@@ -252,7 +255,7 @@ function CredentialsForm({
       // message before caching so the payload-message effect in
       // CredentialsAccountPanel cannot overwrite the section-specific notice.
       cacheCredentials(queryClient, updated)
-      if (section === "preferences") void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
+      if (section === "preferences") void queryClient.invalidateQueries({ queryKey: ["me"] })
       setValues(inputFromPayload(updated))
       const key = sectionNoticeKey[section]
       onNotice(key ? t(key) : (updated.message ?? ""))
@@ -845,7 +848,7 @@ function ProviderAvailabilitySettings({
     mutationFn: recheckProviderAvailability,
     onSuccess: (updated) => {
       cacheCredentials(queryClient, updated)
-      void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
+      void queryClient.invalidateQueries({ queryKey: ["me"] })
       onNotice(updated.message || t("account_settings.provider_availability_rechecked"))
     }
   })
@@ -853,7 +856,7 @@ function ProviderAvailabilitySettings({
     mutationFn: overrideProviderAvailability,
     onSuccess: (updated) => {
       cacheCredentials(queryClient, updated)
-      void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
+      void queryClient.invalidateQueries({ queryKey: ["me"] })
       onNotice(updated.message || t("account_settings.provider_availability_overridden"))
     }
   })
