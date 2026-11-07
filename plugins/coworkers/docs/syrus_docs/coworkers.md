@@ -35,6 +35,16 @@ allow, ask, and deny with the reason.
 
 ## Background runs
 
+When the optional Calendar plugin is enabled, Coworkers contributes planned
+occurrences for schedules attached to a coworker. These occurrences show the
+coworker's identity and avatar, schedule and main-chat destinations,
+`after_run` policy, system-schedule identity, and the resulting background
+Workflow's actual start, finish, duration, and outcome. Work waiting for the
+coworker's main chat or serialization lock is shown as waiting or delayed,
+rather than as though it started at the planned time. Scheduled Tasks excludes
+this same subset, so an occurrence appears only once. Disabling Calendar does
+not disable Coworkers or remove its schedules.
+
 The plugin contributes an infrastructure workflow for unattended coworker
 tasks. Each task uses the coworker's registered workspace repository and
 checks out its `coworkers/<handle>` home branch before running. Tasks for one

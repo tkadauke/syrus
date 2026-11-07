@@ -18,7 +18,7 @@ module Coworkers
     default_enabled false
     disableable true
     depends_on [ "scheduled_tasks" ]
-    optionally_depends_on [ "credential_store" ]
+    optionally_depends_on [ "credential_store", "calendar" ]
     provides mentionable: "Coworkers::MentionableProvider",
              callbacks: "Coworkers::Callbacks",
              mcp_run_context_contributor: "Coworkers::RunContextContributor",
@@ -33,7 +33,8 @@ module Coworkers
              chat_list_group: "Coworkers::ChatListGroup",
              chat_payload_contributor: "Coworkers::PayloadContributor",
              chat_turn_finalizer: [ "Coworkers::HomeBranchPersistence", "Coworkers::MessageReply" ],
-             chat_mcp_tool_set: "Coworkers::ChatToolSet"
+             chat_mcp_tool_set: "Coworkers::ChatToolSet",
+             "calendar:event_source" => "Coworkers::CalendarEventSource"
     tick_interval 5.minutes
     route :get, "/api/v1/app/coworkers", to: "api/v1/app/coworkers#index"
     route :post, "/api/v1/app/coworkers", to: "api/v1/app/coworkers#create"

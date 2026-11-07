@@ -24,5 +24,10 @@
   "running": "running",
   "open_owner": "Open owning feature",
   "open_schedule": "Open scheduled task",
+  "open_main_chat": "Open main chat",
+  "open_coworker": "Open coworker",
+  "coworker_identity": "{{name}} {{handle}}",
+  "after_run": "After run: {{policy}}",
+  "system_schedule": "System schedule: {{key}}",
   "cadence_bands": "High-frequency cadence bands"
 }
