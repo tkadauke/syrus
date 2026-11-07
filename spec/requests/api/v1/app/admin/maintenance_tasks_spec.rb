@@ -126,6 +126,7 @@ RSpec.describe "API: /api/v1/app/admin/maintenance_tasks", type: :request do
       "next_page" => 2
     )
     expect(body.fetch("sort")).to eq("column" => "title", "direction" => "desc")
+    expect(body).not_to have_key("filter_schema")
     expect(new_task).to be_present
   end
 
