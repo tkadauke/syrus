@@ -23,6 +23,7 @@ module Mcp::Tools
 
         page = Mcp::Pagination.normalize_page(page)
         messages, has_more = page_messages(chat_session, page)
+        ChatAttachmentRef.preload(messages)
 
         payload = {
           messages: messages.map { |message| message_payload(message) },

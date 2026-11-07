@@ -484,7 +484,9 @@ class ChatSession < ApplicationRecord
   end
 
   def queued_messages_payload
-    queued_messages.select(&:visible_queued_draft?).map do |message|
+    messages = queued_messages.select(&:visible_queued_draft?)
+    ChatAttachmentRef.preload(messages)
+    messages.map do |message|
       draft = message.draft_content
       {
         id: message.id,
@@ -498,7 +500,9 @@ class ChatSession < ApplicationRecord
   end
 
   def scratchpad_items_payload
-    scratchpad_items.map do |item|
+    items = scratchpad_items.to_a
+    ChatAttachmentRef.preload(items)
+    items.map do |item|
       draft = item.draft_content
       {
         id: item.id,

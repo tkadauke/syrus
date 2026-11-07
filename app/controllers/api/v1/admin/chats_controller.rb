@@ -49,6 +49,7 @@ module Api
 
           per = per_param
           messages, has_more_older = paginated_messages(chat, before_id: before_id, per: per)
+          ChatAttachmentRef.preload(messages)
 
           render json: serialize_chat(chat).merge(
             messages_page: {
