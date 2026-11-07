@@ -65,6 +65,13 @@ module Coworkers
         },
         i18n: [ "app/frontend/i18n/locales/*/coworkers.json" ]
 
+    metrics do
+      gauge :journaling_unhealthy_total,
+            comment: "Active coworkers without a journaling fire or recorded skip in the last 25 hours" do
+        Coworkers::SystemSchedules.unhealthy_count
+      end
+    end
+
     always { |scope| Coworkers::DataCleanup.install_into(scope) }
     while_enabled do |scope|
       Coworkers::ChatExtension.install_into(scope)

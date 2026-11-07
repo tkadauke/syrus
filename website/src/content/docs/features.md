@@ -1877,9 +1877,10 @@ organizes that day's memory and writes `memory/diary/YYYY-MM-DD.md`; dormant
 days are skipped without creating a run or chat activity. Owners can change the
 time or visibly pause and resume journaling, but cannot delete it or edit its
 system-owned instructions. Only a journaling failure posts a card and wakes the
-coworker's main chat. Missed windows are caught up on the next scheduler poll;
-the coworker page identifies overdue or failed journaling and retains its
-failure reason for diagnosis.
+coworker's main chat. Missed windows are caught up after a short retry cooldown;
+the coworker page identifies journaling that is more than one day overdue and
+retains its failure reason for diagnosis. Fleet health also tracks active
+coworkers without a fire or recorded dormant skip inside 25 hours.
 
 Coworker dispatch enforces the unified evaluator: descriptor defaults and
 current rules decide whether an operation runs, asks, or fails closed. Legacy

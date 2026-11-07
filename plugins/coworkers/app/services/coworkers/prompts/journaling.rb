@@ -2,8 +2,11 @@ module Coworkers
   module Prompts
     class Journaling < ScheduledTasks::SystemSchedules::Definition
       SUPERSEDED_FORMAT = "~~original text~~ (superseded YYYY-MM-DD by <reference>: <reason>)".freeze
+      FAILURE_RETRY_DELAY = 15.minutes
 
       def catch_up_due?(task:, now:)
+        return false unless retry_allowed?(task, now: now)
+
         first_target = Coworkers::SystemSchedules.target_dates(task, now: now).first
         return false unless first_target
 
@@ -18,24 +21,13 @@ module Coworkers
         Coworkers::SystemSchedules.target_dates(task, now: now).first
       end
 
-      private
+      def overdue?(task:, now:)
+        first_target = Coworkers::SystemSchedules.target_dates(task, now: now).first
+        return false unless first_target
 
-      def latest_scheduled_tick(task, now:)
-        cursor = now - 2.days
-        latest = nil
-        loop do
-          candidate = ScheduledTasks::Schedules::RecurringSchedule.next_fire_at(
-            task.schedule_expression, timezone: task.schedule_timezone, from: cursor
-          )
-          break if candidate.nil? || candidate > now
-
-          latest = candidate
-          cursor = candidate
-        end
-        latest
+        zone = ActiveSupport::TimeZone[task.schedule_timezone] || ActiveSupport::TimeZone["UTC"]
+        first_target < now.in_time_zone(zone).to_date - 1
       end
-
-      public
 
       def prompt(task:, target_date:)
         coworker = Coworkers::Coworker.find(task.coworker_id)
@@ -59,6 +51,31 @@ module Coworkers
 
           #{material}
         PROMPT
+      end
+
+      private
+
+      def retry_allowed?(task, now:)
+        failure = Array(task.system_result_history).reverse.find { |entry| entry["result"] == "failed" }
+        recorded_at = failure && Time.iso8601(failure["recorded_at"].to_s)
+        recorded_at.nil? || recorded_at <= now - FAILURE_RETRY_DELAY
+      rescue ArgumentError
+        true
+      end
+
+      def latest_scheduled_tick(task, now:)
+        cursor = now - 2.days
+        latest = nil
+        loop do
+          candidate = ScheduledTasks::Schedules::RecurringSchedule.next_fire_at(
+            task.schedule_expression, timezone: task.schedule_timezone, from: cursor
+          )
+          break if candidate.nil? || candidate > now
+
+          latest = candidate
+          cursor = candidate
+        end
+        latest
       end
     end
   end
