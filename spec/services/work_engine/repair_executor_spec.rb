@@ -72,7 +72,6 @@ RSpec.describe WorkEngine::RepairExecutor do
       expect(RunDiagnostic.find_by(run: run).error_message).to eq("written by the winner")
       expect(run.reload).to be_failed
     end
-
   end
 
   describe "recover_missing_workspace" do
