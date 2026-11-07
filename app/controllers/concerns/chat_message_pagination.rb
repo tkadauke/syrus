@@ -20,12 +20,13 @@ module ChatMessagePagination
     [ fetched.first(PAGE_SIZE).reverse, has_more ]
   end
 
-  def paginated_before(chat_session, before_id)
+  def paginated_before(chat_session, before_id, limit: PAGE_SIZE)
+    limit = limit.to_i.clamp(1, PAGE_SIZE)
     scope = message_scope(chat_session)
     scope = scope.where("id < ?", before_id) if before_id&.positive?
-    fetched = scope.order(id: :desc).limit(PAGE_SIZE + 1).to_a
-    has_more = fetched.size > PAGE_SIZE
-    [ fetched.first(PAGE_SIZE).reverse, has_more ]
+    fetched = scope.order(id: :desc).limit(limit + 1).to_a
+    has_more = fetched.size > limit
+    [ fetched.first(limit).reverse, has_more ]
   end
 
   def message_scope(chat_session)
