@@ -6,9 +6,7 @@ import { ChatTour } from "./Chat"
 import type { BootstrapPayload } from "../api/bootstrap"
 
 vi.mock("../components/SyrusTour", () => ({
-  SyrusTour: ({ run, steps }: { run: boolean; steps: Step[] }) => (
-    <div data-testid="syrus-tour" data-run={String(run)} data-step-count={String(steps.length)} />
-  )
+  SyrusTour: ({ run, steps }: { run: boolean; steps: Step[] }) => <div data-testid="syrus-tour" data-run={String(run)} data-step-count={String(steps.length)} />
 }))
 
 function buildBootstrap(seenTours: string[] = []): BootstrapPayload {
@@ -16,18 +14,11 @@ function buildBootstrap(seenTours: string[] = []): BootstrapPayload {
     current_user: {
       id: 1,
       email_address: "test@example.com",
-      name: "Test User",
-      first_name: null,
-      last_name: null,
       display_name: "Test User",
       admin: false,
       role: "developer",
-      scheduling_paused: false,
-      landing_paused: false,
       agent_provider: "claude",
       chat_provider: null,
-      agent_max_turns: 200,
-      gemini_configured: false,
       theme: "light",
       locale: "en",
       seen_tours: seenTours
@@ -39,9 +30,9 @@ function buildBootstrap(seenTours: string[] = []): BootstrapPayload {
       version: null,
       built_at: null,
       bug_report_mode: null,
-      report_issue_repo_slug: "owner/repo",
+      report_issue_repo_slug: "owner/repo"
     },
-    setup_status: null,
+    setup: null,
     public: {
       first_signup: false,
       signups_open: false,

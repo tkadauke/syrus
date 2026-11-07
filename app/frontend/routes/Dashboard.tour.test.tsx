@@ -22,18 +22,11 @@ function buildBootstrap(seenTours: string[] = []): BootstrapPayload {
     current_user: {
       id: 1,
       email_address: "test@example.com",
-      name: "Test User",
-      first_name: null,
-      last_name: null,
       display_name: "Test User",
       admin: false,
       role: "developer",
-      scheduling_paused: false,
-      landing_paused: false,
       agent_provider: "claude",
       chat_provider: null,
-      agent_max_turns: 200,
-      gemini_configured: false,
       theme: "light",
       locale: "en",
       seen_tours: seenTours
@@ -47,7 +40,7 @@ function buildBootstrap(seenTours: string[] = []): BootstrapPayload {
       bug_report_mode: null,
       report_issue_repo_slug: "owner/repo"
     },
-    setup_status: null,
+    setup: null,
     public: {
       first_signup: false,
       signups_open: false,
@@ -99,8 +92,14 @@ describe("DashboardTour", () => {
       "[data-tour='dashboard-table']"
     ])
     expect(screen.getByText("Start new work")).toBeInTheDocument()
-    expect(screen.getByText("'New Job' opens a quick-start form; 'New Epic' groups related jobs together. The recommended way to create jobs and epics is through Chat — describe your task there and Syrus turns it into a pull request.")).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        "'New Job' opens a quick-start form; 'New Epic' groups related jobs together. The recommended way to create jobs and epics is through Chat — describe your task there and Syrus turns it into a pull request."
+      )
+    ).toBeInTheDocument()
     expect(screen.getByText("Click any job to dive in")).toBeInTheDocument()
-    expect(screen.getByText("Opening a job shows the full implementation timeline, the pull request diff, and lets you give feedback or approve the work.")).toBeInTheDocument()
+    expect(
+      screen.getByText("Opening a job shows the full implementation timeline, the pull request diff, and lets you give feedback or approve the work.")
+    ).toBeInTheDocument()
   })
 })

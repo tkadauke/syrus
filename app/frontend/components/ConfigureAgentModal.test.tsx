@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-quer
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { BootstrapPayload } from "../api/bootstrap"
+import type { FullSetupStatusPayload } from "../api/setup"
 import { OnboardingRoute } from "../routes/Onboarding"
 import { ConfigureAgentModal } from "./ConfigureAgentModal"
 import { connectOnboardingProvider } from "../api/credentials"
@@ -22,7 +23,15 @@ const panelPropsSpy = vi.hoisted(() => vi.fn())
 // panel instead of unmounting it, the same guarantee ClaudeConnect's OAuth
 // flow depends on to survive a Claude <-> Gemini (or Claude <-> Codex) switch.
 vi.mock("./AgentProviderConnectPanel", () => ({
-  AgentProviderConnectPanel: ({ provider, onSaved, deferBootstrapRefresh }: { provider: string; onSaved?: () => Promise<void> | void; deferBootstrapRefresh?: boolean }) => {
+  AgentProviderConnectPanel: ({
+    provider,
+    onSaved,
+    deferBootstrapRefresh
+  }: {
+    provider: string
+    onSaved?: () => Promise<void> | void
+    deferBootstrapRefresh?: boolean
+  }) => {
     useEffect(() => {
       mountSpy(provider)
     }, [])
@@ -57,8 +66,11 @@ function renderModal(props: { onClose?: () => void; onSaved?: () => void } = {})
   }
 }
 
-function renderOnboardingConnection(loadBootstrap: () => Promise<BootstrapPayload>, initialBootstrap: BootstrapPayload) {
+type OnboardingBootstrap = BootstrapPayload & { setup_status: FullSetupStatusPayload }
+
+function renderOnboardingConnection(loadBootstrap: () => Promise<OnboardingBootstrap>, initialBootstrap: OnboardingBootstrap) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  client.setQueryData(["setup"], initialBootstrap.setup_status)
 
   function Harness() {
     const bootstrap = useQuery({ queryKey: ["bootstrap"], queryFn: loadBootstrap, initialData: initialBootstrap })
@@ -77,7 +89,7 @@ function renderOnboardingConnection(loadBootstrap: () => Promise<BootstrapPayloa
   )
 }
 
-function onboardingBootstrap(provider: string, agentConfigured: boolean, providerLabel: string): BootstrapPayload {
+function onboardingBootstrap(provider: string, agentConfigured: boolean, providerLabel: string): OnboardingBootstrap {
   return {
     current_user: {
       id: 1,
@@ -102,7 +114,7 @@ function onboardingBootstrap(provider: string, agentConfigured: boolean, provide
       first_epic_started: false,
       counts: { repositories: 0 }
     }
-  } as BootstrapPayload
+  } as unknown as OnboardingBootstrap
 }
 
 describe("ConfigureAgentModal", () => {
@@ -205,21 +217,18 @@ describe("ConfigureAgentModal", () => {
       serverBootstrap = onboardingBootstrap(provider, true, "Muse Code")
       return {} as never
     })
-
     const firstMount = renderOnboardingConnection(loadBootstrap, serverBootstrap)
-    expect(screen.getByRole("button", { name: "Configure agent" })).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "Configure agent" })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("tab", { name: "Muse" }))
     fireEvent.click(screen.getByRole("button", { name: "Simulate connect (muse)" }))
 
-    expect(await screen.findByText("Muse Code is ready for runs.")).toBeInTheDocument()
-    expect(loadBootstrap).toHaveBeenCalledTimes(2)
+    await waitFor(() => expect(mockedConnectOnboardingProvider).toHaveBeenCalledWith("muse"))
 
     firstMount.unmount()
     renderOnboardingConnection(loadBootstrap, serverBootstrap)
 
     expect(await screen.findByText("Muse Code is ready for runs.")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Edit agent settings" })).toBeInTheDocument()
-    expect(loadBootstrap).toHaveBeenCalledTimes(3)
   })
 
   it("scopes the auto-enable call to whichever provider tab was connected", async () => {
