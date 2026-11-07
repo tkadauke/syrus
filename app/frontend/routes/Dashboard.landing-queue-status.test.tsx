@@ -81,8 +81,7 @@ function buildPayload(items: DashboardJobItem[], overrides: Partial<DashboardPay
       kanban_lanes: [],
       ownership_scope: "mine",
       owner_user_id: null,
-      owner_id: null,
-      raw: {}
+      owner_id: null
     },
     filter: null,
     controls: {
@@ -116,12 +115,12 @@ function buildPayload(items: DashboardJobItem[], overrides: Partial<DashboardPay
         visibility: "when_present",
         count: items.length,
         active: true,
-        filter: {},
         attention_preset: "landing_queue",
         path: "/dashboard/jobs?smart_folder_id=7"
       }
     ],
     active_smart_folder_id: 7,
+    active_smart_folder_filter: {},
     items,
     lanes: [],
     kanban_limit: null,
@@ -377,11 +376,11 @@ describe("landing queue status column", () => {
             visibility: "when_present",
             count: 1,
             active: true,
-            filter: {},
             attention_preset: "blocked",
             path: "/dashboard/jobs?smart_folder_id=8"
           }
-        ]
+        ],
+        active_smart_folder_filter: {}
       }
     )
 

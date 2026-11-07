@@ -172,9 +172,9 @@ function BulkEpicActions({ selectedIds }: { selectedIds: number[] }) {
       if (result.canceled) setNotice(t("bulk_epic_action_canceled", { completed: result.processed, total: result.total }))
       else if (result.failed > 0) setNotice(t("bulk_epic_action_partial", { failed: result.failed, succeeded: result.succeeded, total: result.total }))
       else setNotice(result.lastMessage)
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "chrome"] })
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
       setProgress(null)
       setCancellationRequested(false)
       cancelRequestedRef.current = false

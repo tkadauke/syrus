@@ -72,6 +72,7 @@ import {
   dashboardChromeSearch,
   dashboardSubjectFromPath,
   fetchDashboardChrome,
+  fetchDashboardControls,
   mergeDashboardPayload,
   type DashboardChromePayload,
   type DashboardRowsPayload,
@@ -1945,6 +1946,7 @@ function SidebarDashboardNav({ expanded, onCloseDrawer, prefix }: { expanded: bo
   const rowsSearch = dashboardApiSearch(location.pathname, location.search)
   const rowsQueryKey = useMemo(() => ["dashboard", "rows", rowsSearch] as const, [rowsSearch])
   const search = dashboardChromeSearch(location.pathname, location.search)
+  const subject = dashboardSubjectFromPath(location.pathname) ?? "epic"
   const [renderedPayload, setRenderedPayload] = useState<DashboardChromePayload | null>(null)
   const [rowsPayload, setRowsPayload] = useState<DashboardRowsPayload | undefined>(() => queryClient.getQueryData<DashboardRowsPayload>(rowsQueryKey))
   const dashboard = useQuery({
@@ -1952,6 +1954,12 @@ function SidebarDashboardNav({ expanded, onCloseDrawer, prefix }: { expanded: bo
     queryFn: ({ signal }) => fetchDashboardChrome(search, { signal }),
     enabled: isDashboard,
     placeholderData: (previousData) => previousData
+  })
+  const controls = useQuery({
+    queryKey: ["dashboard", "controls", subject],
+    queryFn: ({ signal }) => fetchDashboardControls(subject, { signal }),
+    enabled: isDashboard,
+    staleTime: 60 * 60 * 1000
   })
 
   useEffect(() => {
@@ -1971,9 +1979,10 @@ function SidebarDashboardNav({ expanded, onCloseDrawer, prefix }: { expanded: bo
   const payload = dashboard.data ?? renderedPayload
   if (!payload) return null
 
-  const smartFolderPayload = rowsPayload
-    ? mergeDashboardPayload(payload, rowsPayload, { rowsCurrentForSearch: true })
-    : { ...payload, rows_current_for_search: false }
+  const smartFolderPayload =
+    rowsPayload && controls.data
+      ? mergeDashboardPayload(payload, rowsPayload, controls.data, { rowsCurrentForSearch: true })
+      : { ...payload, rows_current_for_search: false }
   const inertAttributes = expanded ? {} : { inert: "" }
 
   return (

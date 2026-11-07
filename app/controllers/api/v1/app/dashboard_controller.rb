@@ -8,6 +8,17 @@ module Api
           render_error("validation_failed", e.message, status: :unprocessable_content)
         end
 
+        def controls
+          subject = params.require(:subject).to_s
+          raise ::App::DashboardPayload::InvalidScope, "Invalid dashboard subject" unless subject.in?(::App::DashboardPayload::SUBJECTS)
+          payload = ::App::DashboardPayload.call(user: Current.user, params: params.merge(subject: subject, section: "controls"))
+          response.headers["Cache-Control"] = "private, max-age=3600"
+          fresh_when(etag: payload, public: false)
+          render json: payload unless performed?
+        rescue ActionController::ParameterMissing, ::App::DashboardPayload::InvalidScope => e
+          render_error("validation_failed", e.message, status: :unprocessable_content)
+        end
+
         def preferences
           subject = params.require(:subject)
 
@@ -65,8 +76,7 @@ module Api
           end
 
           render json: {
-            message: dashboard_t("preferences_updated"),
-            dashboard_preferences: Current.user.reload.dashboard_preferences
+            message: dashboard_t("preferences_updated")
           }
         rescue ActionController::ParameterMissing, ArgumentError => e
           render_error("validation_failed", e.message, status: :unprocessable_content)

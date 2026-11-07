@@ -2,6 +2,17 @@
 
 The Jobs and Epics dashboards support three view modes toggled from the toolbar:
 
+Dashboard responses are split by volatility: `section=chrome` contains folder,
+preference, ownership, filter, and landing-queue state; `section=rows` contains
+only items or lanes and pagination. Stable controls come from
+`GET /api/v1/app/dashboard/controls?subject=job|epic|workflow` with private
+one-hour caching and ETag revalidation. Bulk responses patch affected cached
+rows while chrome refreshes separately. Omitting `section` retains the merged
+response for compatibility.
+Chrome omits every folder's full filter tree and includes only
+`active_smart_folder_filter`, when a folder is selected, so clients can compare
+edited filters without downloading every saved definition.
+
 ## list
 
 Default tabular view. Supports column visibility, sorting, and pagination. Columns are configurable per-user per-subject. The Jobs dashboard includes an optional `deployment` column, hidden by default, that shows the furthest configured deployment stage a Job has reached.
@@ -21,8 +32,8 @@ Kanban payloads are paginated per lane. Each lane includes `total_count`, `loade
 
 ## Inbox
 
-The Inbox smart folder scopes to jobs where the current user is an *eligible
-approver* under the job's repository `review_policy`
+The Inbox smart folder scopes to jobs where the current user is an _eligible
+approver_ under the job's repository `review_policy`
 (`Filters::Chips::Jobs::EligibleApprover`), not raw ownership. Under the
 default `self` policy that's still just the effective owner, but under
 `two_person` it also includes jobs owned by anyone else (any non-creator
@@ -138,7 +149,7 @@ shows a direct Unpause control on paused rows.
 A Job can read `running` while nothing executes: the Workflow is mid-chain,
 but its WorkUnit is blocked (main-branch health, admission control, a lock,
 retry backoff). Those Jobs appear in the **Blocked** smart folder alongside
-dependency-blocked and unmergeable Jobs. They are deliberately *not* in "In
+dependency-blocked and unmergeable Jobs. They are deliberately _not_ in "In
 progress" -- nothing is progressing -- and not in "Paused", which is reserved
 for a human pause or a provider-availability pause.
 
@@ -249,6 +260,7 @@ The explicit Job detail `Retry implementation` action remains available for
 operators who intentionally want a full implementation retry.
 
 **Empty states:**
+
 - If the active filter matches no jobs/epics, the view shows "No [subject] match this view."
 - If nodes are present but none have dependency edges between them (all at Layer 0), the view shows "No dependency relationships in the current view."
 

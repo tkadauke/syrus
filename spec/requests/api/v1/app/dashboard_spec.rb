@@ -73,8 +73,10 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
         "total" => 2
       )
       expect(body.dig("counts", "jobs")).to eq(2)
-      expect(body["items"].map { |item| item.fetch("id") }).to eq([ first.id, second.id ])
-      expect(body["items"].first).to include(
+      expect(body["items"]).to be_empty
+      kanban_items = body.fetch("lanes").flat_map { |lane| lane.fetch("items") }
+      expect(kanban_items.map { |item| item.fetch("id") }).to contain_exactly(first.id, second.id)
+      expect(kanban_items.find { |item| item.fetch("id") == first.id }).to include(
         "type" => "job",
         "slug" => first.slug,
         "title" => "Build aqueduct",
@@ -94,7 +96,6 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
         "active_workflow_trigger_kind" => nil,
         "manual_paused" => false,
         "manual_paused_at" => nil,
-        "manual_paused_by_user" => nil,
         "repository" => include("slug" => "acme/widgets", "repository_path" => repository_path(repo)),
         "source_chat" => include(
           "chat_id" => chat.id,
@@ -112,24 +113,19 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
           "landed_jobs_count" => 0
         },
         "tags" => [ include("name" => "aqueduct", "color" => "blue") ],
-        "paths" => include(
-          "job_path" => job_path(first),
-          "source_path" => source_job_path(first),
-          "app_pause_path" => "/api/v1/app/jobs/#{first.id}/pause",
-          "app_unpause_path" => "/api/v1/app/jobs/#{first.id}/unpause"
-        )
+        "paths" => { "job_path" => job_path(first) }
       )
-      expect(body["items"].first["retry_state"]).to include(
+      expect(kanban_items.find { |item| item.fetch("id") == first.id }.fetch("retry_state")).to include(
         "classification_label" => "Unclassified",
         "state_label" => "No failure"
       )
-      expect(body["items"].find { |item| item.fetch("id") == second.id }).to include(
+      expect(kanban_items.find { |item| item.fetch("id") == second.id }).to include(
         "active_workflow_trigger_kind" => nil,
         "latest_workflow_id" => second_workflow.id,
         "latest_workflow_trigger_kind" => "rebase",
         "latest_workflow_state" => "running"
       )
-      expect(body["items"].map { |item| item.fetch("id") }).not_to include(archived_job.id, other_job.id)
+      expect(kanban_items.map { |item| item.fetch("id") }).not_to include(archived_job.id, other_job.id)
       expect(body.dig("preferences", "sort")).to include("column" => "title", "direction" => "asc")
       expect(body["controls"]).to include(
         "views" => %w[list kanban dependencies],
@@ -171,7 +167,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
         "paused" => false,
         "toggle_path" => "/api/v1/app/dashboard/landing_pause"
       )
-      expect(body["kanban_limit"]).to eq(100)
+      expect(body["kanban_limit"]).to eq(25)
       expect(body["lanes"]).to include(
         include("key" => "queued", "title" => "Queued", "items" => include(include("id" => first.id, "title" => "Build aqueduct"))),
         include("key" => "running", "title" => "Running", "items" => include(include("id" => second.id, "title" => "Chart forum")))
@@ -225,12 +221,28 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(chrome).to include(
         "subject" => "job",
         "counts" => include("jobs" => 1),
-        "controls" => include("views" => %w[list kanban dependencies]),
         "smart_folders" => be_an(Array)
       )
+      expect(chrome).not_to have_key("controls")
       expect(chrome).not_to have_key("items")
       expect(chrome).not_to have_key("lanes")
       expect(chrome).not_to have_key("total")
+      expect(chrome).not_to have_key("broken_repositories")
+      expect(chrome.dig("preferences")).not_to have_key("raw")
+      expect(chrome.fetch("smart_folders")).to all(satisfy { |folder| !folder.key?("filter") })
+
+      get "/api/v1/app/dashboard/controls", params: { subject: "job" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers.fetch("Cache-Control")).to include("private", "max-age=3600")
+      expect(response.headers.fetch("ETag")).to be_present
+      etag = response.headers.fetch("ETag")
+      expect(parse_body).to include(
+        "subject" => "job",
+        "controls" => include("views" => %w[list kanban dependencies])
+      )
+      get "/api/v1/app/dashboard/controls", params: { subject: "job" }, headers: { "If-None-Match" => etag }
+      expect(response).to have_http_status(:not_modified)
 
       get "/api/v1/app/dashboard", params: { subject: "job", section: "rows" }
 
@@ -242,16 +254,8 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
         "items" => contain_exactly(include("title" => "Build aqueduct")),
         "lanes" => []
       )
-      expect(rows).to include(
-        "active_smart_folder_id" => nil,
-        "filter" => include("and" => []),
-        "preferences" => include("sort" => include("column" => "created_at", "direction" => "desc")),
-        "controls" => include("columns" => include("required" => be_an(Array), "optional" => be_an(Array)))
-      )
       expect(rows).not_to have_key("counts")
-      expect(rows.dig("controls")).not_to have_key("views")
-      expect(rows.dig("controls")).not_to have_key("filter_schema")
-      expect(rows).not_to have_key("smart_folders")
+      expect(rows).not_to include("active_smart_folder_id", "filter", "preferences", "controls", "landing_queue", "ui_panels", "smart_folders")
     end
 
     it "does not preload chat message bodies when building source chat anchors" do
@@ -577,6 +581,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       body = parse_body
       running_lane = body.fetch("lanes").find { |lane| lane.fetch("key") == "running" }
       expect(body.fetch("active_smart_folder_id")).to eq(folder.id)
+      expect(body.fetch("active_smart_folder_filter")).to eq(folder.filter)
       expect(body.dig("ownership_scope", "scope")).to eq("mine")
       expect(running_lane).to include("total_count" => 11, "loaded_count" => 11, "has_more" => false, "next_offset" => 11)
       expect(running_lane.fetch("items").map { |item| item.fetch("id") }).to eq([ oldest_owned.id ])
@@ -1220,12 +1225,12 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       )
       expect(body["items"].map { |item| item.fetch("id") }).to eq([ teammate_job.id ])
 
-      get "/api/v1/app/dashboard", params: { subject: "epic", scope: "mine" }
+      get "/api/v1/app/dashboard", params: { subject: "epic", view: "list", scope: "mine" }
 
       expect(response).to have_http_status(:ok)
       expect(parse_body["items"].map { |item| item.fetch("id") }).to contain_exactly(owned_epic.id, unowned_epic.id)
 
-      get "/api/v1/app/dashboard", params: { subject: "epic", scope: "claimable" }
+      get "/api/v1/app/dashboard", params: { subject: "epic", view: "list", scope: "claimable" }
 
       expect(response).to have_http_status(:ok)
       expect(parse_body["items"].map { |item| item.fetch("id") }).to eq([ unowned_epic.id ])
@@ -1350,12 +1355,12 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       visible_claimable = Factories.epic(user: user, repository: repo, state: "ready", title: "Visible claimable epic")
       hidden_claimable = Factories.epic(user: other_user, repository: other_repo, state: "ready", title: "Hidden claimable epic")
 
-      get "/api/v1/app/dashboard", params: { subject: "epic", scope: "mine" }
+      get "/api/v1/app/dashboard", params: { subject: "epic", view: "list", scope: "mine" }
 
       expect(response).to have_http_status(:ok)
       expect(parse_body.fetch("items").map { |item| item.fetch("id") }).to contain_exactly(visible_owned.id, visible_claimable.id)
 
-      get "/api/v1/app/dashboard", params: { subject: "epic", scope: "claimable" }
+      get "/api/v1/app/dashboard", params: { subject: "epic", view: "list", scope: "claimable" }
 
       expect(response).to have_http_status(:ok)
       expect(parse_body.fetch("items").map { |item| item.fetch("id") }).to contain_exactly(visible_claimable.id)
@@ -1374,7 +1379,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
         position: 2
       )
 
-      get "/api/v1/app/dashboard", params: { subject: "epic", smart_folder_id: folder.id }
+      get "/api/v1/app/dashboard", params: { subject: "epic", view: "list", smart_folder_id: folder.id }
 
       expect(response).to have_http_status(:ok)
       body = parse_body
@@ -1386,7 +1391,6 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
         "display_number" => ready.slug,
         "title" => "Ready aqueduct",
         "description" => "Build a calmer aqueduct.",
-        "owner" => nil,
         "owned_by_current_user" => true,
         "claimable" => true,
         "owner_user_id" => user.id,
@@ -1409,18 +1413,14 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
           { "field" => "state", "op" => "is", "value" => "ready" }
         ]
       )
+      expect(body["active_smart_folder_filter"]).to eq(folder.filter)
       expect(body["smart_folders"]).to include(include(
         "id" => folder.id,
         "name" => "Ready work",
         "position" => folder.position,
         "visibility" => "user_defined",
         "count" => 1,
-        "active" => true,
-        "filter" => {
-          "and" => [
-            { "field" => "state", "op" => "is", "value" => "ready" }
-          ]
-        }
+        "active" => true
       ))
     end
 
@@ -1729,10 +1729,8 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       body = parse_body
       expect(body["filter"]).to eq(q_tree)
       expect(body["items"].map { |item| item.fetch("id") }).to contain_exactly(direct_open.id, direct_closed.id)
-      expect(body["smart_folders"].find { |row| row.fetch("id") == folder.id }).to include(
-        "filter" => folder_tree,
-        "active" => true
-      )
+      expect(body["smart_folders"].find { |row| row.fetch("id") == folder.id }).to include("active" => true)
+      expect(body.fetch("active_smart_folder_filter")).to eq(folder_tree)
     end
 
     it "treats a URL chip edit as a replacement instead of ANDing with the active smart folder" do
@@ -1935,7 +1933,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       teammate_owner_user = Factories.epic(user: teammate, repository: teammate_repo, owner_user: teammate, state: "ready", title: "Teammate owner-user epic")
       done_unclaimed = Factories.epic(user: teammate, repository: teammate_repo, state: "done", title: "Unclaimed done")
 
-      get "/api/v1/app/dashboard", params: { subject: "epic" }
+      get "/api/v1/app/dashboard", params: { subject: "epic", view: "list" }
 
       expect(response).to have_http_status(:ok)
       body = parse_body
@@ -1954,7 +1952,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       claimable = Factories.epic(user: teammate, repository: teammate_repo, state: "ready", title: "Claimable epic")
       not_claimable = Factories.epic(user: teammate, repository: teammate_repo, owner: teammate, state: "ready", title: "Teammate epic")
 
-      get "/api/v1/app/dashboard", params: { subject: "epic", ownership_scope: "claimable" }
+      get "/api/v1/app/dashboard", params: { subject: "epic", view: "list", ownership_scope: "claimable" }
 
       expect(response).to have_http_status(:ok)
       body = parse_body
@@ -2160,7 +2158,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
             as: :json
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body["message"]).to eq("Dashboard preferences updated.")
+      expect(parse_body).to eq("message" => "Dashboard preferences updated.")
       preferences = user.reload.dashboard_preferences.fetch("jobs")
       expect(preferences).to include(
         "sort_column" => "started_at",

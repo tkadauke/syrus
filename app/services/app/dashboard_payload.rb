@@ -15,7 +15,7 @@ module App
     OWNERSHIP_SCOPES = %w[mine team claimable user].freeze
     DEFAULT_OWNERSHIP_SCOPE = "mine"
     TEAM_FOCUSED_SUBJECTS = %w[epic job workflow].freeze
-    SECTIONS = %w[full chrome rows].freeze
+    SECTIONS = %w[full chrome controls rows].freeze
     DEFAULT_SUBJECT = "epic"
     DEFAULT_VIEW = "list"
     FILTER_CLASSES = { "job" => Jobs::Filter, "epic" => Epics::Filter, "workflow" => Workflows::Filter }.freeze
@@ -50,10 +50,12 @@ module App
           PerformanceLogging.phase("dashboard_payload.chrome", subject: subject, view: view, ownership_scope: ownership_scope) { chrome_payload }
         when "rows"
           PerformanceLogging.phase("dashboard_payload.rows", subject: subject, view: view, ownership_scope: ownership_scope) { rows_payload }
+        when "controls"
+          PerformanceLogging.phase("dashboard_payload.controls", subject: subject, view: view, ownership_scope: ownership_scope) { controls_payload }
         else
           chrome = PerformanceLogging.phase("dashboard_payload.chrome", subject: subject, view: view, ownership_scope: ownership_scope) { chrome_payload }
           rows = PerformanceLogging.phase("dashboard_payload.rows", subject: subject, view: view, ownership_scope: ownership_scope) { rows_payload }
-          merge_chrome_and_rows_payload(chrome, rows)
+          merge_chrome_and_rows_payload(chrome, rows, controls_payload)
         end
       end
     end
@@ -69,19 +71,22 @@ module App
         counts: PerformanceLogging.phase("dashboard_chrome.counts", subject: subject) { counts },
         ownership_scope: PerformanceLogging.phase("dashboard_chrome.ownership_scope", subject: subject) { ownership_scope_json },
         preferences: PerformanceLogging.phase("dashboard_chrome.preferences", subject: subject) { preferences_json },
-        controls: PerformanceLogging.phase("dashboard_chrome.controls", subject: subject) { controls_json },
         ownership: PerformanceLogging.phase("dashboard_chrome.ownership", subject: subject) { ownership_json },
         filter: smart_folder_resolution.filter.to_h,
-        landing_queue: PerformanceLogging.phase("dashboard_chrome.landing_queue", subject: subject) { landing_queue_chrome_json },
+        landing_queue: PerformanceLogging.phase("dashboard_chrome.landing_queue", subject: subject) { landing_queue_json },
         provider_availability: PerformanceLogging.phase("dashboard_chrome.provider_availability", subject: subject) { provider_availability_by_provider },
-        broken_repositories: health_blocked_repositories,
         health_blocked_repositories: health_blocked_repositories,
         ui_panels: PerformanceLogging.phase("dashboard_chrome.ui_panels", subject: subject) { ui_panels_json },
         smart_folders: PerformanceLogging.phase("dashboard_chrome.smart_folders", subject: subject) { smart_folders_json },
         active_smart_folder_id: smart_folder_resolution.active_smart_folder_id,
+        active_smart_folder_filter: active_smart_folder&.filter,
         setup: PerformanceLogging.phase("dashboard_chrome.setup", subject: subject) { ::App::SetupStatus.call(user: user) },
         paths: paths_json
       }
+    end
+
+    def controls_payload
+      { subject: subject, controls: PerformanceLogging.phase("dashboard_controls", subject: subject) { controls_json } }
     end
 
     def rows_payload
@@ -99,12 +104,6 @@ module App
         total: result.fetch(:total),
         total_pages: total_pages(result.fetch(:total)),
         total_estimated: result.fetch(:total_estimated, false),
-        active_smart_folder_id: smart_folder_resolution.active_smart_folder_id,
-        filter: smart_folder_resolution.filter.to_h,
-        preferences: PerformanceLogging.phase("dashboard_rows.preferences", subject: subject) { preferences_json },
-        controls: PerformanceLogging.phase("dashboard_rows.controls", subject: subject) { rows_controls_json },
-        landing_queue: PerformanceLogging.phase("dashboard_rows.landing_queue", subject: subject, view: view) { landing_queue_json },
-        ui_panels: PerformanceLogging.phase("dashboard_rows.ui_panels", subject: subject, view: view) { ui_panels_json },
         items: result.fetch(:items),
         lanes: lanes,
         kanban_limit: view == "kanban" ? kanban_limit : nil
@@ -459,19 +458,9 @@ module App
       end
     end
 
-    def rows_controls_json
-      {
-        columns: column_options_json
-      }
-    end
-
-    def merge_chrome_and_rows_payload(chrome, rows)
-      controls = chrome.fetch(:controls).merge(rows[:controls].to_h) do |key, chrome_value, rows_value|
-        key == :columns ? rows_value : chrome_value
-      end
-
+    def merge_chrome_and_rows_payload(chrome, rows, controls_payload)
       chrome.merge(rows).merge(
-        controls: controls,
+        controls: controls_payload.fetch(:controls),
         smart_folders: chrome[:smart_folders]
       )
     end

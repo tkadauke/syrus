@@ -314,7 +314,6 @@ export type DashboardSmartFolder = {
   count_capped?: boolean
   blocked_count?: number | null
   active: boolean
-  filter?: Record<string, unknown>
   attention_preset: string | null
   path: string
 }
@@ -368,9 +367,9 @@ export type DashboardPayload = {
     ownership_scope: string
     owner_user_id: number | null
     owner_id: number | null
-    raw: Record<string, unknown>
   }
   filter?: Record<string, unknown> | null
+  active_smart_folder_filter?: Record<string, unknown> | null
   controls: {
     views: string[]
     ownership_scopes: Array<{ value: string; label: string }>
@@ -394,7 +393,6 @@ export type DashboardPayload = {
     status?: DashboardLandingQueueStatus | null
   }
   provider_availability?: Record<string, ProviderAvailability>
-  broken_repositories?: DashboardHealthBlockedRepository[]
   health_blocked_repositories?: DashboardHealthBlockedRepository[]
   ui_panels?: UiSlotPanel[]
   ownership: {
@@ -421,7 +419,7 @@ export type DashboardPayload = {
   }
 }
 
-export type DashboardChromePayload = Omit<DashboardPayload, "total" | "total_pages" | "total_estimated" | "items" | "lanes" | "kanban_limit"> & {
+export type DashboardChromePayload = Omit<DashboardPayload, "controls" | "total" | "total_pages" | "total_estimated" | "items" | "lanes" | "kanban_limit"> & {
   total?: number
   total_pages?: number
   total_estimated?: boolean
@@ -430,13 +428,12 @@ export type DashboardChromePayload = Omit<DashboardPayload, "total" | "total_pag
   kanban_limit?: number | null
 }
 
+export type DashboardControlsPayload = Pick<DashboardPayload, "subject" | "controls">
+
 export type DashboardRowsPayload = Pick<
   DashboardPayload,
-  "subject" | "view" | "page" | "per_page" | "total" | "total_pages" | "total_estimated" | "landing_queue" | "items" | "lanes" | "kanban_limit"
-> &
-  Partial<Pick<DashboardPayload, "active_smart_folder_id" | "filter" | "preferences" | "ui_panels">> & {
-    controls?: Partial<DashboardPayload["controls"]>
-  }
+  "subject" | "view" | "page" | "per_page" | "total" | "total_pages" | "total_estimated" | "items" | "lanes" | "kanban_limit"
+>
 
 export type DashboardPreferencesInput = {
   subject: DashboardSubject
@@ -451,7 +448,6 @@ export type DashboardPreferencesInput = {
 
 export type DashboardPreferencesPayload = {
   message: string
-  dashboard_preferences: Record<string, unknown>
 }
 
 export type DashboardBulkJobAction =
@@ -588,6 +584,10 @@ export function fetchDashboardChromeWithMeta(search = "", options: { signal?: Ab
   return getJsonWithMeta<DashboardChromePayload>(`/api/v1/app/dashboard${dashboardSectionSearch(search, "chrome")}`, options)
 }
 
+export function fetchDashboardControls(subject: DashboardSubject, options: { signal?: AbortSignal } = {}) {
+  return getJson<DashboardControlsPayload>(`/api/v1/app/dashboard/controls?subject=${encodeURIComponent(subject)}`, options)
+}
+
 export function fetchDashboardRows(search = "", options: { signal?: AbortSignal } = {}) {
   return getJson<DashboardRowsPayload>(`/api/v1/app/dashboard${dashboardSectionSearch(search, "rows")}`, options)
 }
@@ -604,34 +604,25 @@ export type DashboardTimedPayload<T> = {
 export function mergeDashboardPayload(
   chrome: DashboardChromePayload,
   rows: DashboardRowsPayload,
+  controls: DashboardControlsPayload,
   options: { rowsCurrentForSearch?: boolean } = {}
 ): DashboardPayload {
-  const activeSmartFolderId = rows.active_smart_folder_id ?? chrome.active_smart_folder_id
-  const rowControls = rows.controls ?? {}
-
   return {
     ...chrome,
     ...rows,
     counts: chrome.counts,
-    controls: {
-      ...chrome.controls,
-      ...rowControls,
-      columns: rowControls.columns ?? chrome.controls.columns
-    },
+    controls: controls.controls,
     ownership_scope: chrome.ownership_scope,
-    preferences: rows.preferences ?? chrome.preferences,
+    preferences: chrome.preferences,
     ownership: chrome.ownership,
-    filter: rows.filter ?? chrome.filter,
-    landing_queue: {
-      ...chrome.landing_queue,
-      ...rows.landing_queue
-    },
+    filter: chrome.filter,
+    landing_queue: chrome.landing_queue,
     provider_availability: chrome.provider_availability,
-    broken_repositories: chrome.broken_repositories,
     health_blocked_repositories: chrome.health_blocked_repositories,
-    ui_panels: rows.ui_panels ?? chrome.ui_panels,
-    smart_folders: chrome.smart_folders.map((folder) => ({ ...folder, active: folder.id === activeSmartFolderId })),
-    active_smart_folder_id: activeSmartFolderId,
+    ui_panels: chrome.ui_panels,
+    smart_folders: chrome.smart_folders,
+    active_smart_folder_id: chrome.active_smart_folder_id,
+    active_smart_folder_filter: chrome.active_smart_folder_filter,
     setup: chrome.setup,
     rows_current_for_search: options.rowsCurrentForSearch ?? true,
     paths: chrome.paths
@@ -649,7 +640,6 @@ export function dashboardApiSearch(pathname: string, search: string) {
 
 export function dashboardChromeSearch(pathname: string, search: string) {
   const params = new URLSearchParams(dashboardApiSearch(pathname, search))
-  params.delete("smart_folder_id")
   params.delete("page")
 
   const next = params.toString()

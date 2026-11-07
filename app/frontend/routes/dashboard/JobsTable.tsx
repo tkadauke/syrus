@@ -214,6 +214,7 @@ function BulkJobActions({ controls, items, selectedIds }: { controls: DashboardP
             priority: bulkAction === "set_priority" ? priority : undefined
           })
           lastMessage = payload.message
+          void queryClient.invalidateQueries({ queryKey: ["dashboard", "chrome"] })
           succeeded += payload.affected_job_ids?.length ?? 1
           failed += payload.skipped_job_ids?.length ?? 0
         } catch (_error) {
@@ -233,7 +234,6 @@ function BulkJobActions({ controls, items, selectedIds }: { controls: DashboardP
       else setNotice(result.lastMessage)
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
       setProgress(null)
       setCancellationRequested(false)
       cancelRequestedRef.current = false

@@ -25,6 +25,14 @@ The generated [user API catalog](/docs/generated/user-api-catalog) lists every
 registered `/api/v1/app/*` endpoint. Operator/admin endpoint inventory lives
 with the operator docs in `config/syrus_docs/admin_api_catalog.md`.
 
+Dashboard clients can fetch `section=chrome` and `section=rows` separately.
+Stable controls are available from
+`GET /api/v1/app/dashboard/controls?subject=job|epic|workflow` with private
+one-hour caching and ETag revalidation. Omitting `section` retains the merged
+response for compatibility; bulk responses expose affected and skipped IDs.
+Chrome omits each saved folder's filter tree; when a folder is selected,
+`active_smart_folder_filter` carries only that folder's definition.
+
 Repeated invalid bearer tokens from the same source IP are rate-limited (20
 per 5 minutes); once tripped, further bad-token attempts from that IP get a
 `429 Too Many Requests` with `error.code` `rate_limited` until the window

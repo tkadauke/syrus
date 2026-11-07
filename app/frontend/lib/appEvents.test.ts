@@ -295,7 +295,7 @@ describe("applyAppEvent", () => {
 
     applyAppEvent(queryClient, event("job", 42))
     applyAppEvent(queryClient, event("job", 42))
-    vi.runOnlyPendingTimers()
+    vi.advanceTimersByTime(0)
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs"], exact: true, refetchType: "none" })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs", "42"], exact: true, refetchType: "none" })
@@ -405,7 +405,7 @@ describe("applyAppEvent", () => {
 
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["dashboard"], exact: true })
 
-    vi.runOnlyPendingTimers()
+    vi.advanceTimersByTime(0)
 
     expect(dashboardInvalidationCount(invalidate)).toBe(1)
 
@@ -430,10 +430,12 @@ describe("applyAppEvent", () => {
 
     const predicate = invalidationPredicate(invalidate, ["dashboard"])
     expect(predicate).toBeDefined()
-    expect(predicate?.({ queryKey: ["dashboard", "chrome", "?state=open"] })).toBe(true)
+    expect(predicate?.({ queryKey: ["dashboard", "chrome", "?state=open"] })).toBe(false)
     expect(predicate?.({ queryKey: ["dashboard", "rows", "?state=open"] })).toBe(true)
     expect(predicate?.({ queryKey: ["dashboard", "graph", "jobs", "?state=open"] })).toBe(true)
     expect(predicate?.({ queryKey: ["jobs", "42", "source_diff", ""] })).toBe(false)
+    vi.advanceTimersByTime(15_000)
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["dashboard", "chrome"] })
   })
 
   it("targets repository index list queries without invalidating repository detail or plugin tab queries", () => {
