@@ -150,15 +150,15 @@ Read the reference file that matches the work in front of you:
 
 - [Engineering documentation](docs/engineering/README.md) — agent-neutral
   routing, ownership, and precedence for current engineering knowledge.
-- [Architecture details](.claude/reference/architecture-details.md) — trigger
-  kinds, workflow pipelines, terminal feature, scheduled tasks, and live UI.
+- [Architecture](docs/engineering/architecture/README.md) — domain model,
+  workflow execution, repository content, chat, plugins, and frontend.
 - [Conventions](docs/engineering/conventions/README.md) — focused implementation,
   frontend, plugin, migration, deployment, and testing guides.
-- [Deployed operations](.claude/reference/deployed-operations.md) — testing on
-  the deployed instance, kubectl debugging, workflow operations, and deploy
-  targets.
-- [Gotchas and key files](.claude/reference/gotchas-and-key-files.md) — known
-  failure modes and the file map for common subsystems.
+- [Operations](docs/engineering/operations/README.md) — deployment, production
+  debugging, and workflow recovery.
+- [Maps](docs/engineering/maps/README.md) and
+  [pitfalls](docs/engineering/pitfalls/README.md) — subsystem navigation and
+  recurring failure modes.
 - [.claude/skills/implement/SKILL.md](.claude/skills/implement/SKILL.md) —
   live implement-step prompt instructions.
 - [.claude/skills/rebase/SKILL.md](.claude/skills/rebase/SKILL.md) — live
