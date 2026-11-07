@@ -103,52 +103,45 @@ class ChatMessageSearchIndex < SearchRecord
     end
 
     def matching_chat_session_page(query, chat_session_ids:, limit:, offset:)
-      scoped_chat_session_ids = Array(chat_session_ids).compact_blank.uniq
-      return { chat_session_ids: [], total: 0 } if scoped_chat_session_ids.empty?
+      rows = chat_session_id_batches(chat_session_ids).flat_map do |scoped_chat_session_ids|
+        next [] if scoped_chat_session_ids.empty?
 
-      session_predicate = "chat_session_id IN (#{([ '?' ] * scoped_chat_session_ids.size).join(', ')})"
-      query_bind = bind(parse_fts_query(query))
-      session_binds = scoped_chat_session_ids.map { |id| bind(id) }
-      total = connection.select_value(
-        <<~SQL.squish,
-          SELECT COUNT(DISTINCT chat_session_id)
-          FROM chat_message_fts
-          WHERE chat_message_fts MATCH ? AND #{session_predicate}
-        SQL
-        "ChatMessageSearchIndex Matching Session Count",
-        [ query_bind, *session_binds ]
-      ).to_i
+        session_predicate = "chat_session_id IN (#{([ '?' ] * scoped_chat_session_ids.size).join(', ')})"
+        connection.exec_query(
+          <<~SQL.squish,
+            WITH matches AS (
+              SELECT
+                chat_session_id,
+                chat_message_id,
+                created_at,
+                bm25(chat_message_fts) AS rank
+              FROM chat_message_fts
+              WHERE chat_message_fts MATCH ? AND #{session_predicate}
+            ), ranked_matches AS (
+              SELECT
+                *,
+                ROW_NUMBER() OVER (
+                  PARTITION BY chat_session_id
+                  ORDER BY rank ASC, created_at DESC, chat_message_id DESC
+                ) AS match_number
+              FROM matches
+            )
+            SELECT chat_session_id, rank, created_at, chat_message_id
+            FROM ranked_matches
+            WHERE match_number = 1
+          SQL
+          "ChatMessageSearchIndex Matching Session Batch",
+          [ bind(parse_fts_query(query)), *scoped_chat_session_ids.map { |id| bind(id) } ]
+        ).to_a
+      end
+      rows.sort! do |left, right|
+        (left.fetch("rank").to_f <=> right.fetch("rank").to_f).nonzero? ||
+          (right.fetch("created_at").to_s <=> left.fetch("created_at").to_s).nonzero? ||
+          right.fetch("chat_message_id").to_i <=> left.fetch("chat_message_id").to_i
+      end
+      page = rows.slice(offset.to_i, limit.to_i) || []
 
-      rows = connection.exec_query(
-        <<~SQL.squish,
-          WITH matches AS (
-            SELECT
-              chat_session_id,
-              chat_message_id,
-              created_at,
-              bm25(chat_message_fts) AS rank
-            FROM chat_message_fts
-            WHERE chat_message_fts MATCH ? AND #{session_predicate}
-          ), ranked_matches AS (
-            SELECT
-              *,
-              ROW_NUMBER() OVER (
-                PARTITION BY chat_session_id
-                ORDER BY rank ASC, created_at DESC, chat_message_id DESC
-              ) AS match_number
-            FROM matches
-          )
-          SELECT chat_session_id
-          FROM ranked_matches
-          WHERE match_number = 1
-          ORDER BY rank ASC, created_at DESC, chat_message_id DESC
-          LIMIT ? OFFSET ?
-        SQL
-        "ChatMessageSearchIndex Matching Session Page",
-        [ query_bind, *session_binds, bind(limit.to_i), bind(offset.to_i) ]
-      )
-
-      { chat_session_ids: rows.map { |row| row.fetch("chat_session_id").to_i }, total: total }
+      { chat_session_ids: page.map { |row| row.fetch("chat_session_id").to_i }, total: rows.size }
     end
 
     def top_matches_by_chat_session(
@@ -203,6 +196,20 @@ class ChatMessageSearchIndex < SearchRecord
       )
 
       rows.map(&:symbolize_keys)
+    end
+
+    # The authorization scope lives in the primary database while the FTS
+    # index is a separate SQLite database, including in MySQL production.
+    # Accept the relation at this boundary so callers do not eagerly allocate
+    # full ChatSession records; only its id projection crosses databases.
+    def chat_session_id_batches(value)
+      if value.is_a?(ActiveRecord::Relation)
+        Enumerator.new do |batches|
+          value.in_batches(of: 500) { |batch| batches << batch.pluck(:id).map(&:to_i) }
+        end
+      else
+        Array(value).compact_blank.map(&:to_i).uniq.each_slice(500)
+      end
     end
 
     def indexed?(message_id)

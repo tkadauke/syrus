@@ -228,6 +228,7 @@
     "no_snippet": "Kein Nachrichtenausschnitt verfügbar.",
     "loading_matches": "Treffer werden geladen...",
     "error_matches": "Treffer konnten nicht geladen werden.",
+    "matches_truncated": "Die ersten {{count}} Treffer werden angezeigt.",
     "showing": "Zeige {{first}}–{{last}} von {{total}}",
     "previous": "Zurück",
     "next": "Weiter"

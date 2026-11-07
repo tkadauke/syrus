@@ -18,7 +18,8 @@ module ChatIndexPayload
     "group" => "Group chats",
     "external" => "External chats"
   }.freeze
-  CHAT_INDEX_GROUP_PAGE_SIZE = 24
+  CHAT_INDEX_GROUP_PAGE_SIZE = 8
+  CHAT_INDEX_INITIAL_GROUP_SIZE = 5
   CHAT_INDEX_MODE_LABELS = {
     "planning" => "Planning",
     "coding" => "Coding",
@@ -79,7 +80,10 @@ module ChatIndexPayload
   end
 
   def chat_index_group_size
-    chat_index_settings.fetch(:per_group)
+    requested_size = chat_index_settings.fetch(:per_group)
+    return requested_size unless action_name == "index" && chat_index_group_offset.zero?
+
+    [ requested_size, CHAT_INDEX_INITIAL_GROUP_SIZE ].min
   end
 
   def chat_index_available_chat_types
