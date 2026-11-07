@@ -151,4 +151,71 @@ RSpec.describe WorkflowWorkspaceRecovery do
       have_attributes(source: "run_checkpoint", sha: implementation_sha)
     )
   end
+
+  # Between a successful prepare and the first commit, a workflow has no
+  # snapshot, no published checkpoint and no branch of its own. That is the
+  # normal state of a freshly prepared Job, and without a candidate here the
+  # ordinary event of "the worker holding a just-prepared workspace was
+  # replaced" failed the workflow instead of simply re-preparing it.
+  describe "a workflow that has not committed anything yet" do
+    let(:base_sha) { "f" * 40 }
+
+    def recovery_with_base_branch_only
+      recovery = described_class.new(workflow: workflow, workspace: workspace, git: git)
+      allow(WorkflowSourceSnapshots).to receive(:current_for).with(workflow).and_return(nil)
+      allow(recovery).to receive(:remote_sha).with("refs/heads/#{job.branch_name}").and_return(nil)
+      allow(recovery).to receive(:remote_sha)
+        .with("refs/heads/#{job.effective_base_branch}").and_return(base_sha)
+      recovery
+    end
+
+    it "recovers from the base branch prepare itself checked out" do
+      expect(recovery_with_base_branch_only.durable_candidates).to contain_exactly(
+        have_attributes(source: "base_branch", ref: "refs/heads/#{job.effective_base_branch}", sha: base_sha)
+      )
+    end
+
+    it "reconstructs rather than failing the workflow" do
+      recovery = recovery_with_base_branch_only
+      allow(workspace).to receive(:reconstruct_from!).with("refs/heads/#{job.effective_base_branch}")
+      allow(git).to receive(:run).with("rev-parse", "HEAD", chdir: workspace.path.to_s).and_return("#{base_sha}\n")
+
+      expect(recovery.call).to have_attributes(status: "recovered")
+      expect(workspace).to have_received(:reconstruct_from!).with("refs/heads/#{job.effective_base_branch}")
+    end
+
+    # Once any mutation has succeeded the base branch is categorically wrong:
+    # reconstructing from it would grade or publish a checkout with the
+    # implementation missing.
+    it "is withdrawn as soon as a mutation has succeeded" do
+      implement_step = workflow.steps.create!(kind: "implement", position: 90, state: "succeeded", finished_at: 2.minutes.ago)
+      implement_step.runs.create!(
+        job: job, trigger_kind: workflow.trigger_kind, agent_provider: workflow.agent_provider,
+        state: "succeeded", head_sha: "a" * 40, finished_at: 2.minutes.ago
+      )
+      recovery = described_class.new(workflow: workflow, workspace: workspace, git: git)
+      allow(WorkflowSourceSnapshots).to receive(:current_for).with(workflow).and_return(nil)
+      allow(recovery).to receive(:remote_sha).with("refs/heads/#{job.branch_name}").and_return(nil)
+
+      expect(recovery.durable_candidates).to be_empty
+    end
+
+    # The Job's own branch is the more specific ref, so a tie at the same
+    # timestamp has to resolve to it rather than to the base.
+    it "ranks below the Job's own branch" do
+      branch_sha = "9" * 40
+      # The factory Job has no branch yet, which is the case above. Here the
+      # branch exists remotely, so both candidates are available at the same
+      # timestamp and the ordering is what is under test.
+      job.update_columns(branch_name: "syrus/job-42")
+      recovery = described_class.new(workflow: workflow.reload, workspace: workspace, git: git)
+      allow(WorkflowSourceSnapshots).to receive(:current_for).with(workflow).and_return(nil)
+      allow(recovery).to receive(:remote_sha).with("refs/heads/syrus/job-42").and_return(branch_sha)
+      allow(recovery).to receive(:remote_sha)
+        .with("refs/heads/#{job.effective_base_branch}").and_return(base_sha)
+
+      best = recovery.durable_candidates.max_by { |entry| [ entry.published_at, entry.id ] }
+      expect(best).to have_attributes(source: "durable_branch", sha: branch_sha)
+    end
+  end
 end

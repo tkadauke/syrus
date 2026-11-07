@@ -532,6 +532,9 @@ module WorkEngine
           success("workspace reconstruction was unsafe; failed the attempt for automatic retry: #{result.message}")
         end
 
+        WORKSPACE_RECOVERY_SUMMARY =
+          "The workflow workspace could not be reconstructed safely from durable state.".freeze
+
         def fail_for_retry!(workflow, reason)
           now = Time.current
           workflow.set_artifact!("failure_reason", "workspace_recovery_failed")
@@ -542,19 +545,7 @@ module WorkEngine
             "failed_at" => now.iso8601
           })
           active_runs = workflow.runs.active.to_a
-          active_runs.each do |run|
-            classification = run.run_failure_classification || run.build_run_failure_classification
-            classification.assign_attributes(
-              classification: "workspace_recovery_failed",
-              retryable: true,
-              confidence: 1.0,
-              reason: reason,
-              diagnostic_summary: "The workflow workspace could not be reconstructed safely from durable state.",
-              classifier_inputs: { "workflow_id" => workflow.id, "workspace_lifecycle_state" => workflow.workspace_lifecycle_state },
-              classified_at: now
-            )
-            classification.save!
-          end
+          active_runs.each { |run| declare_workspace_recovery_failure!(workflow, run, reason, now) }
           workflow.runs.active.update_all(state: "failed", finished_at: now, agent_outcome: "workspace_recovery_failed", updated_at: now)
           workflow.steps.active.update_all(state: "failed", finished_at: now, updated_at: now)
           workflow.finished_at = now
@@ -566,6 +557,34 @@ module WorkEngine
             job: workflow.job,
             respect_provider_circuit: false
           )
+        end
+
+        # This verdict has to survive a re-derivation. AutoRetryJob
+        # re-classifies before it will act on the retry scheduled below, and
+        # these Runs carry no exception and no agent output -- this method is
+        # what ended them -- so there is nothing for a classifier to work from.
+        # It used to fall through every branch to `application_error,
+        # retryable: false`, overwrite what is written here, and skip the retry
+        # as "failure is not retryable"; the Job then stayed failed with
+        # failure_count 0 and never got a second attempt. RunFailureClassifier
+        # now declines to overwrite a confident verdict with that fallback.
+        def declare_workspace_recovery_failure!(workflow, run, reason, now)
+          classifier_inputs = {
+            "workflow_id" => workflow.id,
+            "workspace_lifecycle_state" => workflow.workspace_lifecycle_state
+          }
+
+          classification = run.run_failure_classification || run.build_run_failure_classification
+          classification.assign_attributes(
+            classification: "workspace_recovery_failed",
+            retryable: true,
+            confidence: 1.0,
+            reason: reason,
+            diagnostic_summary: WORKSPACE_RECOVERY_SUMMARY,
+            classifier_inputs: classifier_inputs,
+            classified_at: now
+          )
+          classification.save!
         end
 
         def record_storage_loss!(workflow)
