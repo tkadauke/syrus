@@ -75,6 +75,26 @@ RSpec.describe "API: coworkers", type: :request do
     expect(report.fetch("descriptor_gaps")).to contain_exactly(include("legacy_capability" => "workspace.shell"))
   end
 
+  it "does not expose credentials from journaling failure details" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "journal-workspace")
+    coworker = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya-journal-redaction",
+      workspace_repo: repository.remote_url
+    )
+    task = Coworkers::SystemSchedules.reconcile!(coworker)
+    secret = "ghp_abcdefghijklmnopqrstuvwxyz123456"
+    allow(task).to receive(:system_schedule_definition).and_return(Coworkers::Prompts::Journaling.new)
+    task.record_fire_failure!(RuntimeError.new("push rejected for token=#{secret}"))
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}"
+
+    expect(response).to have_http_status(:ok)
+    schedule = response.parsed_body.dig("coworker", "schedules").find { |item| item.fetch("id") == task.id }
+    expect(schedule.fetch("last_system_result_reason")).to eq("RuntimeError: push rejected for token=[REDACTED]")
+    expect(schedule.fetch("system_result_history").to_json).not_to include(secret)
+  end
+
   it "adds coworker sender and receiver appearances to chat messages without per-message queries" do
     sender = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-payload", workspace_repo: "https://github.com/acme/maya.git", avatar_key: "comet")
     receiver = Coworkers::Coworker.create!(owner_user: owner, name: "Rin", handle: "rin-payload", workspace_repo: "https://github.com/acme/rin.git", avatar_key: "prism")
