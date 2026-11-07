@@ -583,6 +583,7 @@
   "artifact_header_security_review": "Recensio securitatis",
   "artifact_header_visual_review": "Recensio visualis",
   "artifact_no_diff": "Nullum diff pro hac exsecutione captum.",
+  "artifact_diff_truncated": "Hoc diff maius quam 2 MB est. Prima 2 MB monstrantur.",
   "artifact_no_transcript": "Nullae lineae transcripti pro hac exsecutione captae.",
   "transcript_older_rows_hidden": "Lineae transcripti antiquiores non ostenduntur.",
   "transcript_page": "Pagina {{page}} ex {{total}}",

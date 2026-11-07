@@ -2,22 +2,29 @@ module App
   class RunArtifactsPayload
     DEFAULT_LOGS_PER_PAGE = 100
     MAX_LOGS_PER_PAGE = 200
+    MAX_DIFF_BYTES = 2.megabytes
     ARTIFACTS = {
       "transcript" => "App::RunArtifactsPayload::Transcript",
       "agent_diff" => "App::RunArtifactsPayload::AgentDiff",
       "step_agent_diff" => "App::RunArtifactsPayload::StepAgentDiff"
     }.freeze
 
-    def self.build(run:, artifact: "transcript", page: 1, per: DEFAULT_LOGS_PER_PAGE)
+    def self.build(run:, artifact: "transcript", page: 1, per: DEFAULT_LOGS_PER_PAGE, after_sequence: nil)
       artifact_class = ARTIFACTS.fetch(artifact.to_s, ARTIFACTS.fetch("transcript")).constantize
-      artifact_class.new(run: run, page: page.presence || 1, per: per.presence || DEFAULT_LOGS_PER_PAGE).build
+      artifact_class.new(
+        run: run,
+        page: page.presence || 1,
+        per: per.presence || DEFAULT_LOGS_PER_PAGE,
+        after_sequence: after_sequence
+      ).build
     end
 
     class Base
-      def initialize(run:, page:, per:)
+      def initialize(run:, page:, per:, after_sequence: nil)
         @run = run
         @page = [page.to_i, 1].max
         @per = [[per.to_i, 1].max, MAX_LOGS_PER_PAGE].min
+        @after_sequence = after_sequence.presence&.to_i
       end
 
       def build
@@ -25,6 +32,8 @@ module App
           job_id: run.job_id,
           workflow_id: run.step&.workflow_id,
           run_id: run.id,
+          run_state: run.state,
+          complete: run.job.closed?,
           diff_review_version_id: diff_review_version&.id,
           base_ref: run.base_sha,
           head_ref: run.head_sha
@@ -33,7 +42,7 @@ module App
 
       private
 
-      attr_reader :run, :page, :per
+      attr_reader :run, :page, :per, :after_sequence
 
       def diff_review_version
         DiffReviewVersion.where(job_id: run.job_id, run_id: run.id).latest_first.first
@@ -46,6 +55,8 @@ module App
       def artifact_payload
         logs_scope = run.job_logs.reorder(sequence: :desc, id: :desc)
         logs_count = logs_scope.count
+        return delta_payload(logs_scope, logs_count) unless after_sequence.nil?
+
         page_rows = logs_scope.offset((page - 1) * per).limit(per)
           .pluck(:id, :sequence, :kind, :chunk, :tool_metadata, :created_at)
           .reverse
@@ -58,6 +69,25 @@ module App
           logs_per_page: per,
           logs_total_pages: (logs_count.to_f / per).ceil,
           logs_has_older: page * per < logs_count,
+          logs_max_sequence: logs_scope.maximum(:sequence),
+          logs: rows.map { |row| serialize_log(row) }
+        }
+      end
+
+      def delta_payload(logs_scope, logs_count)
+        rows = logs_scope.where("sequence > ?", after_sequence).reorder(sequence: :asc, id: :asc)
+          .limit(per).pluck(:id, :sequence, :kind, :chunk, :tool_metadata, :created_at)
+        max_sequence = logs_scope.maximum(:sequence)
+
+        {
+          artifact: "transcript",
+          logs_count: logs_count,
+          logs_page: 1,
+          logs_per_page: per,
+          logs_total_pages: (logs_count.to_f / per).ceil,
+          logs_has_older: logs_count > per,
+          logs_max_sequence: rows.last&.fetch(1, nil) || after_sequence,
+          logs_has_newer: rows.last&.fetch(1, nil).to_i < max_sequence.to_i,
           logs: rows.map { |row| serialize_log(row) }
         }
       end
@@ -112,7 +142,10 @@ module App
           id: id,
           sequence: sequence,
           kind: kind,
-          chunk: chunk,
+          # Structured tool fields are the canonical representation. Keep the
+          # long-standing chunk key for compatibility without shipping the
+          # same input/result twice in one response.
+          chunk: %w[tool_call tool_result].include?(kind) ? "" : chunk,
           tool_name: metadata["tool_name"],
           tool_input: metadata["tool_input"],
           tool_use_id: metadata["tool_use_id"],
@@ -128,7 +161,14 @@ module App
 
       def artifact_payload
         diff = Run.where(id: run.id).pick(:agent_diff)
-        { artifact: "agent_diff", agent_diff: diff, agent_diff_bytes: diff&.bytesize || 0 }
+        diff_payload("agent_diff", diff)
+      end
+
+      def diff_payload(key, diff)
+        bytes = diff&.bytesize || 0
+        preview = diff&.byteslice(0, MAX_DIFF_BYTES)&.force_encoding(Encoding::UTF_8)&.scrub("")
+        { artifact: key, key.to_sym => preview, "#{key}_bytes".to_sym => bytes,
+          "#{key}_truncated".to_sym => bytes > MAX_DIFF_BYTES }
       end
     end
 
@@ -137,7 +177,10 @@ module App
 
       def artifact_payload
         diff = Run.where(id: run.id).pick(:step_agent_diff)
-        { artifact: "step_agent_diff", step_agent_diff: diff, step_agent_diff_bytes: diff&.bytesize || 0 }
+        bytes = diff&.bytesize || 0
+        preview = diff&.byteslice(0, MAX_DIFF_BYTES)&.force_encoding(Encoding::UTF_8)&.scrub("")
+        { artifact: "step_agent_diff", step_agent_diff: preview, step_agent_diff_bytes: bytes,
+          step_agent_diff_truncated: bytes > MAX_DIFF_BYTES }
       end
     end
   end

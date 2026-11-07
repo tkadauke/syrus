@@ -555,6 +555,18 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     )
   end
 
+  it "caps the legacy transcript at the newest 200 lines" do
+    user.update!(api_token: "syrus_cli_token")
+    run = job.initial_run
+    run.job_logs.delete_all
+    205.times { |sequence| run.job_logs.create!(sequence: sequence, kind: "stdout", chunk: "line #{sequence}") }
+
+    get "/api/v1/app/jobs/#{job.id}/transcript", headers: { "Authorization" => "Bearer syrus_cli_token" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("lines")).to eq((5..204).map { |sequence| "line #{sequence}" })
+  end
+
   it "creates a chat feedback workflow for an implemented job" do
     finish_existing_work!(job)
     job.update!(state: "implemented")
@@ -1355,6 +1367,19 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       { "sequence" => 0, "kind" => "stdout", "chunk" => "first line" },
       { "sequence" => 1, "kind" => "stderr", "chunk" => "second line" }
     ])
+    expect(response.headers["ETag"]).to be_present
+  end
+
+  it "returns transcript deltas and resolves the latest run for CLI consumers" do
+    run = job.initial_run
+    run.job_logs.create!(sequence: 0, kind: "stdout", chunk: "already seen")
+    run.job_logs.create!(sequence: 1, kind: "stdout", chunk: "new line")
+
+    get "/api/v1/app/jobs/#{job.id}/runs/latest/artifacts", params: { after_sequence: 0 }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("run_id" => run.id, "run_state" => run.state, "complete" => false, "logs_max_sequence" => 1)
+    expect(parse_body.fetch("logs").map { |log| log.fetch("chunk") }).to eq([ "new line" ])
   end
 
   it "returns redacted structured tool metadata and handles legacy rows" do
