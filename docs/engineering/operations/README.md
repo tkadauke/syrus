@@ -13,5 +13,7 @@ recovering Syrus itself. Operator feature instructions remain in
   testing, cluster-debugging, workflow, and deploy-target procedures.
 - [Release troubleshooting](../../release-troubleshooting.md)
 - [Releasing](../../releasing.md)
+- [macOS worker updates](macos_worker_updates.md)
+- [Docker Compose](docker_compose.md)
 
 Return to the [engineering documentation index](../README.md).
