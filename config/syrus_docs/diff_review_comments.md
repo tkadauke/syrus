@@ -227,12 +227,12 @@ exact commented line highlighted), then the comment body, then actions
 ("View in diff" to scroll to the anchor, "Resolve"). Line-anchored (code)
 comments have no inline sidebar Edit control — only whole-review comments
 (`anchor_kind: "review"`) get one, since they have no code anchor to edit at.
-Draft comments (both whole-review, from the sidebar, and line-anchored,
-inline in the diff) also get a "Delete" action next to Edit/Resolve; it opens
-a shared confirmation dialog (`useConfirm`) before hard-deleting, since the
+Draft comments also get a "Delete" action in their sidebar card; line-anchored
+drafts additionally expose the action inline in the diff. Deleting opens a
+shared confirmation dialog (`useConfirm`) before hard-deleting, since the
 action cannot be undone. A comment that has already been submitted, resolved,
-or superseded has no Delete affordance — the record is review history at
-that point, not a draft.
+or superseded has no Delete affordance — the record is review history at that
+point, not a draft.
 
 A permanent whole-review comment textarea sits above the action row at the
 bottom of the sidebar (only on surfaces with `supportsGlobalComments`,
