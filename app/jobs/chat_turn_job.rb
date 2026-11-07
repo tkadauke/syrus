@@ -525,7 +525,7 @@ class ChatTurnJob < ApplicationJob
     image_paths = []
     file_paths = []
     attachment_notes = []
-    attachments = @user_message.content.is_a?(Hash) ? Array(@user_message.content["attachments"]) : []
+    attachments = ChatAttachmentRef.for(@user_message)
     return { user_text: user_text, image_paths: image_paths, file_paths: file_paths } if attachments.empty?
 
     attachments_dir = Pathname(workspace_path).join("attachments")
@@ -533,10 +533,10 @@ class ChatTurnJob < ApplicationJob
     file_flag_supported = nil
 
     attachments.each do |attachment|
-      mime_type = attachment["mime_type"].to_s
-      display_name = ChatAttachmentPolicy.sanitize_filename(attachment["name"].to_s.presence || "attachment#{ext_for(mime_type)}")
+      mime_type = attachment.mime_type
+      display_name = ChatAttachmentPolicy.sanitize_filename(attachment.name.presence || "attachment#{ext_for(mime_type)}")
       path = attachments_dir.join("#{SecureRandom.hex(6)}-#{display_name}")
-      File.binwrite(path, Base64.strict_decode64(attachment["data"].to_s))
+      File.binwrite(path, attachment.bytes)
       attachment_notes << attachment_note(display_name, path)
 
       if %w[image/jpeg image/png image/gif image/webp].include?(mime_type)
