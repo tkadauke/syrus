@@ -1371,7 +1371,7 @@ function CollapsedToolGroupHeader({ count, details, onClick, outcome, outcomeTon
 
   return (
     <summary
-      className="flex min-w-0 max-w-full cursor-pointer list-none items-baseline gap-2 overflow-hidden whitespace-nowrap py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+      className="flex min-w-0 max-w-full cursor-pointer list-none items-center gap-2 overflow-hidden whitespace-nowrap py-0.5 text-sm text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
       data-testid="collapsed-tool-group-header"
       onClick={onClick}
     >
