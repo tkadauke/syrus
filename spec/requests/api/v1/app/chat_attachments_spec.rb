@@ -68,6 +68,25 @@ RSpec.describe "API: chat attachments", :ci_only, type: :request do
     expect(chat.chat_file_attachments.count).to eq(1)
   end
 
+  it "rechecks the total attachment size after serializing uploads for the chat" do
+    sign_in_as(user)
+    file = Rack::Test::UploadedFile.new(StringIO.new("x"), "text/plain", original_filename: "extra.txt")
+    allow_any_instance_of(ChatSession).to receive(:with_lock).and_wrap_original do |method, *args, &block|
+      chat.chat_file_attachments.create!(
+        name: "concurrent.txt",
+        mime_type: "text/plain",
+        byte_size: ChatMessageParams::CHAT_ATTACHMENT_TOTAL_MAX_BYTES,
+        checksum: "checksum"
+      )
+      method.call(*args, &block)
+    end
+
+    post "/api/v1/app/chats/#{chat.id}/attachments", params: { file: file }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(chat.chat_file_attachments.pluck(:name)).to eq([ "concurrent.txt" ])
+  end
+
   it "rejects invalid UTF-8 text uploads" do
     sign_in_as(user)
     file = Rack::Test::UploadedFile.new(StringIO.new("\xFF".b), "text/plain", original_filename: "invalid.txt")
