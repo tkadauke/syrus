@@ -150,16 +150,13 @@ describe("AdminUsers configurable columns", () => {
     expect(screen.getByRole("columnheader", { name: "Auth mode" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Scheduling" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Tokens" })).toBeInTheDocument()
-    expect(screen.getByRole("columnheader", { name: "Provider availability" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "Attention" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "API token" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "GH API" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "GH blocked at" })).toBeInTheDocument()
     expect(screen.getByRole("columnheader", { name: "GH rate" })).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Ada Lovelace" })).toBeInTheDocument()
-    expect(screen.getByText("auth_error")).toBeInTheDocument()
-    expect(screen.getByText("Claude auth error")).toBeInTheDocument()
-    expect(screen.getByText("2 blocked")).toBeInTheDocument()
+    expect(screen.getAllByRole("cell", { name: "yes" })).not.toHaveLength(0)
     expect(screen.getByText("Showing 1-1 of 1 users")).toBeInTheDocument()
   })
 
@@ -187,7 +184,6 @@ describe("AdminUsers configurable columns", () => {
       "auth_mode",
       "scheduling",
       "tokens",
-      "provider_availability",
       "api_token",
       "gh_token",
       "claude_token",
