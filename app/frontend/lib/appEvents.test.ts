@@ -504,7 +504,11 @@ describe("applyAppEvent", () => {
     })
 
     const updated = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
-    expect(updated?.messages.map(({ id, text }) => [id, text])).toEqual([[1, "old"], [2, "complete"], [3, "next"]])
+    expect(updated?.messages.map(({ id, text }) => [id, text])).toEqual([
+      [1, "old"],
+      [2, "complete"],
+      [3, "next"]
+    ])
   })
 
   it("invalidates chat queries when a typed chat event arrives before chat data is cached", () => {
@@ -1400,8 +1404,21 @@ describe("applyAppEvent", () => {
     window.addEventListener("syrus:job-status-changed", (e) => dispatched.push(e as CustomEvent))
     queryClient.setQueryData(["chats", "9", "job_status"], {
       pending_proposals: [],
-      items: [{ kind: "job", job_id: 77, slug: "JOB-77", title: "Before", state: "running", workflow_step: null, active_workflow: null,
-        pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T00:00:00Z" }]
+      items: [
+        {
+          kind: "job",
+          job_id: 77,
+          slug: "JOB-77",
+          title: "Before",
+          state: "running",
+          workflow_step: null,
+          active_workflow: null,
+          pr_number: null,
+          pr_url: null,
+          blocker: null,
+          updated_at: "2026-01-01T00:00:00Z"
+        }
+      ]
     })
 
     applyAppEvent(queryClient, {
@@ -1409,8 +1426,19 @@ describe("applyAppEvent", () => {
       payload: {
         action: "job_status_changed",
         job_id: 77,
-        item: { kind: "job", job_id: 77, slug: "JOB-77", title: "After", state: "closed", workflow_step: null, active_workflow: null,
-          pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-02T00:00:00Z" }
+        item: {
+          kind: "job",
+          job_id: 77,
+          slug: "JOB-77",
+          title: "After",
+          state: "closed",
+          workflow_step: null,
+          active_workflow: null,
+          pr_number: null,
+          pr_url: null,
+          blocker: null,
+          updated_at: "2026-01-02T00:00:00Z"
+        }
       }
     })
 

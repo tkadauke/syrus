@@ -831,7 +831,6 @@ describe("ChatJobStatusPanel live updates", () => {
     expect(screen.getByText("Cached status")).toBeInTheDocument()
     expect(fetchSpy).not.toHaveBeenCalled()
   })
-
 })
 
 describe("ChatJobStatusPanel pending proposal live updates", () => {
