@@ -116,7 +116,11 @@ module SdlcPipeline
 
       following = transitions.find { |transition| transition.created_at > at }
       preceding = transitions.reverse_each.find { |transition| transition.created_at <= at }
-      state = following&.from_state || (job.finished_at && at < job.finished_at ? preceding&.to_state : nil) || job.state
+      # Replay the audit trail instead of falling back to the row's current
+      # state after every event. The latter made the state immediately after
+      # the final recorded transition look like today's state, which could
+      # collapse a durable stage change into a no-op delta.
+      state = following&.from_state || preceding&.to_state || job.state
       key = lifecycle_key(state)
       entries.find { |entry| entry.key == key }
     end
