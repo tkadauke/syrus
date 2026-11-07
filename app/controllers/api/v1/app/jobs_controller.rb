@@ -226,10 +226,16 @@ module Api
 
         def source_file_diff_download
           with_file_patch_errors do
-            content, base, head, path, previous_path = requested_file_patch_arguments
+            job, base, head, path, previous_path = requested_file_patch_arguments
             file = Tempfile.new([ "syrus-diff-", ".diff" ], binmode: true)
             begin
-              content.file_patch_to(file, base: content.revision(base), head: content.revision(head), path: path, previous_path: previous_path)
+              stored_patch = stored_file_patch(job, base, head, path, previous_path)
+              if stored_patch
+                file.write(stored_patch)
+              else
+                content = RepositoryContent.for(job.repository, user: Current.user)
+                content.file_patch_to(file, base: content.revision(base), head: content.revision(head), path: path, previous_path: previous_path)
+              end
             rescue StandardError
               file.close!
               raise
@@ -616,7 +622,11 @@ module Api
         end
 
         def requested_file_patch
-          content, base, head, path, previous_path = requested_file_patch_arguments
+          job, base, head, path, previous_path = requested_file_patch_arguments
+          stored_patch = stored_file_patch(job, base, head, path, previous_path)
+          return [ stored_patch, path ] if stored_patch
+
+          content = RepositoryContent.for(job.repository, user: Current.user)
           patch = content.file_patch(base: content.revision(base), head: content.revision(head), path: path, previous_path: previous_path)
           [ patch, path ]
         end
@@ -637,7 +647,18 @@ module Api
           previous_path = params[:previous_path].to_s.presence
           raise ArgumentError unless base.match?(/\A[0-9a-f]{40,64}\z/i) && head.match?(/\A[0-9a-f]{40,64}\z/i) && path.present?
 
-          [ RepositoryContent.for(job.repository, user: Current.user), base, head, path, previous_path ]
+          [ job, base, head, path, previous_path ]
+        end
+
+        def stored_file_patch(job, base, head, path, previous_path)
+          snapshot = job.diff_review_versions
+                        .where(base_sha: base, head_sha: head)
+                        .latest_first
+                        .pick(:files_snapshot)
+          file = Array(snapshot).find do |candidate|
+            candidate["path"].to_s == path && candidate["previous_path"].to_s.presence == previous_path
+          end
+          file&.fetch("patch", nil)
         end
 
         def source_file_diff_download_url(path)
