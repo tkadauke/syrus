@@ -43,6 +43,17 @@ RSpec.describe ScheduledTasks::CalendarEventSource do
     expect(events(starts_at: instant - 1.hour, ends_at: instant).map(&:title)).to be_empty
   end
 
+  it "does not expose another operator's task in an accessible repository" do
+    instant = 2.days.from_now.change(usec: 0)
+    other_user = Factories.user
+    repository.repository_memberships.create!(user: other_user, role: "read")
+    task(user: other_user, kind: "one_shot", cron_expression: nil, fire_at: instant, name: "Private task")
+
+    result = events(starts_at: instant, ends_at: instant + 1.hour)
+
+    expect(result).to be_empty
+  end
+
   it "correlates a visible Job and Workflow and links both execution and schedule details" do
     range_start = 1.day.ago.beginning_of_day
     scheduled = task(created_at: range_start - 1.day)
