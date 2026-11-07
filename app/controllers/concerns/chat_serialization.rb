@@ -64,37 +64,9 @@ module ChatSerialization
         scratchpad_items: PerformanceLogging.phase("chat_payload.scratchpad_items", chat_id: chat_session.id) { chat_session.scratchpad_items_payload },
         workspace_tabs: PerformanceLogging.phase("chat_payload.workspace_tabs", chat_id: chat_session.id) { workspace_tabs_json(chat_session) },
         documents_in_scope: PerformanceLogging.phase("chat_payload.documents_in_scope", chat_id: chat_session.id) { documents_in_scope_for_payload(chat_session).map { |document| document_json(document) } },
-        paths: {
-          credentials_path: "/credentials",
-          repositories_path: repositories_path,
-          app_messages_path: "/api/v1/app/chats/#{chat_session.id}/messages",
-          app_message_path: "/api/v1/app/chats/#{chat_session.id}/message",
-          app_rename_path: "/api/v1/app/chats/#{chat_session.id}/rename",
-          app_delete_path: "/api/v1/app/chats/#{chat_session.id}",
-          app_clear_path: "/api/v1/app/chats/#{chat_session.id}/messages",
-          app_branch_path: "/api/v1/app/chats/#{chat_session.id}/branch",
-          app_share_path: "/api/v1/app/chats/#{chat_session.id}/share",
-          app_enqueue_message_path: "/api/v1/app/chats/#{chat_session.id}/queued_messages",
-          app_scheduled_messages_path: "/api/v1/app/chats/#{chat_session.id}/scheduled_messages",
-          app_retry_turn_path: "/api/v1/app/chats/#{chat_session.id}/retry_turn",
-          app_stop_path: "/api/v1/app/chats/#{chat_session.id}/stop",
-          app_daemon_connection_path: "/api/v1/app/chats/#{chat_session.id}/daemon_connection",
-          app_switch_provider_path: "/api/v1/app/chats/#{chat_session.id}/switch_provider",
-          app_bookmarks_path: "/api/v1/app/chats/#{chat_session.id}/bookmarks",
-          app_bookmarks_index_path: "/api/v1/app/chats/#{chat_session.id}/bookmarks",
-          app_scratchpad_reorder_path: "/api/v1/app/chats/#{chat_session.id}/scratchpad_items/reorder",
-          app_speech_to_text_batch_path: "/api/v1/app/chats/#{chat_session.id}/speech_to_text",
-          app_speech_to_text_stream_path: "/api/v1/app/chats/#{chat_session.id}/speech_to_text/stream",
-          app_create_coding_handoff_path: "/api/v1/app/chats/#{chat_session.id}/coding_handoff",
-          app_cancel_coding_checkout_path: "/api/v1/app/chats/#{chat_session.id}/coding_checkout",
-          app_coding_files_path: "/api/v1/app/chats/#{chat_session.id}/coding_files",
-          app_coding_commits_path: "/api/v1/app/chats/#{chat_session.id}/coding_commits",
-          app_coding_file_path: "/api/v1/app/chats/#{chat_session.id}/coding_file",
-          app_coding_file_preview_path: "/api/v1/app/chats/#{chat_session.id}/coding_file_preview",
-          app_coding_diff_path: "/api/v1/app/chats/#{chat_session.id}/coding_diff",
-          app_source_file_path: "/api/v1/app/chats/#{chat_session.id}/source_file",
-          app_source_file_raw_path: "/api/v1/app/chats/#{chat_session.id}/source_file/raw"
-        },
+        # Core paths are deterministic from the chat id and are reconstructed
+        # by the app client. Plugins may still contribute non-core paths.
+        paths: {},
         attached_coding_job: attached_coding_job_json(chat_session),
         local_tunnel_connected: Feature.local_mode_enabled? && LocalDaemonSession.connected.exists?(chat_session_id: chat_session.id)
       }.then { |payload| merge_chat_payload_contributions(payload, chat_session) }
@@ -291,7 +263,8 @@ module ChatSerialization
         }
       end
 
-      {
+      Rails.cache.fetch([ "chat-pending-action-top-level-payload", action.cache_key_with_version, Current.user.id ]) do
+        {
         id: action.id,
         label: pending_action_label(action),
         detail: pending_action_detail(action),
@@ -306,7 +279,7 @@ module ChatSerialization
         app_confirm_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/confirm",
         app_reject_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/reject",
         app_cancel_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}"
-      }.tap do |payload|
+        }.tap do |payload|
         payload[:app_update_path] = "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}" if action.action == "create_coworker" && action.pending?
         payload[:reason] = action.reason if action.reason.present?
         payload[:before_snapshot] = action.before_snapshot if action.before_snapshot.present?
@@ -338,6 +311,7 @@ module ChatSerialization
         end
         resource = pending_action_resource(action)
         payload.merge!(resource) if resource
+        end
       end
     end
   end
