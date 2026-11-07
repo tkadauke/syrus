@@ -38,16 +38,18 @@ test("renders Coding Mode handoff confirmations and moves one into the pending c
   await openCodingModeFixture(page)
 
   const existingJobHandoff = pendingActionCard(page, /Hand off JOB-\d+/)
-  const submittedChangesHandoff = pendingActionCard(page, "E2E Coding Mode submitted changes")
 
   await expect(existingJobHandoff).toContainText("Needs confirmation")
   await expect(existingJobHandoff).toContainText("E2E Coding Mode existing Job handoff")
-  await expect(submittedChangesHandoff).toContainText("Needs confirmation")
-  await expect(submittedChangesHandoff).toContainText("demo/syrus-preview")
-  await expect(submittedChangesHandoff).toContainText("Seeded chat-authored work waiting for operator handoff confirmation.")
 
   await existingJobHandoff.getByRole("button", { name: "Confirm", exact: true }).click()
 
   await expect(existingJobHandoff).toContainText("Working…")
   await expect(existingJobHandoff).toContainText("Waiting for background worker...")
+
+  await page.getByRole("button", { name: "Next pending action" }).click()
+  const submittedChangesHandoff = pendingActionCard(page, "E2E Coding Mode submitted changes")
+  await expect(submittedChangesHandoff).toContainText("Needs confirmation")
+  await expect(submittedChangesHandoff).toContainText("demo/syrus-preview")
+  await expect(submittedChangesHandoff).toContainText("Seeded chat-authored work waiting for operator handoff confirmation.")
 })

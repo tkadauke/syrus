@@ -162,16 +162,12 @@ RSpec.describe RuntimeTerminal::RelayClient do
       long_wait = Thread.new { client.inspect_screen(wait_for_text: "missing", timeout_seconds: 0.3) }
       Timeout.timeout(1) { Thread.pass until long_wait.status == "sleep" }
 
-      input_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      expect(client.input(type: "stdin", data: "x")).to be(true)
-      input_elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - input_started_at
+      result = Timeout.timeout(1) do
+        expect(client.input(type: "stdin", data: "x")).to be(true)
+        client.inspect_screen(wait_for_text: "also missing", timeout_seconds: 0.02)
+      end
 
-      inspect_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-      result = client.inspect_screen(wait_for_text: "also missing", timeout_seconds: 0.02)
-      inspect_elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - inspect_started_at
-
-      expect(input_elapsed).to be < 0.15
-      expect(inspect_elapsed).to be < 0.15
+      expect(long_wait).to be_alive
       expect(result).to include(settled: false)
     ensure
       long_wait&.join
