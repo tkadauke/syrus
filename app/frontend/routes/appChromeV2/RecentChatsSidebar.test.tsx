@@ -808,23 +808,26 @@ describe("RecentChatsSidebar action and marker slot", () => {
         job_summary: {
           active_count: 2,
           outcome: "failed",
+          epics: {
+            "9": {
+              id: 9,
+              slug: "EPIC-9",
+              title: "Sidebar polish",
+              total: 5,
+              state_counts: { implemented: 1, approved: 1, running: 3 },
+              needs_attention: false
+            }
+          },
           jobs: [
             {
               id: 41,
+              epic_id: 9,
               slug: "JOB-41",
               state: "running",
               step: "implement",
               group: "running",
               started_at: new Date(Date.now() - 120_000).toISOString(),
-              app_path: "/jobs/41",
-              epic: {
-                id: 9,
-                slug: "EPIC-9",
-                title: "Sidebar polish",
-                total: 5,
-                state_counts: { implemented: 1, approved: 1, running: 3 },
-                needs_attention: false
-              }
+              app_path: "/jobs/41"
             },
             { id: 42, slug: "JOB-42", state: "failed", step: "implement", group: "failed", app_path: "/jobs/42" }
           ]
@@ -859,6 +862,7 @@ describe("RecentChatsSidebar action and marker slot", () => {
           job_summary: {
             active_count: 1,
             outcome: null,
+            epics: {},
             jobs: [{ id: 41, slug: "JOB-41", state: "running", step: "implement", group: "running", app_path: "/jobs/41" }]
           }
         })
@@ -895,7 +899,7 @@ describe("RecentChatsSidebar action and marker slot", () => {
       group: "running" as const,
       app_path: `/jobs/${index + 1}`
     }))
-    renderSidebar([chatNav({ job_summary: { active_count: jobs.length, outcome: null, jobs } })])
+    renderSidebar([chatNav({ job_summary: { active_count: jobs.length, outcome: null, jobs, epics: {} } })])
 
     fireEvent.mouseEnter(screen.getByTestId("job-running-marker").parentElement!)
 
@@ -922,13 +926,19 @@ describe("RecentChatsSidebar action and marker slot", () => {
         job_summary: {
           active_count: 4,
           outcome: "failed",
+          epics: {
+            "10": healthy,
+            "11": attention,
+            "12": ready,
+            "13": actionableRunning
+          },
           jobs: [
-            { id: 1, slug: "JOB-1", state: "running", step: "prepare", group: "running", app_path: "/jobs/1", epic: healthy },
-            { id: 2, slug: "JOB-2", state: "running", step: "grader", group: "running", app_path: "/jobs/2", epic: healthy },
+            { id: 1, epic_id: 10, slug: "JOB-1", state: "running", step: "prepare", group: "running", app_path: "/jobs/1" },
+            { id: 2, epic_id: 10, slug: "JOB-2", state: "running", step: "grader", group: "running", app_path: "/jobs/2" },
             { id: 3, slug: "JOB-3", state: "running", step: "implement", group: "running", app_path: "/jobs/3" },
-            { id: 7, slug: "JOB-7", state: "running", step: "review", group: "running", app_path: "/jobs/7", epic: actionableRunning },
-            { id: 4, slug: "JOB-4", state: "failed", step: "grader", group: "failed", app_path: "/jobs/4", epic: attention },
-            { id: 5, slug: "JOB-5", state: "implemented", group: "ready", app_path: "/jobs/5", epic: ready },
+            { id: 7, epic_id: 13, slug: "JOB-7", state: "running", step: "review", group: "running", app_path: "/jobs/7" },
+            { id: 4, epic_id: 11, slug: "JOB-4", state: "failed", step: "grader", group: "failed", app_path: "/jobs/4" },
+            { id: 5, epic_id: 12, slug: "JOB-5", state: "implemented", group: "ready", app_path: "/jobs/5" },
             { id: 6, slug: "JOB-6", state: "implemented", group: "ready", app_path: "/jobs/6" }
           ]
         }
@@ -961,13 +971,14 @@ describe("RecentChatsSidebar action and marker slot", () => {
           chats: [
             chatNav({
               id: 1,
-              job_summary: { active_count: 1, outcome: "ready", jobs: [{ id: 1, slug: "JOB-1", state: "running", group: "running", app_path: "/jobs/1" }] }
+              job_summary: { active_count: 1, outcome: "ready", jobs: [{ id: 1, slug: "JOB-1", state: "running", group: "running", app_path: "/jobs/1" }], epics: {} }
             }),
             chatNav({
               id: 2,
               job_summary: {
                 active_count: 2,
                 outcome: "failed",
+                epics: {},
                 jobs: [
                   { id: 1, slug: "JOB-1", state: "running", group: "running", app_path: "/jobs/1" },
                   { id: 2, slug: "JOB-2", state: "running", group: "running", app_path: "/jobs/2" },

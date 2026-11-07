@@ -174,10 +174,21 @@ export type ChatJobSummary = {
   active_count: number
   outcome: "failed" | "ready" | null
   jobs: ChatJobSummaryRow[]
+  epics: Record<string, ChatJobSummaryEpic>
+}
+
+export type ChatJobSummaryEpic = {
+  id: number
+  slug: string
+  title?: string | null
+  total: number
+  state_counts: Record<string, number>
+  needs_attention: boolean
 }
 
 export type ChatJobSummaryRow = {
   id: number
+  epic_id?: number
   slug: string
   state: string
   step?: string
@@ -185,7 +196,6 @@ export type ChatJobSummaryRow = {
   started_at?: string
   finished_at?: string
   app_path: string
-  epic?: { id: number; slug: string; title?: string | null; total: number; state_counts: Record<string, number>; needs_attention: boolean }
 }
 
 export type HiddenChatRecord = ChatNavRecord & {
