@@ -27,6 +27,7 @@ function epicPayload(overrides: Record<string, unknown> = {}) {
       ...overrides
     },
     jobs: [job("merged"), job("open"), job("implemented")],
+    state_counts: { merged: 1, open: 1, implemented: 1 },
     summary: { done_jobs_count: 1, total_jobs_count: 3, dependency_edge_count: 0, blocked: false, blocked_reason: null }
   }
 }
@@ -102,6 +103,13 @@ describe("EpicPreviewCard", () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(epicPayload()))
     renderCard(7)
     await waitFor(() => expect(screen.getByRole("progressbar")).toBeInTheDocument())
+  })
+
+  it("uses aggregate state counts when only five Jobs are returned", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ ...epicPayload({ jobs_count: 20 }), jobs: [job("open")], state_counts: { merged: 10, open: 10 } }))
+    renderCard(7)
+    const bar = await screen.findByRole("progressbar")
+    expect((bar.firstElementChild as HTMLElement).style.width).toBe("50%")
   })
 
   it("omits the progress bar when jobs_count is 0", async () => {
@@ -212,6 +220,13 @@ describe("EpicPreviewCard", () => {
     renderCard(7)
     await waitFor(() => expect(screen.getByText("Onboarding flow")).toBeInTheDocument())
     expect(screen.queryByTestId("epic-deployment-stage-pipeline")).not.toBeInTheDocument()
+  })
+
+  it("renders aggregate deployment stages returned by the preview endpoint", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ ...epicPayload({ state: "done" }), deployment_stages: [{ name: "staging", label: "On Staging", reached_count: 3, total: 3, reached_at: "2026-01-01T10:00:00Z" }] }))
+    renderCard(7)
+    expect(await screen.findByTestId("epic-deployment-stage-pipeline")).toBeInTheDocument()
+    expect(screen.getByText("On Staging")).toBeInTheDocument()
   })
 
   it("compact: does not render deployment stage row even when deployment_stages are present", async () => {

@@ -688,8 +688,8 @@ curl -X POST https://syrus.example.com/api/v1/app/epics/456/dependencies \
   -d '{ "depends_on_epic_id": 123 }'
 ```
 
-`POST /api/v1/app/epics/:id/dependencies` returns the refreshed Epic detail
-payload, including `dependencies` and `dependents`. It rejects cycles and
+`POST /api/v1/app/epics/:id/dependencies` returns a message and the changed
+Epic head. It rejects cycles and
 requires write access to both Epics' repositories.
 `DELETE /api/v1/app/epics/:id/dependencies/:depends_on_epic_id` removes that
 edge and is idempotent.
@@ -699,6 +699,12 @@ state/start, and dependency changes—require the same effective repository
 write access. Read-tier access remains sufficient for viewing Epics.
 Reassignment additionally requires the selected owner to have effective write
 access to the Epic's repository.
+
+Epic reads are split by use: `/preview` serves hover cards, while `/history`,
+`/dependencies`, and `/job_metadata` load detail-tab data on demand. Picker
+clients can request `compact=picker`. The Epic graph uses bounded `limit` and
+`offset` pages and returns node numbers/titles so clients derive labels and
+URLs. New/edit form responses use private ETags.
 
 ## Update Theme Preference
 

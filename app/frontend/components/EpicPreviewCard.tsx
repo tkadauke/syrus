@@ -8,6 +8,7 @@ import { renderLightMarkdown } from "../lib/Markdown"
 import { Card, Skeleton } from "./Card"
 import { CopyableSlug } from "./CopyableSlug"
 import { StatusPill } from "./StatusPill"
+import { EpicDeploymentStagePipeline } from "./DeploymentStagePipeline"
 
 const PROGRESS_SEGMENTS = [
   { state: "merged", color: "bg-emerald-700" },
@@ -48,7 +49,7 @@ export function EpicPreviewCard({ id, compact = false, slug }: { id: number; com
   if (isPending) return <EpicPreviewSkeleton />
   if (!data) return null
 
-  const { epic, jobs } = data
+  const { epic, jobs, state_counts: stateCounts } = data
   const description = epic.description ?? ""
   const epicPath = epic.epic_path ?? `/epics/${epicRef}`
   const totalCount = epic.jobs_count
@@ -72,7 +73,7 @@ export function EpicPreviewCard({ id, compact = false, slug }: { id: number; com
           role="progressbar"
         >
           {PROGRESS_SEGMENTS.map(({ state, color }) => {
-            const count = jobs.filter((j) => j.state === state).length
+            const count = stateCounts[state] ?? 0
             const percent = (count / totalCount) * 100
             return percent > 0 ? (
               <div className={`h-1.5 transition-[width] ${color}`} key={state} style={{ width: `${percent}%` }} />
@@ -85,6 +86,7 @@ export function EpicPreviewCard({ id, compact = false, slug }: { id: number; com
           {renderLightMarkdown(description)}
         </p>
       )}
+      {!compact && data.deployment_stages?.length ? <EpicDeploymentStagePipeline stages={data.deployment_stages} /> : null}
       {!compact && previewJobs.length > 0 && (
         <ul className="mb-3 space-y-1">
           {previewJobs.map((job: EpicPreviewPayload["jobs"][number]) => (

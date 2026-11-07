@@ -182,7 +182,6 @@ export type EpicDetailJob = {
   owner_user_id: number | null
   owner_user: EpicOwnerUser | null
   repository_slug: string
-  goal_provenance?: GoalProvenance | null
   deployment_stages?: JobDeploymentStage[]
 }
 
@@ -213,9 +212,9 @@ export type EpicDetailPayload = {
   }
   summary: EpicDetailSummary
   state_transitions: EpicStateTransition[]
-  graph: EpicGraph
-  dependencies: EpicDependencyRecord[]
-  dependents: EpicDependencyRecord[]
+  graph?: EpicGraph
+  dependencies?: EpicDependencyRecord[]
+  dependents?: EpicDependencyRecord[]
   deployment_stages?: EpicDeploymentStage[]
   jobs: EpicDetailJob[]
   provider_availability?: Record<string, ProviderAvailability>
@@ -242,6 +241,15 @@ export type EpicMutationPayload = {
 export type EpicPreviewPayload = {
   epic: Pick<EpicDetailRecord, "id" | "display_number" | "title" | "description" | "state" | "landing" | "jobs_count" | "epic_path">
   jobs: Array<Pick<EpicDetailJob, "id" | "title" | "state">>
+  state_counts: Record<string, number>
+  deployment_stages?: EpicDeploymentStage[]
+}
+
+export type EpicDependenciesPayload = { graph: EpicGraph; dependencies: EpicDependencyRecord[]; dependents: EpicDependencyRecord[] }
+export type EpicJobMetadataPayload = {
+  provider_availability: Record<string, ProviderAvailability>
+  deployment_stages?: EpicDeploymentStage[]
+  jobs: Array<{ id: number; deployment_stages?: JobDeploymentStage[] }>
 }
 
 export type EpicUnlandPlan = {
@@ -283,6 +291,14 @@ export function fetchEpicHistory(id: number, options: { signal?: AbortSignal } =
   return getJson<{ versions: EpicVersionRecord[] }>(`/api/v1/app/epics/${id}/history`, options)
 }
 
+export function fetchEpicDependencies(id: number, options: { signal?: AbortSignal } = {}) {
+  return getJson<EpicDependenciesPayload>(`/api/v1/app/epics/${id}/dependencies`, options)
+}
+
+export function fetchEpicJobMetadata(id: number, options: { signal?: AbortSignal } = {}) {
+  return getJson<EpicJobMetadataPayload>(`/api/v1/app/epics/${id}/job_metadata`, options)
+}
+
 export function searchEpicOptions(query: string, options: { signal?: AbortSignal } = {}) {
   const params = new URLSearchParams({ field: "epic_id", q: query })
   return getJson<{ options?: EpicSearchOption[] }>(`/api/v1/app/filters/fk_options?${params}`, options).then((payload) => payload.options || [])
@@ -303,7 +319,7 @@ export function updateEpicState(path: string, targetState: string) {
 // Move an Epic straight to In Progress (override so a freshly-confirmed Epic
 // in backlog/ready starts in one click). Used by the chat "Start" action.
 export function startEpic(path: string) {
-  return patchJson<EpicDetailPayload>(path, { target_state: "in_progress", override: true })
+  return patchJson<EpicMutationPayload>(path, { target_state: "in_progress", override: true })
 }
 
 // Explicit "Start implementing" action (POST /api/v1/app/epics/:id/start):

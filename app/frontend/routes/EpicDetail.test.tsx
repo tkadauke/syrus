@@ -82,7 +82,9 @@ function detailPayload(overrides: Partial<EpicDetailPayload["epic"]> = {}): Epic
 }
 
 function renderDetail(payload: EpicDetailPayload) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+  client.setQueryData(["epics", String(payload.epic.id), "job-metadata"], { provider_availability: payload.provider_availability ?? {}, deployment_stages: payload.deployment_stages, jobs: payload.jobs.map((job) => ({ id: job.id, deployment_stages: job.deployment_stages })) })
+  if (payload.graph) client.setQueryData(["epics", String(payload.epic.id), "dependencies"], { graph: payload.graph, dependencies: payload.dependencies ?? [], dependents: payload.dependents ?? [] })
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
@@ -113,7 +115,7 @@ describe("EpicDetail", () => {
     await waitFor(() => expect(screen.getByTestId("epic-location")).toHaveTextContent("/epics/5"))
     fireEvent.click(screen.getByRole("button", { name: "Start implementing" }))
     await waitFor(() => expect(screen.queryByRole("button", { name: "Start implementing" })).not.toBeInTheDocument())
-    expect(fetchSpy).toHaveBeenCalledTimes(3)
+    expect(fetchSpy.mock.calls.some(([, init]) => init?.method === "POST")).toBe(true)
   })
 
   it("uses responsive page gutters while keeping the header inset", async () => {

@@ -224,6 +224,8 @@ Rails.application.routes.draw do
         get "epics/new", to: "epics#new"
         get "epics/:id/preview", to: "epics#preview", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "epics/:id/history", to: "epics#history", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        get "epics/:id/dependencies", to: "epics#dependencies", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        get "epics/:id/job_metadata", to: "epics#job_metadata", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "epics/:id", to: "epics#show", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "epics/:id/edit", to: "epics#edit", constraints: { id: /[a-zA-Z0-9_-]+/ }
         post "epics", to: "epics#create"

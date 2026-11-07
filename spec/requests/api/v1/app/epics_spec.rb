@@ -209,7 +209,8 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
 
   it "returns a bounded Epic hover preview without detail-only fields" do
     epic = Factories.epic(user: user, repository: repository, title: "Preview me", description: "Small payload")
-    6.times { |index| Factories.job_record(user: user, repository: repository, epic: epic, issue_number: index + 1) }
+    5.times { |index| Factories.job_record(user: user, repository: repository, epic: epic, issue_number: index + 1, state: "open") }
+    urgent = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 6, state: "failed")
     sign_in_as(user)
 
     get "/api/v1/app/epics/#{epic.id}/preview"
@@ -218,7 +219,9 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     expect(parse_body.dig("epic", "title")).to eq("Preview me")
     expect(parse_body.dig("epic", "jobs_count")).to eq(6)
     expect(parse_body.fetch("jobs").size).to eq(5)
-    expect(parse_body.keys).to contain_exactly("epic", "jobs")
+    expect(parse_body.fetch("jobs").first).to include("id" => urgent.id, "state" => "failed")
+    expect(parse_body.fetch("state_counts")).to include("open" => 5, "failed" => 1)
+    expect(parse_body.keys).to contain_exactly("epic", "jobs", "state_counts", "deployment_stages")
     expect(parse_body).not_to include("graph", "versions", "dependencies", "state_transitions")
   end
 
@@ -245,6 +248,9 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
       "resolved_epic_dependency_policy" => "linear",
       "epic_path" => epic_path(epic)
     )
+    etag = response.headers.fetch("ETag")
+    get "/api/v1/app/epics/#{epic.id}/edit", headers: { "If-None-Match" => etag }
+    expect(response).to have_http_status(:not_modified)
   end
 
   it "returns the Epic detail payload with child Jobs and dependency graph data" do
@@ -315,26 +321,29 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
       include("label" => "Start", "target_state" => "in_progress"),
       include("label" => "Archive", "target_state" => "archived", "confirm" => "Archive this Epic?")
     )
-    expect(body["graph"]).to include(
+    expect(body).not_to include("graph", "dependencies", "dependents", "versions")
+    get "/api/v1/app/epics/#{epic.id}/dependencies"
+    dependency_body = parse_body
+    expect(dependency_body["graph"]).to include(
       "empty" => false,
       "node_count" => 2,
       "epic_dependency_count" => 1,
       "job_blocker_count" => 0,
       "initially_open" => true
     )
-    expect(body.dig("graph", "nodes")).to include(
+    expect(dependency_body.dig("graph", "nodes")).to include(
       hash_including("kind" => "epic", "label" => include("Deliver marble"), "is_focal" => false)
     )
-    expect(body.dig("graph", "edges")).to contain_exactly(
+    expect(dependency_body.dig("graph", "edges")).to contain_exactly(
       hash_including("from_id" => "epic_#{blocker.id}", "to_id" => "epic_#{epic.id}")
     )
-    expect(body["dependencies"]).to contain_exactly(include(
+    expect(dependency_body["dependencies"]).to contain_exactly(include(
       "epic_id" => blocker.id,
       "title" => "Deliver marble",
       "state" => "done",
       "url" => epic_path(blocker)
     ))
-    expect(body["dependents"]).to eq([])
+    expect(dependency_body["dependents"]).to eq([])
     expect(body["jobs"]).to include(include(
       "id" => job.id,
       "slug" => job.slug,
@@ -387,7 +396,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     expect(queries).not_to include(match(broad_workflow_preload))
   end
 
-  it "includes configured deployment stage statuses on Epic detail child Jobs" do
+  it "includes configured deployment stage statuses in lazy Epic Job metadata" do
     sign_in_as(user)
     staging = SyrusYml::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil)
     production = SyrusYml::DeploymentStage.new(name: "production", label: "Production", tag: "production", tag_pattern: nil)
@@ -409,12 +418,11 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     reached_at = Time.zone.parse("2026-07-30 12:00:00 UTC")
     JobDeploymentStageStatus.create!(job: landed, stage_name: "staging", reached_at: reached_at, tag_sha: "tag-sha")
 
-    get "/api/v1/app/epics/#{epic.id}"
+    get "/api/v1/app/epics/#{epic.id}/job_metadata"
 
     expect(response).to have_http_status(:ok)
     jobs = parse_body.fetch("jobs")
     expect(jobs.find { |job| job.fetch("id") == landed.id }).to include(
-      "landed" => true,
       "deployment_stages" => [
         {
           "name" => "staging",
@@ -435,7 +443,6 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
       ]
     )
     expect(jobs.find { |job| job.fetch("id") == unlanded.id }).to include(
-      "landed" => false,
       "deployment_stages" => [
         include("name" => "staging", "label" => "Staging", "reached" => false),
         include("name" => "production", "label" => "Production", "reached" => false)
@@ -476,7 +483,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     expect(rendered).not_to have_key("deployment_stages")
   end
 
-  it "batches provider availability lookups for Epic detail child Jobs" do
+  it "batches provider availability lookups in lazy Epic Job metadata" do
     sign_in_as(user)
     epic = Factories.epic(user: user, repository: repository, title: "Raise the forum")
     first = Factories.job_record(user: user, repository: repository, epic: epic, job_provider_setting: "codex")
@@ -485,14 +492,14 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     allow(App::ProviderAvailability).to receive(:for_user).and_call_original
     expect(App::ProviderAvailability).to receive(:for_user).with(user, "codex").once.and_return(availability)
 
-    get "/api/v1/app/epics/#{epic.id}"
+    get "/api/v1/app/epics/#{epic.id}/job_metadata"
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("provider_availability", "codex")).to eq(availability.stringify_keys)
     expect(parse_body.fetch("jobs").map { |job| job["provider_availability"] }).to all(be_nil)
   end
 
-  it "includes aggregate deployment_stages on the epic payload for a done epic with landed jobs" do
+  it "includes aggregate deployment_stages in lazy Job metadata for a done epic with landed jobs" do
     sign_in_as(user)
     staging = SyrusYml::DeploymentStage.new(name: "staging", label: "Staging", tag: "staging", tag_pattern: nil)
     production = SyrusYml::DeploymentStage.new(name: "production", label: "Production", tag: "production", tag_pattern: nil)
@@ -510,7 +517,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     JobDeploymentStageStatus.create!(job: job2, stage_name: "staging", reached_at: staging_at_2, tag_sha: "staging-sha-2")
     JobDeploymentStageStatus.create!(job: job1, stage_name: "production", reached_at: production_at_1, tag_sha: "prod-sha")
 
-    get "/api/v1/app/epics/#{epic.id}"
+    get "/api/v1/app/epics/#{epic.id}/job_metadata"
 
     expect(response).to have_http_status(:ok)
     stages = parse_body.fetch("deployment_stages")
@@ -659,7 +666,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
         "params" => { "slug" => prerequisite.slug }
       }
     )
-    expect(parse_body["dependencies"]).to eq([])
+    expect(parse_body).not_to have_key("dependencies")
   end
 
   it "creates an Epic dependency and returns the updated detail payload" do
@@ -1997,7 +2004,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
       expect(node_ids).to contain_exactly("epic_#{epic_a.id}")
     end
 
-    it "includes kind, state, label, url, epic_id, and is_focal fields on each node" do
+    it "returns graph node identity without client-derived labels or URLs" do
       epic_a
 
       get "/api/v1/app/epics/graph"
@@ -2007,11 +2014,21 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
         "id" => "epic_#{epic_a.id}",
         "kind" => "epic",
         "state" => epic_a.state,
-        "label" => "EPIC-#{epic_a.number} Alpha",
-        "url" => "/epics/EPIC-#{epic_a.number}",
+        "number" => epic_a.number,
+        "title" => "Alpha",
         "epic_id" => epic_a.id,
         "is_focal" => false
       )
+      expect(node).not_to include("label", "url")
+    end
+
+    it "keeps all filtered edges on the first bounded page" do
+      third = Factories.epic(user: user, repository: repository, title: "Gamma")
+      EpicDependency.create!(epic: third, depends_on_epic: epic_b)
+      get "/api/v1/app/epics/graph", params: { limit: 1, offset: 0 }
+      expect(parse_body.fetch("nodes").size).to eq(1)
+      expect(parse_body.fetch("edges")).to contain_exactly({ "from_id" => "epic_#{epic_b.id}", "to_id" => "epic_#{third.id}" })
+      expect(parse_body.dig("pagination", "has_more")).to eq(true)
     end
 
     it "filters graph nodes by smart_folder_id" do

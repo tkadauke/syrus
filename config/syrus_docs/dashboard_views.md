@@ -245,7 +245,7 @@ operators who intentionally want a full implementation retry.
 - If the active filter matches no jobs/epics, the view shows "No [subject] match this view."
 - If nodes are present but none have dependency edges between them (all at Layer 0), the view shows "No dependency relationships in the current view."
 
-**Data source:** `GET /api/v1/app/jobs/graph` and `GET /api/v1/app/epics/graph`. Both endpoints accept the same filter params as the corresponding index endpoints (`repo`, `state`, `q`, `smart_folder_id`) and return `{ nodes, edges }` scoped to `accessible_to(Current.user)`.
+**Data source:** `GET /api/v1/app/jobs/graph` and `GET /api/v1/app/epics/graph`. Both endpoints accept the same filters and are scoped to the current user. Epic graphs use bounded `limit`/`offset` pages; the client follows all pages and derives labels and URLs. Epic hover cards use `/epics/:id/preview`; history, dependency data, and Job provider/deployment metadata load from dedicated endpoints only where displayed. Picker clients use `compact=picker`, mutation responses contain a message plus Epic head, and new/edit forms provide private ETags.
 
 ## Shared FilterBar primitives
 
