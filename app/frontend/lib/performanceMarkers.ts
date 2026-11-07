@@ -174,18 +174,21 @@ function enqueueMarkerEvent(name: string, durationMs: number | null, options: Pe
   if (!markerLoggingEnabled(options)) return
   if (!shouldRecordMarker(name, durationMs, options)) return
 
-  recordBrowserTrace({
-    trace_id: traceId ?? browserTraceId(markerPrefix(name)),
-    parent_id: options.parentId ?? undefined,
-    interaction_id: options.interactionId ?? undefined,
-    name,
-    path: currentMarkerPath(),
-    duration_ms: durationMs ?? 0,
-    visibility_state: markerVisibilityState(),
-    metadata: compactMetadata(options.metadata),
-    api_requests: options.apiRequests,
-    spans: options.spans
-  }, { enabled: true })
+  recordBrowserTrace(
+    {
+      trace_id: traceId ?? browserTraceId(markerPrefix(name)),
+      parent_id: options.parentId ?? undefined,
+      interaction_id: options.interactionId ?? undefined,
+      name,
+      path: currentMarkerPath(),
+      duration_ms: durationMs ?? 0,
+      visibility_state: markerVisibilityState(),
+      metadata: compactMetadata(options.metadata),
+      api_requests: options.apiRequests,
+      spans: options.spans
+    },
+    { enabled: true }
+  )
 }
 
 function shouldRecordMarker(name: string, durationMs: number | null, options: PerformanceMarkerOptions): boolean {

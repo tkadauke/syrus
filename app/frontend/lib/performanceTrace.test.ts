@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { flushBrowserTraceQueue, postBrowserTraces, recordBrowserTrace, resetBrowserPerformanceObserversForTest, startBrowserPerformanceObservers } from "./performanceTrace"
+import {
+  flushBrowserTraceQueue,
+  postBrowserTraces,
+  recordBrowserTrace,
+  resetBrowserPerformanceObserversForTest,
+  startBrowserPerformanceObservers
+} from "./performanceTrace"
 import { jsonResponse } from "../testSupport"
 
 describe("recordBrowserTrace", () => {
@@ -54,10 +60,13 @@ describe("recordBrowserTrace", () => {
   it("batches trace bursts until the browser is idle", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
     let idleCallback: IdleRequestCallback | undefined
-    vi.stubGlobal("requestIdleCallback", vi.fn((callback: IdleRequestCallback) => {
-      idleCallback = callback
-      return 1
-    }))
+    vi.stubGlobal(
+      "requestIdleCallback",
+      vi.fn((callback: IdleRequestCallback) => {
+        idleCallback = callback
+        return 1
+      })
+    )
     vi.stubGlobal("cancelIdleCallback", vi.fn())
 
     recordBrowserTrace({ trace_id: "trace-1", name: "one", path: "/", duration_ms: 1, visibility_state: "visible" }, { enabled: true })
