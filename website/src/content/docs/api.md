@@ -113,6 +113,15 @@ optional `q` substring filter. Their responses are cached briefly per user and
 include ETags. Repository coverage trends also include ETags, and their `days`
 window is limited to 1–365 days.
 
+Repository detail data is split by the section that consumes it. The base
+`GET /api/v1/app/repositories/:id` response carries shared repository metadata,
+tabs, actions, and paths. Paginated jobs, health history, delivery tracks, and
+the parsed `.syrus.yml` summary are available from `/jobs`, `/health_history`,
+`/delivery`, and `/syrus_yml` respectively. Callers that need a combined
+response may pass a comma-separated `include` list to the base endpoint.
+`GET /api/v1/app/repositories/:id/cognitive_debt?view=summary` returns the
+overview-sized rollups and top items; omit `view` for the complete tab payload.
+
 ## Throughput Metrics
 
 Authenticated app clients can read the versioned repository snapshot at

@@ -34,7 +34,10 @@ import { PreviewPanel } from "../components/PreviewPanel"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import {
   fetchRepositoryCognitiveDebt,
+  fetchRepositoryDelivery,
   fetchRepositoryDetail,
+  fetchRepositoryJobs,
+  fetchRepositorySyrusYml,
   pollRepositoryDetail,
   releaseNeedsTriageRepositoryJob,
   runInsightAnalysis,
@@ -68,9 +71,14 @@ export function RepositoryDetailRoute() {
     queryFn: () => fetchRepositoryDetail(id, search),
     enabled: id.length > 0
   })
-  usePageTitle(detail.data?.repository.slug)
+  const jobs = useQuery({ queryKey: ["repositories", id, "jobs", search], queryFn: () => fetchRepositoryJobs(id, search), enabled: id.length > 0 })
+  const delivery = useQuery({ queryKey: ["repositories", id, "delivery"], queryFn: () => fetchRepositoryDelivery(id), enabled: id.length > 0 })
+  const syrusYml = useQuery({ queryKey: ["repositories", id, "syrus_yml"], queryFn: () => fetchRepositorySyrusYml(id), enabled: id.length > 0 })
+  const payload = detail.data && jobs.data ? { ...detail.data, ...jobs.data, ...delivery.data, ...syrusYml.data } : undefined
+  const composedDetail = { ...detail, data: payload, isPending: detail.isPending || jobs.isPending }
+  usePageTitle(payload?.repository.slug)
 
-  return <RepositoryDetail activeTab={tab} detail={detail} prefix={prefix} queryKey={detailQueryKey} />
+  return <RepositoryDetail activeTab={tab} detail={composedDetail} prefix={prefix} queryKey={detailQueryKey} />
 }
 
 function RepositoryDetail({
@@ -223,12 +231,13 @@ export function CognitiveDebtSection({ payload, prefix }: { payload: RepositoryD
   // rollup walks every diff review version in the repository, which used to
   // put seconds onto every repository page load.
   const debtQuery = useQuery({
-    queryFn: () => fetchRepositoryCognitiveDebt(String(payload.repository.id)),
+    queryFn: () => fetchRepositoryCognitiveDebt(String(payload.repository.id), "summary"),
     queryKey: ["repository", payload.repository.id, "cognitive_debt"],
+    enabled: !payload.cognitive_debt,
     staleTime: 5 * 60 * 1000
   })
-  const debt = debtQuery.data?.cognitive_debt
-  if (debtQuery.isPending) {
+  const debt = payload.cognitive_debt || debtQuery.data?.cognitive_debt
+  if (!debt && debtQuery.isPending) {
     return <PanelMessage>{t("repository.cognitive_debt_loading")}</PanelMessage>
   }
   if (debtQuery.isError) {

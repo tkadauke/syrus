@@ -3,12 +3,13 @@ import { CognitiveDebtSection } from "./RepositoryDetail"
 import { PanelMessage } from "../components/PanelMessage"
 import { PageHeading } from "../components/Heading"
 import { RepositoryPageShell } from "../components/RepositoryPageShell"
+import { Button } from "../components/Button"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useQuery } from "@tanstack/react-query"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
-import { fetchRepositoryDetail, type RepositoryDetailPayload } from "../api/repositories"
+import { fetchRepositoryCognitiveDebt, fetchRepositoryDetail, type RepositoryDetailPayload } from "../api/repositories"
 import { errorMessage } from "../lib/errorMessage"
 
 export function RepositoryCognitiveDebtRoute() {
@@ -22,16 +23,26 @@ export function RepositoryCognitiveDebtRoute() {
     queryFn: () => fetchRepositoryDetail(id, search),
     enabled: id.length > 0
   })
-  usePageTitle(detail.data?.repository.slug)
+  const debt = useQuery({ queryKey: ["repositories", id, "cognitive_debt"], queryFn: () => fetchRepositoryCognitiveDebt(id), enabled: id.length > 0 })
+  const payload = detail.data && !debt.isError ? { ...detail.data, ...debt.data } : undefined
+  const composedDetail = {
+    ...detail,
+    data: payload,
+    error: debt.error || detail.error,
+    isError: detail.isError || debt.isError,
+    isPending: detail.isPending || debt.isPending,
+    refetch: () => debt.refetch()
+  }
+  usePageTitle(payload?.repository.slug)
 
-  return <RepositoryCognitiveDebt detail={detail} prefix={prefix} />
+  return <RepositoryCognitiveDebt detail={composedDetail} prefix={prefix} />
 }
 
 function RepositoryCognitiveDebt({
   detail,
   prefix
 }: {
-  detail: { data?: RepositoryDetailPayload; isPending: boolean; isError: boolean; error: unknown }
+  detail: { data?: RepositoryDetailPayload; isPending: boolean; isError: boolean; error: unknown; refetch: () => unknown }
   prefix: string
 }) {
   const { t } = useT("settings")
@@ -54,7 +65,14 @@ function RepositoryCognitiveDebt({
       tabs={payload?.tabs ?? []}
     >
       {detail.isPending ? <PanelMessage>{t("repository.loading")}</PanelMessage> : null}
-      {detail.isError ? <PanelMessage tone="error">{errorMessage(detail.error, t("repository.error_load"))}</PanelMessage> : null}
+      {detail.isError ? (
+        <PanelMessage tone="error">
+          <div className="flex items-center justify-between gap-3">
+            <span>{errorMessage(detail.error, t("repository.error_load"))}</span>
+            <Button onClick={() => void detail.refetch()} size="sm" variant="secondary">{t("repository.cognitive_debt_retry")}</Button>
+          </div>
+        </PanelMessage>
+      ) : null}
       {payload ? <CognitiveDebtSection payload={payload} prefix={prefix} /> : null}
     </RepositoryPageShell>
   )
