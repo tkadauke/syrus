@@ -1,11 +1,11 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import type { BootstrapPayload } from "../api/bootstrap"
+import type { FullSetupStatusPayload } from "../api/setup"
 import { resetBackendUpdateStoreForTests } from "../hooks/useBackendUpdate"
 import { ReadinessPanel } from "./Dashboard"
 
-type Readiness = NonNullable<NonNullable<BootstrapPayload["setup_status"]>["readiness"]>
+type Readiness = FullSetupStatusPayload["readiness"]
 
 const failingReadiness: Readiness = {
   status: "error",

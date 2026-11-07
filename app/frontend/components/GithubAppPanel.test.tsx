@@ -6,15 +6,28 @@ import { GithubAppPanel } from "./GithubAppPanel"
 
 function renderPanel(props: { onClose?: () => void; onSaved?: () => void; confirmRefetchIntervalMs?: number; installationDiscoveryPolls?: number } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(
+  const view = render(
     <QueryClientProvider client={client}>
-      <GithubAppPanel confirmRefetchIntervalMs={props.confirmRefetchIntervalMs} installationDiscoveryPolls={props.installationDiscoveryPolls} onClose={props.onClose ?? (() => {})} onSaved={props.onSaved} />
+      <GithubAppPanel
+        confirmRefetchIntervalMs={props.confirmRefetchIntervalMs}
+        installationDiscoveryPolls={props.installationDiscoveryPolls}
+        onClose={props.onClose ?? (() => {})}
+        onSaved={props.onSaved}
+      />
     </QueryClientProvider>
   )
+  return { ...view, client }
 }
 
 const notRegistered = { registered: false, id: null, slug: null, registered_at: null, install_url: null, installations: [] }
-const registered = { registered: true, id: 42, slug: "operator-syrus", registered_at: "2026-06-20T00:00:00Z", install_url: "https://github.com/apps/operator-syrus/installations/new", installations: [] }
+const registered = {
+  registered: true,
+  id: 42,
+  slug: "operator-syrus",
+  registered_at: "2026-06-20T00:00:00Z",
+  install_url: "https://github.com/apps/operator-syrus/installations/new",
+  installations: []
+}
 const installed = { ...registered, installations: [{ account_login: "octocat", account_type: "User" }] }
 const bounceUrl = "http://localhost:3000/admin/github_app/manifest?state=abc&syrus_external=1"
 
@@ -22,11 +35,14 @@ function mockRoutes(over: { register?: () => Response; confirm?: () => Response;
   return vi.spyOn(window, "fetch").mockImplementation(async (input) => {
     const url = String(input)
     if (url.includes("/admin/github_app/register")) {
-      return over.register?.() ?? jsonResponse({
-        github_app: notRegistered,
-        bounce_url: bounceUrl,
-        submit_label: "Register GitHub App"
-      })
+      return (
+        over.register?.() ??
+        jsonResponse({
+          github_app: notRegistered,
+          bounce_url: bounceUrl,
+          submit_label: "Register GitHub App"
+        })
+      )
     }
     if (url.endsWith("/admin/github_app/confirm")) return over.confirm?.() ?? jsonResponse({ github_app: notRegistered })
     if (url.endsWith("/admin/github_app/sync_installations")) return over.sync?.() ?? jsonResponse({ enqueued: true })
@@ -57,12 +73,20 @@ describe("GithubAppPanel", () => {
     const opened = { opener: {} as unknown }
     const openSpy = vi.spyOn(window, "open").mockReturnValue(opened as Window)
     const onSaved = vi.fn()
-    renderPanel({ onSaved, confirmRefetchIntervalMs: 10 })
+    const { client } = renderPanel({ onSaved, confirmRefetchIntervalMs: 10 })
+    client.setQueryData(["setup"], {
+      state: "credentials_only",
+      credential_status: { github_pat: true, github_app: false }
+    })
 
     expect(await screen.findByText("The Syrus GitHub App is registered.")).toBeInTheDocument()
     expect(screen.getByText(/All repositories/)).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Skip for now" })).toBeInTheDocument()
     await waitFor(() => expect(onSaved).toHaveBeenCalled())
+    expect(client.getQueryData(["setup"])).toMatchObject({
+      state: "credentials_only",
+      credential_status: { github_pat: true, github_app: true }
+    })
 
     fireEvent.click(screen.getByRole("button", { name: /Install on GitHub/ }))
     expect(openSpy).toHaveBeenCalledWith("https://github.com/apps/operator-syrus/installations/new", "_blank")
@@ -70,9 +94,7 @@ describe("GithubAppPanel", () => {
 
     // The panel nudges the server-side installation sync while waiting.
     const fetchSpy = window.fetch as ReturnType<typeof vi.fn>
-    await waitFor(() =>
-      expect(fetchSpy.mock.calls.some(([u]) => String(u).endsWith("/admin/github_app/sync_installations"))).toBe(true)
-    )
+    await waitFor(() => expect(fetchSpy.mock.calls.some(([u]) => String(u).endsWith("/admin/github_app/sync_installations"))).toBe(true))
 
     // Once the sync links the installation, the panel flips by itself.
     confirmedInstall = true
