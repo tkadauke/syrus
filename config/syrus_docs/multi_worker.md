@@ -454,7 +454,7 @@ Two mitigations, both in `ChatWorkspace`:
 `polling` queue — i.e. today, always the home worker. All three reach it only
 through `CommitsBehindCalculator`, which asks the `repository_content_provider`
 chain for numeric divergence first and falls back to the bare clone only when
-no provider can answer (see `plugins.md`); the polling queue's bare-clone I/O
+no provider can answer (see the plugin-authoring reference, `docs/engineering/conventions/plugins/authoring.md`); the polling queue's bare-clone I/O
 is now the exception path, not the common one, but the pod-affinity
 requirement below is unchanged since the fallback can still fire on every
 poll tick when no divergence-capable provider is enabled. `PollMergeStateJob`

@@ -473,7 +473,7 @@ Job/Workflow-level symptoms to show up first.
 ### Repository content reads
 
 `syrus_repository_content_reads_total{provider, kind, outcome}` counts every
-repository read that goes through `RepositoryContent` (see `plugins.md`,
+repository read that goes through `RepositoryContent` (see the plugin-authoring reference, `docs/engineering/conventions/plugins/authoring.md`,
 `repository_content_provider`), once per provider asked:
 
 - `provider` — the provider's key (`git_mirror`, `github`, ...), `cache` for a

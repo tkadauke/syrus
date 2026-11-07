@@ -911,7 +911,7 @@ plugin can register additional tabs through the `:workspace_tab` extension
 point (`Syrus::Plugin::WorkspaceTab`) — declarative id/label/component
 metadata resolved into the chat payload's `workspace_tabs` array, rendered as
 `plugin:<id>` tabs backed by a lazily-loaded plugin React component. See
-`plugins.md`'s `` `workspace_tab` `` section for the full contract and the
+`docs/engineering/conventions/plugins/authoring.md`'s `workspace_tab` section for the full contract and the
 declarative-metadata-plus-glob-discovery design rationale.
 
 ## Media attachments

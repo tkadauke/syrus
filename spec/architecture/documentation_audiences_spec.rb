@@ -117,4 +117,12 @@ RSpec.describe "documentation audiences" do
     expect(conventions).to include("(plugins/authoring.md)")
     expect(plugin_readme).to include("docs/engineering/conventions/plugins/authoring.md")
   end
+
+  it "does not link searchable docs to anchors that moved out of plugins.md" do
+    dirs = ["config/syrus_docs/*.md", "plugins/*/docs/syrus_docs/*.md"]
+    offenders = dirs.flat_map { |g| Dir[root.join(g).to_s] }.flat_map do |f|
+      File.read(f).scan(/\]\(plugins\.md#[^)]*\)/).map { |m| "#{f}: #{m}" }
+    end
+    expect(offenders).to be_empty
+  end
 end
