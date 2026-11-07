@@ -10203,34 +10203,34 @@ describe("App", () => {
   })
 
   it("renders an Epic detail page and updates state through the app API", async () => {
+    let currentPayload = epicDetailPayload()
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/epics/7/state" && init?.method === "PATCH") {
+        currentPayload = epicDetailPayload({
+          message: "Epic updated.",
+          state: "in_progress",
+          epic: {
+            owner_user_id: 1,
+            owner_status: "mine",
+            owner_user: { id: 1, email_address: "operator@example.com" },
+            owned_by_current_user: true,
+            claimable: false
+          },
+          stateTransitions: [
+            { label: "Move back to ready", target_state: "ready", confirm: null },
+            { label: "Archive", target_state: "archived", confirm: "Archive this Epic?" }
+          ]
+        })
         return Promise.resolve(
-          new Response(
-            JSON.stringify(
-              epicDetailPayload({
-                message: "Epic updated.",
-                state: "in_progress",
-                epic: {
-                  owner_user_id: 1,
-                  owner_status: "mine",
-                  owner_user: { id: 1, email_address: "operator@example.com" },
-                  owned_by_current_user: true,
-                  claimable: false
-                },
-                stateTransitions: [
-                  { label: "Move back to ready", target_state: "ready", confirm: null },
-                  { label: "Archive", target_state: "archived", confirm: "Archive this Epic?" }
-                ]
-              })
-            ),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
+          new Response(JSON.stringify({ message: "Epic updated.", epic: currentPayload.epic }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          })
         )
       }
 
-      return Promise.resolve(new Response(JSON.stringify(epicDetailPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      return Promise.resolve(new Response(JSON.stringify(currentPayload), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
 
     render(
@@ -10390,52 +10390,31 @@ describe("App", () => {
   })
 
   it("claims and unclaims an Epic from the detail controls", async () => {
+    let currentPayload = epicDetailPayload()
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/epics/7/claim" && init?.method === "PATCH") {
+        currentPayload = epicDetailPayload({
+          epic: { owner_user_id: 1, owner_status: "mine", owner_user: { id: 1, email_address: "operator@example.com" }, owned_by_current_user: true }
+        })
         return Promise.resolve(
-          new Response(
-            JSON.stringify(
-              epicDetailPayload({
-                message: "Epic claimed.",
-                epic: {
-                  owner_user_id: 1,
-                  owner_status: "mine",
-                  owner_user: { id: 1, email_address: "operator@example.com" },
-                  owned_by_current_user: true
-                },
-                jobs: [
-                  {
-                    id: 42,
-                    label: "#12",
-                    title: "Survey forum",
-                    path: "/jobs/42",
-                    state: "closed",
-                    owner_user_id: 1,
-                    owner_user: { id: 1, email_address: "operator@example.com" },
-                    repository_slug: "acme/widgets"
-                  }
-                ]
-              })
-            ),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
+          new Response(JSON.stringify({ message: "Epic claimed.", epic: currentPayload.epic }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          })
         )
       }
       if (path === "/api/v1/app/epics/7/unclaim" && init?.method === "PATCH") {
+        currentPayload = epicDetailPayload()
         return Promise.resolve(
-          new Response(
-            JSON.stringify(
-              epicDetailPayload({
-                message: "Epic unclaimed."
-              })
-            ),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
+          new Response(JSON.stringify({ message: "Epic unclaimed.", epic: currentPayload.epic }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          })
         )
       }
 
-      return Promise.resolve(new Response(JSON.stringify(epicDetailPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      return Promise.resolve(new Response(JSON.stringify(currentPayload), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
 
     render(

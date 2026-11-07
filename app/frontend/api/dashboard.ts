@@ -589,12 +589,32 @@ export type DashboardGraphPayload = {
   edges: DashboardGraphEdge[]
 }
 
+type EpicGraphPage = {
+  nodes: Array<Omit<DashboardGraphNode, "label" | "url"> & { number: number; title: string }>
+  edges: DashboardGraphEdge[]
+  pagination: { limit: number; offset: number; total_count: number; has_more: boolean }
+}
+
 export function fetchJobsGraph(search = "", options: { signal?: AbortSignal } = {}) {
   return getJson<DashboardGraphPayload>(`/api/v1/app/jobs/graph${search}`, options)
 }
 
-export function fetchEpicsGraph(search = "", options: { signal?: AbortSignal } = {}) {
-  return getJson<DashboardGraphPayload>(`/api/v1/app/epics/graph${search}`, options)
+export async function fetchEpicsGraph(search = "", options: { signal?: AbortSignal } = {}): Promise<DashboardGraphPayload> {
+  const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search)
+  const nodes: DashboardGraphNode[] = []
+  const edges = new Map<string, DashboardGraphEdge>()
+  let offset = 0
+
+  do {
+    params.set("offset", String(offset))
+    const page = await getJson<EpicGraphPage>(`/api/v1/app/epics/graph?${params}`, options)
+    nodes.push(...page.nodes.map((node) => ({ ...node, label: `EPIC-${node.number} ${node.title}`, url: `/epics/EPIC-${node.number}` })))
+    page.edges.forEach((edge) => edges.set(`${edge.from_id}:${edge.to_id}`, edge))
+    if (!page.pagination.has_more) break
+    offset += page.pagination.limit
+  } while (true)
+
+  return { nodes, edges: [...edges.values()] }
 }
 
 export function fetchDashboardChrome(search = "", options: { signal?: AbortSignal } = {}) {
