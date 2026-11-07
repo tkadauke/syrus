@@ -394,7 +394,10 @@ function EpicCell({
   if (column === "open_child_count") return <TextCell value={String(epic.open_child_count ?? 0)} />
   if (column === "blocked_child_count") return <TextCell value={String(epic.blocked_child_count ?? 0)} />
   if (column === "dependency_count") return <TextCell value={String(epic.dependency_count ?? 0)} />
-  if (column === "child_progress_percent") return <TextCell value={`${epic.child_progress_percent ?? 0}%`} />
+  if (column === "child_progress_percent") {
+    const progress = epic.jobs_count > 0 ? Math.round((epic.landed_jobs_count / epic.jobs_count) * 100) : 0
+    return <TextCell value={`${progress}%`} />
+  }
 
   return <TimestampCell value={epicDateValue(epic, column)} />
 }
@@ -472,7 +475,7 @@ function MobileWorkflowsList({ items, prefix }: { items: DashboardWorkflowItem[]
 function MobileWorkflowRow({ workflow, prefix }: { prefix: string; workflow: DashboardWorkflowItem }) {
   const { t } = useT("dashboard")
   const startedAt = workflow.started_at || workflow.created_at
-  const finishedAt = workflow.finished_at || workflow.cleaned_up_at
+  const finishedAt = workflow.finished_at
   const slug = workflowLabel(workflow)
 
   return (
@@ -539,9 +542,6 @@ function WorkflowCell({ workflow, column, prefix }: { workflow: DashboardWorkflo
   if (column === "trigger_kind") return <TextCell value={humanizeOption(workflow.trigger_kind)} />
   if (column === "agent_provider") return <TextCell value={humanizeOption(workflow.agent_provider)} />
   if (column === "failure_reason") return <TextCell value={workflow.failure_reason ? humanizeOption(workflow.failure_reason) : null} />
-  if (column === "run_count") return <TextCell value={String(workflow.run_count ?? 0)} />
-  if (column === "worker_hostname") return <TextCell mono value={workflow.worker_hostname} />
-  if (column === "worker_storage_key") return <TextCell mono value={workflow.worker_storage_key} />
   if (column === "started") return <TimestampCell value={workflow.started_at || workflow.created_at} />
   if (column === "finished") return <TimestampCell value={workflow.finished_at} />
 

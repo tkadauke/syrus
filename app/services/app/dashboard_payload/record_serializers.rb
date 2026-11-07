@@ -33,7 +33,6 @@ module App
         payload = {
           type: "job",
           id: job.id,
-          entity_revision: job.entity_revision,
           slug: job.slug,
           kind: job.kind,
           title: job.issue_title.presence || job_kind_title(job.kind),
@@ -47,7 +46,6 @@ module App
           agent_provider: workflow_agent_provider,
           job_provider_setting: job.job_provider_setting,
           provider_availability: provider_availability,
-          provider_failover: provider_failover_for(job),
           provider_mismatch: provider_mismatch_for(job, workflow_agent_provider, owner_user),
           total_cost_usd: total_cost_usd_for(job)&.to_f,
           issue_number: job.issue_number,
@@ -71,12 +69,8 @@ module App
           blocked_reason: blocked_reason_for(job),
           start_blocked_reason: job_start_blocked_reason(job),
           start_blocked_at: job_start_blocked_at(job),
-          start_blocked_next_check_at: job_start_blocked_next_check_at(job),
-          start_blocked_count: job_start_blocked_count(job),
-          start_blocked_details: job_start_blocked_details(job),
           manual_paused: job.manual_paused?,
           manual_paused_at: job.manual_paused_at&.iso8601,
-          manual_paused_by_user: owner_user_json(job.manual_paused_by_user),
           active_repair_work: active_repair_work_json(active_repair_work),
           retry_state: retry_state,
           created_at: job.created_at&.iso8601,
@@ -91,7 +85,6 @@ module App
           claimed_by_current_user: job.claimed_by_user_id == user.id,
           dependencies_overridden_at: job.dependencies_overridden_at&.iso8601,
           dependencies: dashboard_job_dependencies_json(job.dependencies),
-          unsatisfied_dependencies: dashboard_job_dependencies_json(job.unsatisfied_dependencies),
           last_feedback_addressed_at: job.last_feedback_addressed_at&.iso8601,
           last_seen_comment_at: job.last_seen_comment_at&.iso8601,
           pr_mergeable_checked_at: job.pr_mergeable_checked_at&.iso8601,
@@ -107,19 +100,8 @@ module App
           needs_attention_reason: job.needs_attention_reason,
           delivery_status: delivery_status,
           bulk_actions: bulk_actions,
-          can_approve: dashboard_job_can_approve?(job),
-          can_release_from_backlog: dashboard_job_can_release_from_backlog?(job),
-          can_move_to_backlog: dashboard_job_can_move_to_backlog?(job),
           paths: {
-            job_path: job_path(job),
-            source_path: source_job_path(job),
-            app_pause_path: "/api/v1/app/jobs/#{job.id}/pause",
-            app_unpause_path: "/api/v1/app/jobs/#{job.id}/unpause",
-            app_release_from_backlog_path: "/api/v1/app/jobs/#{job.id}/release_from_backlog",
-            app_move_to_backlog_path: "/api/v1/app/jobs/#{job.id}/move_to_backlog",
-            app_approve_path: "/api/v1/app/jobs/#{job.id}/approve",
-            app_preview_path: "/api/v1/app/jobs/#{job.id}/preview",
-            app_preview_logs_path: "/api/v1/app/jobs/#{job.id}/preview/logs"
+            job_path: job_path(job)
           }
         }
 
@@ -129,6 +111,8 @@ module App
         elsif job.landed_sha.present?
           payload[:latest_deployment_stage] = nil
         end
+
+        payload[:unsatisfied_dependency_count] = job.unsatisfied_dependencies.size if view == "kanban"
 
         payload
       end
@@ -211,43 +195,15 @@ module App
 
       def dashboard_job_dependencies_json(dependencies)
         dependencies.map do |dependency|
-          gate_payload = App::DependencyGatePayload.for(dependency)
+          target = dependency.depends_on_job || dependency.depends_on_epic
           {
             id: dependency.id,
+            slug: target&.slug || dependency.unresolved_slug,
+            state: target&.state,
             pending: dependency.pending?,
-            succeeded: dependency.dependency_succeeded?,
-            unresolved_slug: dependency.unresolved_slug,
-            depends_on_job: dashboard_dependency_job_json(dependency.depends_on_job, latest_deployment_stage: gate_payload[:latest_deployment_stage]),
-            depends_on_epic: dashboard_dependency_epic_json(dependency.depends_on_epic)
-          }.merge(gate_payload)
+            succeeded: dependency.dependency_succeeded?
+          }
         end
-      end
-
-      def dashboard_dependency_job_json(job, latest_deployment_stage: nil)
-        return nil unless job
-
-        payload = {
-          id: job.id,
-          slug: job.slug,
-          title: job.issue_title,
-          state: job.state,
-          repository_slug: job.repository.slug,
-          job_path: job_path(job)
-        }
-        payload[:latest_deployment_stage] = latest_deployment_stage
-        payload
-      end
-
-      def dashboard_dependency_epic_json(epic)
-        return nil unless epic
-
-        {
-          id: epic.id,
-          slug: epic.slug,
-          title: epic.title,
-          state: epic.state,
-          epic_path: epic_path(epic)
-        }
       end
 
       # Memoized per repository within one payload build so N dashboard rows
@@ -305,13 +261,6 @@ module App
 
       def deployment_stages_configured?(repository)
         deployment_stages_for(repository).any?
-      end
-
-      def provider_failover_for(job)
-        workflow = latest_workflow_for(job)
-        return nil unless workflow
-
-        App::ProviderFailoverPayload.for_workflow(workflow, configured_provider: job.workflow_agent_provider)
       end
 
       # Compares the Job's effective provider against its repository's effective
@@ -381,12 +330,11 @@ module App
           number: epic.number,
           display_number: epic.slug,
           title: epic.title,
-          description: epic.description.to_s,
+          description: epic.description.to_s.truncate(200),
           state: epic.state,
           landing: epic_landing?(child_jobs, stats),
           stuck: epic_stuck?(epic, child_jobs, stats),
           all_jobs_closed: all_epic_jobs_closed?(child_jobs, stats),
-          owner: owner_json(epic.owner),
           owned_by_current_user: epic.owner_user_id == user.id || epic.claimed_by?(user),
           claimable: claimable,
           owner_badge: owner_badge_for(owner_user, claimable: claimable),
@@ -399,7 +347,6 @@ module App
           landed_jobs_count: epic_landed_jobs_count(child_jobs, stats),
           open_child_count: epic_open_child_count(child_jobs, stats),
           blocked_child_count: epic_blocked_child_count(child_jobs, stats),
-          child_progress_percent: epic_child_progress_percent(child_jobs, stats),
           dependency_count: epic_dependency_count(epic),
           has_epic_dependency: epic_dependency_count(epic).positive?,
           execution_blocked_on: epic.in_progress? ? epic.unfinished_dependency_names : [],
@@ -542,12 +489,8 @@ module App
           updated_at: workflow.updated_at&.iso8601,
           started_at: workflow.started_at&.iso8601,
           finished_at: workflow.finished_at&.iso8601,
-          cleaned_up_at: workflow.cleaned_up_at&.iso8601,
           steps_count: workflow_steps_count(workflow),
-          run_count: workflow_run_count(workflow),
           failure_reason: workflow.failure_reason,
-          worker_hostname: workflow.worker_hostname,
-          worker_storage_key: workflow.worker_storage_key,
           job: {
             id: job.id,
             title: job.issue_title.presence || job_kind_title(job.kind),
@@ -569,14 +512,6 @@ module App
         workflow.steps.size
       end
 
-      def workflow_run_count(workflow)
-        if defined?(@workflow_run_counts_by_workflow_id) && @workflow_run_counts_by_workflow_id
-          return @workflow_run_counts_by_workflow_id.fetch(workflow.id, 0)
-        end
-
-        workflow.steps.sum { |step| step.runs.size }
-      end
-
       def epic_owner_status(epic)
         owner_user = epic_owner_user(epic)
         return "unclaimed" if owner_user.nil?
@@ -591,18 +526,6 @@ module App
 
       def job_start_blocked_at(job)
         start_blocked_data_by_job_id.dig(job.id, :at)
-      end
-
-      def job_start_blocked_next_check_at(job)
-        start_blocked_data_by_job_id.dig(job.id, :next_check_at)
-      end
-
-      def job_start_blocked_count(job)
-        start_blocked_data_by_job_id.dig(job.id, :count)
-      end
-
-      def job_start_blocked_details(job)
-        start_blocked_data_by_job_id.dig(job.id, :details)
       end
 
       def start_blocked_data_by_job_id

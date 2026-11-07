@@ -335,8 +335,11 @@ describe("urgent kanban card highlight", () => {
       const item = {
         ...kanbanJobItem(3, "high"),
         active_workflow_trigger_kind: "initial",
-        dependencies: [{ id: 1 }, { id: 2 }],
-        unsatisfied_dependencies: [{ id: 2 }]
+        unsatisfied_dependency_count: 1,
+        dependencies: [
+          { id: 1, slug: "JOB-1", state: "closed", pending: false, succeeded: true },
+          { id: 2, slug: "JOB-2", state: "closed", pending: false, succeeded: true }
+        ]
       } as unknown as DashboardJobItem
 
       renderPayload(kanbanPayload(item))

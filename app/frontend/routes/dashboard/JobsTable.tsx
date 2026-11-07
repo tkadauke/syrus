@@ -434,26 +434,7 @@ function BulkJobActions({ controls, items, selectedIds }: { controls: DashboardP
 }
 
 function dashboardJobBulkActionApplies(job: DashboardJobItem, bulkAction: DashboardBulkJobAction) {
-  if (job.bulk_actions) {
-    return Boolean(job.bulk_actions[bulkAction])
-  }
-
-  const open = job.state !== "closed" && job.state !== "no_change_needed"
-  if (bulkAction === "retry") return open && (job.state === "failed" || job.state === "implemented" || Boolean(job.retry_state?.retryable))
-  if (bulkAction === "release_from_backlog") return Boolean(job.can_release_from_backlog)
-  if (bulkAction === "move_to_backlog") return Boolean(job.can_move_to_backlog)
-  if (bulkAction === "pause") return open && !job.manual_paused
-  if (bulkAction === "unpause") return open && Boolean(job.manual_paused)
-  if (bulkAction === "claim") return !job.claimed_by_user || job.claimed_by_current_user
-  if (bulkAction === "release_claim") return Boolean(job.claimed_by_current_user)
-  if (bulkAction === "assign_owner") return open
-  if (bulkAction === "set_priority") return open
-  if (bulkAction === "approve") return Boolean(job.can_approve)
-  if (bulkAction === "accept_triage")
-    return job.state === "triaging" && (job.triaging_reason === "classifier_uncertain" || job.triaging_reason === "proposed_job")
-  if (bulkAction === "close") return job.state !== "closed"
-
-  return false
+  return Boolean(job.bulk_actions?.[bulkAction])
 }
 
 // Group key for the landing-queue delineation: one key per *landing unit*.
@@ -1380,13 +1361,7 @@ function JobAttentionLine({ job, includeBlockedReason = false }: { job: Dashboar
       {isNotableDeliveryStatus(job.delivery_status) ? <DeliveryStatusBadge status={job.delivery_status} /> : null}
       {job.retry_state && job.retry_state.state_label !== "No failure" ? <RetryStateInline job={job} /> : null}
       {job.state === "queued" && job.start_blocked_reason ? (
-        <StartBlockedReasonPill
-          count={job.start_blocked_count}
-          details={job.start_blocked_details}
-          nextCheckAt={job.start_blocked_next_check_at}
-          reason={job.start_blocked_reason}
-          startBlockedAt={job.start_blocked_at}
-        />
+        <StartBlockedReasonPill reason={job.start_blocked_reason} startBlockedAt={job.start_blocked_at} />
       ) : null}
       {job.manual_paused ? <ManualPauseInline job={job} /> : null}
       {includeBlockedReason && job.blocked_reason ? (
@@ -1622,9 +1597,7 @@ function ManualPauseInline({ job }: { job: DashboardJobItem }) {
   const [notice, setNotice] = useState<string | null>(null)
   const unpauseMutation = useMutation({
     mutationFn: () => {
-      if (!job.paths.app_unpause_path) throw new Error(t("manual_pause_error"))
-
-      return unpauseDashboardJob(job.paths.app_unpause_path)
+      return unpauseDashboardJob(`/api/v1/app/jobs/${job.id}/unpause`)
     },
     onSuccess: (payload) => {
       setNotice(payload.message ?? t("job_unpaused"))
@@ -1634,9 +1607,8 @@ function ManualPauseInline({ job }: { job: DashboardJobItem }) {
 
   if (!job.manual_paused) return null
 
-  const pausedBy = job.manual_paused_by_user?.name || job.manual_paused_by_user?.email_address
-  const title = pausedBy ? t("manual_paused_by", { user: pausedBy }) : t("manual_paused")
-  const canUnpause = Boolean(job.paths.app_unpause_path)
+  const title = t("manual_paused")
+  const canUnpause = Boolean(job.bulk_actions?.unpause)
 
   return (
     <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ring-1 ${PILL_TONE_CLASSES.amber}`} title={title}>
@@ -1650,7 +1622,6 @@ function ManualPauseInline({ job }: { job: DashboardJobItem }) {
         onClick={(event) => {
           event.preventDefault()
           event.stopPropagation()
-          if (!job.paths.app_unpause_path) return
           unpauseMutation.mutate()
         }}
         type="button"

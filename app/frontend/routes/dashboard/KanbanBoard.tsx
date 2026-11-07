@@ -381,17 +381,15 @@ function JobKanbanCard({ item, navigationItems, prefix }: { item: DashboardJobIt
   const [notice, setNotice] = useState<string | null>(null)
   const release = useMutation({
     mutationFn: () => {
-      if (!item.paths.app_release_from_backlog_path) throw new Error(t("bulk_action_error"))
-
-      return releaseDashboardJob(item.paths.app_release_from_backlog_path)
+      return releaseDashboardJob(`/api/v1/app/jobs/${item.id}/release_from_backlog`)
     },
     onSuccess: (payload) => {
       setNotice(payload.message ?? t("released_from_backlog"))
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
     }
   })
-  const dependencyCount = item.dependencies?.length ?? 0
-  const unsatisfiedCount = item.unsatisfied_dependencies?.length ?? 0
+  const unsatisfiedCount = item.unsatisfied_dependency_count ?? 0
+  const dependencyCount = Math.max(item.dependencies?.length ?? 0, unsatisfiedCount)
 
   return (
     <article
@@ -418,13 +416,7 @@ function JobKanbanCard({ item, navigationItems, prefix }: { item: DashboardJobIt
       <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
         <WorkflowBadges state={item.summary_state} triggerAriaPrefix={t("active_workflow_trigger_aria")} triggerKind={item.active_workflow_trigger_kind} />
         {item.state === "queued" && item.start_blocked_reason ? (
-          <StartBlockedReasonPill
-            count={item.start_blocked_count}
-            details={item.start_blocked_details}
-            nextCheckAt={item.start_blocked_next_check_at}
-            reason={item.start_blocked_reason}
-            startBlockedAt={item.start_blocked_at}
-          />
+          <StartBlockedReasonPill reason={item.start_blocked_reason} startBlockedAt={item.start_blocked_at} />
         ) : null}
         <RepositorySlugLink
           className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-brand hover:underline dark:bg-gray-800 dark:text-gray-300"
@@ -462,7 +454,7 @@ function JobKanbanCard({ item, navigationItems, prefix }: { item: DashboardJobIt
         ) : null}
         <ExternalPrBadge external={item.pr_is_external} />
       </div>
-      {item.can_release_from_backlog && item.paths.app_release_from_backlog_path ? (
+      {item.bulk_actions?.release_from_backlog ? (
         <div className="mt-3">
           <Button disabled={release.isPending} onClick={() => release.mutate()} size="sm" variant="primary">
             {t("release_from_backlog")}

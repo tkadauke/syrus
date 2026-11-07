@@ -21,7 +21,6 @@ function epicItem(overrides: Partial<DashboardEpicItem> = {}): DashboardEpicItem
     landing: false,
     stuck: false,
     all_jobs_closed: false,
-    owner: null,
     owned_by_current_user: false,
     claimable: false,
     owner_badge: null,
