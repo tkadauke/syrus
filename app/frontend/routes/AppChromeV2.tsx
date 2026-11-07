@@ -1979,9 +1979,10 @@ function SidebarDashboardNav({ expanded, onCloseDrawer, prefix }: { expanded: bo
   const payload = dashboard.data ?? renderedPayload
   if (!payload) return null
 
-  const smartFolderPayload = rowsPayload && controls.data
-    ? mergeDashboardPayload(payload, rowsPayload, controls.data, { rowsCurrentForSearch: true })
-    : { ...payload, rows_current_for_search: false }
+  const smartFolderPayload =
+    rowsPayload && controls.data
+      ? mergeDashboardPayload(payload, rowsPayload, controls.data, { rowsCurrentForSearch: true })
+      : { ...payload, rows_current_for_search: false }
   const inertAttributes = expanded ? {} : { inert: "" }
 
   return (
