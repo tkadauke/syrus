@@ -2243,6 +2243,13 @@ Every verdict writes a SHA-bound review journal entry and must persist that
 checkout before the Step can succeed. Concurrent panel reviewers stay isolated,
 home-branch updates rebase deterministically, and retrying one Run does not
 duplicate its journal or verdict.
+On Jobs and Workflows, the review evidence panel keeps the named coworker
+separate from its execution provider/model and from human approval. It shows
+the reviewed revisions and diff hash, safe context manifest, verdict or typed
+failure, stale state, cost, and durable-memory receipt. The repository's
+effective `.syrus.yml` gate is shown separately from installation-local
+participant routing. Owner/admin inspection of protected evidence is audited
+and does not disclose unrelated coworker memory.
 Coworkers can start a direct exchange with `message_coworker`. An incoming
 coworker message automatically sends the receiving coworker's final answer
 back to its author, carrying the original turn through a maximum of three

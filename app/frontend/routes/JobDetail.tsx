@@ -1353,6 +1353,24 @@ function JobRoutingPanel({ payload, queryKey }: { payload: JobDetailPayload; que
           </div>
         ) : null}
       </div>
+      {payload.job.coworker_review_configuration ? (
+        <div className="mt-3 rounded border border-border bg-surface-subtle p-3">
+          <p className="text-xs font-medium uppercase tracking-wide text-text-muted">{t("coworker_review_repository_heading")}</p>
+          <p className="mt-1 text-sm text-text-primary">
+            {payload.job.coworker_review_configuration.enabled
+              ? t("coworker_review_repository_enabled", { rounds: payload.job.coworker_review_configuration.rounds })
+              : t("coworker_review_repository_disabled")}
+          </p>
+          <p className="mt-1 text-xs text-text-secondary">{t("coworker_review_repository_separation")}</p>
+          {payload.job.coworker_review_configuration.criteria.length > 0 ? (
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-text-secondary">
+              {payload.job.coworker_review_configuration.criteria.map((criterion) => (
+                <li key={criterion}>{criterion}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
       {(payload.job.active_provider_routing_holds || []).map((hold) => (
         <div className="mt-3 rounded border border-warning-border bg-warning-subtle p-3" key={hold.id}>
           <p className="text-xs font-medium uppercase tracking-wide text-warning-text">{t("routing_active_hold")}</p>

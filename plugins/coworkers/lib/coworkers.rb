@@ -61,6 +61,7 @@ module Coworkers
     route :post, "/api/v1/app/coworkers/:id/workspace/retry", to: "api/v1/app/coworkers#retry_workspace_save"
     route :get, "/api/v1/app/coworkers/:id/activity", to: "api/v1/app/coworkers#activity"
     route :get, "/api/v1/app/coworkers/:id/review_contexts/:run_id", to: "api/v1/app/coworkers#review_context"
+    route :get, "/api/v1/app/coworkers/:id/review_journal/:run_id", to: "api/v1/app/coworkers#review_journal"
     route :post, "/api/v1/app/coworkers/:id/schedules", to: "api/v1/app/coworkers#create_schedule"
     route :patch, "/api/v1/app/coworkers/:id/schedules/:schedule_id", to: "api/v1/app/coworkers#update_schedule"
     route :post, "/api/v1/app/coworkers/:id/schedules/:schedule_id/pause", to: "api/v1/app/coworkers#pause_schedule"

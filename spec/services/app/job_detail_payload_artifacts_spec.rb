@@ -76,6 +76,19 @@ RSpec.describe App::JobDetailPayload do
     )
   end
 
+  it "separates effective repository coworker-review configuration from participant routing" do
+    job = Factories.job_record(user: user, repository: repo)
+    plan = RepoCoworkerReviewPlan::Result.new(enabled: true, rounds: 2, source: ".syrus.yml", note: nil,
+      criteria: [ "Check maintainability" ], required: true)
+    allow(RepoCoworkerReviewPlan).to receive(:for_job).with(job).and_return(plan)
+
+    result = payload_for(job).fetch(:job).fetch(:coworker_review_configuration)
+
+    expect(result).to eq(enabled: true, rounds: 2, required: true, criteria: [ "Check maintainability" ],
+      source: ".syrus.yml", note: nil)
+    expect(result).not_to have_key(:reviewer_target)
+  end
+
   it "preserves review panel members, consensus, unavailable members, and notes" do
     job = Factories.job_record(user: user, repository: repo)
     panel_entries = [
