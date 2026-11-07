@@ -27,14 +27,18 @@ module App
       GRADER_NAME_WORD_OVERRIDES = { "rspec" => "RSpec", "ci" => "CI", "api" => "API", "db" => "DB" }.freeze
 
       def workflows_etag
-        fingerprint = App::JobWorkflowsSnapshotCache.fingerprint(job: @job, page: workflows_page, admin: @user.admin?)
+        fingerprint = App::JobWorkflowsSnapshotCache.fingerprint(
+          job: @job, page: workflows_page, admin: @user.admin?, evidence_access: review_evidence_access?
+        )
         return fingerprint unless Run.where(job_id: @job.id, state: "queued").exists?
 
         [ fingerprint, "queue-wait", Time.current.to_i ].join(":")
       end
 
       def workflows_json
-        workflows = App::JobWorkflowsSnapshotCache.fetch(job: @job, page: workflows_page, admin: @user.admin?) do
+        workflows = App::JobWorkflowsSnapshotCache.fetch(
+          job: @job, page: workflows_page, admin: @user.admin?, evidence_access: review_evidence_access?
+        ) do
           PerformanceLogging.phase("job_detail.workflows.serialize", job_id: @job.id, page: workflows_page) do
             paginated_workflows.map do |workflow|
               workflow_json(workflow, navigation_page: workflows_page)
@@ -44,6 +48,8 @@ module App
 
         hydrate_queue_wait(workflows)
       end
+
+      def review_evidence_access? = @user.admin? || @job.user_id == @user.id
 
       def workflow_preview_payload(workflow)
         @serialized_workflows = [ workflow ]
@@ -878,8 +884,9 @@ module App
         %w[adversarial_review_iterations coworker_review_iterations security_review_iterations].each do |key|
           if safe.key?(key)
             safe[key] = ReviewEvidence::ArtifactPresentation.call(
-              safe[key], evidence_by_id: review_evidence_by_id
+              safe[key], evidence_by_id: review_evidence_by_id, user: @user
             )
+            safe[key] = add_review_repair_responses(safe[key], workflow)
           end
         end
         safe["coverage"] = coverage_artifact_json(artifacts["coverage"]) if artifacts["coverage"].is_a?(Hash)
@@ -894,7 +901,22 @@ module App
               ReviewEvidence::ArtifactPresentation.evidence_ids(workflow.artifact(key))
             end
           end
-          ReviewEvidence.where(id: ids).index_by(&:id)
+          ReviewEvidence.where(id: ids).includes(:run, :reviewer).index_by(&:id)
+        end
+      end
+
+      def add_review_repair_responses(entries, workflow)
+        steps = steps_by_workflow_id.fetch(workflow.id, [])
+        Array(entries).map do |entry|
+          next entry unless entry.is_a?(Hash) && entry["verdict"] == "needs_work"
+
+          review_step = steps.find { |step| step.id == entry["step_id"].to_i }
+          repair_step = steps.find do |step|
+            step.loop_id.present? && step.loop_id == review_step&.loop_id &&
+              step.iteration == review_step.iteration + 1 && step.agentic? && !Step::Kind.review_gate_for(step.kind)
+          end
+          repair_run = repair_step && ordered_runs_for(repair_step).max_by(&:id)
+          entry.merge("repair_response" => repair_run&.agent_summary).compact
         end
       end
 

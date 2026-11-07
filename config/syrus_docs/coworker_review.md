@@ -27,12 +27,43 @@ never substitutes an ordinary provider reviewer when no coworker rule matches.
 The rule may still choose the provider, model, effort, and panel consensus used
 to run those coworkers.
 
+The Job routing panel deliberately presents these as two independent layers:
+effective `.syrus.yml` configuration says whether the repository gate runs and
+which criteria apply, while installation-local rules say which named coworker
+and provider/model execute it. Workflow evidence identifies both identities and
+shows reviewed SHAs, the canonical diff hash, safe context-manifest metadata,
+verdict or typed failure, stale state, Run cost, and the durable-memory receipt.
+Owners and admins may follow the restricted-evidence action; every access is
+audited, and the normal payload never includes raw protected context or
+unrelated coworker memory.
+
 The gate runs after adversarial and security review and before visual review
 and graders. A `needs_work` verdict feeds concrete findings into the existing
 repair loop. `approved` ends the loop. Each opinion is bound to immutable
 review evidence, and a coworker must successfully persist its reviewer memory
 before its review can succeed. Panel collection applies the configured
 consensus after every member finishes.
+
+The evidence panel also pairs a `needs_work` opinion with the following repair
+Run's response and cost. Its journal and restricted-context links are supplied
+only for the coworker's owner or an instance admin; the client does not derive
+plugin URLs or show an action that will predictably be forbidden. The journal
+endpoint returns only that review's durable entry. Restricted-context reads are
+separate, explicitly labelled, and recorded as administrative actions.
+
+Concurrent memory updates use the coworker's normal workspace conflict
+recovery: Syrus rebases the isolated update and retries a compatible merge.
+Conflicts that cannot be reconciled produce the typed
+`coworker_memory_persistence_failed` failure and keep the review Step from
+succeeding. Retrying the Step starts from the durable workspace state rather
+than accepting an unpersisted verdict.
+
+Pausing prevents new work without discarding already recorded evidence. A retry
+reauthorizes the coworker target and creates fresh SHA-bound evidence when the
+diff changed; stale evidence cannot satisfy the gate. Retention tombstones the
+encrypted protected context and its temporary workspace according to the
+configured coworker-review retention period while leaving the safe audit
+record and durable journal receipt intelligible.
 
 Root criteria apply repository-wide. A nested project's criteria are included
 only when the reviewed changes affect that project. Coworker review remains an

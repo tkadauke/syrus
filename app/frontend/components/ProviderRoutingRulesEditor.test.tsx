@@ -255,6 +255,8 @@ describe("ProviderRoutingRulesEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Edit" }))
     const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
     expect(within(dialog).getByLabelText("Coworker reviewer")).toHaveValue("coworker:opaque-maya")
+    expect(within(dialog).getByText(/Dedicated coworker review requires a named coworker/)).toBeInTheDocument()
+    expect(within(dialog).getByText("Automated reviewer identity and human approval distinction")).toHaveClass("sr-only")
     fireEvent.click(within(dialog).getByRole("button", { name: "Save rule" }))
 
     await waitFor(() =>
