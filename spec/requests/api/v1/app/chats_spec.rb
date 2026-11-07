@@ -362,6 +362,24 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(body).not_to have_key("agent_questions")
     end
 
+    it "paginates shared history, omits tool results, and supports conditional caching" do
+      chat_session.update!(share_token: SecureRandom.uuid)
+      3.times { |index| chat_session.messages.create!(role: "user", content: { "text" => "Message #{index}" }) }
+      chat_session.messages.create!(role: "tool_result", content: { "text" => "private tool output" })
+      sign_in_as(Factories.user)
+
+      get "/api/v1/app/shared_chats/#{chat_session.share_token}", params: { limit: 2 }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers.fetch("Cache-Control")).to include("public")
+      expect(parse_body.fetch("messages").pluck("text")).to eq([ "Message 1", "Message 2" ])
+      expect(parse_body).to include("has_more_older" => true, "before_id" => chat_session.messages.find_by!(role: "user", content: { "text" => "Message 1" }).id)
+      etag = response.headers.fetch("ETag")
+
+      get "/api/v1/app/shared_chats/#{chat_session.share_token}", params: { limit: 2 }, headers: { "If-None-Match" => etag }
+      expect(response).to have_http_status(:not_modified)
+    end
+
     it "serves shared stored attachments by URL" do
       chat_session.update!(share_token: SecureRandom.uuid)
       stored = chat_session.chat_file_attachments.build(name: "notes.txt", mime_type: "text/plain", byte_size: 5, checksum: "pending")
@@ -4350,6 +4368,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     item = chat.scratchpad_items.last
     expect(parse_body["message"]).to eq("Scratch pad item added.")
+    expect(parse_body).not_to have_key("messages")
+    expect(parse_body.dig("chat", "entity_revision")).to eq(chat.reload.entity_revision)
     expect(parse_body["scratchpad_items"]).to contain_exactly(include(
       "id" => item.id,
       "content" => "First draft",

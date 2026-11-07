@@ -5,6 +5,22 @@ import { updateRecentChatMessageStateCache } from "./chatRecentCache"
 import type { ChatNavRecord, ChatPayload, ChatsIndexPayload } from "../api/chats"
 
 describe("mergeChatPayloadUpdate", () => {
+  it("merges slim entity collection deltas without replacing the transcript", () => {
+    const queryClient = new QueryClient()
+    const queryKey = ["chat", "8"]
+    const cached = chatPayload()
+    queryClient.setQueryData(queryKey, cached)
+
+    const merged = mergeChatPayloadUpdate(queryClient, queryKey, {
+      message: "Scratch pad item added.",
+      chat: { id: 8, entity_revision: 12 },
+      scratchpad_items: [{ id: 91, content: "ship it", app_update_path: "/update", app_delete_path: "/delete" }]
+    })
+
+    expect(merged?.messages).toEqual(cached.messages)
+    expect(merged?.scratchpad_items).toEqual([{ id: 91, content: "ship it", app_update_path: "/update", app_delete_path: "/delete" }])
+    expect(merged?.chat.entity_revision).toBe(12)
+  })
   it("patches compact chat metadata into the cached full payload without dropping transcript state", () => {
     const queryClient = new QueryClient()
     const queryKey = ["chat", "8", ""] as const

@@ -70,6 +70,20 @@ RSpec.describe "API: chat shares", type: :request do
     expect(chat.chat_shares).to be_empty
   end
 
+  it "returns one capped targets list with repository access warnings" do
+    repository = Factories.repository(user: owner)
+    chat.chat_attachments.create!(attachable: repository)
+    RepositoryMembership.create!(repository: repository, user: recipient, role: "viewer")
+    sign_in_as(owner)
+
+    get "/api/v1/app/chats/#{chat.id}/share_candidates"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body).not_to have_key("people")
+    recipient_target = response.parsed_body.fetch("targets").find { |target| target["target_id"] == recipient.id }
+    expect(recipient_target).to include("repository_access_warning" => false)
+  end
+
   it "paginates the Shared with me group with the ordinary cursor endpoint" do
     recipient.update!(recent_chats_group_size: 5)
     shared_chats = 7.times.map do |index|

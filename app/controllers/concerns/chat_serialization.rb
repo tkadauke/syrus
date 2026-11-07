@@ -73,6 +73,41 @@ module ChatSerialization
     end
   end
 
+  # Write actions return only the state their caller can have changed.  Keep
+  # this deliberately separate from chat_payload: serializing a mutation must
+  # never grow a transcript, provider catalogue, workspace tree, or plugin
+  # contribution by accident.
+  def chat_mutation_payload(chat_session, message: nil, include: [])
+    chat_session.reload
+    payload = {
+      message: message,
+      chat: {
+        id: chat_session.id,
+        entity_revision: chat_session.entity_revision,
+        turn_in_flight: chat_session.turn_in_flight?,
+        agent_busy: chat_session.agent_busy?,
+        stop_requested_at: chat_session.stop_requested_at&.iso8601
+      }
+    }
+
+    serializers = {
+      bookmarks: -> { bookmarks_json(chat_session) },
+      pending_actions: -> { pending_actions_json(chat_session) },
+      pending_action_groups: -> { pending_action_groups_json(chat_session) },
+      agent_questions: -> { chat_session.agent_questions_payload },
+      queued_messages: -> { chat_session.queued_messages_payload },
+      active_goal: -> { chat_goal_json(visible_chat_goal(chat_session)) },
+      scratchpad_items: -> { chat_session.scratchpad_items_payload },
+      workspace_tabs: -> { workspace_tabs_json(chat_session) },
+      attached_coding_job: -> { attached_coding_job_json(chat_session) }
+    }
+    Array(include).each do |slice|
+      serializer = serializers.fetch(slice) { raise ArgumentError, "Unknown chat mutation payload slice: #{slice.inspect}" }
+      payload[slice] = serializer.call
+    end
+    payload
+  end
+
   # Plugin-owned slices of the payload -- `whiteboard` (whiteboard) and
   # `preview_panels` (mockups) were built inline here until core stopped
   # needing to know those models.

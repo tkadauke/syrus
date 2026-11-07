@@ -370,7 +370,7 @@ module Api
           end
           if !message_has_attachments? && (command_result = ChatGoalCommand.new(chat_session: chat_session, user: Current.user).call(text)).handled
             enqueue_chat_title_for_goal(chat_session, command_result.goal)
-            render json: chat_payload(chat_session.reload, message: command_result.message)
+            render json: chat_mutation_payload(chat_session, message: command_result.message, include: :active_goal)
             return
           end
           content = message_content(text)
@@ -405,7 +405,7 @@ module Api
             return
           end
 
-          render json: chat_payload(chat_session.reload, message: "Message sent.")
+          render json: chat_mutation_payload(chat_session, message: "Message sent.")
         rescue ActiveRecord::LockWaitTimeout, ActiveRecord::Deadlocked, ActiveRecord::StatementTimeout, SolidQueue::Job::EnqueueError => e
           raise unless transient_chat_lock_error?(e)
 
@@ -425,7 +425,7 @@ module Api
           ChatStopReconciler.reconcile!(chat_session: chat_session)
           chat_session.reload.broadcast_controls if chat_session.stop_requested_at?
 
-          render json: chat_payload(chat_session.reload, message: "Stop requested.")
+          render json: chat_mutation_payload(chat_session, message: "Stop requested.")
         end
 
         def retry_turn
@@ -437,7 +437,7 @@ module Api
             return
           end
 
-          render json: chat_payload(chat_session.reload, message: result.message)
+          render json: chat_mutation_payload(chat_session, message: result.message)
         rescue ActiveRecord::LockWaitTimeout, ActiveRecord::Deadlocked, ActiveRecord::StatementTimeout, SolidQueue::Job::EnqueueError => e
           raise unless transient_chat_lock_error?(e)
 
@@ -506,7 +506,7 @@ module Api
           end
           chat_session.rename!(name)
 
-          render json: chat_payload(chat_session.reload, message: "Chat renamed.")
+          render json: chat_mutation_payload(chat_session, message: "Chat renamed.").deep_merge(chat: chat_metadata_json(chat_session.reload))
         end
 
         def branch
@@ -562,7 +562,7 @@ module Api
             chat_session.update!(last_message_at: nil, stop_requested_at: nil)
           end
 
-          render json: chat_payload(chat_session.reload, message: "Chat history cleared.")
+          render json: chat_mutation_payload(chat_session, message: "Chat history cleared.")
         end
 
         def mark_read
@@ -618,7 +618,7 @@ module Api
             notice = "Message sent."
           end
 
-          render json: chat_payload(chat_session.reload, message: notice)
+          render json: chat_mutation_payload(chat_session, message: notice)
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         rescue ActiveRecord::LockWaitTimeout, ActiveRecord::Deadlocked, ActiveRecord::StatementTimeout, SolidQueue::Job::EnqueueError => e
@@ -680,7 +680,7 @@ module Api
           # e.g. adding a note to a pending walkthrough turn — doesn't discard it
           # and silently drop the handoff on promotion.
           queued_message.update!(content: existing.merge("text" => text))
-          render json: chat_payload(chat_session.reload, message: "Queued message updated.")
+          render json: chat_mutation_payload(chat_session, message: "Queued message updated.", include: :queued_messages)
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         end
@@ -690,7 +690,7 @@ module Api
           queued_message = chat_session.queued_messages.find(params[:queued_message_id])
           queued_message.destroy!
 
-          render json: chat_payload(chat_session.reload, message: "Queued message deleted.")
+          render json: chat_mutation_payload(chat_session, message: "Queued message deleted.", include: :queued_messages)
         end
 
         def create_scratchpad_item
@@ -706,7 +706,7 @@ module Api
           max_position = chat_session.scratchpad_items.maximum(:position) || -1
           chat_session.scratchpad_items.create!(content: draft.to_scratchpad_content, position: max_position + 1)
 
-          render json: chat_payload(chat_session.reload, message: "Scratch pad item added.")
+          render json: chat_mutation_payload(chat_session, message: "Scratch pad item added.", include: :scratchpad_items)
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         end
@@ -723,7 +723,7 @@ module Api
           end
 
           item.update!(content: draft.to_scratchpad_content)
-          render json: chat_payload(chat_session.reload, message: "Scratch pad item updated.")
+          render json: chat_mutation_payload(chat_session, message: "Scratch pad item updated.", include: :scratchpad_items)
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         end
@@ -733,7 +733,7 @@ module Api
           item = chat_session.scratchpad_items.find(params[:item_id])
           item.destroy!
 
-          render json: chat_payload(chat_session.reload, message: "Scratch pad item deleted.")
+          render json: chat_mutation_payload(chat_session, message: "Scratch pad item deleted.", include: :scratchpad_items)
         end
 
         def reorder_scratchpad_items
@@ -755,7 +755,7 @@ module Api
           end
 
           chat_session.broadcast_controls
-          render json: chat_payload(chat_session.reload, message: "Scratch pad items reordered.")
+          render json: chat_mutation_payload(chat_session, message: "Scratch pad items reordered.", include: :scratchpad_items)
         end
 
         def answer_agent_question
@@ -768,7 +768,7 @@ module Api
           end
 
           if question.answer_and_record!(answers, sender_user: Current.user)
-            render json: chat_payload(chat_session.reload, message: "Answer submitted.")
+            render json: chat_mutation_payload(chat_session, message: "Answer submitted.", include: :agent_questions)
           else
             render_error("validation_failed", t("api.chats.errors.question_inactive"), status: :unprocessable_content)
           end
@@ -780,7 +780,7 @@ module Api
           title = panel.title
           PreviewPanel::Service.new(panel).close!
 
-          render json: chat_payload(chat_session.reload, message: "#{title} closed.")
+          render json: chat_mutation_payload(chat_session, message: "#{title} closed.", include: :workspace_tabs)
         end
 
         def export_preview_panel
@@ -834,7 +834,7 @@ module Api
 
           PreviewPanel::Service.new(panel).update_visibility!(visibility)
 
-          render json: chat_payload(chat_session.reload, message: panel.public? ? "#{panel.title} is now public." : "#{panel.title} is now private.")
+          render json: chat_mutation_payload(chat_session, message: panel.public? ? "#{panel.title} is now public." : "#{panel.title} is now private.", include: :workspace_tabs)
         end
 
         # Mints a short-lived PreviewPanel::AccessToken for the chat frontend
@@ -866,7 +866,7 @@ module Api
           kind = params.dig(:chat_bookmark, :kind).presence_in(ChatBookmark::KINDS) || "manual"
           bookmark = message.bookmarks.create!(label: bookmark_label, kind: kind)
 
-          render json: chat_payload(chat_session.reload, message: "Bookmarked #{bookmark.label}.")
+          render json: chat_mutation_payload(chat_session, message: "Bookmarked #{bookmark.label}.", include: :bookmarks)
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         end
@@ -888,7 +888,7 @@ module Api
 
           message.pins.create!
 
-          render json: chat_payload(chat_session.reload, message: "Message pinned.")
+          render json: chat_mutation_payload(chat_session, message: "Message pinned.").merge(pins: pins_json(chat_session))
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         end
@@ -898,7 +898,7 @@ module Api
           message = chat_session.messages.find(params[:message_id])
           message.pins.destroy_all
 
-          render json: chat_payload(chat_session.reload, message: "Message unpinned.").merge(
+          render json: chat_mutation_payload(chat_session, message: "Message unpinned.").merge(
             pins: pins_json(chat_session)
           )
         end
@@ -915,7 +915,7 @@ module Api
           pending_action = find_pending_action(chat_session)
 
           if pending_action.enqueue_confirmation!(user: Current.user)
-            render json: chat_payload(chat_session.reload, message: pending_action_confirmed_notice(pending_action))
+            render json: chat_mutation_payload(chat_session, message: pending_action_confirmed_notice(pending_action), include: [ :pending_actions, :pending_action_groups ])
           else
             render_error("validation_failed", t("api.chats.errors.pending_action_inactive"), status: :unprocessable_content)
           end
@@ -934,7 +934,7 @@ module Api
             request: pending_action, item:, user: Current.user
           ).call(decision: params.require(:decision))
 
-          render json: chat_payload(chat_session.reload, message: t("api.chats.messages.authorization_item_decided"))
+          render json: chat_mutation_payload(chat_session, message: t("api.chats.messages.authorization_item_decided"), include: :pending_actions)
         rescue ActiveRecord::RecordInvalid, ArgumentError => e
           message = e.respond_to?(:record) ? e.record.errors.full_messages.to_sentence : e.message
           render_error("validation_failed", message, status: :unprocessable_content)
@@ -947,7 +947,7 @@ module Api
           Permissions::AuthorizationDecision.new(request: pending_action, item:, user: Current.user)
             .call(decision: "approved", smart: { duration: params.require(:duration).to_s, digest: params[:digest].to_s })
 
-          render json: chat_payload(chat_session.reload, message: t("api.chats.messages.authorization_item_decided"))
+          render json: chat_mutation_payload(chat_session, message: t("api.chats.messages.authorization_item_decided"), include: :pending_actions)
         rescue Permissions::SmartDecision::AlreadyDecided, Permissions::RuleDraft::Stale => e
           render_error("stale_permission_decision", e.message, status: :conflict)
         rescue Permissions::RuleDraft::Invalid, ActiveRecord::RecordInvalid, ArgumentError => e
@@ -964,7 +964,7 @@ module Api
           end
 
           pending_action.update!(payload: pending_action.payload.to_h.merge("about" => params[:about].to_s.strip.presence))
-          render json: chat_payload(chat_session.reload, message: t("api.chats.messages.coworker_about_updated"))
+          render json: chat_mutation_payload(chat_session, message: t("api.chats.messages.coworker_about_updated"), include: :pending_actions)
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         end
@@ -984,7 +984,7 @@ module Api
 
           if result
             message = rejection ? "Pending action rejected." : dismissal ? "Pending action hidden." : "Pending action cancelled."
-            render json: chat_payload(chat_session.reload, message: message).merge(
+            render json: chat_mutation_payload(chat_session, message: message, include: [ :pending_actions, :pending_action_groups ]).merge(
               pending_action_outcome: {
                 id: pending_action.id,
                 action: pending_action.action.presence || pending_action.action_type,
@@ -1004,7 +1004,7 @@ module Api
           group = find_pending_action_group(chat_session)
 
           if group.confirm_all!(user: Current.user)
-            render json: chat_payload(chat_session.reload, message: pending_action_group_confirmed_notice(group))
+            render json: chat_mutation_payload(chat_session, message: pending_action_group_confirmed_notice(group), include: [ :pending_actions, :pending_action_groups ])
           else
             render_error("validation_failed", t("api.chats.errors.pending_action_group_inactive"), status: :unprocessable_content)
           end
@@ -1015,7 +1015,7 @@ module Api
           group = find_pending_action_group(chat_session)
 
           if group.reject_all!(user: Current.user)
-            render json: chat_payload(chat_session.reload, message: pending_action_group_rejected_notice(group))
+            render json: chat_mutation_payload(chat_session, message: pending_action_group_rejected_notice(group), include: [ :pending_actions, :pending_action_groups ])
           else
             render_error("validation_failed", t("api.chats.errors.pending_action_group_inactive"), status: :unprocessable_content)
           end
@@ -1026,7 +1026,7 @@ module Api
           group = find_pending_action_group(chat_session)
 
           if group.dismiss!
-            render json: chat_payload(chat_session.reload, message: "Pending action group dismissed.")
+            render json: chat_mutation_payload(chat_session, message: "Pending action group dismissed.", include: [ :pending_actions, :pending_action_groups ])
           else
             render_error("validation_failed", t("api.chats.errors.pending_action_group_unresolved"), status: :unprocessable_content)
           end
@@ -1161,7 +1161,7 @@ module Api
           end
 
           broadcast_proposal_updated(chat_session, proposal.reload)
-          render json: chat_payload(chat_session.reload, message: "Proposal updated.").merge(
+          render json: chat_mutation_payload(chat_session, message: "Proposal updated.").merge(
             proposal: ::App::ChatMessagePayload.proposal(proposal, chat_session: chat_session, repository: chat_session.repository)
           )
         rescue ActiveRecord::RecordInvalid => e
@@ -1236,7 +1236,7 @@ module Api
           end
 
           JobCodingMode::CancelTakeover.call(chat_session: chat_session, repository: repository)
-          render json: chat_payload(chat_session.reload, message: "Coding checkout cancelled.")
+          render json: chat_mutation_payload(chat_session, message: "Coding checkout cancelled.", include: :attached_coding_job)
         rescue ActiveRecord::RecordNotFound
           raise
         rescue JobCodingMode::CancelTakeover::Error => e
@@ -1281,7 +1281,7 @@ module Api
               requested_by: "operator"
             )
 
-          render json: chat_payload(chat_session.reload, message: "Implementation handoff is pending confirmation.")
+          render json: chat_mutation_payload(chat_session, message: "Implementation handoff is pending confirmation.", include: :pending_actions)
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         rescue ActiveRecord::RecordNotFound
@@ -2182,7 +2182,7 @@ module Api
             chat_session.chat_attachments.create!(attachable: repository) if repository
           end
 
-          render json: chat_payload(chat_session.reload, message: "Chat repository updated.")
+          render json: chat_mutation_payload(chat_session, message: "Chat repository updated.").deep_merge(chat: chat_metadata_json(chat_session.reload))
         end
 
         def available_chat_models_for(chat_session)

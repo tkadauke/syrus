@@ -1081,7 +1081,7 @@ export type ChatPayload = {
 export type ChatMetadataUpdatePayload = {
   message?: string | null
   chat: Partial<ChatRecord> & Pick<ChatRecord, "id">
-}
+} & Partial<Omit<ChatPayload, "chat" | "message" | "messages">>
 
 export type ChatPayloadUpdate = ChatPayload | ChatMetadataUpdatePayload
 
@@ -1092,10 +1092,7 @@ export type ChatProposalMutationPayload = {
   pending_proposal_count?: number
 }
 
-// The update (edit) endpoint renders a full chat_payload merged with the
-// freshly serialized proposal, unlike confirm/reject's compact mutation
-// payload above.
-export type ChatProposalUpdatePayload = ChatPayload & { proposal?: ChatProposal | null }
+export type ChatProposalUpdatePayload = ChatPayloadUpdate & { proposal?: ChatProposal | null }
 
 export type ChatSpeechToTextCapability = {
   enabled: boolean
@@ -1121,6 +1118,8 @@ export type SharedChatPayload = {
     title: string | null
   }
   messages: ChatMessageItem[]
+  has_more_older: boolean
+  before_id: number | null
 }
 
 export type ShareChatPayload = {
