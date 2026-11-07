@@ -713,6 +713,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
                   showTeamProfile={(data?.team_user_count || 0) > 1}
                   startingChat={startingChat}
                   user={user}
+                  providerAvailability={data?.provider_availability}
                   onHoverStart={openSidebarPeekSoon}
                   onHoverEnd={closeSidebarPeekSoon}
                 />
@@ -742,6 +743,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
                       showTeamProfile={(data?.team_user_count || 0) > 1}
                       startingChat={startingChat}
                       user={user}
+                      providerAvailability={data?.provider_availability}
                     />
                   </div>
                 ) : null}
@@ -777,6 +779,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
                     showTeamProfile={(data?.team_user_count || 0) > 1}
                     startingChat={startingChat}
                     user={user}
+                    providerAvailability={data?.provider_availability}
                   />
                 </div>
               ) : null}
@@ -1394,6 +1397,7 @@ function SidebarContent({
   showTeamProfile,
   startingChat,
   user,
+  providerAvailability,
   onHoverStart,
   onHoverEnd
 }: {
@@ -1412,6 +1416,7 @@ function SidebarContent({
   showTeamProfile: boolean
   startingChat: boolean
   user: BootstrapPayload["current_user"] | undefined
+  providerAvailability?: BootstrapPayload["provider_availability"]
   onHoverStart?: () => void
   onHoverEnd?: () => void
 }) {
@@ -1624,6 +1629,7 @@ function SidebarContent({
             prefix={prefix}
             startingChat={startingChat}
             userPresent={Boolean(user)}
+            providerAvailability={providerAvailability}
           />
         )}
       </div>
