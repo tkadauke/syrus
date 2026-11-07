@@ -63,7 +63,15 @@ function buildPayload(items: DashboardWorkflowItem[]): DashboardPayload {
       sort_columns: ["title", "state", "finished_at"],
       sort_directions: ["asc", "desc"],
       columns: {
-        required: [{ key: "workflow", title: "Workflow" }, { key: "job", title: "Job" }, { key: "trigger", title: "Trigger" }, { key: "state", title: "State" }, { key: "started", title: "Started" }, { key: "finished", title: "Finished" }, { key: "agent", title: "Agent" }],
+        required: [
+          { key: "workflow", title: "Workflow" },
+          { key: "job", title: "Job" },
+          { key: "trigger", title: "Trigger" },
+          { key: "state", title: "State" },
+          { key: "started", title: "Started" },
+          { key: "finished", title: "Finished" },
+          { key: "agent", title: "Agent" }
+        ],
         optional: []
       },
       kanban_lanes: [],
@@ -102,10 +110,7 @@ function renderTable(payload: DashboardPayload) {
 
 describe("DashboardTable workflow subject", () => {
   it("renders workflow items with their job titles", () => {
-    const items = [
-      workflowItem(1, "Build aqueduct"),
-      workflowItem(2, "Chart forum")
-    ]
+    const items = [workflowItem(1, "Build aqueduct"), workflowItem(2, "Chart forum")]
     renderTable(buildPayload(items))
 
     expect(screen.getByText("Build aqueduct")).toBeInTheDocument()
@@ -119,5 +124,4 @@ describe("DashboardTable workflow subject", () => {
 
     expect(screen.getByText(/no workflows match/i)).toBeInTheDocument()
   })
-
 })
