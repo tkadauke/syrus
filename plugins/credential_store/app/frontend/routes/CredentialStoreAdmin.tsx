@@ -1,7 +1,21 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useMemo, useState, type ComponentType, type FormEvent, type ReactNode } from "react"
 import { useLocation } from "react-router-dom"
-import { Button, DataTable, Input, Modal, Notice, Page, Select, Text, Textarea, TonePill, Toolbar, type DataTableSortDirection } from "@app/components/ui"
+import {
+  Button,
+  Checkbox,
+  DataTable,
+  Input,
+  Modal,
+  Notice,
+  Page,
+  Select,
+  Text,
+  Textarea,
+  TonePill,
+  Toolbar,
+  type DataTableSortDirection
+} from "@app/components/ui"
 import {
   FilterBar,
   filterTreeFromPayload,
@@ -94,7 +108,7 @@ const CREDENTIAL_SORT_ACCESSORS: Record<SortColumn, (credential: CredentialStore
   last_rotated_at: (credential) => credential.last_rotated_at,
   expires_at: (credential) => credential.expires_at,
   allowed_surfaces: (credential) => credential.allowed_surfaces.join(" "),
-  allowed_tools: (credential) => credential.allowed_tools.join(" "),
+  allowed_tools: (credential) => credential.explicit_wrapper_grants.join(" "),
   safe_metadata: (credential) => JSON.stringify(credential.safe_metadata || {}),
   target_constraints: (credential) => JSON.stringify(credential.target_constraints || {}),
   last_access_result: (credential) => credential.last_access?.result || null
@@ -342,6 +356,10 @@ function CredentialForm({
   const typeOptions = payload.options.credential_types
   const selectedType = typeOptions.find((type) => type.name === draft.credential_type)
   const SpecializedFields = CREDENTIAL_FORM_FIELDS[draft.credential_type]
+  const wrapperOptions = payload.options.credential_wrappers.filter(
+    (wrapper) => wrapper.credential_types.includes("*") || wrapper.credential_types.includes(draft.credential_type)
+  )
+  const selectedWrappers = splitList(draft.allowed_tools)
 
   return (
     <div className="space-y-4">
@@ -432,11 +450,36 @@ function CredentialForm({
           values={splitList(draft.allowed_surfaces)}
           onChange={(values) => onChange({ ...draft, allowed_surfaces: values.join(", ") })}
         />
-        <ListField
-          label={t("allowed_tools")}
-          values={splitList(draft.allowed_tools)}
-          onChange={(values) => onChange({ ...draft, allowed_tools: values.join(", ") })}
-        />
+        <div className="space-y-1.5">
+          <span className="text-sm font-medium text-text-primary">{t("allowed_credential_wrappers")}</span>
+          <div className="space-y-2">
+            {wrapperOptions.map((wrapper) => (
+              <Checkbox
+                checked={selectedWrappers.includes(wrapper.name)}
+                className="mt-0.5"
+                key={wrapper.name}
+                label={
+                  <span>
+                    <span className="font-medium">{wrapper.name}</span>
+                    <span className="block text-xs text-text-secondary">{wrapper.description}</span>
+                  </span>
+                }
+                onChange={(event) => {
+                  const values = event.target.checked ? [...selectedWrappers, wrapper.name] : selectedWrappers.filter((value) => value !== wrapper.name)
+                  onChange({ ...draft, allowed_tools: values.join(", ") })
+                }}
+              />
+            ))}
+          </div>
+          <Text muted variant="caption">
+            {t("allowed_credential_wrappers_hint")}
+          </Text>
+          {draft.credential_type === "ssh_private_key" ? (
+            <Text muted variant="caption">
+              {t("typed_ssh_consumer_hint")}
+            </Text>
+          ) : null}
+        </div>
       </div>
       <Field label={t("expires_at")}>
         <Input type="datetime-local" value={draft.expires_at} onChange={(event) => onChange({ ...draft, expires_at: event.target.value })} />
@@ -908,10 +951,10 @@ function buildCredentialColumns({
     },
     {
       key: "allowed_tools",
-      label: t("allowed_tools"),
+      label: t("allowed_credential_wrappers"),
       defaultVisible: false,
       sortKey: "allowed_tools",
-      renderCell: (credential) => credential.allowed_tools.join(", ") || "-"
+      renderCell: (credential) => credential.explicit_wrapper_grants.join(", ") || "-"
     },
     {
       key: "safe_metadata",

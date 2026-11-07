@@ -93,6 +93,23 @@ RSpec.describe CredentialStore::CredentialDiscovery do
     expect(CredentialStore::CredentialAccessEvent.count).to eq(0)
   end
 
+  it "reports inferred typed consumers separately from explicit raw wrapper grants" do
+    create_credential(
+      name: "ssh key",
+      credential_type: "ssh_private_key",
+      allowed_tools: [ "credential.ssh-agent", "ha.core.info", "credential_store_stale" ]
+    )
+    run = Factories.job_with_run(user: user, repository: repository).runs.first
+
+    row = described_class.call(context: McpToolContext.from_run(run)).fetch(:credentials).sole
+
+    expect(row).to include(
+      effective_typed_consumers: [ "credential_store_ssh_exec" ],
+      explicit_wrapper_grants: [ "credential.ssh-agent" ]
+    )
+    expect(row.to_json).not_to include(secret)
+  end
+
   it "batches scope authorization queries as credential volume grows" do
     team = Team.create!(name: "Release Engineering")
     team.team_memberships.create!(user: user, role: "member")
