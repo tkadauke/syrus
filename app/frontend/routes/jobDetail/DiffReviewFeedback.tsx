@@ -775,7 +775,7 @@ function CommentCard({
             {t("review_reply_comment")}
           </Button>
         ) : null}
-        {comment.state === "draft" && isGlobal ? (
+        {comment.state === "draft" ? (
           <Button disabled={deletePending} onClick={() => onDelete(comment)} size="sm" variant="danger">
             {t("review_delete_comment")}
           </Button>

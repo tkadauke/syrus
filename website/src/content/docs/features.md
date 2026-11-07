@@ -552,7 +552,9 @@ agent-generated review notes, and chat feedback use visually distinct cards so
 reviewers can tell who introduced each part of the conversation. Chat feedback
 appears with the diff version produced while addressing it; feedback that has
 not produced a version, including an in-progress or no-change attempt, remains
-visible with the version the operator is currently reviewing.
+visible with the version the operator is currently reviewing. Draft comments
+can be deleted from their conversation card after confirmation, whether they
+apply to the whole review or a specific line.
 
 ## Review Notes
 
