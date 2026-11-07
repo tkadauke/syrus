@@ -91,7 +91,7 @@ module Api
         end
 
         def schema_updates(provider, values)
-          schema = PerformanceLogging.plugin_call(extension_point: :input_source, provider: provider, operation: :config_schema) { provider.new.config_schema }
+          schema = input_source_schema(provider)
           config_updates = {}
           credential_updates = {}
 
@@ -111,7 +111,7 @@ module Api
         end
 
         def credential_placeholders(source, provider)
-          schema = PerformanceLogging.plugin_call(extension_point: :input_source, provider: provider, operation: :config_schema) { provider.new.config_schema }
+          schema = input_source_schema(provider)
           schema.each_with_object({}) do |field, values|
             next unless credential_field?(field)
 
@@ -122,6 +122,11 @@ module Api
 
         def credential_field?(field)
           field[:scope].to_s == "credentials"
+        end
+
+        def input_source_schema(provider)
+          @input_source_schemas ||= {}
+          @input_source_schemas[provider] ||= PerformanceLogging.plugin_call(extension_point: :input_source, provider: provider, operation: :config_schema) { provider.new.config_schema }
         end
 
         def source_type_key(provider)
