@@ -536,6 +536,7 @@ export function RuntimePanel({ chatId }: { chatId: string | number }) {
   const { data, isLoading, isError } = useQuery({
     queryKey: runtimeSessionsQueryKey(chatId),
     queryFn: () => fetchRuntimeSessions(chatId),
+    staleTime: 0,
     refetchInterval: (query) => {
       const sessions = query.state.data?.runtime_sessions ?? []
       return sessions.some((session) => sessionIsActive(session)) ? SESSION_POLL_INTERVAL_MS : false

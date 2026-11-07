@@ -948,6 +948,7 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
     queryFn: () => fetchPipeline(repositoryId, withHistory(requestSearch, false)),
     enabled: repositoryId.length > 0,
     placeholderData: (previous) => previous,
+    staleTime: 0,
     refetchInterval: POLL_INTERVAL_MS
   })
   const history = useQuery({

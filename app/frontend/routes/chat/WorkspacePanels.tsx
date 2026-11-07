@@ -1659,6 +1659,7 @@ function CodingFilesPanel({
     queryKey: ["coding_files", filesPath, selectedRef],
     queryFn: () => fetchCodingFileTree(filesPath!, selectedRef || null).catch(recordRelayUnavailable),
     enabled: !!filesPath && !relayBackoffActive,
+    staleTime: 0,
     refetchInterval,
     retry: codingQueryRetry
   })
@@ -1667,6 +1668,7 @@ function CodingFilesPanel({
     queryKey: ["coding_commits", commitsPath],
     queryFn: () => fetchCodingCommits(commitsPath!).catch(recordRelayUnavailable),
     enabled: !!commitsPath && !relayBackoffActive && !readOnly,
+    staleTime: 0,
     refetchInterval,
     retry: codingQueryRetry
   })
@@ -1675,6 +1677,7 @@ function CodingFilesPanel({
     queryKey: ["coding_file_content", fileContentBasePath, selectedFile, selectedRef],
     queryFn: () => fetchCodingFileContent(fileContentBasePath!, selectedFile!, selectedRef || null).catch(recordRelayUnavailable),
     enabled: !!fileContentBasePath && !!selectedFile && view === "files" && !relayBackoffActive,
+    staleTime: 0,
     refetchInterval,
     retry: codingQueryRetry
   })
@@ -1683,6 +1686,7 @@ function CodingFilesPanel({
     queryKey: ["coding_diff", diffPath, diffMode, selectedRef],
     queryFn: () => fetchCodingDiff(diffPath!, diffMode, selectedRef || null).catch(recordRelayUnavailable),
     enabled: !!diffPath && view === "diff" && !relayBackoffActive && !readOnly,
+    staleTime: 0,
     refetchInterval,
     retry: codingQueryRetry
   })

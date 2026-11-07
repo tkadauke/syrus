@@ -67,6 +67,7 @@ export default function AdminGithubApiUsage() {
   const query = useQuery({
     queryKey: ["admin", "github_api_usage", search],
     queryFn: () => fetchGithubApiUsage(search),
+    staleTime: 0,
     refetchInterval: 60_000
   })
   const payload = query.data

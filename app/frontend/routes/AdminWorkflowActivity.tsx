@@ -30,6 +30,7 @@ export function AdminWorkflowActivity() {
   const activity = useQuery({
     queryKey: ["admin", "workflow_activity", location.search],
     queryFn: ({ signal }) => fetchAdminWorkflowActivity(location.search, signal),
+    staleTime: 0,
     refetchInterval: POLL_INTERVAL_MS
   })
 

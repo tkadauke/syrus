@@ -19,6 +19,7 @@ export function AdminMysql() {
   const mysql = useQuery({
     queryKey: ["admin", "mysql", limit, includeSlowLog],
     queryFn: () => fetchAdminMysql(limit, includeSlowLog),
+    staleTime: 0,
     refetchInterval: includeSlowLog ? false : 10_000
   })
   const killQuery = useMutation({
@@ -341,11 +342,31 @@ function processColumns(
   onKill: (process: MysqlProcess) => void
 ): Array<AdminEventLogTableColumn<MysqlProcess>> {
   return [
-    { key: "id", header: "ID", className: "font-mono text-gray-800 dark:text-gray-100", render: (process) => process.id, sort: "id", sortValue: (process) => process.id },
+    {
+      key: "id",
+      header: "ID",
+      className: "font-mono text-gray-800 dark:text-gray-100",
+      render: (process) => process.id,
+      sort: "id",
+      sortValue: (process) => process.id
+    },
     { key: "command", header: t("col_command"), render: (process) => process.command || "-", sort: "command", sortValue: (process) => process.command || "" },
-    { key: "time_seconds", header: t("col_time"), render: (process) => `${process.time_seconds}s`, sort: "time_seconds", sortValue: (process) => process.time_seconds },
+    {
+      key: "time_seconds",
+      header: t("col_time"),
+      render: (process) => `${process.time_seconds}s`,
+      sort: "time_seconds",
+      sortValue: (process) => process.time_seconds
+    },
     { key: "state", header: t("col_state"), render: (process) => process.state || "-", sort: "state", sortValue: (process) => process.state || "" },
-    { key: "host", header: t("col_host"), className: "font-mono text-xs", render: (process) => process.host, sort: "host", sortValue: (process) => process.host },
+    {
+      key: "host",
+      header: t("col_host"),
+      className: "font-mono text-xs",
+      render: (process) => process.host,
+      sort: "host",
+      sortValue: (process) => process.host
+    },
     {
       key: "info",
       header: t("col_info"),
@@ -377,7 +398,13 @@ function processColumns(
 
 function statementDigestColumns(t: ReturnType<typeof useT>["t"]): Array<AdminEventLogTableColumn<MysqlStatementDigest>> {
   return [
-    { key: "total_seconds", header: t("col_total"), render: (row) => formatSeconds(row.total_seconds), sort: "total_seconds", sortValue: (row) => row.total_seconds },
+    {
+      key: "total_seconds",
+      header: t("col_total"),
+      render: (row) => formatSeconds(row.total_seconds),
+      sort: "total_seconds",
+      sortValue: (row) => row.total_seconds
+    },
     { key: "max_seconds", header: t("col_max"), render: (row) => formatSeconds(row.max_seconds), sort: "max_seconds", sortValue: (row) => row.max_seconds },
     { key: "count", header: t("col_count"), render: (row) => row.count, sort: "count", sortValue: (row) => row.count },
     {
@@ -393,7 +420,13 @@ function statementDigestColumns(t: ReturnType<typeof useT>["t"]): Array<AdminEve
 
 function slowLogColumns(t: ReturnType<typeof useT>["t"]): Array<AdminEventLogTableColumn<MysqlSlowLogRow>> {
   return [
-    { key: "start_time", header: t("col_time"), render: (row) => (row.start_time ? new Date(row.start_time).toLocaleString() : "-"), sort: "start_time", sortValue: (row) => row.start_time || "" },
+    {
+      key: "start_time",
+      header: t("col_time"),
+      render: (row) => (row.start_time ? new Date(row.start_time).toLocaleString() : "-"),
+      sort: "start_time",
+      sortValue: (row) => row.start_time || ""
+    },
     { key: "query_time", header: t("col_query_time"), render: (row) => row.query_time, sort: "query_time", sortValue: (row) => Number(row.query_time) || 0 },
     { key: "rows_examined", header: t("col_rows_examined"), render: (row) => row.rows_examined, sort: "rows_examined", sortValue: (row) => row.rows_examined },
     {

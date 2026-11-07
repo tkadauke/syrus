@@ -29,6 +29,7 @@ export function AdminReconcilerActivity() {
   const activity = useQuery({
     queryKey: ["admin", "reconciler_activity", location.search],
     queryFn: ({ signal }) => fetchAdminReconcilerActivity(location.search, signal),
+    staleTime: 0,
     refetchInterval: POLL_INTERVAL_MS
   })
 

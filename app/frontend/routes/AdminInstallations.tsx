@@ -33,6 +33,7 @@ export function AdminInstallations() {
   const installations = useQuery({
     queryKey: ["admin", "installations"],
     queryFn: fetchAdminInstallations,
+    staleTime: 0,
     refetchInterval: pollUntil > Date.now() ? 2_000 : false
   })
 

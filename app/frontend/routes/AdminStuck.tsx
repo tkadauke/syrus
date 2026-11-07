@@ -35,6 +35,7 @@ export function AdminStuck() {
       refreshNext.current = false
       return fetchAdminStuck(location.search, signal, refresh)
     },
+    staleTime: 0,
     refetchInterval: POLL_INTERVAL_MS
   })
 
