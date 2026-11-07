@@ -37,9 +37,9 @@ RSpec.describe App::DiffReviewVersionsPayload do
       base_sha: "aabbccdd1234567",
       head_sha: "deadbeef12345678",
       files_count: 1,
-      comments_count: 1,
-      metadata: { "commit_count" => 1 }
+      comments_count: 1
     ))
+    expect(index[:versions].first).not_to have_key(:metadata)
     expect(show).to include(
       id: version.id,
       job_id: job.id,
@@ -54,7 +54,7 @@ RSpec.describe App::DiffReviewVersionsPayload do
       status: "modified",
       additions: 4,
       deletions: 1,
-      patch: "@@ -1 +1 @@\n-old\n+new",
+      patch_bytes: 21,
       is_image: false
     )
   end
@@ -76,7 +76,7 @@ RSpec.describe App::DiffReviewVersionsPayload do
       status: "added",
       additions: 0,
       deletions: 0,
-      patch: nil,
+      patch_bytes: nil,
       is_image: true
     )
   end
@@ -107,7 +107,7 @@ RSpec.describe App::DiffReviewVersionsPayload do
       status: "modified",
       additions: 10,
       deletions: 4,
-      patch: "@@ -1 +1 @@\n-old\n+new",
+      patch_bytes: 21,
       is_image: false,
       generated: true,
       generated_reason: "lockfile",
