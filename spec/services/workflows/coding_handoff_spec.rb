@@ -74,7 +74,7 @@ RSpec.describe Workflows::CodingHandoff do
 
     context "when adversarial review is enabled" do
       before do
-        allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml).and_return(
+        allow(RepoAdversarialReviewPlan).to receive(:for_job).and_return(
           RepoAdversarialReviewPlan::Result.new(rounds: 2, source: ".syrus.yml", note: nil, criteria: [])
         )
       end
@@ -111,7 +111,7 @@ RSpec.describe Workflows::CodingHandoff do
 
       context "and adversarial review is also enabled" do
         before do
-          allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml).and_return(
+          allow(RepoAdversarialReviewPlan).to receive(:for_job).and_return(
             RepoAdversarialReviewPlan::Result.new(rounds: 1, source: ".syrus.yml", note: nil, criteria: [])
           )
         end
