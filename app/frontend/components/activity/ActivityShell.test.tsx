@@ -278,7 +278,7 @@ describe("Activity shell", () => {
     const shell = await screen.findByRole("dialog", { name: "Activity" })
     await within(shell).findByText("Delete the cache")
     act(() => {
-      client.setQueryData(["permission_requests", 1], {
+      client.setQueryData(["permission_requests", "summary"], {
         requests: [{ ...request(2, "Delete the cache"), state: "approved", actionable: false }, request(1, "Publish the release note")],
         summary: { pending_count: 1, blocked_agent_count: 1 },
         pagination: { page: 1, per_page: 50, total: 2, total_pages: 1 }

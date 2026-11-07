@@ -74,8 +74,24 @@ export type PermissionHistoryEntry = Record<string, unknown> & {
 }
 export type PermissionHistoryPayload = { active_leases: PermissionLease[]; history: PermissionHistoryEntry[] }
 
-export const fetchPermissions = () => {
-  return getJson<PermissionsPayload>("/api/v1/app/permission_rules")
+type PermissionRulesDynamicPayload = Omit<PermissionsPayload, "inherited" | "profiles"> & {
+  matrix_states?: Record<string, InheritedPermission["matrix_states"]>
+}
+type PermissionRulesCatalogPayload = Pick<PermissionsPayload, "inherited" | "profiles">
+
+export const fetchPermissions = async () => {
+  const [dynamic, catalog] = await Promise.all([
+    getJson<PermissionRulesDynamicPayload>("/api/v1/app/permission_rules"),
+    getJson<PermissionRulesCatalogPayload>("/api/v1/app/permission_rules/catalog")
+  ])
+  return {
+    ...dynamic,
+    profiles: catalog.profiles,
+    inherited: catalog.inherited.map((descriptor) => ({
+      ...descriptor,
+      matrix_states: dynamic.matrix_states?.[`${descriptor.capability}|${descriptor.operation}`] ?? descriptor.matrix_states ?? {}
+    }))
+  } satisfies PermissionsPayload
 }
 export const previewPermissionProfile = (profile: string, subject_selector_type: string) =>
   postJson<{ preview: PermissionProfilePreview; confirmation_digest: string }>("/api/v1/app/permission_rules/preview_profile", {

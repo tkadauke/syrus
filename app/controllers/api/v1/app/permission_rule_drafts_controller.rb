@@ -7,7 +7,9 @@ module Api
 
         def options
           descriptor = Permissions::Catalog.find!(capability: params.require(:capability), operation: params[:operation])
-          render json: { options: Permissions::RuleDraftOptions.new(descriptor, user: Current.user).as_json }
+          payload = Permissions::RuleDraftOptions.new(descriptor, user: Current.user).as_json
+          fresh_when(etag: [ "permission-rule-draft-options", Current.user.id, payload ], public: false)
+          render json: { options: payload } unless performed?
         rescue Permissions::Catalog::UnknownCapability, ActionController::ParameterMissing => error
           render_error("invalid_permission_draft", error.message, status: :unprocessable_entity)
         end
