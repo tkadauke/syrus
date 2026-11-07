@@ -18,3 +18,11 @@ it("keeps translated UI hidden until locale resources resolve", async () => {
 
   expect(screen.getByText("Translated application")).toBeInTheDocument()
 })
+
+it("renders the application when locale loading fails", async () => {
+  const ready = Promise.reject(new Error("locale chunk unavailable"))
+
+  render(<I18nStartupGate ready={ready}><div>Application fallback</div></I18nStartupGate>)
+
+  expect(await screen.findByText("Application fallback")).toBeInTheDocument()
+})

@@ -6,9 +6,10 @@ export function I18nStartupGate({ children, ready = i18nReady }: { children: Rea
 
   useEffect(() => {
     let mounted = true
-    void ready.then(() => {
+    const finish = () => {
       if (mounted) setLocaleReady(true)
-    })
+    }
+    void ready.then(finish, finish)
     return () => {
       mounted = false
     }

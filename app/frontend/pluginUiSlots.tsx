@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react"
 import { ChevronIcon } from "./components/ChevronIcon"
+import { loadPluginModule } from "./i18n"
 
 type PluginModule = {
   default?: ComponentType<Record<string, unknown>>
@@ -51,7 +52,8 @@ export function pluginUiSlotComponentFor(key: string | null | undefined) {
   if (!loader) return null
 
   const Component = lazy(async () => {
-    const mod = await loader()
+    const plugin = key.split("/", 1)[0]
+    const mod = plugin === "core" ? await loader() : await loadPluginModule(plugin, loader)
     if (!mod.default) throw new Error(`Plugin UI slot component ${key} has no default export`)
     return { default: mod.default }
   })
