@@ -526,7 +526,11 @@ describe("applyAppEvent", () => {
     })
 
     const updated = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
-    expect(updated?.messages.map(({ id, text }) => [id, text])).toEqual([[1, "old"], [2, "complete"], [3, "next"]])
+    expect(updated?.messages.map(({ id, text }) => [id, text])).toEqual([
+      [1, "old"],
+      [2, "complete"],
+      [3, "next"]
+    ])
   })
 
   it("invalidates chat details for oversized chat message payloads while updating turn state", () => {
