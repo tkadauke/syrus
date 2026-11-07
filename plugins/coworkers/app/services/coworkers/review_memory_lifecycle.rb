@@ -70,7 +70,8 @@ class Coworkers::ReviewMemoryLifecycle
       end
     rescue StandardError => error
       context&.update!(persistence_state: "failed", persistence_error_code: "coworker_memory_persistence_failed",
-                       persistence_error_details: { "class" => error.class.name, "message" => "coworker memory persistence failed" })
+                       persistence_error_details: { "class" => error.class.name,
+                                                    "message" => I18n.t("api.coworkers.review_memory_persistence_failed") })
       raise PersistenceError, "coworker memory persistence failed"
     end
 

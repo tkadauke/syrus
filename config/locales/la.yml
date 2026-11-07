@@ -69,6 +69,9 @@ la:
   errors:
     messages:
       inclusion: "non est in indice valorum permissorum"
+      review_evidence_run_lineage: "cum origine cursus congruere debet"
+      review_evidence_provenance_immutable: "origo testimonii recensionis immutabilis est: %{attributes}"
+      review_evidence_stale_monotonic: "statum obsoletum relinquere non potest"
       must_be_object: "obiectum esse debet"
       unknown_type: "genus ignotum %{value} habet"
       unknown_strategy: "consilium ignotum %{value} habet"

@@ -42,8 +42,8 @@ class ReviewEvidence < ApplicationRecord
   def lineage_matches_run
     return if run.blank?
 
-    errors.add(:workflow, "must match the Run lineage") unless workflow_id == run.workflow_id
-    errors.add(:step, "must match the Run lineage") unless step_id == run.step_id
+    errors.add(:workflow, :review_evidence_run_lineage) unless workflow_id == run.workflow_id
+    errors.add(:step, :review_evidence_run_lineage) unless step_id == run.step_id
   end
 
   def immutable_provenance
@@ -51,10 +51,10 @@ class ReviewEvidence < ApplicationRecord
                    reviewed_base_sha reviewed_head_sha canonical_diff_sha256 prompt_version
                    checklist_version tool_policy_version]
     changed = changes_to_save.keys & immutable
-    errors.add(:base, "review evidence provenance is immutable: #{changed.join(', ')}") if changed.any?
+    errors.add(:base, :review_evidence_provenance_immutable, attributes: changed.join(", ")) if changed.any?
   end
 
   def stale_state_is_monotonic
-    errors.add(:state, "cannot leave stale") if state_in_database == "stale" && state != "stale"
+    errors.add(:state, :review_evidence_stale_monotonic) if state_in_database == "stale" && state != "stale"
   end
 end
