@@ -785,7 +785,10 @@ export function Compose({
               ...currentPayload,
               whiteboard: {
                 version: result.payload.version,
-                elements: [], appState: {}, files: {}, loaded: true
+                elements: [],
+                appState: {},
+                files: {},
+                loaded: true
               }
             }
           : currentPayload
