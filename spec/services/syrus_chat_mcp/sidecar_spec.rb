@@ -79,6 +79,13 @@ RSpec.describe Mcp::Sidecar do
   end
 
   describe "MCP handshake" do
+    it "deduplicates plugin tools exposed in multiple tiers when requesting all tools" do
+      names = described_class.chat_tools(chat_session, tier: :all).map { |tool| McpToolRegistry.tool_name_for(tool) }
+
+      expect(names).to include("show_preview")
+      expect(names).to eq(names.uniq)
+    end
+
     it "responds to initialize with the chat sidecar server name" do
       response = jsonrpc(server_for(chat_session), "initialize", params: { protocolVersion: "2025-06-18", clientInfo: { name: "test", version: "1" }, capabilities: {} })
 
