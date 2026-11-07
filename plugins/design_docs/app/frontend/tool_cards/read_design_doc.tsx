@@ -101,9 +101,13 @@ function renderExpanded(context: ToolCardContext) {
     .filter((name): name is string => Boolean(name))
   const permissions = isPlainObject(doc.value.permissions) ? Object.entries(doc.value.permissions) : []
   const readOnly = doc.envelope.read_only === true
-  const version = numberValue(doc.value.current_version_number)
+  const version = numberValue(doc.value.version_number) ?? numberValue(doc.value.current_version_number)
   const updatedAt = displayValue(doc.value.updated_at)
   const markdown = typeof doc.value.markdown === "string" ? doc.value.markdown : null
+  const startOffset = numberValue(doc.value.start_offset)
+  const endOffset = numberValue(doc.value.end_offset)
+  const totalBytes = numberValue(doc.value.total_bytes)
+  const discussionIncluded = doc.value.discussion_included !== false
 
   return (
     <CardShell>
@@ -112,6 +116,9 @@ function renderExpanded(context: ToolCardContext) {
       <div className="flex flex-wrap items-center gap-1">
         <Badge>{t("tool_detail_mode", { mode })}</Badge>
         {version != null ? <Badge>{t("tool_version", { number: version })}</Badge> : null}
+        {startOffset != null && endOffset != null && totalBytes != null ? (
+          <Badge>{t("tool_byte_range", { start: startOffset, end: endOffset, total: totalBytes })}</Badge>
+        ) : null}
         {readOnly ? <Badge>{t("tool_read_only")}</Badge> : null}
         {updatedAt ? <span className="break-words text-xs text-text-muted">{t("tool_updated", { value: updatedAt })}</span> : null}
       </div>
@@ -172,13 +179,13 @@ function renderExpanded(context: ToolCardContext) {
           title={t("tool_content")}
         />
       )}
-      {mode !== "summary" ? (
+      {mode !== "summary" && discussionIncluded ? (
         <div>
           <SectionLabel>{t("tool_threads")}</SectionLabel>
           <DiscussionList items={objects(doc.value.threads)} kind="thread" />
         </div>
       ) : null}
-      {mode !== "summary" ? (
+      {mode !== "summary" && discussionIncluded ? (
         <div>
           <SectionLabel>{t("tool_suggestions")}</SectionLabel>
           <DiscussionList items={objects(doc.value.suggestions)} kind="suggestion" />
@@ -203,14 +210,44 @@ export const examples: ToolCardExample[] = [
         visibility: "public",
         state: "draft",
         current_version_number: 3,
+        version_number: 3,
         repository_ids: [1],
         collaborators: [{ id: 2, name: "Ada" }],
         markdown: "# Plan\nSee JOB-42 and https://example.test.",
+        total_bytes: 98_304,
+        start_offset: 0,
+        end_offset: 65_536,
+        truncated: true,
+        next_cursor: "signed-version-pinned-cursor",
+        discussion_included: true,
         threads: [],
         suggestions: [],
         permissions: { can_suggest: true }
       },
       read_only: false
+    }
+  },
+  {
+    id: "continuation_page",
+    label: "Continuation page",
+    input: { doc_ref: "DOC-20", cursor: "signed-version-pinned-cursor", max_bytes: 32_768 },
+    parsedResult: {
+      design_doc: {
+        doc_ref: "DOC-20",
+        title: "Target graphs",
+        visibility: "public",
+        state: "draft",
+        current_version_number: 4,
+        version_number: 3,
+        markdown: "## Rollout\nThis page continues the version 3 design.",
+        total_bytes: 98_304,
+        start_offset: 65_536,
+        end_offset: 98_304,
+        truncated: false,
+        next_cursor: null,
+        discussion_included: false
+      },
+      read_only: true
     }
   },
   {

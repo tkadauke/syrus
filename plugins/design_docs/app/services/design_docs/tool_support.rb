@@ -2,8 +2,6 @@ require "mcp"
 
 module DesignDocs
   module ToolSupport
-    MAX_MARKDOWN_BYTES = 64.kilobytes
-
     def success(payload)
       Mcp::Tools.success(payload)
     end
@@ -79,11 +77,25 @@ module DesignDocs
       }
     end
 
-    def detail_payload(design_doc, context:)
-      DesignDocs::Serializer.detail(design_doc, user: permissions_user(context)).merge(
+    def detail_payload(design_doc, context:, page: nil)
+      page ||= DesignDocs::ReadPage.call(design_doc: design_doc)
+      base = if page.first_page
+        DesignDocs::Serializer.detail(design_doc, user: permissions_user(context))
+      else
+        metadata_payload(design_doc)
+      end
+
+      base.merge(
         doc_ref: design_doc.display_id,
-        markdown: capped_markdown(design_doc.markdown),
-        rendered_markdown: capped_markdown(DesignDocs::AnchorMarkers.strip(design_doc.markdown))
+        version_number: page.version.version_number,
+        markdown: page.markdown,
+        rendered_markdown: page.rendered_markdown,
+        total_bytes: page.total_bytes,
+        start_offset: page.start_offset,
+        end_offset: page.end_offset,
+        truncated: page.truncated,
+        next_cursor: page.next_cursor,
+        discussion_included: page.first_page
       )
     end
 
@@ -125,13 +137,6 @@ module DesignDocs
 
       scope.joins(:design_doc_repositories)
         .where(design_doc_repositories: { repository_id: context.repository.id })
-    end
-
-    def capped_markdown(markdown)
-      truncated = Mcp::Tools.truncate_text(markdown, MAX_MARKDOWN_BYTES)
-      return truncated[:text] unless truncated[:truncated]
-
-      "#{truncated[:text]}\n\n[Design doc truncated after #{MAX_MARKDOWN_BYTES} bytes; omitted #{truncated[:omitted_bytes]} bytes.]"
     end
   end
 end

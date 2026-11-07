@@ -70,10 +70,23 @@ RSpec.describe Diagnostics::SignalTrigger do
     # Two signals in quick succession must not stack two whole-heap walks on a
     # process that is already short of memory.
     it "runs at most one diagnostic at a time" do
-      allow(described_class).to receive(:run) { sleep 0.2 }
+      started = Queue.new
+      release = Queue.new
+      diagnostic_thread = nil
+      allow(Thread).to receive(:new).and_wrap_original do |original, *args, &block|
+        diagnostic_thread = original.call(*args, &block)
+      end
+      allow(described_class).to receive(:run) do
+        started << true
+        release.pop
+      end
 
       expect(described_class.request).to be(true)
+      started.pop
       expect(described_class.request).to be(false)
+    ensure
+      release << true if release
+      diagnostic_thread&.join
     end
 
     it "never raises, and releases the guard when spawning fails" do

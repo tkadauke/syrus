@@ -29,6 +29,27 @@ RSpec.describe SyncGithubPermissionsJob do
     )
   end
 
+  it "continues syncing after a repository has a transient connection failure" do
+    AppSetting.current.update!(github_app_id: 42)
+    owner = Factories.user(github_handle: "owner-handle")
+    installation = Factories.installation(user: owner)
+    first_repository = Factories.repository(user: owner, owner: "acme", name: "first", installation: installation)
+    second_repository = Factories.repository(user: owner, owner: "acme", name: "second", installation: installation)
+    first_client = instance_double(GithubClient)
+    second_client = instance_double(GithubClient)
+    allow(GithubClient).to receive(:for).with(repository: first_repository).and_return(first_client)
+    allow(GithubClient).to receive(:for).with(repository: second_repository).and_return(second_client)
+    allow(first_client).to receive(:collaborator_permissions)
+      .with(first_repository.slug)
+      .and_raise(Faraday::ConnectionFailed.new("end of file reached"))
+    allow(second_client).to receive(:collaborator_permissions).with(second_repository.slug).and_return([])
+
+    expect { described_class.perform_now }.not_to raise_error
+
+    expect(second_client).to have_received(:collaborator_permissions).with(second_repository.slug)
+    expect(second_repository.repository_memberships.find_by!(user: owner).github_permission_mismatch_checked_at).to be_present
+  end
+
   it "no-ops when the GitHub App is not registered" do
     expect(GithubPermissionSyncer).not_to receive(:new)
     described_class.perform_now

@@ -3,7 +3,7 @@ import { MemoryRouter } from "react-router-dom"
 import { beforeEach, describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "@app/lib/slugReferenceRegistry"
-import readDesignDocToolCard from "./read_design_doc"
+import readDesignDocToolCard, { examples } from "./read_design_doc"
 
 function context(overrides: Partial<ToolCardContext> = {}): ToolCardContext {
   return { toolName: "read_design_doc", resultBody: "result", resultError: false, parsedResult: null, ...overrides }
@@ -22,6 +22,13 @@ const designDoc = {
   collaborators: [{ id: 2, name: "Ada Lovelace" }],
   permissions: { can_suggest: true, can_archive: false },
   markdown: `# Direction\nSee JOB-42, EPIC-7, and https://example.test. ${"Details ".repeat(400)}`,
+  version_number: 3,
+  total_bytes: 65537,
+  start_offset: 0,
+  end_offset: 65536,
+  truncated: true,
+  next_cursor: "signed-cursor",
+  discussion_included: true,
   threads: [
     {
       id: 9,
@@ -57,12 +64,39 @@ describe("read_design_doc tool card", () => {
     setSlugReferenceRegistryForTests([entry("JOB", "job"), entry("EPIC", "epic")])
   })
 
+  it("keeps paginated first-page and continuation states in the Tool Card Catalog", () => {
+    const firstPage = examples.find((example) => example.id === "full_document")
+    const continuation = examples.find((example) => example.id === "continuation_page")
+
+    expect(firstPage?.parsedResult).toMatchObject({
+      design_doc: {
+        version_number: 3,
+        total_bytes: 98_304,
+        start_offset: 0,
+        end_offset: 65_536,
+        truncated: true,
+        discussion_included: true
+      }
+    })
+    expect(continuation?.parsedResult).toMatchObject({
+      design_doc: {
+        version_number: 3,
+        total_bytes: 98_304,
+        start_offset: 65_536,
+        end_offset: 98_304,
+        truncated: false,
+        discussion_included: false
+      }
+    })
+  })
+
   it("renders all full-detail metadata, linked entities, markdown, threads, and suggestions", () => {
     renderCard(readDesignDocToolCard.renderExpanded(context({ input: { detail: "full" }, parsedResult: { design_doc: designDoc, read_only: true } })))
 
     expect(screen.getByRole("link", { name: "DOC-20" })).toHaveAttribute("href", "/design_docs/20")
     expect(screen.getByRole("link", { name: "Repository 7" })).toHaveAttribute("href", "/repositories/7")
-    expect(screen.getByText("v4")).toBeInTheDocument()
+    expect(screen.getByText("v3")).toBeInTheDocument()
+    expect(screen.getByText("bytes 0–65536 of 65537")).toBeInTheDocument()
     expect(screen.getByText("Read only")).toBeInTheDocument()
     expect(screen.getByText("Ada Lovelace")).toBeInTheDocument()
     expect(screen.getByText("suggest: yes")).toBeInTheDocument()
@@ -99,6 +133,18 @@ describe("read_design_doc tool card", () => {
     expect(screen.getByText("This design doc is blank.")).toBeInTheDocument()
     expect(screen.getByText("No threads.")).toBeInTheDocument()
     expect(screen.getByText("No suggestions.")).toBeInTheDocument()
+  })
+
+  it("does not misreport omitted discussion on continuation pages", () => {
+    renderCard(
+      readDesignDocToolCard.renderExpanded(
+        context({ parsedResult: { design_doc: { ...designDoc, start_offset: 100, discussion_included: false, threads: undefined, suggestions: undefined } } })
+      )
+    )
+
+    expect(screen.queryByText("Threads")).not.toBeInTheDocument()
+    expect(screen.queryByText("Suggestions")).not.toBeInTheDocument()
+    expect(screen.queryByText("No threads.")).not.toBeInTheDocument()
   })
 
   it("renders errors and pending calls", () => {
