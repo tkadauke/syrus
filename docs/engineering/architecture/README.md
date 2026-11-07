@@ -28,6 +28,23 @@ system-wide overview and routes here for detail.
   pipeline, service, plugin, sidecar, UI, and topology inventory.
 - [Detailed runtime reference](runtime-reference.md) — trigger chains,
   terminal, scheduled-task, and live-update mechanics.
+- [Workflow cancellation attribution](workflow_cancellation_attribution.md)
+- [Workspace reuse outcomes](workspace_reuse_outcomes.md)
+- [Workflow artifacts](workflow_artifacts.md)
+- [Workflow workspace lifecycle](workflow_workspace_lifecycle.md)
+- [Permission shadow evaluation](permission_shadow_evaluation.md)
+- [Worker activity timeline](worker_activity_timeline.md) — core worker
+  activity data and its boundary with the worker-timeline plugin.
+- [Work-engine reconciler](work_engine_reconciler.md)
+- [Persistent MCP sidecar](persistent_mcp_sidecar.md)
+- [Agent conversation](agent_conversation.md)
+- [Admin API prefix ownership](admin_api_prefixes.md)
+- [Admin API catalog](admin_api_catalog.md) — generated route inventory.
+- [Diff review comments](diff_review_comments.md)
+- [Connected platforms](connected_platforms.md)
+- [Input sources](input_sources.md)
+- [Repository feature recommendations](repository_feature_recommendations.md)
+- [Coding workspace relay](coding_workspace_relay.md)
 
 Procedures belong in [operations](../operations/README.md), inventories in
 [maps](../maps/README.md), and hazards in [pitfalls](../pitfalls/README.md).
