@@ -427,7 +427,7 @@ Core keeps four things:
   counts are zero and it falls back to its coarser pass/fail comparison --
   exactly what a repository with no test data already got.
 - **`Adjudicators::KnownFlakyFailure`**, a rung-0 adjudicator (see
-  `plugins.md`'s `adjudicator` extension point) that asks `:test_evidence`
+  `docs/engineering/conventions/plugins/authoring.md`'s `adjudicator` extension point) that asks `:test_evidence`
   providers for failing test cases and their flakiness scores rather than
   reading `TestInsights::TestCase` directly. With the plugin disabled there is
   no provider, so it always declines with `no_flakiness_history` -- the same

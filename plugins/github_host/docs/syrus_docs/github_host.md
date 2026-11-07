@@ -51,4 +51,4 @@ mirror plugin uses this to keep its copy in sync.
 
 Disabling is blocked while any active repository would be left with no other
 content provider -- today, that is every repository, until a mirror plugin
-serves them. See `plugins.md` (`repository_content_provider`) for the contract.
+serves them. See `docs/engineering/conventions/plugins/authoring.md` (`repository_content_provider`) for the contract.
