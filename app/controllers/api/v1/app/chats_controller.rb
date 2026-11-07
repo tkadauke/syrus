@@ -376,6 +376,8 @@ module Api
           raise unless transient_chat_lock_error?(e)
 
           render_temporary_chat_lock_error
+        rescue Epic::NotStartable => e
+          render_error("epic_not_startable", e.message, status: :unprocessable_content)
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence.presence || t("api.chats.errors.goal_invalid"), status: :unprocessable_content)
         rescue ActiveRecord::RecordNotFound => e

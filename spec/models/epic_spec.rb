@@ -972,7 +972,7 @@ RSpec.describe Epic, :ci_only do
       expect(epic.owner_user).to eq(user)
     end
 
-    it "walks a startable backlog Epic through auto_ready before starting" do
+    it "starts a backlog Epic directly" do
       epic = described_class.create!(user: user, repository: repository, title: "Launch", state: "ready")
       job = Factories.job_record(user: user, repository: repository, issue_number: 20, epic: epic, state: "blocked_by_epic")
       epic.move_to_backlog!
@@ -1021,8 +1021,14 @@ RSpec.describe Epic, :ci_only do
       expect(job.workflows.queued.count).to eq(1)
     end
 
-    it "refuses in_progress, done, and archived Epics" do
-      %w[in_progress done archived].each do |state|
+    it "is idempotent for an Epic that is already in progress" do
+      epic = described_class.create!(user: user, repository: repository, title: "Already started", state: "in_progress")
+
+      expect { epic.start_implementing!(actor: user) }.not_to change { epic.reload.state }
+    end
+
+    it "refuses done and archived Epics" do
+      %w[done archived].each do |state|
         epic = described_class.create!(user: user, repository: repository, title: "No start from #{state}", state: state)
 
         expect(epic.may_start_implementing?(actor: user)).to be(false)
@@ -1063,7 +1069,7 @@ RSpec.describe Epic, :ci_only do
       expect(epic.reload).to be_ready
     end
 
-    it "refuses a jobless backlog Epic with unfinished Epic dependencies (no dependency-gate bypass)" do
+    it "still refuses a jobless backlog Epic when dependencies are unfinished" do
       blocker = described_class.create!(user: user, repository: repository, title: "Pave the road first", state: "backlog")
       epic = described_class.create!(user: user, repository: repository, title: "Raise the forum", state: "backlog")
       epic.dependencies.create!(depends_on_epic: blocker)
@@ -1071,25 +1077,23 @@ RSpec.describe Epic, :ci_only do
       expect(epic.may_start_implementing?(actor: user)).to be(false)
       expect {
         epic.start_implementing!(actor: user)
-      }.to raise_error(Epic::NotStartable, /waiting on Epic dependencies: Pave the road first/)
+      }.to raise_error(Epic::NotStartable, /at least one child Job/)
       expect(epic.reload).to be_backlog
       expect(epic.releases_jobs_for_execution?).to be(false)
     end
 
-    it "refuses a ready Epic with unfinished dependencies and keeps held children blocked" do
+    it "records start intent with unfinished Epic dependencies and keeps held children blocked" do
       blocker = described_class.create!(user: user, repository: repository, title: "Pave the road first", state: "in_progress")
       epic = described_class.create!(user: user, repository: repository, title: "Raise the forum", state: "ready")
       child = Factories.job_record(user: user, repository: repository, issue_number: 20, epic: epic, state: "blocked_by_epic")
       epic.dependencies.create!(depends_on_epic: blocker)
 
-      expect(epic.may_start_implementing?(actor: user)).to be(false)
+      expect(epic.may_start_implementing?(actor: user)).to be(true)
       expect {
-        expect {
-          epic.start_implementing!(actor: user)
-        }.to raise_error(Epic::NotStartable, /waiting on Epic dependencies: Pave the road first/)
+        epic.start_implementing!(actor: user)
       }.not_to change(Run, :count)
 
-      expect(epic.reload).to be_ready
+      expect(epic.reload).to be_in_progress
       expect(child.reload).to be_blocked_by_epic
     end
 
@@ -1097,13 +1101,12 @@ RSpec.describe Epic, :ci_only do
       blocker = described_class.create!(user: user, repository: repository, title: "Pave the road first", state: "backlog")
       prerequisite = Factories.job_record(user: user, repository: repository, issue_number: 19, state: "queued")
       epic = described_class.create!(user: user, repository: repository, title: "Raise the forum", state: "backlog")
+      Factories.job_record(user: user, repository: repository, issue_number: 20, epic: epic, state: "blocked_by_epic")
       epic.dependencies.create!(depends_on_epic: blocker)
       epic.dependencies.create!(depends_on_job: prerequisite)
 
       expect(epic.unfinished_dependency_names).to contain_exactly("Pave the road first", prerequisite.slug)
-      expect {
-        epic.start_implementing!(actor: user)
-      }.to raise_error(Epic::NotStartable, /Pave the road first/)
+      expect { epic.start_implementing!(actor: user) }.to change { epic.reload.state }.to("in_progress")
     end
 
     it "becomes startable once the blocking Epic completes" do
@@ -1113,7 +1116,7 @@ RSpec.describe Epic, :ci_only do
       epic.move_to_backlog!
       epic.dependencies.create!(depends_on_epic: blocker)
 
-      expect(epic.may_start_implementing?(actor: user)).to be(false)
+      expect(epic.may_start_implementing?(actor: user)).to be(true)
 
       blocker.override_state!("done")
 

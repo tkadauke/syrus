@@ -648,7 +648,12 @@ An Epic that has been created or approved does not run work by itself, and
 an empty Epic cannot start implementing until it has at least one child Job.
 The new-Epic form only creates the Epic shell; after child Jobs exist, the
 **Start implementing** action on the Epic detail page moves the Epic to
-`in_progress` and dispatches its ready child Jobs. Chat Epic proposal cards
+`in_progress`, recording the operator's durable execution intent. Unfinished
+Job or Epic dependencies do not prevent that state transition: they keep child
+Jobs blocked until their execution gates clear, at which point Syrus releases
+the first eligible child automatically. The detail page continues to show the
+Epic as **In progress** and names the dependencies its children are waiting on;
+it does not relabel the Epic as Ready. Chat Epic proposal cards
 can still offer **Create Epic & Start Implementing** because those proposals
 include child Jobs up front. In linear Epics, children with same-Epic parents
 can keep implementing down the stack once the immediate parent has an

@@ -6299,7 +6299,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(confirmation_message.content.fetch("text")).to include("The Epic was started; ready child Jobs are dispatching.")
   end
 
-  it "confirms the proposal even when the best-effort Epic start raises unexpectedly" do
+  it "does not silently report success when a requested Epic start raises unexpectedly" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
     proposal = chat.proposals.create!(
@@ -6316,24 +6316,17 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       body: "Add tables.",
       repository: repository
     )
-    # Not just Epic::NotStartable: the synchronous start creates
-    # Workflows/Runs and can raise anything. None of it may abort the
-    # confirmation the operator just made.
     allow_any_instance_of(Epic).to receive(:start_implementing!).and_raise(RuntimeError, "boom")
-    allow(Rails.logger).to receive(:error).and_call_original
 
-    post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm", params: { start: true }
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm", params: { start: true }
+    }.to raise_error(RuntimeError, "boom")
 
-    expect(response).to have_http_status(:ok)
     expect(proposal.reload).to be_confirmed
     epic = proposal.epic
     expect(epic).to be_present
     expect(epic).not_to be_in_progress
-    expect(parse_body["message"]).to eq("Proposal confirmed and filed as #{epic.slug}.")
-    expect(Rails.logger).to have_received(:error)
-      .with(a_string_including("best-effort Epic start after confirming proposal ##{proposal.id} failed"))
-    confirmation_message = chat.messages.where(role: "system").order(:created_at, :id).last
-    expect(confirmation_message.content.fetch("text")).not_to include("The Epic was started")
+    expect(chat.messages.where(role: "system")).to be_empty
   end
 
   it "confirms an Epic proposal without starting when start is absent" do

@@ -118,6 +118,7 @@
   "unland_status_failed": "Retractio defecit. Opus reversionis conexum inspice.",
   "unland_status_reverted": "Adlata, deinde per Opus reversionis reversa.",
   "waiting_on_dependencies": "Exspectat {{names}}",
+  "implementation_intent_waiting_on_dependencies": "Effectio coepta est; Job filii exspectant {{names}}",
   "starting": "Incipitur...",
   "start_preview": "Praevisum incipe",
   "looks_good": "Bene videtur",

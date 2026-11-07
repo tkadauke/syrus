@@ -91,7 +91,7 @@ export type EpicDetailRecord = {
   stuck: boolean
   startable: boolean
   can_unland: boolean
-  start_blocked_on: string[]
+  execution_blocked_on: string[]
   owner: EpicOwner | null
   owned_by_current_user: boolean
   claimable: boolean
