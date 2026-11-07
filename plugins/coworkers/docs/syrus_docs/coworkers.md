@@ -54,7 +54,8 @@ completed attempts do not accumulate.
 
 ## Protected repository-review memory
 
-Named coworker review Runs use the normal read-only workflow checkout for the
+Named coworker review Runs, including coworkers selected for configured
+adversarial and security review rounds, use the normal read-only workflow checkout for the
 repository under review and a separate checkout of that coworker's home branch
 for durable learning. The reviewer receives only its identity, applicable
 repository criteria, and explicitly selected published repository-scoped
@@ -73,6 +74,14 @@ the validated run-owned checkout, encrypted text, and checkout pointer while
 retaining the safe manifest and lineage. Cleanup refuses unrelated or symlinked
 paths. The central retention-policy registry applies that tombstone after 30
 days by default, aligned with detailed Run evidence retention.
+
+Adversarial and security review keep their existing criteria, project scope,
+rounds, structured verdict tool, repair loop, and narrow reviewer role. A
+provider rule may replace only the reviewer identity with one coworker or a
+panel. Every new Run resolves that coworker's current repository permission
+again; pausing or revoking a coworker prevents a retry or later round but does
+not interrupt a provider process that has already started. These automated
+verdicts are review evidence only and never count as a human Job approval.
 
 Background runs use the same unified permission policy as interactive turns.
 They never receive the interactive-only tool surface. Operations whose effective

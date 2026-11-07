@@ -19,8 +19,8 @@ module Mcp::Tools
         return Mcp::Tools.invalid("invalid verdict") unless VERDICTS.include?(verdict)
         reviewer = run.review_evidence&.reviewer
         return Mcp::Tools.invalid("key_learning is required") if reviewer&.respond_to?(:finalize_review_memory!) && key_learning.empty?
-        ReviewEvidence::VerdictSubmission.call!(run: run, artifact_key: "coworker_review_iterations", review_kind: "coworker", verdict: verdict, critique: critique)
-        reviewer.finalize_review_memory!(run:, key_learning:, verdict:) if reviewer&.respond_to?(:finalize_review_memory!)
+        ReviewEvidence::VerdictSubmission.call!(run: run, artifact_key: "coworker_review_iterations", review_kind: "coworker",
+          verdict: verdict, critique: critique, key_learning: key_learning)
         MCP::Tool::Response.new([ { type: "text", text: "Saved." } ])
       rescue Steps::CoworkerReview::MemoryPersistenceFailed
         raise
