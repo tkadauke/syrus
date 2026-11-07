@@ -1508,7 +1508,7 @@ export type JobSourceDiffPayload = {
     status: string
     additions: number
     deletions: number
-    patch: string | null
+    patch?: string | null
     is_image?: boolean
     patch_status?: "binary" | "oversized" | null
     patch_bytes?: number | null
@@ -1516,7 +1516,7 @@ export type JobSourceDiffPayload = {
   truncated: boolean
   diff_error: string | null
   version: DiffReviewVersion | null
-  /** @deprecated Versions are loaded from diff_review_versions. */
+  /** @deprecated Accepted by older fixtures/responses; versions are loaded from diff_review_versions. */
   versions?: DiffReviewVersion[]
   review_annotations: DiffReviewAnnotationsPayload
   coverage_annotations?: CoverageDiffAnnotationsPayload

@@ -923,7 +923,7 @@ function discussionMessageForSelection({
   }
 }
 
-export function hunkForLine(patch: string | null, line: DiffLineSelection["line"]) {
+export function hunkForLine(patch: string | null | undefined, line: DiffLineSelection["line"]) {
   if (!patch) return null
   const rows = splitLines(patch)
   const parsedLines = parseUnifiedDiff(patch)
