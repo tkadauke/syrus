@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import type { ToolCardContext } from "@app/pluginToolCards"
 import listChatsToolCard from "./list_chats"
 import searchChatsToolCard from "./search_chats"
-import readChatMessagesToolCard from "./read_chat_messages"
+import readChatMessagesToolCard, { examples as readChatMessagesExamples } from "./read_chat_messages"
 import { normalizedToolCardParsedResult, normalizedToolName } from "../toolRendering"
 
 function context(toolName: string, overrides: Partial<ToolCardContext> = {}): ToolCardContext {
@@ -21,6 +21,15 @@ describe("chat search/history tool cards", () => {
     expect(listChatsToolCard.toolName).toBe("list_chats")
     expect(searchChatsToolCard.toolName).toBe("search_chats")
     expect(readChatMessagesToolCard.toolName).toBe("read_chat_messages")
+  })
+
+  it("uses a preview-safe stored image in the read-chat catalog example", () => {
+    const example = readChatMessagesExamples.find(({ id }) => id === "markdown_media_and_deletion")
+    const attachment = (example?.parsedResult as { messages?: Array<{ content?: { attachments?: Array<Record<string, unknown>> } }> })?.messages?.[0]?.content
+      ?.attachments?.[0]
+
+    expect(attachment).toMatchObject({ id: 91, mime_type: "image/png", url: "/icon.png" })
+    expect(attachment).not.toHaveProperty("data")
   })
 
   it("renders chat list rows with mode, linked entities, attached Jobs, filters, timestamps, and pagination", () => {
