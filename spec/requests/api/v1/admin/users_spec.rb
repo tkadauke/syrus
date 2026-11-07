@@ -31,10 +31,10 @@ RSpec.describe "API: /api/v1/admin/users", type: :request do
         "codex_auth_mode" => "chatgpt_login",
         "has_github_token" => true,
         "has_codex_token" => true,
-        "has_codex_api_key" => true,
-        "has_codex_auth_json" => true,
         "has_muse_token" => true
       )
+      expect(alice).not_to have_key("has_codex_api_key")
+      expect(alice).not_to have_key("has_codex_auth_json")
       expect(response.body).not_to include("ghp_secret")
       expect(response.body).not_to include("sk_codex_secret")
       expect(response.body).not_to include("codex_access_secret")
