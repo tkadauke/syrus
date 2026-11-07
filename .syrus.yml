@@ -224,9 +224,13 @@ adversarial_review:
       explicit written approval from Thomas Kadauke in the Job, issue, or PR
       record.
     - |-
-      If the diff adds or changes operator-facing behavior (AppSetting columns,
-      .syrus.yml keys, step or trigger kinds, feature flags, MCP tools), verify
-      that config/syrus_docs/ is updated in the same PR. If product-facing
+      If the diff adds or changes behavior needed to use Syrus (.syrus.yml
+      keys, operator-controlled settings or feature flags, step or trigger
+      kinds, review/grader/landing/merge behavior, MCP tool semantics,
+      agent-facing permission behavior, or user-visible features), verify that
+      config/syrus_docs/ is updated in the same PR. Do not require searchable
+      harness docs for internal-only implementation changes such as response
+      compression, payload shapes, caching, or polling. If product-facing
       behavior changes, verify website/src/site-pages/ or
       website/src/content/docs/ is updated too, or the PR body explains why no
       update is needed.
@@ -395,7 +399,7 @@ grade:
       gray/status colors, repeated panel shells, raw table markup, and
       overly long class strings fail beyond each file's checked-in
       baseline (eslint-rules/baseline.json); already-known debt stays
-      green. See config/syrus_docs/design_system_eslint_ratchet.md.
+      green. This is a contributor convention, not searchable harness behavior.
     run: npm run lint
     phases: [review, landing, ci]
     when_files_changed:
@@ -604,6 +608,7 @@ grade:
       # skips the only specs that validate docs -- including the docs-only fix
       # for a catalog-drift failure, which would then land unverified.
       - "config/syrus_docs/**/*.md"
+      - "docs/engineering/**/*.md"
       - "website/src/content/docs/generated/**/*.md"
       - "docs/metrics-catalog.md"
     timeout_minutes: 60
