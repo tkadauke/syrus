@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_06_105035) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_07_065614) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -3109,6 +3109,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_06_105035) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "entry_file", default: "index.html", null: false
+    t.integer "file_count", default: 0, null: false
+    t.string "entry_viewer_kind", default: "html", null: false
     t.index ["preview_panel_id"], name: "index_preview_panel_versions_on_preview_panel_id"
   end
 
