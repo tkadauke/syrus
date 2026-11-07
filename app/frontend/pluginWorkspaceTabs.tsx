@@ -1,5 +1,6 @@
 import { lazy, type ComponentType } from "react"
 import type { ChatPayload, ChatWorkspaceTab } from "./api/chats"
+import { loadPluginModule } from "./i18n"
 
 // Discovers plugin-supplied chat workspace tab components, the same
 // import.meta.glob-based convention pluginAdminPages.tsx uses for admin
@@ -46,7 +47,7 @@ export function pluginWorkspaceTabComponentFor(key: string | null | undefined) {
   if (!loader) return null
 
   const Component = lazy(async () => {
-    const mod = await loader()
+    const mod = await loadPluginModule(key.split("/", 1)[0], loader)
     if (!mod.default) throw new Error(`Plugin workspace tab component ${key} has no default export`)
     return { default: mod.default }
   })
