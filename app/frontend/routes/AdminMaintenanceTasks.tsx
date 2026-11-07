@@ -106,6 +106,7 @@ export function AdminMaintenanceTaskDetail() {
   const prefix = routePrefix(location.pathname)
   const queryClient = useQueryClient()
   const [documentationOpen, setDocumentationOpen] = useState(false)
+  const [documentationTask, setDocumentationTask] = useState<MaintenanceTask | null>(null)
   const detail = useQuery({
     queryKey: ["admin", "maintenance_tasks", id, location.search],
     queryFn: ({ signal }) => fetchAdminMaintenanceTask(id || "", location.search, signal),
@@ -121,6 +122,16 @@ export function AdminMaintenanceTaskDetail() {
         queryClient.invalidateQueries({ queryKey: ["maintenance_tasks", "sidebar"] })
       ])
   })
+
+  async function openDocumentation() {
+    const payload = await queryClient.fetchQuery({
+      queryKey: ["admin", "maintenance_tasks", id, "documentation"],
+      queryFn: ({ signal }) => fetchAdminMaintenanceTask(id || "", "?include_documentation=1", signal),
+      staleTime: Infinity
+    })
+    setDocumentationTask(payload)
+    setDocumentationOpen(true)
+  }
 
   if (detail.isPending) {
     return (
@@ -140,7 +151,7 @@ export function AdminMaintenanceTaskDetail() {
   const task = detail.data
   return (
     <AdminEventPageShell
-      actions={<TaskActions task={task} busy={action.isPending} onAction={(name) => action.mutate(name)} onDocs={() => setDocumentationOpen(true)} />}
+      actions={<TaskActions task={task} busy={action.isPending} onAction={(name) => action.mutate(name)} onDocs={() => void openDocumentation()} />}
       ariaLabel={t("maintenance_tasks.detail_aria_with_id", { id: task.id })}
       eyebrow={t("section_label")}
       title={task.title}
@@ -158,7 +169,7 @@ export function AdminMaintenanceTaskDetail() {
         <TaskEventLog task={task} />
       </section>
 
-      {documentationOpen ? <TaskDocumentationModal task={task} onClose={() => setDocumentationOpen(false)} /> : null}
+      {documentationOpen && documentationTask ? <TaskDocumentationModal task={documentationTask} onClose={() => setDocumentationOpen(false)} /> : null}
     </AdminEventPageShell>
   )
 }
