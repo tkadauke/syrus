@@ -506,6 +506,7 @@
     "no_snippet": "No message snippet available.",
     "loading_matches": "Loading matches...",
     "error_matches": "Unable to load matches.",
+    "matches_truncated": "Showing the first {{count}} matches.",
     "showing": "Showing {{first}}-{{last}} of {{total}}",
     "previous": "Previous",
     "next": "Next"
