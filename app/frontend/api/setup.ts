@@ -9,7 +9,14 @@ export type SetupStatusPayload = {
   github_app: Record<string, unknown>
   repositories: Record<string, unknown>
   first_job: Record<string, unknown>
-  paths: { setup_path: string; credentials_path: string; new_repository_path: string; repositories_path: string; new_job_path: string; dashboard_jobs_path: string }
+  paths: {
+    setup_path: string
+    credentials_path: string
+    new_repository_path: string
+    repositories_path: string
+    new_job_path: string
+    dashboard_jobs_path: string
+  }
 }
 
 export type FullSetupStatusPayload = {
