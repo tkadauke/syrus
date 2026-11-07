@@ -22,14 +22,6 @@ module App
         json
       end
 
-      def landing_queue_chrome_json
-        {
-          visible: landing_queue_visible?,
-          paused: user.landing_paused?,
-          toggle_path: "/api/v1/app/dashboard/landing_pause"
-        }
-      end
-
       def landing_queue_visible?
         subject == "job" && active_smart_folder&.attention_preset == "landing_queue"
       end
