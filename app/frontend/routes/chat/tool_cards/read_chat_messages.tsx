@@ -33,7 +33,7 @@ export const examples: ToolCardExample[] = [
           role: "user",
           content: {
             text: "## Findings\n\nSee JOB-42 and https://example.test.\n\n```ruby\nputs :ok\n```",
-            attachments: [{ name: "diagram.png", mime_type: "image/png", data: "iVBORw0KGgo=" }]
+            attachments: [{ id: 91, name: "diagram.png", mime_type: "image/png", size: 2048, url: "/api/v1/app/chats/42/attachments/91/file" }]
           },
           created_at: "2026-09-01T12:00:00Z",
           deleted_at: "2026-09-02T12:00:00Z",

@@ -282,7 +282,6 @@ Rails.application.routes.draw do
         post "chats/:chat_id/participants", to: "chat_participants#create", constraints: { chat_id: /\d+/ }
         post "chats/:chat_id/attachments", to: "chat_attachments#create", constraints: { chat_id: /\d+/ }
         get "chats/:chat_id/attachments/:id/file", to: "chat_attachments#show", constraints: { chat_id: /\d+/, id: /\d+/ }
-        get "chats/:chat_id/messages/:message_id/attachments/:index", to: "chat_attachments#legacy", constraints: { chat_id: /\d+/, message_id: /\d+/, index: /\d+/ }
         delete "chats/:chat_id/participants/:user_id", to: "chat_participants#destroy", constraints: { chat_id: /\d+/, user_id: /\d+/ }
         get "chats/:chat_id/shares", to: "chat_shares#index", constraints: { chat_id: /\d+/ }
         post "chats/:chat_id/shares", to: "chat_shares#create", constraints: { chat_id: /\d+/ }

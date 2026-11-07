@@ -1,5 +1,3 @@
-require "base64"
-
 class ChatMediaLibrary
   INLINE_IMAGE_SOURCE_PREFIX = "chat-message-image".freeze
   CAPTURED_IMAGE_SOURCE_PREFIX = "chat-captured-image".freeze

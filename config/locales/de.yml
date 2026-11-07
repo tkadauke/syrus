@@ -41,7 +41,7 @@ de:
         must_be_array: "Anhänge müssen als Array angegeben werden."
         must_be_objects: "Anhänge müssen Objekte sein."
         unsupported_type: "%{name} ist kein unterstützter Anhangstyp."
-        malformed_base64: "%{name} enthält fehlerhafte Base64-Daten."
+        embedded_data_not_allowed: "Anhänge müssen auf gespeicherte Dateien verweisen."
         file_too_large: "Jeder Anhang darf höchstens 5 MB groß sein."
         invalid_utf8: "%{name} ist kein gültiger UTF-8-Text."
         total_too_large: "Anhänge dürfen insgesamt höchstens 20 MB groß sein."

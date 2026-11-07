@@ -6,7 +6,7 @@ RSpec.describe ChatAttachments::InlineBackfill do
   let(:bytes) { "stored attachment bytes" }
 
   it "stores and verifies attachment bytes before replacing inline data with a reference" do
-    message = chat.messages.create!(
+    message = chat.messages.build(
       role: "user",
       content: {
         "text" => "Inspect this",
@@ -14,7 +14,7 @@ RSpec.describe ChatAttachments::InlineBackfill do
           { "name" => "notes.txt", "mime_type" => "text/plain", "data" => Base64.strict_encode64(bytes) }
         ]
       }
-    )
+    ).tap { |record| record.save!(validate: false) }
 
     expect(described_class.new(message).call).to eq(1)
 
@@ -44,7 +44,7 @@ RSpec.describe ChatAttachments::InlineBackfill do
   end
 
   it "keeps inline data when the stored bytes fail verification" do
-    message = chat.messages.create!(
+    message = chat.messages.build(
       role: "user",
       content: {
         "text" => "Inspect this",
@@ -52,7 +52,7 @@ RSpec.describe ChatAttachments::InlineBackfill do
           { "name" => "notes.txt", "mime_type" => "text/plain", "data" => Base64.strict_encode64(bytes) }
         ]
       }
-    )
+    ).tap { |record| record.save!(validate: false) }
     allow_any_instance_of(ActiveStorage::Blob).to receive(:download).and_return("different bytes")
 
     expect { described_class.new(message).call }
