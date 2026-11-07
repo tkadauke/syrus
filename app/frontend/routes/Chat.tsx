@@ -63,7 +63,7 @@ import {
   patchChatGoal,
   updateScratchpadItem,
   fetchChat,
-  fetchChatMedia,
+  fetchAllChatMedia,
   fetchChatMessages,
   fetchChatSearchMessages,
   removeChatAgent,
@@ -730,8 +730,8 @@ function MessageStream({
     [visibleItems, payload.pending_actions, pendingActionGroups]
   )
   const toolCardMedia = useQuery({
-    queryKey: ["chat_media", String(payload.chat.id)],
-    queryFn: () => fetchChatMedia(payload.chat.id),
+    queryKey: ["chat_media", String(payload.chat.id), "all"],
+    queryFn: () => fetchAllChatMedia(payload.chat.id),
     enabled: streamItems.some((item) => item.type === "tool_group" && toolGroupReferencesMedia(item))
   })
   const agentActive = isAgentActive(payload)

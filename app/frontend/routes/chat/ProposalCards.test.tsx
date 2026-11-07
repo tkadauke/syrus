@@ -354,7 +354,14 @@ function payloadFor(queryKey: ChatQueryKey, p: ChatProposal): ChatPayload {
 const mediaPayload: ChatMediaPayload = {
   snapshots: [{ id: 42, name: "Annotated layout", snapshot_kind: "manual", element_count: 3, created_at: "2026-08-30T00:00:00Z" }],
   chat_images: [
-    { id: 77, title: "Safari capture", filename: "capture.png", content_type: "image/png", image_url: "/api/v1/app/credentials/documents/77/file" }
+    {
+      id: 77,
+      title: "Safari capture",
+      filename: "capture.png",
+      content_type: "image/png",
+      file_path: "/api/v1/app/chats/122/media/chat_images/77/file",
+      thumbnail_url: "/api/v1/app/chats/122/media/chat_images/77/file?thumbnail=1"
+    }
   ],
   typed_artifacts: [],
   whiteboard_has_unsaved_content: false
@@ -370,7 +377,7 @@ function renderProposalCard(
   const payload = payloadFor(queryKey, p)
   client.setQueryData(queryKey, options.chatOverrides ? { ...payload, chat: { ...payload.chat, ...options.chatOverrides } } : payload)
   client.setQueryData(["bootstrap"], { current_user: { id: 1, role: "developer", admin: true, ...options.currentUser } })
-  client.setQueryData(["chat_media", "122"], mediaPayload)
+  client.setQueryData(["chat_media", "122", "all"], mediaPayload)
   render(
     <MemoryRouter>
       <QueryClientProvider client={client}>
@@ -385,7 +392,7 @@ function renderProposalEditModal(p: ChatProposal, onNotice = vi.fn()) {
   const queryKey: ChatQueryKey = ["chats", "122", ""]
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   client.setQueryData(queryKey, payloadFor(queryKey, p))
-  client.setQueryData(["chat_media", "122"], mediaPayload)
+  client.setQueryData(["chat_media", "122", "all"], mediaPayload)
   render(
     <MemoryRouter>
       <QueryClientProvider client={client}>
@@ -873,19 +880,20 @@ describe("ProposalCard media", () => {
     renderProposalCard(proposal({ media_ids: ["chat_image:77"] }))
 
     const thumbnail = await screen.findByRole("img", { name: "Safari capture" })
-    expect(thumbnail).toHaveAttribute("src", "/api/v1/app/credentials/documents/77/file")
+    expect(thumbnail).toHaveAttribute("src", "/api/v1/app/chats/122/media/chat_images/77/file?thumbnail=1")
     expect(screen.queryByText("image/png")).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Preview Safari capture" }))
 
     expect(screen.getByRole("dialog")).toBeInTheDocument()
     expect(screen.getAllByRole("img", { name: "Safari capture" })).toHaveLength(2)
+    expect(screen.getAllByRole("img", { name: "Safari capture" })[1]).toHaveAttribute("src", "/api/v1/app/chats/122/media/chat_images/77/file")
   })
 
   it("lets proposal edits add and remove media refs", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
-      if (url.endsWith("/media")) {
+      if (url.includes("/media?")) {
         return Promise.resolve(jsonResponse(mediaPayload))
       }
       if (init?.method === "PATCH") return Promise.resolve(jsonResponse(payloadFor(["chats", "122", ""], proposal({ media_ids: ["chat_image:77"] }))))
@@ -967,7 +975,7 @@ describe("ProposalCard routing", () => {
   it("lets operators choose backlog routing before confirming a direct Job proposal", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
-      if (url.endsWith("/media")) return Promise.resolve(jsonResponse(mediaPayload))
+      if (url.includes("/media?")) return Promise.resolve(jsonResponse(mediaPayload))
       if (init?.method === "PATCH")
         return Promise.resolve(jsonResponse(payloadFor(["chats", "122", ""], proposal({ kind: "job", route_to_backlog: true, route_label: "Backlog" }))))
 
@@ -1174,7 +1182,7 @@ describe("ProposalCard live sync", () => {
     const confirmed = proposal({ state: "confirmed", state_label: "Confirmed", proposed: false, resolved: true })
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
-      if (url.endsWith("/media")) return Promise.resolve(jsonResponse(mediaPayload))
+      if (url.includes("/media?")) return Promise.resolve(jsonResponse(mediaPayload))
       if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: confirmed }))
 
       return Promise.resolve(jsonResponse({}))
@@ -1197,7 +1205,7 @@ describe("ProposalCard live sync", () => {
     const rejected = proposal({ state: "rejected", state_label: "Rejected", proposed: false, resolved: true })
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
-      if (url.endsWith("/media")) return Promise.resolve(jsonResponse(mediaPayload))
+      if (url.includes("/media?")) return Promise.resolve(jsonResponse(mediaPayload))
       if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal rejected.", proposal: rejected }))
 
       return Promise.resolve(jsonResponse({}))
@@ -1217,7 +1225,7 @@ describe("ProposalCard live sync", () => {
     const updatedProposal = proposal({ title: "Updated title" })
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
-      if (url.endsWith("/media")) return Promise.resolve(jsonResponse(mediaPayload))
+      if (url.includes("/media?")) return Promise.resolve(jsonResponse(mediaPayload))
       if (init?.method === "PATCH") {
         return Promise.resolve(
           jsonResponse({

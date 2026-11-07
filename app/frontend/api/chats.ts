@@ -365,6 +365,8 @@ export type ChatMediaImage = {
   filename: string | null
   content_type: string
   file_path?: string | null
+  // Accepted for cached responses created before the media endpoint removed
+  // its duplicate full-size URL. New responses use file_path.
   image_url?: string | null
   thumbnail_url?: string | null
 }
@@ -1341,10 +1343,29 @@ export function fetchChatMedia(chatId: string | number, page = 1) {
   return getJson<ChatMediaPayload>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/media?image_page=${page}&artifact_page=${page}`)
 }
 
+export async function fetchAllChatMedia(chatId: string | number) {
+  const firstPage = await fetchChatMedia(chatId)
+  const pages = [firstPage]
+  let page = 1
+  let hasMore = Boolean(firstPage.pagination?.images_has_more || firstPage.pagination?.artifacts_has_more)
+
+  while (hasMore) {
+    page += 1
+    const nextPage = await fetchChatMedia(chatId, page)
+    pages.push(nextPage)
+    hasMore = Boolean(nextPage.pagination?.images_has_more || nextPage.pagination?.artifacts_has_more)
+  }
+
+  return {
+    ...firstPage,
+    chat_images: pages.flatMap((entry) => entry.chat_images),
+    typed_artifacts: pages.flatMap((entry) => entry.typed_artifacts),
+    pagination: pages.at(-1)?.pagination
+  }
+}
+
 export function fetchChatMediaArtifact(chatId: string | number, artifactIndex: number) {
-  return getJson<TypedArtifact>(
-    `/api/v1/app/chats/${encodeURIComponent(String(chatId))}/media/typed_artifacts/${encodeURIComponent(String(artifactIndex))}`
-  )
+  return getJson<TypedArtifact>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/media/typed_artifacts/${encodeURIComponent(String(artifactIndex))}`)
 }
 
 export function postSnapshotPng(jobAttachmentsPath: string, blob: Blob, filename: string) {

@@ -1192,7 +1192,7 @@ module Api
           raise ActiveRecord::RecordNotFound, "Chat image not found" unless document.content_type.to_s.start_with?("image/")
           raise ActiveRecord::RecordNotFound, "Chat image file not found" unless document.file.attached?
 
-          attachment = params[:thumbnail] == "1" ? document.file.variant(resize_to_limit: [ 480, 480 ]).processed : document.file
+          attachment = chat_media_file(document)
           send_secure_file(
             attachment.download,
             filename: document.filename || "image",
@@ -1202,6 +1202,15 @@ module Api
 
         def positive_page_param(name)
           [ params[name].to_i, 1 ].max
+        end
+
+        def chat_media_file(document)
+          return document.file unless params[:thumbnail] == "1" && document.file.variable?
+
+          document.file.variant(resize_to_limit: [ 480, 480 ]).processed
+        rescue StandardError => e
+          Rails.logger.warn("[ChatMedia] thumbnail processing failed for document #{document.id}: #{e.class}: #{e.message}")
+          document.file
         end
 
         def cancel_coding_checkout

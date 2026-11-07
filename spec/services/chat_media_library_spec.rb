@@ -30,6 +30,24 @@ RSpec.describe ChatMediaLibrary do
     end
   end
 
+  describe ".materialize_inline_images_for!" do
+    it "materializes an inline image as part of creating its message" do
+      message = chat_session.messages.create!(
+        role: "user",
+        content: {
+          "text" => "Screenshot",
+          "attachments" => [
+            { "name" => "screen.png", "mime_type" => "image/png", "data" => Base64.strict_encode64(png_bytes) }
+          ]
+        }
+      )
+
+      document = chat_session.reload.attached_repository_documents.sole
+      expect(document.source_url).to eq("chat-message-image://#{chat_session.id}/#{message.id}/0")
+      expect(document.file.download).to eq(png_bytes)
+    end
+  end
+
   describe ".materialize_captured_image!" do
     it "creates a Document attached to the chat session's user" do
       document = described_class.materialize_captured_image!(

@@ -32,6 +32,7 @@ class ChatMessage < ApplicationRecord
 
   before_validation :resolve_mentions_once, on: :create
   after_create :record_chat_turn_state
+  after_create :materialize_inline_images
   after_create_commit :broadcast_app_event
   after_create_commit :enqueue_search_index
   after_create_commit :clear_suggested_next_step, if: -> { role == "user" }
@@ -42,6 +43,10 @@ class ChatMessage < ApplicationRecord
   validates :role, presence: true, inclusion: { in: ROLES }
   validate :mentions_are_structured
   validate :content_is_present
+
+  private def materialize_inline_images
+    ChatMediaLibrary.materialize_inline_images_for!(self)
+  end
 
   def bookmarkable?
     role.in?(%w[user assistant])

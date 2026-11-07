@@ -1,6 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "../testSupport"
-import { createChat, createEmptyChat, fetchChatWhiteboard, fetchWhiteboardSnapshots, patchChatWhiteboard, fetchChats, searchChatJobs } from "./chats"
+import {
+  createChat,
+  createEmptyChat,
+  fetchAllChatMedia,
+  fetchChatWhiteboard,
+  fetchWhiteboardSnapshots,
+  patchChatWhiteboard,
+  fetchChats,
+  searchChatJobs
+} from "./chats"
 
 describe("chat API", () => {
   afterEach(() => {
@@ -143,6 +152,25 @@ describe("chat API", () => {
 
     const result = await fetchWhiteboardSnapshots(8)
     expect(result.whiteboard_snapshots).toEqual([{ id: 1 }, { id: 2 }])
+  })
+
+  it("loads every media page for consumers that need complete attachment references", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+      const page = String(input).includes("image_page=2") ? 2 : 1
+      return jsonResponse({
+        snapshots: [],
+        chat_images: [{ id: page, file_path: `/images/${page}` }],
+        typed_artifacts: [{ artifact_index: page - 1, type: "report", title: `Report ${page}` }],
+        whiteboard_has_unsaved_content: false,
+        pagination: { image_page: page, images_has_more: page === 1, artifact_page: page, artifacts_has_more: page === 1 }
+      })
+    })
+
+    const result = await fetchAllChatMedia(8)
+
+    expect(result.chat_images.map((image) => image.id)).toEqual([1, 2])
+    expect(result.typed_artifacts.map((artifact) => artifact.artifact_index)).toEqual([0, 1])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })
 

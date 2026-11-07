@@ -1065,7 +1065,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
     enabled: payload.chat.id != null
   })
   const media = useInfiniteQuery({
-    queryKey: ["chat_media", String(payload.chat.id)],
+    queryKey: ["chat_media", String(payload.chat.id), "pages"],
     queryFn: ({ pageParam }) => fetchChatMedia(payload.chat.id, pageParam),
     initialPageParam: 1,
     getNextPageParam: (lastPage) =>
@@ -1153,7 +1153,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
   // there. The result is awaited so the notice reflects what actually
   // happened rather than assuming success.
   async function attachImageToComposer(image: ChatMediaImage) {
-    const src = image.image_url || image.file_path || ""
+    const src = image.file_path || ""
     if (!src) return
 
     const result = await attachMediaLibraryImage({
@@ -1198,7 +1198,10 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
               const artifactIndex = artifact.artifact_index ?? artifactPosition
               const selected = selectedArtifactIndex === artifactIndex
               return (
-                <article className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-950" key={artifact.artifact_index ?? `${artifact.type}-${artifact.created_at}`}>
+                <article
+                  className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-950"
+                  key={artifact.artifact_index ?? `${artifact.type}-${artifact.created_at}`}
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100" title={artifact.title}>
@@ -1220,7 +1223,9 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
                     </button>
                   </div>
                   {selected && !artifact.payload && selectedArtifact.isPending ? <PanelMessage>{t("common:loading")}</PanelMessage> : null}
-                  {selected && selectedArtifact.isError ? <PanelMessage tone="error">{errorMessage(selectedArtifact.error, t("artifacts_load_error"))}</PanelMessage> : null}
+                  {selected && selectedArtifact.isError ? (
+                    <PanelMessage tone="error">{errorMessage(selectedArtifact.error, t("artifacts_load_error"))}</PanelMessage>
+                  ) : null}
                   {selected && (artifact.payload || selectedArtifact.data) ? (
                     <div className="mt-3">
                       <TypedArtifactPanel artifacts={[artifact.payload ? { ...artifact, payload: artifact.payload } : selectedArtifact.data!]} />
@@ -1315,7 +1320,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
           <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("image_attachments")}</h2>
           <div className="grid grid-cols-3 gap-2">
             {images.map((image, index) => {
-              const src = image.image_url || image.file_path || ""
+              const src = image.file_path || ""
               const thumbnailSrc = image.thumbnail_url || src
               const name = image.title || image.filename || "image attachment"
 
@@ -1358,7 +1363,12 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
         </section>
       ) : null}
       {media.hasNextPage ? (
-        <button className={`${secondaryButton()} w-full px-3 py-2 text-sm`} disabled={media.isFetchingNextPage} onClick={() => void media.fetchNextPage()} type="button">
+        <button
+          className={`${secondaryButton()} w-full px-3 py-2 text-sm`}
+          disabled={media.isFetchingNextPage}
+          onClick={() => void media.fetchNextPage()}
+          type="button"
+        >
           {media.isFetchingNextPage ? t("common:loading") : t("media_load_more")}
         </button>
       ) : null}
@@ -1370,12 +1380,12 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
           imageCount={images.length}
           imageIndex={lightboxImageIndex ?? 0}
           name={lightboxImage.title || lightboxImage.filename || t("image_attachment")}
-          nextSrc={nextLightboxImage ? nextLightboxImage.image_url || nextLightboxImage.file_path : null}
+          nextSrc={nextLightboxImage?.file_path || null}
           onClose={() => setLightboxImageIndex(null)}
           onNext={() => setLightboxImageIndex((index) => (index == null ? index : Math.min(index + 1, images.length - 1)))}
           onPrevious={() => setLightboxImageIndex((index) => (index == null ? index : Math.max(index - 1, 0)))}
-          previousSrc={previousLightboxImage ? previousLightboxImage.image_url || previousLightboxImage.file_path : null}
-          src={lightboxImage.image_url || lightboxImage.file_path || ""}
+          previousSrc={previousLightboxImage?.file_path || null}
+          src={lightboxImage.file_path || ""}
         />
       ) : null}
     </div>

@@ -5281,7 +5281,40 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response.body).to be_present
     end
 
-    it "does not materialize inline chat image attachments during the GET" do
+    it "falls back to the original file when an image cannot be varied" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+      svg = '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"></svg>'
+      doc = Document.new(kind: "file", attachable: user, user: user)
+      doc.file.attach(io: StringIO.new(svg), filename: "pixel.svg", content_type: "image/svg+xml")
+      doc.save!
+      ChatAttachment.create!(chat_session: chat, attachable: doc, suppress_header_broadcast: true)
+
+      get "/api/v1/app/chats/#{chat.id}/media/chat_images/#{doc.id}/file", params: { thumbnail: 1 }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq("image/svg+xml")
+      expect(response.body).to eq(svg)
+    end
+
+    it "falls back to the original file when thumbnail processing fails" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+      png = Base64.decode64("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
+      doc = Document.new(kind: "file", attachable: user, user: user)
+      doc.file.attach(io: StringIO.new(png), filename: "pixel.png", content_type: "image/png")
+      doc.save!
+      ChatAttachment.create!(chat_session: chat, attachable: doc, suppress_header_broadcast: true)
+      allow_any_instance_of(ActiveStorage::Blob).to receive(:variant).and_raise(ActiveStorage::InvariableError)
+
+      get "/api/v1/app/chats/#{chat.id}/media/chat_images/#{doc.id}/file", params: { thumbnail: 1 }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq("image/png")
+      expect(response.body).to eq(png)
+    end
+
+    it "materializes inline images when the message is written and does not write during the GET" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
       chat.messages.create!(
@@ -5298,11 +5331,16 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
         }
       )
 
+      document = chat.reload.attached_repository_documents.sole
+      document_count = Document.count
+      attachment_count = ChatAttachment.count
+
       get "/api/v1/app/chats/#{chat.id}/media"
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body["chat_images"]).to eq([])
-      expect(chat.reload.attached_repository_documents).to be_empty
+      expect(Document.count).to eq(document_count)
+      expect(ChatAttachment.count).to eq(attachment_count)
+      expect(parse_body["chat_images"]).to contain_exactly(include("id" => document.id, "filename" => "bug-report-viewport.png"))
     end
 
     it "excludes non-image documents from chat_images" do

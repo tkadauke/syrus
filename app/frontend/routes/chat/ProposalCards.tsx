@@ -11,7 +11,7 @@ import {
   confirmPendingAction,
   decideAuthorizationItem,
   smartDecideAuthorizationItem,
-  fetchChatMedia,
+  fetchAllChatMedia,
   rejectChatProposal,
   rejectPendingAction,
   searchChatEpics,
@@ -136,8 +136,8 @@ export function ProposalEditModal({
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false)
   const payload = queryClient.getQueryData<ChatPayload>(queryKey)
   const media = useQuery({
-    queryKey: ["chat_media", String(chatId)],
-    queryFn: () => fetchChatMedia(chatId),
+    queryKey: ["chat_media", String(chatId), "all"],
+    queryFn: () => fetchAllChatMedia(chatId),
     enabled: String(chatId).length > 0
   })
   const availableMediaItems = proposalMediaItems(
@@ -540,8 +540,8 @@ export function ProposalCard({
   const childJobCount = proposal.children?.length || 0
   const bootstrap = useQuery({ queryKey: ["bootstrap"], queryFn: fetchBootstrap })
   const media = useQuery({
-    queryKey: ["chat_media", String(queryKey[1])],
-    queryFn: () => fetchChatMedia(queryKey[1]),
+    queryKey: ["chat_media", String(queryKey[1]), "all"],
+    queryFn: () => fetchAllChatMedia(queryKey[1]),
     enabled: proposalHasMedia(proposal)
   })
   const payload = queryClient.getQueryData<ChatPayload>(queryKey)
@@ -776,6 +776,7 @@ type ProposalMediaItem = {
   label: string
   detail: string
   imageUrl?: string | null
+  thumbnailUrl?: string | null
   contentType?: string | null
 }
 
@@ -865,7 +866,7 @@ function ProposalMediaPicker({
 function ProposalMediaTile({ item, interactive = false }: { item: ProposalMediaItem; interactive?: boolean }) {
   const [previewOpen, setPreviewOpen] = useState(false)
   const border = interactive ? "hover:border-brand/40 hover:bg-brand/5" : ""
-  const thumbnailUrl = item.kind === "chat_image" ? item.imageUrl || null : null
+  const thumbnailUrl = item.kind === "chat_image" ? item.thumbnailUrl || item.imageUrl || null : null
   const tile = thumbnailUrl ? (
     <div
       className={`flex h-16 w-32 min-w-0 items-center justify-center overflow-hidden rounded border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-900 ${border}`}
@@ -899,7 +900,10 @@ function ProposalMediaTile({ item, interactive = false }: { item: ProposalMediaI
         {tile}
       </button>
       {previewOpen ? (
-        <DocumentPreviewModal file={{ title: item.label, rawUrl: thumbnailUrl, contentType: item.contentType || null }} onClose={() => setPreviewOpen(false)} />
+        <DocumentPreviewModal
+          file={{ title: item.label, rawUrl: item.imageUrl || thumbnailUrl, contentType: item.contentType || null }}
+          onClose={() => setPreviewOpen(false)}
+        />
       ) : null}
     </>
   )
@@ -937,7 +941,8 @@ function proposalMediaItem(ref: string, media: ChatMediaPayload | undefined, pre
       kind,
       label: image?.title || image?.filename || ref,
       detail: image?.content_type || i18n.t("chat:chat_image"),
-      imageUrl: image?.image_url,
+      imageUrl: image?.file_path,
+      thumbnailUrl: image?.thumbnail_url,
       contentType: image?.content_type
     }
   }

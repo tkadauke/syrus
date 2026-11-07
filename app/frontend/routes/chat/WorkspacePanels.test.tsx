@@ -1072,9 +1072,7 @@ describe("MediaGallery artifacts", () => {
     vi.mocked(fetchChatMedia).mockResolvedValue({
       snapshots: [],
       chat_images: [],
-      typed_artifacts: [
-        { artifact_index: 4, type: "rails_schema_erd", title: "Schema ERD", created_at: "2026-08-06T10:00:00Z", renderer_type: "erd_diagram" }
-      ],
+      typed_artifacts: [{ artifact_index: 4, type: "rails_schema_erd", title: "Schema ERD", created_at: "2026-08-06T10:00:00Z", renderer_type: "erd_diagram" }],
       whiteboard_has_unsaved_content: false
     })
     vi.mocked(fetchChatMediaArtifact).mockResolvedValue({
@@ -1244,7 +1242,7 @@ describe("MediaGallery images", () => {
     expect(within(thumbnail).getByAltText("old.png")).toHaveAttribute("src", "/api/v1/app/chats/1/media/chat_images/1/file?thumbnail=1")
 
     const download = screen.getByRole("link", { name: "Download old.png" })
-    expect(download).toHaveAttribute("href", "/api/v1/app/repository_documents/1/file")
+    expect(download).toHaveAttribute("href", "/api/v1/app/chats/1/media/chat_images/1/file")
     expect(download).toHaveAttribute("download", "old.png")
 
     fireEvent.click(thumbnail)
@@ -1278,7 +1276,7 @@ describe("MediaGallery images", () => {
     await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Added to message composer"))
     expect(attachMediaLibraryImage).toHaveBeenCalledWith({
       chatId: "1",
-      url: "/api/v1/app/repository_documents/1/file",
+      url: "/api/v1/app/chats/1/media/chat_images/1/file",
       name: "old.png",
       mimeType: "image/png"
     })
@@ -1322,7 +1320,7 @@ describe("MediaGallery images", () => {
 
     const dialog = screen.getByRole("dialog", { name: "new.png" })
     expect(dialog).toBeInTheDocument()
-    expect(within(dialog).getAllByRole("img", { name: "new.png" })[0]).toHaveAttribute("src", "/api/v1/app/repository_documents/2/file")
+    expect(within(dialog).getAllByRole("img", { name: "new.png" })[0]).toHaveAttribute("src", "/api/v1/app/chats/1/media/chat_images/2/file")
     expect(screen.getByRole("button", { name: "Next image" })).toBeDisabled()
 
     fireEvent.click(screen.getByRole("button", { name: "Attach to message" }))
@@ -1330,7 +1328,7 @@ describe("MediaGallery images", () => {
     await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Added to message composer"))
     expect(attachMediaLibraryImage).toHaveBeenCalledWith({
       chatId: "1",
-      url: "/api/v1/app/repository_documents/2/file",
+      url: "/api/v1/app/chats/1/media/chat_images/2/file",
       name: "new.png",
       mimeType: "image/png"
     })
@@ -1427,7 +1425,7 @@ describe("MediaGallery images", () => {
     fireEvent.touchEnd(swipeArea, { changedTouches: [{ clientX: 80 }] })
 
     const nextDialog = screen.getByRole("dialog", { name: "new.png" })
-    expect(within(nextDialog).getAllByRole("img", { name: "new.png" })[0]).toHaveAttribute("src", "/api/v1/app/repository_documents/2/file")
+    expect(within(nextDialog).getAllByRole("img", { name: "new.png" })[0]).toHaveAttribute("src", "/api/v1/app/chats/1/media/chat_images/2/file")
   })
 
   it("shows an error notice when the media-library attach fails", async () => {
@@ -1484,7 +1482,7 @@ describe("MediaGallery images", () => {
     await waitFor(() =>
       expect(attachMediaLibraryImage).toHaveBeenCalledWith({
         chatId: "1",
-        url: "/api/v1/app/repository_documents/1/file",
+        url: "/api/v1/app/chats/1/media/chat_images/1/file",
         name: "old.png",
         mimeType: "image/png"
       })

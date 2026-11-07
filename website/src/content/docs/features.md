@@ -1079,10 +1079,12 @@ image thumbnail in the composer to mark it up with basic shapes, arrows,
 freehand strokes, text, and undo; Syrus flattens the result into a PNG
 attachment. Image attachments render as inline thumbnails in the transcript
 and open in a full-size preview. The chat workspace also includes a Media tab
-that gathers image attachments into a downloadable gallery and lists saved
-whiteboard snapshots with element counts, relative timestamps, and a Load
-action that merges the snapshot back onto the current canvas after preserving
-existing work. When an agent saves the current canvas, or clears a non-empty
+that gathers image attachments into a paginated, downloadable gallery and
+lists saved whiteboard snapshots with element counts, relative timestamps,
+and a Load action that merges the snapshot back onto the current canvas after
+preserving existing work. The gallery loads compact thumbnails for its grid,
+fetches full-size images only when opened, and offers a Load more action for
+long media histories. When an agent saves the current canvas, or clears a non-empty
 canvas after Syrus automatically snapshots it, the transcript card renders the
 saved scene as a thumbnail that opens a full-size preview, shows the canvas
 version and available snapshot details, and links to the chat's Whiteboard and

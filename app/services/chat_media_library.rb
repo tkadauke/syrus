@@ -8,6 +8,10 @@ class ChatMediaLibrary
     new(chat_session).materialize_inline_images!
   end
 
+  def self.materialize_inline_images_for!(message)
+    new(message.chat_session).materialize_inline_images_for!(message)
+  end
+
   def self.remove_materialized_inline_images!(chat_session)
     new(chat_session).remove_materialized_inline_images!
   end
@@ -48,6 +52,14 @@ class ChatMediaLibrary
     end
   end
 
+  def materialize_inline_images_for!(message)
+    return unless message.role == "user" && !message.deleted?
+
+    image_attachments_in(message).each do |attachment, index|
+      materialize_inline_image!(message, attachment, index)
+    end
+  end
+
   def remove_materialized_inline_images!
     documents = chat_session.attached_repository_documents.where(
       "documents.source_url LIKE ?",
@@ -65,7 +77,6 @@ class ChatMediaLibrary
   end
 
   def chat_image_count
-    materialize_inline_images!
     chat_session.attached_repository_documents
                 .where(kind: "file")
                 .count { |doc| doc.content_type.to_s.start_with?("image/") }
