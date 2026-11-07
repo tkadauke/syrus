@@ -34,15 +34,6 @@ module Api
           send_secure_file attachment.file.download, filename: attachment.name, type: attachment.mime_type
         end
 
-        def legacy
-          message = find_chat.messages.find(params[:message_id])
-          attachment = ChatAttachmentRef.for(message).fetch(Integer(params[:index], 10))
-          raise ActiveRecord::RecordNotFound, "Attachment file not found" unless attachment.bytes_present?
-
-          expires_in 1.year, public: false, immutable: true
-          send_secure_file attachment.bytes, filename: attachment.name, type: attachment.mime_type
-        end
-
         private
 
         def find_chat

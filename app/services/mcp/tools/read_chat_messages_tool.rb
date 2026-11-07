@@ -7,7 +7,7 @@ module Mcp::Tools
 
     tool_name "read_chat_messages"
 
-    description "Read a page of messages from one of this user's chat sessions."
+    description "Read a page of messages from one of this user's chat sessions, including stored attachment metadata and download URLs."
 
     input_schema(
       properties: {

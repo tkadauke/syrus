@@ -44,6 +44,13 @@ RSpec.describe Mcp::Tools::ListChatMediaTool do
     doc
   end
 
+  def create_message_image(filename:, bytes:)
+    attachment = chat_session.chat_file_attachments.build(name: filename, mime_type: "image/png", byte_size: bytes.bytesize, checksum: "pending")
+    attachment.file.attach(io: StringIO.new(bytes), filename: filename, content_type: "image/png")
+    attachment.save!
+    chat_session.messages.create!(role: "user", content: { "text" => "", "attachments" => [ { "id" => attachment.id } ] })
+  end
+
   it "returns empty arrays and zero element count when no media exists" do
     result = payload(call_tool)
 
@@ -81,20 +88,8 @@ RSpec.describe Mcp::Tools::ListChatMediaTool do
     expect(img[:file_path]).to eq("/api/v1/app/chats/#{chat_session.id}/media/chat_images/#{doc.id}/file")
   end
 
-  it "materializes inline chat image attachments and returns them as chat_image refs" do
-    chat_session.messages.create!(
-      role: "user",
-      content: {
-        "text" => "Here is the media.",
-        "attachments" => [
-          {
-            "name" => "viewport.png",
-            "mime_type" => "image/png",
-            "data" => Base64.strict_encode64("png-bytes")
-          }
-        ]
-      }
-    )
+  it "materializes stored chat image attachments and returns them as chat_image refs" do
+    create_message_image(filename: "viewport.png", bytes: "png-bytes")
 
     result = payload(call_tool)
 
@@ -107,20 +102,8 @@ RSpec.describe Mcp::Tools::ListChatMediaTool do
     )
   end
 
-  it "does not duplicate materialized inline image documents across calls" do
-    chat_session.messages.create!(
-      role: "user",
-      content: {
-        "text" => "",
-        "attachments" => [
-          {
-            "name" => "capture.png",
-            "mime_type" => "image/png",
-            "data" => Base64.strict_encode64("pixels")
-          }
-        ]
-      }
-    )
+  it "does not duplicate materialized stored image documents across calls" do
+    create_message_image(filename: "capture.png", bytes: "pixels")
 
     expect { call_tool }.to change(Document, :count).by(1)
     expect { call_tool }.not_to change(Document, :count)

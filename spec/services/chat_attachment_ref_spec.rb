@@ -4,37 +4,6 @@ RSpec.describe ChatAttachmentRef do
   let(:user) { Factories.user }
   let(:chat) { ChatSession.create!(user: user) }
 
-  it "reads legacy inline attachment bytes and metadata" do
-    message = chat.messages.create!(role: "user", content: { "text" => "", "attachments" => [
-      { "name" => "notes.txt", "mime_type" => "text/plain", "data" => Base64.strict_encode64("hello") }
-    ] }, sender_user: user)
-
-    ref = described_class.for(message).sole
-
-    expect(ref.bytes).to eq("hello")
-    expect(ref.payload).to eq(
-      "name" => "notes.txt",
-      "mime_type" => "text/plain",
-      "url" => "/api/v1/app/chats/#{chat.id}/messages/#{message.id}/attachments/0",
-      "size" => 5
-    )
-    expect(ref.payload).not_to have_key("data")
-  end
-
-  it "reads attachments from JSON-encoded scratchpad content" do
-    item = chat.scratchpad_items.new(
-      content: JSON.generate("text" => "", "attachments" => [
-        { "name" => "notes.txt", "mime_type" => "text/plain", "data" => Base64.strict_encode64("hello") }
-      ]),
-      position: 0
-    )
-
-    ref = described_class.for(item).sole
-
-    expect(ref.bytes).to eq("hello")
-    expect(item).to be_valid
-  end
-
   it "reads a storage-backed attachment and claims it for its message" do
     attachment = chat.chat_file_attachments.build(name: "diagram.png", mime_type: "image/png", byte_size: 3, checksum: "pending")
     attachment.file.attach(io: StringIO.new("png"), filename: "diagram.png", content_type: "image/png")
@@ -49,11 +18,10 @@ RSpec.describe ChatAttachmentRef do
     expect(attachment.reload.attachable).to eq(message)
   end
 
-  it "treats a legacy attachment without data as empty bytes" do
-    ref = described_class.new({ "name" => "empty.txt", "mime_type" => "text/plain" })
+  it "ignores attachment metadata that has no stored-file id" do
+    message = chat.messages.build(role: "user", content: { "text" => "", "attachments" => [ { "name" => "missing.txt" } ] })
 
-    expect(ref.bytes).to eq("")
-    expect(ref.bytes_present?).to be(false)
+    expect(described_class.for(message)).to be_empty
   end
 
   it "batch-loads stored attachments for multiple messages" do
