@@ -434,11 +434,8 @@ export type DashboardControlsPayload = Pick<DashboardPayload, "subject" | "contr
 
 export type DashboardRowsPayload = Pick<
   DashboardPayload,
-  "subject" | "view" | "page" | "per_page" | "total" | "total_pages" | "total_estimated" | "landing_queue" | "items" | "lanes" | "kanban_limit"
-> &
-  Partial<Pick<DashboardPayload, "active_smart_folder_id" | "filter" | "preferences" | "ui_panels">> & {
-    controls?: Partial<DashboardPayload["controls"]>
-  }
+  "subject" | "view" | "page" | "per_page" | "total" | "total_pages" | "total_estimated" | "items" | "lanes" | "kanban_limit"
+>
 
 export type DashboardPreferencesInput = {
   subject: DashboardSubject
@@ -612,31 +609,21 @@ export function mergeDashboardPayload(
   controls: DashboardControlsPayload,
   options: { rowsCurrentForSearch?: boolean } = {}
 ): DashboardPayload {
-  const activeSmartFolderId = rows.active_smart_folder_id ?? chrome.active_smart_folder_id
-  const rowControls = rows.controls ?? {}
-
   return {
     ...chrome,
     ...rows,
     counts: chrome.counts,
-    controls: {
-      ...controls.controls,
-      ...rowControls,
-      columns: rowControls.columns ?? controls.controls.columns
-    },
+    controls: controls.controls,
     ownership_scope: chrome.ownership_scope,
-    preferences: rows.preferences ?? chrome.preferences,
+    preferences: chrome.preferences,
     ownership: chrome.ownership,
-    filter: rows.filter ?? chrome.filter,
-    landing_queue: {
-      ...chrome.landing_queue,
-      ...rows.landing_queue
-    },
+    filter: chrome.filter,
+    landing_queue: chrome.landing_queue,
     provider_availability: chrome.provider_availability,
     health_blocked_repositories: chrome.health_blocked_repositories,
-    ui_panels: rows.ui_panels ?? chrome.ui_panels,
-    smart_folders: chrome.smart_folders.map((folder) => ({ ...folder, active: folder.id === activeSmartFolderId })),
-    active_smart_folder_id: activeSmartFolderId,
+    ui_panels: chrome.ui_panels,
+    smart_folders: chrome.smart_folders,
+    active_smart_folder_id: chrome.active_smart_folder_id,
     setup: chrome.setup,
     rows_current_for_search: options.rowsCurrentForSearch ?? true,
     paths: chrome.paths
@@ -654,7 +641,6 @@ export function dashboardApiSearch(pathname: string, search: string) {
 
 export function dashboardChromeSearch(pathname: string, search: string) {
   const params = new URLSearchParams(dashboardApiSearch(pathname, search))
-  params.delete("smart_folder_id")
   params.delete("page")
 
   const next = params.toString()
