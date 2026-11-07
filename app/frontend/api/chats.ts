@@ -205,6 +205,7 @@ export type ChatProposal = {
   title: string
   slug: string
   body: string
+  body_path?: string
   proposed: boolean
   resolved: boolean
   epic_bundle: boolean
@@ -266,6 +267,7 @@ export type ChatProposalChild = {
   title: string
   slug: string
   body: string
+  body_path?: string
   state: string
   state_label: string
   proposed: boolean
@@ -460,6 +462,16 @@ export type ChatMessageItem = {
   coworker_receiver?: ChatCoworkerAppearance | null
 }
 
+export type TruncatedChatMessageContent = {
+  truncated: true
+  content_path: string
+}
+
+export type FullChatMessageContent = {
+  content: unknown
+  chat_shell_command_output: string | null
+}
+
 export type ChatCoworkerAppearance = {
   id: number
   name: string
@@ -512,6 +524,7 @@ export type ChatRenderMessageItem = ChatMessageItem & {
 
 export type ChatToolGroupCall = {
   message_id: number
+  content_path?: string
   tool_name: string
   raw_name: string
   detail: string
@@ -863,6 +876,8 @@ export type ChatShellCommandResult = {
   id: number
   command: string
   output: string | null
+  output_truncated?: boolean
+  output_path?: string
   outcome: ChatShellCommandOutcome | null
   exit_status: number | null
   started_at: string | null
@@ -1216,6 +1231,10 @@ export function fetchChat(id: string, search = "") {
       local_mode_enabled: capabilities?.local_mode_enabled ?? payload.local_mode_enabled ?? false
     }
   })
+}
+
+export function fetchFullChatMessageContent(path: string) {
+  return getJson<FullChatMessageContent>(path)
 }
 
 export function chatPaths(chatId: string | number): ChatPayload["paths"] {
@@ -1741,6 +1760,10 @@ export function searchChatProposals(chatId: string | number, query: string, excl
   return getJson<{ proposals: ChatProposalSearchResult[] }>(`/api/v1/app/chats/${chatId}/proposals/search?${params}`, options).then(
     (payload) => payload.proposals || []
   )
+}
+
+export function fetchChatProposal(path: string) {
+  return getJson<{ proposal: { id: number; body: string } }>(path)
 }
 
 export function searchChatJobs(query: string, options: { signal?: AbortSignal } = {}) {

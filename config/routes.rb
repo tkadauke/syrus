@@ -272,6 +272,7 @@ Rails.application.routes.draw do
         delete "chats/:id", to: "chats#destroy", constraints: { id: /\d+/ }
         get "chats/:id/preview", to: "chats#preview", constraints: { id: /\d+/ }
         get "chats/:id/messages", to: "chats#messages", constraints: { id: /\d+/ }
+        get "chats/:id/messages/:message_id/content", to: "chats#full_message_content", constraints: { id: /\d+/, message_id: /\d+/ }
         post "chats/:chat_id/participants", to: "chat_participants#create", constraints: { chat_id: /\d+/ }
         post "chats/:chat_id/attachments", to: "chat_attachments#create", constraints: { chat_id: /\d+/ }
         get "chats/:chat_id/attachments/:id/file", to: "chat_attachments#show", constraints: { chat_id: /\d+/, id: /\d+/ }
@@ -330,6 +331,7 @@ Rails.application.routes.draw do
         get "chats/:id/preview_panels/:panel_id/files/*path", to: "chats#preview_panel_file", constraints: { id: /\d+/, panel_id: /\d+/ }, format: false
         post "chats/:id/preview_panels/:panel_id/token", to: "chats#preview_panel_token", constraints: { id: /\d+/, panel_id: /\d+/ }
         get "chats/:id/proposals/search", to: "chats#search_proposals", constraints: { id: /\d+/ }
+        get "chats/:id/proposals/:proposal_id", to: "chats#proposal", constraints: { id: /\d+/, proposal_id: /\d+/ }
         patch "chats/:id/proposals/:proposal_id", to: "chats#update_proposal", constraints: { id: /\d+/, proposal_id: /\d+/ }
         post "chats/:id/proposals/:proposal_id/confirm", to: "chats#confirm_proposal", constraints: { id: /\d+/, proposal_id: /\d+/ }
         post "chats/:id/proposals/:proposal_id/reject", to: "chats#reject_proposal", constraints: { id: /\d+/, proposal_id: /\d+/ }

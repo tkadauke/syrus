@@ -94,7 +94,11 @@ module Api
 
         def mentionables
           chat = find_chat_session
-          render json: { mentionables: Mentionables::Suggestions.for(chat: chat, user: Current.user, query: params[:q]) }
+          query = params[:q].to_s.first(100)
+          suggestions = Rails.cache.fetch([ "chat-mentionables", chat.cache_key_with_version, Current.user.cache_key_with_version, Digest::SHA256.hexdigest(query) ], expires_in: 15.seconds) do
+            Mentionables::Suggestions.for(chat: chat, user: Current.user, query: query)
+          end
+          render json: { mentionables: suggestions }
         end
 
         # Lightweight payload for the CHAT-<id> hover preview card — unlike
@@ -246,7 +250,8 @@ module Api
         def messages
           chat_session = find_chat_session
           before_id = Integer(params[:before], exception: false)
-          messages, has_more_older = paginated_before(chat_session, before_id)
+          limit = Integer(params[:limit], exception: false) || ChatSession::MESSAGE_PAGE_SIZE
+          messages, has_more_older = paginated_before(chat_session, before_id, limit: limit)
           payload = PerformanceLogging.phase("chat_messages_payload", chat_id: chat_session.id, before_id: before_id) {
             {
               has_more_older: has_more_older,
@@ -256,6 +261,18 @@ module Api
           return unless stale?(etag: chat_payload_etag(chat_session, payload))
 
           render json: payload
+        end
+
+        def full_message_content
+          chat_session = find_chat_session
+          message = chat_session.messages.active.find(params[:message_id])
+          shell_command = if message.content.is_a?(Hash) && message.content["chat_shell_command_id"].present?
+            chat_session.chat_shell_commands.find_by(id: message.content["chat_shell_command_id"])
+          end
+          render json: {
+            content: ::App::ChatMessagePayload.full_content(message.content),
+            chat_shell_command_output: shell_command&.output
+          }
         end
 
         def chat_payload_etag(chat_session, payload)
@@ -1578,6 +1595,12 @@ module Api
           render json: {
             proposals: scope.order(:created_at, :id).limit(10).map { |proposal| proposal_search_json(proposal) }
           }
+        end
+
+        def proposal
+          chat_session = find_chat_session
+          proposal = find_proposal(chat_session)
+          render json: { proposal: { id: proposal.id, body: proposal.body } }
         end
 
         private

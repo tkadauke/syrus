@@ -98,6 +98,8 @@ RSpec.describe App::ChatMessagePayload do
     queries = capture_sql { described_class.messages(messages, repository: repository) }
     mention_lookup_queries = queries.grep(/FROM ["`]?(?:users|handles|chat_participants)["`]?/i)
 
+    # Participant membership is fetched as ids rather than preloading every
+    # participant and User record into each paginated message's session.
     expect(mention_lookup_queries.size).to be <= 5
   end
   it "includes the message's revision so the frontend entity store can order/dedupe events against this snapshot" do
@@ -128,6 +130,46 @@ RSpec.describe App::ChatMessagePayload do
     payload = described_class.messages([ message ], repository: repository).first
 
     expect(payload.fetch(:text)).to eq("")
+  end
+
+  it "replaces oversized tool content with a lazy content reference" do
+    message = chat.messages.create!(role: "tool_result", tool_name: "Read",
+      content: { "type" => "tool_result", "content" => "x" * (described_class::MAX_TOOL_CONTENT_BYTES + 1) })
+
+    payload = described_class.messages([ message ], repository: repository).sole
+
+    expect(payload.fetch(:content)).to eq(
+      "type" => "tool_result",
+      "truncated" => true,
+      "content_path" => "/api/v1/app/chats/#{chat.id}/messages/#{message.id}/content"
+    )
+  end
+
+  it "keeps tool routing identifiers when oversized content is truncated" do
+    use = chat.messages.create!(role: "tool_use", tool_name: "Read",
+      content: { "type" => "tool_use", "id" => "tool-1", "name" => "Read", "input" => { "value" => "x" * described_class::MAX_TOOL_CONTENT_BYTES } })
+    result = chat.messages.create!(role: "tool_result", tool_name: "Read",
+      content: { "type" => "tool_result", "tool_use_id" => "tool-1", "content" => "x" * described_class::MAX_TOOL_CONTENT_BYTES })
+
+    payloads = described_class.messages([ use, result ], repository: repository)
+
+    expect(payloads.first.fetch(:content)).to include("id" => "tool-1", "name" => "Read", "truncated" => true)
+    expect(payloads.last.fetch(:content)).to include("tool_use_id" => "tool-1", "truncated" => true)
+  end
+
+  it "omits running shell output and bounds completed shell output" do
+    command = chat.chat_shell_commands.create!(user: user, command: "yes", started_at: Time.current,
+      output: "x" * (described_class::MAX_SHELL_OUTPUT_BYTES + 100))
+    message = chat.messages.create!(role: "user", content: { "text" => "!yes", "chat_shell_command_id" => command.id }, skip_turn_trigger: true)
+
+    running_payload = described_class.messages([ message ], repository: repository).sole.fetch(:chat_shell_command)
+    expect(running_payload).to include(output: nil)
+
+    command.update!(outcome: "succeeded", finished_at: Time.current, exit_status: 0)
+    completed_payload = described_class.messages([ message ], repository: repository).sole.fetch(:chat_shell_command)
+    expect(completed_payload.fetch(:output).bytesize).to be < command.output.bytesize
+    expect(completed_payload).to include(output_truncated: true,
+      output_path: "/api/v1/app/chats/#{chat.id}/messages/#{message.id}/content")
   end
 
   it "gives message-anchored pending actions the same dismissal path and retirement rule" do
@@ -555,6 +597,8 @@ RSpec.describe App::ChatMessagePayload do
       job_title: "Add inspection tools",
       job_state: "open"
     )
+    expect(payload).to include(body_path: "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}")
+    expect(payload).not_to include(:body, :kind_label, :state_label, :route_label, :app_update_path, :app_confirm_path, :app_reject_path, :materialized_label, :materialized_path)
   end
 
   it "returns materialized epic details and child jobs for a confirmed epic bundle" do
@@ -591,6 +635,8 @@ RSpec.describe App::ChatMessagePayload do
         { job_id: child_job.id, title: "Add trigger" }
       ]
     )
+    expect(payload.fetch(:children).sole).to include(body_path: "/api/v1/app/chats/#{chat.id}/proposals/#{parent.child_proposals.sole.id}")
+    expect(payload.fetch(:children).sole).not_to include(:body, :state_label, :provider_setting, :planned_execution, :goal_provenance, :dependency_details)
   end
 
   it "includes inline pending action details with a job resource" do
