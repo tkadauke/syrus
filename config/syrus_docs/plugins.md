@@ -247,7 +247,7 @@ instance. The standard distribution includes:
 - `github_source` — enabled GitHub issue/PR input and source-control provider.
 - `global_search` — enabled cross-product search.
 - `go` — enabled Go setup, review, formatting, audit, and affected-test support.
-- `ios` — iOS project intelligence.
+- `ios` — enabled iOS project intelligence.
 - `java` — experimental, default-disabled JVM project intelligence.
 - `javascript` — enabled JavaScript/TypeScript setup, preview, review, autofix, and audit support.
 - `k8s_cluster` — default-disabled Kubernetes tools; depends on Credential Store.
@@ -271,7 +271,7 @@ instance. The standard distribution includes:
 - `terminal` — default-disabled interactive worker shells.
 - `test_insights` — enabled test history, timing, and flakiness intelligence.
 - `theming_tools` — default-disabled theme inspection tools.
-- `throughput` — delivery-throughput views, optionally integrated with Metrics Dashboard.
+- `throughput` — enabled delivery-throughput views, optionally integrated with Metrics Dashboard.
 - `video_walkthroughs` — default-disabled narrated-video intake and analysis.
 - `whisper_stt` — default-disabled local speech-to-text; depends on Plugin Runtime.
 - `whiteboard` — enabled canvas tools: `read_scene`, `draw_shape`, `draw_text`,
