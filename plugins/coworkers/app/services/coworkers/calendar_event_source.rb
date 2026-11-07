@@ -2,19 +2,35 @@ module Coworkers
   # Coworkers owns Calendar presentation for its schedules. Scheduled Tasks
   # deliberately excludes these rows so each occurrence has exactly one owner.
   class CalendarEventSource < ScheduledTasks::CalendarEventSource
+    def calendar_events
+      @coworkers_by_id = Coworkers::Coworker
+        .where(id: tasks.map(&:coworker_id))
+        .includes(:avatar_attachment, coworker_chats: :chat_session)
+        .index_by(&:id)
+      super
+    end
+
     private
 
     def tasks
-      ScheduledTasks::Task.where(user: user).where.not(coworker_id: nil)
+      @tasks ||= ScheduledTasks::Task.where(user: user).where.not(coworker_id: nil)
         .where(repository_id: Repository.accessible_repository_ids_for(user))
         .includes(:repository)
         .joins("INNER JOIN coworkers ON coworkers.id = scheduled_tasks.coworker_id")
         .where(coworkers: { owner_user_id: user.id })
     end
 
+    def visible_jobs_by_task(selected_tasks)
+      task_ids = selected_tasks.map(&:id)
+      return {} if task_ids.empty?
+
+      scope = Job.where(scheduled_task_id: task_ids).includes(workflows: :work_unit).order(:created_at)
+      Job.visible_to(user, scope:).to_a.group_by(&:scheduled_task_id)
+    end
+
     def event(task, planned_at, job)
-      coworker = Coworkers::Coworker.find(task.coworker_id)
-      main_chat = coworker.coworker_chats.find_by(role: "main")&.chat_session
+      coworker = @coworkers_by_id.fetch(task.coworker_id)
+      main_chat = coworker.coworker_chats.find(&:main?)&.chat_session
       workflow = job&.workflows&.min_by(&:created_at)
       actual_started_at = workflow&.started_at || job&.started_at
       actual_finished_at = workflow&.finished_at || job&.finished_at

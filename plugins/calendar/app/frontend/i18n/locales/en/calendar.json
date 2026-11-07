@@ -29,5 +29,10 @@
   "coworker_identity": "{{name}} {{handle}}",
   "after_run": "After run: {{policy}}",
   "system_schedule": "System schedule: {{key}}",
+  "delayed_reason": "Delayed: {{reason}}",
+  "delay_reasons": {
+    "coworker_turn_in_flight": "main chat turn in progress",
+    "active_work_lock": "another scheduled occurrence is running"
+  },
   "cadence_bands": "High-frequency cadence bands"
 }

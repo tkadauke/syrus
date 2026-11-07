@@ -124,6 +124,8 @@ function EventCard({ event, formatter }: { event: CalendarEvent; formatter: Intl
   const accentHex = typeof event.metadata.coworker_accent_hex === "string" ? event.metadata.coworker_accent_hex : null
   const afterRun = typeof event.metadata.after_run === "string" ? event.metadata.after_run : null
   const systemKey = typeof event.metadata.system_key === "string" ? event.metadata.system_key : null
+  const delayedReason = typeof event.metadata.delayed_reason === "string" ? event.metadata.delayed_reason : null
+  const delayedReasonLabel = delayedReason ? t(`delay_reasons.${delayedReason}`, { defaultValue: delayedReason.replaceAll("_", " ") }) : null
   return (
     <article className="min-w-0 rounded border border-border bg-surface-subtle p-2">
       <button className="w-full min-w-0 text-left" type="button" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
@@ -159,8 +161,21 @@ function EventCard({ event, formatter }: { event: CalendarEvent; formatter: Intl
               {t("coworker_identity", { name: coworkerName, handle: coworkerHandle ? `@${coworkerHandle}` : "" })}
             </Text>
           ) : null}
-          {afterRun ? <Text variant="caption" tone="muted">{t("after_run", { policy: afterRun })}</Text> : null}
-          {systemKey ? <Text variant="caption" tone="muted">{t("system_schedule", { key: systemKey })}</Text> : null}
+          {afterRun ? (
+            <Text variant="caption" tone="muted">
+              {t("after_run", { policy: afterRun })}
+            </Text>
+          ) : null}
+          {systemKey ? (
+            <Text variant="caption" tone="muted">
+              {t("system_schedule", { key: systemKey })}
+            </Text>
+          ) : null}
+          {delayedReasonLabel ? (
+            <Text variant="caption" tone="muted">
+              {t("delayed_reason", { reason: delayedReasonLabel })}
+            </Text>
+          ) : null}
           <Link className="inline-block text-sm text-brand hover:underline" to={event.destination_path}>
             {t("open_owner")}
           </Link>

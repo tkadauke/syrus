@@ -22,6 +22,15 @@ RSpec.describe Coworkers::CalendarEventSource do
     described_class.calendar_events(user:, starts_at:, ends_at:)
   end
 
+  def capture_sql
+    queries = []
+    callback = lambda do |_name, _started, _finished, _id, payload|
+      queries << payload[:sql] unless payload[:name] == "SCHEMA" || payload[:cached]
+    end
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    queries
+  end
+
   before { Coworkers::Chat.create!(coworker:, chat_session: main_chat, role: "main") }
 
   it "presents owner-authorized coworker occurrences with identity and destinations" do
@@ -96,5 +105,24 @@ RSpec.describe Coworkers::CalendarEventSource do
       created_at: planned_at + 1.minute)
 
     expect(events(starts_at:, ends_at: starts_at + 1.day).sole).to include(state: "waiting")
+  end
+
+  it "loads coworker presentation and execution associations once for many occurrences" do
+    scheduled = task(cron_expression: "0 * * * *")
+    starts_at = 1.day.from_now.beginning_of_day
+    job = Job.create!(user: owner, repository:, kind: "coworker_task", priority: "low",
+      scheduled_task_id: scheduled.id, origin: "coworkers", origin_id: coworker.id.to_s,
+      issue_title: "Scheduled coworker task", issue_body: "Brief me", issue_number: nil,
+      created_at: starts_at + 1.minute)
+    workflow = Workflow.create!(job:, user: owner, trigger_kind: "coworker_run", state: "queued")
+    attach_work_unit(workflow, state: "blocked", blocked_reason: "coworker_turn_in_flight")
+
+    queries = capture_sql do
+      expect(events(starts_at:, ends_at: starts_at + 4.hours).size).to eq(4)
+    end
+
+    expect(queries.grep(/FROM [`"]coworkers[`"]/).size).to eq(1)
+    expect(queries.grep(/FROM [`"]coworker_chats[`"]/).size).to eq(1)
+    expect(queries.grep(/FROM [`"]work_units[`"]/).size).to eq(1)
   end
 end
