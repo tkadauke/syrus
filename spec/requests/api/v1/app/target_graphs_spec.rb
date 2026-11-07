@@ -6,15 +6,18 @@ RSpec.describe "App API target graph inspection", type: :request do
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets", default_branch: "main") }
 
-  before { sign_in_as(user) }
+  before do
+    sign_in_as(user)
+    allow(Rails).to receive(:cache).and_return(ActiveSupport::Cache::MemoryStore.new)
+  end
 
   def parse_body = JSON.parse(response.body)
 
-  def with_graph_checkout(yaml)
+  def with_graph_checkout(yaml, revision: nil)
     allow(App::TargetGraphCheckout).to receive(:with_default_branch) do |repository:, user:, &block|
       Dir.mktmpdir("target-graph-spec-") do |dir|
         File.write(File.join(dir, ".syrus.yml"), yaml)
-        block.call(Pathname.new(dir))
+        block.call(Pathname.new(dir), revision)
       end
     end
   end
@@ -80,6 +83,46 @@ RSpec.describe "App API target graph inspection", type: :request do
   end
 
   describe "GET /api/v1/app/repositories/:id/target_graph" do
+    it "caches compilation by default-branch revision and returns 304 only while the rendered payload is unchanged" do
+      with_graph_checkout(graph_yaml, revision: "a" * 40)
+      allow(TargetGraph::Compiler).to receive(:compile).and_call_original
+
+      get "/api/v1/app/repositories/#{repository.id}/target_graph"
+      etag = response.headers.fetch("ETag")
+      expect(response).to have_http_status(:ok)
+
+      get "/api/v1/app/repositories/#{repository.id}/target_graph", headers: { "If-None-Match" => etag }
+
+      expect(response).to have_http_status(:not_modified)
+      expect(TargetGraph::Compiler).to have_received(:compile).once
+
+      create_target_health(target_label: "//:app", status: "failed", fingerprint_prefix: "z")
+      get "/api/v1/app/repositories/#{repository.id}/target_graph", headers: { "If-None-Match" => etag }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers.fetch("ETag")).not_to eq(etag)
+      app_target = parse_body["targets"].find { |target| target["label"] == "//:app" }
+      expect(app_target.dig("health", "status")).to eq("failed")
+      expect(TargetGraph::Compiler).to have_received(:compile).once
+    end
+
+    it "misses the compiled graph cache when the default-branch revision changes" do
+      revision = "a" * 40
+      allow(App::TargetGraphCheckout).to receive(:with_default_branch) do |repository:, user:, &block|
+        Dir.mktmpdir("target-graph-revision-spec-") do |dir|
+          File.write(File.join(dir, ".syrus.yml"), graph_yaml)
+          block.call(Pathname.new(dir), revision)
+        end
+      end
+      allow(TargetGraph::Compiler).to receive(:compile).and_call_original
+
+      get "/api/v1/app/repositories/#{repository.id}/target_graph"
+      revision = "b" * 40
+      get "/api/v1/app/repositories/#{repository.id}/target_graph"
+
+      expect(TargetGraph::Compiler).to have_received(:compile).twice
+    end
+
     it "returns projects, targets, dependency edges, executable metadata, health, and pagination" do
       with_graph_checkout(graph_yaml)
       create_target_health(
@@ -116,6 +159,19 @@ RSpec.describe "App API target graph inspection", type: :request do
       expect(body["health"]["summary"]).to include("passed" => 1)
       expect(body["filter"]).to eq("and" => [])
       expect(body["filter_schema"].map { |field| field["field"] }).to include("project_id", "label", "kind", "status", "path", "job_id", "workflow_id")
+      expect(body["explanations"]).to be_nil
+      expect(body.dig("diagnostics", "target_labels")).to be_nil
+    end
+
+    it "serves explanations and diagnostic target labels only when requested" do
+      with_graph_checkout(graph_yaml)
+
+      get "/api/v1/app/repositories/#{repository.id}/target_graph", params: { include: "explanations,diagnostics" }
+
+      expect(response).to have_http_status(:ok)
+      body = parse_body
+      expect(body["explanations"]).to include("projects" => anything, "selected_targets" => anything)
+      expect(body.dig("diagnostics", "target_labels")).to contain_exactly("//:app", "//:assets", "//:grade/tests", "//:repo")
     end
 
     it "returns a bounded neighborhood around a focused target" do
@@ -232,6 +288,28 @@ RSpec.describe "App API target graph inspection", type: :request do
   end
 
   describe "GET /api/v1/app/workflows/:workflow_id/target_graph" do
+    it "does not cache a dirty workflow workspace" do
+      job = Factories.job_with_run(repository: repository, user: user)
+      workflow = job.workflows.sole
+
+      Dir.mktmpdir("target-graph-dirty-workspace-spec-") do |dir|
+        system("git", "init", "-q", dir, exception: true)
+        File.write(File.join(dir, ".syrus.yml"), "targets:\n  - name: before\n    kind: library\n")
+        system("git", "-C", dir, "add", ".syrus.yml", exception: true)
+        system("git", "-C", dir, "-c", "user.name=Spec", "-c", "user.email=spec@example.test", "commit", "-qm", "initial", exception: true)
+        allow(WorkflowWorkspace).to receive(:path_for).and_return(Pathname.new(dir))
+
+        get "/api/v1/app/workflows/#{workflow.id}/target_graph"
+        expect(parse_body["targets"].map { |target| target["label"] }).to include("//:before")
+
+        File.write(File.join(dir, ".syrus.yml"), "targets:\n  - name: after\n    kind: library\n")
+        get "/api/v1/app/workflows/#{workflow.id}/target_graph"
+
+        expect(parse_body["targets"].map { |target| target["label"] }).to include("//:after")
+        expect(parse_body["targets"].map { |target| target["label"] }).not_to include("//:before")
+      end
+    end
+
     it "returns workflow-scoped selection and cache overlays" do
       with_graph_checkout(graph_yaml)
       job = Factories.job_with_run(repository: repository, user: user)
@@ -279,7 +357,7 @@ RSpec.describe "App API target graph inspection", type: :request do
       )
 
       with_cleaned_workflow_workspace do
-        get "/api/v1/app/workflows/#{workflow.id}/target_graph", params: { q: "grade/tests" }
+        get "/api/v1/app/workflows/#{workflow.id}/target_graph", params: { q: "grade/tests", include: "explanations" }
       end
 
       expect(response).to have_http_status(:ok)
@@ -351,6 +429,19 @@ RSpec.describe "App API target graph inspection", type: :request do
   end
 
   describe "GET /api/v1/app/jobs/:job_id/target_graph" do
+    it "returns 304 for an unchanged latest workflow response" do
+      with_graph_checkout(graph_yaml)
+      job = Factories.job_with_run(repository: repository, user: user)
+
+      with_cleaned_workflow_workspace do
+        get "/api/v1/app/jobs/#{job.id}/target_graph"
+        etag = response.headers.fetch("ETag")
+        get "/api/v1/app/jobs/#{job.id}/target_graph", headers: { "If-None-Match" => etag }
+      end
+
+      expect(response).to have_http_status(:not_modified)
+    end
+
     it "uses the requested workflow when provided" do
       with_graph_checkout(graph_yaml)
       job = Factories.job_with_run(repository: repository, user: user)

@@ -168,6 +168,7 @@ export type TargetGraphQuery = {
   depth?: number
   limit?: number
   offset?: number
+  include?: Array<"explanations" | "diagnostics">
 }
 
 export function fetchRepositoryTargetGraph(repositoryId: string | number, query: TargetGraphQuery = {}) {
@@ -197,6 +198,7 @@ function targetGraphApiPath(path: string, query: TargetGraphQuery) {
   if (query.depth !== undefined) params.set("depth", String(query.depth))
   if (query.limit !== undefined) params.set("limit", String(query.limit))
   if (query.mode === "window" && query.offset !== undefined) params.set("offset", String(query.offset))
+  if (query.include?.length) params.set("include", query.include.join(","))
 
   const search = params.toString()
   return `${path}${search ? `?${search}` : ""}`

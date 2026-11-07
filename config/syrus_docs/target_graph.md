@@ -680,7 +680,7 @@ The app API exposes the compiled graph for operator UIs and debugging tools:
 
 All three endpoints use the normal app API authentication and repository/Job
 visibility rules. They accept `limit` and `offset` for target windowing
-(`limit` defaults to 500 and is capped at 2,000). FilterBar-backed views pass
+(`limit` defaults to 100 and is capped at 2,000). FilterBar-backed views pass
 the usual encoded filter tree in `q`; supported chips cover project, target
 label, target kind, health/runtime status, path/source scope, Job, and
 Workflow. Older plain-text `q=label` links remain valid when `q` is not a
@@ -696,10 +696,14 @@ Repository-scoped graphs can seed from project filters, explicit labels, and
 failing target health; `selected`/`skipped`/`cached` are runtime workflow
 overlays, so clients should use the Job or Workflow endpoint for those states.
 The response includes the repository, source scope (`repository` or
-`workflow`), compiled projects, the current target window or neighborhood,
+`workflow`), compiled projects referenced by the current page, the current
+target window or neighborhood,
 dependency edges for the returned targets, the active `filter` tree,
 `filter_schema` metadata for the shared FilterBar, compiler diagnostics, and
-any compile error.
+any compile error. Pass `include=explanations` to add workflow selection and
+project-choice explanations, and `include=diagnostics` to add the compiler's
+complete `diagnostics.target_labels` collection. The target-graph UI requests
+those collections only when their panels are expanded.
 
 Each target entry includes `label`, `kind`, `project_id`, `source_scope`,
 dependency labels, owning config path, an `executable` boolean, and
