@@ -10,15 +10,17 @@ type PluginModule = {
   default?: ComponentType
 }
 
-const routeModules = import.meta.glob<PluginModule>([ "../../plugins/*/app/frontend/repo_tabs/*.tsx", "!../../plugins/*/app/frontend/repo_tabs/*.test.tsx" ])
+const routeModules = import.meta.glob<PluginModule>(["../../plugins/*/app/frontend/repo_tabs/*.tsx", "!../../plugins/*/app/frontend/repo_tabs/*.test.tsx"])
 
 const componentLoaders = Object.fromEntries(
-  Object.entries(routeModules).map(([path, loader]) => {
-    const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/repo_tabs\/([^/.]+)\.tsx$/)
-    if (!match) return []
+  Object.entries(routeModules)
+    .map(([path, loader]) => {
+      const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/repo_tabs\/([^/.]+)\.tsx$/)
+      if (!match) return []
 
-    return [ `${match[1]}/${match[2]}`, loader ]
-  }).filter((entry): entry is [ string, () => Promise<PluginModule> ] => entry.length === 2)
+      return [`${match[1]}/${match[2]}`, loader]
+    })
+    .filter((entry): entry is [string, () => Promise<PluginModule>] => entry.length === 2)
 )
 
 const componentCache = new Map<string, ComponentType>()
@@ -80,7 +82,13 @@ export function PluginRepoPageTabRoute() {
   }
 
   return (
-    <Suspense fallback={<Page.Root size="narrow"><Notice>{t("common:loading")}</Notice></Page.Root>}>
+    <Suspense
+      fallback={
+        <Page.Root size="narrow">
+          <Notice>{t("common:loading")}</Notice>
+        </Page.Root>
+      }
+    >
       <Component />
     </Suspense>
   )

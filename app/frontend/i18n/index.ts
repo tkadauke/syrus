@@ -53,16 +53,19 @@ const storedLocale = bootstrap?.current_user?.locale
 const browserLocale = navigator.language?.split("-")[0]
 const detectedLocale = storedLocale ?? (supportedLocales.includes(browserLocale as SupportedLocale) ? browserLocale : "en")
 
-export const i18nReady = i18n.use(localeBackend).use(initReactI18next).init({
-  lng: detectedLocale,
-  fallbackLng: "en",
-  supportedLngs: [...supportedLocales],
-  load: "languageOnly",
-  defaultNS: "common",
-  ns: [...coreNamespaces],
-  interpolation: { escapeValue: false },
-  react: { useSuspense: true }
-})
+export const i18nReady = i18n
+  .use(localeBackend)
+  .use(initReactI18next)
+  .init({
+    lng: detectedLocale,
+    fallbackLng: "en",
+    supportedLngs: [...supportedLocales],
+    load: "languageOnly",
+    defaultNS: "common",
+    ns: [...coreNamespaces],
+    interpolation: { escapeValue: false },
+    react: { useSuspense: true }
+  })
 
 /** Load a plugin's translations at the same lazy boundary as its UI module. */
 export async function loadPluginLocales(plugin: string) {
