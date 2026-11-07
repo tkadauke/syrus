@@ -96,6 +96,21 @@ RSpec.describe App::RunArtifactsPayload do
     expect(logs[3][:tool_result_content]).to eq("ok" => true)
   end
 
+  it "caps oversized transcript fields and marks each truncated value" do
+    job = Factories.job_with_run
+    run = job.runs.last
+    run.job_logs.delete_all
+    oversized = "x" * (described_class::Transcript::MAX_ROW_FIELD_BYTES + 10)
+    JobLog.append!(run: run, chunk: oversized, kind: "tool_result", tool_input: { "value" => oversized }, tool_result_content: oversized)
+
+    log = described_class.build(run: run).fetch(:logs).first
+
+    expect(log[:chunk].bytesize).to eq(described_class::Transcript::MAX_ROW_FIELD_BYTES)
+    expect(log[:tool_input]).to have_key("preview")
+    expect(log[:tool_result_content].bytesize).to eq(described_class::Transcript::MAX_ROW_FIELD_BYTES)
+    expect(log).to include(chunk_truncated: true, tool_input_truncated: true, tool_result_content_truncated: true)
+  end
+
   it "reads only the requested diff artifact" do
     job = Factories.job_with_run(run_attrs: { agent_diff: "agent diff", step_agent_diff: "step diff" })
     run = job.runs.last

@@ -41,6 +41,8 @@ module App
     end
 
     class Transcript < Base
+      MAX_ROW_FIELD_BYTES = 64.kilobytes
+
       private
 
       def artifact_payload
@@ -108,18 +110,34 @@ module App
       def serialize_log(row)
         id, sequence, kind, chunk, tool_metadata, created_at = row
         metadata = ToolPayloadRedactor.redact(tool_metadata || {})
+        chunk, chunk_truncated = bounded_value(chunk)
+        tool_input, tool_input_truncated = bounded_value(metadata["tool_input"])
+        tool_result_content, tool_result_content_truncated = bounded_value(metadata["tool_result_content"])
         {
           id: id,
           sequence: sequence,
           kind: kind,
           chunk: chunk,
           tool_name: metadata["tool_name"],
-          tool_input: metadata["tool_input"],
+          tool_input: tool_input,
           tool_use_id: metadata["tool_use_id"],
-          tool_result_content: metadata["tool_result_content"],
+          tool_result_content: tool_result_content,
+          chunk_truncated: chunk_truncated,
+          tool_input_truncated: tool_input_truncated,
+          tool_result_content_truncated: tool_result_content_truncated,
           tool_result_error: metadata["tool_result_error"],
           created_at: created_at&.iso8601
         }
+      end
+
+      def bounded_value(value)
+        return [ value, false ] if value.nil?
+
+        serialized = value.is_a?(String) ? value : JSON.generate(value)
+        return [ value, false ] if serialized.bytesize <= MAX_ROW_FIELD_BYTES
+
+        preview = serialized.byteslice(0, MAX_ROW_FIELD_BYTES).scrub
+        [ value.is_a?(String) ? preview : { "preview" => preview }, true ]
       end
     end
 

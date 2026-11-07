@@ -56,26 +56,31 @@ export function AgentActivityFeed({ scope }: { scope: "mine" | "admin" }) {
   const queryClient = useQueryClient()
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
 
+  const chrome = useQuery({
+    queryKey: ["agent_activity", "chrome", scope, location.search],
+    queryFn: () => fetchAgentActivitySessions(scope, location.search, "chrome"),
+    staleTime: Infinity
+  })
   const sessions = useQuery({
-    queryKey: ["agent_activity", scope, location.search],
-    queryFn: () => fetchAgentActivitySessions(scope, location.search),
+    queryKey: ["agent_activity", "rows", scope, location.search],
+    queryFn: () => fetchAgentActivitySessions(scope, location.search, "rows"),
     placeholderData: keepPreviousData,
-    refetchInterval: 15_000
+    refetchInterval: (query) => (document.hidden || (query.state.data?.running_count ?? 0) === 0 ? 60_000 : 15_000)
   })
 
   const runningCount = sessions.data?.running_count ?? 0
-  const smartFolders = (sessions.data?.smart_folders ?? []).map((folder) =>
+  const smartFolders = (chrome.data?.smart_folders ?? []).map((folder) =>
     folder.i18n_key ? { ...folder, i18n_key: null, name: t(`smart_folder_${folder.i18n_key}`, { defaultValue: folder.name }) } : folder
   )
-  const activeFolderLabel = smartFolders.find((folder) => folder.id === sessions.data?.active_smart_folder_id)?.name ?? t("smart_folder_all")
+  const activeFolderLabel = smartFolders.find((folder) => folder.id === chrome.data?.active_smart_folder_id)?.name ?? t("smart_folder_all")
   const inlineFolders = (
     <AdminSmartFolderNav
-      activeFolderId={sessions.data?.active_smart_folder_id ?? null}
+      activeFolderId={chrome.data?.active_smart_folder_id ?? null}
       allLabel={t("smart_folder_all")}
       allPath={scope === "admin" ? "/admin/agent_activity?smart_folder_id=" : "/agent_activity?smart_folder_id="}
       allowSaveWithoutActiveFolder={scope === "mine"}
       ariaLabel={t("smart_folders_aria")}
-      currentFilter={sessions.data?.filter ?? undefined}
+      currentFilter={chrome.data?.filter ?? undefined}
       folders={smartFolders}
       heading={t("smart_folders_heading")}
       onMutationSuccess={() => {
@@ -89,16 +94,16 @@ export function AgentActivityFeed({ scope }: { scope: "mine" | "admin" }) {
   )
   const filterBar = (
     <SmartFolderFilterBar
-      activeSmartFolderId={sessions.data?.active_smart_folder_id}
+      activeSmartFolderId={chrome.data?.active_smart_folder_id}
       buildLink={linkFromSearch}
-      filter={sessions.data?.filter ?? null}
-      filterSchema={sessions.data?.filter_schema ?? []}
+      filter={chrome.data?.filter ?? null}
+      filterSchema={chrome.data?.filter_schema ?? []}
       onFilterApplied={(tree) => {
         void recordAgentActivityFilterUsage(scope, tree as Record<string, unknown>).catch(() => {})
       }}
       pathname={location.pathname}
       search={location.search}
-      smartFolders={sessions.data?.smart_folders ?? []}
+      smartFolders={chrome.data?.smart_folders ?? []}
       suggestionSearch={{ surface: scope === "admin" ? "agent_activity_admin" : "agent_activity", subject: "agent_activity" }}
     />
   )
