@@ -268,7 +268,7 @@ export function SortableColumnHeader({ subject, column, sortState }: { subject: 
 
 export function TimestampCell({ value }: { value: string | null }) {
   return (
-    <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
+    <td className="px-4 py-3 text-text-secondary">
       <RelativeTimestamp value={value} />
     </td>
   )
