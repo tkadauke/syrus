@@ -2759,6 +2759,10 @@ an agent iterates. Closing the preview tab only dismisses it from chat; the
 published mockup remains viewable from the Mockups page. Mockups are visible to
 whoever can see the chat they came from.
 
+Preview and list payloads carry only the current revision's stored summary;
+the version picker loads older revisions when opened. Exporting the same
+revision again reuses its cached zip archive.
+
 Ships as a bundled plugin, enabled by default. Turning it off from
 Admin -> Plugins removes the page and the chat tools; mockups already published
 are kept.
