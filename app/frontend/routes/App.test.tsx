@@ -103,7 +103,6 @@ async function clickWhiteboardTab() {
 describe("App", () => {
   beforeEach(() => {
     document.getElementById("syrus-bootstrap-data")?.remove()
-    Object.defineProperty(document, "hasFocus", { configurable: true, value: () => true })
     window.localStorage.clear()
     window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
     document.documentElement.classList.remove("dark")
@@ -2180,6 +2179,7 @@ describe("App", () => {
           </MemoryRouter>
         </QueryClientProvider>
       )
+      window.dispatchEvent(new Event("focus"))
 
       await screen.findByText("Widgets active")
       await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/10/mark_read", expect.objectContaining({ method: "PATCH" })))
@@ -12878,6 +12878,7 @@ describe("App", () => {
         </MemoryRouter>
       </QueryClientProvider>
     )
+    window.dispatchEvent(new Event("focus"))
 
     const chatMain = await screen.findByRole("main", { name: "Chat" })
     expect(chatMain).toBeInTheDocument()
