@@ -15,6 +15,14 @@ RSpec.describe Mcp::Tools::SubmitAdversarialReviewTool do
     described_class.call(critique: critique, verdict: verdict, server_context: { run: run })
   end
 
+  def grant_review_access(coworker)
+    coworker.grants.create!(capability: "code.read", approval_policy: "auto", scope: [ run.job.repository_id ])
+    coworker.permission_rules.update!(
+      capability: "code.read", approval_policy: "auto", scope: [ run.job.repository_id ],
+      actor: coworker.owner_user
+    )
+  end
+
   it "accepts a run_id-only sidecar context" do
     expect(ReviewFindingEvents).to receive(:record).with(
       workflow: run.workflow,
@@ -107,6 +115,7 @@ RSpec.describe Mcp::Tools::SubmitAdversarialReviewTool do
     owner = run.job.owner_user || run.job.user
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Monica", handle: "monica-review",
       state: "active", workspace_repo: "https://github.com/example/reviewer-home.git")
+    grant_review_access(coworker)
     run.update!(agent_provider: "codex", model: "gpt-test")
     run.step.update!(details: { "reviewer_target" => {
       "type" => "coworker", "reference" => coworker.id.to_s, "display" => { "name" => "Monica" }
@@ -149,6 +158,7 @@ RSpec.describe Mcp::Tools::SubmitAdversarialReviewTool do
   it "fails without recording a verdict when coworker memory cannot be persisted" do
     reviewer = Coworkers::Coworker.create!(owner_user: run.job.owner_user || run.job.user, name: "Monica",
       handle: "monica-failure", state: "active", workspace_repo: "https://github.com/example/reviewer-home.git")
+    grant_review_access(reviewer)
     evidence = ReviewEvidence.create!(
       run: run, workflow: run.workflow, step: run.step, reviewer: reviewer, review_kind: "adversarial",
       provider: "codex", model: "gpt-test", reviewed_base_sha: "a" * 40,
