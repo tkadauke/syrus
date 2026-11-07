@@ -115,14 +115,20 @@ RSpec.describe "App API unified search", type: :request do
     expect(results).to contain_exactly(include("type" => "job", "id" => job.id))
   end
 
-  it "uses query as the canonical full text search parameter" do
-    job = Factories.job_record(user: user, repository: repository, issue_title: "Canonical deploy job")
-    GlobalSearch::JobIndex.upsert(job)
+  it "returns controls without running result queries when only controls are requested" do
+    provider = Class.new do
+      def self.search_type = "controls_test"
+      def self.filter_subject = :job
+      def self.row_id_key = :job_id
+      def self.search_rows(query:, user:, limit:) = raise("controls-only requests must not search")
+      def self.result_json(row:, user:) = raise("controls-only requests must not serialize")
+    end
+    Syrus::PluginRegistry.register(name: "controls_only_search_plugin", version: "1.0.0", provides: { "global_search:source" => provider })
 
-    get "/api/v1/app/search", params: { query: "deploy", controls: 1 }
+    get "/api/v1/app/search", params: { query: "deploy", types: [ "controls_test" ], controls: "only" }
 
     expect(response).to have_http_status(:ok)
-    expect(results).to include(include("type" => "job", "id" => job.id))
+    expect(results).to be_empty
     expect(parse_body.dig("controls", "filter_schema").map { |field| field.fetch("field") }).to include("repository_id", "created_at", "updated_at")
   end
 

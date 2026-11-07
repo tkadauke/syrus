@@ -6,8 +6,9 @@ absent, so old links keep working.
 
 The global search API (`/api/v1/app/search`) returns `results` and `filter`.
 Pass `controls=1` when the caller also needs `controls.types` and
-`controls.filter_schema`; the web page fetches and reuses those controls rather
-than resending them with every search term. `controls.types`
+`controls.filter_schema`, or `controls=only` for a controls-only response that
+skips result queries. The web page fetches and reuses that lightweight response
+rather than resending controls with every search term. `controls.types`
 lists the currently enabled selectable result types and their labels. `q=` is
 now the FilterBar AST parameter on this route, matching dashboard/list
 filtering. Result type selection remains `types[]`; when omitted, search

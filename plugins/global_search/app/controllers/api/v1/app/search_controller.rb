@@ -34,6 +34,18 @@ module Api
             return
           end
 
+          if controls_only_requested?
+            render json: {
+              results: [],
+              filter: active_filter_tree,
+              controls: {
+                types: type_options,
+                filter_schema: filter_schema(selected_types)
+              }
+            }
+            return
+          end
+
           limit = search_limit
           rows = selected_types.flat_map { |type| typed_rows(type, query, limit) }
           rows = grouped_chat_rows(rows)
@@ -131,6 +143,10 @@ module Api
           params.fetch(:limit, DEFAULT_LIMIT).to_i.clamp(1, MAX_LIMIT)
         end
 
+        def controls_only_requested?
+          params[:controls] == "only"
+        end
+
         def fts_syntax_error?(error)
           error.message.match?(/fts5: syntax error|malformed MATCH expression/i)
         end
@@ -196,19 +212,19 @@ module Api
         end
 
         def chat_search_rows(query, limit)
-          rows = reject_unsearchable_chat_rows(
-            ChatMessageSearchIndex.search(
-              query,
-              chat_session_ids: searchable_chat_messages.distinct.pluck(:chat_session_id),
-              limit: limit
-            )
-          )
+          rows = []
+          offset = 0
 
-          apply_filter_to_rows(
-            "chat",
-            rows,
-            :chat_message_id
-          )
+          loop do
+            batch = ChatMessageSearchIndex.search_candidates(query, limit: FTS_BATCH_SIZE, offset: offset)
+            eligible_batch = reject_unsearchable_chat_rows(batch)
+            rows.concat(apply_filter_to_rows("chat", eligible_batch, :chat_message_id))
+            break if rows.length >= limit || batch.length < FTS_BATCH_SIZE
+
+            offset += FTS_BATCH_SIZE
+          end
+
+          rows.first(limit)
         end
 
         def repository_search_rows(query, limit)

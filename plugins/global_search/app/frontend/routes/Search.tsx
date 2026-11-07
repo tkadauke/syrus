@@ -78,8 +78,9 @@ export function SearchRoute() {
   const params = new URLSearchParams(location.search)
   const query = searchTextFromParams(params)
   const activeFilter = activeFilterFromParams(params)
+  const selectedTypes = [...params.getAll("types"), ...params.getAll("types[]")].sort()
   const controls = useQuery({
-    queryKey: ["search", "controls", activeFilter],
+    queryKey: ["search", "controls", selectedTypes],
     queryFn: ({ signal }) => fetchSearch(location.search, signal, true),
     enabled: query.length >= 2,
     staleTime: 5 * 60 * 1000
