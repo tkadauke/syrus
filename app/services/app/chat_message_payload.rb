@@ -182,7 +182,7 @@ module App
         entity_revision: message.entity_revision,
         role: message.role,
         tool_name: message.tool_name,
-        content: message.content,
+        content: payload_content(message.content),
         text: text,
         mentions: mentions,
         bookmarkable: message.bookmarkable?,
@@ -211,6 +211,12 @@ module App
       payload[:cross_chat_bridge] = bridge if bridge
 
       payload
+    end
+
+    def payload_content(content)
+      return content unless content.is_a?(Hash)
+
+      content.except("text", "attachments")
     end
 
     def sender_user_json(message)

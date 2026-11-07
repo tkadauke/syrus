@@ -316,6 +316,24 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(body).not_to have_key("agent_questions")
     end
 
+    it "serves shared legacy attachments by URL without embedding their data" do
+      chat_session.update!(share_token: SecureRandom.uuid)
+      message = chat_session.messages.create!(role: "user", content: {
+        "text" => "Legacy", "attachments" => [ { "name" => "notes.txt", "mime_type" => "text/plain", "data" => Base64.strict_encode64("hello") } ]
+      })
+      sign_in_as(Factories.user)
+
+      get "/api/v1/app/shared_chats/#{chat_session.share_token}"
+
+      attachment = parse_body.dig("messages", 0, "attachments", 0)
+      expect(attachment).not_to have_key("data")
+      expect(parse_body.dig("messages", 0, "content")).to eq({})
+      get attachment.fetch("url")
+      expect(response.body).to eq("hello")
+      expect(response.headers["Cache-Control"]).to include("immutable")
+      expect(message.reload.content.dig("attachments", 0, "data")).to be_present
+    end
+
     it "requires authentication to read a shared chat" do
       chat_session.update!(share_token: SecureRandom.uuid)
 
@@ -2220,7 +2238,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(ChatTitleJob).to have_been_enqueued.with(chat.id, chat.messages.last.id, { message_text: "plan launch" })
   end
 
-  it "stores valid file attachments on the first chat message" do
+  it "rejects inline attachments on the first chat message" do
     sign_in_as(user)
     attachment = {
       name: "aqueduct.png",
@@ -2237,23 +2255,14 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       }
     }
 
-    expect(response).to have_http_status(:created)
-    expect(ChatSession.last.messages.last.content).to eq(
-      "text" => "Inspect this image",
-      "attachments" => [
-        {
-          "name" => "aqueduct.png",
-          "mime_type" => "image/png",
-          "data" => Base64.strict_encode64("image-bytes")
-        }
-      ]
-    )
+    expect(response).to have_http_status(:unprocessable_content)
   end
 
   it "accepts an empty-text message that carries an attachment (the media is the message)" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user)
-    attachment = { name: "shot.png", mime_type: "image/png", data: Base64.strict_encode64("bytes") }
+    stored = create_stored_attachment(chat, name: "shot.png", mime_type: "image/png", bytes: "bytes")
+    attachment = { id: stored.id }
 
     post "/api/v1/app/chats/#{chat.id}/message", params: {
       chat_message: { text: "", attachments: [ attachment ] }
@@ -4273,27 +4282,30 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       pid: 12345,
       started_at: Time.current
     )
-    attachment = { name: "shot.png", mime_type: "image/png", data: Base64.strict_encode64("image-bytes") }
+    stored = create_stored_attachment(chat, name: "shot.png", mime_type: "image/png", bytes: "image-bytes")
+    attachment = { id: stored.id }
+    persisted = { "id" => stored.id, "name" => "shot.png", "mime_type" => "image/png", "size" => 11 }
+    rendered = persisted.merge("url" => "/api/v1/app/chats/#{chat.id}/attachments/#{stored.id}/file")
 
     post "/api/v1/app/chats/#{chat.id}/queued_messages", params: { chat_message: { text: "", attachments: [ attachment ] } }
 
     expect(response).to have_http_status(:ok)
     queued_message = chat.chat_queued_messages.last
-    expect(queued_message.content).to include("text" => "", "attachments" => [ attachment.stringify_keys ])
+    expect(queued_message.content).to include("text" => "", "attachments" => [ persisted ])
     expect(parse_body["queued_messages"]).to contain_exactly(include(
       "id" => queued_message.id,
       "text" => "",
-      "attachments" => [ attachment.stringify_keys ]
+      "attachments" => [ rendered ]
     ))
 
     patch "/api/v1/app/chats/#{chat.id}/queued_messages/#{queued_message.id}", params: { chat_message: { text: "Please inspect this" } }
 
     expect(response).to have_http_status(:ok)
-    expect(queued_message.reload.content).to include("text" => "Please inspect this", "attachments" => [ attachment.stringify_keys ])
+    expect(queued_message.reload.content).to include("text" => "Please inspect this", "attachments" => [ persisted ])
     expect(parse_body["queued_messages"]).to contain_exactly(include(
       "id" => queued_message.id,
       "text" => "Please inspect this",
-      "attachments" => [ attachment.stringify_keys ]
+      "attachments" => [ rendered ]
     ))
   end
 
@@ -4349,29 +4361,32 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   it "creates attachment-only scratchpad items and preserves attachments on text-only edits" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository)
-    attachment = { name: "diagram.png", mime_type: "image/png", data: Base64.strict_encode64("image-bytes") }
+    stored = create_stored_attachment(chat, name: "diagram.png", mime_type: "image/png", bytes: "image-bytes")
+    attachment = { id: stored.id }
+    persisted = { "id" => stored.id, "name" => "diagram.png", "mime_type" => "image/png", "size" => 11 }
+    rendered = persisted.merge("url" => "/api/v1/app/chats/#{chat.id}/attachments/#{stored.id}/file")
 
     post "/api/v1/app/chats/#{chat.id}/scratchpad_items", params: { scratchpad_item: { content: "", attachments: [ attachment ] } }
 
     expect(response).to have_http_status(:ok)
     item = chat.scratchpad_items.last
     expect(item.draft_content.text).to eq("")
-    expect(item.draft_content.attachments).to eq([ attachment.stringify_keys ])
+    expect(item.draft_content.attachments).to eq([ rendered ])
     expect(parse_body["scratchpad_items"]).to contain_exactly(include(
       "id" => item.id,
       "content" => "",
       "text" => "",
-      "attachments" => [ attachment.stringify_keys ]
+      "attachments" => [ rendered ]
     ))
 
     patch "/api/v1/app/chats/#{chat.id}/scratchpad_items/#{item.id}", params: { scratchpad_item: { content: "Inspect this image" } }
 
     expect(response).to have_http_status(:ok)
-    expect(item.reload.draft_content.attachments).to eq([ attachment.stringify_keys ])
+    expect(item.reload.draft_content.attachments).to eq([ rendered ])
     expect(parse_body["scratchpad_items"]).to contain_exactly(include(
       "id" => item.id,
       "content" => "Inspect this image",
-      "attachments" => [ attachment.stringify_keys ]
+      "attachments" => [ rendered ]
     ))
   end
 
@@ -4458,12 +4473,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       pid: 12345,
       started_at: Time.current
     )
-    attachment = {
-      name: "brief.pdf",
-      mime_type: "application/pdf",
-      data: Base64.strict_encode64("%PDF-1.7"),
-      ignored: "drop me"
-    }
+    stored = create_stored_attachment(chat, name: "brief.pdf", mime_type: "application/pdf", bytes: "%PDF-1.7")
+    attachment = { id: stored.id }
 
     expect {
       post "/api/v1/app/chats/#{chat.id}/queued_messages", params: {
@@ -4480,9 +4491,10 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       "text" => "Inspect the brief",
       "attachments" => [
         {
+          "id" => stored.id,
           "name" => "brief.pdf",
           "mime_type" => "application/pdf",
-          "data" => Base64.strict_encode64("%PDF-1.7")
+          "size" => 8
         }
       ]
     )
@@ -4529,7 +4541,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     get "/api/v1/app/chats/#{other_chat.id}"
 
-    expect(response).to have_http_status(:not_found)
+    expect(response).to have_http_status(:bad_request)
     expect(response.body).not_to include("Private chat")
     expect(response.body).not_to include("Private message")
     expect(response.body).not_to include("private-box")
@@ -5617,7 +5629,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body["pins"]).to eq([])
   end
 
-  it "does not expose manual chat attachment mutation endpoints" do
+  it "does not expose manual chat relationship attachment mutation endpoints" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, last_message_at: Time.current)
 
@@ -5625,7 +5637,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       post "/api/v1/app/chats/#{chat.id}/attachments", params: { attachable_type: "Repository", attachable_id: repository.id }
     }.not_to change(ChatAttachment, :count)
 
-    expect(response).to have_http_status(:not_found)
+    expect(response).to have_http_status(:bad_request)
     attachment = chat.chat_attachments.create!(attachable: repository)
     expect {
       delete "/api/v1/app/chats/#{chat.id}/attachments/#{attachment.id}"
@@ -7697,127 +7709,41 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   it "stores valid file attachments on a chat message" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.day.ago)
-    attachment = {
-      name: "aqueduct.png",
-      mime_type: "image/png",
-      data: Base64.strict_encode64("image-bytes"),
-      ignored: "drop me"
-    }
+    attachment = chat.chat_file_attachments.create!(name: "aqueduct.png", mime_type: "image/png", byte_size: 11, checksum: "checksum")
 
-    post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "Inspect this image", attachments: [ attachment ] } }
+    post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "Inspect this image", attachments: [ { id: attachment.id } ] } }
 
     expect(response).to have_http_status(:ok)
     expect(chat.reload.messages.last.content).to eq(
       "text" => "Inspect this image",
       "attachments" => [
         {
+          "id" => attachment.id,
           "name" => "aqueduct.png",
           "mime_type" => "image/png",
-          "data" => Base64.strict_encode64("image-bytes")
+          "size" => 11
         }
       ]
     )
   end
 
-  it "accepts recognized text attachments with conservative browser MIME values" do
+  it "rejects inline attachment data on the write path" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.day.ago)
 
-    attachments = [
-      { name: "notes.md", mime_type: "text/plain", data: Base64.strict_encode64("# Notes\n") },
-      { name: "settings.yaml", mime_type: "application/octet-stream", data: Base64.strict_encode64("enabled: true\n") },
-      { name: "Dockerfile", mime_type: "text/plain", data: Base64.strict_encode64("FROM ruby:3.4\n") },
-      { name: "icon.svg", mime_type: "image/svg+xml", data: Base64.strict_encode64("<svg></svg>") }
-    ]
+    post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "Inspect", attachments: [ { name: "notes.txt", mime_type: "text/plain", data: "MQ==" } ] } }
 
-    post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "Inspect these", attachments: attachments } }
-
-    expect(response).to have_http_status(:ok)
-    expect(chat.reload.messages.last.content.fetch("attachments").pluck("name")).to eq(%w[notes.md settings.yaml Dockerfile icon.svg])
+    expect(response).to have_http_status(:unprocessable_content)
   end
 
-  it "returns a validation error for filenames outside the attachment allowlist" do
+  it "rejects an attachment uploaded by another user" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.day.ago)
-
-    expect {
-      post "/api/v1/app/chats/#{chat.id}/message", params: {
-        chat_message: {
-          text: "Inspect this file",
-          attachments: [ { name: "program.exe", mime_type: "application/octet-stream", data: Base64.strict_encode64("binary") } ]
-        }
-      }
-    }.not_to change(ChatMessage, :count)
+    other_chat = ChatSession.create!(user: Factories.user)
+    attachment = other_chat.chat_file_attachments.create!(name: "secret.txt", mime_type: "text/plain", byte_size: 1, checksum: "checksum")
+    post "/api/v1/app/chats/#{chat.id}/message", params: { chat_message: { text: "Inspect", attachments: [ { id: attachment.id } ] } }
 
     expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to eq("program.exe is not a supported attachment type.")
-  end
-
-  it "rejects malformed Base64 and non-UTF-8 text chat attachments" do
-    sign_in_as(user)
-    chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.day.ago)
-
-    post "/api/v1/app/chats/#{chat.id}/message", params: {
-      chat_message: { text: "Inspect", attachments: [ { name: "notes.txt", mime_type: "text/plain", data: "%%%" } ] }
-    }
-    expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to include("malformed Base64")
-
-    post "/api/v1/app/chats/#{chat.id}/message", params: {
-      chat_message: { text: "Inspect", attachments: [ { name: "notes.txt", mime_type: "text/plain", data: Base64.strict_encode64("bad\xFF".b) } ] }
-    }
-    expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to include("not valid UTF-8 text")
-  end
-
-  it "rejects NUL-containing and traversal-style chat attachments" do
-    sign_in_as(user)
-    chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.day.ago)
-
-    post "/api/v1/app/chats/#{chat.id}/message", params: {
-      chat_message: { text: "Inspect", attachments: [ { name: "notes.txt", mime_type: "text/plain", data: Base64.strict_encode64("a\0b") } ] }
-    }
-    expect(response).to have_http_status(:unprocessable_content)
-
-    post "/api/v1/app/chats/#{chat.id}/message", params: {
-      chat_message: { text: "Inspect", attachments: [ { name: "../../notes.txt", mime_type: "text/plain", data: Base64.strict_encode64("safe") } ] }
-    }
-    expect(response).to have_http_status(:ok)
-    expect(chat.reload.messages.last.content.dig("attachments", 0, "name")).to eq("notes.txt")
-  end
-
-  it "returns a validation error for oversized chat message attachment data" do
-    sign_in_as(user)
-    chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.day.ago)
-    stub_const("ChatMessageParams::CHAT_ATTACHMENT_MAX_BYTES", 4)
-
-    expect {
-      post "/api/v1/app/chats/#{chat.id}/message", params: {
-        chat_message: {
-          text: "Inspect this image",
-          attachments: [ { name: "large.png", mime_type: "image/png", data: Base64.strict_encode64("abcde") } ]
-        }
-      }
-    }.not_to change(ChatMessage, :count)
-
-    expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to eq("Each attachment must be 5 MB or smaller.")
-  end
-
-  it "enforces the decoded total attachment size" do
-    sign_in_as(user)
-    chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.day.ago)
-    stub_const("ChatMessageParams::CHAT_ATTACHMENT_TOTAL_MAX_BYTES", 5)
-
-    post "/api/v1/app/chats/#{chat.id}/message", params: {
-      chat_message: {
-        text: "Inspect",
-        attachments: %w[first second].map { |name| { name: "#{name}.txt", mime_type: "text/plain", data: Base64.strict_encode64("abc") } }
-      }
-    }
-
-    expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to eq("Attachments must total 20 MB or less.")
   end
 
   it "keeps ordinary chat message content unchanged when attachments are omitted" do
@@ -8314,6 +8240,13 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     message = chat_session.messages.create!(role: role, content: { "text" => text })
     ChatMessageSearchIndex.insert(message)
     message
+  end
+
+  def create_stored_attachment(chat_session, name:, mime_type:, bytes:)
+    attachment = chat_session.chat_file_attachments.build(name: name, mime_type: mime_type, byte_size: bytes.bytesize, checksum: "pending")
+    attachment.file.attach(io: StringIO.new(bytes), filename: name, content_type: mime_type)
+    attachment.save!
+    attachment
   end
 
   def capture_sql

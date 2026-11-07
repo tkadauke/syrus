@@ -444,7 +444,7 @@ export type ChatMessageItem = {
   bookmarkable: boolean
   pinnable?: boolean
   created_at?: string
-  attachments?: Array<{ name: string; mime_type: string; data: string }>
+  attachments?: ChatAttachmentRef[]
   video_walkthrough_id?: number
   chat_shell_command?: ChatShellCommandResult | null
   proposal?: ChatProposal | null
@@ -700,9 +700,11 @@ export type ChatScratchpadItem = {
 }
 
 export type ChatDraftAttachment = {
+  id: number
   name: string
   mime_type: string
-  data: string
+  size: number
+  url: string
 }
 
 export type ChatDraftMessage = {
@@ -769,10 +771,14 @@ export type NewChatPayload = {
 }
 
 export type ChatMessageAttachmentInput = {
+  id: number
   name: string
   mimeType: string
-  dataUrl: string
+  size: number
+  url: string
 }
+
+export type ChatAttachmentRef = { id?: number; name: string; mime_type: string; size?: number; url: string }
 
 export type ChatCreatedPayload = {
   message: string
@@ -1318,6 +1324,12 @@ export function postSnapshotPng(jobAttachmentsPath: string, blob: Blob, filename
   return postForm<unknown>(jobAttachmentsPath, formData)
 }
 
+export function uploadChatAttachment(chatId: string | number, file: File) {
+  const formData = new FormData()
+  formData.append("file", file)
+  return postForm<ChatAttachmentRef & { id: number; size: number }>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/attachments`, formData)
+}
+
 export function createWhiteboardSnapshot(
   chatSessionId: string | number,
   input: { scene_json: ChatWhiteboardScene; snapshot_kind: WhiteboardSnapshot["snapshot_kind"]; name?: string | null }
@@ -1562,7 +1574,7 @@ export function cancelChatShellCommand(chatId: string | number, id: number) {
 function chatMessagePayload(text: string, attachments: Array<ChatMessageAttachmentInput | ChatDraftAttachment>) {
   const chatMessage: {
     text: string
-    attachments?: Array<{ name: string; mime_type: string; data: string }>
+    attachments?: Array<{ id: number }>
   } = { text }
 
   if (attachments.length > 0) {
@@ -1582,7 +1594,7 @@ function draftMessageInput(
 function draftMessagePayload(text: string, attachments: Array<ChatMessageAttachmentInput | ChatDraftAttachment>) {
   const scratchpadItem: {
     content: string
-    attachments?: Array<{ name: string; mime_type: string; data: string }>
+    attachments?: Array<{ id: number }>
   } = { content: text }
 
   if (attachments.length > 0) scratchpadItem.attachments = attachments.map(attachmentPayload)
@@ -1591,19 +1603,7 @@ function draftMessagePayload(text: string, attachments: Array<ChatMessageAttachm
 }
 
 function attachmentPayload(attachment: ChatMessageAttachmentInput | ChatDraftAttachment) {
-  if ("mimeType" in attachment) {
-    return {
-      name: attachment.name,
-      mime_type: attachment.mimeType,
-      data: attachment.dataUrl.replace(/^data:[^;]+;base64,/, "")
-    }
-  }
-
-  return {
-    name: attachment.name,
-    mime_type: attachment.mime_type,
-    data: attachment.data.replace(/^data:[^;]+;base64,/, "")
-  }
+  return { id: attachment.id }
 }
 
 export function createChatBookmark(path: string, messageId: number, label: string) {
