@@ -831,18 +831,22 @@ function DesignDocEditor({
       state?: "draft" | "accepted" | "archived"
       repository_ids?: number[]
       collaborator_user_ids?: number[]
-    }) => updateDesignDoc(doc.id, input),
+    }) =>
+      updateDesignDoc(doc.id, input).then(async (payload) => {
+        if (payload.design_doc) return payload
+
+        const { design_doc } = await fetchDesignDoc(doc.id)
+        return { ...payload, design_doc }
+      }),
     onMutate: () => setWriteError(null),
-    onSuccess: (payload, input) => {
-      if (payload.design_doc) {
-        onDocChange(payload.design_doc, t("notice_controls_updated"))
-        return
-      }
-      canonicalRevisionRef.current = payload.canonical_revision
-      onDocChange(
-        { ...doc, canonical_revision: payload.canonical_revision, state: input.state ?? doc.state, visibility: input.visibility ?? doc.visibility },
-        t("notice_controls_updated")
-      )
+    onSuccess: (payload) => {
+      const refreshedDoc = payload.design_doc
+      if (!refreshedDoc) return
+
+      canonicalRevisionRef.current = refreshedDoc.canonical_revision
+      setCollaborators(refreshedDoc.collaborators.map((user) => user.id).join(", "))
+      setRepoIds(refreshedDoc.repositories.map((repository) => String(repository.id)))
+      onDocChange(refreshedDoc, t("notice_controls_updated"))
     },
     onError: handleWriteError
   })

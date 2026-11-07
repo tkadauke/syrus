@@ -64,10 +64,11 @@ module Api
         def versions
           design_doc = find_design_doc_with_summary_associations
           versions = design_doc.versions.includes(:actor_user).order(version_number: :desc)
+          total = versions.count
           render json: {
             design_doc: serialize_summary(design_doc),
             versions: versions.limit(PER_PAGE).offset((page - 1) * PER_PAGE).map { |version| serialize_version(version, include_markdown: include_markdown?) },
-            pagination: { page: page, per_page: PER_PAGE, total: versions.count, total_pages: (versions.count.to_f / PER_PAGE).ceil }
+            pagination: { page: page, per_page: PER_PAGE, total: total, total_pages: (total.to_f / PER_PAGE).ceil }
           }
         end
 
