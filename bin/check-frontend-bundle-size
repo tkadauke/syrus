@@ -1,0 +1,53 @@
+#!/usr/bin/env node
+
+import fs from "node:fs"
+import path from "node:path"
+
+const buildDir = path.resolve(process.env.VITE_BUILD_DIR || "app/assets/builds")
+const manifestPath = path.join(buildDir, ".vite", "manifest.json")
+const maximumBytes = Number(process.env.VITE_ENTRY_MAX_BYTES || 3_200_000)
+
+if (!fs.existsSync(manifestPath)) {
+  console.error(`Vite manifest not found at ${manifestPath}; run npm run build first`)
+  process.exit(1)
+}
+
+const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"))
+const entry = Object.values(manifest).find((asset) => asset.isEntry)
+
+if (!entry?.file) {
+  console.error(`No entry asset found in ${manifestPath}`)
+  process.exit(1)
+}
+
+const lazyOnlyChunks = ["vendor-d3", "vendor-diagrams", "vendor-editor", "vendor-excalidraw", "vendor-terminal"]
+const staticImportKeys = new Set()
+const pendingImports = [...(entry.imports || [])]
+
+while (pendingImports.length > 0) {
+  const key = pendingImports.pop()
+  if (!key || staticImportKeys.has(key)) continue
+
+  staticImportKeys.add(key)
+  pendingImports.push(...(manifest[key]?.imports || []))
+}
+
+const staticImports = [...staticImportKeys].map((key) => manifest[key]?.file || key)
+const eagerHeavyChunks = staticImports.filter((file) => lazyOnlyChunks.some((chunk) => file.includes(chunk)))
+
+if (eagerHeavyChunks.length > 0) {
+  console.error(`Heavy route dependencies are statically reachable from the entry: ${eagerHeavyChunks.join(", ")}`)
+  process.exit(1)
+}
+
+const entryPath = path.join(buildDir, entry.file)
+const size = fs.statSync(entryPath).size
+const formattedSize = (size / 1024 / 1024).toFixed(2)
+const formattedMaximum = (maximumBytes / 1024 / 1024).toFixed(2)
+
+if (size > maximumBytes) {
+  console.error(`Frontend entry ${entry.file} is ${formattedSize} MiB; budget is ${formattedMaximum} MiB`)
+  process.exit(1)
+}
+
+console.log(`Frontend entry ${entry.file}: ${formattedSize} MiB (budget ${formattedMaximum} MiB)`)
