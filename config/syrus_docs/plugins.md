@@ -8,7 +8,11 @@ Review plugins may register `reviewer_target_provider`,
 the provider owns authorization, availability, uniqueness, resolution, and the
 safe display snapshot. Review-context contributors receive the pinned target,
 provide a bounded restricted prompt plus a safe manifest, and return an opaque
-post-verdict persistence receipt. Presentation contributors declare component
+post-verdict persistence receipt. Restricted text is enclosed in core's
+untrusted-data prompt boundary. A contributor that supplies workflow tools must
+also declare the existing workflow capability authorizing that tool set; core
+does not advertise it when the current role and step lack that capability.
+Presentation contributors declare component
 keys for provider-rule target editors, Job/Workflow evidence, audit payloads,
 and settings summaries; their copy lives in the plugin's English, German, and
 Latin i18n bundles and every contribution declares an accessibility label key.

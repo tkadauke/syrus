@@ -112,6 +112,45 @@ RSpec.describe Mcp::Sidecar do
     end
   end
 
+  describe ".plugin_workflow_tools_for" do
+    let(:target) { { "type" => "synthetic", "reference" => "7" } }
+    let(:context) { McpToolContext.from_run(run.reload) }
+    let(:tool_set) do
+      Class.new do
+        def self.available_for_context?(_context) = true
+        def self.tool_definitions
+          [ { name: "synthetic_context_mutation", description: "Mutates context", input_schema: {}, capability: "review.memory.write", mutation: true } ]
+        end
+
+        def handle(*) = Mcp::Tools.success
+      end
+    end
+
+    before do
+      run.step.update!(details: run.step.details.to_h.merge("reviewer_target" => target))
+      allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+      allow(Syrus::PluginRegistry).to receive(:providers_for).with(:mcp_tool_set).and_return([])
+      allow(ReviewContextContributions).to receive(:tool_set).with(target).and_return(tool_set)
+    end
+
+    it "does not expose a contributed tool when its declared workflow capability is denied" do
+      allow(ReviewContextContributions).to receive(:tool_capability).with(target).and_return(:submit_adversarial_review)
+
+      tools = described_class.plugin_workflow_tools_for(context)
+
+      expect(tools).to be_empty
+      expect(ReviewContextContributions).not_to have_received(:tool_set)
+    end
+
+    it "exposes a contributed tool when core permits its declared workflow capability" do
+      allow(ReviewContextContributions).to receive(:tool_capability).with(target).and_return(:submit_summary)
+
+      tools = described_class.plugin_workflow_tools_for(context)
+
+      expect(tools.map { |tool| McpToolRegistry.tool_name_for(tool) }).to eq([ "synthetic_context_mutation" ])
+    end
+  end
+
   describe "tools/call read_live_state" do
     it "returns compact state for the current Run via the JSON-RPC path" do
       response = jsonrpc(server_for(run), "tools/call", params: {

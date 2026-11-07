@@ -7,6 +7,7 @@ module Syrus
 
       module DefaultMethods
         def tool_set(_target) = nil
+        def tool_capability(_target) = nil
         def retention(_target) = {}
         def tombstone(_target, reason:) = nil
       end

@@ -112,7 +112,8 @@ module Steps
 
       context = ReviewContextContributions.prepare(target:, run:, evidence: run.review_evidence, criteria: review_criteria)
       run.step.update!(details: run.step.details.to_h.merge("review_context_manifest" => context.fetch("manifest")))
-      "#{prompt}\n\n#{ReviewContextContributions.prompt(context)}"
+      restricted_context = Prompts::RestrictedReviewContext.new(ReviewContextContributions.prompt(context))
+      "#{prompt}\n\n#{restricted_context}"
     rescue ReviewContextContributions::Unavailable
       prompt
     end
