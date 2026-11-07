@@ -9,7 +9,7 @@
 import type { ChatMessageItem, ChatPayload, ChatRenderItem } from "../../api/chats"
 import { batchedNoticeContents, contentRecord } from "./utils"
 import { renderMessage } from "./streamBuilders"
-import { formatRelativeDate, intlLocale } from "../../lib/relativeTime"
+import { calendarDayKey, formatRelativeDate, intlLocale, validTimeZone } from "../../lib/relativeTime"
 
 export type ChatMessageImageAttachment = { name: string; mime_type: string; url: string }
 
@@ -97,19 +97,32 @@ export function countIncomingVisibleMessages(messages: ChatMessageItem[], previo
 // wants the actual time). Both halves respect the viewer's locale — the
 // relative side via Intl.RelativeTimeFormat (shared `formatRelativeDate`), the
 // absolute side via Intl.DateTimeFormat.
-export function formatMessageTimestamp(createdAt: string): string {
+export function formatMessageTimestamp(createdAt: string, timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone): string {
   const date = new Date(createdAt)
   const now = new Date()
   const diffHours = (now.getTime() - date.getTime()) / 3_600_000
 
-  if (diffHours < 24) return formatRelativeDate(date, now.getTime())
+  if (diffHours < 24) return formatRelativeDate(date, now.getTime(), timeZone)
 
-  const sameYear = date.getFullYear() === now.getFullYear()
+  const sameYear = calendarDayKey(date, timeZone).slice(0, 4) === calendarDayKey(now, timeZone).slice(0, 4)
   return new Intl.DateTimeFormat(intlLocale(), {
     year: sameYear ? undefined : "numeric",
     month: "numeric",
     day: "numeric",
     hour: "numeric",
-    minute: "2-digit"
+    minute: "2-digit",
+    timeZone: validTimeZone(timeZone)
   }).format(date)
+}
+
+export function formatMessageTimestampExact(createdAt: string, timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone): string {
+  return new Intl.DateTimeFormat(intlLocale(), {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: validTimeZone(timeZone),
+    timeZoneName: "short"
+  }).format(new Date(createdAt))
 }

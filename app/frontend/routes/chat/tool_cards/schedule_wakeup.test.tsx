@@ -62,6 +62,17 @@ describe("schedule_wakeup tool card", () => {
     expect(scheduleWakeupToolCard.collapsedSummary?.(context({ input: { prompt: "Check later", delay_minutes: 30 } }))).toBe("Scheduling wakeup...")
   })
 
+  it("uses the selected timezone for wakeup calendar phrases", () => {
+    vi.setSystemTime(new Date("2026-10-21T09:00:00Z"))
+    const parsedResult = { wakeup_id: 7, fire_at: "2026-10-20T13:00:00Z" }
+    const cardContext = context({ input: { prompt: "Check later" }, parsedResult, timeZone: "Pacific/Honolulu" })
+
+    render(<>{scheduleWakeupToolCard.renderExpanded(cardContext)}</>)
+
+    expect(scheduleWakeupToolCard.collapsedSummary?.(cardContext)).toBe("Wakeup scheduled today")
+    expect(screen.getByText("(today)")).toBeInTheDocument()
+  })
+
   it("renders an empty prompt state and a styled plain-text error", () => {
     const errorContext = context({ resultError: true, resultBody: "delay_minutes must be between 1 and 1440" })
     const { container } = render(<>{scheduleWakeupToolCard.renderExpanded(errorContext)}</>)
