@@ -1027,7 +1027,9 @@ describe("ProposalCard routing", () => {
   it("lets operators choose backlog or implementation from an Epic proposal card", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((_input, init) => {
       if (init?.method === "POST")
-        return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "epic", epic_bundle: true, state: "confirmed", proposed: false }) }))
+        return Promise.resolve(
+          jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "epic", epic_bundle: true, state: "confirmed", proposed: false }) })
+        )
 
       return Promise.resolve(jsonResponse({}))
     })

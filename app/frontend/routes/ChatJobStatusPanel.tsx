@@ -275,12 +275,7 @@ function ProposedProposalsSection({
         </div>
         {selectedProposals.length > 0 ? (
           <div className="ml-auto flex flex-wrap items-center justify-end gap-1" data-testid="proposal-bulk-actions">
-            <Button
-              disabled={bulkAction.isPending}
-              onClick={() => bulkAction.mutate("backlog")}
-              size="sm"
-              variant="secondary"
-            >
+            <Button disabled={bulkAction.isPending} onClick={() => bulkAction.mutate("backlog")} size="sm" variant="secondary">
               {t("proposal_route_backlog")}
             </Button>
             <Button disabled={bulkAction.isPending} onClick={() => bulkAction.mutate("implement")} size="sm">
