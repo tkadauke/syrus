@@ -74,7 +74,7 @@ export function recentChatsQueryKey(settings: Partial<ChatSidebarSettings> = {})
   ]
 }
 
-export function updateRecentChatCache(queryClient: QueryClient, chat: ChatRecord, options: { prepend?: boolean; occurredAt?: string } = {}) {
+export function updateRecentChatCache(queryClient: QueryClient, chat: ChatRecord | ChatNavRecord, options: { prepend?: boolean; occurredAt?: string } = {}) {
   queryClient
     .getQueryCache()
     .findAll({ queryKey: ["chats", "recent"] })
@@ -180,8 +180,8 @@ function sortStatusGroups(groups: ChatGroupRecord[]) {
   return [...groups].sort((left, right) => (order.get(left.key) ?? 9) - (order.get(right.key) ?? 9))
 }
 
-function recentChatRecord(chat: ChatRecord, existing?: ChatNavRecord, occurredAt = new Date().toISOString()): ChatNavRecord {
-  const candidate = chat as ChatNavRecord
+function recentChatRecord(chat: ChatRecord | ChatNavRecord, existing?: ChatNavRecord, occurredAt = new Date().toISOString()): ChatNavRecord {
+  const candidate = chat as unknown as ChatNavRecord
 
   return {
     ...existing,
@@ -196,7 +196,7 @@ function recentChatRecord(chat: ChatRecord, existing?: ChatNavRecord, occurredAt
   }
 }
 
-function recentChatBelongsInQuery(chat: ChatRecord, queryKey: QueryKey) {
+function recentChatBelongsInQuery(chat: ChatRecord | ChatNavRecord, queryKey: QueryKey) {
   if (queryKey.length < 3) return true
 
   const status = queryKey[2]
@@ -207,13 +207,14 @@ function recentChatBelongsInQuery(chat: ChatRecord, queryKey: QueryKey) {
   return chatTypes.length === 0 || chatTypes.includes(chatTypeFor(chat))
 }
 
-function chatIsHidden(chat: ChatRecord) {
+function chatIsHidden(chat: ChatRecord | ChatNavRecord) {
   return (chat as ChatRecord & { hidden_at?: string | null }).hidden_at != null
 }
 
-function chatTypeFor(chat: ChatRecord) {
-  if (chat.chat_type) return chat.chat_type
-  if (chat.origin_platform) return "external"
+function chatTypeFor(chat: ChatRecord | ChatNavRecord) {
+  const record = chat as ChatRecord
+  if (record.chat_type) return record.chat_type
+  if (record.origin_platform) return "external"
   if (chat.conversation_kind === "group") return "group"
 
   return "agent"

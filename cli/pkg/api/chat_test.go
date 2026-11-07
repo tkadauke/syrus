@@ -19,6 +19,10 @@ func (stubRenderer) Render(markdown string) (string, error) {
 
 func TestListChatsSendsBearerToken(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/app/chats/new" {
+			w.Write([]byte(`{"repositories":[{"id":7,"slug":"tkadauke/syrus"}]}`))
+			return
+		}
 		if r.URL.Path != "/api/v1/app/chats" {
 			t.Fatalf("path = %s", r.URL.Path)
 		}
@@ -49,6 +53,10 @@ func TestListChatsSendsBearerToken(t *testing.T) {
 
 func TestListChatsDeduplicatesGroupedChats(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/app/chats/new" {
+			w.Write([]byte(`{"repositories":[{"id":7,"slug":"tkadauke/syrus"}]}`))
+			return
+		}
 		if r.URL.Path != "/api/v1/app/chats" {
 			t.Fatalf("path = %s", r.URL.Path)
 		}
