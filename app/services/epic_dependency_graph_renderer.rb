@@ -90,12 +90,12 @@ class EpicDependencyGraphRenderer
   end
 
   def epic_dependencies
-    @epic_dependencies ||= EpicDependency
+    @epic_dependencies ||= EpicDependency.effective(EpicDependency
       .includes(:epic, :depends_on_epic)
       .where("epic_id = :id OR depends_on_epic_id = :id", id: epic.id)
       .where.not(depends_on_epic_id: nil)
       .order(:id)
-      .to_a
+      .to_a)
   end
 
   def epic_job_dependencies

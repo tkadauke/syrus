@@ -11,9 +11,20 @@ class EpicDependency < ApplicationRecord
   validate :no_self_reference
   validate :no_cycle
 
+  after_commit :reconcile_derived_edge, on: %i[create update destroy], unless: :derived?
   after_commit :refresh_dependent_epic
 
   scope :pending, -> { where(depends_on_epic_id: nil, depends_on_job_id: nil) }
+
+  def self.effective(records)
+    records.group_by do |dependency|
+      if dependency.depends_on_epic_id.present?
+        [ :epic, dependency.epic_id, dependency.depends_on_epic_id ]
+      else
+        [ :row, dependency.id ]
+      end
+    end.values.map { |duplicates| duplicates.find { |dependency| !dependency.derived? } || duplicates.first }
+  end
 
   # A pending row holds an Epic's admission open while a
   # `depends_on_proposal_slugs` token still points at a chat proposal that
@@ -88,5 +99,9 @@ class EpicDependency < ApplicationRecord
     epic.dependencies.reload
     epic.refresh_auto_state!
     epic.block_queued_jobs_if_dependencies_unsatisfied!
+  end
+
+  def reconcile_derived_edge
+    EpicDependencies::DerivedEdgeReconciler.reconcile_explicit_edge(self)
   end
 end
