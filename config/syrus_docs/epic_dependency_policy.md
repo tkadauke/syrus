@@ -12,6 +12,14 @@ Epic `epic_dependency_policy` values:
 
 - `linear` (only value) — require one ordered chain for this Epic.
 
+Starting a non-empty, confirmed Epic records operator execution intent by
+moving it to `in_progress`, even while Job or Epic execution dependencies are
+unresolved. Dependency readiness controls release of child Jobs and Workflows,
+not the Epic state transition. Children remain `blocked_by_epic` or queued with
+their normal start gate until callbacks on the final dependency wake the Epic
+and release the first eligible child. Repeating the start request after the
+Epic is already `in_progress` is idempotent.
+
 `EPIC_DEPENDENCY_POLICIES = %w[linear]` on both `Epic` and `Repository` is the
 single source of truth for valid values; the presence/inclusion validation on
 each model rejects anything else. There is no operator-facing way to choose

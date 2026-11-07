@@ -375,15 +375,24 @@ function HistoryRail({
   )
 }
 
-type HistoryStatus = "loading" | "error" | "empty" | "ready"
+type HistoryStatus = "loading" | "error" | "empty" | "incomplete" | "ready"
 
 function HistoryStatusNotice({ onRetry, status }: { onRetry: () => void; status: HistoryStatus }) {
   const { t } = useT("sdlc_pipeline")
   if (status === "ready") return null
   return (
-    <div className="px-3 pb-2" data-testid="history-status" data-history-status={status} role="status">
+    <div className="px-3 pb-1" data-testid="history-status" data-history-status={status} role="status">
       {status === "loading" ? <Notice>{t("history_loading")}</Notice> : null}
-      {status === "empty" ? <Notice>{t("history_empty")}</Notice> : null}
+      {status === "empty" ? (
+        <Text variant="caption" tone="muted">
+          {t("history_empty")}
+        </Text>
+      ) : null}
+      {status === "incomplete" ? (
+        <Text className="text-warning-text" variant="caption">
+          {t("history_incomplete")}
+        </Text>
+      ) : null}
       {status === "error" ? (
         <Notice tone="danger">
           {t("history_error")}
@@ -575,15 +584,15 @@ function PipelineOverview({
   return (
     <>
       {!embedded ? (
-        <div className="py-4">
-          <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
-            <div>
+        <div className="py-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5" data-testid="pipeline-toolbar">
+            <div className="flex min-w-0 items-baseline gap-2">
               <Section.Title>{t("title")}</Section.Title>
-              <Text className="mt-1" tone="muted">
+              <Text className="truncate" tone="muted" variant="caption">
                 {t("subtitle", { time: new Date(historicalAt || payload.generated_at).toLocaleString() })}
               </Text>
             </div>
-            <div className="flex min-w-0 flex-1 gap-3 overflow-x-auto text-2xs text-text-muted sm:justify-end" aria-label={t("pipeline_summary")}>
+            <div className="flex min-w-0 gap-3 overflow-x-auto text-2xs text-text-muted" aria-label={t("pipeline_summary")}>
               <span className="whitespace-nowrap">
                 <strong className="text-text-primary">{total}</strong> {t("in_pipeline")}
               </span>
@@ -597,6 +606,21 @@ function PipelineOverview({
                 <strong className="text-text-primary">{duration(oldest, t)}</strong> {t("oldest_active")}
               </span>
             </div>
+            <Input
+              aria-label={t("filter_aria")}
+              className="ml-auto max-w-xs"
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t("filter_placeholder")}
+              value={query}
+            />
+            {active ? (
+              <Button onClick={() => focusStage(active)} size="sm" variant="secondary">
+                {t("center_active")}
+              </Button>
+            ) : null}
+            <Text variant="caption" tone="muted">
+              {t("represented", { count: total })}
+            </Text>
           </div>
           {trace && tracedItem ? (
             <Section.Root className="mt-3 p-3">
@@ -643,23 +667,6 @@ function PipelineOverview({
               ))}
             </Section.Root>
           ) : null}
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <Input
-              aria-label={t("filter_aria")}
-              className="max-w-xs"
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={t("filter_placeholder")}
-              value={query}
-            />
-            {active ? (
-              <Button onClick={() => focusStage(active)} size="sm" variant="secondary">
-                {t("center_active")}
-              </Button>
-            ) : null}
-            <Text className="ml-auto" variant="caption" tone="muted">
-              {t("represented", { count: total })}
-            </Text>
-          </div>
         </div>
       ) : null}
       <HistoryStatusNotice onRetry={onRetryHistory} status={historyStatus} />
@@ -958,7 +965,9 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
     : history.isPending || history.isFetching
       ? "loading"
       : (history.data?.history?.ticks.length ?? 0) === 0
-        ? "empty"
+        ? history.data?.history?.accuracy.status === "incomplete"
+          ? "incomplete"
+          : "empty"
         : "ready"
   const retryHistory = () => void history.refetch()
   const folders = useMemo(() => {

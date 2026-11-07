@@ -1443,6 +1443,20 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       )
     end
 
+    it "explains unresolved execution dependencies for in-progress Epics" do
+      blocker = Factories.epic(user: user, repository: repo, title: "Pave the road first", state: "in_progress")
+      epic = Factories.epic(user: user, repository: repo, title: "Build the forum", state: "in_progress")
+      Factories.job_record(repository: repo, epic: epic, issue_number: 35, issue_title: "Raise columns", state: "blocked_by_epic")
+      epic.dependencies.create!(depends_on_epic: blocker)
+
+      get "/api/v1/app/dashboard", params: { subject: "epic", view: "kanban" }
+
+      expect(response).to have_http_status(:ok)
+      item = parse_body.fetch("lanes").flat_map { |lane| lane.fetch("items") }.find { |row| row.fetch("id") == epic.id }
+      expect(item.fetch("state")).to eq("in_progress")
+      expect(item.fetch("execution_blocked_on")).to eq([ "Pave the road first" ])
+    end
+
     it "excludes origin-restricted children from Epic aggregates" do
       user.update!(global_role: "user")
       epic = Factories.epic(user: user, repository: repo, title: "Private work", state: "in_progress")
@@ -2677,6 +2691,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       # The first user created is the bootstrap admin, who may act on any Epic.
       user.update!(global_role: "user")
       ready = Factories.epic(user: user, repository: repo, title: "Ready aqueduct", state: "ready")
+      Factories.job_record(user: user, repository: repo, epic: ready, state: "blocked_by_epic")
       done = Factories.epic(user: user, repository: repo, title: "Done forum", state: "done")
       other_user = Factories.user
       other_repo = Factories.repository(user: other_user, owner: "globex", name: "private")
@@ -2712,6 +2727,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       writer = Factories.user
       repo.repository_memberships.create!(user: writer, role: "write")
       ready = Factories.epic(user: user, repository: repo, title: "Shared aqueduct", state: "ready")
+      Factories.job_record(user: user, repository: repo, epic: ready, state: "blocked_by_epic")
       sign_in_as(writer)
 
       post "/api/v1/app/dashboard/epics/bulk",
@@ -2720,6 +2736,21 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(ready.reload).to be_in_progress
+    end
+
+    it "records implementation intent for a confirmed backlog Epic with unresolved dependencies" do
+      blocker = Factories.epic(user: user, repository: repo, title: "Pave first", state: "in_progress")
+      epic = Factories.epic(user: user, repository: repo, title: "Build forum", state: "backlog")
+      child = Factories.job_record(user: user, repository: repo, epic: epic, state: "blocked_by_epic")
+      epic.dependencies.create!(depends_on_epic: blocker)
+
+      post "/api/v1/app/dashboard/epics/bulk",
+           params: { epic_ids: [ epic.id ], bulk_action: "start" },
+           as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(epic.reload).to be_in_progress
+      expect(child.reload).to be_blocked_by_epic
     end
 
     it "does not let a global-admin run token start an Epic outside its invocation repository", :skip_sign_in do
@@ -2762,7 +2793,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
 
       expect(response).to have_http_status(:unprocessable_content)
       expect(done.reload).to be_done
-      expect(parse_body.dig("error", "message")).to eq("No selected Epics were ready to start.")
+      expect(parse_body.dig("error", "message")).to eq("No selected Epics can start implementing.")
     end
   end
 

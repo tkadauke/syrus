@@ -121,7 +121,7 @@ class Epic < ApplicationRecord
     end
 
     event :start do
-      transitions from: :ready, to: :in_progress, guard: :actor_can_advance?, after: ->(actor: nil, user: nil) {
+      transitions from: %i[backlog ready], to: :in_progress, guard: :actor_can_advance?, after: ->(actor: nil, user: nil) {
         self.state = "in_progress"
         claim!(actor || user || self.user, force: true) unless claimed?
         unblock_child_jobs!
@@ -396,8 +396,8 @@ class Epic < ApplicationRecord
 
   # "Start implementing" — the definite operator action (CLAUDE.md pattern:
   # re-check state, then dispatch side effects) that moves an Epic into
-  # :in_progress and releases its held child Jobs through the AASM graph
-  # (backlog → auto_ready → start). Empty Epics are not startable: starting
+  # :in_progress and releases its held child Jobs when their execution gates
+  # allow. Empty Epics are not startable: starting
   # is the release valve for already-confirmed child work, not a way to mark
   # a placeholder Epic as in progress before it has any Jobs.
   def may_start_implementing?(actor: nil)
@@ -406,21 +406,18 @@ class Epic < ApplicationRecord
 
     actor_user = epic_advancement_actor(actor)
     return false if claimed? && actor_user && !claimed_by?(actor_user)
-    return false unless execution_dependencies_ready?
     return false unless jobs.exists?
     return false unless child_jobs_confirmed?
-
-    # ready → start! flows through the graph. backlog must be graph-startable
-    # (has confirmed children, so auto_ready → start works).
-    ready? || ready_to_start?
+    true
   end
 
   def start_implementing!(actor: nil)
+    return true if in_progress?
+
     raise NotStartable, start_implementing_block_reason(actor) unless may_start_implementing?(actor: actor)
 
     transaction do
-      auto_ready!(actor: actor) if backlog? && may_auto_ready?(actor: actor)
-      if ready? && may_start?(actor: actor)
+      if may_start?(actor: actor)
         start!(actor: actor)
       else
         raise NotStartable, start_implementing_block_reason(actor)
@@ -431,9 +428,15 @@ class Epic < ApplicationRecord
   end
 
   # Operator-facing display names of unfinished dependencies, used by the
-  # NotStartable message and the detail payload's start-blocked hint.
+  # detail payload's execution-blocked hint.
   def unfinished_dependency_names
-    dependencies.includes(:depends_on_epic, :depends_on_job, :unresolved_chat_proposal).reject(&:dependency_succeeded?).filter_map do |dependency|
+    loaded_dependencies = if association(:dependencies).loaded?
+      dependencies.target
+    else
+      dependencies.includes(:depends_on_epic, { depends_on_job: :deployment_stage_statuses }, :unresolved_chat_proposal).to_a
+    end
+
+    loaded_dependencies.reject(&:dependency_succeeded?).filter_map do |dependency|
       next dependency.depends_on_job.slug if dependency.depends_on_job_id.present?
       next dependency.unresolved_chat_proposal&.title if dependency.pending?
 
@@ -540,9 +543,6 @@ class Epic < ApplicationRecord
     actor_user = epic_advancement_actor(actor)
     return I18n.t("api.epics.product_owner_forbidden") if actor_user&.product_owner?
     return I18n.t("api.epics.start_claimed_by_other") if (backlog? || ready?) && claimed? && actor_user && !claimed_by?(actor_user)
-    if (backlog? || ready?) && !execution_dependencies_ready?
-      return I18n.t("api.epics.start_blocked_by_dependencies", names: unfinished_dependency_names.to_sentence)
-    end
     return I18n.t("api.epics.start_children_empty") if (backlog? || ready?) && jobs.none?
     return I18n.t("api.epics.start_children_unconfirmed") if jobs.exists? && !child_jobs_confirmed?
 

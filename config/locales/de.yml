@@ -393,7 +393,7 @@ de:
       tag_not_found: "Tag nicht gefunden."
       choose_tag: "Wähle einen Tag aus oder gib einen ein."
       product_owner_epic_start_forbidden: "Product Owner können Epics nicht über den Backlog hinaus fortsetzen."
-      none_epics_ready: "Keines der ausgewählten Epics war startbereit."
+      none_epics_startable: "Keines der ausgewählten Epics kann mit der Umsetzung beginnen."
       retry_enqueued: { one: "Erneuter Versuch für 1 Job eingereiht.", other: "Erneuter Versuch für %{count} Jobs eingereiht." }
       retry_enqueued_with_agent: { one: "Erneuter Versuch für 1 Job mit %{agent} eingereiht.", other: "Erneuter Versuch für %{count} Jobs mit %{agent} eingereiht." }
       jobs_closed: { one: "1 Job geschlossen.", other: "%{count} Jobs geschlossen." }
@@ -741,7 +741,6 @@ de:
       started: "Epic gestartet — bereite untergeordnete Jobs werden gestartet."
       created_and_started: "Epic erstellt und gestartet — bereite untergeordnete Jobs starten."
       not_startable: "Epic kann aus dem Zustand %{state} nicht mit der Umsetzung beginnen."
-      start_blocked_by_dependencies: "Epic kann noch nicht mit der Umsetzung beginnen — wartet auf Epic-Abhängigkeiten: %{names}."
       start_children_empty: "Epic kann erst mit der Umsetzung beginnen, wenn es mindestens einen untergeordneten Job hat."
       start_children_unconfirmed: "Epic kann erst mit der Umsetzung beginnen, wenn seine untergeordneten Jobs bestätigt sind."
       start_claimed_by_other: "Epic ist von einem anderen Benutzer beansprucht."

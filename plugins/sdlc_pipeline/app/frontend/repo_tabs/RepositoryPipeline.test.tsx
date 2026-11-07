@@ -354,7 +354,7 @@ describe("RepositoryPipelineRoute", () => {
         { key: "review", label: "Review", kind: "lifecycle", total: 0, attention_count: 0, aging_count: 0, oldest_age_seconds: null, highlighted_items: [] }
       ]
     }
-    const historyBody = (ticks: string[]) => ({
+    const historyBody = (ticks: string[], accuracyStatus: "reconstructed" | "incomplete" = "reconstructed") => ({
       ...base,
       history: {
         from: "2026-10-30T12:00:00Z",
@@ -363,7 +363,7 @@ describe("RepositoryPipelineRoute", () => {
         deltas: [],
         ticks,
         traces: [],
-        accuracy: { status: "reconstructed", truncated: false, message: "" }
+        accuracy: { status: accuracyStatus, truncated: false, message: "" }
       }
     })
     function mockFetch(history: () => Promise<Response>) {
@@ -384,10 +384,18 @@ describe("RepositoryPipelineRoute", () => {
       renderRoute()
       await screen.findByRole("region", { name: "Pipeline stages" })
       await waitFor(() => expect(screen.getByTestId("history-event-track").querySelectorAll("button")).toHaveLength(2))
+      const toolbar = within(screen.getByTestId("pipeline-toolbar"))
+      expect(toolbar.getByRole("heading", { name: "SDLC Pipeline" })).toBeInTheDocument()
+      expect(toolbar.getByLabelText("Pipeline summary")).toBeInTheDocument()
+      expect(toolbar.getByRole("textbox", { name: "Filter pipeline" })).toBeInTheDocument()
       expect(screen.getAllByLabelText("History window")).toHaveLength(1)
       expect(screen.getAllByTestId("pipeline-time-rail")).toHaveLength(1)
       expect(screen.queryByTestId("compact-pipeline-time-rail")).not.toBeInTheDocument()
       expect(screen.queryByTestId("history-status")).not.toBeInTheDocument()
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "Play" })).toBeEnabled()
+        expect(screen.getByRole("button", { name: "Previous event" })).toBeEnabled()
+      })
       fireEvent.click(screen.getByRole("button", { name: "Previous event" }))
       await waitFor(() => expect(screen.getByTestId("selected-history-time")).toHaveAttribute("datetime", "2026-10-31T11:00:00.000Z"))
       fireEvent.click(screen.getByRole("button", { name: "Previous event" }))
@@ -424,6 +432,17 @@ describe("RepositoryPipelineRoute", () => {
       await screen.findByRole("region", { name: "Pipeline stages" })
       await waitFor(() => expect(screen.getByTestId("history-status")).toHaveAttribute("data-history-status", "empty"))
       expect(screen.getByText(/No pipeline changes were recorded/)).toBeInTheDocument()
+    })
+
+    it("distinguishes incomplete evidence from a genuinely empty window", async () => {
+      const body = historyBody([], "incomplete")
+      mockFetch(() => Promise.resolve(jsonResponse(body)))
+      renderRoute()
+      await screen.findByRole("region", { name: "Pipeline stages" })
+      await waitFor(() => expect(screen.getByTestId("history-status")).toHaveAttribute("data-history-status", "incomplete"))
+      expect(screen.getByText(/cannot safely reconstruct/)).toBeInTheDocument()
+      expect(screen.queryByText(/No pipeline changes were recorded/)).not.toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Play" })).toBeDisabled()
     })
 
     it("keeps a single compact navigator when embedded", async () => {

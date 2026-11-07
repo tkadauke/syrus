@@ -108,6 +108,7 @@
   "chat_view_pipeline": "Pipeline anzeigen",
   "history_loading": "Verlauf wird geladen …",
   "history_empty": "In diesem Verlaufszeitraum wurden keine Pipeline-Änderungen aufgezeichnet. Wähle einen längeren Zeitraum.",
+  "history_incomplete": "Die Verlaufsdaten für diesen Zeitraum sind unvollständig; Syrus kann die Ereignisse nicht zuverlässig rekonstruieren.",
   "history_error": "Der Verlauf konnte nicht geladen werden. Die aktuelle Pipeline wird weiterhin angezeigt.",
   "retry_history": "Verlauf erneut laden",
   "history_controls_unavailable": "Verlaufssteuerung ist erst verfügbar, wenn der Verlauf Ereignisse enthält",

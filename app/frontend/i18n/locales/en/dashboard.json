@@ -258,5 +258,6 @@
     "delivery_needs_attention": "Delivery needs attention"
   },
   "epic_commits_behind_one": "{{count}} commit behind",
-  "epic_commits_behind_other": "{{count}} commits behind"
+  "epic_commits_behind_other": "{{count}} commits behind",
+  "epic_implementation_waiting_on_dependencies": "Implementation started; child Jobs are waiting on {{names}}"
 }

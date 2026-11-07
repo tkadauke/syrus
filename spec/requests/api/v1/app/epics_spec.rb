@@ -1017,15 +1017,14 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
       expect(gated_child.workflows.queued.count).to eq(1)
     end
 
-    it "409s with a clear message when the Epic is already in progress" do
+    it "is idempotent when the Epic is already in progress" do
       sign_in_as(user)
       epic = Factories.epic(user: user, repository: repository, state: "in_progress")
 
       post "/api/v1/app/epics/#{epic.id}/start"
 
-      expect(response).to have_http_status(:conflict)
-      expect(parse_body.dig("error", "code")).to eq("epic_not_startable")
-      expect(parse_body.dig("error", "message")).to eq("Epic cannot start implementing from the in_progress state.")
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.dig("epic", "state")).to eq("in_progress")
       expect(epic.reload).to be_in_progress
     end
 
@@ -1042,7 +1041,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
       expect(epic.reload).to be_ready
     end
 
-    it "409s when Epic dependencies are unfinished and does not release held children" do
+    it "records start intent when Epic dependencies are unfinished without releasing held children" do
       sign_in_as(user)
       blocker = Factories.epic(user: user, repository: repository, title: "Pave the road first", state: "in_progress")
       epic = Factories.epic(user: user, repository: repository, state: "ready")
@@ -1053,12 +1052,8 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
         post "/api/v1/app/epics/#{epic.id}/start"
       }.not_to change(Run, :count)
 
-      expect(response).to have_http_status(:conflict)
-      expect(parse_body.dig("error", "code")).to eq("epic_not_startable")
-      expect(parse_body.dig("error", "message")).to eq(
-        "Epic cannot start implementing yet — waiting on Epic dependencies: Pave the road first."
-      )
-      expect(epic.reload).to be_ready
+      expect(response).to have_http_status(:ok)
+      expect(epic.reload).to be_in_progress
       expect(child.reload).to be_blocked_by_epic
     end
 
@@ -1110,21 +1105,22 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body.dig("epic", "startable")).to be(true)
-      expect(parse_body.dig("epic", "start_blocked_on")).to eq([])
+      expect(parse_body.dig("epic", "execution_blocked_on")).to eq([])
       expect(parse_body.dig("paths", "app_start_path")).to eq("/api/v1/app/epics/#{epic.id}/start")
     end
 
-    it "marks dependency-blocked Epics not startable and names the blockers" do
+    it "marks dependency-blocked Epics startable because readiness only gates child execution" do
       sign_in_as(user)
       blocker = Factories.epic(user: user, repository: repository, title: "Pave the road first", state: "backlog")
       epic = Factories.epic(user: user, repository: repository, state: "backlog")
+      Factories.job_record(user: user, repository: repository, epic: epic, state: "blocked_by_epic")
       epic.dependencies.create!(depends_on_epic: blocker)
 
       get "/api/v1/app/epics/#{epic.id}"
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body.dig("epic", "startable")).to be(false)
-      expect(parse_body.dig("epic", "start_blocked_on")).to eq([ "Pave the road first" ])
+      expect(parse_body.dig("epic", "startable")).to be(true)
+      expect(parse_body.dig("epic", "execution_blocked_on")).to eq([])
     end
   end
 
@@ -1380,7 +1376,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     expect(parse_body.dig("error", "message")).to eq("You do not have access to the target repository.")
   end
 
-  it "degrades create-with-start to a plain create for an empty Epic" do
+  it "returns an actionable error instead of silently creating when create-with-start cannot start" do
     sign_in_as(user)
 
     expect {
@@ -1392,16 +1388,11 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
         },
         start: true
       }
-    }.to change { user.epics.count }.by(1)
+    }.not_to change { user.epics.count }
 
-    expect(response).to have_http_status(:created)
-    epic = user.epics.order(:id).last
-    expect(epic).to be_backlog
-    expect(epic.owner_user).to be_nil
-    expect(parse_body).to include(
-      "message" => "Epic created.",
-      "redirect_to" => epic_path(epic)
-    )
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("epic_not_startable")
+    expect(parse_body.dig("error", "message")).to include("at least one child Job")
   end
 
   it "creates without starting when the start param is absent" do
@@ -1415,7 +1406,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     expect(user.epics.order(:id).last).to be_backlog
   end
 
-  it "degrades create-with-start to a plain create for product owners" do
+  it "returns an actionable create-with-start error for product owners" do
     user.update!(role: "product_owner")
     sign_in_as(user)
 
@@ -1424,10 +1415,9 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
       start: true
     }
 
-    expect(response).to have_http_status(:created)
-    epic = user.epics.order(:id).last
-    expect(epic).to be_backlog
-    expect(parse_body).to include("message" => "Epic created.")
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(user.epics).to be_empty
+    expect(parse_body.dig("error", "message")).to eq("Product owners cannot advance Epics beyond backlog.")
   end
 
   it "returns validation errors without creating an epic" do

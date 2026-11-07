@@ -1016,25 +1016,30 @@ module Api
             return
           end
 
-          if params.key?(:route_to_backlog)
-            proposal.update!(route_to_backlog: route_to_backlog_confirmation_value(proposal))
-          end
+          result = nil
+          epic_started = false
+          confirmation_message = nil
+          ApplicationRecord.transaction do
+            if params.key?(:route_to_backlog)
+              proposal.update!(route_to_backlog: route_to_backlog_confirmation_value(proposal))
+            end
 
-          result = if proposal.epic_bundle?
-            ChatEpicProposalMaterializer.new(user: Current.user).file!(proposal)
-          else
-            ChatProposalFiler.new(user: Current.user, repository: proposal.effective_repository).file!([ proposal ])
-          end
-          epic_started = maybe_start_confirmed_epic!(proposal, result)
+            result = if proposal.epic_bundle?
+              ChatEpicProposalMaterializer.new(user: Current.user).file!(proposal)
+            else
+              ChatProposalFiler.new(user: Current.user, repository: proposal.effective_repository).file!([ proposal ])
+            end
+            epic_started = maybe_start_confirmed_epic!(proposal, result)
 
-          confirmation_message = chat_session.messages.create!(
-            role: "system",
-            content: proposal_outcome_control_content(
-              proposal.reload,
-              text: proposal_confirmation_text(proposal, result, epic_started: epic_started),
-              outcome: :confirmed
+            confirmation_message = chat_session.messages.create!(
+              role: "system",
+              content: proposal_outcome_control_content(
+                proposal.reload,
+                text: proposal_confirmation_text(proposal, result, epic_started: epic_started),
+                outcome: :confirmed
+              )
             )
-          )
+          end
           notify_agent_of_proposal_outcome(confirmation_message)
           publish_goal_proposal_confirmed_event(proposal.reload, result)
           broadcast_proposal_updated(chat_session, proposal.reload)
@@ -1045,6 +1050,8 @@ module Api
             confirmation_message,
             message: proposal_confirmed_notice(proposal, result, epic_started: epic_started)
           )
+        rescue Epic::NotStartable => e
+          render_error("epic_not_startable", e.message, status: :unprocessable_content)
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         rescue ArgumentError => e

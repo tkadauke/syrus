@@ -7,6 +7,7 @@ import { expectNativePluginSurface } from "../../../e2e/support/pluginNativeUi"
 const SCREENSHOT_DIR = path.join(process.cwd(), "tmp", "visual-review")
 
 test("SDLC Pipeline repository tab is aggregate-first and drills into a bounded stage", async ({ page }) => {
+  await page.setViewportSize({ width: 1728, height: 917 })
   await signInAsDemo(page)
   await page.goto("/admin/plugins")
   const card = page
@@ -34,6 +35,14 @@ test("SDLC Pipeline repository tab is aggregate-first and drills into a bounded 
   await pipeline.getByText("Options").click()
   await expect(pipeline.getByRole("button", { name: "Play", exact: true })).toBeVisible()
   await expect(pipeline.getByTestId("pipeline-time-rail")).toBeVisible()
+  for (const control of ["Play", "Previous event", "Next event"]) {
+    const box = await pipeline.getByRole("button", { name: control, exact: true }).boundingBox()
+    expect(box, `${control} must remain in the 1728×917 viewport`).not.toBeNull()
+    expect(box!.x).toBeGreaterThanOrEqual(0)
+    expect(box!.x + box!.width).toBeLessThanOrEqual(1728)
+    expect(box!.y).toBeGreaterThanOrEqual(0)
+    expect(box!.y + box!.height).toBeLessThanOrEqual(917)
+  }
   const initialStageCount = await pipeline.locator("[data-stage]").count()
   const firstEvent = pipeline.getByTestId("history-event-track").getByRole("button").first()
   await expect(firstEvent).toBeVisible()

@@ -30,6 +30,70 @@ RSpec.describe SdlcPipeline::History do
     expect(payload.dig(:accuracy, :message)).to include("Card metadata is current")
   end
 
+  it "reconstructs ticks from real Job lifecycle events and successful completion" do
+    job = Factories.job_record(repository: repository, user: user, state: "queued", created_at: now - 3.days)
+    job.update_columns(created_at: now - 3.days)
+
+    travel_to(now - 2.days) { job.start_running! }
+    travel_to(now - 1.day) { job.mark_implemented! }
+    job.update!(landed_sha: "abc123")
+    travel_to(now - 2.hours) { job.close! }
+
+    payload = described_class.new(
+      repository: repository, user: user, filter: filter,
+      from: (now - 60.hours).iso8601, to: now.iso8601, now: now
+    ).call
+
+    expect(payload[:deltas].map { |delta| delta[:to_stage] }).to include("implementing", "review", "landed")
+    expect(payload[:ticks]).not_to be_empty
+    expect(payload.dig(:accuracy, :status)).to eq("reconstructed")
+  end
+
+  it "replays durable stage evidence when the current row cannot describe the historical instant" do
+    job = Factories.job_record(repository: repository, user: user, state: "implemented", created_at: now - 2.days)
+    job.update_columns(created_at: now - 2.days)
+    transition_at = now - 1.hour
+    travel_to(transition_at) { job.approve!(via: "operator", by_user: user) }
+    job.update_columns(state: "implemented")
+
+    payload = described_class.new(
+      repository: repository, user: user, filter: filter,
+      from: (now - 1.day).iso8601, to: now.iso8601, now: now
+    ).call
+
+    expect(payload[:deltas]).to include(
+      include(at: transition_at.iso8601(6), job_id: job.id, from_stage: "review", to_stage: "landing")
+    )
+    expect(payload[:ticks]).to eq([ transition_at.iso8601(6) ])
+    expect(payload.dig(:accuracy, :status)).to eq("reconstructed")
+  end
+
+  it "records Job creation as entry into its first visible stage" do
+    job = Factories.job_record(repository: repository, user: user, state: "queued", created_at: now - 1.hour)
+    job.update_columns(created_at: now - 1.hour, updated_at: now - 1.hour)
+
+    payload = described_class.new(
+      repository: repository, user: user, filter: filter,
+      from: (now - 1.day).iso8601, to: now.iso8601, now: now
+    ).call
+
+    expect(payload[:deltas]).to include(include(at: (now - 1.hour).iso8601(6), job_id: job.id, from_stage: nil, to_stage: "ready"))
+  end
+
+  it "reconstructs no-change completion without inventing an extra timestamp" do
+    job = Factories.job_record(repository: repository, user: user, state: "running", created_at: now - 2.days)
+    job.update_columns(created_at: now - 2.days)
+    job.update!(closure_reason: "no_changes")
+    travel_to(now - 1.hour) { job.close! }
+
+    payload = described_class.new(
+      repository: repository, user: user, filter: filter,
+      from: (now - 1.day).iso8601, to: now.iso8601, now: now
+    ).call
+
+    expect(payload[:deltas]).to include(include(at: (now - 1.hour).iso8601(6), to_stage: "landed"))
+  end
+
   it "applies the cohort filter before constructing history" do
     included = Factories.job_record(repository: repository, user: user, state: "running", created_at: now - 2.days)
     included.update_columns(created_at: now - 2.days)
@@ -39,6 +103,33 @@ RSpec.describe SdlcPipeline::History do
     payload = described_class.new(repository: repository, user: user, filter: selected, from: (now - 1.day).iso8601, to: now.iso8601, now: now).call
 
     expect(payload.dig(:checkpoint, :placements).map { |placement| placement[:job_id] }).to eq([ included.id ])
+  end
+
+  it "marks a zero-tick window incomplete when an included legacy Job changed in range" do
+    job = Factories.job_record(repository: repository, user: user, state: "running", created_at: now - 2.days)
+    job.update_columns(created_at: now - 2.days, updated_at: now - 1.hour)
+
+    payload = described_class.new(
+      repository: repository, user: user, filter: filter,
+      from: (now - 1.day).iso8601, to: now.iso8601, now: now
+    ).call
+
+    expect(payload[:ticks]).to be_empty
+    expect(payload.dig(:accuracy, :status)).to eq("incomplete")
+    expect(payload.dig(:accuracy, :message)).to include("not complete enough")
+  end
+
+  it "keeps a genuinely empty range distinct from incomplete legacy evidence" do
+    job = Factories.job_record(repository: repository, user: user, state: "running", created_at: now - 3.days)
+    job.update_columns(created_at: now - 3.days, updated_at: now - 2.days)
+
+    payload = described_class.new(
+      repository: repository, user: user, filter: filter,
+      from: (now - 1.day).iso8601, to: now.iso8601, now: now
+    ).call
+
+    expect(payload[:ticks]).to be_empty
+    expect(payload.dig(:accuracy, :status)).to eq("reconstructed")
   end
 
   it "keeps historical reconstruction query count constant for busy repositories" do
