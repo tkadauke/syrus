@@ -25,4 +25,12 @@ RSpec.describe ReviewContextContributions do
     expect { described_class.prepare(target: { type: "synthetic" }, run: nil, evidence: nil, criteria: []) }
       .to raise_error(described_class::Unavailable)
   end
+
+  it "rejects oversized restricted prompt text" do
+    allow(provider).to receive(:prepare).and_return(
+      manifest: {}, restricted_text: "x" * (described_class::MAX_RESTRICTED_TEXT_BYTES + 1)
+    )
+    expect { described_class.prepare(target: { type: "synthetic" }, run: nil, evidence: nil, criteria: []) }
+      .to raise_error(ArgumentError, /too large/)
+  end
 end

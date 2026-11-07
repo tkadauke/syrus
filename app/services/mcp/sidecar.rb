@@ -238,6 +238,11 @@ module Mcp
       tool_sets = PerformanceLogging.phase("workflow_mcp_sidecar.plugin_tool_sets", repository_id: context.repository&.id) do
         Syrus::PluginRegistry.providers_for(:mcp_tool_set)
       end
+      target = context.run&.step&.details.to_h&.dig("reviewer_target")
+      if target.present?
+        contributed = ReviewContextContributions.tool_set(target)
+        tool_sets = (tool_sets + [ contributed ]).compact.uniq
+      end
 
       tool_sets
         .select do |tool_set|
@@ -249,6 +254,10 @@ module Mcp
             end
           end
         end
+        .flat_map { |tool_set| workflow_mcp_tools_for(tool_set, context: context) }
+    rescue ReviewContextContributions::Unavailable
+      tool_sets
+        .select { |tool_set| tool_set.respond_to?(:available_for_context?) ? tool_set.available_for_context?(context) : tool_set.available_for?(context.repository) }
         .flat_map { |tool_set| workflow_mcp_tools_for(tool_set, context: context) }
     end
 

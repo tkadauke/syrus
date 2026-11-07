@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { PluginUiSlot } from "../../pluginUiSlots"
+import { matchingReviewContribution, renderReviewContribution, type ReviewContribution } from "../../pluginReviewContributions"
 import { useT } from "../../hooks/useT"
 import { AnsiText } from "../../components/AnsiText"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -1603,7 +1604,15 @@ export function StepSecurityReviewPanel({ iterations, onClose }: { iterations: J
   return <StepTextReviewPanel iterations={iterations} kind="security_review" onClose={onClose} />
 }
 
-export function StepCoworkerReviewPanel({ iterations, onClose }: { iterations: JobCoworkerReviewIteration[]; onClose: () => void }) {
+export function StepCoworkerReviewPanel({
+  iterations,
+  onClose,
+  contributions = []
+}: {
+  iterations: JobCoworkerReviewIteration[]
+  onClose: () => void
+  contributions?: ReviewContribution[]
+}) {
   const { t } = useT("jobs")
   return (
     <section aria-label={t("coworker_review_panel_accessibility")} className={artifactPanelClass()}>
@@ -1611,6 +1620,18 @@ export function StepCoworkerReviewPanel({ iterations, onClose }: { iterations: J
       <div className="divide-y divide-border overflow-auto max-md:min-h-0 max-md:flex-1">
         {iterations.map((iteration) => (
           <div className="space-y-3 p-3" key={`${iteration.run_id || "legacy"}-${iteration.iteration}`}>
+            {(() => {
+              const contribution = matchingReviewContribution(contributions, "evidence", {
+                targetType: iteration.reviewer?.type || undefined
+              })
+              return contribution ? renderReviewContribution(contribution, iteration) : null
+            })()}
+            {(() => {
+              const contribution = matchingReviewContribution(contributions, "audit", {
+                targetType: iteration.reviewer?.type || undefined
+              })
+              return contribution && iteration.persistence_receipt ? renderReviewContribution(contribution, iteration.persistence_receipt) : null
+            })()}
             <div className="flex flex-wrap items-center gap-2">
               <h5 className="text-xs font-semibold uppercase text-text-muted">{t("coworker_review_round", { n: iteration.iteration })}</h5>
               <SmallPill>{t(`coworker_review_verdict_${iteration.verdict}`)}</SmallPill>
@@ -2244,7 +2265,7 @@ function RunRow({
         <StepSecurityReviewPanel iterations={stepSecurityReviewArtifact} onClose={() => setArtifactView(null)} />
       ) : null}
       {artifactView === "coworker_review" && stepCoworkerReviewArtifact ? (
-        <StepCoworkerReviewPanel iterations={stepCoworkerReviewArtifact} onClose={() => setArtifactView(null)} />
+        <StepCoworkerReviewPanel contributions={payload.review_contributions} iterations={stepCoworkerReviewArtifact} onClose={() => setArtifactView(null)} />
       ) : null}
       {artifactView === "visual_review" && stepVisualReviewArtifact ? (
         <StepVisualReviewPanel iterations={stepVisualReviewArtifact} onClose={() => setArtifactView(null)} />
