@@ -16,5 +16,12 @@
   "loading": "Calendarium oneratur…",
   "error": "Eventus calendarii onerari non potuerunt.",
   "partial": "Nonnulli fontes eventuum nunc non praesto sunt.",
-  "empty": "Nulli eventus hoc spatio."
+  "empty": "Nulli eventus hoc spatio.",
+  "timezone": "Tempora in {{zone}} monstrantur",
+  "planned_time": "Destinatum: {{time}}",
+  "actual_time": "Re vera: {{start}} – {{finish}}",
+  "duration": "Duratio: {{seconds}} secunda",
+  "running": "currit",
+  "open_owner": "Munus proprium aperire",
+  "cadence_bands": "Fasciae frequentiae altae"
 }

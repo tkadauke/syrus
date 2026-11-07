@@ -16,5 +16,12 @@
   "loading": "Loading calendar…",
   "error": "Calendar events could not be loaded.",
   "partial": "Some event sources are temporarily unavailable.",
-  "empty": "No events in this range."
+  "empty": "No events in this range.",
+  "timezone": "Times shown in {{zone}}",
+  "planned_time": "Planned: {{time}}",
+  "actual_time": "Actual: {{start}} – {{finish}}",
+  "duration": "Duration: {{seconds}} seconds",
+  "running": "running",
+  "open_owner": "Open owning feature",
+  "cadence_bands": "High-frequency cadence bands"
 }

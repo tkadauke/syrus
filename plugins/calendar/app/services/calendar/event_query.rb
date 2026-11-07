@@ -1,6 +1,7 @@
 module Calendar
   class EventQuery
     MAX_RANGE = 42.days
+    InvalidRange = Class.new(ArgumentError)
 
     def self.call(user:, starts_at:, ends_at:)
       new(user:, starts_at:, ends_at:).call
@@ -13,9 +14,9 @@ module Calendar
     end
 
     def call
-      raise ArgumentError, "starts_at and ends_at are required" unless starts_at && ends_at
-      raise ArgumentError, "ends_at must follow starts_at" unless ends_at > starts_at
-      raise ArgumentError, "calendar range cannot exceed 42 days" if ends_at - starts_at > MAX_RANGE
+      raise InvalidRange, "starts_at and ends_at are required" unless starts_at && ends_at
+      raise InvalidRange, "ends_at must follow starts_at" unless ends_at > starts_at
+      raise InvalidRange, "calendar range cannot exceed 42 days" if ends_at - starts_at > MAX_RANGE
 
       failures = []
       events = Syrus::PluginRegistry.providers_for("calendar:event_source").flat_map do |provider|
