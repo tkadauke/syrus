@@ -7,6 +7,9 @@ module Api
       class JobsController < BaseController
         include AgentProviderCatalogOptions
 
+        LEGACY_TRANSCRIPT_MAX_LINES = 200
+        LEGACY_TRANSCRIPT_MAX_BYTES = 1.megabyte
+
         def index
           jobs = policy_scope(Job)
                    .includes(:epic, :repository, :deployment_stage_statuses)
@@ -314,17 +317,28 @@ module Api
 
         def run_artifacts
           job = find_job_by_param(:job_id)
-          run = job.runs.select(:id, :job_id, :step_id, :base_sha, :head_sha).includes(:step).find_by(id: params[:run_id])
+          runs = job.runs.select(:id, :job_id, :step_id, :base_sha, :head_sha, :state, :updated_at).includes(:step)
+          run = if params[:run_id] == "latest"
+            runs.reorder(created_at: :desc, id: :desc).first
+          else
+            runs.find_by(id: params[:run_id])
+          end
           unless run
             render_error("not_found", t("api.jobs.errors.run_not_found"), status: :not_found)
             return
           end
 
+          artifact = params[:artifact].presence || "transcript"
+          max_sequence = run.job_logs.maximum(:sequence) if artifact == "transcript"
+          validator = artifact == "transcript" ? max_sequence : [ run.updated_at, artifact ]
+          return unless stale?(etag: [ "run-artifact", run.id, artifact, validator, params[:after_sequence] ], public: false)
+
           render json: ::App::RunArtifactsPayload.build(
             run: run,
-            artifact: params[:artifact],
+            artifact: artifact,
             page: params[:page],
-            per: params[:per]
+            per: params[:per],
+            after_sequence: params[:after_sequence]
           )
         end
 
@@ -367,7 +381,7 @@ module Api
             run_id: run.id,
             state: run.state,
             complete: job.closed?,
-            lines: run.job_logs.order(:sequence).pluck(:chunk).map(&:to_s)
+            lines: bounded_legacy_transcript_lines(run)
           }
         end
 
@@ -456,6 +470,12 @@ module Api
         end
 
         private
+
+        def bounded_legacy_transcript_lines(run)
+          lines = run.job_logs.reorder(sequence: :desc, id: :desc).limit(LEGACY_TRANSCRIPT_MAX_LINES).pluck(:chunk).reverse.map(&:to_s)
+          bytes = 0
+          lines.reverse_each.take_while { |line| (bytes += line.bytesize) <= LEGACY_TRANSCRIPT_MAX_BYTES }.reverse
+        end
 
         # find_job/find_job_by_param resolve against the widened,
         # repository-membership-based JobPolicy::Scope (read-visibility

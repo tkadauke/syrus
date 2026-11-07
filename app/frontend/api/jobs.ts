@@ -1640,6 +1640,8 @@ export type JobRunArtifactsPayload = {
   job_id: number
   workflow_id: number | null
   run_id: number
+  run_state: string
+  complete: boolean
   diff_review_version_id: number | null
   base_ref: string | null
   head_ref: string | null
@@ -1648,11 +1650,15 @@ export type JobRunArtifactsPayload = {
   agent_diff_bytes?: number
   step_agent_diff?: string | null
   step_agent_diff_bytes?: number
+  agent_diff_truncated?: boolean
+  step_agent_diff_truncated?: boolean
   logs_count?: number
   logs_page?: number
   logs_per_page?: number
   logs_total_pages?: number
   logs_has_older?: boolean
+  logs_has_newer?: boolean
+  logs_max_sequence?: number | null
   logs?: Array<{
     id: number
     sequence: number
@@ -1854,9 +1860,15 @@ export function fetchJobGradeLog(path: string) {
   return getJson<JobGradeLogPayload>(path)
 }
 
-export function fetchJobRunArtifacts(path: string, artifact: JobRunArtifactsPayload["artifact"] = "transcript", page = 1) {
+export function fetchJobRunArtifacts(
+  path: string,
+  artifact: JobRunArtifactsPayload["artifact"] = "transcript",
+  page = 1,
+  afterSequence?: number
+) {
   const separator = path.includes("?") ? "&" : "?"
-  return getJson<JobRunArtifactsPayload>(`${path}${separator}artifact=${artifact}&page=${page}`)
+  const after = afterSequence == null ? "" : `&after_sequence=${encodeURIComponent(String(afterSequence))}`
+  return getJson<JobRunArtifactsPayload>(`${path}${separator}artifact=${artifact}&page=${page}${after}`)
 }
 
 // ── Typed artifacts ───────────────────────────────────────────────────────────
