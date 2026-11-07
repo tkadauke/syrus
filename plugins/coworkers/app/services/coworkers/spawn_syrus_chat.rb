@@ -49,7 +49,12 @@ class Coworkers::SpawnSyrusChat
   private
 
   def spawn_cap_audit
-    constraints = @coworker.grants.find_by(capability: "syrus.spawn_chat")&.constraints.to_h
+    # Read the caps from the permission rules, not from `coworker_grants`.
+    # That table is the pre-cutover store: authorization moved to
+    # PermissionRule, and nothing writes the legacy rows any more, so an
+    # operator who tightened these caps after the cutover had them silently
+    # ignored and got the defaults back.
+    constraints = @coworker.permission_rules.constraints_for("syrus.spawn_chat")
     {
       max_spawns_per_run: constraints.fetch("max_spawns_per_run", Coworkers::SpawnSyrusChatTool::DEFAULT_PER_RUN_CAP),
       max_spawns_per_day: constraints.fetch("max_spawns_per_day", Coworkers::SpawnSyrusChatTool::DEFAULT_PER_DAY_CAP)

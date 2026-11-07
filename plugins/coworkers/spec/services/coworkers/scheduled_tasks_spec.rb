@@ -145,6 +145,33 @@ RSpec.describe "Coworker scheduled tasks" do
     end
   end
 
+  # The component walk is measured from the root's realpath, so building the
+  # path from the configured root first produced a `..`-prefixed walk whenever
+  # the root reaches the workspace through a symlink -- any symlinked data
+  # root, and every macOS temp directory. The walk climbed out through a
+  # symlink and refused a file that was never unsafe, so pending daily memory
+  # read as no activity. Staged explicitly rather than relying on the host's
+  # temp layout, and paired with the refusal examples below so the fix cannot
+  # be mistaken for loosening the escape guard.
+  it "reads pending daily memory when the workspace root is reached through a symlink" do
+    chat = ChatSession.create!(user: owner, repository: repository, title: "Maya")
+    Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
+
+    Dir.mktmpdir do |directory|
+      real = Pathname(directory).join("real-workspace")
+      link = Pathname(directory).join("via-symlink")
+      real.join("memory/daily").mkpath
+      real.join("memory/daily/2026-11-03.md").write("- A pending decision\n")
+      File.symlink(real.to_s, link.to_s)
+      allow(ChatWorkspace).to receive(:repo_path_for).with(chat, repository).and_return(link)
+
+      activity = Coworkers::JournalingActivity.new(coworker:, date: Date.new(2026, 11, 3))
+
+      expect(activity).to be_active
+      expect(activity.material).to include("A pending decision")
+    end
+  end
+
   it "does not follow daily-memory symlinks outside the coworker workspace" do
     chat = ChatSession.create!(user: owner, repository: repository, title: "Maya")
     Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")

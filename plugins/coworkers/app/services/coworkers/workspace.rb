@@ -65,7 +65,7 @@ class Coworkers::Workspace
     raise InvalidPath, "path escapes the coworker workspace" if clean.to_s == ".." || clean.each_filename.first == ".."
     raise InvalidPath, "the Git metadata directory is orchestrator-owned" if clean.each_filename.first == ".git"
 
-    root = @root.realpath
+    root = resolved_root
     target = root.join(clean)
     verify_ancestors!(root, target, include_target: target.exist? || target.symlink?)
     raise InvalidPath, "path does not exist" unless allow_missing || target.exist?
@@ -83,5 +83,12 @@ class Coworkers::Workspace
     end
   end
 
-  def relative(path) = path.relative_path_from(@root).to_s
+  # Measured from the same root the target was built against. `resolve` works
+  # from the realpath, so relativizing against the configured root answered
+  # with a path full of `..` segments whenever the root reaches the workspace
+  # through a symlink -- true of any symlinked data root, and of every macOS
+  # temp directory, where /var is a link to /private/var.
+  def relative(path) = path.relative_path_from(resolved_root).to_s
+
+  def resolved_root = @resolved_root ||= @root.realpath
 end

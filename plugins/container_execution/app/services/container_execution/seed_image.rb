@@ -11,9 +11,21 @@ module ContainerExecution
     BUILD_LOCK_TIMEOUT = BUILD_TIMEOUT + 5.minutes
     BUILD_LOCK_POLL_INTERVAL = 0.25
 
+    # Stands in for a SolidQueue::Job so two Workflows building the same
+    # devcontainer revision serialize on one semaphore key.
+    #
+    # `acquired_semaphore_id` and `acquired_concurrency_limit` are what Solid
+    # Queue 1.7.2 reads when releasing a slot, so a job credits the exact
+    # semaphore row it took one from. They exist on SolidQueue::Job, not on a
+    # stand-in, and `signal` here is unrescued -- so without them a successful
+    # build raised NoMethodError on its way out and seeding failed outright.
+    # nil selects the gem's documented fallback: release by key, against the
+    # configured limit.
     BuildLock = Data.define(:concurrency_key) do
       def concurrency_limit = 1
       def concurrency_duration = BUILD_LOCK_TIMEOUT
+      def acquired_semaphore_id = nil
+      def acquired_concurrency_limit = nil
     end
 
     def initialize(request, runner: Open3, semaphore: SolidQueue::Semaphore, sleeper: ->(duration) { sleep(duration) }, image_namespace: Configuration.docker_image_namespace)

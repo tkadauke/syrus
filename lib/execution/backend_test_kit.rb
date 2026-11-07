@@ -15,7 +15,19 @@ module Execution
 
           it("enforces mount behavior") { expect(contract_adapter.verify_mount_semantics!).to be(true) }
           it("enforces the grader network profile") { expect(contract_adapter.verify_network_profile!).to be(true) }
-          it("applies declared resource limits") { expect(contract_adapter.verify_resource_limits!).to be(true) }
+
+          # An adapter whose enforcement is a kernel feature cannot answer this
+          # on a host without it -- the local backend enforces limits through
+          # cgroup v2, which only exists on Linux. Skipping on the adapter's
+          # own word keeps the contract honest for the adapters that can
+          # answer, rather than weakening the assertion for all of them.
+          it "applies declared resource limits" do
+            unverifiable = contract_adapter.respond_to?(:resource_limits_unverifiable_reason) &&
+              contract_adapter.resource_limits_unverifiable_reason
+            skip(unverifiable) if unverifiable
+
+            expect(contract_adapter.verify_resource_limits!).to be(true)
+          end
 
           it "round-trips to the MCP daemon through the backend transport" do
             expect(contract_adapter.mcp_round_trip(PROBE_PAYLOAD)).to eq(PROBE_REPLY)

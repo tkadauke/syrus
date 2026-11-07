@@ -47,7 +47,7 @@ RSpec.describe K8sCluster::ListClustersTool do
       workspace_repo: "https://github.com/example/workspace.git")
     PluginRecord.find_by!(name: "k8s_cluster").update!(enabled: true)
     Syrus::PluginRegistry.clear_plugin_record_cache!
-    coworker.grants.create!(capability: "k8s.read", approval_policy: "confirm", scope: cluster.id)
+    coworker.permission_rules.update!(capability: "k8s.read", approval_policy: "confirm", scope: cluster.id, actor: coworker.owner_user)
     coworker_chat = ChatSession.create!(user: owner)
     coworker_chat.define_singleton_method(:coworker) { coworker }
     allow(K8sCluster::AgenticAccess).to receive(:safe_cluster_metadata).and_raise(StandardError, "listing failed")

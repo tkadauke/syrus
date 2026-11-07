@@ -329,6 +329,34 @@ RSpec.describe ProcessRunner, :ci_only do
     expect(File).not_to have_received(:binread)
   end
 
+  # A FIFO reader only sees EOF once every writer has closed, so anything that
+  # inherited the redirected descriptors holds the capture open past the
+  # child's own exit. Joining the readers without a deadline then blocks the
+  # calling thread for as long as that process lives -- which is how a
+  # two-second capability probe left a worker wedged for hours, its own timeout
+  # already satisfied and nothing left to enforce.
+  it "gives up draining when a grandchild outlives the command holding its pipe" do
+    stub_const("#{'ProcessRunner'}::CAPTURE_DRAIN_GRACE_SECONDS", 1)
+    runner = described_class.new(
+      env: {},
+      command: [ ruby, "-e", "spawn(RbConfig.ruby, '-e', 'sleep 30'); STDOUT.write('done'); STDOUT.flush" ],
+      mounts: described_class.mounts(@dir),
+      network: "grader",
+      timeout: 10
+    )
+
+    started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    capture = runner.capture
+    elapsed = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+
+    expect(capture).to be_success
+    expect(capture.stdout).to include("done")
+    # Whatever the grandchild would have gone on to write is genuinely missing,
+    # and the capture has to admit that rather than look complete.
+    expect(capture.stdout_truncated).to be(true)
+    expect(elapsed).to be < 20
+  end
+
   it "records a missing capture executable as a failed spawned process" do
     runner = described_class.new(
       env: {},

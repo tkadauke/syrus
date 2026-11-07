@@ -980,12 +980,41 @@ class Workflow < ApplicationRecord
       if value.nil?
         workflow_artifact_values.where(key: key).delete_all
       else
-        workflow_artifact_values.find_or_initialize_by(key: key).update!(value: value)
+        write_artifact_value!(key, value)
       end
     end
     workflow_artifact_values.reset
     @assigned_external_artifacts = nil
     @assigned_external_artifact_deletions = nil
+  end
+
+  # `(workflow_id, key)` is uniquely indexed, and two saves of the same
+  # Workflow raced here: both looked, both saw no row for the key, and both
+  # inserted, so the loser raised out of an after_save and failed the Run that
+  # was saving. Unlike set_artifact!, this path holds no row lock to serialize
+  # behind -- an assignment that leaves the workflows row unchanged performs no
+  # UPDATE, so there is no lock to inherit.
+  #
+  # Adopt the winner's row instead of trusting the lookup. Both failure shapes
+  # have to be caught: the model validates key uniqueness, so a contended
+  # insert usually raises RecordInvalid from a validation SELECT that lost the
+  # same race, and only reaches the index -- RecordNotUnique -- when the two
+  # inserts are closer together than that.
+  #
+  # The candidate is built with `workflow_id`, not through the association:
+  # pushing it into a loaded `workflow_artifact_values` leaves a rejected
+  # record behind for the next save to autosave into the same duplicate.
+  def write_artifact_value!(key, value)
+    existing = workflow_artifact_values.find_by(key: key)
+    return existing.tap { |row| row.update_column(:value, value) } if existing
+
+    WorkflowArtifactValue.new(workflow_id: id, key: key, value: value).tap(&:save!)
+  rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
+    adopted = workflow_artifact_values.where(key: key).take!
+    # Serialized values may have been read and mutated through another
+    # instance, so force the write rather than trusting dirty tracking --
+    # matching set_artifact!'s reasoning for the same column.
+    adopted.tap { |row| row.update_column(:value, value) }
   end
 
   def retry_until_barrier_step?(step)

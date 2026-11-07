@@ -19,7 +19,7 @@ module Coworkers
     end
 
     def entries
-      grouped = loaded_rules.group_by { |rule| unversioned(rule.capability) }
+      grouped = loaded_rules.group_by { |rule| grant_name_for(unversioned(rule.capability)) }
       Coworkers::GrantCatalog.all.map do |descriptor|
         matching = grouped.fetch(descriptor.name, [])
         policy = matching.map(&:policy).min_by { |value| policy_rank(value) }
@@ -33,6 +33,17 @@ module Coworkers
           entry[:scope] = scope unless scope.nil?
         end
       end
+    end
+
+    # One capability's entry, for callers that need its constraints or policy
+    # rather than the whole catalog projection.
+    def entry_for(capability)
+      name = unversioned(capability)
+      entries.find { |entry| entry[:capability] == name }
+    end
+
+    def constraints_for(capability)
+      entry_for(capability)&.fetch(:constraints, nil).to_h
     end
 
     def update!(capability:, approval_policy:, constraints: {}, scope: nil, actor:, provenance: {},
@@ -81,23 +92,50 @@ module Coworkers
       migrated.one? ? migrated.first : LEGACY_POLICY.fetch(policy)
     end
 
+    # A catalog grant's name is not always the capability its rules are stored
+    # under. `update!` resolves a grant through the tools it covers and writes
+    # rows under those tools' capabilities -- granting `k8s.read` writes
+    # `k8s.observe@v1` rows. Grouping rules by their own capability then
+    # matched nothing against the catalog, so a capability that really was
+    # granted projected as "off" with no scope, and every tool behind it
+    # refused. Group each rule under the grant it was written for instead,
+    # which is the same resolution the write used, read backwards.
+    #
+    # Capabilities that are their own grant name -- the common case -- fall
+    # through to themselves without consulting the map.
+    def grant_name_for(capability)
+      grant_names_by_capability.fetch(capability, capability)
+    end
+
+    def grant_names_by_capability
+      @grant_names_by_capability ||= Mcp::CoworkerToolCatalog.all.each_with_object({}) do |tool, map|
+        descriptor = catalog_tool_descriptor(tool)
+        next unless descriptor
+
+        name = unversioned(descriptor.capability)
+        map[name] ||= tool.capability.to_s unless name == tool.capability.to_s
+      end
+    end
+
+    def catalog_tool_descriptor(tool)
+      if tool.tool
+        entry = McpToolRegistry.entry_for(tool.tool)
+        entry&.descriptor || (entry && Permissions::CapabilityDescriptorAdapter.for_registry_entry(
+          tool_name: entry.tool_name, capability: entry.capability, mutation: entry.mutation,
+          required_roles: entry.required_roles, admin_only: entry.admin_only
+        ))
+      elsif tool.definition
+        Permissions::CapabilityDescriptorAdapter.for_plugin_definition(tool.definition)
+      end
+    end
+
     def canonical_descriptors(capability)
       registered = Permissions::CapabilityRegistryValidator.for_application.registrations.filter_map do |registration|
         descriptor = registration.descriptor
         descriptor if descriptor && unversioned(descriptor.capability) == capability.to_s
       end
       catalog = Mcp::CoworkerToolCatalog.all.filter_map do |tool|
-        next unless tool.capability.to_s == capability.to_s
-
-        if tool.tool
-          entry = McpToolRegistry.entry_for(tool.tool)
-          entry&.descriptor || (entry && Permissions::CapabilityDescriptorAdapter.for_registry_entry(
-            tool_name: entry.tool_name, capability: entry.capability, mutation: entry.mutation,
-            required_roles: entry.required_roles, admin_only: entry.admin_only
-          ))
-        elsif tool.definition
-          Permissions::CapabilityDescriptorAdapter.for_plugin_definition(tool.definition)
-        end
+        catalog_tool_descriptor(tool) if tool.capability.to_s == capability.to_s
       end
       descriptors = (registered + catalog).uniq { |descriptor| [ descriptor.capability, descriptor.operation ] }
       return descriptors if descriptors.any?

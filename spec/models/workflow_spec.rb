@@ -1201,6 +1201,31 @@ RSpec.describe Workflow, :ci_only do
       expect(reloaded.attributes_before_type_cast.fetch("artifacts")).to eq("{}")
     end
 
+    # `(workflow_id, key)` is uniquely indexed, and two Runs failing the same
+    # Workflow within the same moment both assigned `failure_reason`, both saw
+    # no row, and both inserted -- so the loser raised RecordNotUnique out of
+    # an after_save callback. set_artifact! locks the workflows row first; this
+    # path cannot inherit a lock, because an assignment that leaves the
+    # workflows row unchanged performs no UPDATE to take one.
+    #
+    # Reproducing the real interleaving needs two connections and the suite
+    # runs on one, so the winner's row is committed up front and only the
+    # artifact lookup is blinded -- which is the state the losing save sees.
+    it "adopts a value another save inserted between the lookup and the write" do
+      wf.set_artifact!("failure_reason", "written by the winner")
+      original = ActiveRecord::FinderMethods.instance_method(:find_by)
+      blind = true
+      allow_any_instance_of(ActiveRecord::Relation).to receive(:find_by) do |relation, *args|
+        blind && relation.klass == WorkflowArtifactValue ? nil : original.bind(relation).call(*args)
+      end
+
+      expect { wf.update!(artifacts: { "failure_reason" => "written by the loser" }) }.not_to raise_error
+      blind = false
+
+      expect(wf.workflow_artifact_values.reload.where(key: "failure_reason").count).to eq(1)
+      expect(described_class.find(wf.id).artifact("failure_reason")).to eq("written by the loser")
+    end
+
     it "falls back to inline storage for a row not yet backfilled" do
       iterations = [ [ { "grader" => "rspec", "output" => "legacy" } ] ]
       wf.update_column(:artifacts, { "iterations" => iterations, "head_sha" => "abc123" })

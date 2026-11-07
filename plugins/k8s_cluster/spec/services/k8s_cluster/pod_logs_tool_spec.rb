@@ -51,7 +51,7 @@ RSpec.describe K8sCluster::PodLogsTool do
       workspace_repo: "https://github.com/example/workspace.git")
     PluginRecord.find_by!(name: "k8s_cluster").update!(enabled: true)
     Syrus::PluginRegistry.clear_plugin_record_cache!
-    coworker.grants.create!(capability: "k8s.read", approval_policy: "confirm", scope: cluster.id)
+    coworker.permission_rules.update!(capability: "k8s.read", approval_policy: "confirm", scope: cluster.id, actor: coworker.owner_user)
     coworker_chat = ChatSession.create!(user: owner)
     coworker_chat.define_singleton_method(:coworker) { coworker }
     service = instance_double(K8sCluster::Pods, logs: { available: true, log: "API_TOKEN=very-secret-token-value" })
@@ -73,7 +73,7 @@ RSpec.describe K8sCluster::PodLogsTool do
       workspace_repo: "https://github.com/example/workspace.git")
     PluginRecord.find_by!(name: "k8s_cluster").update!(enabled: true)
     Syrus::PluginRegistry.clear_plugin_record_cache!
-    coworker.grants.create!(capability: "k8s.read", approval_policy: "confirm", scope: granted_cluster.id)
+    coworker.permission_rules.update!(capability: "k8s.read", approval_policy: "confirm", scope: granted_cluster.id, actor: coworker.owner_user)
     coworker_chat = ChatSession.create!(user: owner)
     coworker_chat.define_singleton_method(:coworker) { coworker }
     allow(K8sCluster::AgenticAudit).to receive(:log!)

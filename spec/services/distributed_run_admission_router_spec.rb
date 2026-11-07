@@ -66,6 +66,40 @@ RSpec.describe DistributedRunAdmissionRouter do
     end
   end
 
+  # RunQueueResolver compacts each live-worker payload, so a worker with no
+  # recorded storage key is published without the key rather than with a nil
+  # one. The helper above always supplies it, which is why `fetch` looked safe;
+  # production raised KeyError out of the reroute and failed admission for
+  # Runs that had a perfectly good host to move to.
+  def anonymous_worker(hostname)
+    worker(hostname, nil).tap { |payload| payload.delete("worker_storage_key") }
+  end
+
+  it "reroutes to a worker that has not reported a storage key" do
+    resolver_with(anonymous_worker("worker-b"))
+    sample("worker-b")
+    dispatch_depths("worker-b" => 0)
+
+    decision = described_class.call(run: run, admission: admission)
+
+    expect(decision).to be_reroute
+    expect(decision.queue_name).to eq("worker-worker-b")
+    expect(decision.details["routed_worker"]).to eq("worker-b")
+    expect(decision.details["routed_worker_storage_key"]).to be_nil
+  end
+
+  # Hostname names the dispatch queue, so a payload without one cannot be
+  # routed to at all. Skipping it keeps the decision from raising midway.
+  it "ignores a live worker with no hostname" do
+    nameless = worker("worker-b", "storage-b").tap { |payload| payload.delete("hostname") }
+    resolver_with(nameless)
+
+    decision = described_class.call(run: run, admission: admission)
+
+    expect(decision).not_to be_reroute
+    expect(decision.details["healthy_alternatives_considered"]).to be_empty
+  end
+
   # First-fit `find` meant every refusal in a burst picked whichever eligible
   # host the live-worker list named first.
   it "routes to the least loaded worker rather than the first one listed" do

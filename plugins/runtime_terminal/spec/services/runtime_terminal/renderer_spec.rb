@@ -14,6 +14,37 @@ RSpec.describe RuntimeTerminal::Renderer do
     rendered.getpoint(x, y).first(3).map(&:round)
   end
 
+  # Every pixel and metric assertion below reads the bundled fonts, and pango
+  # only sees a font added through fontconfig when its fontmap is the
+  # fontconfig-backed one. Homebrew's pango on macOS is built against the
+  # CoreText backend instead, so libvips' FcConfigAppFontAddFile has no effect
+  # there and no family name selects a bundled face at all: the renderer
+  # silently draws with the host's default font, and these examples measure
+  # that rather than the renderer. Detected by asking for a family that cannot
+  # exist -- if the bundled family renders identical bytes, it was never
+  # registered.
+  #
+  # Both faces are checked because they fail together and for the same reason,
+  # and because a CJK cell with no bundled face becomes Pango's hexadecimal
+  # tofu, which is exactly what the pinned glyph shape exists to catch.
+  def bundled_fonts_selectable?
+    return @bundled_fonts_selectable if defined?(@bundled_fonts_selectable)
+
+    @bundled_fonts_selectable = [
+      [ "DejaVu Sans Mono", described_class::FONT_PATH, "Mg" ],
+      [ "Xiaolai SC", described_class::CJK_FONT_PATH, "\u754C" ]
+    ].all? do |family, path, sample|
+      markup = "<span fallback='false'>#{sample}</span>"
+      bundled = Vips::Image.text(markup, font: "#{family} #{described_class::FONT_SIZE}", fontfile: path, rgba: false)
+      bogus = Vips::Image.text(markup, font: "Nonexistent Spec Family #{described_class::FONT_SIZE}", fontfile: path, rgba: false)
+      bundled.write_to_buffer(".png") != bogus.write_to_buffer(".png")
+    end
+  end
+
+  def requires_bundled_fonts!
+    skip "pango here ignores fontconfig app fonts, so no bundled face can be selected" unless bundled_fonts_selectable?
+  end
+
   def include_pixel?(rendered, color)
     (0...rendered.height).any? do |y|
       (0...rendered.width).any? { |x| pixel(rendered, x, y) == color }
@@ -51,6 +82,8 @@ RSpec.describe RuntimeTerminal::Renderer do
   end
 
   it "uses one font baseline and fixed cell origins for mixed terminal text" do
+    requires_bundled_fonts!
+
     rendered = image("\e[?25lSyrus inbox AZaz09!?", cols: 20, rows: 1)
     repeated = image("\e[?25liiii", cols: 5, rows: 1)
 
@@ -61,6 +94,8 @@ RSpec.describe RuntimeTerminal::Renderer do
   end
 
   it "keeps styled, combining, box-drawing, wide, and cursor cells on the row metrics" do
+    requires_bundled_fonts!
+
     source = "\e[?25l\e[1mA\e[3mB\e[4mC\e[2mD\e[7mE\e[9mF\e[0m┌e\u0301界\e[?25h"
     rendered = image(source, cols: 12, rows: 1)
 
@@ -73,6 +108,8 @@ RSpec.describe RuntimeTerminal::Renderer do
   end
 
   it "renders a realistic multi-row TUI without per-glyph vertical oscillation" do
+    requires_bundled_fonts!
+
     source = <<~ANSI.gsub("\n", "\r\n")
       \e[1;36m┌ Syrus inbox ─────────┐\e[0m
       │ JOB-42  Ready!       │
@@ -113,6 +150,8 @@ RSpec.describe RuntimeTerminal::Renderer do
   end
 
   it "uses the bundled CJK glyph and clips it to its two-cell rectangle" do
+    requires_bundled_fonts!
+
     rendered = image("\e[?25l界\e[48;2;9;8;7m ", cols: 3, rows: 1)
     cjk_cell = rendered.crop(0, 0, 2 * described_class::CELL_WIDTH, described_class::CELL_HEIGHT)
     bright_pixels_per_row = (0...cjk_cell.height).map do |y|
