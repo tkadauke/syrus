@@ -43,7 +43,14 @@ describe("queryKeysFor", () => {
     expect(queryKeysFor(event("job", 42))).toEqual([["dashboard"], ["jobs"], ["jobs", "42"], ["jobs", "42", "detail"], ["job_run_artifacts", "42"]])
     expect(queryKeysFor(event("workflow", 7))).toEqual([["dashboard"], ["workflows"], ["workflows", "7"]])
     expect(queryKeysFor(event("epic", 5))).toEqual([["dashboard"], ["epics"], ["epics", "5"]])
-    expect(queryKeysFor(event("repository", 3))).toEqual([["dashboard"], ["repositories"], ["repositories", "3"]])
+    expect(queryKeysFor(event("repository", 3))).toEqual([
+      ["dashboard"],
+      ["repositories"],
+      ["repositories", "3", "detail"],
+      ["repositories", "3", "jobs"],
+      ["repositories", "3", "health_history"],
+      ["repositories", "3", "delivery"]
+    ])
     expect(queryKeysFor(event("design_doc", 19))).toEqual([["design_docs"], ["design_docs", "detail", "19"]])
     expect(queryKeysFor(event("operator_briefing", 2))).toEqual([["operator_briefing"]])
     expect(queryKeysFor(event("chat", 5))).toEqual([["chats"], ["chats", "5"]])

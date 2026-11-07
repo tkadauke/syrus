@@ -1,4 +1,4 @@
-import { repositoryDetailPageSearch, repositoryDetailQueryKey } from "./repositoryDetail/shared"
+import { repositoryDetailQueryKey } from "./repositoryDetail/shared"
 import { CognitiveDebtSection } from "./RepositoryDetail"
 import { PanelMessage } from "../components/PanelMessage"
 import { PageHeading } from "../components/Heading"
@@ -16,11 +16,10 @@ export function RepositoryCognitiveDebtRoute() {
   const params = useParams()
   const location = useLocation()
   const id = params.repositoryId || params.id || ""
-  const search = repositoryDetailPageSearch(location.search)
   const prefix = routePrefix(location.pathname)
   const detail = useQuery({
-    queryKey: repositoryDetailQueryKey(id, search),
-    queryFn: () => fetchRepositoryDetail(id, search),
+    queryKey: repositoryDetailQueryKey(id),
+    queryFn: () => fetchRepositoryDetail(id),
     enabled: id.length > 0
   })
   const debt = useQuery({ queryKey: ["repositories", id, "cognitive_debt"], queryFn: () => fetchRepositoryCognitiveDebt(id), enabled: id.length > 0 })
@@ -69,7 +68,9 @@ function RepositoryCognitiveDebt({
         <PanelMessage tone="error">
           <div className="flex items-center justify-between gap-3">
             <span>{errorMessage(detail.error, t("repository.error_load"))}</span>
-            <Button onClick={() => void detail.refetch()} size="sm" variant="secondary">{t("repository.cognitive_debt_retry")}</Button>
+            <Button onClick={() => void detail.refetch()} size="sm" variant="secondary">
+              {t("repository.cognitive_debt_retry")}
+            </Button>
           </div>
         </PanelMessage>
       ) : null}

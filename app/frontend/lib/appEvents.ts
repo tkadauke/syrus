@@ -550,7 +550,16 @@ export function queryKeysFor(event: AppEvent): QueryKey[] {
     case "epic":
       return event.id == null ? [["dashboard"], ["epics"]] : [["dashboard"], ["epics"], ["epics", String(event.id)]]
     case "repository":
-      return event.id == null ? [["dashboard"], ["repositories"]] : [["dashboard"], ["repositories"], ["repositories", String(event.id)]]
+      return event.id == null
+        ? [["dashboard"], ["repositories"]]
+        : [
+            ["dashboard"],
+            ["repositories"],
+            ["repositories", String(event.id), "detail"],
+            ["repositories", String(event.id), "jobs"],
+            ["repositories", String(event.id), "health_history"],
+            ["repositories", String(event.id), "delivery"]
+          ]
     case "design_doc":
       return event.id == null ? [["design_docs"]] : [["design_docs"], ["design_docs", "detail", String(event.id)]]
     case "operator_briefing":
