@@ -13,7 +13,8 @@ export default function CalendarRoute() {
   usePageTitle(t("title"))
   const [anchor, setAnchor] = useState(() => startOfWeek(new Date()))
   const [view, setView] = useState<"week" | "agenda">("week")
-  const end = useMemo(() => new Date(anchor.getTime() + 7 * 86_400_000), [anchor])
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const end = useMemo(() => addCalendarDays(anchor, 7), [anchor])
   const query = useQuery({ queryKey: ["calendar", anchor.toISOString()], queryFn: () => fetchCalendar(anchor, end) })
   const filterTree = decodeFilter(location.search)
   const sources = Array.from(new Set((query.data?.events ?? []).map((event) => event.source_id)))
@@ -23,7 +24,7 @@ export default function CalendarRoute() {
     { field: "source", label: t("source_filter"), bucket: "calendar", operators: ["is", "is_not"], values: sources },
     { field: "category", label: t("category_filter"), bucket: "calendar", operators: ["is", "is_not"], values: categories }
   ]
-  const formatter = new Intl.DateTimeFormat(i18n.language, { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+  const formatter = new Intl.DateTimeFormat(i18n.language, { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone })
 
   return (
     <Page.Root aria-label={t("title")} gutter="responsive" size="wide">
@@ -51,6 +52,9 @@ export default function CalendarRoute() {
             </button>
           ))}
         </div>
+        <Text variant="caption" tone="muted" className="w-full text-right">
+          {t("timezone", { zone: timeZone })}
+        </Text>
       </div>
       {query.isPending ? <Notice>{t("loading")}</Notice> : null}
       {query.isError ? <Notice tone="danger">{t("error")}</Notice> : null}
@@ -62,22 +66,36 @@ export default function CalendarRoute() {
 }
 
 function Week({ events, anchor, formatter }: { events: CalendarEvent[]; anchor: Date; formatter: Intl.DateTimeFormat }) {
+  const { t } = useT("calendar")
+  const bands = events.filter((event) => event.cadence?.band)
+  const occurrences = events.filter((event) => !event.cadence?.band)
   return (
-    <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-7">
-      {Array.from({ length: 7 }, (_, day) => {
-        const date = new Date(anchor.getTime() + day * 86_400_000)
-        const daily = events.filter((event) => event.cadence?.band || new Date(event.starts_at).toDateString() === date.toDateString())
-        return (
-          <Section.Root className="min-w-0 p-2" key={date.toISOString()}>
-            <Text className="font-semibold">{formatter.format(date).split(",").slice(0, 2).join(",")}</Text>
-            <div className="mt-2 space-y-2">
-              {daily.map((event) => (
-                <EventCard event={event} formatter={formatter} key={event.id} />
-              ))}
-            </div>
-          </Section.Root>
-        )
-      })}
+    <div className="space-y-3">
+      {bands.length ? (
+        <Section.Root className="min-w-0 p-3" aria-label={t("cadence_bands")}>
+          <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {bands.map((event) => (
+              <EventCard event={event} formatter={formatter} key={`${event.source_id}-${event.id}`} />
+            ))}
+          </div>
+        </Section.Root>
+      ) : null}
+      <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-7">
+        {Array.from({ length: 7 }, (_, day) => {
+          const date = addCalendarDays(anchor, day)
+          const daily = occurrences.filter((event) => sameLocalDate(new Date(event.starts_at), date))
+          return (
+            <Section.Root className="min-w-0 p-2" key={date.toISOString()}>
+              <Text className="font-semibold">{formatter.format(date).split(",").slice(0, 2).join(",")}</Text>
+              <div className="mt-2 space-y-2">
+                {daily.map((event) => (
+                  <EventCard event={event} formatter={formatter} key={`${event.source_id}-${event.id}`} />
+                ))}
+              </div>
+            </Section.Root>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -93,20 +111,42 @@ function Agenda({ events, formatter }: { events: CalendarEvent[]; formatter: Int
 }
 
 function EventCard({ event, formatter }: { event: CalendarEvent; formatter: Intl.DateTimeFormat }) {
+  const { t } = useT("calendar")
+  const [expanded, setExpanded] = useState(false)
+  const duration = typeof event.metadata.duration_seconds === "number" ? event.metadata.duration_seconds : null
   return (
-    <Link className="block min-w-0 rounded border border-border bg-surface-subtle p-2 hover:border-brand" to={event.destination_path}>
-      <Text className="truncate font-medium">{event.title}</Text>
+    <article className="min-w-0 rounded border border-border bg-surface-subtle p-2">
+      <button className="w-full min-w-0 text-left" type="button" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
+        <Text className="truncate font-medium">{event.title}</Text>
+      </button>
       <Text variant="caption" tone="muted">
         {event.cadence?.band ? event.cadence.label : formatter.format(new Date(event.starts_at))}
       </Text>
       <span className="mt-1 inline-block rounded-full bg-surface px-2 py-0.5 text-xs">{event.state}</span>
-      {event.actual_started_at ? (
-        <Text variant="caption" tone="muted">
-          {formatter.format(new Date(event.actual_started_at))}
-          {event.actual_finished_at ? ` – ${formatter.format(new Date(event.actual_finished_at))}` : ""}
-        </Text>
+      {expanded ? (
+        <div className="mt-2 space-y-1 border-t border-border pt-2">
+          <Text variant="caption" tone="muted">
+            {t("planned_time", { time: formatter.format(new Date(event.starts_at)) })}
+          </Text>
+          {event.actual_started_at ? (
+            <Text variant="caption" tone="muted">
+              {t("actual_time", {
+                start: formatter.format(new Date(event.actual_started_at)),
+                finish: event.actual_finished_at ? formatter.format(new Date(event.actual_finished_at)) : t("running")
+              })}
+            </Text>
+          ) : null}
+          {duration != null ? (
+            <Text variant="caption" tone="muted">
+              {t("duration", { seconds: duration.toFixed(1) })}
+            </Text>
+          ) : null}
+          <Link className="inline-block text-sm text-brand hover:underline" to={event.destination_path}>
+            {t("open_owner")}
+          </Link>
+        </div>
       ) : null}
-    </Link>
+    </article>
   )
 }
 
@@ -117,6 +157,16 @@ function startOfWeek(input: Date) {
   return date
 }
 
+function addCalendarDays(input: Date, days: number) {
+  const date = new Date(input)
+  date.setDate(date.getDate() + days)
+  return date
+}
+
+function sameLocalDate(left: Date, right: Date) {
+  return left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth() && left.getDate() === right.getDate()
+}
+
 function decodeFilter(search: string): FilterTree {
   const encoded = new URLSearchParams(search).get("q")
   if (!encoded) return { and: [] }
@@ -125,7 +175,8 @@ function decodeFilter(search: string): FilterTree {
       .replace(/-/g, "+")
       .replace(/_/g, "/")
       .padEnd(Math.ceil(encoded.length / 4) * 4, "=")
-    return JSON.parse(decodeURIComponent(escape(atob(base64)))) as FilterTree
+    const bytes = Uint8Array.from(atob(base64), (character) => character.charCodeAt(0))
+    return JSON.parse(new TextDecoder().decode(bytes)) as FilterTree
   } catch {
     return { and: [] }
   }
@@ -134,7 +185,7 @@ function decodeFilter(search: string): FilterTree {
 function matchesFilters(event: CalendarEvent, tree: FilterTree) {
   return topFilterChildren(tree).every((node) => {
     const chip = ("not" in node ? node.not : node) as FilterChip
-    if (!chip || !("field" in chip)) return true
+    if (!chip || !("field" in chip) || !["source", "category"].includes(chip.field) || !["is", "is_not"].includes(chip.op)) return false
     const actual = chip.field === "source" ? event.source_id : chip.field === "category" ? event.kind : null
     const equal = String(actual) === String(chip.value)
     return chip.op === "is_not" ? !equal : equal

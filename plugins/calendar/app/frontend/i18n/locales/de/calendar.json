@@ -16,5 +16,12 @@
   "loading": "Kalender wird geladen…",
   "error": "Kalenderereignisse konnten nicht geladen werden.",
   "partial": "Einige Ereignisquellen sind vorübergehend nicht verfügbar.",
-  "empty": "Keine Ereignisse in diesem Zeitraum."
+  "empty": "Keine Ereignisse in diesem Zeitraum.",
+  "timezone": "Zeiten in {{zone}}",
+  "planned_time": "Geplant: {{time}}",
+  "actual_time": "Tatsächlich: {{start}} – {{finish}}",
+  "duration": "Dauer: {{seconds}} Sekunden",
+  "running": "läuft",
+  "open_owner": "Zugehörige Funktion öffnen",
+  "cadence_bands": "Hochfrequente Taktbänder"
 }
