@@ -16,6 +16,10 @@ retention period. See `app/services/workflow_workspace.rb` and
 `app/jobs/workflow_workspace_prune_job.rb`. Supported operator behavior is in
 [Workflow workspace lifecycle](../../../config/syrus_docs/workflow_workspace_lifecycle.md).
 
+For one Job, retain the latest retryable or otherwise actionable Workflow
+workspace and retire superseded sibling workspaces eagerly. “Keep the
+workspace” applies to the active attempt, not to every historical attempt.
+
 ## Immutable distributed work
 
 Distributed graders do not read the mutable checkout. A
@@ -27,6 +31,11 @@ and the distributed grader services; their specs are the exact file map.
 
 Never infer that a grader saw uncommitted or later workspace changes. Publish a
 new snapshot when the source changes.
+
+Earlier design documents left snapshot identity, materialization, and cleanup
+as open questions. The first-class `WorkflowSourceSnapshot` record and detached
+checkout are the implemented answers; those questions are historical, not
+current uncertainty.
 
 ## Placement
 
