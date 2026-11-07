@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/tkadauke/syrus/cli/pkg/api"
 )
 
@@ -379,5 +380,142 @@ func TestPagerCommandLine(t *testing.T) {
 				t.Errorf("args = %v, want %v", args, tt.wantArgs)
 			}
 		})
+	}
+}
+
+func filterTestModel() inboxModel {
+	m := newInboxModel(&fakeInboxClient{details: map[string]api.JobDetail{}}, inboxOptions{})
+	m.jobs = []api.JobItem{
+		{ID: 1, Title: "one", State: "implemented"},
+		{ID: 2, Title: "two", State: "failed"},
+		{ID: 3, Title: "three", State: "implemented"},
+	}
+	return m
+}
+
+func pressKey(m inboxModel, key string) inboxModel {
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)})
+	return next.(inboxModel)
+}
+
+func TestInboxFilterCyclesAndLabelsHeader(t *testing.T) {
+	m := filterTestModel()
+	if !strings.Contains(m.View(), "filter: all") || !strings.Contains(m.View(), "3 jobs") {
+		t.Fatalf("unfiltered view missing label:\n%s", m.View())
+	}
+	m = pressKey(m, "f")
+	view := m.View()
+	if !strings.Contains(view, "filter: implemented") || !strings.Contains(view, "2 of 3 jobs") || strings.Contains(view, "JOB-2 ") {
+		t.Fatalf("implemented view wrong:\n%s", view)
+	}
+	m = pressKey(m, "f")
+	view = m.View()
+	if !strings.Contains(view, "filter: failed") || !strings.Contains(view, "JOB-2") || strings.Contains(view, "JOB-1 ") {
+		t.Fatalf("failed view wrong:\n%s", view)
+	}
+	m = pressKey(m, "f")
+	if m.filter != inboxFilterAll || !strings.Contains(m.View(), "JOB-1") {
+		t.Fatalf("filter did not wrap to all")
+	}
+}
+
+func TestInboxFilterKeepsSelectionWhenStillVisible(t *testing.T) {
+	m := filterTestModel()
+	m.cursor = 2 // JOB-3
+	m = pressKey(m, "f")
+	if job, _ := m.selectedJob(); job.ID != 3 || m.cursor != 1 {
+		t.Fatalf("selection = JOB-%d cursor %d, want JOB-3 cursor 1", job.ID, m.cursor)
+	}
+	m = pressKey(m, "f") // failed: JOB-3 hidden, clamp
+	if job, ok := m.selectedJob(); !ok || job.ID != 2 {
+		t.Fatalf("selection after clamp = %+v", job)
+	}
+}
+
+func TestInboxFilterEmptyStateAndNavigation(t *testing.T) {
+	m := filterTestModel()
+	m.jobs = []api.JobItem{{ID: 1, Title: "one", State: "implemented"}}
+	m = pressKey(m, "f")
+	m = pressKey(m, "f")
+	view := m.View()
+	if !strings.Contains(view, "No failed jobs") {
+		t.Fatalf("missing empty state:\n%s", view)
+	}
+	m = pressKey(m, "j")
+	m = pressKey(m, "a")
+	if _, ok := m.selectedJob(); ok || m.confirm != "" {
+		t.Fatalf("actions must be inert with empty filtered list")
+	}
+	m = pressKey(m, "\r")
+	m, _ = func() (inboxModel, tea.Cmd) {
+		n, c := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		return n.(inboxModel), c
+	}()
+	if m.detailOpen {
+		t.Fatalf("detail must not open on empty filtered list")
+	}
+}
+
+func TestInboxFilterSurvivesRefreshAndKeepsSelection(t *testing.T) {
+	m := filterTestModel()
+	m = pressKey(m, "f")
+	m = pressKey(m, "j") // JOB-3
+	next, _ := m.Update(inboxRefreshMsg{jobs: []api.JobItem{
+		{ID: 1, Title: "one", State: "implemented"},
+		{ID: 2, Title: "two", State: "failed"},
+		{ID: 3, Title: "three", State: "implemented"},
+		{ID: 4, Title: "four", State: "failed"},
+	}})
+	m = next.(inboxModel)
+	if m.filter != inboxFilterImplemented {
+		t.Fatalf("filter reset by refresh")
+	}
+	if job, _ := m.selectedJob(); job.ID != 3 {
+		t.Fatalf("selected JOB-%d after refresh, want JOB-3", job.ID)
+	}
+	if strings.Contains(m.View(), "JOB-4") {
+		t.Fatalf("failed job leaked into implemented filter")
+	}
+}
+
+func TestInboxFilterDetailAndHandledState(t *testing.T) {
+	m := filterTestModel()
+	m = pressKey(m, "f")
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = next.(inboxModel)
+	if !m.detailOpen || !strings.Contains(m.View(), "JOB-1 · one") {
+		t.Fatalf("detail not shown while filtered:\n%s", m.View())
+	}
+	delete(m.pending, 1)
+	m.handled[1] = "approve"
+	m.markRead(1, "approve")
+	view := m.View()
+	if !strings.Contains(view, "done: approved") {
+		t.Fatalf("handled label missing under filter:\n%s", view)
+	}
+}
+
+func TestInboxFilterHelpAndNarrowWidth(t *testing.T) {
+	m := filterTestModel()
+	m = pressKey(m, "?")
+	if !strings.Contains(m.View(), "f cycle filter") {
+		t.Fatalf("help missing filter docs")
+	}
+	m = pressKey(m, "f")
+	m = pressKey(m, "\r")
+	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = next.(inboxModel)
+	for _, width := range []int{20, 30, 40, 60} {
+		next, _ := m.Update(tea.WindowSizeMsg{Width: width})
+		m = next.(inboxModel)
+		view := m.View()
+		if !strings.Contains(view, "filter:") || !strings.Contains(view, "implemented") {
+			t.Fatalf("width %d lost filter label:\n%s", width, view)
+		}
+		for _, line := range strings.Split(strings.TrimRight(view, "\n"), "\n") {
+			if w := lipgloss.Width(line); w > width {
+				t.Fatalf("width %d: line is %d wide: %q", width, w, line)
+			}
+		}
 	}
 }
