@@ -23,7 +23,7 @@ module ChatTurnStreaming
     response.headers["X-Accel-Buffering"] = "no"
 
     self.response_body = Enumerator.new do |stream|
-      write_sse(stream, "message", { role: "user", content: user_message.content["text"].to_s, message: chat_message_json(user_message, chat_session: chat_session) })
+      write_sse(stream, "message", { message: chat_message_json(user_message, chat_session: chat_session) })
       if turn_enqueued
         stream_chat_messages(stream, chat_session, after_id: user_message.id)
       else
@@ -71,11 +71,7 @@ module ChatTurnStreaming
 
   def write_chat_stream_message(stream, message, chat_session:)
     payload = chat_message_json(message, chat_session: chat_session)
-    case message.role
-    when "assistant"
-      write_sse(stream, "text_chunk", { content: payload[:text], message: payload })
-      write_sse(stream, "proposal", { proposal: payload[:proposal], message: payload }) if payload[:proposal]
-    when "system"
+    if message.role == "system"
       write_sse(stream, "error", { message: payload[:text], message_record: payload })
     else
       write_sse(stream, "message", { message: payload })

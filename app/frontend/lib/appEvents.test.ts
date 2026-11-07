@@ -494,6 +494,19 @@ describe("applyAppEvent", () => {
     ])
   })
 
+  it("upserts changed chat messages without discarding adjacent cached messages", () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "old"), message(2, "assistant", "partial")]))
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: { action: "upsert_messages", messages: [message(2, "assistant", "complete"), message(3, "tool_use", "next")] }
+    })
+
+    const updated = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
+    expect(updated?.messages.map(({ id, text }) => [id, text])).toEqual([[1, "old"], [2, "complete"], [3, "next"]])
+  })
+
   it("invalidates chat queries when a typed chat event arrives before chat data is cached", () => {
     vi.useFakeTimers()
     const queryClient = new QueryClient()
@@ -1385,18 +1398,26 @@ describe("applyAppEvent", () => {
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
     const dispatched: CustomEvent[] = []
     window.addEventListener("syrus:job-status-changed", (e) => dispatched.push(e as CustomEvent))
+    queryClient.setQueryData(["chats", "9", "job_status"], {
+      pending_proposals: [],
+      items: [{ kind: "job", job_id: 77, slug: "JOB-77", title: "Before", state: "running", workflow_step: null, active_workflow: null,
+        pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-01T00:00:00Z" }]
+    })
 
     applyAppEvent(queryClient, {
       ...event("chat", 9),
       payload: {
         action: "job_status_changed",
-        job_id: 77
+        job_id: 77,
+        item: { kind: "job", job_id: 77, slug: "JOB-77", title: "After", state: "closed", workflow_step: null, active_workflow: null,
+          pr_number: null, pr_url: null, blocker: null, updated_at: "2026-01-02T00:00:00Z" }
       }
     })
 
     expect(dispatched).toHaveLength(1)
     expect(dispatched[0].detail).toEqual({ job_id: 77, chat_session_id: 9 })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
+    expect(queryClient.getQueryData<{ items: Array<{ title: string }> }>(["chats", "9", "job_status"])?.items[0].title).toBe("After")
   })
 
   it("dispatches a syrus:theme-preview DOM event for open_theme_preview payloads", () => {

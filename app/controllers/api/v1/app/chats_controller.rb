@@ -1316,7 +1316,7 @@ module Api
             return
           end
 
-          render json: result
+          render_relay_json(result)
         end
 
         def coding_commits
@@ -1348,7 +1348,7 @@ module Api
             return
           end
 
-          render json: result
+          render_relay_json(result)
         end
 
         # Read-only file content counterpart to #coding_files -- see that
@@ -1383,7 +1383,7 @@ module Api
             return
           end
 
-          render json: result
+          render_relay_json(result)
         end
 
         def coding_file_preview
@@ -1438,7 +1438,8 @@ module Api
             "sandbox; default-src 'none'; style-src 'unsafe-inline'"
           end
           response.set_header("Content-Security-Policy", content_security_policy)
-          send_data inspected.bytes, type: inspected.content_type, disposition: "inline"
+          fresh_when etag: Digest::SHA256.hexdigest(inspected.bytes), public: false
+          send_data inspected.bytes, type: inspected.content_type, disposition: "inline" unless performed?
         rescue ArgumentError
           render_error("unsupported_media_type", t("api.chats.errors.coding_file_preview_unsupported"), status: :unsupported_media_type)
         end
@@ -1466,7 +1467,7 @@ module Api
 
           status, result = relay_response
           if status == 200
-            render json: result
+            render_relay_json(result)
           else
             render json: { diff: "", mode: mode.to_s, checkout_branch: chat_session.coding_checkout_branch }
           end
@@ -1548,6 +1549,12 @@ module Api
           render_error("source_unavailable", t("api.chats.errors.source_relay_unavailable"), status: :service_unavailable)
         end
         private :render_repository_source_file_at_ref
+
+        def render_relay_json(payload)
+          fresh_when etag: Digest::SHA256.hexdigest(ActiveSupport::JSON.encode(payload)), public: false
+          render json: payload unless performed?
+        end
+        private :render_relay_json
 
         def workspace_file_raw
           chat_session = find_chat_session
@@ -1691,7 +1698,7 @@ module Api
           status, result = relay_response
           case status
           when 200
-            render json: result
+            render_relay_json(result)
           when 422
             render_error("validation_failed", t("api.chats.errors.invalid_source_path"), status: :unprocessable_content)
           when 401

@@ -566,11 +566,14 @@ class ChatSession < ApplicationRecord
   end
 
   def broadcast_app_job_status_update(job_id)
+    status_item = ChatJobStatusQuery.call(self).fetch(:items).find do |item|
+      item[:job_id] == job_id || item[:children]&.any? { |child| child[:job_id] == job_id }
+    end
     broadcast_to_participants(
       type: "chat.updated",
       resource: "chat",
       id: id,
-      payload: { action: "job_status_changed", job_id: job_id }
+      payload: { action: "job_status_changed", job_id: job_id, item: status_item }.compact
     )
   end
 

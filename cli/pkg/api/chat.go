@@ -344,6 +344,26 @@ func handleChatStreamEvent(ctx context.Context, event ChatStreamEvent, out, debu
 		if err := json.Unmarshal(event.Data, &payload); err != nil {
 			return err
 		}
+		if payload.Message.Proposal != nil {
+			if proposalHandler != nil {
+				return proposalHandler(ctx, *payload.Message.Proposal)
+			}
+			return nil
+		}
+		if payload.Message.Role == "assistant" && payload.Message.Text != "" {
+			rendered, err := renderer.Render(payload.Message.Text)
+			if err != nil {
+				return err
+			}
+			if _, err := fmt.Fprint(out, rendered); err != nil {
+				return err
+			}
+			if !strings.HasSuffix(rendered, "\n") {
+				_, err = fmt.Fprintln(out)
+				return err
+			}
+			return nil
+		}
 		return renderLiveToolActivity(out, payload.Message)
 	case "turn_complete":
 		return nil

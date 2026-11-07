@@ -30,6 +30,16 @@ RSpec.describe "GET /api/v1/app/chats/:chat_id/job_status", type: :request do
   context "when signed in" do
     before { sign_in_as(user) }
 
+    it "returns not modified when the job status ETag still matches" do
+      get "/api/v1/app/chats/#{chat_session.id}/job_status"
+      etag = response.headers.fetch("ETag")
+
+      get "/api/v1/app/chats/#{chat_session.id}/job_status", headers: { "If-None-Match" => etag }
+
+      expect(response).to have_http_status(:not_modified)
+      expect(response.body).to be_empty
+    end
+
     it "returns an empty array when the chat has no confirmed proposals" do
       ChatProposal.create!(
         chat_session: chat_session, slug: "pending-job", kind: "job",
