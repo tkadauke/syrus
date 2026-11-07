@@ -99,7 +99,7 @@ RSpec.describe "Syrus grader configuration" do
 
     expect(grader).to have_attributes(
       phases: [ "ci" ],
-      timeout_minutes: 90
+      timeout_minutes: 120
     )
   end
 

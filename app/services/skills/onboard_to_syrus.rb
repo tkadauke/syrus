@@ -283,7 +283,7 @@ module Skills
         - `type` — optional; plugin-defined grader type, for example `rspec`
         - `run` — required for custom graders; the shell command to run
         - `required` — optional, defaults to `true`; set `false` for advisory-only checks
-        - `timeout_minutes` — optional, defaults to 15 (max 90)
+        - `timeout_minutes` — optional, defaults to 15 (max 120)
       TABLE
     end
   end
