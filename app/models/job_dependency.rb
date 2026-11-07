@@ -20,7 +20,7 @@ class JobDependency < ApplicationRecord
   validate :satisfaction_mode_fields_consistent
   validate :linear_chain_within_epic
 
-  after_save_commit :materialize_derived_epic_dependency, if: :depends_on_job_id?
+  after_commit :reconcile_derived_epic_dependencies, on: %i[create update destroy]
   # One declaration: Rails keeps only the last commit callback registered
   # under a method name, so separate save and destroy lines never rechecked
   # on save.
@@ -177,17 +177,8 @@ class JobDependency < ApplicationRecord
     end
   end
 
-  def materialize_derived_epic_dependency
-    dependent_epic = job&.epic
-    upstream_epic = depends_on_job&.epic
-    return if dependent_epic.blank? || upstream_epic.blank?
-    return if dependent_epic == upstream_epic
-
-    EpicDependency.find_or_create_by!(
-      epic: dependent_epic,
-      depends_on_epic: upstream_epic,
-      derived: true
-    )
+  def reconcile_derived_epic_dependencies
+    EpicDependencies::DerivedEdgeReconciler.reconcile_job_dependency(self)
   end
 
   def recheck_dependent_job_start_blocks

@@ -425,6 +425,13 @@ describe("EpicDetail start implementing", () => {
     expect(screen.getByText("Implementation started; child Jobs are waiting on Pave the road first, JOB-19")).toBeInTheDocument()
   })
 
+  it("names an overlapping upstream Epic once in the waiting message", () => {
+    renderDetail(detailPayload({ state: "in_progress", startable: false, execution_blocked_on: ["Deliver marble"] }))
+
+    const message = screen.getByText("Implementation started; child Jobs are waiting on Deliver marble")
+    expect(message.textContent?.match(/Deliver marble/g)).toHaveLength(1)
+  })
+
   it("does not show the waiting hint when execution is unblocked", () => {
     renderDetail(detailPayload({ execution_blocked_on: [] }))
 

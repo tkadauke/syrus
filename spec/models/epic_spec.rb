@@ -311,6 +311,18 @@ RSpec.describe Epic, :ci_only do
     expect(epic.reload).to be_releases_jobs_for_execution
   end
 
+  it "names an unfinished Epic once when historical explicit and derived rows overlap" do
+    upstream = described_class.create!(user: user, repository: repository, title: "Deliver marble")
+    epic = described_class.create!(user: user, repository: repository, title: "Build forum", state: "in_progress")
+    now = Time.current
+    EpicDependency.insert_all!([
+      { epic_id: epic.id, depends_on_epic_id: upstream.id, derived: false, created_at: now, updated_at: now },
+      { epic_id: epic.id, depends_on_epic_id: upstream.id, derived: true, created_at: now, updated_at: now }
+    ])
+
+    expect(epic.unfinished_dependency_names).to eq([ "Deliver marble" ])
+  end
+
   describe "#all_jobs_approved?" do
     it "is true when every non-closed child Job is approved" do
       epic = described_class.create!(user: user, repository: repository, title: "Landing train")

@@ -436,7 +436,7 @@ class Epic < ApplicationRecord
       dependencies.includes(:depends_on_epic, { depends_on_job: :deployment_stage_statuses }, :unresolved_chat_proposal).to_a
     end
 
-    loaded_dependencies.reject(&:dependency_succeeded?).filter_map do |dependency|
+    EpicDependency.effective(loaded_dependencies).reject(&:dependency_succeeded?).filter_map do |dependency|
       next dependency.depends_on_job.slug if dependency.depends_on_job_id.present?
       next dependency.unresolved_chat_proposal&.title if dependency.pending?
 
