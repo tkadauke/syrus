@@ -5543,11 +5543,7 @@ function seedJobPanelQueries(queryClient: QueryClient, payload: JobDetailPayload
   // always-fresh preview/deploy queries from consuming action-specific fetch
   // mocks; PreviewPanel.test.tsx covers their mount refetching and polling.
   const updatedAt = Date.now() + 60 * 60 * 1000
-  queryClient.setQueryData(
-    ["job-preview", payload.job.id],
-    { preview: payload.preview, preview_projects: payload.preview_projects ?? [] },
-    { updatedAt }
-  )
+  queryClient.setQueryData(["job-preview", payload.job.id], { preview: payload.preview, preview_projects: payload.preview_projects ?? [] }, { updatedAt })
   queryClient.setQueryData(["job-deploy", payload.job.id], { deploy: payload.deploy ?? null }, { updatedAt })
 }
 
