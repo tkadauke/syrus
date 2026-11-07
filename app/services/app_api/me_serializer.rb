@@ -25,7 +25,7 @@ module AppApi
         role: user.role,
         theme: user.theme,
         color_theme_id: user.color_theme_id,
-        color_theme: user.color_theme&.public_payload,
+        color_theme: user.color_theme&.selected_payload,
         locale: user.locale,
         agent_provider: user.agent_provider,
         chat_provider: user.chat_provider,

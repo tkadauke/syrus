@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { SectionHeading } from "../components/Heading"
 import { type ReactNode, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
@@ -207,6 +207,7 @@ function PluginCard({ plugin, betaModeEnabled }: { plugin: AdminPlugin; betaMode
 
 function usePluginToggle(plugin: AdminPlugin, betaModeEnabled: boolean, onToggled: (nowEnabled: boolean) => void) {
   const { t } = useT("admin")
+  const queryClient = useQueryClient()
   const [pendingCascade, setPendingCascade] = useState<AdminPluginDisableConfirmation | null>(null)
   const [experimentalBlock, setExperimentalBlock] = useState<AdminPluginExperimentalBlock | null>(null)
   const optIn = useMutation({
@@ -224,6 +225,7 @@ function usePluginToggle(plugin: AdminPlugin, betaModeEnabled: boolean, onToggle
         setExperimentalBlock(data)
         return
       }
+      void queryClient.invalidateQueries({ queryKey: ["sidebar", "plugin_pages"] })
       onToggled(!plugin.enabled)
     }
   })

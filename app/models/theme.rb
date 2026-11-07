@@ -151,6 +151,18 @@ class Theme < ApplicationRecord
     { id: id, slug: slug, name: name, built_in: built_in, position: position, tokens: tokens_with_defaults }
   end
 
+  def selected_payload
+    identity_payload
+  end
+
+  def picker_payload
+    identity_payload.merge(position: position, swatch: tokens_with_defaults.dig("light", BRAND_TOKEN_KEY))
+  end
+
+  def identity_payload
+    { id: id, slug: slug, name: name, built_in: built_in }
+  end
+
   # Merges each EXTENDED_TOKEN_GROUPS group's stored overrides onto
   # DEFAULT_EXTENDED_TOKENS, leaving "light"/"dark" untouched. Missing
   # groups, and missing keys within a present group, resolve to the shared

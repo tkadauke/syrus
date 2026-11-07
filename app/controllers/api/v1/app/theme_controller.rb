@@ -50,7 +50,7 @@ module Api
           {
             theme: Current.user.theme,
             color_theme_id: Current.user.color_theme_id,
-            color_theme: Current.user.color_theme&.public_payload
+            color_theme: Current.user.color_theme&.identity_payload
           }
         end
       end

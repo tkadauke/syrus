@@ -574,9 +574,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "id" => ocean.id,
       "slug" => "ocean",
       "name" => ocean.name,
-      "built_in" => true,
-      "position" => ocean.position,
-      "tokens" => JSON.parse(ocean.tokens_with_defaults.to_json)
+      "built_in" => true
     )
   end
 
