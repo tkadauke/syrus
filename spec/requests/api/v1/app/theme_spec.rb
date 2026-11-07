@@ -61,9 +61,7 @@ RSpec.describe "API: /api/v1/app/theme", type: :request do
         "id" => ocean.id,
         "slug" => "ocean",
         "name" => ocean.name,
-        "built_in" => true,
-        "position" => nil,
-        "tokens" => JSON.parse(ocean.tokens_with_defaults.to_json)
+        "built_in" => true
       )
       expect(user.reload.color_theme_id).to eq(ocean.id)
     end

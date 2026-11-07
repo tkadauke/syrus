@@ -51,8 +51,10 @@ function applyResolvedTheme(resolvedTheme: ResolvedTheme) {
 function applyColorTheme(colorTheme: ColorTheme | null, resolvedTheme: ResolvedTheme, appliedCustomPropertyNames: Set<string>) {
   const root = document.documentElement
   const isCustom = colorTheme != null && !colorTheme.built_in
-  const nextColorTokens = isCustom ? semanticColorProperties(colorTheme.tokens[resolvedTheme] ?? {}) : {}
-  const nextExtendedTokens = isCustom ? extendedTokenProperties(colorTheme.tokens) : {}
+  const embeddedTokens = document.getElementById("syrus-custom-color-theme-data")?.textContent
+  const tokens = colorTheme?.tokens ?? (isCustom && embeddedTokens ? JSON.parse(embeddedTokens) as ColorTheme["tokens"] : undefined)
+  const nextColorTokens = isCustom && tokens ? semanticColorProperties(tokens[resolvedTheme] ?? {}) : {}
+  const nextExtendedTokens = isCustom && tokens ? extendedTokenProperties(tokens) : {}
   const nextProperties: Record<string, string> = {}
   Object.entries(nextColorTokens).forEach(([key, value]) => { nextProperties[`--color-${key}`] = value })
   Object.entries(nextExtendedTokens).forEach(([key, value]) => { nextProperties[`--${key}`] = value })

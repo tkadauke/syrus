@@ -45,7 +45,7 @@ export function AdminMaintenanceTasks() {
   const tasks = useQuery({
     queryKey: ["admin", "maintenance_tasks", location.search],
     queryFn: ({ signal }) => fetchAdminMaintenanceTasks(location.search, signal),
-    refetchInterval: POLL_INTERVAL_MS
+    refetchInterval: (query) => query.state.data?.tasks.some((task) => task.state === "running") ? POLL_INTERVAL_MS : 60_000
   })
   const discover = useMutation({
     mutationFn: discoverMaintenanceTasks,
@@ -105,11 +105,12 @@ export function AdminMaintenanceTaskDetail() {
   const prefix = routePrefix(location.pathname)
   const queryClient = useQueryClient()
   const [documentationOpen, setDocumentationOpen] = useState(false)
+  const [documentationTask, setDocumentationTask] = useState<MaintenanceTask | null>(null)
   const detail = useQuery({
     queryKey: ["admin", "maintenance_tasks", id, location.search],
     queryFn: ({ signal }) => fetchAdminMaintenanceTask(id || "", location.search, signal),
     enabled: Boolean(id),
-    refetchInterval: POLL_INTERVAL_MS
+    refetchInterval: (query) => query.state.data?.state === "running" ? POLL_INTERVAL_MS : 60_000
   })
   const action = useMutation({
     mutationFn: (name: "start" | "pause" | "resume" | "cancel" | "dismiss") => runMaintenanceTaskAction(id || "", name),
@@ -119,6 +120,16 @@ export function AdminMaintenanceTaskDetail() {
         queryClient.invalidateQueries({ queryKey: ["maintenance_tasks", "sidebar"] })
       ])
   })
+
+  async function openDocumentation() {
+    const payload = await queryClient.fetchQuery({
+      queryKey: ["admin", "maintenance_tasks", id, "documentation"],
+      queryFn: ({ signal }) => fetchAdminMaintenanceTask(id || "", "?include_documentation=1", signal),
+      staleTime: Infinity
+    })
+    setDocumentationTask(payload)
+    setDocumentationOpen(true)
+  }
 
   if (detail.isPending) {
     return (
@@ -138,7 +149,7 @@ export function AdminMaintenanceTaskDetail() {
   const task = detail.data
   return (
     <AdminEventPageShell
-      actions={<TaskActions task={task} busy={action.isPending} onAction={(name) => action.mutate(name)} onDocs={() => setDocumentationOpen(true)} />}
+      actions={<TaskActions task={task} busy={action.isPending} onAction={(name) => action.mutate(name)} onDocs={() => void openDocumentation()} />}
       ariaLabel={t("maintenance_tasks.detail_aria_with_id", { id: task.id })}
       eyebrow={t("section_label")}
       title={task.title}
@@ -156,7 +167,7 @@ export function AdminMaintenanceTaskDetail() {
         <TaskEventLog task={task} />
       </section>
 
-      {documentationOpen ? <TaskDocumentationModal task={task} onClose={() => setDocumentationOpen(false)} /> : null}
+      {documentationOpen && documentationTask ? <TaskDocumentationModal task={documentationTask} onClose={() => setDocumentationOpen(false)} /> : null}
     </AdminEventPageShell>
   )
 }

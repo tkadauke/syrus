@@ -175,7 +175,7 @@ function renderRoute() {
 function mockFetch(overrides: { update?: () => Response } = {}) {
   return vi.spyOn(window, "fetch").mockImplementation((input, init) => {
     const path = String(input)
-    if (path === "/api/v1/app/themes" && init?.method == null) return Promise.resolve(jsonResponse({ themes: [terracottaTheme(), solarTheme(), nightTheme()] }))
+    if (path === "/api/v1/app/themes?full=1" && init?.method == null) return Promise.resolve(jsonResponse({ themes: [terracottaTheme(), solarTheme(), nightTheme()] }))
     if (path === "/api/v1/app/themes" && init?.method === "POST") return Promise.resolve(jsonResponse({ theme: customTheme({ id: 4, slug: "custom-theme-3", name: "Custom Theme 3", position: 2 }) }, 201))
     if (path === "/api/v1/app/themes/2" && init?.method === "PATCH") return Promise.resolve(overrides.update?.() ?? jsonResponse({ theme: solarThemeFromBody(init.body) }))
     if (path === "/api/v1/app/themes/2" && init?.method === "DELETE") return Promise.resolve(jsonResponse({ deleted_theme_id: 2, fallback_theme_id: null }))
