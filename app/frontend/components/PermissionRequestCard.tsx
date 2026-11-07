@@ -45,7 +45,7 @@ export function PermissionRequestCard({ request, jobId }: { request: PermissionR
     mutationFn: (decision: "approved" | "denied") => decidePermissionRequest(request.id, decision, decision === "approved" ? duration : undefined),
     onSuccess: ({ request: resolved }) => refresh(resolved)
   })
-  const smartItem = request.items.find((item) => item.smart_option)
+  const smartItem = request.items.find((item) => item.smart_options?.length || item.smart_option)
   const smartDecide = useMutation({
     mutationFn: (option: SmartPermissionOption) => smartDecidePermissionRequest(request.id, smartItem!.id, option),
     onSuccess: ({ request: resolved }) => refresh(resolved)
@@ -117,6 +117,7 @@ export function PermissionRequestCard({ request, jobId }: { request: PermissionR
           }}
           onStale={() => refresh()}
           option={smartItem.smart_option}
+          options={smartItem.smart_options}
           request={{ requestId: request.id, itemId: smartItem.id }}
         />
       ) : pending ? (

@@ -6,13 +6,13 @@ module CredentialStore
         require_existing_record!(credential)
       end
 
-      def usable_by?(credential, context)
-        context.user.present? && credential.scope_id.to_i == context.user.id
-      end
-
       def resolution_precedence = 0
 
       private
+
+      def visible_scope_ids(context)
+        [ context.user&.id ].compact
+      end
 
       def model_class = ::User
     end

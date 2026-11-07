@@ -90,7 +90,14 @@ journaling schedule remains visibly paused on the coworker page.
 Journaling does not invoke an agent on dormant days. It records the day as
 `skipped: dormant`, advances the last-journaled date, and creates no Job, chat
 card, wake turn, or unread state. Active and missed days are processed oldest
-first with a seven-day catch-up bound. Successful journaling is also completely
+first with a seven-day catch-up bound. A missed fire window is retried after a
+15-minute cooldown instead of waiting for the next day's window. Fire errors
+are retained with their exception reason, and journaling is called out as
+overdue only when it is more than one day behind. The periodically sampled
+
+`syrus_coworkers_journaling_unhealthy_total` metric counts active coworkers
+older than 25 hours without a fire or recorded dormant skip inside that window.
+Successful journaling is also completely
 silent: the only output is the persisted workspace update and
 `memory/diary/YYYY-MM-DD.md`. Failures post the normal failure card and wake the
 main chat once for that date.

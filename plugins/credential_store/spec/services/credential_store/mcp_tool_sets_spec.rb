@@ -4,11 +4,13 @@ RSpec.describe "CredentialStore MCP tool sets" do
   it "advertises SSH exec as a deferred chat tool" do
     tools = CredentialStore::ChatToolSet.tool_definitions(tier: :deferred)
 
-    expect(tools.map { |tool| tool.fetch(:name) }).to eq([ "credential_store_ssh_exec" ])
-    expect(tools.first.dig(:input_schema, :required)).to eq([ "credential", "host", "user", "command" ])
-    expect(tools.first.fetch(:capability_descriptor)).to have_attributes(
+    expect(tools.map { |tool| tool.fetch(:name) }).to eq([ "credential_store_list_credentials", "credential_store_ssh_exec" ])
+    ssh_tool = tools.find { |tool| tool.fetch(:name) == "credential_store_ssh_exec" }
+    expect(ssh_tool.dig(:input_schema, :required)).to eq([ "credential", "host", "user", "command" ])
+    expect(ssh_tool.fetch(:capability_descriptor)).to have_attributes(
       capability: "ssh.execute@v1", operation: "ssh.execute/risky@v1"
     )
+    expect(tools.first).not_to include(:capability_descriptor)
   end
 
   it "never advertises SSH exec to coworkers through any grant" do
@@ -32,8 +34,10 @@ RSpec.describe "CredentialStore MCP tool sets" do
     context = McpToolContext.from_run(run)
 
     expect(CredentialStore::WorkflowToolSet.tool_definitions(context: context).map { |tool| tool.fetch(:name) })
-      .to eq([ "credential_store_ssh_exec" ])
-    expect(CredentialStore::WorkflowToolSet.tool_definitions(context: context).first.fetch(:capability_descriptor))
+      .to eq([ "credential_store_list_credentials", "credential_store_ssh_exec" ])
+    ssh_tool = CredentialStore::WorkflowToolSet.tool_definitions(context: context).last
+    expect(ssh_tool.fetch(:capability_descriptor))
       .to have_attributes(capability: "ssh.execute@v1")
+    expect(CredentialStore::WorkflowToolSet.tool_definitions(context: context).first).not_to include(:capability_descriptor)
   end
 end

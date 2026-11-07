@@ -1883,7 +1883,10 @@ organizes that day's memory and writes `memory/diary/YYYY-MM-DD.md`; dormant
 days are skipped without creating a run or chat activity. Owners can change the
 time or visibly pause and resume journaling, but cannot delete it or edit its
 system-owned instructions. Only a journaling failure posts a card and wakes the
-coworker's main chat.
+coworker's main chat. Missed windows are caught up after a short retry cooldown;
+the coworker page identifies journaling that is more than one day overdue and
+retains its failure reason for diagnosis. Fleet health also tracks active
+coworkers without a fire or recorded dormant skip inside 25 hours.
 
 Coworker dispatch enforces the unified evaluator: descriptor defaults and
 current rules decide whether an operation runs, asks, or fails closed. Legacy
@@ -1951,12 +1954,18 @@ Each user owns their own profile, credentials, defaults, and preferences:
   owned by the bundled `credential_store` plugin. It stores payload material as
   encrypted write-only blobs, exposes only safe metadata and last-used audit
   details, and lets operators scope credentials to a user, repository, team, or
-  the whole instance. Its brokered tools include deferred MCP SSH command
+  the whole instance. Chat and workflow agents can list visible active
+  credentials by safe metadata without decrypting them or receiving authority
+  to use them. Its brokered tools include deferred MCP SSH command
   execution, a runtime CLI `syrus credential ssh-agent` wrapper for SSH deploy
   scripts, and `syrus credential exec` for non-SSH script credentials. Wrapper
   intent can be declared in `.syrus.yml` `scripts:` metadata using credential
-  handles, never payload material. The broker enforces scope, surface, tool,
-  type, target constraints, expiry, and revocation. Omitted target constraints
+  handles, never payload material. Credential type automatically selects safe
+  typed consumers: SSH keys can use typed SSH execution without an internal MCP
+  tool allowlist, while unified permissions still authorize each command and
+  raw child-process wrappers remain explicit opt-ins. Discovery reports typed
+  consumers separately from raw-wrapper grants. The broker enforces scope,
+  surface, type, target constraints, expiry, and revocation. Omitted target constraints
   are unrestricted, while present empty constraints deny access; URL prefixes
   require the same HTTP(S) origin and a traversal-safe path-boundary match.
   Wrappers use temporary process-local material, redaction, cleanup, and access

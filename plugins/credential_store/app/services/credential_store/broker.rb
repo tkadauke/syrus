@@ -4,8 +4,6 @@ module CredentialStore
   class Broker
     DEFAULT_LEASE_TTL = 2.minutes
     FILE_PREFIX = "syrus-credential-".freeze
-    RAW_MATERIALIZATION_TOOLS = %w[credential.exec credential.ssh-agent].freeze
-
     class Error < StandardError; end
     class NotFound < Error; end
     class Ambiguous < Error; end
@@ -54,6 +52,11 @@ module CredentialStore
         raise Ambiguous, "credential name is ambiguous in the selected scope" if matches.many?
 
         matches.first
+      end
+
+      def surface_allowed?(credential, surface:)
+        allowed = Array(credential.allowed_surfaces).map(&:to_s)
+        allowed.empty? || allowed.include?(surface.to_s)
       end
 
       private
@@ -142,24 +145,33 @@ module CredentialStore
     def denial_reason_for(credential)
       return "credential revoked" if credential.revoked?
       return "credential expired" if credential.expired?
-      return "credential type mismatch" unless credential.credential_type == type
+      return "incompatible credential type" unless credential.credential_type == type
       return "surface not allowed" unless surface_allowed?(credential)
-      return "tool not allowed" unless tool_allowed?(credential)
+      consumer_reason = consumer_denial_reason(credential)
+      return consumer_reason if consumer_reason
 
       custom_reason = custom_denial_reason(credential)
       target_denial_reason(credential) || custom_reason
     end
 
     def surface_allowed?(credential)
-      allowed = Array(credential.allowed_surfaces).map(&:to_s)
-      allowed.empty? || allowed.include?(event_surface)
+      self.class.surface_allowed?(credential, surface: event_surface)
     end
 
-    def tool_allowed?(credential)
-      allowed = Array(credential.allowed_tools).map(&:to_s)
-      return false if RAW_MATERIALIZATION_TOOLS.include?(tool_name) && allowed.exclude?(tool_name)
+    def consumer_denial_reason(credential)
+      consumer = ConsumerRegistry.find(tool_name)
+      return "unavailable typed consumer" if tool_name&.start_with?("credential_store_") && !consumer
+      return legacy_tool_denial_reason(credential) unless consumer
+      return "incompatible credential type" unless consumer.compatible_with?(credential.credential_type)
+      return if consumer.kind == :typed
 
-      allowed.empty? || (tool_name.present? && allowed.include?(tool_name))
+      allowed = Array(credential.allowed_tools).map(&:to_s)
+      "raw-wrapper opt-in missing" if allowed.exclude?(tool_name)
+    end
+
+    def legacy_tool_denial_reason(credential)
+      allowed = Array(credential.allowed_tools).map(&:to_s)
+      "tool not allowed" unless allowed.empty? || (tool_name.present? && allowed.include?(tool_name))
     end
 
     def target_denial_reason(credential)

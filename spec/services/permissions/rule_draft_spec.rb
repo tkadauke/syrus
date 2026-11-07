@@ -158,8 +158,19 @@ RSpec.describe Permissions::RuleDraft do
         .to eq([ "constraint_invalid_value" ])
     end
 
-    it "refuses constraints on permanent rules, which the evaluator does not enforce" do
-      expect(error_codes(draft("constraints" => { "branch" => "main" }).preview)).to eq([ "constraints_not_enforceable" ])
+    it "enforces descriptor-defined constraints on permanent rules" do
+      constrained = draft("constraints" => { "branch" => "main" })
+      rule = constrained.apply!(digest: constrained.preview.digest, actor: user)
+
+      expect(rule.constraints).to eq("branch" => "main")
+      expect(Permissions::Management.new(user).explain(
+        descriptor:, role: chat_role, resource_scope: { repository_id: repository.id }, arguments: { branch: "main" },
+        context: { user:, subject_selector_type: "interactive_chat" }
+      ).policy).to eq(:allow)
+      expect(Permissions::Management.new(user).explain(
+        descriptor:, role: chat_role, resource_scope: { repository_id: repository.id }, arguments: { branch: "other" },
+        context: { user:, subject_selector_type: "interactive_chat" }
+      ).policy).to eq(:ask)
     end
 
     it "rejects descriptors that expose secret-like constraint fields" do

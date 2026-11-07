@@ -2,6 +2,7 @@ module Coworkers
   class SystemSchedules
     JOURNALING = "journaling".freeze
     CATCH_UP_LIMIT = 7
+    HEALTH_WINDOW = 25.hours
 
     class << self
       def reconcile!(coworker)
@@ -27,11 +28,28 @@ module Coworkers
         rescue Date::Error
           nil
         end
-        next_unprocessed = task.last_journaled_on ? task.last_journaled_on + 1 : yesterday
+        # A future timestamp can appear under clock skew (and in time-travel
+        # tests); never let it suppress the most recently completed local day.
+        created_on = [ task.created_at.in_time_zone(zone).to_date, yesterday ].min
+        next_unprocessed = task.last_journaled_on ? task.last_journaled_on + 1 : created_on
         first = ([ next_unprocessed ] + failed_dates.select { |date| date <= yesterday }).min
         return [] if first > yesterday
 
         first.upto([ first + CATCH_UP_LIMIT - 1, yesterday ].min).to_a
+      end
+
+      # Active coworkers old enough to have completed a full health window
+      # must have a durable fire (including dormant skips) inside that window.
+      # This backs the periodically sampled fleet-health metric.
+      def unhealthy_count(now: Time.current)
+        cutoff = now - HEALTH_WINDOW
+        eligible_ids = Coworkers::Coworker.where(state: "active").where(created_at: ..cutoff).select(:id)
+        healthy_ids = ScheduledTasks::Task.alive
+          .where(state: "scheduled", system_key: JOURNALING, coworker_id: eligible_ids)
+          .where(last_fired_at: cutoff..)
+          .select(:coworker_id)
+
+        Coworkers::Coworker.where(id: eligible_ids).where.not(id: healthy_ids).count
       end
 
       private

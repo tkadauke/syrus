@@ -94,7 +94,8 @@ export type CoworkerSchedule = {
   last_journaled_on: string | null
   last_system_result: string | null
   last_system_result_reason: string | null
-  system_result_history: Array<{ date: string; result: string; reason: string | null }>
+  journaling_overdue: boolean
+  system_result_history: Array<{ date: string; result: string; reason: string | null; recorded_at?: string }>
 }
 export type CoworkerActivityPayload = {
   spend: { week_usd: number; total_usd: number }

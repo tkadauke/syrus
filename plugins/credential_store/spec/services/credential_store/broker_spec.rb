@@ -79,6 +79,13 @@ RSpec.describe CredentialStore::Broker do
     expect(event.attributes.values.compact.join(" ")).not_to include(secret)
   end
 
+  it "shares surface eligibility without accessing credential material" do
+    credential = create_credential(allowed_surfaces: [ "workflow" ])
+
+    expect(described_class.surface_allowed?(credential, surface: "workflow")).to be(true)
+    expect(described_class.surface_allowed?(credential, surface: "chat")).to be(false)
+  end
+
   it "leases a credential as an env hash and clears the local material after use" do
     credential = create_credential
     yielded_env = nil
@@ -224,12 +231,12 @@ RSpec.describe CredentialStore::Broker do
         tool_name: "credential.exec",
         target: { host: "api.example.com", url: "https://api.example.com/releases" }
       ) { |env, _metadata| env }
-    }.to raise_error(CredentialStore::Broker::Denied, /tool not allowed/)
+    }.to raise_error(CredentialStore::Broker::Denied, /raw-wrapper opt-in missing/)
 
     expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
       credential: credential,
       result: "denied",
-      denial_reason: "tool not allowed",
+      denial_reason: "raw-wrapper opt-in missing",
       tool_name: "credential.exec"
     )
   end
@@ -249,7 +256,38 @@ RSpec.describe CredentialStore::Broker do
   it "denies unexpected credential types" do
     credential = create_credential
 
-    expect_denied_lease(credential, "credential type mismatch", type: "credential_store.ssh_key")
+    expect_denied_lease(credential, "incompatible credential type", type: "credential_store.ssh_key")
+  end
+
+  it "infers typed consumer eligibility while rejecting unavailable typed consumers" do
+    credential = create_credential(
+      credential_type: "ssh_private_key",
+      payload: "private-key-secret",
+      target_constraints: {},
+      allowed_tools: [ "ha.core.info" ]
+    )
+
+    result = described_class.with_credential_env(
+      context: context,
+      credential: credential.id,
+      type: "ssh_private_key",
+      env_key: "SSH_KEY",
+      purpose: "typed SSH",
+      tool_name: "credential_store_ssh_exec"
+    ) { "eligible" }
+    expect(result).to eq("eligible")
+
+    expect {
+      described_class.with_credential_env(
+        context: context,
+        credential: credential.id,
+        type: "ssh_private_key",
+        env_key: "SSH_KEY",
+        purpose: "unknown typed operation",
+        tool_name: "credential_store_unknown"
+      ) { "unreachable" }
+    }.to raise_error(CredentialStore::Broker::Denied, /unavailable typed consumer/)
+    expect(CredentialStore::CredentialAccessEvent.last.denial_reason).to eq("unavailable typed consumer")
   end
 
   it "denies target constraint mismatches" do

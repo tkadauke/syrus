@@ -13,6 +13,12 @@ export type CredentialStoreTypeOption = {
   plugin?: string
 }
 
+export type CredentialStoreWrapperOption = {
+  name: string
+  credential_types: string[]
+  description: string
+}
+
 export type CredentialStoreCredential = {
   id: number
   name: string
@@ -25,6 +31,8 @@ export type CredentialStoreCredential = {
   target_constraints: Record<string, unknown>
   allowed_surfaces: string[]
   allowed_tools: string[]
+  effective_typed_consumers: string[]
+  explicit_wrapper_grants: string[]
   expires_at: string | null
   last_rotated_at: string | null
   revoked_at: string | null
@@ -50,6 +58,7 @@ export type CredentialStorePayload = {
   credentials: CredentialStoreCredential[]
   options: {
     credential_types: CredentialStoreTypeOption[]
+    credential_wrappers: CredentialStoreWrapperOption[]
     scopes: Array<{ value: CredentialStoreCredential["scope_type"]; label: string }>
     safe_metadata_keys: string[]
     target_constraint_keys: string[]

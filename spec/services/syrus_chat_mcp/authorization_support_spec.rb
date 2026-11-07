@@ -385,6 +385,28 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
       }.not_to change(ChatPendingAction, :count)
     end
 
+    it "returns a completed identical invocation result instead of authorizing a second execution" do
+      actor_tool = Class.new(MCP::Tool) { tool_name "send_external_message" }
+      descriptor = Permissions::CapabilityDescriptorAdapter.for_registry_entry(
+        tool_name: "send_external_message", capability: "communication.chat", mutation: true,
+        required_roles: [ AgentRole::CHAT_PLANNER ]
+      )
+      entry = Struct.new(:descriptor, :ungated).new(descriptor, false)
+      allow(McpToolRegistry).to receive(:entry_for).with(actor_tool).and_return(entry)
+      request_service = instance_double(Permissions::AuthorizationRequest)
+      allow(Permissions::AuthorizationRequest).to receive(:new).and_return(request_service)
+      result = Struct.new(:request, :decision, :reused_result).new(nil, nil, '{"ok":true}')
+      allow(request_service).to receive(:call).and_return(
+        result
+      )
+      server_context = { chat_session: }
+
+      response = described_class.pending_actor_approval(actor_tool, server_context, { body: "hello" })
+
+      expect(response.content.sole[:text]).to eq('{"ok":true}')
+      expect(server_context).not_to include(:permission_authorization)
+    end
+
     it "keeps a tool's existing pending-action confirmation as its only approval boundary" do
       actor_tool = Mcp::Tools::CancelJobTool
 

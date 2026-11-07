@@ -679,7 +679,7 @@ RSpec.describe "Coworker background runs" do
     expect(first_count).to eq(2)
     expect(main_chat.messages.count).to eq(2)
     expect(task.reload.system_result_history).to include(
-      "date" => "2026-11-03", "result" => "failed", "reason" => workflow.failure_reason
+      include("date" => "2026-11-03", "result" => "failed", "reason" => workflow.failure_reason)
     )
   end
 

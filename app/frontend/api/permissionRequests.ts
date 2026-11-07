@@ -1,6 +1,6 @@
 import { deleteJson, getJson, postJson } from "./client"
 
-export type SmartPermissionKind = "always_allow_similar" | "allow_job" | "allow_chat"
+export type SmartPermissionKind = "always_allow_similar" | "always_allow_command" | "allow_job" | "allow_chat"
 export type SmartPermissionOption = {
   kind: SmartPermissionKind
   duration: "permanent" | "job" | "chat_session"
@@ -49,6 +49,7 @@ export type PermissionRequestItem = {
   decided_at: string | null
   prerequisite_ids?: number[]
   smart_option?: SmartPermissionOption | null
+  smart_options?: SmartPermissionOption[]
   resulting_authority?: PermissionAuthorityReference | null
 }
 export type PermissionRequest = {

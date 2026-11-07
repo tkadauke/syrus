@@ -412,10 +412,13 @@ module Api
         end
 
         def schedule_json(task)
+          journaling_overdue = task.system_key == Coworkers::SystemSchedules::JOURNALING &&
+            Coworkers::Prompts::Journaling.new.overdue?(task:, now: Time.current)
           {
             id: task.id, name: task.name, prompt: task.prompt, kind: task.kind, state: task.state,
             system_key: task.system_key, last_journaled_on: task.last_journaled_on&.iso8601,
             last_system_result: task.last_system_result, last_system_result_reason: task.last_system_result_reason,
+            journaling_overdue: journaling_overdue,
             system_result_history: Array(task.system_result_history),
             after_run: task.after_run,
             schedule_input: task.schedule_input, schedule_explanation: task.schedule_explanation,

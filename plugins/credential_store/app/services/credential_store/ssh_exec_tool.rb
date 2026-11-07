@@ -53,6 +53,10 @@ module CredentialStore
     )
 
     class << self
+      def capability_descriptor_value
+        PermissionProvider.capability_descriptor("ssh.execute/risky@v1")
+      end
+
       def call(server_context:, credential: nil, host: nil, user: nil, command: nil, port: nil, connect_timeout: nil, allow_unconstrained_host: false, allow_risky_command: false)
         context = McpToolContext.from_server_context(server_context)
         payload = CredentialStore::SshExec.call(
