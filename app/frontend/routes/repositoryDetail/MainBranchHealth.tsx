@@ -63,12 +63,13 @@ export function MainBranchHealthSection({
   const repository = payload.repository
   const healthQueryKey = ["repositories", String(repository.id), "health_history"] as const
   const shaUrl = history.last_health_checked_sha ? `https://github.com/${repository.slug}/commit/${history.last_health_checked_sha}` : null
-  const search = queryKey[3]
+  const search = ""
   const graders = useMutation({
     mutationFn: () => runMainBranchGraders(appendSearch(payload.paths.app_run_main_branch_graders_repository_path, search), 1),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       void queryClient.invalidateQueries({ queryKey: healthQueryKey })
+      void queryClient.invalidateQueries({ queryKey: ["repositories", String(repository.id), "jobs"] })
       onNotice(updated.message || null)
     }
   })
@@ -77,6 +78,7 @@ export function MainBranchHealthSection({
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       void queryClient.invalidateQueries({ queryKey: healthQueryKey })
+      void queryClient.invalidateQueries({ queryKey: ["repositories", String(repository.id), "jobs"] })
       onNotice(updated.message || null)
     }
   })
@@ -85,6 +87,7 @@ export function MainBranchHealthSection({
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       void queryClient.invalidateQueries({ queryKey: healthQueryKey })
+      void queryClient.invalidateQueries({ queryKey: ["repositories", String(repository.id), "jobs"] })
       onNotice(updated.message || null)
     }
   })
@@ -93,6 +96,7 @@ export function MainBranchHealthSection({
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
       void queryClient.invalidateQueries({ queryKey: healthQueryKey })
+      void queryClient.invalidateQueries({ queryKey: ["repositories", String(repository.id), "jobs"] })
       onNotice(updated.message || null)
     }
   })

@@ -146,7 +146,7 @@ function buildPayload(): RepositoryDetailPayload {
 }
 
 function renderSection(history = buildHistory(), payload = buildPayload()) {
-  const queryKey = ["repositories", "1", "detail", ""] as const
+  const queryKey = ["repositories", "1", "detail"] as const
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>

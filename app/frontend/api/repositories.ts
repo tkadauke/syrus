@@ -695,23 +695,31 @@ export function fetchRepositories(search = "") {
   return getJson<RepositoriesPayload>(`/api/v1/app/repositories${search}`)
 }
 
-export function fetchRepositoryDetail(id: string, search = "") {
-  return getJson<RepositoryDetailPayload>(`/api/v1/app/repositories/${id}${search}`)
-}
+function hydrateRepositoryJobs<T extends { jobs?: RepositoryDetailJob[]; provider_availability?: Record<string, ProviderAvailability> }>(payload: T): T {
+  if (!payload.jobs) return payload
 
-export function fetchRepositoryJobs(id: string, search = "") {
-  return getJson<Pick<RepositoryDetailPayload, "jobs" | "pagination"> & { provider_availability?: Record<string, ProviderAvailability> }>(
-    `/api/v1/app/repositories/${id}/jobs${search}`
-  ).then((payload) => ({
+  return {
+    ...payload,
     jobs: payload.jobs.map((job) => ({
       ...job,
       provider_availability: job.agent_provider ? payload.provider_availability?.[job.agent_provider] : undefined,
       job_path: `/jobs/${job.id}`,
       pr_url: job.pr_number ? `https://github.com/${job.repository_slug}/pull/${job.pr_number}` : null,
       external_pr_url: job.external_pr_number ? `https://github.com/${job.repository_slug}/pull/${job.external_pr_number}` : null
-    })),
-    pagination: payload.pagination
-  }))
+    }))
+  } as T
+}
+
+export function fetchRepositoryDetail(id: string, search = "") {
+  return getJson<RepositoryDetailPayload & { provider_availability?: Record<string, ProviderAvailability> }>(`/api/v1/app/repositories/${id}${search}`).then(
+    hydrateRepositoryJobs
+  )
+}
+
+export function fetchRepositoryJobs(id: string, search = "") {
+  return getJson<Pick<RepositoryDetailPayload, "jobs" | "pagination"> & { provider_availability?: Record<string, ProviderAvailability> }>(
+    `/api/v1/app/repositories/${id}/jobs${search}`
+  ).then(hydrateRepositoryJobs)
 }
 
 export function fetchRepositoryHealthHistory(id: string) {

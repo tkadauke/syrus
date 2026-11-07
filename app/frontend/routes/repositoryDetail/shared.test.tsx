@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest"
-import { buttonClass, stateFilterClass } from "./shared"
+import { buttonClass, repositoryDetailQueryKey, stateFilterClass } from "./shared"
 
 describe("repository detail shared styles", () => {
+  it("keeps pagination out of the shared detail query key", () => {
+    expect(repositoryDetailQueryKey(42)).toEqual(["repositories", "42", "detail"])
+  })
+
   it("uses semantic brand tokens for the active state filter", () => {
     const className = stateFilterClass(true)
 
