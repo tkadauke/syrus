@@ -101,6 +101,9 @@ describe("RepositoryCognitiveDebtRoute", () => {
     expect(await screen.findByText("Request failed with 500")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Try again" }))
 
-    await waitFor(() => expect(window.fetch).toHaveBeenCalledTimes(3))
+    await waitFor(() => {
+      const cognitiveDebtRequests = vi.mocked(window.fetch).mock.calls.filter(([input]) => String(input).endsWith("/cognitive_debt"))
+      expect(cognitiveDebtRequests).toHaveLength(2)
+    })
   })
 })
