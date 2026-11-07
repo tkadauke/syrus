@@ -724,6 +724,36 @@ describe("cross-chat bridge rendering", () => {
 })
 
 describe("shell command rendering", () => {
+  it("fetches full output only after the operator expands a truncated command", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ content: {}, chat_shell_command_output: "complete output" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    )
+    renderChatMessageItem(
+      userMessage("", {
+        chat_shell_command: {
+          id: 500,
+          command: "long-command",
+          output: "preview",
+          output_truncated: true,
+          output_path: "/api/v1/app/chats/8/messages/9/content",
+          outcome: "succeeded",
+          exit_status: 0,
+          started_at: null,
+          finished_at: null
+        }
+      })
+    )
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Show full output" }))
+
+    await waitFor(() => expect(screen.getByText("complete output")).toBeInTheDocument())
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/chats/8/messages/9/content", expect.anything())
+  })
+
   it("renders a completed `!` command distinctly from a normal chat bubble, with ANSI output resolved to colored text", () => {
     renderChatMessageItem(
       userMessage("", {

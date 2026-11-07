@@ -696,6 +696,30 @@ describe("ProposalCard layout", () => {
     expect(screen.getByTestId("proposal-state-pill")).toHaveTextContent("Confirmed")
   })
 
+  it("loads a resolved proposal body only when requested", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/chats/122/proposals/17") {
+        return Promise.resolve(jsonResponse({ proposal: { id: 17, body: "Full resolved body." } }))
+      }
+      return Promise.resolve(jsonResponse({}))
+    })
+    renderProposalCard(
+      proposal({
+        body: undefined as unknown as string,
+        body_path: "/api/v1/app/chats/122/proposals/17",
+        state: "confirmed",
+        proposed: false,
+        resolved: true
+      })
+    )
+
+    expect(fetchMock.mock.calls.some(([path]) => path === "/api/v1/app/chats/122/proposals/17")).toBe(false)
+    fireEvent.click(screen.getByRole("button", { name: "Show proposal body" }))
+
+    await waitFor(() => expect(screen.getByText("Full resolved body.")).toBeInTheDocument())
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/chats/122/proposals/17", expect.anything())
+  })
+
   it("wraps long proposal titles inside the card", () => {
     const title = "HAWebhookNowPlayingUpdatesPlaybackStateBrowserDeepLinkToSpecificIntegrationSurfaceWithoutNaturalBreaks"
     renderProposalCard(proposal({ title }))

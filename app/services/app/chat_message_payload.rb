@@ -9,6 +9,10 @@ module App
       new(repository: repository).messages(messages)
     end
 
+    def self.full_content(content)
+      content.is_a?(Hash) ? content.except("text", "attachments") : content
+    end
+
     def self.proposal(proposal, chat_session:, repository:)
       new(repository: repository).send(:proposal_json, proposal, chat_session: chat_session)
     end
@@ -78,6 +82,7 @@ module App
       records = messages.to_a
       ChatAttachmentRef.preload(records)
       preload_message_associations(records)
+      preload_legacy_mention_participants(records)
       preload_participant_ids(records)
       preload_pending_action_outcomes(records)
       preload_mentionables(records)
@@ -135,11 +140,27 @@ module App
         .group_by(&:first).transform_values { |pairs| pairs.map(&:last).to_set }
     end
 
+    def preload_legacy_mention_participants(messages)
+      sessions = messages.select { |message| message.role == "user" && message.mentions.nil? }.map(&:chat_session).uniq
+      return if sessions.empty?
+
+      ActiveRecord::Associations::Preloader.new(
+        records: sessions,
+        associations: { chat_participants: { user: :handle_record } }
+      ).call
+    end
+
     def preload_mentionables(messages)
       human_ids = messages.flat_map(&:resolved_mentions).filter_map do |mention|
         mention["id"] if mention["kind"] == "human"
       end.map(&:to_i).uniq
-      @mentionables_by_key = User.where(id: human_ids).includes(:handle_record).index_by do |user|
+      loaded_users = messages.filter_map do |message|
+        association = message.chat_session.association(:chat_participants)
+        association.target.map(&:user) if association.loaded?
+      end.flatten.index_by(&:id)
+      remaining_ids = human_ids - loaded_users.keys
+      users = loaded_users.values + User.where(id: remaining_ids).includes(:handle_record).to_a
+      @mentionables_by_key = users.index_by do |user|
         [ "human", user.id.to_s ]
       end
       @mentionables_by_key[[ "syrus", "syrus" ]] = Mentionables::Syrus.new
@@ -229,11 +250,14 @@ module App
       content = message.content
       return content unless content.is_a?(Hash)
 
-      content = content.except("text", "attachments")
+      content = self.class.full_content(content)
       return content unless %w[tool_use tool_result].include?(message.role)
       return content if content.to_json.bytesize <= MAX_TOOL_CONTENT_BYTES
 
-      { "truncated" => true, "content_path" => "/api/v1/app/chats/#{message.chat_session_id}/messages/#{message.id}/content" }
+      content.slice("type", "id", "name", "tool_use_id", "is_error", "benign_cleanup").merge(
+        "truncated" => true,
+        "content_path" => "/api/v1/app/chats/#{message.chat_session_id}/messages/#{message.id}/content"
+      )
     end
 
     def sender_user_json(message)
@@ -474,6 +498,12 @@ module App
         materialized_epic_state_path: materialized_epic ? "/api/v1/app/epics/#{materialized_epic.id}/state" : nil,
         media_ids: proposal.media_ids || []
       }
+      base.except!(:kind_label, :state_label, :route_label, :app_update_path, :app_confirm_path, :app_reject_path, :materialized_label, :materialized_path)
+
+      if proposal.resolved?
+        base.delete(:body)
+        base[:body_path] = "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}"
+      end
 
       if proposal.epic_bundle?
         child_proposals = ordered_child_proposals(proposal)
@@ -635,7 +665,7 @@ module App
 
     def child_proposal_json(proposal, chat_session:)
       dependency_records = ordered_dependencies(proposal)
-      {
+      payload = {
         id: proposal.id,
         title: proposal.title,
         slug: proposal.slug,
@@ -658,6 +688,13 @@ module App
         app_update_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}",
         app_reject_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}/reject"
       }
+      payload.except!(:state_label, :app_update_path, :app_reject_path)
+      if proposal.resolved?
+        payload.delete(:body)
+        payload[:body_path] = "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}"
+        payload.except!(:provider_setting, :planned_execution, :goal_provenance, :dependency_details)
+      end
+      payload
     end
 
     def child_dependency_json(proposal, dependency)
