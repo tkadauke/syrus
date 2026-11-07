@@ -45,6 +45,7 @@ module Api
 
           per = per_param
           messages, has_more_older = paginated_messages(chat, before_id: before_id, per: per)
+          ChatAttachmentRef.preload(messages)
 
           render json: serialize_chat(chat).merge(
             messages_page: {
@@ -139,12 +140,16 @@ module Api
         end
 
         def serialize_message(message)
+          content = message.content.deep_dup
+          if content.is_a?(Hash) && content["attachments"].is_a?(Array)
+            content["attachments"] = ChatAttachmentRef.for(message).map(&:payload)
+          end
           {
             id: message.id,
             role: message.role,
             tool_name: message.tool_name,
             tool_use_id: message.tool_use_id,
-            content: message.content,
+            content: content,
             proposal: message.proposal ? proposal_payload(message.proposal) : nil,
             bookmarks: message.bookmarks.map { |bookmark| bookmark_payload(bookmark) },
             created_at: message.created_at,

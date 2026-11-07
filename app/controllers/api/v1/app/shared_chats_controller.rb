@@ -11,12 +11,14 @@ module Api
         private
 
         def shared_chat_payload(chat_session)
+          messages = chat_session.messages.active.order(:created_at, :id).to_a
+          ChatAttachmentRef.preload(messages)
           {
             chat: {
               id: chat_session.id,
               title: chat_session.title.presence || ChatSession.fallback_title_for(chat_session.repository)
             },
-            messages: chat_session.messages.active.order(:created_at, :id).map { |message| shared_message_json(message) }
+            messages: messages.map { |message| shared_message_json(message) }
           }
         end
 
@@ -33,7 +35,7 @@ module Api
           }
 
           if message.content.is_a?(Hash) && message.content["attachments"].is_a?(Array)
-            payload[:attachments] = message.content["attachments"]
+            payload[:attachments] = ChatAttachmentRef.for(message).map(&:payload)
           end
 
           payload

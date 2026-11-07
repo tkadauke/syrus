@@ -23,6 +23,7 @@ module Mcp::Tools
 
         page = Mcp::Pagination.normalize_page(page)
         messages, has_more = page_messages(chat_session, page)
+        ChatAttachmentRef.preload(messages)
 
         payload = {
           messages: messages.map { |message| message_payload(message) },
@@ -64,10 +65,14 @@ module Mcp::Tools
       end
 
       def message_payload(message)
+        content = message.content.deep_dup
+        if content.is_a?(Hash) && content["attachments"].is_a?(Array)
+          content["attachments"] = ChatAttachmentRef.for(message).map(&:payload)
+        end
         payload = {
           id: message.id,
           role: message.role,
-          content: message.content,
+          content: content,
           created_at: message.created_at&.iso8601
         }
         payload.merge!(deletion_payload(message.deleted_at, message.deleted_by_user)) if admin? && message.deleted?
