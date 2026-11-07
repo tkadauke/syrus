@@ -259,6 +259,23 @@ bin/compose-up                       # restart / pick up changes
 Both volumes are persisted across restarts; losing them wipes the local
 installation state.
 
+## Response compression
+
+Syrus compresses JSON, JSONL, and HTML responses larger than 1 KiB. The Rails
+middleware provides this consistently in Docker and non-Docker launches;
+Thruster recognizes the existing `Content-Encoding` header and does not
+compress an encoded response again. Action Cable, server-sent events, already
+encoded responses, and smaller bodies are excluded.
+
+You can inspect a running installation with:
+
+```bash
+curl -H 'Accept-Encoding: gzip' -I https://syrus.example/api/v1/app/jobs
+```
+
+An eligible response includes `Content-Encoding: gzip` and
+`Vary: Accept-Encoding`.
+
 There is no MySQL container and no master key — local mode runs the
 production environment against SQLite (`SYRUS_SQLITE=1`) and provides the
 encryption keys via environment variables.
