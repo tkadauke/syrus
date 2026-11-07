@@ -108,9 +108,10 @@ export function updateCronTemplate(id: number, values: CronTemplateInput) {
   })
 }
 
-export function previewCronTemplateSchedule(scheduleInput: string) {
+export function previewCronTemplateSchedule({ scheduleInput, scheduleTimezone }: { scheduleInput: string; scheduleTimezone: string }) {
   return postJson<SchedulePreview>("/api/v1/app/cron_templates/preview_schedule", {
-    schedule_input: scheduleInput
+    schedule_input: scheduleInput,
+    schedule_timezone: scheduleTimezone
   })
 }
 

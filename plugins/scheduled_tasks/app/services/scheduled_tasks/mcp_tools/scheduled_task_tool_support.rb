@@ -45,14 +45,14 @@ module ScheduledTasks
           schedule_expression: task.schedule_expression,
           schedule_explanation: task.schedule_explanation,
           schedule_timezone: task.schedule_timezone,
-          fire_at: task.fire_at&.iso8601,
+          fire_at: task.fire_at&.utc&.iso8601,
           pr_pileup_policy: task.pr_pileup_policy,
           enabled: scheduled_task_enabled?(task),
-          last_fired_at: task.last_fired_at&.iso8601,
-          last_successful_fire_at: task.last_successful_fire_at&.iso8601,
+          last_fired_at: task.last_fired_at&.utc&.iso8601,
+          last_successful_fire_at: task.last_successful_fire_at&.utc&.iso8601,
           consecutive_failure_count: task.consecutive_failure_count,
-          next_fire_at: task.next_fire_at&.iso8601,
-          created_at: task.created_at.iso8601
+          next_fire_at: task.next_fire_at&.utc&.iso8601,
+          created_at: task.created_at.utc.iso8601
         }
       end
     end

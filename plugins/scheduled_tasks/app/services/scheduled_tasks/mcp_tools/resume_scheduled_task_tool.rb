@@ -34,7 +34,7 @@ module ScheduledTasks
             label: task.name,
             enabled: true,
             state: task.state,
-            next_fire_at: task.next_fire_at&.iso8601,
+            next_fire_at: task.next_fire_at&.utc&.iso8601,
             repository_id: task.repository_id,
             repository_slug: task.repository&.slug
           )

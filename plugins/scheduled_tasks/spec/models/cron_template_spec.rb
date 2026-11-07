@@ -9,11 +9,16 @@ RSpec.describe ScheduledTasks::CronTemplate do
       name: "Weekly dependency bump",
       prompt: "Bump outdated dependencies in Gemfile.",
       cron_expression: "0 9 * * 1",
+      schedule_timezone: "UTC",
       pr_pileup_policy: "skip"
     }.merge(overrides))
   end
 
   describe "validation" do
+    it "defaults new templates to the configured server time zone" do
+      expect(described_class.new.schedule_timezone).to eq(Rails.configuration.x.server_time_zone.name)
+    end
+
     it "is valid with reasonable defaults" do
       expect(build_template).to be_valid
     end

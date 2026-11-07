@@ -49,7 +49,7 @@ module Api
             enabled: template.enabled?,
             skill_name: template.skill_name,
             applied_tasks_count: template.scheduled_tasks.alive.count,
-            next_fire_at: template.next_fire_at&.iso8601,
+            next_fire_at: template.next_fire_at&.utc&.iso8601,
             created_at: template.created_at,
             updated_at: template.updated_at
           }

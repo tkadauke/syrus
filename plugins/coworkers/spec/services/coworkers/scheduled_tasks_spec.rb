@@ -95,6 +95,12 @@ RSpec.describe "Coworker scheduled tasks" do
       .to change { coworker.schedules.where(system_key: "journaling").count }.from(0).to(1)
   end
 
+  it "uses the owner's general time zone instead of approval delivery preferences" do
+    coworker.owner_user.update!(time_zone: "Europe/Berlin", approval_delivery_preferences: { "time_zone" => "America/Los_Angeles" })
+
+    expect(Coworkers::SystemSchedules.reconcile!(coworker).schedule_timezone).to eq("Europe/Berlin")
+  end
+
   it "rejects deletion and system-owned edits but permits pause and resume" do
     journaling = Coworkers::SystemSchedules.reconcile!(coworker)
 

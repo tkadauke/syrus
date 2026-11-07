@@ -6,6 +6,8 @@ module ScheduledTasks
     self.table_name = "scheduled_task_cron_templates"
     PR_PILEUP_POLICIES = %w[ skip pile replace ].freeze
 
+    attribute :schedule_timezone, :string, default: -> { Schedules::RecurringSchedule.server_timezone }
+
     DEFAULT_TEMPLATES = [
       {
         name: "Deduplicate code",
@@ -138,7 +140,7 @@ module ScheduledTasks
 
     def canonicalize_recurring_schedule
       input = schedule_input.presence || cron_expression.presence || legacy_cron_expression.presence || schedule_expression
-      result = Schedules::CadencePreview.call(input: input, structured_intent: structured_intent, user: user)
+      result = Schedules::CadencePreview.call(input: input, structured_intent: structured_intent, timezone: schedule_timezone, user: user)
       if result.valid?
         self.schedule_input = input
         self.schedule_format = result.format

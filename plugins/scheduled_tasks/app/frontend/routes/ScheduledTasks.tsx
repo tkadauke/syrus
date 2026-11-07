@@ -437,6 +437,7 @@ function TaskDetail({ payload, basePath, prefix }: { payload: ScheduledTaskDetai
           <DescriptionList.Item descriptionClassName="font-mono text-xs" label={t("scheduled_tasks.cron_expression_label")}>
             {payload.task.schedule_expression || payload.task.cron_expression || t("scheduled_tasks.none")}
           </DescriptionList.Item>
+          <DescriptionList.Item label={t("scheduled_tasks.field_timezone")}>{payload.task.schedule_timezone || t("scheduled_tasks.none")}</DescriptionList.Item>
           <DescriptionList.Item label={t("scheduled_tasks.field_fire_at")}>
             <AbsoluteTimestamp fallback={t("scheduled_tasks.none")} value={payload.task.fire_at} />
           </DescriptionList.Item>
@@ -624,7 +625,7 @@ function ScheduledTaskForm({
   // still in flight, a stale (possibly unrelated) explanation must not linger
   // next to newly-typed, unvalidated input. Before any preview has run yet,
   // fall back to the persisted explanation (edit mode's initial render).
-  const previewMatchesInput = preview.data?.schedule_input === values.schedule_input
+  const previewMatchesInput = preview.data?.schedule_input === values.schedule_input && preview.data?.schedule_timezone === values.schedule_timezone
   const previewErrors = previewMatchesInput ? preview.data?.errors || [] : []
   const previewExplanation = preview.data ? (previewMatchesInput ? preview.data.schedule_explanation : null) : values.schedule_explanation
   const previewSource = previewMatchesInput ? preview.data?.source : null
@@ -632,9 +633,9 @@ function ScheduledTaskForm({
   useEffect(() => {
     if (values.kind !== "cron" || !values.schedule_input.trim()) return
 
-    const timer = window.setTimeout(() => preview.mutate(values.schedule_input), 300)
+    const timer = window.setTimeout(() => preview.mutate({ scheduleInput: values.schedule_input, scheduleTimezone: values.schedule_timezone }), 300)
     return () => window.clearTimeout(timer)
-  }, [values.kind, values.schedule_input])
+  }, [values.kind, values.schedule_input, values.schedule_timezone])
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -666,17 +667,23 @@ function ScheduledTaskForm({
           <Form.Input onChange={(event) => setValues({ ...values, fire_at: event.target.value })} type="datetime-local" value={values.fire_at} />
         </Form.Field>
       ) : (
-        <Form.Field controlId="scheduled-task-schedule">
-          <Form.Label>{t("scheduled_tasks.field_schedule")}</Form.Label>
-          <Form.Input
-            onChange={(event) => setValues({ ...values, schedule_input: event.target.value, cron_expression: event.target.value })}
-            placeholder={t("scheduled_tasks.schedule_placeholder")}
-            type="text"
-            value={values.schedule_input}
-          />
-          <SchedulePreviewState errors={previewErrors} explanation={previewExplanation} loading={preview.isPending} source={previewSource} />
-          <Form.HelpText>{t("scheduled_tasks.schedule_help")}</Form.HelpText>
-        </Form.Field>
+        <>
+          <Form.Field controlId="scheduled-task-schedule">
+            <Form.Label>{t("scheduled_tasks.field_schedule")}</Form.Label>
+            <Form.Input
+              onChange={(event) => setValues({ ...values, schedule_input: event.target.value, cron_expression: event.target.value })}
+              placeholder={t("scheduled_tasks.schedule_placeholder")}
+              type="text"
+              value={values.schedule_input}
+            />
+            <SchedulePreviewState errors={previewErrors} explanation={previewExplanation} loading={preview.isPending} source={previewSource} />
+            <Form.HelpText>{t("scheduled_tasks.schedule_help")}</Form.HelpText>
+          </Form.Field>
+          <Form.Field controlId="scheduled-task-timezone">
+            <Form.Label>{t("scheduled_tasks.field_timezone")}</Form.Label>
+            <Form.Input onChange={(event) => setValues({ ...values, schedule_timezone: event.target.value })} type="text" value={values.schedule_timezone} />
+          </Form.Field>
+        </>
       )}
       <Form.Field controlId="scheduled-task-pileup">
         <Form.Label>{t("scheduled_tasks.field_pileup")}</Form.Label>
