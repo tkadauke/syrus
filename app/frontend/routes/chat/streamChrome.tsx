@@ -5,9 +5,6 @@ import { TONE_CHIP_CLASSES, type SemanticTone } from "../../components/ui"
 import { useT } from "../../hooks/useT"
 import { providerLabel } from "./utils"
 
-
-
-
 // Chat message-stream chrome extracted from Chat.tsx: the timestamp, day
 // divider, decorative wave line, system-messages toggle, and the agent-
 // activity / switching-provider indicators rendered around the message list.
@@ -49,7 +46,11 @@ export function SystemMessagesToggle({ count, expanded, onToggle }: { count: num
   const { t } = useT("chat")
   return (
     <div className="flex justify-center">
-      <button className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800" onClick={onToggle} type="button">
+      <button
+        className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 shadow-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+        onClick={onToggle}
+        type="button"
+      >
         {expanded ? t("hide_system_messages") : t("show_system_messages", { count })}
       </button>
     </div>
@@ -89,16 +90,13 @@ export function getStartingPhrase() {
 
 export function AgentActivityIndicator({ running, activity }: { running: boolean; activity?: ChatAgentActivity | null }) {
   const { t } = useT("chat")
-  const workingPhrase = useMemo(
-    () => WORKING_PHRASES[Math.floor(Math.random() * WORKING_PHRASES.length)],
-    []
-  )
+  const workingPhrase = useMemo(() => WORKING_PHRASES[Math.floor(Math.random() * WORKING_PHRASES.length)], [])
   const phrase = running ? workingPhrase : getStartingPhrase()
   const activityLabel = activity
     ? t("agent_activity_aria", {
-      label: activity.label,
-      elapsed: activity.elapsed_seconds == null ? t("agent_activity_elapsed_unknown") : formatElapsed(activity.elapsed_seconds)
-    })
+        label: activity.label,
+        elapsed: activity.elapsed_seconds == null ? t("agent_activity_elapsed_unknown") : formatElapsed(activity.elapsed_seconds)
+      })
     : null
   const ariaLabel = activityLabel ? `${phrase.english}; ${activityLabel}` : phrase.english
 
@@ -107,22 +105,22 @@ export function AgentActivityIndicator({ running, activity }: { running: boolean
       <div className="inline-flex items-center gap-2 rounded-full border border-info/20 bg-info/10 px-3 py-1.5 text-xs font-medium text-info shadow-sm dark:border-info/30 dark:bg-info/10 dark:text-info">
         <span aria-hidden="true" className="inline-flex items-center gap-1">
           {[0, 1, 2].map((index) => (
-            <span
-              className="h-1.5 w-1.5 animate-bounce rounded-full bg-info"
-              key={index}
-              style={{ animationDelay: `${index * 140}ms` }}
-            />
+            <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-info" key={index} style={{ animationDelay: `${index * 140}ms` }} />
           ))}
         </span>
         <span title={phrase.english}>{phrase.latin}</span>
         {activity ? (
           <>
-            <span aria-hidden="true" className="text-info/45">·</span>
+            <span aria-hidden="true" className="text-info/45">
+              ·
+            </span>
             <span title={activityLabel || undefined}>{activity.label}</span>
           </>
         ) : null}
         {activity?.elapsed_seconds != null ? (
-          <span className="text-info/70" title={t("agent_activity_elapsed_title")}>{formatElapsed(activity.elapsed_seconds)}</span>
+          <span className="text-info/70" title={t("agent_activity_elapsed_title")}>
+            {formatElapsed(activity.elapsed_seconds)}
+          </span>
         ) : null}
       </div>
     </div>
@@ -135,7 +133,8 @@ const RETRY_INDICATOR_TONES: Record<"exhausted" | "circuitOpen" | "default", Sem
   default: "neutral",
   exhausted: "danger"
 }
-const RETRY_NOW_BUTTON_CLASSES = "inline-flex h-6 shrink-0 items-center rounded-full bg-surface px-2 text-[11px] font-semibold text-current shadow-sm ring-1 ring-current/20 hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60"
+const RETRY_NOW_BUTTON_CLASSES =
+  "inline-flex h-6 shrink-0 items-center rounded-full bg-surface px-2 text-[11px] font-semibold text-current shadow-sm ring-1 ring-current/20 hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60"
 const SWITCHING_INDICATOR_CLASSES = "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium shadow-sm ring-1"
 const BOUNCING_DOT_CLASSES = "h-1.5 w-1.5 animate-bounce rounded-full bg-current"
 
@@ -159,7 +158,9 @@ export function TurnRetryIndicator({
     `${retry.retry_budget_remaining} left`,
     nextRetry ? `next ${nextRetry}` : null,
     retry.provider_circuit_open ? "provider circuit open" : null
-  ].filter(Boolean).join(" · ")
+  ]
+    .filter(Boolean)
+    .join(" · ")
   const label = nextRetry
     ? `${retry.state_label} · attempt ${retry.retry_attempt_count}/${retry.retry_budget} · next ${nextRetry}`
     : `${retry.state_label} · attempt ${retry.retry_attempt_count}/${retry.retry_budget}`
@@ -173,24 +174,26 @@ export function TurnRetryIndicator({
     <div aria-label={details} aria-live="polite" className="flex justify-start" role="status">
       <div className={classes(RETRY_INDICATOR_BASE_CLASSES, TONE_CHIP_CLASSES[tone])} title={details}>
         <span className="whitespace-nowrap">{retry.state_label}</span>
-        <span aria-hidden="true" className="text-current/45">·</span>
-        <span className="whitespace-nowrap">attempt {retry.retry_attempt_count}/{retry.retry_budget}</span>
+        <span aria-hidden="true" className="text-current/45">
+          ·
+        </span>
+        <span className="whitespace-nowrap">
+          attempt {retry.retry_attempt_count}/{retry.retry_budget}
+        </span>
         {nextRetry ? (
           <>
-            <span aria-hidden="true" className="text-current/45">·</span>
+            <span aria-hidden="true" className="text-current/45">
+              ·
+            </span>
             <span className="whitespace-nowrap">next {nextRetry}</span>
           </>
         ) : null}
         {canRetryNow ? (
           <>
-            <span aria-hidden="true" className="hidden text-current/45 min-[360px]:inline">·</span>
-            <button
-              aria-label={t("retry_turn_now")}
-              className={RETRY_NOW_BUTTON_CLASSES}
-              disabled={retryNowPending}
-              onClick={onRetryNow}
-              type="button"
-            >
+            <span aria-hidden="true" className="hidden text-current/45 min-[360px]:inline">
+              ·
+            </span>
+            <button aria-label={t("retry_turn_now")} className={RETRY_NOW_BUTTON_CLASSES} disabled={retryNowPending} onClick={onRetryNow} type="button">
               {retryNowPending ? t("retry_turn_now_pending") : t("retry_turn_now_short")}
             </button>
           </>
@@ -250,11 +253,7 @@ export function SwitchingProviderIndicator({ provider, providerLabel: labelOverr
       <div className={classes(SWITCHING_INDICATOR_CLASSES, TONE_CHIP_CLASSES.warning)}>
         <span aria-hidden="true" className="inline-flex items-center gap-1">
           {[0, 1, 2].map((index) => (
-            <span
-              className={BOUNCING_DOT_CLASSES}
-              key={index}
-              style={{ animationDelay: `${index * 140}ms` }}
-            />
+            <span className={BOUNCING_DOT_CLASSES} key={index} style={{ animationDelay: `${index * 140}ms` }} />
           ))}
         </span>
         <span>{label}</span>

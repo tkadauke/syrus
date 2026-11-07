@@ -32,5 +32,4 @@ RSpec.describe "bin/check-frontend-bundle-size" do
     expect(status).not_to be_success
     expect(stderr).to include("budget is")
   end
-
 end
