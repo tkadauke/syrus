@@ -1,17 +1,62 @@
-# Decisions
+# Architecture decisions
 
-This directory owns architecture decision records (ADRs): durable choices whose
-context and tradeoffs would otherwise be lost. The decision's accountable
-maintainer owns its record. Use numbered, immutable records with a status,
-context, decision, consequences, and links to superseded decisions. Amend
-clarifications in place; replace a changed decision with a new ADR that marks
-the old one superseded.
+This directory owns architecture decision records (ADRs): durable explanations
+of why consequential, cross-cutting choices were made. Architecture pages
+describe how the checked-out system works now; an ADR preserves the context,
+choice, and tradeoffs that should inform a future change. Executable behavior
+and tests remain the source of truth when implementation and prose disagree.
+The maintainer accountable for the affected subsystem owns the record and its
+evidence links.
 
-ADRs constrain design but do not claim that planned behavior is already
-implemented. The checked-out executable system remains the source for current
-behavior. Temporary proposals and investigation evidence belong in
-[`docs/plans/`](../../plans/).
+## Records
 
-No ADRs have been accepted in this hierarchy yet.
+| ADR | Status | Decision |
+| --- | --- | --- |
+| [ADR-0001](0001-poll-github-instead-of-receiving-webhooks.md) | accepted | Poll GitHub instead of receiving inbound webhooks |
+| [ADR-0002](0002-keep-plugin-documentation-with-its-plugin.md) | accepted | Keep plugin-owned documentation with its plugin |
+
+## Format and lifecycle
+
+Copy [the template](TEMPLATE.md) to
+`NNNN-short-kebab-case-title.md`. Allocate the next four-digit number and keep
+both the number and filename forever; the front matter identifier is
+`ADR-NNNN`. Required lifecycle states are:
+
+- `proposed`: under review and not yet binding.
+- `accepted`: the decision constrains future work.
+- `superseded`: replaced by one or more newer ADRs.
+- `retired`: deliberately no longer applicable, without a replacement.
+
+Every record has YAML front matter with `id`, `title`, `status`, `date`,
+`supersedes`, and `superseded_by`. Link relationships use ADR identifiers. A
+superseded ADR names its replacements in `superseded_by`, and each replacement
+names it in `supersedes`. Add the replacement and reciprocal links instead of
+rewriting the old context, decision, or consequences. Small factual
+clarifications and repaired evidence links are fine, but history stays visible.
+
+The index and metadata are validated by
+`spec/architecture/engineering_decisions_spec.rb` for stable filenames, unique
+identifiers, complete index coverage, lifecycle metadata, and reciprocal links.
+
+## Choosing the durable home for knowledge
+
+When repository memory, an incident, or a historical audit produces a recurring
+lesson, verify it against current code, tests, configuration, and canonical
+documentation before promoting it. Do not turn ambiguous historical artifacts
+into policy.
+
+- Update **architecture** when the result says how the system works now.
+- Update a **convention** when contributors must follow a repeatable practice;
+  add executable enforcement where reliable.
+- Add a **pitfall** when a recurring failure needs symptoms, cause, and
+  prevention recorded.
+- Add an **ADR** when future maintainers need the rationale and tradeoffs behind
+  a consequential choice.
+
+One finding can require more than one synchronized update—for example, an ADR
+for rationale and an architecture edit for current mechanics. Put temporary or
+instance-specific evidence in `docs/plans/`, cite stable canonical evidence in
+the promoted document, and update the owning documentation in the same pull
+request as behavior changes.
 
 Return to the [engineering documentation index](../README.md).
