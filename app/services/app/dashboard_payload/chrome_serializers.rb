@@ -35,7 +35,6 @@ module App
             count: count,
             count_capped: count_info&.fetch(:count_capped, false) || false,
             active: active_smart_folder&.id == folder.id,
-            filter: folder.filter,
             attention_preset: folder.attention_preset,
             path: dashboard_path_for(subject, smart_folder_id: folder.id)
           }
@@ -193,8 +192,7 @@ module App
           kanban_lanes: user.dashboard_visible_kanban_lanes(subject),
           ownership_scope: ownership_scope,
           owner_user_id: selected_owner_user&.id,
-          owner_id: selected_owner_user&.id,
-          raw: user.dashboard_preferences.fetch(table)
+          owner_id: selected_owner_user&.id
         }
       end
 
