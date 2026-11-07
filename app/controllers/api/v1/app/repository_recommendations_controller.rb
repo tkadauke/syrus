@@ -97,7 +97,6 @@ module Api
             render_error("validation_failed", repository.errors.full_messages.to_sentence, status: :unprocessable_content)
           end
         end
-
       end
     end
   end
