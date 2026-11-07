@@ -2,6 +2,30 @@ require "set"
 
 module WorkEngine
   class Reconciler
+    # Solid Queue 1.7.2 records the exact semaphore row acquired by a job and
+    # requires that identity again when releasing it. Inline reconciles use an
+    # ActiveJob instance rather than a persisted SolidQueue::Job, so adapt the
+    # concurrency contract explicitly instead of letting a release target a
+    # newer semaphore that happens to reuse the same key.
+    class SemaphoreLock
+      attr_reader :acquired_semaphore_id
+
+      def initialize(job)
+        @job = job
+      end
+
+      def acquire
+        @acquired_semaphore_id = SolidQueue::Semaphore.wait(self)
+        acquired_semaphore_id.present?
+      end
+
+      def release = SolidQueue::Semaphore.signal(self)
+      def concurrency_key = @job.concurrency_key
+      def concurrency_limit = @job.concurrency_limit
+      def concurrency_duration = @job.concurrency_duration
+      def acquired_concurrency_limit = concurrency_limit
+    end
+
     ORPHAN_RUN_GRACE_PERIOD = ReapStaleRunsJob::ORPHAN_RUN_GRACE_PERIOD
     DETACHED_WORKER_EVIDENCE_GRACE = 3.minutes
     NON_AGENTIC_NO_PROCESS_GRACE = 3.minutes
@@ -168,29 +192,24 @@ module WorkEngine
     # already does elsewhere in this class.
     def self.call_locked!(source:, job_id: nil, workflow_id: nil, run_id: nil, work_intent_id: nil, now: Time.current, execute_repairs: false)
       lock_job = ReconcileJob.new(source: source.to_s, job_id: job_id, workflow_id: workflow_id, run_id: run_id, work_intent_id: work_intent_id)
+      lock = SemaphoreLock.new(lock_job)
 
       semaphore_available = true
       locked =
         begin
-          SolidQueue::Semaphore.wait(lock_job)
+          lock.acquire
         rescue ActiveRecord::StatementInvalid, ActiveRecord::ConnectionNotEstablished, NameError => e
           Rails.logger.warn("[WorkEngine::Reconciler] SolidQueue semaphore unavailable (#{e.class}: #{e.message}); running #{source} reconcile without a concurrency lock")
           semaphore_available = false
           nil
         end
       return nil if semaphore_available && !locked
-
-      if locked
-        lock_job.define_singleton_method(:acquired_semaphore_id) { locked }
-        lock_job.define_singleton_method(:acquired_concurrency_limit) { concurrency_limit }
-      end
-
       begin
         call(source: source, job_id: job_id, workflow_id: workflow_id, run_id: run_id, work_intent_id: work_intent_id, now: now, execute_repairs: execute_repairs)
       ensure
         if locked
           begin
-            SolidQueue::Semaphore.signal(lock_job)
+            lock.release
           rescue StandardError => e
             Rails.logger.warn("[WorkEngine::Reconciler] failed to release SolidQueue semaphore for #{lock_job.concurrency_key}: #{e.class}: #{e.message}")
           end

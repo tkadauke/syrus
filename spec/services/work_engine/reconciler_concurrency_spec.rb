@@ -27,12 +27,10 @@ RSpec.describe "WorkEngine::Reconciler.call_locked!" do
     enqueued_jobs.select { |enqueued| enqueued["job_class"] == "RunJob" }.map { |enqueued| enqueued["arguments"].first }
   end
 
-  def acquire_semaphore!(job)
-    semaphore_id = SolidQueue::Semaphore.wait(job)
-    expect(semaphore_id).to be_present
-    job.define_singleton_method(:acquired_semaphore_id) { semaphore_id }
-    job.define_singleton_method(:acquired_concurrency_limit) { concurrency_limit }
-    job
+  def acquire_reconcile_lock(job)
+    WorkEngine::Reconciler::SemaphoreLock.new(job).tap do |lock|
+      expect(lock.acquire).to be(true)
+    end
   end
 
   # Regression coverage for a production "run storm": two
@@ -49,7 +47,7 @@ RSpec.describe "WorkEngine::Reconciler.call_locked!" do
     clear_enqueued_jobs
 
     concurrent_reconcile = WorkEngine::ReconcileJob.new(source: "other-worker", job_id: job.id)
-    acquire_semaphore!(concurrent_reconcile)
+    concurrent_lock = acquire_reconcile_lock(concurrent_reconcile)
 
     result = WorkEngine::Reconciler.call_locked!(source: "spec", job_id: job.id, execute_repairs: true)
 
@@ -57,7 +55,7 @@ RSpec.describe "WorkEngine::Reconciler.call_locked!" do
     expect(run.reload.state).to eq("queued")
     expect(enqueued_run_job_ids).to be_empty
 
-    SolidQueue::Semaphore.signal(concurrent_reconcile)
+    concurrent_lock.release
 
     result = WorkEngine::Reconciler.call_locked!(source: "spec", job_id: job.id, execute_repairs: true)
 
@@ -70,7 +68,7 @@ RSpec.describe "WorkEngine::Reconciler.call_locked!" do
     other_job = Factories.job(agent_provider: "claude")
 
     concurrent_reconcile = WorkEngine::ReconcileJob.new(source: "other-worker", job_id: job.id)
-    acquire_semaphore!(concurrent_reconcile)
+    acquire_reconcile_lock(concurrent_reconcile)
 
     result = WorkEngine::Reconciler.call_locked!(source: "spec", job_id: other_job.id, execute_repairs: true)
 
@@ -82,8 +80,7 @@ RSpec.describe "WorkEngine::Reconciler.call_locked!" do
     expect(result).to be_a(WorkEngine::Reconciler::Result)
 
     still_locked = WorkEngine::ReconcileJob.new(source: "spec-check", job_id: job.id)
-    acquire_semaphore!(still_locked)
-    SolidQueue::Semaphore.signal(still_locked)
+    acquire_reconcile_lock(still_locked).release
   end
 
   it "releases the lock even when the reconcile body raises" do
@@ -93,8 +90,7 @@ RSpec.describe "WorkEngine::Reconciler.call_locked!" do
       .to raise_error(RuntimeError, "boom")
 
     still_locked = WorkEngine::ReconcileJob.new(source: "spec-check", job_id: job.id)
-    acquire_semaphore!(still_locked)
-    SolidQueue::Semaphore.signal(still_locked)
+    acquire_reconcile_lock(still_locked).release
   end
 
   it "falls back to running unlocked when the SolidQueue semaphore table is unavailable" do
