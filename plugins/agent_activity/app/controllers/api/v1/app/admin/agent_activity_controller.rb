@@ -42,17 +42,23 @@ module Api
           end
 
           def artifacts
-            run = Run.select(:id, :job_id, :step_id, :base_sha, :head_sha).includes(:job, step: :workflow).find_by(id: params[:run_id])
+            run = Run.select(:id, :job_id, :step_id, :base_sha, :head_sha, :state, :updated_at).includes(:job, step: :workflow).find_by(id: params[:run_id])
             unless run
               render_error("not_found", "Run not found.", status: :not_found)
               return
             end
 
+            artifact = params[:artifact].presence || "transcript"
+            max_sequence = run.job_logs.maximum(:sequence) if artifact == "transcript"
+            validator = artifact == "transcript" ? max_sequence : [ run.updated_at, artifact ]
+            return unless stale?(etag: [ "run-artifact", run.id, artifact, validator, params[:after_sequence] ], public: false)
+
             render json: ::App::RunArtifactsPayload.build(
               run: run,
-              artifact: params[:artifact],
+              artifact: artifact,
               page: params[:page],
-              per: params[:per]
+              per: params[:per],
+              after_sequence: params[:after_sequence]
             )
           end
 
