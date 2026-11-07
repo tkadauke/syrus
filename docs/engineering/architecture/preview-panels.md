@@ -265,7 +265,7 @@ scratch alternative.
 ## Configuration
 
 Reuses `SYRUS_PREVIEW_BASE_DOMAIN` (see [Preview
-Environments](preview-environments.md#configuration)) — no separate
+Environments](../operations/preview-environments.md#environment-variables)) — no separate
 environment variable.
 
 ## Handing a mockup to an implementation Job
