@@ -4477,37 +4477,35 @@ describe("App", () => {
   })
 
   it("surfaces readiness failures on the dashboard", async () => {
-    const script = document.createElement("script")
-    script.id = "syrus-bootstrap-data"
-    script.type = "application/json"
-    script.textContent = JSON.stringify(
-      bootstrapPayload({
-        setup_status: {
-          ...setupStatus(),
-          readiness: {
-            status: "error",
-            checks: [
-              {
-                key: "worker_queue",
-                label: "Worker/queue",
-                status: "error",
-                message: "No Solid Queue worker processes are registered.",
-                remediation: "Start the worker process with bin/jobs and confirm it can connect to the queue database.",
-                optional: false
-              },
-              {
-                key: "github",
-                label: "GitHub",
-                status: "ok",
-                message: "GitHub accepted the configured personal access token.",
-                remediation: null,
-                optional: false
-              }
-            ]
-          }
+    setupApiMock.mockResolvedValue(
+      setupStatus({
+        readiness: {
+          status: "error",
+          checks: [
+            {
+              key: "worker_queue",
+              label: "Worker/queue",
+              status: "error",
+              message: "No Solid Queue worker processes are registered.",
+              remediation: "Start the worker process with bin/jobs and confirm it can connect to the queue database.",
+              optional: false
+            },
+            {
+              key: "github",
+              label: "GitHub",
+              status: "ok",
+              message: "GitHub accepted the configured personal access token.",
+              remediation: null,
+              optional: false
+            }
+          ]
         }
       })
     )
+    const script = document.createElement("script")
+    script.id = "syrus-bootstrap-data"
+    script.type = "application/json"
+    script.textContent = JSON.stringify(bootstrapPayload())
     document.body.appendChild(script)
     const fetchSpy = mockDashboardFetch(dashboardPayload({ subject: "job", view: "list", items: [dashboardJobItem()] }))
 
@@ -9609,10 +9607,11 @@ describe("App", () => {
   })
 
   it("points an empty repositories index to the setup next action", async () => {
+    setupApiMock.mockResolvedValue(bootstrapSetupStatusPayload({ nextStep: "configure_credentials" }))
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
     script.type = "application/json"
-    script.textContent = JSON.stringify(bootstrapPayload({ setupStatus: bootstrapSetupStatusPayload({ nextStep: "configure_credentials" }) }))
+    script.textContent = JSON.stringify(bootstrapPayload())
     document.body.appendChild(script)
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       if (String(input) === "/api/v1/app/chats") {
