@@ -24,5 +24,10 @@
   "running": "läuft",
   "open_owner": "Zugehörige Funktion öffnen",
   "open_schedule": "Geplanten Task öffnen",
+  "open_main_chat": "Hauptchat öffnen",
+  "open_coworker": "Coworker öffnen",
+  "coworker_identity": "{{name}} {{handle}}",
+  "after_run": "Nach dem Lauf: {{policy}}",
+  "system_schedule": "Systemzeitplan: {{key}}",
   "cadence_bands": "Hochfrequente Taktbänder"
 }
