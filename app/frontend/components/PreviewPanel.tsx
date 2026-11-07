@@ -2,7 +2,17 @@ import { useEffect, useRef, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useT } from "../hooks/useT"
-import { fetchDeploy, fetchPreview, fetchPreviewLogs, startDeploy, startPreview, stopPreview, type DeployWorkflowRecord, type PreviewEnvironmentRecord, type PreviewProjectRecord } from "../api/jobs"
+import {
+  fetchDeploy,
+  fetchPreview,
+  fetchPreviewLogs,
+  startDeploy,
+  startPreview,
+  stopPreview,
+  type DeployWorkflowRecord,
+  type PreviewEnvironmentRecord,
+  type PreviewProjectRecord
+} from "../api/jobs"
 import { createDirectJob } from "../api/directJobs"
 import { errorMessage } from "../lib/errorMessage"
 import { Button, buttonClasses } from "./Button"
@@ -39,11 +49,17 @@ function useCountdown(expiresAt: string | null) {
   const [remaining, setRemaining] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!expiresAt) { setRemaining(null); return }
+    if (!expiresAt) {
+      setRemaining(null)
+      return
+    }
 
     function update() {
       const ms = new Date(expiresAt!).getTime() - Date.now()
-      if (ms <= 0) { setRemaining(null); return }
+      if (ms <= 0) {
+        setRemaining(null)
+        return
+      }
       const totalSeconds = Math.floor(ms / 1000)
       const minutes = Math.floor(totalSeconds / 60)
       const seconds = totalSeconds % 60
@@ -121,9 +137,10 @@ export function PreviewPanel({
   const env = preview.data.preview
   const previewProjects = preview.data.preview_projects ?? initialPreviewProjects
   const previewProjectIds = previewProjects.map((project) => project.id).join("\u0000")
-  const selectedPreviewProjectId = previewProjects.length > 1
-    ? previewProjects.find((project) => project.id === selectedProjectId)?.id ?? previewProjects[0]?.id ?? null
-    : previewProjects[0]?.id ?? selectedProjectId
+  const selectedPreviewProjectId =
+    previewProjects.length > 1
+      ? (previewProjects.find((project) => project.id === selectedProjectId)?.id ?? previewProjects[0]?.id ?? null)
+      : (previewProjects[0]?.id ?? selectedProjectId)
 
   useEffect(() => {
     if (previewProjects.length <= 1) return
@@ -195,19 +212,20 @@ export function PreviewPanel({
   })
 
   const fixPreview = useMutation({
-    mutationFn: () => createDirectJob({
-      repositoryId: String(repositoryId),
-      agentProvider: "",
-      model: "",
-      effortLevel: "",
-      epicId: "",
-      title: t("preview_fix_job_title"),
-      prompt: buildPreviewFixPrompt(env?.error_message ?? ""),
-      priority: "high",
-      createMore: false,
-      files: [],
-      googleDocUrl: ""
-    }),
+    mutationFn: () =>
+      createDirectJob({
+        repositoryId: String(repositoryId),
+        agentProvider: "",
+        model: "",
+        effortLevel: "",
+        epicId: "",
+        title: t("preview_fix_job_title"),
+        prompt: buildPreviewFixPrompt(env?.error_message ?? ""),
+        priority: "high",
+        createMore: false,
+        files: [],
+        googleDocUrl: ""
+      }),
     onSuccess: (created) => navigate(withRoutePrefix(created.redirect_to, routePrefix(location.pathname))),
     onError: (err) => setError(errorMessage(err, t("preview_fix_error")))
   })
@@ -217,9 +235,7 @@ export function PreviewPanel({
 
   const showDeploy = Boolean(deployPath) && (canDeploy || Boolean(deployRecord))
 
-  const previewUnavailableMessage = previewUnavailableReason === "no_affected_preview_project"
-    ? t("preview_no_affected_project")
-    : null
+  const previewUnavailableMessage = previewUnavailableReason === "no_affected_preview_project" ? t("preview_no_affected_project") : null
 
   if (!canStart && !env && !showDeploy && !previewUnavailableMessage) return null
 
@@ -229,12 +245,14 @@ export function PreviewPanel({
     <section className="rounded border border-gray-200 bg-white p-4 text-sm dark:border-gray-700 dark:bg-gray-900" aria-label={t("preview_section")}>
       <h2 className="font-semibold text-gray-900 dark:text-gray-100">{t("preview_section")}</h2>
       <div className="mt-3 space-y-2">
-        {previewUnavailableMessage ? (
-          <p className="text-xs text-gray-500 dark:text-gray-400">{previewUnavailableMessage}</p>
-        ) : null}
-        {(canStart || env) ? (
+        {previewUnavailableMessage ? <p className="text-xs text-gray-500 dark:text-gray-400">{previewUnavailableMessage}</p> : null}
+        {canStart || env ? (
           <>
-            {error ? <p className="text-xs text-red-600 dark:text-red-400" role="alert">{error}</p> : null}
+            {error ? (
+              <p className="text-xs text-red-600 dark:text-red-400" role="alert">
+                {error}
+              </p>
+            ) : null}
             <PreviewControls
               env={env ?? null}
               canStart={canStart}
@@ -250,30 +268,32 @@ export function PreviewPanel({
               onStop={() => stop.mutate()}
               t={t}
             />
-            {env ? <PreviewLogs queryKeyPrefix={queryKeyPrefix} entityId={entityId} previewLogsPath={previewLogsPath} running={env.state === "running"} /> : null}
+            {env ? (
+              <PreviewLogs queryKeyPrefix={queryKeyPrefix} entityId={entityId} previewLogsPath={previewLogsPath} running={env.state === "running"} />
+            ) : null}
             {env?.state === "running" && !expired && countdown ? (
               <p className="text-xs text-gray-500 dark:text-gray-400">{t("preview_expires_in", { time: countdown })}</p>
             ) : null}
-            {expired ? (
-              <p className="text-xs text-amber-600 dark:text-amber-400">{t("preview_expired")}</p>
-            ) : null}
+            {expired ? <p className="text-xs text-amber-600 dark:text-amber-400">{t("preview_expired")}</p> : null}
             {env?.state === "failed" && env.error_message ? (
-              <p className="text-xs text-red-600 dark:text-red-400" role="alert">{env.error_message}</p>
+              <p className="text-xs text-red-600 dark:text-red-400" role="alert">
+                {env.error_message}
+              </p>
             ) : null}
             {env?.state === "failed" && env.error_reason === "not_reachable" ? (
-              <Button
-                size="sm"
-                disabled={fixPreview.isPending}
-                onClick={() => fixPreview.mutate()}
-              >
+              <Button size="sm" disabled={fixPreview.isPending} onClick={() => fixPreview.mutate()}>
                 {t("preview_fix_button")}
               </Button>
             ) : null}
           </>
         ) : null}
         {showDeploy ? (
-          <div className={(canStart || env) ? "mt-2 border-t border-gray-100 pt-2 dark:border-gray-800" : ""}>
-            {deployError ? <p className="text-xs text-red-600 dark:text-red-400" role="alert">{deployError}</p> : null}
+          <div className={canStart || env ? "mt-2 border-t border-gray-100 pt-2 dark:border-gray-800" : ""}>
+            {deployError ? (
+              <p className="text-xs text-red-600 dark:text-red-400" role="alert">
+                {deployError}
+              </p>
+            ) : null}
             <DeployControls
               deploy={deployRecord ?? null}
               canDeploy={Boolean(canDeploy)}
@@ -293,7 +313,17 @@ function previewProjectStorageKey(queryKeyPrefix: string, entityId: number) {
   return `syrus:${queryKeyPrefix}:${entityId}:preview_project_id`
 }
 
-function PreviewLogs({ queryKeyPrefix, entityId, previewLogsPath, running }: { queryKeyPrefix: string; entityId: number; previewLogsPath: string; running: boolean }) {
+function PreviewLogs({
+  queryKeyPrefix,
+  entityId,
+  previewLogsPath,
+  running
+}: {
+  queryKeyPrefix: string
+  entityId: number
+  previewLogsPath: string
+  running: boolean
+}) {
   const { t } = useT("jobs")
   const [open, setOpen] = useState(false)
 
@@ -365,18 +395,20 @@ function PreviewLogsModal({
         </button>
       </div>
       <div className="space-y-2 overflow-auto p-4">
-          {logs.isPending ? <p className="text-xs text-gray-500 dark:text-gray-400">{t("preview_logs_loading")}</p> : null}
-          {logs.isError ? <p className="text-xs text-red-600 dark:text-red-400">{t("preview_logs_error")}</p> : null}
-          {logs.data?.logs.length === 0 ? <p className="text-xs text-gray-500 dark:text-gray-400">{t("preview_logs_empty")}</p> : null}
-          {logs.data?.logs.map((log) => (
-            <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700" key={log.path}>
-              <div className="flex items-center justify-between bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                <span>{log.path}</span>
-                {log.missing ? <span className="text-amber-600 dark:text-amber-400">{t("preview_logs_missing")}</span> : null}
-              </div>
-              <pre className="max-h-56 overflow-auto bg-gray-950 p-2 text-2xs leading-4 text-gray-100" tabIndex={0}>{log.missing ? "" : log.content || t("preview_logs_empty_content")}</pre>
+        {logs.isPending ? <p className="text-xs text-gray-500 dark:text-gray-400">{t("preview_logs_loading")}</p> : null}
+        {logs.isError ? <p className="text-xs text-red-600 dark:text-red-400">{t("preview_logs_error")}</p> : null}
+        {logs.data?.logs.length === 0 ? <p className="text-xs text-gray-500 dark:text-gray-400">{t("preview_logs_empty")}</p> : null}
+        {logs.data?.logs.map((log) => (
+          <div className="overflow-hidden rounded border border-gray-200 dark:border-gray-700" key={log.path}>
+            <div className="flex items-center justify-between bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+              <span>{log.path}</span>
+              {log.missing ? <span className="text-amber-600 dark:text-amber-400">{t("preview_logs_missing")}</span> : null}
             </div>
-          ))}
+            <pre className="max-h-56 overflow-auto bg-gray-950 p-2 text-2xs leading-4 text-gray-100" tabIndex={0}>
+              {log.missing ? "" : log.content || t("preview_logs_empty_content")}
+            </pre>
+          </div>
+        ))}
       </div>
     </Modal>
   )
@@ -414,22 +446,16 @@ function PreviewControls({
         {previewProjects.length > 1 ? (
           <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">
             <span className="mb-1 block">{t("preview_project_label")}</span>
-            <Select
-              className="py-1.5"
-              value={selectedProjectId ?? ""}
-              onChange={(event) => onSelectProject(event.currentTarget.value)}
-            >
+            <Select className="py-1.5" value={selectedProjectId ?? ""} onChange={(event) => onSelectProject(event.currentTarget.value)}>
               {previewProjects.map((project) => (
-                <option key={project.id} value={project.id}>{project.label}</option>
+                <option key={project.id} value={project.id}>
+                  {project.label}
+                </option>
               ))}
             </Select>
           </label>
         ) : null}
-        <Button
-          size="sm"
-          disabled={isPending || (previewProjects.length > 1 && !selectedProjectId)}
-          onClick={onStart}
-        >
+        <Button size="sm" disabled={isPending || (previewProjects.length > 1 && !selectedProjectId)} onClick={onStart}>
           {t("preview_start")}
         </Button>
       </div>
@@ -466,11 +492,7 @@ function PreviewControls({
   if (state === "running") {
     if (expired) {
       return (
-        <Button
-          size="sm"
-          disabled={isPending}
-          onClick={onStart}
-        >
+        <Button size="sm" disabled={isPending} onClick={onStart}>
           {t("preview_restart")}
         </Button>
       )
@@ -478,23 +500,11 @@ function PreviewControls({
 
     return (
       <div className="flex flex-wrap items-center gap-2">
-        {env!.project_label ? (
-          <span className="text-xs text-gray-500 dark:text-gray-400">{env!.project_label}</span>
-        ) : null}
-        <a
-          className={buttonClasses("success", "sm")}
-          href={env!.url ?? "#"}
-          rel="noopener noreferrer"
-          target="_blank"
-        >
+        {env!.project_label ? <span className="text-xs text-gray-500 dark:text-gray-400">{env!.project_label}</span> : null}
+        <a className={buttonClasses("success", "sm")} href={env!.url ?? "#"} rel="noopener noreferrer" target="_blank">
           {t("preview_open")}
         </a>
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={isPending}
-          onClick={onStop}
-        >
+        <Button variant="secondary" size="sm" disabled={isPending} onClick={onStop}>
           {t("preview_stop")}
         </Button>
       </div>
@@ -534,7 +544,10 @@ function DeployControls({
   if (!state) return deployButton
 
   const viewLink = (
-    <Link className="text-xs font-medium text-gray-600 underline decoration-gray-300 underline-offset-2 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100" to={withRoutePrefix(deploy!.path, prefix)}>
+    <Link
+      className="text-xs font-medium text-gray-600 underline decoration-gray-300 underline-offset-2 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+      to={withRoutePrefix(deploy!.path, prefix)}
+    >
       {t("deploy_view")}
     </Link>
   )
@@ -551,9 +564,12 @@ function DeployControls({
     )
   }
 
-  const statusLabel = state === "succeeded"
-    ? <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">{t("deploy_succeeded")}</span>
-    : <span className="text-xs font-medium text-red-600 dark:text-red-400">{state === "cancelled" ? t("deploy_cancelled") : t("deploy_failed_status")}</span>
+  const statusLabel =
+    state === "succeeded" ? (
+      <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">{t("deploy_succeeded")}</span>
+    ) : (
+      <span className="text-xs font-medium text-red-600 dark:text-red-400">{state === "cancelled" ? t("deploy_cancelled") : t("deploy_failed_status")}</span>
+    )
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -573,13 +589,7 @@ function Spinner() {
   )
 }
 
-export function PreviewStopModal({
-  onStop,
-  onKeepRunning
-}: {
-  onStop: () => void
-  onKeepRunning: () => void
-}) {
+export function PreviewStopModal({ onStop, onKeepRunning }: { onStop: () => void; onKeepRunning: () => void }) {
   const { t } = useT("jobs")
   const cancelRef = useRef<HTMLButtonElement>(null)
 
@@ -597,19 +607,12 @@ export function PreviewStopModal({
         </h2>
         <p className="text-sm text-gray-700 dark:text-gray-300">{t("preview_stop_on_action_body")}</p>
         <div className="flex justify-end gap-3">
-            <Button
-              variant="secondary"
-              onClick={onKeepRunning}
-              ref={cancelRef}
-            >
-              {t("preview_keep_running")}
-            </Button>
-            <Button
-              variant="danger"
-              onClick={onStop}
-            >
-              {t("preview_stop_yes")}
-            </Button>
+          <Button variant="secondary" onClick={onKeepRunning} ref={cancelRef}>
+            {t("preview_keep_running")}
+          </Button>
+          <Button variant="danger" onClick={onStop}>
+            {t("preview_stop_yes")}
+          </Button>
         </div>
       </div>
     </Modal>
