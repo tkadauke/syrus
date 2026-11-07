@@ -1,0 +1,20 @@
+{
+  "nav": "Calendarium",
+  "title": "Calendarium operationum",
+  "description": "Ordines destinati, excitationes, et valetudo executionum.",
+  "controls": "Moderamina calendarii",
+  "previous": "Hebdomas prior",
+  "today": "Hodie",
+  "next": "Hebdomas proxima",
+  "source_filter": "Fons eventuum",
+  "all_sources": "Omnes fontes",
+  "category_filter": "Genus eventuum",
+  "all_categories": "Omnia genera",
+  "view_filter": "Forma calendarii",
+  "week": "Hebdomas",
+  "agenda": "Agenda",
+  "loading": "Calendarium oneratur…",
+  "error": "Eventus calendarii onerari non potuerunt.",
+  "partial": "Nonnulli fontes eventuum nunc non praesto sunt.",
+  "empty": "Nulli eventus hoc spatio."
+}
