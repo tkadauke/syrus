@@ -10,10 +10,10 @@ import { GitHistory } from "./GitHistory"
 // Stub the hover-triggered preview cards so the popup-card assertion below
 // doesn't need to also mock their own job/epic detail fetches.
 vi.mock("@app/components/JobPreviewCard", () => ({
-  JobPreviewCard: ({ id }: { id: number }) => <div data-testid="job-preview-card">JOB-{id}</div>,
+  JobPreviewCard: ({ id }: { id: number }) => <div data-testid="job-preview-card">JOB-{id}</div>
 }))
 vi.mock("@app/components/EpicPreviewCard", () => ({
-  EpicPreviewCard: ({ id }: { id: number }) => <div data-testid="epic-preview-card">EPIC-{id}</div>,
+  EpicPreviewCard: ({ id }: { id: number }) => <div data-testid="epic-preview-card">EPIC-{id}</div>
 }))
 
 function mockMatchMedia(matches: boolean) {
@@ -27,8 +27,8 @@ function mockMatchMedia(matches: boolean) {
       removeListener: vi.fn(),
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    })),
+      dispatchEvent: vi.fn()
+    }))
   })
 }
 
@@ -63,19 +63,23 @@ describe("GitHistory", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("renders a Syrus-landed commit with its epic, job, and creating user", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
-      {
-        sha: "a".repeat(40),
-        short_sha: "aaaaaaaaaa",
-        subject: "Add dark mode toggle",
-        authored_at: "2026-08-20T10:00:00Z",
-        classification: "syrus_landed",
-        job: { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
-        epic: { id: 9, slug: "EPIC-9", title: "Theming" },
-        user: { id: 3, display_name: "Ada Lovelace" },
-        origin: { type: "github_issue", issue_number: 12, issue_url: "https://github.com/acme/widgets/issues/12" }
-      }
-    ])))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        page([
+          {
+            sha: "a".repeat(40),
+            short_sha: "aaaaaaaaaa",
+            subject: "Add dark mode toggle",
+            authored_at: "2026-08-20T10:00:00Z",
+            classification: "syrus_landed",
+            job: { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
+            epic: { id: 9, slug: "EPIC-9", title: "Theming" },
+            user: { id: 3, display_name: "Ada Lovelace" },
+            origin: { type: "github_issue", issue_number: 12, issue_url: "https://github.com/acme/widgets/issues/12" }
+          }
+        ])
+      )
+    )
 
     renderRoute(<GitHistory />)
 
@@ -89,18 +93,22 @@ describe("GitHistory", () => {
 
   it("wraps job and epic slug links in a hover-triggered popup card (which itself offers a copy button)", async () => {
     mockMatchMedia(true)
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
-      {
-        sha: "a".repeat(40),
-        short_sha: "aaaaaaaaaa",
-        subject: "Add dark mode toggle",
-        authored_at: "2026-08-20T10:00:00Z",
-        classification: "syrus_landed",
-        job: { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
-        epic: { id: 9, slug: "EPIC-9", title: "Theming" },
-        user: { id: 3, display_name: "Ada Lovelace" }
-      }
-    ])))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        page([
+          {
+            sha: "a".repeat(40),
+            short_sha: "aaaaaaaaaa",
+            subject: "Add dark mode toggle",
+            authored_at: "2026-08-20T10:00:00Z",
+            classification: "syrus_landed",
+            job: { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
+            epic: { id: 9, slug: "EPIC-9", title: "Theming" },
+            user: { id: 3, display_name: "Ada Lovelace" }
+          }
+        ])
+      )
+    )
 
     renderRoute(<GitHistory />)
 
@@ -110,11 +118,15 @@ describe("GitHistory", () => {
     vi.useFakeTimers()
     try {
       fireEvent.mouseEnter(jobLink.parentElement!)
-      await act(async () => { vi.advanceTimersByTime(300) })
+      await act(async () => {
+        vi.advanceTimersByTime(300)
+      })
       expect(screen.getByTestId("job-preview-card")).toBeInTheDocument()
 
       fireEvent.mouseEnter(epicLink.parentElement!)
-      await act(async () => { vi.advanceTimersByTime(300) })
+      await act(async () => {
+        vi.advanceTimersByTime(300)
+      })
       expect(screen.getByTestId("epic-preview-card")).toBeInTheDocument()
     } finally {
       vi.useRealTimers()
@@ -122,20 +134,24 @@ describe("GitHistory", () => {
   })
 
   it("renders an epic_landed commit with the epic and every member job", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
-      {
-        sha: "1".repeat(40),
-        short_sha: "1111111111",
-        subject: "Merge Epic #9 via Syrus merge-train",
-        authored_at: "2026-08-22T10:00:00Z",
-        classification: "epic_landed",
-        epic: { id: 9, slug: "EPIC-9", title: "Theming" },
-        jobs: [
-          { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
-          { id: 43, slug: "JOB-43", title: "Add light mode toggle" }
-        ]
-      }
-    ])))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        page([
+          {
+            sha: "1".repeat(40),
+            short_sha: "1111111111",
+            subject: "Merge Epic #9 via Syrus merge-train",
+            authored_at: "2026-08-22T10:00:00Z",
+            classification: "epic_landed",
+            epic: { id: 9, slug: "EPIC-9", title: "Theming" },
+            jobs: [
+              { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
+              { id: 43, slug: "JOB-43", title: "Add light mode toggle" }
+            ]
+          }
+        ])
+      )
+    )
 
     renderRoute(<GitHistory />)
 
@@ -147,16 +163,20 @@ describe("GitHistory", () => {
   })
 
   it("renders an epic_reconciliation commit with only the epic", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
-      {
-        sha: "2".repeat(40),
-        short_sha: "2222222222",
-        subject: "Syrus merge-train reconciliation",
-        authored_at: "2026-08-22T11:00:00Z",
-        classification: "epic_reconciliation",
-        epic: { id: 9, slug: "EPIC-9", title: "Theming" }
-      }
-    ])))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        page([
+          {
+            sha: "2".repeat(40),
+            short_sha: "2222222222",
+            subject: "Syrus merge-train reconciliation",
+            authored_at: "2026-08-22T11:00:00Z",
+            classification: "epic_reconciliation",
+            epic: { id: 9, slug: "EPIC-9", title: "Theming" }
+          }
+        ])
+      )
+    )
 
     renderRoute(<GitHistory />)
 
@@ -167,20 +187,24 @@ describe("GitHistory", () => {
   })
 
   it("renders a bundle_landed commit with the bundle id and every member job", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
-      {
-        sha: "1".repeat(40),
-        short_sha: "1111111111",
-        subject: "Land job bundle #5: 2 approved Jobs",
-        authored_at: "2026-08-22T10:00:00Z",
-        classification: "bundle_landed",
-        bundle: { id: 5 },
-        jobs: [
-          { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
-          { id: 43, slug: "JOB-43", title: "Add light mode toggle" }
-        ]
-      }
-    ])))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        page([
+          {
+            sha: "1".repeat(40),
+            short_sha: "1111111111",
+            subject: "Land job bundle #5: 2 approved Jobs",
+            authored_at: "2026-08-22T10:00:00Z",
+            classification: "bundle_landed",
+            bundle: { id: 5 },
+            jobs: [
+              { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
+              { id: 43, slug: "JOB-43", title: "Add light mode toggle" }
+            ]
+          }
+        ])
+      )
+    )
 
     renderRoute(<GitHistory />)
 
@@ -192,16 +216,20 @@ describe("GitHistory", () => {
   })
 
   it("renders a bundle_reconciliation commit with only the bundle id", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
-      {
-        sha: "2".repeat(40),
-        short_sha: "2222222222",
-        subject: "Syrus merge-train reconciliation",
-        authored_at: "2026-08-22T11:00:00Z",
-        classification: "bundle_reconciliation",
-        bundle: { id: 5 }
-      }
-    ])))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        page([
+          {
+            sha: "2".repeat(40),
+            short_sha: "2222222222",
+            subject: "Syrus merge-train reconciliation",
+            authored_at: "2026-08-22T11:00:00Z",
+            classification: "bundle_reconciliation",
+            bundle: { id: 5 }
+          }
+        ])
+      )
+    )
 
     renderRoute(<GitHistory />)
 
@@ -212,21 +240,25 @@ describe("GitHistory", () => {
   })
 
   it("renders an externally-opened PR commit distinctly from a raw push", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
-      {
-        sha: "b".repeat(40),
-        short_sha: "bbbbbbbbbb",
-        subject: "Fix typo in readme",
-        authored_at: "2026-08-19T10:00:00Z",
-        classification: "external_pr",
-        job: { id: 100, slug: "JOB-100", title: "external contribution" },
-        pr_number: 55,
-        pr_url: "https://github.com/acme/widgets/pull/55",
-        github_author: "octocat",
-        author: { name: "octocat", email: "octocat@example.com" },
-        committer: { name: "octocat", email: "octocat@example.com" }
-      }
-    ])))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        page([
+          {
+            sha: "b".repeat(40),
+            short_sha: "bbbbbbbbbb",
+            subject: "Fix typo in readme",
+            authored_at: "2026-08-19T10:00:00Z",
+            classification: "external_pr",
+            job: { id: 100, slug: "JOB-100", title: "external contribution" },
+            pr_number: 55,
+            pr_url: "https://github.com/acme/widgets/pull/55",
+            github_author: "octocat",
+            author: { name: "octocat", email: "octocat@example.com" },
+            committer: { name: "octocat", email: "octocat@example.com" }
+          }
+        ])
+      )
+    )
 
     renderRoute(<GitHistory />)
 
@@ -237,17 +269,21 @@ describe("GitHistory", () => {
   })
 
   it("renders a raw external push commit with git author attribution", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
-      {
-        sha: "c".repeat(40),
-        short_sha: "cccccccccc",
-        subject: "Direct commit straight to main",
-        authored_at: "2026-08-18T10:00:00Z",
-        classification: "external_push",
-        author: { name: "Grace Hopper", email: "grace@example.com" },
-        committer: { name: "Grace Hopper", email: "grace@example.com" }
-      }
-    ])))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        page([
+          {
+            sha: "c".repeat(40),
+            short_sha: "cccccccccc",
+            subject: "Direct commit straight to main",
+            authored_at: "2026-08-18T10:00:00Z",
+            classification: "external_push",
+            author: { name: "Grace Hopper", email: "grace@example.com" },
+            committer: { name: "Grace Hopper", email: "grace@example.com" }
+          }
+        ])
+      )
+    )
 
     renderRoute(<GitHistory />)
 
@@ -258,19 +294,23 @@ describe("GitHistory", () => {
   })
 
   it("does not render a chat link when the API omits chat_session_id", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
-      {
-        sha: "d".repeat(40),
-        short_sha: "dddddddddd",
-        subject: "Ship it quietly",
-        authored_at: "2026-08-17T10:00:00Z",
-        classification: "syrus_landed",
-        job: { id: 55, slug: "JOB-55", title: "Ship it quietly" },
-        epic: null,
-        user: { id: 4, display_name: "Owner" },
-        origin: { type: "chat" }
-      }
-    ])))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        page([
+          {
+            sha: "d".repeat(40),
+            short_sha: "dddddddddd",
+            subject: "Ship it quietly",
+            authored_at: "2026-08-17T10:00:00Z",
+            classification: "syrus_landed",
+            job: { id: 55, slug: "JOB-55", title: "Ship it quietly" },
+            epic: null,
+            user: { id: 4, display_name: "Owner" },
+            origin: { type: "chat" }
+          }
+        ])
+      )
+    )
 
     renderRoute(<GitHistory />)
 
@@ -289,29 +329,41 @@ describe("GitHistory", () => {
   })
 
   it("loads older commits via cursor-based pagination", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch")
-      .mockResolvedValueOnce(jsonResponse(page([
-        {
-          sha: "e".repeat(40),
-          short_sha: "eeeeeeeeee",
-          subject: "Recent commit",
-          authored_at: "2026-08-21T10:00:00Z",
-          classification: "external_push",
-          author: { name: "Someone", email: "someone@example.com" },
-          committer: { name: "Someone", email: "someone@example.com" }
-        }
-      ], { has_more: true, next_cursor: "e".repeat(40) })))
-      .mockResolvedValueOnce(jsonResponse(page([
-        {
-          sha: "f".repeat(40),
-          short_sha: "ffffffffff",
-          subject: "Older commit",
-          authored_at: "2026-08-15T10:00:00Z",
-          classification: "external_push",
-          author: { name: "Someone Else", email: "else@example.com" },
-          committer: { name: "Someone Else", email: "else@example.com" }
-        }
-      ])))
+    const fetchSpy = vi
+      .spyOn(window, "fetch")
+      .mockResolvedValueOnce(
+        jsonResponse(
+          page(
+            [
+              {
+                sha: "e".repeat(40),
+                short_sha: "eeeeeeeeee",
+                subject: "Recent commit",
+                authored_at: "2026-08-21T10:00:00Z",
+                classification: "external_push",
+                author: { name: "Someone", email: "someone@example.com" },
+                committer: { name: "Someone", email: "someone@example.com" }
+              }
+            ],
+            { has_more: true, next_cursor: "e".repeat(40) }
+          )
+        )
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(
+          page([
+            {
+              sha: "f".repeat(40),
+              short_sha: "ffffffffff",
+              subject: "Older commit",
+              authored_at: "2026-08-15T10:00:00Z",
+              classification: "external_push",
+              author: { name: "Someone Else", email: "else@example.com" },
+              committer: { name: "Someone Else", email: "else@example.com" }
+            }
+          ])
+        )
+      )
 
     renderRoute(<GitHistory />)
 
@@ -327,50 +379,54 @@ describe("GitHistory", () => {
   })
 
   it("nests member Jobs' implementation commits under their Epic group instead of listing them flat", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
-      {
-        sha: "1".repeat(40),
-        short_sha: "1111111111",
-        subject: "Merge Epic #9 via Syrus merge-train",
-        authored_at: "2026-08-22T10:00:00Z",
-        classification: "epic_landed",
-        epic: { id: 9, slug: "EPIC-9", title: "Theming" },
-        jobs: [
-          { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
-          { id: 43, slug: "JOB-43", title: "Add light mode toggle" }
-        ]
-      },
-      {
-        sha: "2".repeat(40),
-        short_sha: "2222222222",
-        subject: "Implement dark mode toggle",
-        authored_at: "2026-08-22T09:00:00Z",
-        classification: "syrus_landed",
-        job: { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
-        epic: { id: 9, slug: "EPIC-9", title: "Theming" },
-        user: { id: 3, display_name: "Ada Lovelace" }
-      },
-      {
-        sha: "3".repeat(40),
-        short_sha: "3333333333",
-        subject: "Autofix dark mode formatting",
-        authored_at: "2026-08-22T08:50:00Z",
-        classification: "syrus_landed",
-        job: { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
-        epic: { id: 9, slug: "EPIC-9", title: "Theming" },
-        user: { id: 3, display_name: "Ada Lovelace" }
-      },
-      {
-        sha: "4".repeat(40),
-        short_sha: "4444444444",
-        subject: "Implement light mode toggle",
-        authored_at: "2026-08-22T08:00:00Z",
-        classification: "syrus_landed",
-        job: { id: 43, slug: "JOB-43", title: "Add light mode toggle" },
-        epic: { id: 9, slug: "EPIC-9", title: "Theming" },
-        user: { id: 4, display_name: "Grace Hopper" }
-      }
-    ])))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        page([
+          {
+            sha: "1".repeat(40),
+            short_sha: "1111111111",
+            subject: "Merge Epic #9 via Syrus merge-train",
+            authored_at: "2026-08-22T10:00:00Z",
+            classification: "epic_landed",
+            epic: { id: 9, slug: "EPIC-9", title: "Theming" },
+            jobs: [
+              { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
+              { id: 43, slug: "JOB-43", title: "Add light mode toggle" }
+            ]
+          },
+          {
+            sha: "2".repeat(40),
+            short_sha: "2222222222",
+            subject: "Implement dark mode toggle",
+            authored_at: "2026-08-22T09:00:00Z",
+            classification: "syrus_landed",
+            job: { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
+            epic: { id: 9, slug: "EPIC-9", title: "Theming" },
+            user: { id: 3, display_name: "Ada Lovelace" }
+          },
+          {
+            sha: "3".repeat(40),
+            short_sha: "3333333333",
+            subject: "Autofix dark mode formatting",
+            authored_at: "2026-08-22T08:50:00Z",
+            classification: "syrus_landed",
+            job: { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
+            epic: { id: 9, slug: "EPIC-9", title: "Theming" },
+            user: { id: 3, display_name: "Ada Lovelace" }
+          },
+          {
+            sha: "4".repeat(40),
+            short_sha: "4444444444",
+            subject: "Implement light mode toggle",
+            authored_at: "2026-08-22T08:00:00Z",
+            classification: "syrus_landed",
+            job: { id: 43, slug: "JOB-43", title: "Add light mode toggle" },
+            epic: { id: 9, slug: "EPIC-9", title: "Theming" },
+            user: { id: 4, display_name: "Grace Hopper" }
+          }
+        ])
+      )
+    )
 
     renderRoute(<GitHistory />)
 
@@ -390,35 +446,39 @@ describe("GitHistory", () => {
   })
 
   it("groups a reconciliation commit under its Epic group, not attached to any member Job", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
-      {
-        sha: "1".repeat(40),
-        short_sha: "1111111111",
-        subject: "Merge Epic #9 via Syrus merge-train",
-        authored_at: "2026-08-22T10:00:00Z",
-        classification: "epic_landed",
-        epic: { id: 9, slug: "EPIC-9", title: "Theming" },
-        jobs: [{ id: 42, slug: "JOB-42", title: "Add dark mode toggle" }]
-      },
-      {
-        sha: "2".repeat(40),
-        short_sha: "2222222222",
-        subject: "Syrus merge-train reconciliation",
-        authored_at: "2026-08-22T09:30:00Z",
-        classification: "epic_reconciliation",
-        epic: { id: 9, slug: "EPIC-9", title: "Theming" }
-      },
-      {
-        sha: "3".repeat(40),
-        short_sha: "3333333333",
-        subject: "Implement dark mode toggle",
-        authored_at: "2026-08-22T09:00:00Z",
-        classification: "syrus_landed",
-        job: { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
-        epic: { id: 9, slug: "EPIC-9", title: "Theming" },
-        user: { id: 3, display_name: "Ada Lovelace" }
-      }
-    ])))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        page([
+          {
+            sha: "1".repeat(40),
+            short_sha: "1111111111",
+            subject: "Merge Epic #9 via Syrus merge-train",
+            authored_at: "2026-08-22T10:00:00Z",
+            classification: "epic_landed",
+            epic: { id: 9, slug: "EPIC-9", title: "Theming" },
+            jobs: [{ id: 42, slug: "JOB-42", title: "Add dark mode toggle" }]
+          },
+          {
+            sha: "2".repeat(40),
+            short_sha: "2222222222",
+            subject: "Syrus merge-train reconciliation",
+            authored_at: "2026-08-22T09:30:00Z",
+            classification: "epic_reconciliation",
+            epic: { id: 9, slug: "EPIC-9", title: "Theming" }
+          },
+          {
+            sha: "3".repeat(40),
+            short_sha: "3333333333",
+            subject: "Implement dark mode toggle",
+            authored_at: "2026-08-22T09:00:00Z",
+            classification: "syrus_landed",
+            job: { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
+            epic: { id: 9, slug: "EPIC-9", title: "Theming" },
+            user: { id: 3, display_name: "Ada Lovelace" }
+          }
+        ])
+      )
+    )
 
     renderRoute(<GitHistory />)
 
@@ -435,40 +495,44 @@ describe("GitHistory", () => {
   })
 
   it("nests member Jobs' implementation commits under their bundle group instead of listing them flat", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
-      {
-        sha: "1".repeat(40),
-        short_sha: "1111111111",
-        subject: "Land job bundle #5: 2 approved Jobs",
-        authored_at: "2026-08-22T10:00:00Z",
-        classification: "bundle_landed",
-        bundle: { id: 5 },
-        jobs: [
-          { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
-          { id: 43, slug: "JOB-43", title: "Add light mode toggle" }
-        ]
-      },
-      {
-        sha: "2".repeat(40),
-        short_sha: "2222222222",
-        subject: "Implement dark mode toggle",
-        authored_at: "2026-08-22T09:00:00Z",
-        classification: "syrus_landed",
-        job: { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
-        epic: null,
-        user: { id: 3, display_name: "Ada Lovelace" }
-      },
-      {
-        sha: "3".repeat(40),
-        short_sha: "3333333333",
-        subject: "Implement light mode toggle",
-        authored_at: "2026-08-22T08:00:00Z",
-        classification: "syrus_landed",
-        job: { id: 43, slug: "JOB-43", title: "Add light mode toggle" },
-        epic: null,
-        user: { id: 4, display_name: "Grace Hopper" }
-      }
-    ])))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        page([
+          {
+            sha: "1".repeat(40),
+            short_sha: "1111111111",
+            subject: "Land job bundle #5: 2 approved Jobs",
+            authored_at: "2026-08-22T10:00:00Z",
+            classification: "bundle_landed",
+            bundle: { id: 5 },
+            jobs: [
+              { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
+              { id: 43, slug: "JOB-43", title: "Add light mode toggle" }
+            ]
+          },
+          {
+            sha: "2".repeat(40),
+            short_sha: "2222222222",
+            subject: "Implement dark mode toggle",
+            authored_at: "2026-08-22T09:00:00Z",
+            classification: "syrus_landed",
+            job: { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
+            epic: null,
+            user: { id: 3, display_name: "Ada Lovelace" }
+          },
+          {
+            sha: "3".repeat(40),
+            short_sha: "3333333333",
+            subject: "Implement light mode toggle",
+            authored_at: "2026-08-22T08:00:00Z",
+            classification: "syrus_landed",
+            job: { id: 43, slug: "JOB-43", title: "Add light mode toggle" },
+            epic: null,
+            user: { id: 4, display_name: "Grace Hopper" }
+          }
+        ])
+      )
+    )
 
     renderRoute(<GitHistory />)
 
@@ -492,19 +556,23 @@ describe("GitHistory", () => {
     // LandedCommit-backed path -- there is no marker distinguishing the two,
     // so the frontend has nothing special to do and should render this
     // exactly like the standard Syrus-landed case.
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
-      {
-        sha: "a".repeat(40),
-        short_sha: "aaaaaaaaaa",
-        subject: "Add dark mode toggle",
-        authored_at: "2026-08-20T10:00:00Z",
-        classification: "syrus_landed",
-        job: { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
-        epic: { id: 9, slug: "EPIC-9", title: "Theming" },
-        user: { id: 3, display_name: "Ada Lovelace" },
-        origin: { type: "github_issue", issue_number: 12, issue_url: "https://github.com/acme/widgets/issues/12" }
-      }
-    ])))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        page([
+          {
+            sha: "a".repeat(40),
+            short_sha: "aaaaaaaaaa",
+            subject: "Add dark mode toggle",
+            authored_at: "2026-08-20T10:00:00Z",
+            classification: "syrus_landed",
+            job: { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
+            epic: { id: 9, slug: "EPIC-9", title: "Theming" },
+            user: { id: 3, display_name: "Ada Lovelace" },
+            origin: { type: "github_issue", issue_number: 12, issue_url: "https://github.com/acme/widgets/issues/12" }
+          }
+        ])
+      )
+    )
 
     renderRoute(<GitHistory />)
 
@@ -517,31 +585,35 @@ describe("GitHistory", () => {
   })
 
   it("visually de-emphasizes external commits relative to Syrus-attributed ones", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(page([
-      {
-        sha: "a".repeat(40),
-        short_sha: "aaaaaaaaaa",
-        subject: "Add dark mode toggle",
-        authored_at: "2026-08-20T10:00:00Z",
-        classification: "syrus_landed",
-        job: { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
-        epic: null,
-        user: { id: 3, display_name: "Ada Lovelace" }
-      },
-      {
-        sha: "b".repeat(40),
-        short_sha: "bbbbbbbbbb",
-        subject: "Fix typo in readme",
-        authored_at: "2026-08-19T10:00:00Z",
-        classification: "external_pr",
-        job: { id: 100, slug: "JOB-100", title: "external contribution" },
-        pr_number: 55,
-        pr_url: "https://github.com/acme/widgets/pull/55",
-        github_author: "octocat",
-        author: { name: "octocat", email: "octocat@example.com" },
-        committer: { name: "octocat", email: "octocat@example.com" }
-      }
-    ])))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        page([
+          {
+            sha: "a".repeat(40),
+            short_sha: "aaaaaaaaaa",
+            subject: "Add dark mode toggle",
+            authored_at: "2026-08-20T10:00:00Z",
+            classification: "syrus_landed",
+            job: { id: 42, slug: "JOB-42", title: "Add dark mode toggle" },
+            epic: null,
+            user: { id: 3, display_name: "Ada Lovelace" }
+          },
+          {
+            sha: "b".repeat(40),
+            short_sha: "bbbbbbbbbb",
+            subject: "Fix typo in readme",
+            authored_at: "2026-08-19T10:00:00Z",
+            classification: "external_pr",
+            job: { id: 100, slug: "JOB-100", title: "external contribution" },
+            pr_number: 55,
+            pr_url: "https://github.com/acme/widgets/pull/55",
+            github_author: "octocat",
+            author: { name: "octocat", email: "octocat@example.com" },
+            committer: { name: "octocat", email: "octocat@example.com" }
+          }
+        ])
+      )
+    )
 
     renderRoute(<GitHistory />)
 
