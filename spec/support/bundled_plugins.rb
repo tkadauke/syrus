@@ -12,6 +12,7 @@ module Syrus
         sdlc_pipeline spending_insights team_directory
       ].freeze
       EXAMPLE_ENABLED_PLUGIN_PATHS = {
+        "coworkers" => %r{\A\./spec/services/(?:app/coworker_review_projects|syrus_mcp/submit_adversarial_review_tool|syrus_yml)_spec\.rb\z},
         "git_history" => %r{\A\./plugins/git_history/spec/},
         "operator_briefing" => %r{\A\./plugins/operator_briefing/spec/}
       }.freeze

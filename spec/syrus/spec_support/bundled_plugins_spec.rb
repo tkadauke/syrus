@@ -75,6 +75,16 @@ RSpec.describe Syrus::SpecSupport::BundledPlugins do
       described_class.restore_example_plugin_records(core_example)
       expect(record.reload).not_to be_enabled
     end
+
+    it "enables coworkers for core specs that exercise its compatibility surface" do
+      record = PluginRecord.find_or_create_by!(name: "coworkers")
+      record.update!(enabled: false, disableable: true)
+      example = Struct.new(:metadata).new({ file_path: "./spec/services/syrus_yml_spec.rb" })
+
+      described_class.restore_example_plugin_records(example)
+
+      expect(record.reload).to be_enabled
+    end
   end
 
   describe ".with_default_beta_mode" do
