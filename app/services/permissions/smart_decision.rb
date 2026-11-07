@@ -41,6 +41,20 @@ module Permissions
       duration && payload_for(duration, eligible.fetch(duration))
     end
 
+    # Every safe duration is presented explicitly. This matters for operations
+    # such as SSH where chat-scoped and durable exact-command authority are
+    # meaningfully different operator choices.
+    def options
+      return [] unless supported?
+
+      return [ option ].compact unless item.operation.to_s.start_with?("ssh.execute/")
+
+      %w[chat_session permanent].filter_map do |duration|
+        preview = eligible[duration]
+        payload_for(duration, preview) if preview
+      end
+    end
+
     # Returns the applied rule or lease. Must run inside the request lock so the
     # rule and the invocation approval commit or roll back together.
     def apply_rule!(duration:, digest:)
@@ -96,7 +110,7 @@ module Permissions
 
     def payload_for(duration, preview)
       {
-        kind: KINDS.fetch(duration), duration:, digest: preview.digest, summary: preview.summary,
+        kind: kind_for(duration), duration:, digest: preview.digest, summary: preview.summary,
         draft: preview.draft, ceiling: preview.ceiling,
         context: {
           coworker: RequestPresenter.reference(request.subject)&.fetch(:label),
@@ -106,6 +120,12 @@ module Permissions
           duration:
         }
       }
+    end
+
+    def kind_for(duration)
+      return "always_allow_command" if duration == "permanent" && item.operation.to_s.start_with?("ssh.execute/")
+
+      KINDS.fetch(duration)
     end
   end
 end

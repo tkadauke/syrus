@@ -622,6 +622,7 @@ export type ChatAuthorizationItem = {
   prerequisite_ids: number[]
   presentation?: PermissionPresentation
   smart_option?: SmartPermissionOption | null
+  smart_options?: SmartPermissionOption[]
   resulting_authority?: PermissionAuthorityReference | null
   app_decision_path: string
   app_smart_decision_path?: string
