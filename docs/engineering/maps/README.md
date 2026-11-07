@@ -8,5 +8,7 @@ not replace architecture or conventions.
 - [Frontend and plugins](frontend-and-plugins.md)
 - [Tests](tests.md)
 - [Queues and databases](queues-and-databases.md)
+- [Detailed key-file reference](key-files-reference.md) — complete recurring
+  gotcha and source-file inventory.
 
 Return to the [engineering documentation index](../README.md).

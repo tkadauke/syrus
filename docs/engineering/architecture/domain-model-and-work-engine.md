@@ -52,6 +52,17 @@ See `app/models/user.rb`, `app/models/team.rb`,
 `app/policies/`. Operator-facing permission behavior is documented in
 [Permission authority](../../../config/syrus_docs/permission_authority.md).
 
+### Security limitations
+
+Repository membership and Pundit isolate ordinary application data, but the
+worker execution model is not a hostile multi-tenant sandbox. An authorized
+run can execute repository setup commands and agent-authored code with the
+worker's reachable resources. Syrus also has no tenant-wide concurrency or
+spend caps: queue and WorkUnit controls coordinate work, but do not provide a
+per-tenant security or billing boundary. Every user of one instance must be
+trusted with the potential blast radius of its agent workers. See
+[`SECURITY.md`](../../../SECURITY.md) for the deployment policy.
+
 ## Scheduling records
 
 `ScheduledTask` describes recurring work and `CronTemplate` supplies reusable
