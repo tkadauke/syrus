@@ -6385,6 +6385,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       previous_root = ENV["SYRUS_DATA_ROOT"]
       ENV["SYRUS_DATA_ROOT"] = dir
       FileUtils.mkdir_p(ImmutableSourceCheckout.path_for(step).to_s)
+      allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(false)
       workflow.update_columns(state: "running", started_at: 5.minutes.ago, worker_hostname: nil)
       step.update_columns(state: "running", started_at: 5.minutes.ago)
       run.update_columns(state: "running", started_at: 5.minutes.ago, last_heartbeat_at: 5.minutes.ago)
