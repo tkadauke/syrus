@@ -86,7 +86,7 @@ module ScheduledTasks
 
     def event(task, planned_at, job)
       workflow = job&.workflows&.min_by(&:created_at)
-      Calendar::Event.new(
+      {
         source_id: "scheduled_tasks:tasks",
         id: "task-#{task.id}-#{planned_at.utc.strftime('%Y%m%dT%H%M%SZ')}",
         kind: "scheduled_task",
@@ -109,7 +109,7 @@ module ScheduledTasks
           workflow_id: workflow&.id,
           workflow_state: workflow&.state
         }.compact
-      )
+      }
     end
 
     def occurrence_state(task, planned_at, job, workflow)
