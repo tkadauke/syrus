@@ -1380,10 +1380,7 @@ function JobAttentionLine({ job, includeBlockedReason = false }: { job: Dashboar
       {isNotableDeliveryStatus(job.delivery_status) ? <DeliveryStatusBadge status={job.delivery_status} /> : null}
       {job.retry_state && job.retry_state.state_label !== "No failure" ? <RetryStateInline job={job} /> : null}
       {job.state === "queued" && job.start_blocked_reason ? (
-        <StartBlockedReasonPill
-          reason={job.start_blocked_reason}
-          startBlockedAt={job.start_blocked_at}
-        />
+        <StartBlockedReasonPill reason={job.start_blocked_reason} startBlockedAt={job.start_blocked_at} />
       ) : null}
       {job.manual_paused ? <ManualPauseInline job={job} /> : null}
       {includeBlockedReason && job.blocked_reason ? (
