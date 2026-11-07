@@ -174,6 +174,7 @@ module Admin
       retry_from_current_pr_branch
       retry_job
       run_visual_review
+      run_visual_diff
       schedule_recurring
       spawn_chat
       submit_chat_feedback

@@ -1487,6 +1487,11 @@
     "preview_unavailable": "Preview unavailable",
     "open_image": "Open image"
   },
+  "run_visual_diff": {
+    "job": "Job",
+    "missing_target": "Not provided",
+    "comparison": "Before/after comparison"
+  },
   "image_preview_controls": "Image preview controls",
   "image_carousel_position": "Image carousel position",
   "copy": "Copy",

@@ -405,6 +405,14 @@ action when visual-review screenshots already exist. That dispatches
 `visual_diff` directly for operator inspection rather than changing the
 manual visual-review semantics.
 
+Chat exposes the same distinct action as the operator-confirmed
+`run_visual_diff` tool. It reuses usable screenshots from a prior visual
+review and creates a `visual_diff` Workflow only after confirmation. Missing
+screenshots and authentication or error-wall captures for another intended
+surface are reported as unavailable comparisons. Unlike `run_visual_review`,
+this tool captures the base revision and returns a before/after comparison
+artifact; it does not launch a fresh manual visual-review pass.
+
 ## Which workflows include visual review
 
 The automatic visual_review loop runs in `initial`, `retry`, `pr_comment`,

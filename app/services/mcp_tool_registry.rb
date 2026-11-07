@@ -370,6 +370,7 @@ class McpToolRegistry
         lifecycle_chat(Mcp::Tools::ReopenJobTool, tier: :deferred, mutation: true),
         lifecycle_chat(Mcp::Tools::PollJobFeedbackTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::RunVisualReviewTool, tier: :deferred, mutation: true),
+        legacy_chat(Mcp::Tools::RunVisualDiffTool, tier: :deferred, mutation: true),
         lifecycle_chat(Mcp::Tools::CheckJobMergeabilityTool, tier: :deferred, mutation: true),
         legacy_chat(Mcp::Tools::DelegateIssueTool, tier: :deferred, mutation: true),
         ingestion_chat(Mcp::Tools::ReadPrTool, tier: :deferred),
