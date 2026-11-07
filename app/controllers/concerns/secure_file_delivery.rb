@@ -27,16 +27,37 @@ module SecureFileDelivery
   end
 
   def send_secure_blob(blob, immutable: false)
-    return unless prepare_secure_file_delivery(etag: blob.checksum, immutable: immutable)
+    return unless immutable || prepare_secure_file_delivery(etag: blob.checksum, immutable: false)
+
+    chunks = blob_download_chunks(blob)
+    first_chunk = chunks.next
+  rescue StopIteration
+    stream_secure_blob(blob, chunks: [].each, immutable: immutable)
+  else
+    stream_secure_blob(blob, chunks: chunks, first_chunk: first_chunk, immutable: immutable)
+  end
+
+  def stream_secure_blob(blob, chunks:, first_chunk: nil, immutable:)
+    prepare_secure_file_delivery(etag: blob.checksum, immutable: true) if immutable
 
     content_type = blob.content_type.to_s.split(";", 2).first.downcase.presence || "application/octet-stream"
     disposition = INLINE_CONTENT_TYPES.include?(content_type) ? "inline" : "attachment"
     send_stream(
       filename: blob.filename.sanitized,
       disposition: blob.forced_disposition_for_serving || disposition,
-      type: blob.content_type.presence || "application/octet-stream"
+      type: content_type
     ) do |stream|
-      blob.download { |chunk| stream.write(chunk) }
+      stream.write(first_chunk) if first_chunk
+      loop { stream.write(chunks.next) }
+    end
+  end
+
+  # Pull the first storage chunk before send_stream commits its headers. This
+  # preserves callers' retryable JSON response when storage is unreachable,
+  # while the remaining chunks still flow directly from storage to the client.
+  def blob_download_chunks(blob)
+    Enumerator.new do |chunks|
+      blob.download { |chunk| chunks << chunk }
     end
   end
 
