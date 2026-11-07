@@ -22,7 +22,7 @@ export type DirectJobPromptTemplate = {
   id: string
   name: string
   description: string
-  prompt: string
+  prompt?: string
 }
 
 export type DirectJobPriority = {
@@ -85,6 +85,10 @@ export type DirectJobCreatedPayload = {
 
 export function fetchDirectJobForm(search = "") {
   return getJson<DirectJobFormPayload>(`/api/v1/app/jobs/new${search}`)
+}
+
+export function fetchDirectJobPromptTemplate(id: string) {
+  return getJson<{ id: string; prompt: string }>(`/api/v1/app/jobs/new/prompt_templates/${encodeURIComponent(id)}`)
 }
 
 export function createDirectJob(values: CreateDirectJobInput) {

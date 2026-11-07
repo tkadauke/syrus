@@ -296,6 +296,16 @@ RSpec.describe "App API job preview", type: :request do
       )
     end
 
+    it "clamps requested log lines before calling the preview control endpoint" do
+      env = create_preview_env(job, state: "running", internal_host: "10.0.0.5", expires_at: 10.minutes.from_now)
+      stub = stub_control_endpoint(env, lines: PreviewLogReader::MAX_LINES, body: { logs: [] }.to_json)
+
+      get "#{preview_logs_path(job)}?lines=#{PreviewLogReader::MAX_LINES + 1}", as: :json
+
+      expect(stub).to have_been_requested
+      expect(response).to have_http_status(:ok)
+    end
+
     it "returns service_unavailable when the preview control endpoint is unreachable" do
       env = create_preview_env(job, state: "running", internal_host: "10.0.0.5", expires_at: 10.minutes.from_now)
       stub_request(:get, "http://10.0.0.5:#{PreviewControlServer::PORT}/environments/#{env.id}/logs?lines=120")

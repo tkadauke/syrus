@@ -180,9 +180,21 @@ RSpec.describe "API: /api/v1/app/direct_jobs", :full_chat_access, type: :request
     expect(body.dig("provider_routing_options", "effort_levels").map { |option| option["value"] }).to include("high")
     expect(body["selected_repository_id"]).to eq(repository.id.to_s)
     expect(body["create_more"]).to eq(true)
-    expect(body["prompt_templates"]).to include(include("id" => "configure-syrus-prep", "prompt" => include("syrus")))
+    expect(body["prompt_templates"]).to include(include("id" => "configure-syrus-prep", "name" => "Configure Syrus build dependencies"))
+    expect(body["prompt_templates"].first).not_to have_key("prompt")
     expect(body["priorities"].map { |priority| priority["value"] }).to eq(%w[urgent high medium low])
     expect(body["accepted_file_content_types"]).to include("application/pdf")
+  end
+
+  it "loads a prompt template body separately with private caching" do
+    sign_in_as(user)
+
+    get "/api/v1/app/jobs/new/prompt_templates/configure-syrus-prep"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("id" => "configure-syrus-prep", "prompt" => include("syrus"))
+    expect(response.headers["ETag"]).to be_present
+    expect(response.headers["Cache-Control"]).to include("private")
   end
 
   it "includes writable shared repositories in the direct job form" do

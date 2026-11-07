@@ -49,7 +49,7 @@ module Api
 
         def dependency_options
           job = find_readable_job
-          render json: ::App::JobDetailPayload.build_dependency_options(job: job, user: Current.user)
+          render json: ::App::JobDetailPayload.build_dependency_options(job: job, user: Current.user, params: params)
         end
 
         def remove_dependency

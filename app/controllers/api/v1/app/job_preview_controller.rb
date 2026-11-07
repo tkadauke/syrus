@@ -19,7 +19,8 @@ module Api
           end
 
           begin
-            logs = PreviewLogClient.call(env, lines: params.fetch(:lines, PreviewLogReader::DEFAULT_LINES))
+            lines = params.fetch(:lines, PreviewLogReader::DEFAULT_LINES).to_i.clamp(1, PreviewLogReader::MAX_LINES)
+            logs = PreviewLogClient.call(env, lines: lines)
           rescue PreviewLogClient::Unavailable
             render_error("preview_logs_unavailable", I18n.t("api.preview.logs_unavailable"), status: :service_unavailable)
             return
