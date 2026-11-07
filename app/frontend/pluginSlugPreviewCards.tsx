@@ -19,7 +19,10 @@ type PluginModule = {
   default?: ComponentType<PluginSlugPreviewCardProps>
 }
 
-const slugPreviewCardModules = import.meta.glob<PluginModule>([ "../../plugins/*/app/frontend/slugPreviewCards/*.tsx", "!../../plugins/*/app/frontend/slugPreviewCards/*.test.tsx" ])
+const slugPreviewCardModules = import.meta.glob<PluginModule>([
+  "../../plugins/*/app/frontend/slugPreviewCards/*.tsx",
+  "!../../plugins/*/app/frontend/slugPreviewCards/*.test.tsx"
+])
 
 const componentLoaders = Object.fromEntries(
   Object.entries(slugPreviewCardModules)
