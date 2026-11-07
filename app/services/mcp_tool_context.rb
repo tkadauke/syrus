@@ -5,6 +5,7 @@ class McpToolContext
               :allowed_context_sources
   attr_reader :interactive
   attr_reader :agent_actor
+  attr_reader :permission_authorized
 
   def initialize(surface:, role:, user:, repository: nil, epic: nil, job: nil,
                  workflow: nil, run: nil, chat_session: nil,
@@ -12,7 +13,7 @@ class McpToolContext
                  allowed_job_ids: nil, allowed_workflow_ids: nil,
                  allowed_run_ids: nil, allowed_chat_session_ids: nil,
                  allowed_context_sources: nil, granted_capabilities: [], capability_scopes: {}, interactive: false,
-                 agent_actor: nil)
+                 agent_actor: nil, permission_authorized: false)
     @surface                = surface
     @role                   = role
     @user                   = user
@@ -36,6 +37,7 @@ class McpToolContext
     end
     @interactive              = interactive
     @agent_actor              = agent_actor
+    @permission_authorized    = permission_authorized
   end
 
   # Accepts a value or a callable; callables resolve (and memoize) on first
@@ -80,7 +82,7 @@ class McpToolContext
     )
   end
 
-  def self.from_chat_session(chat_session, evaluator: false, agent_actor: nil)
+  def self.from_chat_session(chat_session, evaluator: false, agent_actor: nil, permission_authorized: false)
     coworker = coworker_actor(agent_actor) || coworker_for_chat(chat_session)
     grant_rows = lambda do
       next [] unless coworker
@@ -103,7 +105,8 @@ class McpToolContext
       granted_capabilities: grant_rows,
       capability_scopes: {},
       interactive: interactive_turn?(chat_session),
-      agent_actor: coworker
+      agent_actor: coworker,
+      permission_authorized:
     )
   end
 
@@ -124,7 +127,8 @@ class McpToolContext
       from_chat_session(
         server_context[:chat_session],
         evaluator: server_context[:evaluator] == true,
-        agent_actor: server_context[:agent_actor]
+        agent_actor: server_context[:agent_actor],
+        permission_authorized: server_context[:permission_authorized] == true
       )
     else
       Mcp::Tools.with_database_connection do

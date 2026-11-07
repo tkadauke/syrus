@@ -121,10 +121,11 @@ ask per invocation. Loopback-only navigation, exact upload paths, admin and
 repository checks, and Coding Mode input leases remain hard safety ceilings.
 
 Credential Store SSH tools publish unified permission metadata evaluated from
-arguments before credential resolution. Authority is scoped to the credential
-handle and exact SSH destination, while the command is bound by a stable
-fingerprint. Read-only diagnostics and risky commands are classified
-separately, but both default to an exact-invocation prompt. Existing credential
+arguments before credential resolution. Interactive chat requests can be
+allowed once, for that chat, or permanently until revoked. Every grant is
+scoped to the credential handle and exact SSH destination, while the command is
+bound by a stable fingerprint. Read-only diagnostics and risky commands are
+classified separately and never share authority. Existing credential
 scope, destination and host-key checks, redaction, auditing, and short
 secret-material leases remain non-overridable ceilings. Runtime CLI wrappers
 continue to require authenticated Syrus invocation context and explicit

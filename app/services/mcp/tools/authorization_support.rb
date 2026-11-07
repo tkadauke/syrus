@@ -96,7 +96,10 @@ module Mcp::Tools
         # in another authorization request hides its preflight and creates a
         # redundant approval before the real action can even be reviewed.
         return if pending_action_tool?(tool)
-        return if claimed_actor_invocation_authorizes?(descriptor, context, server_context, arguments, tool)
+        if claimed_actor_invocation_authorizes?(descriptor, context, server_context, arguments, tool)
+          server_context[:permission_authorized] = true
+          return
+        end
 
         result = Permissions::AuthorizationRequest.new(
           context:, descriptor:, arguments:, purpose: "Invoke #{McpToolRegistry.tool_name_for(tool)}",
@@ -109,7 +112,10 @@ module Mcp::Tools
             "actor" => approval_actor(context.agent_actor || context.user)
           }.compact
         ).call
-        return if result.request.nil?
+        if result.request.nil?
+          server_context[:permission_authorized] = true
+          return
+        end
 
         request = result.request
         request.checkpoint_authorization!(payload: {

@@ -102,7 +102,11 @@ module CredentialStore
       raise_audited InvalidTarget, "user contains invalid characters" unless user.match?(USER_PATTERN)
       raise_audited OperatorConfirmationRequired, "chat SSH calls cannot self-authorize risky commands" if context.chat? && allow_risky_command
       raise_audited OperatorConfirmationRequired, "chat SSH calls cannot self-authorize unconstrained hosts" if context.chat? && allow_unconstrained_host
-      raise_audited RiskyCommand, "command requires explicit risky-command allowance" if risky_command? && !allow_risky_command
+      # Interactive chat calls pass through the generic permission classifier
+      # before reaching the broker. Workflow calls retain the explicit flag.
+      if risky_command? && !allow_risky_command && !(context.chat? && context.permission_authorized)
+        raise_audited RiskyCommand, "command requires explicit risky-command allowance"
+      end
     end
 
     def raise_audited(error_class, message)

@@ -541,6 +541,44 @@ describe("PendingActionCard", () => {
     )
   })
 
+  it("shows the redacted SSH invocation on an ordinary actor authorization card", () => {
+    renderCard(
+      pendingAction({
+        action: "authorized_tool_call",
+        request_kind: "authorization_request",
+        review: {
+          tool_name: "credential_store_ssh_exec",
+          arguments: {
+            credential_name: "production deploy",
+            host: "app.example.test",
+            user: "deploy",
+            command: "curl -H 'Authorization: Bearer [redacted]' https://app.example.test/health"
+          }
+        },
+        authorization_items: [
+          {
+            id: 42,
+            kind: "operation",
+            state: "pending",
+            capability: "ssh.execute",
+            operation: "ssh.execute/read",
+            effects: ["network_read", "credential_use"],
+            presentation: { statement: "Run a read-only SSH command", scope: "SSH deploy@app.example.test" },
+            prerequisite_ids: [],
+            app_decision_path: "/api/v1/app/chats/122/pending_actions/501/authorization_items/42/decision"
+          }
+        ]
+      })
+    )
+
+    expect(screen.getByText("Credential store ssh exec")).toBeInTheDocument()
+    expect(screen.getByText("production deploy")).toBeInTheDocument()
+    expect(screen.getByText(/Authorization: Bearer \[redacted\]/)).toBeInTheDocument()
+    expect(screen.getByText("SSH deploy@app.example.test")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Allow once" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Deny" })).toBeInTheDocument()
+  })
+
   it("renders a confirmed grant_permission call as a readable rule preview, not raw JSON", () => {
     renderCard(
       pendingAction({
