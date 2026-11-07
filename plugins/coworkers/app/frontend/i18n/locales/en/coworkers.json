@@ -156,6 +156,8 @@
     "run_now": "Run now",
     "system": "System",
     "journaling_paused": "Journaling paused",
+    "journaling_overdue": "Journaling overdue / failed: {{reason}}",
+    "missed_fire": "the scheduled fire was missed",
     "last_result": "Last result: {{result}} · journaled through {{date}}",
     "never_run": "never run",
     "system_run_time": "System schedule run time",

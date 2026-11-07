@@ -168,6 +168,37 @@ it("pins Syrus before custom coworkers and exposes creation", async () => {
   expect(screen.getByRole("link", { name: /New coworker/i })).toHaveAttribute("href", "/coworkers/new")
 })
 
+it("shows overdue journaling with the durable failure reason", async () => {
+  const payload = structuredClone(detailPayload)
+  payload.coworker.schedules.push({
+    id: 33,
+    name: "Journaling",
+    prompt: null,
+    kind: "cron",
+    state: "scheduled",
+    schedule_input: "30 0 * * *",
+    schedule_explanation: "Every day at 12:30 AM UTC",
+    fire_at: null,
+    next_fire_at: "2026-11-08T00:30:00Z",
+    last_fired_at: null,
+    after_run: "quiet",
+    system_key: "journaling",
+    last_journaled_on: "2026-11-05",
+    last_system_result: "failed",
+    last_system_result_reason: "RuntimeError: workspace locked",
+    journaling_overdue: true,
+    system_result_history: []
+  } as never)
+  vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(payload)))
+
+  renderRoute("/coworkers/7")
+
+  fireEvent.click(await screen.findByRole("button", { name: "Schedule" }))
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "Journaling overdue / failed: RuntimeError: workspace locked"
+  )
+})
+
 it("tests the remote and submits appearance, upload, grants, and About", async () => {
   const requests: Array<{ path: string; init?: RequestInit }> = []
   vi.stubGlobal(
