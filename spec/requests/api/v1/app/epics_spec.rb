@@ -1948,6 +1948,21 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
       )
     end
 
+    it "returns one edge for overlapping historical explicit and derived rows" do
+      now = Time.current
+      EpicDependency.insert_all!([
+        { epic_id: epic_b.id, depends_on_epic_id: epic_a.id, derived: false, created_at: now, updated_at: now },
+        { epic_id: epic_b.id, depends_on_epic_id: epic_a.id, derived: true, created_at: now, updated_at: now }
+      ])
+
+      get "/api/v1/app/epics/graph"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["edges"]).to contain_exactly(
+        { "from_id" => "epic_#{epic_a.id}", "to_id" => "epic_#{epic_b.id}" }
+      )
+    end
+
     it "returns only nodes with no edges when epics have no dependencies" do
       epic_a
       epic_b

@@ -1140,7 +1140,13 @@ module App
       max_commits_behind = visible_jobs.where(parent_job_id: nil).group(:epic_id).maximum(:commits_behind_base)
       grouped_counts = visible_jobs.group(:epic_id, :state, :closure_reason).count
       blocked_counts = blocked_epic_child_counts(epic_ids)
-      @epic_dependency_counts_by_epic_id = EpicDependency.where(epic_id: epic_ids).group(:epic_id).count
+      dependency_records = EpicDependency
+                             .where(epic_id: epic_ids)
+                             .select(:id, :epic_id, :depends_on_epic_id, :derived)
+                             .to_a
+      @epic_dependency_counts_by_epic_id = EpicDependency.effective(dependency_records).each_with_object(Hash.new(0)) do |dependency, counts|
+        counts[dependency.epic_id] += 1
+      end
 
       epic_ids.each do |epic_id|
         @epic_dashboard_job_stats_by_epic_id[epic_id] = {
