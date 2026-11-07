@@ -50,6 +50,8 @@
   "bulk_action_error": "Actio multa defecit.",
   "bulk_action_canceled": "Actio multa post {{completed}} ex {{total}} operibus omissa est.",
   "bulk_action_partial": "Actio multa pro {{succeeded}} ex {{total}} operibus completa est; {{failed}} defecerunt vel omissa sunt.",
+  "bulk_epic_action_canceled": "Actio multa post {{completed}} ex {{total}} Epicis omissa est.",
+  "bulk_epic_action_partial": "Actio multa pro {{succeeded}} ex {{total}} Epicis completa est; {{failed}} defecerunt vel omissa sunt.",
   "bulk_close_success_one": "{{count}} Job clausum est.",
   "bulk_close_success_other": "{{count}} Jobs clausa sunt.",
   "bulk_progress": {
@@ -65,6 +67,9 @@
     "approve": "{{completed}} ex {{total}} approbata",
     "accept_triage": "{{completed}} ex {{total}} accepta",
     "close": "{{completed}} ex {{total}} clausa"
+  },
+  "bulk_epic_progress": {
+    "start": "{{completed}} ex {{total}} in cursum mota"
   },
   "cancel": "Omitte",
   "canceling": "Omittitur…",
