@@ -27,7 +27,7 @@ module App
     }.freeze
     PER_PAGE = 25
     KANBAN_LIMIT_OPTIONS = [ 10, 25, 50, 100 ].freeze
-    KANBAN_PER_PAGE = 100
+    KANBAN_PER_PAGE = 25
     JOB_KANBAN_LANES = %w[backlog blocked queued running succeeded landing failed].freeze
     WORKFLOW_DONE_STATES = %w[succeeded failed cancelled blocked].freeze
     class InvalidScope < StandardError; end
@@ -85,7 +85,12 @@ module App
     end
 
     def rows_payload
-      result = PerformanceLogging.phase("dashboard_rows.current_result", subject: subject, view: view, ownership_scope: ownership_scope) { current_result }
+      lanes = PerformanceLogging.phase("dashboard_rows.lanes", subject: subject, view: view) { lanes_json }
+      result = if view == "kanban"
+        { total: lanes.sum { |lane| lane.fetch(:total_count) }, items: [] }
+      else
+        PerformanceLogging.phase("dashboard_rows.current_result", subject: subject, view: view, ownership_scope: ownership_scope) { current_result }
+      end
       {
         subject: subject,
         view: view,
@@ -101,7 +106,7 @@ module App
         landing_queue: PerformanceLogging.phase("dashboard_rows.landing_queue", subject: subject, view: view) { landing_queue_json },
         ui_panels: PerformanceLogging.phase("dashboard_rows.ui_panels", subject: subject, view: view) { ui_panels_json },
         items: result.fetch(:items),
-        lanes: PerformanceLogging.phase("dashboard_rows.lanes", subject: subject, view: view) { lanes_json },
+        lanes: lanes,
         kanban_limit: view == "kanban" ? kanban_limit : nil
       }
     end
@@ -351,7 +356,7 @@ module App
           :tags,
           :pr_links,
           :deployment_stage_statuses,
-          { dependencies: [ :depends_on_epic, { depends_on_job: [ :repository, :deployment_stage_statuses ] } ] },
+          { dependencies: [ :depends_on_epic, :depends_on_job ] },
           { chat_proposals: [ :chat_session, :message_anchors ] },
           { epic: { chat_proposals: [ :chat_session, :message_anchors ] } }
         )
