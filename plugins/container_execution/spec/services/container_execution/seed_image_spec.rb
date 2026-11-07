@@ -304,4 +304,30 @@ RSpec.describe ContainerExecution::SeedImage do
     def success = SeedImageCommandStatus.new(true, 0)
     def failure = SeedImageCommandStatus.new(false, 1)
   end
+  # `signal` here is unrescued, so a build that succeeded still failed on its
+  # way out when Solid Queue 1.7.2 began reading these off the lock to decide
+  # which semaphore row to credit. Asserted against the real gem rather than
+  # the injected fake, because the fake cannot break this.
+  describe "the build lock as a Solid Queue semaphore subject" do
+    let(:lock) { described_class::BuildLock.new("devcontainer_build:spec") }
+
+    it "answers everything SolidQueue::Semaphore asks of a job" do
+      %i[concurrency_key concurrency_limit concurrency_duration
+         acquired_semaphore_id acquired_concurrency_limit].each do |message|
+        expect(lock).to respond_to(message), "BuildLock must answer ##{message}"
+      end
+    end
+
+    it "takes and gives back a real semaphore slot without raising" do
+      ensure_solid_queue_test_tables!
+      clear_solid_queue_test_tables!
+
+      expect(SolidQueue::Semaphore.wait(lock)).to be_present
+      expect { SolidQueue::Semaphore.signal(lock) }.not_to raise_error
+      expect(SolidQueue::Semaphore.wait(described_class::BuildLock.new("devcontainer_build:spec")))
+        .to be_present
+    ensure
+      clear_solid_queue_test_tables!
+    end
+  end
 end
