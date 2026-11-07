@@ -30,9 +30,8 @@ module ScheduledTasks
     attr_reader :user, :starts_at, :ends_at
 
     def tasks
-      repository_ids = user.admin? ? Repository.all.select(:id) : Repository.accessible_repository_ids_for(user)
-      ScheduledTasks::Task.where(coworker_id: nil)
-        .where(repository_id: repository_ids)
+      ScheduledTasks::Task.where(user:, coworker_id: nil)
+        .where(repository_id: Repository.accessible_repository_ids_for(user))
         .includes(:repository)
     end
 
