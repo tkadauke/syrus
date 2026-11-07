@@ -33,9 +33,40 @@ export function timezoneOffsetLabel(): string {
   return parts.find((part) => part.type === "timeZoneName")?.value ?? ""
 }
 
-export function formatRelativeDate(date: Date, now = Date.now()): string {
+export function validTimeZone(timeZone: string | null | undefined, fallback = "UTC"): string {
+  if (!timeZone) return fallback
+  try {
+    new Intl.DateTimeFormat("en", { timeZone }).format()
+    return timeZone
+  } catch {
+    return fallback
+  }
+}
+
+export function calendarDayKey(date: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: validTimeZone(timeZone),
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date)
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || ""
+  return `${value("year")}-${value("month")}-${value("day")}`
+}
+
+function calendarDayDelta(date: Date, now: Date, timeZone: string): number {
+  const [year, month, day] = calendarDayKey(date, timeZone).split("-").map(Number)
+  const [nowYear, nowMonth, nowDay] = calendarDayKey(now, timeZone).split("-").map(Number)
+  return Math.round((Date.UTC(year, month - 1, day) - Date.UTC(nowYear, nowMonth - 1, nowDay)) / (24 * 60 * 60 * 1000))
+}
+
+export function formatRelativeDate(date: Date, now = Date.now(), timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone): string {
   const seconds = Math.round((date.getTime() - now) / 1000)
   const absSeconds = Math.abs(seconds)
+  const dayDelta = calendarDayDelta(date, new Date(now), validTimeZone(timeZone))
+  if (absSeconds >= 20 * 60 * 60 && Math.abs(dayDelta) <= 1) {
+    return new Intl.RelativeTimeFormat(intlLocale(), { numeric: "auto" }).format(dayDelta, "day")
+  }
   const [unit, divisor] = RELATIVE_UNITS.find(([, unitSeconds]) => absSeconds >= unitSeconds) || ["second", 1]
   const value = Math.round(seconds / divisor)
 

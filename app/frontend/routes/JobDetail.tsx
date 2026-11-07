@@ -1,4 +1,5 @@
 import { RelativeTimestamp } from "../components/RelativeTimestamp"
+import { AbsoluteTimestamp } from "../components/AbsoluteTimestamp"
 import { DeploymentStagePipeline } from "../components/DeploymentStagePipeline"
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { subscribeToJobResourceEvents } from "../lib/actionCable"
@@ -1057,11 +1058,11 @@ function SummaryTab({
                 </span>
               </KeyValue>
               <KeyValue label={t("detail_started")}>
-                <RelativeTimestamp value={payload.job.started_at} />
+                <AbsoluteTimestamp value={payload.job.started_at} />
               </KeyValue>
               {payload.job.finished_at ? (
                 <KeyValue label={t("detail_closed")}>
-                  <RelativeTimestamp value={payload.job.finished_at} /> ({payload.job.closure_reason || "unspecified"})
+                  <AbsoluteTimestamp value={payload.job.finished_at} /> ({payload.job.closure_reason || "unspecified"})
                 </KeyValue>
               ) : null}
               {payload.job.closure_reason === "emergency_landed" ? (
@@ -1377,8 +1378,14 @@ function JobRoutingPanel({ payload, queryKey }: { payload: JobDetailPayload; que
           <p className="mt-1 text-sm text-text-primary">{hold.reason}</p>
           <p className="mt-1 text-xs text-text-secondary">
             {hold.resumption_mode === "until_time" && hold.next_reevaluation_at
-              ? t("routing_hold_wakes_at", { time: new Date(hold.next_reevaluation_at).toLocaleString() })
+              ? t("routing_hold_wakes_at", { time: "" })
               : t(`routing_hold_${hold.resumption_mode}`)}
+            {hold.resumption_mode === "until_time" && hold.next_reevaluation_at ? (
+              <>
+                {" "}
+                <AbsoluteTimestamp value={hold.next_reevaluation_at} />
+              </>
+            ) : null}
           </p>
         </div>
       ))}

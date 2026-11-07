@@ -75,6 +75,8 @@ import { fetchSidebarPluginPages } from "../api/sidebarPages"
 import { AdminPluginServices } from "@plugins/plugin_runtime/app/frontend/routes/AdminPluginServices"
 import { UiEngagementTelemetry } from "../lib/uiEngagement"
 import { useBrowserTimeZone } from "../hooks/useBrowserTimeZone"
+import { TimeZoneProvider } from "../contexts/TimeZoneContext"
+import { validTimeZone } from "../lib/relativeTime"
 
 type AppRouteDefinition = {
   path: string
@@ -294,10 +296,20 @@ function AppShell({ initialBootstrap }: { initialBootstrap: BootstrapPayload | n
   )
 
   return (
-    <AppChromeV2 initialBootstrap={initialBootstrap}>
-      <UiEngagementTelemetry enabled={Boolean(bootstrap.data?.app?.ui_engagement_telemetry_enabled)} />
-      {routes}
-    </AppChromeV2>
+    <TimeZoneProvider
+      value={{
+        user:
+          bootstrap.data?.time_zones?.user?.mode === "automatic"
+            ? validTimeZone(Intl.DateTimeFormat().resolvedOptions().timeZone, bootstrap.data.time_zones.user.name)
+            : bootstrap.data?.time_zones?.user?.name || "UTC",
+        server: bootstrap.data?.time_zones?.server.name || "UTC"
+      }}
+    >
+      <AppChromeV2 initialBootstrap={initialBootstrap}>
+        <UiEngagementTelemetry enabled={Boolean(bootstrap.data?.app?.ui_engagement_telemetry_enabled)} />
+        {routes}
+      </AppChromeV2>
+    </TimeZoneProvider>
   )
 }
 
