@@ -11,15 +11,16 @@ RSpec.describe ChatScratchpadItem, type: :model do
 
   it "allows blank text when stored draft content carries attachments" do
     chat = ChatSession.create!(user: Factories.user)
+    attachment = create_attachment(chat)
     item = described_class.new(
       chat_session: chat,
-      content: JSON.generate("text" => "", "attachments" => [ { "name" => "shot.png", "mime_type" => "image/png", "data" => "abc" } ]),
+      content: JSON.generate("text" => "", "attachments" => [ { "id" => attachment.id } ]),
       position: 0
     )
 
     expect(item).to be_valid
     expect(item.text).to eq("")
-    expect(item.draft_content.attachments).to contain_exactly(include("name" => "shot.png"))
+    expect(item.draft_content.attachments).to contain_exactly(include("id" => attachment.id, "name" => "shot.png"))
   end
 
   it "treats legacy plain-string content as text-only draft content" do
@@ -45,6 +46,13 @@ RSpec.describe ChatScratchpadItem, type: :model do
       c = described_class.create!(chat_session: chat, content: "C", position: 1)
 
       expect(described_class.ordered.to_a).to eq([ a, b, c ])
+    end
+  end
+
+  def create_attachment(chat)
+    chat.chat_file_attachments.build(name: "shot.png", mime_type: "image/png", byte_size: 3, checksum: "pending").tap do |attachment|
+      attachment.file.attach(io: StringIO.new("png"), filename: "shot.png", content_type: "image/png")
+      attachment.save!
     end
   end
 end
