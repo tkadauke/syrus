@@ -32,9 +32,8 @@ module Api
             bookmarkable: false
           }
 
-          if message.content.is_a?(Hash) && message.content["attachments"].is_a?(Array)
-            payload[:attachments] = message.content["attachments"]
-          end
+          attachments = ChatAttachmentRef.for(message).map(&:payload)
+          payload[:attachments] = attachments if attachments.any?
 
           payload
         end

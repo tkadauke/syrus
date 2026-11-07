@@ -191,7 +191,8 @@ module App
       }
       payload[:client_idempotency_key] = message.client_idempotency_key if message.client_idempotency_key.present?
 
-      payload[:attachments] = message.content["attachments"] if message.content.is_a?(Hash) && message.content["attachments"].is_a?(Array)
+      attachments = ChatAttachmentRef.for(message).map(&:payload)
+      payload[:attachments] = attachments if attachments.any?
       payload[:video_walkthrough_id] = message.content["video_walkthrough_id"] if message.content.is_a?(Hash) && message.content["video_walkthrough_id"].present?
       if message.content.is_a?(Hash) && message.content["chat_shell_command_id"].present?
         shell_command_payload = chat_shell_command_json(message)
