@@ -822,6 +822,23 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(slow_item).to include(child_progress_percent: 0, open_child_count: 2, blocked_child_count: 2, dependency_count: 1, has_epic_dependency: true)
     end
 
+    it "counts overlapping historical explicit and derived Epic dependencies once" do
+      upstream = Factories.epic(user: user, repository: repo, title: "Marble delivery")
+      dependent = Factories.epic(user: user, repository: repo, title: "Forum restoration", state: "in_progress")
+      job_blocker = Factories.job_record(user: user, repository: repo, state: "running")
+      now = Time.current
+      EpicDependency.insert_all!([
+        { epic_id: dependent.id, depends_on_epic_id: upstream.id, depends_on_job_id: nil, derived: false, created_at: now, updated_at: now },
+        { epic_id: dependent.id, depends_on_epic_id: upstream.id, depends_on_job_id: nil, derived: true, created_at: now, updated_at: now },
+        { epic_id: dependent.id, depends_on_epic_id: nil, depends_on_job_id: job_blocker.id, derived: false, created_at: now, updated_at: now }
+      ])
+
+      rows = call(subject: "epic", section: "rows")
+      item = rows[:items].find { |row| row[:id] == dependent.id }
+
+      expect(item).to include(dependency_count: 2, has_epic_dependency: true)
+    end
+
     it "counts blocked epic children with the same semantics as unsatisfied dependencies" do
       epic = Factories.epic(user: user, repository: repo, title: "Dependency semantics", state: "in_progress")
       external_blocker = Factories.job_record(user: user, repository: repo, state: "queued")
