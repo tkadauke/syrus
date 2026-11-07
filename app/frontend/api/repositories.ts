@@ -20,7 +20,7 @@ export type RepositoryRow = {
   slug: string
   owner: string
   name: string
-  owner_user: RepositoryOwnerUser
+  owner_email: string
   default_branch: string
   upstream_owner: string | null
   upstream_name: string | null
@@ -29,7 +29,6 @@ export type RepositoryRow = {
   trigger_label: string
   polling_enabled: boolean
   archived: boolean
-  archived_at: string | null
   main_health: string
   open_jobs_count: number
   last_job_activity_at: string | null
@@ -39,8 +38,6 @@ export type RepositoryRow = {
   last_poll_error: string | null
   poll_issue_errors?: RepositoryPollIssueError[]
   can_edit: boolean
-  repository_path: string
-  edit_repository_path: string
 }
 
 export type RepositoriesPayload = {
@@ -184,9 +181,9 @@ export type RepositoryCredentialStatus = {
 }
 
 export type RepositorySavedPayload = {
+  id: number
   message: string
   redirect_to: string
-  repository: RepositoryRow
   credential_status: RepositoryCredentialStatus
 }
 
@@ -756,21 +753,26 @@ export function fetchEditRepositoryForm(id: string) {
   return getJson<RepositoryFormPayload>(`/api/v1/app/repositories/${id}/edit`)
 }
 
-export function fetchRepositoryOwners() {
-  return getJson<GitHubOwnersPayload>("/api/v1/app/repositories/owners").catch((error) =>
+export function fetchRepositoryOwners(query = "") {
+  const params = new URLSearchParams()
+  if (query) params.set("q", query)
+  const suffix = params.size > 0 ? `?${params}` : ""
+  return getJson<GitHubOwnersPayload>(`/api/v1/app/repositories/owners${suffix}`).catch((error) =>
     githubSelectorFallback<GitHubOwnersPayload>(error, ["no_token", "unauthorized"])
   )
 }
 
-export function fetchRepositoryOptions(owner: string, ownerType: string) {
+export function fetchRepositoryOptions(owner: string, ownerType: string, query = "") {
   const params = new URLSearchParams({ owner, owner_type: ownerType })
+  if (query) params.set("q", query)
   return getJson<GitHubRepositoriesPayload>(`/api/v1/app/repositories/repos?${params}`).catch((error) =>
     githubSelectorFallback<GitHubRepositoriesPayload>(error, ["no_token", "not_found", "missing_params"])
   )
 }
 
-export function fetchRepositoryBranches(owner: string, name: string) {
+export function fetchRepositoryBranches(owner: string, name: string, query = "") {
   const params = new URLSearchParams({ owner, name })
+  if (query) params.set("q", query)
   return getJson<GitHubBranchesPayload>(`/api/v1/app/repositories/branches?${params}`).catch((error) =>
     githubSelectorFallback<GitHubBranchesPayload>(error, ["not_found", "missing_params"])
   )
