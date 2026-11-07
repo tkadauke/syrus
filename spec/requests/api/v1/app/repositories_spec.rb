@@ -260,7 +260,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       include(
         "id" => active.id,
         "slug" => "acme/widgets",
-        "owner_user" => include("id" => user.id, "email_address" => user.email_address),
+        "owner_email" => user.email_address,
         "default_branch" => "main",
         "trigger_label" => "syrus",
         "polling_enabled" => true,
@@ -268,9 +268,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
         "open_jobs_count" => 1,
         "last_job_activity_at" => job_activity_at.iso8601,
         "last_poll_status" => "ok",
-        "can_edit" => true,
-        "repository_path" => repository_path(active),
-        "edit_repository_path" => edit_repository_path(active)
+        "can_edit" => true
       )
     )
     expect(body["archived_repositories"]).to contain_exactly(
@@ -278,7 +276,11 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     )
     expect(body.to_s).not_to include("other/private")
     expect(body["new_repository_path"]).to eq(new_repository_path)
-    expect(body["repositories"]).to include(
+    expect(body).not_to have_key("repositories")
+
+    get "/api/v1/app/repositories", params: { shape: "cli" }
+
+    expect(parse_body["repositories"]).to include(
       include("slug" => "acme/widgets", "active_jobs_count" => 1),
       include("slug" => "old/repo", "archived" => true)
     )
@@ -311,7 +313,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body["active_repositories"]).to contain_exactly(include("id" => match.id, "slug" => "acme/widgets"))
-    expect(body["repositories"]).to contain_exactly(include("id" => match.id, "slug" => "acme/widgets"))
+    expect(body).not_to have_key("repositories")
   end
 
   it "filters repository index activity by job activity instead of polling activity, via the Recent smart folder's fixed 30-day cutoff" do
@@ -393,7 +395,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     body = parse_body
     expect(body["active_repositories"]).to be_empty
     expect(body["archived_repositories"]).to contain_exactly(include("id" => archived.id, "slug" => "acme/archived", "archived" => true))
-    expect(body["repositories"]).to contain_exactly(include("id" => archived.id, "slug" => "acme/archived"))
+    expect(body).not_to have_key("repositories")
   end
 
   it "rejects self-enrollment when the same GitHub slug is already registered by another user" do
@@ -443,10 +445,8 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(response).to have_http_status(:created)
     repo = Repository.find_by(owner: "acme", name: "brandnew")
     expect(repo.repository_memberships.find_by(user: user).role).to eq("admin")
-    expect(parse_body.dig("repository", "owner_user")).to include(
-      "id" => user.id,
-      "email_address" => user.email_address
-    )
+    expect(parse_body).to include("id" => repo.id, "redirect_to" => repositories_path)
+    expect(parse_body).not_to have_key("repository")
   end
 
   it "rejects a second connect attempt for the same user on the same repository" do
@@ -1331,7 +1331,8 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(repository.epic_dependency_policy).to eq("linear")
     expect(repository.github_owner_id).to eq(123)
     expect(repository.github_repository_id).to eq(456)
-    expect(parse_body).to include("message" => "Repository acme/widgets added.", "redirect_to" => repositories_path)
+    expect(parse_body).to include("id" => repository.id, "message" => "Repository acme/widgets added.", "redirect_to" => repositories_path)
+    expect(parse_body).not_to have_key("repository")
   end
 
   it "rejects an unknown Epic dependency policy on repository create" do
@@ -1473,7 +1474,8 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(repository.epic_dependency_policy).to eq("linear")
     expect(repository.github_owner_id).to eq(123)
     expect(repository.github_repository_id).to eq(456)
-    expect(parse_body).to include("message" => "Repository acme/widgets updated.", "redirect_to" => repositories_path)
+    expect(parse_body).to include("id" => repository.id, "message" => "Repository acme/widgets updated.", "redirect_to" => repositories_path)
+    expect(parse_body).not_to have_key("repository")
   end
 
   it "rejects an unknown Epic dependency policy on repository update" do
@@ -1735,6 +1737,30 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       { "name" => "alpha", "github_repository_id" => 456, "github_owner_id" => 123 },
       { "name" => "beta", "github_repository_id" => 789, "github_owner_id" => 123 }
     )
+  end
+
+  it "filters and caches repository selector results and returns an ETag" do
+    sign_in_as(user)
+    allow(Rails).to receive(:cache).and_return(ActiveSupport::Cache::MemoryStore.new)
+    client = instance_double(
+      GithubClient,
+      owner_repos: [
+        { name: "alpha", github_repository_id: 456, github_owner_id: 123 },
+        { name: "beta", github_repository_id: 789, github_owner_id: 123 }
+      ]
+    )
+    allow(GithubClient).to receive(:for_user).and_return(client)
+
+    get "/api/v1/app/repositories/repos", params: { owner: "john", owner_type: "user", q: "alp" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["repos"]).to contain_exactly(include("name" => "alpha"))
+    expect(response.headers["ETag"]).to be_present
+
+    get "/api/v1/app/repositories/repos", params: { owner: "john", owner_type: "user", q: "bet" }
+
+    expect(parse_body["repos"]).to contain_exactly(include("name" => "beta"))
+    expect(client).to have_received(:owner_repos).once
   end
 
   it "passes through fork metadata for a selected owner" do
@@ -2378,6 +2404,16 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       expect(body["days"]).to eq(10)
       trend_dates = body["trend"].map { |row| row["date"] }
       expect(trend_dates).not_to include(old_snap.created_at.to_date.to_s)
+    end
+
+    it "caps the days param and returns an ETag" do
+      sign_in_as(user)
+
+      get "/api/v1/app/repositories/#{repository.id}/coverage_trend", params: { days: 10_000 }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["days"]).to eq(365)
+      expect(response.headers["ETag"]).to be_present
     end
 
     it "returns 401 when not signed in" do

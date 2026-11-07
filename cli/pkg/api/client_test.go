@@ -40,6 +40,33 @@ func TestListJobsSendsBearerToken(t *testing.T) {
 	}
 }
 
+func TestListRepositoriesRequestsCLIShape(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/app/repositories" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		if got := r.URL.Query().Get("shape"); got != "cli" {
+			t.Fatalf("shape = %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"repositories":[{"id":1,"slug":"acme/widgets"}]}`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "secret-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	list, err := client.ListRepositories(context.Background())
+	if err != nil {
+		t.Fatalf("ListRepositories returned error: %v", err)
+	}
+	if len(list.Repositories) != 1 || list.Repositories[0].Slug != "acme/widgets" {
+		t.Fatalf("Repositories = %#v", list.Repositories)
+	}
+}
+
 func TestAPIErrorUsesJSONMessage(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)

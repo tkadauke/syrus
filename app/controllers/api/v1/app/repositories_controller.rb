@@ -7,6 +7,8 @@ module Api
         include ProviderRoutingRuleSerialization
 
         PER_PAGE = 20
+        GITHUB_SELECTOR_CACHE_TTL = 1.minute
+        COVERAGE_TREND_MAX_DAYS = 365
 
         HEALTH_FILTER_VALUES = %w[ healthy broken inconclusive unknown ].freeze
         HEALTH_FILTER_LABELS = {
@@ -17,7 +19,7 @@ module Api
         }.freeze
 
         def index
-          render json: repositories_payload
+          render_cached_json(repositories_payload)
         end
 
         def show
@@ -46,7 +48,15 @@ module Api
         end
 
         def owners
-          render json: GithubClient.for_user(Current.user).accessible_owners
+          owners = cached_github_selector("owners") do
+            GithubClient.for_user(Current.user).accessible_owners.to_h.symbolize_keys
+          end
+          query = params[:q].to_s.strip.downcase
+          payload = owners.merge(
+            user: owners[:user].to_s.downcase.include?(query) ? owners[:user] : nil,
+            orgs: filter_github_selector_values(owners[:orgs] || [], query)
+          )
+          render_cached_json(payload)
         rescue ArgumentError
           render_error("no_token", I18n.t("api.repositories.selector.no_token"), status: :unprocessable_content)
         rescue Octokit::Unauthorized, Octokit::Forbidden
@@ -60,7 +70,11 @@ module Api
           return render_error("missing_params", I18n.t("api.repositories.selector.owner_required"), status: :bad_request) if owner.blank?
 
           owner_type = params[:owner_type].to_s.strip
-          render json: { repos: GithubClient.for_user(Current.user).owner_repos(owner, owner_type: owner_type) }
+          repos = cached_github_selector("repos", owner, owner_type) do
+            GithubClient.for_user(Current.user).owner_repos(owner, owner_type: owner_type)
+          end
+          payload = { repos: filter_github_selector_values(repos, params[:q]) }
+          render_cached_json(payload)
         rescue ArgumentError
           render_error("no_token", I18n.t("api.repositories.selector.no_token"), status: :unprocessable_content)
         rescue Octokit::NotFound
@@ -79,7 +93,11 @@ module Api
             return
           end
 
-          render json: GithubClient.for_user(Current.user).repo_branches("#{owner}/#{name}")
+          branches = cached_github_selector("branches", owner, name) do
+            GithubClient.for_user(Current.user).repo_branches("#{owner}/#{name}").to_h.symbolize_keys
+          end
+          payload = branches.merge(branches: filter_github_selector_values(branches.fetch(:branches), params[:q]))
+          render_cached_json(payload)
         rescue Octokit::NotFound
           render_error("not_found", I18n.t("api.repositories.selector.repository_not_found"), status: :not_found)
         rescue Octokit::Unauthorized, Octokit::Forbidden
@@ -270,7 +288,7 @@ module Api
 
         def coverage_trend
           repository = find_repository
-          days = [ params.fetch(:days, 30).to_i, 1 ].max
+          days = params.fetch(:days, 30).to_i.clamp(1, COVERAGE_TREND_MAX_DAYS)
 
           averages = CoverageSnapshot.daily_averages(repository: repository, days: days)
           latest_snapshot = CoverageSnapshot.where(repository: repository)
@@ -296,7 +314,8 @@ module Api
             }
           end
 
-          render json: { "days" => days, "trend" => trend, "latest" => latest }
+          payload = { "days" => days, "trend" => trend, "latest" => latest }
+          render_cached_json(payload)
         end
 
         def readiness
@@ -352,9 +371,9 @@ module Api
 
         def saved_payload(repository, message:)
           {
+            id: repository.id,
             message: message,
             redirect_to: repositories_path,
-            repository: repository_json(repository),
             # Lets the add-repository flow offer the pre-scoped App install
             # link right when it is actionable (and skip it when the owner's
             # installation already covers the repo).
@@ -440,18 +459,21 @@ module Api
             PerformanceLogging.phase("repositories_index.preload_job_state", repository_count: repos.size) { preload_repository_index_job_state(repos) }
             filtered_repos = PerformanceLogging.phase("repositories_index.apply_filters", repository_count: repos.size) { filter_repository_index_repositories(repos) }
 
-            {
+            payload = {
               active_repositories: PerformanceLogging.phase("repositories_index.active_repositories_json", repository_count: filtered_repos.size) { filtered_repos.select { |repository| !repository.archived? }.map { |repository| repository_json(repository) } },
               archived_repositories: PerformanceLogging.phase("repositories_index.archived_repositories_json", repository_count: filtered_repos.size) { filtered_repos.select(&:archived?).map { |repository| repository_json(repository) } },
-              repositories: PerformanceLogging.phase("repositories_index.cli_repositories_json", repository_count: filtered_repos.size) { filtered_repos.map { |repository| repository_cli_json(repository) } },
               new_repository_path: new_repository_path,
-              setup: PerformanceLogging.phase("repositories_index.setup") { ::App::SetupStatus.call(user: Current.user) },
+              setup: PerformanceLogging.phase("repositories_index.setup") { cached_repository_setup },
               smart_folders: PerformanceLogging.phase("repositories_index.smart_folders", repository_count: repos.size) { repository_smart_folders_json(repos) },
               active_smart_folder_id: active_repository_smart_folder&.id,
               filter: repository_filter.to_h,
               filter_schema: repository_filter_schema(repos),
               message: message
             }
+            if params[:shape] == "cli"
+              payload[:repositories] = PerformanceLogging.phase("repositories_index.cli_repositories_json", repository_count: filtered_repos.size) { filtered_repos.map { |repository| repository_cli_json(repository) } }
+            end
+            payload
           end
         end
 
@@ -466,17 +488,13 @@ module Api
             id: repository.id,
             slug: repository.slug,
             owner: repository.owner,
-            name: repository.name,
-            owner_user: owner_user_json(repository.user),
+            owner_email: repository.user.email_address,
             default_branch: repository.default_branch,
-            upstream_owner: repository.upstream_owner,
-            upstream_name: repository.upstream_name,
             upstream_default_branch: repository.upstream_default_branch,
             upstream_slug: repository.upstream_slug,
             trigger_label: repository.trigger_label,
             polling_enabled: repository.polling_enabled?,
             archived: repository.archived?,
-            archived_at: repository.archived_at&.iso8601,
             main_health: repository.main_health,
             open_jobs_count: repository_index_open_jobs_count(repository),
             last_job_activity_at: repository_index_last_job(repository)&.updated_at&.iso8601,
@@ -484,9 +502,7 @@ module Api
             last_poll_started_at: repository.last_poll_started_at&.iso8601,
             last_poll_error: repository.last_poll_error,
             poll_issue_errors: repository.poll_issue_errors || [],
-            can_edit: repository_index_editable?(repository),
-            repository_path: repository_path(repository),
-            edit_repository_path: edit_repository_path(repository)
+            can_edit: repository_index_editable?(repository)
           }
         end
 
@@ -814,7 +830,7 @@ module Api
               type: provider.name,
               type_key: source_type_key(provider),
               label: source_label(provider),
-              schema: PerformanceLogging.plugin_call(extension_point: :input_source, provider: provider, operation: :config_schema) { provider.new.config_schema },
+              schema: input_source_schema(provider),
               source: input_source_json(source, provider),
               path: repository.persisted? ? "/api/v1/app/repositories/#{repository.id}/input_sources/#{source_type_key(provider)}" : nil
             }
@@ -838,7 +854,7 @@ module Api
 
         def input_source_values(source, provider)
           source.config.to_h.merge(
-            PerformanceLogging.plugin_call(extension_point: :input_source, provider: provider, operation: :config_schema) { provider.new.config_schema }.each_with_object({}) do |field, credential_values|
+            input_source_schema(provider).each_with_object({}) do |field, credential_values|
               next unless field[:scope].to_s == "credentials"
 
               key = field.fetch(:key).to_s
@@ -853,6 +869,11 @@ module Api
 
         def source_label(provider)
           provider.name.demodulize
+        end
+
+        def input_source_schema(provider)
+          @input_source_schemas ||= {}
+          @input_source_schemas[provider] ||= PerformanceLogging.plugin_call(extension_point: :input_source, provider: provider, operation: :config_schema) { provider.new.config_schema }
         end
 
         def auto_approve_modes_json
@@ -1077,7 +1098,10 @@ module Api
         end
 
         def repository_smart_folders_json(repositories)
-          SmartFolder.ensure_builtins_for_subject!("repository")
+          Rails.cache.fetch([ "repository_smart_folder_builtins", Current.user.id ], expires_in: 5.minutes) do
+            SmartFolder.ensure_builtins_for_subject!("repository")
+            true
+          end
 
           ::Admin::SmartFolderNavigation.new(
             subject: "repository",
@@ -1231,7 +1255,7 @@ module Api
           return {} if repository_ids.empty?
 
           ranked = Job.visible_to(Current.user, scope: Job.where(repository_id: repository_ids))
-            .select("jobs.*, ROW_NUMBER() OVER (PARTITION BY repository_id ORDER BY updated_at DESC, id DESC) AS syrus_row_number")
+            .select("jobs.id, jobs.repository_id, jobs.issue_title, jobs.state, jobs.updated_at, ROW_NUMBER() OVER (PARTITION BY repository_id ORDER BY updated_at DESC, id DESC) AS syrus_row_number")
           Job.from("(#{ranked.to_sql}) jobs")
             .where("syrus_row_number = 1")
             .index_by(&:repository_id)
@@ -1399,6 +1423,38 @@ module Api
               "#{Array(error.backtrace).first(5).join("\n")}"
           )
           render_error("github_selector_error", I18n.t("api.repositories.selector.unavailable"), status: :internal_server_error)
+        end
+
+        def cached_github_selector(*parts)
+          Rails.cache.fetch([ "repository_github_selector", Current.user.id, *parts ], expires_in: GITHUB_SELECTOR_CACHE_TTL) { yield }
+        end
+
+        def filter_github_selector_values(values, query)
+          needle = query.to_s.strip.downcase
+          return values if needle.blank?
+
+          values.select do |value|
+            label = if value.respond_to?(:name)
+              value.name
+            elsif value.respond_to?(:[])
+              value[:name] || value["name"] || value.to_s
+            else
+              value.to_s
+            end
+            label.downcase.include?(needle)
+          end
+        end
+
+        def cached_repository_setup
+          Rails.cache.fetch([ "repository_setup", Current.user.id ], expires_in: 1.minute) do
+            ::App::SetupStatus.call(user: Current.user)
+          end
+        end
+
+        def render_cached_json(payload)
+          return unless stale?(etag: payload)
+
+          render json: payload
         end
       end
     end

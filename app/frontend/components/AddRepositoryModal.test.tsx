@@ -70,7 +70,7 @@ function mockRoutes(over: { owners?: () => Response; create?: () => Response; de
       return over.detail?.() ?? jsonResponse({ credential_status: credentialStatus("pat") })
     }
     if (url.endsWith("/api/v1/app/repositories") && init?.method === "POST") {
-      return over.create?.() ?? jsonResponse({ message: "Saved", redirect_to: "/repositories/1", repository: {} })
+      return over.create?.() ?? jsonResponse({ id: 1, message: "Saved", redirect_to: "/repositories/1" })
     }
     throw new Error(`unexpected fetch: ${url}`)
   })
@@ -184,7 +184,7 @@ describe("AddRepositoryModal", () => {
         jsonResponse({
           message: "Saved",
           redirect_to: "/repositories/1",
-          repository: savedRepository,
+          id: savedRepository.id,
           credential_status: credentialStatus("pat")
         })
     })
@@ -206,7 +206,7 @@ describe("AddRepositoryModal", () => {
         jsonResponse({
           message: "Saved",
           redirect_to: "/repositories/1",
-          repository: savedRepository,
+          id: savedRepository.id,
           credential_status: credentialStatus("pat")
         }),
       detail: () => jsonResponse({ credential_status: credentialStatus(installedAfterClick ? "app" : "pat") })
@@ -239,7 +239,7 @@ describe("AddRepositoryModal", () => {
     const onClose = vi.fn()
     const onSaved = vi.fn()
     mockRoutes({
-      create: () => jsonResponse({ message: "Saved", redirect_to: "/repositories/1", repository: savedRepository, credential_status: credentialStatus("pat") }),
+      create: () => jsonResponse({ id: savedRepository.id, message: "Saved", redirect_to: "/repositories/1", credential_status: credentialStatus("pat") }),
       detail: () => jsonResponse({ credential_status: credentialStatus("app") })
     })
     renderModal({ onClose, onSaved, reconciliationRefetchIntervalMs: 10, reconciliationPolls: 5 })
@@ -253,7 +253,7 @@ describe("AddRepositoryModal", () => {
 
   it("offers installation after bounded reconciliation finds no covering installation", async () => {
     mockRoutes({
-      create: () => jsonResponse({ message: "Saved", redirect_to: "/repositories/1", repository: savedRepository, credential_status: credentialStatus("pat") })
+      create: () => jsonResponse({ id: savedRepository.id, message: "Saved", redirect_to: "/repositories/1", credential_status: credentialStatus("pat") })
     })
     renderModal({ reconciliationRefetchIntervalMs: 10, reconciliationPolls: 2 })
 
@@ -269,7 +269,7 @@ describe("AddRepositoryModal", () => {
         jsonResponse({
           message: "Saved",
           redirect_to: "/repositories/1",
-          repository: savedRepository,
+          id: savedRepository.id,
           credential_status: credentialStatus("app")
         })
     })
