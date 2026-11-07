@@ -4,11 +4,7 @@ External PR ingestion lets Syrus discover pull requests filed by contributors or
 
 ## Enabling for a repository
 
-Set `external_pr_ingestion_enabled: true` on the Repository record:
-
-```ruby
-Repository.find_by(owner: "acme", name: "widgets").update!(external_pr_ingestion_enabled: true)
-```
+Enable **External PR ingestion** in repository settings.
 
 Once enabled, `PollAllExternalOpenPrsJob` fans out to `PollExternalOpenPrsJob` every 5 minutes, which lists all open pull requests and creates an `external_pr` kind Job for any new ones.
 
@@ -20,19 +16,14 @@ Newly discovered issues with linked external PRs are created as normal `issue` J
 
 Existing open issue Jobs that later gain a linked external PR are moved to `implemented`, have active Runs cancelled, and keep `external_pr_number` set. This replaces the older `closed` / `preempted` behavior so operators can review the Job instead of losing it to a terminal state.
 
-To backfill older data, run:
-
-```bash
-bin/rails syrus:backfill_preempted_external_pr_jobs
-```
-
-The task checks each closed `issue` Job with `closure_reason = preempted` and an `external_pr_number` against GitHub. If the external PR is still open and unmerged, the task reopens the Job to `implemented`. It skips PRs that are already merged, closed, or unavailable. Use `DRY_RUN=true` to count the changes without modifying Jobs.
+Maintainers recovering older preempted records should follow the
+[external PR ingestion runbook](../../docs/engineering/operations/external-pr-ingestion.md).
 
 ## Filtering
 
 Syrus skips PRs whose head branch starts with `syrus/` — these are Syrus-authored branches and are already tracked by the normal Job pipeline.
 
-Deduplication is based on `external_pr_number` per repository — if a Job already has that PR number, it is not ingested again.
+Syrus ingests each pull request only once per repository.
 
 ## Grader workflow on ingestion
 
@@ -72,10 +63,10 @@ External PR Jobs start in the `implemented` state, bypassing the agent workflow.
 
 `PollExternalPrJob` also records issue and review comments left on an `external_pr` Job's PR, using the same pipeline Syrus uses for its own PRs (`PollPullRequestJob`):
 
-- Each new comment is attributed via `PrCommentAttributor` (`job_owner`, `member`, or `external`) and classified as actionable or not via `PrCommentClassifier`.
-- Records are stored as `PrReviewComment` rows with `pr_type: "external"`.
+- Each new comment is attributed as `job_owner`, `member`, or `external` and
+  classified as actionable or not.
 - Comments authored by the configured Syrus GitHub App bot (e.g. its own grader-failure review comments) are excluded.
-- A `last_seen_comment_at` watermark — the same column `PollPullRequestJob` uses — keeps already-seen comments from being reprocessed on later polls.
+- Already-seen comments are not reprocessed on later polls.
 
 This poller never dispatches a follow-up workflow on its own — recording is one effect, the waiting-state reaction below is the other. Actionable comments still surface to the operator through the Job Detail page's pending-feedback panel (Apply/Replace/Ignore), same as for any other Job.
 
@@ -102,20 +93,8 @@ For same-repo PRs (`external_pr_fork: false` — e.g. a dependabot branch, or a 
 
 ## Dashboard display
 
-Dashboard job lists (table, mobile rows, kanban cards, and landing-queue blocker
-rows) mark a PR link with a violet "External" badge whenever the PR shown for a
+Dashboard job lists mark a PR link with an "External" badge whenever the PR shown for a
 Job was not opened by Syrus — either an `external_pr` kind Job, or a Syrus-initiated
 Job whose own PR was preempted by an externally authored one (`external_pr_number`
 set with no `pr_number`). This lets operators tell at a glance which PRs need
 review-only handling versus ones Syrus authored itself.
-
-## Job fields
-
-| Field | Source |
-|---|---|
-| `kind` | Always `external_pr` |
-| `external_pr_number` | GitHub PR number |
-| `external_pr_author` | GitHub login of the PR author |
-| `external_pr_fork` | `true` if the PR head is in a fork; `false` for same-repo PRs |
-| `branch_name` | PR head branch ref (used for workspace checkout and same-repo push) |
-| `issue_title` | PR title from GitHub |

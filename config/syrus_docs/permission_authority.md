@@ -3,9 +3,8 @@
 ## Canonical profiles and tool-set bundles
 
 Permission setup offers three stable profiles: `full_access@v1`,
-`ask_on_first_use@v1`, and `restricted@v1`. Profiles compile into ordinary
-role-layer `Permissions::PolicyRule` records and are evaluated by the same
-`Permissions::PolicyEvaluator` as customized rules and leases. They never
+`ask_on_first_use@v1`, and `restricted@v1`. Profiles are evaluated with
+customized rules and temporary authority. They never
 bypass resource authorization, provider ceilings, confinement, credential
 checks, or nondelegable operations. Full access means every capability the
 operator is eligible to delegate, not unrestricted process authority.
@@ -36,13 +35,11 @@ matching when their chat is deleted. Job leases stop matching when their Job
 reaches a terminal state, including across retries and follow-up Workflows.
 Every lease can additionally have an expiry or use limit and can be revoked.
 
-`Permissions::AuthorityGrant` validates the requested duration against the
-capability descriptor and evaluates the proposed authority against current
-non-delegable policy ceilings before persisting it. `Permissions::LeaseAuthorizer`
-locks candidate leases, rechecks subject, scope, fingerprint, lifecycle,
-expiry, revocation, use count, and the complete current policy chain, then
-consumes the decisive lease in the same transaction. An existing or newly
-introduced deny therefore prevents a queued lease from authorizing a call.
+Syrus validates requested duration against the capability and current
+non-delegable policy ceilings. Immediately before dispatch it rechecks subject,
+scope, invocation identity, lifecycle, expiry, revocation, use count, and the
+complete current policy chain. An existing or newly introduced deny therefore
+prevents a queued permission from authorizing a call.
 
 This is authorization substrate. Capability integrations must call the
 authorizer immediately before dispatch; merely creating a lease never executes
@@ -172,11 +169,11 @@ ceilings from the effective policy chain before calling the provider. Missing
 providers, invalid output, confidence below `0.8`, and provider-owned cost or
 rate outcomes escalate the existing request to a human.
 
-The classifier envelope orders core non-overridable guidance, the provider's
+Classifier instructions order core non-overridable guidance, the provider's
 default guidance, and repository guidance supplied by the authorization
 context.
 
-Transcript entries retain their explicit roles. The envelope labels transcript,
+Transcript entries retain their explicit roles. The instructions label transcript,
 tool-call, and repository content as untrusted evidence; only the effective
 policy chain is authoritative. Providers must disclose where this evidence is
 processed and retained. The provider receives the complete evidence needed for
@@ -256,10 +253,8 @@ and the rest of the permission store stay chat-only).
 Authority is never transferable: when coworker A asks coworker B to do
 something, B is evaluated only against B's own rules and leases.
 
-Requests, deduplications, rate limits, denials, grants, surrenders, revocation
-requests and final revocations are recorded as append-only admin actions named
-`coworker_permission_*`; rule creation and revocation also keep their
-`PermissionRuleAuditEvent` rows.
+Requests, deduplications, rate limits, denials, grants, surrenders, and
+revocations are retained in the permission audit history.
 
 ## Coworker enforcement
 
@@ -270,20 +265,14 @@ fails closed, and `ask` creates one exact-operation request containing a
 redacted argument snapshot and stable invocation fingerprint. Equivalent active
 requests deduplicate.
 
-The coworker cutover translates each historical grant into operation-level,
-exact-agent rules. Migration provenance records the legacy row ID, preserves
-any remaining old row for audit and rollback diagnosis, and makes reruns idempotent.
-Pre-existing canonical rules win and are reported as conflicts rather than
-being overwritten; policy, scope, and constraint parity failures are included
-in the migration diagnostics without blocking unrelated rows. Rollback revokes
-only rules created by that migration. New coworker creation and permission
-edits never write the legacy table.
+Older coworker grants do not authorize execution. Supported grants are
+represented as explicit agent-scoped rules, while conflicts or unsupported
+entries remain visible for operator review. New coworker permission edits use
+the current permission model.
 
-Approval creates an invocation-only lease and an `AuthorizedInvocation` before
-enqueueing execution. The worker atomically claims that record, re-evaluates the
-current rule and lease chain under the claim lock, and dispatches only for a new
-claim with an exact fingerprint. A revoked or newly denied authority therefore
-invalidates queued work, and retries cannot replay an already claimed call.
+Approval authorizes only the exact invocation. Current authority is rechecked
+before dispatch, so revocation or a new deny invalidates queued work and retries
+cannot replay an invocation already claimed.
 Only protocol controls explicitly classified as ungated bypass this flow; they
 cannot perform a capability effect. Ordinary chat, coworker, scheduled,
 workflow, and Local Mode invocations now use the canonical evaluator as their

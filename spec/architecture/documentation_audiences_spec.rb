@@ -289,4 +289,38 @@ RSpec.describe "documentation audiences" do
     expect(plugin_authoring).to include("provides: { artifact_renderer:")
     expect(rails_plugin).to include("uniquely named disposable database", "storage_unavailable")
   end
+
+  it "keeps the remaining harness guides focused on supported behavior" do
+    forbidden_details = {
+      "issue_triage.md" => %w[JobClassificationAttempt ClassifyIssueJob accept_triage],
+      "skills.md" => %w[Skills::ParameterSchema SkillJobs::Creator workflow_serializers.rb],
+      "chat_goals.md" => %w[ChatGoalIterationAuditor ChatScopedEvent ChatQueuedMessagePromoter],
+      "target_graph.md" => %w[TargetHealthRecord NestedConfigDiscovery /api/v1/app/repositories],
+      "coverage.md" => %w[CoverageHitMapPruneJob CoverageSnapshot.where],
+      "local_mode.md" => %w[LocalTunnelChannel LocalDaemonSessionController],
+      "pr_feedback_classification.md" => %w[PrCommentClassifier classification_decision pr_review_comments],
+      "epicless_job_bundling.md" => %w[JobBundleDispatcher JobsTable.tsx landing_queue_entry_key],
+      "push_protection_recovery.md" => %w[GithubPushProtection::Rejected Steps::PushProtectionRecovery SYRUS_DATA_ROOT],
+      "landing_queue.md" => %w[LandingValidationCache work_unit_locks WorkUnits::Ownership],
+      "adversarial_review.md" => %w[Prompts::AdversarialReview workflow.artifacts],
+      "repository_readiness.md" => %w[execution-probes single-flight],
+      "emergency_land.md" => %w[EmergencyLand::Permission emergency_landed_by_user_id]
+    }
+
+    forbidden_details.each do |filename, terms|
+      searchable = root.join("config/syrus_docs", filename).read
+      terms.each { |term| expect(searchable).not_to include(term) }
+    end
+
+    expect(root.join("config/syrus_docs/reconciliation.md")).not_to exist
+    expect(root.join("config/syrus_docs/merge_train.md").read)
+      .to include("## Reconciliation phase")
+
+    operations = root.join("docs/engineering/operations/README.md").read
+    expect(root.join("docs/engineering/operations/external-pr-ingestion.md")).to exist
+    expect(operations).to include("(external-pr-ingestion.md)")
+
+    ios_plugin = root.join("plugins/ios/docs/syrus_docs/ios.md").read
+    expect(ios_plugin).to include('"planned_execution"', '"ios_simulator"')
+  end
 end

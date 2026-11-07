@@ -35,5 +35,7 @@ recovering Syrus itself. Operator feature instructions remain in
   launchd, environment, updates, and pool topology.
 - [Speech-to-text](chat-speech-to-text.md) — transcription daemon deployment,
   configuration, logs, and diagnosis.
+- [External PR ingestion](external-pr-ingestion.md) — recover older preempted
+  issue Jobs that still have open external pull requests.
 
 Return to the [engineering documentation index](../README.md).

@@ -74,3 +74,26 @@ build directory as artifacts. If the command or wrapper emits JUnit XML, set
 `junit_output:` so normal test-result ingestion and target health signals can
 consume structured results. Leave it unset when the command only emits
 `xcodebuild` logs and an `.xcresult` bundle.
+
+## Planning iOS implementation work
+
+An iOS implementation proposal should declare macOS placement explicitly:
+
+```json
+{
+  "planned_execution": {
+    "project_label": "iOS App",
+    "target_label": "//apps/ios:test",
+    "capabilities": {
+      "os": ["macos"],
+      "arch": ["arm64"],
+      "toolchain": ["xcode"],
+      "runtime": ["ios_simulator"]
+    }
+  }
+}
+```
+
+Use the same primary placement for mixed iOS/backend work when the agent must
+edit and test the iOS app in the same attempt. Backend graders can retain their
+own Linux target requirements.

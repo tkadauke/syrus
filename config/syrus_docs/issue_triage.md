@@ -1,20 +1,15 @@
 # Issue triage
 
-Every Job created from a labeled GitHub issue starts in `triaging`.
-`ClassifyIssueJob` runs `IngestionClassifier`, which asks the agent to place the
+Every Job created from a labeled GitHub issue starts in `triaging`. A
+classifier asks the agent to place the
 request: attach it to an Epic, mark it a duplicate or already implemented, or
 leave it as ordinary valid work. The Job leaves `triaging` as soon as that
 question is answered.
 
-Each classifier invocation creates a `JobClassificationAttempt` row. The
-attempt records when classification started and finished, whether it classified
-the Job, returned an uncertain result, or errored, the decision or error text,
-the raw agent output, and the related `SpawnedProcess` when an agent subprocess
-was launched. The Job page shows this attempt history while preserving the
-existing triage state, so operators can distinguish a Job with an in-flight
-classifier from one with no active classifier evidence. The process row also
-carries the Job attribution, which makes classification agent processes visible
-from the admin processes surface.
+The Job page shows classification attempts and outcomes while preserving the
+triage state, so operators can distinguish an in-flight classifier from a Job
+with no active classifier evidence. Classification agent processes also appear
+on the admin processes surface.
 
 `Job#triaging_reason` says what it is waiting for:
 
@@ -62,15 +57,13 @@ judge an issue the classifier never read.
 When a classifier result or exhausted retry budget reaches
 `classifier_uncertain`, three things happen:
 
-1. **The reason is recorded** on `Job#triaging_uncertainty_reason` and shown on
+1. **The reason is recorded** and shown on
    the Job page. Without it there is no way to tell a transient provider error
    (retry it) from an unclear request (read it).
-2. **One automatic retry.** `ClassifyIssueJob` retries transient or
+2. **One automatic retry.** Syrus retries transient or
    infrastructure exceptions immediately through the job queue. For uncertain
-   classifier results, `WorkEngine::Reconciler` picks the Job up ten minutes
-   after creation and plans a `reclassify_stalled_intake` repair, which puts it
-   back to `classifier_pending` and re-runs the classifier.
-   `Job::MAX_CLASSIFIER_ATTEMPTS` (2) bounds both paths: once the budget is
+   classifier results, Syrus retries ten minutes after Job creation. Two
+   attempts bound both paths: once the budget is
    spent, the Job moves to `classifier_uncertain` with the last reason recorded.
 3. **The Job remains in a human-reviewable triage state** with the uncertainty
    reason recorded on the Job itself.
@@ -80,7 +73,7 @@ When a classifier result or exhausted retry budget reaches
 The Job page shows two buttons while `triaging_reason` is
 `classifier_uncertain`, `placement_confirmation`, or `proposed_job`, and only then:
 
-- **Accept** (`POST /api/v1/app/jobs/:job_id/accept_triage`) — "yes, work on
+- **Accept** — "yes, work on
   this". Clears the uncertainty and advances the Job the same way a successful
   classification would: to `queued` (creating the initial Workflow) or to
   `blocked_by_epic` if it has unresolved dependencies. For `proposed_job`,
@@ -94,9 +87,7 @@ The Job page shows two buttons while `triaging_reason` is
   that operator-confirmed requirement and creates the initial Workflow in one
   transaction. Cancel leaves the Job unchanged. Bulk Accept skips these Jobs
   so it cannot silently choose placement.
-- **Reject** (`POST /api/v1/app/jobs/:job_id/reject_triage`) — "no". Closes the
-  Job with `closure_reason: cancelled`. Not one of
-  `Job::SUCCESSFUL_CLOSURE_REASONS`: rejecting an unclear request delivers
+- **Reject** — "no". Closes the Job as cancelled. Rejecting an unclear request delivers
   nothing, and filing it as a success would corrupt the attribution closure
   reasons exist to keep honest.
 
