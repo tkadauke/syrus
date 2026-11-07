@@ -14,6 +14,11 @@ coworker_review:
     - Identify rollout or support risks not covered by technical checks
 ```
 
+This top-level key is retained as a compatibility alias for the Coworkers
+plugin's versioned repository-configuration contribution. When Coworkers is
+disabled or unavailable, the generic configuration contract diagnoses the
+owner without materializing live plugin behavior.
+
 For an enabled gate, `rounds` is bounded from 1 through 10. An explicitly
 disabled gate may use `rounds: 0`. `required` defaults to `false` and uses
 the same unavailable-review semantics as the other automated gates: an

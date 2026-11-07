@@ -124,6 +124,7 @@ class TargetGraph
       compile_generated!(graph)
       compile_graders!(graph)
       compile_nested_configs!(graph)
+      overlay_root_plugin_configurations!(graph)
       graph.validate!
       graph
     end
@@ -197,7 +198,7 @@ class TargetGraph
     # compiler reports.
     def root_project_override
       declared = config&.project
-      return nil unless declared || config&.preview || config&.visual_review || config&.adversarial_review || config&.security_review || config&.coworker_review || config&.review_notes || config&.coverage
+      return nil unless declared || config&.preview || config&.visual_review || config&.adversarial_review || config&.security_review || config&.coworker_review || config&.review_notes || config&.coverage || plugin_configuration_present?(config&.plugin_configurations)
 
       if declared&.id && declared.id != root_project_id
         raise TargetGraph::ValidationError,
@@ -221,7 +222,8 @@ class TargetGraph
         coworker_review: config&.coworker_review,
         review_notes: config&.review_notes,
         coverage: config&.coverage,
-        capabilities: declared&.capabilities
+        capabilities: declared&.capabilities,
+        plugin_configurations: config&.plugin_configurations
       )
     end
 
@@ -300,7 +302,8 @@ class TargetGraph
           security_review: nested_config.security_review,
           coworker_review: nested_config.coworker_review,
           review_notes: nested_config.review_notes,
-          coverage: nested_config.coverage
+          coverage: nested_config.coverage,
+          plugin_configurations: nested_config.plugin_configurations
         )
 
         compile_explicit_targets!(graph, syrus_config: nested_config, package: relative_dir, project_id: project_id, config_path: nested_owner_config_path)
@@ -322,10 +325,10 @@ class TargetGraph
       @nested_relative_dirs ||= TargetGraph::NestedConfigDiscovery.call(workspace_path)
     end
 
-    def add_or_overlay_project!(graph, project_id:, declared_project:, relative_dir:, config_path:, preview: nil, visual_review: nil, adversarial_review: nil, security_review: nil, coworker_review: nil, review_notes: nil, coverage: nil)
+    def add_or_overlay_project!(graph, project_id:, declared_project:, relative_dir:, config_path:, preview: nil, visual_review: nil, adversarial_review: nil, security_review: nil, coworker_review: nil, review_notes: nil, coverage: nil, plugin_configurations: PluginRepositoryConfiguration::Set.new)
       existing = graph.project(project_id)
       if existing
-        return unless imported_project?(existing) && (declared_project || preview || visual_review || adversarial_review || security_review || coworker_review || review_notes || coverage)
+        return unless imported_project?(existing) && (declared_project || preview || visual_review || adversarial_review || security_review || coworker_review || review_notes || coverage || plugin_configuration_present?(plugin_configurations))
 
         merged_capabilities = merge_capabilities!(
           existing.capabilities,
@@ -346,7 +349,8 @@ class TargetGraph
             coworker_review: coworker_review || existing.coworker_review,
             review_notes: review_notes || existing.review_notes,
             coverage: coverage || existing.coverage,
-            capabilities: merged_capabilities
+            capabilities: merged_capabilities,
+            plugin_configurations: existing.plugin_configurations.overlay(plugin_configurations)
           )
         )
         return
@@ -366,13 +370,29 @@ class TargetGraph
           coworker_review: coworker_review,
           review_notes: review_notes,
           coverage: coverage,
-          capabilities: declared_project&.capabilities
+          capabilities: declared_project&.capabilities,
+          plugin_configurations: plugin_configurations
         )
       )
     end
 
     def imported_project?(project)
       project.owner_config_path.to_s.include?("target_graph.imports[")
+    end
+
+    def plugin_configuration_present?(configurations)
+      configurations && (!configurations.empty? || configurations.diagnostics.any?)
+    end
+
+    def overlay_root_plugin_configurations!(graph)
+      root = graph.root_project.plugin_configurations
+      return if root.empty? && root.diagnostics.empty?
+
+      graph.projects.each_value do |project|
+        next if project.root?
+
+        graph.replace_project(project.with(plugin_configurations: root.overlay(project.plugin_configurations)))
+      end
     end
 
     def merge_capabilities!(base, overlay, owner:)
