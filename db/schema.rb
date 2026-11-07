@@ -9,6 +9,10 @@
 # migrations use external dependencies or application code.
 #
 # It's strongly recommended that you check this file into your version control system.
+#
+# Syrus uses this dump for SQLite development and test databases. Production
+# MySQL schema authority is the migration history; do not load this SQLite
+# snapshot into MySQL.
 
 ActiveRecord::Schema[8.1].define(version: 2026_11_06_105035) do
   create_table "active_storage_attachments", force: :cascade do |t|

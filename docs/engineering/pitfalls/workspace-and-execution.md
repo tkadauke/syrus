@@ -34,3 +34,35 @@ keep backend and confinement decisions in provider contracts.
 **Cause:** capability needs were mentioned in a prompt but absent from
 `PlannedExecutionRequirement`. **Prevention:** declare project, target, source,
 and capability dimensions explicitly and inspect `RunQueueResolver` output.
+
+## Restoring a partial plugin-backed registry in tests
+
+**Symptom:** plugin actions disappear only after an unrelated spec runs.
+**Cause:** a test snapshots a global registry before bundled plugin
+registrations are loaded, then restores that incomplete snapshot.
+**Prevention:** force-load plugin registrations before snapshotting and restore
+the complete registry in cleanup.
+
+## Reusing snapshot-time landing memoization
+
+**Symptom:** the final locked landing check accepts state that changed after the
+queue snapshot. **Cause:** one `LandingQueueProcessor` instance reused memoized
+urgent-work, dependency, or Epic state. **Prevention:** invalidate those caches
+before the final eligibility check under the landing lock.
+
+## Losing grader failure evidence with worker-local output
+
+**Symptom:** a failed grader has only a truncated preview or no actionable
+failed example after its worker is gone. **Cause:** diagnosis depended on live
+logs or workspace files. **Prevention:** persist structured failure summaries,
+machine-readable test output, timeout markers, and failed-example locations;
+prefer that durable evidence over scraped previews.
+
+## Marking a non-triggering group-chat message in flight
+
+**Symptom:** a group chat appears busy even though no addressed agent started a
+turn. **Cause:** one message-ingress or queued-promotion path set
+`turn_in_flight` without applying `ChatSession#should_trigger_agent?` to the
+resolved mentions. **Prevention:** every user-message creation path, including
+scheduled and external ingress, must derive both turn dispatch and in-flight
+state from the same trigger predicate.

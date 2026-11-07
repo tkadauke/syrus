@@ -9,8 +9,7 @@
 - `ci_failure`, `retry`, `manual` — operator-initiated retries
 - `auto_merge` — landing-queue attempt for an approved Job; runs final
   graders, optional repair, push, and the GitHub merge path.
-- `merge_train` — landing-queue attempt for a ready Epic when
-  `AppSetting.merge_train_enabled` is on; builds and lands all open
+- `merge_train` — landing-queue attempt for a ready Epic; builds and lands all open
   approved child PRs atomically through one integration branch.
 - `rebase` — maintenance Run that rebases the PR's branch onto base
   when the PR has gone unmergeable. Skips the closed-Job guard (a
@@ -422,8 +421,8 @@ inside one Epic can keep flowing while the landing queue serializes merges.
 Operators can add/remove manual dependencies; parsed dependencies are kept
 for audit, and only admins can override the gate.
 
-**Epic merge-train landing** — when `AppSetting.merge_train_enabled` is true,
-approved Epic child Jobs do not land one-by-one. They remain `approved` with
+**Epic merge-train landing** — approved Epic child Jobs do not land one-by-one.
+They remain `approved` with
 blocked reason `waiting for Epic merge-train` until every open sibling is
 approved, then Syrus lands the Epic as an all-or-nothing `merge_train`
 Workflow. A failed train reverts members out of `landing` and observes a

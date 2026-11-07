@@ -8,6 +8,9 @@ lifecycle. Kinds are registered by `Job::Kind`; plugins may add kinds through
 `:workflow_kinds`. `Workflow` is one attempt, `Step` one materialized stage,
 and `Run` one execution of that stage. Their kinds are registered by
 `Workflow::TriggerKind` and `Step::Kind`, rather than duplicated constants.
+Operational blockage and failure codes use the registered `Problem::Kind`
+vocabulary; broader workflow-engine proposals do not make their unimplemented
+parts current architecture.
 
 The models and transition callbacks are in `app/models/job.rb`,
 `app/models/workflow.rb`, `app/models/step.rb`, and `app/models/run.rb`.
@@ -38,6 +41,9 @@ Implementations live in `app/models/work_intent.rb`,
 `app/models/work_unit.rb`, `app/services/work_definitions/`, and
 `app/services/work_units/`. `app/services/work_engine/reconciler.rb` repairs
 ownership records first and uses presentation fallbacks only for compatibility.
+The complete current entry-path contract is in
+[WorkUnit path ownership](work-unit-path-ownership.md); the older migration
+matrix under `docs/plans/` is rollout history.
 
 ## Access control and identity
 

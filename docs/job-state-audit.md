@@ -1,5 +1,12 @@
 # Job state machine audit
 
+> **Historical snapshot.** This audit describes the Job state machine at the
+> revision where the investigation was performed. It is retained as incident
+> and design history, not as current state-machine authority. Read
+> `app/models/job.rb` and
+> [`docs/engineering/architecture/domain-model-and-work-engine.md`](engineering/architecture/domain-model-and-work-engine.md)
+> for the current model.
+
 Snapshot of every state, event, transition, and the callback wiring around
 Job's AASM machine. Goal is the same as the Turbo audit: enumerate the
 surface so the next "Job got stuck in <state>" bug is a new class, not a
