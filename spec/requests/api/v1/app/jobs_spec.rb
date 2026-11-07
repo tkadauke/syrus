@@ -499,6 +499,28 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(ids).to contain_exactly(idle.id, active.id)
   end
 
+  it "returns a slim picker projection and only counts when requested" do
+    picker_job = Factories.job_record(repository: repo, issue_number: 104, issue_title: "Pick me", state: "implemented")
+
+    get "/api/v1/app/jobs", params: { fields: "picker", include_active_work: "true", limit: 10 }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body).not_to have_key("count")
+    expect(body.fetch("jobs").find { |item| item["id"] == picker_job.id }).to eq(
+      "id" => picker_job.id,
+      "slug" => picker_job.slug,
+      "title" => "Pick me",
+      "issue_title" => "Pick me",
+      "state" => "implemented",
+      "repository_slug" => repo.slug,
+      "pr_url" => nil
+    )
+
+    get "/api/v1/app/jobs", params: { fields: "picker", include_count: "true", include_active_work: "true", limit: 10 }
+    expect(parse_body.fetch("count")).to be >= 1
+  end
+
   it "filters compact job results to jobs with pull requests before applying the limit" do
     user.update!(api_token: "syrus_cli_token")
     without_pr = Factories.job_record(repository: repo, issue_number: 101, issue_title: "Newest without PR", state: "implemented")
@@ -2039,7 +2061,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       expect(node_ids).to contain_exactly("job_#{job_a.id}")
     end
 
-    it "includes kind, state, label, url, epic_id, and is_focal fields on each node" do
+    it "includes derivable navigation fields without duplicating labels and URLs" do
       job_a
 
       get "/api/v1/app/jobs/graph"
@@ -2049,11 +2071,12 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
         "id" => "job_#{job_a.id}",
         "kind" => "job",
         "state" => "open",
-        "label" => "#{job_a.slug} Alpha",
-        "url" => "/jobs/#{job_a.slug}",
+        "slug" => job_a.slug,
+        "title" => "Alpha",
         "epic_id" => nil,
         "is_focal" => false
       )
+      expect(node).not_to include("label", "url")
     end
 
     it "filters graph nodes by smart_folder_id" do

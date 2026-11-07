@@ -73,10 +73,16 @@ module App
       end
 
       def dependency_target_options
-        rows = Job.visible_to(@user)
+        limit = @params.fetch(:limit, 25).to_i.clamp(1, 100)
+        scope = Job.visible_to(@user)
                     .joins(:repository)
                     .where.not(id: @job.id)
-                    .order("jobs.created_at DESC", "jobs.id DESC")
+        if @params[:q].present?
+          pattern = "%#{ActiveRecord::Base.sanitize_sql_like(@params[:q].to_s.downcase)}%"
+          scope = scope.where("LOWER(jobs.issue_title) LIKE :pattern OR CAST(jobs.id AS CHAR) LIKE :pattern OR LOWER(repositories.owner) LIKE :pattern OR LOWER(repositories.name) LIKE :pattern", pattern: pattern)
+        end
+        rows = scope.order("jobs.created_at DESC", "jobs.id DESC")
+                    .limit(limit)
                     .pluck(
                       "jobs.id",
                       "jobs.kind",

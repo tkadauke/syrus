@@ -103,7 +103,7 @@ describe("chat API", () => {
 
     await searchChatJobs("running job")
 
-    expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/jobs?q=running+job&include_active_work=true&limit=10", expect.anything())
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/jobs?q=running+job&fields=picker&include_active_work=true&limit=10", expect.anything())
   })
 })
 

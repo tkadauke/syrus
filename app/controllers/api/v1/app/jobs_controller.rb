@@ -9,6 +9,7 @@ module Api
 
         LEGACY_TRANSCRIPT_MAX_LINES = 200
         LEGACY_TRANSCRIPT_MAX_BYTES = 1.megabyte
+        GRAPH_MAX_NODES = 500
 
         def index
           jobs = policy_scope(Job)
@@ -18,13 +19,14 @@ module Api
           jobs = filter_jobs(jobs)
           limit = params.fetch(:limit, 20).to_i.clamp(1, 100)
           page_jobs = jobs.limit(limit).to_a
-          preload_compact_latest_workflows(page_jobs)
-          preload_compact_latest_runs(page_jobs)
+          unless picker_fields?
+            preload_compact_latest_workflows(page_jobs)
+            preload_compact_latest_runs(page_jobs)
+          end
 
-          render json: {
-            count: jobs.count,
-            jobs: page_jobs.map { |job| compact_job_json(job) }
-          }
+          payload = { jobs: page_jobs.map { |job| picker_fields? ? picker_job_json(job) : compact_job_json(job) } }
+          payload[:count] = jobs.count if include_count?
+          render json: payload
         end
 
         def graph
@@ -35,7 +37,7 @@ module Api
             smart_folder: url_filter.active? ? nil : smart_folder,
             user: Current.user
           ).apply(policy_scope(Job))
-          job_attrs = scope.pluck(:id, :issue_title, :state, :epic_id)
+          job_attrs = scope.order(updated_at: :desc, id: :desc).limit(GRAPH_MAX_NODES).pluck(:id, :issue_title, :state, :epic_id)
           job_ids = job_attrs.map(&:first)
 
           dependency_rows = JobDependency.resolved
@@ -47,10 +49,10 @@ module Api
             {
               id: "job_#{id}",
               kind: "job",
-              label: "#{slug} #{title}",
+              slug: slug,
+              title: title.to_s,
               state: state.to_s,
               epic_id: epic_id,
-              url: "/jobs/#{slug}",
               is_focal: false
             }
           end
@@ -523,6 +525,26 @@ module Api
 
         def include_active_work?
           ActiveModel::Type::Boolean.new.cast(params[:include_active_work])
+        end
+
+        def picker_fields?
+          params[:fields] == "picker"
+        end
+
+        def include_count?
+          ActiveModel::Type::Boolean.new.cast(params[:include_count])
+        end
+
+        def picker_job_json(job)
+          {
+            id: job.id,
+            slug: ::App::Presentation.job_slug(job.id),
+            title: job.issue_title.to_s,
+            issue_title: job.issue_title.to_s,
+            state: job.state,
+            repository_slug: job.repository.slug,
+            pr_url: ::App::Presentation.job_pr_url(job)
+          }
         end
 
         def graph_smart_folder(subject_type)
