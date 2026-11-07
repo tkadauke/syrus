@@ -728,6 +728,7 @@ export type ChatWhiteboardPayload = {
   scene_json: ChatWhiteboardScene
   version: number
 }
+export type ChatWhiteboardVersionPayload = { version: number }
 
 export type ChatWhiteboardScene = {
   elements: ChatWhiteboardElement[]
@@ -746,6 +747,7 @@ export type WhiteboardSnapshot = {
 
 export type WhiteboardSnapshotsPayload = {
   whiteboard_snapshots: WhiteboardSnapshot[]
+  pagination?: { page: number; per_page: number; total: number; total_pages: number; has_next_page: boolean; has_previous_page: boolean }
 }
 
 export type CreateChatInput = {
@@ -1013,7 +1015,7 @@ export type ChatPayload = {
   preview_panels: ChatPreviewPanel[]
   workspace_tabs: ChatWorkspaceTab[]
   documents_in_scope?: ChatDocumentScope[]
-  whiteboard: {
+  whiteboard?: {
     version: number
     elements: ChatWhiteboardElement[]
     appState: ChatWhiteboardAppState
@@ -1293,8 +1295,19 @@ export function fetchChatMessages(path: string, before: number) {
   return getJson<ChatMessagesPayload>(`${path}?before=${encodeURIComponent(String(before))}`)
 }
 
-export function fetchChatWhiteboard(path: string) {
-  return getJson<ChatWhiteboardPayload>(path)
+export async function fetchChatWhiteboard(path: string) {
+  const [basePath, search] = path.split("?", 2)
+  const filesPath = `${basePath}/files${search ? `?${search}` : ""}`
+  const [scene, filePayload] = await Promise.all([
+    getJson<Omit<ChatWhiteboardPayload, "scene_json"> & { scene_json: Omit<ChatWhiteboardScene, "files"> }>(path),
+    getJson<{ files: ChatWhiteboardFiles }>(filesPath)
+  ])
+  return { ...scene, scene_json: { ...scene.scene_json, files: filePayload.files } }
+}
+
+export function fetchChatWhiteboardVersion(path: string) {
+  const separator = path.includes("?") ? "&" : "?"
+  return getJson<ChatWhiteboardVersionPayload>(`${path}${separator}fields=version`)
 }
 
 export function fetchWhiteboardSnapshots(chatSessionId: string | number) {
@@ -1326,10 +1339,10 @@ export function createWhiteboardSnapshot(
 
 export async function patchChatWhiteboard(path: string, input: ChatWhiteboardScene & { expected_version: number }) {
   try {
-    return { status: 200, payload: await patchJson<ChatWhiteboardPayload>(path, input) }
+    return { status: 200 as const, payload: await patchJson<ChatWhiteboardVersionPayload>(path, input) }
   } catch (error) {
     if (error instanceof ApiError && error.status === 409) {
-      return { status: 409, payload: await fetchChatWhiteboard(path) }
+      return { status: 409 as const, payload: error.payload as ChatWhiteboardPayload }
     }
 
     throw error
