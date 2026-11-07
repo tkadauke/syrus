@@ -122,6 +122,13 @@ response may pass a comma-separated `include` list to the base endpoint.
 `GET /api/v1/app/repositories/:id/cognitive_debt?view=summary` returns the
 overview-sized rollups and top items; omit `view` for the complete tab payload.
 
+Repository command endpoints return a localized confirmation message instead
+of re-rendering repository lists or detail payloads. Membership, team-access,
+final-approver, and document mutations return only the changed row or deleted
+ID so clients can patch their caches. Repository documents are paginated, and
+readiness clients can fetch a compact summary and poll an active execution
+probe separately with conditional requests.
+
 ## Throughput Metrics
 
 Authenticated app clients can read the versioned repository snapshot at

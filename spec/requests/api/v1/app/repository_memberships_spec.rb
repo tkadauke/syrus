@@ -61,6 +61,7 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/memberships", type:
       expect(response).to have_http_status(:created)
       membership = repository.repository_memberships.find_by(user: invitee)
       expect(membership.role).to eq("write")
+      expect(parse_body["membership"]).to include("id" => membership.id, "role" => "write", "user" => include("id" => invitee.id))
     end
 
     it "rejects an unknown email" do
@@ -95,6 +96,7 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/memberships", type:
 
       expect(response).to have_http_status(:ok)
       expect(membership.reload.role).to eq("write")
+      expect(parse_body["membership"]).to include("id" => membership.id, "role" => "write")
     end
 
     it "removes a member" do
@@ -107,6 +109,7 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/memberships", type:
 
       expect(response).to have_http_status(:ok)
       expect(RepositoryMembership.exists?(membership.id)).to be false
+      expect(parse_body["id"]).to eq(membership.id)
     end
 
     it "refuses to remove the last admin" do
