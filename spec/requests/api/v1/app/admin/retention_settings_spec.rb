@@ -99,6 +99,30 @@ RSpec.describe "API: /api/v1/app/admin/retention_settings", type: :request do
     )
   end
 
+  it "decodes JSON-encoded worker budget scalars returned by MySQL" do
+    sign_in_as(admin)
+    observed_at = 1.minute.ago
+    worker_samples = double("worker samples query")
+    allow(WorkerHostHealthSample).to receive(:worker_role).and_return(worker_samples)
+    allow(worker_samples).to receive(:where).and_return(worker_samples)
+    allow(worker_samples).to receive(:recent).and_return(worker_samples)
+    allow(worker_samples).to receive(:limit).with(500).and_return(worker_samples)
+    allow(worker_samples).to receive(:pluck).and_return([
+      [ "worker-a", "storage-a", observed_at, 3.gigabytes.to_s, '"worker_environment"' ]
+    ])
+
+    get "/api/v1/app/admin/retention_settings"
+
+    expect(parse_body.dig("storage_limits", "prepared_layer_cache_workers")).to contain_exactly(
+      include(
+        "hostname" => "worker-a",
+        "worker_storage_key" => "storage-a",
+        "budget_bytes" => 3.gigabytes,
+        "source" => "worker_environment"
+      )
+    )
+  end
+
   it "omits sizing fields for a table with no cached snapshot yet" do
     sign_in_as(admin)
 
