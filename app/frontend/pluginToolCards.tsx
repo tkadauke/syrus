@@ -1,5 +1,4 @@
 import type { ReactNode } from "react"
-import { loadPluginModule } from "./i18n"
 import type { ChatMediaPayload, ChatPendingActionInline, ChatPreviewPanel } from "./api/chats"
 import type { MarkdownLinkHandler } from "./lib/Markdown"
 export { isPlainObject } from "./toolCardParsing"
@@ -211,26 +210,14 @@ export type DiscoveredToolCardEntry = { renderer: ToolCardRenderer; owner: ToolC
 
 const PLUGIN_CARD_PATH_PATTERN = /\/plugins\/([^/]+)\/app\/frontend\/tool_cards\//
 
-const cardModuleLoaders = import.meta.glob<ToolCardModule>([
-  "../../plugins/*/app/frontend/tool_cards/*.tsx",
-  "!../../plugins/*/app/frontend/tool_cards/*.test.tsx",
-  "./routes/chat/tool_cards/*.tsx",
-  "!./routes/chat/tool_cards/*.test.tsx"
-])
-
-// Tool cards are registered synchronously after this module has evaluated, but
-// plugin card modules themselves may translate labels while they evaluate.
-// Load each plugin's locale bundle at that same module boundary so imperative
-// i18n.t calls never observe an untranslated namespace. Core cards need no
-// extra boundary because their namespaces are part of i18nReady.
-const cardModules = Object.fromEntries(
-  await Promise.all(
-    Object.entries(cardModuleLoaders).map(async ([path, loader]) => {
-      const plugin = path.match(PLUGIN_CARD_PATH_PATTERN)?.[1]
-      const module = plugin ? await loadPluginModule(plugin, loader) : await loader()
-      return [path, module] as const
-    })
-  )
+const cardModules = import.meta.glob<ToolCardModule>(
+  [
+    "../../plugins/*/app/frontend/tool_cards/*.tsx",
+    "!../../plugins/*/app/frontend/tool_cards/*.test.tsx",
+    "./routes/chat/tool_cards/*.tsx",
+    "!./routes/chat/tool_cards/*.test.tsx"
+  ],
+  { eager: true }
 )
 
 function isValidRenderer(renderer: ToolCardRenderer | undefined): renderer is ToolCardRenderer {
