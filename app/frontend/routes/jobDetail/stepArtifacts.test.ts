@@ -58,8 +58,6 @@ describe("stepArtifactCoworkerReview", () => {
   })
 
   it("keeps stale and typed-failure evidence visible", () => {
-    expect(stepArtifactCoworkerReview([{ iteration: 2, verdict: "stale", critique: "The reviewed diff changed." }])).toEqual([
-      { iteration: 2, verdict: "stale", critique: "The reviewed diff changed." }
-    ])
+    expect(stepArtifactCoworkerReview([{ iteration: 2, verdict: "stale" }])).toEqual([{ iteration: 2, verdict: "stale", critique: "" }])
   })
 })

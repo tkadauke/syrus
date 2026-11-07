@@ -68,6 +68,14 @@ class Coworkers::Coworker < ApplicationRecord
   def review_context_prompt(context) = Coworkers::ReviewMemoryLifecycle.prompt_section(context)
   def review_context_for(run) = Coworkers::ReviewContext.find_by(run:, coworker: self)
   def review_context_manifest(run) = review_context_for(run)&.manifest
+  def review_evidence_links(run:, user:)
+    return unless user.admin? || owner_user_id == user.id
+
+    {
+      "journal" => "/api/v1/app/coworkers/#{id}/review_journal/#{run.id}",
+      "restricted_context" => "/api/v1/app/coworkers/#{id}/review_contexts/#{run.id}"
+    }
+  end
   def update_review_memory!(run:, path:, content:) = Coworkers::ReviewMemoryLifecycle.update!(coworker: self, run:, path:, content:)
   def finalize_review_memory!(run:, key_learning:, verdict:)
     Coworkers::ReviewMemoryLifecycle.persist!(coworker: self, run:, key_learning:, verdict:)

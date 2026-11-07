@@ -91,7 +91,8 @@ export function stepArtifactCoworkerReview(raw: unknown): JobCoworkerReviewItera
   if (!Array.isArray(raw)) return null
   const result = raw
     .filter(isRecord)
-    .filter((entry) => typeof entry.iteration === "number" && typeof entry.critique === "string" && isCoworkerReviewVerdict(entry.verdict))
+    .filter((entry) => typeof entry.iteration === "number" && isCoworkerReviewVerdict(entry.verdict))
+    .map((entry) => ({ ...entry, critique: typeof entry.critique === "string" ? entry.critique : "" }))
   return result.length > 0 ? (result as JobCoworkerReviewIteration[]) : null
 }
 

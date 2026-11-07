@@ -1606,7 +1606,7 @@ export function StepSecurityReviewPanel({ iterations, onClose }: { iterations: J
 export function StepCoworkerReviewPanel({ iterations, onClose }: { iterations: JobCoworkerReviewIteration[]; onClose: () => void }) {
   const { t } = useT("jobs")
   return (
-    <section className={artifactPanelClass()}>
+    <section aria-label={t("coworker_review_panel_accessibility")} className={artifactPanelClass()}>
       <ArtifactPanelHeader onClose={onClose}>{t("artifact_header_coworker_review")}</ArtifactPanelHeader>
       <div className="divide-y divide-border overflow-auto max-md:min-h-0 max-md:flex-1">
         {iterations.map((iteration) => (
@@ -1623,7 +1623,7 @@ export function StepCoworkerReviewPanel({ iterations, onClose }: { iterations: J
                 model: iteration.reviewer?.model || iteration.review_evidence?.model || t("coworker_review_default_model")
               })}
             </p>
-            <Markdown className="chat-prose text-sm text-text-secondary" text={iteration.critique} />
+            {iteration.critique ? <Markdown className="chat-prose text-sm text-text-secondary" text={iteration.critique} /> : null}
             <dl className="grid gap-2 text-xs sm:grid-cols-2">
               <div>
                 <dt className="font-medium text-text-muted">{t("coworker_review_revisions")}</dt>
@@ -1650,28 +1650,30 @@ export function StepCoworkerReviewPanel({ iterations, onClose }: { iterations: J
                     : "—"}
                 </dd>
               </div>
+              <div>
+                <dt className="font-medium text-text-muted">{t("coworker_review_cost")}</dt>
+                <dd className="text-text-secondary">{iteration.cost_usd == null ? "—" : formatCurrency(iteration.cost_usd)}</dd>
+              </div>
+              <div>
+                <dt className="font-medium text-text-muted">{t("coworker_review_repair_response")}</dt>
+                <dd className="text-text-secondary">{iteration.repair_response || "—"}</dd>
+              </div>
             </dl>
             {iteration.review_evidence?.terminal_failure_code || iteration.memory_persistence?.error_code ? (
               <Notice tone="danger">{iteration.review_evidence?.terminal_failure_code || iteration.memory_persistence?.error_code}</Notice>
             ) : null}
-            {iteration.reviewer?.reference && iteration.run_id ? (
+            {iteration.operator_links?.journal || iteration.operator_links?.restricted_context ? (
               <div className="flex flex-wrap gap-2">
-                <a
-                  className={buttonClasses("secondary")}
-                  href={`/api/v1/app/coworkers/${iteration.reviewer.reference}/review_journal/${iteration.run_id}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {t("coworker_review_open_journal")}
-                </a>
-                <a
-                  className={buttonClasses("secondary")}
-                  href={`/api/v1/app/coworkers/${iteration.reviewer.reference}/review_contexts/${iteration.run_id}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {t("coworker_review_inspect_evidence")}
-                </a>
+                {iteration.operator_links.journal ? (
+                  <a className={buttonClasses("secondary")} href={iteration.operator_links.journal} target="_blank" rel="noreferrer">
+                    {t("coworker_review_open_journal")}
+                  </a>
+                ) : null}
+                {iteration.operator_links.restricted_context ? (
+                  <a className={buttonClasses("secondary")} href={iteration.operator_links.restricted_context} target="_blank" rel="noreferrer">
+                    {t("coworker_review_inspect_evidence")}
+                  </a>
+                ) : null}
               </div>
             ) : null}
           </div>
