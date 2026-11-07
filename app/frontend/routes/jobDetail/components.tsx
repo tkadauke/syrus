@@ -484,8 +484,16 @@ export function NeedsAttentionBanner({ job, command }: { job: JobDetailPayload["
       ) : null}
       {dismissal && command ? (
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-          {dismissal.reason_text ? <Text className="min-w-0 flex-1 truncate text-xs" tone="warning">{dismissal.reason_text}</Text> : null}
-          <CommandButton command={command} input={{ method: "post", path: dismissal.app_dismiss_path, confirm: t("workflow_dismiss_confirm") }} tone="secondary">
+          {dismissal.reason_text ? (
+            <Text className="min-w-0 flex-1 truncate text-xs" tone="warning">
+              {dismissal.reason_text}
+            </Text>
+          ) : null}
+          <CommandButton
+            command={command}
+            input={{ method: "post", path: dismissal.app_dismiss_path, confirm: t("workflow_dismiss_confirm") }}
+            tone="secondary"
+          >
             {t("workflow_dismiss")}
           </CommandButton>
         </div>
