@@ -148,7 +148,7 @@ RSpec.describe ChatMessage do
         expect(payload[:messages].last).to include(
           type: "message",
           role: "assistant",
-          content: { "text" => "Hello from React." },
+          content: {},
           text: "Hello from React."
         )
         expect(payload.to_s).not_to include("html")

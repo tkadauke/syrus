@@ -7,12 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import * as chatsApi from "@app/api/chats"
 import type { ToolPresentationEntry, ToolPresentationExample } from "@app/toolPresentationRegistry"
 import * as toolCardJobsApi from "../api/toolCardJobs"
-import {
-  buildToolCardFeedbackMetadata,
-  buildToolCardFeedbackPrompt,
-  ToolCardDiscussButton,
-  type ToolCardFeedbackMetadata
-} from "./ToolCardDiscussDialog"
+import { buildToolCardFeedbackMetadata, buildToolCardFeedbackPrompt, ToolCardDiscussButton, type ToolCardFeedbackMetadata } from "./ToolCardDiscussDialog"
 
 const { mockNavigate } = vi.hoisted(() => ({ mockNavigate: vi.fn() }))
 
@@ -23,7 +18,7 @@ vi.mock("react-router-dom", async (importOriginal) => {
 
 vi.mock("@app/api/chats", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@app/api/chats")>()
-  return { ...actual, createChat: vi.fn() }
+  return { ...actual, createEmptyChat: vi.fn(), sendChatMessage: vi.fn(), uploadChatAttachment: vi.fn() }
 })
 
 vi.mock("../api/toolCardJobs", async (importOriginal) => {
@@ -35,7 +30,9 @@ vi.mock("html2canvas-pro", () => ({
   default: vi.fn()
 }))
 
-const mockCreateChat = vi.mocked(chatsApi.createChat)
+const mockCreateEmptyChat = vi.mocked(chatsApi.createEmptyChat)
+const mockSendChatMessage = vi.mocked(chatsApi.sendChatMessage)
+const mockUploadChatAttachment = vi.mocked(chatsApi.uploadChatAttachment)
 const mockCreateToolCardJob = vi.mocked(toolCardJobsApi.createToolCardJob)
 const mockHtml2canvas = vi.mocked(html2canvasModule)
 
@@ -57,7 +54,7 @@ const example: ToolPresentationExample = {
   id: "two_open",
   label: "Two open insights",
   input: { state: "pending" },
-  parsedResult: { insights: [ { id: 1, title: "LandingQueueProcessor re-fetches PR mergeability on every poll tick" } ] }
+  parsedResult: { insights: [{ id: 1, title: "LandingQueueProcessor re-fetches PR mergeability on every poll tick" }] }
 }
 
 const deepLink = "https://syrus.test/admin/tool_cards?tool=list_insights&example=two_open#tool-list_insights"
@@ -113,7 +110,7 @@ describe("buildToolCardFeedbackMetadata", () => {
 
   it("flags a resultError example and preserves any annotation shapes passed in", () => {
     const errorExample: ToolPresentationExample = { id: "boom", label: "Failure", resultBody: "boom", resultError: true }
-    const shapes = [ { id: "s1", kind: "text" as const, x: 1, y: 2, value: "look here", color: "#ef4444" } ]
+    const shapes = [{ id: "s1", kind: "text" as const, x: 1, y: 2, value: "look here", color: "#ef4444" }]
 
     const metadata = buildToolCardFeedbackMetadata(entry, errorExample, "wide", deepLink, shapes)
 
@@ -147,7 +144,9 @@ describe("buildToolCardFeedbackPrompt", () => {
 describe("ToolCardDiscussButton", () => {
   beforeEach(() => {
     mockNavigate.mockClear()
-    mockCreateChat.mockReset()
+    mockCreateEmptyChat.mockReset()
+    mockSendChatMessage.mockReset()
+    mockUploadChatAttachment.mockReset()
     mockCreateToolCardJob.mockReset()
     mockHtml2canvas.mockReset()
   })
@@ -158,7 +157,9 @@ describe("ToolCardDiscussButton", () => {
     renderHarness()
     await openDialog()
 
-    await waitFor(() => expect(screen.getByRole("img", { name: "Screenshot of the List insights card" })).toHaveAttribute("src", "data:image/png;base64,c2NyZWVuc2hvdA=="))
+    await waitFor(() =>
+      expect(screen.getByRole("img", { name: "Screenshot of the List insights card" })).toHaveAttribute("src", "data:image/png;base64,c2NyZWVuc2hvdA==")
+    )
 
     const previewNode = screen.getByText("rendered preview")
     expect(mockHtml2canvas.mock.calls[0][0]).toBe(previewNode)
@@ -197,7 +198,9 @@ describe("ToolCardDiscussButton", () => {
 
   it("carries the screenshot, prompt, and structured metadata into a new chat and navigates to it on success", async () => {
     mockHtml2canvas.mockResolvedValue({ toDataURL: () => "data:image/png;base64,c2NyZWVuc2hvdA==" } as unknown as HTMLCanvasElement)
-    mockCreateChat.mockResolvedValue({ message: "Chat created.", redirect_to: "/chats/42", chat: {} } as unknown as chatsApi.ChatCreatedPayload)
+    mockCreateEmptyChat.mockResolvedValue({ message: "Chat created.", redirect_to: "/chats/42", chat: { id: 42 } } as unknown as chatsApi.ChatCreatedPayload)
+    mockUploadChatAttachment.mockResolvedValue({ id: 9, name: "list_insights-tool-card.png", mime_type: "image/png", size: 10, url: "/attachment/9" })
+    mockSendChatMessage.mockResolvedValue({ messages: [] } as unknown as chatsApi.ChatPayload)
 
     renderHarness()
     await openDialog()
@@ -206,16 +209,14 @@ describe("ToolCardDiscussButton", () => {
     fireEvent.change(screen.getByLabelText("What should the assistant know?"), { target: { value: "The icon looks wrong here." } })
     fireEvent.click(screen.getByRole("button", { name: "Discuss" }))
 
-    await waitFor(() => expect(mockCreateChat).toHaveBeenCalledTimes(1))
-    const [input] = mockCreateChat.mock.calls[0]
-    expect(input.repositoryId).toBeUndefined()
-    expect(input.text).toContain("The icon looks wrong here.")
-    expect(input.text).toContain('"selected_example_id": "two_open"')
-    expect(input.text).toContain('"selected_viewport_preset": "desktop"')
-    expect(input.text).toContain(`"catalog_deep_link": "${deepLink}"`)
-    expect(input.attachments).toEqual([
-      { name: "list_insights-tool-card.png", mimeType: "image/png", dataUrl: "data:image/png;base64,c2NyZWVuc2hvdA==" }
-    ])
+    await waitFor(() => expect(mockCreateEmptyChat).toHaveBeenCalledTimes(1))
+    expect(mockUploadChatAttachment).toHaveBeenCalledWith(42, expect.objectContaining({ name: "list_insights-tool-card.png", type: "image/png" }))
+    const [, text, attachments] = mockSendChatMessage.mock.calls[0]
+    expect(text).toContain("The icon looks wrong here.")
+    expect(text).toContain('"selected_example_id": "two_open"')
+    expect(text).toContain('"selected_viewport_preset": "desktop"')
+    expect(text).toContain(`"catalog_deep_link": "${deepLink}"`)
+    expect(attachments).toEqual([{ id: 9, name: "list_insights-tool-card.png", mimeType: "image/png", size: 10, url: "/attachment/9" }])
 
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/chats/42"))
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
@@ -223,7 +224,8 @@ describe("ToolCardDiscussButton", () => {
 
   it("still lets the operator start a chat without an attachment when capture failed", async () => {
     mockHtml2canvas.mockRejectedValue(new Error("tainted canvas"))
-    mockCreateChat.mockResolvedValue({ message: "Chat created.", redirect_to: "/chats/7", chat: {} } as unknown as chatsApi.ChatCreatedPayload)
+    mockCreateEmptyChat.mockResolvedValue({ message: "Chat created.", redirect_to: "/chats/7", chat: { id: 7 } } as unknown as chatsApi.ChatCreatedPayload)
+    mockSendChatMessage.mockResolvedValue({ messages: [] } as unknown as chatsApi.ChatPayload)
 
     renderHarness()
     await openDialog()
@@ -231,14 +233,14 @@ describe("ToolCardDiscussButton", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Discuss" }))
 
-    await waitFor(() => expect(mockCreateChat).toHaveBeenCalledTimes(1))
-    const [input] = mockCreateChat.mock.calls[0]
-    expect(input.attachments).toEqual([])
+    await waitFor(() => expect(mockCreateEmptyChat).toHaveBeenCalledTimes(1))
+    expect(mockUploadChatAttachment).not.toHaveBeenCalled()
+    expect(mockSendChatMessage.mock.calls[0][2]).toEqual([])
   })
 
   it("shows a clear inline error when starting the chat fails, without closing the dialog", async () => {
     mockHtml2canvas.mockResolvedValue({ toDataURL: () => "data:image/png;base64,c2NyZWVuc2hvdA==" } as unknown as HTMLCanvasElement)
-    mockCreateChat.mockRejectedValue(new Error("boom"))
+    mockCreateEmptyChat.mockRejectedValue(new Error("boom"))
 
     renderHarness()
     await openDialog()
@@ -271,7 +273,7 @@ describe("ToolCardDiscussButton", () => {
     expect(input.prompt).toContain("The icon looks wrong here.")
     expect(input.prompt).toContain('"selected_example_id": "two_open"')
     expect(input.screenshot).toEqual({ name: "list_insights-tool-card.png", mimeType: "image/png", dataUrl: "data:image/png;base64,c2NyZWVuc2hvdA==" })
-    expect(mockCreateChat).not.toHaveBeenCalled()
+    expect(mockCreateEmptyChat).not.toHaveBeenCalled()
 
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/jobs/99"))
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
@@ -320,9 +322,20 @@ function setUpAnnotationCanvasMocks() {
     const canvas = this as HTMLCanvasElement & { __mockContext?: CanvasRenderingContext2D }
     if (!canvas.__mockContext) {
       canvas.__mockContext = {
-        clearRect: vi.fn(), beginPath: vi.fn(), rect: vi.fn(), stroke: vi.fn(), fill: vi.fn(),
-        ellipse: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), fillText: vi.fn(), measureText: vi.fn().mockReturnValue({ width: 10 }),
-        drawImage: vi.fn(), setLineDash: vi.fn(), save: vi.fn(), restore: vi.fn()
+        clearRect: vi.fn(),
+        beginPath: vi.fn(),
+        rect: vi.fn(),
+        stroke: vi.fn(),
+        fill: vi.fn(),
+        ellipse: vi.fn(),
+        moveTo: vi.fn(),
+        lineTo: vi.fn(),
+        fillText: vi.fn(),
+        measureText: vi.fn().mockReturnValue({ width: 10 }),
+        drawImage: vi.fn(),
+        setLineDash: vi.fn(),
+        save: vi.fn(),
+        restore: vi.fn()
       } as unknown as CanvasRenderingContext2D
     }
     return canvas.__mockContext
@@ -330,7 +343,15 @@ function setUpAnnotationCanvasMocks() {
 
   vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue("data:image/png;base64,YW5ub3RhdGVk")
   vi.spyOn(HTMLCanvasElement.prototype, "getBoundingClientRect").mockReturnValue({
-    bottom: 80, height: 80, left: 0, right: 100, top: 0, width: 100, x: 0, y: 0, toJSON: () => ({})
+    bottom: 80,
+    height: 80,
+    left: 0,
+    right: 100,
+    top: 0,
+    width: 100,
+    x: 0,
+    y: 0,
+    toJSON: () => ({})
   })
   Object.defineProperty(HTMLCanvasElement.prototype, "offsetWidth", { configurable: true, value: 100 })
   Object.defineProperty(HTMLCanvasElement.prototype, "offsetHeight", { configurable: true, value: 80 })
@@ -344,7 +365,9 @@ function setUpAnnotationCanvasMocks() {
       width = 100
       height = 80
       onload: (() => void) | null = null
-      set src(_value: string) { this.onload?.() }
+      set src(_value: string) {
+        this.onload?.()
+      }
     }
   })
 }

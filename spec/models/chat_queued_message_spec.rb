@@ -34,6 +34,7 @@ RSpec.describe ChatQueuedMessage, type: :model do
     )
 
     expect(message.text).to eq("Inspect this")
-    expect(message.draft_content.attachments).to contain_exactly(include("name" => "shot.png", "mime_type" => "image/png", "data" => "abc"))
+    expect(message.draft_content.attachments).to contain_exactly(include("name" => "shot.png", "mime_type" => "image/png"))
+    expect(message.draft_content.attachments.first).not_to have_key("data")
   end
 end
