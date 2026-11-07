@@ -216,21 +216,6 @@ const NON_INTERACTIVE_CHAT_TAP_SELECTOR = [
 ].join(",")
 const USER_SCROLL_INTENT_WINDOW_MS = 700
 const MOBILE_CHAT_TOP_CHROME_FALLBACK_HEIGHT = 70
-const ACTIVE_CHAT_FAST_POLL_WINDOW_MS = 2 * 60_000
-const ACTIVE_CHAT_MEDIUM_POLL_WINDOW_MS = 10 * 60_000
-
-export function activeChatRefetchInterval(activeForMs: number) {
-  if (activeForMs < ACTIVE_CHAT_FAST_POLL_WINDOW_MS) return 3_000
-  if (activeForMs < ACTIVE_CHAT_MEDIUM_POLL_WINDOW_MS) return 10_000
-  return 30_000
-}
-
-export type ActiveChatPollingState = { chatId: string; startedAt: number }
-
-export function nextActiveChatPollingState(current: ActiveChatPollingState | null, chatId: string, now: number) {
-  const state = current?.chatId === chatId ? current : { chatId, startedAt: now }
-  return { state, interval: activeChatRefetchInterval(now - state.startedAt) }
-}
 
 function UsageOverlay({ payload, mobile = false }: { payload: ChatPayload; mobile?: boolean }) {
   return (
@@ -263,7 +248,6 @@ export function ChatRoute() {
   const navigate = useNavigate()
   const viewportStyle = useChatVisualViewportStyle()
   const { t } = useT("chat")
-  const activePollingStateRef = useRef<ActiveChatPollingState | null>(null)
   const chat = useQuery({
     queryKey,
     queryFn: async () => {
@@ -280,14 +264,9 @@ export function ChatRoute() {
     staleTime: 0,
     refetchInterval: (query) => {
       if (document.visibilityState !== "visible") return false
+      if (!isDisconnected) return false
       const data = query.state.data as ChatPayload | undefined
-      if (data && isAgentActive(data)) {
-        const polling = nextActiveChatPollingState(activePollingStateRef.current, id, Date.now())
-        activePollingStateRef.current = polling.state
-        return polling.interval
-      }
-      activePollingStateRef.current = null
-      return isDisconnected ? 30_000 : false
+      return data && isAgentActive(data) ? 3_000 : 30_000
     },
     placeholderData: (previousData, previousQuery) => (previousQuery?.queryKey[0] === "chats" && previousQuery.queryKey[1] === id ? previousData : undefined)
   })

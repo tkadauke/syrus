@@ -5,6 +5,16 @@ module PendingActions
 
     MAX_CHATS = Mcp::Tools::SpawnChatsTool::MAX_CHATS
 
+    def self.preload_tool_card_outcomes(actions)
+      actions.to_h do |action|
+        members = action.pending_action_group&.chat_pending_actions || [ action ]
+        chat_ids = members.filter_map { |member| Integer(member.payload.to_h["spawned_chat_id"], exception: false) }
+        [ action.id, chat_ids.any? ? { chat_ids: chat_ids } : nil ]
+      end
+    end
+
+    def self.include_terminal_tool_card_outcome? = true
+
     def execute
       progress!("Creating chat...")
       result = ChatSessions::Creator.new(

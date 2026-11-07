@@ -157,7 +157,7 @@ RSpec.describe BroadcastsJobProgress do
           "type" => "chat.updated",
           "resource" => "chat",
           "id" => chat_session.id,
-          "payload" => { "action" => "job_status_changed", "job_id" => job.id }
+          "payload" => hash_including("action" => "job_status_changed", "job_id" => job.id, "item" => hash_including("job_id" => job.id))
         )
       )
     end
@@ -192,7 +192,7 @@ RSpec.describe BroadcastsJobProgress do
           "type" => "chat.updated",
           "resource" => "chat",
           "id" => chat_session.id,
-          "payload" => { "action" => "job_status_changed", "job_id" => job.id }
+          "payload" => hash_including("action" => "job_status_changed", "job_id" => job.id, "item" => hash_including("job_id" => job.id))
         )
       )
     end
