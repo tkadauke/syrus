@@ -5302,7 +5302,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response.headers["Cache-Control"]).to include("private", "max-age=31536000", "immutable")
     end
 
-    it "includes inline chat image attachments in chat_images" do
+    it "does not materialize legacy inline images while serving media" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
       chat.messages.create!(
@@ -5319,19 +5319,13 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
         }
       )
 
-      get "/api/v1/app/chats/#{chat.id}/media"
+      expect {
+        get "/api/v1/app/chats/#{chat.id}/media"
+      }.not_to change(Document, :count)
 
       expect(response).to have_http_status(:ok)
-      doc = chat.reload.attached_repository_documents.sole
-      expect(parse_body["chat_images"]).to contain_exactly(
-        include(
-          "id" => doc.id,
-          "filename" => "bug-report-viewport.png",
-          "content_type" => "image/png",
-          "file_path" => "/api/v1/app/chats/#{chat.id}/media/chat_images/#{doc.id}/file",
-          "image_url" => "/api/v1/app/credentials/documents/#{doc.id}/file"
-        )
-      )
+      expect(parse_body["chat_images"]).to eq([])
+      expect(chat.messages.sole.reload.content.dig("attachments", 0, "data")).to be_present
     end
 
     it "excludes non-image documents from chat_images" do
