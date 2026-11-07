@@ -661,9 +661,9 @@ export function VisualEvidenceGallery({
             const pageLabel = screenshot.page?.title || screenshot.page?.path || t("visual_evidence_unknown_page")
             const viewport = screenshot.viewport?.width && screenshot.viewport?.height ? `${screenshot.viewport.width}×${screenshot.viewport.height}` : null
             return (
-              <figure className={surfaceClasses("panel", "sm")} key={screenshot.id}>
-                <button className="block w-full cursor-zoom-in" onClick={() => setPreview({ title: pageLabel, url: screenshot.image_url })} type="button">
-                  <img alt={pageLabel} className="w-full rounded-md border border-border object-contain" loading="lazy" src={screenshot.image_url} />
+              <figure className={`${surfaceClasses("panel", "sm")} max-w-lg`} key={screenshot.id}>
+                <button className="flex w-full cursor-zoom-in justify-center" onClick={() => setPreview({ title: pageLabel, url: screenshot.image_url })} type="button">
+                  <img alt={pageLabel} className="max-h-72 max-w-full rounded-md border border-border object-contain" loading="lazy" src={screenshot.image_url} />
                 </button>
                 <figcaption className="mt-2 space-y-1 text-xs text-text-muted">
                   <p className="font-medium text-text-primary">{pageLabel}</p>
