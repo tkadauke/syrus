@@ -353,7 +353,12 @@ module ScheduledTasks
         end
 
         def zone
-          @zone ||= ActiveSupport::TimeZone[@timezone]
+          return @zone if defined?(@zone)
+
+          tzinfo = TZInfo::Timezone.get(@timezone)
+          @zone = ActiveSupport::TimeZone.create(@timezone, nil, tzinfo)
+        rescue TZInfo::InvalidTimezoneIdentifier
+          @zone = nil
         end
 
         def wall_clock_candidate(date, hour)
