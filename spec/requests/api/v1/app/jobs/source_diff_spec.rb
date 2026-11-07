@@ -117,6 +117,30 @@ RSpec.describe "App API job source diff browser", type: :request do
     expect(job.diff_review_versions).to be_empty
   end
 
+  it "loads and downloads a patch from an immutable review snapshot without a repository provider" do
+    base = "c" * 40
+    head = "d" * 40
+    patch = "@@ -1 +1 @@\n-old preview\n+new preview\n"
+    DiffReviewVersions::Creator.call(
+      job: job,
+      base_sha: base,
+      head_sha: head,
+      files: [ { path: "app/services/dashboard_payload.rb", status: "modified", patch: patch } ],
+      truncated: false,
+      reason: "diff_fixture"
+    )
+
+    expect(RepositoryContent).not_to receive(:for)
+
+    get "/api/v1/app/jobs/#{job.id}/source_file_diff", params: { base: base, head: head, path: "app/services/dashboard_payload.rb" }
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("patch" => patch)
+
+    get "/api/v1/app/jobs/#{job.id}/source_file_diff_download", params: { base: base, head: head, path: "app/services/dashboard_payload.rb" }
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to eq(patch)
+  end
+
   it "passes the previous path for renamed files and serializes UTF-8 patches" do
     patch = "@@ -1 +1 @@\n-café\n+Kaffee\n".dup.force_encoding(Encoding::BINARY)
     expect_any_instance_of(RepositoryContent::Reader).to receive(:file_patch)
