@@ -2188,6 +2188,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       sign_in_as(user)
       other_user = Factories.user
       third_user = Factories.user
+      repository
 
       expect {
         post "/api/v1/app/chats", params: { participant_user_ids: [ other_user.id, third_user.id ] }
@@ -2196,10 +2197,22 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:created)
       chat = ChatSession.last
       expect(chat.conversation_kind).to eq("group")
+      expect(chat.repository).to eq(repository)
       expect(chat.participants).to contain_exactly(user, other_user, third_user)
       expect(chat.chat_participants.find_by(user: user).role).to eq("owner")
       expect(chat.chat_participants.find_by(user: other_user).role).to eq("member")
       expect(chat.chat_participants.find_by(user: third_user).role).to eq("member")
+    end
+
+    it "creates an explicitly repositoryless group chat" do
+      sign_in_as(user)
+      other_user = Factories.user
+      repository
+
+      post "/api/v1/app/chats", params: { participant_user_ids: [ other_user.id ], repository_id: nil }
+
+      expect(response).to have_http_status(:created)
+      expect(ChatSession.last.repository).to be_nil
     end
 
     it "rejects an unknown participant user id" do
@@ -2482,6 +2495,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
   it "creates a chat without a repository attachment" do
     sign_in_as(user)
+    repository
 
     expect {
       post "/api/v1/app/chats", params: { repository_id: nil, chat_message: { text: "Map tkadauke/syrus" } }
