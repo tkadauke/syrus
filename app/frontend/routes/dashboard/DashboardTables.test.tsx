@@ -367,7 +367,7 @@ describe("dashboard DataTable migrations", () => {
     fireEvent.click(screen.getByRole("button", { name: "Approve" }))
     expect(await screen.findByText("Bulk action completed for 2 of 3 jobs; 1 failed or were skipped.")).toBeInTheDocument()
     expect(fetchSpy).toHaveBeenCalledTimes(3)
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["dashboard"] })
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["dashboard", "rows"] })
   })
 
   it("renders dashboard plugin panels directly above the data table", () => {

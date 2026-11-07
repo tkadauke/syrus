@@ -43,6 +43,7 @@ import {
   dashboardChromeSearch,
   dashboardSubjectFromPath,
   fetchDashboardChromeWithMeta,
+  fetchDashboardControls,
   fetchDashboardRowsWithMeta,
   fetchEpicsGraph,
   fetchJobsGraph,
@@ -69,6 +70,7 @@ export function DashboardRoute() {
   const location = useLocation()
   const search = dashboardApiSearch(location.pathname, location.search)
   const chromeSearch = dashboardChromeSearch(location.pathname, location.search)
+  const subject = dashboardSubjectFromPath(location.pathname) ?? "epic"
   const traceKey = `${location.pathname}?${search}`
   const activeTrace = useRef<{ key: string; traceId: string; startedAt: number } | null>(null)
   const reportedTraceKey = useRef<string | null>(null)
@@ -97,11 +99,16 @@ export function DashboardRoute() {
     },
     placeholderData: (previousData) => previousData
   })
+  const dashboardControls = useQuery({
+    queryKey: ["dashboard", "controls", subject],
+    queryFn: ({ signal }) => fetchDashboardControls(subject, { signal }),
+    staleTime: 60 * 60 * 1000
+  })
   const payload = useMemo(() => {
-    if (!dashboardChrome.data || !dashboardRows.data) return null
+    if (!dashboardChrome.data || !dashboardRows.data || !dashboardControls.data) return null
 
-    return mergeDashboardPayload(dashboardChrome.data, dashboardRows.data, { rowsCurrentForSearch: !dashboardRows.isPlaceholderData })
-  }, [dashboardChrome.data, dashboardRows.data, dashboardRows.isPlaceholderData])
+    return mergeDashboardPayload(dashboardChrome.data, dashboardRows.data, dashboardControls.data, { rowsCurrentForSearch: !dashboardRows.isPlaceholderData })
+  }, [dashboardChrome.data, dashboardControls.data, dashboardRows.data, dashboardRows.isPlaceholderData])
   useEffect(() => {
     if (!payload || payload.rows_current_for_search === false) return
     const bootstrap = queryClient.getQueryData<BootstrapPayload>(["bootstrap"]) ?? readInitialBootstrap()
@@ -122,7 +129,7 @@ export function DashboardRoute() {
     })
   }, [dashboardChrome.data, dashboardRows.data, payload, queryClient, traceKey])
 
-  if (!payload && (dashboardChrome.isPending || dashboardRows.isPending))
+  if (!payload && (dashboardChrome.isPending || dashboardRows.isPending || dashboardControls.isPending))
     return (
       <Page.Root aria-label={t("title")} gutter="responsive">
         <Text muted>{t("loading")}</Text>
@@ -130,6 +137,7 @@ export function DashboardRoute() {
     )
   if (dashboardChrome.isError) return <DashboardError error={dashboardChrome.error} />
   if (dashboardRows.isError) return <DashboardError error={dashboardRows.error} />
+  if (dashboardControls.isError) return <DashboardError error={dashboardControls.error} />
   if (!payload)
     return (
       <Page.Root aria-label={t("title")} gutter="responsive">
@@ -257,7 +265,7 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
       <RepositoryHealthBanners
         className={marginGutterRestore}
         prefix={prefix}
-        repositories={payload.health_blocked_repositories ?? payload.broken_repositories ?? []}
+        repositories={payload.health_blocked_repositories ?? []}
       />
 
       {isDesktop ? (
@@ -415,7 +423,7 @@ export function RepositoryHealthBanners({
   const requestRepair = useMutation({
     mutationFn: requestDashboardMainBranchRepair,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "chrome"] })
     }
   })
   const visible = repositories.filter((repo) => dismissals[repo.id] !== healthBannerEvidenceToken(repo))
@@ -739,7 +747,7 @@ export function DashboardToolbar({
   const updatePreferences = useMutation({
     mutationFn: updateDashboardPreferences,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "rows"] })
     }
   })
 
@@ -878,13 +886,13 @@ export function DashboardTable({
   const updateSort = useMutation({
     mutationFn: updateDashboardPreferences,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "rows"] })
     }
   })
   const updateColumnOrder = useMutation({
     mutationFn: updateDashboardPreferences,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "rows"] })
     }
   })
   const onReorderColumns = (next: string[]) => updateColumnOrder.mutate({ subject: payload.subject, visible_columns: next })
