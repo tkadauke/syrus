@@ -1185,7 +1185,8 @@ coworker_review:
 ```
 
 The mapping is inert when absent or when `enabled` is false. `rounds` defaults
-to 1 and must be between 1 and 10. `required` defaults to false and controls
+to 1 and must be between 1 and 10 when enabled; an explicitly disabled gate
+may set it to 0. `required` defaults to false and controls
 eligible transient reviewer failures; routing/configuration errors always
 fail. Criteria follow the same root and affected-project scoping as the other
 review gates. The gate runs after adversarial/security review and before visual

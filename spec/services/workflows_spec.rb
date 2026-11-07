@@ -241,14 +241,22 @@ RSpec.describe Workflows do
     end
 
     it "places the enabled coworker gate after technical reviews and before visual review and graders" do
-      allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml)
-        .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 1, source: ".syrus.yml", note: nil, criteria: []))
-      allow(RepoSecurityReviewPlan).to receive(:from_syrus_yml)
-        .and_return(RepoSecurityReviewPlan::Result.new(rounds: 1, source: ".syrus.yml", note: nil, criteria: []))
-      allow(RepoCoworkerReviewPlan).to receive(:from_syrus_yml)
-        .and_return(RepoCoworkerReviewPlan::Result.new(
-          enabled: true, rounds: 2, source: ".syrus.yml", note: nil, criteria: [], required: true
-        ))
+      config = SyrusYml.new(<<~YAML).parse
+        adversarial_review:
+          rounds: 1
+        security_review:
+          rounds: 1
+        coworker_review:
+          enabled: true
+          rounds: 2
+          required: true
+      YAML
+      allow(RepoDefaultBranchSyrusYml).to receive(:for_job).with(job).and_return(
+        RepoDefaultBranchSyrusYml::Result.new(config: config, source: ".syrus.yml", note: nil)
+      )
+      allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml).and_call_original
+      allow(RepoSecurityReviewPlan).to receive(:from_syrus_yml).and_call_original
+      allow(RepoCoworkerReviewPlan).to receive(:from_syrus_yml).and_call_original
       visual = RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
       allow(RepoVisualReviewPlan).to receive(:for_job).and_return(visual)
 
@@ -261,6 +269,21 @@ RSpec.describe Workflows do
       expect(wf.chain_template).to include(
         { "type" => "loop", "max_iterations" => 2, "steps" => %w[implement coworker_review] }
       )
+    end
+
+    [ nil, "coworker_review:\n  enabled: false\n  rounds: 0\n" ].each do |yaml|
+      label = yaml ? "disabled" : "absent"
+      it "does not materialize a coworker gate when the mapping is #{label}" do
+        config = SyrusYml.new(yaml || "prepare: false\n").parse
+        allow(RepoDefaultBranchSyrusYml).to receive(:for_job).with(job).and_return(
+          RepoDefaultBranchSyrusYml::Result.new(config: config, source: ".syrus.yml", note: nil)
+        )
+        allow(RepoCoworkerReviewPlan).to receive(:from_syrus_yml).and_call_original
+
+        workflow = Workflows::Initial.instantiate(job: job)
+
+        expect(workflow.steps.pluck(:kind)).not_to include("coworker_review")
+      end
     end
 
     it "keeps the Initial chain unchanged when adversarial review rounds is zero" do
