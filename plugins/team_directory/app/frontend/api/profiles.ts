@@ -71,12 +71,12 @@ export type TeamProfileDetail = Omit<TeamProfileSummary, "bio_excerpt"> & {
   repositories: TeamProfileRepository[]
   epics: TeamProfileEpic[]
   jobs: TeamProfileJob[]
-  recent_activity: TeamProfileActivity[]
 }
 
 export type TeamProfilesPayload = {
   team_user_count: number
   profiles: TeamProfileSummary[]
+  pagination?: { page: number; per_page: number; total: number; total_pages: number }
 }
 
 export type TeamProfilePayload = {
@@ -84,8 +84,8 @@ export type TeamProfilePayload = {
   profile: TeamProfileDetail
 }
 
-export function fetchProfiles() {
-  return getJson<TeamProfilesPayload>("/api/v1/app/profiles")
+export function fetchProfiles(search = "") {
+  return getJson<TeamProfilesPayload>(`/api/v1/app/profiles${search}`)
 }
 
 export function fetchProfile(id: string) {

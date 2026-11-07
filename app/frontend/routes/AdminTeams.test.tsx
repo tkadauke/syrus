@@ -105,13 +105,10 @@ describe("AdminTeamsIndex", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
       if (url === "/api/v1/app/teams" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse(teamsPayload({
-          teams: [
-            ...teamsPayload().teams,
-            { id: 2, name: "Growth", member_count: 1, repository_count: 0, owned_by_current_user: true, team_path: "/admin/teams/2" }
-          ],
+        return Promise.resolve(jsonResponse({
+          team: { id: 2, name: "Growth", member_count: 1, repository_count: 0, owned_by_current_user: true, team_path: "/admin/teams/2" },
           message: "Growth created."
-        })))
+        }))
       }
       return Promise.resolve(jsonResponse(teamsPayload()))
     })
@@ -162,13 +159,10 @@ describe("AdminTeamDetailRoute", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
       if (url === "/api/v1/app/teams/1/memberships" && init?.method === "POST") {
-        return Promise.resolve(jsonResponse(teamDetailPayload({
-          memberships: [
-            ...teamDetailPayload().memberships,
-            { id: 12, role: "member", created_at: "2026-01-04T00:00:00Z", user: { id: 3, email_address: "new@example.com", name: "New Person" } }
-          ],
+        return Promise.resolve(jsonResponse({
+          membership: { id: 12, role: "member", created_at: "2026-01-04T00:00:00Z", user: { id: 3, email_address: "new@example.com", name: "New Person" } },
           message: "new@example.com added as member."
-        })))
+        }))
       }
       return Promise.resolve(jsonResponse(teamDetailPayload()))
     })
