@@ -132,13 +132,9 @@ Currently implemented rungs:
   integration branch after the train IS torn down, so the replacement train can
   replay the landing fixes committed during the grade loop.
 
-A failure counts as not-the-member's-fault when either its run classification is
-retryable, or it occurred in a step that runs before any member's code is
-exercised — `merge_train_assemble`, `merge_train_reconcile`, `merge_train_land`,
-`merge_train_land_after_rebase`. Retryability alone used to be the test, which
-missed every non-retryable train-level failure: an assemble that lost the
-landing lock, a base that moved mid-start, no capable worker. Each of those tore
-down a sound assembly and reassembled and regraded the identical members.
+A failure counts as not-the-member's-fault when it is retryable or occurs in a
+train-level step before member code is exercised: assembly, reconciliation, or
+landing.
 
 `merge_train_build` is deliberately not on that list — a conflict while rebasing
 members into the integration branch is a member's fault — and neither is the
@@ -148,8 +144,8 @@ default remains conservative.
 Preserving a train is a scheduling decision, not just a verdict. A rung that
 keeps the assembly also schedules the relaunch that continues it: an automatic
 retry attempt, visible on the Job alongside every other retry, that resumes the
-preserved workflow from the step that failed so the integration branch, the
-grades already earned and the member rows are all reused. The attempt is what
+preserved workflow from the step that failed so the integration branch and
+grades already earned are reused. The attempt is what
 advances the ladder, so a train that keeps failing the same way escalates to the
 next rung and eventually to `restart` instead of preserving itself forever.
 
@@ -834,9 +830,8 @@ same suite at the base revision and can distinguish an inherited red suite from
 a regression introduced by the repair.
 
 A custom (`type: custom` or bare `run:`) grader has no framework plugin to
-compare structured failed-test identities, so without an explicit `base_retry:`
-it used to get no base-revision comparison at all once it opted into
-`allow_inherited`. Syrus now defaults a bare `allow_inherited` custom grader to
+compare structured failed-test identities. Syrus defaults a bare
+`allow_inherited` custom grader to
 `base_retry: { strategy: full_command }` -- rerunning the exact command already
 trusted against the candidate is a safe default with no extra config. An
 explicit `base_retry:` key, including `base_retry: false` to opt out, always
@@ -1359,13 +1354,16 @@ deployment_stages:
     tag_pattern: "desktop-v*"
 ```
 
-`PollAllDeploymentStagesJob` runs every 5 minutes and fans out to repositories with `deployment_stages` configured. For each landed Job (`landed_sha` present), Syrus compares the merge commit against each configured stage tag. When GitHub reports the tag as `identical` to or `ahead` of the merge commit, Syrus records a `JobDeploymentStageStatus` with the first detected time and the tag commit SHA for audit/debugging.
+Every five minutes, Syrus checks configured deployment-stage tags for landed
+Jobs. When a tag contains the merge commit, it records when the stage was first
+reached and the observed tag revision.
 
 Configured stages are shown on Job detail pages and as per-stage columns in the Epic detail jobs table. Epic rows show a reached timestamp for landed Jobs that have reached a stage, a pending marker for landed Jobs still waiting on a stage, and an empty marker for Jobs that have not landed yet.
 
 ## deploy
 
-Configures a shell command Syrus can run to actually deploy this repository — a manual action on a Job, or (with `mode: continuous`) an automatic trigger after a landing Workflow succeeds. See [`deploy.md`](deploy.md) for the full feature: the `deploy` trigger_kind, the `prepare → deploy` Workflow chain, the `Steps::Deploy` handler, and `MaybeDeployJob`'s continuous-deploy debounce/throttle.
+Configures a shell command Syrus can run to deploy this repository manually or,
+with `mode: continuous`, after landing. See [`deploy.md`](deploy.md).
 
 ```yaml
 deploy:
@@ -1493,7 +1491,10 @@ silently mark unrelated targets healthy.
 
 ## project
 
-Names the operator-facing **project** this `.syrus.yml` file belongs to — an internal `TargetGraph::Project` used for project-aware workflow features. See [`target_graph.md`](target_graph.md) for the full model; the short version: a **project** is a workflow/operator boundary (which preview to start, which hooks run, which review/coverage policy applies), while a **target** is a lower-level execution graph node (a grader, formatter, generator, or prepare action). Declaring `project:` does not change which `prepare`/`formatters`/`generated`/`grade` commands compile into targets.
+Names the operator-facing project this `.syrus.yml` file belongs to. See
+[`target_graph.md`](target_graph.md): a project is a workflow/operator boundary,
+while a target is an execution graph node. Declaring `project:` does not change
+which commands compile into targets.
 
 Every `.syrus.yml` file has an implicit project even with no `project:` key: the root `.syrus.yml` gets the implicit root project (id `repo`), and a nested `.syrus.yml` (in a subdirectory) gets an implicit project derived from its directory (e.g. `apps/desktop/.syrus.yml` implies id `apps-desktop`, label `apps/desktop`). Most repositories never need to declare `project:` at all.
 

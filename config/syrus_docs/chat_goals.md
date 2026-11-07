@@ -31,7 +31,7 @@ messages carry a compact transcript `text` such as `Goal continuation started.`
 or `Goal resumed. Continuing...`, and are promoted as `system` chat messages so
 the operator sees a control message rather than an operator-authored user
 bubble. The full agent instruction is stored separately as `internal_prompt` on
-the message content for audit and for `ChatTurnJob#prompt_for`. For a goal start,
+the message content for audit and prompt construction. For a goal start,
 that internal prompt tells the agent to begin work immediately under the active
 goal; later boundary prompts tell it to continue after the linked work event.
 Each internal prompt includes the active goal, completion condition, mode
