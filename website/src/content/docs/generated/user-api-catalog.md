@@ -167,9 +167,13 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | PATCH | `/api/v1/app/epics/:id` | `api/v1/app/epics#update` |
 | core | PATCH | `/api/v1/app/epics/:id/archive` | `api/v1/app/epics#archive` |
 | core | PATCH | `/api/v1/app/epics/:id/claim` | `api/v1/app/epics#claim` |
+| core | GET | `/api/v1/app/epics/:id/dependencies` | `api/v1/app/epics#dependency_detail` |
 | core | POST | `/api/v1/app/epics/:id/dependencies` | `api/v1/app/epics#add_dependency` |
 | core | DELETE | `/api/v1/app/epics/:id/dependencies/:depends_on_epic_id` | `api/v1/app/epics#remove_dependency` |
 | core | GET | `/api/v1/app/epics/:id/edit` | `api/v1/app/epics#edit` |
+| core | GET | `/api/v1/app/epics/:id/history` | `api/v1/app/epics#history` |
+| core | GET | `/api/v1/app/epics/:id/preview` | `api/v1/app/epics#preview` |
+| core | GET | `/api/v1/app/epics/:id/provider_availability` | `api/v1/app/epics#provider_availability` |
 | core | PATCH | `/api/v1/app/epics/:id/reassign` | `api/v1/app/epics#reassign` |
 | core | POST | `/api/v1/app/epics/:id/start` | `api/v1/app/epics#start` |
 | core | PATCH | `/api/v1/app/epics/:id/state` | `api/v1/app/epics#update_state` |
