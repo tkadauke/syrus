@@ -1251,6 +1251,13 @@ or minimum-approval consensus. Each member uses the same availability checks as
 normal routing; the rule decides whether an unavailable member is dropped,
 holds admission, or fails panel admission, and a minimum-member guard prevents
 an undersized panel from producing a review decision.
+Review rules may select named coworkers as individual reviewers or panel
+members without changing the configured review rounds, criteria, project
+scope, repair loop, or structured verdict. Each coworker receives protected
+review context and persists its own repository learning independently. Syrus
+rechecks the coworker's repository permission for every retry and later round,
+and records coworker identity separately from provider and model provenance.
+Coworker verdicts remain automated evidence and never count as human approval.
 The Job review and workflow views keep each panel iteration together as one
 round: its consensus verdict stays visible while the individual provider/model
 verdicts, critiques, unavailable members, and non-blocking notes can be expanded.

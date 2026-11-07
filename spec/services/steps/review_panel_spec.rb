@@ -70,6 +70,31 @@ RSpec.describe "serial review panels" do
     expect(ProviderRouting::AvailabilitySelector).to have_received(:panel).once
   end
 
+  it "reauthorizes a pinned coworker panel member for every Run" do
+    target = { "type" => "coworker", "reference" => "7", "display" => { "name" => "Monica" } }
+    member = Step.create!(workflow: workflow, kind: "security_review", position: 101, iteration: 1,
+      loop_id: "security-loop", details: { "panel_member" => true, "provider" => "codex",
+                                          "model" => "gpt-5", "reviewer_target" => target })
+    refreshed = target.merge("record_type" => "Coworkers::Coworker", "record_id" => 7)
+    expect(ReviewerTargets).to receive(:snapshot).twice.and_return(refreshed)
+
+    2.times do
+      candidate = StepDispatcher.run_provider_candidate_for(member, workflow)
+      expect(candidate.reviewer_target).to eq(refreshed)
+    end
+  end
+
+  it "fails closed when a pinned coworker is revoked before a retry" do
+    target = { "type" => "coworker", "reference" => "7", "display" => { "name" => "Monica" } }
+    member = Step.create!(workflow: workflow, kind: "adversarial_review", position: 101, iteration: 1,
+      loop_id: "review-loop", details: { "panel_member" => true, "provider" => "codex",
+                                        "reviewer_target" => target })
+    allow(ReviewerTargets).to receive(:snapshot).and_raise(ReviewerTargets::TargetUnavailable, "reviewer is paused")
+
+    expect { StepDispatcher.run_provider_candidate_for(member, workflow) }
+      .to raise_error(ReviewerTargets::TargetUnavailable, /paused/)
+  end
+
   it "holds at admission without creating a Run candidate" do
     hold = panel_decision(available: [], unavailable: members, disposition: "hold")
     allow(ProviderRouting::AvailabilitySelector).to receive(:panel).and_return(hold)

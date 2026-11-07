@@ -1,13 +1,24 @@
 module ReviewEvidence::VerdictSubmission
   module_function
 
-  def call!(run:, artifact_key:, review_kind:, critique:, verdict:)
+  def call!(run:, artifact_key:, review_kind:, critique:, verdict:, key_learning: nil)
     evidence = run.review_evidence
     if evidence
       ReviewEvidence::VerifySubmission.call!(
         evidence: evidence,
         workspace_path: WorkflowWorkspace.new(run.workflow).path
       )
+    end
+
+    existing = existing_submission(run.workflow, artifact_key, run.id)
+    if existing
+      evidence&.mark_submitted! unless evidence&.state == "submitted"
+      return existing
+    end
+
+    reviewer = evidence&.reviewer
+    if reviewer&.respond_to?(:finalize_review_memory!)
+      reviewer.finalize_review_memory!(run:, key_learning: key_learning.presence || critique, verdict:)
     end
 
     ApplicationRecord.transaction do
@@ -26,9 +37,21 @@ module ReviewEvidence::VerdictSubmission
           "critique" => critique,
           "verdict" => verdict
         }
-        reviewer = evidence&.reviewer
         if reviewer&.respond_to?(:review_context_manifest)
           entry["review_context_manifest"] = reviewer.review_context_manifest(run)
+          context = reviewer.review_context_for(run)
+          entry["reviewer"] = {
+            "label" => "#{reviewer.display_name} · #{App::Presentation.agent_provider_label(run.agent_provider)}",
+            "type" => run.step.details.dig("reviewer_target", "type"),
+            "reference" => run.step.details.dig("reviewer_target", "reference"),
+            "provider" => run.agent_provider,
+            "model" => run.model
+          }.compact
+          entry["memory_persistence"] = {
+            "state" => context&.persistence_state || "missing",
+            "persisted_commit_sha" => context&.persisted_commit_sha,
+            "error_code" => context&.persistence_error_code
+          }.compact
         end
         if run.step.details.to_h["panel_id"].present?
           entry.merge!("provider" => run.agent_provider, "model" => run.model,
@@ -44,5 +67,9 @@ module ReviewEvidence::VerdictSubmission
         evidence&.mark_submitted!
       end
     end
+  end
+
+  def existing_submission(workflow, artifact_key, run_id)
+    Array(workflow.reload.artifact(artifact_key)).find { |candidate| candidate["run_id"] == run_id }
   end
 end

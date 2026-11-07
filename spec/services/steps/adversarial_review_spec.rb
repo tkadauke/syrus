@@ -182,6 +182,27 @@ RSpec.describe Steps::AdversarialReview do
     expect { handler.call }.to raise_error(Steps::Base::StepFailed, /submit_adversarial_review/)
   end
 
+  it "fails the step when the submitted coworker verdict has no persisted memory" do
+    reviewer = double("coworker reviewer")
+    context = double("review context", persistence_state: "failed", persistence_error_details: { "message" => "push failed" })
+    evidence = instance_double(ReviewEvidence, id: 42, state: "submitted", reviewer: reviewer)
+    allow(run).to receive(:review_evidence).and_return(evidence)
+    allow(run).to receive(:reload).and_return(run)
+    allow(reviewer).to receive(:prepare_review_context!).and_return(context)
+    allow(reviewer).to receive(:review_context_prompt).and_return("protected reviewer context")
+    allow(reviewer).to receive(:finalize_review_memory!)
+    allow(reviewer).to receive(:review_context_for).with(run).and_return(context)
+    allow(handler).to receive(:run_agent) do
+      workflow.set_artifact!("adversarial_review_iterations", [
+        { "iteration" => review_step.iteration, "critique" => "Needs repair.", "verdict" => "needs_work" }
+      ])
+    end
+    allow(ReviewEvidence::VerifySubmission).to receive(:call!).and_return(evidence)
+
+    expect { handler.call }
+      .to raise_error(Steps::AdversarialReview::MemoryPersistenceFailed, /memory was not persisted/)
+  end
+
   it "skips review and records a warning when the provider rejects the prompt as too long" do
     allow(handler).to receive(:run_agent).and_raise(StandardError, "Claude API error: Prompt is too long")
     expect(ReviewFindingEvents).to receive(:record).with(
