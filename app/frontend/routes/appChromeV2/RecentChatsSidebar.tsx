@@ -44,7 +44,7 @@ import type { ProviderAvailability } from "../../api/providerAvailability"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { Surface, surfaceClasses } from "../../components/ui"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
-import { recentChatsQueryKey, updateRecentChatCache } from "../../lib/chatCache"
+import { recentChatsQueryKey, removeRecentChatFromCache, updateChatUnread, updateRecentChatCache } from "../../lib/chatCache"
 import { useChatBookmarks } from "../chat/bookmarks"
 import { EpicProgressSegments } from "../dashboard/components"
 
@@ -364,7 +364,8 @@ export function RecentChatsSidebar({
     setHidingChatIds((current) => new Set(current).add(chat.id))
     void hideChat(chat.id)
       .then(({ chat: updatedChat }) => {
-        updateRecentChatCache(queryClient, updatedChat)
+        removeRecentChatFromCache(queryClient, updatedChat.id)
+        removeChatFromLoadedSections(updatedChat.id)
         void queryClient.invalidateQueries({ queryKey: ["hidden-chats"] })
         if (chat.id === activeChatId) navigate(`${prefix}/dashboard/jobs`)
       })
@@ -416,14 +417,11 @@ export function RecentChatsSidebar({
   }
 
   function removeChatFromRecentLists(chatId: number) {
-    queryClient.setQueryData<ChatsIndexPayload>(sidebarQueryKey, (current) => {
-      if (!current) return current
+    removeRecentChatFromCache(queryClient, chatId)
+    removeChatFromLoadedSections(chatId)
+  }
 
-      return {
-        ...current,
-        groups: current.groups.map((group) => ({ ...group, chats: group.chats.filter((chat) => chat.id !== chatId) })).filter((group) => group.chats.length > 0)
-      }
-    })
+  function removeChatFromLoadedSections(chatId: number) {
     setLoadedSections((current) => {
       const next: Record<string, { chats: ChatNavRecord[]; has_more: boolean }> = {}
       Object.entries(current).forEach(([key, value]) => {
@@ -1445,6 +1443,7 @@ function RecentChatActionsMenu({
     mutationFn: () => markChatRead(chat.id),
     onSuccess: (payload) => {
       updateRecentChatCache(queryClient, payload.chat)
+      updateChatUnread(queryClient, chat.id, false)
       setOpen(false)
     }
   })
@@ -1453,6 +1452,7 @@ function RecentChatActionsMenu({
     mutationFn: () => markChatUnread(chat.id),
     onSuccess: (payload) => {
       updateRecentChatCache(queryClient, payload.chat)
+      updateChatUnread(queryClient, chat.id, true)
       setOpen(false)
     }
   })
