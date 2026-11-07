@@ -648,7 +648,39 @@ describe("PendingActionCard", () => {
                 resource_scope_label: "All tables",
                 duration: "chat_session"
               }
-            }
+            },
+            smart_options: [
+              {
+                kind: "always_allow_command",
+                duration: "permanent",
+                digest: "permanent-digest",
+                summary: { allows: ["Always allow this exact SSH command."], excludes: ["Other commands"] },
+                draft: {},
+                ceiling: {},
+                context: {
+                  coworker: "Maya",
+                  operation: "ssh.execute/read",
+                  repository: "acme/app",
+                  resource_scope_label: "SSH deploy@app.example.com",
+                  duration: "permanent"
+                }
+              },
+              {
+                kind: "allow_chat",
+                duration: "chat_session",
+                digest: "chat-digest",
+                summary: { allows: ["Allow this exact SSH command in this chat."], excludes: ["Other chats"] },
+                draft: {},
+                ceiling: {},
+                context: {
+                  coworker: "Maya",
+                  operation: "ssh.execute/read",
+                  repository: "acme/app",
+                  resource_scope_label: "SSH deploy@app.example.com",
+                  duration: "chat_session"
+                }
+              }
+            ]
           }
         ]
       })
@@ -656,11 +688,12 @@ describe("PendingActionCard", () => {
 
     expect(screen.getByRole("button", { name: "Allow once" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Deny" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Always allow this command" })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Allow for this chat" }))
     expect(screen.getByText("Maya")).toBeInTheDocument()
     expect(screen.getByText("acme/app")).toBeInTheDocument()
-    expect(screen.getByText("All tables")).toBeInTheDocument()
-    expect(screen.getByText("Other operations")).toBeInTheDocument()
+    expect(screen.getByText("SSH deploy@app.example.com")).toBeInTheDocument()
+    expect(screen.getByText("Other chats")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Customize" })).toBeInTheDocument()
     expect(fetchSpy).not.toHaveBeenCalled()
 
@@ -668,7 +701,7 @@ describe("PendingActionCard", () => {
     await waitFor(() => expect(onNotice).toHaveBeenCalledWith("Permission decision recorded."))
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/chats/122/pending_actions/501/authorization_items/42/smart_decision",
-      expect.objectContaining({ method: "POST", body: JSON.stringify({ duration: "chat_session", digest: "abc123" }) })
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ duration: "chat_session", digest: "chat-digest" }) })
     )
   })
 

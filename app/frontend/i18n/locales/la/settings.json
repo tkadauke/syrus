@@ -1780,6 +1780,7 @@
     "allow_once": "Semel permitte",
     "deny": "Nega",
     "always_allow_similar": "Similia semper permitte",
+    "always_allow_command": "Hoc mandatum semper permitte",
     "allow_job": "Huic job permitte",
     "allow_chat": "Huic colloquio permitte",
     "preview_title": "Hanc licentiam inspice",

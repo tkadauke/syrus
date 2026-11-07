@@ -1780,6 +1780,7 @@
     "allow_once": "Allow once",
     "deny": "Deny",
     "always_allow_similar": "Always allow similar",
+    "always_allow_command": "Always allow this command",
     "allow_job": "Allow for this job",
     "allow_chat": "Allow for this chat",
     "preview_title": "Review this permission",
