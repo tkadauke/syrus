@@ -148,6 +148,8 @@ references instead of expanding this file in place.
 
 Read the reference file that matches the work in front of you:
 
+- [Engineering documentation](docs/engineering/README.md) — agent-neutral
+  routing, ownership, and precedence for current engineering knowledge.
 - [Architecture details](.claude/reference/architecture-details.md) — trigger
   kinds, workflow pipelines, terminal feature, scheduled tasks, and live UI.
 - [Conventions](.claude/reference/conventions.md) — full implementation,
