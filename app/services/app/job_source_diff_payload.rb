@@ -34,9 +34,13 @@ module App
         return stored_review_version_payload(branch_commits: branch_commits, merge_base_sha: merge_base_sha)
       end
 
-      base = @params[:base].presence || merge_base_sha || job_base_branch
-      head = @params[:head].presence || branch_commits.first&.fetch(:sha) || merge_base_sha || @repository.default_branch
-      files, truncated = diff_files(base, head)
+      base_ref = @params[:base].presence || merge_base_sha || job_base_branch
+      head_ref = @params[:head].presence || branch_commits.first&.fetch(:sha) || merge_base_sha || @repository.default_branch
+      base_revision = content.resolve(base_ref)
+      head_revision = content.resolve(head_ref)
+      base = base_revision.id
+      head = head_revision.id
+      files, truncated = diff_files(base_revision, head_revision)
       version = resolve_diff_review_version(
         base_sha: base,
         head_sha: head,
@@ -44,7 +48,7 @@ module App
         truncated: truncated
       )
 
-      base_payload(base_ref: base, head_ref: head, base_sha: base, head_sha: head, branch_commits: branch_commits, merge_base_sha: merge_base_sha)
+      base_payload(base_ref: base_ref, head_ref: head_ref, base_sha: base, head_sha: head, branch_commits: branch_commits, merge_base_sha: merge_base_sha)
         .merge(
           files: files.map { |file| file_json(file) },
           truncated: truncated,
@@ -73,8 +77,7 @@ module App
     # mirror when it can, GitHub otherwise. A truncated answer (GitHub's
     # 300-file cap) is still shown, flagged, as it always was.
     def diff_files(base, head)
-      content = RepositoryContent.for(@repository, user: @user)
-      changes = content.changes(base: content.resolve(base), head: content.resolve(head), patch: true)
+      changes = content.changes(base: base, head: head, patch: true)
       [ changes.map { |change| file_hash(change) }, false ]
     rescue RepositoryContent::Truncated => e
       [ e.partial.map { |change| file_hash(change) }, true ]
@@ -87,10 +90,13 @@ module App
     def branch_history
       return RepositoryContent::CommitHistory.new(commits: [], merge_base_id: nil) unless @job.branch_name.present?
 
-      content = RepositoryContent.for(@repository, user: @user)
       content.history(base: content.resolve(job_base_branch), head: content.resolve(@job.branch_name))
     rescue RepositoryContent::Truncated => e
       e.partial
+    end
+
+    def content
+      @content ||= RepositoryContent.for(@repository, user: @user)
     end
 
     def commit_hash(commit)

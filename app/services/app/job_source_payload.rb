@@ -54,7 +54,7 @@ module App
 
       return file_only_payload if @params[:file_only]
 
-      history = @params.key?(:tree_path) ? RepositoryContent::CommitHistory.new(commits: [], merge_base_id: nil) : branch_history
+      history = @params[:ref].present? || @params.key?(:tree_path) ? empty_history : branch_history
       branch_commits = history.commits.map { |commit| commit_hash(commit) }
       merge_base_sha = history.merge_base_id
 
@@ -206,6 +206,10 @@ module App
       content.history(base: content.resolve(@repository.default_branch), head: content.resolve(@job.branch_name))
     rescue RepositoryContent::Truncated => e
       e.partial
+    end
+
+    def empty_history
+      RepositoryContent::CommitHistory.new(commits: [], merge_base_id: nil)
     end
 
     def commit_hash(commit)

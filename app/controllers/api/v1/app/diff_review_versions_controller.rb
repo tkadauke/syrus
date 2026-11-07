@@ -10,13 +10,17 @@ module Api
         def show
           job = find_job
           version = job.diff_review_versions.find(params[:id])
-          return unless stale?(etag: [ "diff-review-version", version.id, version.base_sha, version.head_sha ], public: false)
+          payload = ::App::DiffReviewVersionsPayload.show(version: version, user: Current.user)
+          return unless stale?(etag: payload_etag("diff-review-version", payload), public: false)
 
-          expires_in 1.year, public: false, immutable: true
-          render json: ::App::DiffReviewVersionsPayload.show(version: version, user: Current.user)
+          render json: payload
         end
 
         private
+
+        def payload_etag(namespace, payload)
+          [ namespace, payload[:base_sha], payload[:head_sha], Digest::SHA256.hexdigest(payload.to_json) ]
+        end
 
         def find_job
           find_job_by_ref(policy_scope(Job).includes(:repository), params[:job_id])
