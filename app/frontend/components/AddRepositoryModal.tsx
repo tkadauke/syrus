@@ -197,6 +197,7 @@ export function AddRepositoryModal({
     queryKey: ["repositories", "install-watch", saved?.id],
     queryFn: () => fetchRepositoryDetail(String(saved!.id)),
     enabled: (awaitingInstall || reconciling) && !!saved,
+    staleTime: 0,
     refetchInterval: (query) =>
       awaitingInstall || reconciling ? installWatchInterval(query.state.data?.credential_status.mode, reconciliationRefetchIntervalMs) : false
   })

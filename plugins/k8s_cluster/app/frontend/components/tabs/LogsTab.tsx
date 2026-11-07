@@ -63,6 +63,7 @@ export function LogsTab({ clusterId, initialPod, namespace }: { clusterId: numbe
     enabled: !!selectedPod,
     // Follow polls the same read-only tail the manual Refresh button fetches
     // once; turning it off returns to manual-only refreshes.
+    staleTime: 0,
     refetchInterval: follow ? FOLLOW_REFETCH_INTERVAL_MS : false
   })
 

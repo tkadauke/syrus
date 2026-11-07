@@ -28,6 +28,7 @@ export function AdminTranscript() {
     queryKey: ["admin", "transcript", runId, { page, per }],
     queryFn: () => fetchAdminTranscript(runId, page, per),
     enabled: runId.length > 0,
+    staleTime: 0,
     refetchInterval: (query) => transcriptRefetchInterval(query.state.data),
     placeholderData: keepPreviousData
   })

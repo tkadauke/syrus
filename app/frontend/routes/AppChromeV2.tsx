@@ -1809,6 +1809,7 @@ function SidebarMaintenanceTasks({ prefix, signedIn }: { prefix: string; signedI
   const tasks = useQuery({
     queryKey: ["maintenance_tasks", "sidebar"],
     queryFn: ({ signal }) => fetchMaintenanceSidebar(signal),
+    staleTime: 0,
     refetchInterval: 15_000,
     // The chrome renders on the sign-in page too, where this endpoint 401s.
     // Every sibling query here is gated the same way.
@@ -2284,6 +2285,7 @@ export function useSidebarNavBadges(pages: SidebarPluginPage[], enabled: boolean
         return getJson<{ count?: number }>(page.badge_api_path as string, { signal })
       },
       enabled,
+      staleTime: 0,
       refetchInterval: enabled ? 10000 : (false as const)
     }))
   })

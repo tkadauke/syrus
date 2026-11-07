@@ -60,6 +60,7 @@ export function AgentActivityFeed({ scope }: { scope: "mine" | "admin" }) {
     queryKey: ["agent_activity", scope, location.search],
     queryFn: () => fetchAgentActivitySessions(scope, location.search),
     placeholderData: keepPreviousData,
+    staleTime: 0,
     refetchInterval: 15_000
   })
 

@@ -45,6 +45,7 @@ export function AdminMaintenanceTasks() {
   const tasks = useQuery({
     queryKey: ["admin", "maintenance_tasks", location.search],
     queryFn: ({ signal }) => fetchAdminMaintenanceTasks(location.search, signal),
+    staleTime: 0,
     refetchInterval: POLL_INTERVAL_MS
   })
   const discover = useMutation({
@@ -109,6 +110,7 @@ export function AdminMaintenanceTaskDetail() {
     queryKey: ["admin", "maintenance_tasks", id, location.search],
     queryFn: ({ signal }) => fetchAdminMaintenanceTask(id || "", location.search, signal),
     enabled: Boolean(id),
+    staleTime: 0,
     refetchInterval: POLL_INTERVAL_MS
   })
   const action = useMutation({
