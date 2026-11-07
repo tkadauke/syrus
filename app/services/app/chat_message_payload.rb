@@ -369,9 +369,7 @@ module App
         return terminal
       end
 
-      Rails.cache.fetch([ "chat-pending-action-message-payload", action.cache_key_with_version, Current.user&.id ]) do
-        pending_action_detail_json(action, chat_session: chat_session)
-      end
+      pending_action_detail_json(action, chat_session: chat_session)
     end
 
     def pending_action_detail_json(action, chat_session:)
