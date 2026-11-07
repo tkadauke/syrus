@@ -263,8 +263,7 @@ module ChatSerialization
         }
       end
 
-      Rails.cache.fetch([ "chat-pending-action-top-level-payload", action.cache_key_with_version, Current.user.id ]) do
-        {
+      {
         id: action.id,
         label: pending_action_label(action),
         detail: pending_action_detail(action),
@@ -279,14 +278,55 @@ module ChatSerialization
         app_confirm_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/confirm",
         app_reject_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/reject",
         app_cancel_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}"
-        }.tap do |payload|
+      }.tap do |payload|
         payload[:app_update_path] = "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}" if action.action == "create_coworker" && action.pending?
         payload[:reason] = action.reason if action.reason.present?
         payload.merge!(cached_pending_action_presentation(action, chat_session))
         resource = pending_action_resource(action)
         payload.merge!(resource) if resource
+      end
+    end
+  end
+
+  def cached_pending_action_presentation(action, chat_session)
+    authorization_items = action.authorization_items.sort_by(&:id)
+    fingerprint = Digest::SHA256.hexdigest(
+      [
+        action.attributes.slice("action", "action_type", "payload", "before_snapshot", "after_snapshot"),
+        authorization_items.map(&:cache_key_with_version)
+      ].to_json
+    )
+    Rails.cache.fetch([ "chat-pending-action-top-level-presentation", action.cache_key_with_version, Current.user.id, fingerprint ]) do
+      presenter = PendingActions.for(action.action.presence || action.action_type).new(action)
+      payload = {
+        before_snapshot: action.before_snapshot.presence,
+        after_snapshot: action.after_snapshot.presence,
+        review: presenter.tool_card_review.presence,
+        permission_rule_preview: permission_rule_preview_for(action)
+      }.compact
+      if action.authorization_request?
+        presentation = Permissions::RequestPresentation.new(action, current_user: Current.user)
+        payload[:authorization_presentation] = presentation.as_json
+        payload[:authorization_items] = authorization_items.map do |item|
+          smart_decision = Permissions::SmartDecision.new(request: action, item:, user: Current.user)
+          {
+            id: item.id,
+            presentation: presentation.item_json(item),
+            kind: item.kind,
+            state: item.state,
+            capability: item.capability,
+            operation: item.operation,
+            effects: item.effects,
+            prerequisite_ids: item.prerequisites.map(&:id),
+            resulting_authority: Permissions::SmartDecision.authority_reference(item),
+            smart_option: smart_decision.option,
+            smart_options: smart_decision.options,
+            app_decision_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/authorization_items/#{item.id}/decision",
+            app_smart_decision_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/authorization_items/#{item.id}/smart_decision"
+          }
         end
       end
+      payload
     end
   end
 
