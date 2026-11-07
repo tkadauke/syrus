@@ -50,7 +50,10 @@ When root coverage is configured, the top-level repository summary is the root c
 
 Omit a threshold field to skip that check. `lines` and `pr_lines` are evaluated together against `on_miss` below; a miss on either triggers that behavior.
 
-`threshold.branches` behaves differently on purpose: a miss never triggers `on_miss` (it does not block, warn-and-continue via `on_miss`, or schedule a fix Job through that mechanism) and never fails the `coverage_analyze` step. Instead, a branches miss records a `WorkflowWarning` (`kind: "coverage_branches_threshold_miss"`, `evidence: { "branches_pct" => ..., "threshold_branches" => ... }`) with a suggested prompt to add tests for the uncovered branches — the same generic, always-on, one-click "file a fix Job" mechanism `Steps::Grader` uses for `grader_side_effect` findings. See `workflow_warnings.md`.
+`threshold.branches` behaves differently on purpose: a miss never triggers
+`on_miss` and never fails coverage analysis. Instead, it records a workflow
+warning with a suggested prompt to add tests for uncovered branches. See
+`workflow_warnings.md`.
 
 ## on_miss
 
@@ -82,8 +85,7 @@ base-refresh retry, and PR/chat feedback. Landing, promotion, and CI workflows
 have no such step, so a coverage artifact they produced would be collected and
 then never read.
 
-Typed framework graders therefore instrument the **review** entry only
-(`Syrus::Plugin::GraderType::COVERAGE_PHASES`). A grader entry declaring
+Typed framework graders therefore instrument the **review** entry only. A grader entry declaring
 `coverage: true` whose phases do not include `review` synthesizes an
 uninstrumented command and declares no `coverage_outputs`.
 
