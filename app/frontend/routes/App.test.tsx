@@ -9772,15 +9772,28 @@ describe("App", () => {
         )
       }
       if (path === "/api/v1/app/repositories/3") {
+        const detail = repositoryDetailPayload()
         return Promise.resolve(
           new Response(
             JSON.stringify({
-              ...repositoryDetailPayload(),
+              ...detail,
+              jobs: undefined,
+              pagination: undefined,
               message: "Repository created."
             }),
             { status: 200, headers: { "Content-Type": "application/json" } }
           )
         )
+      }
+      if (path === "/api/v1/app/repositories/3/jobs") {
+        const { jobs, pagination } = repositoryDetailPayload()
+        return Promise.resolve(new Response(JSON.stringify({ jobs, pagination }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/repositories/3/delivery") {
+        return Promise.resolve(new Response(JSON.stringify({ delivery: null }), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path === "/api/v1/app/repositories/3/syrus_yml") {
+        return Promise.resolve(new Response(JSON.stringify({ syrus_yml: null }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path === "/api/v1/app/repositories/owners") {
         return Promise.resolve(new Response(JSON.stringify({ error: "no_token" }), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -9820,6 +9833,18 @@ describe("App", () => {
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
         "/api/v1/app/repositories/3",
+        expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
+      )
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/repositories/3/jobs",
+        expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
+      )
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/repositories/3/delivery",
+        expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
+      )
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/repositories/3/syrus_yml",
         expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
       )
     })
