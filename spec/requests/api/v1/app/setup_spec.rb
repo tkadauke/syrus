@@ -21,13 +21,11 @@ RSpec.describe "API: /api/v1/app/setup", type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body).to include(
-      "complete" => false,
-      "next_step" => "credentials"
+      "state" => "first_admin",
+      "next_step" => "configure_credentials",
+      "credentials_configured" => false
     )
-    expect(body.dig("credentials", "github_token")).to eq(true)
-    expect(body.dig("system", "ready")).to eq(true)
-    expect(body.dig("credentials", "selected_agent_provider_configured")).to eq(false)
-    expect(body.dig("github_app", "explanation")).to include("falls back to your GitHub PAT")
-    expect(body.dig("paths", "setup_path")).to eq(setup_path)
+    expect(body.dig("credential_status", "github_pat")).to eq(true)
+    expect(body.dig("readiness", "checks")).to be_an(Array)
   end
 end

@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
 import type { BootstrapPayload } from "../api/bootstrap"
+import type { FullSetupStatusPayload } from "../api/setup"
 import { OnboardingRoute } from "./Onboarding"
 import i18n from "../i18n"
 
@@ -12,7 +13,9 @@ import i18n from "../i18n"
 // credentials, repositories, account). These specs guard that every
 // completed step still exposes an actionable control alongside the badge,
 // per the "let the user change/edit them after the fact" bug.
-function bootstrap(overrides: Partial<BootstrapPayload> = {}): BootstrapPayload {
+type OnboardingBootstrap = BootstrapPayload & { setup_status: FullSetupStatusPayload }
+
+function bootstrap(overrides: Partial<OnboardingBootstrap> = {}): OnboardingBootstrap {
   return {
     current_user: {
       id: 1,
@@ -75,11 +78,12 @@ function bootstrap(overrides: Partial<BootstrapPayload> = {}): BootstrapPayload 
     csrf_token: "csrf-token",
     unread_notifications_count: 0,
     ...overrides
-  } as BootstrapPayload
+  } as unknown as OnboardingBootstrap
 }
 
-function renderOnboarding(payload: BootstrapPayload | null) {
+function renderOnboarding(payload: OnboardingBootstrap | null) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  client.setQueryData(["setup"], payload?.setup_status)
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
@@ -122,6 +126,7 @@ describe("OnboardingRoute — revisiting completed steps", () => {
 
     expect(screen.getByText("Loading setup status...")).toBeInTheDocument()
 
+    client.setQueryData(["setup"], bootstrap().setup_status)
     expect(() =>
       view.rerender(
         <QueryClientProvider client={client}>

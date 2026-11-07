@@ -712,6 +712,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
                   showTeamProfile={(data?.team_user_count || 0) > 1}
                   startingChat={startingChat}
                   user={user}
+                  unreadNotificationsCount={data?.unread_notifications_count ?? 0}
                   onHoverStart={openSidebarPeekSoon}
                   onHoverEnd={closeSidebarPeekSoon}
                 />
@@ -741,6 +742,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
                       showTeamProfile={(data?.team_user_count || 0) > 1}
                       startingChat={startingChat}
                       user={user}
+                      unreadNotificationsCount={data?.unread_notifications_count ?? 0}
                     />
                   </div>
                 ) : null}
@@ -776,6 +778,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
                     showTeamProfile={(data?.team_user_count || 0) > 1}
                     startingChat={startingChat}
                     user={user}
+                    unreadNotificationsCount={data?.unread_notifications_count ?? 0}
                   />
                 </div>
               ) : null}
@@ -835,7 +838,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
                     <BugReportTriggerButton onClick={() => openBugReport()} />
                     {user ? <ConnectionStatusButton prefix={prefix} /> : null}
                     {user ? <PermissionInboxDrawer prefix={prefix} /> : null}
-                    {user ? <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} prefix={prefix} /> : null}
+                    {user ? <NotificationsBell initialUnreadCount={data?.unread_notifications_count ?? 0} prefix={prefix} /> : null}
                   </div>
                 </div>
                 {isMobileChatPage ? (
@@ -1393,6 +1396,7 @@ function SidebarContent({
   showTeamProfile,
   startingChat,
   user,
+  unreadNotificationsCount,
   onHoverStart,
   onHoverEnd
 }: {
@@ -1411,6 +1415,7 @@ function SidebarContent({
   showTeamProfile: boolean
   startingChat: boolean
   user: BootstrapPayload["current_user"] | undefined
+  unreadNotificationsCount: number
   onHoverStart?: () => void
   onHoverEnd?: () => void
 }) {
@@ -1529,7 +1534,7 @@ function SidebarContent({
             {user ? <BugReportTriggerButton onClick={onOpenBugReport} /> : null}
             {user ? <ConnectionStatusButton onNavigate={onCloseDrawer} prefix={prefix} /> : null}
             {user ? <PermissionInboxDrawer onNavigate={onCloseDrawer} prefix={prefix} /> : null}
-            {user ? <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} onNavigate={onCloseDrawer} prefix={prefix} /> : null}
+            {user ? <NotificationsBell initialUnreadCount={unreadNotificationsCount} onNavigate={onCloseDrawer} prefix={prefix} /> : null}
             <button
               aria-label={t("nav:close_sidebar")}
               className="inline-flex h-11 w-11 items-center justify-center rounded text-gray-700 hover:bg-gray-100 hover:text-brand dark:text-gray-300 dark:hover:bg-gray-800 lg:hidden"

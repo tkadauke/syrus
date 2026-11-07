@@ -793,7 +793,7 @@ func TestWhoamiPrintsJSON(t *testing.T) {
 		if r.URL.Path != "/api/v1/app/bootstrap" {
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
-		w.Write([]byte(`{"whoami":{"email":"dev@example.com","token_suffix":"oken"}}`))
+		w.Write([]byte(`{"current_user":{"email_address":"dev@example.com"}}`))
 	}))
 	defer server.Close()
 	withCredentials(t, server.URL, "secret-token")
@@ -807,15 +807,13 @@ func TestWhoamiPrintsJSON(t *testing.T) {
 	}
 
 	var decoded struct {
-		Whoami struct {
-			Email       string `json:"email"`
-			TokenSuffix string `json:"token_suffix"`
-		} `json:"whoami"`
+		Email    string `json:"email"`
+		Instance string `json:"instance"`
 	}
 	if err := json.Unmarshal(output.Bytes(), &decoded); err != nil {
 		t.Fatalf("output is not valid JSON: %v\n%s", err, output.String())
 	}
-	if decoded.Whoami.Email != "dev@example.com" || decoded.Whoami.TokenSuffix != "oken" {
+	if decoded.Email != "dev@example.com" || decoded.Instance != server.URL {
 		t.Fatalf("decoded = %+v", decoded)
 	}
 }
@@ -823,7 +821,7 @@ func TestWhoamiPrintsJSON(t *testing.T) {
 func TestWhoamiTextOutputUnchangedWithoutJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"whoami":{"email":"dev@example.com","token_suffix":"oken"}}`))
+		w.Write([]byte(`{"current_user":{"email_address":"dev@example.com"}}`))
 	}))
 	defer server.Close()
 	withCredentials(t, server.URL, "secret-token")
