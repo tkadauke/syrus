@@ -141,7 +141,7 @@ function BulkEpicActions({ selectedIds }: { selectedIds: number[] }) {
     mutationFn: (bulkAction: DashboardBulkEpicAction) => bulkDashboardEpics({ epic_ids: selectedIds, bulk_action: bulkAction }),
     onSuccess: (payload) => {
       setNotice(payload.message)
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "rows"] })
     }
   })
   const disabled = selectedIds.length === 0 || action.isPending
