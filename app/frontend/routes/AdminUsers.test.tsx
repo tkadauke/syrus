@@ -118,7 +118,9 @@ function renderDetailRoute(fetchImplementation: typeof fetch) {
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={["/app-shell/admin/users/1"]}>
-        <Routes><Route path="/app-shell/admin/users/:id" element={<AdminUserDetailRoute />} /></Routes>
+        <Routes>
+          <Route path="/app-shell/admin/users/:id" element={<AdminUserDetailRoute />} />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>
   )
@@ -198,9 +200,9 @@ describe("AdminUsers configurable columns", () => {
   })
 
   it("shows role update failures", async () => {
-    renderDetailRoute((_input, init) => Promise.resolve(init?.method === "PATCH"
-      ? jsonResponse({ error: { message: "Role update forbidden" } }, 403)
-      : jsonResponse(userDetail())))
+    renderDetailRoute((_input, init) =>
+      Promise.resolve(init?.method === "PATCH" ? jsonResponse({ error: { message: "Role update forbidden" } }, 403) : jsonResponse(userDetail()))
+    )
 
     fireEvent.change(await screen.findByRole("combobox", { name: "User role" }), { target: { value: "product_owner" } })
 
@@ -208,9 +210,9 @@ describe("AdminUsers configurable columns", () => {
   })
 
   it("shows scheduling update failures", async () => {
-    renderDetailRoute((_input, init) => Promise.resolve(init?.method === "POST"
-      ? jsonResponse({ error: { message: "Scheduling update failed" } }, 422)
-      : jsonResponse(userDetail())))
+    renderDetailRoute((_input, init) =>
+      Promise.resolve(init?.method === "POST" ? jsonResponse({ error: { message: "Scheduling update failed" } }, 422) : jsonResponse(userDetail()))
+    )
 
     fireEvent.click(await screen.findByRole("button", { name: "Pause scheduling" }))
 
