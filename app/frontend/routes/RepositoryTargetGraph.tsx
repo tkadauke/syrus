@@ -2,7 +2,15 @@ import { useVirtualizer } from "@tanstack/react-virtual"
 import { useQuery } from "@tanstack/react-query"
 import { useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
-import { fetchJobTargetGraph, fetchRepositoryTargetGraph, type TargetGraphEdge, type TargetGraphPayload, type TargetGraphQuery, type TargetGraphTarget, type TargetGraphTargetExplanation } from "../api/targetGraphs"
+import {
+  fetchJobTargetGraph,
+  fetchRepositoryTargetGraph,
+  type TargetGraphEdge,
+  type TargetGraphPayload,
+  type TargetGraphQuery,
+  type TargetGraphTarget,
+  type TargetGraphTargetExplanation
+} from "../api/targetGraphs"
 import { RepositoryPageShell } from "../components/RepositoryPageShell"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { PanelMessage } from "../components/PanelMessage"
@@ -38,11 +46,15 @@ export function RepositoryTargetGraphRoute() {
     <RepositoryPageShell
       activeTab="target_graph"
       ariaLabel={t("target_graph.aria_repository")}
-      heading={query.data ? (
-        <PageHeading mono>
-          <Link className="hover:underline" to={withRoutePrefix(`/repositories/${query.data.repository.id}`, prefix)}>{query.data.repository.slug}</Link>
-        </PageHeading>
-      ) : null}
+      heading={
+        query.data ? (
+          <PageHeading mono>
+            <Link className="hover:underline" to={withRoutePrefix(`/repositories/${query.data.repository.id}`, prefix)}>
+              {query.data.repository.slug}
+            </Link>
+          </PageHeading>
+        ) : null
+      }
       prefix={prefix}
       tabs={tabs.data?.tabs ?? []}
     >
@@ -178,14 +190,14 @@ export function TargetGraphExplorer({
       <TargetGraphStats payload={payload} query={query} />
       <TargetGraphExplanations payload={payload} />
       {payload.targets.length === 0 ? (
-        <PanelMessage>
-          {t("target_graph.empty")}
-        </PanelMessage>
+        <PanelMessage>{t("target_graph.empty")}</PanelMessage>
       ) : (
         <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
             <SectionHeading>{t("target_graph.graph_neighborhood")}</SectionHeading>
-            <span className="text-xs text-gray-500 dark:text-gray-400">{t("target_graph.rendered_count", { count: payload.targets.length.toLocaleString(), total: payload.page.total.toLocaleString() })}</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              {t("target_graph.rendered_count", { count: payload.targets.length.toLocaleString(), total: payload.page.total.toLocaleString() })}
+            </span>
           </div>
           <TargetGraphCanvas
             rows={rows}
@@ -201,7 +213,11 @@ export function TargetGraphExplorer({
         <span>{t("target_graph.source", { scope: payload.source.scope, ref: payload.source.ref })}</span>
         {payload.workflow ? <span>{t("target_graph.workflow", { slug: payload.workflow.slug })}</span> : null}
         {payload.diagnostics?.source ? <span>{t("target_graph.compiled_from", { source: payload.diagnostics.source })}</span> : null}
-        {backLink ? <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(backLink.path, prefix)}>{backLink.label}</Link> : null}
+        {backLink ? (
+          <Link className="font-medium text-brand hover:underline" to={withRoutePrefix(backLink.path, prefix)}>
+            {backLink.label}
+          </Link>
+        ) : null}
       </div>
     </div>
   )
@@ -222,7 +238,9 @@ function TargetGraphExplanations({ payload }: { payload: TargetGraphPayload }) {
     <section className="rounded border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-900">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <SectionHeading>{t("target_graph.selection_explanations")}</SectionHeading>
-        {payload.workflow ? <span className="text-xs text-gray-500 dark:text-gray-400">{t("target_graph.runtime_decisions_from", { slug: payload.workflow.slug })}</span> : null}
+        {payload.workflow ? (
+          <span className="text-xs text-gray-500 dark:text-gray-400">{t("target_graph.runtime_decisions_from", { slug: payload.workflow.slug })}</span>
+        ) : null}
       </div>
       <div className="mt-3 grid gap-4 xl:grid-cols-2">
         {projects.length > 0 ? (
@@ -294,7 +312,9 @@ function TargetExplanationGroup({ entries, title, tone }: { entries: TargetGraph
             <span className="font-mono text-xs font-semibold text-gray-950 dark:text-gray-100">{entry.target_label}</span>
             {entry.required ? <TonePill tone="red">{t("target_graph.required")}</TonePill> : null}
           </div>
-          {entry.project_label ? <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("target_graph.project_label", { label: entry.project_label })}</div> : null}
+          {entry.project_label ? (
+            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("target_graph.project_label", { label: entry.project_label })}</div>
+          ) : null}
           {entry.reason ? <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">{entry.reason}</div> : null}
           <TargetHealthRefs entry={entry} />
         </li>
@@ -309,11 +329,19 @@ function TargetHealthRefs({ entry }: { entry: TargetGraphTargetExplanation }) {
 
   return (
     <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
-      {entry.target_health_record_id ? <span className="rounded bg-gray-100 px-2 py-1 font-mono text-gray-700 dark:bg-gray-800 dark:text-gray-300">THR-{entry.target_health_record_id}</span> : null}
-      {entry.commit_sha ? <span className="rounded bg-gray-100 px-2 py-1 font-mono text-gray-700 dark:bg-gray-800 dark:text-gray-300">{entry.commit_sha.slice(0, 7)}</span> : null}
+      {entry.target_health_record_id ? (
+        <span className="rounded bg-gray-100 px-2 py-1 font-mono text-gray-700 dark:bg-gray-800 dark:text-gray-300">THR-{entry.target_health_record_id}</span>
+      ) : null}
+      {entry.commit_sha ? (
+        <span className="rounded bg-gray-100 px-2 py-1 font-mono text-gray-700 dark:bg-gray-800 dark:text-gray-300">{entry.commit_sha.slice(0, 7)}</span>
+      ) : null}
       {refs.map((ref, index) => (
-        <span className="rounded bg-gray-100 px-2 py-1 font-mono text-gray-700 dark:bg-gray-800 dark:text-gray-300" key={`${ref.target_health_record_id}-${index}`}>
-          THR-{ref.target_health_record_id ?? "?"}{ref.status ? ` ${ref.status}` : ""}
+        <span
+          className="rounded bg-gray-100 px-2 py-1 font-mono text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+          key={`${ref.target_health_record_id}-${index}`}
+        >
+          THR-{ref.target_health_record_id ?? "?"}
+          {ref.status ? ` ${ref.status}` : ""}
         </span>
       ))}
     </div>
@@ -349,37 +377,45 @@ function TargetGraphToolbar({
           <Button type="submit">{query.mode === "window" ? t("target_graph.search") : t("target_graph.focus")}</Button>
         </form>
         <SelectControl label={t("target_graph.depth")} value={String(query.depth ?? 1)} onChange={(value) => onUpdate({ depth: Number(value), offset: 0 })}>
-          {[0, 1, 2, 3, 4].map((depth) => <option key={depth} value={depth}>{depth}</option>)}
+          {[0, 1, 2, 3, 4].map((depth) => (
+            <option key={depth} value={depth}>
+              {depth}
+            </option>
+          ))}
         </SelectControl>
-        <SelectControl label={t("target_graph.direction")} value={query.direction || "both"} onChange={(value) => onUpdate({ direction: value as TargetGraphQuery["direction"], offset: 0 })}>
+        <SelectControl
+          label={t("target_graph.direction")}
+          value={query.direction || "both"}
+          onChange={(value) => onUpdate({ direction: value as TargetGraphQuery["direction"], offset: 0 })}
+        >
           <option value="both">{t("target_graph.both")}</option>
           <option value="dependencies">{t("target_graph.dependencies")}</option>
           <option value="dependents">{t("target_graph.dependents")}</option>
         </SelectControl>
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        {FOCUS_STATES.map((state) => (
+        {FOCUS_STATES.map((state) =>
           (() => {
             const needsOverlay = state !== "failing"
             const disabled = needsOverlay && !overlaysAvailable
             return (
-          <Button
-            disabled={disabled}
-            key={state}
-            onClick={() => {
-              onDraftChange("")
-              onUpdate({ mode: "neighborhood", focusLabel: undefined, focusState: state, search: undefined, q: undefined, offset: 0 })
-            }}
-            size="sm"
-            title={disabled ? t("target_graph.runtime_selection_unavailable") : undefined}
-            type="button"
-            variant={query.focusState === state ? "primary" : "secondary"}
-          >
-            {stateLabel(state, t)}
-          </Button>
+              <Button
+                disabled={disabled}
+                key={state}
+                onClick={() => {
+                  onDraftChange("")
+                  onUpdate({ mode: "neighborhood", focusLabel: undefined, focusState: state, search: undefined, q: undefined, offset: 0 })
+                }}
+                size="sm"
+                title={disabled ? t("target_graph.runtime_selection_unavailable") : undefined}
+                type="button"
+                variant={query.focusState === state ? "primary" : "secondary"}
+              >
+                {stateLabel(state, t)}
+              </Button>
             )
           })()
-        ))}
+        )}
         <Button
           onClick={() => onUpdate({ mode: "window", focusLabel: undefined, focusState: undefined, offset: 0 })}
           size="sm"
@@ -397,11 +433,7 @@ function SelectControl({ children, label, value, onChange }: { children: ReactNo
   return (
     <label className="block min-w-0 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
       <span>{label}</span>
-      <Select
-        className="mt-1 normal-case"
-        onChange={(event) => onChange(event.target.value)}
-        value={value}
-      >
+      <Select className="mt-1 normal-case" onChange={(event) => onChange(event.target.value)} value={value}>
         {children}
       </Select>
     </label>
@@ -413,15 +445,25 @@ function TargetGraphStats({ payload, query }: { payload: TargetGraphPayload; que
   const healthSummary = Object.entries(payload.health.summary).filter(([, count]) => count > 0)
   return (
     <div className="grid gap-3 md:grid-cols-4">
-      <StatBox label={t("target_graph.targets")} value={payload.page.total.toLocaleString()} detail={t("target_graph.in_view", { count: payload.targets.length.toLocaleString() })} />
+      <StatBox
+        label={t("target_graph.targets")}
+        value={payload.page.total.toLocaleString()}
+        detail={t("target_graph.in_view", { count: payload.targets.length.toLocaleString() })}
+      />
       <StatBox label={t("target_graph.projects")} value={payload.projects.length.toLocaleString()} detail={query.projectId || t("target_graph.all_projects")} />
-      <StatBox label={t("target_graph.mode")} value={query.mode === "window" ? t("target_graph.browse") : t("target_graph.neighborhood")} detail={query.focusLabel || (query.focusState ? stateLabel(query.focusState, t) : t("target_graph.first_target"))} />
+      <StatBox
+        label={t("target_graph.mode")}
+        value={query.mode === "window" ? t("target_graph.browse") : t("target_graph.neighborhood")}
+        detail={query.focusLabel || (query.focusState ? stateLabel(query.focusState, t) : t("target_graph.first_target"))}
+      />
       <div className="rounded border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-900">
         <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{t("target_graph.health")}</div>
         <div className="mt-2 flex min-h-7 flex-wrap gap-1.5">
           {healthSummary.length === 0 ? <span className="text-sm text-gray-500 dark:text-gray-400">{t("target_graph.no_records_in_view")}</span> : null}
           {healthSummary.map(([status, count]) => (
-            <TonePill key={status} tone={healthTone(status)}>{status} {count}</TonePill>
+            <TonePill key={status} tone={healthTone(status)}>
+              {status} {count}
+            </TonePill>
           ))}
         </div>
       </div>
@@ -504,7 +546,11 @@ function TargetGraphNode({ row, visibleLabels, onFocus }: { row: TargetGraphRow;
       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <button className="truncate font-mono text-sm font-semibold text-gray-950 hover:text-brand dark:text-gray-100" onClick={() => onFocus(target.label)} type="button">
+            <button
+              className="truncate font-mono text-sm font-semibold text-gray-950 hover:text-brand dark:text-gray-100"
+              onClick={() => onFocus(target.label)}
+              type="button"
+            >
               {target.label}
             </button>
             <TonePill tone={kindTone(target.kind)}>{target.kind}</TonePill>
@@ -512,24 +558,58 @@ function TargetGraphNode({ row, visibleLabels, onFocus }: { row: TargetGraphRow;
             {target.selection?.state ? <TonePill tone={selectionTone(target.selection.state)}>{target.selection.state}</TonePill> : null}
             {target.health?.status ? <TonePill tone={healthTone(target.health.status)}>{target.health.status}</TonePill> : null}
           </div>
-          {target.executable_metadata?.command ? <div className="mt-1 truncate font-mono text-xs text-gray-500 dark:text-gray-400">{target.executable_metadata.command}</div> : null}
-          {target.project ? <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("target_graph.project_label", { label: target.project.label || target.project.id })}</div> : null}
+          {target.executable_metadata?.command ? (
+            <div className="mt-1 truncate font-mono text-xs text-gray-500 dark:text-gray-400">{target.executable_metadata.command}</div>
+          ) : null}
+          {target.project ? (
+            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {t("target_graph.project_label", { label: target.project.label || target.project.id })}
+            </div>
+          ) : null}
           {target.selection?.reason ? <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{target.selection.reason}</div> : null}
-          {target.selection?.target_health_record_id ? <div className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">{t("target_graph.target_health_record", { id: target.selection.target_health_record_id })}</div> : null}
+          {target.selection?.target_health_record_id ? (
+            <div className="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400">
+              {t("target_graph.target_health_record", { id: target.selection.target_health_record_id })}
+            </div>
+          ) : null}
         </div>
         <Button className="shrink-0" onClick={() => onFocus(target.label)} size="sm" type="button" variant="secondary">
           {t("target_graph.expand")}
         </Button>
       </div>
       <div className="mt-3 grid gap-3 md:grid-cols-2">
-        <EdgeList empty={t("target_graph.no_dependencies")} labels={row.dependencies} title={t("target_graph.dependencies")} visibleLabels={visibleLabels} onFocus={onFocus} />
-        <EdgeList empty={t("target_graph.no_dependents")} labels={row.dependents} title={t("target_graph.dependents")} visibleLabels={visibleLabels} onFocus={onFocus} />
+        <EdgeList
+          empty={t("target_graph.no_dependencies")}
+          labels={row.dependencies}
+          title={t("target_graph.dependencies")}
+          visibleLabels={visibleLabels}
+          onFocus={onFocus}
+        />
+        <EdgeList
+          empty={t("target_graph.no_dependents")}
+          labels={row.dependents}
+          title={t("target_graph.dependents")}
+          visibleLabels={visibleLabels}
+          onFocus={onFocus}
+        />
       </div>
     </article>
   )
 }
 
-function EdgeList({ empty, labels, title, visibleLabels, onFocus }: { empty: string; labels: string[]; title: string; visibleLabels: Set<string>; onFocus: (label: string) => void }) {
+function EdgeList({
+  empty,
+  labels,
+  title,
+  visibleLabels,
+  onFocus
+}: {
+  empty: string
+  labels: string[]
+  title: string
+  visibleLabels: Set<string>
+  onFocus: (label: string) => void
+}) {
   return (
     <div>
       <div className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{title}</div>
@@ -592,7 +672,13 @@ function targetGraphFilterLink(path: string, search: string, updates: Record<str
 }
 
 function stateLabel(state: (typeof FOCUS_STATES)[number], t: ReturnType<typeof useT>["t"]) {
-  return state === "selected" ? t("target_graph.state_selected") : state === "failing" ? t("target_graph.state_failing") : state === "skipped" ? t("target_graph.state_skipped") : t("target_graph.state_cached")
+  return state === "selected"
+    ? t("target_graph.state_selected")
+    : state === "failing"
+      ? t("target_graph.state_failing")
+      : state === "skipped"
+        ? t("target_graph.state_skipped")
+        : t("target_graph.state_cached")
 }
 
 function kindTone(kind: string): PillTone {

@@ -79,17 +79,31 @@ describe("RepositoryDocumentsRoute delete", () => {
   it("renders repository tabs only from the dedicated cached query", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       if (String(input).endsWith("/plugin_tabs")) {
-        return Promise.resolve(jsonResponse({
-          tabs: [{ id: "overview", key: "overview", label: "Cached Overview", path: "/repositories/1", paths: ["/repositories/1"], order: 0 }]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            tabs: [{ id: "overview", key: "overview", label: "Cached Overview", path: "/repositories/1", paths: ["/repositories/1"], order: 0 }]
+          })
+        )
       }
-      return Promise.resolve(jsonResponse(documentsPayload({
-        tabs: [{ key: "legacy", label: "Legacy Embedded Tab", path: "/legacy" }]
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          documentsPayload({
+            tabs: [{ key: "legacy", label: "Legacy Embedded Tab", path: "/legacy" }]
+          })
+        )
+      )
     })
 
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    render(<QueryClientProvider client={client}><MemoryRouter initialEntries={["/app-shell/repositories/1/documents"]}><Routes><Route element={<RepositoryDocumentsRoute />} path="/app-shell/repositories/:repositoryId/documents" /></Routes></MemoryRouter></QueryClientProvider>)
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/app-shell/repositories/1/documents"]}>
+          <Routes>
+            <Route element={<RepositoryDocumentsRoute />} path="/app-shell/repositories/:repositoryId/documents" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
 
     expect(await screen.findByRole("link", { name: "Cached Overview" })).toBeInTheDocument()
     expect(screen.queryByText("Legacy Embedded Tab")).not.toBeInTheDocument()
@@ -109,7 +123,15 @@ describe("RepositoryDocumentsRoute delete", () => {
 
   it("hides document mutations from read-tier members", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(documentsPayload({ can_write: false })))
-    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter initialEntries={["/app-shell/repositories/1/documents"]}><Routes><Route element={<RepositoryDocumentsRoute />} path="/app-shell/repositories/:repositoryId/documents" /></Routes></MemoryRouter></QueryClientProvider>)
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/repositories/1/documents"]}>
+          <Routes>
+            <Route element={<RepositoryDocumentsRoute />} path="/app-shell/repositories/:repositoryId/documents" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
 
     expect(await screen.findByText("Architecture notes")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument()
@@ -131,10 +153,7 @@ describe("RepositoryDocumentsRoute delete", () => {
     fireEvent.click(deleteButton)
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/repository_documents/20",
-        expect.objectContaining({ method: "DELETE" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repository_documents/20", expect.objectContaining({ method: "DELETE" }))
     })
   })
 
@@ -145,13 +164,14 @@ describe("RepositoryDocumentsRoute delete", () => {
     renderRoute()
 
     const deleteButton = await screen.findByRole("button", { name: "Delete" })
-    await act(async () => { fireEvent.click(deleteButton) })
+    await act(async () => {
+      fireEvent.click(deleteButton)
+    })
 
-    await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
-    expect(fetchSpy).not.toHaveBeenCalledWith(
-      "/api/v1/app/repository_documents/20",
-      expect.objectContaining({ method: "DELETE" })
-    )
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalled()
+    })
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/repository_documents/20", expect.objectContaining({ method: "DELETE" }))
   })
 })
 
@@ -159,20 +179,23 @@ describe("RepositoryDocumentsRoute preview", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("opens a preview modal with rendered markdown for a markdown document", async () => {
-    renderRouteWithDocuments([
-      {
-        id: 21,
-        kind: "file",
-        title: "Notes",
-        google_doc_url: null,
-        filename: "notes.md",
-        content_type: "text/markdown",
-        byte_size: 12,
-        uploaded_by: "Ada Lovelace",
-        created_at: "2026-01-01T00:00:00Z",
-        file_path: "/api/v1/app/repository_documents/21/file"
-      }
-    ], { "21": "# Hello there" })
+    renderRouteWithDocuments(
+      [
+        {
+          id: 21,
+          kind: "file",
+          title: "Notes",
+          google_doc_url: null,
+          filename: "notes.md",
+          content_type: "text/markdown",
+          byte_size: 12,
+          uploaded_by: "Ada Lovelace",
+          created_at: "2026-01-01T00:00:00Z",
+          file_path: "/api/v1/app/repository_documents/21/file"
+        }
+      ],
+      { "21": "# Hello there" }
+    )
 
     fireEvent.click(await screen.findByRole("button", { name: /Notes/ }))
 

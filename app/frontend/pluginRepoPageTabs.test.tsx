@@ -8,20 +8,19 @@ describe("plugin repo page tab registry", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("discovers installed plugin repo tab route components by component key", () => {
-    expect(pluginRepoComponentKeys()).toEqual(expect.arrayContaining([
-      "design_docs/RepositoryDesignDocs",
-      "test_insights/RepositoryTests"
-    ]))
+    expect(pluginRepoComponentKeys()).toEqual(expect.arrayContaining(["design_docs/RepositoryDesignDocs", "test_insights/RepositoryTests"]))
     expect(pluginRepoComponentFor("missing/Nope")).toBeNull()
     expect(pluginRepoComponentFor(null)).toBeNull()
     expect(pluginRepoComponentFor(undefined)).toBeNull()
   })
 
   it("renders a native unavailable notice when a repository plugin tab is disabled or missing", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify({ tabs: [] }), {
-      status: 200,
-      headers: { "Content-Type": "application/json" }
-    }))
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ tabs: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    )
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>

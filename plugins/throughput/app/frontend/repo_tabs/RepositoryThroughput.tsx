@@ -8,7 +8,15 @@ import { TonePill } from "@app/components/StatusPill"
 import { errorMessage } from "@app/lib/errorMessage"
 import { routePrefix } from "@app/lib/routing"
 import { useT } from "@app/hooks/useT"
-import { fetchRepositoryThroughputMetrics, type RepositoryThroughputConfidence, type RepositoryThroughputDuration, type RepositoryThroughputMetricsPayload, type RepositoryThroughputRate, type RepositoryThroughputWindow, type RepositoryThroughputWindowKey } from "../api/throughput"
+import {
+  fetchRepositoryThroughputMetrics,
+  type RepositoryThroughputConfidence,
+  type RepositoryThroughputDuration,
+  type RepositoryThroughputMetricsPayload,
+  type RepositoryThroughputRate,
+  type RepositoryThroughputWindow,
+  type RepositoryThroughputWindowKey
+} from "../api/throughput"
 
 const THROUGHPUT_WINDOWS: Array<{ key: RepositoryThroughputWindowKey; labelKey?: string; label?: string }> = [
   { key: "1h", label: "1h" },
@@ -31,24 +39,34 @@ export function RepositoryThroughputRoute({ repositoryId, prefix }: { repository
   return (
     <RepositoryPageShell
       activeTab="throughput.repository"
-      heading={metrics.data ? (
-        <PageHeading mono>
-          <a className="hover:underline" href={metrics.data.repository.github_url} rel="noopener" target="_blank">{metrics.data.repository.slug}</a>
-        </PageHeading>
-      ) : null}
+      heading={
+        metrics.data ? (
+          <PageHeading mono>
+            <a className="hover:underline" href={metrics.data.repository.github_url} rel="noopener" target="_blank">
+              {metrics.data.repository.slug}
+            </a>
+          </PageHeading>
+        ) : null
+      }
       prefix={prefix}
       tabs={tabs.data?.tabs ?? []}
     >
       {metrics.isPending ? <Notice>{t("loading")}</Notice> : null}
       {metrics.isError ? <Notice tone="danger">{errorMessage(metrics.error, t("load_error"))}</Notice> : null}
-      {metrics.data?.windows?.["4h"] ? (
-        <RepositoryThroughputDashboard metrics={metrics.data} windowKey={windowKey} onWindowChange={setWindowKey} />
-      ) : null}
+      {metrics.data?.windows?.["4h"] ? <RepositoryThroughputDashboard metrics={metrics.data} windowKey={windowKey} onWindowChange={setWindowKey} /> : null}
     </RepositoryPageShell>
   )
 }
 
-function RepositoryThroughputDashboard({ metrics, windowKey, onWindowChange }: { metrics: RepositoryThroughputMetricsPayload; windowKey: RepositoryThroughputWindowKey; onWindowChange: (key: RepositoryThroughputWindowKey) => void }) {
+function RepositoryThroughputDashboard({
+  metrics,
+  windowKey,
+  onWindowChange
+}: {
+  metrics: RepositoryThroughputMetricsPayload
+  windowKey: RepositoryThroughputWindowKey
+  onWindowChange: (key: RepositoryThroughputWindowKey) => void
+}) {
   const { t } = useT("throughput")
   const window = metrics.windows[windowKey]
 
@@ -57,11 +75,12 @@ function RepositoryThroughputDashboard({ metrics, windowKey, onWindowChange }: {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <SectionHeading>{t("heading")}</SectionHeading>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            {formatWindowRange(window)}
-          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{formatWindowRange(window)}</p>
         </div>
-        <div aria-label={t("aria_throughput_window")} className="inline-flex overflow-hidden rounded border border-gray-300 bg-white text-xs dark:border-gray-700 dark:bg-gray-900">
+        <div
+          aria-label={t("aria_throughput_window")}
+          className="inline-flex overflow-hidden rounded border border-gray-300 bg-white text-xs dark:border-gray-700 dark:bg-gray-900"
+        >
           {THROUGHPUT_WINDOWS.map((item) => (
             <button
               aria-pressed={windowKey === item.key}
@@ -77,10 +96,44 @@ function RepositoryThroughputDashboard({ metrics, windowKey, onWindowChange }: {
       </div>
       <Section.Root className="overflow-hidden p-0">
         <div className="grid gap-px bg-border sm:grid-cols-2 xl:grid-cols-4">
-          <ThroughputMetric title={t("metric_pr_creation")} value={`${formatRate(window.pr_creation)}/h`} detail={t("detail_pr_creation", { authored: window.pr_creation.count, observed: window.pr_creation.total_observed_count })} confidence={window.pr_creation.confidence} sampleCount={window.pr_creation.sample_count} />
-          <ThroughputMetric title={t("metric_output")} value={`${formatRate(window.output.commits)}/h`} detail={t("detail_output", { net: formatSignedNumber(window.output.loc.net), additions: window.output.loc.additions, deletions: window.output.loc.deletions })} confidence={window.output.commits.confidence} sampleCount={window.output.commits.sample_count} />
-          <ThroughputMetric title={t("metric_landing_units")} value={`${formatRate(window.landing.landing_units)}/h`} detail={t("detail_landing_units", { auto: window.landing.unit_types.auto_merge.landing_units, trains: window.landing.unit_types.merge_train.landing_units })} confidence={window.landing.landing_units.confidence} sampleCount={window.landing.landing_units.sample_count} />
-          <ThroughputMetric title={t("metric_jobs_landed")} value={`${formatRate(window.landing.jobs_landed)}/h`} detail={t("detail_jobs_landed", { count: window.landing.jobs_landed.count, average: formatNullableNumber(window.landing.merge_train_size.average) })} confidence={window.landing.jobs_landed.confidence} sampleCount={window.landing.jobs_landed.sample_count} />
+          <ThroughputMetric
+            title={t("metric_pr_creation")}
+            value={`${formatRate(window.pr_creation)}/h`}
+            detail={t("detail_pr_creation", { authored: window.pr_creation.count, observed: window.pr_creation.total_observed_count })}
+            confidence={window.pr_creation.confidence}
+            sampleCount={window.pr_creation.sample_count}
+          />
+          <ThroughputMetric
+            title={t("metric_output")}
+            value={`${formatRate(window.output.commits)}/h`}
+            detail={t("detail_output", {
+              net: formatSignedNumber(window.output.loc.net),
+              additions: window.output.loc.additions,
+              deletions: window.output.loc.deletions
+            })}
+            confidence={window.output.commits.confidence}
+            sampleCount={window.output.commits.sample_count}
+          />
+          <ThroughputMetric
+            title={t("metric_landing_units")}
+            value={`${formatRate(window.landing.landing_units)}/h`}
+            detail={t("detail_landing_units", {
+              auto: window.landing.unit_types.auto_merge.landing_units,
+              trains: window.landing.unit_types.merge_train.landing_units
+            })}
+            confidence={window.landing.landing_units.confidence}
+            sampleCount={window.landing.landing_units.sample_count}
+          />
+          <ThroughputMetric
+            title={t("metric_jobs_landed")}
+            value={`${formatRate(window.landing.jobs_landed)}/h`}
+            detail={t("detail_jobs_landed", {
+              count: window.landing.jobs_landed.count,
+              average: formatNullableNumber(window.landing.merge_train_size.average)
+            })}
+            confidence={window.landing.jobs_landed.confidence}
+            sampleCount={window.landing.jobs_landed.sample_count}
+          />
         </div>
         <div className="grid gap-4 p-4 lg:grid-cols-3">
           <ThroughputFunnel window={window} />
@@ -92,7 +145,19 @@ function RepositoryThroughputDashboard({ metrics, windowKey, onWindowChange }: {
   )
 }
 
-function ThroughputMetric({ title, value, detail, confidence, sampleCount }: { title: string; value: string; detail: string; confidence: RepositoryThroughputConfidence; sampleCount: number }) {
+function ThroughputMetric({
+  title,
+  value,
+  detail,
+  confidence,
+  sampleCount
+}: {
+  title: string
+  value: string
+  detail: string
+  confidence: RepositoryThroughputConfidence
+  sampleCount: number
+}) {
   return (
     <article className="bg-white p-4 dark:bg-gray-900">
       <div className="flex items-start justify-between gap-3">
@@ -100,8 +165,12 @@ function ThroughputMetric({ title, value, detail, confidence, sampleCount }: { t
         <ConfidencePill confidence={confidence} />
       </div>
       <p className="mt-2 text-2xl font-semibold text-gray-900 dark:text-gray-100">{value}</p>
-      <Text className="mt-1" variant="caption" tone="muted">{detail}</Text>
-      <Text className="mt-2" variant="caption" tone="muted">n={sampleCount}</Text>
+      <Text className="mt-1" variant="caption" tone="muted">
+        {detail}
+      </Text>
+      <Text className="mt-2" variant="caption" tone="muted">
+        n={sampleCount}
+      </Text>
     </article>
   )
 }
@@ -120,7 +189,10 @@ function ThroughputFunnel({ window }: { window: RepositoryThroughputWindow }) {
         <MetricRow label={t("row_feedback_jobs")} value={`${funnel.jobs_with_pr_feedback}${feedbackRate == null ? "" : ` (${formatPercent(feedbackRate)})`}`} />
         <MetricRow label={t("row_feedback_rounds")} value={funnel.feedback_rounds} />
         <MetricRow label={t("row_approvals")} value={t("value_approvals", { jobs: funnel.approval_count, votes: funnel.approval_vote_count })} />
-        <MetricRow label={t("row_approved_without_feedback")} value={`${funnel.jobs_approved_immediately_without_feedback}${approvedWithoutFeedbackRate == null ? "" : ` (${formatPercent(approvedWithoutFeedbackRate)})`}`} />
+        <MetricRow
+          label={t("row_approved_without_feedback")}
+          value={`${funnel.jobs_approved_immediately_without_feedback}${approvedWithoutFeedbackRate == null ? "" : ` (${formatPercent(approvedWithoutFeedbackRate)})`}`}
+        />
       </DescriptionList.Root>
     </div>
   )
@@ -135,9 +207,21 @@ function ThroughputBottlenecks({ window }: { window: RepositoryThroughputWindow 
     <div>
       <SectionHeading as="h3">{t("section_bottlenecks")}</SectionHeading>
       <DescriptionList.Root className="mt-3">
-        <MetricRow label={t("row_landing_occupied")} value={formatDurationSeconds(landing.landing_start_to_closed_latency_seconds.average)} detail={sampleLabel(landing.landing_start_to_closed_latency_seconds)} />
-        <MetricRow label={t("row_failed_landing_waste")} value={formatDurationSeconds(waste.failed_or_cancelled_landing_workflow_seconds)} detail={t("detail_workflows", { count: waste.failed_or_cancelled_landing_workflow_count })} />
-        <MetricRow label={t("row_rebase_churn")} value={formatDurationSeconds(waste.rebase_churn_seconds)} detail={t("detail_workflows", { count: waste.rebase_churn_workflow_count })} />
+        <MetricRow
+          label={t("row_landing_occupied")}
+          value={formatDurationSeconds(landing.landing_start_to_closed_latency_seconds.average)}
+          detail={sampleLabel(landing.landing_start_to_closed_latency_seconds)}
+        />
+        <MetricRow
+          label={t("row_failed_landing_waste")}
+          value={formatDurationSeconds(waste.failed_or_cancelled_landing_workflow_seconds)}
+          detail={t("detail_workflows", { count: waste.failed_or_cancelled_landing_workflow_count })}
+        />
+        <MetricRow
+          label={t("row_rebase_churn")}
+          value={formatDurationSeconds(waste.rebase_churn_seconds)}
+          detail={t("detail_workflows", { count: waste.rebase_churn_workflow_count })}
+        />
         <MetricRow label={t("row_blocking_rebases")} value={waste.landing_blocking_rebase_count} />
         <MetricRow label={t("row_base_moved_regrades")} value={landing.base_moved_regrade_count} />
       </DescriptionList.Root>
@@ -154,11 +238,35 @@ function ThroughputLatency({ window }: { window: RepositoryThroughputWindow }) {
     <div>
       <SectionHeading as="h3">{t("section_latency_capacity")}</SectionHeading>
       <DescriptionList.Root className="mt-3">
-        <MetricRow label={t("row_approval_latency")} value={formatDurationSeconds(funnel.approval_latency_seconds.average)} detail={sampleLabel(funnel.approval_latency_seconds)} />
-        <MetricRow label={t("row_feedback_addressed")} value={formatDurationSeconds(funnel.feedback_to_addressed_seconds.average)} detail={sampleLabel(funnel.feedback_to_addressed_seconds)} />
-        <MetricRow label={t("row_approval_to_landing")} value={formatDurationSeconds(funnel.approval_to_landing_latency_seconds.average)} detail={sampleLabel(funnel.approval_to_landing_latency_seconds)} />
-        <MetricRow label={t("row_optimistic_capacity")} value={`${formatNumber(capacity.estimated_landing_units_per_hour)}/h`} detail={t("detail_optimistic_capacity", { jobs: formatNumber(capacity.estimated_jobs_landed_per_hour), count: capacity.sample_count, confidence: capacity.confidence })} />
-        <MetricRow label={t("row_samples")} value={t("detail_jobs", { count: window.samples.jobs_seen })} detail={t("detail_feedback_comments", { count: window.samples.feedback_comments })} />
+        <MetricRow
+          label={t("row_approval_latency")}
+          value={formatDurationSeconds(funnel.approval_latency_seconds.average)}
+          detail={sampleLabel(funnel.approval_latency_seconds)}
+        />
+        <MetricRow
+          label={t("row_feedback_addressed")}
+          value={formatDurationSeconds(funnel.feedback_to_addressed_seconds.average)}
+          detail={sampleLabel(funnel.feedback_to_addressed_seconds)}
+        />
+        <MetricRow
+          label={t("row_approval_to_landing")}
+          value={formatDurationSeconds(funnel.approval_to_landing_latency_seconds.average)}
+          detail={sampleLabel(funnel.approval_to_landing_latency_seconds)}
+        />
+        <MetricRow
+          label={t("row_optimistic_capacity")}
+          value={`${formatNumber(capacity.estimated_landing_units_per_hour)}/h`}
+          detail={t("detail_optimistic_capacity", {
+            jobs: formatNumber(capacity.estimated_jobs_landed_per_hour),
+            count: capacity.sample_count,
+            confidence: capacity.confidence
+          })}
+        />
+        <MetricRow
+          label={t("row_samples")}
+          value={t("detail_jobs", { count: window.samples.jobs_seen })}
+          detail={t("detail_feedback_comments", { count: window.samples.feedback_comments })}
+        />
       </DescriptionList.Root>
     </div>
   )
@@ -168,7 +276,11 @@ function MetricRow({ label, value, detail }: { label: string; value: number | st
   return (
     <DescriptionList.Item descriptionClassName="text-right font-medium" label={label}>
       <span>{value}</span>
-      {detail ? <Text as="span" className="block font-normal" variant="caption" tone="muted">{detail}</Text> : null}
+      {detail ? (
+        <Text as="span" className="block font-normal" variant="caption" tone="muted">
+          {detail}
+        </Text>
+      ) : null}
     </DescriptionList.Item>
   )
 }

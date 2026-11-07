@@ -37,7 +37,15 @@ export function RepositoryHealthRoute() {
   return <RepositoryHealth detail={detail} prefix={prefix} queryKey={detailQueryKey} />
 }
 
-function RepositoryHealth({ detail, prefix, queryKey }: { detail: { data?: RepositoryDetailPayload; isPending: boolean; isError: boolean; error: unknown }; prefix: string; queryKey: ReturnType<typeof repositoryDetailQueryKey> }) {
+function RepositoryHealth({
+  detail,
+  prefix,
+  queryKey
+}: {
+  detail: { data?: RepositoryDetailPayload; isPending: boolean; isError: boolean; error: unknown }
+  prefix: string
+  queryKey: ReturnType<typeof repositoryDetailQueryKey>
+}) {
   const { t } = useT("settings")
   const payload = detail.data
   const tabs = useRepositoryTabs(payload?.repository.id ?? "")
@@ -46,20 +54,20 @@ function RepositoryHealth({ detail, prefix, queryKey }: { detail: { data?: Repos
   return (
     <RepositoryPageShell
       activeTab="health"
-      ariaLabel={t('repository.aria_repository_health')}
-      heading={payload ? (
-        <PageHeading mono>
-          <Link className="hover:underline" to={withRoutePrefix(`/repositories/${payload.repository.id}`, prefix)}>{payload.repository.slug}</Link>
-        </PageHeading>
-      ) : null}
+      ariaLabel={t("repository.aria_repository_health")}
+      heading={
+        payload ? (
+          <PageHeading mono>
+            <Link className="hover:underline" to={withRoutePrefix(`/repositories/${payload.repository.id}`, prefix)}>
+              {payload.repository.slug}
+            </Link>
+          </PageHeading>
+        ) : null
+      }
       prefix={prefix}
       tabs={tabs.data?.tabs ?? []}
     >
-      {detail.isPending ? (
-        <PanelMessage>
-          {t('repository.loading')}
-        </PanelMessage>
-      ) : null}
+      {detail.isPending ? <PanelMessage>{t("repository.loading")}</PanelMessage> : null}
       {detail.isError ? <PanelMessage tone="error">{errorMessage(detail.error, t("repository.error_load"))}</PanelMessage> : null}
       {payload ? (
         <>
@@ -67,7 +75,7 @@ function RepositoryHealth({ detail, prefix, queryKey }: { detail: { data?: Repos
           {payload.health_history ? (
             <MainBranchHealthSection history={payload.health_history} onNotice={setNotice} payload={payload} prefix={prefix} queryKey={queryKey} />
           ) : (
-            <PanelMessage>{t('repository.health_tab_empty')}</PanelMessage>
+            <PanelMessage>{t("repository.health_tab_empty")}</PanelMessage>
           )}
         </>
       ) : null}
