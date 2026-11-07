@@ -606,8 +606,11 @@ syrus epic open EPIC-12
 accepts `--repo owner/name`. It prompts for a title and multi-line
 description when `--title` and body flags are absent; scripts can pass
 `--title` with `--prompt`, `--body`, `--body-file`, or `--file -` to read the
-description from stdin. Use `--start` to start the Epic immediately and
-`--yes` to skip the confirmation prompt. On success it prints the created
+description from stdin. `--start` requests an immediate start, but a bare CLI
+create has no child Jobs and therefore returns an explicit validation error
+instead of silently creating an unstarted Epic. Once confirmed child work is
+attached, starting records `in_progress` intent even if dependencies still
+block child execution. Use `--yes` to skip the confirmation prompt. On success it prints the created
 `EPIC-<number>` ref plus the Epic URL.
 
 `epic list`/`epic search` and `epic show` also accept `--json` for the

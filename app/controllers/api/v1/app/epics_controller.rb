@@ -77,13 +77,16 @@ module Api
           start_requested = ActiveModel::Type::Boolean.new.cast(params[:start])
 
           if epic.save
-            Metrics::ProductUsage.record(:epic_created)
             started = start_requested && start_created_epic!(epic)
+            Metrics::ProductUsage.record(:epic_created)
             message = started ? I18n.t("api.epics.created_and_started") : I18n.t("api.epics.created")
             render json: saved_payload(epic, message: message), status: :created
           else
             render_error("validation_failed", epic.errors.full_messages.to_sentence, status: :unprocessable_content)
           end
+        rescue Epic::NotStartable => e
+          epic.destroy! if epic&.persisted?
+          render_error("epic_not_startable", e.message, status: :unprocessable_content)
         end
 
         def update
@@ -458,10 +461,9 @@ module Api
             stuck: epic.stuck?,
             startable: epic.may_start_implementing?(actor: Current.user),
             can_unland: Unlanding::Eligibility.enabled? && EpicPolicy.new(Current.user, epic).write? && epic.done?,
-            # Names of unfinished dependencies keeping a backlog/ready Epic
-            # from being startable; the UI renders a muted "Waiting on ..."
-            # hint in place of the hidden Start implementing button.
-            start_blocked_on: (epic.backlog? || epic.ready?) ? epic.unfinished_dependency_names : [],
+            # Starting records intent even when execution is blocked. The UI
+            # keeps the Epic in progress and explains what its children await.
+            execution_blocked_on: epic.in_progress? ? epic.unfinished_dependency_names : [],
             owner: owner_json(epic.owner),
             owned_by_current_user: epic.owner_user_id == Current.user.id || epic.claimed_by?(Current.user),
             claimable: epic.claimable?,
@@ -697,18 +699,10 @@ module Api
           attrs
         end
 
-        # Best-effort start after a start=true create:
-        # the Epic row is already saved, so a non-startable Epic (e.g. product
-        # owner actor, empty Epic) degrades to a plain create instead of failing
-        # the request.
         def start_created_epic!(epic)
-          return false unless epic.may_start_implementing?(actor: Current.user)
-
           epic.start_implementing!(actor: Current.user)
           auto_claim_started_epic!(epic, "in_progress")
           true
-        rescue Epic::NotStartable
-          false
         end
 
         def authorize_epic_mutation!

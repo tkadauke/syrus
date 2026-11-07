@@ -117,6 +117,7 @@ RSpec.describe "Mcp::Tools epic kanban tools", :full_chat_access do
   describe "start_epic" do
     it "starts a ready Epic and claims it for the chat user" do
       epic = Factories.epic(user: user, repository: repository, state: "ready")
+      Factories.job_record(user: user, repository: repository, epic: epic, state: "blocked_by_epic")
 
       result = payload(call_tool("start_epic", epic_id: epic.id))
 
@@ -129,6 +130,7 @@ RSpec.describe "Mcp::Tools epic kanban tools", :full_chat_access do
       current_user = Factories.user(role: "product_owner")
       Current.api_user = current_user
       epic = Factories.epic(user: user, repository: repository, state: "ready")
+      Factories.job_record(user: user, repository: repository, epic: epic, state: "blocked_by_epic")
 
       result = payload(call_tool("start_epic", epic_id: epic.id))
 
@@ -153,6 +155,7 @@ RSpec.describe "Mcp::Tools epic kanban tools", :full_chat_access do
       admin = Factories.user(admin: true)
       other_user = Factories.user
       other_epic = Factories.epic(user: other_user, repository: Factories.repository(user: other_user), state: "ready")
+      Factories.job_record(user: other_user, repository: other_epic.repository, epic: other_epic, state: "blocked_by_epic")
       admin_session = ChatSession.create!(user: admin, chat_provider: "claude")
       admin_server = MCP::Server.new(
         name: "syrus-chat-sidecar",
@@ -167,25 +170,41 @@ RSpec.describe "Mcp::Tools epic kanban tools", :full_chat_access do
       expect(other_epic.reload).to be_in_progress
     end
 
-    it "rejects Epics that are not ready" do
+    it "starts backlog Epics with confirmed children" do
       epic = Factories.epic(user: user, repository: repository)
+      Factories.job_record(user: user, repository: repository, epic: epic, state: "blocked_by_epic")
+      epic.move_to_backlog!
 
-      response = call_tool("start_epic", epic_id: epic.id)
+      result = payload(call_tool("start_epic", epic_id: epic.id))
 
-      expect(response.dig(:result, :isError)).to be true
-      expect(error_text(response)).to include("epic must be ready to start; current state is backlog")
-      expect(epic.reload).to be_backlog
+      expect(result).to include(previous_state: "backlog", new_state: "in_progress")
+      expect(epic.reload).to be_in_progress
     end
 
     it "rejects product owners" do
       user.update!(role: "product_owner")
       epic = Factories.epic(user: user, repository: repository, state: "ready")
+      Factories.job_record(user: user, repository: repository, epic: epic, state: "blocked_by_epic")
 
       response = call_tool("start_epic", epic_id: epic.id)
 
       expect(response.dig(:result, :isError)).to be true
       expect(error_text(response)).to include("Product owners cannot advance Epics beyond backlog.")
       expect(epic.reload).to be_ready
+    end
+
+    it "records start intent while Epic dependencies keep children blocked and is retry-safe" do
+      blocker = Factories.epic(user: user, repository: repository, title: "Upstream", state: "in_progress")
+      epic = Factories.epic(user: user, repository: repository, state: "ready")
+      child = Factories.job_record(user: user, repository: repository, epic: epic, state: "blocked_by_epic")
+      epic.dependencies.create!(depends_on_epic: blocker)
+
+      first = payload(call_tool("start_epic", epic_id: epic.id))
+      second = payload(call_tool("start_epic", epic_id: epic.id))
+
+      expect(first).to include(previous_state: "ready", new_state: "in_progress")
+      expect(second).to include(previous_state: "in_progress", new_state: "in_progress")
+      expect(child.reload).to be_blocked_by_epic
     end
   end
 

@@ -118,6 +118,7 @@
   "unland_status_failed": "Unland failed. Review or retry the linked rollback Job.",
   "unland_status_reverted": "Landed, then reverted through the linked rollback Job.",
   "waiting_on_dependencies": "Waiting on {{names}}",
+  "implementation_intent_waiting_on_dependencies": "Implementation started; child Jobs are waiting on {{names}}",
   "starting": "Starting...",
   "start_preview": "Start Preview",
   "looks_good": "Looks Good",

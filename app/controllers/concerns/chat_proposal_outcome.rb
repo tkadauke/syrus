@@ -2,7 +2,7 @@
 #
 # After a chat proposal is confirmed or rejected, these build the operator-
 # facing notice and the agent-facing confirmation/rejection text, and
-# best-effort start a just-created Epic. They are pure controller helpers
+# start a just-created Epic. They are pure controller helpers
 # (reading `params`/`Current.user`, delegating to the proposal's materialized
 # result), so they mix straight back in with no behavior change. Kept private
 # on include.
@@ -16,18 +16,8 @@ module ChatProposalOutcome
     epic = result.respond_to?(:epic) ? result.epic : nil
     return false unless epic
     return true if epic.in_progress?
-    return false unless epic.may_start_implementing?(actor: Current.user)
-
     epic.start_implementing!(actor: Current.user)
     true
-  rescue Epic::NotStartable
-    false
-  rescue StandardError => e
-    Rails.logger.error(
-      "[ChatsController] best-effort Epic start after confirming proposal ##{proposal.id} failed — " \
-      "confirmation proceeds unstarted: #{e.class}: #{e.message}"
-    )
-    false
   end
 
   def proposal_confirmed_notice(proposal, result, epic_started: false)

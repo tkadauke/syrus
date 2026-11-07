@@ -213,9 +213,9 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
                 {command.isPending ? t("starting") : t("start_implementing")}
               </Button>
             ) : null}
-            {!payload.epic.startable && (payload.epic.start_blocked_on ?? []).length > 0 ? (
+            {payload.epic.state === "in_progress" && (payload.epic.execution_blocked_on ?? []).length > 0 ? (
               <span className="text-sm text-gray-500 dark:text-gray-400">
-                {t("waiting_on_dependencies", { names: (payload.epic.start_blocked_on ?? []).join(", ") })}
+                {t("implementation_intent_waiting_on_dependencies", { names: (payload.epic.execution_blocked_on ?? []).join(", ") })}
               </span>
             ) : null}
             {payload.epic.claimable && payload.epic.owner_status === "unclaimed" ? (
