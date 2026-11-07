@@ -83,8 +83,17 @@ function detailPayload(overrides: Partial<EpicDetailPayload["epic"]> = {}): Epic
 
 function renderDetail(payload: EpicDetailPayload) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
-  client.setQueryData(["epics", String(payload.epic.id), "job-metadata"], { provider_availability: payload.provider_availability ?? {}, deployment_stages: payload.deployment_stages, jobs: payload.jobs.map((job) => ({ id: job.id, deployment_stages: job.deployment_stages })) })
-  if (payload.graph) client.setQueryData(["epics", String(payload.epic.id), "dependencies"], { graph: payload.graph, dependencies: payload.dependencies ?? [], dependents: payload.dependents ?? [] })
+  client.setQueryData(["epics", String(payload.epic.id), "job-metadata"], {
+    provider_availability: payload.provider_availability ?? {},
+    deployment_stages: payload.deployment_stages,
+    jobs: payload.jobs.map((job) => ({ id: job.id, deployment_stages: job.deployment_stages }))
+  })
+  if (payload.graph)
+    client.setQueryData(["epics", String(payload.epic.id), "dependencies"], {
+      graph: payload.graph,
+      dependencies: payload.dependencies ?? [],
+      dependents: payload.dependents ?? []
+    })
   render(
     <QueryClientProvider client={client}>
       <MemoryRouter>

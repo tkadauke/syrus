@@ -111,7 +111,8 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
     queryFn: ({ signal }) => fetchEpicDependencies(payload.epic.id, { signal }),
     enabled: activeTab === "dependencies"
   })
-  const dependencyData = dependencies.data ?? (payload.graph ? { graph: payload.graph, dependencies: payload.dependencies ?? [], dependents: payload.dependents ?? [] } : undefined)
+  const dependencyData =
+    dependencies.data ?? (payload.graph ? { graph: payload.graph, dependencies: payload.dependencies ?? [], dependents: payload.dependents ?? [] } : undefined)
   const jobMetadata = useQuery({
     queryKey: ["epics", String(payload.epic.id), "job-metadata"],
     queryFn: ({ signal }) => fetchEpicJobMetadata(payload.epic.id, { signal }),
@@ -128,7 +129,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
       return updateEpicState(payload.paths.app_state_path, action.transition.target_state)
     },
     onSuccess: (updated) => {
-      queryClient.setQueryData<EpicDetailPayload>(queryKey, (current) => current ? { ...current, epic: { ...current.epic, ...updated.epic } } : current)
+      queryClient.setQueryData<EpicDetailPayload>(queryKey, (current) => (current ? { ...current, epic: { ...current.epic, ...updated.epic } } : current))
       queryClient.invalidateQueries({ queryKey })
       setNotice(updated.message || null)
     }
@@ -338,20 +339,26 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
       ) : null}
 
       {activeTab === "dependencies" ? (
-        dependencyData ? <div className="grid gap-6 lg:grid-cols-[minmax(0,31fr)_minmax(0,19fr)]">
-          <div className="min-w-0">
-            <DependencyGraph graph={dependencyData.graph} />
+        dependencyData ? (
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,31fr)_minmax(0,19fr)]">
+            <div className="min-w-0">
+              <DependencyGraph graph={dependencyData.graph} />
+            </div>
+            <div className="min-w-0">
+              <DependenciesSection
+                command={dependencyCommand}
+                currentEpicId={payload.epic.id}
+                dependencies={dependencyData.dependencies}
+                dependents={dependencyData.dependents}
+                prefix={prefix}
+              />
+            </div>
           </div>
-          <div className="min-w-0">
-            <DependenciesSection
-              command={dependencyCommand}
-              currentEpicId={payload.epic.id}
-              dependencies={dependencyData.dependencies}
-              dependents={dependencyData.dependents}
-              prefix={prefix}
-            />
-          </div>
-        </div> : dependencies.isError ? <PanelMessage tone="error">{errorMessage(dependencies.error, t("load_error"))}</PanelMessage> : <PanelMessage>{t("loading")}</PanelMessage>
+        ) : dependencies.isError ? (
+          <PanelMessage tone="error">{errorMessage(dependencies.error, t("load_error"))}</PanelMessage>
+        ) : (
+          <PanelMessage>{t("loading")}</PanelMessage>
+        )
       ) : null}
 
       {activeTab === "history" ? <HistorySection versions={history.data?.versions || []} /> : null}
@@ -725,7 +732,19 @@ export function JobsSection({
   )
 }
 
-function JobIdentity({ epicRepositorySlug, job, jobs, prefix, providerAvailability }: { epicRepositorySlug?: string; job: EpicDetailJob; jobs: EpicDetailJob[]; prefix: string; providerAvailability?: EpicDetailPayload["provider_availability"] }) {
+function JobIdentity({
+  epicRepositorySlug,
+  job,
+  jobs,
+  prefix,
+  providerAvailability
+}: {
+  epicRepositorySlug?: string
+  job: EpicDetailJob
+  jobs: EpicDetailJob[]
+  prefix: string
+  providerAvailability?: EpicDetailPayload["provider_availability"]
+}) {
   return (
     <div className="min-w-0 space-y-0.5">
       <div className="flex flex-wrap items-center gap-2">

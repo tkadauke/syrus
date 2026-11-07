@@ -11,7 +11,20 @@ function client() {
 }
 
 function job(state: string, title = "A job"): EpicDetailJob {
-  return { id: Math.random(), slug: "JOB-1", label: "JOB-1", title, path: "/jobs/1", state, landed: false, pr_number: null, pr_url: null, owner_user_id: null, owner_user: null, repository_slug: "owner/repo" }
+  return {
+    id: Math.random(),
+    slug: "JOB-1",
+    label: "JOB-1",
+    title,
+    path: "/jobs/1",
+    state,
+    landed: false,
+    pr_number: null,
+    pr_url: null,
+    owner_user_id: null,
+    owner_user: null,
+    repository_slug: "owner/repo"
+  }
 }
 
 function epicPayload(overrides: Record<string, unknown> = {}) {
@@ -106,7 +119,9 @@ describe("EpicPreviewCard", () => {
   })
 
   it("uses aggregate state counts when only five Jobs are returned", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ ...epicPayload({ jobs_count: 20 }), jobs: [job("open")], state_counts: { merged: 10, open: 10 } }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({ ...epicPayload({ jobs_count: 20 }), jobs: [job("open")], state_counts: { merged: 10, open: 10 } })
+    )
     renderCard(7)
     const bar = await screen.findByRole("progressbar")
     expect((bar.firstElementChild as HTMLElement).style.width).toBe("50%")
@@ -128,12 +143,14 @@ describe("EpicPreviewCard", () => {
       job("implemented", "Implemented job"),
       job("approved", "Approved job"),
       job("merged", "Merged job"),
-      job("closed", "Closed job — should be hidden"),
+      job("closed", "Closed job — should be hidden")
     ]
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      ...epicPayload({ jobs_count: 6 }),
-      jobs: manyJobs
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        ...epicPayload({ jobs_count: 6 }),
+        jobs: manyJobs
+      })
+    )
     renderCard(7)
     await waitFor(() => expect(screen.getByText("Failed job")).toBeInTheDocument())
     expect(screen.getByText("Merged job")).toBeInTheDocument()
@@ -142,15 +159,13 @@ describe("EpicPreviewCard", () => {
   })
 
   it("sorts child jobs with failed first and merged last", async () => {
-    const manyJobs = [
-      job("merged", "Merged job"),
-      job("open", "Open job"),
-      job("failed", "Failed job"),
-    ]
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      ...epicPayload({ jobs_count: 3 }),
-      jobs: manyJobs
-    }))
+    const manyJobs = [job("merged", "Merged job"), job("open", "Open job"), job("failed", "Failed job")]
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        ...epicPayload({ jobs_count: 3 }),
+        jobs: manyJobs
+      })
+    )
     renderCard(7)
     await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(3))
     const items = screen.getAllByRole("listitem").map((li) => li.textContent ?? "")
@@ -167,8 +182,34 @@ describe("EpicPreviewCard", () => {
 
   it("renders each child job row as a link to the job detail page", async () => {
     const fixedJobs: EpicDetailJob[] = [
-      { id: 10, slug: "JOB-10", label: "JOB-10", title: "First job", path: "/jobs/10", state: "open", landed: false, pr_number: null, pr_url: null, owner_user_id: null, owner_user: null, repository_slug: "owner/repo" },
-      { id: 20, slug: "JOB-20", label: "JOB-20", title: "Second job", path: "/jobs/20", state: "merged", landed: true, pr_number: null, pr_url: null, owner_user_id: null, owner_user: null, repository_slug: "owner/repo" },
+      {
+        id: 10,
+        slug: "JOB-10",
+        label: "JOB-10",
+        title: "First job",
+        path: "/jobs/10",
+        state: "open",
+        landed: false,
+        pr_number: null,
+        pr_url: null,
+        owner_user_id: null,
+        owner_user: null,
+        repository_slug: "owner/repo"
+      },
+      {
+        id: 20,
+        slug: "JOB-20",
+        label: "JOB-20",
+        title: "Second job",
+        path: "/jobs/20",
+        state: "merged",
+        landed: true,
+        pr_number: null,
+        pr_url: null,
+        owner_user_id: null,
+        owner_user: null,
+        repository_slug: "owner/repo"
+      }
     ]
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ ...epicPayload({ jobs_count: 2 }), jobs: fixedJobs }))
     renderCard(7)
@@ -223,19 +264,24 @@ describe("EpicPreviewCard", () => {
   })
 
   it("renders aggregate deployment stages returned by the preview endpoint", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ ...epicPayload({ state: "done" }), deployment_stages: [{ name: "staging", label: "On Staging", reached_count: 3, total: 3, reached_at: "2026-01-01T10:00:00Z" }] }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        ...epicPayload({ state: "done" }),
+        deployment_stages: [{ name: "staging", label: "On Staging", reached_count: 3, total: 3, reached_at: "2026-01-01T10:00:00Z" }]
+      })
+    )
     renderCard(7)
     expect(await screen.findByTestId("epic-deployment-stage-pipeline")).toBeInTheDocument()
     expect(screen.getByText("On Staging")).toBeInTheDocument()
   })
 
   it("compact: does not render deployment stage row even when deployment_stages are present", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      ...epicPayload({ state: "done" }),
-      deployment_stages: [
-        { name: "staging", label: "On Staging", reached_count: 5, total: 5, reached_at: "2026-01-01T10:00:00Z" }
-      ]
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        ...epicPayload({ state: "done" }),
+        deployment_stages: [{ name: "staging", label: "On Staging", reached_count: 5, total: 5, reached_at: "2026-01-01T10:00:00Z" }]
+      })
+    )
     render(
       <QueryClientProvider client={client()}>
         <MemoryRouter>

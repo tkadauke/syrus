@@ -14,7 +14,7 @@ const PROGRESS_SEGMENTS = [
   { state: "merged", color: "bg-emerald-700" },
   { state: "approved", color: "bg-green-500" },
   { state: "implemented", color: "bg-cyan-500" },
-  { state: "blocked_by_epic", color: "bg-amber-400" },
+  { state: "blocked_by_epic", color: "bg-amber-400" }
 ]
 
 // Lower number = more urgent / shown first
@@ -30,7 +30,7 @@ const ATTENTION_ORDER: Record<string, number> = {
   landing: 5,
   merged: 6,
   closed: 7,
-  preempted: 7,
+  preempted: 7
 }
 
 function attentionPriority(state: string): number {
@@ -43,7 +43,7 @@ export function EpicPreviewCard({ id, compact = false, slug }: { id: number; com
   const { data, isPending } = useQuery({
     queryKey: ["epics", epicRef, "preview"],
     queryFn: ({ signal }) => fetchEpicPreview(epicRef, { signal }),
-    staleTime: 30_000,
+    staleTime: 30_000
   })
 
   if (isPending) return <EpicPreviewSkeleton />
@@ -63,7 +63,10 @@ export function EpicPreviewCard({ id, compact = false, slug }: { id: number; com
         <CopyableSlug className="text-xs" slug={epic.display_number} />
         <StatusPill state={epic.landing ? "landing" : epic.state} />
       </div>
-      <Link className={`mb-2 block text-sm font-medium text-gray-900 hover:underline dark:text-gray-100 ${compact ? "line-clamp-1" : "line-clamp-2"}`} to={epicPath}>
+      <Link
+        className={`mb-2 block text-sm font-medium text-gray-900 hover:underline dark:text-gray-100 ${compact ? "line-clamp-1" : "line-clamp-2"}`}
+        to={epicPath}
+      >
         {epic.title}
       </Link>
       {!compact && totalCount > 0 && (
@@ -75,17 +78,11 @@ export function EpicPreviewCard({ id, compact = false, slug }: { id: number; com
           {PROGRESS_SEGMENTS.map(({ state, color }) => {
             const count = stateCounts[state] ?? 0
             const percent = (count / totalCount) * 100
-            return percent > 0 ? (
-              <div className={`h-1.5 transition-[width] ${color}`} key={state} style={{ width: `${percent}%` }} />
-            ) : null
+            return percent > 0 ? <div className={`h-1.5 transition-[width] ${color}`} key={state} style={{ width: `${percent}%` }} /> : null
           })}
         </div>
       )}
-      {!compact && description && (
-        <p className="mb-3 line-clamp-4 break-words text-xs text-gray-600 dark:text-gray-400">
-          {renderLightMarkdown(description)}
-        </p>
-      )}
+      {!compact && description && <p className="mb-3 line-clamp-4 break-words text-xs text-gray-600 dark:text-gray-400">{renderLightMarkdown(description)}</p>}
       {!compact && data.deployment_stages?.length ? <EpicDeploymentStagePipeline stages={data.deployment_stages} /> : null}
       {!compact && previewJobs.length > 0 && (
         <ul className="mb-3 space-y-1">
@@ -120,26 +117,26 @@ export const EpicCompactCard = forwardRef<
   const spaceIdx = label.indexOf(" ")
   const slug = spaceIdx === -1 ? label : label.slice(0, spaceIdx)
   const title = spaceIdx === -1 ? "" : label.slice(spaceIdx + 1)
-  const interactiveProps = onClick ? {
-    "aria-label": label,
-    onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
-      if (event.target !== event.currentTarget) return
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault()
-        onClick()
+  const interactiveProps = onClick
+    ? {
+        "aria-label": label,
+        onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
+          if (event.target !== event.currentTarget) return
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault()
+            onClick()
+          }
+        },
+        role: "link",
+        tabIndex: 0
       }
-    },
-    role: "link",
-    tabIndex: 0,
-  } : {}
+    : {}
 
   return (
     <div
       className={[
         "w-48 cursor-pointer rounded-lg border bg-white p-3 text-left shadow-sm transition-shadow hover:shadow-md dark:bg-gray-900",
-        isFocal
-          ? "border-gray-900 ring-2 ring-gray-900 dark:border-gray-100 dark:ring-gray-100"
-          : "border-gray-200 dark:border-gray-700",
+        isFocal ? "border-gray-900 ring-2 ring-gray-900 dark:border-gray-100 dark:ring-gray-100" : "border-gray-200 dark:border-gray-700"
       ].join(" ")}
       data-testid="epic-compact-card"
       onClick={onClick}

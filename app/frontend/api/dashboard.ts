@@ -607,10 +607,12 @@ export async function fetchEpicsGraph(search = "", options: { signal?: AbortSign
   const edges: DashboardGraphEdge[] = []
   while (true) {
     const page = await getJson<PaginatedEpicGraphPayload>(`/api/v1/app/epics/graph?${params}`, options)
-    nodes.push(...page.nodes.map((node) => {
-      const slug = `EPIC-${node.number}`
-      return { ...node, label: `${slug} ${node.title}`, url: `/epics/${slug}` }
-    }))
+    nodes.push(
+      ...page.nodes.map((node) => {
+        const slug = `EPIC-${node.number}`
+        return { ...node, label: `${slug} ${node.title}`, url: `/epics/${slug}` }
+      })
+    )
     edges.push(...page.edges)
     if (!page.pagination.has_more) break
     params.set("offset", String(page.pagination.offset + page.pagination.limit))
