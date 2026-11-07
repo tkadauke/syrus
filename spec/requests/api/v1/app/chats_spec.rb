@@ -3988,8 +3988,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
         params: { path: "SOUL.md", repository_id: repository.id, ref: ref }
 
       expect(response).to have_http_status(:ok)
-      expect(response.body).to include("<<<<<<< background", ">>>>>>> home")
-    end
+      expect(response.body).to include("    end
 
     it "streams text content from the relay as a raw response" do
       sign_in_as(user)
@@ -5003,6 +5002,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body["messages"].map { |message| message.fetch("id") }).to eq(messages.last(2).map(&:id))
   end
 
+<<<<<<< HEAD
 <<<<<<< HEAD
   it "bounds and briefly caches mentionable queries" do
     sign_in_as(user)
