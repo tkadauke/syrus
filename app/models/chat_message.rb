@@ -44,6 +44,7 @@ class ChatMessage < ApplicationRecord
   validates :role, presence: true, inclusion: { in: ROLES }
   validate :mentions_are_structured
   validate :content_is_present
+  validate :attachments_are_storage_references
 
   def bookmarkable?
     role.in?(%w[user assistant])
@@ -55,6 +56,13 @@ class ChatMessage < ApplicationRecord
 
   def sender
     role == "user" ? sender_user : nil
+  end
+
+  def attachments_are_storage_references
+    attachments = content["attachments"] if content.is_a?(Hash)
+    return unless Array(attachments).any? { |attachment| attachment.respond_to?(:key?) && (attachment.key?("data") || attachment.key?(:data)) }
+
+    errors.add(:content, I18n.t("server.errors.chat_attachments.embedded_data_not_allowed"))
   end
 
   def soft_delete_by!(actor)

@@ -316,10 +316,13 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(body).not_to have_key("agent_questions")
     end
 
-    it "serves shared legacy attachments by URL without embedding their data" do
+    it "serves shared stored attachments by URL" do
       chat_session.update!(share_token: SecureRandom.uuid)
+      stored = chat_session.chat_file_attachments.build(name: "notes.txt", mime_type: "text/plain", byte_size: 5, checksum: "pending")
+      stored.file.attach(io: StringIO.new("hello"), filename: "notes.txt", content_type: "text/plain")
+      stored.save!
       message = chat_session.messages.create!(role: "user", content: {
-        "text" => "Legacy", "attachments" => [ { "name" => "notes.txt", "mime_type" => "text/plain", "data" => Base64.strict_encode64("hello") } ]
+        "text" => "Stored", "attachments" => [ { "id" => stored.id } ]
       })
       sign_in_as(Factories.user)
 
@@ -331,7 +334,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       get attachment.fetch("url")
       expect(response.body).to eq("hello")
       expect(response.headers["Cache-Control"]).to include("immutable")
-      expect(message.reload.content.dig("attachments", 0, "data")).to be_present
+      expect(message.reload.content.dig("attachments", 0)).to eq("id" => stored.id)
     end
 
     it "requires authentication to read a shared chat" do

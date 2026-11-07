@@ -28,8 +28,8 @@ class ChatAttachmentRef
     attributes_list = attachment_attributes(owner)
     preloaded_by_id = owner.instance_variable_get(:@chat_attachment_refs_by_id) if owner.respond_to?(:chat_session)
     chat_session = preloaded_by_id ? true : owner.try(:chat_session)
-    attributes_list.filter_map.with_index do |attributes, index|
-      new(attributes, owner: owner, index: index, chat_session: chat_session, preloaded_by_id: preloaded_by_id)
+    attributes_list.filter_map do |attributes|
+      new(attributes, chat_session: chat_session, preloaded_by_id: preloaded_by_id)
     rescue ActiveRecord::RecordNotFound, ArgumentError, KeyError
       nil
     end
@@ -44,20 +44,17 @@ class ChatAttachmentRef
   end
   private_class_method :attachment_attributes
 
-  def initialize(attributes, owner: nil, index: nil, chat_session: nil, preloaded_by_id: nil)
+  def initialize(attributes, chat_session: nil, preloaded_by_id: nil)
     @attributes = attributes.to_h.stringify_keys
-    @stored = stored_attachment(@attributes["id"], chat_session, preloaded_by_id)
-    @id = @stored&.id
-    @name = @stored&.name || @attributes["name"].to_s
-    @mime_type = @stored&.mime_type || @attributes["mime_type"].to_s
-    @size = @stored&.byte_size || @attributes["size"] || legacy_size
-    @owner = owner
-    @index = index
+    @stored = stored_attachment(@attributes.fetch("id"), chat_session, preloaded_by_id)
+    @id = @stored.id
+    @name = @stored.name
+    @mime_type = @stored.mime_type
+    @size = @stored.byte_size
   end
 
-  def bytes = (@bytes ||= @stored ? @stored.file.download : Base64.strict_decode64(@attributes["data"].to_s))
-  def stored? = @stored.present?
-  def bytes_present? = stored? || @attributes["data"].present?
+  def bytes = (@bytes ||= @stored.file.download)
+  def bytes_present? = @stored.file.attached?
 
   def payload
     payload = { "id" => id, "name" => name, "mime_type" => mime_type, "url" => file_url }.compact
@@ -66,22 +63,13 @@ class ChatAttachmentRef
   end
 
   def file_url
-    return "/api/v1/app/chats/#{@stored.chat_session_id}/attachments/#{id}/file" if stored?
-    return unless @owner.respond_to?(:id) && @owner.id && !@index.nil?
-
-    "/api/v1/app/chats/#{@owner.chat_session_id}/messages/#{@owner.id}/attachments/#{@index}"
+    "/api/v1/app/chats/#{@stored.chat_session_id}/attachments/#{id}/file"
   end
 
   private
 
-  def legacy_size
-    Base64.strict_decode64(@attributes["data"].to_s).bytesize if @attributes["data"].present?
-  rescue ArgumentError
-    nil
-  end
-
   def stored_attachment(id, chat_session, preloaded_by_id)
-    return if id.blank?
+    raise ActiveRecord::RecordNotFound if id.blank?
     raise ActiveRecord::RecordNotFound unless chat_session
     if preloaded_by_id
       attachment = preloaded_by_id.fetch(id.to_i)

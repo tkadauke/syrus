@@ -329,6 +329,11 @@ untouched in the DB for audit. The chat workspace directory, per-chat agent
 homes, and FTS search-index rows are still purged post-commit by
 `ChatSessionCleanupJob`, since those are local checkout state rather than
 audit history. `ChatSession.active`/`.deleted` scopes mirror `ChatMessage`'s.
+Chat message files are Active Storage attachments referenced by message JSON;
+message content never embeds their bytes. Soft deletion retains those files
+with the audit history. A later hard destroy of the chat destroys its
+`ChatFileAttachment` rows and purges the corresponding blobs through
+`dependent: :purge`.
 Every operator-facing lookup (chat index, show, search, participants, local
 daemon sessions, the SPA `/chats/:id` gate) and every chat-reading MCP tool
 (`list_chats`, `search_chats`, `read_chat_messages`) scope through

@@ -612,8 +612,10 @@ curl -X POST https://syrus.example.com/api/v1/app/chats/123/rename \
 
 `DELETE /api/v1/app/chats/:id` soft-deletes a chat owned by the authenticated
 user. Group members cannot delete the shared conversation. Audit records such
-as messages, attachments, and proposals remain in the database, while search
-index entries and workspace files are cleaned up. There is no UI undo — use
+as messages, stored attachment files, and proposals remain in the database,
+while search index entries and workspace files are cleaned up. A later hard
+purge of the chat destroys its attachment records and purges their Active
+Storage blobs (`dependent: :purge`). There is no UI undo — use
 hide/unhide for reversible cleanup. The request is refused with `409
 Conflict` (`error.code` `turn_in_flight`) while a turn is actively running.
 
