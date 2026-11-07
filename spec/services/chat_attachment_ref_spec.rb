@@ -15,6 +15,20 @@ RSpec.describe ChatAttachmentRef do
     expect(ref.payload).to eq("name" => "notes.txt", "mime_type" => "text/plain", "data" => Base64.strict_encode64("hello"))
   end
 
+  it "reads attachments from JSON-encoded scratchpad content" do
+    item = chat.scratchpad_items.new(
+      content: JSON.generate("text" => "", "attachments" => [
+        { "name" => "notes.txt", "mime_type" => "text/plain", "data" => Base64.strict_encode64("hello") }
+      ]),
+      position: 0
+    )
+
+    ref = described_class.for(item).sole
+
+    expect(ref.bytes).to eq("hello")
+    expect(item).to be_valid
+  end
+
   it "reads a storage-backed attachment and claims it for its message" do
     attachment = chat.chat_file_attachments.build(name: "diagram.png", mime_type: "image/png", byte_size: 3, checksum: "pending")
     attachment.file.attach(io: StringIO.new("png"), filename: "diagram.png", content_type: "image/png")
