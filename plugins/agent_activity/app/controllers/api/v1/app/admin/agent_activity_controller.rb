@@ -41,15 +41,6 @@ module Api
             render json: payload unless performed?
           end
 
-          def chrome_payload(filter)
-            {
-              filter: filter.to_h,
-              filter_schema: ::AgentActivity::Filter.schema,
-              active_smart_folder_id: active_smart_folder&.id,
-              smart_folders: smart_folders(:admin)
-            }
-          end
-
           def artifacts
             run = Run.select(:id, :job_id, :step_id, :base_sha, :head_sha).includes(:job, step: :workflow).find_by(id: params[:run_id])
             unless run
@@ -66,6 +57,15 @@ module Api
           end
 
           private
+
+          def chrome_payload(filter)
+            {
+              filter: filter.to_h,
+              filter_schema: ::AgentActivity::Filter.schema,
+              active_smart_folder_id: active_smart_folder&.id,
+              smart_folders: smart_folders(:admin)
+            }
+          end
 
           def current_filter
             @current_filter ||= ::Filters::SmartFolderResolution.call(

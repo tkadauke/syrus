@@ -57,12 +57,12 @@ export function AgentActivityFeed({ scope }: { scope: "mine" | "admin" }) {
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
 
   const chrome = useQuery({
-    queryKey: ["agent_activity", "chrome", scope, location.search],
+    queryKey: ["agent_activity", scope, "chrome", location.search],
     queryFn: () => fetchAgentActivitySessions(scope, location.search, "chrome"),
     staleTime: Infinity
   })
   const sessions = useQuery({
-    queryKey: ["agent_activity", "rows", scope, location.search],
+    queryKey: ["agent_activity", scope, "rows", location.search],
     queryFn: () => fetchAgentActivitySessions(scope, location.search, "rows"),
     placeholderData: keepPreviousData,
     refetchInterval: (query) => (document.hidden || (query.state.data?.running_count ?? 0) === 0 ? 60_000 : 15_000)
