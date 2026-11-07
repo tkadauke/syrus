@@ -152,8 +152,8 @@ Read the reference file that matches the work in front of you:
   routing, ownership, and precedence for current engineering knowledge.
 - [Architecture details](.claude/reference/architecture-details.md) — trigger
   kinds, workflow pipelines, terminal feature, scheduled tasks, and live UI.
-- [Conventions](.claude/reference/conventions.md) — full implementation,
-  frontend, plugin, migration, deployment, and testing conventions.
+- [Conventions](docs/engineering/conventions/README.md) — focused implementation,
+  frontend, plugin, migration, deployment, and testing guides.
 - [Deployed operations](.claude/reference/deployed-operations.md) — testing on
   the deployed instance, kubectl debugging, workflow operations, and deploy
   targets.
@@ -171,9 +171,9 @@ Read the reference file that matches the work in front of you:
 Public docs, operator docs, prompt source, plugin boundaries, localization,
 CLI/API behavior, desktop behavior, workflow registries, credentials, queues,
 migrations, and tests all have detailed rules in
-[.claude/reference/conventions.md](.claude/reference/conventions.md). Before
-editing any of those surfaces, read that file and follow the local convention
-instead of inventing a parallel pattern.
+[engineering conventions](docs/engineering/conventions/README.md). Before
+editing any of those surfaces, read the relevant focused guide and follow the
+local convention instead of inventing a parallel pattern.
 
 High-frequency reminders:
 
