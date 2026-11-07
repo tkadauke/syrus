@@ -615,7 +615,7 @@ describe("RecentChatsSidebar settings", () => {
             })
           ],
           groups_has_more: true,
-          groups_next_offset: 24
+          groups_next_offset: 8
         })
       )
 
@@ -631,7 +631,7 @@ describe("RecentChatsSidebar settings", () => {
       scrollContainer.dispatchEvent(new Event("scroll"))
 
       await screen.findByText("Older chat")
-      expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("group_offset=24"), expect.anything())
+      expect(fetchSpy).toHaveBeenCalledWith(expect.stringContaining("group_offset=8"), expect.anything())
     } finally {
       scrollContainer.remove()
     }
@@ -682,7 +682,7 @@ describe("RecentChatsSidebar settings", () => {
             })
           ],
           groups_has_more: true,
-          groups_next_offset: 24
+          groups_next_offset: 8
         })
       )
 
@@ -744,7 +744,7 @@ describe("RecentChatsSidebar settings", () => {
             })
           ],
           groups_has_more: true,
-          groups_next_offset: 24
+          groups_next_offset: 8
         })
       )
 

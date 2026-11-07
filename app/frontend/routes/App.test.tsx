@@ -19899,9 +19899,7 @@ function chatSearchPayload() {
       {
         chat_session_id: 77,
         chat_title: "Forum planning",
-        best_snippet: "Best <b>needle</b> <i>ignored</i>",
         badges: [{ kind: "coworker", id: 7, name: "Ada" }],
-        best_match_message_id: 11,
         top_matches: [
           chatSearchMatch({ message_id: 11, role: "assistant", snippet: "Best <b>needle</b> <i>ignored</i>", created_at: threeDaysAgo }),
           chatSearchMatch({ message_id: 13, role: "assistant", snippet: "Third <b>needle</b>", created_at: threeDaysAgo }),

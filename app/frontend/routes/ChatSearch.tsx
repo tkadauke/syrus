@@ -100,7 +100,8 @@ function SearchResultCard({ result, search }: { result: ChatSearchResult; search
     queryFn: ({ signal }) => fetchChatSearchMessages(expandSearch, { signal }),
     enabled: expanded
   })
-  const hiddenMatchCount = Math.max(result.total_match_count - result.top_matches.length, 0)
+  const topMatches = result.top_matches ?? []
+  const hiddenMatchCount = Math.max((result.total_match_count ?? 0) - topMatches.length, 0)
 
   return (
     <article className="py-4">
@@ -120,7 +121,7 @@ function SearchResultCard({ result, search }: { result: ChatSearchResult; search
           </div>
         ) : null}
         <span className="text-sm text-gray-500 dark:text-gray-400">
-          <RelativeTimestamp value={result.top_matches[0]?.created_at} />
+          <RelativeTimestamp value={topMatches[0]?.created_at} />
         </span>
       </div>
       <div className="mt-3 flex items-start gap-2">
@@ -139,7 +140,7 @@ function SearchResultCard({ result, search }: { result: ChatSearchResult; search
         ) : (
           <span className="h-6 w-6 shrink-0" aria-hidden="true" />
         )}
-        <Snippet className="min-w-0 text-sm leading-6 text-gray-700 dark:text-gray-300" html={result.best_snippet || t("search.no_snippet")} />
+        <Snippet className="min-w-0 text-sm leading-6 text-gray-700 dark:text-gray-300" html={topMatches[0]?.snippet || t("search.no_snippet")} />
       </div>
       {expanded ? (
         <div className="ml-8 mt-3 divide-y divide-gray-100 border-t border-gray-100 dark:divide-gray-800 dark:border-gray-800">
