@@ -25,6 +25,9 @@ module Api
         HIDDEN_CHATS_PAGE_SIZE = 20
         CODING_RELAY_RETRY_AFTER_SECONDS = 30
         CODING_RELAY_READ_TIMEOUT_SECONDS = 10
+        CODING_TREE_MAX_BYTES = 16.megabytes
+        CODING_DIFF_MAX_BYTES = 64.megabytes
+        CODING_FILE_MAX_BYTES = 500.kilobytes
         PRODUCT_OWNER_EPIC_JOB_MESSAGE = "Product owners cannot add Jobs to Epics directly — " \
           "claim the Epic as a developer to elaborate it.".freeze
 
@@ -1331,7 +1334,7 @@ module Api
             return
           end
 
-          render json: result
+          render_relay_json(result, max_bytes: CODING_TREE_MAX_BYTES)
         end
 
         def coding_commits
@@ -1363,7 +1366,7 @@ module Api
             return
           end
 
-          render json: result
+          render_relay_json(result)
         end
 
         # Read-only file content counterpart to #coding_files -- see that
@@ -1398,7 +1401,7 @@ module Api
             return
           end
 
-          render json: result
+          render_relay_json(result, max_bytes: CODING_FILE_MAX_BYTES)
         end
 
         def coding_file_preview
@@ -1453,7 +1456,8 @@ module Api
             "sandbox; default-src 'none'; style-src 'unsafe-inline'"
           end
           response.set_header("Content-Security-Policy", content_security_policy)
-          send_data inspected.bytes, type: inspected.content_type, disposition: "inline"
+          fresh_when etag: Digest::SHA256.hexdigest(inspected.bytes), public: false
+          send_data inspected.bytes, type: inspected.content_type, disposition: "inline" unless performed?
         rescue ArgumentError
           render_error("unsupported_media_type", t("api.chats.errors.coding_file_preview_unsupported"), status: :unsupported_media_type)
         end
@@ -1481,7 +1485,7 @@ module Api
 
           status, result = relay_response
           if status == 200
-            render json: result
+            render_relay_json(result, max_bytes: CODING_DIFF_MAX_BYTES)
           else
             render json: { diff: "", mode: mode.to_s, checkout_branch: chat_session.coding_checkout_branch }
           end
@@ -1556,13 +1560,26 @@ module Api
             return
           end
 
-          send_secure_file blob.bytes, filename: File.basename(file_path), type: "text/plain; charset=utf-8"
+          fresh_when etag: Digest::SHA256.hexdigest(blob.bytes), public: false
+          send_secure_file blob.bytes, filename: File.basename(file_path), type: "text/plain; charset=utf-8" unless performed?
         rescue RepositoryContent::UnknownRevision, RepositoryContent::NotFound
           render_error("not_found", t("api.chats.errors.repository_file_not_found"), status: :not_found)
         rescue RepositoryContent::Error
           render_error("source_unavailable", t("api.chats.errors.source_relay_unavailable"), status: :service_unavailable)
         end
         private :render_repository_source_file_at_ref
+
+        def render_relay_json(payload, max_bytes: nil)
+          encoded = ActiveSupport::JSON.encode(payload)
+          if max_bytes && encoded.bytesize > max_bytes
+            render_error("payload_too_large", t("api.chats.errors.coding_file_preview_too_large"), status: :content_too_large)
+            return
+          end
+
+          fresh_when etag: Digest::SHA256.hexdigest(encoded), public: false
+          render json: payload unless performed?
+        end
+        private :render_relay_json
 
         def workspace_file_raw
           chat_session = find_chat_session
@@ -1706,7 +1723,7 @@ module Api
           status, result = relay_response
           case status
           when 200
-            render json: result
+            render_relay_json(result, max_bytes: CODING_FILE_MAX_BYTES)
           when 422
             render_error("validation_failed", t("api.chats.errors.invalid_source_path"), status: :unprocessable_content)
           when 401

@@ -368,7 +368,7 @@ RSpec.describe Job, :ci_only do
           "type" => "chat.updated",
           "resource" => "chat",
           "id" => chat_session.id,
-          "payload" => { "action" => "job_status_changed", "job_id" => job.id }
+          "payload" => hash_including("action" => "job_status_changed", "job_id" => job.id, "item" => hash_including("job_id" => job.id))
         )
       ).once
     end
@@ -393,7 +393,7 @@ RSpec.describe Job, :ci_only do
         job.user,
         hash_including(
           "type" => "chat.updated",
-          "payload" => { "action" => "job_status_changed", "job_id" => job.id }
+          "payload" => hash_including("action" => "job_status_changed", "job_id" => job.id, "item" => hash_including("job_id" => job.id))
         )
       )
     end
