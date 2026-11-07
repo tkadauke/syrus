@@ -276,6 +276,7 @@ export function ChatRoute() {
       return merged
     },
     enabled: id.length > 0,
+    staleTime: 0,
     refetchInterval: (query) => {
       if (document.visibilityState !== "visible") return false
       const data = query.state.data as ChatPayload | undefined

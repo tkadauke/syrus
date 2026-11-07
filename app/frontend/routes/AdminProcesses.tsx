@@ -44,6 +44,7 @@ export function AdminProcessesIndex() {
   const processes = useQuery({
     queryKey: ["admin", "processes", location.search],
     queryFn: () => fetchAdminProcesses(location.search),
+    staleTime: 0,
     refetchInterval: (query) => (query.state.data?.processes.some((process) => !process.finished_at) ? 5_000 : false)
   })
   const activeFolderLabel =
@@ -119,6 +120,7 @@ export function AdminProcessDetail() {
     queryKey: ["admin", "processes", id],
     queryFn: () => fetchAdminProcess(id),
     enabled: id.length > 0,
+    staleTime: 0,
     refetchInterval: (query) => (query.state.data && !query.state.data.finished_at ? 5_000 : false)
   })
 
