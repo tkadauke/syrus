@@ -72,5 +72,8 @@ jobs:
       - name: Run design-system ESLint ratchet
         run: npm run lint
 
+      - name: Build and enforce frontend entry budget
+        run: npm run build && npm run check:bundle-size
+
       - name: Run React tests and typecheck
         run: bin/test-react
