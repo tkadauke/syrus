@@ -28,6 +28,13 @@ RSpec.describe RuntimeTerminal::Renderer do
   # and because a CJK cell with no bundled face becomes Pango's hexadecimal
   # tofu, which is exactly what the pinned glyph shape exists to catch.
   def bundled_fonts_selectable?
+    # The probe itself asks Pango to resolve a deliberately nonexistent family
+    # while loading the real font file. That is only needed for the CoreText
+    # host this guard describes; on fontconfig-backed Linux it mutates the
+    # process-global application-font cache on newer Pango versions and can
+    # change which face later styled renders resolve. Linux is the supported
+    # deterministic renderer and must always execute the metric assertions.
+    return true unless RbConfig::CONFIG.fetch("host_os").match?(/darwin/i)
     return @bundled_fonts_selectable if defined?(@bundled_fonts_selectable)
 
     @bundled_fonts_selectable = [
