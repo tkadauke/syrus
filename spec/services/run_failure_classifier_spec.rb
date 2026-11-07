@@ -1368,4 +1368,53 @@ RSpec.describe RunFailureClassifier, :ci_only do
     expect(result.classification).not_to eq("missing_required_tool_call")
     expect(result.classification).to eq("application_error")
   end
+
+  # Writing "I could not classify this" over a definite answer loses
+  # information, and callers act on the difference. The work engine fails some
+  # Runs deliberately -- a workspace it could not reconstruct -- and writes a
+  # confident verdict itself; those Runs carry no exception and no agent output,
+  # so every branch here misses and the fallback wins. AutoRetryJob
+  # re-classifies before acting, so the fallback used to cancel the retry the
+  # repair had just scheduled.
+  describe "re-deriving a classification that was authored elsewhere" do
+    def authored!(classification_name, retryable:, confidence:)
+      run.update!(state: "failed")
+      record = run.reload.run_failure_classification || run.build_run_failure_classification
+      record.update!(
+        classification: classification_name, retryable: retryable, confidence: confidence,
+        reason: "authored by a repair", classified_at: Time.current
+      )
+      record
+    end
+
+    it "keeps a confident verdict when it can find no evidence of its own" do
+      authored!("workspace_recovery_failed", retryable: true, confidence: 1.0)
+
+      expect(described_class.classify(run.reload)).to have_attributes(
+        classification: described_class::UNCLASSIFIED
+      )
+      expect(classification).to have_attributes(
+        classification: "workspace_recovery_failed", retryable: true, confidence: 1.0
+      )
+    end
+
+    # New evidence is the whole reason to re-classify, so a branch that matched
+    # still wins however the confidences compare.
+    it "replaces it as soon as there is evidence to read" do
+      authored!("workspace_recovery_failed", retryable: true, confidence: 1.0)
+      run.step.update!(kind: "adversarial_review")
+      diagnostic("Steps::Base::StepFailed", "agent didn't call submit_adversarial_review")
+
+      expect(classification).to have_attributes(
+        classification: "missing_required_tool_call", retryable: true
+      )
+    end
+
+    # Nothing is lost by replacing one guess with another.
+    it "replaces an equally unconfident verdict" do
+      authored!(described_class::UNCLASSIFIED, retryable: false, confidence: described_class::UNCLASSIFIED_CONFIDENCE)
+
+      expect(classification.reason).to include("unclassified application error")
+    end
+  end
 end

@@ -21,9 +21,18 @@ class RunFailureClassifier
     new(run).classify
   end
 
+  # The verdict for a run this classifier could not read: no declared problem,
+  # no recognisable exception, no matching log evidence. Named because
+  # `persist!` has to be able to tell "I could not classify this" apart from
+  # every real answer.
+  UNCLASSIFIED = "application_error".freeze
+  UNCLASSIFIED_CONFIDENCE = 0.40
+
   def self.persist!(run)
     result = classify(run)
     record = run.run_failure_classification || run.build_run_failure_classification
+    return record if record.persisted? && superseded_by_unclassified?(record, result)
+
     record.assign_attributes(
       classification: result.classification,
       confidence: result.confidence,
@@ -35,6 +44,26 @@ class RunFailureClassifier
     )
     record.save!
     record
+  end
+
+  # Writing "I could not classify this" over a definite answer loses
+  # information, and callers act on the difference. A run the work engine
+  # failed deliberately -- a workspace it could not reconstruct, say -- carries
+  # no exception and no agent output, because the repair is what ended it. Every
+  # branch below therefore misses, the fallback wins, and a confident retryable
+  # verdict became `application_error, retryable: false` the next time anything
+  # re-classified. AutoRetryJob re-classifies before acting, so that silently
+  # cancelled the retry the repair had just scheduled and left the Job failed
+  # with no second attempt.
+  #
+  # A re-derivation that *did* find something still wins, however it compares:
+  # new evidence is the reason to re-classify at all. Only the no-evidence
+  # fallback defers, and only to a verdict that was more confident than a guess.
+  def self.superseded_by_unclassified?(record, result)
+    return false unless result.classification == UNCLASSIFIED
+    return false unless result.confidence <= UNCLASSIFIED_CONFIDENCE
+
+    record.confidence.to_f > result.confidence
   end
 
   def initialize(run)
@@ -158,7 +187,7 @@ class RunFailureClassifier
     when git_failure?
       result("git_failure", 0.70, false, "A git operation failed.")
     else
-      result("application_error", 0.40, false, "The run failed with an unclassified application error.")
+      result(UNCLASSIFIED, UNCLASSIFIED_CONFIDENCE, false, "The run failed with an unclassified application error.")
     end
   end
 

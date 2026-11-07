@@ -1,8 +1,8 @@
 require "spec_helper"
 
-RSpec.describe "bin/deploy image pre-pull" do
+RSpec.describe "bin/deploy-legacy image pre-pull" do
   let(:root) { File.expand_path("../..", __dir__) }
-  let(:deploy) { File.read(File.join(root, "bin/deploy")) }
+  let(:deploy) { File.read(File.join(root, "bin/deploy-legacy")) }
 
   # A compute pod measured in production spent four minutes with nothing
   # running while containerd pulled worker-dev. Serialized across the
@@ -81,7 +81,7 @@ RSpec.describe "bin/deploy image pre-pull" do
     end
 
     expect(undefined).to be_empty,
-      "the pre-pull manifest interpolates #{undefined.join(', ')}, which bin/deploy never assigns; " \
+      "the pre-pull manifest interpolates #{undefined.join(', ')}, which bin/deploy-legacy never assigns; " \
       "under `set -u` that aborts the heredoc and silently skips the warm-up"
   end
 

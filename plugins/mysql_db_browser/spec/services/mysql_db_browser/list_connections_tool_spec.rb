@@ -85,7 +85,7 @@ RSpec.describe MysqlDbBrowser::ListConnectionsTool do
     MysqlDbBrowser::CredentialMaterial.store!(connection, "secret", user: owner, scope_type: "user", scope_id: owner.id)
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-list-mysql",
       workspace_repo: "https://github.com/example/workspace.git")
-    coworker.grants.create!(capability: "mysql.read", approval_policy: "auto", scope: connection.id)
+    coworker.permission_rules.update!(capability: "mysql.read", approval_policy: "auto", scope: connection.id, actor: owner)
     Coworkers::Chat.create!(coworker: coworker, chat_session: chat_session, role: "main")
     chat_session.define_singleton_method(:coworker) { coworker }
 

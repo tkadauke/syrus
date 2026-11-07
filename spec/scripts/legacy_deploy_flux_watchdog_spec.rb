@@ -1,9 +1,9 @@
 require "spec_helper"
 require "open3"
 
-RSpec.describe "bin/deploy Flux watchdog" do
+RSpec.describe "bin/deploy-legacy Flux watchdog" do
   let(:root) { File.expand_path("../..", __dir__) }
-  let(:deploy) { File.read(File.join(root, "bin/deploy")) }
+  let(:deploy) { File.read(File.join(root, "bin/deploy-legacy")) }
   let(:env_example) { File.read(File.join(root, ".env.example")) }
 
   def bash(script)

@@ -335,12 +335,37 @@ archive one doc with `delete_design_doc`, or archive several docs with one
 confirmation through `archive_design_docs`. Agents should prefer the bulk tool
 for multi-document requests.
 
-`read_design_doc` defaults to `detail: "full"`, preserving the complete payload
-with capped Markdown, rendered Markdown, permissions, threads, comments, and
-suggestions. Callers that only need routing or freshness metadata can pass
+`read_design_doc` defaults to `detail: "full"`. The 64 KiB limit is a per-call
+Markdown transport limit, not a maximum readable document size. Every full read
+reports `doc_ref`, the exact `version_number`, `total_bytes`, byte-based
+`start_offset` and `end_offset`, `truncated`, and `next_cursor`. When
+`next_cursor` is present, pass it back as `cursor` until `truncated` is false:
+
+```json
+{ "doc_ref": "DOC-123", "max_bytes": 32768 }
+{ "doc_ref": "DOC-123", "cursor": "<next_cursor>", "max_bytes": 32768 }
+```
+
+The opaque cursor is integrity-protected and pins every continuation to the
+version selected by the first call. An edit between calls therefore does not
+mix revisions; invalid, modified, cross-document, and version-conflicting
+cursors are rejected. A caller may also begin at an explicit historical
+`version_number`. `max_bytes` defaults to and is capped at 65,536 bytes. Page
+boundaries are UTF-8 safe and byte ranges can be concatenated to reconstruct
+the version's canonical Markdown exactly.
+
+The first page preserves the complete metadata, permissions, threads, comments,
+and suggestions payload. Continuation pages set `discussion_included: false`
+and omit those collections, so discussion never consumes or ambiguously changes
+the Markdown page budget. `rendered_markdown` describes the returned page after
+hidden anchor removal; use `markdown` plus the byte offsets for deterministic
+reconstruction. By contrast, `list_design_doc_sections` offsets are Ruby string
+character offsets into the full rendered Markdown, not pagination byte offsets.
+
+Callers that only need routing or freshness metadata can pass
 `detail: "summary"` to receive just DOC reference, title, state, visibility,
 current version number, pending suggestion count, open thread count, and update
-timestamp.
+timestamp. Summary behavior is unchanged and does not accept pagination inputs.
 
 `suggest_design_doc_change` requires `base_version_number`, copied from the
 `current_version_number` field returned by the `read_design_doc` call that

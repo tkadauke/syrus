@@ -446,6 +446,8 @@ RSpec.describe "DesignDocs MCP tool sets" do
     expect(suggest.fetch(:description)).to include("never directly mutates canonical Markdown")
     expect(suggest.fetch(:description)).to include("re-read the Design Doc")
     expect(read.dig(:input_schema, :properties, :detail, :enum)).to eq(%w[full summary])
+    expect(read.dig(:input_schema, :properties, :max_bytes)).to include(minimum: 4, maximum: 65_536)
+    expect(read.dig(:input_schema, :properties)).to include(:cursor, :version_number)
     expect(suggest.dig(:input_schema, :properties, :base_version_number, :description)).to include("current_version_number")
     expect(suggest.dig(:input_schema, :properties, :original_markdown, :description)).to include("must be unique")
     expect(suggest.dig(:input_schema, :properties, :start_offset, :description)).to include("blank-line boundary")
@@ -562,6 +564,150 @@ RSpec.describe "DesignDocs MCP tool sets" do
         context: McpToolContext.from_server_context(chat_session: chat_session)
       )
     )
+  end
+
+  it "returns an untruncated version-identified page for a document below the limit" do
+    doc = create_design_doc(markdown: "A compact design")
+
+    design_doc = response_payload(call_tool(chat_server, "read_design_doc", doc_ref: doc.display_id)).fetch(:design_doc)
+
+    expect(design_doc).to include(
+      doc_ref: doc.display_id,
+      version_number: 1,
+      markdown: "A compact design",
+      total_bytes: 16,
+      start_offset: 0,
+      end_offset: 16,
+      truncated: false,
+      next_cursor: nil,
+      discussion_included: true
+    )
+  end
+
+  it "does not truncate a document exactly at the 64 KiB page limit" do
+    markdown = "x" * DesignDocs::ReadPage::MAX_BYTES
+    doc = create_design_doc(markdown: markdown)
+
+    design_doc = response_payload(call_tool(chat_server, "read_design_doc", doc_ref: doc.display_id)).fetch(:design_doc)
+
+    expect(design_doc).to include(
+      markdown: markdown,
+      total_bytes: DesignDocs::ReadPage::MAX_BYTES,
+      end_offset: DesignDocs::ReadPage::MAX_BYTES,
+      truncated: false,
+      next_cursor: nil
+    )
+  end
+
+  it "reconstructs multi-page Markdown deterministically without repeating discussion" do
+    markdown = ("first paragraph\n\n" + ("0123456789" * 5) + "\n\n") * 4
+    doc = create_design_doc(markdown: markdown)
+
+    pages = []
+    cursor = nil
+    loop do
+      arguments = { doc_ref: doc.display_id, max_bytes: 47 }
+      arguments[:cursor] = cursor if cursor
+      response = call_tool(chat_server, "read_design_doc", arguments)
+      page = response_payload(response).fetch(:design_doc)
+      pages << page
+      cursor = page.fetch(:next_cursor)
+      break unless cursor
+    end
+
+    expect(pages.map { |page| page.fetch(:markdown) }.join).to eq(markdown)
+    expect(pages.map { |page| page.fetch(:start_offset) }).to eq([ 0 ] + pages[0...-1].map { |page| page.fetch(:end_offset) })
+    expect(pages.map { |page| page.fetch(:version_number) }.uniq).to eq([ 1 ])
+    expect(pages.first).to include(:threads, :suggestions)
+    expect(pages.first.fetch(:discussion_included)).to be(true)
+    expect(pages.drop(1)).to all(include(discussion_included: false))
+    expect(pages.drop(1)).to all(satisfy { |page| !page.key?(:threads) && !page.key?(:suggestions) })
+  end
+
+  it "keeps page boundaries UTF-8 safe and makes forward progress" do
+    markdown = "ab😀cdéfg"
+    doc = create_design_doc(markdown: markdown)
+    pages = []
+    cursor = nil
+
+    loop do
+      arguments = { doc_ref: doc.display_id, max_bytes: 5 }
+      arguments[:cursor] = cursor if cursor
+      page = response_payload(
+        call_tool(chat_server, "read_design_doc", arguments)
+      ).fetch(:design_doc)
+      pages << page
+      cursor = page.fetch(:next_cursor)
+      break unless cursor
+    end
+
+    expect(pages.map { |page| page.fetch(:markdown) }).to eq([ "ab", "😀c", "défg" ])
+    expect(pages.map { |page| page.fetch(:markdown) }.join).to eq(markdown)
+    expect(pages).to all(satisfy { |page| page.fetch(:end_offset) > page.fetch(:start_offset) })
+  end
+
+  it "continues from the pinned version after the current version changes" do
+    doc = create_design_doc(markdown: "original-version-body")
+    first = response_payload(
+      call_tool(chat_server, "read_design_doc", doc_ref: doc.display_id, max_bytes: 8)
+    ).fetch(:design_doc)
+    version = doc.versions.create!(markdown: "replacement-body", version_number: 2, actor_kind: "user", actor_user: owner)
+    doc.update!(markdown: version.markdown, current_version: version)
+
+    continuation = response_payload(
+      call_tool(chat_server, "read_design_doc", doc_ref: doc.display_id, cursor: first.fetch(:next_cursor), max_bytes: 64)
+    ).fetch(:design_doc)
+
+    expect(first.fetch(:markdown) + continuation.fetch(:markdown)).to eq("original-version-body")
+    expect(continuation).to include(version_number: 1, total_bytes: "original-version-body".bytesize)
+  end
+
+  it "starts a read at an explicitly requested historical version and bounds max_bytes" do
+    doc = create_design_doc(markdown: "historical-body")
+    version = doc.versions.create!(markdown: "current-body", version_number: 2, actor_kind: "user", actor_user: owner)
+    doc.update!(markdown: version.markdown, current_version: version)
+
+    historical = response_payload(
+      call_tool(chat_server, "read_design_doc", doc_ref: doc.display_id, version_number: 1, max_bytes: 8)
+    ).fetch(:design_doc)
+    too_large = call_tool(chat_server, "read_design_doc", doc_ref: doc.display_id, max_bytes: 65_537)
+
+    expect(historical).to include(version_number: 1, markdown: "historic", total_bytes: 15, truncated: true)
+    expect(too_large.dig(:result, :isError)).to be(true)
+  end
+
+  it "rejects invalid, tampered, cross-document, and conflicting-version cursors" do
+    doc = create_design_doc(markdown: "page one then page two")
+    other = create_design_doc(title: "Other", markdown: "another long body")
+    cursor = response_payload(
+      call_tool(chat_server, "read_design_doc", doc_ref: doc.display_id, max_bytes: 8)
+    ).dig(:design_doc, :next_cursor)
+
+    responses = [
+      call_tool(chat_server, "read_design_doc", doc_ref: doc.display_id, cursor: "not-a-cursor"),
+      call_tool(chat_server, "read_design_doc", doc_ref: doc.display_id, cursor: "#{cursor}x"),
+      call_tool(chat_server, "read_design_doc", doc_ref: other.display_id, cursor: cursor),
+      call_tool(chat_server, "read_design_doc", doc_ref: doc.display_id, cursor: cursor, version_number: 2)
+    ]
+
+    expect(responses).to all(satisfy { |response| response.dig(:result, :isError) == true })
+    expect(response_text(responses[0])).to include("invalid or has been tampered")
+    expect(response_text(responses[2])).to include("invalid for #{other.display_id}")
+    expect(response_text(responses[3])).to include("pinned to version 1")
+  end
+
+  it "supports pagination through the repository-scoped workflow tool" do
+    doc = create_design_doc(markdown: "workflow-visible-long-body")
+    server = workflow_server(workflow_run)
+
+    first = response_payload(call_tool(server, "read_design_doc", doc_ref: doc.display_id, max_bytes: 8))
+    second = response_payload(
+      call_tool(server, "read_design_doc", doc_ref: doc.display_id, cursor: first.dig(:design_doc, :next_cursor), max_bytes: 8)
+    )
+
+    expect(first).to include(read_only: true)
+    expect(second.dig(:design_doc, :start_offset)).to eq(8)
+    expect(second.dig(:design_doc, :discussion_included)).to be(false)
   end
 
   it "returns only design doc metadata from read_design_doc summary mode" do

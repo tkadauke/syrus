@@ -798,6 +798,13 @@ commenting, or suggesting a change are chat/proposal-flow features with
 no CLI equivalent. If the `design_docs` plugin is disabled, both
 commands surface the API's `plugin_disabled` error message as-is.
 
+For agent integrations, `read_design_doc` applies its 64 KiB limit per call,
+not per document. Full responses identify the exact Design Doc version and
+returned Markdown byte range. When `truncated` is true, pass `next_cursor` back
+as `cursor`; the integrity-protected cursor remains pinned to that version even
+if the document is edited between calls. Discussion and suggestions appear on
+the first page only and do not consume the Markdown page budget.
+
 ## Spending insights
 
 `syrus insights spending` is contributed by the bundled `spending_insights`

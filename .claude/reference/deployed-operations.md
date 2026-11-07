@@ -209,7 +209,14 @@ bin/deploy                # default deployment target
 bin/deploy --staging      # staging target, if configured
 bin/deploy --production   # production target, if configured
 bin/deploy --skip-build   # assume :<sha> already pushed
+bin/deploy --dry-run      # change nothing; print the command stream
 ```
+
+`bin/deploy` is Ruby; its phases are in `lib/deploy/`, and
+`lib/deploy/cluster_rollout.rb` is the order a rollout runs in. The previous
+Bash implementation is kept as `bin/deploy-legacy` with the same flags, as a
+fallback and as a second opinion to diff `--dry-run` streams against
+(`DRY_RUN_STREAM=path` captures one).
 
 Reads the GHCR PAT from `$GHCR_TOKEN` or
 `~/.config/syrus/ghcr-token` (chmod 600). Builds the configured image

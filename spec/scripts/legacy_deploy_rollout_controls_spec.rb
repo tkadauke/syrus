@@ -1,9 +1,9 @@
 require "spec_helper"
 require "open3"
 
-RSpec.describe "bin/deploy rollout controls" do
+RSpec.describe "bin/deploy-legacy rollout controls" do
   let(:root) { File.expand_path("../..", __dir__) }
-  let(:deploy) { File.read(File.join(root, "bin/deploy")) }
+  let(:deploy) { File.read(File.join(root, "bin/deploy-legacy")) }
 
   def helper(name)
     deploy[/^#{Regexp.escape(name)}\(\) \{.*?^\}/m] or raise "missing #{name}"
