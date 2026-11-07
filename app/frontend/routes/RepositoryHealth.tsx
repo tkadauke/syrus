@@ -10,7 +10,7 @@ import { useState } from "react"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
-import { fetchRepositoryDetail, type RepositoryDetailPayload } from "../api/repositories"
+import { fetchRepositoryDetail, fetchRepositoryHealthHistory, type RepositoryDetailPayload } from "../api/repositories"
 import { errorMessage } from "../lib/errorMessage"
 
 // The Health tab: main branch health, moved out of the Overview tab so it
@@ -31,9 +31,12 @@ export function RepositoryHealthRoute() {
     queryFn: () => fetchRepositoryDetail(id, search),
     enabled: id.length > 0
   })
-  usePageTitle(detail.data?.repository.slug)
+  const health = useQuery({ queryKey: ["repositories", id, "health_history"], queryFn: () => fetchRepositoryHealthHistory(id), enabled: id.length > 0 })
+  const payload = detail.data && health.data ? { ...detail.data, ...health.data } : undefined
+  const composedDetail = { ...detail, data: payload, isPending: detail.isPending || health.isPending }
+  usePageTitle(payload?.repository.slug)
 
-  return <RepositoryHealth detail={detail} prefix={prefix} queryKey={detailQueryKey} />
+  return <RepositoryHealth detail={composedDetail} prefix={prefix} queryKey={detailQueryKey} />
 }
 
 function RepositoryHealth({ detail, prefix, queryKey }: { detail: { data?: RepositoryDetailPayload; isPending: boolean; isError: boolean; error: unknown }; prefix: string; queryKey: ReturnType<typeof repositoryDetailQueryKey> }) {

@@ -61,33 +61,38 @@ export function MainBranchHealthSection({
   const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
   const repository = payload.repository
+  const healthQueryKey = ["repositories", String(repository.id), "health_history"] as const
   const shaUrl = history.last_health_checked_sha ? `https://github.com/${repository.slug}/commit/${history.last_health_checked_sha}` : null
   const search = queryKey[3]
   const graders = useMutation({
-    mutationFn: () => runMainBranchGraders(appendSearch(payload.paths.app_run_main_branch_graders_repository_path, search), payload.pagination.page),
+    mutationFn: () => runMainBranchGraders(appendSearch(payload.paths.app_run_main_branch_graders_repository_path, search), 1),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
+      void queryClient.invalidateQueries({ queryKey: healthQueryKey })
       onNotice(updated.message || null)
     }
   })
   const ciCheck = useMutation({
-    mutationFn: () => checkCiNow(appendSearch(payload.paths.app_check_ci_now_repository_path, search), payload.pagination.page),
+    mutationFn: () => checkCiNow(appendSearch(payload.paths.app_check_ci_now_repository_path, search), 1),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
+      void queryClient.invalidateQueries({ queryKey: healthQueryKey })
       onNotice(updated.message || null)
     }
   })
   const repair = useMutation({
-    mutationFn: () => repairMainBranch(appendSearch(payload.paths.app_repair_main_branch_repository_path, search), payload.pagination.page),
+    mutationFn: () => repairMainBranch(appendSearch(payload.paths.app_repair_main_branch_repository_path, search), 1),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
+      void queryClient.invalidateQueries({ queryKey: healthQueryKey })
       onNotice(updated.message || null)
     }
   })
   const resumeWork = useMutation({
-    mutationFn: () => resumeRepositoryLanding(payload.paths.app_resume_landing_repository_path, payload.pagination.page),
+    mutationFn: () => resumeRepositoryLanding(payload.paths.app_resume_landing_repository_path, 1),
     onSuccess: (updated) => {
       queryClient.setQueryData(queryKey, updated)
+      void queryClient.invalidateQueries({ queryKey: healthQueryKey })
       onNotice(updated.message || null)
     }
   })

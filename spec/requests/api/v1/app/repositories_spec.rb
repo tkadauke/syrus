@@ -696,7 +696,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       "main_branch_repair_blocks_work" => false
     )
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}?include=health_history"
 
     expect(response).to have_http_status(:ok)
     body = parse_body
@@ -754,7 +754,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     other_repository = Factories.repository(user: user, owner: "acme", name: "other")
     Factories.job_record(repository: other_repository, issue_number: 99, issue_title: "Private")
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}?include=jobs,health_history,syrus_yml"
 
     expect(response).to have_http_status(:ok)
     body = parse_body
@@ -917,7 +917,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     loaded = RepoDefaultBranchSyrusYml::Result.new(config: config, source: ".syrus.yml", note: nil)
     allow(RepoDefaultBranchSyrusYml).to receive(:new).and_return(instance_double(RepoDefaultBranchSyrusYml, resolve: loaded))
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}?include=syrus_yml"
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["syrus_yml"]).to include(
@@ -948,7 +948,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     )
     cron_job = Factories.job_record(user: user, repository: repository, kind: "cron", issue_number: nil, scheduled_task_id: task.id)
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}?include=jobs"
 
     expect(response).to have_http_status(:ok)
     body = parse_body
@@ -997,7 +997,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     2.times { |index| Factories.job_with_run(repository: repository, issue_number: index + 2) }
 
     queries = capture_sql do
-      get "/api/v1/app/repositories/#{repository.id}"
+      get "/api/v1/app/repositories/#{repository.id}?include=jobs"
     end
 
     expect(response).to have_http_status(:ok)
@@ -1059,7 +1059,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     owner = Factories.job_with_run(repository: repository, issue_number: 2, issue_title: "Owner work")
     attach_active_work_unit(owner_job: owner, member_job: member)
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}?include=jobs"
 
     expect(response).to have_http_status(:ok)
     member_payload = parse_body.fetch("jobs").find { |job| job.fetch("id") == member.id }
@@ -1073,7 +1073,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     Run.create!(job: job, user: user, trigger_kind: "retry", agent_provider: "claude", state: "queued")
 
     queries = capture_sql do
-      get "/api/v1/app/repositories/#{repository.id}"
+      get "/api/v1/app/repositories/#{repository.id}?include=jobs"
     end
 
     expect(response).to have_http_status(:ok)
@@ -1172,7 +1172,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       repository: repository, sha: "def456", ci_health: "healthy"
     )
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}?include=health_history"
 
     expect(response).to have_http_status(:ok)
     records = parse_body.dig("health_history", "records")
@@ -1202,7 +1202,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       landing_paused: true
     )
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}?include=health_history"
 
     expect(response).to have_http_status(:ok)
     health = parse_body.fetch("health_history")
@@ -1247,7 +1247,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       landing_paused: true
     )
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}?include=health_history"
 
     expect(response).to have_http_status(:ok)
     health = parse_body.fetch("health_history")
@@ -2049,6 +2049,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     fix_job = repository.jobs.where(system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR).last
     expect(parse_body["message"]).to eq("Repair job #{fix_job.slug} started.")
+    get "/api/v1/app/repositories/#{repository.id}/health_history"
     expect(parse_body.dig("health_history", "main_branch_repair")).to include(
       "blocked_reason" => "active",
       "blocking_job" => include("slug" => fix_job.slug, "job_path" => job_path(fix_job))
@@ -2318,6 +2319,40 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body).not_to have_key("cognitive_debt")
+    end
+  end
+
+  describe "repository detail sections" do
+    let(:repository) { Factories.repository(user: user, default_branch: "main") }
+
+    it "keeps section payloads out of the base response" do
+      sign_in_as(user)
+
+      get "/api/v1/app/repositories/#{repository.id}"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.keys).not_to include("jobs", "pagination", "health_history", "delivery", "syrus_yml")
+    end
+
+    it "paginates jobs independently" do
+      sign_in_as(user)
+      Factories.job_record(repository: repository, issue_number: 1)
+
+      get "/api/v1/app/repositories/#{repository.id}/jobs", params: { page: 1 }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to include("jobs" => include(include("issue_number" => 1)), "pagination" => include("page" => 1, "total_jobs" => 1))
+      expect(parse_body.keys).to contain_exactly("jobs", "pagination", "provider_availability")
+      expect(parse_body.fetch("jobs").first).not_to have_key("provider_availability")
+    end
+
+    it "serves health history without the overview payload" do
+      sign_in_as(user)
+
+      get "/api/v1/app/repositories/#{repository.id}/health_history"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.keys).to contain_exactly("health_history")
     end
   end
 
