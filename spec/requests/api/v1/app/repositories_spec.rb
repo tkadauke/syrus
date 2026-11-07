@@ -109,6 +109,35 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(parse_body.dig("readiness", "prepare_commands")).to eq([])
   end
 
+  it "returns an ETag-backed readiness summary without the full report" do
+    repository = Factories.repository(user: user)
+    allow(RepositoryReadiness).to receive(:call).and_return(
+      double(to_h: { status: "ready", summary: "Ready", revision: "abc", checks: [ { key: "large" } ] })
+    )
+    sign_in_as(user)
+
+    get "/api/v1/app/repositories/#{repository.id}/readiness", params: { view: "summary" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["readiness"]).to eq("status" => "ready", "summary" => "Ready", "revision" => "abc")
+    etag = response.headers.fetch("ETag")
+
+    get "/api/v1/app/repositories/#{repository.id}/readiness", params: { view: "summary" }, headers: { "If-None-Match" => etag }
+    expect(response).to have_http_status(:not_modified)
+  end
+
+  it "returns the latest execution probe independently from readiness" do
+    repository = Factories.repository(user: user)
+    probe = RepositoryExecutionProbe.create!(repository:, requested_by: user, status: "running", result: { "commands" => [ { "output_tail" => "bounded" } ] })
+    sign_in_as(user)
+
+    get "/api/v1/app/repositories/#{repository.id}/readiness_probe"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("execution_probe", "id")).to eq(probe.id)
+    expect(response.headers["ETag"]).to be_present
+  end
+
   it "starts one disposable probe and reuses it while it is active" do
     repository = Factories.repository(user: user)
     sign_in_as(user)
@@ -116,12 +145,12 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect do
       post "/api/v1/app/repositories/#{repository.id}/readiness_probe"
     end.to have_enqueued_job(RepositoryExecutionProbeJob).and change(RepositoryExecutionProbe, :count).by(1)
-    probe_id = parse_body.dig("execution_probe", "id")
+    probe_id = parse_body["id"]
 
     expect do
       post "/api/v1/app/repositories/#{repository.id}/readiness_probe"
     end.not_to change(RepositoryExecutionProbe, :count)
-    expect(parse_body.dig("execution_probe", "id")).to eq(probe_id)
+    expect(parse_body["id"]).to eq(probe_id)
 
     RepositoryExecutionProbe.find(probe_id).update!(status: "succeeded")
     expect do
@@ -1502,12 +1531,11 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(repository.reload.landing_paused).to eq(false)
-    expect(parse_body.dig("repository", "landing_paused")).to eq(false)
-    expect(parse_body.dig("repository", "main_health")).to eq("broken")
+    expect(parse_body["landing_paused"]).to eq(false)
     expect(parse_body["message"]).to eq("Work resumed for acme/widgets.")
   end
 
-  it "enqueues a forced poll and returns the refreshed index payload" do
+  it "enqueues a forced poll and returns only its message" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets")
 
@@ -1517,10 +1545,10 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Polling acme/widgets now.")
-    expect(parse_body.dig("active_repositories", 0, "slug")).to eq("acme/widgets")
+    expect(parse_body.keys).to eq([ "message" ])
   end
 
-  it "enqueues a forced poll and returns the refreshed detail payload when requested" do
+  it "does not render the detail payload when a poll requests a detail return" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets")
 
@@ -1530,8 +1558,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Polling acme/widgets now.")
-    expect(parse_body.dig("repository", "slug")).to eq("acme/widgets")
-    expect(parse_body).not_to have_key("active_repositories")
+    expect(parse_body.keys).to eq([ "message" ])
   end
 
   it "rejects polling an archived repository" do
@@ -1558,14 +1585,14 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(repository.reload).to be_archived
     expect(repository.polling_enabled).to eq(false)
     expect(parse_body["message"]).to eq("acme/widgets archived.")
-    expect(parse_body.dig("archived_repositories", 0, "slug")).to eq("acme/widgets")
+    expect(parse_body.keys).to eq([ "message" ])
 
     post "/api/v1/app/repositories/#{repository.id}/unarchive"
 
     expect(response).to have_http_status(:ok)
     expect(repository.reload).not_to be_archived
     expect(parse_body["message"]).to include("unarchived")
-    expect(parse_body.dig("active_repositories", 0, "slug")).to eq("acme/widgets")
+    expect(parse_body.keys).to eq([ "message" ])
   end
 
   it "lists and releases needs-triage jobs for developers" do
@@ -1983,7 +2010,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Graders enqueued for abc1234 on acme/widgets.")
-    expect(parse_body.dig("repository", "slug")).to eq("acme/widgets")
+    expect(parse_body.keys).to eq([ "message" ])
   end
 
   it "rejects run_main_branch_graders for an archived repository" do
@@ -2089,7 +2116,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("CI check enqueued for acme/widgets.")
-    expect(parse_body.dig("repository", "slug")).to eq("acme/widgets")
+    expect(parse_body.keys).to eq([ "message" ])
   end
 
   it "rejects check_ci_now for an archived repository" do

@@ -201,19 +201,19 @@ module Api
             PollRepositoryJob.perform_later(repository.id, force: true)
           end
           message = I18n.t("api.repositories.polling", slug: repository.slug)
-          render json: repository_command_payload(repository, message: message)
+          render json: { message: message }
         end
 
         def archive
           return unless (repository = find_repository_for_admin_mutation)
           repository.archive!
-          render json: repositories_payload(message: I18n.t("api.repositories.archived", slug: repository.slug))
+          render json: { message: I18n.t("api.repositories.archived", slug: repository.slug) }
         end
 
         def unarchive
           return unless (repository = find_repository_for_admin_mutation)
           repository.unarchive!
-          render json: repositories_payload(message: I18n.t("api.repositories.unarchived", slug: repository.slug))
+          render json: { message: I18n.t("api.repositories.unarchived", slug: repository.slug) }
         end
 
         def run_main_branch_graders
@@ -231,7 +231,7 @@ module Api
 
           MainGraderWorkflowJob.perform_later(repository.id, sha)
           message = I18n.t("api.repositories.run_main_branch_graders_enqueued", sha: sha[0, 7], slug: repository.slug)
-          render json: repository_command_payload(repository, message: message)
+          render json: { message: message }
         end
 
         def repair_main_branch
@@ -245,7 +245,7 @@ module Api
           status = service.repair_status
           if status[:blocking_job]
             message = I18n.t("api.repositories.main_branch_repair_existing", slug: status[:blocking_job].slug)
-            render json: repository_command_payload(repository, message: message)
+            render json: { message: message }
             return
           end
 
@@ -257,7 +257,7 @@ module Api
           job = service.ensure_repair_job!(force: true)
           if job
             message = I18n.t("api.repositories.main_branch_repair_enqueued", slug: job.slug)
-            render json: repository_command_payload(repository, message: message)
+            render json: { message: message }
           else
             render_error("validation_failed", I18n.t("api.repositories.main_branch_repair_not_created", slug: repository.slug), status: :unprocessable_content)
           end
@@ -271,7 +271,7 @@ module Api
           end
 
           SyncForkJob.perform_later(repository.id)
-          render json: repository_command_payload(repository, message: I18n.t("api.repositories.fork_sync_enqueued", slug: repository.slug))
+          render json: { message: I18n.t("api.repositories.fork_sync_enqueued", slug: repository.slug) }
         end
 
         def check_ci_now
@@ -288,7 +288,7 @@ module Api
 
           PollMainBranchHealthJob.perform_later(repository.id, manual: true)
           message = I18n.t("api.repositories.check_ci_now_enqueued", slug: repository.slug)
-          render json: repository_command_payload(repository, message: message)
+          render json: { message: message }
         end
 
         def release_needs_triage_job
@@ -311,10 +311,11 @@ module Api
           continue_released_job_triage(job)
           expire_repository_detail_counts(repository)
 
-          render json: repository_detail_payload(
-            repository.reload,
-            message: I18n.t("api.repositories.released_triage", slug: job.slug)
-          )
+          render json: {
+            message: I18n.t("api.repositories.released_triage", slug: job.slug),
+            needs_triage_count: visible_repository_jobs(repository).needs_triage.count,
+            released_job_id: job.id
+          }
         end
 
         def resume_landing
@@ -323,10 +324,10 @@ module Api
           LandingQueueProcessorJob.perform_later
           expire_repository_detail_counts(repository)
 
-          render json: repository_detail_payload(
-            repository.reload,
-            message: I18n.t("api.repositories.repository_landing_resumed", slug: repository.slug)
-          )
+          render json: {
+            message: I18n.t("api.repositories.repository_landing_resumed", slug: repository.slug),
+            landing_paused: false
+          }
         end
 
         def coverage_trend
@@ -363,14 +364,31 @@ module Api
 
         def readiness
           repository = find_repository
-          render json: { readiness: RepositoryReadiness.call(repository:, user: Current.user).to_h.merge(execution_probe: execution_probe_json(repository.repository_execution_probes.recent_first.first)) }
+          report = RepositoryReadiness.call(repository:, user: Current.user).to_h
+          if params[:view] == "summary"
+            report = report.slice(:status, :summary, :revision)
+          else
+            report = report.merge(execution_probe: execution_probe_json(repository.repository_execution_probes.recent_first.first))
+          end
+          return unless stale?(etag: report, public: false)
+
+          render json: { readiness: report }
+        end
+
+        def readiness_probe_status
+          repository = find_repository
+          probe = repository.repository_execution_probes.recent_first.first
+          payload = { execution_probe: execution_probe_json(probe) }
+          return unless stale?(etag: payload, public: false)
+
+          render json: payload
         end
 
         def readiness_probe
           repository = find_repository
           claim = RepositoryExecutionProbe.claim!(repository:, requested_by: Current.user)
           RepositoryExecutionProbeJob.perform_later(claim.probe.id) if claim.created
-          render json: { execution_probe: execution_probe_json(claim.probe) }, status: claim.created ? :accepted : :ok
+          render json: { id: claim.probe.id, status: claim.probe.status }, status: claim.created ? :accepted : :ok
         end
 
         def override_readiness_probe
@@ -380,7 +398,7 @@ module Api
           repository.jobs.joins(:workflows).merge(Workflow.queued).find_each do |job|
             job.workflows.queued.find_each { |workflow| WorkflowPhaseAdmissionJob.enqueue_once(workflow.id, wait: 1.second, priority: workflow.solid_queue_priority) }
           end
-          render json: { execution_probe: execution_probe_json(probe) }
+          render json: { id: probe.id, status: probe.status }
         end
 
         private
@@ -1095,15 +1113,6 @@ module Api
         def find_repository_for_admin_mutation
           repository = find_repository
           repository if authorize_repository_admin!(repository)
-        end
-
-        def repository_command_payload(repository, message:)
-          expire_repository_detail_counts(repository)
-          if params[:return_to] == "detail"
-            repository_detail_payload(repository.reload, message: message)
-          else
-            repositories_payload(message: message)
-          end
         end
 
         def expire_repository_detail_counts(repository)

@@ -202,7 +202,7 @@ describe("RepositoryDetailRoute overview", () => {
       resolveReadiness = resolve
     })
     vi.spyOn(window, "fetch").mockImplementation((input) => {
-      if (String(input).endsWith("/readiness")) return readinessResponse
+      if (String(input).includes("/readiness")) return readinessResponse.then((response) => response.clone())
       return Promise.resolve(jsonResponse(repositoryDetailPayload()))
     })
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -237,7 +237,7 @@ describe("RepositoryDetailRoute overview", () => {
     )
 
     fireEvent.click(await screen.findByRole("button", { name: "Readiness: Incompatible" }))
-    expect(screen.getByRole("dialog", { name: "Repository readiness" })).toBeInTheDocument()
+    expect(await screen.findByRole("dialog", { name: "Repository readiness" })).toBeInTheDocument()
     expect(screen.getByText("No capable worker is available.")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Close" }))
     expect(screen.queryByRole("dialog", { name: "Repository readiness" })).not.toBeInTheDocument()
