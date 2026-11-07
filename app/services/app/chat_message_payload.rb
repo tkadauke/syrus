@@ -97,6 +97,17 @@ module App
     def preload_message_associations(messages)
       return if messages.blank?
 
+      # Callers often hold messages created before a pending action completed.
+      # Reload the association graph so terminal payloads never serialize the
+      # stale in-memory action/group state from creation time.
+      messages.each do |message|
+        association = message.association(:pending_action)
+        next unless association.loaded?
+
+        association.target&.pending_action_group&.association(:chat_pending_actions)&.reset
+        association.reset
+      end
+
       ActiveRecord::Associations::Preloader.new(
         records: messages,
         associations: [
@@ -348,11 +359,14 @@ module App
       return nil unless action&.visible_in_chat_payload?
 
       if ChatPendingAction::TERMINAL_REQUEST_STATES.include?(action.state)
-        return {
+        terminal = {
           id: action.id,
           state: action.state,
           label: pending_action_label(action)
         }
+        presenter_class = PendingActions.for(action.action.presence || action.action_type)
+        terminal[:outcome] = @pending_action_outcomes[action.id] if presenter_class.include_terminal_tool_card_outcome? && @pending_action_outcomes[action.id].present?
+        return terminal
       end
 
       pending_action_detail_json(action, chat_session: chat_session)

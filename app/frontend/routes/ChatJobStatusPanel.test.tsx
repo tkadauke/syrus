@@ -859,60 +859,18 @@ describe("ChatJobStatusPanel pending proposals", () => {
 })
 
 describe("ChatJobStatusPanel live updates", () => {
-  it("refetches mounted cached status so reopening the Jobs tab is fresh within the stale window", async () => {
+  it("reuses fresh cached status when reopening the Jobs tab", () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     queryClient.setQueryData(["chats", "8", "job_status"], {
       pending_proposals: [],
       items: [jobItem({ title: "Cached status" })]
     })
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse([jobItem({ title: "Refetched status" })]))
+    const fetchSpy = vi.spyOn(window, "fetch")
 
     renderPanelWithClient(queryClient)
 
     expect(screen.getByText("Cached status")).toBeInTheDocument()
-    expect(await screen.findByText("Refetched status")).toBeInTheDocument()
-  })
-
-  it("invalidates the job_status query when a matching syrus:job-status-changed event fires", async () => {
-    let callCount = 0
-    vi.spyOn(window, "fetch").mockImplementation(() => {
-      callCount++
-      return Promise.resolve(jsonResponse([jobItem({ title: callCount === 1 ? "First load" : "After update" })]))
-    })
-
-    renderPanel(8)
-
-    expect(await screen.findByText("First load")).toBeInTheDocument()
-
-    window.dispatchEvent(
-      new CustomEvent("syrus:job-status-changed", {
-        detail: { job_id: 42, chat_session_id: 8 }
-      })
-    )
-
-    expect(await screen.findByText("After update")).toBeInTheDocument()
-  })
-
-  it("does not invalidate when the chat_session_id does not match", async () => {
-    let callCount = 0
-    vi.spyOn(window, "fetch").mockImplementation(() => {
-      callCount++
-      return Promise.resolve(jsonResponse([jobItem({ title: "Stable title" })]))
-    })
-
-    renderPanel(8)
-
-    expect(await screen.findByText("Stable title")).toBeInTheDocument()
-    const fetchCountBefore = callCount
-
-    window.dispatchEvent(
-      new CustomEvent("syrus:job-status-changed", {
-        detail: { job_id: 42, chat_session_id: 99 }
-      })
-    )
-
-    await new Promise((resolve) => setTimeout(resolve, 50))
-    expect(callCount).toBe(fetchCountBefore)
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 })
 

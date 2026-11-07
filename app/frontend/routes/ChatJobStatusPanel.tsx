@@ -345,20 +345,8 @@ export function ChatJobStatusPanel({ chatId, onSelectMessage }: { chatId: string
   const { data, isLoading, isError } = useQuery({
     queryKey: ["chats", String(chatId), "job_status"],
     queryFn: () => fetchChatJobStatus(chatId),
-    refetchOnMount: "always",
     staleTime: 30_000
   })
-
-  useEffect(() => {
-    function handleStatusChanged(event: Event) {
-      const detail = (event as CustomEvent<{ chat_session_id: unknown }>).detail
-      if (String(detail?.chat_session_id) === String(chatId)) {
-        void queryClient.invalidateQueries({ queryKey: ["chats", String(chatId), "job_status"] })
-      }
-    }
-    window.addEventListener("syrus:job-status-changed", handleStatusChanged)
-    return () => window.removeEventListener("syrus:job-status-changed", handleStatusChanged)
-  }, [chatId, queryClient])
 
   if (isLoading) {
     return <p className="text-sm text-gray-500 dark:text-gray-400">{t("job_status_loading")}</p>
