@@ -23,5 +23,6 @@
   "duration": "Dauer: {{seconds}} Sekunden",
   "running": "läuft",
   "open_owner": "Zugehörige Funktion öffnen",
+  "open_schedule": "Geplanten Task öffnen",
   "cadence_bands": "Hochfrequente Taktbänder"
 }
