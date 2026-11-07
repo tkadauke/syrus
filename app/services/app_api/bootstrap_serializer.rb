@@ -9,9 +9,9 @@ module AppApi
     def as_json(*)
       PerformanceLogging.phase("bootstrap_payload", authenticated: user.present?) do
         payload = {
-          current_user: PerformanceLogging.phase("bootstrap.current_user") { user_payload },
+          current_user: PerformanceLogging.phase("bootstrap.current_user") { me_payload[:current_user] },
           time_zones: time_zones_payload,
-          team_user_count: PerformanceLogging.phase("bootstrap.team_user_count") { user ? User.count : 0 },
+          team_user_count: PerformanceLogging.phase("bootstrap.team_user_count") { user ? me_payload[:team_user_count] : 0 },
           app: PerformanceLogging.phase("bootstrap.app") { app_payload },
           setup: PerformanceLogging.phase("bootstrap.setup") { setup_payload },
           system_alerts: PerformanceLogging.phase("bootstrap.system_alerts") { system_alerts_payload },
@@ -30,25 +30,10 @@ module AppApi
 
     attr_reader :user
 
-    def user_payload
-      return nil unless user
+    def me_payload
+      return { current_user: nil } unless user
 
-      {
-        id: user.id,
-        email_address: user.email_address,
-        display_name: user.display_name,
-        admin: user.admin?,
-        role: user.role,
-        theme: user.theme,
-        color_theme_id: user.color_theme_id,
-        color_theme: user.color_theme&.public_payload,
-        locale: user.locale,
-        agent_provider: user.agent_provider,
-        chat_provider: user.chat_provider,
-        seen_tours: user.seen_tours,
-        sidebar_nav_order: user.sidebar_nav_order,
-        mobile_chat_auto_hide_header: user.mobile_chat_auto_hide_header?
-      }
+      @me_payload ||= AppApi::MeSerializer.new(user: user).as_json
     end
 
     def time_zones_payload
@@ -120,15 +105,7 @@ module AppApi
     def unread_notifications_count
       return 0 unless user
 
-      @unread_notifications_count ||= begin
-        if user.respond_to?(:notifications)
-          user.notifications.where(read_at: nil).count
-        elsif defined?(::Notification)
-          ::Notification.where(user: user, read_at: nil).count
-        else
-          0
-        end
-      end
+      me_payload[:unread_notifications_count]
     end
 
     def feature_flags_payload

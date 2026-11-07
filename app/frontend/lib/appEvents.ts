@@ -337,6 +337,7 @@ export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
           }
     )
     invalidateAppQuery(queryClient, { queryKey: ["notifications"], exact: true })
+    patchBootstrapUnreadCount(queryClient, unreadCount)
 
     const nativePayload = notificationCreatedNativePayload(event.payload)
     if (nativePayload) dispatchNativeNotification(nativePayload)
@@ -346,8 +347,9 @@ export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
   if (event.type === "notification_read") {
     const payload = notificationReadPayload(event.payload)
     const readAt = payload?.read_at ?? event.occurred_at ?? new Date().toISOString()
+    const notifications = queryClient.getQueryData<NotificationsCache>(["notifications"])
+    const unreadCount = typeof event.unread_count === "number" ? event.unread_count : (notifications?.unread_count ?? 0)
     queryClient.setQueryData<NotificationsCache>(["notifications"], (current) => {
-      const unreadCount = typeof event.unread_count === "number" ? event.unread_count : (current?.unread_count ?? 0)
       if (!current) return emptyNotificationsCache(unreadCount)
 
       const readIds = new Set(payload?.notification_ids ?? [])
@@ -365,6 +367,7 @@ export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
       }
     })
     invalidateAppQuery(queryClient, { queryKey: ["notifications"], exact: true })
+    patchBootstrapUnreadCount(queryClient, unreadCount)
     return
   }
 
@@ -432,6 +435,12 @@ export function patchDashboardRowsForBulk(queryClient: QueryClient, subject: str
     }
   })
   return true
+}
+
+function patchBootstrapUnreadCount(queryClient: QueryClient, unreadNotificationsCount: number) {
+  queryClient.setQueryData<{ unread_notifications_count: number }>(["bootstrap"], (current) =>
+    current ? { ...current, unread_notifications_count: unreadNotificationsCount } : current
+  )
 }
 
 // A detected sequence gap means *some* event for this user was dropped --
@@ -581,7 +590,7 @@ function notificationReadPayload(payload: unknown): NotificationReadPayload | nu
 export function queryKeysFor(event: AppEvent): QueryKey[] {
   switch (event.resource) {
     case "user":
-      return [["bootstrap"]]
+      return [["me"]]
     case "job":
       return jobQueryKeysFor(event)
     case "workflow":

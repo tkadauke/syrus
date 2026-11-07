@@ -86,9 +86,6 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
     setStartingChat(true)
     try {
       const result = await startOnboardingChat()
-      // Refresh bootstrap so the chrome reveals the other nav tabs (gated on
-      // setup.chat_started) without needing a page reload.
-      await queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
       await queryClient.invalidateQueries({ queryKey: ["setup"] })
       navigate(withRoutePrefix(result.redirect_to, prefix))
     } catch {

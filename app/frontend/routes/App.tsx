@@ -1,8 +1,9 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { type ReactNode } from "react"
 import { Link, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
+import { fetchMe, type MePayload } from "../api/me"
 import { authPrimaryButtonClass } from "../lib/buttonStyles"
 import { isDesktopShell } from "../lib/desktopShell"
 import { useT } from "../hooks/useT"
@@ -278,6 +279,7 @@ export function App() {
 }
 
 function AppShell({ initialBootstrap }: { initialBootstrap: BootstrapPayload | null }) {
+  const queryClient = useQueryClient()
   const bootstrap = useQuery({
     queryKey: ["bootstrap"],
     queryFn: fetchBootstrap,
@@ -285,6 +287,17 @@ function AppShell({ initialBootstrap }: { initialBootstrap: BootstrapPayload | n
     staleTime: initialBootstrap ? Number.POSITIVE_INFINITY : 0
   })
   useBrowserTimeZone(bootstrap.data)
+  useQuery({
+    queryKey: ["me"],
+    queryFn: async () => {
+      const me = await fetchMe()
+      queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) => (current ? { ...current, ...me } : current))
+      return me
+    },
+    enabled: Boolean(bootstrap.data?.current_user),
+    initialData: bootstrap.data?.current_user ? meFromBootstrap(bootstrap.data) : undefined,
+    staleTime: Number.POSITIVE_INFINITY
+  })
   const routes = (
     <Routes>
       <Route path="/" element={<RootRoute initialBootstrap={initialBootstrap} />} />
@@ -311,6 +324,14 @@ function AppShell({ initialBootstrap }: { initialBootstrap: BootstrapPayload | n
       </AppChromeV2>
     </TimeZoneProvider>
   )
+}
+
+function meFromBootstrap(bootstrap: BootstrapPayload): MePayload {
+  return {
+    current_user: bootstrap.current_user,
+    team_user_count: bootstrap.team_user_count,
+    unread_notifications_count: bootstrap.unread_notifications_count
+  }
 }
 
 function RootRoute({ initialBootstrap }: { initialBootstrap: BootstrapPayload | null }) {
