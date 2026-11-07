@@ -39,7 +39,7 @@ module Api
               groups_next_offset: groups_payload.fetch(:next_offset),
               available_chat_types: chat_index_available_chat_types,
               available_agents: chat_index_available_agents,
-              repositories: PerformanceLogging.phase("chats_index.repositories") { chat_repository_scope.map { |repository| repository_json(repository) } }
+              agent_appearances: groups_payload.fetch(:agent_appearances)
             }
           }
         end
@@ -78,8 +78,9 @@ module Api
             chats, has_more = paginated_chat_index_group(scope, before_chat: cursor)
             context = PerformanceLogging.phase("chats_more.context", count: chats.size) { chat_index_context_for(chats) }
             {
-              chats: PerformanceLogging.phase("chats_more.serialize", count: chats.size) { chats.map { |chat_session| chat_index_json(chat_session, context: context) } },
-              has_more: has_more
+              chats: PerformanceLogging.phase("chats_more.serialize", count: chats.size) { chats.map { |chat_session| chat_nav_json(chat_session, context: context) } },
+              has_more: has_more,
+              agent_appearances: chat_nav_agent_appearances(chats)
             }
           }
         end
@@ -232,6 +233,7 @@ module Api
 
           render json: {
             chats: chats.map { |chat_session| hidden_chat_json(chat_session, context: context) },
+            agent_appearances: chat_nav_agent_appearances(chats),
             total: total,
             page: page,
             per_page: HIDDEN_CHATS_PAGE_SIZE,
@@ -274,7 +276,7 @@ module Api
           # should always land on the one onboarding chat, not spawn new ones.
           existing = Current.user.onboarding_chat
           if existing
-            render json: { message: "Chat opened.", redirect_to: chat_path(existing), chat: chat_json(existing) }, status: :ok
+            render json: chat_created_payload(existing, message: "Chat opened."), status: :ok
             return
           end
 
@@ -300,11 +302,7 @@ module Api
           enqueue_chat_title(chat_session, user_message)
           enqueue_chat_turn(chat_session, user_message)
 
-          render json: {
-            message: "Chat created.",
-            redirect_to: chat_path(chat_session),
-            chat: chat_json(chat_session)
-          }, status: :created
+          render json: chat_created_payload(chat_session, message: "Chat created."), status: :created
         rescue ActiveRecord::LockWaitTimeout, ActiveRecord::Deadlocked, ActiveRecord::StatementTimeout, SolidQueue::Job::EnqueueError => e
           raise unless transient_chat_lock_error?(e)
 
@@ -316,11 +314,7 @@ module Api
           return if performed?
 
           ActiveRecord.after_all_transactions_commit { Metrics::ProductUsage.record(:chat_created) }
-          render json: {
-            message: chat_session.messages.exists? ? "Message sent." : "Chat created.",
-            redirect_to: chat_path(chat_session),
-            chat: chat_json(chat_session)
-          }, status: :created
+          render json: chat_created_payload(chat_session, message: chat_session.messages.exists? ? "Message sent." : "Chat created."), status: :created
         rescue ActiveRecord::LockWaitTimeout, ActiveRecord::Deadlocked, ActiveRecord::StatementTimeout, SolidQueue::Job::EnqueueError => e
           raise unless transient_chat_lock_error?(e)
 
@@ -547,14 +541,14 @@ module Api
           chat_session = find_chat_session
           current_participant_for(chat_session).update!(hidden_at: Time.current)
 
-          render json: { message: "Chat hidden.", chat: chat_index_json(chat_session.reload) }
+          render json: { message: "Chat hidden.", chat: chat_nav_json(chat_session.reload) }
         end
 
         def unhide
           chat_session = find_chat_session
           current_participant_for(chat_session).update!(hidden_at: nil)
 
-          render json: { message: "Chat restored.", chat: chat_index_json(chat_session.reload) }
+          render json: { message: "Chat restored.", chat: chat_nav_json(chat_session.reload) }
         end
 
         def enqueue_message

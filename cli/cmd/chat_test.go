@@ -146,6 +146,10 @@ func TestChatCommandLeavesProposalPendingWithoutInteractiveInput(t *testing.T) {
 
 func TestChatListPrintsChatsFromFakeServer(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/api/v1/app/chats/new" {
+			w.Write([]byte(`{"repositories":[{"id":7,"slug":"tkadauke/syrus"}]}`))
+			return
+		}
 		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/app/chats" {
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
@@ -208,7 +212,9 @@ func TestChatNewCreatesChatWithRepository(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/app/chats":
-			w.Write([]byte(`{"chats":[],"repositories":[{"id":7,"slug":"tkadauke/syrus"}]}`))
+			w.Write([]byte(`{"chats":[]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/app/chats/new":
+			w.Write([]byte(`{"repositories":[{"id":7,"slug":"tkadauke/syrus"}]}`))
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/app/chats":
 			var payload map[string]float64
 			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -239,7 +245,7 @@ func TestChatNewCreatesChatWithRepository(t *testing.T) {
 	if createRepositoryID != 7 {
 		t.Fatalf("repository_id = %v", createRepositoryID)
 	}
-	want := []string{"GET /api/v1/app/chats", "POST /api/v1/app/chats"}
+	want := []string{"GET /api/v1/app/chats", "GET /api/v1/app/chats/new", "POST /api/v1/app/chats"}
 	if strings.Join(requests, ",") != strings.Join(want, ",") {
 		t.Fatalf("requests = %v, want %v", requests, want)
 	}

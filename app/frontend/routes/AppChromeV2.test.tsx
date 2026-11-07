@@ -1231,7 +1231,7 @@ describe("AppChromeV2", () => {
     vi.spyOn(chatsApi, "createEmptyChat").mockResolvedValue({
       message: "Chat created.",
       redirect_to: "/chats/14",
-      chat: chatNav({ id: 14, title: null, title_pending: false, chat_path: "/chats/14", last_message_at: null, chat_provider: "codex" }) as chatsApi.ChatRecord
+      chat: chatNav({ id: 14, title: null, title_pending: false, chat_path: "/chats/14", last_message_at: null, effective_chat_provider: "codex" })
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     queryClient.setQueryData(["chats", "recent"], chatsIndexPayload())
@@ -3471,14 +3471,8 @@ function chatNav(overrides: Partial<ChatNavRecord> = {}): ChatNavRecord {
     title: "Chat",
     title_pending: false,
     pinned: false,
-    pinned_context: null,
-    chat_provider: "claude",
     chat_path: `/chats/${overrides.id ?? 1}`,
     repository: null,
-    stop_requested_at: null,
-    cumulative_input_tokens: 0,
-    cumulative_output_tokens: 0,
-    cumulative_cost_usd: 0,
     pending_proposal_count: 0,
     scratchpad_items_count: 0,
     current: false,
