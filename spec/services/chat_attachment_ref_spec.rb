@@ -12,7 +12,13 @@ RSpec.describe ChatAttachmentRef do
     ref = described_class.for(message).sole
 
     expect(ref.bytes).to eq("hello")
-    expect(ref.payload).to eq("name" => "notes.txt", "mime_type" => "text/plain", "data" => Base64.strict_encode64("hello"))
+    expect(ref.payload).to eq(
+      "name" => "notes.txt",
+      "mime_type" => "text/plain",
+      "url" => "/api/v1/app/chats/#{chat.id}/messages/#{message.id}/attachments/0",
+      "size" => 5
+    )
+    expect(ref.payload).not_to have_key("data")
   end
 
   it "reads attachments from JSON-encoded scratchpad content" do

@@ -693,7 +693,7 @@ function MessageFileAttachments({ attachments, align = "start" }: { attachments?
         <a
           className="inline-flex max-w-[16rem] items-center gap-1.5 truncate rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
           download={attachment.name || "attachment"}
-          href={`data:application/octet-stream;base64,${attachment.data}`}
+          href={attachment.url}
           key={`${attachment.name}-${index}`}
           title={attachment.name}
         >

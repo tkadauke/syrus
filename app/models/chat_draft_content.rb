@@ -56,7 +56,7 @@ class ChatDraftContent
 
   def to_message_content
     { "text" => text }.tap do |content|
-      content["attachments"] = attachments if attachments.present?
+      content["attachments"] = attachments.map { |attachment| attachment.except("url") } if attachments.present?
       metadata.each { |key, value| content[key] = value if value.present? }
     end
   end

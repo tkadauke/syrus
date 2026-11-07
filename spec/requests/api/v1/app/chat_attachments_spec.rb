@@ -18,6 +18,20 @@ RSpec.describe "API: chat attachments", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     expect(response.body).to eq("hello")
     expect(response.headers["Content-Disposition"]).to include("notes.txt")
+    expect(response.headers["Cache-Control"]).to include("immutable")
+  end
+
+  it "downloads a legacy inline message attachment without exposing it in JSON" do
+    sign_in_as(user)
+    message = chat.messages.create!(role: "user", sender_user: user, content: {
+      "text" => "Legacy", "attachments" => [ { "name" => "notes.txt", "mime_type" => "text/plain", "data" => Base64.strict_encode64("hello") } ]
+    })
+
+    get "/api/v1/app/chats/#{chat.id}/messages/#{message.id}/attachments/0"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.body).to eq("hello")
+    expect(response.headers["Cache-Control"]).to include("immutable")
   end
 
   it "does not expose another user's attachment" do

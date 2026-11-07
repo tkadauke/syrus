@@ -882,8 +882,10 @@ configuration, diagnostic, changeset, and source-code files. The shared
 extensionless build filenames with compatible MIME types; this permits the
 `text/plain` and `application/octet-stream` values browsers commonly assign to
 source files without permitting arbitrary binary uploads. Text payloads must
-be strictly Base64 encoded, NUL-free valid UTF-8. Each attachment is limited to
-5 MB and a message's attachments to 20 MB total.
+be NUL-free valid UTF-8. Files upload before message submission; messages,
+queued messages, and scratchpad items persist only attachment references, and
+chat payloads expose metadata plus secure file URLs rather than inline bytes.
+Each attachment is limited to 5 MB and a message's attachments to 20 MB total.
 
 Every accepted file is materialized under the chat workspace's `attachments/`
 directory with a collision-safe prefix and a sanitized recognizable basename.

@@ -1456,7 +1456,7 @@ describe("chat compose drafts", () => {
   }, 30000)
 
   it("keeps a failed send draft for its chat after the composer unmounts", async () => {
-    const attachment = { name: "failure.png", mimeType: "image/png", dataUrl: "data:image/png;base64,ZmFpbHVyZQ==", size: 7 }
+    const attachment = { id: 1, name: "failure.png", mimeType: "image/png", url: "/failure.png", size: 7 }
     setDraftAttachments("8", [attachment])
     let resolveMessage: ((response: Response) => void) | null = null
     const messageRequest = new Promise<Response>((resolve) => {
@@ -1611,7 +1611,7 @@ describe("chat compose drafts", () => {
   }, 30000)
 
   it("keeps a failed goal command draft after the composer unmounts", async () => {
-    const attachment = { name: "goal.png", mimeType: "image/png", dataUrl: "data:image/png;base64,Z29hbA==", size: 4 }
+    const attachment = { id: 2, name: "goal.png", mimeType: "image/png", url: "/goal.png", size: 4 }
     setDraftAttachments("8", [attachment])
     let resolveGoal: ((response: Response) => void) | null = null
     const goalRequest = new Promise<Response>((resolve) => {
