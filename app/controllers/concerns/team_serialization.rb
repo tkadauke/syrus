@@ -13,10 +13,20 @@ module TeamSerialization
   end
 
   def team_detail_payload(team, message: nil)
+    membership_page = [ params[:membership_page].to_i, 1 ].max
+    membership_per_page = 50
+    memberships = team.team_memberships.includes(:user).order(:id)
+    membership_total = memberships.count
     {
       team: team_json(team),
       can_manage: TeamPolicy.new(Current.user, team).write?,
-      memberships: team.team_memberships.includes(:user).order(:id).map { |m| team_membership_json(m) },
+      memberships: memberships.offset((membership_page - 1) * membership_per_page).limit(membership_per_page).map { |m| team_membership_json(m) },
+      membership_pagination: {
+        page: membership_page,
+        per_page: membership_per_page,
+        total: membership_total,
+        total_pages: (membership_total.to_f / membership_per_page).ceil
+      },
       repository_grants: team.team_repositories.includes(:repository).order(:id).map { |g| team_repository_grant_json(g) },
       message: message
     }

@@ -27,10 +27,7 @@ export type MemoryRow = {
   }
 }
 
-export type MemoryAuditEventActor =
-  | { kind: "user"; id: number | null; name: string | null }
-  | { kind: "agent"; run_id: number | null }
-  | { kind: "system" }
+export type MemoryAuditEventActor = { kind: "user"; id: number | null; name: string | null } | { kind: "agent"; run_id: number | null } | { kind: "system" }
 
 export type MemoryAuditEvent = {
   id: number
@@ -54,16 +51,17 @@ export type MemoryRepository = {
   name: string
 }
 
-export type MemoriesPayload = {
-  memories: MemoryRow[]
+export type MemoriesMetadata = {
   kinds: MemoryKind[]
   scopes: MemoryScope[]
   repositories: MemoryRepository[]
+  controls: { filter_schema: FilterSchemaField[] }
+}
+
+export type MemoriesPagePayload = {
+  memories: MemoryRow[]
   filter: Record<string, unknown>
   deleted: boolean
-  controls: {
-    filter_schema: FilterSchemaField[]
-  }
   current_user: {
     id: number
     admin: boolean
@@ -76,6 +74,8 @@ export type MemoriesPayload = {
   }
   message?: string
 }
+
+export type MemoriesPayload = MemoriesPagePayload & MemoriesMetadata
 
 export type MemoryInput = {
   content: string
@@ -92,7 +92,11 @@ export type MemoryUpdateInput = {
 }
 
 export function fetchMemories(search: string) {
-  return getJson<MemoriesPayload>(`/api/v1/app/memories${search}`)
+  return getJson<MemoriesPagePayload>(`/api/v1/app/memories${search}`)
+}
+
+export function fetchMemoriesMetadata() {
+  return getJson<MemoriesMetadata>("/api/v1/app/memories/metadata")
 }
 
 export function createMemory(values: MemoryInput) {

@@ -3,8 +3,9 @@ import { PageHeading, SectionHeading } from "@app/components/Heading"
 import { Avatar } from "@app/components/Avatar"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { useQuery } from "@tanstack/react-query"
-import type { ReactNode } from "react"
-import { Link, useLocation, useParams } from "react-router-dom"
+import type { FormEvent, ReactNode } from "react"
+import { useState } from "react"
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ApiError } from "@app/api/client"
 import {
   fetchProfile,
@@ -21,15 +22,35 @@ import { StatusPill } from "@app/components/StatusPill"
 import { useT } from "@app/hooks/useT"
 import { PanelMessage } from "@app/components/PanelMessage"
 import { Page } from "@app/components/ui"
+import { Input } from "@app/components/Input"
+import { Button } from "@app/components/Button"
 
 export function TeamDirectoryRoute() {
   const { t } = useT("team_directory")
   const location = useLocation()
+  const navigate = useNavigate()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
+  const params = new URLSearchParams(location.search)
+  const [search, setSearch] = useState(params.get("q") || "")
   const profiles = useQuery({
-    queryKey: ["profiles"],
-    queryFn: () => fetchProfiles()
+    queryKey: ["profiles", location.search],
+    queryFn: () => fetchProfiles(location.search)
   })
+
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const next = new URLSearchParams(location.search)
+    if (search.trim()) next.set("q", search.trim())
+    else next.delete("q")
+    next.delete("page")
+    navigate({ pathname: location.pathname, search: next.toString() ? `?${next}` : "" })
+  }
+
+  function goToPage(page: number) {
+    const next = new URLSearchParams(location.search)
+    next.set("page", String(page))
+    navigate({ pathname: location.pathname, search: `?${next}` })
+  }
 
   return (
     <Page.Root aria-label={t("profiles.aria_directory")} gutter="responsive" size="wide">
@@ -37,15 +58,42 @@ export function TeamDirectoryRoute() {
         <PageHeading>{t("profiles.team_directory")}</PageHeading>
       </Page.Header>
 
+      <form className="flex max-w-xl items-end gap-2" onSubmit={submitSearch}>
+        <label className="min-w-0 flex-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+          {t("profiles.search_label")}
+          <Input onChange={(event) => setSearch(event.target.value)} placeholder={t("profiles.search_placeholder")} value={search} />
+        </label>
+        <Button type="submit">{t("profiles.search")}</Button>
+      </form>
+
       {profiles.isPending ? <PanelMessage>{t("profiles.loading")}</PanelMessage> : null}
       {profiles.isError ? <ProfilesError error={profiles.error} /> : null}
       {profiles.isSuccess && profiles.data.team_user_count <= 1 ? <PanelMessage>{t("profiles.single_user")}</PanelMessage> : null}
       {profiles.isSuccess && profiles.data.team_user_count > 1 ? (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {profiles.data.profiles.map((profile) => (
-            <ProfileCard key={profile.id} prefix={prefix} profile={profile} />
-          ))}
-        </div>
+        <>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {profiles.data.profiles.map((profile) => (
+              <ProfileCard key={profile.id} prefix={prefix} profile={profile} />
+            ))}
+          </div>
+          {profiles.data.pagination && profiles.data.pagination.total_pages > 1 ? (
+            <nav aria-label={t("profiles.pagination")} className="flex items-center justify-between">
+              <Button disabled={profiles.data.pagination.page <= 1} onClick={() => goToPage(profiles.data.pagination!.page - 1)} variant="secondary">
+                {t("profiles.previous")}
+              </Button>
+              <span className="text-sm text-gray-600 dark:text-gray-400">
+                {t("profiles.page", { page: profiles.data.pagination.page, total: profiles.data.pagination.total_pages })}
+              </span>
+              <Button
+                disabled={profiles.data.pagination.page >= profiles.data.pagination.total_pages}
+                onClick={() => goToPage(profiles.data.pagination!.page + 1)}
+                variant="secondary"
+              >
+                {t("profiles.next")}
+              </Button>
+            </nav>
+          ) : null}
+        </>
       ) : null}
     </Page.Root>
   )
@@ -102,9 +150,25 @@ function ProfileCard({ profile, prefix }: { profile: TeamProfileSummary; prefix:
 function ProfileDetail({ profile, prefix }: { profile: TeamProfileDetail; prefix: string }) {
   const { t } = useT("team_directory")
   const recentActivity: TeamProfileActivity[] = [
-    ...profile.jobs.map((job) => ({ type: "job" as const, title: job.title, state: job.state, repository_slug: job.repository.slug, occurred_at: job.updated_at, path: job.path })),
-    ...profile.epics.map((epic) => ({ type: "epic" as const, title: epic.title, state: epic.state, repository_slug: epic.repository.slug, occurred_at: epic.updated_at, path: epic.path }))
-  ].sort((left, right) => (right.occurred_at || "").localeCompare(left.occurred_at || "")).slice(0, 8)
+    ...profile.jobs.map((job) => ({
+      type: "job" as const,
+      title: job.title,
+      state: job.state,
+      repository_slug: job.repository.slug,
+      occurred_at: job.updated_at,
+      path: job.path
+    })),
+    ...profile.epics.map((epic) => ({
+      type: "epic" as const,
+      title: epic.title,
+      state: epic.state,
+      repository_slug: epic.repository.slug,
+      occurred_at: epic.updated_at,
+      path: epic.path
+    }))
+  ]
+    .sort((left, right) => (right.occurred_at || "").localeCompare(left.occurred_at || ""))
+    .slice(0, 8)
   return (
     <>
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
