@@ -124,9 +124,8 @@ class User < ApplicationRecord
       last_seen_comment_at pr_mergeable_checked_at
     ],
     "workflows" => %w[
-      trigger trigger_kind state started finished agent agent_provider failure_reason run_count
-      worker_hostname worker_storage_key
-      created_at updated_at started_at finished_at cleaned_up_at
+      trigger trigger_kind state started finished agent agent_provider failure_reason
+      created_at updated_at started_at finished_at
     ],
     "design_docs" => %w[
       state repository owner collaborators comments latest_version updated_at actions
@@ -144,8 +143,8 @@ class User < ApplicationRecord
       workflows_count
     ],
     "workflow" => %w[
-      title state started_at finished_at trigger_kind agent_provider failure_reason run_count
-      worker_hostname worker_storage_key created_at updated_at cleaned_up_at
+      title state started_at finished_at trigger_kind agent_provider failure_reason
+      created_at updated_at
     ]
   }.freeze
   DASHBOARD_SORT_DEFAULTS = {

@@ -386,8 +386,8 @@ function JobKanbanCard({ item, navigationItems, prefix }: { item: DashboardJobIt
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
     }
   })
-  const dependencyCount = item.dependencies?.length ?? 0
-  const unsatisfiedCount = item.dependencies?.filter((dependency) => !dependency.succeeded).length ?? 0
+  const unsatisfiedCount = item.unsatisfied_dependency_count ?? 0
+  const dependencyCount = Math.max(item.dependencies?.length ?? 0, unsatisfiedCount)
 
   return (
     <article
@@ -415,9 +415,6 @@ function JobKanbanCard({ item, navigationItems, prefix }: { item: DashboardJobIt
         <WorkflowBadges state={item.summary_state} triggerAriaPrefix={t("active_workflow_trigger_aria")} triggerKind={item.active_workflow_trigger_kind} />
         {item.state === "queued" && item.start_blocked_reason ? (
           <StartBlockedReasonPill
-            count={item.start_blocked_count}
-            details={item.start_blocked_details}
-            nextCheckAt={item.start_blocked_next_check_at}
             reason={item.start_blocked_reason}
             startBlockedAt={item.start_blocked_at}
           />

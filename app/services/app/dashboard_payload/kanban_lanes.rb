@@ -32,6 +32,7 @@ module App
         records_by_lane = lane_defs.to_h { |lane| [ lane.fetch(:key), [] ] }
         records = PerformanceLogging.phase("dashboard_kanban_jobs.query", lanes: visible_lanes.join(","), limit: kanban_limit) do
           job_kanban_candidate_scope(visible_lanes)
+            .preload(:epic, dependencies: [ :depends_on_epic, { depends_on_job: :deployment_stage_statuses } ])
             .order(created_at: :desc, id: :desc)
             .to_a
         end
@@ -55,7 +56,7 @@ module App
               :tags,
               :pr_links,
               :deployment_stage_statuses,
-              { dependencies: [ :depends_on_epic, :depends_on_job ] },
+              { dependencies: [ :depends_on_epic, { depends_on_job: :deployment_stage_statuses } ] },
               { chat_proposals: [ :chat_session, :message_anchors ] },
               { epic: { chat_proposals: [ :chat_session, :message_anchors ] } }
             ]
