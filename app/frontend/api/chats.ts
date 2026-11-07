@@ -991,10 +991,6 @@ export type ChatPayload = {
   chat: ChatRecord
   chat_available: boolean
   chat_provider_display_name?: string
-  turn_in_flight: boolean
-  agent_busy: boolean
-  agent_activity?: ChatAgentActivity | null
-  turn_retry_state?: ChatTurnRetryState | null
   // Coding Mode only (the chat shell-command cancellation feature): the chat session's currently-running `!`
   // command, if any, so the composer can rehydrate its command-mode stop
   // control across a remount (e.g. a desktop/mobile breakpoint crossing)

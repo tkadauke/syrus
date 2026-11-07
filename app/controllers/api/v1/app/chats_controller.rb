@@ -85,7 +85,10 @@ module Api
         end
 
         def show
-          render json: chat_payload(find_chat_session)
+          chat_session = find_chat_session
+          return unless stale?(etag: chat_payload_etag(chat_session))
+
+          render json: chat_payload(chat_session)
         end
 
         def mentionables
@@ -242,6 +245,8 @@ module Api
         def messages
           chat_session = find_chat_session
           before_id = Integer(params[:before], exception: false)
+          return unless stale?(etag: chat_payload_etag(chat_session))
+
           messages, has_more_older = paginated_before(chat_session, before_id)
 
           render json: PerformanceLogging.phase("chat_messages_payload", chat_id: chat_session.id, before_id: before_id) {
@@ -250,6 +255,11 @@ module Api
               messages: PerformanceLogging.phase("chat_messages.messages_json", chat_id: chat_session.id, message_count: messages.size) { messages_json(messages, repository: chat_session.repository) }
             }
           }
+        end
+
+        def chat_payload_etag(chat_session)
+          last_message = chat_session.messages.active.order(id: :desc).pick(:id, :updated_at)
+          [ chat_session.entity_revision, last_message, Current.user.id ]
         end
 
         def new
