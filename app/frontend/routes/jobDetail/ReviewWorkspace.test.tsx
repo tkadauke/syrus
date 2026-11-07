@@ -1193,6 +1193,41 @@ describe("ReviewWorkspace", () => {
     expect(screen.getAllByRole("img", { name: "Dashboard" })).toHaveLength(1)
   })
 
+  it("shows before/after comparisons in Visual evidence instead of Review artifacts", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace({
+      ...jobPayload(),
+      typed_artifacts: [
+        {
+          type: "visual_diff_comparison",
+          title: "Before/after visual comparison",
+          payload: {
+            pairs: [
+              {
+                title: "Dashboard",
+                before: { image_url: "/before.png", title: "Dashboard before" },
+                after: { image_url: "/after.png", title: "Dashboard after" }
+              }
+            ]
+          },
+          created_at: "2026-01-01T00:00:00Z",
+          renderer_type: "before_after_visual_diff"
+        }
+      ],
+      visual_evidence: { captured_count: 0, submitted_count: 0, screenshots: [] }
+    })
+
+    await screen.findByText("Visual evidence")
+    expect(screen.getByText("Before/after visual comparison")).toBeInTheDocument()
+    expect(screen.getByRole("img", { name: "Before: Dashboard before" })).toHaveAttribute("src", "/before.png")
+    expect(screen.getByRole("img", { name: "After: Dashboard after" })).toHaveAttribute("src", "/after.png")
+
+    fireEvent.click(screen.getByRole("button", { name: "Show" }))
+    expect(screen.getAllByText("Before/after visual comparison")).toHaveLength(1)
+  })
+
   it("defaults multiple matching review artifacts to the latest artifact instead of expanding every body", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))

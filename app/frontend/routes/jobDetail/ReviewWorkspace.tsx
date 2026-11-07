@@ -444,7 +444,14 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
             versions={versions}
           />
 
-          <VisualEvidenceGallery approved={Boolean(payload.job.approved_at)} gallery={payload.visual_evidence} />
+          <VisualEvidenceGallery
+            approved={Boolean(payload.job.approved_at)}
+            artifacts={payload.typed_artifacts.filter(isBeforeAfterVisualComparison)}
+            gallery={payload.visual_evidence}
+            selectedRange={selectedRange}
+            selectedVersion={selectedVersion}
+            versions={versions}
+          />
 
           {/*
           Not `overflow-hidden`: this diff viewer renders with `scroll="natural"`,
@@ -591,14 +598,28 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
   )
 }
 
-export function VisualEvidenceGallery({ approved, gallery }: { approved: boolean; gallery: JobDetailPayload["visual_evidence"] }) {
+export function VisualEvidenceGallery({
+  approved,
+  artifacts = [],
+  gallery,
+  selectedRange = null,
+  selectedVersion = null,
+  versions = []
+}: {
+  approved: boolean
+  artifacts?: TypedArtifact[]
+  gallery: JobDetailPayload["visual_evidence"]
+  selectedRange?: { baseSha: string; headSha: string } | null
+  selectedVersion?: DiffReviewVersion | null
+  versions?: DiffReviewVersion[]
+}) {
   const { t } = useT("jobs")
   const [showAll, setShowAll] = useState(false)
   const evidence = gallery || { captured_count: 0, submitted_count: 0, screenshots: [] }
   const submitted = evidence.screenshots.filter((screenshot) => screenshot.status === "submitted")
   const screenshots = showAll ? evidence.screenshots : submitted
 
-  if (evidence.captured_count === 0) {
+  if (evidence.captured_count === 0 && artifacts.length === 0) {
     return (
       <Section.Root>
         <SectionHeading>{t("visual_evidence_title")}</SectionHeading>
@@ -624,12 +645,14 @@ export function VisualEvidenceGallery({ approved, gallery }: { approved: boolean
         ) : null}
       </div>
       {submitted.length === 0 && !showAll ? (
-        <p className="mt-3 text-sm text-text-muted">
-          {t(approved ? "visual_evidence_approved_without_curated" : "visual_evidence_none_submitted")}{" "}
-          <button className="font-medium text-brand underline" onClick={() => setShowAll(true)} type="button">
-            {t("visual_evidence_view_captured")}
-          </button>
-        </p>
+        evidence.captured_count > 0 ? (
+          <p className="mt-3 text-sm text-text-muted">
+            {t(approved ? "visual_evidence_approved_without_curated" : "visual_evidence_none_submitted")}{" "}
+            <button className="font-medium text-brand underline" onClick={() => setShowAll(true)} type="button">
+              {t("visual_evidence_view_captured")}
+            </button>
+          </p>
+        ) : null
       ) : (
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           {screenshots.map((screenshot) => {
@@ -656,6 +679,11 @@ export function VisualEvidenceGallery({ approved, gallery }: { approved: boolean
           })}
         </div>
       )}
+      {artifacts.length > 0 ? (
+        <div className="mt-4">
+          <VersionedArtifactsList artifacts={artifacts} selectedRange={selectedRange} selectedVersion={selectedVersion} versions={versions} />
+        </div>
+      ) : null}
     </Section.Root>
   )
 }
@@ -919,7 +947,7 @@ function ReviewArtifactsPanel({
 }) {
   const { t } = useT("jobs")
   const [expanded, setExpanded] = useState(false)
-  const typedArtifacts = payload.typed_artifacts.filter((artifact) => !isVisualReviewScreenshot(artifact))
+  const typedArtifacts = payload.typed_artifacts.filter((artifact) => !isVisualEvidenceArtifact(artifact))
   const hasArtifacts = Boolean(payload.test_plan) || reviewArtifacts.length > 0 || typedArtifacts.length > 0
 
   return (
@@ -965,6 +993,14 @@ function ReviewArtifactsPanel({
 
 function isVisualReviewScreenshot(artifact: TypedArtifact) {
   return artifact.renderer_type === "image_diff" && artifact.type.startsWith("visual_review_")
+}
+
+function isBeforeAfterVisualComparison(artifact: TypedArtifact) {
+  return artifact.renderer_type === "before_after_visual_diff"
+}
+
+function isVisualEvidenceArtifact(artifact: TypedArtifact) {
+  return isVisualReviewScreenshot(artifact) || isBeforeAfterVisualComparison(artifact)
 }
 
 // An artifact has usable provenance when it can be compared against the
