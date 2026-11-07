@@ -2,6 +2,24 @@ module Steps
   class AdversarialReview < Base
     include ReviewExecutionPolicy
 
+    class EvidenceMismatch < StepFailed
+      problem_code :review_evidence_mismatch
+    end
+
+    class EvidenceStale < StepFailed
+      problem_code :review_evidence_stale
+    end
+
+    class EvidenceVerificationFailed < StepFailed
+      problem_code :review_evidence_verification_failed
+    end
+
+    EVIDENCE_FAILURES = {
+      "review_evidence_mismatch" => EvidenceMismatch,
+      "review_evidence_stale" => EvidenceStale,
+      "review_evidence_verification_failed" => EvidenceVerificationFailed
+    }.freeze
+
     FAILURE_SKIP_THRESHOLD = 1
     TURN_BUDGET = 200
 
@@ -15,6 +33,7 @@ module Steps
       return if materialize_review_panel!
 
       workspace.setup
+      capture_review_evidence!
       run.update!(prompt: reviewer_prompt) if run.prompt.blank?
 
       before_count = review_iterations.size
@@ -27,6 +46,15 @@ module Steps
       discard_reviewer_workspace_changes
 
       workflow.reload
+      verify_review_evidence_at_gate!
+      evidence = run.reload.review_evidence
+      if evidence && evidence.state.in?(%w[failed stale])
+        failure = EVIDENCE_FAILURES.fetch(evidence.terminal_failure_code, EvidenceVerificationFailed)
+        raise failure.new(
+          "#{review_step_kind} evidence is #{evidence.state}",
+          evidence: evidence.terminal_failure_details.to_h.merge(review_evidence_id: evidence.id)
+        )
+      end
       if review_iterations.size <= before_count
         capture_mcp_sidecar_stderr
         if repeated_missing_tool_call_failures?
@@ -43,6 +71,12 @@ module Steps
 
         fail_with!(:missing_required_tool_call, "agent didn't call #{review_submit_tool}",
                    evidence: { tool: review_submit_tool })
+      end
+      if evidence && evidence.state != "submitted"
+        raise EvidenceVerificationFailed.new(
+          "#{review_step_kind} evidence was not submitted",
+          evidence: { review_evidence_id: evidence.id, state: evidence.state }
+        )
       end
     rescue StandardError => e
       raise unless skippable_review_failure?(e)
@@ -84,6 +118,38 @@ module Steps
     def review_event_kind = "adversarial"
     def review_config = adversarial_review_config
     def review_skip_label = "Adversarial review"
+
+    def verify_review_evidence_at_gate!
+      evidence = run.reload.review_evidence
+      return unless evidence&.state == "submitted"
+
+      ReviewEvidence::VerifySubmission.call!(evidence: evidence, workspace_path: workspace.path)
+    rescue ReviewEvidence::VerifySubmission::Mismatch
+      # The typed terminal state is translated into a Step failure immediately
+      # below. Keeping that translation in one place gives submission and gate
+      # advancement the same monotonic stale semantics.
+      nil
+    end
+
+    def capture_review_evidence!
+      return run.review_evidence if run.review_evidence
+
+      ReviewEvidence::Capture.call(
+        run: run,
+        workspace_path: workspace.path,
+        review_kind: review_event_kind,
+        base_ref: review_base_ref,
+        checklist: review_criteria
+      )
+    rescue StandardError => e
+      fail_with!(
+        :review_evidence_capture_failed,
+        "could not freeze #{review_step_kind} evidence: #{e.message}",
+        evidence: { review_kind: review_step_kind, error_class: e.class.name }
+      )
+    end
+
+    def review_criteria = adversarial_review_criteria
 
     def adversarial_review_criteria
       [ *adversarial_review_projects.criteria, *plugin_review_criteria ].uniq

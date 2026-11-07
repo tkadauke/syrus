@@ -82,6 +82,27 @@ RSpec.describe App::JobWorkflowsSnapshotCache do
     expect(calls).to eq(1)
   end
 
+  it "recomputes when bound review evidence becomes stale without saving its Run" do
+    run = job.runs.first
+    evidence = ReviewEvidence.create!(
+      run: run, workflow: workflow, step: run.step, review_kind: "adversarial",
+      provider: "codex", model: "gpt-test", reviewed_base_sha: "a" * 40,
+      reviewed_head_sha: "b" * 40, canonical_diff_sha256: "c" * 64,
+      prompt_version: "1", checklist_version: "d" * 64, tool_policy_version: "1"
+    )
+    fetch { [ "built" ] }
+    run_revision_before = run.reload.entity_revision
+
+    evidence.mark_stale!(code: "review_evidence_mismatch")
+
+    calls = 0
+    result = fetch { calls += 1; [ "rebuilt" ] }
+
+    expect(run.reload.entity_revision).to eq(run_revision_before)
+    expect(result).to eq([ "rebuilt" ])
+    expect(calls).to eq(1)
+  end
+
   it "recomputes when a running Run heartbeat changes without bumping entity_revision" do
     run = job.runs.first
     run.update!(state: "running", started_at: 5.minutes.ago)

@@ -833,6 +833,18 @@ repair loops.
 
 Agentic. An independent reviewer agent critiques the implementation, calls the available `submit_adversarial_review` MCP tool name with a verdict and findings, and any workspace changes it makes are discarded. Runs in a bounded loop before graders when `adversarial_review.rounds > 0`.
 
+Before invocation, Syrus creates one immutable evidence record for the reviewer
+Run. It pins the Run/Workflow/Step lineage, resolved provider and model, base
+and head commits, canonical diff digest, and prompt/checklist/tool-policy
+versions. Verdict submission rechecks the frozen head and diff. A mismatch
+monotonically marks the evidence stale and cannot advance the review gate;
+repair and rereview therefore require a new Run and a new evidence record.
+The existing workflow artifact remains the sole verdict authority and carries
+the evidence id when evidence is available. Older artifact entries without an
+evidence id remain readable, are presented with a `legacy` marker, and are not
+backfilled with invented provenance. Bound approvals are presented as stale if
+their evidence no longer matches the reviewed source.
+
 The reviewer prompt includes configured `adversarial_review.criteria`.
 Criteria declared in the root `.syrus.yml` apply repo-wide. Criteria declared
 in nested project `.syrus.yml` files are added only when the diff under review

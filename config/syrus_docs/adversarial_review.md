@@ -40,6 +40,17 @@ The reviewer agent must call the available `submit_adversarial_review` MCP tool 
 
 If the agent does not call the required `submit_adversarial_review` tool, the step fails with "agent didn't call submit_adversarial_review".
 
+Each new reviewer Run also owns immutable, SHA-bound review evidence. Syrus
+freezes the reviewed base, head, canonical diff digest, routed provider/model,
+and review-policy versions before invoking the reviewer. Submission succeeds
+only while the workspace still matches that snapshot. Changed source marks the
+evidence stale permanently, rejects the verdict, and forces repair/rereview to
+produce fresh evidence. Findings artifacts remain authoritative; their
+`review_evidence_id` is a provenance link, and legacy entries without one are
+shown with a `legacy` evidence marker rather than receiving fabricated backfill
+values. Bound entries expose their evidence state; an approval whose evidence
+later becomes stale is presented as stale rather than as a current approval.
+
 ## Findings carry-forward
 
 Findings accumulate in `workflow.artifacts["adversarial_review_iterations"]` as an array and appear in the workflow detail UI. Two separate consumers read that array:

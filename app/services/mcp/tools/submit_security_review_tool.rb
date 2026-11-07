@@ -25,20 +25,9 @@ module Mcp::Tools
         return Mcp::Tools.invalid("critique is required") if normalized_critique.empty?
         return Mcp::Tools.invalid("verdict must be one of: #{VERDICTS.join(', ')}") unless VERDICTS.include?(normalized_verdict)
 
-        workflow = run.workflow
-        iterations = Array(workflow.artifact("security_review_iterations"))
-        entry = {
-          "iteration" => run.step.iteration, "step_id" => run.step_id, "run_id" => run.id,
-          "critique" => normalized_critique, "verdict" => normalized_verdict
-        }
-        if run.step.details.to_h["panel_id"].present?
-          entry.merge!("provider" => run.agent_provider, "model" => run.model, "panel_id" => run.step.details["panel_id"])
-        end
-        iterations << entry.compact
-        workflow.set_artifact!("security_review_iterations", iterations)
-        ReviewFindingEvents.record(
-          workflow: workflow, step: run.step, run: run, review_kind: "security",
-          iteration: run.step.iteration, verdict: normalized_verdict, critique: normalized_critique
+        ReviewEvidence::VerdictSubmission.call!(
+          run: run, artifact_key: "security_review_iterations", review_kind: "security",
+          verdict: normalized_verdict, critique: normalized_critique
         )
         Mcp::Tools.write_log(run, "[mcp] submit_security_review received: #{normalized_verdict}")
         MCP::Tool::Response.new([ { type: "text", text: "Saved." } ])
