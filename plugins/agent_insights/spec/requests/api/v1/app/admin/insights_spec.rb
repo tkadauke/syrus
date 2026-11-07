@@ -205,10 +205,10 @@ RSpec.describe "Admin API insight suggestions", type: :request do
       get "/api/v1/app/admin/insights", params: { state: "retired" }
       body = parse_body
       expect(body["suggestions"].map { |s| s["id"] }).to eq([ retired.id ])
-      expect(body["suggestions"].first["retired_reason"]).to eq("Duplicate finding.")
+      expect(body["suggestions"].first).not_to have_key("retired_reason")
     end
 
-    it "auto-accepts stale remove_memory suggestions before listing admin insights" do
+    it "does not mutate stale remove_memory suggestions before listing admin insights" do
       memory = ::AgentMemory::Entry.create!(
         user: other_user,
         kind: "project_fact",
@@ -228,13 +228,13 @@ RSpec.describe "Admin API insight suggestions", type: :request do
 
       expect(response).to have_http_status(:ok)
       body = parse_body
-      expect(body["suggestions"].map { |s| s["id"] }).not_to include(suggestion.id)
+      expect(body["suggestions"].map { |s| s["id"] }).to include(suggestion.id)
       expect(body.dig("meta", "counts")).to include(
-        "pending"  => 0,
-        "accepted" => 1,
+        "pending"  => 1,
+        "accepted" => 0,
         "all"      => 1
       )
-      expect(suggestion.reload.accepted?).to be true
+      expect(suggestion.reload.pending?).to be true
     end
 
     it "paginates suggestions and returns the correct subset on page 2" do
@@ -301,7 +301,8 @@ RSpec.describe "Admin API insight suggestions", type: :request do
       expect(suggestion["state"]).to eq("pending")
       expect(suggestion["proposal_type"]).to eq("create_job")
       expect(suggestion["has_memory_suggestion"]).to be true
-      expect(suggestion["suggested_prompt"]).to eq("Fix the caching")
+      expect(suggestion["has_suggested_prompt"]).to be true
+      expect(suggestion).not_to have_key("suggested_prompt")
       expect(suggestion["repository"]["id"]).to eq(repository.id)
       expect(suggestion["repository"]["slug"]).to eq(repository.slug)
       expect(suggestion["user"]["id"]).to eq(other_user.id)

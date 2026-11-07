@@ -16,25 +16,17 @@ export type AgentActivitySessionRepository = {
 
 export type AgentActivitySession = {
   id: number
-  slug: string
   state: string
-  step_kind: string
-  role: string
   role_label: string
   agent_provider: string
-  agent_outcome: string | null
   outcome_summary: string | null
   outcome_verdict: string | null
   started_at: string | null
-  finished_at: string | null
-  created_at: string | null
   duration_seconds: number | null
   transcript_path: string | null
   chat_path: string | null
   job: AgentActivitySessionJob | null
   repository: AgentActivitySessionRepository | null
-  workflow_id: number | null
-  trigger_kind: string | null
 }
 
 export type AgentActivitySessionsPayload = {
@@ -47,6 +39,12 @@ export type AgentActivitySessionsPayload = {
   filter_schema: FilterSchemaField[]
   active_smart_folder_id: number | null
   smart_folders: AdminSmartFolder[]
+}
+
+type AgentActivityRowsPayload = Omit<AgentActivitySessionsPayload, "sessions"> & {
+  sessions: Array<Omit<AgentActivitySession, "job" | "repository"> & { job: { id: number } | null; repository: { id: number } | null }>
+  jobs: Record<string, AgentActivitySessionJob>
+  repositories: Record<string, AgentActivitySessionRepository>
 }
 
 export type AgentActivityRunArtifacts = {
@@ -66,12 +64,20 @@ export type AgentActivityRunArtifacts = {
 
 const SESSIONS_PER_PAGE = 20
 
-export function fetchAgentActivitySessions(scope: "mine" | "admin", search = "") {
+export function fetchAgentActivitySessions(scope: "mine" | "admin", search = "", section?: "chrome" | "rows") {
   const path = scope === "admin" ? "/api/v1/app/admin/agent_activity/sessions" : "/api/v1/app/agent_activity/sessions"
   const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search)
   params.set("per", String(SESSIONS_PER_PAGE))
+  if (section) params.set("section", section)
   const query = params.toString()
-  return getJson<AgentActivitySessionsPayload>(`${path}${query ? `?${query}` : ""}`)
+  return getJson<AgentActivityRowsPayload>(`${path}${query ? `?${query}` : ""}`).then((payload) => ({
+    ...payload,
+    sessions: (payload.sessions ?? []).map(({ job, repository, ...session }) => ({
+      ...session,
+      job: job == null ? null : (payload.jobs?.[job.id] ?? (job as AgentActivitySessionJob)),
+      repository: repository == null ? null : (payload.repositories?.[repository.id] ?? (repository as AgentActivitySessionRepository))
+    }))
+  }))
 }
 
 export function fetchAgentActivityTranscript(transcriptPath: string, page = 1) {
