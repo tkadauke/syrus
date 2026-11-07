@@ -72,7 +72,13 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
     mutationFn: (document: RepositoryDocument) => deleteRepositoryDocument(document.id),
     onSuccess: (updated) => {
       queryClient.setQueryData<RepositoryDocumentsPayload>(queryKey, (current) =>
-        current ? { ...current, documents: current.documents.filter((row) => row.id !== updated.id), pagination: { ...current.pagination, total: current.pagination.total - 1 } } : current
+        current
+          ? {
+              ...current,
+              documents: current.documents.filter((row) => row.id !== updated.id),
+              pagination: { ...current.pagination, total: current.pagination.total - 1 }
+            }
+          : current
       )
       setNotice(updated.message || t("repository_documents.removed"))
     }
@@ -140,9 +146,11 @@ function RepositoryDocumentsView({ payload, prefix }: { payload: RepositoryDocum
       </section>
 
       {payload.pagination.total_pages > 1 ? (
-        <nav className="flex justify-end gap-2" aria-label="Document pages">
-          {payload.pagination.page > 1 ? <Link to={`?page=${payload.pagination.page - 1}`}>Previous</Link> : null}
-          {payload.pagination.page < payload.pagination.total_pages ? <Link to={`?page=${payload.pagination.page + 1}`}>Next</Link> : null}
+        <nav className="flex justify-end gap-2" aria-label={t("repository_documents.pagination_label")}>
+          {payload.pagination.page > 1 ? <Link to={`?page=${payload.pagination.page - 1}`}>{t("repository_documents.previous")}</Link> : null}
+          {payload.pagination.page < payload.pagination.total_pages ? (
+            <Link to={`?page=${payload.pagination.page + 1}`}>{t("repository_documents.next")}</Link>
+          ) : null}
         </nav>
       ) : null}
 
@@ -169,7 +177,7 @@ function DocumentForms({
 }) {
   const { t } = useT("settings")
   const queryClient = useQueryClient()
-  const queryKey = ["repositories", String(payload.repository.id), "documents"] as const
+  const documentsQueryKey = ["repositories", String(payload.repository.id), "documents"] as const
   const [fileTitle, setFileTitle] = useState("")
   const [file, setFile] = useState<File | null>(null)
   const [docTitle, setDocTitle] = useState("")
@@ -177,9 +185,7 @@ function DocumentForms({
   const save = useMutation({
     mutationFn: (input: RepositoryDocumentInput) => createRepositoryDocument(payload.repository.id, input),
     onSuccess: (updated) => {
-      queryClient.setQueryData<RepositoryDocumentsPayload>(queryKey, (current) =>
-        current ? { ...current, documents: [updated.document, ...current.documents].slice(0, current.pagination.per_page), pagination: { ...current.pagination, total: current.pagination.total + 1 } } : current
-      )
+      void queryClient.invalidateQueries({ queryKey: documentsQueryKey })
       setFileTitle("")
       setFile(null)
       setDocTitle("")
