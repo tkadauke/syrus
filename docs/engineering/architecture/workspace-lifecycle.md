@@ -39,15 +39,19 @@ current uncertainty.
 
 ## Placement
 
-`PlannedExecutionRequirement` records project, target, source, and explicit
-capabilities. Supported capability dimensions are `os`, `arch`, `toolchain`,
-and `runtime`; `os` is `linux` or `macos`. Workers advertise configured and
-locally probed capabilities. `RunQueueResolver` either selects an eligible
-worker/queue or blocks the Run with `no_capable_worker`.
+Jobs and Workflows carry a `PlannedExecutionRequirement` for their mutable
+primary implementation workspace. It records project, target, source, and an
+OS-only placement requirement; supported values are `linux` and `macos`, with
+Linux as the default. Proposal and workflow tooling declare that placement
+explicitly rather than inferring it from prompt prose.
 
-Proposal and workflow tooling must declare required capabilities explicitly;
-placement is not inferred from prompt prose. `.syrus.yml` project and target
-metadata may narrow requirements for a specific target.
+Immutable distributed grader targets use a separate capability contract from
+`.syrus.yml`. A target requirement may additionally constrain architecture,
+toolchain, and runtime. Workers advertise configured and locally probed
+capabilities, and `RunQueueResolver` selects an eligible worker/queue or blocks
+the Run with `no_capable_worker` against the contract applicable to that work.
+Do not put grader-target capability dimensions into the mutable workspace's
+`PlannedExecutionRequirement`.
 
 ## Chat and preview workspaces
 
