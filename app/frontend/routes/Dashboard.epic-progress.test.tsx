@@ -70,11 +70,7 @@ describe("EpicProgressBar", () => {
   })
 
   it("shows a title tooltip with counts for non-zero states", () => {
-    render(
-      <EpicProgressBar
-        epic={epicItem({ jobs_count: 4, job_state_counts: { approved: 2, implemented: 1 } })}
-      />
-    )
+    render(<EpicProgressBar epic={epicItem({ jobs_count: 4, job_state_counts: { approved: 2, implemented: 1 } })} />)
     const bar = screen.getByRole("progressbar")
     expect(bar.title).toContain("2 Approved")
     expect(bar.title).toContain("1 Implemented")
@@ -82,22 +78,14 @@ describe("EpicProgressBar", () => {
   })
 
   it("renders one colored segment per non-zero state", () => {
-    const { container } = render(
-      <EpicProgressBar
-        epic={epicItem({ jobs_count: 4, job_state_counts: { approved: 1, implemented: 2 } })}
-      />
-    )
+    const { container } = render(<EpicProgressBar epic={epicItem({ jobs_count: 4, job_state_counts: { approved: 1, implemented: 2 } })} />)
     const bar = screen.getByRole("progressbar")
     const segments = bar.querySelectorAll("div")
     expect(segments).toHaveLength(2)
   })
 
   it("sets segment widths proportional to jobs_count", () => {
-    const { container } = render(
-      <EpicProgressBar
-        epic={epicItem({ jobs_count: 4, job_state_counts: { implemented: 2 } })}
-      />
-    )
+    const { container } = render(<EpicProgressBar epic={epicItem({ jobs_count: 4, job_state_counts: { implemented: 2 } })} />)
     const bar = screen.getByRole("progressbar")
     const segment = bar.querySelector("div") as HTMLElement
     expect(segment.style.width).toBe("50%")
@@ -179,12 +167,7 @@ function renderEpicsTable(item: DashboardEpicItem = epicItem({ max_commits_behin
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter>
-        <EpicsTable
-          columns={["checkbox", "state", "epic"]}
-          items={[item]}
-          prefix=""
-          sortState={sortState()}
-        />
+        <EpicsTable columns={["checkbox", "state", "epic"]} items={[item]} prefix="" sortState={sortState()} />
       </MemoryRouter>
     </QueryClientProvider>
   )

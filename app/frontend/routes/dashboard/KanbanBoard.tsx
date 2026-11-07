@@ -414,10 +414,7 @@ function JobKanbanCard({ item, navigationItems, prefix }: { item: DashboardJobIt
       <div className="mt-2 flex flex-wrap gap-1 text-xs text-gray-500 dark:text-gray-400">
         <WorkflowBadges state={item.summary_state} triggerAriaPrefix={t("active_workflow_trigger_aria")} triggerKind={item.active_workflow_trigger_kind} />
         {item.state === "queued" && item.start_blocked_reason ? (
-          <StartBlockedReasonPill
-            reason={item.start_blocked_reason}
-            startBlockedAt={item.start_blocked_at}
-          />
+          <StartBlockedReasonPill reason={item.start_blocked_reason} startBlockedAt={item.start_blocked_at} />
         ) : null}
         <RepositorySlugLink
           className="rounded bg-gray-100 px-1.5 py-0.5 text-gray-500 hover:text-brand hover:underline dark:bg-gray-800 dark:text-gray-300"
