@@ -218,7 +218,7 @@ class AppSetting < ApplicationRecord
   # method however long ago the column was actually added -- and this is read
   # on the chat turn path, where a NoMethodError is a broken chat rather than a
   # degraded one. Absent column means "not configured", which is the default
-  # anyway. See `rollout_compatibility.md`.
+  # anyway. See `docs/engineering/conventions/rollout_compatibility.md`.
   def self.contained_chat_execution
     setting = current
     return "off" unless setting.has_attribute?(:contained_chat_execution)

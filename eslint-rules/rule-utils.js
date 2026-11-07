@@ -4,7 +4,7 @@
 // directory. Each rule enforces a *count* baseline per file: `baseline.json`
 // records how many violations already existed when the ratchet was
 // introduced (or when a rule graduated into it -- see
-// config/syrus_docs/style_debt_report.md), and a rule only reports
+// docs/engineering/conventions/style_debt_report.md), and a rule only reports
 // occurrences beyond that count. A brand-new file starts at an allowance of
 // zero, so any violation in it fails lint immediately. Regenerate the
 // baseline with `bin/generate-eslint-baseline` after a follow-up job removes
