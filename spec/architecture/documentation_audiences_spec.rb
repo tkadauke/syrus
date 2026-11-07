@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "../../app/models/retention_policy_registry"
+
 RSpec.describe "documentation audiences" do
   let(:root) { Pathname.new(File.expand_path("../..", __dir__)) }
   let(:guidance) { root.join("CLAUDE.md").read }
@@ -207,7 +209,13 @@ RSpec.describe "documentation audiences" do
     expect(root.join("config/syrus_docs/deploy.md").read).not_to include("## Two-version compatibility")
     expect(root.join("config/syrus_docs/feature_flags.md").read).not_to include("## performance_logging")
     expect(root.join("config/syrus_docs/workflow_steps.md").read).not_to include("## Grader command spans")
-    expect(root.join("config/syrus_docs/app_settings.md").read).not_to include("RetentionPolicyRegistry")
+    searchable_app_settings = root.join("config/syrus_docs/app_settings.md").read
+    expect(searchable_app_settings).not_to include("RetentionPolicyRegistry")
+    RetentionPolicyRegistry::CORE_DEFINITIONS.each do |definition|
+      expect(searchable_app_settings).to include(
+        "| `#{definition.setting_key}` | #{definition.default_value} #{definition.unit} |"
+      )
+    end
 
     expect(root.join("docs/engineering/operations/deploying-syrus.md").read).to include("DB_PREPARE_ATTEMPTS")
     expect(root.join("docs/engineering/operations/data-retention.md").read).to include("RetentionPolicyRegistry")
