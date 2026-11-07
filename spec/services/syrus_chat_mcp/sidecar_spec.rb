@@ -79,12 +79,11 @@ RSpec.describe Mcp::Sidecar do
   end
 
   describe "MCP handshake" do
-    it "advertises tools that belong to both tiers only once in the combined server" do
-      tool_names = described_class.chat_tools(chat_session, tier: :all)
-                                  .map { |tool| McpToolRegistry.tool_name_for(tool) }
+    it "deduplicates plugin tools exposed in multiple tiers when requesting all tools" do
+      names = described_class.chat_tools(chat_session, tier: :all).map { |tool| McpToolRegistry.tool_name_for(tool) }
 
-      expect(tool_names).to include("show_preview")
-      expect(tool_names).to eq(tool_names.uniq)
+      expect(names).to include("show_preview")
+      expect(names).to eq(names.uniq)
     end
 
     it "responds to initialize with the chat sidecar server name" do
