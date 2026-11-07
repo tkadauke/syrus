@@ -12,6 +12,7 @@ module ChatProposalOutcome
   def maybe_start_confirmed_epic!(proposal, result)
     return false unless ActiveModel::Type::Boolean.new.cast(params[:start])
     return false unless proposal.epic_bundle?
+    return false if proposal.route_to_backlog?
 
     epic = result.respond_to?(:epic) ? result.epic : nil
     return false unless epic

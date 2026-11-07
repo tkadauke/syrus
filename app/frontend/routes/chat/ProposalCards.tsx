@@ -415,7 +415,7 @@ function proposalBacksJobsTab(proposal: Pick<ChatProposal, "kind"> & { materiali
 }
 
 function proposalSupportsBacklogRoute(proposal: Pick<ChatProposal, "kind" | "epic_bundle"> | EditableProposal) {
-  return !proposal.epic_bundle && proposalCreatesJob(proposal)
+  return proposal.epic_bundle || proposalCreatesJob(proposal)
 }
 
 function DependencyPicker({
@@ -662,7 +662,14 @@ export function ProposalCard({
                       aria-label={proposal.investigation ? t("aria_confirm_proposal_and_investigate") : t("aria_confirm_proposal_and_implement")}
                       className={proposalActionButton("primary")}
                       disabled={proposalAction.isPending}
-                      onClick={() => proposalAction.mutate({ action: "confirm", path: proposal.app_confirm_path, routeToBacklog: false })}
+                      onClick={() =>
+                        proposalAction.mutate({
+                          action: "confirm",
+                          path: proposal.app_confirm_path,
+                          routeToBacklog: false,
+                          start: proposal.epic_bundle
+                        })
+                      }
                       title={proposal.investigation ? t("aria_confirm_proposal_and_investigate") : t("aria_confirm_proposal_and_implement")}
                       type="button"
                     >
@@ -681,7 +688,7 @@ export function ProposalCard({
                     {proposalConfirmLabel(proposal, childJobCount)}
                   </button>
                 )}
-                {showConfirmAndStart ? (
+                {showConfirmAndStart && !showDirectRouteActions ? (
                   <button
                     aria-label={t("create_epic_and_start")}
                     className={proposalActionButton("primary")}

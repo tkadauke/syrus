@@ -1764,19 +1764,23 @@ module Api
         end
 
         def route_to_backlog_update_value(proposal, attrs)
-          unless proposal.direct_job_proposal? && proposal.parent_proposal_id.nil?
-            raise ArgumentError, "Backlog routing is only available for direct Job proposals."
+          unless backlog_routable_proposal?(proposal)
+            raise ArgumentError, "Backlog routing is only available for standalone Job and Epic proposals."
           end
 
           ActiveModel::Type::Boolean.new.cast(attrs[:route_to_backlog])
         end
 
         def route_to_backlog_confirmation_value(proposal)
-          unless proposal.direct_job_proposal? && proposal.parent_proposal_id.nil?
-            raise ArgumentError, "Backlog routing is only available for direct Job proposals."
+          unless backlog_routable_proposal?(proposal)
+            raise ArgumentError, "Backlog routing is only available for standalone Job and Epic proposals."
           end
 
           ActiveModel::Type::Boolean.new.cast(params[:route_to_backlog])
+        end
+
+        def backlog_routable_proposal?(proposal)
+          proposal.parent_proposal_id.nil? && (proposal.direct_job_proposal? || proposal.epic_bundle?)
         end
 
         def rebuild_proposal_dependencies!(chat_session, proposal, dependency_slugs)

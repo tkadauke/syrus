@@ -1,5 +1,5 @@
 import { jsonResponse } from "../../testSupport"
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -1024,6 +1024,34 @@ describe("ProposalCard routing", () => {
     })
   })
 
+  it("lets operators choose backlog or implementation from an Epic proposal card", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((_input, init) => {
+      if (init?.method === "POST")
+        return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: proposal({ kind: "epic", epic_bundle: true, state: "confirmed", proposed: false }) }))
+
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    const epic = proposal({ kind: "epic", kind_label: "Epic", epic_bundle: true })
+    renderProposalCard(epic)
+    fireEvent.click(screen.getByRole("button", { name: "Confirm proposal to backlog" }))
+
+    await waitFor(() => {
+      const postCall = fetchSpy.mock.calls.find(([, init]) => init?.method === "POST")
+      expect(JSON.parse(String(postCall?.[1]?.body))).toEqual({ route_to_backlog: true })
+    })
+
+    cleanup()
+    fetchSpy.mockClear()
+    renderProposalCard(epic)
+    fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
+
+    await waitFor(() => {
+      const postCall = fetchSpy.mock.calls.find(([, init]) => init?.method === "POST")
+      expect(JSON.parse(String(postCall?.[1]?.body))).toEqual({ start: true, route_to_backlog: false })
+    })
+  })
+
   it("does not show route selection for Epic bundle child edits", async () => {
     renderProposalCard(
       proposal({
@@ -1089,7 +1117,7 @@ describe("ProposalCard first-run jobs sidebar tab navigation", () => {
 
     const onSelectWorkspaceTab = vi.fn()
     renderProposalCard(proposal({ kind: "epic", kind_label: "Epic", epic_bundle: true }), vi.fn(), { onSelectWorkspaceTab })
-    fireEvent.click(screen.getByRole("button", { name: "Confirm Epic" }))
+    fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
 
     await waitFor(() => expect(onSelectWorkspaceTab).toHaveBeenCalled())
   })

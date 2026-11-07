@@ -216,7 +216,6 @@ function ProposedProposalsSection({
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set())
   const selectedProposals = proposals.filter((proposal) => selectedIds.has(proposal.id))
   const allSelected = proposals.length > 0 && selectedProposals.length === proposals.length
-  const backlogAllowed = selectedProposals.every((proposal) => proposal.kind !== "epic")
   const bulkAction = useMutation({
     mutationFn: async (action: BulkProposalAction) => {
       let firstError: unknown = null
@@ -227,7 +226,7 @@ function ProposedProposalsSection({
             await rejectChatProposal(proposalActionPath(chatId, proposal.id, "reject"))
           } else {
             await confirmChatProposal(proposalActionPath(chatId, proposal.id, "confirm"), {
-              route_to_backlog: proposal.kind === "epic" ? undefined : action === "backlog",
+              route_to_backlog: action === "backlog",
               start: proposal.kind === "epic" && action === "implement"
             })
           }
@@ -277,10 +276,9 @@ function ProposedProposalsSection({
         {selectedProposals.length > 0 ? (
           <div className="ml-auto flex flex-wrap items-center justify-end gap-1" data-testid="proposal-bulk-actions">
             <Button
-              disabled={bulkAction.isPending || !backlogAllowed}
+              disabled={bulkAction.isPending}
               onClick={() => bulkAction.mutate("backlog")}
               size="sm"
-              title={!backlogAllowed ? t("job_status_backlog_epic_unavailable") : undefined}
               variant="secondary"
             >
               {t("proposal_route_backlog")}
@@ -294,7 +292,11 @@ function ProposedProposalsSection({
           </div>
         ) : null}
       </div>
-      {bulkAction.isError ? <p className="text-xs text-danger-text">{errorMessage(bulkAction.error, t("job_status_bulk_action_error"))}</p> : null}
+      {bulkAction.isError ? (
+        <p className="text-xs text-danger-text" role="alert">
+          {errorMessage(bulkAction.error, t("job_status_bulk_action_error"))}
+        </p>
+      ) : null}
       <div className="divide-y divide-border rounded border border-border">
         {proposals.map((proposal) => {
           const clickable = Boolean(onSelectMessage && proposal.anchor_message_id)
