@@ -69,9 +69,6 @@ module App
           blocked_reason: blocked_reason_for(job),
           start_blocked_reason: job_start_blocked_reason(job),
           start_blocked_at: job_start_blocked_at(job),
-          start_blocked_next_check_at: job_start_blocked_next_check_at(job),
-          start_blocked_count: job_start_blocked_count(job),
-          start_blocked_details: job_start_blocked_details(job),
           manual_paused: job.manual_paused?,
           manual_paused_at: job.manual_paused_at&.iso8601,
           active_repair_work: active_repair_work_json(active_repair_work),
@@ -114,6 +111,8 @@ module App
         elsif job.landed_sha.present?
           payload[:latest_deployment_stage] = nil
         end
+
+        payload[:unsatisfied_dependency_count] = job.unsatisfied_dependencies.size if view == "kanban"
 
         payload
       end
@@ -490,12 +489,8 @@ module App
           updated_at: workflow.updated_at&.iso8601,
           started_at: workflow.started_at&.iso8601,
           finished_at: workflow.finished_at&.iso8601,
-          cleaned_up_at: workflow.cleaned_up_at&.iso8601,
           steps_count: workflow_steps_count(workflow),
-          run_count: workflow_run_count(workflow),
           failure_reason: workflow.failure_reason,
-          worker_hostname: workflow.worker_hostname,
-          worker_storage_key: workflow.worker_storage_key,
           job: {
             id: job.id,
             title: job.issue_title.presence || job_kind_title(job.kind),
@@ -517,14 +512,6 @@ module App
         workflow.steps.size
       end
 
-      def workflow_run_count(workflow)
-        if defined?(@workflow_run_counts_by_workflow_id) && @workflow_run_counts_by_workflow_id
-          return @workflow_run_counts_by_workflow_id.fetch(workflow.id, 0)
-        end
-
-        workflow.steps.sum { |step| step.runs.size }
-      end
-
       def epic_owner_status(epic)
         owner_user = epic_owner_user(epic)
         return "unclaimed" if owner_user.nil?
@@ -539,18 +526,6 @@ module App
 
       def job_start_blocked_at(job)
         start_blocked_data_by_job_id.dig(job.id, :at)
-      end
-
-      def job_start_blocked_next_check_at(job)
-        start_blocked_data_by_job_id.dig(job.id, :next_check_at)
-      end
-
-      def job_start_blocked_count(job)
-        start_blocked_data_by_job_id.dig(job.id, :count)
-      end
-
-      def job_start_blocked_details(job)
-        start_blocked_data_by_job_id.dig(job.id, :details)
       end
 
       def start_blocked_data_by_job_id

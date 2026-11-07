@@ -152,6 +152,7 @@ function job(overrides: Partial<DashboardJobItem> = {}): DashboardJobItem {
     claimed_by_user: null,
     claimed_by_current_user: false,
     dependencies_overridden_at: null,
+    unsatisfied_dependency_count: 0,
     last_feedback_addressed_at: null,
     last_seen_comment_at: null,
     pr_mergeable_checked_at: null,
@@ -166,9 +167,6 @@ function job(overrides: Partial<DashboardJobItem> = {}): DashboardJobItem {
     needs_attention_reason: null,
     start_blocked_reason: null,
     start_blocked_at: null,
-    start_blocked_next_check_at: null,
-    start_blocked_count: null,
-    start_blocked_details: null,
     paths: { job_path: `/jobs/${overrides.id ?? 1}` },
     ...overrides
   }
@@ -227,7 +225,6 @@ function workflow(overrides: Partial<DashboardWorkflowItem> = {}): DashboardWork
     updated_at: "2026-01-01T00:00:00Z",
     started_at: "2026-01-01T00:05:00Z",
     finished_at: null,
-    cleaned_up_at: null,
     steps_count: 3,
     job: {
       id: 1,

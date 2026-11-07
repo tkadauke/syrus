@@ -401,7 +401,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       blocker = Factories.job_record(user: user, repository: repo, kind: "direct", state: "queued", issue_number: nil, issue_title: "Prepare schema")
       backlogged = Factories.job_record(user: user, repository: repo, kind: "direct", state: "backlog", issue_number: nil, issue_title: "Build dashboard lane", priority: "high", owner_user: user)
       infrastructure = Factories.job_record(user: user, repository: repo, kind: "main_grader", state: "backlog", issue_number: nil, issue_title: "Main grader backlog")
-      JobDependency.create!(job: backlogged, depends_on_job: blocker, source: "manual", created_by_user: user)
+      dependency = JobDependency.create!(job: backlogged, depends_on_job: blocker, source: "manual", created_by_user: user)
 
       result = call(subject: "job", view: "kanban", scope: "mine")
       lane = result.fetch(:lanes).find { |candidate| candidate.fetch(:key) == "backlog" }
@@ -431,7 +431,8 @@ RSpec.describe App::DashboardPayload, :ci_only do
           close: true
         )
       )
-      expect(item.fetch(:dependencies)).to contain_exactly(include(id: blocker.id, slug: blocker.slug, pending: false, succeeded: false))
+      expect(item.fetch(:dependencies)).to contain_exactly(include(id: dependency.id, slug: blocker.slug, pending: false, succeeded: false))
+      expect(item.fetch(:unsatisfied_dependency_count)).to eq(1)
       expect(item).not_to have_key(:unsatisfied_dependencies)
       expect(item.fetch(:paths)).to eq(job_path: "/jobs/#{backlogged.id}")
     end
@@ -511,6 +512,41 @@ RSpec.describe App::DashboardPayload, :ci_only do
 
       expect(queued_lane.fetch(:items).map { |item| item.fetch(:id) }).to include(job.id)
       expect(blocked_lane.fetch(:items).map { |item| item.fetch(:id) }).not_to include(job.id)
+      expect(queued_lane.fetch(:items).find { |item| item.fetch(:id) == job.id }).to include(unsatisfied_dependency_count: 0)
+    end
+
+    it "counts an unreleased epic gate without adding a fake dependency row" do
+      user.update_dashboard_kanban_lanes!(subject: :jobs, lanes: %w[queued blocked])
+      epic = Factories.epic(user: user, repository: repo, state: "ready")
+      job = Factories.job_record(user: user, repository: repo, epic: epic, state: "queued")
+
+      result = call(subject: "job", view: "kanban", scope: "mine")
+      blocked_lane = result.fetch(:lanes).find { |candidate| candidate.fetch(:key) == "blocked" }
+      item = blocked_lane.fetch(:items).find { |candidate| candidate.fetch(:id) == job.id }
+
+      expect(item.fetch(:dependencies)).to be_empty
+      expect(item.fetch(:unsatisfied_dependency_count)).to eq(1)
+    end
+
+    it "batches dependency queries used to classify all candidate jobs" do
+      user.update_dashboard_kanban_lanes!(subject: :jobs, lanes: %w[queued blocked])
+      blocker = Factories.job_record(user: user, repository: repo, state: "running")
+      4.times do
+        job = Factories.job_record(user: user, repository: repo, state: "queued")
+        JobDependency.create!(job: job, depends_on_job: blocker, source: "manual", created_by_user: user)
+      end
+
+      dependency_queries = 0
+      subscriber = lambda do |_name, _started, _finished, _id, payload|
+        sql = payload[:sql].to_s
+        dependency_queries += 1 if sql.match?(/\ASELECT/i) && sql.include?("job_dependencies")
+      end
+
+      ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+        call(subject: "job", view: "kanban", scope: "mine")
+      end
+
+      expect(dependency_queries).to be <= 2
     end
   end
 
@@ -890,7 +926,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(held_item[:blocked_child_count]).to eq(1)
     end
 
-    it "serializes and sorts workflow run and worker fields" do
+    it "omits workflow runtime cleanup and worker details from compact rows" do
       low_job = Factories.job_record(user: user, repository: repo, issue_title: "Few runs")
       high_job = Factories.job_record(user: user, repository: repo, issue_title: "Many runs")
       low = Workflow.create!(job: low_job, trigger_kind: "initial", state: "failed", failure_reason: "one failed", worker_hostname: "worker-a", worker_storage_key: "store-a")
@@ -900,16 +936,11 @@ RSpec.describe App::DashboardPayload, :ci_only do
       Run.create!(job: low_job, user: user, step: low_step, trigger_kind: "initial", state: "failed")
       2.times { Run.create!(job: high_job, user: user, step: high_step, trigger_kind: "retry", state: "failed") }
 
-      rows = call(subject: "workflow", section: "rows", sort_column: "run_count", sort_direction: "desc")
+      rows = call(subject: "workflow", section: "rows")
       high_item = rows[:items].find { |item| item[:id] == high.id }
 
-      expect(rows[:items].map { |item| item[:id] }.first).to eq(high.id)
-      expect(high_item).to include(
-        run_count: 2,
-        failure_reason: "two failed",
-        worker_hostname: "worker-b",
-        worker_storage_key: "store-b"
-      )
+      expect(high_item).to include(failure_reason: "two failed")
+      expect(high_item).not_to include(:run_count, :worker_hostname, :worker_storage_key, :cleaned_up_at)
     end
   end
 
@@ -1439,7 +1470,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       blocker = Factories.job_record(user: user, repository: repo, state: "closed", landed_sha: "abc123")
       blocker.deployment_stage_statuses.create!(stage_name: "staging", reached_at: Time.zone.parse("2026-07-30T12:00:00Z"))
       blocked_job = Factories.job_record(user: user, repository: repo, state: "implemented")
-      JobDependency.create!(
+      dependency = JobDependency.create!(
         job: blocked_job,
         depends_on_job: blocker,
         source: "manual",
@@ -1455,7 +1486,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
         key: "waiting_for_deployment_stage",
         params: { slug: blocker.slug, stage: "production", latest_stage: "On Staging" }
       )
-      expect(item[:dependencies].first).to include(id: blocker.id, slug: blocker.slug, pending: false, succeeded: false)
+      expect(item[:dependencies].first).to include(id: dependency.id, slug: blocker.slug, pending: false, succeeded: false)
     end
 
     it "preloads dependency deployment statuses when serializing dashboard dependencies" do
@@ -1464,7 +1495,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       allow(RepoDeploymentStagesReader).to receive(:for_repository).and_return(
         RepoDeploymentStagesReader::Result.new(stages: [ staging, production ], source: ".syrus.yml", note: nil)
       )
-      3.times do |index|
+      6.times do |index|
         blocker = Factories.job_record(user: user, repository: repo, state: "closed", landed_sha: "abc123")
         blocker.deployment_stage_statuses.create!(stage_name: "staging", reached_at: Time.zone.parse("2026-07-30T12:00:00Z"))
         blocked_job = Factories.job_record(user: user, repository: repo, state: "implemented", issue_number: 100 + index)
@@ -1488,7 +1519,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
         call(subject: "job", smart_folder_id: blocked_folder.id)
       end
 
-      expect(deployment_stage_queries).to be <= 3
+      expect(deployment_stage_queries).to be <= 1
     end
 
     it "does not show dep reason when the only dependency is already satisfied" do
@@ -1536,13 +1567,8 @@ RSpec.describe App::DashboardPayload, :ci_only do
       result = call(subject: "job")
       item = result[:items].find { |i| i[:id] == job.id }
 
-      expect(item).to include(
-        start_blocked_reason: "stack_fan_in_base_unavailable",
-        start_blocked_details: include(
-          "kind" => "fan_in_base_unavailable",
-          "dependencies" => [ { "slug" => "JOB-874" } ]
-        )
-      )
+      expect(item).to include(start_blocked_reason: "stack_fan_in_base_unavailable")
+      expect(item).not_to include(:start_blocked_details, :start_blocked_next_check_at, :start_blocked_count)
     end
 
     it "prefers the current WorkUnit blocker over historical main-health evidence" do
@@ -1624,7 +1650,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(item).to include(start_blocked_reason: nil)
     end
 
-    it "includes start_blocked_next_check_at from the WorkUnit block" do
+    it "keeps start-blocked detail off compact rows" do
       job = Factories.job_record(user: user, repository: repo, state: "queued")
       next_check = 5.minutes.from_now.iso8601
       workflow = Workflow.create!(
@@ -1643,13 +1669,10 @@ RSpec.describe App::DashboardPayload, :ci_only do
       result = call(subject: "job")
       item = result[:items].find { |i| i[:id] == job.id }
 
-      expect(item).to include(
-        start_blocked_next_check_at: next_check,
-        start_blocked_count: nil
-      )
+      expect(item).not_to include(:start_blocked_next_check_at, :start_blocked_count, :start_blocked_details)
     end
 
-    it "includes nil for start_blocked_next_check_at and start_blocked_count when absent from artifacts" do
+    it "omits empty start-blocked detail fields" do
       job = Factories.job_record(user: user, repository: repo, state: "queued")
       workflow = Workflow.create!(
         job: job,
@@ -1662,10 +1685,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       result = call(subject: "job")
       item = result[:items].find { |i| i[:id] == job.id }
 
-      expect(item).to include(
-        start_blocked_next_check_at: nil,
-        start_blocked_count: nil
-      )
+      expect(item).not_to include(:start_blocked_next_check_at, :start_blocked_count, :start_blocked_details)
     end
 
     it "shows running workflows with deferred progress as paused instead of in progress" do
@@ -1717,8 +1737,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       item = rows[:items].find { |i| i[:id] == job.id }
       expect(item[:summary_state]).to eq("paused")
       expect(item[:start_blocked_reason]).to eq("provider_availability")
-      expect(item[:start_blocked_next_check_at]).to eq(next_check.iso8601)
-      expect(item[:start_blocked_details]).to include("reason" => "worker_host_pressure_high")
+      expect(item).not_to include(:start_blocked_next_check_at, :start_blocked_details)
 
       paused_folder = SmartFolder.find_builtin_by_attention("paused")
       in_progress_folder = SmartFolder.find_builtin_by_attention("in_progress")
@@ -2390,7 +2409,9 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(result.dig(:controls, :priorities)).to include(value: "medium", label: "Media")
       expect(result.dig(:controls, :ownership_scopes)).to include(value: "mine", label: "Mea")
       expect(result.dig(:controls, :columns, :required)).to include(key: "workflow", title: "Workflow")
-      expect(result.dig(:controls, :columns, :optional)).to include(key: "run_count", title: "Run")
+      expect(result.dig(:controls, :columns, :optional).map { |column| column.fetch(:key) }).not_to include(
+        "run_count", "worker_hostname", "worker_storage_key", "cleaned_up_at"
+      )
       expect(result.dig(:controls, :kanban_lanes)).to include(key: "done", title: "Perfectum")
     end
   end

@@ -356,7 +356,7 @@ module App
           :tags,
           :pr_links,
           :deployment_stage_statuses,
-          { dependencies: [ :depends_on_epic, :depends_on_job ] },
+          { dependencies: [ :depends_on_epic, { depends_on_job: :deployment_stage_statuses } ] },
           { chat_proposals: [ :chat_session, :message_anchors ] },
           { epic: { chat_proposals: [ :chat_session, :message_anchors ] } }
         )
@@ -530,12 +530,8 @@ module App
       when [ "workflow", "finished_at" ]
         scope.reorder(Workflow.arel_table[:finished_at].public_send(direction), Workflow.arel_table[:id].public_send(direction))
       when [ "workflow", "trigger_kind" ], [ "workflow", "agent_provider" ], [ "workflow", "failure_reason" ],
-           [ "workflow", "worker_hostname" ], [ "workflow", "worker_storage_key" ],
-           [ "workflow", "created_at" ], [ "workflow", "updated_at" ], [ "workflow", "started_at" ],
-           [ "workflow", "cleaned_up_at" ]
+           [ "workflow", "created_at" ], [ "workflow", "updated_at" ], [ "workflow", "started_at" ]
         scope.reorder(Workflow.arel_table[column].public_send(direction), Workflow.arel_table[:id].public_send(direction))
-      when [ "workflow", "run_count" ]
-        scope.reorder(Arel.sql("#{workflow_run_count_sql} #{direction.to_s.upcase}"), Workflow.arel_table[:id].public_send(direction))
       else
         default_sort(scope, subject_name, direction)
       end
@@ -567,17 +563,6 @@ module App
 
     def workflow_count_sql
       "(SELECT COUNT(*) FROM workflows WHERE workflows.job_id = jobs.id)"
-    end
-
-    def workflow_run_count_sql
-      <<~SQL.squish
-        (
-          SELECT COUNT(*)
-          FROM runs
-          INNER JOIN steps ON steps.id = runs.step_id
-          WHERE steps.workflow_id = workflows.id
-        )
-      SQL
     end
 
     def epic_child_progress_percent_sql
@@ -1203,11 +1188,9 @@ module App
     def preload_workflow_step_counts(workflows)
       workflow_ids = workflows.map(&:id)
       @workflow_step_counts_by_workflow_id = {}
-      @workflow_run_counts_by_workflow_id = {}
       return if workflow_ids.empty?
 
       @workflow_step_counts_by_workflow_id = Step.where(workflow_id: workflow_ids).group(:workflow_id).count
-      @workflow_run_counts_by_workflow_id = Run.joins(:step).where(steps: { workflow_id: workflow_ids }).group("steps.workflow_id").count
     end
 
     def blocked_epic_child_counts(epic_ids)
