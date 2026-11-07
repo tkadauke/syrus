@@ -4106,3 +4106,22 @@ Bundled plugins:
   both workflow transcript routes share `App::RunArtifactsPayload.build(run:)`
   for the JSON shape so they can't drift apart — see
   `plugins/agent_activity/docs/syrus_docs/agent_activity.md`.
+
+
+## Adding a new external messaging platform
+
+
+**Core platform** (built directly into `app/`, like Telegram):
+
+1. Create a `PlatformPollingJob` subclass (e.g. `SlackPollingJob`) that implements `configured?` and `poll_once`.
+2. In `poll_once`, call `InboundMessageRouter.new(...).call` for each inbound message.
+3. Create a `PlatformDelivery` adapter subclass and register it: `PlatformDelivery::Registry.register("slack", SlackAdapter)`.
+4. Add the platform slug to `PlatformIdentity::PLATFORMS`.
+5. Add any required `AppSetting` columns for the bot token/handle.
+
+**Plugin platform** (a self-contained plugin gem, e.g. `plugins/discord/`):
+
+1. Create an adapter class that includes `Syrus::Plugin::PlatformDelivery` and implements `.platform_key` (e.g. `"discord"`), `#deliver(message:, platform_identity:)`, and optionally `.connector_job_class` (a `PlatformPollingJob` subclass for the plugin's inbound listener, if it has one).
+2. Register it from the plugin gem's engine initializer: `Syrus::PluginRegistry.register(name: "discord", version: "1.0.0", provides: { platform_delivery: Discord::PlatformAdapter })`.
+3. `PlatformDelivery::Registry.for`, `PlatformIdentity.available_platforms`, and boot-time connector start all pick it up automatically, respecting the plugin's `PluginRecord` enable/disable state. No core code change needed.
+4. If the platform needs custom linking instructions (bot handle, DM command, etc.), also implement `.platform_config_class` on the adapter, returning a `PlatformIdentity::PlatformConfig::Base` subclass defined in the plugin gem (e.g. `Discord::PlatformConfig`, implementing `#configured?` and `#instructions(token)`). `PlatformIdentity::PlatformConfig::Base.for` consults this hook for plugin platforms; leaving it unset (or omitting the method) falls back to `PlatformIdentity::PlatformConfig::Unconfigured` (shows up in Settings, not connectable).

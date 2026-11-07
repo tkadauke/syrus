@@ -1,228 +1,26 @@
 # Workflow Warnings
 
-`WorkflowWarning` is a generic, reusable mechanism for surfacing
-deterministic, structural findings on the Job details page with a
-one-click "file a fix Job" action. It is **always on** — unlike
-`InsightSuggestion` (gated behind the `agent_insights` Labs flag, see
-`agent_insights.md`), warnings are core grading hygiene, not an
-experimental feature, and are visible to every operator regardless of
-Labs opt-in.
+Warnings are non-fatal findings attached to a Workflow. Current kinds and
+their triggers are:
 
-## Model
+- `grader_side_effect` — a grader changed files outside allowed generated paths.
+- `grader_git_metadata_changed` — a grader changed immutable `.git` metadata.
+- `formatter_like_grader_failure` — a grader failed with changes that look like
+  formatter or autofix output.
+- `prepare_target_side_effect` — target preparation changed protected source.
+- `implementation_capability_escalation` — implementation discovered that its
+  declared mutable-workspace placement is inadequate.
+- `agent_cannot_proceed` — an agent reported a concrete environmental blocker.
+- `review_execution_skipped` — a review could not execute and was skipped under
+  the configured policy.
+- `visual_review_blocked` — visual review could not collect required evidence.
+- `skipped_target_ci_failure` — target CI reported a failure on a skipped path.
+- `coverage_branches_threshold_miss` — branch coverage missed its configured
+  threshold while the configured policy allowed the Workflow to continue.
+- `insight_job_not_discoverable` — a generated insight Job is not discoverable
+  through its expected repository or dashboard surface.
 
-`WorkflowWarning` is deliberately structured like `InsightSuggestion`
-(title/severity/evidence/suggested_prompt/state/created_job — a proven
-shape already in this codebase) but lives in its own table and carries
-its own linkage:
-
-| Field               | Type      | Description                                                  |
-|---------------------|-----------|----------------------------------------------------------------|
-| `kind`               | string    | Open-ended discriminator, e.g. `"grader_side_effect"`.        |
-| `severity`           | string    | `low` / `medium` / `high`.                                     |
-| `title`              | string    | Short, human-readable summary.                                 |
-| `evidence`           | json      | Structured detail specific to `kind`.                          |
-| `suggested_prompt`   | text      | Pre-filled prompt for the "File a fix Job" action.              |
-| `job_id`             | reference | The Job the finding belongs to.                                 |
-| `workflow_id`        | reference | The Workflow the finding was recorded during.                   |
-| `step_id`            | reference | Optional — the specific Step the finding is scoped to.          |
-| `state`              | string    | `pending` / `dismissed`.                                        |
-| `created_job_id`     | reference | Set once the fix-Job button is used.                             |
-
-## Recording a warning
-
-Any Step handler can record a warning with:
-
-```ruby
-WorkflowWarnings.record!(
-  workflow: workflow,
-  step: step,               # optional
-  kind: "some_new_kind",
-  severity: "medium",       # default
-  title: "Short summary",
-  evidence: { "key" => "value" },
-  suggested_prompt: "..."   # optional
-)
-```
-
-This is the entire reusable surface — a future check calls this same
-helper with a new `kind` string and gets storage, generic rendering on
-the Job details page, and insight-job discoverability for free, with
-zero new frontend code required per new kind.
-
-## Grader side-effect detection
-
-`Steps::Grader` captures `git status --porcelain` immediately before and
-after each grader command runs. If the porcelain output differs, it
-records a `kind: "grader_side_effect"` warning with
-`evidence: { "grader_name" => ..., "command" => ..., "changed_files" => [...] }`
-and a `suggested_prompt` that asks the agent to reproduce the grader
-locally, decide whether the changed output should be gitignored, and — if
-the output is genuinely important — consider moving the command from
-`grade:` to `.syrus.yml`'s `formatters:`/`generated:` section instead of
-leaving it as a mutating validation step.
-
-Grader pass/fail is completely untouched by this — purely additive,
-matching the non-fatal posture of `record_prepare_soft_failure!`
-(`app/services/steps/prepare.rb`) and `record_autofix_failure!`
-(`app/services/steps/autofix.rb`).
-
-## Grader git-metadata immutability
-
-A grader validates a checkout; it has no business writing the repository
-metadata inside it. `Steps::Grader` digests `.git`'s `HEAD`, `index`,
-`packed-refs`, `refs` and `logs` before and after the grader command and
-records a `kind: "grader_mutated_git_metadata"` warning naming the paths that
-changed, with a `suggested_prompt` asking for the offending command or spec to
-operate on a scratch repository instead.
-
-This is a correctness precondition, not tidiness. A grader checkout is
-materialized from a prepared tree that is shared by every grader on the host,
-so `.git` can only be shared -- through a hard link, an overlay lower, or a
-read-only image layer -- while nothing writes it. The warning is how that
-invariant gets verified before more of the materialization design depends on
-it.
-
-Detection, not refusal: a grader that writes `.git` is a repository
-configuration problem, and failing a landing grader over it would turn that
-into a stalled landing queue. The accidental cause is removed separately --
-grader commands run with `GIT_OPTIONAL_LOCKS=0`, because `git status` and
-`git diff` rewrite `.git/index` opportunistically when they notice stat
-changes, which would otherwise make every grader that shells out to git a
-writer of the tree its siblings are reading.
-
-## Formatter-like grader failures
-
-`Steps::Grader` also records a `kind: "formatter_like_grader_failure"`
-warning when a failing grader's name or command looks like a deterministic
-formatter/style checker (`usort`, `black`, `ruff`, `rubocop`, `prettier`,
-`eslint`, `gofmt`, `rustfmt`, and similar tools). The warning includes
-`evidence: { "grader_name" => ..., "command" => ..., "exit_code" => ...,
-"timed_out" => ..., "suggested_section" => "formatters" }` and asks the agent
-to decide whether the command should remain a check-only grader or move to
-`.syrus.yml`'s `formatters:` section so Syrus can apply deterministic fixes
-before semantic graders run.
-
-This is advisory only. Some teams intentionally keep style tools as
-check-only graders; the warning exists to make expensive formatter drift and
-timeout patterns visible instead of treating them like opaque test failures.
-
-## Prepare target side-effect detection
-
-`Steps::Grader` (via the shared `Steps::PrepareTargetExecution` module, also
-used by `Steps::PreflightGrader`) runs the same before/after `git status
---porcelain` check around each `kind: prepare` target dependency it runs
-(see `target_graph.md`'s "Prepare Semantics"). A `kind:
-"prepare_target_side_effect"` warning is recorded with `evidence: {
-"target_label" => ..., "commands" => ..., "changed_files" => [...] }` and a
-`suggested_prompt` that asks the agent to decide whether the mutated files
-should be gitignored, or the command moved out of `prepare:`/its `targets:`
-entry into `formatters:`/`generated:` — prepare targets are declared
-idempotent environment setup and should never modify tracked source files.
-Like the grader consumer above, this never fails the grader Step or the
-workflow.
-
-## Implementation capability escalation
-
-`Steps::GraderFanout` records a `kind:
-"implementation_capability_escalation"` warning when the actual changed files
-affect a target whose capabilities are stricter than the Workflow's planned
-primary implementation capabilities. The evidence includes the planned
-capabilities, the most constrained affected target, the required capabilities,
-all affected targets tied at the highest constraint level, dimension-level
-mismatches for any tied target the planned worker does not satisfy, and the
-affected target capability set.
-
-This warning is a post-hoc safety net. Planning should still choose a
-conservative primary worker before implementation starts: mixed iOS plus
-backend work should run the implementation on a Mac/Xcode-capable worker, even
-though backend graders may later run on Linux. Syrus does not silently migrate a
-mutable workspace across platforms; the remediation path is to retry or
-continue through an explicit checkpoint/handoff on a capable worker, split the
-work by platform, or dismiss the warning only when platform-specific graders
-fully validate the change.
-
-## Agent cannot proceed
-
-Agentic implementation and repair steps record a `kind:
-"agent_cannot_proceed"` warning through `report_cannot_proceed` when they have
-verified that the requested work is blocked by the workflow environment or by
-missing workflow capabilities. The warning evidence includes the reason,
-details, Run id, Step id, and report timestamp. Unlike advisory grader
-warnings, this one is paired with a terminal `blocked` Run/Step/Workflow state
-and a Job `needs_attention_reason` of `agent_cannot_proceed`, so the operator
-can read the blocker without opening the transcript and decide whether to file
-a follow-up Job from the warning.
-
-## Review execution skipped
-
-`Steps::VisualReview` and `Steps::AdversarialReview` record a `kind:
-"review_execution_skipped"` warning when an advisory review cannot execute and
-the repository has not marked that review `required: true` in `.syrus.yml`.
-Examples include visual preview preparation failures and adversarial reviewer
-execution failures that do not represent a completed review verdict. The
-associated Step and Run finish `skipped` rather than `succeeded`, and the
-warning evidence includes `review_kind`, `reason`, `run_id`, and `step_id`.
-When the corresponding `.syrus.yml` block sets `required: true`, the workflow
-fails instead of recording this warning.
-
-## Visual review blocked evidence
-
-A visual review that reaches a verdict can still record a `kind:
-"visual_review_blocked_evidence"` warning when every captured screenshot is
-an authentication, credentials, or error wall, or when the reviewer submits a
-`skipped` verdict because the preview environment blocked access to the
-intended surface. The review remains a soft outcome rather than failing the
-workflow, but the warning keeps the missing evidence visible on the Job and
-Workflow instead of presenting the review as unqualified success. Its evidence
-includes the reason, submitted verdict, Run id, and Step id.
-
-## Skipped target CI failures
-
-`PollPullRequestJob` records a `kind: "ci_failed_skipped_target"` warning when
-a failed GitHub check maps to a TargetGraph target and a prior grader fanout
-selection on that Job recorded the same target as skipped/unaffected. This is
-an undercoverage signal: CI proved a target was relevant after Syrus target
-selection decided it did not need to run.
-
-The warning evidence includes the failing check name, conclusion, log URL,
-target label, project id/label, source scope, dependency labels, the prior
-selection workflow id/trigger kind/reason, target fingerprints when available,
-and a dedupe key for the check/head/target tuple. The suggested prompt asks the
-agent to investigate whether the repository should add a `deps:` edge, move a
-grader or repo check into a nested `.syrus.yml`, widen `sources:`, or declare an
-explicit target with `ci_checks:` matching the GitHub check name.
-
-## Coverage branch-threshold misses
-
-`Steps::CoverageAnalyze` records a `kind: "coverage_branches_threshold_miss"`
-warning when measured branch coverage falls below `coverage.threshold.branches`
-in `.syrus.yml`, with `evidence: { "branches_pct" => ..., "threshold_branches" =>
-... }` and a `suggested_prompt` to add tests for the uncovered branches. Unlike
-`coverage.threshold.lines`/`pr_lines`, a branches miss never goes through
-`coverage.on_miss` (block/warn/schedule) and never fails the step — it is
-always this soft warning. See `coverage.md`.
-
-## Frontend rendering
-
-The Job details page (`app/frontend/routes/jobDetail/WorkflowGraph.tsx`)
-renders each Step's `warnings` array with one generic panel component
-driven entirely by `kind`/`title`/`evidence` — there is no per-kind
-branching, so new warning kinds need zero new frontend code. Each warning
-shows a "File a fix Job" button that opens an editable, pre-filled prompt
-(the same edit-then-confirm UX shape `InsightSuggestion`'s Accept flow
-already established) and posts to
-`POST /api/v1/app/jobs/:job_id/workflow_warnings/:id/file_job`, which
-creates a `direct` Job from the (possibly-edited) prompt and stamps
-`created_job_id` on the warning. Warnings can also be dismissed via
-`POST /api/v1/app/jobs/:job_id/workflow_warnings/:id/dismiss`.
-
-## Insight-job discoverability
-
-`list_recent_workflows` (the MCP tool `agent_insight_run` workflows use
-to survey recent workflow history, see `agent_insights.md`) includes each
-workflow's associated `WorkflowWarning` rows in its `warnings` field. An
-insight agent's normal read-only survey therefore picks these up
-automatically as evidence for higher-level pattern suggestions — e.g.
-noticing a grader has repeatedly triggered a `grader_side_effect` warning
-and proposing a `formatters:`/`generated:` reclassification via
-`submit_insight`.
+Warnings remain visible on Workflow and Job review surfaces so reviewers can
+decide whether a successful Workflow is acceptable. Persistence, recording,
+endpoint, React, and immutable-checkout design details live in [workflow-warning
+architecture](../../docs/engineering/architecture/workflow-warnings.md).
