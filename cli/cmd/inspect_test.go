@@ -410,7 +410,7 @@ func TestJobLogPrintsJSON(t *testing.T) {
 		if r.URL.Path != "/api/v1/app/jobs/42/runs/latest/artifacts" {
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
-		w.Write([]byte(`{"job_id":42,"run_id":7,"run_state":"running","complete":false,"logs":[{"chunk":"hello"}]}`))
+		w.Write([]byte(`{"job_id":42,"run_id":7,"run_state":"running","complete":false,"logs":[{"kind":"tool_call","chunk":"Read config.yml","tool_input":{"file_path":"config.yml"}}]}`))
 	}))
 	defer server.Close()
 	withCredentials(t, server.URL, "secret-token")
@@ -433,6 +433,9 @@ func TestJobLogPrintsJSON(t *testing.T) {
 	}
 	if decoded.JobID != 42 || decoded.Complete || len(decoded.Lines) != 1 {
 		t.Fatalf("decoded = %+v", decoded)
+	}
+	if decoded.Lines[0] != "Read config.yml" {
+		t.Fatalf("tool log line = %q", decoded.Lines[0])
 	}
 }
 

@@ -44,15 +44,16 @@ module Api
 
             artifact = params[:artifact].presence || "transcript"
             max_sequence = run.job_logs.maximum(:sequence) if artifact == "transcript"
-            validator = artifact == "transcript" ? max_sequence : [ run.updated_at, artifact ]
-            return unless stale?(etag: [ "run-artifact", run.id, artifact, validator, params[:after_sequence] ], public: false)
+            validator = artifact == "transcript" ? [ max_sequence, run.state, run.updated_at, run.job.closed? ] : [ run.updated_at, artifact ]
+            return unless stale?(etag: [ "run-artifact", run.id, artifact, validator, params[:page], params[:per], params[:after_sequence], params[:full] ], public: false)
 
             render json: ::App::RunArtifactsPayload.build(
               run: run,
               artifact: artifact,
               page: params[:page],
               per: params[:per],
-              after_sequence: params[:after_sequence]
+              after_sequence: params[:after_sequence],
+              full: params[:full]
             )
           end
 

@@ -330,15 +330,16 @@ module Api
 
           artifact = params[:artifact].presence || "transcript"
           max_sequence = run.job_logs.maximum(:sequence) if artifact == "transcript"
-          validator = artifact == "transcript" ? max_sequence : [ run.updated_at, artifact ]
-          return unless stale?(etag: [ "run-artifact", run.id, artifact, validator, params[:after_sequence] ], public: false)
+          validator = artifact == "transcript" ? [ max_sequence, run.state, run.updated_at, job.closed? ] : [ run.updated_at, artifact ]
+          return unless stale?(etag: [ "run-artifact", run.id, artifact, validator, params[:page], params[:per], params[:after_sequence], params[:full] ], public: false)
 
           render json: ::App::RunArtifactsPayload.build(
             run: run,
             artifact: artifact,
             page: params[:page],
             per: params[:per],
-            after_sequence: params[:after_sequence]
+            after_sequence: params[:after_sequence],
+            full: params[:full]
           )
         end
 
@@ -376,12 +377,14 @@ module Api
             return
           end
 
+          lines, lines_truncated = bounded_legacy_transcript(run)
           render json: {
             job_id: job.id,
             run_id: run.id,
             state: run.state,
             complete: job.closed?,
-            lines: bounded_legacy_transcript_lines(run)
+            lines: lines,
+            lines_truncated: lines_truncated
           }
         end
 
@@ -471,10 +474,19 @@ module Api
 
         private
 
-        def bounded_legacy_transcript_lines(run)
-          lines = run.job_logs.reorder(sequence: :desc, id: :desc).limit(LEGACY_TRANSCRIPT_MAX_LINES).pluck(:chunk).reverse.map(&:to_s)
+        def bounded_legacy_transcript(run)
+          limit = [[params.fetch(:limit, LEGACY_TRANSCRIPT_MAX_LINES).to_i, 1].max, LEGACY_TRANSCRIPT_MAX_LINES].min
+          scope = run.job_logs.reorder(sequence: params[:tail] == "false" ? :asc : :desc, id: params[:tail] == "false" ? :asc : :desc)
+          lines = scope.limit(limit).pluck(:chunk)
+          lines.reverse! unless params[:tail] == "false"
+          lines.map!(&:to_s)
           bytes = 0
-          lines.reverse_each.take_while { |line| (bytes += line.bytesize) <= LEGACY_TRANSCRIPT_MAX_BYTES }.reverse
+          bounded = if params[:tail] == "false"
+            lines.take_while { |line| (bytes += line.bytesize) <= LEGACY_TRANSCRIPT_MAX_BYTES }
+          else
+            lines.reverse_each.take_while { |line| (bytes += line.bytesize) <= LEGACY_TRANSCRIPT_MAX_BYTES }.reverse
+          end
+          [ bounded, bounded.length < lines.length || run.job_logs.count > limit ]
         end
 
         # find_job/find_job_by_param resolve against the widened,

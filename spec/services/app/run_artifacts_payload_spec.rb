@@ -63,8 +63,8 @@ RSpec.describe App::RunArtifactsPayload do
     older_page = described_class.build(run: run, artifact: "transcript", page: 2, per: 2)
 
     expect(newer_page).to include(logs_count: 4, logs_page: 1, logs_per_page: 2, logs_total_pages: 2, logs_has_older: true)
-    expect(newer_page[:logs].map { |log| log[:chunk] }).to eq([ "", "", "after" ])
-    expect(older_page[:logs].map { |log| log[:chunk] }).to eq([ "before", "", "" ])
+    expect(newer_page[:logs].map { |log| log[:chunk] }).to eq(%w[call result after])
+    expect(older_page[:logs].map { |log| log[:chunk] }).to eq(%w[before call result])
     expect(newer_page[:logs].first).to include(tool_input: { "file_path" => "app.rb" })
     expect(newer_page[:logs].second).to include(tool_result_content: "contents")
   end
@@ -102,6 +102,9 @@ RSpec.describe App::RunArtifactsPayload do
 
     expect(payload[:agent_diff].bytesize).to eq(described_class::MAX_DIFF_BYTES)
     expect(payload).to include(agent_diff_bytes: diff.bytesize, agent_diff_truncated: true)
+
+    full_payload = described_class.build(run: job.runs.last, artifact: "agent_diff", full: true)
+    expect(full_payload).to include(agent_diff: diff, agent_diff_bytes: diff.bytesize, agent_diff_truncated: false)
   end
 
   it "defaults workflow_id to nil when the run has no step" do
