@@ -95,10 +95,8 @@ export const fetchPermissionRequests = (page = 1, q = "", view?: "summary") => {
   }
   return getJson<PermissionRequestsPayload>(`/api/v1/app/permission_requests?${params}`)
 }
-export const fetchPermissionRequestCount = () =>
-  getJson<Pick<PermissionRequestsPayload, "summary">>("/api/v1/app/permission_requests/count")
-export const fetchPermissionRequest = (id: number) =>
-  getJson<{ request: PermissionRequest }>(`/api/v1/app/permission_requests/${id}`)
+export const fetchPermissionRequestCount = () => getJson<Pick<PermissionRequestsPayload, "summary">>("/api/v1/app/permission_requests/count")
+export const fetchPermissionRequest = (id: number) => getJson<{ request: PermissionRequest }>(`/api/v1/app/permission_requests/${id}`)
 export const decidePermissionRequest = (id: number, decision: "approved" | "denied", duration?: string) =>
   postJson<{ request: MutationPermissionRequest }>(`/api/v1/app/permission_requests/${id}/decide`, { decision, duration })
 export const dismissPermissionRequest = (id: number) => {

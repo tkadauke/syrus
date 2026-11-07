@@ -8,7 +8,13 @@ import { PermissionInboxDrawer } from "./PermissionInboxDrawer"
 
 vi.mock("../api/permissionRequests", async () => {
   const actual = await vi.importActual<typeof import("../api/permissionRequests")>("../api/permissionRequests")
-  return { ...actual, fetchPermissionRequests: vi.fn(), fetchPermissionRequestCount: vi.fn(), fetchPermissionRequest: vi.fn(), decidePermissionRequest: vi.fn() }
+  return {
+    ...actual,
+    fetchPermissionRequests: vi.fn(),
+    fetchPermissionRequestCount: vi.fn(),
+    fetchPermissionRequest: vi.fn(),
+    decidePermissionRequest: vi.fn()
+  }
 })
 
 describe("PermissionInboxDrawer", () => {

@@ -56,9 +56,9 @@ describe("PermissionRequestCard smart actions", () => {
   it("lazily restores smart actions for a summary request", async () => {
     const summaryItem = { ...request.items[0] }
     delete summaryItem.smart_option
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ request }), { status: 200, headers: { "Content-Type": "application/json" } })
-    )
+    const fetchSpy = vi
+      .spyOn(window, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ request }), { status: 200, headers: { "Content-Type": "application/json" } }))
 
     render(
       <QueryClientProvider client={new QueryClient()}>
