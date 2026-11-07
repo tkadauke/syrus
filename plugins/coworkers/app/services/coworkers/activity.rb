@@ -1,4 +1,9 @@
+require "base64"
+
 class Coworkers::Activity
+  PAGE_SIZE = 50
+  class InvalidCursor < StandardError; end
+
   def self.weekly_spend_by_coworker(coworkers:, user:, now: Time.current)
     coworker_ids = coworkers.map(&:id)
     return {} if coworker_ids.empty?
@@ -22,14 +27,17 @@ class Coworkers::Activity
     end.transform_values(&:to_f)
   end
 
-  def initialize(coworker:, user:, now: Time.current)
+  def initialize(coworker:, user:, now: Time.current, runs_cursor: nil, side_chats_cursor: nil)
     @coworker = coworker
     @user = user
     @now = now
+    @runs_cursor = runs_cursor
+    @side_chats_cursor = side_chats_cursor
   end
 
   def call
-    ordered_runs = runs.order(created_at: :desc, id: :desc).to_a
+    ordered_runs = page(runs, @runs_cursor)
+    ordered_side_chats = page(side_chats, @side_chats_cursor)
     tool_call_counts = JobLog.where(run_id: ordered_runs.map(&:id), kind: "tool_call").group(:run_id).count
 
     {
@@ -38,7 +46,11 @@ class Coworkers::Activity
         total_usd: decimal_to_float(chats.sum(:cumulative_cost_usd) + runs.sum(:cost_usd))
       },
       runs: ordered_runs.map { |run| run_json(run, tool_call_counts) },
-      side_chats: side_chats.map { |chat| side_chat_json(chat) }
+      side_chats: ordered_side_chats.map { |chat| side_chat_json(chat) },
+      next_cursors: {
+        runs: next_cursor(ordered_runs),
+        side_chats: next_cursor(ordered_side_chats)
+      }
     }
   end
 
@@ -63,7 +75,25 @@ class Coworkers::Activity
   def side_chats
     side_ids = coworker.coworker_chats.where(role: "side").select(:chat_session_id)
     ChatSession.where(id: side_ids)
-      .order(last_message_at: :desc, id: :desc)
+  end
+
+  def page(relation, cursor)
+    return [] if cursor == ""
+
+    relation = relation.where("id < ?", decode_cursor(cursor)) if cursor.present?
+    relation.order(id: :desc).limit(PAGE_SIZE).to_a
+  end
+
+  def next_cursor(records)
+    return unless records.size == PAGE_SIZE
+
+    Base64.urlsafe_encode64(records.last.id.to_s, padding: false)
+  end
+
+  def decode_cursor(cursor)
+    Integer(Base64.urlsafe_decode64(cursor.to_s))
+  rescue ArgumentError
+    raise InvalidCursor, "invalid activity cursor"
   end
 
   def chat_spend_entries

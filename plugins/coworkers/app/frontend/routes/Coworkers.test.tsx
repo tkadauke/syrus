@@ -26,6 +26,7 @@ const grantCatalog = [
 }))
 
 const summaryPayload = {
+  accent_hexes: ["#E5484D"],
   syrus: {
     id: "syrus",
     name: "Syrus",
@@ -124,11 +125,15 @@ const detailPayload = {
     }
   }
 }
+// Generic test handlers serve the same fixture for the identity and tab endpoints.
+Object.assign(detailPayload, detailPayload.coworker)
 
 const activityPayload = {
   spend: { week_usd: 0.75, total_usd: 1.25 },
   runs: [],
-  side_chats: []
+  side_chats: [],
+  next_cursors: { runs: null, side_chats: null },
+  message_traffic: detailPayload.coworker.message_traffic
 }
 
 afterEach(() => vi.unstubAllGlobals())
@@ -279,6 +284,9 @@ it("adds a coworker to a selected chat from the coworker page", async () => {
       const path = String(input)
       if (init?.method === "POST") requests.push(path)
       if (path === "/api/v1/app/coworkers/7") return jsonResponse(detailPayload)
+      if (path.endsWith("/chats")) {
+        return jsonResponse({ chats: detailPayload.coworker.chats, available_chats: detailPayload.coworker.available_chats })
+      }
       return jsonResponse({ agent: { id: 7 } }, 201)
     })
   )
@@ -294,7 +302,14 @@ it("adds a coworker to a selected chat from the coworker page", async () => {
 it("shows sent and received message traffic on the Activity tab", async () => {
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (input: RequestInfo | URL) => jsonResponse(String(input).endsWith("/activity") ? activityPayload : detailPayload))
+    vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path.endsWith("/activity")) return jsonResponse(activityPayload)
+      if (path.endsWith("/chats")) {
+        return jsonResponse({ chats: detailPayload.coworker.chats, available_chats: detailPayload.coworker.available_chats })
+      }
+      return jsonResponse(detailPayload)
+    })
   )
   renderRoute("/coworkers/7")
 
@@ -309,6 +324,35 @@ it("shows sent and received message traffic on the Activity tab", async () => {
   expect(screen.getByText("Last 30 days")).toBeInTheDocument()
   expect(screen.getByText("4")).toBeInTheDocument()
   expect(screen.getByText("7")).toBeInTheDocument()
+})
+
+it("loads older activity through the returned cursors", async () => {
+  const fetchSpy = vi.fn(async (input: RequestInfo | URL) => {
+    const path = String(input)
+    if (path === "/api/v1/app/coworkers/7") return jsonResponse(detailPayload)
+    if (path.endsWith("/chats")) {
+      return jsonResponse({ chats: detailPayload.coworker.chats, available_chats: detailPayload.coworker.available_chats })
+    }
+    if (path.includes("runs_cursor=")) {
+      return jsonResponse({
+        ...activityPayload,
+        runs: [{ id: 1, job_id: 1, state: "succeeded", started_at: null, finished_at: null, tool_calls_count: 0, cost_usd: 0 }]
+      })
+    }
+    return jsonResponse({
+      ...activityPayload,
+      runs: [{ id: 51, job_id: 51, state: "succeeded", started_at: null, finished_at: null, tool_calls_count: 0, cost_usd: 0 }],
+      next_cursors: { runs: "NTE", side_chats: null }
+    })
+  })
+  vi.stubGlobal("fetch", fetchSpy)
+  renderRoute("/coworkers/7")
+
+  fireEvent.click(await screen.findByRole("button", { name: "Activity" }))
+  fireEvent.click(await screen.findByRole("button", { name: "Load more" }))
+
+  expect(await screen.findByText("RUN-1")).toBeInTheDocument()
+  expect(fetchSpy.mock.calls.some(([input]) => String(input).includes("runs_cursor=NTE"))).toBe(true)
 })
 
 it("does not offer removal for the coworker's implicit own chat", async () => {
@@ -343,10 +387,10 @@ it("renders the custom profile, editable capabilities, and creates side chats", 
   expect(await screen.findByRole("heading", { name: "Maya" })).toBeInTheDocument()
   expect(screen.getByRole("link", { name: "Main chat" })).toHaveAttribute("href", "/chats/12")
   fireEvent.click(screen.getByRole("button", { name: "Profile" }))
-  expect(screen.getByText("gpt-6.1-sol")).toBeInTheDocument()
+  expect(await screen.findByText("gpt-6.1-sol")).toBeInTheDocument()
   expect(screen.getByText(/Curious and concise/)).toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
-  expect(screen.getByRole("heading", { name: "Permission cutover report" })).toBeInTheDocument()
+  expect(await screen.findByRole("heading", { name: "Permission cutover report" })).toBeInTheDocument()
   expect(screen.getByText("Blocked")).toBeInTheDocument()
   expect(screen.getByText(/workspace.files: missing explicit descriptors/)).toBeInTheDocument()
   expect(screen.getByText("This coworker can read and edit workspace files.")).toBeInTheDocument()
@@ -368,7 +412,7 @@ it("confirms grant escalation and refreshes the live tool surface", async () => 
   renderRoute("/coworkers/7")
   await screen.findByRole("heading", { name: "Maya" })
   fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
-  fireEvent.change(screen.getByRole("combobox", { name: "Approval policy for workspace.shell" }), { target: { value: "confirm" } })
+  fireEvent.change(await screen.findByRole("combobox", { name: "Approval policy for workspace.shell" }), { target: { value: "confirm" } })
 
   expect(confirm).toHaveBeenCalledOnce()
   await waitFor(() =>
@@ -377,7 +421,7 @@ it("confirms grant escalation and refreshes the live tool surface", async () => 
       expect.objectContaining({ method: "PATCH", body: expect.stringContaining('"confirmed":true') })
     )
   )
-  await waitFor(() => expect(fetchSpy.mock.calls.filter(([input]) => String(input) === "/api/v1/app/coworkers/7")).toHaveLength(2))
+  await waitFor(() => expect(fetchSpy.mock.calls.filter(([input]) => String(input) === "/api/v1/app/coworkers/7/capabilities")).toHaveLength(2))
 })
 
 it("preserves a scoped grant when changing its policy and allows disabling it", async () => {
@@ -413,7 +457,7 @@ it("preserves a scoped grant when changing its policy and allows disabling it", 
   renderRoute("/coworkers/7")
   await screen.findByRole("heading", { name: "Maya" })
   fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
-  expect(screen.getByRole("combobox", { name: "Scope for Database" })).toHaveValue("22")
+  expect(await screen.findByRole("combobox", { name: "Scope for Database" })).toHaveValue("22")
   expect(screen.getByText("Unlocks: read_database")).toBeInTheDocument()
 
   fireEvent.change(screen.getByRole("combobox", { name: "Approval policy for database.read" }), { target: { value: "queue" } })
@@ -456,7 +500,7 @@ it("explains an unavailable privileged grant while preserving revocation", async
   await screen.findByRole("heading", { name: "Maya" })
   fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
 
-  expect(screen.getByText("Unavailable until a live worker verifies confined coworker execution.")).toBeInTheDocument()
+  expect(await screen.findByText("Unavailable until a live worker verifies confined coworker execution.")).toBeInTheDocument()
   const policy = screen.getByRole("combobox", { name: "Approval policy for database.read" })
   expect(policy).toBeEnabled()
   expect(within(policy).getByRole("option", { name: "Confirm" })).toBeDisabled()
@@ -497,7 +541,7 @@ it("sends the displayed default scope when enabling a scoped grant", async () =>
   renderRoute("/coworkers/7")
   await screen.findByRole("heading", { name: "Maya" })
   fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
-  expect(screen.getByRole("combobox", { name: "Scope for Database" })).toHaveValue("11")
+  expect(await screen.findByRole("combobox", { name: "Scope for Database" })).toHaveValue("11")
 
   fireEvent.change(screen.getByRole("combobox", { name: "Approval policy for database.read" }), { target: { value: "confirm" } })
 
@@ -530,7 +574,7 @@ it("confirms before removing a protected workspace path", async () => {
   renderRoute("/coworkers/7")
   await screen.findByRole("heading", { name: "Maya" })
   fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
-  fireEvent.change(screen.getByPlaceholderText("SOUL.md, AGENTS.md"), { target: { value: "SOUL.md" } })
+  fireEvent.change(await screen.findByPlaceholderText("SOUL.md, AGENTS.md"), { target: { value: "SOUL.md" } })
   fireEvent.click(screen.getByRole("button", { name: "Save constraints" }))
 
   expect(confirm).toHaveBeenCalledOnce()
@@ -565,7 +609,7 @@ it("surfaces and saves per-run and per-day Syrus chat spawn limits", async () =>
   await screen.findByRole("heading", { name: "Maya" })
   fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
 
-  const runInput = screen.getAllByRole("spinbutton", { name: "Maximum per run" }).find((input) => input.getAttribute("value") === "2")
+  const runInput = (await screen.findAllByRole("spinbutton", { name: "Maximum per run" })).find((input) => input.getAttribute("value") === "2")
   const dayInput = screen.getAllByRole("spinbutton", { name: "Maximum per day" }).find((input) => input.getAttribute("value") === "8")
   const save = screen.getAllByRole("button", { name: "Save spawn limits" }).find((button) => !button.hasAttribute("disabled"))
   expect(runInput).toBeDefined()
@@ -756,6 +800,7 @@ it("keeps unsaved recovery visible when the remote workspace is unavailable", as
   const fetchSpy = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     if (init?.method === "POST") return jsonResponse({ unsaved_workspace: detail.coworker.chats[0].unsaved_workspace })
     if (String(input).includes("/workspace")) return jsonResponse({ error: "remote_unavailable" }, 503)
+    if (String(input).endsWith("/chats")) return jsonResponse({ chats: detail.coworker.chats, available_chats: [] })
     return jsonResponse(detail)
   })
   vi.stubGlobal("fetch", fetchSpy)
@@ -811,7 +856,7 @@ it("lists and manages schedules on the coworker page", async () => {
   await screen.findByRole("heading", { name: "Maya" })
   fireEvent.click(screen.getByRole("button", { name: "Schedule" }))
 
-  expect(screen.getByText("Morning briefing")).toBeInTheDocument()
+  expect(await screen.findByText("Morning briefing")).toBeInTheDocument()
   expect(screen.getByText(/Every day at 9:00 AM UTC/)).toBeInTheDocument()
   expect(screen.getByRole("combobox", { name: "After each run" })).toHaveValue("wake")
   const firedRow = screen.getByText("Completed one-shot").closest("li")

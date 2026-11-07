@@ -2926,6 +2926,30 @@ describe("DesignDocsSurface", () => {
     expect(await screen.findByText("This design doc is archived. Content, comments, suggestions, and reviews are read only.")).toBeInTheDocument()
   })
 
+  it("refreshes metadata and permissions after a delta-only controls response", async () => {
+    let detail = docDetail
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
+      const url = new URL(String(input), "http://test.host")
+      if (url.pathname === "/api/v1/app/repositories") {
+        return jsonResponse({ active_repositories: [{ id: 10, slug: "acme/widgets" }], archived_repositories: [], new_repository_path: "/repositories/new" })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/1" && init?.method === "PATCH") {
+        detail = { ...docDetail, state: "archived", canonical_revision: "revision-2", permissions: archivedDocDetail.permissions }
+        return jsonResponse({ canonical_revision: "revision-2", mode: "canonical", message: "Design doc metadata updated." })
+      }
+      if (url.pathname === "/api/v1/app/design_docs/1") return jsonResponse({ design_doc: detail })
+      return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
+    })
+    renderSurface("/design_docs/1")
+
+    await screen.findByRole("textbox", { name: "Rich Text editor" })
+    fireEvent.click(screen.getByRole("button", { name: "Archive" }))
+
+    expect(await screen.findByRole("button", { name: "Unarchive" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument()
+    expect(fetchSpy.mock.calls.filter((call) => String(call[0]) === "/api/v1/app/design_docs/1")).toHaveLength(3)
+  })
+
   it("renders archived docs as read-only without edit, comment, or review controls", async () => {
     mockFetch()
     renderSurface("/design_docs/5")
@@ -3501,9 +3525,10 @@ describe("DesignDocsSurface", () => {
           ...currentDoc,
           title: payload.design_doc.title,
           markdown: payload.design_doc.markdown,
-          rendered_markdown: payload.design_doc.markdown
+          rendered_markdown: payload.design_doc.markdown,
+          canonical_revision: "revision-2"
         }
-        return jsonResponse({ design_doc: currentDoc, mode: "canonical", message: "Design doc updated." })
+        return jsonResponse({ canonical_revision: "revision-2", mode: "canonical", message: "Design doc updated." })
       }
       return jsonResponse({ error: { message: `Unhandled ${url.pathname}` } }, 404)
     })

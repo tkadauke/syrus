@@ -311,6 +311,15 @@ false }` instead of an error — enough for the popup to render a minimal
 "Not accessible" state without leaking whether the doc exists, its title, or
 any other field.
 
+Design Doc indexes and version histories are paginated. Detail payloads expose
+one `rendered_markdown` body, relationship objects without duplicate ID arrays,
+and suggestions refer to their separately serialized thread by `thread_id`.
+Version lists contain metadata only; selecting a version loads its body and
+historical threads. Autosaves, comments, suggestion creation/rejection, and
+thread resolution return compact deltas led by `canonical_revision`; suggestion
+acceptance returns full detail because the editor must replace its canonical
+body and reprojected anchors.
+
 The slug type is registered through the plugin's `:slug_type` provider. The
 frontend card
 (`plugins/design_docs/app/frontend/slugPreviewCards/DOC.DesignDocPreviewCard.tsx`)

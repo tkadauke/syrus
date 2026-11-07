@@ -6,7 +6,7 @@ import type { RepositoryTab } from "@app/api/repositories"
 export type DesignDocUser = {
   id: number
   name: string
-  email_address: string
+  email_address?: string
 }
 
 export type DesignDocRepository = {
@@ -23,7 +23,6 @@ export type DesignDocSummary = {
   state: "draft" | "accepted" | "archived"
   owner: DesignDocUser | null
   collaborators: DesignDocUser[]
-  repository_ids: number[]
   repositories: DesignDocRepository[]
   comments_count: number
   current_version_number: number | null
@@ -93,7 +92,6 @@ export type DesignDocSuggestion = {
   suggested_by_kind: string
   suggested_by: DesignDocUser | null
   original_markdown: string
-  suggested_markdown: string
   proposed_markdown: string
   change_type: "replace"
   render_mode: "inline" | "block"
@@ -103,7 +101,8 @@ export type DesignDocSuggestion = {
   provenance: Record<string, unknown>
   conflict_reason: string | null
   anchor: DesignDocAnchor
-  thread: DesignDocThread | null
+  thread_id?: number | null
+  thread?: DesignDocThread | null
   reviewed_by: DesignDocUser | null
   reviewed_at: string | null
   created_at: string
@@ -135,7 +134,6 @@ export type DesignDocPreviewPayload = {
 }
 
 export type DesignDocDetail = DesignDocSummary & {
-  markdown: string
   rendered_markdown: string
   canonical_revision: string
   permissions: {
@@ -145,8 +143,6 @@ export type DesignDocDetail = DesignDocSummary & {
     can_archive: boolean
     can_unarchive: boolean
   }
-  collaborator_ids: number[]
-  collaborators: DesignDocUser[]
   pending_suggestions_count: number
   open_threads_count: number
   threads: DesignDocThread[]
@@ -156,7 +152,7 @@ export type DesignDocDetail = DesignDocSummary & {
 export type DesignDocVersion = {
   id: number
   version_number: number
-  markdown: string
+  markdown?: string
   actor_kind: string
   actor: DesignDocUser | null
   change_summary: string | null
@@ -184,6 +180,7 @@ export type DesignDocsIndexPayload = {
   }
   smart_folders: AdminSmartFolder[]
   design_docs: DesignDocSummary[]
+  pagination: Pagination
 }
 
 export type RepositoryDesignDocsPayload = DesignDocsIndexPayload & {
@@ -199,6 +196,7 @@ export type DesignDocDetailPayload = {
 export type DesignDocVersionsPayload = {
   design_doc: DesignDocSummary
   versions: DesignDocVersion[]
+  pagination: Pagination
 }
 
 export type DesignDocVersionThreadsPayload = {
@@ -208,11 +206,18 @@ export type DesignDocVersionThreadsPayload = {
   suggestions: DesignDocSuggestion[]
 }
 
-export type DesignDocWritePayload = DesignDocDetailPayload & {
+export type DesignDocWritePayload = {
+  design_doc?: DesignDocDetail
+  canonical_revision: string
+  message?: string
   mode?: "canonical" | "suggestion"
+  thread?: DesignDocThread
+  comment?: DesignDocComment
   suggestion?: DesignDocSuggestion
   version?: DesignDocVersion
 }
+
+export type Pagination = { page: number; per_page: number; total: number; total_pages: number }
 
 export type DesignDocInput = {
   title?: string
@@ -243,7 +248,7 @@ export function fetchRepositoryDesignDocs(repositoryId: string | number, search 
 }
 
 export function fetchDesignDoc(id: string | number) {
-  return getJson<DesignDocDetailPayload>(`/api/v1/app/design_docs/${id}`)
+  return getJson<DesignDocDetailPayload>(`/api/v1/app/design_docs/${id}`).then(hydrateSuggestionThreads)
 }
 
 export function fetchDesignDocPreview(id: string | number) {
@@ -251,23 +256,37 @@ export function fetchDesignDocPreview(id: string | number) {
 }
 
 export function createDesignDoc(input: DesignDocInput) {
-  return postJson<DesignDocWritePayload>("/api/v1/app/design_docs", { design_doc: input })
+  return postJson<DesignDocDetailPayload>("/api/v1/app/design_docs", { design_doc: input })
 }
 
 export function updateDesignDoc(id: string | number, input: DesignDocInput) {
   return patchJson<DesignDocWritePayload>(`/api/v1/app/design_docs/${id}`, { design_doc: input })
 }
 
-export function createDesignDocComment(id: string | number, input: { body: string; start_offset?: number; end_offset?: number; selected_markdown?: string; selected_text?: string; thread_id?: number }) {
+export function createDesignDocComment(
+  id: string | number,
+  input: { body: string; start_offset?: number; end_offset?: number; selected_markdown?: string; selected_text?: string; thread_id?: number }
+) {
   return postJson<DesignDocWritePayload>(`/api/v1/app/design_docs/${id}/comments`, { comment: input })
 }
 
-export function createDesignDocSuggestion(id: string | number, input: { start_offset: number; end_offset: number; original_markdown: string; proposed_markdown: string; change_summary?: string; selected_text?: string; autosave?: boolean }) {
+export function createDesignDocSuggestion(
+  id: string | number,
+  input: {
+    start_offset: number
+    end_offset: number
+    original_markdown: string
+    proposed_markdown: string
+    change_summary?: string
+    selected_text?: string
+    autosave?: boolean
+  }
+) {
   return postJson<DesignDocWritePayload>(`/api/v1/app/design_docs/${id}/suggestions`, { suggestion: { ...input, change_type: "replace" } })
 }
 
 export function resolveDesignDocThread(id: string | number, threadId: string | number) {
-  return postJson<{ thread: DesignDocThread; message: string }>(`/api/v1/app/design_docs/${id}/threads/${threadId}/resolve`)
+  return postJson<DesignDocWritePayload>(`/api/v1/app/design_docs/${id}/threads/${threadId}/resolve`)
 }
 
 export function acceptDesignDocSuggestion(id: string | number, suggestionId: string | number) {
@@ -283,5 +302,19 @@ export function fetchDesignDocVersions(id: string | number) {
 }
 
 export function fetchDesignDocVersionThreads(id: string | number, versionId: string | number) {
-  return getJson<DesignDocVersionThreadsPayload>(`/api/v1/app/design_docs/${id}/versions/${versionId}/threads`)
+  return getJson<DesignDocVersionThreadsPayload>(`/api/v1/app/design_docs/${id}/versions/${versionId}/threads`).then(hydrateSuggestionThreads)
+}
+
+function hydrateSuggestionThreads<T extends DesignDocDetailPayload | DesignDocVersionThreadsPayload>(payload: T): T {
+  const detail = "rendered_markdown" in payload.design_doc ? payload.design_doc : null
+  const threads = detail?.threads ?? ("threads" in payload ? payload.threads : [])
+  const suggestions = detail?.suggestions ?? ("suggestions" in payload ? payload.suggestions : undefined)
+  if (!suggestions) return payload
+  const byId = new Map(threads.map((thread) => [thread.id, thread]))
+  const hydrated = suggestions.map((suggestion) => ({
+    ...suggestion,
+    thread: suggestion.thread_id === undefined ? suggestion.thread : suggestion.thread_id === null ? null : (byId.get(suggestion.thread_id) ?? null)
+  }))
+  if (detail) return { ...payload, design_doc: { ...detail, suggestions: hydrated } }
+  return { ...payload, suggestions: hydrated }
 }

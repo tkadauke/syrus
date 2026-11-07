@@ -4,6 +4,8 @@ module Api
       class DesignDocsController < BaseController
         include RepositoryTabsSerialization
 
+        PER_PAGE = 25
+
         before_action :require_design_docs_enabled
 
         def index
@@ -65,7 +67,7 @@ module Api
             actor_kind: design_doc_actor_kind
           )
 
-          payload = { design_doc: serializer.detail(result.design_doc, user: Current.user), mode: result.mode, message: update_message(result) }
+          payload = mutation_payload(result.design_doc, mode: result.mode, message: update_message(result))
           payload[:version] = serializer.version(result.version) if result.version
           payload[:suggestion] = serializer.suggestion(result.suggestion) if result.suggestion
           render json: payload
@@ -79,9 +81,11 @@ module Api
 
         def versions
           design_doc = find_design_doc_with_summary_associations
+          versions = design_doc.versions.includes(:actor_user).order(version_number: :desc)
           render json: {
             design_doc: serializer.summary(design_doc),
-            versions: design_doc.versions.includes(:actor_user).order(version_number: :desc).map { |version| serializer.version(version) }
+            versions: paginate(versions).map { |version| serializer.version(version, include_markdown: false) },
+            pagination: pagination(versions)
           }
         end
 
@@ -115,7 +119,7 @@ module Api
           )
 
           render json: {
-            design_doc: serializer.detail(result.design_doc, user: Current.user),
+            canonical_revision: result.design_doc.canonical_revision,
             thread: serializer.thread(result.thread),
             comment: serializer.comment(result.comment),
             version: result.version ? serializer.version(result.version) : nil,
@@ -134,7 +138,7 @@ module Api
             user: Current.user
           )
 
-          render json: { thread: serializer.thread(result.thread), message: "Comment thread resolved." }
+          render json: { canonical_revision: design_doc.reload.canonical_revision, thread: serializer.thread(result.thread), message: "Comment thread resolved." }
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         rescue Pundit::NotAuthorizedError
@@ -150,7 +154,8 @@ module Api
           )
 
           payload = {
-            design_doc: serializer.detail(result.design_doc, user: Current.user),
+            canonical_revision: result.design_doc.canonical_revision,
+            thread: serializer.thread(result.suggestion.thread),
             suggestion: serializer.suggestion(result.suggestion),
             message: "Suggestion created."
           }
@@ -187,7 +192,7 @@ module Api
           result = review_suggestion(:reject)
 
           render json: {
-            design_doc: serializer.detail(result.design_doc, user: Current.user),
+            canonical_revision: result.design_doc.canonical_revision,
             suggestion: serializer.suggestion(result.suggestion),
             message: "Suggestion rejected."
           }
@@ -229,7 +234,8 @@ module Api
               base_scope: base_scope,
               filter_class: ::DesignDocs::Filter
             ).folders,
-            design_docs: scope.map { |design_doc| serializer.summary(design_doc) }
+            design_docs: paginate(scope).map { |design_doc| serializer.summary(design_doc) },
+            pagination: pagination(scope)
           }
         end
 
@@ -383,6 +389,23 @@ module Api
           return "Design doc updated." if result.version
 
           "Design doc metadata updated."
+        end
+
+        def mutation_payload(design_doc, **extra)
+          { canonical_revision: design_doc.canonical_revision, **extra }
+        end
+
+        def page
+          [ params.fetch(:page, 1).to_i, 1 ].max
+        end
+
+        def paginate(scope)
+          scope.limit(PER_PAGE).offset((page - 1) * PER_PAGE)
+        end
+
+        def pagination(scope)
+          total = scope.except(:limit, :offset).count
+          { page: page, per_page: PER_PAGE, total: total, total_pages: (total.to_f / PER_PAGE).ceil }
         end
 
         def repository_json(repository)

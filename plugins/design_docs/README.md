@@ -28,8 +28,9 @@ The plugin owns these tables through `plugins/design_docs/db/migrate`:
 
 Hidden Syrus HTML comments are inserted into Markdown to keep anchors stable
 across edits. The database records remain authoritative for provenance, state,
-review status, and permissions; API serializers expose both `markdown` and
-`rendered_markdown`, where `rendered_markdown` strips hidden anchor markers.
+review status, and permissions; API detail serializers expose
+`rendered_markdown`, which strips hidden anchor markers, without duplicating the
+body under a second `markdown` field.
 
 ## References
 

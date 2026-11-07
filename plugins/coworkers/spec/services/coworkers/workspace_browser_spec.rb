@@ -59,4 +59,14 @@ RSpec.describe Coworkers::WorkspaceBrowser do
     expect(FakeRepositoryContentProvider.calls.any? { |call| call.first == :commits && call.last == 50 }).to be(true)
     expect(FakeRepositoryContentProvider.calls.none? { |call| call.first == :history }).to be(true)
   end
+
+  it "bounds workspace listings and marks omitted files as partial" do
+    files = (Coworkers::WorkspaceBrowser::MAX_FILES + 1).times.to_h { |index| [ "file-#{index}.md", "content" ] }
+    stub_repository_content(repository, ref: "coworkers/maya-browser", files: files)
+
+    result = described_class.new(coworker: coworker, repository: repository, user: owner).call
+
+    expect(result.fetch(:files).size).to eq(Coworkers::WorkspaceBrowser::MAX_FILES)
+    expect(result.fetch(:partial)).to be(true)
+  end
 end
