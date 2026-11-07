@@ -1,9 +1,8 @@
-import { getDraftAttachments, readAttachmentFile, setDraftAttachments } from "./attachmentDraftStore"
+import { uploadChatAttachment } from "../../api/chats"
+import { getDraftAttachments, setDraftAttachments } from "./attachmentDraftStore"
 import { type AttachMediaToComposerDetail, CHAT_ATTACHMENT_MAX_BYTES, CHAT_ATTACHMENT_TOTAL_MAX_BYTES, CHAT_DRAFT_ATTACHMENTS_CHANGED_EVENT } from "./constants"
 
-export type AttachMediaLibraryImageResult =
-  | { ok: true }
-  | { ok: false; reason: "fetch_failed" | "too_large" }
+export type AttachMediaLibraryImageResult = { ok: true } | { ok: false; reason: "fetch_failed" | "too_large" }
 
 // Fetches an already-hosted media-library image (from the gallery or its
 // lightbox, see WorkspacePanels.tsx) and merges it into the target chat's
@@ -29,7 +28,8 @@ export async function attachMediaLibraryImage(detail: AttachMediaToComposerDetai
     return { ok: false, reason: "too_large" }
   }
 
-  const attachment = await readAttachmentFile(file)
+  const uploaded = await uploadChatAttachment(detail.chatId, file)
+  const attachment = { id: uploaded.id, name: uploaded.name, mimeType: uploaded.mime_type, size: uploaded.size, url: uploaded.url }
   setDraftAttachments(detail.chatId, [...current, attachment])
   window.dispatchEvent(new CustomEvent(CHAT_DRAFT_ATTACHMENTS_CHANGED_EVENT, { detail: { chatId: detail.chatId } }))
   return { ok: true }

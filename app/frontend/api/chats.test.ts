@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "../testSupport"
-import { createChat, createEmptyChat, fetchChats, searchChatJobs } from "./chats"
+import { createChat, createEmptyChat, fetchChats, searchChatJobs, sendChatMessage, uploadChatAttachment } from "./chats"
 
 describe("chat API", () => {
   afterEach(() => {
@@ -39,6 +39,25 @@ describe("chat API", () => {
           chat_provider: "claude"
         })
       })
+    )
+  })
+
+  it("uploads attachment bytes separately and sends only their id", async () => {
+    const fetchMock = vi.spyOn(window, "fetch")
+    fetchMock.mockResolvedValueOnce(jsonResponse({ id: 9, name: "notes.txt", mime_type: "text/plain", size: 5, url: "/notes" }))
+    fetchMock.mockResolvedValueOnce(jsonResponse({ messages: [] }))
+    const file = new File(["hello"], "notes.txt", { type: "text/plain" })
+
+    const uploaded = await uploadChatAttachment(4, file)
+    await sendChatMessage("/api/v1/app/chats/4/message", "Inspect", [
+      { id: uploaded.id, name: uploaded.name, mimeType: uploaded.mime_type, size: uploaded.size, url: uploaded.url }
+    ])
+
+    const uploadRequest = fetchMock.mock.calls[0]
+    expect(uploadRequest[0]).toBe("/api/v1/app/chats/4/attachments")
+    expect((uploadRequest[1]?.body as FormData).get("file")).toBe(file)
+    expect(fetchMock.mock.calls[1][1]).toEqual(
+      expect.objectContaining({ body: JSON.stringify({ chat_message: { text: "Inspect", attachments: [{ id: 9 }] } }) })
     )
   })
 

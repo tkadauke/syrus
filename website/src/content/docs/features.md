@@ -1087,7 +1087,9 @@ source files for Syrus's commonly used languages, plus recognized names such as
 allow normal browser fallbacks such as `text/plain` only for recognized files;
 archives, executables, Office files, media, and other binary formats remain
 unsupported. Each file is limited to 5 MB and attachments total 20 MB per
-message. HTML and SVG attachments are treated as untrusted source and download
+message. Attachments upload as soon as they are selected, and drafts retain
+lightweight references while thumbnails and downloads use secure file URLs.
+HTML and SVG attachments are treated as untrusted source and download
 rather than rendering in the application origin. Every accepted file is saved
 under the chat workspace and its exact path is included in the agent prompt,
 so Claude, Codex, and Muse can inspect it with normal file tools.

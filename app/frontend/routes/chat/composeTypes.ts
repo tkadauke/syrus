@@ -33,12 +33,7 @@ export type ChatSystemCommandHandlers = {
 }
 
 export type ChatSystemAction =
-  | { kind: "rename"; title: string }
-  | { kind: "clear" }
-  | { kind: "new" }
-  | { kind: "branch" }
-  | { kind: "share" }
-  | { kind: "pin"; pinned: boolean }
+  { kind: "rename"; title: string } | { kind: "clear" } | { kind: "new" } | { kind: "branch" } | { kind: "share" } | { kind: "pin"; pinned: boolean }
 
 export type ChatSystemCommandAction =
   | { kind: "bookmark"; label: string }
@@ -47,7 +42,5 @@ export type ChatSystemCommandAction =
   | { kind: "goal"; action: "start" | "pause" | "resume" | "stop" | "edit"; prompt?: string }
 
 export type ChatComposeAttachment = ChatMessageAttachmentInput & {
-  size: number
   shapes?: Shape[]
-  originalDataUrl?: string
 }
