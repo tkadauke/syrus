@@ -98,7 +98,8 @@ RSpec.describe "API: /api/v1/app/mockups", type: :request do
     get "/api/v1/app/mockups?schema=1"
 
     body = JSON.parse(response.body)
-    expect(body.keys).to eq([ "filter_schema" ])
+    expect(body.keys).to contain_exactly("v", "filter_schema")
+    expect(body["v"]).to eq(ApiVersion::CURRENT)
     expect(body["filter_schema"].map { |field| field["field"] }).to include("title")
   end
 

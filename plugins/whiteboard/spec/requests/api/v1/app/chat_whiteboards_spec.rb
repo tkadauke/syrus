@@ -49,7 +49,7 @@ RSpec.describe "App API chat whiteboards", type: :request do
 
       get whiteboard_path(chat), params: { fields: "version" }, as: :json
       etag = response.headers.fetch("ETag")
-      expect(parse_body).to eq("version" => 7)
+      expect(parse_body).to eq("v" => ApiVersion::CURRENT, "version" => 7)
 
       get whiteboard_path(chat), params: { fields: "version" }, headers: { "If-None-Match" => etag }, as: :json
       expect(response).to have_http_status(:not_modified)
@@ -60,7 +60,10 @@ RSpec.describe "App API chat whiteboards", type: :request do
 
       get "#{whiteboard_path(chat)}/files", as: :json
 
-      expect(parse_body).to eq("files" => { "image" => { "dataURL" => "data:image/png;base64,abc" } })
+      expect(parse_body).to eq(
+        "v" => ApiVersion::CURRENT,
+        "files" => { "image" => { "dataURL" => "data:image/png;base64,abc" } }
+      )
     end
 
     it "blocks reads for chats owned by another user" do
