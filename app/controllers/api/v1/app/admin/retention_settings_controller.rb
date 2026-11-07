@@ -52,6 +52,8 @@ module Api
               .pluck(:hostname, :worker_storage_key, :observed_at, Arel.sql("json_extract(raw_metrics, '$.prepared_layer_cache_budget_bytes')"), Arel.sql("json_extract(raw_metrics, '$.prepared_layer_cache_budget_source')"))
               .uniq { |hostname, storage_key, _observed_at, _bytes, _source| storage_key.presence || hostname }
               .filter_map do |hostname, storage_key, observed_at, bytes, source|
+                bytes = decode_json_scalar(bytes)
+                source = decode_json_scalar(source)
                 next if bytes.nil? || !source.in?(%w[app_setting worker_environment])
 
                 {
@@ -62,6 +64,14 @@ module Api
                   observed_at: observed_at&.iso8601
                 }
               end
+          end
+
+          def decode_json_scalar(value)
+            return value unless value.is_a?(String)
+
+            JSON.parse(value)
+          rescue JSON::ParserError
+            value
           end
 
           def table_payload(definition)
