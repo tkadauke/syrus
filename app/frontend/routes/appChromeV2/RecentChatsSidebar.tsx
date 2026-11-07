@@ -582,7 +582,10 @@ export function RecentChatsSidebar({
                           </span>
                         ) : null}
                         {chat.pinned ? <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" /> : null}
-                        <ProviderAvailabilityWarning availability={chat.effective_chat_provider ? providerAvailability?.[chat.effective_chat_provider] : undefined} className="mt-0.5" />
+                        <ProviderAvailabilityWarning
+                          availability={chat.effective_chat_provider ? providerAvailability?.[chat.effective_chat_provider] : undefined}
+                          className="mt-0.5"
+                        />
                         <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{title}</span>
                         <span
                           className={`${RECENT_CHAT_MARKER_SLOT_CLASS} group-hover/recent-chat:invisible ${openActionChatId === chat.id ? "invisible" : ""}`}
@@ -1150,9 +1153,7 @@ function IndicatorPopover({ chat, children, prefix, rowHovered }: { chat: ChatNa
     sections.push(
       <div key="goal">
         <span className="font-semibold">{t("popover_goal")}</span>
-        <div>
-          {t(goal.status === "paused" ? "popover_goal_paused" : "popover_goal_active")}
-        </div>
+        <div>{t(goal.status === "paused" ? "popover_goal_paused" : "popover_goal_active")}</div>
       </div>
     )
   const hasPendingActions = Boolean(chat.pending_proposal_count || chat.coding_checkout_uncommitted)

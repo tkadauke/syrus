@@ -83,22 +83,28 @@ function withMatchMedia(matches: boolean) {
 describe("RecentChatsSidebar active chat highlighting", () => {
   it("shows a red usage-limit warning for affected chats", () => {
     renderSidebar(
-      [chatNav({
-        id: 1,
-        title: "Codex chat",
-        effective_chat_provider: "codex"
-      })],
-      { providerAvailability: { codex: {
-          provider: "codex",
-          label: "Codex",
-          model: null,
-          state: "exhausted",
-          open: true,
-          usage_exhausted: true,
-          retry_after: null,
-          reason: "Provider usage limit exhausted.",
-          message: "Codex usage limit reached. This item uses Codex until usage resets."
-        } } }
+      [
+        chatNav({
+          id: 1,
+          title: "Codex chat",
+          effective_chat_provider: "codex"
+        })
+      ],
+      {
+        providerAvailability: {
+          codex: {
+            provider: "codex",
+            label: "Codex",
+            model: null,
+            state: "exhausted",
+            open: true,
+            usage_exhausted: true,
+            retry_after: null,
+            reason: "Provider usage limit exhausted.",
+            message: "Codex usage limit reached. This item uses Codex until usage resets."
+          }
+        }
+      }
     )
 
     expect(screen.getByRole("img", { name: /Codex usage limit reached/ })).toBeInTheDocument()
@@ -106,33 +112,39 @@ describe("RecentChatsSidebar active chat highlighting", () => {
 
   it("includes provider evidence details in usage warning labels", () => {
     renderSidebar(
-      [chatNav({
-        id: 1,
-        title: "Codex chat",
-        effective_chat_provider: "codex"
-      })],
-      { providerAvailability: { codex: {
-          provider: "codex",
-          label: "Codex",
-          model: "gpt-5.5",
-          state: "exhausted",
-          open: true,
-          usage_exhausted: true,
-          retry_after: null,
-          reason: "Provider usage limit exhausted.",
-          message: "Codex usage limit reached for gpt-5.5.",
-          evidence: {
-            current: {
-              status: "exhausted",
-              source: "usage_probe",
-              observed_at: "2026-08-04T16:00:00Z",
-              provider: "codex",
-              account_id: "account-123",
-              model: "gpt-5.5",
-              http_status: 200
+      [
+        chatNav({
+          id: 1,
+          title: "Codex chat",
+          effective_chat_provider: "codex"
+        })
+      ],
+      {
+        providerAvailability: {
+          codex: {
+            provider: "codex",
+            label: "Codex",
+            model: "gpt-5.5",
+            state: "exhausted",
+            open: true,
+            usage_exhausted: true,
+            retry_after: null,
+            reason: "Provider usage limit exhausted.",
+            message: "Codex usage limit reached for gpt-5.5.",
+            evidence: {
+              current: {
+                status: "exhausted",
+                source: "usage_probe",
+                observed_at: "2026-08-04T16:00:00Z",
+                provider: "codex",
+                account_id: "account-123",
+                model: "gpt-5.5",
+                http_status: 200
+              }
             }
           }
-        } } }
+        }
+      }
     )
 
     const warning = screen.getByRole("img", { name: /Evidence: exhausted from usage_probe/ })
@@ -949,7 +961,12 @@ describe("RecentChatsSidebar action and marker slot", () => {
           chats: [
             chatNav({
               id: 1,
-              job_summary: { active_count: 1, outcome: "ready", jobs: [{ id: 1, slug: "JOB-1", state: "running", group: "running", app_path: "/jobs/1" }], epics: {} }
+              job_summary: {
+                active_count: 1,
+                outcome: "ready",
+                jobs: [{ id: 1, slug: "JOB-1", state: "running", group: "running", app_path: "/jobs/1" }],
+                epics: {}
+              }
             }),
             chatNav({
               id: 2,
