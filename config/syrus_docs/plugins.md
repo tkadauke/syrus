@@ -32,6 +32,7 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `workspace_tab`
 - `retention_policy`
 - `repository_content_provider`
+- `repository_configuration`
 - `execution_backend`
 - `workspace_git_transport`
 - `purge_contributor`
@@ -4117,3 +4118,23 @@ Bundled plugins:
   both workflow transcript routes share `App::RunArtifactsPayload.build(run:)`
   for the JSON shape so they can't drift apart — see
   `plugins/agent_activity/docs/syrus_docs/agent_activity.md`.
+
+### Repository configuration contributions
+
+Plugins may register `repository_configuration` providers for versioned,
+namespaced `.syrus.yml` sections. Repository configuration uses this envelope:
+
+```yaml
+plugins:
+  example.rules:
+    version: 1
+    config:
+      enabled: true
+```
+
+The provider parses and validates `config`, returns an audit-safe serialized
+form, defines how a root value overlays a nested project value, and can decide
+whether a project is affected by changed files. Parsed values remain opaque to
+core and are available from `SyrusYml::Config#plugin_configurations` and
+`TargetGraph::Project#plugin_configurations`. Disabled, unavailable, and absent
+providers produce explicit diagnostics and do not materialize live behavior.

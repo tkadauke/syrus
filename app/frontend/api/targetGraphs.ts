@@ -8,6 +8,18 @@ export type TargetGraphProject = {
   kind?: string | null
   path?: string | null
   owner_config_path?: string | null
+  plugin_configurations?: Record<string, {
+    key: string
+    owner: string
+    schema_version: number
+    config: unknown
+  }>
+  plugin_configuration_diagnostics?: Array<{
+    key: string
+    owner: string
+    status: "disabled" | "unavailable" | "absent"
+    message: string
+  }>
   target_count: number
 }
 

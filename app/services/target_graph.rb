@@ -182,6 +182,12 @@ class TargetGraph
     end
   end
 
+  def affected_projects_for_configuration(key, changed_files:)
+    projects.values.select do |project|
+      project.plugin_configurations.affected?(key, project: project, changed_files: changed_files)
+    end
+  end
+
   # Confirms the graph is internally consistent: every declared dependency
   # label resolves to a real target, and the dependency edges contain no
   # cycles. Collects every problem instead of raising on the first one so
