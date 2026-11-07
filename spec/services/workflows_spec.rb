@@ -241,6 +241,10 @@ RSpec.describe Workflows do
     end
 
     it "places the enabled coworker gate after technical reviews and before visual review and graders" do
+      plugin_record = PluginRecord.find_by!(name: "coworkers")
+      originally_enabled = plugin_record.enabled?
+      plugin_record.update!(enabled: true)
+      Syrus::PluginRegistry.clear_plugin_record_cache!
       config = SyrusYml.new(<<~YAML).parse
         adversarial_review:
           rounds: 1
@@ -269,6 +273,9 @@ RSpec.describe Workflows do
       expect(wf.chain_template).to include(
         { "type" => "loop", "max_iterations" => 2, "steps" => %w[implement coworker_review] }
       )
+    ensure
+      plugin_record&.update!(enabled: originally_enabled)
+      Syrus::PluginRegistry.clear_plugin_record_cache!
     end
 
     [ nil, "coworker_review:\n  enabled: false\n  rounds: 0\n" ].each do |yaml|
@@ -284,6 +291,26 @@ RSpec.describe Workflows do
 
         expect(workflow.steps.pluck(:kind)).not_to include("coworker_review")
       end
+    end
+
+    it "does not materialize a coworker gate when the Coworkers plugin is disabled" do
+      plugin_record = PluginRecord.find_by!(name: "coworkers")
+      originally_enabled = plugin_record.enabled?
+      plugin_record.update!(enabled: false)
+      Syrus::PluginRegistry.clear_plugin_record_cache!
+      config = SyrusYml.new("coworker_review:\n  enabled: true\n  rounds: 2\n").parse
+      allow(RepoDefaultBranchSyrusYml).to receive(:for_job).with(job).and_return(
+        RepoDefaultBranchSyrusYml::Result.new(config: config, source: ".syrus.yml", note: nil)
+      )
+      allow(RepoCoworkerReviewPlan).to receive(:from_syrus_yml).and_call_original
+
+      workflow = Workflows::Initial.instantiate(job: job)
+
+      expect(config.plugin_configurations.diagnostics.map(&:status)).to include("disabled")
+      expect(workflow.steps.pluck(:kind)).not_to include("coworker_review")
+    ensure
+      plugin_record&.update!(enabled: originally_enabled)
+      Syrus::PluginRegistry.clear_plugin_record_cache!
     end
 
     it "keeps the Initial chain unchanged when adversarial review rounds is zero" do
