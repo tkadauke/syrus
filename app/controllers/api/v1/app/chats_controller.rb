@@ -257,16 +257,17 @@ module Api
         end
 
         def new
-          repository = most_recent_chat_repository
-          repository ||= chat_repository_scope.first
-
-          render json: {
+          repository = default_chat_repository
+          payload = {
             default_repository_id: repository&.id,
             repositories: chat_repository_scope.map { |repo| repository_json(repo) },
             effective_chat_provider: Current.user.effective_chat_provider,
             effective_chat_provider_label: chat_provider_label(Current.user.effective_chat_provider),
             chat_provider_options: chat_provider_options(nil)
           }
+          return unless stale?(etag: payload, public: false)
+
+          render json: payload
         end
 
         # Create the first-run onboarding chat: attached to the operator's

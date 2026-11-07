@@ -26,10 +26,16 @@ module ChatSessionLifecycle
   end
 
   def repository_from_params
+    return default_chat_repository unless params.key?(:repository_id)
+
     id = params[:repository_id].presence
     return unless id
 
     invocation_scoped_repository_scope(Repository.accessible_to(Current.user)).active.find(id)
+  end
+
+  def default_chat_repository
+    most_recent_chat_repository || chat_repository_scope.first
   end
 
   def create_chat_session
@@ -38,7 +44,7 @@ module ChatSessionLifecycle
     content = message_content(text) if text.present?
     return if performed?
 
-    chat_provider = validated_chat_provider_param(params[:chat_provider])
+    chat_provider = validated_chat_provider_param(params[:chat_provider].presence || Current.user.effective_chat_provider)
     return if performed?
 
     additional_participants = group_participant_users_from_params
