@@ -12,7 +12,10 @@ describe("jobs API", () => {
 
     await fetchPickerJobs({ state: "running", repo: "acme/widgets", limit: 25 })
 
-    expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/jobs?state=running&repo=acme%2Fwidgets&fields=picker&include_active_work=true&limit=25", expect.anything())
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/app/jobs?state=running&repo=acme%2Fwidgets&fields=picker&include_active_work=true&limit=25",
+      expect.anything()
+    )
   })
 
   it("sends picker search and pull request filters to the server", async () => {
