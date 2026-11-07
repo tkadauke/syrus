@@ -93,6 +93,33 @@ RSpec.describe CredentialStore::SshExec do
     )
   end
 
+  it "keeps typed SSH eligible when legacy allowed tools contain command-like values" do
+    credential = create_credential(allowed_tools: [ "ha.core.info", "credential_store_stale_name" ])
+    allow(runner).to receive(:call).and_return(CredentialStore::SshRunner::Result.new(stdout: "ok\n", stderr: "", status: 0))
+
+    result = described_class.call(
+      context: context,
+      credential: credential.id,
+      host: "app.example.com",
+      user: "deploy",
+      command: "ha core info"
+    )
+
+    expect(result).to include(ok: true)
+    expect(CredentialStore::CredentialAccessEvent.where(credential: credential, result: "denied")).to be_empty
+
+    expect {
+      described_class.call(
+        context: context,
+        credential: credential.id,
+        host: "app.example.com",
+        user: "deploy",
+        command: "ha core restart"
+      )
+    }.to raise_error(CredentialStore::SshExec::RiskyCommand, /explicit risky-command allowance/)
+    expect(CredentialStore::CredentialAccessEvent.last.denial_reason).to eq("command requires explicit risky-command allowance")
+  end
+
   it "repairs a missing final newline before the SSH runner reads the key file" do
     credential = create_credential(payload: private_key.chomp)
 
