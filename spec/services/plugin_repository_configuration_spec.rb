@@ -152,4 +152,16 @@ RSpec.describe PluginRepositoryConfiguration do
     expect(config.plugin_configurations["coworkers.review"]).to eq(config.coworker_review)
     expect(config.plugin_configurations.to_h.dig("coworkers.review", "config", "criteria")).to eq([ "be exact" ])
   end
+
+  it "does not materialize the legacy live field when the provider is disabled" do
+    record = PluginRecord.find_by!(name: "coworkers")
+    record.update!(enabled: false)
+    Syrus::PluginRegistry.clear_plugin_record_cache!
+
+    config = SyrusYml.new("coworker_review:\n  enabled: true\n  rounds: 2\n").parse
+
+    expect(config.coworker_review).to be_nil
+    expect(config.plugin_configurations).to be_empty
+    expect(config.plugin_configurations.diagnostics.map(&:status)).to include("disabled")
+  end
 end

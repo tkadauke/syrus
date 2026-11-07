@@ -310,6 +310,7 @@ class SyrusYml
 
     grade = parse_grade(raw["grade"])
     raw_delivery = parse_delivery(raw["delivery"])
+    plugin_configurations = PluginRepositoryConfiguration.parse(raw, scope: @project_path ? "project" : "root")
     validate_delivery_grade_phases!(raw["delivery"], raw_delivery, grade)
 
     Config.new(
@@ -318,7 +319,7 @@ class SyrusYml
       hooks: parse_hooks(raw["hooks"]),
       adversarial_review: parse_adversarial_review(raw["adversarial_review"]),
       security_review: parse_security_review(raw["security_review"]),
-      coworker_review: parse_coworker_review(raw["coworker_review"]),
+      coworker_review: plugin_configurations["coworkers.review"],
       review_notes: parse_review_notes(raw["review_notes"]),
       agent_insight: parse_agent_insight(raw["agent_insight"]),
       coverage: parse_coverage(raw["coverage"]),
@@ -338,7 +339,7 @@ class SyrusYml
       targets: parse_targets(raw["targets"]),
       target_graph: parse_target_graph(raw["target_graph"]),
       scripts: parse_scripts(raw["scripts"]),
-      plugin_configurations: PluginRepositoryConfiguration.parse(raw, scope: @project_path ? "project" : "root")
+      plugin_configurations: plugin_configurations
     )
   rescue Psych::Exception => e
     raise ParseError, "YAML parse error: #{e.message}"
