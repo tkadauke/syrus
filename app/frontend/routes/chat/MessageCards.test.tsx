@@ -141,14 +141,7 @@ function renderMessage(text: string, payload = makePayload(), options: { pinnabl
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
-        <ChatMessage
-          item={assistantMessage(text, options)}
-          payload={payload}
-          pendingActionIds={new Set()}
-          prefix=""
-          queryKey={["chats", "122", ""] as const}
-          onNotice={() => {}}
-        />
+        <ChatMessage item={assistantMessage(text, options)} payload={payload} prefix="" queryKey={["chats", "122", ""] as const} onNotice={() => {}} />
       </MemoryRouter>
     </QueryClientProvider>
   )
@@ -163,15 +156,7 @@ function renderChatMessageItem(
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
-        <ChatMessage
-          item={item}
-          payload={payload}
-          pendingActionIds={new Set()}
-          prefix=""
-          queryKey={["chats", "122", ""] as const}
-          onNotice={() => {}}
-          {...extra}
-        />
+        <ChatMessage item={item} payload={payload} prefix="" queryKey={["chats", "122", ""] as const} onNotice={() => {}} {...extra} />
       </MemoryRouter>
     </QueryClientProvider>
   )

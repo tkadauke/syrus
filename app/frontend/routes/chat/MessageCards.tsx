@@ -55,7 +55,7 @@ import {
   type ToolCardContext
 } from "../../pluginToolCards"
 import { appendSearch, primaryButton, secondaryButton, withRoutePrefix } from "./utils"
-import { PendingActionCard, ProposalCard } from "./ProposalCards"
+import { ProposalCard } from "./ProposalCards"
 import type { ChatMessageImageAttachment } from "./messageDisplay"
 import { attachmentDataUrl, formatMessageTimestamp } from "./messageDisplay"
 import { ToolErrorCard } from "./toolErrorCard"
@@ -72,7 +72,6 @@ type ChatMessageProps = {
   animateIn?: boolean
   item: Extract<ChatRenderItem, { type: "message" }>
   payload: ChatPayload
-  pendingActionIds: Set<number>
   prefix: string
   queryKey: ChatQueryKey
   readOnly?: boolean
@@ -87,7 +86,6 @@ export const ChatMessage = memo(function ChatMessage({
   animateIn = false,
   item,
   payload,
-  pendingActionIds,
   prefix,
   queryKey,
   readOnly = false,
@@ -210,9 +208,6 @@ export const ChatMessage = memo(function ChatMessage({
           <MessageImageAttachments attachments={item.attachments} />
           {!readOnly && item.proposal ? (
             <ProposalCard proposal={item.proposal} prefix={prefix} queryKey={queryKey} onNotice={onNotice} onSelectWorkspaceTab={onSelectWorkspaceTab} />
-          ) : null}
-          {!readOnly && !item.proposal && item.pending_action && !pendingActionIds.has(item.pending_action.id) ? (
-            <PendingActionCard pendingAction={item.pending_action} queryKey={queryKey} onNotice={onNotice} />
           ) : null}
         </div>
         {sourcePreview ? <ChatSourcePreviewModal link={sourcePreview} payload={payload} onClose={() => setSourcePreview(null)} /> : null}
@@ -409,13 +404,8 @@ function sameChatMessageProps(previous: ChatMessageProps, next: ChatMessageProps
     previous.payload.chat.id === next.payload.chat.id &&
     previous.payload.chat.conversation_kind === next.payload.chat.conversation_kind &&
     sameSerializable(previous.payload.paths, next.payload.paths) &&
-    previous.queryKey.every((value, index) => value === next.queryKey[index]) &&
-    sameNumberSet(previous.pendingActionIds, next.pendingActionIds)
+    previous.queryKey.every((value, index) => value === next.queryKey[index])
   )
-}
-
-function sameNumberSet(left: Set<number>, right: Set<number>) {
-  return left.size === right.size && Array.from(left).every((value) => right.has(value))
 }
 
 const serializedRenderProps = new WeakMap<object, string>()

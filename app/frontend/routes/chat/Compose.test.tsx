@@ -2,9 +2,9 @@ import { fireEvent, render, screen } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
-import type { ChatPayload } from "../../api/chats"
+import type { ChatPayload, ChatPendingAction, ChatPendingActionGroup } from "../../api/chats"
 import { useWalkthroughRecorder } from "../../components/WalkthroughRecorder"
-import { Compose } from "./Compose"
+import { Compose, PendingActionCarousel } from "./Compose"
 
 vi.mock("../../components/WalkthroughRecorder", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../components/WalkthroughRecorder")>()
@@ -92,6 +92,120 @@ function renderCompose(payload = makePayload()) {
     </QueryClientProvider>
   )
 }
+
+function pendingAction(id: number, label: string, overrides: Partial<ChatPendingAction> = {}): ChatPendingAction {
+  return {
+    id,
+    label,
+    detail: null,
+    state: "pending",
+    action: "test_action",
+    action_type: null,
+    app_confirm_path: `/pending_actions/${id}/confirm`,
+    app_reject_path: `/pending_actions/${id}/reject`,
+    app_cancel_path: `/pending_actions/${id}`,
+    ...overrides
+  }
+}
+
+function pendingActionGroup(id: number, label: string): ChatPendingActionGroup {
+  return {
+    id,
+    label,
+    state: "pending",
+    members: [{ id: id * 10, label: `${label} member`, state: "pending" }],
+    app_confirm_path: `/pending_action_groups/${id}/confirm`,
+    app_reject_path: `/pending_action_groups/${id}/reject`,
+    app_dismiss_path: `/pending_action_groups/${id}`
+  }
+}
+
+function renderPendingActionCarousel(items: React.ComponentProps<typeof PendingActionCarousel>["items"]) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const view = render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <PendingActionCarousel items={items} queryKey={["chats", "1", ""]} onNotice={() => {}} />
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+  return {
+    ...view,
+    rerenderItems(nextItems: typeof items) {
+      view.rerender(
+        <QueryClientProvider client={client}>
+          <MemoryRouter>
+            <PendingActionCarousel items={nextItems} queryKey={["chats", "1", ""]} onNotice={() => {}} />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+    }
+  }
+}
+
+describe("pending action carousel", () => {
+  it("shows one standalone or permission action at a time and navigates with labelled arrows", () => {
+    renderPendingActionCarousel([
+      { key: "action:1", type: "action", action: pendingAction(1, "Deploy service") },
+      {
+        key: "action:2",
+        type: "action",
+        action: pendingAction(2, "Authorize production access", { request_kind: "authorization_request", authorization_items: [] })
+      }
+    ])
+
+    expect(screen.getByText("Deploy service")).toBeInTheDocument()
+    expect(screen.queryByText("Authorize production access")).not.toBeInTheDocument()
+    expect(screen.getByText("1 of 2")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Next pending action" }))
+
+    expect(screen.getByText("Authorize production access")).toBeInTheDocument()
+    expect(screen.queryByText("Deploy service")).not.toBeInTheDocument()
+    expect(screen.getByText("2 of 2")).toBeInTheDocument()
+
+    fireEvent.keyDown(screen.getByTestId("pending-action-carousel"), { key: "ArrowLeft" })
+    expect(screen.getByText("Deploy service")).toBeInTheDocument()
+  })
+
+  it("renders groups as one item and supports intentional horizontal swipes", () => {
+    renderPendingActionCarousel([
+      { key: "group:3", type: "group", group: pendingActionGroup(3, "Land grouped changes") },
+      { key: "action:4", type: "action", action: pendingAction(4, "Restart worker") }
+    ])
+    const carousel = screen.getByTestId("pending-action-carousel")
+
+    fireEvent.touchStart(carousel, { touches: [{ clientX: 180, clientY: 100 }] })
+    fireEvent.touchEnd(carousel, { changedTouches: [{ clientX: 110, clientY: 108 }] })
+    expect(screen.getByText("Restart worker")).toBeInTheDocument()
+
+    fireEvent.touchStart(carousel, { touches: [{ clientX: 110, clientY: 100 }] })
+    fireEvent.touchEnd(carousel, { changedTouches: [{ clientX: 180, clientY: 170 }] })
+    expect(screen.getByText("Restart worker")).toBeInTheDocument()
+  })
+
+  it("keeps identity across updates and selects the next remaining item when the current one disappears", () => {
+    const first = { key: "action:1", type: "action" as const, action: pendingAction(1, "First action") }
+    const second = { key: "action:2", type: "action" as const, action: pendingAction(2, "Second action") }
+    const third = { key: "action:3", type: "action" as const, action: pendingAction(3, "Third action") }
+    const view = renderPendingActionCarousel([first, second, third])
+    fireEvent.click(screen.getByRole("button", { name: "Next pending action" }))
+
+    view.rerenderItems([first, { ...second, action: pendingAction(2, "Updated second action") }, third])
+    expect(screen.getByText("Updated second action")).toBeInTheDocument()
+
+    view.rerenderItems([first, third])
+    expect(screen.getByText("Third action")).toBeInTheDocument()
+  })
+
+  it("hides navigation controls for a single item", () => {
+    renderPendingActionCarousel([{ key: "action:1", type: "action", action: pendingAction(1, "Only action") }])
+
+    expect(screen.getByText("1 of 1")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Previous pending action" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Next pending action" })).not.toBeInTheDocument()
+  })
+})
 
 describe("Compose coworker mode", () => {
   it("does not render the Coding/Planning selector for a coworker chat", () => {
