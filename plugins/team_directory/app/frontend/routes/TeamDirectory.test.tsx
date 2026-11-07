@@ -68,6 +68,34 @@ describe("profile routes", () => {
     expect(screen.queryByText("Private installation.")).not.toBeInTheDocument()
   })
 
+  it("renders a sole matching profile instead of the single-user instance message", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        team_user_count: 1,
+        profiles: [
+          {
+            id: 7,
+            display_name: "Ada Lovelace",
+            first_name: "Ada",
+            last_name: "Lovelace",
+            github_handle: "ada",
+            role_label: "Operator",
+            avatar_url: null,
+            bio_excerpt: "Keeps analytical engines from lying.",
+            counts: { repositories: 1, epics: 2, jobs: 3, open_jobs: 1 },
+            profile_path: "/profiles/7"
+          }
+        ],
+        pagination: { page: 1, per_page: 50, total: 1, total_pages: 1 }
+      })
+    )
+
+    renderRoute(<TeamDirectoryRoute />, "/profiles?q=Ada")
+
+    expect(await screen.findByRole("link", { name: "Ada Lovelace" })).toBeInTheDocument()
+    expect(screen.queryByText("Only one user exists on this Syrus instance.")).not.toBeInTheDocument()
+  })
+
   it("searches and navigates paginated profile results", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() =>
       Promise.resolve(
