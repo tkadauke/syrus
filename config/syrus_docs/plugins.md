@@ -587,11 +587,12 @@ directly or transitively.
 A plugin may also declare `config/plugin_ownership.yml`. The manifest records
 its configuration keys, step kinds, target types, routes, tables, problem
 codes, tools, frontend contributions, documentation, and owned vocabulary.
-`compatibility_quarantine` is a per-core-file upper bound on occurrences of
-that vocabulary. Existing leakage may shrink without changing the manifest;
-new files and increased counts fail `bin/check-plugin-boundaries`. This ratchet
-is intentionally separate from constant/path checking: core can reimplement a
-plugin feature without ever referencing the plugin's source or constants.
+`compatibility_quarantine` is a per-core-file snapshot of occurrences of that
+vocabulary. New files, increased counts, and stale allowances after extraction
+fail `bin/check-plugin-boundaries`; migration changes must shrink the matching
+manifest entries in the same PR. This ratchet is intentionally separate from
+constant/path checking: core can reimplement a plugin feature without ever
+referencing the plugin's source or constants.
 
 The audit reads git-tracked source only. Untracked and gitignored files are
 skipped, because the working tree can contain build output — Vite entry bundles

@@ -29,7 +29,7 @@ module Admin
         paths.filter_map do |path|
           count = actual.fetch(path, 0)
           allowed = ownership.quarantine.fetch(path, 0)
-          next unless count > allowed
+          next if count == allowed
 
           Violation.new(plugin: ownership.plugin, path:, actual: count, allowed:)
         end

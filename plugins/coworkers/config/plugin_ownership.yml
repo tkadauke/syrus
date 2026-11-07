@@ -2,8 +2,8 @@ plugin: coworkers
 
 # This is the enforceable ownership declaration for terms whose semantics
 # disappear when the plugin is absent. Compatibility entries below document
-# existing core leakage; they are upper bounds, so extraction work may shrink
-# them without updating the snapshot, while any addition fails the audit.
+# existing core leakage; extraction work must shrink the matching snapshot
+# entry in the same change, while any addition also fails the audit.
 ownership:
   configuration_keys:
     - coworker_review
