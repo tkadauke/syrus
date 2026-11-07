@@ -5,7 +5,7 @@ module Throughput
   # per-repository and computed fresh on every API request (see
   # docs/syrus_docs/repository_throughput_metrics.md, "Query shape") --
   # exactly the kind of request-time aggregate /metrics must not run (see
-  # config/syrus_docs/metrics.md). This class instead follows
+  # docs/engineering/architecture/metrics.md). This class instead follows
   # Metrics::LandingSampler's shape: registers via the manifest's
   # `metrics do ... sampler MetricsSampler end` (see
   # Syrus::PluginApi::Definition#metrics) rather than a plugin-owned

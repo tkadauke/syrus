@@ -191,7 +191,7 @@ class OperationalLogIndex < SearchRecord
 
     # A local search.sqlite3 mirror only stays fresh on hosts that actively
     # consume the `indexing` queue (the multi-worker "home" tier — see
-    # config/syrus_docs/multi_worker.md). Any other process attached to the
+    # docs/engineering/architecture/multi-worker.md). Any other process attached to the
     # same data root (a "compute" tier worker, or a per-Run MCP sidecar
     # spawned as its subprocess) gets its local operational_log_fts seeded
     # once at container boot (REBUILD_HOOKS replays the retention window)

@@ -20,6 +20,14 @@ system-wide overview and routes here for detail.
   provider fallback, and caching.
 - [Chat and sidecars](chat-and-sidecars.md) — chat sessions, MCP sidecars,
   previews, and external platform chat.
+- [Chat internals](chat.md) — turn execution, pending actions, Coding Mode,
+  media, and cross-chat implementation details.
+- [Multi-worker internals](multi-worker.md) — routing, affinity, search,
+  resource sampling, admission, and worker APIs.
+- [Metrics](metrics.md) — instrumentation, samplers, cursor mechanics,
+  cardinality, and metric declaration.
+- [Observability](observability.md) — event sinks, exception streams,
+  performance markers, startup phases, and diagnostics.
 - [Plugins and extension points](plugins.md) — registry ownership and optional
   subsystem boundaries.
 - [Frontend surfaces](frontend.md) — Rails SPA shells, React routes, live

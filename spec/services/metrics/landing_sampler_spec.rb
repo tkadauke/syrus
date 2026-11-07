@@ -73,7 +73,7 @@ RSpec.describe Metrics::LandingSampler do
   # Stands in for a *separate scrape-path process* reading the cache #sample!
   # (running on a worker) wrote to. Never assume this is the same instrument
   # state #sample! touched -- in production it genuinely isn't (see
-  # config/syrus_docs/metrics.md: /metrics is web-only, #sample! runs from a
+  # docs/engineering/architecture/metrics.md: /metrics is web-only, #sample! runs from a
   # worker's control_plane queue).
   def refresh!
     described_class.refresh_gauges!(queue_source: queue_source)

@@ -3,7 +3,7 @@
 This is a different thing from `repository_throughput_metrics.md`. That document describes
 `Throughput::MetricContract`: a per-repository contract precomputed into versioned cache snapshots. This
 document describes two install-wide Prometheus counters the plugin exports to `/metrics`
-(see `config/syrus_docs/metrics.md`) while enabled:
+(see `docs/engineering/operations/metrics.md`) while enabled:
 
 | Metric | Meaning |
 |---|---|

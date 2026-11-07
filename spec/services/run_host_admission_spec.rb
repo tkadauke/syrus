@@ -295,7 +295,7 @@ RSpec.describe RunHostAdmission do
 
   # syrus_admission_decisions_total is the same cluster-backed counter
   # WorkflowAdmissionBudget increments; RunHostAdmission's own admit/defer
-  # decisions feed it too (see config/syrus_docs/metrics.md). Reads the count
+  # decisions feed it too (see docs/engineering/architecture/metrics.md). Reads the count
   # before/after since the registry is real and process-global.
   it "increments syrus_admission_decisions_total for both admit and defer decisions" do
     admit_before = admission_decisions_total("admit")

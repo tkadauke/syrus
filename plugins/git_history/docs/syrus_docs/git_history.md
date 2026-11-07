@@ -75,7 +75,7 @@ restricts `cursor` to a hex revision plus optional decimal offset
 construction; an invalid cursor degrades to an empty page, same as an unknown
 SHA.
 
-**Single-writer-pod assumption.** See `config/syrus_docs/multi_worker.md`'s
+**Single-writer-pod assumption.** See `docs/engineering/operations/multi-worker.md`'s
 "Git History relay pinning" section: today exactly one worker pod ever syncs
 bare clones (`polling` is conventionally bundled onto the single home worker),
 so the relay running only on the pod(s) consuming `polling` is correct by
