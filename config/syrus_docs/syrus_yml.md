@@ -361,42 +361,8 @@ and repository policy concerns; do not put secrets in `.syrus.yml`. If a target
 really needs signing, document the required Keychain/profile access in the
 worker runbook and make sure the launchd worker user can access it.
 
-For an iOS-only implementation Job, make the primary placement explicit when
-filing a chat/API proposal:
-
-```json
-{
-  "planned_execution": {
-    "project_label": "iOS App",
-    "target_label": "//apps/ios:test",
-    "capabilities": {
-      "os": ["macos"],
-      "arch": ["arm64"],
-      "toolchain": ["xcode"],
-      "runtime": ["ios_simulator"]
-    }
-  }
-}
-```
-
-Use the same primary placement for mixed iOS/backend implementation Jobs when
-the agent must edit and test the iOS app in the same attempt, while backend
-graders keep their own Linux target requirements:
-
-```json
-{
-  "planned_execution": {
-    "project_label": "iOS App",
-    "capabilities": {
-      "os": ["macos"],
-      "arch": ["arm64"],
-      "toolchain": ["xcode"],
-      "runtime": ["ios_simulator"]
-    },
-    "source": "operator"
-  }
-}
-```
+For proposal placement examples and typed Xcode/Swift grader guidance, see the
+[iOS plugin guide](../../plugins/ios/docs/syrus_docs/ios.md).
 
 ```yaml
 # apps/api/.syrus.yml
@@ -414,13 +380,8 @@ grade:
       os: linux
 ```
 
-Common iOS pitfalls are operational rather than schema problems. If a macOS
-Run is blocked with no capable worker, check that a fresh worker advertises
-`os:macos` and consumes the macOS compute queues. If `xcodebuild` fails before
-compilation, run the macOS worker check, verify full Xcode is selected,
-accept the Xcode license, and install the simulator runtime named by the
-destination. If signing or Keychain access fails, debug as the launchd worker
-user rather than an interactive admin user.
+For worker, Xcode, simulator, signing, and Keychain diagnosis, see
+[iOS and macOS compute](../../docs/engineering/operations/ios-compute.md).
 
 ### scripts
 
@@ -755,19 +716,15 @@ Use `runtime` when large suites have uneven spec-file costs. Syrus asks enabled
 grader input materializers to write a `parallel_tests` runtime log into the
 grader workspace before the command starts; if none is produced, the Ruby
 grader falls back to `--group-by filesize` and says so. It does not fall back
-to `parallel_tests`' own default, which balances by *file count*: on one
-production suite that produced shards from 3m53s to 9m56s, and since the
-slowest shard sets the grader's wall clock that 2.5x spread was paid in full.
-File size needs no recorded state and is a much better proxy for runtime. Runtime logs use
+to `parallel_tests`' own default, which balances by file count. File size needs
+no recorded state and is a better fallback proxy for runtime. Runtime logs use
 the `path/to/spec.rb:seconds` format that `parallel_tests` writes. When the log
 is partial, `parallel_rspec.allowed_missing` and
 `parallel_rspec.unknown_runtime` pass through to `parallel_tests` so known
 expensive files can still drive the split while unmeasured files get a
 conservative default.
 
-Custom `run:` commands are executed as-is. A `fast:` key is no longer accepted
-at all — declaring it in `.syrus.yml` has no effect and is not parsed into
-anything.
+Custom `run:` commands are executed as-is.
 
 ### phases
 
@@ -1016,12 +973,8 @@ grade:
       run: npm run typecheck
 ```
 
-Boolean, **defaults to `true`** (`SyrusYml::DEFAULT_RERUN_ONLY_FAILED`). Both
-forms of `grade:` get that default -- the bare array shorthand takes it too,
-and only the mapping form can override it, by setting
-`grade.rerun_only_failed: false` for the old always-rerun-everything
-behavior. A repository that wants carry-forward therefore has to configure
-nothing at all.
+Boolean, **defaults to `true`**. Both forms of `grade:` get that default; only
+the mapping form can override it with `grade.rerun_only_failed: false`.
 
 Infrastructure-only retries are narrower regardless of this setting. Because
 no repair step changed the checkout, Syrus carries forward successful required
@@ -1029,41 +982,21 @@ graders whose target fingerprints are unchanged and reruns only graders with
 failed or inconclusive infrastructure outcomes. This avoids turning one lost
 worker or database interruption into another full grader burst.
 
-When `true`, the **first** grading iteration always runs every active grader, but from the **second** iteration onward a repair loop can carry forward a grader that already passed within the current reuse window (see the lookback note below). Carry-forward is allowed only for required graders whose current target-health fingerprints still match known-passing health for the grader target and its executable dependencies. If the current inputs, dependency closure, command, environment, or policy no longer prove that pass, Syrus forces a fresh rerun and records the reason in `target_health_forced_targets`.
+When `true`, the first grading iteration runs every active grader. Later repair
+iterations may carry forward a required grader only while its relevant inputs,
+dependencies, command, environment, and policy still prove the pass. Otherwise
+Syrus reruns it and records the reason.
 
 Optional graders are never carried forward by this setting; they run again when active. A grader whose `when_files_changed` glob starts matching only on a later iteration is also still run then, regardless of this setting — `rerun_only_failed` only narrows within graders that were already active, it never overrides file-glob activation.
 
-**The reuse window is bounded by the last repair that changed code**, not by a
-fixed number of iterations. `Steps::GraderFanout#reusable_passed_steps_by_name`
-considers every grader that succeeded at an iteration `>= last_code_changing_repair_iteration`,
-and "code changing" is measured per repair Run (`step_agent_diff` present, or
-`head_sha != base_sha`) rather than assumed. So a grader that passed on
-iteration 2 is still reusable on iteration 5 as long as no repair in between
-actually modified the tree -- the invariant is "a pass holds until the code
-changes", which is the only thing that can invalidate it.
+The reuse window ends whenever a repair changes code. Carry-forward always
+traces to a real successful grader run and never chains from another
+carry-forward. Optional graders run whenever active, and later file-glob
+activation still causes a run.
 
-Two consequences follow, and both are deliberate:
-
-- **A code-changing repair empties the window.** Its own iteration becomes the
-  floor, so `iteration >= N AND iteration < N` matches nothing and every active
-  grader runs again. This is why a normal repair loop looks like it carries
-  nothing forward: the repair that caused the iteration is exactly the thing
-  that invalidates the previous passes. `skip_reusable_target_health!` stands
-  down for the same iteration too, unless the work definition opts into
-  per-grader target-health narrowing
-  (`target_health_narrows_after_code_changing_repair?`, on for `job_bundle`
-  and `merge_train` -- see "Target health" in `workflow_steps.md`).
-- **A carry-forward cannot chain off another carry-forward.** A carried grader
-  is dropped from the fanout and gets no Step of its own, and the lookback
-  query requires `state: "succeeded"`, so reuse always traces back to a real
-  run. A long loop therefore reruns a still-green grader occasionally instead
-  of skipping it forever on the strength of an ever-older result.
-
-Where the setting does pay off is an iteration whose repair committed nothing
-and an infrastructure-only retry -- and those are carried forward
-unconditionally anyway (see above), independent of `rerun_only_failed`.
-
-Useful for repos with slow or expensive graders (e.g. a full website build) where re-running an already-green check on every repair iteration wastes time the agent could spend on the graders that are actually still failing.
+This is useful for repositories with slow or expensive graders when a repair
+iteration makes no code change. Infrastructure-only retries carry forward
+unchanged successful required graders regardless of this setting.
 
 ## merge_train
 

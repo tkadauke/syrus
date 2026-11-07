@@ -27,30 +27,9 @@ anything but `linear` — the field exists mainly so the concept has a stable
 place to live if a future, deliberately-designed non-linear structure is ever
 added.
 
-## History
-
-`epic_dependency_policy` used to support a legacy `"nonlinear"` value for
-Epics/Repositories with an older, DAG-capable `JobDependency` graph (branching
-or fan-in child Jobs). `"nonlinear"` was already unselectable from every
-surface — the App and Admin REST APIs rejected it on create/update, and no
-form rendered it as an option — before it was removed outright. A migration
-(`RemoveNonlinearEpicDependencyPolicy`) backfilled any repository or Epic rows
-still carrying the old value to `"linear"`; this was a no-op in production, since
-no `"nonlinear"` rows existed there by the time of removal. The backfill only
-relabels those rows — it does not touch their `JobDependency` graph, which
-[JobDependency-level enforcement](#jobdependency-level-enforcement) below has
-never actually gated on this field.
-
 ## Resolution
 
-Epics store concrete policy names. `Epic#resolved_epic_dependency_policy` is kept as the behavior-facing accessor, but it now returns the stored concrete policy rather than resolving through the repository at runtime:
-
-```ruby
-epic.epic_dependency_policy          # "linear"
-epic.resolved_epic_dependency_policy # same value
-```
-
-Epics proposed through chat are always `linear`. Existing Epics that used the retired `inherit` value were backfilled once to the repository policy that was current at migration time, so later repository setting changes do not alter existing Epic behavior.
+Epics store the concrete `linear` policy selected when they are created. Later repository setting changes do not alter an existing Epic. Epics proposed through chat are always linear.
 
 ## Execution readiness
 
@@ -79,30 +58,8 @@ A handful of older Epics still carry a `JobDependency` graph with more than one 
 
 ## Proposal validation
 
-The `propose_epic_with_jobs` MCP tool validates the incoming child Job graph as a single linear chain itself, before creating any `ChatProposal` rows for the Epic or its child Jobs — a nonlinear graph never even becomes a proposal card the operator has to notice and reject. For a fresh Epic with brand-new child Jobs, callers can omit `jobs[].depends_on` for a straight top-to-bottom chain: after normalization, every non-first job whose `depends_on`, `depends_on_job_ids`, and `depends_on_epic_ids` are all empty is defaulted to depend on the immediately preceding job slug in the `jobs` array before validation. Explicit dependency values are never overwritten by this default.
+`propose_epic_with_jobs` requires at least one child and validates the complete child graph before showing a proposal. For a fresh Epic, omitted sibling dependencies default to a top-to-bottom chain. Explicit dependencies are never overwritten. One child or one simple chain is valid; fan-in, fan-out, parallel branches, disconnected children, and redundant transitive edges are rejected.
 
-`ChatEpicProposalMaterializer` runs the linear check again (via the shared `EpicDependencyPolicy::Linear.validate_chain!` graph algorithm) at confirmation time, as a defense-in-depth safety net. Sibling `depends_on` edges must make every child comparable with every other child, and direct sibling edges must not encode a merge or fork: one child or a simple chain is valid; redundant direct transitive edges, fan-in, fan-out, disconnected roots/leaves, and parallel child Jobs are rejected with the offending slugs in the error. There is no proposal-time override — `propose_epic_with_jobs` has no field for requesting a nonlinear child graph, and Epics created from chat proposals always persist `linear` before child Job dependencies are materialized.
+When extending an existing Epic, new children must connect to its existing chain explicitly. Same-session proposal slugs use `depends_on`; already materialized Jobs use `depends_on_job_ids`. A single `propose_job` added to an existing Epic must name an existing child dependency, while the direct-Job form derives the current tail when the operator selected the Epic without dependency controls.
 
-`ChatEpicProposalMaterializer` also rejects confirming any Epic proposal that would leave the resulting Epic with zero child Jobs: no proposed children on the card, and (when `epic.epic_id` targets an existing Epic) that Epic has no Jobs of its own either. A zero-child Epic would confirm successfully and then implement nothing, which surprises the operator far more than a rejected confirmation does. One child Job is allowed.
-
-This is enforced earlier too: the bare `propose_epic` MCP tool (which used to create an Epic-only proposal card with no child Jobs at all) now always rejects, pointing the caller at `propose_epic_with_jobs` instead — the only remaining way to propose a new Epic, and it requires at least one child Job in the `jobs` array up front. This closes the gap where an agent could leave a zero-child Epic proposal card sitting in the chat that would only fail once the operator tried to confirm it.
-
-When `epic.epic_id` targets an existing Epic that already has child Jobs, `propose_epic_with_jobs` does not infer any array-order dependency default across that persisted-Epic boundary. Both layers fold that Epic's existing Jobs (and their same-epic `JobDependency` edges) into the same reachability graph, keyed alongside the new proposals. A batch of new children that only chains against itself but never references the Epic's existing Jobs is rejected as a disconnected branch — this is the case the direct-edge `JobDependency` check below cannot see, because a brand-new child Job with zero dependency edges never trips a degree-based validation. `jobs[].depends_on_job_ids` on `propose_epic_with_jobs` (existing Job IDs, wired to a real `JobDependency` at confirmation) is the mechanism for chaining a new child onto an Epic's current tail Job; `depends_on` on that same tool only reaches sibling slugs proposed in the same call, not already-materialized Jobs.
-
-The single-Job `propose_job` MCP tool has the same exposure through `epic_id` and closes it with a narrower, existence-only check: if the target Epic already has any Jobs, `depends_on_job_ids` must include at least one of them, or the tool rejects the proposal before creating it. This does not re-run the full reachability algorithm (which needs the whole batch to reason about fan-in/fan-out) — the direct-edge `JobDependency` validation below still catches a `propose_job` call that names an existing Job that already has another same-epic dependent or dependency. The two checks together close both the disconnected-branch case and the fan-in/fan-out case for this tool.
-
-The direct-Job form (`/jobs/new`, and the `direct_jobs` API behind it) reaches
-`propose_job` through `DirectJobs::ProposalCreator`, so it inherits that
-existence-only check — but it has no dependency control of its own to satisfy
-it with. Rather than reject an operator who selected an Epic, that path
-derives the dependency: when a target Epic already has Jobs and the caller
-passed no `depends_on_job_ids`, no `depends_on` slugs and no
-`dependency_requirements`, the new Job is chained onto the Epic's current
-tail — the Job that nothing else in the Epic depends on, which is the only
-position the single-chain rule leaves open anyway. An explicit dependency of
-any kind is honored as given and never replaced. Agents calling `propose_job`
-directly are unaffected and still have to name the tail themselves.
-
-## JobDependency-level enforcement
-
-Independent of the proposal-graph check above, `JobDependency`'s own model validation enforces same-Epic edges unconditionally, regardless of any Epic's or Repository's `epic_dependency_policy`: a Job may not have two same-Epic upstream dependencies (no merge/fan-in), and an upstream Job may not have two same-Epic downstream dependents (no fork/fan-out). This is a *direct-edge* count, not a transitive-reachability check, so it is stricter than pure reachability; proposal validation mirrors that direct-edge rule for sibling proposal slugs so an explicit redundant transitive edge (for example `C depends_on B`, `B depends_on A`, and also `C depends_on A`) is rejected before a card is created. No code path — the `add_job_dependency` MCP tool, the admin API, chat proposal confirmation, or GitHub issue `Depends-on:` footer parsing — can create a fan-in or fan-out same-Epic `JobDependency` edge. Existing `JobDependency` rows created before this enforcement are unaffected, since the check only runs on create/update; the DAG-capable services (`JobStackResolver`, `LandingQueueProcessor#dependency_order`, `EpicRestackPlan`, `MergeTrainAssembler`) do not create new `JobDependency` rows, and keep serving whatever fan-in/fan-out structure already exists on those older rows unmodified.
+The same single-chain rule applies no matter whether dependencies come from chat proposals, direct Jobs, admin actions, or GitHub issue markers. Older dependency graphs remain readable and executable, but no current path can create new same-Epic fan-in or fan-out edges.

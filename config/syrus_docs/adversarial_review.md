@@ -53,7 +53,7 @@ later becomes stale is presented as stale rather than as a current approval.
 
 ## Findings carry-forward
 
-Findings accumulate in `workflow.artifacts["adversarial_review_iterations"]` as an array and appear in the workflow detail UI. Two separate consumers read that array:
+Findings accumulate across review iterations and appear in the workflow detail UI.
 
 Provider-routing rules may select a serial review panel. At execution time the
 review step expands into one provider-pinned member step per available member
@@ -66,18 +66,15 @@ Unavailable members follow the rule's `drop`, `hold`, or `fail` policy and its
 minimum-member requirement. Rules that resolve to zero or one effective member
 retain the ordinary single-review behavior.
 
-- The **reviewer** itself gets every prior iteration's findings (regardless of verdict) via `prior_findings` in `Prompts::AdversarialReview`, so a later review round has context on what earlier rounds already flagged.
-- The **repair `implement` agent** gets only the `needs_work` iterations, rendered by `Prompts::ReviewFeedback` and appended to its prompt (`Steps::Base#append_review_feedback`). This is what actually tells the implementing agent what to fix — without it, a repair iteration would just re-receive the original task prompt with no idea what the reviewer objected to.
+- The reviewer gets all prior findings so later rounds know what was already flagged.
+- The repair agent gets the `needs_work` findings it must address.
 
 ## Configuration
 
 ### Instance-wide (AppSetting)
 
-```ruby
-AppSetting.current.update!(adversarial_review_rounds: 2)
-```
-
-Rounds range: 0–10. Default is 0 (disabled).
+Set **Adversarial review rounds** in application settings. The range is 0–10
+and the default is 0 (disabled).
 
 `rounds: 1` seeks exactly one review opinion. If that review comes back `needs_work`, it still gets a repair reaction — the reviewer's feedback is always addressed by a repair `implement`/`respond`, it just doesn't get reviewed a second time since the budget is exhausted after one opinion. Set `rounds: 2` or higher to have the repair reviewed again before grading.
 
@@ -150,4 +147,6 @@ The reviewer reads the `respond` step diff rather than an `implement` step diff,
 adversarial_review(1) → [coding_handoff_fix → adversarial_review(2) → ...] → visual_review? → graders
 ```
 
-`Steps::AdversarialReview#latest_agentic_diff` falls back to a fresh `git diff` against the default branch whenever the chain has no `implement`/`respond` step at all — the same fallback `Steps::VisualReview` already uses for the standalone `manual_visual_review` workflow. A `needs_work` verdict is repaired by `coding_handoff_fix`, which also handles the workflow's grader retry loop, so one repair step reacts to both review feedback and grader failures.
+When the chain has no implementation or response step, review uses the current
+diff against the default branch. A `needs_work` verdict is repaired by the
+coding-handoff repair step, which also handles grader failures.
