@@ -486,9 +486,10 @@ describe("Markdown", () => {
     expect(keyword.style.color).toBe("var(--shiki-token-keyword)")
   })
 
-  it("renders inline TeX math as selectable KaTeX HTML and MathML", () => {
+  it("renders inline TeX math as selectable KaTeX HTML and MathML", async () => {
     const { container } = render(<Markdown text={"Smooth interpolation uses $t^2(3 - 2t)$ for easing."} />)
 
+    await waitFor(() => expect(container.querySelector(".syrus-inline-math")).toBeInTheDocument())
     const math = container.querySelector(".syrus-inline-math")
     expect(math).toBeInTheDocument()
     expect(math?.querySelector(".katex-html")).toBeInTheDocument()
@@ -497,24 +498,24 @@ describe("Markdown", () => {
     expect(screen.getByText(/Smooth interpolation uses/)).toBeInTheDocument()
   })
 
-  it("renders parenthesized inline TeX math delimiters", () => {
+  it("renders parenthesized inline TeX math delimiters", async () => {
     const { container } = render(<Markdown text={"The derivative is \\(2t\\)."} />)
 
-    expect(container.querySelector(".syrus-inline-math .katex-html")).toBeInTheDocument()
+    await waitFor(() => expect(container.querySelector(".syrus-inline-math .katex-html")).toBeInTheDocument())
     expect(container.querySelector(".syrus-inline-math .katex-mathml math")).not.toBeNull()
   })
 
-  it("renders numeric inline TeX formulas without treating prices as formulas", () => {
+  it("renders numeric inline TeX formulas without treating prices as formulas", async () => {
     const { container } = render(<Markdown text={"Arithmetic $2+2=4$ costs $5 today."} />)
 
-    expect(container.querySelector(".syrus-inline-math .katex-html")).toBeInTheDocument()
+    await waitFor(() => expect(container.querySelector(".syrus-inline-math .katex-html")).toBeInTheDocument())
     expect(screen.getByText(/costs \$5 today/)).toBeInTheDocument()
   })
 
-  it("renders inline TeX math in list items and table cells", () => {
+  it("renders inline TeX math in list items and table cells", async () => {
     const { container } = render(<Markdown text={"- Blend with $x_i^2$\n\n| Name | Formula |\n| --- | --- |\n| smootherstep | $t^3(10 - 15t + 6t^2)$ |"} />)
 
-    expect(container.querySelector("li .syrus-inline-math .katex-html")).toBeInTheDocument()
+    await waitFor(() => expect(container.querySelector("li .syrus-inline-math .katex-html")).toBeInTheDocument())
     expect(container.querySelector("td .syrus-inline-math .katex-html")).toBeInTheDocument()
   })
 
@@ -546,11 +547,11 @@ describe("Markdown", () => {
     expect(container.querySelector(".syrus-inline-math")).toBeNull()
   })
 
-  it("does not let rejected currency spans consume later inline math", () => {
+  it("does not let rejected currency spans consume later inline math", async () => {
     const { container } = render(<Markdown text={"Cost is $5 today and formula $x^2$ renders."} />)
 
     expect(screen.getByText(/Cost is \$5 today and formula/)).toBeInTheDocument()
-    expect(container.querySelector(".syrus-inline-math .katex-html")).toBeInTheDocument()
+    await waitFor(() => expect(container.querySelector(".syrus-inline-math .katex-html")).toBeInTheDocument())
     expect(container.querySelector(".syrus-inline-math")).toHaveTextContent("x")
   })
 
@@ -561,7 +562,7 @@ describe("Markdown", () => {
     expect(container.querySelector(".syrus-inline-math")).toBeNull()
   })
 
-  it("keeps slug autolinks working next to inline math", () => {
+  it("keeps slug autolinks working next to inline math", async () => {
     const { container } = render(
       <MemoryRouter>
         <Markdown text={"JOB-100 uses $t^2(3 - 2t)$ before EPIC-5."} />
@@ -570,7 +571,7 @@ describe("Markdown", () => {
 
     expect(screen.getByRole("link", { name: "JOB-100" })).toHaveAttribute("href", "/jobs/JOB-100")
     expect(screen.getByRole("link", { name: "EPIC-5" })).toHaveAttribute("href", "/epics/EPIC-5")
-    expect(container.querySelector(".syrus-inline-math .katex-html")).toBeInTheDocument()
+    await waitFor(() => expect(container.querySelector(".syrus-inline-math .katex-html")).toBeInTheDocument())
   })
 
   it("truncates pathological lines without disabling markdown rendering", () => {

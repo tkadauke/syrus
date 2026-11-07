@@ -1,6 +1,6 @@
 import { Fragment, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react"
-import katex from "katex"
 import "katex/dist/katex.min.css"
+import { InlineMath } from "../components/InlineMath"
 import { containsSlug, linkifySlugs } from "./linkifySlugs"
 import { CodeBlock } from "../components/CodeBlock"
 import { detectFenceLanguage } from "./highlighter"
@@ -915,15 +915,7 @@ function renderInlineMath(token: string, key: number) {
   const expression = token.startsWith("$") ? token.slice(1, -1) : token.slice(2, -2)
   if (!validInlineMathExpression(expression)) return token
 
-  const html = katex.renderToString(expression, {
-    displayMode: false,
-    output: "htmlAndMathml",
-    strict: false,
-    throwOnError: false,
-    trust: false
-  })
-
-  return <span className="syrus-inline-math" dangerouslySetInnerHTML={{ __html: html }} key={key} />
+  return <InlineMath expression={expression} key={key} source={token} />
 }
 
 function validInlineMathExpression(expression: string) {
