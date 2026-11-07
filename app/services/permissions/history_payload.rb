@@ -2,17 +2,23 @@ module Permissions
   class HistoryPayload
     LIMIT = 200
 
-    def initialize(user)
+    def initialize(user, page: 1, per_page: LIMIT)
       @user = user
+      @page = [ page.presence&.to_i || 1, 1 ].max
+      @per_page = [[per_page.presence&.to_i || LIMIT, 1].max, LIMIT].min
     end
 
     def as_json
-      { active_leases: active_leases.map { |lease| serialize_lease(lease) }, history: history.first(LIMIT) }
+      entries = history
+      offset = (page - 1) * per_page
+      { active_leases: active_leases.map { |lease| serialize_lease(lease) },
+        history: entries.slice(offset, per_page) || [],
+        pagination: { page:, per_page:, total: entries.length } }
     end
 
     private
 
-    attr_reader :user
+    attr_reader :user, :page, :per_page
 
     def active_leases
       PermissionLease.where(owner_user: user).not_revoked.not_expired.with_uses_remaining

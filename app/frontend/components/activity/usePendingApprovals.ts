@@ -4,8 +4,8 @@ import { fetchPermissionRequests } from "../../api/permissionRequests"
 /** Shared by the desktop drawer trigger, the mobile Activity tabs and the panel so every surface reads one cache entry. */
 export function usePendingApprovals() {
   const query = useQuery({
-    queryKey: ["permission_requests", 1],
-    queryFn: () => fetchPermissionRequests(1),
+    queryKey: ["permission_requests", "summary"],
+    queryFn: () => fetchPermissionRequests(1, "", "summary"),
     staleTime: 0,
     refetchInterval: 30_000
   })

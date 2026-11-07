@@ -29,6 +29,7 @@ RSpec.describe "API: /api/v1/app/permission_rule_drafts", type: :request do
 
     options = JSON.parse(response.body).fetch("options")
     expect(response).to have_http_status(:ok)
+    expect(response.headers["ETag"]).to be_present
     expect(options).to include("authority_durations" => %w[chat_session job permanent], "permanent_allowed" => true,
       "maximum_autonomy" => "permanent", "constraint_fields" => { "branch" => "string" })
     expect(options.fetch("subject_types").pluck("type")).to include("interactive_chat", "agent", "workflow_role")

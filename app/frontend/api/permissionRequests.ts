@@ -84,20 +84,26 @@ export type PermissionRequestsPayload = {
   summary: { pending_count: number; blocked_agent_count: number }
   pagination: { page: number; per_page: number; total: number; total_pages: number }
 }
-export const fetchPermissionRequests = (page = 1, q = "") => {
+export type SlimPermissionRequest = Pick<PermissionRequest, "id" | "state" | "checkpoint_state">
+export type MutationPermissionRequest = SlimPermissionRequest & Partial<Omit<PermissionRequest, keyof SlimPermissionRequest>>
+export const fetchPermissionRequests = (page = 1, q = "", view?: "summary") => {
   const params = new URLSearchParams({ page: String(page) })
   if (q) params.set("q", q)
+  if (view === "summary") {
+    params.set("view", view)
+    params.set("limit", "5")
+  }
   return getJson<PermissionRequestsPayload>(`/api/v1/app/permission_requests?${params}`)
 }
 export const decidePermissionRequest = (id: number, decision: "approved" | "denied", duration?: string) =>
-  postJson<{ request: PermissionRequest }>(`/api/v1/app/permission_requests/${id}/decide`, { decision, duration })
+  postJson<{ request: MutationPermissionRequest }>(`/api/v1/app/permission_requests/${id}/decide`, { decision, duration })
 export const dismissPermissionRequest = (id: number) => {
-  return deleteJson<{ request: PermissionRequest }>(`/api/v1/app/permission_requests/${id}`)
+  return deleteJson<{ request: MutationPermissionRequest }>(`/api/v1/app/permission_requests/${id}`)
 }
 export const batchDecidePermissionRequests = (requestIds: number[], decision: "approved" | "denied", duration?: string) =>
-  postJson<{ requests: PermissionRequest[] }>("/api/v1/app/permission_requests/batch_decide", { request_ids: requestIds, decision, duration })
+  postJson<{ requests: MutationPermissionRequest[] }>("/api/v1/app/permission_requests/batch_decide", { request_ids: requestIds, decision, duration })
 export const smartDecidePermissionRequest = (id: number, itemId: number, option: Pick<SmartPermissionOption, "duration" | "digest" | "prefix">) =>
-  postJson<{ request: PermissionRequest }>(`/api/v1/app/permission_requests/${id}/items/${itemId}/smart_decision`, {
+  postJson<{ request: MutationPermissionRequest }>(`/api/v1/app/permission_requests/${id}/items/${itemId}/smart_decision`, {
     duration: option.duration,
     digest: option.digest,
     ...(option.prefix ? { prefix: option.prefix.value } : {})

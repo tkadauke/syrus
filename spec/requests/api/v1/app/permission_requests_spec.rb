@@ -49,6 +49,28 @@ RSpec.describe "API: /api/v1/app/permission_requests", type: :request do
     expect(JSON.parse(response.body).fetch("summary")).to eq("pending_count" => 2, "blocked_agent_count" => 1)
   end
 
+  it "serves a five-row cacheable summary without heavy decision evidence or filter options" do
+    6.times do |index|
+      request = authorization_request(deduplication_key: "summary-#{index}")
+      request.authorization_items.create!(item_attributes.merge(
+        invocation_fingerprint: "summary-#{index}", normalized_arguments: { "message" => "heavy" },
+        policy_chain: [ { "policy" => "ask" } ], decisive_rule: { "policy" => "ask" }
+      ))
+    end
+
+    get "/api/v1/app/permission_requests", params: { view: "summary", limit: 5 }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.headers["ETag"]).to be_present
+    payload = JSON.parse(response.body)
+    expect(payload.fetch("requests").length).to eq(5)
+    expect(payload).not_to have_key("filter_options")
+    expect(payload.dig("pagination", "per_page")).to eq(5)
+    payload.fetch("requests").flat_map { |request| request.fetch("items") }.each do |item|
+      expect(item.keys).not_to include("arguments", "policy_chain", "decisive_rule")
+    end
+  end
+
   it "records one compatible decision across the request items" do
     request = authorization_request
     request.authorization_items.create!(item_attributes)

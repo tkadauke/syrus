@@ -155,7 +155,7 @@ describe("PermissionInboxDrawer", () => {
     vi.useFakeTimers()
 
     act(() => {
-      client.setQueryData<PermissionRequestsPayload>(["permission_requests", 1], {
+      client.setQueryData<PermissionRequestsPayload>(["permission_requests", "summary"], {
         ...empty,
         summary: { pending_count: 1, blocked_agent_count: 1 }
       })
@@ -167,11 +167,11 @@ describe("PermissionInboxDrawer", () => {
     expect(screen.queryByTestId("approval-newly-blocked-ping")).not.toBeInTheDocument()
 
     act(() => {
-      client.setQueryData<PermissionRequestsPayload>(["permission_requests", 1], empty)
+      client.setQueryData<PermissionRequestsPayload>(["permission_requests", "summary"], empty)
       vi.advanceTimersByTime(0)
     })
     act(() => {
-      client.setQueryData<PermissionRequestsPayload>(["permission_requests", 1], {
+      client.setQueryData<PermissionRequestsPayload>(["permission_requests", "summary"], {
         ...empty,
         summary: { pending_count: 1, blocked_agent_count: 1 }
       })
@@ -180,7 +180,7 @@ describe("PermissionInboxDrawer", () => {
     expect(screen.getByTestId("approval-newly-blocked-ping")).toBeInTheDocument()
 
     act(() => {
-      client.setQueryData<PermissionRequestsPayload>(["permission_requests", 1], empty)
+      client.setQueryData<PermissionRequestsPayload>(["permission_requests", "summary"], empty)
       vi.advanceTimersByTime(0)
     })
     expect(screen.queryByTestId("approval-newly-blocked-ping")).not.toBeInTheDocument()
