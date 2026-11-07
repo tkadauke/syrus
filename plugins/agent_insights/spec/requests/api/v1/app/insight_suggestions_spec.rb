@@ -315,11 +315,11 @@ RSpec.describe "App API insight suggestions", type: :request do
 
       suggestion = parse_body["suggestions"].first
       expect(suggestion["state"]).to eq("retired")
-      expect(suggestion["retired_reason"]).to eq("Folded into the newer finding.")
+      expect(suggestion).not_to have_key("retired_reason")
       expect(suggestion["superseded_by_insight_id"]).to eq(superseding.id)
     end
 
-    it "auto-accepts stale remove_memory suggestions whose target memory was already deleted" do
+    it "does not mutate stale remove_memory suggestions while listing" do
       memory = ::AgentMemory::Entry.create!(
         user: user,
         kind: "project_fact",
@@ -339,13 +339,13 @@ RSpec.describe "App API insight suggestions", type: :request do
 
       expect(response).to have_http_status(:ok)
       body = parse_body
-      expect(body["suggestions"].map { |s| s["id"] }).not_to include(suggestion.id)
+      expect(body["suggestions"].map { |s| s["id"] }).to include(suggestion.id)
       expect(body.dig("meta", "counts")).to include(
-        "pending"  => 0,
-        "accepted" => 1,
+        "pending"  => 1,
+        "accepted" => 0,
         "all"      => 1
       )
-      expect(suggestion.reload.accepted?).to be true
+      expect(suggestion.reload.pending?).to be true
     end
 
     it "paginates suggestions and returns the correct subset on page 2" do
@@ -382,7 +382,7 @@ RSpec.describe "App API insight suggestions", type: :request do
       body = parse_body
       expect(body["suggestions"].length).to eq(5)
       expect(body["suggestions"].pluck("state").uniq).to eq([ "accepted" ])
-      expect(body["counts"]).to include(
+      expect(body.dig("meta", "counts")).to include(
         "pending"   => 3,
         "accepted"  => 25,
         "dismissed" => 2,
@@ -417,7 +417,8 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(suggestion["state"]).to eq("pending")
       expect(suggestion["proposal_type"]).to eq("create_job")
       expect(suggestion["has_memory_suggestion"]).to be true
-      expect(suggestion["suggested_prompt"]).to eq("Fix the caching")
+      expect(suggestion["has_suggested_prompt"]).to be true
+      expect(suggestion).not_to have_key("suggested_prompt")
     end
 
     it "resolves insight slugs through the global slug ref endpoint" do
@@ -564,6 +565,30 @@ RSpec.describe "App API insight suggestions", type: :request do
       expect(text).not_to include("github_pat_memorysecret")
       expect(text).not_to include("x-access-token:ghs_")
       expect(text).not_to include("x-access-token:github_pat_")
+    end
+  end
+
+  describe "GET /api/v1/app/insight_suggestions/:id" do
+    before do
+      enable_feature
+      sign_in_as(user)
+    end
+
+    it "loads long suggestion details separately from list rows" do
+      suggestion = create_suggestion(
+        suggested_prompt: "Fix the caching",
+        memory_suggestion: "Always warm the cache",
+        evidence: [ { "job_id" => job.id, "kind" => "failure" } ]
+      )
+
+      get "/api/v1/app/insight_suggestions/#{suggestion.id}"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("suggestion")).to include(
+        "suggested_prompt" => "Fix the caching",
+        "memory_suggestion" => "Always warm the cache",
+        "evidence" => [ a_hash_including("job_id" => job.id, "kind" => "failure") ]
+      )
     end
   end
 

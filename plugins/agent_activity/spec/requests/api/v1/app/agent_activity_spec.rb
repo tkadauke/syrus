@@ -96,6 +96,23 @@ RSpec.describe "API: /api/v1/app/agent_activity", type: :request do
       expect(parse_body.fetch("running_count")).to eq(1)
     end
 
+    it "separates static chrome from the polling rows payload and supports conditional rows" do
+      sign_in_as(operator)
+      agent_activity_job_with_run(repository: repository, run_attrs: { state: "running", started_at: 2.minutes.ago })
+
+      get "/api/v1/app/agent_activity/sessions", params: { section: "chrome" }
+      expect(parse_body).to include("filter", "filter_schema", "smart_folders")
+      expect(parse_body).not_to include("sessions", "running_count")
+
+      get "/api/v1/app/agent_activity/sessions", params: { section: "rows" }
+      expect(parse_body).to include("sessions", "running_count")
+      expect(parse_body).not_to include("filter", "filter_schema", "smart_folders")
+      etag = response.headers.fetch("ETag")
+
+      get "/api/v1/app/agent_activity/sessions", params: { section: "rows" }, headers: { "If-None-Match" => etag }
+      expect(response).to have_http_status(:not_modified)
+    end
+
     it "paginates all matching sessions when the SmartFolder parameter is explicitly blank" do
       sign_in_as(operator)
       21.times do |n|

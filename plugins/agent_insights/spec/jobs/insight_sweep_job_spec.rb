@@ -39,6 +39,14 @@ RSpec.describe InsightSweepJob do
   context "when agent_insights is enabled" do
     before { enable_agent_insights! }
 
+    it "resolves obsolete remove-memory suggestions outside read requests" do
+      allow(AgentInsights::Suggestion).to receive(:resolve_obsolete_remove_memory!)
+
+      described_class.perform_now
+
+      expect(AgentInsights::Suggestion).to have_received(:resolve_obsolete_remove_memory!)
+    end
+
     it "skips repos with count below min" do
       enable_config(repository, min_jobs_since_last_run: 5)
       4.times { closed_coding_job(repository) }
