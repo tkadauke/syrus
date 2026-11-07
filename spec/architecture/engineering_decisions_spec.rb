@@ -7,7 +7,12 @@ RSpec.describe "engineering decision records" do
   let(:root) { Pathname.new(File.expand_path("../..", __dir__)) }
   let(:decisions_root) { root.join("docs/engineering/decisions") }
   let(:index) { decisions_root.join("README.md").read }
-  let(:record_paths) { decisions_root.glob("[0-9][0-9][0-9][0-9]-*.md").sort }
+  let(:non_record_filenames) { %w[README.md TEMPLATE.md] }
+  let(:record_paths) do
+    decisions_root.glob("*.md").reject do |path|
+      non_record_filenames.include?(path.basename.to_s)
+    end.sort
+  end
   let(:records) { record_paths.to_h { |path| [ path, metadata(path) ] } }
 
   it "uses stable filenames and matching unique identifiers" do
