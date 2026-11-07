@@ -19,7 +19,7 @@ module Api
 
             if setting.update(update_params)
               audit_workflow_admission_control_change!(setting) if admission_control_changed
-              render json: settings_payload.merge(message: I18n.t("api.admin_settings.updated"))
+              render json: { ok: true }
             else
               render_error("validation_failed", setting.errors.full_messages.to_sentence,
                            status: :unprocessable_content)
@@ -31,7 +31,7 @@ module Api
             return render_error("unknown_secret", I18n.t("api.admin_settings.unknown_secret"), status: :unprocessable_content) unless label
 
             AppSetting.current.clear_secret!(params[:secret])
-            render json: settings_payload.merge(message: I18n.t("api.admin_settings.secret_cleared", label: label))
+            render json: { ok: true }
           end
 
           private
@@ -48,7 +48,6 @@ module Api
                     display_name: user.display_name
                   }
                 },
-                metadata: AppSettingRegistry.metadata_for(AppSettingRegistry.admin_settings_keys),
                 clearable_secrets: AppSetting.clearable_secrets.map do |key, label|
                   {
                     key: key,

@@ -119,13 +119,32 @@ curl -H "Authorization: Bearer $SYRUS_API_TOKEN" \
 
 `GET /api/v1/admin/throughput` returns Jobs created versus closed per
 bucket, Jobs reaching `implemented` per bucket, and the median/p90 cycle
-time from Job creation to `pr_merged`, bucketed by both hour and day so the
-same call covers incident work and trend watching. Pass `repository` (a
+time from Job creation to `pr_merged`. The default response contains only
+non-empty daily buckets; pass `granularity=hourly` for incident-scale data.
+Pass `repository` (a
 numeric id or `owner/name` slug) to scope to one repository instead of the
 whole instance, and `since`/`until` (ISO-8601, consistent with
 `/api/v1/admin/runs?since=`) to bound the window -- default is the trailing
 7 days, clamped to at most 90. All timestamps in the response are UTC. With
 the plugin disabled this endpoint returns `plugin_disabled`.
+
+Heavy token-API fields are opt-in. `GET /api/v1/admin/jobs/:id` returns the
+latest three workflows by default; use `workflows=latest` or `workflows=N`,
+and `verbose=1` for workflow artifacts and classifier inputs. The job list
+accepts `fields=min` to omit mergeability, emergency-landing, and provenance
+details. Run artifacts require `include=diff`, `include=logs`, or both.
+
+Epic details cap descriptions at 4,000 bytes by default (`description_max=N`)
+and accept `jobs=false` to omit child Jobs. Epic owner data is returned once as
+`owner: { status, user }`. Chat details accept `content_max=N` and
+`tool_results=false`; attachments, bookmarks, and proposals are limited to a
+first page of 50 each, adjustable up to 100 with `related_per=N`, with totals in
+`related_page`.
+
+Worker health omits `raw_metrics` unless `include_raw_metrics=true`;
+permission-parity grouping requires `summary=1`; and build-cache statistics
+require `include_stats=true`. Repository test details omit failure bodies unless
+`include_failures=true`.
 
 ## Create a Direct Job
 

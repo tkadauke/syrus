@@ -160,5 +160,22 @@ RSpec.describe "API: /api/v1/admin/chats", type: :request do
       )
       expect(older_body["messages"].map { |message| message["id"] }).to eq([ first.id ])
     end
+
+    it "bounds related collections, preloads proposal repositories, and returns valid UTF-8 previews" do
+      chat = ChatSession.create!(user: admin, repository: repository, title: "Bounded")
+      2.times do |index|
+        ChatProposal.create!(chat_session: chat, repository: repository, kind: "job", slug: "proposal-#{index}", title: "Proposal #{index}", body: "Body")
+      end
+      message = chat.messages.create!(role: "assistant", content: { "text" => "éé" })
+
+      get "/api/v1/admin/chats/#{chat.id}", params: { related_per: 1, content_max: 11 }, headers: auth(admin_token)
+
+      body = parse_body
+      expect(body["proposals"].size).to eq(1)
+      expect(body["related_page"]).to include("per" => 1, "proposals_total" => 2)
+      preview = body.fetch("messages").find { |row| row["id"] == message.id }.dig("content", "preview")
+      expect(preview.encoding).to eq(Encoding::UTF_8)
+      expect(preview).to be_valid_encoding
+    end
   end
 end

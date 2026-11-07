@@ -69,6 +69,37 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", :ci_only, type: :request do
       expect(artifact_queries.size).to eq(1)
     end
 
+    it "caps nested workflows and keeps heavyweight fields opt-in" do
+      4.times do |index|
+        workflow = Workflow.create!(job: job, trigger_kind: "retry")
+        workflow.set_artifact!("attempt", index)
+      end
+
+      get "/api/v1/admin/jobs/#{job.id}", headers: auth(admin_token)
+      expect(parse_body["workflows"].size).to eq(3)
+      expect(parse_body["workflows"]).to all(satisfy { |workflow| !workflow.key?("artifacts") })
+
+      get "/api/v1/admin/jobs/#{job.id}", params: { workflows: "latest", verbose: 1 }, headers: auth(admin_token)
+      expect(parse_body["workflows"].size).to eq(1)
+      expect(parse_body.dig("workflows", 0)).to have_key("artifacts")
+    end
+
+    it "projects diff and transcript sizes without materializing heavyweight columns" do
+      run = job.initial_run
+      run.update!(agent_diff: "large diff", step_agent_diff: "step diff")
+      ProviderSession.create!(resumable: run, provider: "codex", session_id: "projected", transcript_jsonl: "one\ntwo\n")
+      allow_any_instance_of(Run).to receive(:agent_diff).and_raise("agent_diff was loaded")
+      allow_any_instance_of(Run).to receive(:step_agent_diff).and_raise("step_agent_diff was loaded")
+      allow_any_instance_of(ProviderSession).to receive(:transcript_jsonl).and_raise("transcript was loaded")
+
+      get "/api/v1/admin/jobs/#{job.id}", headers: auth(admin_token)
+
+      payload = parse_body.fetch("workflows").flat_map { |workflow| workflow.fetch("steps") }
+        .flat_map { |step| step.fetch("runs") }.find { |candidate| candidate["id"] == run.id }
+      expect(payload).to include("agent_diff_bytes" => 10, "step_agent_diff_bytes" => 9)
+      expect(payload.fetch("agent_session")).to include("transcript_bytes" => 8, "transcript_lines" => 2)
+    end
+
     it "resolves a job by its human-readable slug" do
       slugged = Factories.job(user: admin, issue_title: "Invite the statues to speak")
 
@@ -408,7 +439,7 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", :ci_only, type: :request do
       ProviderSession.create!(resumable: run, provider: "codex", session_id: "abc-123",
                             transcript_jsonl: "{\"a\":1}\n{\"b\":2}\n")
 
-      get "/api/v1/admin/jobs/#{job.id}", headers: auth(admin_token)
+      get "/api/v1/admin/jobs/#{job.id}", params: { verbose: 1 }, headers: auth(admin_token)
       body = parse_body
 
       expect(body["id"]).to eq(job.id)
@@ -598,7 +629,7 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", :ci_only, type: :request do
 
       # Force serialize_run to blow up by stubbing one specific Run
       # to raise on a leaf attribute access.
-      allow_any_instance_of(Run).to receive(:agent_diff).and_wrap_original do |original, *args|
+      allow_any_instance_of(Run).to receive(:agent_outcome).and_wrap_original do |original, *args|
         if original.receiver.id == good_run.id
           raise "boom — simulated bad row"
         else
@@ -644,6 +675,14 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", :ci_only, type: :request do
       expect(response).to be_successful
       ids = parse_body["jobs"].map { |j| j["id"] }
       expect(ids).to contain_exactly(job_124.id)
+    end
+
+    it "offers a minimal field set without mergeability, emergency landing, or goal provenance" do
+      get "/api/v1/admin/jobs", params: { fields: "min", issue_number: 124 }, headers: auth(admin_token)
+
+      row = parse_body.fetch("jobs").first
+      expect(row).to include("id", "state", "repository", "issue_title", "updated_at")
+      expect(row).not_to include("goal_provenance", "github_mergeable", "local_mergeable", "emergency_landed_at")
     end
 
     it "filters by issue_number across repos (caller likely wants to narrow with ?repo=)" do

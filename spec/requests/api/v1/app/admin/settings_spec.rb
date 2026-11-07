@@ -33,33 +33,10 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body.dig("settings", "signups_open")).to be true
-    expect(body.dig("settings", "metadata").map { |definition| definition["key"] }).to include(
-      "adversarial_review_rounds",
-      "security_review_rounds",
-      "merge_train_max_size",
-      "report_issue_repo_slug",
-      "chat_coding_workspace_budget_mb",
-      "telegram_bot_handle",
-      # Admin settings are registry-driven, so appearing in this metadata is
-      # what makes a setting reachable in the UI at all. A containment mode
-      # nobody can see or change would leave operators stuck on whichever
-      # default shipped.
-      "contained_chat_execution"
-    )
+    expect(body.dig("settings")).not_to have_key("metadata")
     secrets = body.dig("settings", "clearable_secrets")
     telegram = secrets.find { |s| s["key"] == "telegram_bot_token" }
     expect(telegram).to include("key" => "telegram_bot_token", "label" => "Telegram bot token", "set" => false)
-    expect(body.dig("settings", "metadata")).to include(
-      include(
-        "key" => "max_concurrent_agent_runs",
-        "type" => "integer",
-        "default" => 3,
-        "category" => "Instance operations",
-        "min" => 0,
-        "zero_means" => a_string_including("No global cap")
-      )
-    )
-    expect(body.dig("settings", "metadata").pluck("key")).not_to include("user_daily_spend_budget_usd")
   end
 
   it "clears telegram_bot_token via the clear_secret endpoint" do
@@ -93,7 +70,7 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(AppSetting.current.reload.telegram_bot_handle).to be_nil
-    expect(parse_body.dig("settings", "telegram_bot_handle")).to be_nil
+    expect(parse_body).to eq("ok" => true)
   end
 
   it "rejects clearing a required string setting" do
@@ -120,7 +97,7 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(AppSetting.current.reload.signups_open).to be true
-    expect(parse_body["message"]).to eq("Settings updated.")
+    expect(parse_body).to eq("ok" => true)
   end
 
   it "exposes and updates operator-facing workflow and landing policy settings" do
@@ -278,7 +255,7 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(AppSetting.current.reload.show_work_unit_debug).to be true
-    expect(parse_body.dig("settings", "show_work_unit_debug")).to be true
+    expect(parse_body).to eq("ok" => true)
   end
 
   it "exposes and updates the rebase failure cooldown" do
@@ -315,7 +292,7 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
     expect(setting.workflow_admission_control_enabled).to be false
     expect(setting.workflow_admission_control_changed_at).to be_present
     expect(setting.workflow_admission_control_changed_by_user).to eq(admin)
-    expect(parse_body.dig("settings", "workflow_admission_control_changed_by", "email_address")).to eq(admin.email_address)
+    expect(parse_body).to eq("ok" => true)
   end
 
   it "audits enabling workflow admission control" do
@@ -345,7 +322,7 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(AppSetting.current.reload.workflow_admission_policy).to eq("phase_aware")
-    expect(parse_body.dig("settings", "workflow_admission_policy")).to eq("phase_aware")
+    expect(parse_body).to eq("ok" => true)
   end
 
   it "rejects a proactive_rebase_commit_threshold below 1" do

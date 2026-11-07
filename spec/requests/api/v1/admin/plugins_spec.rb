@@ -76,7 +76,10 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
     post "/api/v1/admin/plugins/api-toggle-plugin/disable", headers: auth
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body.fetch("plugins").sole).to include("name" => "api-toggle-plugin", "enabled" => false)
+    expect(parse_body).to include(
+      "ok" => true,
+      "plugin" => { "name" => "api-toggle-plugin", "enabled" => false }
+    )
   end
 
   it "cascades enabling a plugin's dependencies through the token admin API" do
@@ -137,8 +140,10 @@ RSpec.describe "API: /api/v1/admin/plugins", type: :request do
          params: { confirm_cascade: true }, headers: auth
 
     expect(response).to have_http_status(:ok)
-    names = parse_body.fetch("plugins").map { |p| p["name"] }
-    expect(names).to include("api-ruby-confirm-plugin", "api-rails-confirm-plugin")
+    expect(parse_body).to include(
+      "ok" => true,
+      "plugin" => { "name" => "api-ruby-confirm-plugin", "enabled" => false }
+    )
     expect(PluginRecord.find_by!(name: "api-ruby-confirm-plugin").enabled).to be(false)
     expect(PluginRecord.find_by!(name: "api-rails-confirm-plugin").enabled).to be(false)
   end

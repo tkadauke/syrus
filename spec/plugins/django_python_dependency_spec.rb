@@ -77,8 +77,10 @@ RSpec.describe "django depends_on python plugin cascade", type: :request, requir
     post "/api/v1/admin/plugins/python/disable", params: { confirm_cascade: true }, headers: auth
 
     expect(response).to have_http_status(:ok)
-    names = parse_body.fetch("plugins").map { |p| p["name"] }
-    expect(names).to include("python", "django")
+    expect(parse_body).to include(
+      "ok" => true,
+      "plugin" => { "name" => "python", "enabled" => false }
+    )
     expect(PluginRecord.find_by!(name: "python").enabled).to be(false)
     expect(PluginRecord.find_by!(name: "django").enabled).to be(false)
   end

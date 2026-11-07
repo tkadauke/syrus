@@ -156,7 +156,7 @@ RSpec.describe "resilience flow regressions" do
     step.update!(state: "failed", started_at: 10.minutes.ago, finished_at: 3.minutes.ago)
     workflow.update!(state: "failed", started_at: 10.minutes.ago, finished_at: 3.minutes.ago)
 
-    payload = Admin::JobStateSerializer.workflow(workflow)
+    payload = Admin::JobStateSerializer.workflow(workflow, verbose: true)
 
     expect(payload.fetch(:failure_classification)).to include(
       classification: "worker_died",

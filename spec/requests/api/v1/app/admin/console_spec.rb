@@ -28,7 +28,7 @@ RSpec.describe "API: /api/v1/app/admin/console", type: :request do
     expect(parse_body.dig("error", "code")).to eq("forbidden")
   end
 
-  it "returns current settings, cache-scope users, and recent actions" do
+  it "returns current settings and recent actions without loading cache-scope users" do
     sign_in_as(admin)
     AppSetting.current.update!(polling_paused: true, runs_paused: false)
     AdminAction.log!(user: admin, action: :pause_polling, params: { source: "test" })
@@ -41,6 +41,9 @@ RSpec.describe "API: /api/v1/app/admin/console", type: :request do
       "runs_paused" => false
     )
     expect(parse_body["settings"].keys).to match_array(AppSettingRegistry.admin_console_keys.map(&:to_s))
+    expect(parse_body["users"]).to be_nil
+
+    get "/api/v1/app/admin/console", params: { include_users: true }
     expect(parse_body["users"].first).to include(
       "id" => admin.id,
       "email_address" => admin.email_address
@@ -60,6 +63,7 @@ RSpec.describe "API: /api/v1/app/admin/console", type: :request do
     }.to change { AppSetting.current.tap(&:reload).polling_paused }.from(false).to(true)
       .and change { AdminAction.where(action: "pause_polling").count }.by(1)
     expect(parse_body.dig("settings", "polling_paused")).to be true
+    expect(parse_body.keys).to contain_exactly("settings", "active_runs", "ok")
 
     expect {
       post "/api/v1/app/admin/console/unpause_polling"

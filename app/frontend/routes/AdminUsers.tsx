@@ -157,8 +157,7 @@ function buildUsersColumns({ basePath, t }: { basePath: string; t: (key: string)
       render: (user) => (user.scheduling_paused ? t("users.scheduling_paused") : t("users.scheduling_active"))
     },
     { key: "tokens", header: t("users.col_tokens"), className: "font-mono text-xs", render: (user) => tokenSummary(user) },
-    { key: "provider_availability", header: t("users.col_provider_availability"), render: (user) => <ProviderAvailabilitySummary user={user} /> },
-    { key: "needs_attention", header: t("users.col_attention"), required: true, render: (user) => <CredentialAttention user={user} /> },
+    { key: "needs_attention", header: t("users.col_attention"), required: true, render: (user) => (user.needs_attention ? t("users.yes") : "-") },
     { key: "api_token", header: t("users.col_api_token"), render: (user) => (user.has_api_token ? t("users.yes") : "-") },
     { key: "gh_token", header: t("users.col_github_token"), render: (user) => (user.has_github_token ? t("users.yes") : "-") },
     { key: "claude_token", header: t("users.col_claude_token"), render: (user) => (user.has_claude_token ? t("users.yes") : "-") },

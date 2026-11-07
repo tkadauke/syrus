@@ -54,7 +54,6 @@ RSpec.describe "API: /api/v1/app/admin/invitations", type: :request do
     expect(invitations.first).to include(
       "id" => pending.id,
       "email_address" => "guest@example.com",
-      "token" => pending.token,
       "share_url" => "http://www.example.com/users/new?token=#{pending.token}",
       "invited_by_email_address" => admin.email_address
     )
@@ -178,7 +177,7 @@ RSpec.describe "API: /api/v1/app/admin/invitations", type: :request do
     expect(invitation.email_address).to eq("guest@example.com")
     expect(invitation.locale).to eq(admin.locale)
     expect(parse_body["message"]).to eq("Invitation created for guest@example.com.")
-    expect(parse_body["invitations"].first).to include("id" => invitation.id)
+    expect(parse_body["invitation"]).to include("id" => invitation.id)
   end
 
   it "returns a JSON validation error for invalid invitations" do
@@ -203,6 +202,6 @@ RSpec.describe "API: /api/v1/app/admin/invitations", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Invitation revoked.")
-    expect(parse_body["invitations"]).to eq([])
+    expect(parse_body).to include("ok" => true, "id" => invitation.id)
   end
 end

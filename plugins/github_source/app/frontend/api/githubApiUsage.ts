@@ -45,6 +45,14 @@ export type GithubApiUsagePayload = {
   recent_rate_limits: (GithubApiUsageOperationRow & { repo_slug?: string | null })[]
 }
 
+let cachedFilterSchema: FilterSchemaField[] | undefined
+
 export function fetchGithubApiUsage(search = "") {
-  return getJson<GithubApiUsagePayload>(`/api/v1/app/admin/github_api_usage${search}`)
+  const params = new URLSearchParams(search)
+  if (cachedFilterSchema) params.set("omit_filter_schema", "true")
+  const query = params.toString()
+  return getJson<GithubApiUsagePayload>(`/api/v1/app/admin/github_api_usage${query ? `?${query}` : ""}`).then((payload) => {
+    cachedFilterSchema = payload.filter_schema ?? cachedFilterSchema
+    return { ...payload, filter_schema: cachedFilterSchema ?? [] }
+  })
 }

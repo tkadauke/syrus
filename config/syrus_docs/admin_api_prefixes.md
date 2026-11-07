@@ -124,3 +124,20 @@ capabilities:
 Moving or filling these gaps is migration work. Do not migrate endpoints as
 part of unrelated feature work; add the new endpoint to the prefix that owns
 its consumer, then sequence compatibility or parity separately.
+
+## Token API payload controls
+
+Token-only admin endpoints keep expensive diagnostics opt-in. Job details
+return at most the latest three workflows unless `workflows=latest` or a
+numeric limit is supplied; workflow artifacts and classifier inputs require
+`verbose=1`. `GET /api/v1/admin/jobs?fields=min` omits mergeability,
+emergency-landing, and provenance details. Run diffs and logs require the
+corresponding `include=diff,logs` values.
+
+Epic details accept `jobs=false`, cap descriptions at 4,000 bytes by default,
+and expose one canonical `owner` object. Chat details cap attachments,
+bookmarks, and proposals to their first 50 records and expose their totals;
+`related_per` may raise that bound to 100. Message bodies can be bounded with
+`content_max`, and `tool_results=false` omits tool-result bodies. Worker health
+raw metrics require `include_raw_metrics=true`, while permission-parity grouped
+summaries require `summary=1`.

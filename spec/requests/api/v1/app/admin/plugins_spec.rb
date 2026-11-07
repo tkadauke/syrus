@@ -30,7 +30,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     expect(parse_body.dig("error", "code")).to eq("forbidden")
   end
 
-  it "returns registered plugins and their extension points" do
+  it "returns slim registered-plugin rows" do
     sign_in_as(admin)
     Syrus::PluginRegistry.reset!
     repository = Factories.repository(user: admin)
@@ -87,38 +87,9 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       "disableable" => true,
       "experimental" => false,
       "description" => "Adds visible things.",
-      "description_i18n_key" => "visibility:plugin.description",
-      "long_description" => "Adds a longer explanation.",
-      "long_description_i18n_key" => "visibility:plugin.long_description",
-      "homepage" => "https://example.test/plugin",
-      "author" => "Ada",
-      "source" => "internal",
-      "frontend" => {
-        "routes" => {
-          "visibility/Admin" => "app/frontend/routes/Admin.tsx"
-        },
-        "i18n" => [ "app/frontend/i18n/locales/*/visibility.json" ]
-      },
-      "routes" => [
-        {
-          "verb" => "GET",
-          "path" => "/admin/visibility",
-          "controller" => "visibility/admin#show"
-        }
-      ]
+      "description_i18n_key" => "visibility:plugin.description"
     )
-    expect(plugin.fetch("extension_points")).to contain_exactly(
-      include(
-        "extension_point" => "agent_provider",
-        "class_name" => "AdminPluginsSpec::AvailableProvider",
-        "availability" => include("status" => "available", "label" => "Available")
-      ),
-      include(
-        "extension_point" => "input_source",
-        "class_name" => "AdminPluginsSpec::CustomInputSource",
-        "availability" => include("status" => "configured", "label" => "Configured", "configured_count" => 1)
-      )
-    )
+    expect(plugin).not_to include("long_description", "homepage", "author", "source", "frontend", "routes", "extension_points", "config_schema", "config")
   end
 
   it "includes icon_url when the manifest sets one" do
@@ -367,9 +338,9 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
       provides: { agent_provider: AdminPluginsSpec::UnavailableProvider }
     )
 
-    get "/api/v1/app/admin/plugins"
+    get "/api/v1/app/admin/plugins/offline-provider"
 
-    extension = parse_body.dig("plugins", 0, "extension_points", 0)
+    extension = parse_body.dig("plugin", "extension_points", 0)
     expect(extension.fetch("availability")).to include("status" => "unavailable", "label" => "Unavailable")
   end
 
@@ -385,13 +356,13 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     post "/api/v1/app/admin/plugins/toggle-plugin/disable"
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body.fetch("plugins").sole).to include("name" => "toggle-plugin", "enabled" => false)
+    expect(parse_body).to eq("ok" => true, "plugin" => { "name" => "toggle-plugin", "enabled" => false })
     expect(Syrus::PluginRegistry.providers_for(:agent_provider)).to eq([])
 
     post "/api/v1/app/admin/plugins/toggle-plugin/enable"
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body.fetch("plugins").sole).to include("name" => "toggle-plugin", "enabled" => true)
+    expect(parse_body).to eq("ok" => true, "plugin" => { "name" => "toggle-plugin", "enabled" => true })
     expect(Syrus::PluginRegistry.providers_for(:agent_provider)).to eq([ AdminPluginsSpec::AvailableProvider ])
   end
 
@@ -481,8 +452,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     post "/api/v1/app/admin/plugins/ruby-confirm-plugin/disable", params: { confirm_cascade: true }
 
     expect(response).to have_http_status(:ok)
-    names = parse_body.fetch("plugins").map { |p| p["name"] }
-    expect(names).to include("ruby-confirm-plugin", "rails-confirm-plugin")
+    expect(parse_body).to eq("ok" => true, "plugin" => { "name" => "ruby-confirm-plugin", "enabled" => false })
     expect(PluginRecord.find_by!(name: "ruby-confirm-plugin").enabled).to be(false)
     expect(PluginRecord.find_by!(name: "rails-confirm-plugin").enabled).to be(false)
   end
@@ -501,7 +471,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body["requires_confirmation"]).to be_nil
-    expect(body.fetch("plugins").sole).to include("name" => "no-dependents-plugin", "enabled" => false)
+    expect(body.fetch("plugin")).to include("name" => "no-dependents-plugin", "enabled" => false)
   end
 
   describe "GET /api/v1/app/admin/plugins/:name" do

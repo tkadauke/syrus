@@ -81,8 +81,10 @@ RSpec.describe "syrus-rails depends_on ruby plugin cascade", type: :request, req
     post "/api/v1/admin/plugins/ruby/disable", params: { confirm_cascade: true }, headers: auth
 
     expect(response).to have_http_status(:ok)
-    names = parse_body.fetch("plugins").map { |p| p["name"] }
-    expect(names).to include("ruby", "syrus-rails")
+    expect(parse_body).to include(
+      "ok" => true,
+      "plugin" => { "name" => "ruby", "enabled" => false }
+    )
     expect(PluginRecord.find_by!(name: "ruby").enabled).to be(false)
     expect(PluginRecord.find_by!(name: "syrus-rails").enabled).to be(false)
   end

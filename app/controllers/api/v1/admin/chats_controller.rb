@@ -12,12 +12,13 @@ module Api
       class ChatsController < BaseController
         DEFAULT_PER = 50
         MAX_PER = 200
+        DEFAULT_RELATED_PER = 50
+        MAX_RELATED_PER = 100
 
         def index
+          message_count_sql = ChatMessage.where("chat_messages.chat_session_id = chat_sessions.id").select("COUNT(*)").to_sql
           scope = ChatSession.preload(:user, chat_attachments: :attachable)
-                             .left_joins(:messages)
-                             .group("chat_sessions.id")
-                             .select("chat_sessions.*, COUNT(chat_messages.id) AS messages_count")
+                             .select("chat_sessions.*, (#{message_count_sql}) AS messages_count")
                              .order(Arel.sql("COALESCE(chat_sessions.last_message_at, chat_sessions.updated_at, chat_sessions.created_at) DESC"))
           scope = scope.joins(:user).where("users.email_address LIKE ?", "%#{params[:user]}%") if params[:user].present?
           scope = filter_by_repository(scope) if params[:repo].present?
@@ -25,7 +26,11 @@ module Api
 
           per = per_param
           page = page_param
-          total = scope.unscope(:select, :order).count.size
+          total = if params.values_at(:user, :repo, :since).all?(&:blank?)
+            ChatSession.count
+          else
+            scope.unscope(:select, :order).distinct.count
+          end
           chats = scope.offset((page - 1) * per).limit(per).to_a
 
           render json: {
@@ -39,8 +44,7 @@ module Api
 
         def show
           chat = ChatSession.includes(
-            :user,
-            chat_attachments: :attachable
+            :user
           ).find(params[:id])
 
           per = per_param
@@ -93,7 +97,7 @@ module Api
           ids = scope.reorder(id: :desc).limit(per + 1).pluck(:id)
           has_more_older = ids.size > per
           ids = ids.first(per)
-          messages_by_id = ChatMessage.includes(:bookmarks, :proposal).where(id: ids).index_by(&:id)
+          messages_by_id = ChatMessage.includes(:bookmarks, proposal: :repository).where(id: ids).index_by(&:id)
 
           [ ids.reverse.filter_map { |id| messages_by_id[id] }, has_more_older ]
         end
@@ -128,11 +132,22 @@ module Api
         end
 
         def serialize_chat(chat)
+          related_per = (params[:related_per].presence || DEFAULT_RELATED_PER).to_i.clamp(1, MAX_RELATED_PER)
+          attachments = chat.chat_attachments.includes(:attachable).order(:attached_at, :id).limit(related_per).to_a
+          bookmarks = chat.bookmarks.order(:created_at, :id).limit(related_per).to_a
+          proposals = chat.proposals.includes(:repository).order(:created_at, :id).limit(related_per).to_a
+
           serialize_compact(chat, include_message_count: false).merge(
             workspace_path: chat.workspace_path,
-            attachments: chat.chat_attachments.order(:attached_at, :id).map { |attachment| attachment_payload(attachment) },
-            bookmarks: chat.bookmarks.map { |bookmark| bookmark_payload(bookmark) },
-            proposals: chat.proposals.order(:created_at, :id).map { |proposal| proposal_payload(proposal) },
+            related_page: {
+              per: related_per,
+              attachments_total: chat.chat_attachments.count,
+              bookmarks_total: chat.bookmarks.count,
+              proposals_total: chat.proposals.count
+            },
+            attachments: attachments.map { |attachment| attachment_payload(attachment) },
+            bookmarks: bookmarks.map { |bookmark| bookmark_payload(bookmark) },
+            proposals: proposals.map { |proposal| proposal_payload(proposal) },
             turn_in_flight: chat.turn_in_flight?,
             agent_busy: chat.agent_busy?
           )
@@ -144,12 +159,23 @@ module Api
             role: message.role,
             tool_name: message.tool_name,
             tool_use_id: message.tool_use_id,
-            content: message.content,
+            content: message_content(message),
             proposal: message.proposal ? proposal_payload(message.proposal) : nil,
             bookmarks: message.bookmarks.map { |bookmark| bookmark_payload(bookmark) },
             created_at: message.created_at,
             updated_at: message.updated_at
           }
+        end
+
+        def message_content(message)
+          return nil if message.role == "tool_result" && params[:tool_results].to_s == "false"
+
+          content = message.content
+          max = Integer(params[:content_max], exception: false)
+          return content unless max&.positive?
+
+          serialized = content.to_json
+          serialized.bytesize > max ? { "truncated" => true, "preview" => serialized.byteslice(0, max).scrub("") } : content
         end
 
         def attachment_payload(attachment)

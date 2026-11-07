@@ -71,12 +71,12 @@ module Api
             total: total,
             page: page,
             per: per,
-            jobs:  jobs.map { |j| serialize_compact(j) }
+            jobs:  jobs.map { |j| serialize_compact(j, minimal: params[:fields].to_s == "min") }
           }
         end
 
         def show
-          job = find_job_by_ref(Job.includes(workflows: [ :workflow_artifact_values, { steps: :runs } ]), params[:id])
+          job = find_job_by_ref(Job.includes(:repository, :user, :owner_user), params[:id])
           payload = serialize(job)
           payload[:github_pr] = github_pr_snapshot(job) if truthy?(params[:include_github])
           render json: payload
@@ -233,27 +233,34 @@ module Api
                   .pluck("wfs.job_id")
         end
 
-        def serialize_compact(job)
-          {
+        def serialize_compact(job, minimal: false)
+          payload = {
             id:             job.id,
             state:          job.state,
             kind:           job.kind,
             priority:       job.priority,
+            epic_id:        job.epic_id,
+            owner_user_id:  job.owner_user_id,
+            agent_provider: job.workflow_agent_provider,
+            repository:     job.repository.slug,
+            issue_number:   job.issue_number,
+            issue_title:    job.issue_title,
+            pr_number:      job.pr_number,
+            branch_name:    job.branch_name,
+            closure_reason: job.closure_reason,
+            created_at:     job.created_at,
+            updated_at:     job.updated_at
+          }
+          return payload if minimal
+
+          payload.merge(
             validity:       job.validity,
             credential_mode: job.credential_mode,
             triaging_reason: job.triaging_reason,
             goal_provenance: ::App::GoalProvenancePayload.for(job),
-            epic_id:        job.epic_id,
-            owner_user_id:  job.owner_user_id,
             owner_user:     owner_user_json(job.owner_user),
-            agent_provider: job.workflow_agent_provider,
             job_provider_setting: job.job_provider_setting,
-            repository:     job.repository.slug,
-            issue_number:   job.issue_number,
-            issue_title:    job.issue_title,
             title_pending:  job.title_pending?,
-            pr_number:      job.pr_number,
-            branch_name:    job.branch_name,
             delivery_track: job.delivery_track,
             pr_mergeable:   job.pr_mergeable,
             pr_mergeable_checked_at: job.pr_mergeable_checked_at,
@@ -273,15 +280,12 @@ module Api
             last_seen_comment_at: job.last_seen_comment_at,
             last_feedback_addressed_at: job.last_feedback_addressed_at,
             last_ci_handled_sha: job.last_ci_handled_sha,
-            closure_reason: job.closure_reason,
             emergency_landed_at: job.emergency_landed_at,
             emergency_landed_by_user_id: job.emergency_landed_by_user_id,
             emergency_landed_by_membership_tier: job.emergency_landed_by_membership_tier,
             emergency_land_source_sha: job.emergency_land_source_sha,
-            emergency_land_skipped_controls: job.emergency_land_skipped_controls,
-            created_at:     job.created_at,
-            updated_at:     job.updated_at
-          }
+            emergency_land_skipped_controls: job.emergency_land_skipped_controls
+          )
         end
 
         # Job-specific serializer. The Workflow → Step → Run subtree
@@ -370,10 +374,24 @@ module Api
             pr_checks_attribution: (PrCheckAttribution.for(job)&.to_h if job.pr_checks_state == "failing"),
             created_at: job.created_at,
             updated_at: job.updated_at,
-            workflows: job.workflows.sort_by(&:created_at).map { |wf| ::Admin::JobStateSerializer.workflow(wf) }
+            workflows: selected_workflows(job).map { |wf| ::Admin::JobStateSerializer.workflow(wf, verbose: verbose?) }
           }
         rescue => e
           ::Admin::JobStateSerializer.per_record_error(job, e)
+        end
+
+        def selected_workflows(job)
+          limit = params[:workflows].to_s == "latest" ? 1 : (Integer(params[:workflows], exception: false) || 3).clamp(1, 100)
+          job.workflows
+            .includes(:workflow_artifact_values, :steps)
+            .order(created_at: :desc, id: :desc)
+            .limit(limit)
+            .to_a
+            .reverse
+        end
+
+        def verbose?
+          truthy?(params[:verbose])
         end
 
         def github_pr_snapshot(job)

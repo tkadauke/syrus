@@ -25,23 +25,25 @@ module Throughput
     # counted here.
     IMPLEMENTED_PROXY_STEP_KIND = "pr_open".freeze
 
-    def initialize(repository: nil, since: nil, until_time: nil, now: Time.current)
+    def initialize(repository: nil, since: nil, until_time: nil, granularity: nil, now: Time.current)
       @repository = repository
       @until_time = parse_time(until_time) || now
       requested_since = parse_time(since) || (@until_time - DEFAULT_WINDOW)
       @since = [ requested_since, @until_time - MAX_WINDOW ].max
       @since = @until_time if @since > @until_time
+      @granularity = %w[hourly daily].include?(granularity.to_s) ? granularity.to_s : "daily"
     end
 
     def as_json(*)
-      {
+      payload = {
         version: VERSION,
         generated_at: Time.current.iso8601,
         range: { since: since.iso8601, until: until_time.iso8601 },
-        repository: repository ? { id: repository.id, slug: repository.slug } : nil,
-        hourly: granularity_payload(HOUR_SECONDS),
-        daily: granularity_payload(DAY_SECONDS)
+        repository: repository ? { id: repository.id, slug: repository.slug } : nil
       }
+      duration = @granularity == "hourly" ? HOUR_SECONDS : DAY_SECONDS
+      payload[@granularity.to_sym] = granularity_payload(duration)
+      payload
     end
 
     private
@@ -56,7 +58,9 @@ module Throughput
 
       {
         bucket_seconds: duration_seconds,
-        buckets: bucket_starts(duration_seconds).map do |bucket_start|
+        buckets: bucket_starts(duration_seconds).filter_map do |bucket_start|
+          next if created_by_bucket[bucket_start].to_i.zero? && closed_by_bucket[bucket_start].to_i.zero? && implemented_by_bucket[bucket_start].to_i.zero? && cycle_time_by_bucket[bucket_start].blank?
+
           bucket_payload(bucket_start, duration_seconds, created_by_bucket, closed_by_bucket, implemented_by_bucket, cycle_time_by_bucket)
         end
       }
