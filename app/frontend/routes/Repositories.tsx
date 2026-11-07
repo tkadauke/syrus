@@ -125,7 +125,10 @@ function buildRepositoryColumns({
       sortKey: "slug",
       renderCell: (repository) => (
         <div className="flex items-center gap-2">
-          <Link className="font-mono text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(`/repositories/${repository.id}`, prefix)}>
+          <Link
+            className="font-mono text-brand underline hover:no-underline dark:text-brand-emphasis"
+            to={withRoutePrefix(`/repositories/${repository.id}`, prefix)}
+          >
             {repository.slug}
           </Link>
           {repository.archived ? <TonePill tone="gray">{t("repositories.archived_badge")}</TonePill> : null}
