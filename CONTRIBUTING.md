@@ -5,6 +5,12 @@ pull request feedback, scheduled tasks, retries, and rebases into agent runs.
 Contributions are welcome when they keep that operating model reliable,
 observable, and easy to run.
 
+Before changing an unfamiliar subsystem, use the
+[engineering documentation index](docs/engineering/README.md) to find its
+current architecture, conventions, decisions, operations, maps, and pitfalls.
+The index also defines which source wins when documentation and historical
+evidence disagree.
+
 ## Development setup
 
 Start from a clean checkout with Ruby 3.4.10 available. Local development uses
