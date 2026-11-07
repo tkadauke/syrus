@@ -315,7 +315,8 @@ RSpec.describe "API: coworkers", type: :request do
     get "/api/v1/app/chats"
 
     group = JSON.parse(response.body).fetch("groups").find { |candidate| candidate["key"] == "coworkers" }
-    expect(group.fetch("chats")).to contain_exactly(include("id" => chat.id, "agent_appearance" => include("name" => "Maya", "avatar_key" => "comet")))
+    expect(group.fetch("chats")).to contain_exactly(include("id" => chat.id))
+    expect(JSON.parse(response.body).dig("agent_appearances", chat.id.to_s)).to include("name" => "Maya", "avatar_key" => "comet")
   end
 
   it "scopes mention autocomplete without leaking the user or coworker directory" do

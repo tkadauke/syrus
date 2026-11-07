@@ -141,15 +141,33 @@ export type ChatModelOption = {
   label: string
 }
 
-export type ChatNavRecord = ChatRecord & {
+export type ChatNavRecord = {
+  id: number
+  current_user_id?: number
+  user_id?: number
+  title: string | null
+  title_pending: boolean
+  pinned: boolean
+  effective_chat_provider?: string
+  conversation_kind?: ChatConversationKind
+  mode?: ChatMode | null
+  chat_path: string
+  repository: ChatRepository | null
+  turn_in_flight?: boolean
+  agent_busy?: boolean
+  active_goal?: Pick<ChatGoal, "id" | "status"> | null
+  coding_checkout_uncommitted?: boolean
   current?: boolean
-  last_message_at: string | null
-  unread: boolean
-  pending_proposal_count: number
-  scratchpad_items_count: number
+  unread?: boolean
+  pending_proposal_count?: number
+  scratchpad_items_count?: number
   job_summary?: ChatJobSummary
+  agent_appearance?: ChatAgentAppearance
+  last_message_at?: string | null
   created_at?: string
   updated_at?: string
+  chat_type?: ChatType
+  origin_platform?: string | null
 }
 
 export type ChatJobSummary = {
@@ -776,7 +794,8 @@ export type ChatMessageAttachmentInput = {
 export type ChatCreatedPayload = {
   message: string
   redirect_to: string
-  chat: ChatRecord
+  chat: ChatNavRecord
+  agent_appearances?: Record<string, ChatAgentAppearance>
 }
 
 export type ChatBranchPayload = {
@@ -830,12 +849,14 @@ export type ChatsIndexPayload = {
   groups_next_offset?: number | null
   available_chat_types?: ChatType[]
   available_agents?: ChatSidebarAgentOption[]
-  repositories: ChatRepository[]
+  repositories?: ChatRepository[]
+  agent_appearances?: Record<string, ChatAgentAppearance>
 }
 
 export type MoreChatsPayload = {
   chats: ChatNavRecord[]
   has_more: boolean
+  agent_appearances?: Record<string, ChatAgentAppearance>
 }
 
 export type HiddenChatsPayload = {
@@ -844,6 +865,7 @@ export type HiddenChatsPayload = {
   page: number
   per_page: number
   total_pages: number
+  agent_appearances?: Record<string, ChatAgentAppearance>
 }
 
 export type ChatShellCommandOutcome = "succeeded" | "failed" | "killed" | "error"
@@ -1250,12 +1272,12 @@ function chatSidebarSearchParams(settings?: Partial<ChatSidebarSettings>, groupO
 
 export function fetchChats(settings?: Partial<ChatSidebarSettings>, activeChatId?: number | null) {
   const search = chatSidebarSearchParams(settings, null, activeChatId).toString()
-  return getJson<ChatsIndexPayload>(`/api/v1/app/chats${search ? `?${search}` : ""}`)
+  return getJson<ChatsIndexPayload>(`/api/v1/app/chats${search ? `?${search}` : ""}`).then(withChatNavAppearances)
 }
 
 export function fetchChatGroupsPage(settings: Partial<ChatSidebarSettings>, groupOffset: number, activeChatId?: number | null) {
   const search = chatSidebarSearchParams(settings, groupOffset, activeChatId).toString()
-  return getJson<ChatsIndexPayload>(`/api/v1/app/chats${search ? `?${search}` : ""}`)
+  return getJson<ChatsIndexPayload>(`/api/v1/app/chats${search ? `?${search}` : ""}`).then(withChatNavAppearances)
 }
 
 export function fetchNewChat() {
@@ -1263,7 +1285,7 @@ export function fetchNewChat() {
 }
 
 export function fetchHiddenChats(page = 1) {
-  return getJson<HiddenChatsPayload>(`/api/v1/app/settings/hidden_chats?page=${encodeURIComponent(String(page))}`)
+  return getJson<HiddenChatsPayload>(`/api/v1/app/settings/hidden_chats?page=${encodeURIComponent(String(page))}`).then(withChatNavAppearances)
 }
 
 export function fetchMoreChatsForGroup(
@@ -1278,7 +1300,14 @@ export function fetchMoreChatsForGroup(
   search.set("group_by", groupBy)
   search.set("group_key", groupValue)
   search.set("before_id", String(beforeChatId))
-  return getJson<MoreChatsPayload>(`/api/v1/app/chats/more?${search.toString()}`)
+  return getJson<MoreChatsPayload>(`/api/v1/app/chats/more?${search.toString()}`).then(withChatNavAppearances)
+}
+
+function withChatNavAppearances<T extends { agent_appearances?: Record<string, ChatAgentAppearance> } & ({ groups: ChatGroupRecord[] } | { chats: ChatNavRecord[] })>(payload: T): T {
+  const appearances = payload.agent_appearances || {}
+  const attach = (chat: ChatNavRecord) => ({ ...chat, agent_appearance: appearances[String(chat.id)] })
+  if ("groups" in payload) return { ...payload, groups: payload.groups.map((group) => ({ ...group, chats: group.chats.map(attach) })) }
+  return { ...payload, chats: payload.chats.map(attach) }
 }
 
 export function fetchChatSearch(search = "", options: { signal?: AbortSignal } = {}) {

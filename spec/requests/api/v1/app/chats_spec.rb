@@ -424,7 +424,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body.dig("error", "code")).to eq("forbidden")
   end
 
-  it "lists recent chat groups and active repositories for CLI session picking" do
+  it "lists slim recent chat groups without repeating the new-chat repository picker" do
     sign_in_as(user)
     repository
     other_repo = Factories.repository(user: user, owner: "acme", name: "api")
@@ -454,10 +454,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body["repositories"]).to contain_exactly(
-      include("id" => repository.id, "slug" => "acme/widgets"),
-      include("id" => other_repo.id, "slug" => "acme/api")
-    )
+    expect(body).not_to have_key("repositories")
     expect(body["groups"].map { |group| group["key"] }).to eq([ "repository-#{repository.id}", "repository-#{other_repo.id}" ])
     expect(body["groups"].first).to include(
       "key" => "repository-#{repository.id}",
@@ -477,13 +474,14 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body.to_s).not_to include("Foreign chat")
   end
 
-  it "uses a lightweight chat index serializer while preserving chat settings fields" do
+  it "uses the slim chat nav serializer without per-row provider settings" do
     sign_in_as(user)
     first = ChatSession.create!(user: user, repository: repository, title: "Fast sidebar", last_message_at: Time.current)
     ChatSession.create!(user: user, repository: repository, title: "Another sidebar chat", last_message_at: 1.minute.ago)
+    goal = ChatGoal.create!(chat_session: first, user: user, repository: repository, prompt: "Do not repeat this in navigation")
 
-    expect_any_instance_of(Api::V1::App::ChatsController).to receive(:available_chat_models_for).once.and_call_original
-    expect_any_instance_of(Api::V1::App::ChatsController).to receive(:chat_provider_options).once.and_call_original
+    expect_any_instance_of(Api::V1::App::ChatsController).not_to receive(:available_chat_models_for)
+    expect_any_instance_of(Api::V1::App::ChatsController).not_to receive(:chat_provider_options)
 
     get "/api/v1/app/chats"
 
@@ -493,10 +491,12 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       "title" => "Fast sidebar",
       "effective_chat_provider" => "claude",
       "pending_proposal_count" => 0,
-      "scratchpad_items_count" => 0,
-      "available_chat_models" => include(include("value" => "claude-opus-4-7")),
-      "chat_provider_options" => include(include("value" => "claude"))
+      "scratchpad_items_count" => 0
     )
+    expect(chat).not_to have_key("available_chat_models")
+    expect(chat).not_to have_key("chat_provider_options")
+    expect(chat).not_to have_key("provider_availability")
+    expect(chat.fetch("active_goal")).to eq("id" => goal.id, "status" => "active")
   end
 
   it "omits hidden chats from recent chat groups" do
@@ -822,7 +822,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   # rescanned provider_availability_evidences. A chat list spanning several
   # providers therefore paid one full scan per provider. Batch once, then the
   # per-provider lookups read the warmed per-request cache.
-  it "scans provider availability evidence once regardless of how many providers the chats span" do
+  it "does not scan provider availability evidence for nav rows" do
     sign_in_as(user)
     %w[claude codex].each_with_index do |provider, index|
       ChatSession.create!(user: user, title: "#{provider} chat", chat_provider: provider,
@@ -839,10 +839,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     end
 
     expect(response).to have_http_status(:ok)
-    # Batched: 6 scans. Per-provider (the bug): 14, and climbing with each
-    # additional provider in the list. The bound is deliberately loose -- it
-    # guards the batching, not an exact query count.
-    expect(scans).to be <= 8
+    expect(scans).to eq(0)
   end
 
   it "filters recent sidebar chats by derived chat type" do
@@ -1802,7 +1799,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body.dig("chat", "title")).to eq("widgets")
     expect(parse_body.dig("chat", "title_pending")).to eq(false)
     expect(parse_body.dig("chat", "repository", "slug")).to eq("acme/widgets")
-    expect(parse_body.dig("chat", "chat_provider")).to eq("claude")
+    expect(parse_body.fetch("chat")).not_to have_key("chat_provider")
     expect(parse_body.dig("chat", "effective_chat_provider")).to eq("claude")
   end
 
