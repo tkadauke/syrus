@@ -81,7 +81,10 @@ func TestRootCommandSelectsExistingSessionAndRunsREPL(t *testing.T) {
 		switch r.URL.Path {
 		case "/api/v1/app/chats":
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"chats":[{"id":42,"title":"Planning open source release","repository":{"id":7,"slug":"tkadauke/syrus"},"updated_at":"2026-06-11T12:00:00Z"}],"repositories":[{"id":7,"slug":"tkadauke/syrus"}]}`))
+			w.Write([]byte(`{"chats":[{"id":42,"title":"Planning open source release","repository":{"id":7,"slug":"tkadauke/syrus"},"updated_at":"2026-06-11T12:00:00Z"}]}`))
+		case "/api/v1/app/chats/new":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"repositories":[{"id":7,"slug":"tkadauke/syrus"}]}`))
 		case "/api/v1/app/chats/42":
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"chat":{"id":42,"title":"Planning open source release","repository":{"id":7,"slug":"tkadauke/syrus"}},"has_more_older":false,"messages":[{"id":1,"role":"user","text":"Earlier question"},{"id":2,"role":"assistant","text":"Earlier answer"}]}`))
@@ -172,7 +175,7 @@ func TestRootCommandCreatesRepoAttachedSession(t *testing.T) {
 		case "/api/v1/app/chats":
 			if r.Method == http.MethodGet {
 				w.Header().Set("Content-Type", "application/json")
-				w.Write([]byte(`{"chats":[],"repositories":[{"id":7,"slug":"tkadauke/syrus"}]}`))
+				w.Write([]byte(`{"chats":[]}`))
 				return
 			}
 			if err := json.NewDecoder(r.Body).Decode(&createPayload); err != nil {
@@ -181,6 +184,9 @@ func TestRootCommandCreatesRepoAttachedSession(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
 			w.Write([]byte(`{"chat":{"id":99,"title":"syrus","repository":{"id":7,"slug":"tkadauke/syrus"}}}`))
+		case "/api/v1/app/chats/new":
+			w.Header().Set("Content-Type", "application/json")
+			w.Write([]byte(`{"repositories":[{"id":7,"slug":"tkadauke/syrus"}]}`))
 		case "/api/v1/app/chats/99":
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"chat":{"id":99,"title":"syrus","repository":{"id":7,"slug":"tkadauke/syrus"}},"has_more_older":false,"messages":[]}`))
