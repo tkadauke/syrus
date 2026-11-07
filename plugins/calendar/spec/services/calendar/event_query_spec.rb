@@ -28,4 +28,21 @@ RSpec.describe Calendar::EventQuery do
     expect(result[:failures]).to eq([ { source: bad.to_s, code: "provider_failed" } ])
     expect(Rails.error).to have_received(:report).with(instance_of(RuntimeError), handled: true, context: hash_including(:calendar_provider))
   end
+
+  it "isolates malformed provider results with the provider failure" do
+    malformed = Class.new do
+      def self.calendar_events(**)
+        [ { source_id: "not-namespaced", id: "one", kind: "test", title: "Bad", starts_at: "tomorrow",
+            destination_path: "https://example.test", state: "planned" } ]
+      end
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with("calendar:event_source").and_return([ malformed ])
+    allow(Rails.error).to receive(:report)
+
+    result = described_class.call(user:, starts_at:, ends_at:)
+
+    expect(result[:events]).to be_empty
+    expect(result[:failures]).to contain_exactly(source: malformed.to_s, code: "provider_failed")
+  end
 end

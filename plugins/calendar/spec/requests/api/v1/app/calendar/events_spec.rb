@@ -26,4 +26,12 @@ RSpec.describe "Calendar events API", type: :request do
     get "/api/v1/app/calendar/events", params: { starts_at: Time.current.iso8601, ends_at: 1.day.from_now.iso8601 }
     expect(response).to have_http_status(:not_found)
   end
+
+  it "rejects malformed timestamps without invoking providers" do
+    expect(Calendar::EventQuery).not_to receive(:call)
+    get "/api/v1/app/calendar/events", params: { starts_at: "next Tuesday", ends_at: 1.day.from_now.iso8601 }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(response.parsed_body.dig("error", "code")).to eq("invalid_calendar_range")
+  end
 end
