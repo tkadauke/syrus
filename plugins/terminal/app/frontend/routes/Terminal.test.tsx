@@ -625,20 +625,13 @@ function bootstrapPayload(overrides: Partial<BootstrapPayload> = {}): BootstrapP
     current_user: {
       id: 1,
       email_address: "operator@example.com",
-      name: "Operator",
-      first_name: null,
-      last_name: null,
       display_name: "Operator",
       admin: true,
       role: "developer",
-      scheduling_paused: false,
-      landing_paused: false,
       agent_provider: "claude",
       chat_provider: null,
-      agent_max_turns: 200,
       theme: "light",
-      locale: "en",
-      gemini_configured: false
+      locale: "en"
     },
     team_user_count: 1,
     app: { revision: "dev", revision_url: null, version: null, built_at: null, bug_report_mode: null, report_issue_repo_slug: "tkadauke/syrus" },
@@ -650,9 +643,7 @@ function bootstrapPayload(overrides: Partial<BootstrapPayload> = {}): BootstrapP
       docs_url: "https://syrus.dev/docs/getting-started",
       evaluation_url: "https://syrus.dev/docs/deployment/docker-compose"
     },
-    navigation: { default_chat_path: "/dashboard" },
     setup: null,
-    setup_status: null,
     csrf_token: "csrf-token",
     unread_notifications_count: 0,
     feature_flags: {},
