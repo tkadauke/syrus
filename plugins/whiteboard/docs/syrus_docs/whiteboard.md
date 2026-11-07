@@ -131,12 +131,12 @@ version double-logged this and was simplified.
   hands a component `payload`, with no fullscreen prop/callback on that
   contract, unlike the old core-threaded layout-shift approach.
 - **Chat payload** (`Whiteboard::PayloadContributor`) — adds a top-level
-  `whiteboard: { version, elements, appState, files, loaded }` key. The full
-  scene ships **only** when the request explicitly asks for it
-  (`include_whiteboard` param) since it can be large; otherwise `loaded:
-  false` with an empty default scene. Also contributes the
-  `app_whiteboard_path` route and a `whiteboard_snapshot_count` for chat list
-  payloads. The MySQL scope uses an explicit `FORCE INDEX` hint on
+  `whiteboard: { version, elements, appState, files, loaded }` key only when
+  the request explicitly asks for it (`include_whiteboard` param). The same
+  opt-in controls the snapshot count, avoiding whiteboard queries during
+  ordinary chat polling. The scene endpoint uses version ETags, supports a
+  version-only field selection, and loads embedded files through its separate
+  `/files` endpoint. The MySQL scope uses an explicit `FORCE INDEX` hint on
   `chat_session_id` — MySQL picks a worse plan without it on chats with many
   rows.
 - **Chat media source** (`Whiteboard::MediaSource`) — registers the

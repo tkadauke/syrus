@@ -147,9 +147,9 @@ const WHITEBOARD_TAB_COMPONENT = "whiteboard/WhiteboardTab"
 // as a valid state rather than assuming a WorkspaceTab always exists.
 export function defaultWorkspaceTab(payload: ChatPayload): WorkspaceTab | null {
   const tabs = availableWorkspaceTabs(payload)
-  const whiteboardLoaded = payload.whiteboard.loaded ?? payload.whiteboard.elements.length > 0
+  const whiteboardLoaded = payload.whiteboard?.loaded ?? false
   const whiteboardTab = payload.workspace_tabs.find((tab) => tab.component === WHITEBOARD_TAB_COMPONENT)
-  if (whiteboardLoaded && payload.whiteboard.elements.length > 0 && whiteboardTab) {
+  if (whiteboardLoaded && (payload.whiteboard?.elements.length ?? 0) > 0 && whiteboardTab) {
     const preferred = pluginTabId(whiteboardTab.id)
     if (tabs.includes(preferred)) return preferred
   }

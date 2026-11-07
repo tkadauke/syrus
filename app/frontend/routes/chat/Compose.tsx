@@ -35,6 +35,7 @@ import {
 } from "../../api/videoWalkthroughs"
 import { MAX_TRANSCRIPTION_BYTES, MIN_TRANSCRIPTION_BYTES, startChatAudioStream, transcribeChatAudio } from "../../api/speechToText"
 import { getAppConsumer } from "../../lib/actionCable"
+import { ApiError } from "../../api/client"
 import { mergeChatPayloadUpdate, refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
 import {
   branchChat,
@@ -48,7 +49,7 @@ import {
   deleteQueuedChatMessage,
   enqueueChatMessage,
   fetchChatMentionables,
-  fetchChatWhiteboard,
+  fetchChatWhiteboardVersion,
   fetchNewChat,
   patchChatGoal,
   patchChatWhiteboard,
@@ -758,7 +759,7 @@ export function Compose({
         return { payload: await upsertChatGoal(chatId, { prompt: action.prompt || "" }), notice: t("goal_updated_notice") }
       }
 
-      const current = await fetchChatWhiteboard(appendSearch(payload.paths.app_whiteboard_path, search))
+      const current = await fetchChatWhiteboardVersion(appendSearch(payload.paths.app_whiteboard_path, search))
       let result = await patchChatWhiteboard(appendSearch(payload.paths.app_whiteboard_path, search), {
         elements: [],
         appState: {},
@@ -773,15 +774,17 @@ export function Compose({
           expected_version: result.payload.version
         })
       }
+      if (result.status === 409) throw new ApiError(t("canvas_clear_conflict"), { status: 409 })
       queryClient.setQueryData(queryKey, (currentPayload: ChatPayload | undefined) =>
         currentPayload
           ? {
               ...currentPayload,
               whiteboard: {
                 version: result.payload.version,
-                elements: result.payload.scene_json.elements,
-                appState: result.payload.scene_json.appState,
-                files: result.payload.scene_json.files
+                elements: [],
+                appState: {},
+                files: {},
+                loaded: true
               }
             }
           : currentPayload

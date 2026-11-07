@@ -8,7 +8,8 @@ module Whiteboard
     def self.chat_payload(chat_session:, context:)
       # The full scene is large, so it ships only when asked for.
       include_scene = context.dig(:params, :include_whiteboard).present?
-      scene = scene_for(chat_session, include_scene: include_scene)
+      return {} unless include_scene
+      scene = scene_for(chat_session)
 
       {
         whiteboard: {
@@ -25,13 +26,17 @@ module Whiteboard
       { app_whiteboard_path: "/api/v1/app/chats/#{chat_session.id}/whiteboard" }
     end
 
-    def self.chat_payload_counts(chat_session:)
-      { whiteboard_snapshot_count: Whiteboard::Snapshot.where(chat_session_id: chat_session.id).count }
+    def self.chat_payload_counts(chat_session:, context: {})
+      snapshots = Whiteboard::Snapshot.where(chat_session_id: chat_session.id)
+      count = if context.dig(:params, :include_whiteboard).present?
+        snapshots.count
+      else
+        snapshots.exists? ? 1 : 0
+      end
+      { whiteboard_snapshot_count: count }
     end
 
-    def self.scene_for(chat_session, include_scene:)
-      return Whiteboard::Board.default_state.merge("loaded" => false) unless include_scene
-
+    def self.scene_for(chat_session)
       row = payload_scope(chat_session.id).pick(:scene_json, :version)
       return Whiteboard::Board.default_state.merge("loaded" => true) unless row
 

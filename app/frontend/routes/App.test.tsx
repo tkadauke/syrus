@@ -15197,26 +15197,7 @@ describe("App", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/whiteboard" && init?.method === "PATCH") {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              scene_json: {
-                elements: [{ id: "shape-react", type: "image", fileId: "file-react", version: 1 }],
-                appState: { viewBackgroundColor: "#ffffff" },
-                files: {
-                  "file-react": {
-                    id: "file-react",
-                    dataURL: "data:image/png;base64,abc",
-                    mimeType: "image/png",
-                    created: 1
-                  }
-                }
-              },
-              version: 3
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
-        )
+        return Promise.resolve(new Response(JSON.stringify({ version: 3 }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 
       return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -15268,7 +15249,10 @@ describe("App", () => {
         }
       ])
       expect(excalidrawMock.updateScene).toHaveBeenCalledWith({
-        elements: [{ id: "shape-react", type: "image", fileId: "file-react", version: 1 }],
+        elements: [
+          { id: "box-1", type: "rectangle" },
+          { id: "shape-react", type: "image", fileId: "file-react", version: 1 }
+        ],
         appState: { viewBackgroundColor: "#ffffff" }
       })
     })
@@ -15285,17 +15269,6 @@ describe("App", () => {
         return Promise.resolve(
           new Response(
             JSON.stringify({
-              error: "Whiteboard changed while you were editing it.",
-              current_version: 3
-            }),
-            { status: 409, headers: { "Content-Type": "application/json" } }
-          )
-        )
-      }
-      if (path === "/api/v1/app/chats/8/whiteboard" && init?.method == null) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
               scene_json: {
                 elements: [
                   { id: "box-1", type: "rectangle" },
@@ -15306,11 +15279,10 @@ describe("App", () => {
               },
               version: 3
             }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
+            { status: 409, headers: { "Content-Type": "application/json" } }
           )
         )
       }
-
       return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
 
@@ -15335,13 +15307,13 @@ describe("App", () => {
       })
     })
     expect(whiteboardPatchCount).toBe(1)
-    expect(fetchSpy.mock.calls.some(([path, init]) => String(path) === "/api/v1/app/chats/8/whiteboard" && init?.method == null)).toBe(true)
+    expect(fetchSpy.mock.calls.some(([path, init]) => String(path) === "/api/v1/app/chats/8/whiteboard" && init?.method == null)).toBe(false)
   })
 
   it("reconciles an edit queued while a conflicting whiteboard save is in flight", async () => {
     let resolveFirstPatch: (response: Response) => void = () => undefined
     const patchBodies: Array<Record<string, unknown>> = []
-    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/whiteboard" && init?.method === "PATCH") {
         patchBodies.push(JSON.parse(String(init.body)) as Record<string, unknown>)
@@ -15350,33 +15322,7 @@ describe("App", () => {
             resolveFirstPatch = resolve
           })
         }
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              scene_json: patchBodies[1],
-              version: 4
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
-        )
-      }
-      if (path === "/api/v1/app/chats/8/whiteboard" && init?.method == null) {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              scene_json: {
-                elements: [
-                  { id: "box-1", type: "rectangle", version: 1 },
-                  { id: "agent-box", type: "rectangle", version: 1 }
-                ],
-                appState: {},
-                files: {}
-              },
-              version: 3
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
-        )
+        return Promise.resolve(new Response(JSON.stringify({ version: 4 }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
 
       return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
@@ -15406,10 +15352,20 @@ describe("App", () => {
       )
     })
     resolveFirstPatch(
-      new Response(JSON.stringify({ current_version: 3 }), {
-        status: 409,
-        headers: { "Content-Type": "application/json" }
-      })
+      new Response(
+        JSON.stringify({
+          scene_json: {
+            elements: [
+              { id: "box-1", type: "rectangle", version: 1 },
+              { id: "agent-box", type: "rectangle", version: 1 }
+            ],
+            appState: {},
+            files: {}
+          },
+          version: 3
+        }),
+        { status: 409, headers: { "Content-Type": "application/json" } }
+      )
     )
 
     await waitFor(() => expect(patchBodies).toHaveLength(2))
@@ -15417,6 +15373,7 @@ describe("App", () => {
     expect(patchBodies[1].elements).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: "agent-box" }), expect.objectContaining({ id: "second-user-shape" })])
     )
+    expect(fetchSpy.mock.calls.some(([path, init]) => String(path) === "/api/v1/app/chats/8/whiteboard" && init?.method == null)).toBe(false)
   })
 
   it("shows whiteboard snapshots in media and loads one onto the canvas", async () => {
@@ -15612,19 +15569,7 @@ describe("App", () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/whiteboard" && init?.method === "PATCH") {
-        return Promise.resolve(
-          new Response(
-            JSON.stringify({
-              scene_json: {
-                elements: [{ id: "agent-box", type: "rectangle" }],
-                appState: { activeTool: { type: "rectangle", customType: null }, viewBackgroundColor: "#ffffff" },
-                files: {}
-              },
-              version: 3
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
-        )
+        return Promise.resolve(new Response(JSON.stringify({ version: 3 }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       return Promise.resolve(new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
@@ -15642,7 +15587,10 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(excalidrawMock.updateScene).toHaveBeenCalledWith({
-        elements: [{ id: "agent-box", type: "rectangle" }],
+        elements: [
+          { id: "box-1", type: "rectangle" },
+          { id: "shape-react", type: "image", fileId: "file-react", version: 1 }
+        ],
         appState: { viewBackgroundColor: "#ffffff" }
       })
     })
