@@ -1,5 +1,16 @@
 # Coworkers
 
+## Automated review contributions
+
+When Coworkers is enabled and healthy, it contributes an opaque reviewer
+target, protected review context, post-verdict memory persistence, and the
+provider-rule, evidence, audit, and settings UI for coworker reviewers. Core
+stores only the target reference, safe display/context snapshots, and an
+opaque persistence receipt. Disabling the plugin removes live resolution and
+UI contributions without deleting historical review evidence; retained
+snapshots continue to render through the generic fallback. Restricted prompt
+text is never included in the Job payload and is bounded before execution.
+
 Workspace pushes that fail because of a transient remote or network problem are retried during the turn and then by a background job. Until saving succeeds, Syrus preserves the local checkout and shows one updating warning in the chat and on the coworker's Workspace tab. The owner can use **Retry save now** there; permanent authorization, protected-ref, and conflict failures require attention and are not retried automatically.
 
 Coworker tool dispatch is enforced by the unified permission evaluator. Capability

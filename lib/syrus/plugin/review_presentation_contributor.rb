@@ -11,7 +11,7 @@ module Syrus
         def evidence_renderers = []
         def audit_renderers = []
         def settings_summaries = []
-        def translations = []
+        def translation_namespaces = []
       end
     end
   end

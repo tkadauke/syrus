@@ -87,6 +87,7 @@ module ProviderRoutingRuleSerialization
   def provider_routing_options_json(user = Current.user)
     registry = provider_routing_registry_options_json
     registry[:reviewer_targets] = ReviewerTargets.options(user: user)
+    registry[:review_contributions] = ReviewPresentationContributions.frontend_payload
     registry[:conditions] = registry[:conditions].merge(
       provider_usage: provider_routing_usage_json(user),
       job_kinds: Job::Kind.user_facing_values.map { |kind| provider_routing_option_json(kind, kind.humanize) },

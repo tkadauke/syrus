@@ -307,6 +307,12 @@ class ProviderRoutingRule < ApplicationRecord
     rescue ReviewerTargets::ResolutionError
       candidate
     end
+    return unless panel_action?
+
+    targets = action["candidates"].filter_map { |candidate| candidate.to_h.deep_stringify_keys["reviewer_target"] }
+    ReviewerTargets.validate_panel!(targets, owner: user, repository: repository || job&.repository) if targets.any?
+  rescue ReviewerTargets::DuplicateTarget => e
+    errors.add(:candidates, :reviewer_target_invalid, index: 0, message: e.message)
   end
 
   def action_definition

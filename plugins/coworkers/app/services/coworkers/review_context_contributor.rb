@@ -20,16 +20,24 @@ class Coworkers::ReviewContextContributor
       key_learning: update.to_h.deep_stringify_keys.fetch("key_learning"),
       verdict:
     )
+    persisted = coworker.review_context_for(run) unless persisted.respond_to?(:id)
     {
       owner: "coworkers",
       type: "review_memory",
       key: persisted.id.to_s,
       version: persisted.updated_at.to_i,
-      persisted_at: persisted.updated_at.iso8601
+      persisted_at: persisted.updated_at.iso8601,
+      details: { "persisted_commit_sha" => persisted.persisted_commit_sha }
     }
   end
 
   def self.tool_set(_target) = Coworkers::ReviewToolSet
+  def self.retention(_target) = { "policy" => "coworker_review_context", "tombstones" => true }
+
+  def self.tombstone(context, reason:)
+    Coworkers::ReviewWorkspace.remove!(context)
+    context.tombstone!
+  end
 
   def self.resolve(target, run)
     ReviewerTargets.resolve(

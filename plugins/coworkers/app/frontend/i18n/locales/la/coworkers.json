@@ -219,6 +219,29 @@
     "migration_errors": "Errores migrationem impedientes",
     "none": "Nulla"
   },
+  "review_target_editor": {
+    "label": "Recensor collega",
+    "description": "Recensorem collegam auctoritate praeditum elige.",
+    "aria_label": "Meta recensionis collegae",
+    "none": "Nullus recensor nominatus"
+  },
+  "review_evidence": {
+    "label": "Evidentia recensionis collegae",
+    "description": "Imago tuta evidentiae recensionis.",
+    "aria_label": "Evidentia recensionis collegae",
+    "summary": "{{reviewer}} · {{verdict}}"
+  },
+  "review_audit": {
+    "label": "Auditus recensionis collegae",
+    "description": "Receptum persistence opacum.",
+    "aria_label": "Receptum auditus recensionis",
+    "summary": "Receptum {{key}} · versio {{version}}"
+  },
+  "review_settings": {
+    "label": "Directio recensionis collegae",
+    "description": "Recensores nominati concessionibus repositorii et memoria protecta utuntur.",
+    "aria_label": "Summarium directionis recensionis collegae"
+  },
   "detail": {
     "soul_heading": "SOUL.md",
     "new_side_chat": "Novum colloquium",

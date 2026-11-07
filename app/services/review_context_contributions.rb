@@ -1,4 +1,5 @@
 module ReviewContextContributions
+  MAX_RESTRICTED_TEXT_BYTES = 128.kilobytes
   class Unavailable < StandardError
     def deterministic? = true
   end
@@ -35,12 +36,13 @@ module ReviewContextContributions
     context = value.to_h.deep_stringify_keys.slice("manifest", "restricted_text", "persistence_token")
     raise ArgumentError, "review context manifest must be an object" unless context["manifest"].is_a?(Hash)
     raise ArgumentError, "review context restricted_text must be a string" unless context["restricted_text"].is_a?(String)
+    raise ArgumentError, "review context restricted_text is too large" if context["restricted_text"].bytesize > MAX_RESTRICTED_TEXT_BYTES
 
     deep_freeze(context)
   end
 
   def normalize_receipt(value)
-    receipt = value.to_h.deep_stringify_keys.slice("owner", "type", "key", "version", "persisted_at")
+    receipt = value.to_h.deep_stringify_keys.slice("owner", "type", "key", "version", "persisted_at", "details")
     %w[owner type key version].each { |key| raise ArgumentError, "persistence receipt #{key} is required" if receipt[key].blank? }
     deep_freeze(receipt)
   end

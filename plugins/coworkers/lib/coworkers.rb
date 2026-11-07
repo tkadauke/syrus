@@ -36,6 +36,7 @@ module Coworkers
              chat_mcp_tool_set: "Coworkers::ChatToolSet",
              reviewer_target_provider: "Coworkers::ReviewerTargetProvider",
              review_context_contributor: "Coworkers::ReviewContextContributor",
+             review_presentation_contributor: "Coworkers::ReviewPresentationContributor",
              repository_configuration: "Coworkers::RepositoryConfiguration",
              mcp_tool_set: "Coworkers::ReviewToolSet",
              retention_policy: "Coworkers::ReviewContextRetentionPolicy"
