@@ -61,6 +61,28 @@ system-wide overview and routes here for detail.
 - [Input sources](input_sources.md)
 - [Repository feature recommendations](repository_feature_recommendations.md)
 - [Coding workspace relay](coding_workspace_relay.md)
+- [Preview panels](preview-panels.md) — storage, proxy authentication, panel
+  payloads, export, and viewer extension internals.
+- [Preview environments](preview-environments.md) — proxy, control-server,
+  checkout, process, and failure-record internals.
+- [Admin recovery](admin-recovery.md) — recovery services, audit records, and
+  admin mutation feedback.
+- [Delivery tracks](delivery-tracks.md) — policy objects, landing, PR links,
+  ingestion, ref movement, and delivery payloads.
+- [Typed artifacts](typed-artifacts.md) — storage, renderer enrichment, and
+  review/media rendering internals.
+- [Workflow warnings](workflow-warnings.md) — warning persistence, recording,
+  evidence, and frontend rendering.
+- [Chat speech-to-text](chat-speech-to-text.md) — streaming channel, frame,
+  status, and event architecture.
+- [GitHub permission sync](github-permission-sync.md) — drift synchronization,
+  persistence, scheduling, and UI internals.
+- [External platforms](external-platforms.md) — gateways, polling, identity,
+  watchdogs, and inbound routing.
+- [Dashboard views](dashboard-views.md) — dashboard composition, folders,
+  FilterBar, SmartFolder, graph, and preference internals.
+- [Chat scheduled messages](chat-scheduled-messages.md) — scheduling endpoint,
+  persistence, delivery, and turn-enqueue mechanics.
 
 Procedures belong in [operations](../operations/README.md), inventories in
 [maps](../maps/README.md), and hazards in [pitfalls](../pitfalls/README.md).
