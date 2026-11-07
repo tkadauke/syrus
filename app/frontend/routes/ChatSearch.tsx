@@ -149,6 +149,9 @@ function SearchResultCard({ result, search }: { result: ChatSearchResult; search
           {expandedMatches.data?.matches.map((match) => (
             <MatchRow chatSessionId={result.chat_session_id} key={match.message_id} match={match} />
           ))}
+          {expandedMatches.data?.has_more ? (
+            <p className="py-3 text-sm text-gray-500 dark:text-gray-400">{t("search.matches_truncated", { count: expandedMatches.data.matches.length })}</p>
+          ) : null}
         </div>
       ) : null}
     </article>

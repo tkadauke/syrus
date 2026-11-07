@@ -228,6 +228,7 @@
     "no_snippet": "Nulla particula nuntii praesto.",
     "loading_matches": "Congruentia onerantur...",
     "error_matches": "Congruentia onerari non potuerunt.",
+    "matches_truncated": "Prima {{count}} congruentia monstrantur.",
     "showing": "Ostenduntur {{first}}–{{last}} ex {{total}}",
     "previous": "Prior",
     "next": "Sequens"
