@@ -17,25 +17,17 @@ module AgentActivity
     def call
       {
         id: @agent.id,
-        slug: "AGENT-#{@agent.id}",
         state: state,
-        step_kind: @context.kind,
-        role: @context.role,
         role_label: @context.role_label,
         agent_provider: @context.agent_provider,
-        agent_outcome: latest_process&.outcome,
         outcome_summary: @context.outcome_summary,
         outcome_verdict: @context.outcome_verdict,
         started_at: latest_process&.started_at&.iso8601,
-        finished_at: latest_process&.finished_at&.iso8601,
-        created_at: @agent.created_at&.iso8601,
         duration_seconds: duration_seconds,
         transcript_path: @transcript_path || @context.transcript_path(scope: @scope),
         chat_path: @context.chat_path,
         job: @context.job_payload,
-        repository: @context.repository_payload,
-        workflow_id: @context.workflow_id,
-        trigger_kind: @context.trigger_kind
+        repository: @context.repository_payload
       }
     end
 

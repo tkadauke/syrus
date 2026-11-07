@@ -28,18 +28,20 @@ export type InsightSuggestion = {
   confidence: number
   state: "pending" | "accepted" | "dismissed" | "retired"
   proposal_type: "create_job" | "save_memory" | "remove_memory" | "revise_existing_insight" | "informational"
-  suggested_prompt: string | null
-  memory_suggestion: string | null
+  has_suggested_prompt?: boolean
+  suggested_prompt?: string | null
+  memory_suggestion?: string | null
   has_memory_suggestion: boolean
   target_memory_id: number | null
-  stale_memory_text: string | null
-  stale_memory_evidence: string | null
+  stale_memory_text?: string | null
+  stale_memory_evidence?: string | null
   target_insight_id: number | null
-  retired_reason: string | null
+  retired_reason?: string | null
   superseded_by_insight_id: number | null
   superseded_by_job_id: number | null
   superseded_by_job_slug: string | null
-  evidence: InsightEvidenceItem[]
+  evidence_count?: number
+  evidence?: InsightEvidenceItem[]
   job_slug: string
   job_path: string
   accepted_at: string | null
@@ -81,7 +83,6 @@ export type InsightSuggestionsPayload = {
     can_write: boolean
   }
   tabs: RepositoryTab[]
-  counts: InsightSuggestionCounts
   suggestions: InsightSuggestion[]
   meta: PaginationMeta
   filter: Record<string, unknown>
@@ -200,6 +201,10 @@ export function fetchAdminInsights(search = "", page = 1, perPage = 20) {
 
 export function fetchInsightPreview(id: string | number) {
   return getJson<InsightPreviewPayload>(`/api/v1/app/insight_suggestions/${id}/preview`)
+}
+
+export function fetchInsightSuggestion(id: string | number) {
+  return getJson<{ suggestion: InsightSuggestion }>(`/api/v1/app/insight_suggestions/${id}`)
 }
 
 export function promoteInsightMemory(id: number) {

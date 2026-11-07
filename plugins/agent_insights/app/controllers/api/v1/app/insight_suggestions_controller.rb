@@ -33,12 +33,10 @@ module Api
           repository = find_repository
           return unless repository
 
-          AgentInsights::Suggestion.resolve_obsolete_remove_memory!(AgentInsights::Suggestion.for_repository(repository))
-
           page     = page_param
           per_page = per_page_param
           base_relation = AgentInsights::Suggestion.for_repository(repository)
-            .includes(:job, :created_job)
+            .includes(:job, :created_job, :superseded_by_job)
             .display_order
 
           filter      = current_filter
@@ -51,8 +49,7 @@ module Api
           render json: {
             repository: repository_summary_json(repository),
             tabs: repository_tabs_json(repository),
-            counts: suggestion_counts(repository),
-            suggestions: suggestions.map { |s| suggestion_json(s) },
+            suggestions: suggestions.map { |s| suggestion_json(s, include_details: false) },
             filter: filter.to_h,
             filter_schema: AgentInsights::Filter.schema,
             active_smart_folder_id: active_smart_folder&.id,
@@ -85,6 +82,16 @@ module Api
           else
             render_error("validation_failed", "Unknown action.", status: :unprocessable_content)
           end
+        end
+
+        def show
+          suggestion = accessible_suggestions.includes(:job, :created_job, :superseded_by_job).find_by(id: params[:id])
+          unless suggestion
+            render_error("not_found", "Insight suggestion not found.", status: :not_found)
+            return
+          end
+
+          render json: { suggestion: suggestion_json(suggestion, include_details: true) }
         end
 
         def discuss
@@ -187,10 +194,6 @@ module Api
             retired:   counts.fetch("retired", 0),
             all:       counts.values.sum
           }
-        end
-
-        def suggestion_counts(repository)
-          state_counts(AgentInsights::Suggestion.for_repository(repository)).transform_keys(&:to_s)
         end
 
         def require_agent_insights_feature
@@ -301,8 +304,8 @@ module Api
           }
         end
 
-        def suggestion_json(suggestion)
-          {
+        def suggestion_json(suggestion, include_details: true)
+          payload = {
             id: suggestion.id,
             slug: "INSIGHT-#{suggestion.id}",
             title: suggestion.redacted_title,
@@ -311,18 +314,14 @@ module Api
             confidence: suggestion.confidence,
             state: suggestion.state,
             proposal_type: suggestion.effective_proposal_type,
-            suggested_prompt: suggestion.redacted_suggested_prompt,
-            memory_suggestion: suggestion.redacted_memory_suggestion,
+            has_suggested_prompt: suggestion.suggested_prompt.present?,
             has_memory_suggestion: suggestion.memory_suggestion.present?,
             target_memory_id: suggestion.target_memory_id,
-            stale_memory_text: suggestion.redacted_stale_memory_text,
-            stale_memory_evidence: suggestion.redacted_stale_memory_evidence,
             target_insight_id: suggestion.target_insight_id,
-            retired_reason: suggestion.redacted_retired_reason,
             superseded_by_insight_id: suggestion.superseded_by_insight_id,
             superseded_by_job_id: suggestion.superseded_by_job_id,
             superseded_by_job_slug: suggestion.superseded_by_job&.slug,
-            evidence: evidence_json(suggestion.redacted_evidence),
+            evidence_count: suggestion.evidence.is_a?(Array) ? suggestion.evidence.length : 0,
             job_slug: suggestion.job.slug,
             job_path: job_path(suggestion.job),
             accepted_at: suggestion.accepted_at,
@@ -331,6 +330,16 @@ module Api
             created_at: suggestion.created_at,
             created_job: suggestion.created_job ? created_job_summary_json(suggestion.created_job) : nil
           }
+          return payload unless include_details
+
+          payload.merge(
+            suggested_prompt: suggestion.redacted_suggested_prompt,
+            memory_suggestion: suggestion.redacted_memory_suggestion,
+            stale_memory_text: suggestion.redacted_stale_memory_text,
+            stale_memory_evidence: suggestion.redacted_stale_memory_evidence,
+            retired_reason: suggestion.redacted_retired_reason,
+            evidence: evidence_json(suggestion.redacted_evidence)
+          )
         end
 
         def preview_suggestion_json(suggestion)

@@ -104,6 +104,13 @@ active-review surface without any extra filtering. Both views accept an
 explicit retired state/folder (or All, which includes retired rows) to inspect
 retired insights.
 
+List responses keep long prompt, memory, stale-memory, retirement, and evidence
+content out of each row. Expanding a suggestion loads those fields from
+`GET /api/v1/app/insight_suggestions/:id`; compact rows expose presence flags
+and an evidence count so collapsed UI remains informative. Listing suggestions
+is read-only. The periodic insight sweep resolves remove-memory suggestions
+whose target memory has already disappeared.
+
 Repository owners, direct repository members, and members of teams granted
 access can view insights, discuss them, and view the repository's insight
 schedule. Accepting, dismissing, restoring, or saving a suggested memory

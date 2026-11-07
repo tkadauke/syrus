@@ -31,6 +31,7 @@ module AgentInsights
              slug_type: "AgentInsights::SlugType"
     route :get, "/api/v1/app/repositories/:repository_id/insight_suggestions", to: "api/v1/app/insight_suggestions#index"
     route :get, "/api/v1/app/insight_suggestions/:id/preview", to: "api/v1/app/insight_suggestions#preview"
+    route :get, "/api/v1/app/insight_suggestions/:id", to: "api/v1/app/insight_suggestions#show"
     route :patch, "/api/v1/app/insight_suggestions/:id", to: "api/v1/app/insight_suggestions#update"
     route :post, "/api/v1/app/insight_suggestions/:id/discuss", to: "api/v1/app/insight_suggestions#discuss"
     route :post, "/api/v1/app/repositories/:id/run_insight_analysis", to: "api/v1/app/insight_suggestions#run_insight_analysis"
