@@ -60,8 +60,7 @@ function buildPayload(items: DashboardJobItem[]): DashboardPayload {
       kanban_lanes: [],
       ownership_scope: "mine",
       owner_user_id: null,
-      owner_id: null,
-      raw: {}
+      owner_id: null
     },
     filter: null,
     controls: {
