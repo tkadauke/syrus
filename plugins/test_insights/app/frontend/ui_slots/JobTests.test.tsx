@@ -59,12 +59,7 @@ describe("JobTests", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Details" }))
 
-    await waitFor(() =>
-      expect(window.fetch).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/42/test_results?grader_name=rspec&include_suites=true",
-        expect.anything()
-      )
-    )
+    await waitFor(() => expect(window.fetch).toHaveBeenCalledWith("/api/v1/app/jobs/42/test_results?grader_name=rspec&include_suites=true", expect.anything()))
     expect(await screen.findByText("spec/models/job_spec.rb")).toBeInTheDocument()
   })
 })
