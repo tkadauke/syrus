@@ -23,6 +23,7 @@ export type ProviderRoutingCandidate = {
   provider: string
   model?: string | null
   effort_level?: string | null
+  weight?: number | null
 }
 
 export type ProviderRoutingTrigger =

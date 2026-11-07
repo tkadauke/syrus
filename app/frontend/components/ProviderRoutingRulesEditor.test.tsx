@@ -137,10 +137,63 @@ describe("ProviderRoutingRulesEditor", () => {
     expect(screen.getByText("CI fast path")).toBeInTheDocument()
     expect(screen.getByText("Step: Implement")).toBeInTheDocument()
     expect(screen.getByText("Workflow: Initial")).toBeInTheDocument()
-    expect(screen.getByText("Codex / GPT-5 / High effort")).toBeInTheDocument()
+    expect(screen.getByText("Fallback: Codex")).toBeInTheDocument()
     expect(screen.getByText("User defaults")).toBeInTheDocument()
     expect(screen.getByText("Inherited default")).toBeInTheDocument()
     expect(screen.getByText("Read-only")).toBeInTheDocument()
+    expect(screen.getAllByTestId("routing-rule-row")[0]).not.toHaveTextContent(/^1/)
+  })
+
+  it("summarizes fallback, load balancing, and hold actions without competing numbered lists", () => {
+    const strategyRules: ProviderRoutingRule[] = [
+      {
+        ...rules[0],
+        action: {
+          strategy: "fallback_order",
+          name: "Fallback lane",
+          candidates: [{ provider: "codex" }, { provider: "claude" }]
+        }
+      },
+      {
+        ...rules[1],
+        action: {
+          strategy: "weighted",
+          name: "Balanced lane",
+          candidates: [
+            { provider: "codex", weight: 60 },
+            { provider: "claude", weight: 40 }
+          ]
+        }
+      },
+      {
+        ...rules[1],
+        id: 13,
+        action: {
+          strategy: "panel",
+          name: "Review panel",
+          candidates: [{ provider: "codex" }, { provider: "claude" }],
+          consensus: "majority"
+        }
+      },
+      {
+        ...rules[1],
+        id: 14,
+        action: {
+          type: "hold",
+          name: "Maintenance window",
+          reason: "Outside support hours",
+          resumption: { mode: "manual" }
+        }
+      }
+    ]
+
+    renderPanel({ rules: strategyRules })
+
+    expect(screen.getByText("Fallback: Codex → Claude")).toBeInTheDocument()
+    expect(screen.getByText("Load balance: Codex (60) · Claude (40)")).toBeInTheDocument()
+    expect(screen.getByText("Panel: Codex · Claude")).toBeInTheDocument()
+    expect(screen.getByText("Hold: Outside support hours · Manual release")).toBeInTheDocument()
+    expect(screen.queryByRole("list", { name: /Codex/ })).not.toBeInTheDocument()
   })
 
   it("renders bordered rows with icon actions and reorders from the drag handle", () => {
@@ -629,7 +682,7 @@ describe("ProviderRoutingRulesEditor", () => {
     renderPanel({ onToggleRule, onUpdateRule, rules: [holdRule, rules[1]] })
 
     expect(screen.getByText("Disabled")).toBeInTheDocument()
-    expect(screen.getByText("Deploy freeze · Manual release")).toBeInTheDocument()
+    expect(screen.getByText("Hold: Deploy freeze · Manual release")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("checkbox", { name: "Enable Maintenance window" }))
     expect(onToggleRule).toHaveBeenCalledWith(holdRule, true)
 
