@@ -37,7 +37,8 @@ module Admin
           active_storage: PerformanceLogging.phase("admin_overview.active_storage") { active_storage_payload },
           stalled_classifier_jobs: PerformanceLogging.phase("admin_overview.stalled_classifier_jobs") { stalled_classifier_jobs_payload },
           worker_data_root_usages: PerformanceLogging.phase("admin_overview.worker_data_root_usages") { InstanceVersion.worker_data_root_usages },
-          worker_health: PerformanceLogging.phase("admin_overview.worker_health") { worker_health_payload(sample_limit_per_host: 4) }
+          worker_health: PerformanceLogging.phase("admin_overview.worker_health") { worker_health_payload(sample_limit_per_host: 4) },
+          time_zones: time_zones_payload
         }
 
         payload[:resource_admission] = PerformanceLogging.phase("admin_overview.resource_admission") { resource_admission_payload } if resource_admission_page?
@@ -66,6 +67,18 @@ module Admin
     private
 
     attr_reader :params
+
+    def time_zones_payload
+      resolution = Rails.application.config.x.server_time_zone
+      {
+        process_tz: ENV["TZ"].presence,
+        rails_zone: Time.zone.name,
+        server_zone: resolution.name,
+        server_zone_source: resolution.source,
+        active_record_default_timezone: ActiveRecord.default_timezone.to_s,
+        database_storage_policy: "UTC"
+      }
+    end
 
     def requested_page
       params.respond_to?(:[]) ? params[:page].to_s : ""

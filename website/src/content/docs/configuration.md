@@ -754,6 +754,7 @@ needs durable workspace storage because it manages clones and worktrees.
 | `SYRUS_DATABASE_PASSWORD` | Production yes | MySQL password |
 | `DB_POOL` | No | Active Record pool size per process; production MySQL defaults to `9`. Worker pools must be at least `JOB_CONCURRENCY + 3` |
 | `SYRUS_APP_HOST` | Web yes | Canonical app hostname for URL generation, mailer links, and Host header authorization |
+| `SYRUS_TIME_ZONE` | No | IANA deployment time zone (for example `Europe/Berlin`). An invalid explicit value stops boot; otherwise a valid process `TZ`, then `Etc/UTC`, is used. |
 | `SYRUS_ALLOWED_HOSTS` | No | Optional comma-separated extra hostnames; `SYRUS_APP_HOST` is always allowed, and a blank value falls back to only `SYRUS_APP_HOST` |
 | `SYRUS_DATA_ROOT` | Worker recommended | Clone cache and per-workflow workspaces; defaults to `~/.syrus` |
 | `SYRUS_PREPARED_LAYER_CACHE_GB` | Worker optional | Overrides the instance prepared-workspace cache budget for a worker whose local disk differs from the fleet |
@@ -776,6 +777,17 @@ needs durable workspace storage because it manages clones and worktrees.
 | `GIT_SHA` | No | Displayed build revision |
 
 `SYRUS_DATA_ROOT` should point at a persistent volume for worker pods.
+
+### Time zones
+
+Set `SYRUS_TIME_ZONE` to the deployment's intended IANA zone on local/macOS
+launches, in Compose `.env`, in every k3s/Kubernetes web and worker container,
+or in the environment settings of a generic cloud service. Syrus never infers
+physical location from the host, cluster, IP address, or cloud region. A valid
+process `TZ` is accepted only when `SYRUS_TIME_ZONE` is absent; otherwise Syrus
+uses `Etc/UTC`. Persisted instants and MySQL sessions remain UTC regardless of
+the presentation zone. Signed-in browsers report their IANA zone automatically;
+automatic user zones can follow travel, while a manual override remains fixed.
 Web pods do not need clone storage. The mounted directory must be writable
 by the container's `rails` user (`1000:1000`); the published Docker images
 create `/home/rails/.syrus` with that ownership so a fresh named volume can

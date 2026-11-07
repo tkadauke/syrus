@@ -14,6 +14,7 @@ require "syrus/plugin/focused_test_command"
 require "syrus/plugin/execution_backend"
 require "syrus/precompressed_asset_server"
 require "syrus/response_compression"
+require "syrus/server_time_zone"
 
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.
@@ -23,6 +24,10 @@ module Syrus
   class Application < Rails::Application
     # Initialize configuration defaults for originally generated Rails version.
     config.load_defaults 8.1
+
+    config.x.server_time_zone = Syrus::ServerTimeZone.resolve
+    config.time_zone = config.x.server_time_zone.name
+    config.active_record.default_timezone = :utc
 
     # Please, add to the `ignore` list any other `lib` subdirectories that do
     # not contain `.rb` files, or that should not be reloaded or eager loaded.

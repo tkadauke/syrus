@@ -68,10 +68,18 @@ RSpec.describe "API: /api/v1/app/admin/overview", type: :request do
       "active_storage",
       "stalled_classifier_jobs",
       "worker_health",
+      "time_zones",
       "workers",
       "recurring"
     )
     expect(body["active_runs"]["total"]).to eq(1)
+    expect(body["time_zones"]).to include(
+      "rails_zone" => Rails.application.config.time_zone,
+      "server_zone" => Rails.application.config.x.server_time_zone.name,
+      "server_zone_source" => Rails.application.config.x.server_time_zone.source,
+      "active_record_default_timezone" => "utc",
+      "database_storage_policy" => "UTC"
+    )
     expect(body["recurring"]).to include("count" => 0)
     expect(body["stalled_classifier_jobs"]).to include("total" => 0)
     expect(body["recurring"]).not_to have_key("overdue")
