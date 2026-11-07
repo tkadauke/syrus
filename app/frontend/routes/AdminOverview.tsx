@@ -133,7 +133,7 @@ function AdminOverviewPage({
           <Metric title={t("overview.agent_session_capture")} value={captureRate == null ? "-" : `${Math.round(captureRate * 100)}%`} context={t("overview.capture_of", { captured: data.agent_session_capture_rate.captured, total: data.agent_session_capture_rate.total })} tone={captureRate == null || captureRate >= 0.95 ? "ok" : "warn"} />
           <Metric title={t("overview.data_root_disk")} value={dataRoot ? `${dataRoot.used_percent}%` : "?"} context={dataRoot ? `${t("overview.disk_free", { free: formatBytes(dataRoot.available_bytes), path: dataRoot.path })}${dataRoot.hostname ? ` (${dataRoot.hostname})` : ""}` : t("overview.unavailable")} tone={dataRootTone(dataRoot?.level)} />
           <Metric title={t("overview.active_storage")} value={data.active_storage?.available ? t("overview.available") : t("overview.unavailable")} context={activeStorageContext(data.active_storage, t)} tone={data.active_storage?.available ? "ok" : "alarm"} />
-          <Metric title={t("overview.server_time_zone")} value={data.time_zones.server_zone} context={t("overview.server_time_zone_context", { source: data.time_zones.server_zone_source, process: data.time_zones.process_tz || t("overview.unset"), rails: data.time_zones.rails_zone, database: data.time_zones.database_storage_policy })} />
+          {data.time_zones ? <Metric title={t("overview.server_time_zone")} value={data.time_zones.server_zone} context={t("overview.server_time_zone_context", { source: data.time_zones.server_zone_source, process: data.time_zones.process_tz || t("overview.unset"), rails: data.time_zones.rails_zone, database: data.time_zones.database_storage_policy })} /> : null}
         </section>
       ) : content}
     </Page.Root>
