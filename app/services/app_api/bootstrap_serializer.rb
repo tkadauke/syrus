@@ -77,6 +77,16 @@ module AppApi
       }
     end
 
+    def chat_capabilities_payload
+      return {} unless user
+
+      {
+        speech_to_text: ChatSpeechToText::Capability.for(user: user).as_json,
+        coding_mode_enabled: Feature.coding_mode_enabled?,
+        local_mode_enabled: Feature.local_mode_enabled?
+      }
+    end
+
     def public_payload
       {
         first_signup: User.count.zero?,
