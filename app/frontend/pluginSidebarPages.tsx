@@ -54,7 +54,7 @@ export function usePluginSidebarPaths({ enabled }: { enabled: boolean }) {
   const pages = useQuery({
     queryKey: ["sidebar", "plugin_pages"],
     queryFn: fetchSidebarPluginPages,
-    staleTime: 30_000,
+    staleTime: Infinity,
     // Gated on being signed in, exactly as AppChromeV2 gates the same query:
     // a pre-auth page must not call an app API, and has no plugin pages to
     // route to anyway.
@@ -70,7 +70,7 @@ export function usePluginSidebarPage() {
   const pages = useQuery({
     queryKey: ["sidebar", "plugin_pages"],
     queryFn: fetchSidebarPluginPages,
-    staleTime: 30_000
+    staleTime: Infinity
   })
 
   // `pages?.` and not just `data?.`: a response without the key at all must
