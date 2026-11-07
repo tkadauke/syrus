@@ -7,6 +7,20 @@ RSpec.describe ChatDraftContent, type: :model do
 
       expect(draft.text).to eq("actual body")
     end
+
+    it "drops retired inline attachment data from draft serialization" do
+      draft = described_class.from_content(
+        "text" => "Inspect this",
+        "attachments" => [ { "id" => 7, "name" => "notes.txt", "mime_type" => "text/plain", "data" => "aGVsbG8=" } ]
+      )
+
+      expect(draft.to_message_content.fetch("attachments").sole).to eq(
+        "id" => 7,
+        "name" => "notes.txt",
+        "mime_type" => "text/plain"
+      )
+      expect(JSON.parse(draft.to_scratchpad_content).fetch("attachments").sole).not_to have_key("data")
+    end
   end
 
   describe ".from_record" do

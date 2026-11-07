@@ -82,7 +82,6 @@ class ChatDraftContent
       "size" => attributes["size"],
       "url" => attributes["url"]
     }.compact
-    normalized["data"] = attributes["data"].to_s if attributes.key?("data")
     normalized
   end
 end
