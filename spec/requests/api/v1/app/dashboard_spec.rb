@@ -240,10 +240,13 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       expect(response.headers.fetch("Cache-Control")).to include("private", "max-age=3600")
       expect(response.headers.fetch("ETag")).to be_present
+      etag = response.headers.fetch("ETag")
       expect(parse_body).to include(
         "subject" => "job",
         "controls" => include("views" => %w[list kanban dependencies])
       )
+      get "/api/v1/app/dashboard/controls", params: { subject: "job" }, headers: { "If-None-Match" => etag }
+      expect(response).to have_http_status(:not_modified)
 
       get "/api/v1/app/dashboard", params: { subject: "job", section: "rows" }
 
@@ -255,16 +258,8 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
         "items" => contain_exactly(include("title" => "Build aqueduct")),
         "lanes" => []
       )
-      expect(rows).to include(
-        "active_smart_folder_id" => nil,
-        "filter" => include("and" => []),
-        "preferences" => include("sort" => include("column" => "created_at", "direction" => "desc")),
-        "controls" => include("columns" => include("required" => be_an(Array), "optional" => be_an(Array)))
-      )
       expect(rows).not_to have_key("counts")
-      expect(rows.dig("controls")).not_to have_key("views")
-      expect(rows.dig("controls")).not_to have_key("filter_schema")
-      expect(rows).not_to have_key("smart_folders")
+      expect(rows).not_to include("active_smart_folder_id", "filter", "preferences", "controls", "landing_queue", "ui_panels", "smart_folders")
     end
 
     it "does not preload chat message bodies when building source chat anchors" do
