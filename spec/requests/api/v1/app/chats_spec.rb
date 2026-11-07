@@ -4992,6 +4992,34 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body["messages"].first).not_to have_key("html")
   end
 
+  it "honors a bounded message page limit" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    messages = 5.times.map { |i| chat.messages.create!(role: "user", content: { "text" => "msg-#{i}" }) }
+
+    get "/api/v1/app/chats/#{chat.id}/messages", params: { before: messages.last.id + 1, limit: 2 }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["has_more_older"]).to eq(true)
+    expect(parse_body["messages"].map { |message| message.fetch("id") }).to eq(messages.last(2).map(&:id))
+  end
+
+  it "serves full message and shell content lazily" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    command = chat.chat_shell_commands.create!(user: user, command: "echo hi", output: "full output",
+      outcome: "succeeded", exit_status: 0, started_at: 1.minute.ago, finished_at: Time.current)
+    message = chat.messages.create!(role: "tool_result", content: { "content" => "full tool result", "chat_shell_command_id" => command.id })
+
+    get "/api/v1/app/chats/#{chat.id}/messages/#{message.id}/content"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to eq(
+      "content" => message.content,
+      "chat_shell_command_output" => "full output"
+    )
+  end
+
   it "forces the active-tail index for MySQL chat message pagination" do
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
     controller = Api::V1::App::ChatsController.new

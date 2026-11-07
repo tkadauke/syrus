@@ -98,7 +98,9 @@ RSpec.describe App::ChatMessagePayload do
     queries = capture_sql { described_class.messages(messages, repository: repository) }
     mention_lookup_queries = queries.grep(/FROM ["`]?(?:users|handles|chat_participants)["`]?/i)
 
-    expect(mention_lookup_queries.size).to be <= 5
+    # Participant membership is fetched as ids rather than preloading every
+    # participant and User record into each paginated message's session.
+    expect(mention_lookup_queries.size).to be <= 10
   end
   it "includes the message's revision so the frontend entity store can order/dedupe events against this snapshot" do
     message = chat.messages.create!(role: "assistant", content: { "text" => "Hello." })
@@ -128,6 +130,33 @@ RSpec.describe App::ChatMessagePayload do
     payload = described_class.messages([ message ], repository: repository).first
 
     expect(payload.fetch(:text)).to eq("")
+  end
+
+  it "replaces oversized tool content with a lazy content reference" do
+    message = chat.messages.create!(role: "tool_result", tool_name: "Read",
+      content: { "type" => "tool_result", "content" => "x" * (described_class::MAX_TOOL_CONTENT_BYTES + 1) })
+
+    payload = described_class.messages([ message ], repository: repository).sole
+
+    expect(payload.fetch(:content)).to eq(
+      "truncated" => true,
+      "content_path" => "/api/v1/app/chats/#{chat.id}/messages/#{message.id}/content"
+    )
+  end
+
+  it "omits running shell output and bounds completed shell output" do
+    command = chat.chat_shell_commands.create!(user: user, command: "yes", started_at: Time.current,
+      output: "x" * (described_class::MAX_SHELL_OUTPUT_BYTES + 100))
+    message = chat.messages.create!(role: "user", content: { "text" => "!yes", "chat_shell_command_id" => command.id }, skip_turn_trigger: true)
+
+    running_payload = described_class.messages([ message ], repository: repository).sole.fetch(:chat_shell_command)
+    expect(running_payload).to include(output: nil)
+
+    command.update!(outcome: "succeeded", finished_at: Time.current, exit_status: 0)
+    completed_payload = described_class.messages([ message ], repository: repository).sole.fetch(:chat_shell_command)
+    expect(completed_payload.fetch(:output).bytesize).to be < command.output.bytesize
+    expect(completed_payload).to include(output_truncated: true,
+      output_path: "/api/v1/app/chats/#{chat.id}/messages/#{message.id}/content")
   end
 
   it "gives message-anchored pending actions the same dismissal path and retirement rule" do
