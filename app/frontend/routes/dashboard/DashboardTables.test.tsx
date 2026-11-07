@@ -169,10 +169,7 @@ function job(overrides: Partial<DashboardJobItem> = {}): DashboardJobItem {
     start_blocked_next_check_at: null,
     start_blocked_count: null,
     start_blocked_details: null,
-    paths: {
-      job_path: `/jobs/${overrides.id ?? 1}`,
-      source_path: "https://github.com/acme/widgets/issues/12"
-    },
+    paths: { job_path: `/jobs/${overrides.id ?? 1}` },
     ...overrides
   }
 }
@@ -189,7 +186,6 @@ function epic(overrides: Partial<DashboardEpicItem> = {}): DashboardEpicItem {
     landing: false,
     stuck: false,
     all_jobs_closed: false,
-    owner: null,
     owned_by_current_user: false,
     claimable: true,
     owner_badge: null,

@@ -327,7 +327,10 @@ function EpicCell({
   if (column === "open_child_count") return <TextCell value={String(epic.open_child_count ?? 0)} />
   if (column === "blocked_child_count") return <TextCell value={String(epic.blocked_child_count ?? 0)} />
   if (column === "dependency_count") return <TextCell value={String(epic.dependency_count ?? 0)} />
-  if (column === "child_progress_percent") return <TextCell value={`${epic.child_progress_percent ?? 0}%`} />
+  if (column === "child_progress_percent") {
+    const progress = epic.jobs_count > 0 ? Math.round((epic.landed_jobs_count / epic.jobs_count) * 100) : 0
+    return <TextCell value={`${progress}%`} />
+  }
 
   return <TimestampCell value={epicDateValue(epic, column)} />
 }

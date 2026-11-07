@@ -379,9 +379,7 @@ function JobKanbanCard({ item, navigationItems, prefix }: { item: DashboardJobIt
   const [notice, setNotice] = useState<string | null>(null)
   const release = useMutation({
     mutationFn: () => {
-      if (!item.paths.app_release_from_backlog_path) throw new Error(t("bulk_action_error"))
-
-      return releaseDashboardJob(item.paths.app_release_from_backlog_path)
+      return releaseDashboardJob(`/api/v1/app/jobs/${item.id}/release_from_backlog`)
     },
     onSuccess: (payload) => {
       setNotice(payload.message ?? t("released_from_backlog"))
@@ -389,7 +387,7 @@ function JobKanbanCard({ item, navigationItems, prefix }: { item: DashboardJobIt
     }
   })
   const dependencyCount = item.dependencies?.length ?? 0
-  const unsatisfiedCount = item.unsatisfied_dependencies?.length ?? 0
+  const unsatisfiedCount = item.dependencies?.filter((dependency) => !dependency.succeeded).length ?? 0
 
   return (
     <article
@@ -460,7 +458,7 @@ function JobKanbanCard({ item, navigationItems, prefix }: { item: DashboardJobIt
         ) : null}
         <ExternalPrBadge external={item.pr_is_external} />
       </div>
-      {item.can_release_from_backlog && item.paths.app_release_from_backlog_path ? (
+      {item.bulk_actions?.release_from_backlog ? (
         <div className="mt-3">
           <Button disabled={release.isPending} onClick={() => release.mutate()} size="sm" variant="primary">
             {t("release_from_backlog")}
