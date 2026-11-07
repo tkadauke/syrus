@@ -19,6 +19,7 @@ module Api
         DEFAULT_LIMIT = 30
         MAX_LIMIT = 100
         FTS_BATCH_SIZE = 100
+        MAX_FTS_BATCHES = 5
         CHAT_GROUPED_MATCH_LIMIT = 3
 
         def index
@@ -214,12 +215,14 @@ module Api
         def chat_search_rows(query, limit)
           rows = []
           offset = 0
+          batches_scanned = 0
 
           loop do
             batch = ChatMessageSearchIndex.search_candidates(query, limit: FTS_BATCH_SIZE, offset: offset)
+            batches_scanned += 1
             eligible_batch = reject_unsearchable_chat_rows(batch)
             rows.concat(apply_filter_to_rows("chat", eligible_batch, :chat_message_id))
-            break if rows.length >= limit || batch.length < FTS_BATCH_SIZE
+            break if rows.length >= limit || batch.length < FTS_BATCH_SIZE || batches_scanned >= MAX_FTS_BATCHES
 
             offset += FTS_BATCH_SIZE
           end
@@ -286,12 +289,14 @@ module Api
         def ranked_accessible_rows(type:, query:, limit:, index:, model:, id_key:)
           rows = []
           offset = 0
+          batches_scanned = 0
 
           loop do
             batch = index.search(query, limit: FTS_BATCH_SIZE, offset: offset)
+            batches_scanned += 1
             eligible_batch = accessible_rows(batch, model, id_key)
             rows.concat(apply_filter_to_rows(type, eligible_batch, id_key))
-            break if rows.length >= limit || batch.length < FTS_BATCH_SIZE
+            break if rows.length >= limit || batch.length < FTS_BATCH_SIZE || batches_scanned >= MAX_FTS_BATCHES
 
             offset += FTS_BATCH_SIZE
           end
