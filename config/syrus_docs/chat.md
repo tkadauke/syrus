@@ -1,10 +1,5 @@
 # Chat
 
-The browser bootstrap payload carries user-level chat capabilities such as
-speech-to-text availability and the Coding/Local Mode feature gates. Individual
-chat polling responses contain only session-specific state, so these static
-capabilities are not recomputed and retransmitted on every poll.
-
 ## Repository files and Coding Mode workspaces
 
 With a repository attached, the workspace panel exposes a read-only **Files**
