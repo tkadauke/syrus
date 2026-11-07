@@ -273,7 +273,7 @@ see `ChatProviders::Codex#invoke`), the filesystem/config-bound stages in
 `transcript_restore`, `auth_refresh_lock`, `auth_prepare`, `auth_persist`)
 additionally report through `PerformanceLogging.report_duration` under the
 `chat_startup.<stage>` phase namespace shared with `ClaudeInvocation` and
-`ProcessRunner` (see `config/syrus_docs/observability.md`), so they show
+`ProcessRunner` (see `docs/engineering/architecture/observability.md`), so they show
 up in the same slow-phase observability surface as everything else, complete
 with an IO-pressure/filesystem snapshot when the stage was actually slow.
 Provider round-trip stages (`process_spawn`, `first_agent_event`,
