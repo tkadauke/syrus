@@ -397,7 +397,7 @@ function RulesTable({
 
   const table = (
     <ul aria-label={inheritedLabel || t("provider_routing.rules_table")} className="divide-y divide-border">
-      {rules.map((rule, index) => (
+      {rules.map((rule) => (
         <li
           className={`grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2 px-3 py-2.5 ${readOnly ? "bg-surface-subtle/50" : "bg-surface"} ${rule.enabled === false ? "opacity-55" : ""}`}
           data-testid="routing-rule-row"
@@ -435,9 +435,8 @@ function RulesTable({
                 <DragHandleIcon className="h-5 w-5" />
               </button>
             ) : null}
-            <div className="min-w-0 space-y-1.5">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span className="w-5 text-xs font-medium text-text-secondary">{index + 1}</span>
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                 {!readOnly ? (
                   <Checkbox
                     aria-label={t("provider_routing.enabled_aria", { name: ruleName(rule, t) })}
@@ -450,30 +449,20 @@ function RulesTable({
                 ) : null}
                 <span className="min-w-0 break-words font-medium text-text-primary">{ruleName(rule, t)}</span>
                 {rule.enabled === false ? <Pill tone="neutral">{t("provider_routing.disabled")}</Pill> : null}
+                {readOnly ? <Pill tone="neutral">{t("provider_routing.read_only")}</Pill> : null}
               </div>
-              <div className="flex flex-wrap items-center gap-1.5">
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs text-text-secondary">
                 <Pill tone="info" wrap>
                   {triggerLabel(rule.trigger, options, t)}
                 </Pill>
-                <span className="text-xs font-medium text-text-primary">{actionLabel(rule, options, t)}</span>
                 {conditionSummaries(rule.conditions, options, t).map((label) => (
                   <Pill key={label} tone="neutral" wrap>
                     {label}
                   </Pill>
                 ))}
+                <span aria-hidden="true" className="mx-0.5 h-4 border-l border-border" />
+                <span className="min-w-0 font-medium text-text-primary">{compactActionSummary(rule, options, t)}</span>
               </div>
-              <div className="text-xs text-text-secondary">
-                {rule.action?.type === "hold" ? (
-                  <div>{holdSummary(rule.action, t)}</div>
-                ) : (
-                  <ol className="list-decimal space-y-0.5 pl-4">
-                    {ruleCandidates(rule).map((candidate, candidateIndex) => (
-                      <li key={`${rule.id}-${candidateIndex}`}>{candidateLabel(candidate, options, t)}</li>
-                    ))}
-                  </ol>
-                )}
-              </div>
-              {readOnly ? <Pill tone="neutral">{t("provider_routing.read_only")}</Pill> : null}
             </div>
           </div>
           {!readOnly ? (
@@ -1230,6 +1219,29 @@ function actionLabel(rule: ProviderRoutingRule, options: ProviderRoutingOptions,
     : t("provider_routing.route_summary", { strategy: actionStrategyLabel(actionStrategy(rule), options, t) })
 }
 
+const COMPACT_ROUTE_PRESENTATION: Record<string, { i18nKey: string; separator: string; showWeights?: boolean }> = {
+  fallback_order: { i18nKey: "provider_routing.compact_fallback", separator: " → " },
+  weighted: { i18nKey: "provider_routing.compact_load_balance", separator: " · ", showWeights: true },
+  panel: { i18nKey: "provider_routing.compact_panel", separator: " · " }
+}
+
+function compactActionSummary(rule: ProviderRoutingRule, options: ProviderRoutingOptions, t: (key: string, options?: Record<string, unknown>) => string) {
+  if (rule.action?.type === "hold") return t("provider_routing.compact_hold", { summary: holdSummary(rule.action, t) })
+
+  const strategy = actionStrategy(rule)
+  const presentation = COMPACT_ROUTE_PRESENTATION[strategy]
+  if (!presentation) return actionLabel(rule, options, t)
+  const candidates = ruleCandidates(rule)
+    .map((candidate) => compactCandidateLabel(candidate, options, presentation.showWeights))
+    .join(presentation.separator)
+  return t(presentation.i18nKey, { candidates })
+}
+
+function compactCandidateLabel(candidate: ProviderRoutingCandidate, options: ProviderRoutingOptions, showWeight = false) {
+  const provider = providerOption(options, candidate.provider)?.label || candidate.provider
+  return showWeight && typeof candidate.weight === "number" ? `${provider} (${candidate.weight})` : provider
+}
+
 function holdSummary(action: ProviderRoutingAction, t: (key: string, options?: Record<string, unknown>) => string) {
   const resumption = typeof action.resumption === "object" && action.resumption ? (action.resumption as Record<string, unknown>) : {}
   const mode = String(resumption.mode || "manual")
@@ -1238,21 +1250,6 @@ function holdSummary(action: ProviderRoutingAction, t: (key: string, options?: R
       ? t("provider_routing.resume_at_summary", { time: new Date(String(resumption.at)).toLocaleString() })
       : t(`provider_routing.resume_${mode}`, { defaultValue: mode })
   return `${String(action.reason || t("provider_routing.hold_default_reason"))} · ${policy}`
-}
-
-function candidateLabel(candidate: ProviderRoutingCandidate, options: ProviderRoutingOptions, t: (key: string, options?: Record<string, unknown>) => string) {
-  const provider = providerOption(options, candidate.provider)
-  const model = provider?.models.find((entry) => entry.id === candidate.model)
-  const effort = options.effort_levels.find((entry) => entry.value === candidate.effort_level)
-  return [
-    provider?.label || candidate.provider,
-    model ? model.label : candidate.model,
-    candidate.effort_level
-      ? t("provider_routing.effort_candidate", { effort: effortLabel(candidate.effort_level, effort?.label || candidate.effort_level, t) })
-      : null
-  ]
-    .filter(Boolean)
-    .join(" / ")
 }
 
 function effortLabel(value: string, fallback: string, t: (key: string, options?: Record<string, unknown>) => string) {
