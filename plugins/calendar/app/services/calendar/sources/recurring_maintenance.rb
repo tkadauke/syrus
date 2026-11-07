@@ -2,6 +2,7 @@ module Calendar
   module Sources
     class RecurringMaintenance
       BAND_THRESHOLD = 30.minutes
+      MAX_OBSERVATIONS_PER_CLASS = 100
 
       def self.calendar_events(user:, starts_at:, ends_at:)
         return [] unless user.admin?
@@ -49,7 +50,11 @@ module Calendar
       end
 
       def self.execution_observations_by_class(class_names, starts_at, ends_at)
-        jobs = SolidQueue::Job.where(class_name: class_names.uniq, created_at: starts_at...ends_at).order(:created_at).to_a
+        ranked_jobs = SolidQueue::Job
+          .where(class_name: class_names.uniq, created_at: starts_at...ends_at)
+          .select("solid_queue_jobs.*, ROW_NUMBER() OVER (PARTITION BY class_name ORDER BY created_at DESC) AS calendar_row_number")
+        jobs = SolidQueue::Job.from("(#{ranked_jobs.to_sql}) solid_queue_jobs")
+          .where("calendar_row_number <= ?", MAX_OBSERVATIONS_PER_CLASS).order(:created_at).to_a
         failed_ids = SolidQueue::FailedExecution.where(job_id: jobs.map(&:id)).pluck(:job_id).to_set
         jobs.group_by(&:class_name).transform_values do |class_jobs|
           class_jobs.map do |job|
