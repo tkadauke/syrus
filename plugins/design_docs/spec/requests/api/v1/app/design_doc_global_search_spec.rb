@@ -17,7 +17,7 @@ RSpec.describe "App API Design Docs global search", type: :request do
     body_match = create_design_doc(title: "Other plan", markdown: "mentions #{exact.display_id}", repository: repository)
     [ body_match, exact ].each { |doc| DesignDocs::SearchIndex.upsert(doc.reload) }
 
-    get "/api/v1/app/search", params: { query: exact.display_id, types: [ "design_doc" ] }
+    get "/api/v1/app/search", params: { query: exact.display_id, types: [ "design_doc" ], controls: 1 }
 
     expect(response).to have_http_status(:ok)
     expect(results.first).to include(
@@ -95,7 +95,12 @@ RSpec.describe "App API Design Docs global search", type: :request do
     [ draft, accepted ].each { |doc| DesignDocs::SearchIndex.upsert(doc.reload) }
     tree = { "and" => [ { "field" => "state", "op" => "is", "value" => "accepted" } ] }
 
-    get "/api/v1/app/search", params: { query: "runtime", types: [ "design_doc" ], q: Filters::QueryParam.encode(tree) }
+    get "/api/v1/app/search", params: {
+      query: "runtime",
+      types: [ "design_doc" ],
+      q: Filters::QueryParam.encode(tree),
+      controls: 1
+    }
 
     expect(response).to have_http_status(:ok)
     expect(results).to contain_exactly(include("type" => "design_doc", "id" => accepted.id))
