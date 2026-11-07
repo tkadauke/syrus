@@ -17,7 +17,7 @@ function repositoryRow(overrides: Record<string, unknown> = {}) {
     slug: "acme/widgets",
     owner: "acme",
     name: "widgets",
-    owner_user: { id: 2, display_name: "Ada Lovelace", email_address: "ada@example.com", admin: false },
+    owner_email: "ada@example.com",
     default_branch: "main",
     upstream_owner: null,
     upstream_name: null,
@@ -317,7 +317,7 @@ describe("RepositoriesIndex data table", () => {
               last_poll_started_at: "2026-01-03T00:00:00Z",
               trigger_label: "z-label",
               default_branch: "release",
-              owner_user: { id: 2, display_name: "Zoe", email_address: "zoe@example.com", admin: false },
+              owner_email: "zoe@example.com",
               upstream_slug: "core/z",
               upstream_default_branch: "main"
             }),
@@ -333,7 +333,7 @@ describe("RepositoriesIndex data table", () => {
               last_poll_started_at: null,
               trigger_label: "a-label",
               default_branch: "develop",
-              owner_user: { id: 3, display_name: "Ada", email_address: "ada@example.com", admin: false },
+              owner_email: "ada@example.com",
               upstream_slug: null
             }),
             repositoryRow({
@@ -348,7 +348,7 @@ describe("RepositoriesIndex data table", () => {
               last_poll_started_at: "2026-01-01T00:00:00Z",
               trigger_label: "m-label",
               default_branch: "main",
-              owner_user: { id: 4, display_name: "Maya", email_address: "maya@example.com", admin: false },
+              owner_email: "maya@example.com",
               upstream_slug: "core/a",
               upstream_default_branch: "main"
             })
