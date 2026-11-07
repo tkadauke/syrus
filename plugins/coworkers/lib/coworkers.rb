@@ -35,6 +35,7 @@ module Coworkers
              chat_turn_finalizer: [ "Coworkers::HomeBranchPersistence", "Coworkers::MessageReply" ],
              chat_mcp_tool_set: "Coworkers::ChatToolSet",
              reviewer_target_provider: "Coworkers::ReviewerTargetProvider",
+             repository_configuration: "Coworkers::RepositoryConfiguration",
              mcp_tool_set: "Coworkers::ReviewToolSet",
              retention_policy: "Coworkers::ReviewContextRetentionPolicy"
     tick_interval 5.minutes
