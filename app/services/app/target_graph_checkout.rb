@@ -6,11 +6,11 @@ module App
     DEFAULT_REF = "HEAD".freeze
 
     def self.with_default_branch(repository:, user:)
-      new(repository: repository, user: user).with_default_branch { |path| yield path }
+      new(repository: repository, user: user).with_default_branch { |path, revision| yield path, revision }
     end
 
     def self.with_ref(repository:, user:, ref:)
-      new(repository: repository, user: user).with_ref(ref) { |path| yield path }
+      new(repository: repository, user: user).with_ref(ref) { |path, revision| yield path, revision }
     end
 
     def initialize(repository:, user:, git: GitRunner.new)
@@ -20,17 +20,18 @@ module App
     end
 
     def with_default_branch
-      with_ref(repository.default_branch.presence || DEFAULT_REF) { |path| yield path }
+      with_ref(repository.default_branch.presence || DEFAULT_REF) { |path, revision| yield path, revision }
     end
 
     def with_ref(ref)
       clone = RepositoryBareClone.new(repository, git: git)
       clone.sync!(user: user)
       fetch_remote_ref!(clone.path, ref) if remote_ref?(ref)
+      revision = git.run("--git-dir=#{clone.path}", "rev-parse", "#{ref.presence || DEFAULT_REF}^{commit}").strip
 
       Dir.mktmpdir("target-graph-#{repository.id}-") do |dir|
         export_ref!(clone.path, ref.presence || DEFAULT_REF, dir)
-        yield Pathname.new(dir)
+        yield Pathname.new(dir), revision
       end
     end
 
