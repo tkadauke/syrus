@@ -48,6 +48,7 @@ function renderBrowser(payload: JobSourceDiffPayload) {
         onSelectHeadRef={() => {}}
         payload={payload}
         showDiffToggle
+        versions={[]}
       />
     </QueryClientProvider>
   )
@@ -67,7 +68,6 @@ function payload(overrides: Partial<JobSourceDiffPayload> = {}): JobSourceDiffPa
     truncated: false,
     diff_error: null,
     version: null,
-    versions: [],
     review_annotations: {
       annotations: {},
       ranges: {},

@@ -10,6 +10,9 @@ module Api
         def show
           job = find_job
           version = job.diff_review_versions.find(params[:id])
+          return unless stale?(etag: [ "diff-review-version", version.id, version.base_sha, version.head_sha ], public: false)
+
+          expires_in 1.year, public: false, immutable: true
           render json: ::App::DiffReviewVersionsPayload.show(version: version, user: Current.user)
         end
 

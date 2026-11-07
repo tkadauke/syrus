@@ -55,7 +55,6 @@ module App
         truncated: version.truncated,
         files_count: files_count || Array(version.files_snapshot).size,
         comments_count: comments_count_for(version),
-        metadata: version.metadata || {},
         created_at: version.created_at&.iso8601
       }
     end
@@ -105,9 +104,10 @@ module App
         status: file["status"].to_s,
         additions: file["additions"].to_i,
         deletions: file["deletions"].to_i,
-        patch: file["patch"],
+        patch_bytes: file["patch_bytes"] || file["patch"]&.bytesize,
         is_image: image_file?(file["path"]) && file["patch"].nil?
-      }.merge(generated_hash(file["generated"], file["generated_reason"], file["generated_source"]))
+      }.merge({ previous_path: file["previous_path"], patch_status: file["patch_status"] }.compact)
+        .merge(generated_hash(file["generated"], file["generated_reason"], file["generated_source"]))
     end
 
     def generated_hash(generated, reason, source)

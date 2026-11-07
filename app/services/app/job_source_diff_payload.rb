@@ -50,7 +50,6 @@ module App
           truncated: truncated,
           diff_error: nil,
           version: version_json(version),
-          versions: diff_versions_json,
           review_annotations: review_annotations_json(version: version, base_sha: base, head_sha: head, files: files),
           coverage_annotations: coverage_annotations_json(version: version, files: files)
         )
@@ -61,7 +60,7 @@ module App
       end
 
       base_payload(base_ref: nil, head_ref: nil)
-        .merge(files: [], truncated: false, diff_error: e.message, version: nil, versions: diff_versions_json, review_annotations: empty_review_annotations_json, coverage_annotations: {})
+        .merge(files: [], truncated: false, diff_error: e.message, version: nil, review_annotations: empty_review_annotations_json, coverage_annotations: {})
     end
 
     private
@@ -154,7 +153,6 @@ module App
         truncated: false,
         diff_error: nil,
         version: version_json(version),
-        versions: diff_versions_json,
         review_annotations: review_annotations_json(version: version, base_sha: base_sha, head_sha: head_sha, files: Array(fixture[:files])),
         coverage_annotations: coverage_annotations_json(version: version, files: Array(fixture[:files]))
       )
@@ -167,7 +165,6 @@ module App
           truncated: false,
           diff_error: "GitHub token not configured. Add one in Settings to browse source.",
           version: nil,
-          versions: diff_versions_json,
           review_annotations: empty_review_annotations_json,
           coverage_annotations: {}
         )
@@ -189,7 +186,6 @@ module App
         truncated: version.truncated,
         diff_error: nil,
         version: version_json(version),
-        versions: diff_versions_json,
         review_annotations: review_annotations_json(version: version, base_sha: version.base_sha, head_sha: version.head_sha, files: Array(version.files_snapshot)),
         coverage_annotations: coverage_annotations_json(version: version, files: Array(version.files_snapshot))
       )
@@ -209,7 +205,6 @@ module App
           truncated: false,
           diff_error: nil,
           version: nil,
-          versions: diff_versions_json,
           review_annotations: empty_review_annotations_json,
           coverage_annotations: {}
         )
@@ -243,9 +238,8 @@ module App
         status: file[:status].to_s,
         additions: file[:additions].to_i,
         deletions: file[:deletions].to_i,
-        patch: file[:patch],
         is_image: image_file?(file[:path]) && file[:patch].nil?
-      }.merge(patch_metadata(file[:previous_path], file[:patch_status], file[:patch_bytes]))
+      }.merge(patch_metadata(file[:previous_path], file[:patch_status], patch_bytes(file[:patch], file[:patch_bytes])))
         .merge(generated_hash(file[:generated], file[:generated_reason], file[:generated_source]))
     end
 
@@ -255,14 +249,17 @@ module App
         status: file["status"].to_s,
         additions: file["additions"].to_i,
         deletions: file["deletions"].to_i,
-        patch: file["patch"],
         is_image: image_file?(file["path"]) && file["patch"].nil?
-      }.merge(patch_metadata(file["previous_path"], file["patch_status"], file["patch_bytes"]))
+      }.merge(patch_metadata(file["previous_path"], file["patch_status"], patch_bytes(file["patch"], file["patch_bytes"])))
         .merge(generated_hash(file["generated"], file["generated_reason"], file["generated_source"]))
     end
 
     def patch_metadata(previous_path, patch_status, patch_bytes)
       { previous_path: previous_path, patch_status: patch_status, patch_bytes: patch_bytes }.compact
+    end
+
+    def patch_bytes(patch, recorded_bytes)
+      recorded_bytes || patch&.bytesize
     end
 
     # Binary/large-file detection isn't a real flag from GitHub's compare API

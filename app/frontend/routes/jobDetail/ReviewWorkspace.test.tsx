@@ -519,7 +519,7 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(within(noteCard).getByRole("button", { name: "Discuss" }))
 
     expect(await screen.findByRole("dialog", { name: "Discuss review note" })).toBeInTheDocument()
-    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/jobs/42/diff_review_comments", expect.objectContaining({ method: "POST" }))
 
     fireEvent.change(screen.getByLabelText("Initial prompt"), { target: { value: "Please inspect the lifecycle edge." } })
     fireEvent.click(screen.getByRole("button", { name: "Start discussion" }))
@@ -552,7 +552,7 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
 
     expect(screen.queryByRole("dialog", { name: "Discuss review note" })).not.toBeInTheDocument()
-    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/jobs/42/diff_review_comments", expect.objectContaining({ method: "POST" }))
   })
 
   it("hides acknowledge while first review-note discussion is pending and keeps the typed prompt on error", async () => {
