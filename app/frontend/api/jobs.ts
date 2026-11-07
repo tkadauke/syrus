@@ -1897,11 +1897,13 @@ export function fetchJobRunArtifacts(
   path: string,
   artifact: JobRunArtifactsPayload["artifact"] = "transcript",
   page = 1,
-  afterSequence?: number
+  afterSequence?: number,
+  full = false
 ) {
   const separator = path.includes("?") ? "&" : "?"
   const after = afterSequence == null ? "" : `&after_sequence=${encodeURIComponent(String(afterSequence))}`
-  return getJson<JobRunArtifactsPayload>(`${path}${separator}artifact=${artifact}&page=${page}${after}`)
+  const fullQuery = full ? "&full=true" : ""
+  return getJson<JobRunArtifactsPayload>(`${path}${separator}artifact=${artifact}&page=${page}${after}${fullQuery}`)
 }
 
 // ── Typed artifacts ───────────────────────────────────────────────────────────

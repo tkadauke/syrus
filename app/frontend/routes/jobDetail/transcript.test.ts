@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { coalesceTranscriptLogs } from "./transcript"
+import { coalesceTranscriptLogs, mergeTranscriptLogs } from "./transcript"
 
 describe("coalesceTranscriptLogs", () => {
   it("joins adjacent compatible stream chunks but preserves command boundaries", () => {
@@ -13,5 +13,15 @@ describe("coalesceTranscriptLogs", () => {
     expect(logs).toHaveLength(2)
     expect(logs[0].chunk).toBe("[grader:lint] $ npm run lint\nchecking files")
     expect(logs[1].chunk).toBe("[grader:test] $ npm test\nall green")
+  })
+})
+
+describe("mergeTranscriptLogs", () => {
+  it("appends delta rows in sequence order without duplicating repeated rows", () => {
+    const first = { id: 1, sequence: 1, kind: "stdout", chunk: "first", created_at: null }
+    const replacement = { ...first, chunk: "redacted first" }
+    const second = { id: 2, sequence: 2, kind: "stdout", chunk: "second", created_at: null }
+
+    expect(mergeTranscriptLogs([first], [second, replacement])).toEqual([replacement, second])
   })
 })

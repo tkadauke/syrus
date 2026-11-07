@@ -565,6 +565,33 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.fetch("lines")).to eq((5..204).map { |sequence| "line #{sequence}" })
+    expect(parse_body.fetch("lines_truncated")).to be(true)
+  end
+
+  it "supports a bounded head of the legacy transcript" do
+    user.update!(api_token: "syrus_cli_token")
+    run = job.initial_run
+    run.job_logs.delete_all
+    4.times { |sequence| run.job_logs.create!(sequence: sequence, kind: "stdout", chunk: "line #{sequence}") }
+
+    get "/api/v1/app/jobs/#{job.id}/transcript", params: { tail: false, limit: 2 }, headers: { "Authorization" => "Bearer syrus_cli_token" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("lines" => [ "line 0", "line 1" ], "lines_truncated" => true)
+  end
+
+  it "preserves the earliest complete lines when byte-capping a legacy transcript head" do
+    user.update!(api_token: "syrus_cli_token")
+    run = job.initial_run
+    run.job_logs.delete_all
+    run.job_logs.create!(sequence: 0, kind: "stdout", chunk: "a" * 600.kilobytes)
+    run.job_logs.create!(sequence: 1, kind: "stdout", chunk: "b" * 600.kilobytes)
+
+    get "/api/v1/app/jobs/#{job.id}/transcript", params: { tail: false }, headers: { "Authorization" => "Bearer syrus_cli_token" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("lines")).to eq([ "a" * 600.kilobytes ])
+    expect(parse_body.fetch("lines_truncated")).to be(true)
   end
 
   it "creates a chat feedback workflow for an implemented job" do
@@ -1380,6 +1407,20 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body).to include("run_id" => run.id, "run_state" => run.state, "complete" => false, "logs_max_sequence" => 1)
     expect(parse_body.fetch("logs").map { |log| log.fetch("chunk") }).to eq([ "new line" ])
+  end
+
+  it "invalidates transcript ETags when run state changes without another log" do
+    run = job.initial_run
+    run.job_logs.create!(sequence: 0, kind: "stdout", chunk: "only line")
+
+    get "/api/v1/app/jobs/#{job.id}/runs/#{run.id}/artifacts"
+    etag = response.headers.fetch("ETag")
+    run.update_columns(state: "succeeded", updated_at: 1.second.from_now)
+
+    get "/api/v1/app/jobs/#{job.id}/runs/#{run.id}/artifacts", headers: { "If-None-Match" => etag }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("run_state")).to eq("succeeded")
   end
 
   it "returns redacted structured tool metadata and handles legacy rows" do

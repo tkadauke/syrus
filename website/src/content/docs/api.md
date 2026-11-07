@@ -285,6 +285,20 @@ curl -X POST https://syrus.example.com/api/v1/app/jobs/123/chat_feedback \
 
 Blank feedback or a non-actionable Job returns `422` with a JSON error.
 
+## Run Artifacts
+
+`GET /api/v1/app/jobs/:job_id/runs/:run_id/artifacts` returns one bounded Run
+artifact. Use `artifact=transcript` for paginated logs and `after_sequence=N`
+to poll only newer rows. Transcript responses include an ETag that changes for
+new logs and Run or Job state transitions. `artifact=agent_diff` and
+`artifact=step_agent_diff` are loaded separately; diffs over 2 MB return a
+bounded preview with a `*_truncated` marker, and `full=true` retrieves the
+complete diff on explicit request. `run_id=latest` selects the newest Run.
+
+The legacy `GET /api/v1/app/jobs/:id/transcript` endpoint accepts `limit`
+(capped at 200) and `tail=true|false`, applies a 1 MB response cap, and reports
+`lines_truncated`. New clients should use the artifacts endpoint.
+
 ## Target Graph Inspection
 
 User-scoped app API clients can inspect compiled project and target graph data
