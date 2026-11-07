@@ -117,7 +117,7 @@ describe("toolDetail", () => {
     expect(toolDetail("attach_repository", { slug: "tkadauke/syrus" })).toBe("tkadauke/syrus")
   })
 
-  it("preserves every line of a Claude Bash command for collapsed normalization and expanded detail", () => {
+  it("preserves every line when deriving Claude Bash tool detail", () => {
     const command = "rg -n tool_cards app spec\n  && sed -n '1,220p' app/frontend/routes/chat/MessageCards.tsx"
 
     expect(toolDetail("Bash", { command })).toBe(command)
