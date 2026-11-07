@@ -2,6 +2,14 @@
 
 The Jobs and Epics dashboards support three view modes toggled from the toolbar:
 
+Dashboard responses are split by volatility: `section=chrome` contains folder,
+preference, ownership, filter, and landing-queue state; `section=rows` contains
+only items or lanes and pagination. Stable controls come from
+`GET /api/v1/app/dashboard/controls?subject=job|epic|workflow` with private
+one-hour caching and ETag revalidation. Bulk responses patch affected cached
+rows while chrome refreshes separately. Omitting `section` retains the merged
+response for compatibility.
+
 ## list
 
 Default tabular view. Supports column visibility, sorting, and pagination. Columns are configurable per-user per-subject. The Jobs dashboard includes an optional `deployment` column, hidden by default, that shows the furthest configured deployment stage a Job has reached.
