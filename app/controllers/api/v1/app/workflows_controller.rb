@@ -41,11 +41,13 @@ module Api
           send_secure_blob(attachment.blob, immutable: true)
         rescue StandardError => e
           raise unless StorageConnectivity.transient_error?(e)
+          raise if response.committed?
 
           Rails.logger.warn(
             "[WorkflowsController] Active Storage unavailable while serving visual artifact " \
             "for Workflow ##{workflow&.id}: #{e.class}: #{e.message}"
           )
+          expires_now
           response.set_header("Retry-After", StorageConnectivity::RETRY_AFTER_SECONDS.to_s)
           render json: {
             error: {
