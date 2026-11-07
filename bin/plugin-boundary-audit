@@ -40,7 +40,7 @@ if plugin_name.blank?
   exit 64
 end
 
-root = Rails.root
+root = Pathname.new(ENV.fetch("PLUGIN_BOUNDARY_AUDIT_ROOT", Rails.root.to_s))
 audit = Admin::PluginSourceBoundaryAudit.new(root: root)
 ownership_audit = Admin::PluginOwnershipAudit.new(root: root)
 removed = audit.removed_plugin_names_for(plugin_name)

@@ -2,6 +2,11 @@ require "rails_helper"
 require "tmpdir"
 
 RSpec.describe Admin::PluginOwnershipAudit do
+  OWNERSHIP_CATEGORIES = %w[
+    configuration_keys documentation_paths frontend_contributions problem_codes
+    route_prefixes step_kinds tables target_types tools vocabulary
+  ].freeze
+
   def synthetic_ownership(quarantine: {})
     described_class::Ownership.new(
       plugin: "weather",
@@ -12,7 +17,28 @@ RSpec.describe Admin::PluginOwnershipAudit do
     )
   end
 
-  it "allows quarantined plugin vocabulary to shrink but rejects growth" do
+  def write_synthetic_manifest(root)
+    manifest = root.join("plugins/weather/config/plugin_ownership.yml")
+    manifest.dirname.mkpath
+    manifest.write(<<~YAML)
+      plugin: weather
+      ownership:
+        configuration_keys: [weather_api_key]
+        documentation_paths: [plugins/weather/docs]
+        frontend_contributions: [weather/Forecast]
+        problem_codes: [weather_unavailable]
+        route_prefixes: [/api/v1/app/weather]
+        step_kinds: [weather_forecast]
+        tables: [weather_forecasts]
+        target_types: [weather_station]
+        tools: [read_forecast]
+        vocabulary: [forecast_widget]
+      compatibility_quarantine:
+        app/services/dashboard.rb: 2
+    YAML
+  end
+
+  it "requires the compatibility quarantine to track both shrinkage and growth" do
     Dir.mktmpdir do |directory|
       root = Pathname.new(directory)
       root.join("app/services").mkpath
@@ -22,6 +48,11 @@ RSpec.describe Admin::PluginOwnershipAudit do
 
       audit = described_class.new(root:, ownerships: [ ownership ])
       expect(audit.violations).to eq([])
+
+      source.write("forecast_widget = true\n")
+      expect(audit.violations.map(&:message)).to contain_exactly(
+        "app/services/dashboard.rb: weather owns 1 vocabulary occurrence(s), compatibility quarantine allows 2"
+      )
 
       source.write("forecast_widget = forecast_widget_provider(forecast_widget)\n")
       expect(audit.violations.map(&:message)).to contain_exactly(
@@ -43,19 +74,14 @@ RSpec.describe Admin::PluginOwnershipAudit do
   end
 
   it "loads categorical ownership and the compatibility quarantine from a plugin manifest" do
-    manifest = described_class.new.ownerships.find { |ownership| ownership.plugin == "coworkers" }
+    Dir.mktmpdir do |directory|
+      root = Pathname.new(directory)
+      write_synthetic_manifest(root)
+      manifest = described_class.new(root:).ownerships.fetch(0)
 
-    expect(manifest.categories.keys).to contain_exactly(
-      "configuration_keys", "documentation_paths", "frontend_contributions",
-      "problem_codes", "route_prefixes", "step_kinds", "tables", "target_types",
-      "tools", "vocabulary"
-    )
-    expect(manifest.quarantine).not_to be_empty
-  end
-
-  it "keeps the checked-in compatibility quarantine at or above the current inventory" do
-    audit = described_class.new
-
-    expect(audit.violations.map(&:message)).to eq([])
+      expect(manifest.plugin).to eq("weather")
+      expect(manifest.categories.keys).to contain_exactly(*OWNERSHIP_CATEGORIES)
+      expect(manifest.quarantine).to eq("app/services/dashboard.rb" => 2)
+    end
   end
 end
