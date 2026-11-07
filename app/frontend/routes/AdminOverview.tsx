@@ -2,7 +2,13 @@ import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { useQuery } from "@tanstack/react-query"
 import type { ReactNode } from "react"
 import { Link, useLocation } from "react-router-dom"
-import { fetchAdminOverview, type AdminOverviewPayload, type ResourceAdmissionDelayedWork, type ResourceAdmissionDiagnosticsPayload, type ResourceAdmissionWorkerPressureKey } from "../api/adminOverview"
+import {
+  fetchAdminOverview,
+  type AdminOverviewPayload,
+  type ResourceAdmissionDelayedWork,
+  type ResourceAdmissionDiagnosticsPayload,
+  type ResourceAdmissionWorkerPressureKey
+} from "../api/adminOverview"
 import { SectionHeading } from "../components/Heading"
 import { Page } from "../components/ui"
 import { useT } from "../hooks/useT"
@@ -85,7 +91,11 @@ function AdminOverviewPage({
   })
 
   if (overview.isPending) {
-    return <Page.Root aria-label={t("overview.aria_overview")} gutter="responsive" size="default" className="text-sm text-gray-600 dark:text-gray-300">{t("overview.loading")}</Page.Root>
+    return (
+      <Page.Root aria-label={t("overview.aria_overview")} gutter="responsive" size="default" className="text-sm text-gray-600 dark:text-gray-300">
+        {t("overview.loading")}
+      </Page.Root>
+    )
   }
 
   if (overview.isError) {
@@ -116,26 +126,102 @@ function AdminOverviewPage({
 
       {page === "overview" || page === "recurring" ? (
         <section aria-label={t("overview.aria_metrics")} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Metric title={t("overview.active_runs")} value={data.active_runs.total} context={triggerContext(data.active_runs.by_trigger, t("overview.all_idle"))} href={withRoutePrefix("/admin/queue/active", prefix)} />
-          <Metric title={t("overview.queued_runs")} value={data.queued_runs.total} context={data.queued_runs.total > 0 ? t("overview.waiting_for_worker") : t("overview.queue_empty")} href={withRoutePrefix("/admin/queue/pending", prefix)} />
-          <Metric title={t("overview.workers")} value={data.workers.unreachable ? "?" : data.workers.total ?? 0} context={workersContext(data.workers, t, data.worker_health)} href={withRoutePrefix("/admin/queue/workers", prefix)} tone={workerHealthTone} />
-          <Metric title={t("overview.recurring_jobs")} value={recurringCount} context={overdueRecurring.length > 0 ? overdueRecurring.map((task) => task.key).join(", ") : t("overview.all_firing")} href={withRoutePrefix("/admin/queue/recurring", prefix)} tone={overdueRecurring.length > 0 ? "alarm" : "ok"} />
-          <Metric title={t("overview.failed_runs")} value={data.recent_failures_24h.total} context={triggerContext(data.recent_failures_24h.by_trigger, t("overview.no_failures"))} href={withRoutePrefix("/admin/queue/failed", prefix)} tone={data.recent_failures_24h.total > 0 ? "warn" : "ok"} />
-          <Metric title={t("overview.provider_circuits")} value={data.provider_circuits.length} context={data.provider_circuits.length > 0 ? data.provider_circuits.map((circuit) => circuit.provider).join(", ") : t("overview.all_closed")} tone={data.provider_circuits.length > 0 ? "alarm" : "ok"} />
-          <Metric title={t("overview.github_rate_limits")} value={data.github_rate_limits.length} context={data.github_rate_limits.length > 0 ? data.github_rate_limits.map((user) => user.email).join(", ") : t("overview.all_healthy")} tone={data.github_rate_limits.length > 0 ? "warn" : "ok"} />
+          <Metric
+            title={t("overview.active_runs")}
+            value={data.active_runs.total}
+            context={triggerContext(data.active_runs.by_trigger, t("overview.all_idle"))}
+            href={withRoutePrefix("/admin/queue/active", prefix)}
+          />
+          <Metric
+            title={t("overview.queued_runs")}
+            value={data.queued_runs.total}
+            context={data.queued_runs.total > 0 ? t("overview.waiting_for_worker") : t("overview.queue_empty")}
+            href={withRoutePrefix("/admin/queue/pending", prefix)}
+          />
+          <Metric
+            title={t("overview.workers")}
+            value={data.workers.unreachable ? "?" : (data.workers.total ?? 0)}
+            context={workersContext(data.workers, t, data.worker_health)}
+            href={withRoutePrefix("/admin/queue/workers", prefix)}
+            tone={workerHealthTone}
+          />
+          <Metric
+            title={t("overview.recurring_jobs")}
+            value={recurringCount}
+            context={overdueRecurring.length > 0 ? overdueRecurring.map((task) => task.key).join(", ") : t("overview.all_firing")}
+            href={withRoutePrefix("/admin/queue/recurring", prefix)}
+            tone={overdueRecurring.length > 0 ? "alarm" : "ok"}
+          />
+          <Metric
+            title={t("overview.failed_runs")}
+            value={data.recent_failures_24h.total}
+            context={triggerContext(data.recent_failures_24h.by_trigger, t("overview.no_failures"))}
+            href={withRoutePrefix("/admin/queue/failed", prefix)}
+            tone={data.recent_failures_24h.total > 0 ? "warn" : "ok"}
+          />
+          <Metric
+            title={t("overview.provider_circuits")}
+            value={data.provider_circuits.length}
+            context={data.provider_circuits.length > 0 ? data.provider_circuits.map((circuit) => circuit.provider).join(", ") : t("overview.all_closed")}
+            tone={data.provider_circuits.length > 0 ? "alarm" : "ok"}
+          />
+          <Metric
+            title={t("overview.github_rate_limits")}
+            value={data.github_rate_limits.length}
+            context={data.github_rate_limits.length > 0 ? data.github_rate_limits.map((user) => user.email).join(", ") : t("overview.all_healthy")}
+            tone={data.github_rate_limits.length > 0 ? "warn" : "ok"}
+          />
           <Metric
             title={t("overview.stalled_classifier_jobs")}
             value={stalledClassifier?.total ?? 0}
-            context={stalledClassifier?.oldest_job_slug ? t("overview.oldest_classifier_job", { slug: stalledClassifier.oldest_job_slug }) : t("overview.none_stalled")}
-            href={stalledClassifier?.oldest_job_path ? withRoutePrefix(stalledClassifier.oldest_job_path, prefix) : withRoutePrefix("/admin/stuck?kind=stalled_classifier_pending_job", prefix)}
+            context={
+              stalledClassifier?.oldest_job_slug ? t("overview.oldest_classifier_job", { slug: stalledClassifier.oldest_job_slug }) : t("overview.none_stalled")
+            }
+            href={
+              stalledClassifier?.oldest_job_path
+                ? withRoutePrefix(stalledClassifier.oldest_job_path, prefix)
+                : withRoutePrefix("/admin/stuck?kind=stalled_classifier_pending_job", prefix)
+            }
             tone={(stalledClassifier?.total ?? 0) > 0 ? "alarm" : "ok"}
           />
-          <Metric title={t("overview.agent_session_capture")} value={captureRate == null ? "-" : `${Math.round(captureRate * 100)}%`} context={t("overview.capture_of", { captured: data.agent_session_capture_rate.captured, total: data.agent_session_capture_rate.total })} tone={captureRate == null || captureRate >= 0.95 ? "ok" : "warn"} />
-          <Metric title={t("overview.data_root_disk")} value={dataRoot ? `${dataRoot.used_percent}%` : "?"} context={dataRoot ? `${t("overview.disk_free", { free: formatBytes(dataRoot.available_bytes), path: dataRoot.path })}${dataRoot.hostname ? ` (${dataRoot.hostname})` : ""}` : t("overview.unavailable")} tone={dataRootTone(dataRoot?.level)} />
-          <Metric title={t("overview.active_storage")} value={data.active_storage?.available ? t("overview.available") : t("overview.unavailable")} context={activeStorageContext(data.active_storage, t)} tone={data.active_storage?.available ? "ok" : "alarm"} />
-          {data.time_zones ? <Metric title={t("overview.server_time_zone")} value={data.time_zones.server_zone} context={t("overview.server_time_zone_context", { source: data.time_zones.server_zone_source, process: data.time_zones.process_tz || t("overview.unset"), rails: data.time_zones.rails_zone, database: data.time_zones.database_storage_policy })} /> : null}
+          <Metric
+            title={t("overview.agent_session_capture")}
+            value={captureRate == null ? "-" : `${Math.round(captureRate * 100)}%`}
+            context={t("overview.capture_of", { captured: data.agent_session_capture_rate.captured, total: data.agent_session_capture_rate.total })}
+            tone={captureRate == null || captureRate >= 0.95 ? "ok" : "warn"}
+          />
+          <Metric
+            title={t("overview.data_root_disk")}
+            value={dataRoot ? `${dataRoot.used_percent}%` : "?"}
+            context={
+              dataRoot
+                ? `${t("overview.disk_free", { free: formatBytes(dataRoot.available_bytes), path: dataRoot.path })}${dataRoot.hostname ? ` (${dataRoot.hostname})` : ""}`
+                : t("overview.unavailable")
+            }
+            tone={dataRootTone(dataRoot?.level)}
+          />
+          <Metric
+            title={t("overview.active_storage")}
+            value={data.active_storage?.available ? t("overview.available") : t("overview.unavailable")}
+            context={activeStorageContext(data.active_storage, t)}
+            tone={data.active_storage?.available ? "ok" : "alarm"}
+          />
+          {data.time_zones ? (
+            <Metric
+              title={t("overview.server_time_zone")}
+              value={data.time_zones.server_zone}
+              context={t("overview.server_time_zone_context", {
+                source: data.time_zones.server_zone_source,
+                process: data.time_zones.process_tz || t("overview.unset"),
+                rails: data.time_zones.rails_zone,
+                database: data.time_zones.database_storage_policy
+              })}
+            />
+          ) : null}
         </section>
-      ) : content}
+      ) : (
+        content
+      )}
     </Page.Root>
   )
 }
@@ -149,11 +235,16 @@ function ResourceAdmissionSection({ data, prefix }: { data: ResourceAdmissionDia
   const overrides = data.admission_overrides || []
 
   return (
-    <section aria-label={t("overview.aria_resource_admission")} className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+    <section
+      aria-label={t("overview.aria_resource_admission")}
+      className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
+    >
       <div className="flex flex-col gap-2 border-b border-gray-100 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-800 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <SectionHeading>{t("overview.resource_admission_section")}</SectionHeading>
-          <p className="text-xs text-gray-500 dark:text-gray-400">{t("overview.resource_admission_window", { recent: data.windows.recent_hours, delayed: data.windows.delayed_hours })}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {t("overview.resource_admission_window", { recent: data.windows.recent_hours, delayed: data.windows.delayed_hours })}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2 text-xs">
           <DecisionPill label={t("overview.resource_delayed")} value={delayed.length} tone={delayed.length > 0 ? "alarm" : "idle"} />
@@ -169,7 +260,13 @@ function ResourceAdmissionSection({ data, prefix }: { data: ResourceAdmissionDia
             <ResourceAdmissionRow
               key={`delayed-${item.workflow_id}`}
               primary={item.job?.slug || `WF-${item.workflow_id}`}
-              secondary={[item.reason, item.action, item.next_check_at ? t("overview.resource_next_check", { time: formatShortDate(item.next_check_at) }) : null].filter(Boolean).join(" · ")}
+              secondary={[
+                item.reason,
+                item.action,
+                item.next_check_at ? t("overview.resource_next_check", { time: formatShortDate(item.next_check_at) }) : null
+              ]
+                .filter(Boolean)
+                .join(" · ")}
               detail={formatWorkerPressureDetail(item, t)}
               href={item.workflow_path || item.job?.path}
               prefix={prefix}
@@ -183,7 +280,15 @@ function ResourceAdmissionSection({ data, prefix }: { data: ResourceAdmissionDia
             <ResourceAdmissionRow
               key={`active-${item.run_id}`}
               primary={`${item.job?.slug || `Run ${item.run_id}`} · ${item.step_kind || "run"}`}
-              secondary={[`Run ${item.run_id}`, item.workflow_id ? `WF-${item.workflow_id}` : null, item.repository, item.host, item.wall_time_seconds == null ? null : t("overview.resource_wall", { time: formatDuration(item.wall_time_seconds) })].filter(Boolean).join(" · ")}
+              secondary={[
+                `Run ${item.run_id}`,
+                item.workflow_id ? `WF-${item.workflow_id}` : null,
+                item.repository,
+                item.host,
+                item.wall_time_seconds == null ? null : t("overview.resource_wall", { time: formatDuration(item.wall_time_seconds) })
+              ]
+                .filter(Boolean)
+                .join(" · ")}
               href={item.workflow_path || item.job?.path}
               prefix={prefix}
               metric={formatPressure(item.pressure) || formatCost(item.estimated_remaining_cost)}
@@ -196,7 +301,15 @@ function ResourceAdmissionSection({ data, prefix }: { data: ResourceAdmissionDia
             <ResourceAdmissionRow
               key={`recent-${item.run_id}`}
               primary={`${item.job?.slug || `Run ${item.run_id}`} · ${item.grader_name || item.step_kind || "run"}`}
-              secondary={[`Run ${item.run_id}`, item.workflow_id ? `WF-${item.workflow_id}` : null, item.repository, item.host, item.prediction?.confidence_level ? t("overview.resource_confidence", { level: item.prediction.confidence_level }) : null].filter(Boolean).join(" · ")}
+              secondary={[
+                `Run ${item.run_id}`,
+                item.workflow_id ? `WF-${item.workflow_id}` : null,
+                item.repository,
+                item.host,
+                item.prediction?.confidence_level ? t("overview.resource_confidence", { level: item.prediction.confidence_level }) : null
+              ]
+                .filter(Boolean)
+                .join(" · ")}
               href={item.workflow_path || item.job?.path}
               prefix={prefix}
               metric={formatPressure(item.pressure) || (item.wall_time_seconds == null ? undefined : formatDuration(item.wall_time_seconds))}
@@ -213,7 +326,9 @@ function ResourceAdmissionSection({ data, prefix }: { data: ResourceAdmissionDia
                 t("overview.resource_samples", { count: profile.sample_count }),
                 t("overview.resource_attributed_samples", { count: profile.attributed_sample_count }),
                 profile.fallback_reason
-              ].filter(Boolean).join(" · ")}
+              ]
+                .filter(Boolean)
+                .join(" · ")}
               metric={t("overview.resource_confidence", { level: profile.confidence_level })}
             />
           ))}
@@ -226,8 +341,18 @@ function ResourceAdmissionSection({ data, prefix }: { data: ResourceAdmissionDia
           <ul className="space-y-2">
             {overrides.map((item) => (
               <li className="text-xs text-amber-900 dark:text-amber-100" key={`override-${item.workflow_id}`}>
-                <ResourceLink href={item.workflow_path || item.job?.path} prefix={prefix}>{item.job?.slug || `WF-${item.workflow_id}`}</ResourceLink>
-                <span className="ml-2">{[item.reason, item.details?.job_priority ? t("overview.resource_priority", { priority: String(item.details.job_priority) }) : null, item.decided_at ? formatShortDate(item.decided_at) : null].filter(Boolean).join(" · ")}</span>
+                <ResourceLink href={item.workflow_path || item.job?.path} prefix={prefix}>
+                  {item.job?.slug || `WF-${item.workflow_id}`}
+                </ResourceLink>
+                <span className="ml-2">
+                  {[
+                    item.reason,
+                    item.details?.job_priority ? t("overview.resource_priority", { priority: String(item.details.job_priority) }) : null,
+                    item.decided_at ? formatShortDate(item.decided_at) : null
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
                 <WorkerPressureDetail detail={formatWorkerPressureDetail(item, t)} />
               </li>
             ))}
@@ -250,15 +375,33 @@ function ResourceList({ title, empty, children }: { title: string; empty: string
   )
 }
 
-function ResourceAdmissionRow({ primary, secondary, detail, metric, href, prefix }: { primary: string; secondary?: string; detail?: string | null; metric?: string; href?: string; prefix?: string }) {
+function ResourceAdmissionRow({
+  primary,
+  secondary,
+  detail,
+  metric,
+  href,
+  prefix
+}: {
+  primary: string
+  secondary?: string
+  detail?: string | null
+  metric?: string
+  href?: string
+  prefix?: string
+}) {
   return (
     <li className="grid gap-2 text-sm sm:grid-cols-[minmax(0,1fr)_auto]">
       <div className="min-w-0">
-        <ResourceLink href={href} prefix={prefix}>{primary}</ResourceLink>
+        <ResourceLink href={href} prefix={prefix}>
+          {primary}
+        </ResourceLink>
         {secondary ? <p className="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">{secondary}</p> : null}
         <WorkerPressureDetail detail={detail} />
       </div>
-      {metric ? <span className="self-start rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{metric}</span> : null}
+      {metric ? (
+        <span className="self-start rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{metric}</span>
+      ) : null}
     </li>
   )
 }
@@ -272,7 +415,11 @@ function WorkerPressureDetail({ detail }: { detail?: string | null }) {
 function ResourceLink({ href, prefix = "", children }: { href?: string; prefix?: string; children: ReactNode }) {
   if (!href) return <span className="font-medium text-gray-900 dark:text-gray-100">{children}</span>
 
-  return <Link className="font-medium text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(href, prefix)}>{children}</Link>
+  return (
+    <Link className="font-medium text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(href, prefix)}>
+      {children}
+    </Link>
+  )
 }
 
 function Metric({
@@ -304,14 +451,14 @@ function Metric({
   )
 
   if (href) {
-    return <Link className={className} to={href}>{content}</Link>
+    return (
+      <Link className={className} to={href}>
+        {content}
+      </Link>
+    )
   }
 
-  return (
-    <article className={className}>
-      {content}
-    </article>
-  )
+  return <article className={className}>{content}</article>
 }
 
 function ChatScopedEventsSection({ data, prefix }: { data: NonNullable<AdminOverviewPayload["chat_scoped_events"]>; prefix: string }) {
@@ -320,7 +467,10 @@ function ChatScopedEventsSection({ data, prefix }: { data: NonNullable<AdminOver
   const recent = data.recent || []
 
   return (
-    <section aria-label={t("overview.aria_chat_events")} className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+    <section
+      aria-label={t("overview.aria_chat_events")}
+      className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900"
+    >
       <div className="flex flex-col gap-2 border-b border-gray-100 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-800 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <SectionHeading>{t("overview.chat_events_section")}</SectionHeading>
@@ -355,8 +505,12 @@ function ChatScopedEventsSection({ data, prefix }: { data: NonNullable<AdminOver
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-medium text-gray-900 dark:text-gray-100">{event.summary || event.source_kind}</span>
-                  <span className="rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{event.source_kind}</span>
-                  {event.severity ? <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{event.severity}</span> : null}
+                  <span className="rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                    {event.source_kind}
+                  </span>
+                  {event.severity ? (
+                    <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{event.severity}</span>
+                  ) : null}
                 </div>
                 <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   <EventLinks event={event} prefix={prefix} />
@@ -364,7 +518,11 @@ function ChatScopedEventsSection({ data, prefix }: { data: NonNullable<AdminOver
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 text-xs lg:justify-end">
-                <DecisionPill label={event.decision || event.evaluator_state} value={event.delivery_state} tone={event.evaluator_state === "failed" ? "alarm" : "idle"} />
+                <DecisionPill
+                  label={event.decision || event.evaluator_state}
+                  value={event.delivery_state}
+                  tone={event.evaluator_state === "failed" ? "alarm" : "idle"}
+                />
               </div>
             </li>
           ))}
@@ -378,24 +536,44 @@ function ChatScopedEventsSection({ data, prefix }: { data: NonNullable<AdminOver
 
 function EventLinks({ event, prefix }: { event: NonNullable<AdminOverviewPayload["chat_scoped_events"]>["recent"][number]; prefix: string }) {
   const links = []
-  if (event.chat) links.push(<Link className="underline hover:no-underline" key="chat" to={withRoutePrefix(event.chat.path, prefix)}>{event.chat.title}</Link>)
-  if (event.job) links.push(<Link className="underline hover:no-underline" key="job" to={withRoutePrefix(event.job.path, prefix)}>{event.job.slug}</Link>)
-  if (event.epic) links.push(<Link className="underline hover:no-underline" key="epic" to={withRoutePrefix(event.epic.path, prefix)}>{event.epic.slug}</Link>)
+  if (event.chat)
+    links.push(
+      <Link className="underline hover:no-underline" key="chat" to={withRoutePrefix(event.chat.path, prefix)}>
+        {event.chat.title}
+      </Link>
+    )
+  if (event.job)
+    links.push(
+      <Link className="underline hover:no-underline" key="job" to={withRoutePrefix(event.job.path, prefix)}>
+        {event.job.slug}
+      </Link>
+    )
+  if (event.epic)
+    links.push(
+      <Link className="underline hover:no-underline" key="epic" to={withRoutePrefix(event.epic.path, prefix)}>
+        {event.epic.slug}
+      </Link>
+    )
   if (event.repository) links.push(<span key="repo">{event.repository.slug}</span>)
 
   return <span className="text-text-secondary">{links.length > 0 ? intersperse(links, " · ") : `event ${event.id}`}</span>
 }
 
 function DecisionPill({ label, value, tone = "idle" }: { label: string; value: number | string; tone?: "idle" | "alarm" }) {
-  const className = tone === "alarm"
-    ? "rounded bg-red-100 px-2 py-0.5 font-mono text-red-700 dark:bg-red-950 dark:text-red-300"
-    : "rounded bg-gray-100 px-2 py-0.5 font-mono text-gray-600 dark:bg-gray-800 dark:text-gray-300"
+  const className =
+    tone === "alarm"
+      ? "rounded bg-red-100 px-2 py-0.5 font-mono text-red-700 dark:bg-red-950 dark:text-red-300"
+      : "rounded bg-gray-100 px-2 py-0.5 font-mono text-gray-600 dark:bg-gray-800 dark:text-gray-300"
 
-  return <span className={className}>{label}: {value}</span>
+  return (
+    <span className={className}>
+      {label}: {value}
+    </span>
+  )
 }
 
 function intersperse(items: ReactNode[], separator: string) {
-  return items.flatMap((item, index) => index === 0 ? [item] : [separator, item])
+  return items.flatMap((item, index) => (index === 0 ? [item] : [separator, item]))
 }
 
 function triggerContext(values: Record<string, number>, fallback: string) {
@@ -405,7 +583,11 @@ function triggerContext(values: Record<string, number>, fallback: string) {
   return entries.map(([trigger, count]) => `${count} ${trigger}`).join(" · ")
 }
 
-function workersContext(workers: { stale?: number; unreachable?: boolean }, t: (key: string, opts?: Record<string, unknown>) => string, workerHealth?: AdminOverviewPayload["worker_health"]) {
+function workersContext(
+  workers: { stale?: number; unreachable?: boolean },
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  workerHealth?: AdminOverviewPayload["worker_health"]
+) {
   if (workers.unreachable) return t("overview.queue_unreachable")
   const critical = workerHealth?.current.filter((worker) => worker.health.level === "critical").length ?? 0
   if (critical > 0) return t("overview.critical_workers", { count: critical })
@@ -421,7 +603,10 @@ function activeStorageContext(storage: AdminOverviewPayload["active_storage"], t
   return storage.error_class || storage.message || t("overview.storage_unavailable")
 }
 
-function aggregateWorkerHealthTone(workers: { stale?: number; unreachable?: boolean }, workerHealth?: AdminOverviewPayload["worker_health"]): "idle" | "ok" | "warn" | "alarm" {
+function aggregateWorkerHealthTone(
+  workers: { stale?: number; unreachable?: boolean },
+  workerHealth?: AdminOverviewPayload["worker_health"]
+): "idle" | "ok" | "warn" | "alarm" {
   if (workers.stale && workers.stale > 0) return "alarm"
   if (!workerHealth) return "idle"
   if (workerHealth.current.some((worker) => worker.health.level === "critical")) return "alarm"
@@ -451,10 +636,12 @@ function formatBytes(bytes: number) {
 export function formatDuration(seconds: number) {
   if (seconds < 60) return `${Math.round(seconds)}s`
   if (seconds < 3600) return `${Math.round(seconds / 60)}m`
-  return `${Math.round(seconds / 3600 * 10) / 10}h`
+  return `${Math.round((seconds / 3600) * 10) / 10}h`
 }
 
-function formatCost(cost?: { duration_seconds?: number | null; cpu_pressure?: number | null; io_pressure?: number | null; memory_used_percent?: number | null } | null) {
+function formatCost(
+  cost?: { duration_seconds?: number | null; cpu_pressure?: number | null; io_pressure?: number | null; memory_used_percent?: number | null } | null
+) {
   if (!cost) return undefined
   const parts = [
     cost.duration_seconds == null ? null : formatDuration(cost.duration_seconds),
@@ -476,20 +663,16 @@ function formatPressure(pressure?: { cpu_pressure?: number | null; io_pressure?:
 }
 
 function formatWorkerPressureDetail(item: ResourceAdmissionDelayedWork, t: (key: string, opts?: Record<string, unknown>) => string) {
-  const pressured = workerPressureKeys(
-    item.details?.pressured_worker_storage_keys,
-    item.pressure?.host?.locality?.pressured_storage_keys
-  )
-  const healthy = workerPressureKeys(
-    item.details?.healthy_alternative_worker_storage_keys,
-    item.pressure?.host?.locality?.healthy_alternative_storage_keys
-  )
+  const pressured = workerPressureKeys(item.details?.pressured_worker_storage_keys, item.pressure?.host?.locality?.pressured_storage_keys)
+  const healthy = workerPressureKeys(item.details?.healthy_alternative_worker_storage_keys, item.pressure?.host?.locality?.healthy_alternative_storage_keys)
   if (pressured.length === 0 && healthy.length === 0) return null
 
   return [
     pressured.length > 0 ? t("overview.resource_worker_pressure_localized", { workers: formatWorkerPressureKeys(pressured) }) : null,
     healthy.length > 0 ? t("overview.resource_worker_pressure_alternatives", { workers: formatWorkerPressureKeys(healthy) }) : null
-  ].filter(Boolean).join(" · ")
+  ]
+    .filter(Boolean)
+    .join(" · ")
 }
 
 function workerPressureKeys(...candidates: unknown[]): ResourceAdmissionWorkerPressureKey[] {
@@ -501,14 +684,18 @@ function workerPressureKeys(...candidates: unknown[]): ResourceAdmissionWorkerPr
 }
 
 function isWorkerPressureKey(candidate: unknown): candidate is ResourceAdmissionWorkerPressureKey {
-  return Boolean(candidate && typeof candidate === "object" && "storage_key" in candidate && typeof (candidate as { storage_key?: unknown }).storage_key === "string")
+  return Boolean(
+    candidate && typeof candidate === "object" && "storage_key" in candidate && typeof (candidate as { storage_key?: unknown }).storage_key === "string"
+  )
 }
 
 function formatWorkerPressureKeys(keys: ResourceAdmissionWorkerPressureKey[]) {
-  return keys.map((key) => {
-    const hosts = key.hostnames?.filter(Boolean) ?? []
-    return hosts.length > 0 ? `${key.storage_key} (${hosts.join(", ")})` : key.storage_key
-  }).join("; ")
+  return keys
+    .map((key) => {
+      const hosts = key.hostnames?.filter(Boolean) ?? []
+      return hosts.length > 0 ? `${key.storage_key} (${hosts.join(", ")})` : key.storage_key
+    })
+    .join("; ")
 }
 
 function formatShortDate(value: string) {
