@@ -31,7 +31,7 @@ module Api
         def index
           return unless validate_chat_index_settings
 
-          render json: PerformanceLogging.phase("chats_index_payload") {
+          payload = PerformanceLogging.phase("chats_index_payload") {
             groups_payload = PerformanceLogging.phase("chats_index.groups") { recent_chats_index_json }
             {
               groups: groups_payload.fetch(:groups),
@@ -42,6 +42,10 @@ module Api
               agent_appearances: groups_payload.fetch(:agent_appearances)
             }
           }
+          expires_in 30.seconds, public: false
+          return unless stale?(etag: payload, public: false)
+
+          render json: payload
         end
 
         def more
@@ -74,7 +78,7 @@ module Api
             return
           end
 
-          render json: PerformanceLogging.phase("chats_more_payload", before_id: before_id, group_by: group_by, group_key: group_key) {
+          payload = PerformanceLogging.phase("chats_more_payload", before_id: before_id, group_by: group_by, group_key: group_key) {
             chats, has_more = paginated_chat_index_group(scope, before_chat: cursor)
             context = PerformanceLogging.phase("chats_more.context", count: chats.size) { chat_index_context_for(chats) }
             {
@@ -83,6 +87,10 @@ module Api
               agent_appearances: chat_nav_agent_appearances(chats)
             }
           }
+          expires_in 30.seconds, public: false
+          return unless stale?(etag: payload, public: false)
+
+          render json: payload
         end
 
         def show
@@ -100,7 +108,11 @@ module Api
         # card fetch.
         def preview
           chat_session = find_chat_session
-          render json: PerformanceLogging.phase("chat_preview_payload", chat_id: chat_session.id) { chat_preview_json(chat_session) }
+          payload = PerformanceLogging.phase("chat_preview_payload", chat_id: chat_session.id) { chat_preview_json(chat_session) }
+          expires_in 30.seconds, public: false
+          return unless stale?(etag: payload, public: false)
+
+          render json: payload
         end
 
         def update
@@ -265,6 +277,7 @@ module Api
             effective_chat_provider_label: chat_provider_label(Current.user.effective_chat_provider),
             chat_provider_options: chat_provider_options(nil)
           }
+          expires_in 30.seconds, public: false
           return unless stale?(etag: payload, public: false)
 
           render json: payload
@@ -469,7 +482,7 @@ module Api
           end
           chat_session.rename!(name)
 
-          render json: chat_payload(chat_session.reload, message: "Chat renamed.")
+          render json: chat_metadata_payload(chat_session.reload, message: "Chat renamed.")
         end
 
         def branch
@@ -529,15 +542,17 @@ module Api
         end
 
         def mark_read
-          update_chat_read_at(find_chat_session, Time.current)
+          chat_session = find_chat_session
+          update_chat_read_at(chat_session, Time.current)
 
-          head :no_content
+          render json: { chat: chat_nav_json(chat_session.reload) }
         end
 
         def mark_unread
-          update_chat_read_at(find_chat_session, nil)
+          chat_session = find_chat_session
+          update_chat_read_at(chat_session, nil)
 
-          head :no_content
+          render json: { chat: chat_nav_json(chat_session.reload) }
         end
 
         def update_chat_read_at(chat_session, timestamp)

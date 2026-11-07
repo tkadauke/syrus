@@ -80,7 +80,9 @@ RSpec.describe "API: /api/v1/app/tags", type: :request do
     expect(response).to have_http_status(:created)
     expect(user.tags.last.name).to eq("epic:attachments")
     expect(parse_body["message"]).to eq("Tag created.")
-    expect(parse_body["tags"].first).to include("name" => "epic:attachments", "color" => "indigo")
+    expect(parse_body["tag"]).to include("name" => "epic:attachments", "color" => "indigo", "jobs_count" => 0)
+    expect(parse_body).not_to have_key("palette")
+    expect(parse_body).not_to have_key("tags")
   end
 
   it "returns validation errors" do
@@ -105,6 +107,8 @@ RSpec.describe "API: /api/v1/app/tags", type: :request do
     expect(tag.reload.name).to eq("new")
     expect(tag.color).to eq("green")
     expect(parse_body["message"]).to eq("Tag updated.")
+    expect(parse_body["tag"]).to include("id" => tag.id, "name" => "new", "jobs_count" => 0)
+    expect(parse_body).not_to have_key("tags")
   end
 
   it "deletes the tag and its job assignments" do
@@ -119,6 +123,8 @@ RSpec.describe "API: /api/v1/app/tags", type: :request do
     }.to change { JobTag.count }.by(-1)
 
     expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("deleted_id" => tag.id, "message" => "Tag deleted.")
+    expect(parse_body).not_to have_key("tags")
     expect(Tag.exists?(tag.id)).to be(false)
     expect(parse_body["message"]).to eq("Tag deleted.")
   end
