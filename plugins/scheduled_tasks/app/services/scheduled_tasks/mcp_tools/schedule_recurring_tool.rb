@@ -22,7 +22,7 @@ module ScheduledTasks
         properties: {
           schedule_input: { type: "string", description: "Natural cadence text such as 'Every Monday at 9:00 AM' or a five-field cron expression. Interpreted as wall-clock time in schedule_timezone." },
           cron_expression: { type: "string", description: "Compatibility alias for schedule_input when providing a five-field cron expression." },
-          schedule_timezone: { type: "string", description: "IANA time zone for the wall-clock schedule. Defaults to the configured server time zone." },
+          schedule_timezone: { type: "string", description: "IANA time zone for the recurring wall-clock schedule. Existing schedules keep their stored timezone; new schedules default to the configured server timezone unless the operator specifies another zone." },
           label: { type: "string", description: "Short operator-facing label for this recurring task." },
           prompt: { type: "string", description: "Prompt to run as a scheduled cron Job each time the schedule fires." }
         },

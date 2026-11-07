@@ -45,6 +45,51 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
     end
   end
 
+  it "uses the viewer's timezone for date filters and daily trend buckets" do
+    travel_to Time.utc(2026, 6, 2, 12) do
+      user = Factories.user(time_zone: "America/Los_Angeles")
+      repository = Factories.repository(user: user)
+      local_evening = Factories.job(user: user, repository: repository, issue_number: 303)
+      next_local_day = Factories.job(user: user, repository: repository, issue_number: 304)
+      set_run_cost(initial_run(local_evening), 1.25, created_at: Time.utc(2026, 6, 2, 6, 30))
+      set_run_cost(initial_run(next_local_day), 9.99, created_at: Time.utc(2026, 6, 2, 7, 30))
+
+      sign_in_as(user)
+      get "/api/v1/app/insights/spending", params: { start_date: "2026-06-01", end_date: "2026-06-01" }
+
+      expect(parse_body.fetch("trend")).to eq([ { "date" => "2026-06-01", "total_usd" => 1.25 } ])
+    end
+  end
+
+  it "includes fractional timestamps in the final second of the local day" do
+    travel_to Time.utc(2026, 6, 2, 12) do
+      user = Factories.user(time_zone: "America/Los_Angeles", chat_provider: "codex")
+      repository = Factories.repository(user: user)
+      job = Factories.job(user: user, repository: repository, issue_number: 305)
+      final_second = Time.utc(2026, 6, 2, 6, 59, 59, 500_000)
+      set_run_cost(initial_run(job), 1.25, created_at: final_second)
+      chat = ChatSession.create!(user: user, repository: repository, created_at: 2.months.ago)
+      result = AgentInvocation::Result.new(
+        turns: 1, exit_status: 0, timed_out: false, is_error: false, outcome: "success",
+        final_text: "Done", session_id: "codex-session", cost_usd: 0.5
+      )
+      chat.record_turn_usage!(result, at: final_second)
+
+      sign_in_as(user)
+      get "/api/v1/app/insights/spending", params: { start_date: "2026-06-01", end_date: "2026-06-01" }
+
+      body = parse_body
+      expect(body.fetch("totals")).to include(
+        "week_usd" => 1.75,
+        "month_usd" => 1.75,
+        "lifetime_usd" => 1.75,
+        "workflow_lifetime_usd" => 1.25,
+        "chat_lifetime_usd" => 0.5
+      )
+      expect(body.fetch("trend")).to eq([ { "date" => "2026-06-01", "total_usd" => 1.75 } ])
+    end
+  end
+
   def initial_run(job)
     job.runs.find_by!(trigger_kind: "initial")
   end
