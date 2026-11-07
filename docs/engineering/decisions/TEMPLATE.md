@@ -2,7 +2,7 @@
 id: ADR-NNNN
 title: Short decision title
 status: proposed
-date: YYYY-MM-DD
+date: "YYYY-MM-DD"
 supersedes: []
 superseded_by: []
 ---
