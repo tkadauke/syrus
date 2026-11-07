@@ -353,11 +353,7 @@ function ActivityRow({ activity, prefix }: { activity: TeamProfileActivity; pref
 function ProfilesError({ error }: { error: Error }) {
   const { t } = useT("team_directory")
   const message = error instanceof ApiError ? error.message : t("profiles.load_error")
-  return (
-    <div className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40 p-4 text-sm text-red-700 dark:text-red-300" role="alert">
-      {message}
-    </div>
-  )
+  return <PanelMessage tone="error">{message}</PanelMessage>
 }
 
 // Single entry point for the plugin sidebar page. PluginSidebarPageRoute
