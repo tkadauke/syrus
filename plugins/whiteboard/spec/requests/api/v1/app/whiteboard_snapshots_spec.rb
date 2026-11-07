@@ -65,6 +65,20 @@ RSpec.describe "App API whiteboard snapshots", type: :request do
       expect(parse_body.fetch("v")).to eq(ApiVersion::CURRENT)
       expect(parse_body.fetch("pagination")).to include("page" => 1, "total" => 2, "has_next_page" => false)
     end
+
+    it "paginates snapshots in a stable order" do
+      created_at = Time.zone.local(2026, 6, 25, 15, 0, 0)
+      snapshots = 31.times.map { |index| create_snapshot(chat_session: chat, name: "Save #{index}", created_at: created_at) }
+
+      get snapshots_path(chat), params: { page: 2 }, as: :json
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("whiteboard_snapshots").pluck("id")).to eq([ snapshots.first.id ])
+      expect(parse_body.fetch("pagination")).to include(
+        "page" => 2, "per_page" => 30, "total" => 31, "total_pages" => 2,
+        "has_next_page" => false, "has_previous_page" => true
+      )
+    end
   end
 
   describe "GET /api/v1/app/chats/:chat_id/whiteboard_snapshots/:id" do

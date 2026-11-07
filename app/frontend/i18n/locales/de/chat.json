@@ -1658,6 +1658,7 @@
   "snapshot_element_limit_error": "Das Laden dieses Snapshots würde das Limit von {{count}} Elementen überschreiten.",
   "snapshot_before_load": "Vor dem Laden · {{date}}",
   "snapshot_whiteboard_changed": "Das Whiteboard wurde vor dem Laden des Snapshots geändert. Versuch es erneut.",
+  "canvas_clear_conflict": "Das Whiteboard wurde während des Löschens geändert. Versuch es erneut.",
   "image_attachment": "Bildanhang",
   "attachment_size_error": "Jeder Anhang darf höchstens 5 MB groß sein.",
   "attachments_total_size_error": "Anhänge dürfen zusammen höchstens 20 MB groß sein.",

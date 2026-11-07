@@ -163,20 +163,22 @@ function WhiteboardPanel({ payload }: { payload: ChatPayload }) {
     })
   }, [])
 
-  const recoverConflict = useCallback(async () => {
-    const current = await fetchChatWhiteboard(pathRef.current)
-    const currentScene = normalizeWhiteboardScene(current.scene_json)
-    const queuedScene = pendingSceneRef.current
-    clearPendingSave()
-    if (!queuedScene) {
-      applyRemoteScene(currentScene, current.version)
-      return
-    }
+  const recoverConflict = useCallback(
+    (current: Awaited<ReturnType<typeof fetchChatWhiteboard>>) => {
+      const currentScene = normalizeWhiteboardScene(current.scene_json)
+      const queuedScene = pendingSceneRef.current
+      clearPendingSave()
+      if (!queuedScene) {
+        applyRemoteScene(currentScene, current.version)
+        return
+      }
 
-    const mergedScene = mergeWhiteboardScenes(queuedScene, currentScene)
-    pendingSceneRef.current = mergedScene
-    applyRemoteScene(mergedScene, current.version)
-  }, [applyRemoteScene, clearPendingSave])
+      const mergedScene = mergeWhiteboardScenes(queuedScene, currentScene)
+      pendingSceneRef.current = mergedScene
+      applyRemoteScene(mergedScene, current.version)
+    },
+    [applyRemoteScene, clearPendingSave]
+  )
 
   const savePending = useCallback(async () => {
     if (saveInFlightRef.current) return
@@ -193,7 +195,7 @@ function WhiteboardPanel({ payload }: { payload: ChatPayload }) {
         expected_version: versionRef.current
       })
       if (result.status === 409) {
-        await recoverConflict()
+        recoverConflict(result.payload)
         return
       }
 
