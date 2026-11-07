@@ -4,7 +4,7 @@ module Api
       module Admin
         class ConsoleController < BaseController
           def show
-            render json: console_payload.show
+            render json: console_payload.show(include_users: ActiveModel::Type::Boolean.new.cast(params[:include_users]))
           end
 
           def pause_polling

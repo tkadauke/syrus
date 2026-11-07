@@ -31,6 +31,7 @@ module Api
 
           def payload
             setting = AppSetting.current
+            @policy_settings = RetentionPolicySetting.where(retention_key: RetentionPolicyRegistry.definitions.map { |definition| definition.key.to_s }).index_by(&:retention_key)
             {
               tables: RetentionPolicyRegistry.definitions.map { |definition| table_payload(definition) },
               available_space: RetentionSizeSnapshotJob.available_space&.as_json,
@@ -48,26 +49,24 @@ module Api
               .where("observed_at >= ?", ::Admin::WorkerHealthPayload::CURRENT_SAMPLE_WINDOW.ago)
               .recent
               .limit(500)
-              .to_a
-              .uniq { |sample| sample.worker_storage_key.presence || sample.hostname }
-              .filter_map do |sample|
-                bytes = sample.raw_metrics&.fetch("prepared_layer_cache_budget_bytes", nil)
-                source = sample.raw_metrics&.fetch("prepared_layer_cache_budget_source", nil)
+              .pluck(:hostname, :worker_storage_key, :observed_at, Arel.sql("json_extract(raw_metrics, '$.prepared_layer_cache_budget_bytes')"), Arel.sql("json_extract(raw_metrics, '$.prepared_layer_cache_budget_source')"))
+              .uniq { |hostname, storage_key, _observed_at, _bytes, _source| storage_key.presence || hostname }
+              .filter_map do |hostname, storage_key, observed_at, bytes, source|
                 next if bytes.nil? || !source.in?(%w[app_setting worker_environment])
 
                 {
-                  hostname: sample.hostname,
-                  worker_storage_key: sample.worker_storage_key,
-                  budget_bytes: bytes,
+                  hostname: hostname,
+                  worker_storage_key: storage_key,
+                  budget_bytes: bytes.to_i,
                   source: source,
-                  observed_at: sample.observed_at&.iso8601
+                  observed_at: observed_at&.iso8601
                 }
               end
           end
 
           def table_payload(definition)
             snapshot = RetentionSizeSnapshotJob.table_snapshot(definition.key)
-            policy_setting = definition.setting
+            policy_setting = @policy_settings.fetch(definition.key.to_s) { RetentionPolicySetting.new(retention_key: definition.key.to_s, retention_seconds: definition.default_seconds, archive_before_delete: definition.archivable ? false : nil) }
             {
               key: definition.key,
               table_name: definition.table_name,

@@ -5,6 +5,7 @@ import { useState } from "react"
 import {
   clearGithubCache,
   fetchAdminConsole,
+  fetchAdminConsoleUsers,
   reapStaleRuns,
   runConsoleCommand,
   type AdminConsolePayload,
@@ -107,7 +108,7 @@ function TogglePanel({
   const mutation = useMutation({
     mutationFn: () => runConsoleCommand(command),
     onSuccess: (payload) => {
-      queryClient.setQueryData(["admin", "console"], payload)
+      queryClient.setQueryData<AdminConsolePayload>(["admin", "console"], (current) => (current ? { ...current, ...payload } : current))
       void queryClient.invalidateQueries({ queryKey: ["admin", "overview"] })
     },
     onError: () => queryClient.invalidateQueries({ queryKey: ["admin", "console"] })
@@ -174,10 +175,15 @@ function GithubCachePanel({ payload }: { payload: AdminConsolePayload }) {
   const { t } = useT("admin")
   const queryClient = useQueryClient()
   const [userId, setUserId] = useState("")
+  const users = useQuery({
+    queryKey: ["admin", "console", "users"],
+    queryFn: fetchAdminConsoleUsers,
+    staleTime: 60_000
+  })
   const mutation = useMutation({
     mutationFn: () => clearGithubCache(userId),
     onSuccess: (updated) => {
-      queryClient.setQueryData(["admin", "console"], updated)
+      queryClient.setQueryData<AdminConsolePayload>(["admin", "console"], (current) => (current ? { ...current, ...updated } : current))
     }
   })
 
@@ -188,7 +194,7 @@ function GithubCachePanel({ payload }: { payload: AdminConsolePayload }) {
       <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
         <Select fullWidth={false} onChange={(event) => setUserId(event.target.value)} value={userId}>
           <option value="">{t("console.all_users")}</option>
-          {payload.users.map((user) => (
+          {(users.data?.users ?? payload.users ?? []).map((user) => (
             <option key={user.id} value={user.id}>
               {user.email_address}
             </option>

@@ -78,9 +78,9 @@ function SecretRow({ secret, onNotice }: { secret: ClearableSecret; onNotice: (m
   const queryClient = useQueryClient()
   const clearSecret = useMutation({
     mutationFn: () => clearAdminSettingSecret(secret.key),
-    onSuccess: (payload) => {
-      queryClient.setQueryData(queryKey, payload)
-      onNotice(payload.message || `${secret.label} cleared.`)
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey })
+      onNotice(`${secret.label} cleared.`)
     }
   })
 
@@ -170,10 +170,10 @@ function SettingsForm({ payload, onNotice }: { payload: AdminSettingsPayload; on
         host_admission_policy: hostAdmissionPolicy,
         chat_coding_workspace_budget_mb: optionalNumber(chatCodingWorkspaceBudgetMb)
       }),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey })
       void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
-      onNotice(updated.message || t("settings.settings_updated"))
+      onNotice(t("settings.settings_updated"))
     }
   })
 
@@ -630,18 +630,18 @@ function TelegramSection({ payload, onNotice }: { payload: AdminSettingsPayload;
 
   const saveToken = useMutation({
     mutationFn: () => updateAdminSettings({ telegram_bot_token: tokenInput }),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey })
       setTokenInput("")
-      onNotice(updated.message || t("settings.settings_updated"))
+      onNotice(t("settings.settings_updated"))
     }
   })
 
   const clearToken = useMutation({
     mutationFn: () => clearAdminSettingSecret("telegram_bot_token"),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
-      onNotice(updated.message || t("settings.settings_updated"))
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey })
+      onNotice(t("settings.settings_updated"))
     }
   })
 
@@ -714,18 +714,18 @@ function DiscordSection({ payload, onNotice }: { payload: AdminSettingsPayload; 
 
   const saveToken = useMutation({
     mutationFn: () => updateAdminSettings({ discord_bot_token: tokenInput }),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey })
       setTokenInput("")
-      onNotice(updated.message || t("settings.settings_updated"))
+      onNotice(t("settings.settings_updated"))
     }
   })
 
   const clearToken = useMutation({
     mutationFn: () => clearAdminSettingSecret("discord_bot_token"),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
-      onNotice(updated.message || t("settings.settings_updated"))
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey })
+      onNotice(t("settings.settings_updated"))
     }
   })
 

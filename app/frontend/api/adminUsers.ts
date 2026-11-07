@@ -15,12 +15,12 @@ export type AdminUserRow = {
   id: number
   email_address: string
   name: string | null
-  first_name: string | null
-  last_name: string | null
-  profile_bio: string | null
-  profile_location: string | null
-  profile_company: string | null
-  profile_website: string | null
+  first_name?: string | null
+  last_name?: string | null
+  profile_bio?: string | null
+  profile_location?: string | null
+  profile_company?: string | null
+  profile_website?: string | null
   display_name: string
   github_handle: string | null
   admin: boolean
@@ -32,8 +32,8 @@ export type AdminUserRow = {
   has_github_token: boolean
   has_claude_token: boolean
   has_codex_token: boolean
-  has_codex_api_key: boolean
-  has_codex_auth_json: boolean
+  has_codex_api_key?: boolean
+  has_codex_auth_json?: boolean
   has_muse_token?: boolean
   has_api_token: boolean
   agent_max_turns: number
@@ -41,10 +41,10 @@ export type AdminUserRow = {
   github_api_blocked_at: string | null
   github_api_blocked_reason: string | null
   github_rate_limit: GithubRateLimit | null
-  provider_availability: Record<string, ProviderAvailability>
+  provider_availability?: Record<string, ProviderAvailability>
   needs_attention: boolean
-  needs_attention_reason: string | null
-  credential_attention: ProviderCredentialAttention | null
+  needs_attention_reason?: string | null
+  credential_attention?: ProviderCredentialAttention | null
   created_at: string
   updated_at: string
 }

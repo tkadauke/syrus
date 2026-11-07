@@ -122,6 +122,13 @@ module Admin
           recommendation: recommendation_payload(manifest),
           **Admin::PluginConfigPayload.new(manifest, record).as_json
         }
+        unless detail
+          payload.except!(
+            :long_description, :long_description_i18n_key, :homepage, :author, :source,
+            :frontend, :routes, :links, :extension_points, :optionally_depends_on,
+            :conflicts_with, :config_schema, :config
+          )
+        end
         payload.merge!(docs: docs_payload(manifest, spec), metrics: metrics_payload(manifest)) if detail
         payload
       end

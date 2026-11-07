@@ -181,9 +181,9 @@ RSpec.describe "API: /api/v1/app/admin/build_cache", type: :request do
 
       expect(response).to have_http_status(:created)
       body = parse_body
-      expect(body.dig("pending_request", "scope")).to eq("full")
-      expect(body.dig("pending_request", "reason")).to eq("clearing out stale artifacts")
-      expect(body.dig("pending_request", "state")).to eq("pending")
+      expect(body.dig("request", "scope")).to eq("full")
+      expect(body.dig("request", "reason")).to eq("clearing out stale artifacts")
+      expect(body.dig("request", "state")).to eq("pending")
       expect(s3.api_requests.map { |r| r[:operation_name] }).not_to include(:delete_objects)
     end
 
@@ -234,8 +234,7 @@ RSpec.describe "API: /api/v1/app/admin/build_cache", type: :request do
 
       expect(response).to have_http_status(:ok)
       body = parse_body
-      expect(body["pending_request"]).to be_nil
-      expect(body["recent_requests"].first).to include("id" => request.id, "state" => "confirmed")
+      expect(body["request"]).to include("id" => request.id, "state" => "confirmed")
       expect(request.reload.state).to eq("confirmed")
     end
 

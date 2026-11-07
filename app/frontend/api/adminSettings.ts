@@ -6,20 +6,6 @@ export type ClearableSecret = {
   set: boolean
 }
 
-export type AdminSettingMetadata = {
-  key: string
-  type: string
-  default?: boolean | number | string | null
-  category: string
-  operational_meaning: string
-  min?: number
-  max?: number
-  options?: string[]
-  zero_means?: string
-  admin_editable: boolean
-  secret: boolean
-}
-
 export type AdminSettingsPayload = {
   settings: {
     signups_open: boolean
@@ -51,7 +37,6 @@ export type AdminSettingsPayload = {
       email_address: string
       display_name?: string | null
     } | null
-    metadata?: AdminSettingMetadata[]
     clearable_secrets: ClearableSecret[]
   }
   message?: string
@@ -103,13 +88,13 @@ export function fetchAdminSettings() {
 }
 
 export function updateAdminSettings(values: AdminSettingsUpdate) {
-  return patchJson<AdminSettingsPayload>("/api/v1/app/admin/settings", {
+  return patchJson<{ ok: true }>("/api/v1/app/admin/settings", {
     app_setting: values
   })
 }
 
 export function clearAdminSettingSecret(secret: string) {
-  return postJson<AdminSettingsPayload>("/api/v1/app/admin/settings/clear_secret", { secret })
+  return postJson<{ ok: true }>("/api/v1/app/admin/settings/clear_secret", { secret })
 }
 
 export function startPlatformPolling() {

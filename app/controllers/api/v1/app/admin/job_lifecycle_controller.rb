@@ -14,7 +14,7 @@ module Api
 
             job.force_fail!
             ::Admin::StuckItemsCache.clear!
-            render_job(job.reload, message: lifecycle_t("force_failed"), changed: [ "state" ])
+            render json: { ok: true, message: lifecycle_t("force_failed") }
           end
 
           private
