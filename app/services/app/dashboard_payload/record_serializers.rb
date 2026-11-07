@@ -197,7 +197,7 @@ module App
         dependencies.map do |dependency|
           target = dependency.depends_on_job || dependency.depends_on_epic
           {
-            id: target&.id || dependency.id,
+            id: dependency.id,
             slug: target&.slug || dependency.unresolved_slug,
             state: target&.state,
             pending: dependency.pending?,
