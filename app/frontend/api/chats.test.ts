@@ -1,10 +1,19 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "../testSupport"
-import { createChat, createEmptyChat, createGroupChat, fetchChats, searchChatJobs, sendChatMessage, uploadChatAttachment } from "./chats"
+import { chatPaths, createChat, createEmptyChat, createGroupChat, fetchChats, searchChatJobs, sendChatMessage, uploadChatAttachment } from "./chats"
 
 describe("chat API", () => {
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it("derives stable core chat paths from the chat id", () => {
+    expect(chatPaths(42)).toMatchObject({
+      app_message_path: "/api/v1/app/chats/42/message",
+      app_messages_path: "/api/v1/app/chats/42/messages",
+      app_stop_path: "/api/v1/app/chats/42/stop",
+      app_coding_diff_path: "/api/v1/app/chats/42/coding_diff"
+    })
   })
 
   it("posts the selected provider when creating a chat with an initial message", async () => {
