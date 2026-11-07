@@ -22,6 +22,13 @@ const designDoc = {
   collaborators: [{ id: 2, name: "Ada Lovelace" }],
   permissions: { can_suggest: true, can_archive: false },
   markdown: `# Direction\nSee JOB-42, EPIC-7, and https://example.test. ${"Details ".repeat(400)}`,
+  version_number: 3,
+  total_bytes: 65537,
+  start_offset: 0,
+  end_offset: 65536,
+  truncated: true,
+  next_cursor: "signed-cursor",
+  discussion_included: true,
   threads: [
     {
       id: 9,
@@ -62,7 +69,8 @@ describe("read_design_doc tool card", () => {
 
     expect(screen.getByRole("link", { name: "DOC-20" })).toHaveAttribute("href", "/design_docs/20")
     expect(screen.getByRole("link", { name: "Repository 7" })).toHaveAttribute("href", "/repositories/7")
-    expect(screen.getByText("v4")).toBeInTheDocument()
+    expect(screen.getByText("v3")).toBeInTheDocument()
+    expect(screen.getByText("bytes 0–65536 of 65537")).toBeInTheDocument()
     expect(screen.getByText("Read only")).toBeInTheDocument()
     expect(screen.getByText("Ada Lovelace")).toBeInTheDocument()
     expect(screen.getByText("suggest: yes")).toBeInTheDocument()
@@ -99,6 +107,18 @@ describe("read_design_doc tool card", () => {
     expect(screen.getByText("This design doc is blank.")).toBeInTheDocument()
     expect(screen.getByText("No threads.")).toBeInTheDocument()
     expect(screen.getByText("No suggestions.")).toBeInTheDocument()
+  })
+
+  it("does not misreport omitted discussion on continuation pages", () => {
+    renderCard(
+      readDesignDocToolCard.renderExpanded(
+        context({ parsedResult: { design_doc: { ...designDoc, start_offset: 100, discussion_included: false, threads: undefined, suggestions: undefined } } })
+      )
+    )
+
+    expect(screen.queryByText("Threads")).not.toBeInTheDocument()
+    expect(screen.queryByText("Suggestions")).not.toBeInTheDocument()
+    expect(screen.queryByText("No threads.")).not.toBeInTheDocument()
   })
 
   it("renders errors and pending calls", () => {

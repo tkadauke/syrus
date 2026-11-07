@@ -101,9 +101,13 @@ function renderExpanded(context: ToolCardContext) {
     .filter((name): name is string => Boolean(name))
   const permissions = isPlainObject(doc.value.permissions) ? Object.entries(doc.value.permissions) : []
   const readOnly = doc.envelope.read_only === true
-  const version = numberValue(doc.value.current_version_number)
+  const version = numberValue(doc.value.version_number) ?? numberValue(doc.value.current_version_number)
   const updatedAt = displayValue(doc.value.updated_at)
   const markdown = typeof doc.value.markdown === "string" ? doc.value.markdown : null
+  const startOffset = numberValue(doc.value.start_offset)
+  const endOffset = numberValue(doc.value.end_offset)
+  const totalBytes = numberValue(doc.value.total_bytes)
+  const discussionIncluded = doc.value.discussion_included !== false
 
   return (
     <CardShell>
@@ -112,6 +116,9 @@ function renderExpanded(context: ToolCardContext) {
       <div className="flex flex-wrap items-center gap-1">
         <Badge>{t("tool_detail_mode", { mode })}</Badge>
         {version != null ? <Badge>{t("tool_version", { number: version })}</Badge> : null}
+        {startOffset != null && endOffset != null && totalBytes != null ? (
+          <Badge>{t("tool_byte_range", { start: startOffset, end: endOffset, total: totalBytes })}</Badge>
+        ) : null}
         {readOnly ? <Badge>{t("tool_read_only")}</Badge> : null}
         {updatedAt ? <span className="break-words text-xs text-text-muted">{t("tool_updated", { value: updatedAt })}</span> : null}
       </div>
@@ -172,13 +179,13 @@ function renderExpanded(context: ToolCardContext) {
           title={t("tool_content")}
         />
       )}
-      {mode !== "summary" ? (
+      {mode !== "summary" && discussionIncluded ? (
         <div>
           <SectionLabel>{t("tool_threads")}</SectionLabel>
           <DiscussionList items={objects(doc.value.threads)} kind="thread" />
         </div>
       ) : null}
-      {mode !== "summary" ? (
+      {mode !== "summary" && discussionIncluded ? (
         <div>
           <SectionLabel>{t("tool_suggestions")}</SectionLabel>
           <DiscussionList items={objects(doc.value.suggestions)} kind="suggestion" />
