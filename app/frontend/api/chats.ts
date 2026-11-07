@@ -776,10 +776,8 @@ export type WhiteboardSnapshotsPayload = {
 }
 
 export type CreateChatInput = {
-  // Optional: a chat created from a repository-agnostic context (e.g. the
-  // Tool Card Catalog's "Discuss this card" flow) omits this entirely, the
-  // same way createEmptyChat already treats a missing repository as valid
-  // -- the backend's repository_from_params returns nil when absent.
+  // Omit this to let the backend choose the default repository. Pass null or
+  // an empty picker value to create an explicitly repositoryless chat.
   repositoryId?: string | number | null
   text: string
   attachments?: ChatMessageAttachmentInput[]
@@ -1379,7 +1377,7 @@ export async function patchChatWhiteboard(path: string, input: ChatWhiteboardSce
 
 export function createChat(values: CreateChatInput) {
   return postJson<ChatCreatedPayload>("/api/v1/app/chats", {
-    ...(values.repositoryId == null || values.repositoryId === "" ? {} : { repository_id: values.repositoryId }),
+    ...(values.repositoryId === undefined ? {} : { repository_id: values.repositoryId === "" ? null : values.repositoryId }),
     ...(values.chatProvider ? { chat_provider: values.chatProvider } : {}),
     ...chatMessagePayload(values.text, values.attachments || [])
   })
@@ -1407,10 +1405,10 @@ export function fetchInvitableUsers(excludeChatId?: number | string | null) {
 }
 
 export function createGroupChat(participantUserIds: number[], repositoryId?: number | string | null) {
-  const payload: { participant_user_ids: number[]; repository_id?: number | string } = {
-    participant_user_ids: participantUserIds
+  const payload: { participant_user_ids: number[]; repository_id?: number | string | null } = {
+    participant_user_ids: participantUserIds,
+    ...(repositoryId === undefined ? {} : { repository_id: repositoryId === "" ? null : repositoryId })
   }
-  if (repositoryId != null && repositoryId !== "") payload.repository_id = repositoryId
   return postJson<ChatCreatedPayload>("/api/v1/app/chats", payload)
 }
 
