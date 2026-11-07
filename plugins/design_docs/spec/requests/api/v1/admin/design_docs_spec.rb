@@ -63,6 +63,7 @@ RSpec.describe "API: /api/v1/admin/design_docs", type: :request do
       expect(response).to have_http_status(:ok)
       titles = parse_body.fetch("design_docs").map { |doc| doc.fetch("title") }
       expect(titles).to contain_exactly("Draft doc", "Accepted doc", "Other owner doc")
+      expect(parse_body.fetch("design_docs")).to all(satisfy { |doc| !doc.key?("preview_text") && !doc.key?("repository_ids") })
 
       get "/api/v1/admin/design_docs", params: { state: "accepted" }, headers: auth
       expect(parse_body.fetch("design_docs").map { |doc| doc.fetch("id") }).to eq([ accepted.id ])
@@ -93,7 +94,7 @@ RSpec.describe "API: /api/v1/admin/design_docs", type: :request do
         "id" => doc.id,
         "display_id" => "DOC-#{doc.id}",
         "title" => "Ops Runbook",
-        "markdown" => "# Runbook",
+        "rendered_markdown" => "# Runbook",
         "current_version_number" => 1
       )
       expect(doc.owner_user).to eq(admin)
@@ -125,7 +126,8 @@ RSpec.describe "API: /api/v1/admin/design_docs", type: :request do
       get "/api/v1/admin/design_docs/#{doc.id}", headers: auth
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body.dig("design_doc", "markdown")).to eq("# Checkout")
+      expect(parse_body.dig("design_doc", "rendered_markdown")).to eq("# Checkout")
+      expect(parse_body.fetch("design_doc")).not_to have_key("markdown")
     end
 
     it "404s for a missing design doc" do
@@ -147,9 +149,9 @@ RSpec.describe "API: /api/v1/admin/design_docs", type: :request do
 
       expect(response).to have_http_status(:ok)
       body = parse_body
-      expect(body.dig("design_doc", "title")).to eq("Renamed")
-      expect(body.dig("design_doc", "markdown")).to eq("# Renamed body")
-      expect(body.dig("design_doc", "state")).to eq("accepted")
+      expect(body).not_to have_key("design_doc")
+      expect(body.fetch("canonical_revision")).to eq(doc.reload.canonical_revision)
+      expect(doc).to have_attributes(title: "Renamed", markdown: "# Renamed body", state: "accepted")
       expect(body["version"]).to be_present
       expect(body.dig("version", "version_number")).to eq(2)
       expect(doc.reload.current_version.version_number).to eq(2)
@@ -181,6 +183,10 @@ RSpec.describe "API: /api/v1/admin/design_docs", type: :request do
       expect(body.dig("design_doc", "id")).to eq(doc.id)
       version_numbers = body.fetch("versions").map { |version| version.fetch("version_number") }
       expect(version_numbers).to eq([ 2, 1 ])
+      expect(body.fetch("versions")).to all(satisfy { |version| !version.key?("markdown") })
+
+      get "/api/v1/admin/design_docs/#{doc.id}/versions", params: { include: "markdown" }, headers: auth
+      expect(parse_body.fetch("versions").map { |version| version.fetch("markdown") }).to eq([ "# Second", "# Checkout" ])
     end
   end
 end
