@@ -20,7 +20,7 @@ import { getStartingPhrase } from "./chat/streamChrome"
 import { shouldAnimateMessageEntrance } from "./chat/MessageCards"
 import { numericArg } from "./chat/utils"
 import { storedWorkspaceCollapsed, storedWorkspaceTab, workspaceTabLabel, mobileChatTabLabel, type WorkspaceTab } from "./chat/workspaceTabs"
-import { buildMessageStreamItems, renderChatMessages } from "./chat/streamBuilders"
+import { renderChatMessages } from "./chat/streamBuilders"
 import { asExcalidrawElements, VALID_EXCALIDRAW_TYPES } from "./chat/whiteboardScene"
 import { __resetDraftAttachmentsForTests, getDraftAttachments, setDraftAttachments } from "./chat/attachmentDraftStore"
 import { __resetInFlightComposerDraftsForTests } from "./chat/inFlightComposerDraftStore"
@@ -9608,7 +9608,7 @@ describe("chat effort selector in toolbar", () => {
 })
 
 describe("renderChatMessages tool_result content key", () => {
-  it("anchors proposal and pending action cards after the tool events that produced them", () => {
+  it("keeps proposals in the message stream without injecting pending actions", () => {
     const proposal = {
       id: 88,
       kind: "job",
@@ -9722,17 +9722,15 @@ describe("renderChatMessages tool_result content key", () => {
       }
     ]
 
-    const stream = buildMessageStreamItems(renderChatMessages(messages), pendingActions)
+    const stream = renderChatMessages(messages)
     const proposalIndex = stream.findIndex((item) => item.type === "message" && item.proposal?.id === proposal.id)
-    const pendingActionIndex = stream.findIndex((item) => item.type === "pending_action" && item.pendingAction.id === 114)
 
     expect(proposalIndex).toBeGreaterThan(stream.findIndex((item) => item.type === "tool_group" && item.calls.some((call) => call.message_id === 3)))
-    expect(pendingActionIndex).toBeGreaterThan(stream.findIndex((item) => item.type === "tool_group" && item.calls.some((call) => call.message_id === 6)))
-    expect(pendingActionIndex).toBeLessThan(stream.findIndex((item) => item.type === "message" && item.id === 5) + 3)
-    expect(stream[pendingActionIndex - 1].type).toBe("tool_group")
+    expect(stream.map((item) => item.type)).not.toContain("pending_action")
+    expect(pendingActions).toHaveLength(1)
   })
 
-  it("appends only truly unanchored pending actions at the bottom", () => {
+  it("does not append anchored or unanchored pending actions to the message stream", () => {
     const messages = [
       {
         type: "message" as const,
@@ -9794,12 +9792,10 @@ describe("renderChatMessages tool_result content key", () => {
       chat_message_id: null
     }
 
-    const stream = buildMessageStreamItems(renderChatMessages(messages), [anchored, legacy])
-    const anchoredIndex = stream.findIndex((item) => item.type === "pending_action" && item.pendingAction.id === 201)
-    const legacyIndex = stream.findIndex((item) => item.type === "pending_action" && item.pendingAction.id === 202)
+    const stream = renderChatMessages(messages)
 
-    expect(stream[anchoredIndex - 1].type).toBe("tool_group")
-    expect(legacyIndex).toBe(stream.length - 1)
+    expect(stream.map((item) => item.type)).not.toContain("pending_action")
+    expect([anchored, legacy]).toHaveLength(2)
   })
 
   it("renders result_body from the canonical 'content' key, not the legacy 'result' key", () => {
