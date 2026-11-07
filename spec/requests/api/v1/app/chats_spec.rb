@@ -61,6 +61,37 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body["repositories"]).to contain_exactly(include("id" => repository.id, "slug" => "acme/widgets"))
   end
 
+  it "conditionally serves the chat payload from its entity and latest-message revision" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository)
+    chat.messages.create!(role: "user", content: { "text" => "Hello" }, sender_user: user)
+
+    get "/api/v1/app/chats/#{chat.id}"
+    etag = response.headers.fetch("ETag")
+
+    get "/api/v1/app/chats/#{chat.id}", headers: { "If-None-Match" => etag }
+
+    expect(response).to have_http_status(:not_modified)
+
+    chat.messages.create!(role: "assistant", content: { "text" => "Hello back" })
+    get "/api/v1/app/chats/#{chat.id}", headers: { "If-None-Match" => etag }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.headers.fetch("ETag")).not_to eq(etag)
+  end
+
+  it "conditionally serves older message pages" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository)
+    messages = 3.times.map { |index| chat.messages.create!(role: "user", content: { "text" => "Message #{index}" }, sender_user: user) }
+
+    get "/api/v1/app/chats/#{chat.id}/messages", params: { before: messages.last.id }
+    etag = response.headers.fetch("ETag")
+    get "/api/v1/app/chats/#{chat.id}/messages", params: { before: messages.last.id }, headers: { "If-None-Match" => etag }
+
+    expect(response).to have_http_status(:not_modified)
+  end
+
   it "scopes run invocation-context CLI access to the current repository and no chats" do
     prepare_search_tables
     job = Factories.job_with_run(repository: repository, run_attrs: { state: "running" })
@@ -2500,9 +2531,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body.dig("chat", "turn_retry_state")).to be_nil
     expect(body["chat_available"]).to eq(true)
     expect(body["chat_provider_display_name"]).to eq("Codex Chat")
-    expect(body["turn_in_flight"]).to eq(false)
-    expect(body["agent_busy"]).to eq(false)
-    expect(body["turn_retry_state"]).to be_nil
+    expect(body).not_to include("turn_in_flight", "agent_busy", "agent_activity", "turn_retry_state")
     expect(body["chat_shell_command_in_flight"]).to be_nil
     expect(body["bookmarks"]).to eq([])
     expect(body["agent_questions"]).to contain_exactly(include(
@@ -2603,7 +2632,6 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
         "content" => include("source" => "chat_turn_retry")
       )
       expect(parse_body["message"]).to eq("Chat turn retry started.")
-      expect(parse_body["turn_retry_state"]).to be_nil
       expect(parse_body.dig("chat", "turn_retry_state")).to be_nil
     end
 
@@ -4596,11 +4624,11 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       include("label" => "First tool", "chat_message_id" => tool_a.id, "anchor_message_id" => second.id),
       include("label" => "Second tool", "chat_message_id" => tool_b.id, "anchor_message_id" => second.id)
     )
-    expect(queries.grep(/chat_messages.*id > .*ORDER BY.*created_at/i)).to be_empty
-    expect(queries.grep(/chat_messages.*id < .*ORDER BY.*created_at/i)).to be_empty
+    anchor_queries = queries.grep(/MIN\(next_message\.id\).*MAX\(previous_message\.id\)/i)
+    expect(anchor_queries.one?).to eq(true)
   end
 
-  it "loads bookmarks without joining and sorting chat messages through chat_bookmarks" do
+  it "loads and orders only bookmarked messages through one joined query" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
     first = chat.messages.create!(role: "assistant", content: { "text" => "First" }, created_at: 2.minutes.ago)
@@ -4612,7 +4640,10 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["bookmarks"].map { |bookmark| bookmark["label"] }).to eq([ "First topic", "Second topic" ])
-    expect(queries.grep(/FROM [`"]?chat_bookmarks[`"]?.*JOIN [`"]?chat_messages[`"]?.*ORDER BY .*chat_messages.*created_at/i)).to be_empty
+    bookmark_queries = queries.grep(/FROM [`"]?chat_bookmarks[`"]?.*JOIN [`"]?chat_messages/i)
+    expect(bookmark_queries.one?).to eq(true)
+    expect(bookmark_queries.first).to match(/ORDER BY .*chat_messages.*created_at/i)
+    expect(queries.grep(/SELECT .* FROM [`"]?chat_messages[`"]? WHERE .*chat_session_id/i)).to be_empty
   end
 
   it "serializes a heavy chat payload without repeated counts or duplicate participant/question loads" do
@@ -4846,7 +4877,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     queries = capture_sql { get "/api/v1/app/chats/#{chat.id}" }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body["agent_busy"]).to eq(true)
+    expect(parse_body).not_to have_key("agent_busy")
     expect(parse_body.dig("chat", "agent_busy")).to eq(true)
     spawned_process_queries = queries.grep(/FROM [`"]?spawned_processes[`"]?/i)
     expect(spawned_process_queries.size).to eq(1)
@@ -7628,8 +7659,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     expect(chat.reload.last_message_at).to be > 1.minute.ago
     expect(parse_body["message"]).to eq("Message sent.")
-    expect(parse_body["turn_in_flight"]).to eq(true)
-    expect(parse_body["agent_busy"]).to eq(false)
+    expect(parse_body).not_to include("turn_in_flight", "agent_busy")
     expect(parse_body.dig("chat", "turn_in_flight")).to eq(true)
     expect(parse_body.dig("chat", "agent_busy")).to eq(false)
   end
