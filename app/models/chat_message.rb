@@ -179,6 +179,7 @@ class ChatMessage < ApplicationRecord
         agent_busy: agent_busy,
         turn_retry_state: App::ChatTurnRetryState.for(chat),
         stop_requested_at: chat.stop_requested_at&.iso8601,
+        last_message_at: chat.last_message_at&.iso8601,
         queued_messages: chat.queued_messages_payload
       }
     else
@@ -188,6 +189,7 @@ class ChatMessage < ApplicationRecord
         agent_busy: chat.agent_busy?,
         turn_retry_state: App::ChatTurnRetryState.for(chat),
         stop_requested_at: chat.stop_requested_at&.iso8601,
+        last_message_at: chat.last_message_at&.iso8601,
         queued_messages: chat.queued_messages_payload,
         reason: invalidate_realtime_tail ? "targeted_invalidation" : "tail_payload_too_large"
       }

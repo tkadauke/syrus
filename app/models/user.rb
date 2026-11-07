@@ -299,6 +299,7 @@ class User < ApplicationRecord
           AND chat_participants.user_id = #{quoted_id}
       SQL
       .where(<<~SQL.squish)
+        chat_sessions.user_id = #{quoted_id} OR
         chat_participants.id IS NOT NULL OR EXISTS (
           SELECT 1 FROM chat_shares
           WHERE chat_shares.chat_session_id = chat_sessions.id
