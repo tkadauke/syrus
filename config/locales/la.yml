@@ -393,7 +393,7 @@ la:
       tag_not_found: "Nota non inventa est."
       choose_tag: "Elige aut inscribe notam."
       product_owner_epic_start_forbidden: "Product owners Epics ultra backlog promovere non possunt."
-      none_epics_ready: "Nullum Epic electum ad incipiendum paratum erat."
+      none_epics_startable: "Nullum Epic electum effici incipere potest."
       retry_enqueued: { one: "Iteratio pro 1 Job in ordinem posita est.", other: "Iteratio pro %{count} Jobs in ordinem posita est." }
       retry_enqueued_with_agent: { one: "Iteratio pro 1 Job cum %{agent} in ordinem posita est.", other: "Iteratio pro %{count} Jobs cum %{agent} in ordinem posita est." }
       jobs_closed: { one: "1 Job clausum est.", other: "%{count} Jobs clausa sunt." }

@@ -82,7 +82,12 @@ module App
             total_count = scope.count
             records = PerformanceLogging.phase("dashboard_kanban_epics.query", lane: lane, offset: offset, limit: kanban_limit) do
               scope
-                .includes(:owner, :repository, :owner_user)
+                .includes(
+                  :owner,
+                  :repository,
+                  :owner_user,
+                  dependencies: [ :depends_on_epic, { depends_on_job: :deployment_stage_statuses }, :unresolved_chat_proposal ]
+                )
                 .order(updated_at: :desc, id: :desc)
                 .offset(offset)
                 .limit(kanban_limit)

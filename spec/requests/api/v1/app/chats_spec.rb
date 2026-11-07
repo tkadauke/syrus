@@ -6299,7 +6299,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(confirmation_message.content.fetch("text")).to include("The Epic was started; ready child Jobs are dispatching.")
   end
 
-  it "does not silently report success when a requested Epic start raises unexpectedly" do
+  it "rolls proposal filing back when a requested Epic start raises unexpectedly" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
     proposal = chat.proposals.create!(
@@ -6322,10 +6322,25 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm", params: { start: true }
     }.to raise_error(RuntimeError, "boom")
 
-    expect(proposal.reload).to be_confirmed
-    epic = proposal.epic
-    expect(epic).to be_present
-    expect(epic).not_to be_in_progress
+    expect(proposal.reload).to be_proposed
+    expect(proposal.epic).to be_nil
+    expect(chat.messages.where(role: "system")).to be_empty
+  end
+
+  it "returns an actionable error and rolls proposal filing back when the Epic cannot start" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    proposal = chat.proposals.create!(slug: "ship-auth", title: "Ship auth", body: "Group the auth work.", kind: "epic", repository: repository)
+    proposal.child_proposals.create!(chat_session: chat, slug: "auth-schema", title: "Auth schema", body: "Add tables.", repository: repository)
+    allow_any_instance_of(Epic).to receive(:start_implementing!).and_raise(Epic::NotStartable, "Choose a confirmed child Job first.")
+
+    post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm", params: { start: true }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "code")).to eq("epic_not_startable")
+    expect(parse_body.dig("error", "message")).to eq("Choose a confirmed child Job first.")
+    expect(proposal.reload).to be_proposed
+    expect(proposal.epic).to be_nil
     expect(chat.messages.where(role: "system")).to be_empty
   end
 

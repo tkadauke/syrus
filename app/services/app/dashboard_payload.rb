@@ -372,7 +372,12 @@ module App
 
     def epics_result
       PerformanceLogging.phase("dashboard_epics_result", view: view, ownership_scope: ownership_scope) do
-        scope = filtered_epics_scope.includes(:owner, :repository, :owner_user)
+        scope = filtered_epics_scope.includes(
+          :owner,
+          :repository,
+          :owner_user,
+          dependencies: [ :depends_on_epic, { depends_on_job: :deployment_stage_statuses }, :unresolved_chat_proposal ]
+        )
         total = PerformanceLogging.phase("dashboard_epics.total") { scope.count }
         epics = PerformanceLogging.phase("dashboard_epics.query", page: page, view: view) { paginate(apply_sort(scope, :epic)).to_a }
         PerformanceLogging.phase("dashboard_epics.preload_job_stats", count: epics.size) { preload_epic_dashboard_job_stats(epics) }
