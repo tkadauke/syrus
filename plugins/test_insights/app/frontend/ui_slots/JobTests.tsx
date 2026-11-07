@@ -112,10 +112,7 @@ function TestRunSection({ jobId, testRun }: { jobId: number; testRun: JobTestRun
   const detail = useQuery({
     enabled: expanded,
     queryKey: ["jobs", String(jobId), "test_results", testRun.grader_name, "suites"],
-    queryFn: () =>
-      fetchJobTestResults(
-        `/api/v1/app/jobs/${jobId}/test_results?grader_name=${encodeURIComponent(testRun.grader_name)}&include_suites=true`
-      )
+    queryFn: () => fetchJobTestResults(`/api/v1/app/jobs/${jobId}/test_results?grader_name=${encodeURIComponent(testRun.grader_name)}&include_suites=true`)
   })
   const suites = detail.data?.test_runs.find((candidate) => candidate.id === testRun.id)?.suites ?? []
 
@@ -144,7 +141,9 @@ function TestRunSection({ jobId, testRun }: { jobId: number; testRun: JobTestRun
       {!expanded ? null : detail.isPending ? (
         <Notice className="border-t border-border">{t("common:loading")}</Notice>
       ) : detail.isError ? (
-        <Notice className="border-t border-border" tone="danger">{t("tests_load_error")}</Notice>
+        <Notice className="border-t border-border" tone="danger">
+          {t("tests_load_error")}
+        </Notice>
       ) : allPassing && suites.length === 0 ? (
         <Text className="border-t border-border px-4 py-3" tone="success">
           {t("tests_all_passing")}
