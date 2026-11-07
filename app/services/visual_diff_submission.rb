@@ -10,8 +10,14 @@ class VisualDiffSubmission
     initial retry pr_comment chat_feedback manual_visual_review
   ].freeze
 
-  def self.call(job:, source: MANUAL_SOURCE, after_workflow: nil, after_iteration: nil)
-    new(job: job, source: source, after_workflow: after_workflow, after_iteration: after_iteration).call
+  def self.call(job:, source: MANUAL_SOURCE, after_workflow: nil, after_iteration: nil, reject_invalid_after_artifacts: false)
+    new(
+      job: job,
+      source: source,
+      after_workflow: after_workflow,
+      after_iteration: after_iteration,
+      reject_invalid_after_artifacts: reject_invalid_after_artifacts
+    ).call
   end
 
   def self.enqueue_deferred_for_visual_review(workflow)
@@ -53,13 +59,14 @@ class VisualDiffSubmission
     end
   end
 
-  attr_reader :job, :source, :after_workflow, :after_iteration
+  attr_reader :job, :source, :after_workflow, :after_iteration, :reject_invalid_after_artifacts
 
-  def initialize(job:, source:, after_workflow:, after_iteration:)
+  def initialize(job:, source:, after_workflow:, after_iteration:, reject_invalid_after_artifacts:)
     @job = job
     @source = source.to_s
     @after_workflow = after_workflow
     @after_iteration = after_iteration
+    @reject_invalid_after_artifacts = reject_invalid_after_artifacts
   end
 
   def call
@@ -70,6 +77,10 @@ class VisualDiffSubmission
     return failure("Before/after comparison can only be run on implemented, approved, or landing Jobs with no active run.") unless runnable?
     return failure("Visual review is not configured for this repository.") unless RepoVisualReviewPlan.for_job(job).enabled?
     return failure("No visual review screenshots are available to compare.") if raw_after_artifacts.empty?
+    if reject_invalid_after_artifacts && after_artifact_validation.accepted_artifacts.empty?
+      reasons = after_artifact_validation.rejected_artifacts.filter_map { |artifact| artifact["rejected_reason"] }.join(" ")
+      return failure("No usable visual review screenshots are available to compare. #{reasons}".strip)
+    end
 
     result = WorkUnits::Launcher.create_and_start!(
       kind: "visual_diff",

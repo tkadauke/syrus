@@ -1208,6 +1208,11 @@
     "preview_unavailable": "Vorschau nicht verfügbar",
     "open_image": "Bild öffnen"
   },
+  "run_visual_diff": {
+    "job": "Job",
+    "missing_target": "Nicht angegeben",
+    "comparison": "Vorher-Nachher-Vergleich"
+  },
   "image_preview_controls": "Steuerelemente der Bildvorschau",
   "image_carousel_position": "Position im Bilderkarussell",
   "copy": "Kopieren",

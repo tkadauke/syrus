@@ -250,6 +250,29 @@ RSpec.describe App::ChatMessagePayload do
     )
   end
 
+  it "serializes visual diff pending actions with their Job resource and comparison outcome" do
+    job = Factories.job(user: user, repository: repository, issue_number: 44)
+    workflow = job.latest_workflow
+    workflow.update!(trigger_kind: "visual_diff")
+    comparison = {
+      "type" => "visual_diff_comparison", "title" => "Before/after visual comparison",
+      "renderer_type" => "before_after_visual_diff", "payload" => { "pairs" => [] }
+    }
+    workflow.set_artifact!("typed_artifacts", [ comparison ])
+    action = chat.pending_actions.create!(
+      action: "run_visual_diff", payload: { "job_id" => job.id }, state: "confirmed", result: workflow
+    )
+    message = chat.messages.create!(
+      role: "tool_use", tool_name: "run_visual_diff", tool_use_id: "visual-diff-1", pending_action: action,
+      content: { "type" => "tool_use", "id" => "visual-diff-1", "name" => "run_visual_diff", "input" => { "job_id" => job.id } }
+    )
+
+    pending_payload = described_class.messages([ message ], repository: repository).sole.fetch(:pending_action)
+
+    expect(pending_payload).to include(resource_title: job.issue_title, resource_url: "/jobs/#{job.id}")
+    expect(pending_payload.fetch(:outcome)).to eq(workflow_id: workflow.id, job_id: job.id, comparison: comparison)
+  end
+
   it "serializes every force landing recheck group member's observed and refreshed state" do
     group = PendingActionGroup.create_with_members!(
       chat_session: chat,
