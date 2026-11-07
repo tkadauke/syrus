@@ -747,6 +747,7 @@ export function DashboardToolbar({
   const updatePreferences = useMutation({
     mutationFn: updateDashboardPreferences,
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "chrome"] })
       void queryClient.invalidateQueries({ queryKey: ["dashboard", "rows"] })
     }
   })
@@ -886,13 +887,14 @@ export function DashboardTable({
   const updateSort = useMutation({
     mutationFn: updateDashboardPreferences,
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "chrome"] })
       void queryClient.invalidateQueries({ queryKey: ["dashboard", "rows"] })
     }
   })
   const updateColumnOrder = useMutation({
     mutationFn: updateDashboardPreferences,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["dashboard", "rows"] })
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "chrome"] })
     }
   })
   const onReorderColumns = (next: string[]) => updateColumnOrder.mutate({ subject: payload.subject, visible_columns: next })

@@ -30,7 +30,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
   const updatePreferences = useMutation({
     mutationFn: updateDashboardPreferences,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["dashboard", "rows"] })
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "chrome"] })
     }
   })
   const allPath = dashboardLink(subjectPath(payload.subject), { view: payload.view })
@@ -44,7 +44,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
   const landingPause = useMutation({
     mutationFn: (options: { confirmed?: boolean } = {}) => toggleDashboardLandingPause(payload.landing_queue.toggle_path, options),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "chrome"] })
     }
   })
   const createFolder = useMutation({
