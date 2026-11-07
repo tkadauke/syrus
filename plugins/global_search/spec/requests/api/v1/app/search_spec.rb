@@ -384,6 +384,36 @@ RSpec.describe "App API unified search", type: :request do
     expect(results).to be_empty
   end
 
+  it "caps candidate batches when chat matches are not accessible" do
+    inaccessible_batch = Array.new(Api::V1::App::SearchController::FTS_BATCH_SIZE) do |index|
+      { chat_message_id: 10_000 + index, rank: index.to_f, snippet: "needle" }
+    end
+    search_index = double("ChatMessageSearchIndex", search_candidates: inaccessible_batch)
+    stub_const("ChatMessageSearchIndex", search_index)
+
+    get "/api/v1/app/search", params: { query: "needle", types: [ "chat" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to be_empty
+    expect(search_index).to have_received(:search_candidates)
+      .exactly(Api::V1::App::SearchController::MAX_FTS_BATCHES).times
+  end
+
+  it "caps candidate batches when indexed jobs are not accessible" do
+    inaccessible_batch = Array.new(Api::V1::App::SearchController::FTS_BATCH_SIZE) do |index|
+      { job_id: 10_000 + index, rank: index.to_f, snippet: "needle" }
+    end
+    search_index = double("GlobalSearch::JobIndex", search: inaccessible_batch)
+    stub_const("GlobalSearch::JobIndex", search_index)
+
+    get "/api/v1/app/search", params: { query: "needle", types: [ "job" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to be_empty
+    expect(search_index).to have_received(:search)
+      .exactly(Api::V1::App::SearchController::MAX_FTS_BATCHES).times
+  end
+
   it "excludes soft-deleted chat messages from chat results" do
     chat_session = ChatSession.create!(user: user, repository: repository, title: "Launch chat")
     kept_message = ChatMessage.create!(chat_session: chat_session, role: "user", content: { "text" => "deploy kept" })
