@@ -1,0 +1,356 @@
+# Dashboard Views
+
+The Jobs and Epics dashboards support three view modes toggled from the toolbar:
+
+## list
+
+Default tabular view. Supports column visibility, sorting, and pagination. Columns are configurable per-user per-subject. The Jobs dashboard includes an optional `deployment` column, hidden by default, that shows the furthest configured deployment stage a Job has reached.
+
+All dashboard subjects start from repositories the current user can access,
+including direct repository memberships, Team grants, and upstream repositories
+reachable through those grants. Ownership scopes (`mine`, `team`, `claimable`,
+and `user`) narrow that accessible repository set; `team` is not instance-wide,
+and a selected `user` owner must be a collaborator on at least one repository in
+the viewer's accessible dashboard set.
+
+## kanban
+
+Board view grouped by configurable lanes (e.g. Backlog, Queued, Running, Succeeded). Lanes are configurable per-user per-subject and available for Jobs, Epics, and Workflows. Backlogged Jobs are open planned work, but they do not dispatch Workflows or Runs until an operator releases them from backlog.
+
+Kanban payloads are paginated per lane. Each lane includes `total_count`, `loaded_count`, `has_more`, and `next_offset`; when `has_more` is true, the UI shows a lane-specific Load more button. Follow-up lane fetches call `GET /api/v1/app/dashboard` with the existing dashboard filters plus `kanban_lane` and `kanban_offset`, so loading older cards preserves the current smart folder, ownership scope, and other lane state.
+
+## Inbox
+
+The Inbox smart folder scopes to jobs where the current user is an *eligible
+approver* under the job's repository `review_policy`
+(`Filters::Chips::Jobs::EligibleApprover`), not raw ownership. Under the
+default `self` policy that's still just the effective owner, but under
+`two_person` it also includes jobs owned by anyone else (any non-creator
+approval counts), and under `final_say` it also includes jobs owned by
+anyone when the current user is one of the repository's designated final
+approvers. This keeps a repo owner/collaborator from missing a Job in their
+own Inbox — including its review/repair/feedback sub-signals — just because
+they didn't personally trigger it. Every other attention-preset smart folder
+(Pinned, In progress, Queued, Landing queue, etc.) still scopes strictly by
+`owner_user_id is me`.
+
+## Proposed section
+
+Pending proposal cards do not live on the Jobs dashboard. They render in the
+chat right-sidebar **Jobs** tab (`ChatJobStatusPanel`,
+`app/frontend/routes/ChatJobStatusPanel.tsx`), scoped to the current chat only
+— a "Proposed" section at the top of the panel, above confirmed/materialized
+Job and Epic status cards. `ChatJobStatusQuery#call` (`app/services/chat_job_status_query.rb`)
+returns `{ pending_proposals:, items: }`: `pending_proposals` is every
+top-level (no `parent_proposal_id`), pending (`state: "proposed"`) `job`/
+`syrus_issue`/`epic`-kind proposal for that one chat session (an Epic bundle's
+own child proposals are excluded — they aren't independently actionable
+cards); `items` is the existing confirmed/materialized Job and Epic tree. Each
+pending card shows its kind, a relative timestamp, and (for an Epic bundle)
+its active child count, and clicking it jumps to the anchor chat message the
+same way pinned messages do (`onSelectMessage`, wired through
+`ChatWorkspacePanel`'s existing `onBookmarkSelect`). The tab itself is only
+shown when `jobsTabVisible` (`app/frontend/routes/chat/utils.ts`) is true,
+which now also checks `pending_proposal_count` — so a chat with only pending
+proposals (nothing confirmed or linked yet) still surfaces the tab.
+
+The section updates live from the same `update_proposal` AppEvents broadcast
+the chat surface already emits on every proposal create/edit/confirm/reject/
+withdraw (`Mcp::Tools.broadcast_proposal_created`,
+`Api::V1::App::ChatsController#broadcast_proposal_updated`) — a
+`job_status_proposal` payload key (`App::ChatMessagePayload.job_status_proposal_json`,
+only populated when `App::ChatMessagePayload.job_status_pending_proposal_kind?`
+holds) carries the card's rendering shape. The frontend
+(`app/frontend/lib/appEvents.ts`, `patchChatJobStatusPendingProposal`) patches
+the chat's own `["chats", "<id>", "job_status"]` query cache directly rather
+than waiting on a `syrus:job-status-changed` invalidation: a proposal entering
+the `proposed` state adds a card immediately, and a proposal leaving that
+state (confirmed, rejected, or withdrawn) removes its card immediately and
+also invalidates the query so a freshly confirmed proposal's materialized
+Job/Epic item appears without a separate broadcast.
+
+## Backlogged Job actions
+
+Backlogged Jobs follow the same ownership model as backlogged Epics: the durable owner is `Job#owner_user_id` (or the effective owner derived by existing ownership scopes). The legacy `claimed_by_user_id` fields remain a short-lived work-claim overlay only. Operator UI and API payloads should label claim actions as work claims so they are not confused with owner assignment.
+
+The built-in "Backlog" SmartFolder (`SmartFolder::JOB_BUILTINS` key `backlogged_jobs`) uses `:when_present` visibility: it appears automatically in the Jobs sidebar whenever the current user has at least one user-facing Job (`job_type: user`) in `state = backlog` within their effective ownership, and hides itself again once that count is zero, without requiring any kanban lane customization. Its filter is `SmartFolder.user_job_attention_preset_filter("backlog")`, matching the owner/kind scoping conventions the other attention-preset Job folders use.
+
+Single-Job lifecycle endpoints:
+
+- `POST /api/v1/app/jobs/:job_id/release_from_backlog` releases a backlogged Job into the normal admission flow. A valid, dependency-ready Job transitions to `queued` and creates initial Workflow work through the same path as post-triage startup. A dependency-blocked Job transitions to `blocked_by_epic` without starting a Run. A Job that still needs classifier/triage resolution moves to `triaging`.
+- `POST /api/v1/app/jobs/:job_id/accept_triage` and `POST /api/v1/app/jobs/:job_id/reject_triage` resolve a Job awaiting a person in triage (`classifier_uncertain` or `proposed_job`). Accept advances it to execution; Reject closes it as `cancelled`. Both refuse a Job in any other state. See [Issue triage](../../../config/syrus_docs/issue_triage.md).
+- `POST /api/v1/app/jobs/:job_id/move_to_backlog` moves only early, pre-runtime Jobs (`needs_triage`, `triaging`, `blocked_by_epic`, or `queued`) back to backlog. The Job detail page does not offer it while a Job is in `triaging`. The guard rejects Jobs with queued/running Workflows, active Runs, local PRs, fork-review PRs, external PRs, review/landing states, and any post-PR work.
+- `POST /api/v1/app/jobs/:job_id/cancel` also accepts backlogged Jobs. A backlogged Job has no Workflow/Run to cancel, so this is a pure close-with-reason (`closure_reason: "cancelled"`) that skips the normal active-work cancellation entirely. The Job detail page's `can_cancel` action is available for any open Job, including `backlog`, and labels/confirms it as "Remove from backlog" rather than the runtime "Cancel" wording when the Job is currently backlogged.
+- `PATCH /api/v1/app/jobs/:job_id/owner` assigns or reassigns `owner_user_id`. The selected owner must be a repository member with read access. This does not claim the Job for active work.
+- `POST /api/v1/app/jobs/:job_id/claim` and `DELETE /api/v1/app/jobs/:job_id/claim` operate only on the work-claim overlay. A Job claimed by another user cannot be claimed, and only the current claimant can release their claim.
+
+## Epic access and mutations
+
+Repository visibility and mutation access are intentionally different for
+Epics. A read-tier direct membership or team grant can view an Epic, but every
+mutation of an existing Epic requires effective write-tier access to its
+repository. This covers edits, archive, claim/unclaim/reassign, start, state
+transitions (including overrides), and dependency additions or removals.
+Starting an Epic can release child Jobs, so it uses the same write boundary as
+other execution-triggering actions. Adding a dependency also requires write
+access to the prerequisite Epic's repository, and an Epic can only be
+reassigned to a user with effective write access to its repository.
+
+Creating an Epic, moving one to another repository, and the repository picker
+also use effective write access. Direct write/admin memberships and write/admin
+team grants qualify; global admins bypass repository membership requirements.
+
+The `Triaging` smart folder surfaces user-facing Jobs currently sitting in the `triaging` AASM state (across any of the current user's repositories) so classifier delays or stuck intake are visible without a manual filter. Like `Invalid` and `Awaiting Epic`, it only appears in the sidebar when at least one matching Job exists.
+
+The Jobs dashboard bulk toolbar mirrors the single-Job management surface where bulk semantics are already supported: release/start from backlog, accept classifier-uncertain triage decisions, move to backlog, assign owner, set priority, add/remove tags, claim work, and release claim. While an action runs, the toolbar shows completed and total Job counts plus a cancel control; it hides the other actions until the current operation finishes or cancellation takes effect. Cancellation stops before the next Job rather than interrupting the request already in flight. Bulk actions are permission-checked per selected Job, so repository membership and write-policy failures skip only the affected rows. Responses include affected IDs plus skipped IDs/counts, allowing the UI to report partial success instead of treating one rejected Job as a failed batch. There is no bulk proposal-routing action; routing a proposed direct Job to backlog stays on the individual proposal card before confirmation.
+
+The Epics dashboard uses the same progress and cancellation pattern when
+starting selected Epics. It sends one request at a time, reports the completed
+and total Epic counts, and offers cancellation between requests. The request
+already in flight is allowed to finish; if it is the final request, the action
+reports normal completion because no Epic was left unstarted.
+
+Queued Job cards can carry a start-blocked badge when Syrus has deferred the first Run because dependencies are unfinished, a dependency failed or was cancelled, the Job/Epic is not ready for execution, main is broken, an urgent Job is active, another child Job in the same linear Epic is being implemented, provider availability is below the user's per-agent threshold, or workflow admission budgeting delayed the start. The Queued smart folder also shows a blocked sub-count; selecting that count filters to only queued Jobs with a persisted start-blocked reason. The `epic_sibling_implementation_active` reason clears automatically after the earlier sibling's implementation Workflow finishes; landing, merge-train, rebase, stack-rebase, main-grader, and feedback Workflows do not participate in this gate.
+
+When the blocked reason is workflow admission budgeting, the Workflow artifact stores the admission decision payload. The payload separates predicted command cost from current host headroom: command-attributed step profiles are used when they have enough samples, host-correlated profiles are included as fallback/context, and live worker host pressure is still checked immediately before starting work. The details also record attribution confidence, fallback reasons, active run/repository counts, Job priority, and whether the delay was caused by ambient host pressure or by predicted command cost not fitting the budget.
+
+After Solid Queue assigns a queued Run to a concrete compute worker,
+`RunJob` also performs a host-local pickup check. If the selected worker is
+critically pressured or already running resource-guarded agentic/grader work,
+the Run remains queued and is re-enqueued without spending a retry iteration.
+Those deferrals record `run_host_admission` on the Workflow artifact and a
+system JobLog line rather than `start_blocked_details`, because the Workflow
+was not phase-blocked by the dispatcher.
+
+Manual Job pause is different from admission/resource pauses: it is a persistent
+Job flag set by an operator. Pausing a Job does not kill the current Run. Syrus
+lets the active Step finish, then records `pause_reason: manual_pause` on the
+active Workflow and stops before creating the next Run. A manually paused Job
+stays paused until an operator unpauses it; scheduled rechecks and admission
+wakeups do not override it. Unpause clears the manual Workflow pause marker and
+asks the normal dispatcher or landing queue to resume, so the Job still remains
+subject to dependency gates, provider circuits, and workflow admission control.
+The dashboard includes manually paused Jobs in the Paused smart folder and
+shows a direct Unpause control on paused rows.
+
+### Blocked-but-running Jobs
+
+A Job can read `running` while nothing executes: the Workflow is mid-chain,
+but its WorkUnit is blocked (main-branch health, admission control, a lock,
+retry backoff). Those Jobs appear in the **Blocked** smart folder alongside
+dependency-blocked and unmergeable Jobs. They are deliberately *not* in "In
+progress" -- nothing is progressing -- and not in "Paused", which is reserved
+for a human pause or a provider-availability pause.
+
+The Job detail page shows a "Waiting to continue" notice naming the reason and
+when Syrus next re-checks, and the Job timeline records one `Blocked: <reason>`
+event per block episode. "Blocked since" measures the episode, not the last
+re-check: a block re-applied every five minutes still reports its true age.
+
+### Upstream changes requested
+
+An approved Job whose upstream reviewer requested changes
+(`needs_attention_reason: upstream_pr_changes_requested`) leaves the **Landing
+queue** folder -- it is no longer queued to land -- and appears in **Inbox**
+instead, which is where actionable operator work belongs.
+
+### Every open Job has a folder
+
+The folders are subtractive: several exclude a Job on the assumption another
+one claims it. Both cases above are exactly that, and both previously left the
+Job in no folder at all, reading as healthy while nothing worked on it. When
+adding a folder exclusion, add the folder that picks the Job up in the same
+change; `spec/services/filters/every_open_job_lands_in_a_folder_spec.rb`
+asserts that every open-Job shape is claimed by at least one folder the
+operator actually sees (`:on_demand` folders behind "More" do not count).
+
+Provider-availability pauses are automatic and reversible. Each user has a
+per-agent pause threshold in Agent Settings; the default is 10%, and 0 disables
+automatic provider-availability pauses for that provider. When a probed
+provider's usage falls below the configured threshold, or a configured provider
+reports exhausted usage,
+Syrus records `pause_reason: provider_availability` /
+`start_blocked_reason: provider_availability` on the active Workflow and stops
+before creating the next Run. Running steps are allowed to finish. A scheduled
+recheck wakes the Workflow after the provider reset or a short probe interval;
+for providers with structured usage probes, the wakeup refreshes the snapshot
+before deciding whether to resume. The usage banner and Agent Settings both
+expose "Recheck" and
+"Resume anyway"; the latter stores a per-user/provider override that suppresses
+provider-availability pauses until newer provider evidence arrives.
+
+The admin Users surface lists provider availability per user and per configured
+agent provider, including the latest evidence and an explicit `not_configured`
+state when that user has no credential for a provider. A provider authentication
+error becomes an attention signal once it is at least six hours old and active
+work for that same user/provider is blocked on provider availability. Six hours
+is deliberately "hours, not minutes": short token-refresh or probe hiccups stay
+quiet, while a same-day credential outage no longer waits for a multi-day
+manual diagnosis. The admin Work Units surface repeats the owning user's
+provider state on units blocked for `provider_availability`, so the block cause
+is visible without joining evidence rows by hand.
+
+Provider routing rules define ordered workflow admission fallback chains.
+Within each scope, the resolver evaluates rules by ascending `position` and
+uses the first rule whose invocation trigger and conditions match. Job-scoped
+rules are considered before repository-scoped rules, which are considered
+before user-scoped defaults. Triggers describe actual invocation surfaces
+(`chat_role` roles and agentic `step` kinds, including plugin-provided step
+kinds); workflow trigger kind is a condition on an existing workflow context.
+The resolver records `agent_provider_routing_decision` with a
+`routing_resolution` explanation showing the matched scope, rule, condition
+results, and final route-or-hold action. Disabled rules remain ordered but are
+skipped during matching. For a route action, it records the initial Workflow
+provider/model/effort candidate; provider availability can then skip
+unavailable candidates before the first Run starts. A hold action leaves the
+Workflow queued without creating a Run and is reported as a non-failure held
+decision rather than provider exhaustion.
+If an unstarted workflow automatically moves from one candidate to another, it
+also records `provider_failover_decision`. Dashboard rows, Job detail,
+repository Job rows, and Workflow cards show the original unavailable provider
+and the provider selected for the workflow. Operator-selected alternate retry
+providers render distinct operator copy. Explicit Job provider settings still
+win over routing rules, and chat provider switching remains explicit.
+
+The routing rules editor (user, repository, and Job scopes) has a Test button
+that dry-runs the effective rules against any Job the operator can see, for a
+chosen step kind or chat role and an optional workflow trigger kind. It shows
+one winner line (or the hold reason, a Job provider pin, or that no rule
+matches), then a collapsed per-rule list (`matched`, `skipped: <reason>`,
+`not evaluated`) with the raw condition evidence behind a disclosure. The
+`POST .../provider_routing_rules/explain` endpoints return the same explanation
+as the `explain_provider_routing` MCP tool and use the rules endpoints' scope
+access checks plus Job visibility.
+
+## dependencies
+
+Topological dependency graph showing jobs (or epics) as nodes and their `Depends-on` / `Blocked-by` relationships as directed edges. Nodes are placed in columns by dependency depth: Layer 0 has no blockers, Layer N is blocked by Layer N-1 work. Clicking a node navigates to the job or epic detail page.
+
+Not available on the Workflows dashboard. The Dependencies tab is also hidden on mobile dashboards because the graph view is desktop-only; if a persisted mobile URL still requests `view=dependencies`, the page shows an unavailable message instead of loading the graph.
+
+## Bulk retry
+
+The Jobs dashboard bulk `Retry` action uses `SmartRetryEnqueuer`, not a blind
+implementation retry. For each selected Job it chooses the narrowest safe
+action: resume a failed agentic step when a resumable session exists, retry the
+failed step while the workflow workspace is available, retry or rebuild landing
+workflows for landing failures, and only fall back to a full
+`Workflows::Retry` implementation retry when narrower recovery is unavailable.
+
+Bulk retry skips closed Jobs, approved Jobs, no-change-needed Jobs, Jobs whose
+open PR is already current with base and passing checks, Jobs with active Runs,
+Jobs with an active queued/running retry Workflow, and automatic retries blocked
+by the provider circuit breaker. The API response includes
+`retry_summary.actions` and `retry_summary.skipped` buckets so operators can see
+how many Jobs took each path.
+
+The explicit Job detail `Retry implementation` action remains available for
+operators who intentionally want a full implementation retry.
+
+**Empty states:**
+- If the active filter matches no jobs/epics, the view shows "No [subject] match this view."
+- If nodes are present but none have dependency edges between them (all at Layer 0), the view shows "No dependency relationships in the current view."
+
+**Data source:** `GET /api/v1/app/jobs/graph` and `GET /api/v1/app/epics/graph`. Both endpoints accept the same filter params as the corresponding index endpoints (`repo`, `state`, `q`, `smart_folder_id`) and return `{ nodes, edges }` scoped to `accessible_to(Current.user)`.
+
+## Shared FilterBar primitives
+
+FilterBar-backed surfaces use `Filters::Schema` metadata to expose reusable
+filter behavior instead of per-page search boxes. Text chips can opt in to
+typed-query suggestions with `full_text_suggestions`; when the add-filter menu
+has at least two typed characters, `/api/v1/app/filters/suggestions` can
+synthesize ordinary AST chip nodes such as `{ "field": "title", "op":
+"matches", "value": "queue" }`. These suggestions work in the same `q=`
+base64url filter tree as manually added chips and can be saved in
+SmartFolders.
+
+A field can instead mark itself the subject's pinned free-text search field
+with `free_text_search: true` -- `Filters::Chips::Base.free_text_search` for
+`Filters::Registry` chips (e.g. `Filters::Chips::AdminPlugins::Search`), or
+`free_text_search:` on the `field :query, ...` DSL in
+`Admin::EventLogFilterDefinitions` for its admin event-log definitions.
+`FilterBar.tsx` pulls that field out of the generic field/operator/value list
+entirely and, once the operator has typed at least two characters, renders it
+as a single pinned "Search for {typed text}" suggestion above the `Suggested`
+section, applying the field's own configured operator (its first declared
+operator) and the typed text directly on click -- no field/operator picker.
+At most one field per subject/definition should set this flag.
+
+**Canonical SmartFolder/FilterBar contract.** Resolve a SmartFolder-backed
+surface through `Filters::SmartFolderResolution`, passing its filter class,
+subject, active folder, request params, and user. The returned `filter` is both
+the editable AST sent to the client and the exact predicate applied to the
+result scope; navigation state retains the selected folder independently.
+
+With no explicit `q=`, a built-in folder seeds its registered filter AST.
+Definitions may opt into an opaque named `Preset is …` chip with
+`filter_bar_preset: true`; its wire value is the stable built-in key, and the
+compiler safely expands that definition when applying the filter. Unknown,
+recursive, and non-opted-in preset keys are rejected. Dashboard Job folders
+deliberately remain expanded: their existing `attention` chip (labelled
+`Preset`) and separate `job_type`, `owner_user_id`, or `eligible_approver`
+chips are independent operator controls. Persisted user-defined folders also
+seed their saved AST directly. Any explicit `q=`, including an encoded empty
+AST, is the complete source of truth, so editing or removing a visible chip
+cannot silently reapply the selected folder.
+
+At the lower level, `Filters::BaseFilter.from_params`
+always ANDs a given `smart_folder:` argument with the request's `q=`/legacy
+params -- that low-level AND is unconditional by design. Any controller that
+resolves `current_filter` for a SmartFolder-backed FilterBar surface must
+therefore pass its `smart_folder:` argument through
+`Filters::BaseFilter.smart_folder_floor(params, active_smart_folder, user:)`
+instead of the active folder directly: once the chip bar's own ad hoc filter
+is active (a present `q=`, even one that decodes to zero chips, or legacy URL
+params with real chips), the SmartFolder's saved filter stops acting as a
+floor and the chip bar becomes the sole source of truth. Skipping this guard
+re-ANDs the folder's saved filter into the user's own chip-bar edits on every
+request -- adding a chip duplicates the folder's own chip, editing a chip
+leaves the pre-edit value alongside the new one, and removing the chip bar's
+last chip resurrects it. `active_smart_folder_id` in the response is
+unaffected by this guard and keeps reflecting the selected folder for UI
+purposes (breadcrumb/sidebar highlighting) even once its filter floor has
+been dropped. New surfaces should use the resolution object rather than
+assembling this precedence and navigation state independently.
+
+Plugin SmartFolder subjects declare `effective_filter_contract:
+:smart_folder_resolution` when calling `SmartFolder.register_subject!`. The
+registration inventory spec requires that declaration for every installed
+subject, so a new SmartFolder-backed FilterBar surface cannot bypass this
+contract accidentally. FilterBar-only subjects that do not register with
+`SmartFolder` are outside this inventory.
+
+`FilterBar.tsx`'s `applyTree` seeds its editable draft chip list from the
+server's already-merged `filter`, so a chip-bar Add/Edit always resends
+whatever the SmartFolder already contributed alongside the change -- `q=`
+carries the full intended state, not just a delta. Clearing the chip bar's
+last chip while a SmartFolder is selected sends an explicit empty `q=`
+(rather than omitting the param, as it does when no SmartFolder is active)
+specifically so the backend's guard above can tell "the chip bar was just
+emptied" apart from "the chip bar was never touched" -- both leave the same
+merged filter otherwise.
+
+The `matches` operator is separate from `StringColumn`'s `contains` operator.
+`Filters::Chips::FullTextStringColumn` is the reusable search-style text base;
+until a subject has a database-specific full-text implementation, it uses a
+documented cross-database LIKE fallback so development/test SQLite and
+production adapters have the same baseline behavior.
+
+Date chips expose `date_precision` metadata. The shared datetime range editor
+preserves existing AST value shapes: absolute ranges still use `between:
+[from, to]`, relative ranges use `within_last: { n, unit }` and
+`more_than_ago: { n, unit }`, and single-sided filters keep their scalar date
+or datetime value. The editor adds common presets including today, yesterday,
+last 24 hours, last 7 days, last 30 days, this week, and this month; datetime
+fields render time-of-day controls, while date-only fields render date inputs.
+
+The spending insights page is a FilterBar-backed surface without SmartFolders.
+Its `spending_report` subject (registered by the `spending_insights` plugin) filters `Run` spending by repository, user,
+datetime, agent provider, trigger kind, and epic. The page keeps the historical
+90-day default by injecting a positive top-level `created_at between ...` chip
+when the URL does not provide one; negated or OR date expressions are combined
+with that default window instead of being used as the chart bounds.
+
+## View preference persistence
+
+The selected view is persisted per `[subject, smart_folder_id]` pair and restored on next load. Preferences are stored via `User#update_dashboard_folder_preferences!` and resolved by `DashboardPayload#folder_pref_view`. All three view values (`list`, `kanban`, `dependencies`) are valid persisted values.
