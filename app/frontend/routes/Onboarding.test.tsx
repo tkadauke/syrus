@@ -135,31 +135,33 @@ describe("OnboardingRoute — revisiting completed steps", () => {
   })
 
   it("keeps the report inside the Repository step modal", async () => {
-    vi.mocked(window.fetch).mockImplementation(() => Promise.resolve(
-      jsonResponse({
-        readiness: {
-          status: "ready_with_warnings",
-          summary: "Ready with warnings",
-          revision: "abc123",
-          repository_size_bytes: 42,
-          file_count: 2,
-          checks: [{ key: "configuration", level: "warning", message: ".syrus.yml is absent; commands are inferred." }],
-          prepare_commands: ["bundle install"],
-          grader_commands: ["bin/rspec"],
-          required_capabilities: { os: ["linux"] },
-          execution_scopes: [
-            {
-              key: "workflow",
-              label: "Workflow workspace",
-              command: "bundle install",
-              capabilities: { os: ["linux"] },
-              queue_name: "runs",
-              worker_available: true
-            }
-          ]
-        }
-      })
-    ))
+    vi.mocked(window.fetch).mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse({
+          readiness: {
+            status: "ready_with_warnings",
+            summary: "Ready with warnings",
+            revision: "abc123",
+            repository_size_bytes: 42,
+            file_count: 2,
+            checks: [{ key: "configuration", level: "warning", message: ".syrus.yml is absent; commands are inferred." }],
+            prepare_commands: ["bundle install"],
+            grader_commands: ["bin/rspec"],
+            required_capabilities: { os: ["linux"] },
+            execution_scopes: [
+              {
+                key: "workflow",
+                label: "Workflow workspace",
+                command: "bundle install",
+                capabilities: { os: ["linux"] },
+                queue_name: "runs",
+                worker_available: true
+              }
+            ]
+          }
+        })
+      )
+    )
 
     renderOnboarding(
       bootstrap({
@@ -187,22 +189,24 @@ describe("OnboardingRoute — revisiting completed steps", () => {
   })
 
   it("does not show an orphaned worker heading when readiness fails before scopes are computed", async () => {
-    vi.mocked(window.fetch).mockImplementation(() => Promise.resolve(
-      jsonResponse({
-        readiness: {
-          status: "needs_configuration",
-          summary: "Needs configuration",
-          revision: null,
-          repository_size_bytes: null,
-          file_count: null,
-          checks: [{ key: "access", level: "block", message: "Repository content is unavailable." }],
-          prepare_commands: [],
-          grader_commands: [],
-          required_capabilities: { os: ["linux"] },
-          execution_scopes: []
-        }
-      })
-    ))
+    vi.mocked(window.fetch).mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse({
+          readiness: {
+            status: "needs_configuration",
+            summary: "Needs configuration",
+            revision: null,
+            repository_size_bytes: null,
+            file_count: null,
+            checks: [{ key: "access", level: "block", message: "Repository content is unavailable." }],
+            prepare_commands: [],
+            grader_commands: [],
+            required_capabilities: { os: ["linux"] },
+            execution_scopes: []
+          }
+        })
+      )
+    )
 
     renderOnboarding(
       bootstrap({
@@ -216,38 +220,40 @@ describe("OnboardingRoute — revisiting completed steps", () => {
   })
 
   it("shows actionable disposable probe failures and cleanup evidence", async () => {
-    vi.mocked(window.fetch).mockImplementation(() => Promise.resolve(
-      jsonResponse({
-        readiness: {
-          status: "ready",
-          summary: "Ready",
-          revision: "abc123",
-          repository_size_bytes: 42,
-          file_count: 2,
-          checks: [],
-          prepare_commands: ["missing-setup"],
-          grader_commands: ["bin/specs"],
-          required_capabilities: { os: ["linux"] },
-          execution_scopes: [],
-          execution_probe: {
-            id: 9,
-            status: "blocked",
+    vi.mocked(window.fetch).mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse({
+          readiness: {
+            status: "ready",
+            summary: "Ready",
             revision: "abc123",
-            warning_override: false,
-            started_at: "2026-10-17T00:00:00Z",
-            completed_at: "2026-10-17T00:00:02Z",
-            result: {
-              summary: "A required command could not start; the first implementation run is blocked.",
-              duration_s: 2,
-              disk_growth_bytes: 512,
-              cleanup: "completed",
-              missing_executables: ["missing-setup"],
-              commands: [{ kind: "prepare", command: "missing-setup", success: false, required: true, output_tail: "command not found" }]
+            repository_size_bytes: 42,
+            file_count: 2,
+            checks: [],
+            prepare_commands: ["missing-setup"],
+            grader_commands: ["bin/specs"],
+            required_capabilities: { os: ["linux"] },
+            execution_scopes: [],
+            execution_probe: {
+              id: 9,
+              status: "blocked",
+              revision: "abc123",
+              warning_override: false,
+              started_at: "2026-10-17T00:00:00Z",
+              completed_at: "2026-10-17T00:00:02Z",
+              result: {
+                summary: "A required command could not start; the first implementation run is blocked.",
+                duration_s: 2,
+                disk_growth_bytes: 512,
+                cleanup: "completed",
+                missing_executables: ["missing-setup"],
+                commands: [{ kind: "prepare", command: "missing-setup", success: false, required: true, output_tail: "command not found" }]
+              }
             }
           }
-        }
-      })
-    ))
+        })
+      )
+    )
 
     renderOnboarding(bootstrap({ setup_status: { ...bootstrap().setup_status!, onboarding_repository_id: 7 } }))
 
@@ -282,21 +288,25 @@ describe("OnboardingRoute — revisiting completed steps", () => {
         result: active ? {} : { summary: "Prepare and bounded grader probe succeeded.", cleanup: "completed" }
       }
       return Promise.resolve(
-        jsonResponse(probeRead ? { execution_probe: executionProbe } : {
-          readiness: {
-            status: "ready",
-            summary: "Ready",
-            revision: "abc123",
-            repository_size_bytes: 42,
-            file_count: 2,
-            checks: [],
-            prepare_commands: [],
-            grader_commands: [],
-            required_capabilities: { os: ["linux"] },
-            execution_scopes: [],
-            execution_probe: executionProbe
-          }
-        })
+        jsonResponse(
+          probeRead
+            ? { execution_probe: executionProbe }
+            : {
+                readiness: {
+                  status: "ready",
+                  summary: "Ready",
+                  revision: "abc123",
+                  repository_size_bytes: 42,
+                  file_count: 2,
+                  checks: [],
+                  prepare_commands: [],
+                  grader_commands: [],
+                  required_capabilities: { os: ["linux"] },
+                  execution_scopes: [],
+                  execution_probe: executionProbe
+                }
+              }
+        )
       )
     })
 

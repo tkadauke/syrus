@@ -37,8 +37,18 @@ export type RepositoryDocumentInput = {
 }
 
 export const REPOSITORY_DOCUMENT_ACCEPTED_FILE_CONTENT_TYPES = [
-  "text/plain", "text/markdown", "text/x-markdown", "text/html", "text/css", "text/javascript", "application/pdf",
-  "image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml"
+  "text/plain",
+  "text/markdown",
+  "text/x-markdown",
+  "text/html",
+  "text/css",
+  "text/javascript",
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+  "image/svg+xml"
 ]
 
 export function fetchRepositoryDocuments(repositoryId: string, page = 1) {
