@@ -7,10 +7,11 @@ configured are kept, and come back when it is re-enabled.
 
 When the optional `calendar` plugin is enabled, Scheduled Tasks contributes
 operator-accessible repository tasks to Calendar. Calendar expands cron/RRULE
-and one-shot occurrences only for its requested window, using each task's
-stored timezone, and correlates past slots with their Jobs and Workflows.
-Paused, auto-paused, fired, archived, skipped pile-up, and failed executions
-remain visible there with links back to the owning task or Job. Coworker-owned
+and one-shot occurrences only for its requested window and the task's active
+lifetime, using each task's stored timezone, and correlates past slots with
+their Jobs and Workflows. Paused, auto-paused, fired, skipped, and failed
+executions remain visible there with links back to the owning task or Job;
+archiving stops the task's occurrence timeline at the archive time. Coworker-owned
 tasks are deliberately excluded because the Coworkers plugin owns their
 presentation. Disabling Calendar does not change scheduling or task firing.
 
