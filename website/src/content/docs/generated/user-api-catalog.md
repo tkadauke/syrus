@@ -321,6 +321,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | GET | `/api/v1/app/passkeys/registration_options` | `api/v1/app/passkeys#registration_options` |
 | core | POST | `/api/v1/app/performance_events` | `api/v1/app/performance_events#create` |
 | core | GET | `/api/v1/app/permission_requests` | `api/v1/app/permission_requests#index` |
+| core | GET | `/api/v1/app/permission_requests/:id` | `api/v1/app/permission_requests#show` |
 | core | DELETE | `/api/v1/app/permission_requests/:id` | `api/v1/app/permission_requests#dismiss` |
 | core | GET | `/api/v1/app/permission_requests/:id` | `api/v1/app/permission_requests#show` |
 | core | POST | `/api/v1/app/permission_requests/:id/decide` | `api/v1/app/permission_requests#decide` |
