@@ -113,6 +113,9 @@ describe("CredentialStoreAdmin", () => {
     const dialog = screen.getByRole("dialog", { name: "New credential" })
     fireEvent.change(within(dialog).getByLabelText("Credential type"), { target: { value: "ssh_private_key" } })
     expect(within(dialog).queryByLabelText("Safe metadata")).not.toBeInTheDocument()
+    expect(within(dialog).queryByLabelText("New Allowed tools value")).not.toBeInTheDocument()
+    expect(within(dialog).getByText(/Typed SSH execution is available automatically/)).toBeInTheDocument()
+    expect(within(dialog).getByRole("checkbox", { name: /credential\.ssh-agent/ })).not.toBeChecked()
     fireEvent.change(within(dialog).getByLabelText("Name"), { target: { value: "Production SSH" } })
     fireEvent.change(within(dialog).getByLabelText("Scope target"), { target: { value: "1" } })
     fireEvent.change(within(dialog).getByLabelText("Private key"), { target: { value: "PRIVATE KEY" } })
@@ -129,6 +132,7 @@ describe("CredentialStoreAdmin", () => {
     expect(JSON.parse(String(body.payload))).toEqual({ private_key: "PRIVATE KEY\n" })
     expect(body.safe_metadata).toEqual(expect.objectContaining({ host: "host.example", username: "deploy", port: 22 }))
     expect(body.target_constraints).toEqual(expect.objectContaining({ allowed_hosts: ["host.example"] }))
+    expect(body.allowed_tools).toEqual([])
   })
 
   it("previews a discovered fingerprint and requires explicit confirmation", async () => {
@@ -555,6 +559,10 @@ function payload(
     credentials: [credential()],
     options: {
       credential_types: [{ name: "credential_store.generic", label: "Generic secret", plugin: "credential_store" }],
+      credential_wrappers: [
+        { name: "credential.exec", credential_types: ["*"], description: "Materialize for a child process." },
+        { name: "credential.ssh-agent", credential_types: ["ssh_private_key"], description: "Load into a temporary SSH agent." }
+      ],
       scopes: [
         { value: "user", label: "User" },
         { value: "repository", label: "Repository" },
@@ -588,6 +596,8 @@ function credential(overrides: Partial<CredentialStorePayload["credentials"][num
     target_constraints: { allowed_hosts: ["github.com"] },
     allowed_surfaces: ["workflow"],
     allowed_tools: ["git.push"],
+    effective_typed_consumers: [],
+    explicit_wrapper_grants: [],
     expires_at: null,
     last_rotated_at: "2026-10-02T12:00:00Z",
     revoked_at: null,

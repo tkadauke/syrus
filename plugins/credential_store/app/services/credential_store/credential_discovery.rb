@@ -101,11 +101,18 @@ module CredentialStore
         target_constraints: credential.target_constraints || {},
         allowed_surfaces: credential.allowed_surfaces || [],
         allowed_tools: credential.allowed_tools || [],
+        effective_typed_consumers: ConsumerRegistry.typed_for(credential.credential_type).map(&:name),
+        explicit_wrapper_grants: explicit_wrapper_grants(credential),
         expires_at: credential.expires_at&.iso8601,
         last_rotated_at: credential.last_rotated_at&.iso8601,
         expiration_status: credential.expires_at ? "active_until_expiration" : "does_not_expire",
         rotation_status: credential.last_rotated_at ? "rotated" : "not_recorded"
       }
+    end
+
+    def explicit_wrapper_grants(credential)
+      compatible = ConsumerRegistry.raw_wrappers_for(credential.credential_type).map(&:name)
+      Array(credential.allowed_tools) & compatible
     end
   end
 end
