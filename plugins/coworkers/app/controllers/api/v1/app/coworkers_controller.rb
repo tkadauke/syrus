@@ -359,7 +359,7 @@ module Api
 
         def schedule_json(task)
           journaling_overdue = task.system_key == Coworkers::SystemSchedules::JOURNALING &&
-            Coworkers::Prompts::Journaling.new.catch_up_due?(task:, now: Time.current)
+            Coworkers::Prompts::Journaling.new.overdue?(task:, now: Time.current)
           {
             id: task.id, name: task.name, prompt: task.prompt, kind: task.kind, state: task.state,
             system_key: task.system_key, last_journaled_on: task.last_journaled_on&.iso8601,
