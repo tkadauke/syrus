@@ -2036,8 +2036,10 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(chat.reload.chat_provider).to eq("claude")
-    expect(parse_body.dig("paths", "app_switch_provider_path")).to eq("/api/v1/app/chats/#{chat.id}/switch_provider")
-    expect(parse_body.dig("chat", "chat_provider_options")).to include(
+    expect(parse_body.dig("paths", "app_switch_provider_path")).to be_nil
+
+    get "/api/v1/app/bootstrap"
+    expect(parse_body.dig("chat_capabilities", "chat_provider_options")).to include(
       include("value" => "claude", "label" => "Claude", "configured" => true),
       include("value" => "codex", "label" => "Codex", "configured" => true)
     )
@@ -2654,19 +2656,14 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body.dig("whiteboard", "loaded")).to eq(false)
     expect(body.dig("whiteboard", "version")).to eq(0)
     expect(body.dig("whiteboard", "elements")).to eq([])
-    expect(body.dig("paths", "app_messages_path")).to eq("/api/v1/app/chats/#{chat.id}/messages")
-    expect(body.dig("paths", "app_message_path")).to eq("/api/v1/app/chats/#{chat.id}/message")
-    expect(body.dig("paths", "app_rename_path")).to eq("/api/v1/app/chats/#{chat.id}/rename")
-    expect(body.dig("paths", "app_clear_path")).to eq("/api/v1/app/chats/#{chat.id}/messages")
-    expect(body.dig("paths", "app_enqueue_message_path")).to eq("/api/v1/app/chats/#{chat.id}/queued_messages")
-    expect(body.dig("paths", "app_retry_turn_path")).to eq("/api/v1/app/chats/#{chat.id}/retry_turn")
-    expect(body.dig("paths", "app_rename_path")).to eq("/api/v1/app/chats/#{chat.id}/rename")
+    expect(body["paths"]).not_to include(
+      "app_messages_path", "app_message_path", "app_rename_path", "app_clear_path",
+      "app_enqueue_message_path", "app_retry_turn_path", "app_scratchpad_reorder_path",
+      "app_speech_to_text_batch_path", "app_speech_to_text_stream_path"
+    )
     expect(body.dig("paths", "app_attachments_path")).to be_nil
     expect(body.dig("paths", "app_context_path")).to be_nil
     expect(body.dig("paths", "app_whiteboard_path")).to eq("/api/v1/app/chats/#{chat.id}/whiteboard")
-    expect(body.dig("paths", "app_scratchpad_reorder_path")).to eq("/api/v1/app/chats/#{chat.id}/scratchpad_items/reorder")
-    expect(body.dig("paths", "app_speech_to_text_batch_path")).to eq("/api/v1/app/chats/#{chat.id}/speech_to_text")
-    expect(body.dig("paths", "app_speech_to_text_stream_path")).to eq("/api/v1/app/chats/#{chat.id}/speech_to_text/stream")
     expect(body["queued_messages"]).to eq([])
     expect(body["paths"].keys).not_to include("chat_messages_path", "chat_attachments_path", "chat_whiteboard_path")
 
@@ -8197,20 +8194,22 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     end
   end
 
-  it "exposes available_chat_models for claude sessions and an empty array for other providers" do
+  it "exposes available chat models through bootstrap instead of each chat payload" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository)
 
-    get "/api/v1/app/chats/#{chat.id}"
+    get "/api/v1/app/bootstrap"
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body.dig("chat", "available_chat_models")).to include(
+    expect(body.dig("chat_capabilities", "available_chat_models", "claude")).to include(
       include("value" => "claude-opus-4-7", "label" => "Claude Opus 4.7"),
       include("value" => "claude-sonnet-4-6", "label" => "Claude Sonnet 4.6"),
       include("value" => "claude-haiku-4-5-20251001", "label" => "Claude Haiku 4.5")
     )
-    expect(body.dig("chat", "chat_model")).to be_nil
+    get "/api/v1/app/chats/#{chat.id}"
+    expect(parse_body.dig("chat", "chat_model")).to be_nil
+    expect(parse_body.dig("chat", "available_chat_models")).to be_nil
   end
 
   it "returns empty available_chat_models when the effective provider is not claude" do
@@ -8221,7 +8220,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     get "/api/v1/app/chats/#{chat.id}"
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body.dig("chat", "available_chat_models")).to eq([])
+    expect(parse_body.dig("chat", "available_chat_models")).to be_nil
   end
 
   it "updates chat_model to a valid Claude model and returns it in the payload" do

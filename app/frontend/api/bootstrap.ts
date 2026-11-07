@@ -1,6 +1,6 @@
 import { getJson } from "./client"
 import type { ColorTheme } from "./themes"
-import type { ChatSpeechToTextCapability } from "./chats"
+import type { ChatModelOption, ChatProviderOption, ChatSpeechToTextCapability } from "./chats"
 
 export type SystemAlertAction =
   | {
@@ -45,6 +45,8 @@ export type BootstrapPayload = {
     speech_to_text?: ChatSpeechToTextCapability
     coding_mode_enabled?: boolean
     local_mode_enabled?: boolean
+    chat_provider_options?: ChatProviderOption[]
+    available_chat_models?: Record<string, ChatModelOption[]>
   }
   app: {
     revision: string
