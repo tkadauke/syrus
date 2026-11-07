@@ -1,12 +1,10 @@
 # Pitfalls
 
-Pitfalls capture recurring, non-obvious failure modes: recognizable symptoms,
-root cause, prevention, and the relevant enforcement or recovery path. The
-maintainer of the affected subsystem owns each entry. Keep one-off incident
-timelines in plans or historical evidence; promote only reusable lessons here.
+These pages capture repeatable symptoms, causes, and prevention. One-off
+incident evidence belongs in plans or operational records.
 
-Current detailed reference:
-
-- [Known gotchas](../../../.claude/reference/gotchas-and-key-files.md#things-that-bit-us-dont-repeat)
+- [Workspace and execution](workspace-and-execution.md)
+- [Queues, databases, and polling](queues-databases-and-polling.md)
+- [Documentation and plugin boundaries](documentation-and-plugin-boundaries.md)
 
 Return to the [engineering documentation index](../README.md).
