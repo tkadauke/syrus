@@ -18,7 +18,7 @@ RSpec.describe "App API chat whiteboards", type: :request do
       }.not_to change(Whiteboard::Board, :count)
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body).to eq("scene_json" => { "elements" => [], "appState" => {}, "files" => {} }, "version" => 0)
+      expect(parse_body).to eq("scene_json" => { "elements" => [], "appState" => {} }, "version" => 0)
     end
 
     it "returns the current whiteboard state" do
@@ -37,11 +37,29 @@ RSpec.describe "App API chat whiteboards", type: :request do
       expect(parse_body).to eq(
         "scene_json" => {
           "elements" => [ { "id" => "rect-1", "type" => "rectangle" } ],
-          "appState" => { "viewBackgroundColor" => "#ffffff" },
-          "files" => { "file-1" => { "id" => "file-1", "dataURL" => "data:image/png;base64,abc" } }
+          "appState" => { "viewBackgroundColor" => "#ffffff" }
         },
         "version" => 7
       )
+    end
+
+    it "returns only the version when requested and honors the version ETag" do
+      Whiteboard::Board.create!(chat_session: chat, version: 7)
+
+      get whiteboard_path(chat), params: { fields: "version" }, as: :json
+      etag = response.headers.fetch("ETag")
+      expect(parse_body).to eq("version" => 7)
+
+      get whiteboard_path(chat), params: { fields: "version" }, headers: { "If-None-Match" => etag }, as: :json
+      expect(response).to have_http_status(:not_modified)
+    end
+
+    it "loads files separately from the scene" do
+      Whiteboard::Board.create!(chat_session: chat, scene_json: { "elements" => [], "appState" => {}, "files" => { "image" => { "dataURL" => "data:image/png;base64,abc" } } })
+
+      get "#{whiteboard_path(chat)}/files", as: :json
+
+      expect(parse_body).to eq("files" => { "image" => { "dataURL" => "data:image/png;base64,abc" } })
     end
 
     it "blocks reads for chats owned by another user" do
@@ -83,7 +101,7 @@ RSpec.describe "App API chat whiteboards", type: :request do
 
       whiteboard = Whiteboard::Board.for(chat.reload)
       expect(response).to have_http_status(:ok)
-      expect(parse_body).to eq("scene_json" => { "elements" => elements, "appState" => app_state, "files" => files }, "version" => 1)
+      expect(parse_body).to eq("version" => 1)
       expect(whiteboard.scene_json).to eq("elements" => elements, "appState" => app_state, "files" => files)
       expect(whiteboard.version).to eq(1)
       expect(whiteboard.last_edited_at).to be_present

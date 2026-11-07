@@ -2,11 +2,18 @@ module Api
   module V1
     module App
       class WhiteboardSnapshotsController < BaseController
+        PER_PAGE = 30
+
         def index
-          snapshots = Whiteboard::Snapshot.for(find_chat_session)
+          scope = Whiteboard::Snapshot.for(find_chat_session)
+          page = [ params[:page].to_i, 1 ].max
+          total = scope.count
+          snapshots = scope.offset((page - 1) * PER_PAGE).limit(PER_PAGE)
 
           render json: {
-            whiteboard_snapshots: snapshots.map { |snapshot| snapshot_payload(snapshot) }
+            whiteboard_snapshots: snapshots.map { |snapshot| snapshot_payload(snapshot) },
+            pagination: { page: page, per_page: PER_PAGE, total: total, total_pages: (total.to_f / PER_PAGE).ceil,
+                          has_next_page: page * PER_PAGE < total, has_previous_page: page > 1 }
           }
         end
 
@@ -25,7 +32,7 @@ module Api
             name: params[:name].presence
           )
 
-          render json: snapshot_payload(snapshot, include_scene: true), status: :created
+          render json: snapshot_payload(snapshot), status: :created
         rescue ArgumentError => e
           render_error("bad_request", e.message, status: :bad_request)
         rescue ActiveRecord::RecordInvalid => e
