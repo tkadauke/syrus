@@ -83,6 +83,9 @@ The endpoint returns the newest bounded page of log chunks plus pagination
 metadata, so opening or polling the sidebar never serializes the full Run
 transcript or either diff blob. The sidebar indicates when older rows remain
 and provides Older/Newer controls to page through the complete transcript.
+While a Run is active, page one polls with `after_sequence` and merges only new
+rows. Diff artifacts are fetched only when expanded; responses preview the
+first 2 MB and let the operator explicitly load the full diff when needed.
 Clicking a
 `deterministic_check` card shows only its captured raw command output/
 command line (`detail.output`, `detail.command`, or a `format`/`generate`
