@@ -47,8 +47,7 @@ function buildPayload(items: DashboardWorkflowItem[]): DashboardPayload {
       kanban_lanes: [],
       ownership_scope: "team",
       owner_user_id: null,
-      owner_id: null,
-      raw: {}
+      owner_id: null
     },
     filter: null,
     controls: {

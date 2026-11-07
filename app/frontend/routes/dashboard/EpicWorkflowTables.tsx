@@ -26,7 +26,6 @@ import { NoticeToast } from "../../components/NoticeToast"
 import { StatusPill } from "../../components/StatusPill"
 import { bulkDashboardEpics, type DashboardBulkEpicAction, type DashboardEpicItem, type DashboardWorkflowItem } from "../../api/dashboard"
 import { errorMessage } from "../../lib/errorMessage"
-import { patchDashboardRowsForBulk } from "../../lib/appEvents"
 import { WorkflowReference } from "../../components/WorkflowReference"
 
 // Dashboard epic + workflow tables extracted from Dashboard.tsx: EpicsTable and
@@ -142,7 +141,6 @@ function BulkEpicActions({ selectedIds }: { selectedIds: number[] }) {
     mutationFn: (bulkAction: DashboardBulkEpicAction) => bulkDashboardEpics({ epic_ids: selectedIds, bulk_action: bulkAction }),
     onSuccess: (payload) => {
       setNotice(payload.message)
-      patchDashboardRowsForBulk(queryClient, "epic", payload.affected_epic_ids)
       void queryClient.invalidateQueries({ queryKey: ["dashboard", "chrome"] })
     }
   })

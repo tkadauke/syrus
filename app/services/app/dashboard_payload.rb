@@ -79,6 +79,7 @@ module App
         ui_panels: PerformanceLogging.phase("dashboard_chrome.ui_panels", subject: subject) { ui_panels_json },
         smart_folders: PerformanceLogging.phase("dashboard_chrome.smart_folders", subject: subject) { smart_folders_json },
         active_smart_folder_id: smart_folder_resolution.active_smart_folder_id,
+        active_smart_folder_filter: active_smart_folder&.filter,
         setup: PerformanceLogging.phase("dashboard_chrome.setup", subject: subject) { ::App::SetupStatus.call(user: user) },
         paths: paths_json
       }

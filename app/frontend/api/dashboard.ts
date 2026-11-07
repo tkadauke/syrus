@@ -312,7 +312,6 @@ export type DashboardSmartFolder = {
   count_capped?: boolean
   blocked_count?: number | null
   active: boolean
-  filter?: Record<string, unknown>
   attention_preset: string | null
   path: string
 }
@@ -366,10 +365,9 @@ export type DashboardPayload = {
     ownership_scope: string
     owner_user_id: number | null
     owner_id: number | null
-    /** Legacy fixture compatibility; dashboard responses no longer include stored preference internals. */
-    raw?: Record<string, unknown>
   }
   filter?: Record<string, unknown> | null
+  active_smart_folder_filter?: Record<string, unknown> | null
   controls: {
     views: string[]
     ownership_scopes: Array<{ value: string; label: string }>
@@ -622,6 +620,7 @@ export function mergeDashboardPayload(
     ui_panels: chrome.ui_panels,
     smart_folders: chrome.smart_folders,
     active_smart_folder_id: chrome.active_smart_folder_id,
+    active_smart_folder_filter: chrome.active_smart_folder_filter,
     setup: chrome.setup,
     rows_current_for_search: options.rowsCurrentForSearch ?? true,
     paths: chrome.paths

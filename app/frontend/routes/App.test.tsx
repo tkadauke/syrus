@@ -1593,7 +1593,7 @@ describe("App", () => {
         return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       const url = new URL(path, "http://example.test")
-      if (url.pathname === "/api/v1/app/dashboard") {
+      if (dashboardPayloadPath(url)) {
         return Promise.resolve(
           dashboardResponse(
             dashboardPayload({
@@ -3440,8 +3440,7 @@ describe("App", () => {
                 preferences: {
                   sort: { column: sortColumn, direction: sortDirection },
                   visible_columns: ["checkbox", "issue", "state", "repository", "owner", "latest", "workflows_count", "started"],
-                  kanban_lanes: ["queued", "running", "succeeded"],
-                  raw: {}
+                  kanban_lanes: ["queued", "running", "succeeded"]
                 },
                 items: [
                   dashboardJobItem({
@@ -4120,8 +4119,7 @@ describe("App", () => {
         preferences: {
           sort: { column: "created_at", direction: "desc" },
           visible_columns: ["issue", "state", "latest"],
-          kanban_lanes: ["queued", "running", "succeeded"],
-          raw: {}
+          kanban_lanes: ["queued", "running", "succeeded"]
         },
         items: [
           dashboardJobItem({
@@ -4158,8 +4156,7 @@ describe("App", () => {
         preferences: {
           sort: { column: "created_at", direction: "desc" },
           visible_columns: ["issue", "state", "latest"],
-          kanban_lanes: ["queued", "running", "succeeded"],
-          raw: {}
+          kanban_lanes: ["queued", "running", "succeeded"]
         },
         items: [
           dashboardJobItem({
@@ -4201,8 +4198,7 @@ describe("App", () => {
                 preferences: {
                   sort: { column: "created_at", direction: "desc" },
                   visible_columns: ["checkbox", "issue", "state", "latest"],
-                  kanban_lanes: ["queued", "running", "succeeded"],
-                  raw: {}
+                  kanban_lanes: ["queued", "running", "succeeded"]
                 },
                 items: [
                   dashboardJobItem({
@@ -4528,8 +4524,7 @@ describe("App", () => {
                   kanban_lanes: ["queued", "running", "succeeded"],
                   ownership_scope: "team",
                   owner_user_id: 1,
-                  owner_id: 1,
-                  raw: {}
+                  owner_id: 1
                 },
                 items: [
                   dashboardJobItem({ title: "Mine", owner_badge: null }),
@@ -4681,8 +4676,7 @@ describe("App", () => {
         preferences: {
           sort: { column: "updated_at", direction: "desc" },
           visible_columns: ["epic", "state", "repository", "updated"],
-          kanban_lanes: ["backlog", "ready", "in_progress", "done"],
-          raw: {}
+          kanban_lanes: ["backlog", "ready", "in_progress", "done"]
         },
         controls: {
           ...dashboardPayload().controls,
@@ -4730,8 +4724,7 @@ describe("App", () => {
         preferences: {
           sort: { column: "started_at", direction: "desc" },
           visible_columns: ["workflow", "job", "trigger", "state", "started", "finished", "agent"],
-          kanban_lanes: ["queued", "running", "done"],
-          raw: {}
+          kanban_lanes: ["queued", "running", "done"]
         },
         controls: {
           ...dashboardPayload().controls,
@@ -4793,8 +4786,7 @@ describe("App", () => {
         preferences: {
           sort: { column: "started_at", direction: "desc" },
           visible_columns: ["workflow", "job", "state", "started"],
-          kanban_lanes: ["queued", "running", "done"],
-          raw: {}
+          kanban_lanes: ["queued", "running", "done"]
         },
         controls: {
           ...dashboardPayload().controls,
@@ -5441,7 +5433,7 @@ describe("App", () => {
         return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       const url = new URL(path, "http://example.test")
-      if (url.pathname === "/api/v1/app/dashboard") {
+      if (dashboardPayloadPath(url)) {
         return Promise.resolve(
           dashboardResponse(
             dashboardPayload({
@@ -5611,7 +5603,7 @@ describe("App", () => {
         )
       }
       const url = new URL(path, "http://example.test")
-      if (url.pathname === "/api/v1/app/dashboard") {
+      if (dashboardPayloadPath(url)) {
         const activeSmartFolder = url.searchParams.get("smart_folder_id") === "7" || url.searchParams.get("section") === "chrome"
         return Promise.resolve(
           dashboardResponse(
@@ -5682,7 +5674,7 @@ describe("App", () => {
         return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       const url = new URL(path, "http://example.test")
-      if (url.pathname === "/api/v1/app/dashboard") {
+      if (dashboardPayloadPath(url)) {
         const hasSmartFolder = url.searchParams.get("smart_folder_id") === "7"
         return Promise.resolve(
           dashboardResponse(
@@ -5750,7 +5742,7 @@ describe("App", () => {
         return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       const url = new URL(path, "http://example.test")
-      if (url.pathname === "/api/v1/app/dashboard") {
+      if (dashboardPayloadPath(url)) {
         const hasSmartFolder = url.searchParams.get("smart_folder_id") === "7"
         return Promise.resolve(
           dashboardResponse(
@@ -5822,7 +5814,10 @@ describe("App", () => {
       }
 
       const url = new URL(path, "http://example.test")
-      if (url.pathname === "/api/v1/app/dashboard" && (url.searchParams.get("smart_folder_id") === "7" || url.searchParams.get("section") === "chrome")) {
+      if (
+        dashboardPayloadPath(url) &&
+        (url.pathname.endsWith("/controls") || url.searchParams.get("smart_folder_id") === "7" || url.searchParams.get("section") === "chrome")
+      ) {
         if (url.searchParams.get("section") !== "chrome") dashboardRequests.push(path)
         const q = url.searchParams.get("q")
         const filter = q ? decodeFilterQueryParam(q) : storedFilter
@@ -5920,7 +5915,7 @@ describe("App", () => {
         return Promise.resolve(new Response(JSON.stringify({ message: "Recorded." }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       const url = new URL(path, "http://example.test")
-      if (url.pathname === "/api/v1/app/dashboard") {
+      if (dashboardPayloadPath(url)) {
         if (url.searchParams.get("section") !== "chrome") dashboardRequests.push(path)
         const hasSmartFolder = url.searchParams.get("smart_folder_id") === "1"
         return Promise.resolve(
@@ -6042,7 +6037,10 @@ describe("App", () => {
         )
       }
       const url = new URL(path, "http://example.test")
-      if (url.pathname === "/api/v1/app/dashboard" && (url.searchParams.get("smart_folder_id") === "7" || url.searchParams.get("section") === "chrome")) {
+      if (
+        dashboardPayloadPath(url) &&
+        (url.pathname.endsWith("/controls") || url.searchParams.get("smart_folder_id") === "7" || url.searchParams.get("section") === "chrome")
+      ) {
         const hasSmartFolder = url.searchParams.get("smart_folder_id") === "7"
         return Promise.resolve(
           dashboardResponse(
@@ -6304,8 +6302,7 @@ describe("App", () => {
         preferences: {
           sort: { column: "updated_at", direction: "desc" },
           visible_columns: ["epic", "state", "repository", "updated"],
-          kanban_lanes: ["in_progress"],
-          raw: {}
+          kanban_lanes: ["in_progress"]
         },
         controls: {
           ...dashboardPayload().controls,
@@ -6350,8 +6347,7 @@ describe("App", () => {
         preferences: {
           sort: { column: "updated_at", direction: "desc" },
           visible_columns: ["epic", "state", "repository", "updated"],
-          kanban_lanes: ["in_progress"],
-          raw: {}
+          kanban_lanes: ["in_progress"]
         },
         controls: {
           ...dashboardPayload().controls,
@@ -6473,8 +6469,7 @@ describe("App", () => {
               preferences: {
                 sort: { column: "updated_at", direction: "desc" },
                 visible_columns: ["epic", "state", "repository", "updated"],
-                kanban_lanes: ["backlog", "ready", "in_progress"],
-                raw: {}
+                kanban_lanes: ["backlog", "ready", "in_progress"]
               },
               controls: {
                 ...dashboardPayload().controls,
@@ -6553,8 +6548,7 @@ describe("App", () => {
               preferences: {
                 sort: { column: "updated_at", direction: "desc" },
                 visible_columns: ["epic", "state", "repository", "updated"],
-                kanban_lanes: ["in_progress", "done"],
-                raw: {}
+                kanban_lanes: ["in_progress", "done"]
               },
               controls: {
                 ...dashboardPayload().controls,
@@ -6638,8 +6632,7 @@ describe("App", () => {
               preferences: {
                 sort: { column: "updated_at", direction: "desc" },
                 visible_columns: ["epic", "state", "repository", "updated"],
-                kanban_lanes: ["ready", "in_progress"],
-                raw: {}
+                kanban_lanes: ["ready", "in_progress"]
               },
               controls: {
                 ...dashboardPayload().controls,
@@ -6747,8 +6740,7 @@ describe("App", () => {
               preferences: {
                 sort: { column: "updated_at", direction: "desc" },
                 visible_columns: ["epic", "state", "repository", "updated"],
-                kanban_lanes: ["ready", "in_progress"],
-                raw: {}
+                kanban_lanes: ["ready", "in_progress"]
               },
               controls: {
                 ...dashboardPayload().controls,
@@ -6808,8 +6800,7 @@ describe("App", () => {
       preferences: {
         sort: { column: "updated_at", direction: "desc" },
         visible_columns: ["epic", "state", "repository", "updated"],
-        kanban_lanes: ["ready"],
-        raw: {}
+        kanban_lanes: ["ready"]
       },
       controls: {
         ...dashboardPayload().controls,
@@ -18365,8 +18356,7 @@ function dashboardPayload(overrides: Record<string, unknown> = {}) {
       kanban_lanes: ["queued", "running", "succeeded"],
       ownership_scope: "team",
       owner_user_id: null,
-      owner_id: null,
-      raw: {}
+      owner_id: null
     },
     controls: {
       views: ["list", "kanban"],
@@ -18509,15 +18499,30 @@ function dashboardPayload(overrides: Record<string, unknown> = {}) {
     }
   }
 
-  return {
+  const merged = {
     ...payload,
     ...overrides
   }
+  const activeFolder = (merged.smart_folders as Array<{ id: number; filter?: Record<string, unknown> }>).find(
+    (folder) => folder.id === merged.active_smart_folder_id
+  )
+
+  return {
+    ...merged,
+    active_smart_folder_filter: activeFolder?.filter ?? null
+  }
+}
+
+function dashboardPayloadPath(url: URL) {
+  return url.pathname === "/api/v1/app/dashboard" || url.pathname === "/api/v1/app/dashboard/controls"
 }
 
 function dashboardPathMatches(input: unknown, expectedPath: string) {
   const actual = new URL(String(input), "http://example.test")
   const expected = new URL(expectedPath, "http://example.test")
+  if (actual.pathname === "/api/v1/app/dashboard/controls" && expected.pathname === "/api/v1/app/dashboard") {
+    return actual.searchParams.get("subject") === expected.searchParams.get("subject")
+  }
   const actualSection = actual.searchParams.get("section")
   actual.searchParams.delete("section")
   if (actualSection === "chrome" && !actual.searchParams.has("smart_folder_id")) {
@@ -18535,7 +18540,7 @@ function dashboardPathStartsWith(input: unknown, expectedPrefix: string) {
 }
 
 function expectDashboardFetch(fetchSpy: { mock: { calls: Array<[unknown, unknown?]> } }, expectedPath: string, expectedOptions?: unknown) {
-  const matchingCall = fetchSpy.mock.calls.find(([input]) => dashboardPathMatches(input, expectedPath))
+  const matchingCall = fetchSpy.mock.calls.find(([input]) => !String(input).includes("/dashboard/controls") && dashboardPathMatches(input, expectedPath))
   expect(matchingCall).toBeTruthy()
   if (expectedOptions) expect(matchingCall?.[1]).toEqual(expectedOptions)
 }
@@ -18543,6 +18548,10 @@ function expectDashboardFetch(fetchSpy: { mock: { calls: Array<[unknown, unknown
 function dashboardSectionPayload(payload: ReturnType<typeof dashboardPayload>, input: unknown) {
   const url = new URL(String(input), "http://example.test")
   const section = url.searchParams.get("section")
+
+  if (url.pathname === "/api/v1/app/dashboard/controls") {
+    return { subject: payload.subject, controls: payload.controls }
+  }
 
   if (section === "chrome") {
     const { total: _total, total_pages: _totalPages, items: _items, lanes: _lanes, kanban_limit: _kanbanLimit, ...chrome } = payload
