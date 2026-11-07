@@ -1,7 +1,7 @@
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { Button } from "../../components/Button"
 import { PanelMessage } from "../../components/PanelMessage"
-import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query"
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query"
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, MutableRefObject } from "react"
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link } from "react-router-dom"
@@ -1051,9 +1051,11 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
   const [snapshotError, setSnapshotError] = useState<string | null>(null)
   const [selectedArtifactType, setSelectedArtifactType] = useState<string | null>(null)
   const queryClient = useQueryClient()
-  const snapshots = useQuery({
+  const snapshots = useInfiniteQuery({
     queryKey: ["whiteboard_snapshots", String(payload.chat.id)],
-    queryFn: () => fetchWhiteboardSnapshots(payload.chat.id),
+    queryFn: ({ pageParam }) => fetchWhiteboardSnapshots(payload.chat.id, pageParam),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => (lastPage.pagination?.has_next_page ? lastPage.pagination.page + 1 : undefined),
     enabled: payload.chat.id != null
   })
   const media = useQuery({
@@ -1063,7 +1065,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
   })
   const chatBusy = payload.agent_busy
   const snapshotLoading = loadingSnapshotId != null
-  const snapshotItems = snapshots.data?.whiteboard_snapshots || []
+  const snapshotItems = snapshots.data?.pages.flatMap((page) => page.whiteboard_snapshots) || []
   const artifactItems = media.data?.typed_artifacts || []
   // Sourced from the chat's full history via GET /media (which also
   // materializes any not-yet-materialized inline attachments into
@@ -1249,6 +1251,11 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
               </article>
             ))}
           </div>
+          {snapshots.hasNextPage ? (
+            <button className={secondaryButton()} disabled={snapshots.isFetchingNextPage} onClick={() => void snapshots.fetchNextPage()} type="button">
+              {snapshots.isFetchingNextPage ? t("common:loading") : t("snapshot_load_more")}
+            </button>
+          ) : null}
         </section>
       ) : null}
 

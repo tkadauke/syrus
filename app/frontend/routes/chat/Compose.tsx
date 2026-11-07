@@ -82,6 +82,7 @@ import {
   type ShareChatPayload
 } from "../../api/chats"
 import { fetchJobDetail, postJobCommand } from "../../api/jobs"
+import { ApiError } from "../../api/client"
 import { Button } from "../../components/Button"
 import { Avatar } from "../../components/Avatar"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -646,13 +647,19 @@ export function Compose({
           expected_version: result.payload.version
         })
       }
+      if (result.status === 409) {
+        throw new ApiError(t("canvas_changed_before_clear"), { status: 409 })
+      }
       queryClient.setQueryData(queryKey, (currentPayload: ChatPayload | undefined) =>
         currentPayload
           ? {
               ...currentPayload,
               whiteboard: {
                 version: result.payload.version,
-                elements: [], appState: {}, files: {}, loaded: true
+                elements: [],
+                appState: {},
+                files: {},
+                loaded: true
               }
             }
           : currentPayload

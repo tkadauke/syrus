@@ -39,6 +39,7 @@ export function mediaTabVisible(payload: ChatPayload): boolean {
     (payload.chat.has_chat_images ?? false) ||
     (payload.video_walkthroughs?.length ?? 0) > 0 ||
     (payload.chat.whiteboard_snapshot_count ?? 0) > 0 ||
+    (payload.chat.has_whiteboard_snapshots ?? false) ||
     (payload.chat.typed_artifact_count ?? 0) > 0
   )
 }

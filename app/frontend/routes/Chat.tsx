@@ -1696,7 +1696,7 @@ function mediaItemCount(payload: ChatPayload) {
   return (
     (payload.chat.chat_image_count ?? (payload.chat.has_chat_images ? 1 : 0)) +
     (payload.video_walkthroughs?.length ?? 0) +
-    (payload.chat.whiteboard_snapshot_count ?? 0) +
+    (payload.chat.whiteboard_snapshot_count ?? (payload.chat.has_whiteboard_snapshots ? 1 : 0)) +
     (payload.chat.typed_artifact_count ?? 0)
   )
 }

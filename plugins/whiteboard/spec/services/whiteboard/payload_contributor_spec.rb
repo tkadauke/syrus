@@ -41,8 +41,8 @@ RSpec.describe Whiteboard::PayloadContributor do
 
     expect(described_class.chat_payload_paths(chat_session: chat))
       .to eq(app_whiteboard_path: "/api/v1/app/chats/#{chat.id}/whiteboard")
-    expect(described_class.chat_payload_counts(chat_session: chat)).to eq({})
+    expect(described_class.chat_payload_counts(chat_session: chat)).to eq(has_whiteboard_snapshots: true)
     expect(described_class.chat_payload_counts(chat_session: chat, context: { params: { include_whiteboard: "1" } }))
-      .to eq(whiteboard_snapshot_count: 1)
+      .to eq(has_whiteboard_snapshots: true, whiteboard_snapshot_count: 1)
   end
 end

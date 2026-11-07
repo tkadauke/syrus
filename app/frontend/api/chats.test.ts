@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "../testSupport"
-import { createChat, createEmptyChat, fetchChats, searchChatJobs } from "./chats"
+import { createChat, createEmptyChat, fetchChatWhiteboard, fetchChats, patchChatWhiteboard, searchChatJobs } from "./chats"
 
 describe("chat API", () => {
   afterEach(() => {
@@ -104,6 +104,35 @@ describe("chat API", () => {
     await searchChatJobs("running job")
 
     expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/jobs?q=running+job&include_active_work=true&limit=10", expect.anything())
+  })
+
+  it("loads a whiteboard scene and its files from separate endpoints", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path.endsWith("/files?workspace=canvas")) return Promise.resolve(jsonResponse({ files: { image: { id: "image" } } }))
+      return Promise.resolve(jsonResponse({ version: 4, scene_json: { elements: [{ id: "box" }], appState: {} } }))
+    })
+
+    await expect(fetchChatWhiteboard("/api/v1/app/chats/1/whiteboard?workspace=canvas")).resolves.toEqual({
+      version: 4,
+      scene_json: { elements: [{ id: "box" }], appState: {}, files: { image: { id: "image" } } }
+    })
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/chats/1/whiteboard/files?workspace=canvas", expect.anything())
+  })
+
+  it("returns the full conflict payload without refetching the whiteboard", async () => {
+    const conflict = { version: 5, scene_json: { elements: [{ id: "remote" }], appState: {}, files: {} } }
+    const fetchMock = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(conflict, 409))
+
+    await expect(
+      patchChatWhiteboard("/api/v1/app/chats/1/whiteboard", {
+        elements: [],
+        appState: {},
+        files: {},
+        expected_version: 4
+      })
+    ).resolves.toEqual({ status: 409, payload: conflict })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })
 

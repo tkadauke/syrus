@@ -4,7 +4,7 @@ import type { ErrorInfo, ReactNode } from "react"
 import { Component, useCallback, useEffect, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import "@excalidraw/excalidraw/index.css"
-import { fetchChatWhiteboard, patchChatWhiteboard, type ChatPayload, type ChatWhiteboardElement, type ChatWhiteboardScene } from "@app/api/chats"
+import { fetchChatWhiteboard, patchChatWhiteboard, type ChatPayload, type ChatWhiteboardElement, type ChatWhiteboardPayload, type ChatWhiteboardScene } from "@app/api/chats"
 import { errorMessage } from "@app/lib/errorMessage"
 import { errorAsError } from "@app/routes/chat/utils"
 import { WHITEBOARD_SAVE_DEBOUNCE_MS } from "@app/routes/chat/constants"
@@ -155,8 +155,7 @@ function WhiteboardPanel({ payload }: { payload: ChatPayload }) {
     })
   }, [])
 
-  const recoverConflict = useCallback(async () => {
-    const current = await fetchChatWhiteboard(pathRef.current)
+  const recoverConflict = useCallback((current: ChatWhiteboardPayload) => {
     const currentScene = normalizeWhiteboardScene(current.scene_json)
     const queuedScene = pendingSceneRef.current
     clearPendingSave()
@@ -185,7 +184,7 @@ function WhiteboardPanel({ payload }: { payload: ChatPayload }) {
         expected_version: versionRef.current
       })
       if (result.status === 409) {
-        await recoverConflict()
+        recoverConflict(result.payload)
         return
       }
 

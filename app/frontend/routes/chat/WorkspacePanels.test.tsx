@@ -1057,6 +1057,24 @@ describe("MediaGallery busy states", () => {
 
     expect(await screen.findByText("No media shared yet.")).toBeInTheDocument()
   })
+
+  it("loads later snapshot pages", async () => {
+    vi.mocked(fetchWhiteboardSnapshots)
+      .mockResolvedValueOnce({
+        whiteboard_snapshots: [{ id: 1, name: "Newest", snapshot_kind: "manual", element_count: 1, created_at: "2026-01-02T00:00:00Z" }],
+        pagination: { page: 1, per_page: 30, total: 31, total_pages: 2, has_next_page: true, has_previous_page: false }
+      })
+      .mockResolvedValueOnce({
+        whiteboard_snapshots: [{ id: 2, name: "Oldest", snapshot_kind: "manual", element_count: 1, created_at: "2026-01-01T00:00:00Z" }],
+        pagination: { page: 2, per_page: 30, total: 31, total_pages: 2, has_next_page: false, has_previous_page: true }
+      })
+
+    renderWorkspacePanel(makePayload(), { activeTab: "media" })
+    fireEvent.click(await screen.findByRole("button", { name: "Load more snapshots" }))
+
+    expect(await screen.findByText("Oldest")).toBeInTheDocument()
+    expect(fetchWhiteboardSnapshots).toHaveBeenLastCalledWith(1, 2)
+  })
 })
 
 describe("MediaGallery artifacts", () => {

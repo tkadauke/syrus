@@ -65,6 +65,7 @@ export type ChatRecord = {
   linked_direct_job_count?: number
   scratchpad_items_count?: number
   whiteboard_snapshot_count?: number
+  has_whiteboard_snapshots?: boolean
   typed_artifact_count?: number
   chat_image_count?: number
   has_chat_images?: boolean
@@ -1309,8 +1310,10 @@ export function fetchChatWhiteboardVersion(path: string) {
   return getJson<ChatWhiteboardVersionPayload>(`${path}${separator}fields=version`)
 }
 
-export function fetchWhiteboardSnapshots(chatSessionId: string | number) {
-  return getJson<WhiteboardSnapshotsPayload>(`/api/v1/app/chats/${encodeURIComponent(String(chatSessionId))}/whiteboard_snapshots`)
+export function fetchWhiteboardSnapshots(chatSessionId: string | number, page = 1) {
+  return getJson<WhiteboardSnapshotsPayload>(
+    `/api/v1/app/chats/${encodeURIComponent(String(chatSessionId))}/whiteboard_snapshots?page=${encodeURIComponent(String(page))}`
+  )
 }
 
 export function fetchWhiteboardSnapshot(chatSessionId: string | number, snapshotId: string | number) {

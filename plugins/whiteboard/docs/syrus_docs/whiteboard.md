@@ -133,10 +133,11 @@ version double-logged this and was simplified.
 - **Chat payload** (`Whiteboard::PayloadContributor`) — adds a top-level
   `whiteboard: { version, elements, appState, files, loaded }` key only when
   the request explicitly asks for it (`include_whiteboard` param). The same
-  opt-in controls the snapshot count, avoiding whiteboard queries during
-  ordinary chat polling. The scene endpoint uses version ETags, supports a
-  version-only field selection, and loads embedded files through its separate
-  `/files` endpoint. The MySQL scope uses an explicit `FORCE INDEX` hint on
+  opt-in controls the exact snapshot count. Ordinary chat polling uses only a
+  cheap existence check so snapshot-only Media tabs remain discoverable. The
+  scene endpoint uses version ETags, supports a version-only field selection,
+  and loads embedded files through its separate `/files` endpoint. The MySQL
+  scope uses an explicit `FORCE INDEX` hint on
   `chat_session_id` — MySQL picks a worse plan without it on chats with many
   rows.
 - **Chat media source** (`Whiteboard::MediaSource`) — registers the

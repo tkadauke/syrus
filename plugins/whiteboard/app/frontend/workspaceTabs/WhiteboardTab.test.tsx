@@ -156,4 +156,18 @@ describe("WhiteboardTab bound arrow labels", () => {
     expect(resizedArrow.boundElements).toEqual([{ id: "label-1", type: "text" }])
     expect(movedLabel.containerId).toBe("arrow-1")
   })
+
+  it("applies the scene returned by a save conflict without refetching", async () => {
+    const remote = { id: "remote", type: "rectangle", version: 2 }
+    apiMock.patchChatWhiteboard.mockResolvedValueOnce({
+      status: 409,
+      payload: { version: 3, scene_json: { elements: [remote], appState: {}, files: {} } }
+    })
+    renderTab(payload(1, []))
+    await screen.findByTestId("excalidraw-canvas")
+
+    act(() => excalidrawMock.onChange?.([{ id: "local", type: "rectangle", version: 1 }], {}, {}))
+
+    await waitFor(() => expect(excalidrawMock.updateScene).toHaveBeenCalledWith({ elements: [remote], appState: {} }), { timeout: 2000 })
+  })
 })
