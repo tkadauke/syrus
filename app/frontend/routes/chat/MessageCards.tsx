@@ -1402,6 +1402,7 @@ export const ToolGroup = memo(function ToolGroup(props: ToolGroupProps) {
 
 
 
+
 function LazyToolContent({ path }: { path: string }) {
   const { t } = useT("chat")
   const [enabled, setEnabled] = useState(false)
