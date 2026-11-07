@@ -71,7 +71,6 @@ function payload(
   return {
     repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", insights_path: "/repositories/1/plugin/insights", can_write: canWrite },
     tabs: [],
-    counts,
     suggestions,
     meta,
     filter: { and: [] },
