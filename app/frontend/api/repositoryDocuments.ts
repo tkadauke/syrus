@@ -25,7 +25,7 @@ export type RepositoryDocumentsPayload = {
   can_write: boolean
   tabs: RepositoryTab[]
   documents: RepositoryDocument[]
-  accepted_file_content_types: string[]
+  pagination: { page: number; per_page: number; total: number; total_pages: number }
   message?: string
 }
 
@@ -36,8 +36,13 @@ export type RepositoryDocumentInput = {
   file: File | null
 }
 
-export function fetchRepositoryDocuments(repositoryId: string) {
-  return getJson<RepositoryDocumentsPayload>(`/api/v1/app/repositories/${repositoryId}/documents`)
+export const REPOSITORY_DOCUMENT_ACCEPTED_FILE_CONTENT_TYPES = [
+  "text/plain", "text/markdown", "text/x-markdown", "text/html", "text/css", "text/javascript", "application/pdf",
+  "image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml"
+]
+
+export function fetchRepositoryDocuments(repositoryId: string, page = 1) {
+  return getJson<RepositoryDocumentsPayload>(`/api/v1/app/repositories/${repositoryId}/documents?page=${page}`)
 }
 
 export function createRepositoryDocument(repositoryId: number, values: RepositoryDocumentInput) {
@@ -51,9 +56,9 @@ export function createRepositoryDocument(repositoryId: number, values: Repositor
     formData.append("repository_document[file]", values.file)
   }
 
-  return postForm<RepositoryDocumentsPayload>(`/api/v1/app/repositories/${repositoryId}/documents`, formData)
+  return postForm<{ document: RepositoryDocument; message: string }>(`/api/v1/app/repositories/${repositoryId}/documents`, formData)
 }
 
 export function deleteRepositoryDocument(id: number) {
-  return deleteJson<RepositoryDocumentsPayload>(`/api/v1/app/repository_documents/${id}`)
+  return deleteJson<{ id: number; message: string }>(`/api/v1/app/repository_documents/${id}`)
 }

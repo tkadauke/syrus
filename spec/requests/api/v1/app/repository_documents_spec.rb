@@ -48,7 +48,7 @@ RSpec.describe "API: /api/v1/app/repository_documents", type: :request do
         "uploaded_by" => user.display_name
       )
     )
-    expect(body["accepted_file_content_types"]).to include("application/pdf")
+    expect(body["pagination"]).to include("page" => 1, "total" => 1)
   end
 
   it "creates a file document" do
@@ -70,7 +70,7 @@ RSpec.describe "API: /api/v1/app/repository_documents", type: :request do
     expect(document.title).to eq("API notes")
     expect(document.file).to be_attached
     expect(parse_body["message"]).to eq("Document added.")
-    expect(parse_body["documents"].first).to include(
+    expect(parse_body["document"]).to include(
       "filename" => "notes.md",
       "file_path" => "/api/v1/app/repository_documents/#{document.id}/file"
     )
@@ -143,8 +143,8 @@ RSpec.describe "API: /api/v1/app/repository_documents", type: :request do
 
     expect(response).to have_http_status(:created)
     expect(repository.repository_documents.last.google_docs_url).to eq("https://docs.google.com/document/d/design/edit")
-    expect(parse_body.dig("documents", 0, "title")).to eq("Design brief")
-    expect(parse_body.dig("documents", 0, "file_path")).to be_nil
+    expect(parse_body.dig("document", "title")).to eq("Design brief")
+    expect(parse_body.dig("document", "file_path")).to be_nil
   end
 
   it "returns validation errors" do

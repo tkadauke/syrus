@@ -22,9 +22,9 @@ export function fetchRepositoryFinalApprovers(repositoryId: number) {
 }
 
 export function createRepositoryFinalApprover(repositoryId: number, email: string) {
-  return postJson<RepositoryFinalApproversPayload>(`/api/v1/app/repositories/${repositoryId}/final_approvers`, { email })
+  return postJson<{ final_approver: RepositoryFinalApprover; message: string }>(`/api/v1/app/repositories/${repositoryId}/final_approvers`, { email })
 }
 
 export function deleteRepositoryFinalApprover(repositoryId: number, finalApproverId: number) {
-  return deleteJson<RepositoryFinalApproversPayload>(`/api/v1/app/repositories/${repositoryId}/final_approvers/${finalApproverId}`)
+  return deleteJson<void>(`/api/v1/app/repositories/${repositoryId}/final_approvers/${finalApproverId}`)
 }
