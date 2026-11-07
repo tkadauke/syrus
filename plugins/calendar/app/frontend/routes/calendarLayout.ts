@@ -5,6 +5,12 @@ export const DAY_HEIGHT = HOUR_HEIGHT * 24
 export const MINIMUM_VISIBLE_MINUTES = 15
 export const FALLBACK_DURATION_SECONDS = 30 * 60
 
+export function addCalendarDays(input: Date, days: number) {
+  const date = new Date(input)
+  date.setDate(date.getDate() + days)
+  return date
+}
+
 export type DurationResolution = {
   seconds: number
   provenance: "actual" | "planned" | "representative" | "source" | "fallback"
