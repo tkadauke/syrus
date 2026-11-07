@@ -181,9 +181,10 @@ export function updateScheduledTask(id: number, values: ScheduledTaskInput) {
   })
 }
 
-export function previewScheduledTaskSchedule(scheduleInput: string) {
+export function previewScheduledTaskSchedule({ scheduleInput, scheduleTimezone }: { scheduleInput: string; scheduleTimezone: string }) {
   return postJson<SchedulePreview>("/api/v1/app/scheduled_tasks/preview_schedule", {
-    schedule_input: scheduleInput
+    schedule_input: scheduleInput,
+    schedule_timezone: scheduleTimezone
   })
 }
 

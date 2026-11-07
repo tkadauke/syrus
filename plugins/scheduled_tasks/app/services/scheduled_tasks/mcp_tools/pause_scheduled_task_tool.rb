@@ -26,7 +26,7 @@ module ScheduledTasks
           return Mcp::Tools.invalid("scheduled task is already disabled") unless scheduled_task_enabled?(task)
 
           previous_state = task.state
-          next_fire_at = task.next_fire_at&.iso8601
+          next_fire_at = task.next_fire_at&.utc&.iso8601
           task.pause!(reason: "operator")
 
           Mcp::Tools.success(

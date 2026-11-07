@@ -8,18 +8,19 @@ module ScheduledTasks
     # previously-resolved structured_intent (e.g. a save request that followed
     # a successful LLM-assisted preview) skip the LLM entirely.
     class CadencePreview
-      def self.call(input:, structured_intent: nil, user: nil)
-        new(input: input, structured_intent: structured_intent, user: user).call
+      def self.call(input:, structured_intent: nil, timezone: RecurringSchedule.server_timezone, user: nil)
+        new(input: input, structured_intent: structured_intent, timezone: timezone, user: user).call
       end
 
-      def initialize(input:, structured_intent: nil, user: nil)
+      def initialize(input:, structured_intent: nil, timezone:, user: nil)
         @input = input
         @structured_intent = structured_intent
+        @timezone = timezone
         @user = user
       end
 
       def call
-        result = RecurringSchedule.preview(input: @input, structured_intent: @structured_intent)
+        result = RecurringSchedule.preview(input: @input, structured_intent: @structured_intent, timezone: @timezone)
         return result if result.valid?
         return result if @structured_intent.present?
         return result if RecurringSchedule.cron_shaped?(@input)
@@ -27,7 +28,7 @@ module ScheduledTasks
         fallback = CadenceLlmFallback.call(@input, user: @user)
         return result unless fallback.usable?
 
-        RecurringSchedule.preview(input: @input, structured_intent: fallback.structured_intent)
+        RecurringSchedule.preview(input: @input, structured_intent: fallback.structured_intent, timezone: @timezone)
       end
     end
   end

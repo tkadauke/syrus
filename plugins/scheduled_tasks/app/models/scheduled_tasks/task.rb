@@ -8,6 +8,8 @@ module ScheduledTasks
     include AutoApproveModes
     include AuthorizationCheckpointOrigin
 
+    attribute :schedule_timezone, :string, default: -> { Schedules::RecurringSchedule.server_timezone }
+
     KINDS = %w[ cron one_shot ].freeze
     STATES = %w[ scheduled paused auto_paused fired ].freeze
     PAUSE_STATES = { "operator" => "paused", "auto" => "auto_paused" }.freeze
@@ -329,7 +331,7 @@ module ScheduledTasks
       return unless cron?
 
       input = schedule_input.presence || cron_expression.presence || legacy_cron_expression.presence || schedule_expression
-      result = Schedules::CadencePreview.call(input: input, structured_intent: structured_intent, user: user)
+      result = Schedules::CadencePreview.call(input: input, structured_intent: structured_intent, timezone: schedule_timezone, user: user)
       if result.valid?
         self.schedule_input = input
         self.schedule_format = result.format

@@ -5,13 +5,14 @@ import { MarkdownPreview } from "@app/routes/chat/toolCardMarkdown"
 import { CardShell, displayValue, Row } from "@app/routes/chat/toolCardUi"
 import { parseScheduledTaskDetail, ScheduledTaskSummary, withScheduledTaskErrors } from "../scheduledTaskToolCard"
 
-const UPDATE_FIELDS = ["name", "prompt", "schedule_input", "cron_expression", "fire_at", "pr_pileup_policy"] as const
+const UPDATE_FIELDS = ["name", "prompt", "schedule_input", "cron_expression", "schedule_timezone", "fire_at", "pr_pileup_policy"] as const
 type UpdateField = (typeof UPDATE_FIELDS)[number]
 const RESULT_FIELDS: Record<UpdateField, string[]> = {
   name: ["label", "name"],
   prompt: ["prompt"],
   schedule_input: ["schedule_input", "schedule_explanation", "cron_expression"],
   cron_expression: ["cron_expression", "schedule_input"],
+  schedule_timezone: ["schedule_timezone"],
   fire_at: ["fire_at"],
   pr_pileup_policy: ["pr_pileup_policy"]
 }
