@@ -38,8 +38,8 @@ module ScheduledTasks
           fields.size == 5 && fields.all? { |field| field.match?(CRON_FIELD) }
         end
 
-        def preview(input:, structured_intent: nil, from: Time.current)
-          new(input: input, structured_intent: structured_intent, from: from).preview
+        def preview(input:, structured_intent: nil, timezone: "UTC", from: Time.current)
+          new(input: input, structured_intent: structured_intent, timezone: timezone, from: from).preview
         end
 
         def explain(expression, timezone: "UTC")
@@ -57,11 +57,16 @@ module ScheduledTasks
         def from_expression(expression, timezone: "UTC")
           Schedule.new(parse_rrule(expression), timezone: timezone.presence || "UTC", input: expression)
         end
+
+        def server_timezone
+          Rails.configuration.x.server_time_zone.name
+        end
       end
 
-      def initialize(input:, structured_intent: nil, from: Time.current)
+      def initialize(input:, structured_intent: nil, timezone:, from: Time.current)
         @input = input.to_s.strip
         @structured_intent = structured_intent
+        @timezone = timezone.presence || self.class.server_timezone
         @from = from
       end
 
@@ -94,7 +99,7 @@ module ScheduledTasks
       private
 
       def invalid(message)
-        Result.new(valid?: false, input: @input, format: "rrule", expression: nil, timezone: "UTC", explanation: nil, next_fire_at: nil, cron_expression: nil, errors: [ message ], source: nil, structured_intent: nil)
+        Result.new(valid?: false, input: @input, format: "rrule", expression: nil, timezone: @timezone, explanation: nil, next_fire_at: nil, cron_expression: nil, errors: [ message ], source: nil, structured_intent: nil)
       end
 
       def parse_input
@@ -129,7 +134,7 @@ module ScheduledTasks
         # alternatives. RRULE intersects BYMONTHDAY and BYDAY, so retain the
         # source semantics explicitly in the canonical internal expression.
         parts << "X-SYRUS-CRON-DAY-OR=TRUE" if day_of_month != "*" && day_of_week != "*"
-        Schedule.new(self.class.parse_rrule(parts.join(";")), timezone: "UTC", input: value, cron_expression: value)
+        Schedule.new(self.class.parse_rrule(parts.join(";")), timezone: @timezone, input: value, cron_expression: value)
       rescue ArgumentError
         raise
       rescue StandardError
@@ -214,7 +219,7 @@ module ScheduledTasks
         parts << "BYHOUR=#{hour}"
         parts << "BYMINUTE=#{minute}"
         parts << "BYSECOND=0"
-        Schedule.new(self.class.parse_rrule(parts.join(";")), timezone: "UTC", input: @input)
+        Schedule.new(self.class.parse_rrule(parts.join(";")), timezone: @timezone, input: @input)
       end
 
       def parse_time(value)
@@ -276,19 +281,22 @@ module ScheduledTasks
 
         def next_fire_at(from: Time.current)
           from = from.utc
+          return nil unless zone
           if freq == "HOURLY"
+            # Hourly schedules are fixed elapsed intervals. Calendar schedules
+            # below are wall-clock rules in the stored zone.
             candidate = from.change(min: minute, sec: 0, usec: 0)
             candidate += 1.hour if candidate <= from
             return candidate
           end
 
-          date = from.to_date
+          date = from.in_time_zone(zone).to_date
           candidate_hours = hours || (0..23).to_a
           1_830.times do |offset|
             candidate_date = date + offset
             candidate_hours.each do |h|
-              candidate = Time.utc(candidate_date.year, candidate_date.month, candidate_date.day, h, minute)
-              return candidate if candidate > from && matches?(candidate)
+              candidate = wall_clock_candidate(candidate_date, h)
+              return candidate.utc if candidate && candidate > from && matches?(candidate)
             end
           end
           nil
@@ -296,7 +304,8 @@ module ScheduledTasks
 
         def due_window_start(now: Time.current)
           window_start = now.utc.change(min: 0, sec: 0, usec: 0)
-          tick = first_tick_in_window(window_start)
+          tick = next_fire_at(from: window_start - 1.second)
+          tick = nil if tick && tick >= window_start + 1.hour
           return nil unless tick && tick <= now
 
           window_start
@@ -304,7 +313,7 @@ module ScheduledTasks
 
         def validation_errors
           errors = []
-          errors << "timezone must be UTC" unless @timezone == "UTC"
+          errors << "timezone must be a valid IANA time zone identifier" unless zone
           errors << "frequency must be HOURLY, DAILY, WEEKLY, MONTHLY, or YEARLY" unless %w[HOURLY DAILY WEEKLY MONTHLY YEARLY].include?(freq)
           errors << "hour must be a whole number or comma-separated list of whole numbers" if malformed_int_list?("BYHOUR")
           errors << "month must be a whole number or comma-separated list of whole numbers" if malformed_int_list?("BYMONTH")
@@ -343,11 +352,17 @@ module ScheduledTasks
           raw.split(",").filter_map { |term| Integer(term, exception: false) }.presence
         end
 
-        def first_tick_in_window(window_start)
-          60.times do |offset|
-            tick = window_start + offset.minutes
-            return tick if matches?(tick)
-          end
+        def zone
+          @zone ||= ActiveSupport::TimeZone[@timezone]
+        end
+
+        def wall_clock_candidate(date, hour)
+          candidate = zone.local(date.year, date.month, date.day, hour, minute, 0)
+          local = candidate.in_time_zone(zone)
+          return nil unless [ local.year, local.month, local.day, local.hour, local.min ] == [ date.year, date.month, date.day, hour, minute ]
+
+          candidate
+        rescue TZInfo::PeriodNotFound
           nil
         end
 
@@ -356,6 +371,7 @@ module ScheduledTasks
         end
 
         def matches?(time)
+          time = time.in_time_zone(zone) unless freq == "HOURLY"
           return false unless time.min == minute
           return false if hours && !hours.include?(time.hour)
           return false if months && !months.include?(time.month)

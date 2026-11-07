@@ -125,10 +125,10 @@ Prompt:
   report no changes.
 ```
 
-Cron expressions are five-field cron in UTC and must produce a future
-scheduled time. In the MVP, Syrus treats cron tasks as hourly windows:
-the entered minute is honored, and a task can fire at most once in a
-matching UTC hour.
+Cron expressions are five-field wall-clock rules in the schedule's stored
+IANA time zone and must produce a future scheduled time. New schedules default
+to the server zone. The entered minute is honored, and a task can fire at most
+once in a matching hour; Syrus converts each occurrence to UTC for execution.
 
 The `pr_pileup_policy` controls what happens when the previous scheduled
 PR is still open:

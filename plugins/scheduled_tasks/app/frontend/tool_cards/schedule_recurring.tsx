@@ -10,6 +10,7 @@ type ScheduleRecurringCard = {
   prompt: string | null
   scheduleInput: string | null
   cronExpression: string | null
+  scheduleTimezone: string | null
   explanation: string | null
   nextFireAt: string | null
   state: string
@@ -36,6 +37,7 @@ function parseScheduleRecurring(context: ToolCardContext): ScheduleRecurringCard
     prompt: displayValue(parsed.prompt) || displayValue(input.prompt),
     scheduleInput: displayValue(parsed.schedule_input) || displayValue(input.schedule_input) || displayValue(input.cron_expression),
     cronExpression: displayValue(parsed.cron_expression),
+    scheduleTimezone: displayValue(parsed.schedule_timezone) || displayValue(input.schedule_timezone),
     explanation: displayValue(parsed.schedule_explanation),
     nextFireAt: displayValue(parsed.next_fire_at),
     state: liveMatch?.state || displayValue(parsed.state) || "pending",
@@ -78,10 +80,10 @@ function renderExpanded(context: ToolCardContext) {
       <dl className="grid min-w-0 gap-1 sm:grid-cols-2">
         {card.scheduleInput ? <Row label={t("tool_schedule_input")} value={card.scheduleInput} /> : null}
         {card.cronExpression ? <Row label={t("tool_resolved_cron")} value={card.cronExpression} /> : null}
+        {card.scheduleTimezone ? <Row label={t("tool_schedule_timezone")} value={card.scheduleTimezone} /> : null}
         {card.explanation ? <Row label={t("tool_col_cadence")} value={card.explanation} /> : null}
         {card.nextFireAt ? <Row label={t("tool_first_fire")} value={card.nextFireAt} /> : null}
       </dl>
-      {card.scheduleInput || card.cronExpression ? <div className="text-gray-500 dark:text-gray-400">{t("tool_interpreted_utc")}</div> : null}
       {pending ? <div className="text-gray-500 dark:text-gray-400">{t("tool_schedule_pending_confirmation")}</div> : null}
       {card.state === "confirmed" && card.taskId ? <div className="text-success-text">{t("tool_schedule_created")}</div> : null}
       {card.state === "rejected" ? <div className="text-danger-text">{card.reason || t("tool_schedule_rejected")}</div> : null}
