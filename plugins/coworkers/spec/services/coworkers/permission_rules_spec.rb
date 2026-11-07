@@ -24,6 +24,33 @@ RSpec.describe Coworkers::PermissionRules do
     expect(coworker.grants).to be_empty
   end
 
+  # A grant's catalog name is not always the capability its rules are stored
+  # under: update! resolves the grant through the tools it covers and writes
+  # rows under those tools' capabilities. Grouping the rules back by their own
+  # capability matched nothing, so a capability that really was granted
+  # projected as "off" with no scope and every tool behind it refused. Built
+  # from a stubbed catalog rather than a particular plugin's capability, so it
+  # keeps holding whichever plugins happen to be enabled.
+  it "projects a grant whose rules are stored under another capability" do
+    permissions = described_class.new(coworker)
+    descriptors = Coworkers::GrantCatalog.all
+    renamed = Mcp::CoworkerToolCatalog.all.filter_map do |tool|
+      next unless tool.capability == "syrus.read_jobs"
+
+      tool.with(capability: "fleet.read")
+    end
+    expect(renamed).not_to be_empty, "expected the catalog to cover syrus.read_jobs"
+
+    permissions.update!(capability: "syrus.read_jobs", approval_policy: "auto", actor: owner)
+    allow(Mcp::CoworkerToolCatalog).to receive(:all).and_return(renamed)
+    allow(Coworkers::GrantCatalog).to receive(:all)
+      .and_return(descriptors.map { |entry| entry.name == "syrus.read_jobs" ? entry.with(name: "fleet.read") : entry })
+
+    expect(described_class.new(coworker).entries).to include(
+      include(capability: "fleet.read", approval_policy: "auto")
+    )
+  end
+
   it "revokes superseded rules instead of mutating or deleting their audit history" do
     permissions = described_class.new(coworker)
     permissions.update!(capability: "syrus.read_jobs", approval_policy: "auto", actor: owner)

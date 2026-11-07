@@ -165,7 +165,7 @@ RSpec.describe SyrusDev::ReadSyrusLogsTool do
 
     expect(described_class.call(server_context: { chat_session: chat })).to be_error
 
-    coworker.grants.create!(capability: "syrus_dev.read_diagnostics", approval_policy: "confirm")
+    coworker.permission_rules.update!(capability: "syrus_dev.read_diagnostics", approval_policy: "confirm", actor: coworker.owner_user)
     expect(described_class.call(server_context: { chat_session: chat })).not_to be_error
   end
 

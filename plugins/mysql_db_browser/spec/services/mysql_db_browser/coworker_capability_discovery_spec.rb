@@ -43,7 +43,13 @@ RSpec.describe "coworker MySQL capability discovery" do
 
     entry = discover
 
-    expect(entry).to include(state: "requestable", lock_reason: "capability_not_granted", blocker: "permission")
+    # `lock_reason` names what blocks this call, which for an ungranted family
+    # is the same answer as for a granted one needing confirmation: ask. That
+    # the coworker holds no grant at all is reported in `prerequisites`, where
+    # the two cases do differ. See the core service's own spec for the
+    # contract; this expectation was left behind when it was settled.
+    expect(entry).to include(state: "requestable", lock_reason: "operation_requires_approval", blocker: "permission")
+    expect(entry[:prerequisites]).to include(a_hash_including(id: "permission", satisfied: false, reason: "capability_not_granted"))
     expect(entry[:permitted_scope][:options]).to include(a_hash_including(value: connection.id))
     action = entry.fetch(:next_action)
     expect(action).to include(type: "request_permission", grants_authority: false)
@@ -60,7 +66,7 @@ RSpec.describe "coworker MySQL capability discovery" do
 
   it "reports a failed confinement probe as infrastructure, not a permission problem" do
     connection = connection!
-    coworker.grants.create!(capability: "mysql.read", approval_policy: "confirm", scope: connection.id)
+    coworker.permission_rules.update!(capability: "mysql.read", approval_policy: "confirm", scope: connection.id, actor: coworker.owner_user)
     allow(chat_session).to receive(:coworker_grant_availability).and_return({ available: false, reason: "confinement_probe_failed" })
 
     entry = discover

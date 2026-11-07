@@ -30,6 +30,25 @@ RSpec.describe Coworkers::Workspace do
     expect(root.join("memory/daily/archive.md")).not_to exist
   end
 
+  # Targets are built from the root's realpath, so relativizing against the
+  # configured root answers with `..` segments whenever the root reaches the
+  # workspace through a symlink. Any symlinked data root does that; on macOS
+  # every temp directory does, because /var is a link to /private/var. Staged
+  # explicitly so the assertion does not depend on the host's temp layout.
+  it "names paths relative to the workspace when the root is reached through a symlink" do
+    real = Pathname(Dir.mktmpdir("coworker-workspace-real"))
+    link = Pathname(Dir.mktmpdir("coworker-workspace-link")).join("via-symlink")
+    File.symlink(real.to_s, link.to_s)
+    allow(ChatWorkspace).to receive(:repo_path_for).with(chat, repository).and_return(link)
+
+    expect(workspace.write("memory/daily/today.md", "first\n")).to eq("memory/daily/today.md")
+    expect(workspace.move("memory/daily/today.md", "memory/daily/archive.md"))
+      .to eq(source: "memory/daily/today.md", destination: "memory/daily/archive.md")
+    expect(workspace.delete("memory/daily/archive.md")).to eq("memory/daily/archive.md")
+  ensure
+    FileUtils.rm_rf([ real, link.dirname ])
+  end
+
   it "allows identity files to be updated during an ordinary turn" do
     workspace.edit("SOUL.md", "old soul", "new soul")
     expect(root.join("SOUL.md").read).to eq("new soul\n")
