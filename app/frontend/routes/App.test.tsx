@@ -4063,7 +4063,15 @@ describe("App", () => {
       )
 
       const startedAt = "2026-05-30T10:01:00Z"
-      const absoluteStartedAt = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(startedAt))
+      const absoluteStartedAt = new Intl.DateTimeFormat("en", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: "UTC",
+        timeZoneName: "short"
+      }).format(new Date(startedAt))
       await screen.findByText("Repair aqueduct")
       const relativeStartedAt = document.querySelector(`time[datetime="${startedAt}"]`)
 
@@ -16294,7 +16302,9 @@ describe("App", () => {
 
     expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
     const timeEl = screen.getByRole("time")
-    expect(timeEl).toHaveTextContent("1/15, 10:29 AM")
+    expect(timeEl).toHaveTextContent(
+      new Intl.DateTimeFormat("en", { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC" }).format(pastDate)
+    )
     expect(timeEl).toHaveAttribute("dateTime", oldCreatedAt)
   })
 
@@ -16334,7 +16344,11 @@ describe("App", () => {
 
     expect(await screen.findByText("Discuss aqueducts.")).toBeInTheDocument()
     const timeEl = screen.getByRole("time")
-    expect(timeEl).toHaveTextContent(`7/5/${new Date().getFullYear() - 1}, 10:29 PM`)
+    expect(timeEl).toHaveTextContent(
+      new Intl.DateTimeFormat("en", { year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC" }).format(
+        previousYearDate
+      )
+    )
     expect(timeEl).toHaveAttribute("dateTime", oldCreatedAt)
   })
 
