@@ -64,5 +64,22 @@ RSpec.describe PluginRouteResolver do
 
       expect(described_class.declared_api_route?(request, controller_prefix: "api/v1/app/")).to be true
     end
+
+    it "reuses the route table until the plugin registry generation changes" do
+      register_plugin("widgets", [
+        { verb: "GET", path: "/api/v1/app/widgets", controller: "api/v1/app/widgets#index" }
+      ])
+      request = instance_double(ActionDispatch::Request, request_method: "GET", path: "/api/v1/app/widgets")
+      allow(Syrus::PluginRegistry).to receive(:all_plugins).and_call_original
+
+      2.times { described_class.match?(request, controller_prefix: "api/v1/app/") }
+
+      expect(Syrus::PluginRegistry).to have_received(:all_plugins).once
+
+      Syrus::PluginRegistry.bump_generation!
+      described_class.match?(request, controller_prefix: "api/v1/app/")
+
+      expect(Syrus::PluginRegistry).to have_received(:all_plugins).twice
+    end
   end
 end
