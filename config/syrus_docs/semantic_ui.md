@@ -163,6 +163,10 @@ Themes are not limited to color. `Theme` token groups include shape
 `control-height-*`, `table-row-height`), and typography (`font-sans`,
 `font-mono`, `text-page-title`, etc.) alongside the semantic color tokens
 (`color-surface`, `color-text-muted`, `color-border`, and so on). The
+built-in theme CSS is compiled into the app, so the bootstrap and theme
+preference response carry only the selected theme's identity. The picker
+loads identity, position, and swatch fields on demand; clients fetch
+`GET /api/v1/app/themes/:id` when they need a custom theme's full tokens. The
 built-in `console` theme is the proof that this actually works end to end:
 it swaps in sharp corners, no panel shadow, a tighter control/spacing
 rhythm, and an all-monospace type stack, and every semantic primitive

@@ -2288,7 +2288,9 @@ export function useSidebarNavBadges(pages: SidebarPluginPage[], enabled: boolean
         return getJson<{ count?: number }>(page.badge_api_path as string, { signal })
       },
       enabled,
-      refetchInterval: enabled && document.visibilityState === "visible" ? 60_000 : (false as const),
+      // TanStack Query pauses interval refetches while the document is hidden
+      // and resumes them on focus; `enabled` covers the collapsed sidebar.
+      refetchInterval: enabled ? 60_000 : (false as const),
       refetchOnWindowFocus: enabled
     }))
   })
