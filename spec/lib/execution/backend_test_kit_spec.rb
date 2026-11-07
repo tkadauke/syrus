@@ -1,4 +1,5 @@
 require "rails_helper"
+require "etc"
 require "execution/backend_test_kit"
 require "socket"
 require "tmpdir"
@@ -31,6 +32,13 @@ class LocalBackendContractAdapter
     loopback = ProcessRunner::NetworkAccess.new(address: "127.0.0.1", port: 1, family: "AF_INET")
     external = ProcessRunner::NetworkAccess.new(address: "203.0.113.1", port: 1, family: "AF_INET")
     profile.network_access_violation(loopback).nil? && profile.network_access_violation(external).present?
+  end
+
+  # The local backend applies limits through cgroup v2, which is a Linux
+  # kernel feature. On any other host there is nothing to observe, and
+  # asserting "applied" would only be asserting the host's kernel.
+  def resource_limits_unverifiable_reason
+    "cgroup v2 enforcement is Linux-only" unless Etc.uname[:sysname] == "Linux"
   end
 
   def verify_resource_limits!

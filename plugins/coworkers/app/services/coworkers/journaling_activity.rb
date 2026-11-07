@@ -57,8 +57,7 @@ module Coworkers
       return @daily_memory = nil unless repository
       if (chat = @coworker.coworker_chats.find_by(role: "main")&.chat_session)
         root = ChatWorkspace.repo_path_for(chat, repository)
-        local = root.join("memory/daily/#{@date.iso8601}.md")
-        pending = read_workspace_file(root, local)
+        pending = read_workspace_file(root, "memory/daily/#{@date.iso8601}.md")
         return @daily_memory = pending if pending
       end
       reader = RepositoryContent.for(repository, user: @coworker.owner_user)
@@ -68,11 +67,20 @@ module Coworkers
       @daily_memory = nil
     end
 
-    def read_workspace_file(root, path)
+    # Takes the workspace-relative path and resolves the root before joining,
+    # so the component walk starts where the walk is measured from. Building
+    # the absolute path from the configured root and then relativizing it
+    # against the realpath yielded a `..`-prefixed path whenever the root
+    # reaches the workspace through a symlink -- any symlinked data root, and
+    # every macOS temp directory, where /var links to /private/var. The walk
+    # then climbed back out through a symlink and refused to read a file that
+    # was never unsafe, so a coworker's pending daily memory read as no
+    # activity at all.
+    def read_workspace_file(root, relative)
       root = root.realpath
-      relative = path.relative_path_from(root)
+      path = root.join(relative)
       current = root
-      relative.each_filename do |part|
+      Pathname(relative).each_filename do |part|
         current = current.join(part)
         return if current.symlink?
       end
