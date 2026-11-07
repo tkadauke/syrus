@@ -9,6 +9,8 @@ recovering Syrus itself. Operator feature instructions remain in
   processes, logs, queues, workers, and data safely.
 - [Workflow recovery](workflow-recovery.md) — diagnose and repair stuck or
   failed Jobs, WorkUnits, Workflows, Runs, and workspaces.
+- [Detailed deployed-operations reference](deployed-reference.md) — deployed
+  testing, cluster-debugging, workflow, and deploy-target procedures.
 - [Release troubleshooting](../../release-troubleshooting.md)
 - [Releasing](../../releasing.md)
 

@@ -15,6 +15,32 @@ deployment, main-branch maintenance, and plugin-contributed kinds. Consult
 `app/models/workflow/trigger_kind.rb` and the templates for the authoritative
 set and exact chain.
 
+## Materialized pipeline families
+
+The initial issue pipeline normally prepares the checkout, invokes the
+implementation agent, runs deterministic formatting and generation, fans out
+configured graders, and then enters bounded adversarial and visual review
+loops before summary and pull-request creation. Optional nodes come from
+`.syrus.yml`, but ordering is owned by `app/services/workflows/initial.rb`,
+`app/services/workflows/loop.rb`, and `app/services/steps/`; `RunJob` executes
+the definition rather than defining it.
+
+Feedback pipelines are narrower. PR or chat feedback starts from the existing
+Job and branch, applies the repair, re-runs applicable checks and reviews, and
+updates the existing pull request. CI repair consumes the recorded failure
+instead of restarting ingestion. Retry and resume enter through
+`WorkDefinitions` and `WorkUnits::PathOwnership`, preserving WorkIntent and
+locks rather than manufacturing a second execution path.
+
+Rebase records the observed remote SHA and pushes with force-with-lease.
+Auto-merge and merge-train definitions acquire landing-slot ownership,
+validate the candidate, and reconcile failures into durable work. Deploy and
+main-grader workflows are infrastructure Jobs; plugin workflow kinds resolve
+through the registry rather than a core kind switch. See
+[Workflow steps](../../../config/syrus_docs/workflow_steps.md) and
+`spec/services/workflows/` for operator configuration and executable chain
+expectations.
+
 ## Step structures
 
 `Workflows::Loop` models bounded review loops. Review-first adversarial and

@@ -1,0 +1,2590 @@
+# Syrus architecture
+
+_Last reviewed: 2026-11-02._
+
+**Audience.** A new contributor or returning maintainer who has read the
+[system overview](../../../ARCHITECTURE.md) and wants the complete inventory
+that formerly lived there. The focused pages in this directory are the normal
+entry points; this reference preserves the detailed model and anchors in one
+place. Forward-looking ideas live in `ROADMAP.md` and are only mentioned here
+as cross-references.
+
+**Conventions.** `Job` and `Run` capitalized refer to the AR models;
+lowercased _job_ ("the thread") and _run_ ("an attempt") refer to the
+domain concepts. File paths are repo-relative.
+
+## Contents
+
+- [Stack](#stack)
+- [The big picture](#the-big-picture)
+- [Domain model](#domain-model) — Job, Epic, Workflow, Step, Run,
+  JobLog, Repository, User, ScheduledTask, CronTemplate
+- [Access control](#access-control) — Teams, repository membership tiers, Pundit policies
+- [Recurring schedule](#recurring-schedule)
+- [Per-poller flow](#per-poller-flow) — issue ingest, external PR ingest, PR/chat feedback, rebase, scheduled tasks, reaping
+- [Per-Workflow pipeline](#per-workflow-pipeline) — materialized step chains and Run execution
+- [Work engine](#work-engine) — WorkUnit, WorkIntent, WorkDefinition
+- [End-to-end GitHub workflow](#end-to-end-github-workflow)
+- [Services](#services) — including [Preview hosting](#preview-hosting)
+- [Plugin system](#plugin-system)
+- [MCP sidecar](#mcp-sidecar)
+- [Chat sidecar and workspaces](#chat-sidecar-and-workspaces)
+- [External platform chat](#external-platform-chat) — linking Telegram/Discord/Slack accounts to a Syrus chat
+- [Failure recovery](#failure-recovery)
+- [UI surface](#ui-surface-what-shows-up-where)
+- [Deployment topology](#deployment-topology)
+- [What's intentionally not here](#whats-intentionally-not-here)
+
+## Stack
+
+- Rails 8.1.4 · Ruby 3.4.10
+- SQLite (dev/test) · MySQL (production)
+- **Solid Queue** for background jobs · **Solid Cache** · **Solid Cable**
+  for browser app events
+- **Tailwind** via `tailwindcss-rails` · **React** for the web UI
+- **Go CLI** under `cli/` for terminal chat, inbox review, checkout,
+  test-plan, approval, identity, and Job/Epic/repository/schedule
+  workflows through the app API
+- **Electron desktop shell** under `desktop/` for a menubar inbox,
+  native notifications, checkout/approval shortcuts, and local
+  repository path preferences against the same app API. Distributed as a
+  universal macOS DMG (arm64 + x64 in one binary), with the Go CLI bundled
+  for one-click install to `~/.local/bin/syrus`
+- **Octokit** for the GitHub API
+- **AASM** for state machines on `Job`, `Workflow`, `Step`, and `Run`
+- **Claude Code** and **Codex** as agent providers (subprocesses behind
+  `AgentProviders::*`; see [Per-Workflow pipeline](#per-workflow-pipeline))
+- **Plugin system** — `Syrus::PluginRegistry` with a broad extension-point
+  surface for providers, source control, repository-content reads, workflow
+  kinds, sidebars/tabs, MCP tools, runtime services, memory, search, and
+  domain events. Bundled plugins ship in `plugins/`; third-party plugins are
+  ordinary Rails Engine gems.
+- **Playwright** (via the bundled `browser` plugin's `@playwright/mcp`
+  subprocess) drives a headless Chromium browser for the `visual_review`
+  agent step and other agentic steps; navigation is hard-restricted to the
+  worker's own loopback preview
+- **Chat speech-to-text providers** resolved through the plugin registry, with
+  browser speech recognition as the no-backend fallback for the chat
+  composer's microphone input
+
+## The big picture
+
+Polling drives everything — Syrus never receives inbound GitHub callbacks. Every
+external interaction (GitHub issue ingestion, PR comment ingestion,
+rebase trigger detection) is initiated by a recurring job that fans
+out to per-target jobs.
+
+```
+                  ┌─────────────────────────────────────────┐
+                  │         Solid Queue recurring           │
+                  │  (config/recurring.yml — every 1/5 min) │
+                  └─────────────────────┬───────────────────┘
+                                        │
+       ┌──────────────────┬─────────────┼──────────────┬──────────────────┐
+       ▼                  ▼             ▼              ▼                  ▼
+PollAllInputSources… PollAllPullRequests… PollAllMergeStates… PollScheduledTasks… ReapStaleRuns…
+  (fan-out)             (fan-out)          (fan-out)        (in-process)      (sweeper)
+       │                  │             │                  │                  │
+       ▼                  ▼             ▼                  ▼                  ▼
+PollInputSourceJob  PollPullRequestJob  PollMergeStateJob ScheduledTaskFire reaps/requeues
+  per InputSource     per Job-with-PR    per Job-with-PR  service per task   orphaned Runs
+       │                  │             │                  │                  ▼
+       │       creates    │   creates   │   creates        │              (recovery)
+       └──────────────────┴─────────────┴──────────────────┘
+                                        │
+                                        ▼
+                         ClassifyIssueJob / advance_after_triage
+                       StepDispatcher + Run#after_create_commit
+                                        │
+                                        ▼
+                                  RunJob.perform_later
+                                        │
+                                        ▼
+                       WorkflowWorkspace + AgentProviders::* +
+                       MCP sidecar + PullRequestOpener
+```
+
+The state-transition callback and dispatcher (`Job#advance_after_triage`
+→ `create_initial_run_if_needed`, `StepDispatcher.start_workflow`, and
+`Run#after_create_commit → enqueue_run_job`) are what wire "a poller
+created a Job" to "a worker picks up a Run." Pollers instantiate
+Workflows or move Jobs through state; the dispatcher creates Runs, and
+pollers do not call `RunJob.perform_later` directly. `ReapStaleRunsJob`
+is a recovery sweep, not a normal dispatcher: it fails orphaned or stale
+`running` Runs, re-enqueues queued successor Runs orphaned after inline
+Step advancement, and lets terminal Workflow cleanup plus
+`WorkflowWorkspacePruneJob` handle workspaces.
+
+`Job` is the thread (one per GitHub issue, scheduled-task fire, or direct
+operator prompt). `Workflow` is an attempt to move that Job forward.
+`Step` is a stage in that attempt, and `Run` is one execution attempt for a
+Step.
+
+## Domain model
+
+### Job — the *thread*
+
+Lives in `app/models/job.rb`. One `Job` per GitHub issue, cron fire, or
+direct operator prompt. Carries GitHub identifiers, ownership,
+dependency/epic state, priority, selected agent provider, and lifecycle
+state.
+
+| Column | Meaning |
+|---|---|
+| `kind` | `"issue"` (created from a labeled issue), `"cron"` (created from a `ScheduledTask` fire), `"direct"` (created from an operator prompt), `"main_grader"` (infrastructure health check), `"agent_insight"` (read-only analysis that files `InsightSuggestion`s), or `"external_pr"` (ingested from an open PR filed outside Syrus; see [External PR ingestion](#external-pr-ingestion)) |
+| `state` | AASM lifecycle: triage/dependency states, execution states, approval/landing states, and `closed` |
+| `repository_id`, `user_id`, `owner_user_id` | scope and durable assignee |
+| `epic_id`, `epic_title` | optional Epic membership plus a denormalized title snapshot for dashboard/filter payloads; kept in sync when the Epic title changes |
+| `issue_number` | nullable for cron and direct jobs |
+| `issue_title`, `issue_body` | cached at ingest |
+| `branch_name` | `syrus/issue-{N}-{job_id}` (issue Jobs), `syrus/scheduled-{task_id}-{job_id}` (cron Jobs), or a direct-job branch; assigned by workspace setup and persisted for follow-up Workflows |
+| `pr_number` | the Syrus-opened PR, if any |
+| `external_pr_number` | the *preempted* path — see below |
+| `pr_mergeable`, `pr_mergeable_checked_at` | latest from GitHub; updated by `PollMergeStateJob` |
+| `landing_failure_reason` | open landing failure explanation; set when auto-merge or merge-train landing cannot proceed and surfaced by dashboard attention filters |
+| `failure_count` | consecutive non-rebase Run failures; reset on reopen; threshold `AppSetting.max_job_failures` auto-closes the thread with reason `too_many_failures` |
+| `closure_reason` | string tag explaining why the thread closed (see table below) |
+| `last_seen_comment_at`, `last_feedback_addressed_at` | PR-feedback watermarks; the poller uses the later timestamp so handled feedback is not re-enqueued |
+| `last_ci_handled_sha` | watermark for CI-failure follow-ups |
+| `scheduled_task_id` | nullable; set on cron Jobs |
+| `priority` | `urgent` / `high` / `medium` / `low`, mapped to Solid Queue priorities -10 / 0 / 10 / 20 |
+| `agent_provider` | provider captured for the Job; Workflows/Runs denormalize the selected provider |
+| `slug` | auto-generated short name (kebab-case from title, max 50 chars, collision-suffixed); accepted by CLI and API in place of numeric id or `JOB-<n>` prefix |
+| `branch_deleted_at` | set when the Syrus-managed branch is deleted after merge/close |
+
+Jobs also own optional operator metadata around the execution thread:
+`job_tags`, `job_pins`, `documents` / `job_attachments`, and
+`notifications`. Attachments are `Document` rows, so uploaded files,
+Google Doc links, and issue/comment image captures all flow through the
+same prompt-context path. Jobs also have optional `chat_proposals`
+source links for work created from chat. `App::JobSourceChat` uses the
+direct Job proposal when present, or falls back to the Epic proposal for
+bundled child Jobs, so dashboard and Job detail payloads can link back
+to the originating chat message.
+
+A Job's title and description are its approved execution definition, not
+mutable display metadata. They may change only while the Job is in a
+pre-execution state (`backlog`, `needs_triage`, `triaging`,
+`blocked_by_epic`, or `queued`). Once execution starts, model validation and
+`JobDefinitionUpdater` reject definition edits; automated title generation,
+metadata refresh, MCP updates, and agent Steps all use that same boundary.
+
+Plugins can contribute additional Job kinds through the `:workflow_kinds`
+extension point. For example, `operator_briefing` adds the issueless
+infrastructure `briefing_generate` kind for per-repository briefings and
+the matching WorkDefinitions/Workflow templates that run the generation
+and follow-up dive flows.
+
+`JobApproval` rows track which users have approved a Job (one row per
+user, with `approved_at` timestamp). Approval eligibility is governed
+by the repository's `review_policy`; `can_add_job_approval?` enforces
+the policy on the Job. The landing queue checks these rows when
+determining whether the Job is ready to merge.
+
+`closure_reason` values:
+
+| Value | Meaning |
+|---|---|
+| `nil` | Job is open |
+| `cancelled` | operator cancelled active runs and closed the thread |
+| `replaced` | operator clicked Restart, which closes-and-respawns |
+| `replaced_by_scheduled_task` | a cron fire with `pr_pileup_policy=replace` superseded an earlier Job |
+| `too_many_failures` | `failure_count` hit `AppSetting.max_job_failures` |
+| `no_changes` | a cron Run finished with an empty diff and a one-line summary |
+| `issue_closed` | the upstream labeled GitHub issue closed before Syrus opened a PR |
+| `preempted` | the issue already had a human-opened PR when we ingested it |
+| `pr_merged` | Syrus-opened PR merged |
+| `pr_closed` | Syrus-opened PR was closed without merge and its branch still has unique patches |
+| `external_pr_merged` | tracked preempting PR merged |
+| `external_pr_closed` | tracked preempting PR closed without merge |
+| `pr_approved` | operator accepted an approved PR as successful without auto-merge |
+| `epic_archived` | the parent Epic was archived, cascading to close all non-closed child Jobs with their active workflows cancelled first |
+| `main_grader` | infrastructure main-branch grader Job closed after updating repository health |
+| `agent_insight` | infrastructure insight Job closed after recording read-only suggestions |
+
+States and transitions:
+
+```text
+state :triaging, initial: true
+state :blocked_by_epic, :queued, :running, :implemented, :failed
+state :no_change_needed  # agent ran correctly but found nothing to change; semi-terminal
+state :approved, :landing
+state :closed
+
+event :advance_after_triage
+event :start_running
+event :mark_implemented
+event :mark_failed
+event :mark_no_change_needed  # raised when implement step finds no diff
+event :retry_after_failure
+event :approve / :unapprove
+event :start_landing / :defer_landing / :fail_landing
+event :close
+event :reopen # clears closure_reason, finished_at, failure_count
+```
+
+### Epic — coordinated work
+
+Epics group related Jobs under one repository and owner. They have their
+own board lifecycle (`backlog`, `ready`, `in_progress`, `done`,
+`archived`), dependency graph, ownership/claim fields, chat-proposal
+source links, and merge-train landing behavior for approved child Jobs.
+Merge trains are the standard Epic landing path rather than an instance
+feature toggle. Starting an Epic unblocks its child Jobs; moving it back or
+archiving it restores the child Epic block. Epics carry an auto-generated
+`slug` (kebab-case from title, max 50 chars, collision-suffixed) accepted
+by CLI and API in place of numeric id or `EPIC-<n>` prefix.
+
+`EpicVersion` records title/description changes for audit and for
+product-owner/developer handoff. Product owners can create and refine
+backlog Epics, but developer/admin advancement is the gate that moves
+them toward runnable child Jobs. Developer elaboration chat starts from
+the preserved product-owner description and then materializes Jobs
+through the normal proposal/dependency path.
+
+### JobDependency and EpicDependency
+
+`JobDependency` is the execution gate for Jobs. A row can target a
+concrete `depends_on_job`, a concrete `depends_on_epic`, an unresolved
+GitHub issue reference, or an unresolved `ChatProposal` from the same
+operator's chat flow. Parsed issue-body dependencies set `source` to
+`parsed`; operator/chat-authored edges set it to `manual`.
+
+`satisfaction_mode` controls what counts as "done" for the upstream:
+`"success"` (default) — the dependency is satisfied only by successful
+closure states (`pr_merged`, `external_pr_merged`, `pr_approved`,
+`no_changes`); `"closed"` — any terminal closure counts, including
+`pr_closed` and `too_many_failures`; `"deployment_stage"` — a successful
+upstream Job must also have reached a configured
+`required_deployment_stage_name`, as recorded by
+`PollAllDeploymentStagesJob`/`DeploymentStageDetector`. The
+`add_job_dependency` chat MCP tool accepts a `satisfaction_mode`
+parameter so operators can set closed-mode dependencies for optional or
+"at least attempted" relationships, or deployment-stage dependencies for
+work that must wait until an upstream landed change is present in a
+named environment/tag.
+
+Pending references are first-class rather than lossy. A `Depends-on:
+owner/repo#123` line can sit unresolved until the matching Job exists,
+and a chat proposal can depend on another proposal card before either
+card has been confirmed into a real Job. When the target materializes,
+`JobDependency#resolve!` clears the unresolved fields and reruns the
+cycle checks against the concrete Job. Same-Epic dependencies count as
+satisfied once the upstream Job is `approved` or `landing`; other Job
+dependencies require either the configured successful closure states
+(`success` mode) or any terminal closure (`closed` mode), and direct
+Epic dependencies require the upstream Epic to be `done`.
+
+Once resolved, the app treats the Syrus Job as the canonical dependency
+target. Job detail banners and dependency panels link to the target
+Syrus thread with a `JOB-<id>` slug; original GitHub issue numbers stay
+as source/audit context, not as the primary dependency identifier.
+
+`EpicDependency` models Epic-level gates. It can point at another Epic
+or at a Job, prevents cycles, and refreshes the dependent Epic's
+auto-state after commits. Job-to-Job dependencies that cross Epic
+boundaries also materialize derived Epic dependencies, so Epic readiness
+and merge-train behavior can see the higher-level ordering implied by
+their child Jobs.
+
+### Workflow, Step, Run — the *attempt machinery*
+
+Workflows expose the canonical `WF-<id>` reference through `Workflow#slug`.
+`SlugRefs::Types::Workflow` resolves that reference with the parent Job's
+authorization, links it to the Job's Workflows tab, and supplies the compact
+preview used by chat and other reference-aware UI.
+
+`Workflow` is the top-level attempt on a Job. `Step` rows materialize
+the Workflow template. Each Step owns one or more Runs. A Run lives in
+`app/models/run.rb` and carries the prompt, transcript metadata,
+diff/head SHA, cost metadata, and provider-specific result for a single
+Step execution.
+
+`Workflow#artifacts` remains the hash-like API for structured data passed
+between Steps. Small values stay in the Workflow JSON column, while known
+large keys are stored in uniquely keyed `WorkflowArtifactValue` rows and
+merged transparently on reads. This keeps frequently loaded Workflow rows
+small without changing Step handlers or artifact consumers.
+
+| Column | Meaning |
+|---|---|
+| `state` | AASM (see diagram below) |
+| `trigger_kind` | what the Workflow/Run is *for* (see table below) |
+| `prompt` | the full prompt the agent sees |
+| `agent_turns`, `agent_outcome`, `agent_diff`, `head_sha` | populated from the stream-json `result` event + post-run git capture |
+| `agent_provider`, `cost_usd` | provider used for execution and captured provider cost |
+| `agent_pr_title`, `agent_pr_body`, `agent_summary` | written by the agent via the MCP `submit_summary` tool |
+| `parent_session_id` | prior session id used for supported same-workflow continuations such as summarize/amend and loop iterations |
+| `last_heartbeat_at` | bumped on every `JobLog` write; used by `ReapStaleRunsJob` |
+
+Workflow, Step, and Run states share the same execution spine, with a
+few Step/Run-only terminal states:
+
+```text
+Workflow: state :queued, initial: true
+Workflow: state :running, :succeeded, :failed, :cancelled, :blocked
+
+Step/Run: state :queued, initial: true
+Step/Run: state :running, :succeeded, :failed, :cancelled, :skipped, :blocked
+
+event :start    { from: :queued,           to: :running   }
+event :succeed  { from: :running,          to: :succeeded }
+event :fail     { from: [:queued, :running], to: :failed  }
+event :cancel   { from: [:queued, :running], to: :cancelled }
+event :skip     { from: [:queued, :running], to: :skipped } # Step/Run
+event :block    { from: [:queued, :running], to: :blocked }
+```
+
+`cancelled` is reached three ways: the operator clicks Cancel/Restart
+on the Job page (which calls `Job#cancel_active_runs_and_close!`), a
+cron fire with `pr_pileup_policy=replace` cancels the prior Job's
+active Runs, or `RunJob`'s re-entrancy guard fires (a worker entering
+`perform` and finding the Run already `running` — symptom of a crashed
+prior worker — fails it rather than restarting). The SIGTERM/grace-
+period case ends in `failed` via `ReapStaleRunsJob`, not `cancelled`.
+
+`trigger_kind` is one of:
+
+| Kind | Triggered by | Notes |
+|---|---|---|
+| `initial` | `Job` create (issue Jobs auto-spawn the first Workflow after triage; cron Jobs do it via `PollScheduledTasksJob`) | makes the branch + opens the PR |
+| `pr_comment` | `PollPullRequestJob` finds new review comments since `last_seen_comment_at` | reuses the same branch |
+| `chat_feedback` | operator confirms feedback proposed from Syrus Chat | reuses the same branch; prompt source is the confirmed chat feedback artifact |
+| `ci_failure` | `PollPullRequestJob` finds failing checks on the head SHA | reuses the same branch; gated on `last_ci_handled_sha` |
+| `rebase` | `PollMergeStateJob` finds `pr.mergeable == false` and we control the head | rewrites history rather than commits; pushes with an explicit `--force-with-lease` lease |
+| `stack_rebase` | dependent PR stack needs to be rebased branch-by-branch | force-pushes each updated branch and resumes landing |
+| `auto_merge` | landing queue picked an approved Job | runs final gates, optional repair, push, and GitHub merge |
+| `merge_train` | landing queue picked a ready Epic | builds and lands all approved child PRs atomically |
+| `retry` | operator: "Run again" | new Run on the existing branch |
+| `replay` | operator replay of a failed/retryable path | uses the retry Workflow template |
+| `manual_visual_review` | operator or chat: "Run visual review" | one-shot QA pass over the Job's already-implemented diff; runs `visual_review` alone (no implement/respond re-loop) |
+| `manual` | operator: explicit manual prompt | freeform |
+| `resume` | operator continuation of a captured provider session | freeform prompt against retained session context |
+| `coding_handoff` | Coding Mode: chat agent commits implementation and operator confirms | skips the bare implement step, then runs optional review loops, bounded grader repair through `coding_handoff_fix`, summarize/test-plan/PR open, and chat reporting on success or terminal grader failure |
+| `local_mode_handoff` | Local Mode daemon completes implementation via `complete_implement_step` | skips the initial agent implement; runs graders with `local_mode_handoff_fix` as bounded agentic repair, then opens a new PR or updates the existing one depending on whether `pr_number` is set |
+| `main_grader` | `PollAllMainBranchHealthJob` detects a new default-branch HEAD SHA | runs graders against the repository's default branch; updates `repository.grader_health` and calls `MainHealthChangedService` on health transitions; excluded from the operator dashboard; routes to the `:runs` queue but is exempt from the `AppSetting.max_concurrent_agent_runs` cap |
+| `agent_insight` | operator or adaptive insight scheduler requests repository analysis | read-only repository inspection; creates `InsightSuggestion` rows through `submit_insight`; auto-closes the anchor Job and does not open a PR |
+| `external_pr_ingest` | `PollExternalOpenPrsJob` creates a new `external_pr` Job | runs graders on the externally-filed PR; same-repo PRs can receive auto-repair and be pushed; fork PRs get a REQUEST_CHANGES review comment on failure |
+| `external_pr_feedback` | `PollExternalPrJob` finds a qualifying comment on a same-repo `external_pr` Job | mirrors `pr_comment` — address feedback on the existing branch, push; fork PRs can't be pushed to, so they get a `needs_attention` state instead of a Workflow |
+| `external_pr_merge` | landing queue picks an approved `external_pr` Job | runs final graders and calls GitHub's merge API on the external PR |
+
+State changes reach the browser through app events; see
+[UI surface](#ui-surface-what-shows-up-where) for how updates land in React.
+
+### JobLog — the transcript
+
+Append-only chunks per Run (`belongs_to :run`). `RunJob#log`, provider
+invocations, the MCP sidecar, and `WorkflowWorkspace` all write to it.
+Unique on `(run_id, sequence)`. `before_update` raises
+`ReadOnlyRecord` — once written, never edited.
+
+`broadcasts_to` per JobLog drives the live transcript on the job page.
+
+### Repository
+
+Unique on `(owner, name)` — a repository is a single shared record that
+multiple users can access through `RepositoryMembership` (roles, low to
+high: `read` / `write` / `admin` — see [Access control](#access-control)
+for the tier semantics, Team-granted access, and the Members UI). The
+original registering user gets the initial `admin` membership;
+repo-scoped actions use the membership's optional `agent_provider`
+override, falling back to the member's user-level default. Carries
+`default_branch`, `polling_enabled`, `trigger_label`
+(default `"syrus"`), `archived_at`, `prepare_enabled`,
+`trust_clean_rebase_grade`, `external_pr_ingestion_enabled` (opt-in
+polling for open PRs filed outside Syrus — see
+[External PR ingestion](#external-pr-ingestion)), and optional
+repository-level `agent_provider` for the owning user's Job runs. `review_policy` governs how approvals are
+counted (`self` — any reviewer including the author; `two_person` — at
+least one non-author approval; `final_say` — a designated
+`RepositoryFinalApprover` must be among the approvers). `feedback_policy`
+controls when PR comments trigger a `pr_comment` follow-up Workflow:
+`"auto"` (default for older repos) acts on any actionable comment;
+`"confirm"` (default for new repos) acts only on comments from the Job
+owner. Upstream fork metadata (`upstream_owner`, `upstream_name`,
+`upstream_default_branch`) links a fork to its origin repository. Archive
+blocks polling even if `polling_enabled` is true.
+
+`main_health` is a computed property (`"healthy"`, `"broken"`, or
+`"unknown"`) derived from two independently tracked signals:
+`ci_health` (based on GitHub check-run results for the default branch
+HEAD SHA, updated by `PollAllMainBranchHealthJob`) and `grader_health`
+(based on `.syrus.yml` grader runs against the default branch HEAD,
+updated by `MainGrader` workflows). `MainHealthChangedService` responds
+to health transitions: when main breaks it pauses landing, stamps
+in-flight Workflows with a `"main_broken"` artifact, spawns a "Fix
+broken main" direct Job, and emits a notification; when main recovers it
+resumes landing and auto-retries held Workflows. The `report_main_concern`
+MCP tool lets agents self-report suspicion that main was already broken
+before their changes; `MainConcernAggregator` applies crowd-quorum logic
+to trigger the shared broken-main response once enough agents report within
+the rolling window.
+
+### User
+
+Encrypted attributes include GitHub, Claude, and Codex credentials
+(Active Record Encryption — `RAILS_MASTER_KEY` is required to read
+them). `role` is either `developer` or `product_owner` and is serialized
+into bootstrap/profile/admin-user payloads. Product-owner role limits
+keep planning and backlog refinement separate from developer execution:
+product owners can draft work and refine Epics, while developers/admins
+advance Epics into runnable implementation. `role` is orthogonal to
+`global_role` (`admin` / `user`, see [Access control](#access-control)):
+`role` decides what a user is trusted to *do* with Epics, `global_role`
+decides whether they bypass repository-membership checks entirely.
+`agent_provider` is the
+user's default for new Jobs; a
+Repository can override it and per-Job retry/direct actions can choose
+an explicitly configured provider. `chat_provider` is a separate
+per-user preference for chat turns (`claude` or `codex`; defaults to
+`agent_provider` when nil). `agent_max_turns` is the per-user ceiling
+on Claude `--max-turns`; `0` means "no `--max-turns` flag" — the
+per-Run wall-clock timeout still applies. `theme` is a per-user UI
+preference (`light` or `dark`) returned in the bootstrap payload and
+updated through `PATCH /api/v1/app/theme`. `locale` is the user's UI
+language preference (supported: `"en"`, `"de"`, `"la"`; defaults to
+`"en"`), serialized in the bootstrap payload and used by the React i18n
+layer. `notification_preferences`
+stores per-kind app notification toggles plus desktop-native toggles for
+implemented/failed Job state alerts. Preferences are returned in
+bootstrap/current-user payloads, updated through
+`/api/v1/app/notification_preferences`, and the older credentials
+payload still accepts desktop toggles for desktop settings
+compatibility. `dashboard_preferences` stores subject-level
+view/sort/column/lane choices plus `folder_prefs` slots keyed by active
+smart folder id, so operators can keep different layouts and sort orders
+for Inbox, Landing Queue, All Epics, and custom folders. The first user
+to sign up is auto-promoted to `global_role: "admin"` (bootstrap
+convenience, not a core architectural concern).
+
+First-run setup is also user-scoped. `AppApi::SetupStatus` feeds the
+React `/onboarding` route and root/navigation guards; `App::SetupStatus`
+feeds older app payload surfaces that still expect setup summaries. The
+current onboarding contract is: admin/account access, GitHub credentials
+ready (PAT plus registered GitHub App), selected agent provider
+configured, at least one active repository, onboarding chat started, and
+then the first Epic landed. `User#first_run_setup_complete?` delegates to
+`first_epic_landed?`, so setup is not complete merely because a Job
+exists or a single PR succeeded; the first Epic has to reach `done`.
+`User#onboarding_chat` is the durable chat session that unlocks the rest
+of the app chrome and becomes the brand-link target until setup
+finishes.
+
+### PlatformIdentity
+
+Links a `User` to an account on an external chat platform so they can talk to
+their Syrus chat from that platform. `PLATFORMS = %w[telegram slack]` are
+core; `PlatformIdentity.available_platforms` extends that with every
+enabled `:platform_delivery` plugin's `platform_key` (currently `discord`).
+Slack is reserved in `PLATFORMS` but has no working adapter yet
+(`configured? == false`). See [External platform chat](#external-platform-chat)
+for the linking and message-routing flow.
+
+### ScheduledTask
+
+Cron-style schedule (5-field expression, validated to fire at most
+once per hour) or one-shot `fire_at`, attached to a Repository.
+Periodically spawns a cron `Job` with a pre-rendered prompt
+(`{{repo_slug}}`, `{{last_fired_at}}`, etc. expanded at fire time).
+Cron tasks honor the entered minute exactly and are evaluated in UTC
+hourly windows so repeated poller ticks do not double-fire the same
+hour.
+
+Scheduled tasks can optionally reference a `CronTemplate`. The
+scheduled task stores its own prompt, cron expression, and pile-up
+policy at creation time; the template is the reusable starting point
+and audit link, not runtime indirection. Updating a template therefore
+does not rewrite existing tasks, and deleting a template nulls the
+reference on applied tasks.
+
+The scheduled-task and cron-template forms surface the same cron
+contract at the input: five fields, interpreted in UTC, with the minute
+field honored and schedules limited to one fire per hour.
+
+This is the single user-facing recurring-work model. Chat-created
+recurring schedules requested through `schedule_recurring` are confirmed
+into `ScheduledTask(kind: "cron")` rows and fire through the same
+`PollScheduledTasksJob` / `ScheduledTaskFire` path as schedules created
+from the operator UI. Solid Queue's internal `RecurringTask` records are
+only queue scheduler plumbing and do not represent operator prompts.
+
+`pr_pileup_policy` controls what happens when a prior cron-Job's PR
+is still open at the next fire:
+
+| Value | Behavior |
+|---|---|
+| `skip` (default) | don't fire; bump `last_fired_at` only |
+| `pile` | fire anyway; previous Job and its PR remain |
+| `replace` | cancel the prior Job's active Runs and close it (`closure_reason=replaced_by_scheduled_task`), then fire |
+
+A `consecutive_failure` counter on the task auto-pauses the schedule
+once `AppSetting.max_job_failures` is hit; the operator must click
+Unpause to re-enable.
+
+### CronTemplate
+
+Reusable per-user schedule template. A `CronTemplate` stores a name,
+description, prompt, cron expression, enabled flag, and
+`pr_pileup_policy`. It has many `ScheduledTask`s with
+`dependent: :nullify`, which preserves already-applied scheduled tasks
+if the template is later deleted.
+
+The app API under `/api/v1/app/cron_templates` is user-scoped: users can
+list, create, edit, delete, and view applied tasks for their own
+templates. The "apply" flow links from a template to a repository's new
+scheduled-task form with `from_template=<id>`, where the scheduled task
+form copies the template values into a concrete repository-owned task.
+
+Cron expression validation mirrors `ScheduledTask`: Fugit parses the
+five-field expression and rejects schedules that can fire more than once
+per hour.
+
+### ProviderSession (formerly ClaudeSession)
+
+One row per Run that captures a provider session, holding the provider,
+`session_id`, transcript JSONL, and enough metadata for supported
+same-workflow continuations. `ProviderSession` is polymorphic
+(`belongs_to :resumable`) so it can be attached to a `Run` or any
+other resumable host. Claude sessions resume with
+`claude --resume <session_id>`; Codex continuations replay retained
+transcript JSONL through `CodexInvocation`. Retained for **14 days after
+the parent Run reaches a terminal state**
+according to the `provider_session` registry policy, then deleted by the
+database retention sweep. Sessions whose parent Run is
+still `queued` or `running` are never pruned, regardless of age.
+
+### The "preempted" path
+
+Special case worth calling out: when `PollRepositoryJob` ingests an
+issue that already has a human-opened PR linked to it, Syrus records
+the Job with `external_pr_number` set to that PR's number,
+`closure_reason="preempted"`, and `state=closed` from the start — no
+agent work is scheduled. The point is awareness (the operator sees
+the issue in the dashboard with a "preempted" pill) and the option
+to keep the PR mergeable: `PollAllMergeStatesJob` still checks
+external PRs whose head we control, even on closed Jobs. See
+`app/jobs/poll_repository_job.rb` for the detection logic and
+`app/jobs/poll_all_merge_states_job.rb` for why merge-state polling
+deliberately includes preempted Jobs.
+
+## Access control
+
+The access-control work made two previously-informal notions — "is this
+user an admin" and "can this user act on this repository" — explicit,
+separate axes: `global_role`, `RepositoryMembership` tiers, `Team`,
+Pundit policies, and GitHub/Syrus permission-mismatch surfacing.
+
+**`User#global_role`** (`app/models/user.rb`) replaced the old `admin`
+boolean column outright (migrated: backfilled from `admin = TRUE`, then
+the column was dropped). It's a plain string with `GLOBAL_ROLES = %w[admin
+user]` — not an AR `enum` macro, so a future third tier doesn't need a
+disruptive rename. `User#admin?` delegates to `global_role == "admin"`.
+The first user to sign up is still auto-promoted to `global_role: "admin"`
+at creation. This is independent of the pre-existing `User#role`
+(`developer` / `product_owner`, [User](#user)) — `global_role` decides
+whether repository-membership checks are bypassed at all; `role` decides
+what an in-scope user is trusted to do with Epics.
+
+**`RepositoryMembership`** roles are now `read` / `write` / `admin`
+(`ROLE_RANK` orders them low to high; `#at_least?`/`scope :at_least` do
+tier comparisons), up from the old `owner`/`collaborator` pair — `read`
+is visibility only, `write` unlocks Job mutation (approve/retry/cancel/
+feedback, gated by `JobPolicy#write?`), `admin` unlocks repository
+settings/credentials, matching what only the FK `owner` role could do
+before. The migration backfilled conservatively: prior `owner` rows
+became `admin`, prior `collaborator` rows became `read` (not `write` —
+collaborator previously only implied Epic visibility). New memberships
+default to `read`.
+
+**`Team`** (`app/models/team.rb`, `TeamMembership`, `TeamRepository`)
+groups users for bulk repository grants without materializing individual
+`RepositoryMembership` rows: `TeamRepository` grants a role tier
+(`read`/`write`/`admin`, same scale) to every member of a team for a
+repository, and `Repository#effective_role_for(user)` /
+`Repository.accessible_repository_ids_for(user)` compute the max of
+global-admin, direct membership, and best team grant on the fly. A
+`TeamMembership` is `member` or `owner`; team owners manage the team's
+membership and repository grants. Team CRUD lives at `/admin/teams`
+(`AdminTeams.tsx`) — despite the URL prefix, access is gated by
+`TeamPolicy`, not a blanket admin-only check (team owners can manage
+their own team without being global admins).
+
+**Pundit policies** (`app/policies/`: `ApplicationPolicy`,
+`RepositoryPolicy`, `JobPolicy`, `EpicPolicy`, `TeamPolicy`) replaced ad
+hoc `Current.user.repositories` / inline `admin?` checks scattered across
+controllers. `RepositoryPolicy::Scope#resolve` unions direct admin-tier
+memberships and admin-tier team grants (deliberately not admin-bypassed,
+mirroring the old FK-owner semantics); `JobPolicy#write?` and
+`EpicPolicy` gate mutation on write-tier-or-better repository access
+(`EpicPolicy` also still enforces the `product_owner`-role restriction
+against advancing Epics). **Job visibility now follows repository
+access, matching Epic**: `Job.accessible_to(user)` mirrors the
+pre-existing `Epic.accessible_to`, routed through
+`Repository.accessible_repository_ids_for` so any member (direct or via
+a Team) can see Jobs on repositories they have access to; mutation stays
+gated separately.
+
+**GitHub vs. Syrus permission mismatches** are surfaced, not enforced.
+`GithubPermissionSyncer` (run recurring by
+`SyncGithubPermissionsJob`) flags two directions: a Syrus `write`/`admin`
+member with insufficient GitHub access (recorded on the
+`RepositoryMembership` row as `github_permission_mismatch_reason` +
+`_checked_at`), and a GitHub collaborator with write-or-better GitHub
+access but no Syrus access at all (`GithubCollaboratorDiscrepancy`).
+Both show up as warnings on the repository's edit page
+(`RepositoryMembersSection` in `RepositoryMembers.tsx`, embedded by
+`RepositoryForm.tsx` at `/repositories/:id/edit`) alongside the
+add/promote/remove membership controls and the Team-grant section — an
+amber badge per mismatched row, and a separate "GitHub-only
+collaborators" list.
+
+## Recurring schedule
+
+`config/recurring.yml`:
+
+| Job | Cadence | What it does |
+|---|---|---|
+| `PollAllInputSourcesJob` | every 5 min | Fans out to `PollInputSourceJob` per active `InputSource` (replaces the old per-repo `PollAllRepositoriesJob` in the recurring schedule; plugin-extensible via `:input_source` extension point) |
+| `PollAllMainBranchHealthJob` | every 5 min | Fans out to per-repo default-branch health polling; triggers `main_grader` Workflows on new HEAD SHAs |
+| `PollAllPullRequestsJob` | every 5 min | Fans out to `PollPullRequestJob` per Job-with-PR |
+| `PollAllExternalOpenPrsJob` | every 5 min | Fans out to `PollExternalOpenPrsJob` per repo with `external_pr_ingestion_enabled`; discovers open external PRs and creates `external_pr` Jobs |
+| `PollAllMergeStatesJob` | every 5 min | Fans out to `PollMergeStateJob` per Job-with-PR |
+| `PollAllDeploymentStagesJob` | every 5 min | Fans out to repositories with `.syrus.yml` `deployment_stages`; records which landed merge commits have reached configured git tags |
+| `LandingQueueProcessorJob` | every 30 sec | Picks approved Jobs/Epics for landing workflows |
+| `PollScheduledTasksJob` | every 1 min | Finds due `ScheduledTask`s; fires via `ScheduledTaskFire` |
+| `PollScheduledChatMessagesJob` | every 1 min | Resilience sweep for due unsent chat `/schedule` messages |
+| `ChatScopedEventRetryFailedJob` | every 5 min | Retries failed `ChatScopedEventEvaluatorJob` runs for scoped events |
+| `SyncEnabledForksJob` | every 15 min | Refreshes enabled fork metadata and upstream links |
+| `ReapStaleRunsJob` | every 1 min | Recovers RunJob crashes: fails orphaned/stale `running` Runs, re-enqueues orphaned `queued` Runs, and finishes terminal Workflows |
+| `DataRootDiskUsageRefreshJob` | every 1 min | Refreshes `$SYRUS_DATA_ROOT` disk usage for operator visibility |
+| `ReapClassifierPendingJob` | every 5 min | Re-enqueues classifier work for Jobs stuck in classifier-pending triage |
+| `ReapOrphanedSpawnedProcessesJob` | every 1 min | Finalizes subprocess rows owned by dead hosts |
+| `ReapStaleInstanceVersionsJob` | every 1 min | Finalizes stale web/worker instance rows |
+| `RetentionSweepJob` | every 10 min | Fans out registered database retention policies by stable key |
+| `ReapStaleBranchesJob` | daily 3:40am | Deletes old Syrus-managed branches after terminal cleanup rules allow it |
+| `PurgeExpiredPasskeyChallengesJob` | daily 3:45am | Deletes expired WebAuthn challenge records |
+| `WorkflowWorkspacePruneJob` | every 2 hours | Removes old terminal Workflow workspaces |
+| `VideoWalkthroughPruneJob` | daily 3:40am | Enforces walkthrough video blob retention and storage budget |
+| `CoverageHitMapTtlPruneJob` | daily 3:50am | Deletes expired coverage hit-map blobs |
+| `InsightSweepJob` | every 6 hours | Fires adaptive `agent_insight` Jobs for repositories with enough closed work since the last insight run |
+| `SyncInstallationsJob` | every 5 min | Refreshes GitHub App installation links |
+| `ReconcileJobStatesJob` | every 5 min | Repairs drift between Job state and terminal evidence |
+Plus one Solid Queue housekeeping entry, `clear_solid_queue_finished_jobs`,
+which is production-only because dev wipes the Solid Queue tables
+often enough on its own. It runs hourly and `delete_all`s finished
+job rows in batches.
+
+## Per-poller flow
+
+### Issue ingestion (issue → Job → Run)
+
+Issue ingestion is now plugin-extensible through the `:input_source`
+extension point. `PollAllInputSourcesJob` fans out to
+`PollInputSourceJob` per active `InputSource` record whose plugin is
+enabled. The bundled `github_source` plugin provides
+`InputSources::Github`, which calls through to the existing
+`PollRepositoryJob` flow:
+
+```
+PollInputSourceJob → InputSources::Github#poll!
+  → PollRepositoryJob (per repo, serialized via SolidQueue concurrency key)
+      → GithubClient.for(repository:, user:).issues_with_label(slug, trigger_label)
+      → close open issue Jobs with no PR when their upstream issue is now closed
+      → IngestPolicy filters (skip closed issues, PRs, syrus-skip label)
+      → For each surviving issue:
+          latest Job for repository + issue_number dedups active work
+          classifier/dependency/epic gates run
+          issue markdown images are ingested as Job attachments
+          if ready:
+            Workflows::Initial.instantiate(job:)
+            StepDispatcher.start_workflow(workflow)
+              first Step's Run is created
+              Run#after_create_commit → enqueue_run_job
+                RunJob.perform_later(run_id) hits SolidQueue
+```
+
+The `linear_source` plugin provides `InputSources::Linear`, which polls
+Linear teams configured per repository and creates Jobs from matching
+Linear issues.
+
+The initial Workflow autostarts for issue-kind Jobs only once triage,
+Epic gating, and dependencies release the Job. Cron-kind Jobs have their
+initial Workflow/Run created explicitly by `PollScheduledTasksJob` with
+a pre-rendered prompt (so `{{date}}` and friends reflect fire time, not
+RunJob start time). Direct Jobs are operator-created free-form prompts
+and use the same Workflow machinery.
+
+Dedup is intentionally "latest Job for this repository + issue" rather
+than "any historical Job": an existing open thread absorbs label and
+external-PR discoveries, while a fully closed thread can be followed by
+a new active thread for the same upstream issue.
+
+### PR and chat feedback (`pr_comment`, `chat_feedback`, `ci_failure`)
+
+```
+PollAllPullRequestsJob
+  → PollPullRequestJob per open Job with pr_number
+      → fetch issue comments, review comments, reviews, checks
+      → filter to events newer than max(last_seen_comment_at,
+        last_feedback_addressed_at)
+      → qualifies_for_workflow? = actionable AND (job_owner? OR feedback_policy_auto?)
+      → if qualifying comment exists:
+          Workflows::PrFeedback.instantiate(...)
+          StepDispatcher.start_workflow(...)
+      → if checks on pr.head.sha are failing AND sha != last_ci_handled_sha:
+          Workflows::CiFailure.instantiate(...)
+          StepDispatcher.start_workflow(...)
+      → bump last_seen_comment_at / last_ci_handled_sha as watermarks
+  → PollForkReviewPrJob per Job with fork_review_pr_number
+      → monitor fork review PR approvals, CHANGES_REQUESTED reviews, and merges
+      → on approval: ForkReviewApprover records a JobApproval, opens upstream PR
+      → on rejection: set needs_attention, queue pr_comment workflow
+      → grace period (default 24h) when fork PR closed without merge
+      → watermark: last_seen_fork_review_comment_at
+```
+
+Chat feedback is not poller-created. In a repository-scoped chat, the
+agent can call `submit_chat_feedback` only after discussing the requested
+change with the operator and checking that no `chat_feedback` Workflow is
+already active for the Job. The tool creates a `ChatPendingAction`; when
+the operator confirms it, `ChatPendingAction#apply!` instantiates
+`Workflows::ChatFeedback` with a `chat_feedback` artifact and starts the
+Workflow. The Job must be `implemented` or `approved`; confirming
+feedback on an approved Job unapproves it so the landing queue does not
+merge stale work.
+
+`feedback_policy` on the repository controls which comments trigger a
+`pr_comment` Workflow: `"auto"` acts on any actionable comment from any
+author; `"confirm"` (the default for newly registered repositories)
+acts only on comments from the Job owner. Comments from other authors
+are still ingested and watermarked but do not auto-enqueue feedback
+Workflows in `confirm` mode.
+
+Chat proposals share the same dependency model before and after
+confirmation. `propose_job` can depend on existing Jobs, existing Epics,
+or other Job proposal slugs from the chat session. `propose_epic_with_jobs`
+can chain sibling child Jobs, point child Jobs at existing Epics, and
+point the Epic itself at existing Jobs, existing Epics (`epic:<id>`), or
+other Epic proposal slugs. Confirming an Epic-with-Jobs card runs one
+transaction that topologically creates the Epic and child Jobs, wires
+sibling and cross-card Job dependencies, rewrites resolved Epic proposal
+tokens to stable `epic:<id>` tokens, and resolves any pending
+proposal-backed dependency rows. Jobs are advanced after triage only once
+those gates are in place.
+
+There is no author filter on the PR-comment path today: every Syrus
+deployment runs under a single operator's PAT, so any comment that
+isn't from "us" (i.e. anyone else commenting on the PR) is something
+we want to act on. If/when Syrus grows a separate bot identity, a
+configurable skip-by-login filter will go here.
+
+### Rebase loop
+
+```
+PollAllMergeStatesJob (includes preempted threads that still need merge-state checks)
+  → PollMergeStateJob per Job with pr_number OR external_pr_number
+      → fetch PR, persist pr_mergeable + pr_mergeable_checked_at
+      → bail if merged / closed / mergeable in (true, nil)
+      → bail if head is from a fork (we don't push)
+      → bail if a runnable rebase/stack-rebase Workflow is already active
+      → bail if rebase attempt cap reached
+      → Workflows::Rebase.instantiate(...)
+      → auto_rebase Step tries deterministic `git rebase`
+          clean? cancel only agent_rebase, continue to force_push
+          conflict? leave in-progress rebase for agent_rebase
+```
+
+The fast path is now a Step inside the Workflow instead of an in-poller
+shortcut. Most rebases still avoid the agent: `auto_rebase` succeeds,
+`agent_rebase` is cancelled, and `force_push` updates the PR branch.
+Only conflicts that require judgment escalate to the agentic
+`agent_rebase` Step.
+
+`RebaseWorkflowSelector` is the shared gate for rebase vs. stack-rebase
+selection and for "already active" checks. Its active scope deliberately
+ignores stale active Workflow rows that never created a Run, so old
+no-run rebase attempts do not block future merge-state polling or manual
+rebase commands. If `StepDispatcher.start_workflow` later discovers that
+dependencies or stack readiness make a newly-created rebase Workflow
+unstartable, it cancels that Workflow and records
+`start_blocked_reason` in artifacts instead of leaving an active
+Workflow with no Run.
+
+### Scheduled tasks
+
+```
+PollScheduledTasksJob (every minute)
+  → alive ScheduledTasks for active repositories and unpaused users
+      whose scheduled fire time has arrived
+      → ScheduledTaskFire.call(task)
+        → render prompt (variable expansion: {{date}}, etc.)
+        → apply pr_pileup_policy if a prior cron-Job's PR is still open
+        → Job.create!(kind: "cron", scheduled_task_id: task.id, ...)
+        → Workflows::Initial.instantiate(...)
+        → first Run created with prompt: rendered
+        → bump last_fired_at, last_successful_fire_at, etc.
+```
+
+Cron expressions are interpreted in UTC. Five-field cron schedules must
+fire at most once per hour, but Syrus honors the entered minute exactly
+and records the evaluated window so repeated poller ticks do not double
+fire the same hour.
+
+### Scheduled chat messages
+
+The chat `/schedule` slash command stores a `ScheduledChatMessage`
+instead of waking the agent immediately. The browser resolves the
+requested time to an absolute UTC `fire_at` and posts it to the chat
+scheduled-message endpoint. The row enqueues `ScheduledChatMessageFireJob`
+for that timestamp, and `PollScheduledChatMessagesJob` sweeps due unsent
+rows every minute as a resilience path. Firing is idempotent through
+`sent_at`: it appends a normal visible user chat message tagged with
+`requested_by: "scheduled_message"` and enqueues `ChatTurnJob` on the
+same chat queue.
+
+### External PR ingestion
+
+Repositories with `external_pr_ingestion_enabled: true` participate in
+external-PR polling. `PollAllExternalOpenPrsJob` fans out to
+`PollExternalOpenPrsJob` per such repository (every 5 min), which
+fetches open PRs and skips any on `syrus/`-prefixed branches or already
+tracked as `external_pr` Jobs.
+
+A discovered PR creates a `Job(kind: external_pr, state: implemented)`
+with `external_pr_number` set and `external_pr_fork` flagged when the
+head branch comes from a fork. The Job immediately starts an
+`external_pr_ingest` Workflow which runs `.syrus.yml` graders:
+
+- **Same-repo PR** (`external_pr_fork: false`) — Syrus controls the head
+  branch and can push repairs. Chain:
+  `prepare → retry_until(repair: landing_fix, check: grader_fanout → grader_collect) → push`.
+  Grader pass → Job returns to `implemented`; exhausted repair iterations →
+  Job moves to `failed`.
+- **Fork PR** (`external_pr_fork: true`) — Syrus cannot push. Chain:
+  `prepare → grader_fanout → grader_collect`. Grader pass → `implemented`;
+  grader failure → posts a `REQUEST_CHANGES` review comment on the PR and
+  leaves the Job `implemented` (re-evaluated on the next push by the
+  contributor).
+
+Once a PR is ingested, `PollExternalPrJob` (per-Job, analogous to
+`PollPullRequestJob`) keeps watching it: it closes the Job when the
+upstream PR merges or closes, syncs GitHub review state — a
+`CHANGES_REQUESTED` review or a qualifying comment sets `needs_attention`,
+an `APPROVED` review records a `JobApproval` via
+`Job#record_github_review_approval!` — and ingests new PR comments through
+the same `PrCommentIngester` pipeline `PollPullRequestJob` uses for
+Syrus-authored PRs. A qualifying comment on a same-repo PR (Syrus controls
+the branch) dispatches a `Workflows::ExternalPrFeedback` fix-and-push
+Workflow; on a fork PR (Syrus can't push) it instead sets `needs_attention`
+the same way a formal `CHANGES_REQUESTED` review would.
+
+Approved `external_pr` Jobs land through `Workflows::ExternalPrMerge`.
+The landing chain mirrors the ingest shape (same-repo uses
+`mergeability_preflight → prepare → retry_until(grader_fanout, repair: landing_fix) → external_pr_merge`;
+fork-PRs skip the retry-repair loop). The `external_pr_merge` Step calls
+GitHub's merge API, closes the Job with `closure_reason: external_pr_merged`,
+and stores `landed_sha`. Transient GitHub failures defer the Job as normal
+landing failures do.
+
+### Agent insights
+
+`agent_insight` Jobs are repository analysis runs, not implementation
+runs. They can be started manually from the repository insights UI/API or
+adaptively by `InsightSweepJob` when a repository's insight schedule
+configuration has enough closed work since the last insight run. The
+Workflow uses the normal prepare step, invokes an agent with a read-only
+prompt over recent Job history and known insights, and records findings
+as `InsightSuggestion` rows through the `submit_insight` MCP tool. The
+anchor Job then closes with `closure_reason="agent_insight"` on success
+or failure so insight Jobs do not clutter ordinary work dashboards.
+
+### Stale Run reaping
+
+```
+ReapStaleRunsJob (every minute)
+  → Solid Queue RunJobs failed by ProcessPrunedError
+      → expand root Run ids to any inline running Runs in the same Workflow
+      → mark as failed (agent_outcome: "worker_died")
+  → running Runs with no active SolidQueue::Job after a grace period
+      → mark as failed (agent_outcome: "worker_died")
+  → running Runs with stale last_heartbeat_at
+      → mark as failed (agent_outcome: "worker_died")
+  → queued Runs with no active RunJob driving their Workflow
+      → re-enqueue (the successor was created for inline execution but the worker died)
+  → terminal Workflows left active by a crash
+      → finish the Workflow and let terminal cleanup handle the workspace
+```
+
+The 30-minute heartbeat threshold is the backstop, not the only signal.
+The faster paths use Solid Queue evidence: a `ProcessPrunedError` means
+the worker process is gone, and a `running` Run with no active RunJob
+after the grace period has no worker that can resume it. The queued-Run
+path exists because `RunJob` drives a Workflow chain inline: after one
+Step succeeds, the next Step's Run is created in `queued` state and is
+normally picked up by the same worker without a new queue row. If that
+worker dies in the gap, the recovery action is to enqueue the side-
+effect-free queued Run, not fail it. The heartbeat is bumped on every
+`JobLog#log` write — not on a separate timer — so "agent producing
+transcript output" implicitly counts as alive.
+
+## Per-Workflow pipeline
+
+Workflow definitions live in `app/services/workflows/` and Step
+handlers live in `app/services/steps/`. `Workflows::Base` materializes a
+chain of Step rows and stores the serialized chain template; `Step` rows
+are wired with `next_step_id`, and `StepDispatcher` creates exactly one
+Run for each Step as the chain advances. Control nodes such as
+`Workflows::RetryUntil` append bounded repair/check iterations when a
+grader-collect step fails.
+
+Current Workflow chains:
+
+| Trigger | Chain |
+|---|---|
+| `initial` | `prepare → implement → optional loop(adversarial_review first, then implement ⇄ adversarial_review, final repair-only iteration) → optional loop(security_review first, then implement ⇄ security_review, final repair-only iteration) → optional loop(visual_review first, then implement ⇄ visual_review, final repair-only iteration) → optional retry_until(format → generate → grader_fanout → grader_collect, repair: implement) → coverage_analyze → dependency_audit → summarize → test_plan → pr_open → optional post_implementation_review` |
+| `pr_comment` | `prepare → respond → optional adversarial, security, and visual review-first repair loops → optional retry_until(format → generate → grader_fanout → grader_collect, repair: respond) → coverage_analyze → coverage_pr_comment → dependency_audit → dependency_audit_pr_comment → summarize_amend → refresh_job_metadata → try(push) → optional post_implementation_review` |
+| `chat_feedback` | same shape as `pr_comment`, using confirmed chat feedback as the response context |
+| `ci_failure` | `prepare → retry_until(analyze_and_fix → grader_fanout → grader_collect) → summarize_amend → try(push)` |
+| `retry` / `replay` | Same shape as `initial`: `prepare → implement → ` optional review loops (review-first) `→` optional retry loop (check-first, `repair: implement`) `→` initial's finish steps, reusing the existing branch and PR if present |
+| `manual_visual_review` | `prepare → visual_review` — on-demand QA pass triggered by the operator or chat; records a verdict without looping back into implement/respond |
+| `manual` / `resume` | `manual` |
+| `rebase` | `auto_rebase → agent_rebase → force_push` |
+| `stack_rebase` | `stack_auto_rebase → stack_agent_rebase → stack_force_push` |
+| `auto_merge` | `mergeability_preflight → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → push → auto_merge` |
+| `merge_train` | `merge_train_assemble → merge_train_build → merge_train_reconcile → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → try(merge_train_land; base-moved fallback: merge_train_rebase → merge_train_agent_rebase → retry_until(grader_fanout → grader_collect, repair: landing_fix) → merge_train_land_after_rebase)` |
+| `coding_handoff` | `prepare → optional adversarial, security, and visual review-first repair loops → retry_until(grader_fanout → grader_collect, repair: coding_handoff_fix) → summarize → test_plan → pr_open → optional post_implementation_review` |
+| `local_mode_handoff` | `prepare → retry_until(grader_fanout → grader_collect, repair: local_mode_handoff_fix) → summarize_amend → try(push)` (PR already open) or `prepare → retry_until(grader_fanout → grader_collect, repair: local_mode_handoff_fix) → summarize → test_plan → pr_open` (no PR yet) |
+| `main_grader` | `prepare → builder_fanout → grader_fanout → grader_collect` (no retry loop; result drives `repository.grader_health`; anchor Job is closed and excluded from dashboard; routes to `:runs` queue) |
+| `agent_insight` | `prepare → agent_insight_run → auto_close` (read-only analysis; creates `InsightSuggestion` records; anchor Job auto-closes and is excluded from ordinary work queues) |
+| `external_pr_ingest` | same-repo: `prepare → retry_until(repair: landing_fix, check: grader_fanout → grader_collect) → push`; fork: `prepare → grader_fanout → grader_collect` |
+| `external_pr_merge` | same-repo: `mergeability_preflight → prepare → retry_until(grader_fanout → grader_collect, repair: landing_fix) → external_pr_merge`; fork: `mergeability_preflight → prepare → grader_fanout → grader_collect → external_pr_merge` |
+| `skill` | `prepare → retry_until(run_skill → grader_fanout → grader_collect) → summarize → pr_open` (a no-diff skill closes as `no_changes` before summarize/PR) |
+| `investigation` | `prepare → investigate → submit_report` (read-only, report-producing direct Jobs; success lands in `implemented` for operator review rather than opening a PR) |
+
+`prepare` reads `.syrus.yml` or auto-detects setup commands from
+lockfiles. Explicit `.syrus.yml` commands are operator intent and
+hard-fail the Step on error; auto-detected commands are guesses and
+soft-fail with a recorded `prepare_failure` artifact so the agent still
+runs and can fix setup from inside the repository. It can be disabled
+per repository or skipped for one Job with the `syrus-skip-prepare`
+label; the skip is recorded in Workflow artifacts and logged on the
+first Run. Before that lockfile-driven install, `prepare` also checks the
+workspace root for `mise` version files (`.tool-versions`, `.mise.toml`,
+`.ruby-version`, `.python-version`, `.node-version`, `.go-version`) and, if
+any are present, runs `mise install` through `ProcessRunner` (5-minute
+timeout). A `mise install` failure is always soft — recorded as a
+`mise_install_failure` step detail/artifact — and never blocks the rest of
+the run. Worker pods mount a shared `mise` cache (see
+[Deployment topology](#deployment-topology)) so repeated installs across
+Workflows reuse downloaded runtimes.
+
+Distributed immutable-source Steps reuse that preparation without sharing a
+mutable checkout. A successful `prepare` records a fingerprint covering the
+prepare plan and worker capability environment; `PreparedWorkspaceArchive`
+publishes one archive per dependency closure, and `ImmutableSourceCheckout`
+can apply it to any source revision with the same fingerprint. Each worker
+materializes those archives into a host-local `PreparedLayerCache`, then checks
+out the requested immutable revision over the dependency layer. Cache entries
+are keyed by worker storage identity and fingerprint, marked ready only after
+complete extraction, and evicted least-recently-used when the configured size
+budget or data-root disk pressure requires it.
+
+Agentic Steps (`implement`, `adversarial_review`, `security_review`, `visual_review`,
+`respond`, `analyze_and_fix`, rebase repair, landing repair,
+`local_mode_handoff_fix`, summarize, test_plan, and manual)
+invoke the Workflow's
+configured provider through `AgentProviders::*`. Non-agentic Steps run
+service code: graders, git push/force-push, PR opening, mergeability
+gates, merge API calls, merge-train assembly/landing, and
+`coverage_analyze`. `coverage_analyze` runs after `grader_collect` in
+initial (and compatible) Workflows: it reads a `coverage:` block from
+`.syrus.yml`, parses coverage artifacts produced by graders, merges and
+normalizes them, computes per-file and diff-level annotations, stores a
+`CoverageSnapshot`, and evaluates any configured threshold. Skipped
+silently if no coverage configuration is present. In feedback Workflows
+(`pr_comment`, `chat_feedback`) a `coverage_pr_comment` Step follows
+immediately: it posts or updates the coverage report as a PR comment
+using the body computed by `coverage_analyze`; a no-op when coverage is
+unconfigured, the plan has `pr_comment: false`, or the Job has no PR.
+
+`initial`, `retry`, `pr_comment`, and `chat_feedback` all materialize a
+bare top-level `implement`/`respond` Step immediately after `prepare`.
+Optional review and grade loops revise that work; they do not decide
+whether implementation/response happens. When configured,
+`adversarial_review`, `security_review`, and `visual_review` are review-first loops: the
+first iteration reviews whatever agent step already ran before the loop
+(the bare top-level step, or the tail of a preceding review loop). A
+`needs_work` verdict always inserts a repair `implement`/`respond` Step,
+unconditionally, regardless of remaining review budget; the repair pairs
+with another review while budget remains. Once the review that just ran
+was the last one `rounds` allows, its `needs_work` repair runs alone,
+with no trailing review — there is no remaining review turn to act on.
+`rounds: N` seeks exactly N review opinions, each reacted to with exactly
+one repair. The grader retry loop in these four chains likewise runs
+check-first: the first pass runs configured `format`, `generate`, and
+grader Steps against the existing implementation, and only adds another
+`implement`/`respond` Step after a failed grader iteration.
+
+For Initial, Retry, `pr_comment`, and `chat_feedback`, the grade loop is
+materialized only when the repository's default-branch `.syrus.yml`
+configures at least one of `formatters:`, `generated:`, or `grade:`.
+With none of those keys configured, Syrus does not create no-op
+format/generate/grader Steps. As soon as any one is configured, the loop
+includes whichever deterministic autofix Steps apply (`format` and/or
+`generate`) plus `grader_fanout`/`grader_collect`; there is no retry
+loop without a check phase. The planner treats only a non-empty
+`formatters:` array as configuring the `format` Step, only a non-empty
+`generated:` array as configuring the `generate` Step, and only a
+non-empty `grade:` block as configuring the grader check. Inside a
+materialized `format` Step, the handler remains conservative: no
+`formatters:` key means no formatting, an array declares explicit
+diff-scoped commands, and `false`/`off` disables formatting. The handler
+also supports plugin-provided defaults for `formatters: []`, but that
+empty array by itself does not currently cause `RepoGradeLoopPlan` to
+materialize a `format` Step. `generated:` has no plugin default; it only
+runs explicit, diff-scoped generators and skips entries marked
+`codegen_ignore`.
+
+The optional `adversarial_review` loop applies to Initial, Retry,
+`pr_comment`, and `chat_feedback` Workflows. `RepoAdversarialReviewPlan`
+reads repository configuration from `.syrus.yml` and falls back to
+`AppSetting.adversarial_review_rounds` when appropriate. The independent
+reviewer prompt reads the preceding succeeded diff; the reviewer must
+call `submit_adversarial_review` with `approved` or `needs_work`. The
+reviewer prompt is framed for the
+workflow kind: feedback reviewers receive the full PR-comment or chat
+feedback context so they can judge whether the agent addressed what was
+asked. The verdict is recorded for audit/future control; `StepDispatcher`
+uses loop metadata to decide whether to continue with another
+implementation/respond iteration or advance.
+Operators can add an optional `criteria` list to the `adversarial_review`
+block in `.syrus.yml`; when present, the reviewer prompt inserts a "pay
+particular attention" section listing each criterion. Criteria are
+additive — the standard review checklist still applies.
+
+The optional `security_review` loop follows adversarial review and precedes
+visual review. `RepoSecurityReviewPlan` reads `security_review.rounds` and
+optional `criteria` from `.syrus.yml`, with
+`AppSetting.security_review_rounds` as the instance default. Its isolated
+reviewer calls `submit_security_review`; verdicts and repair behavior use the
+same bounded review-first loop contract as adversarial review. Initial,
+Retry, Coding Handoff, PR/chat feedback, and same-repository external-PR
+feedback workflows can include this loop.
+
+Provider-routing rules can turn adversarial and security review Steps into a
+multi-provider panel. The original review Step expands into one Step per
+available, distinct provider/model/effort candidate plus a non-agentic
+`review_panel_collect` Step. The collector applies unanimous, majority, or
+explicit-threshold consensus, ignores `skipped` votes, and records both the
+aggregate verdict and vote breakdown. Rules also define a minimum member
+count and whether unavailable members are dropped, hold dispatch, or fail the
+review; the Job review UI exposes each member's verdict and the aggregate.
+
+The optional `visual_review` loop runs after the security-review slot in
+Initial, Retry, Coding Handoff, `pr_comment`, and `chat_feedback` Workflows.
+`RepoVisualReviewPlan` resolves whether the loop runs the same way
+`RepoAdversarialReviewPlan` resolves the review loop: it reads a
+`visual_review:` block from `.syrus.yml` on the default branch (`enabled`,
+`rounds`, and an optional `when_files_changed` glob pre-filter evaluated
+against the actual diff once the workspace is cloned). Visual review is
+always available by default now; there is no instance-wide
+`visual_review` Feature flag. A repository or nested project can still
+disable it by setting `.syrus.yml` `visual_review.enabled: false`, and
+project-level preview declarations can opt the relevant project back in
+with their own visual-review settings. Like `adversarial_review`, this
+loop is review-first: iteration 1 is `visual_review` alone, reviewing
+whatever `implement`/`respond` step (or the tail of a preceding
+preceding review loop) already ran before it. That reviewer agent
+calls `start_preview` (an MCP tool
+that resolves a `preview:` command from `.syrus.yml` or a registered
+`:preview_provider` plugin, runs setup/seed commands, spawns the app in the
+workflow runner container, and polls its health-check path) and then drives
+a headless Chromium browser against that preview through the `browser`
+plugin's MCP tool set (`browser_navigate` — hard-restricted to the
+worker's own loopback preview — `browser_snapshot`, `browser_click`,
+`browser_fill`, `browser_hover`, `browser_screenshot`, `browser_wait_for`,
+`browser_resize`, `browser_emulate` (device preset, safe-area insets, touch,
+color scheme), `browser_close`, proxying each call to a per-Run `@playwright/mcp` stdio
+subprocess). It
+reads the implementing agent's `submit_test_plan` `visual_review_recommended`
+hint but makes its own go/no-go call, always calls `stop_preview` before
+exiting, and must call `submit_visual_review(verdict:, critique:)` with
+`approved` (looks correct), `needs_work` (always inserts a repair
+`implement`/`respond` iteration, paired with another review while budget
+remains), or `skipped` (not visually testable — exits the loop like
+`approved`). The reviewer's workspace changes are discarded.
+An operator or chat can also trigger a standalone pass without the
+implement/respond pairing — see `manual_visual_review` in the trigger-kind
+table above.
+
+Plugin-owned review-note providers can request a `post_implementation_review`
+Step after a branch has been summarized, tested, and either opened or pushed.
+Core owns the Step slot and the provider invocation; enabled plugins decide
+whether review notes are needed for the Job/trigger kind, contribute prompt
+sections, expose the required MCP submission tools, and render the persisted
+notes later in the review UI. The Step advances on failure so advisory review
+notes never block the implementation workflow.
+
+`respond` is shared by `pr_comment` and `chat_feedback` Workflows. The
+PR-comment path composes `Prompts::PrFeedback` from GitHub comments,
+cutoffs, and prior summaries; the chat-feedback path composes
+`Prompts::ChatFeedback` from the confirmed `chat_feedback` artifact,
+prior feedback summaries, recent branch commits, and optional Epic
+context. Both commit to the existing branch and hand revision copy to
+`summarize_amend` before `push`.
+
+`RunJob#perform` is now the per-Step executor:
+
+1. Find the Run, Step, Workflow, and Job; bail if the Run is terminal.
+2. Enforce the Job-closed guard except for maintenance workflows that
+   intentionally operate on preempted/external PRs.
+3. Start the Workflow/Step/Run AASM states and record timestamps.
+4. Ensure the shared `WorkflowWorkspace` exists at
+   `$SYRUS_DATA_ROOT/workflows/<workflow_id>/`, with the default branch
+   available for three-dot diffs and the correct work branch checked out.
+5. Dispatch to `Step::Kind.handler_for(step.kind)`.
+6. Persist Run metadata: provider result, turns, session capture, cost,
+   diff/head SHA where relevant, and failure diagnostics.
+7. On Step success, `StepDispatcher.advance_from` creates the next Run
+   or marks the Workflow succeeded. On failure, graders aggregate and may
+   trigger another retry iteration; ordinary failures fail the Workflow.
+
+Terminal Workflow transitions own workspace lifecycle. Infrastructure
+Workflows (`main_grader` and `agent_insight`) use shorter cleanup
+retention and do not participate in the normal failed-workspace retry
+affordance. `commit_agent_changes` is called by file-editing agentic
+handlers before downstream diff/push steps. Diff capture uses `git diff
+<default_branch>...HEAD` so PR views match GitHub's "Files changed" tab.
+
+**Workflow admission gates** — `WorkflowAdmissionBudget` is a
+resource-aware gate applied at two points: Workflow initialization (before
+any Steps run) and at phase boundaries (before `grader_fanout` and other
+high-cost steps). It evaluates current worker host pressure, the predicted
+cost of the step derived from `WorkflowStepResourceProfile` records, and
+repository concurrency. Possible decisions: `admit_now`, `admit_low_risk_only`
+(allow only if predicted duration < 8 min and pressure is low), `delay_until`
+(soft 10-min deferral; `WorkflowPhaseAdmissionJob` resumes the step), or
+`requires_override` (hard block when memory or disk is critically exhausted).
+Urgent Jobs and main-branch repair Jobs bypass pressure gates but respect hard
+limits. `AppSetting.workflow_admission_policy` is a kill-switch that can
+disable the feature instance-wide.
+
+**Execution capability routing** — Workflows record planned execution
+requirements (`planned_execution_project_label`,
+`planned_execution_target_label`, `planned_execution_capabilities`, and
+source) at creation time. Job and Workflow planned-execution capability maps
+deliberately accept only `os`, limited to `linux` or `macos`; architecture,
+language runtimes, toolchains, simulators, browsers, and similar dependencies
+belong in image or prepare/target configuration for that mutable-workspace
+placement. Chat proposal tools must provide explicit
+`planned_execution.capabilities` for every proposed Job, instead of inferring
+placement from prose. Target-level `required_capabilities` are a separate
+worker-admission contract for distributed immutable-source graders. They are
+normalized through `TargetGraph::ExecutionCapabilities` across `os`, `arch`,
+`toolchain`, and `runtime`; platform targets such as iOS use toolchain/runtime
+requirements layered on ordinary Linux or macOS workers rather than inventing
+another operating-system value.
+`RunQueueResolver` maps each Run to a Solid Queue lane from those
+requirements plus the Step placement policy: mutable workflow-workspace
+Steps prefer the Workflow's planned requirements and sticky resume queue,
+while distributed immutable-source grader Steps use their target-level
+`required_capabilities`. Default work routes to Linux `runs` / `merges`;
+constrained target work can route to lanes such as `runs-macos-arm64`. If no
+live worker advertises the required capabilities, the WorkUnit is
+blocked with the no-capable-worker vocabulary instead of queueing work
+that cannot be claimed. Worker capability maps come from heartbeat
+metadata, local probes (for example Xcode, iOS simulators, and Docker),
+and `SYRUS_WORKER_CAPABILITIES`, with macOS drains excluded from new
+capacity.
+
+Before execution begins, operators can replace a Job's planned placement
+with a named `ExecutionPlacementProfile`. `PlannedExecutionOverrides::Operation`
+permits this only for triaging/backlog Jobs with no execution history or a
+queued, never-started initial Workflow with no workspace affinity. It updates
+the Job and Workflow atomically, records a `PlannedExecutionOverride` audit
+row with before/after requirements and provenance, and re-resolves queued Run
+delivery; once execution or workspace creation starts, changing placement
+requires a fresh attempt.
+
+### Cleanup and error handling
+
+- Terminal Workflow transitions clean up or retain the shared workspace
+  according to state; `WorkflowWorkspacePruneJob` removes old terminal
+  workspaces.
+- On exception: AASM `fail!`; record `agent_outcome`; `Job#record_run_failure!`
+  for non-rebase Runs (rebase failures don't bump `failure_count`).
+- On a concrete environment blocker: workflow agents can call the
+  `report_cannot_proceed` MCP tool. The tool stores a `cannot_proceed`
+  Workflow artifact, blocks the active Run/Step/Workflow, marks the Job
+  `needs_attention` with
+  `needs_attention_reason: "agent_cannot_proceed"`, and lets the
+  normal state machine stop the Workflow as blocked rather than
+  pretending the agent implementation failed.
+- On SIGTERM: Solid Queue's graceful-shutdown timeout lets the current
+  Run finish if it can. If the worker is killed mid-flight (K8s deploys,
+  OOM), `ReapStaleRunsJob` uses Solid Queue prune evidence, orphaned
+  Run detection, and the heartbeat backstop to either fail the abandoned
+  `running` Run or re-enqueue an abandoned `queued` successor Run.
+
+## Work engine
+
+A parallel bookkeeping/gating layer, under active rollout, sitting one
+level above Job/Workflow/Step/Run rather than replacing it. It exists
+because ownership questions ("is anything already working on this Job?
+is this landing attempt still live? what should retry next?") had to be
+answered by scanning Workflows/Jobs ad hoc from a dozen call sites
+(dispatcher, reconciler, landing queue, retry, rebase, CI repair, …).
+The design plan lives at `docs/plans/work-units-and-execution-resilience.md`;
+migration coverage is enforced by `spec/architecture/work_unit_migration_matrix_spec.rb`.
+
+Three models, mirroring the existing Step/Run split one level up
+(`WorkIntent : WorkUnit : Workflow` ≈ `1 : N : N`):
+
+- **`WorkIntent`** (`app/models/work_intent.rb`) — durable *desired*
+  work ("land this Job," "rebase this Job," "run CI repair"). States
+  `requested → waiting → satisfied | failed | cancelled`. Carries scope
+  (job/epic/repository), priority, actor, and a `wait_reason` (
+  `dependency`, `approval`, `epic_not_ready`, `policy_not_eligible`) for
+  why it isn't runnable yet.
+- **`WorkUnit`** (`app/models/work_unit.rb`) — one *concrete execution
+  attempt*: `belongs_to :work_intent`, optionally `belongs_to :workflow`
+  (one Workflow per WorkUnit), plus `parent_work_unit`/`child_work_units`
+  for landing-validation children. States `queued → blocked → running →
+  succeeded | failed | cancelled`, with a typed `blocked_reason`
+  (`admission_control`, `provider_availability`, `manual_pause`,
+  `main_branch_health`, `dependency_failed`, `urgent_job_active`,
+  `auto_retry_backoff`, `preempted`, …). `WorkUnitMember` attaches
+  multiple Jobs to one WorkUnit with a role (`primary`/`member`/
+  `dependency`/`repair_target`/`exported_job`) — how a merge train or a
+  [job bundle](#rebase-and-landing) spans several Jobs under one unit.
+  `WorkUnitLock` gives job/epic/repository/landing mutual exclusion.
+- **`WorkDefinition`** (`WorkDefinitions::Base` +
+  `app/services/work_definitions/built_ins.rb`) — a per-workflow-`kind`
+  policy object, not persisted. Declares scope/member/lock-key
+  derivation, `intent_gates` (dependency, approval, Epic-readiness),
+  `unit_gates` (main-branch health, provider availability, manual pause,
+  admission control), pluggable `retry_policy`/`preemption_policy`
+  objects, and `runtime_role` (`first_class`/`child`/`infrastructure`/
+  `legacy`) for kinds like `initial`, `rebase`, `auto_merge`,
+  `merge_train`, `retry`, `coding_handoff`, `main_grader`.
+
+**`WorkUnits::Launcher`** (`app/services/work_units/launcher.rb`) is the
+single funnel for starting a Workflow: find-or-create the `WorkIntent`,
+create a `WorkUnit`, instantiate the `WorkDefinition`'s workflow
+template, attach members/locks, gate-check via `WorkUnits::Scheduler`,
+then call `StepDispatcher.start_workflow` — the same dispatcher and AASM
+machines described above and in `CLAUDE.md` are still what actually
+advances Job/Workflow/Step/Run; the work engine wraps that call rather
+than replacing it. Every workflow-launching call site (initial, retry,
+rebase, coding handoff, insight, scheduled task, external PR, landing,
+CI repair, PR/chat feedback, merge train, job bundle) has been migrated
+to go through it one at a time.
+
+**Rollout state as of this writing: WorkUnit ownership is the runtime
+funnel for known launch paths.** `WorkUnits::PathOwnership` maps the
+named scheduler, landing, and reconciler paths to WorkUnit ownership
+directly; the old shadow-mode and ownership-cutover feature flags have
+been removed. A migration backfills active legacy Workflow rows into
+WorkIntents/WorkUnits for upgraded installations. `docs/technical-debt.md`
+tracks remaining presentation/diagnostic compatibility cleanup, not a
+separate scheduler flag rollout.
+
+Operator visibility: `GET /api/v1/app/admin/work_units`
+(`Admin::WorkUnitsPayload`) lists WorkIntents with nested WorkUnits,
+members, and workflows. Job detail/job-workflows payloads expose
+`current_intent`, `active_work`, and `work_units`, but only when
+`AppSetting.show_work_unit_debug?` is enabled — an opt-in debug view,
+not a normal operator surface yet.
+
+## End-to-end GitHub workflow
+
+What happens to a single labeled issue, from label to merge:
+
+1. **Label applied** on a registered repo's issue (default label
+   `syrus`).
+2. **Within 5 min**, `PollRepositoryJob` for that repo finds the issue.
+   `IngestPolicy` lets it through (open, not a PR, no `syrus-skip`
+   label, no existing active `Job`). A `Job(kind: issue)` is created
+   and triage/dependency/Epic gates decide when it can run.
+3. **Triage completes.** `ClassifyIssueJob` (or an explicit direct/cron
+   creation path) calls `advance_after_triage!`; that transition invokes
+   `create_initial_run_if_needed`, instantiates the initial Workflow, and
+   `StepDispatcher.start_workflow` creates the first `Run(trigger_kind:
+   initial, state: queued)` once the Job is executable.
+4. **`Run#after_create_commit`** enqueues `RunJob.perform_later(run.id)`.
+5. **A worker picks up the RunJob**:
+   - Sets up the worktree on a fresh branch `syrus/issue-{N}-{job_id}`.
+   - Composes the implement-step prompt from the issue title, body, comments,
+     and workflow context via `Prompts::Implement`, which renders the static
+     git-safety and phased-execution instructions from
+     `.claude/skills/implement/SKILL.md` through `Prompts::SkillLoader`.
+   - Invokes the selected provider (Claude Code or Codex) with the MCP
+     sidecar attached.
+   - Agent works in the top-level `implement` Step: edits files and commits.
+   - If adversarial review is configured, an independent
+     `adversarial_review` Step critiques that diff before the normal
+     grade loop and can request another implementation round.
+   - If a grade loop is configured, deterministic `format`/`generate`
+     Steps run when applicable, then grader Steps run configured
+     `.syrus.yml` checks; failures append another bounded repair/check
+     iteration.
+   - The `coverage_analyze` Step runs after graders pass: it parses
+     any coverage artifacts, merges them, stores a `CoverageSnapshot`,
+     and evaluates the configured threshold. Skipped when no coverage
+     configuration is present in `.syrus.yml`.
+   - The `summarize` Step asks the agent to call `submit_summary`
+     unless the implement Step already provided PR copy.
+   - The `test_plan` Step asks the agent to call `submit_test_plan`
+     with reviewer-facing checks; `pr_open` appends them to the PR body.
+   - `pr_open` pushes the branch and opens the PR (using Workflow
+     artifacts first, then `PrSummarizer`, then templated copy).
+   - Workflow transitions to `succeeded`; Job moves to `implemented`.
+6. **PR is now open**. From this point:
+   - `PollPullRequestJob` watches every 5 min for new review comments
+     on this Job. New comment → `pr_comment` follow-up Run on the
+     same branch.
+   - Syrus Chat can propose operator-agreed feedback on an implemented
+     or approved Job. Operator confirmation → `chat_feedback` follow-up
+     Run on the same branch.
+   - `PollPullRequestJob` watches CI checks. Failing check on the
+     head SHA → `ci_failure` follow-up Run on the same branch.
+   - `PollMergeStateJob` watches mergeability. Unmergeable + we
+     control the head → a `rebase` Workflow re-anchors the branch.
+   - GitHub approvals can mark the Job `approved`; the landing queue
+     creates an `auto_merge` Workflow, or a `merge_train` Workflow for
+     ready Epics.
+7. **PR, issue, or branch work is otherwise finalized.** Syrus closes
+   the Job with a terminal `closure_reason` such as `pr_merged`,
+   `pr_closed`, `external_pr_merged`, `external_pr_closed`,
+   `pr_approved`, `issue_closed`, or `no_changes`. When a Syrus-opened
+   PR is closed without merge,
+   `ClosedPullRequestResolution` checks whether the branch patch is
+   already present on the base branch with `git cherry`: patch-equivalent
+   closures become `no_changes`, while closures with still-unique
+   patches become `pr_closed`.
+
+## Services
+
+Core (the agent loop):
+
+| Service | Purpose |
+|---|---|
+| `WorkflowWorkspace` | Fresh per-Workflow clone at `$SYRUS_DATA_ROOT/workflows/<workflow_id>/`. Default root `~/.syrus` (override with `SYRUS_DATA_ROOT`). Clones never live inside `Rails.root` — protects the operator's checkout from agent chdir mishaps. |
+| `PreparedWorkspaceArchive` / `PreparedLayerCache` | Publishes prepared dependency trees by preparation fingerprint and keeps bounded, host-local materializations for distributed immutable-source Steps. The checkout moves the reusable dependency carrier to the requested revision instead of downloading and extracting another archive per Workflow. |
+| `ChatWorkspace` | Persistent per-chat workspace under `$SYRUS_DATA_ROOT/chat-workspaces/<chat_session_id>/`. Repositories are cloned lazily for inspection and fast-forwarded between turns; implementation still belongs to Workflow workspaces. |
+| `RepositoryReadiness` / `RepositoryExecutionProbeRunner` | Evaluates static repository execution readiness, then optionally clones the default branch into a disposable workspace and runs bounded toolchain, prepare, and one grader command. A probe whose required command cannot start blocks the repository's first implementation Workflow until an operator overrides it; later implementation history bypasses that first-run gate. |
+| `AgentProviders::*` | Provider abstraction for Claude and Codex. Selects credentials, prepares provider home/session state, wires MCP, invokes the provider-specific runner, captures transcript/session metadata, and returns a normalized result. |
+| `ClaudeInvocation` / `CodexInvocation` | Subprocess adapters that parse provider output, thread chunks into `JobLog`, capture final result metadata, and enforce the wall-clock timeout. |
+| `SyrusMcp::Sidecar` | MCP server the agent talks to over stdio. Exposes `read_live_state`, `submit_summary`, `submit_test_plan`, and `submit_adversarial_review`. See [MCP sidecar](#mcp-sidecar). |
+| `SyrusChatMcp::Sidecar` | MCP server for chat turns. Exposes repository/job/PR inspection, proposal, scheduling, bookmark, note, and whiteboard tools scoped to the active `ChatSession`. See [Chat sidecar and workspaces](#chat-sidecar-and-workspaces). |
+| `Prompts::*` | One class per prompt surface: `Initial`, `AdversarialReview`, `PrFeedback`, `ChatFeedback`, `CiFailure`, `Rebase`, `ScheduledTask`, `DirectJob`, `AgentInsight`, `TestPlan`, plus `EpicContext` mixed into Epic-owned Job prompts, `PullRequestSummary` for `PrSummarizer`, and `SubmitSummaryInstructions` mixed into prompts that should expose the MCP tool. |
+| `InsightScheduler` | Creates `agent_insight` Jobs when no active insight Job already exists for the repository. Used by manual repository actions and adaptive scheduling. |
+| `WorkEngine::Reconciler` | Read-only consistency classifier and feature-gated repair planner/executor for stuck Jobs, Workflows, Steps, Runs, queue claims, worker evidence, dependency blocks, rate limits, and workspace risks. |
+| `WorkflowAdmissionBudget` | Resource-aware gate applied at Workflow initialization and at phase boundaries (before grader-fanout and other costly steps). Evaluates worker host pressure, predicted step cost (from `WorkflowStepResourceProfile`), and repository concurrency; can `admit_now`, `admit_low_risk_only`, `delay_until`, or `requires_override` (hard block). Deferred workflows/phases are resumed by `WorkflowPhaseAdmissionJob`. |
+
+Git and GitHub:
+
+| Service | Purpose |
+|---|---|
+| `GitRunner` | Subprocess wrapper around `git` that streams stdout/stderr into `JobLog` and redacts `https://x-access-token:TOKEN@github.com/...` URLs from error messages. |
+| `GithubClient` | One Octokit client per user. Wraps `issues_with_label`, `pull_request`, `pull_request_comments`, `pull_request_reviews`, `combined_status_for_ref`, etc. Surfaces `Octokit::TooManyRequests` to callers (logged then re-raised). |
+| `PullRequestOpener` | Octokit `create_pull_request` with retry on transient failures. |
+| `LandingQueueProcessor` | Orders the approved/landing queue, groups Epic children as one landing unit for queue display and merge-train dispatch, exposes dependency and unapproved-sibling blockers for each unit, moves eligible Jobs/Epics into `auto_merge` or `merge_train` Workflows (or a `job_bundle` Workflow via `LandingBundleAssembler`/`JobBundleDispatcher` for epicless same-tier siblings, see [Rebase and landing](#rebase-and-landing)), and applies landing state transitions. |
+| `LandingValidationCache` | Records prior green landing checks; optionally lets clean rebases carry validation forward for repositories that trust it. |
+| `DeploymentStageDetector` | Compares landed merge commits (`Job#landed_sha`) against `.syrus.yml` `deployment_stages` tags and records `JobDeploymentStageStatus` rows. |
+| `ClosedPullRequestResolution` / `BranchPatchPresence` | Classifies closed Syrus PRs as merged, no-change, or closed-with-unique-patches. The patch-presence check clones the base branch under `$SYRUS_DATA_ROOT/closed-pr-checks`, fetches the Syrus branch, and uses `git cherry` to detect whether any patch remains unique to the PR branch. |
+
+Policy and pipeline glue:
+
+| Service | Purpose |
+|---|---|
+| `IngestPolicy` | The "should we make a Job for this issue?" filter — skips PRs, closed issues, the `syrus-skip` label, etc. |
+| `IssueImageExtractor` / `IngestIssueImagesJob` / `JobImageAttachmentIngestor` | Pull image URLs from GitHub issue and PR feedback markdown, download supported images with GitHub credentials when needed, and store them as Job `Document` attachments so later agent prompts can inspect them from the workspace. |
+| `PrSummarizer` | Second-shot provider call that takes issue + diff and returns `{title, body}` JSON. Tier 2 fallback when the agent didn't call `submit_summary`. |
+| `ScheduledTaskFire` | Encapsulates the "fire a due ScheduledTask" decision: pile-up policy, prompt rendering, Job + Run creation, watermark bumping. |
+| `ProviderCircuitBreaker` / `WorkEngine::RepairExecutor` | Suppress automatic work during provider-wide outages and schedule retry attempts with bounded backoff through `AutoRetryAttempt` + `AutoRetryJob`. |
+
+Plugin-owned infrastructure workflows use the same machinery. The
+`operator_briefing` plugin's scheduler creates `briefing_generate` Jobs
+for opted-in repositories when new activity exists since the last closed
+briefing (manual regeneration bypasses that gate). Its
+`briefing_generate` Workflow is `prepare → briefing_generate_run`; the
+agentic generation step is read-only and must stream typed blocks through
+`submit_briefing_block`, which updates the live `/briefing` page as the
+revision is produced. "More info" dives run
+`prepare → briefing_dive_investigate → submit_dive_report` on the same
+Briefing Job, reading the existing briefing/topic corpus before creating
+or revising a wiki-style topic.
+
+### Rebase and landing
+
+Most rebases are mechanical: PR was opened, base branch moved, no
+overlapping edits. The rebase Workflow keeps that path cheap by trying
+`auto_rebase` before invoking the agent.
+
+`auto_rebase` checks out the PR's branch in the Workflow workspace, runs
+`git rebase origin/<base>` non-interactively, and:
+
+- **Clean rebase** → pushes the rebased branch with an explicit
+  `--force-with-lease` lease in the later `force_push` Step. The
+  agentic Step is cancelled.
+- **Conflict** → leaves the in-progress rebase for `agent_rebase`,
+  which resolves conflicts and runs `git rebase --continue` until the
+  same rebase finishes. `force_push` then updates the branch with the
+  observed lease.
+
+Landing is also a Workflow, not an inline merge button. `auto_merge`
+starts with `mergeability_preflight`, runs final graders on the exact
+branch about to land, optionally invokes `landing_fix`, pushes repairs,
+and then calls GitHub's merge API. Epic merge-train landing builds a
+single integration branch from approved child PRs by fetching each
+member branch with repository credentials (private repos included),
+validates it, merges one integration PR, and comments on/closes member
+PRs as an all-or-nothing unit.
+
+**Epicless job bundling** (`epicless_job_bundling` Labs flag, default
+on) generalizes the same mechanism to non-Epic Jobs: `MergeTrain` now
+validates exactly one of `epic` or a nullable `priority` tier is set.
+`LandingBundleAssembler`'s priority-tier scope (the same scope-keyed query
+class whose Epic scope replaced the former `MergeTrainAssembler`, see
+[`epicless_job_bundling.md`](../../../config/syrus_docs/epicless_job_bundling.md))
+finds two-or-more same-priority-tier, epicless, non-external-PR, approved
+Jobs per repository (ordered topologically, capped at
+`AppSetting.merge_train_max_size`); `JobBundleDispatcher`
+creates the `MergeTrain`/`MergeTrainMember` rows, locks members into
+`landing`, and starts a `job_bundle` Workflow on the tip member — the
+same integration-branch build/validate/land path merge trains use. A
+lone ready Job without enough same-tier siblings still lands through
+plain `auto_merge`. The landing-queue dashboard marks bundle membership
+(`landing_queue_entry_key` prefixed `"job_bundle:"`) alongside the
+existing Epic-unit grouping.
+
+The landing queue is ordered by landing units, not only individual Jobs.
+Epic children share one unit so the dashboard queue keeps the sibling
+Jobs contiguous and the visible positions match the order Syrus uses
+when dispatching merge-trains. Dependencies and `parent_job` edges are
+still honored: the processor topologically orders units against
+cross-unit prerequisites, then orders Jobs inside each unit by the same
+dependency rules before landing or assembling the integration branch.
+Each landing unit also carries the Jobs currently blocking it for
+dashboard explanation. Those blockers include transitive explicit
+dependencies and, for an Epic unit, same-Epic sibling Jobs that are not
+yet approved or closed even when there is no explicit dependency edge.
+
+### Preview hosting
+
+Separate from the ephemeral, agent-driven `start_preview`/`stop_preview` MCP
+tools used inside a workflow run (see [MCP sidecar](#mcp-sidecar)), Syrus
+can also host a longer-lived preview of a Job's branch for an operator to
+click through in a browser. `PreviewEnvironment` (AASM: `starting` →
+`seeding` → `running` → `stopping` → `stopped`/`failed`) belongs to a `Job`;
+`Job#previewable?` is true once the Job is `implemented`, `approved`, or
+`landing`, and remains true for merged Jobs whose landed commit can still
+be cloned. Repositories also expose a job-less "Preview main" action that
+boots the current default branch and stores the environment against the
+repository instead of a Job. `PreviewService` is a long-running poller
+process that picks up
+environments in `starting` state, allocates a free port from
+`SYRUS_PREVIEW_PORT_MIN`/`_MAX` (default 20000–29999), clones the Job's
+branch, landed commit SHA, or repository default branch into
+`$SYRUS_DATA_ROOT/previews/<environment_id>` via
+`PreviewWorkspace.prepare!`, resolves the same `PreviewCommandSource`
+priority order the MCP tool uses (`.syrus.yml` `preview:` block, then a
+registered `:preview_provider` plugin), runs setup/seed commands, spawns the
+app as a `SpawnedProcess(kind: "preview")`, and polls its health-check path
+for up to 120s before marking the environment `running` or recording a
+human-readable `error_reason` on failure. Environments carry
+a TTL (`PreviewService::DEFAULT_TTL_MINUTES`, default 10) and are reaped on
+expiry, graceful shutdown, or child-process exit. `PreviewProxyMiddleware`
+sits at the top of the Rack stack, recognizes preview hostnames (e.g.
+`preview-<job_id>.lvh.me`), and proxies requests into the running preview
+process — rewriting CSP/frame headers and localhost-origin references so
+the previewed app's own asset server (Vite, etc.) works through the proxy.
+A separate in-process `PreviewControlServer` (Puma, port 4568) inside the
+preview process serves its logs back to the web process for the Job detail
+UI's preview log view.
+
+## Plugin system
+
+`Syrus::PluginRegistry` (`lib/syrus/plugin_registry.rb`) is the central
+runtime registry for all plugin capabilities. Plugins are ordinary
+Rails Engines that use `Syrus::PluginApi#syrus_plugin` from their
+`lib/<plugin>.rb` manifest; the Engine initializer installs that manifest
+into the registry. Bundled plugins live under `plugins/` and are loaded
+as path gems. Third-party plugins are added to `Gemfile` and installed
+the same way.
+
+### Extension points
+
+The registry defines these core extension points, plus hosted extension
+points declared by plugin hosts (for example `global_search:source` and
+`plugin_runtime:service`):
+
+| Extension point | Purpose |
+|---|---|
+| `:agent_provider` | LLM providers for workflow agents (Claude, Codex, …) |
+| `:chat_provider` | LLM providers for interactive chat turns |
+| `:mcp_tool_set` | Workflow-scoped MCP tool bundles |
+| `:chat_mcp_tool_set` | Chat-scoped MCP tool bundles |
+| `:input_source` | Issue / work-item sources (GitHub, Linear, …) |
+| `:source_control_provider` | Git host operations — branches, PRs, merges |
+| `:prompt_injector` | Inject repository-specific context into agent prompts |
+| `:chat_prompt_injector` | Inject context into chat session prompts |
+| `:chat_turn_orientation` | Rewrite/orient a specific incoming chat message before provider invocation |
+| `:adjudicator` | Plugin-owned judgment adapters |
+| `:preview_provider` | Configure preview-app startup for the agent preview MCP tools |
+| `:artifact_renderer` | Map typed artifact types to UI renderer kinds |
+| `:coverage_analyzer` | Parse coverage artifacts (lcov, SimpleCov, Cobertura, …) |
+| `:chat_media_source` | Contribute media/library results available to chat |
+| `:chat_payload_contributor` | Add plugin-owned fields to chat payloads |
+| `:admin_page` | Register admin-only pages with routes and frontend components |
+| `:repo_page_tab` | Register repository-detail tabs with routes/frontend components |
+| `:sidebar_page` | Register primary sidebar pages backed by plugin frontend routes |
+| `:workspace_tab` | Register chat workspace tabs |
+| `:ui_slot` | Inject plugin panels into existing host pages |
+| `:grader_augmentor` | Extract/augment grader output (e.g. structured RSpec JSON failure logging) |
+| `:ci_log_parser` | Claim/parse a CI failure log in a provider-specific format before the built-in `CiLogParser` fallback chain runs; no bundled plugin registers one yet |
+| `:prepare_detector` | Guess safe setup commands from repository files when `.syrus.yml` leaves `prepare` unspecified |
+| `:grade_detector` | Detect framework/language grader commands |
+| `:grader_type` | Register typed grader execution behavior |
+| `:review_criteria_provider` | Add repository-aware review checklist items to adversarial/visual review prompts |
+| `:post_implementation_review_provider` | Request and supply prompt/tool contracts for advisory review-note Steps after implementation or feedback |
+| `:diff_review_annotation_provider` | Add plugin-owned annotations and side-panel content to the Job review diff |
+| `credential_types` manifest metadata | Declare safe credential type names and descriptions for the bundled credential store |
+| `:autofix_command` | Provide handler-level default formatting commands for a materialized `format` Step when `.syrus.yml` has `formatters: []` |
+| `:dependency_audit_command` | Claim lockfile changes and run ecosystem-specific dependency audits |
+| `:affected_test_analyzer` | Expand changed-file sets with dependency/import analysis before diff-scoped grader matching |
+| `:focused_test_command` | Suggest focused rerun commands for touched tests |
+| `:callbacks` | Generic plugin lifecycle callback hooks (e.g. connectivity daemon start/stop). `Syrus::Plugin::EffectRegistry` (via `Callbacks#effect(&cleanup)`) lets a callback register a cleanup proc right where it takes a side effect, drained most-recently-registered-first on disable — the `tailscale` plugin's `Callbacks` uses this to clear its `config.hosts` allowlist additions instead of a hand-written teardown method |
+| `:platform_delivery` | Send/receive chat messages over an external platform (Discord, …); see [External platform chat](#external-platform-chat) |
+| `:domain_subscriber` | Subscribe to internal domain events while the plugin is enabled |
+| `:step_environment` | Add plugin-owned environment variables to step subprocesses |
+| `:workflow_kinds` | Contribute Job kinds, Workflow trigger kinds, Step kinds, and WorkDefinitions |
+| `:job_origin` | Explain plugin-owned Job origins in UI/API payloads |
+| `:preview_panel_viewer` | Register renderers for preview-panel file types |
+| `:repository_recommendation` | Suggest plugin enablement from repository signals |
+| `:memory_store` | Back durable agent memory reads/writes |
+| `:test_evidence` | Add plugin-owned test evidence to workflow context |
+| `:runtime_session_provider` | Provide provider-neutral RuntimeSession adapters for chat/workflow visual frames, input, terminal, and emulator-style tools |
+| `:speech_to_text_provider` | Provide backend transcription for chat microphone input |
+| `:build_system_graph_provider` | Supply build-system target graph data |
+| `:retention_policy` | Contribute plugin-owned data retention policy |
+| `:repository_content_provider` | Read repository trees/files/diffs without cloning, with fallthrough across providers |
+| `:purge_contributor` | Report and purge plugin-owned external state during removal |
+| `:workspace_git_transport` | Provide clone/fetch transports for workflow and chat workspaces |
+
+### Bundled plugins
+
+The table summarizes the main extension points each bundled plugin
+contributes. It is intentionally not a full manifest dump; plugin-hosted
+points such as `"test_insights:parser"` and `"metrics_dashboard:tab"` are
+called out only where they explain an architectural dependency.
+
+| Plugin | Gem directory | Selected providers | Default state |
+|---|---|---|---|
+| `admin_mysql` | `plugins/admin_mysql` | `:admin_page`, `:chat_mcp_tool_set`, `:mcp_tool_set` | disabled by default |
+| `attention_report` | `plugins/attention_report` | `:sidebar_page` | disabled by default |
+| `agent_activity` | `plugins/agent_activity` | `:sidebar_page`, `:admin_page` | enabled |
+| `agent_insights` | `plugins/agent_insights` | `:workflow_kinds`, `:domain_subscriber` | disabled by default |
+| `agent_memory` | `plugins/agent_memory` | `:memory_store` | enabled |
+| `agy_agent` | `plugins/agy_agent` | `:agent_provider` | disabled by default |
+| `alertmanager_investigations` | `plugins/alertmanager_investigations` | `:callbacks` | disabled by default |
+| `browser` | `plugins/browser` | `:mcp_tool_set`, `:artifact_renderer`, `:runtime_session_provider`, `"plugin_runtime:service"` | enabled |
+| `build_cache` | `plugins/build_cache` | `:admin_page`, `:domain_subscriber`, `:step_environment` | enabled |
+| `claude_agent` | `plugins/claude_agent` | `:agent_provider`, `:chat_provider` | disabled by default |
+| `codex_agent` | `plugins/codex_agent` | `:agent_provider`, `:chat_provider` | disabled by default |
+| `cognitive_review` | `plugins/cognitive_review` | `:post_implementation_review_provider`, `:diff_review_annotation_provider`, `:mcp_tool_set` | disabled by default |
+| `credential_store` | `plugins/credential_store` | `:admin_page`, `:sidebar_page`, `:mcp_tool_set`, `:chat_mcp_tool_set`, credential type declarations | enabled |
+| `coworkers` | `plugins/coworkers` | coworker identities, isolated chats/workspaces, capability grants, background workflows, schedules | disabled by default, experimental |
+| `design_docs` | `plugins/design_docs` | `:sidebar_page`, `:repo_page_tab`, `:workspace_tab`, `:chat_mcp_tool_set`, `:mcp_tool_set`, `:domain_subscriber`, `"global_search:source"` | enabled |
+| `discord` | `plugins/discord` | `:platform_delivery` | disabled by default |
+| `django` | `plugins/django` | `:preview_provider` | enabled |
+| `git_history` | `plugins/git_history` | `:repo_page_tab` | enabled |
+| `git_mirror` | `plugins/git_mirror` | `:repository_content_provider`, `:workspace_git_transport`, `"plugin_runtime:service"` | disabled by default |
+| `github_host` | `plugins/github_host` | `:repository_content_provider` | enabled |
+| `muse_agent` | `plugins/muse_agent` | `:agent_provider`, `:chat_provider` | disabled by default |
+| `github_source` | `plugins/github_source` | `:input_source`, `:source_control_provider` | enabled, non-disableable |
+| `global_search` | `plugins/global_search` | `:sidebar_page`, `:domain_subscriber`, `"global_search:source"` host and built-ins | enabled |
+| `ios` | `plugins/ios` | `:prepare_detector`, `:grader_type` | enabled |
+| `java` | `plugins/java` | `:prepare_detector`, `:prompt_injector`, `:review_criteria_provider`, `:grader_type` | beta-gated default-on |
+| `k8s_cluster` | `plugins/k8s_cluster` | `:sidebar_page`, `:mcp_tool_set`, `:chat_mcp_tool_set` | disabled by default |
+| `kotlin` | `plugins/kotlin` | `:prepare_detector`, `:prompt_injector`, `:review_criteria_provider` | beta-gated default-on |
+| `linear_source` | `plugins/linear_source` | `:input_source` | disabled by default |
+| `ruby` | `plugins/ruby` | `:prepare_detector`, `:grade_detector`, `:grader_type`, `:grader_augmentor`, `:coverage_analyzer`, `:review_criteria_provider`, `:autofix_command`, `:dependency_audit_command`, `:affected_test_analyzer`, `:focused_test_command`, `"test_insights:parser"` | enabled |
+| `javascript` | `plugins/javascript` | `:prepare_detector`, `:preview_provider`, `:grade_detector`, `:grader_type`, `:grader_augmentor`, `:review_criteria_provider`, `:autofix_command`, `:dependency_audit_command`, `:focused_test_command` | enabled |
+| `python` | `plugins/python` | `:prepare_detector`, `:grader_augmentor`, `:prompt_injector`, `:review_criteria_provider`, `:autofix_command`, `:dependency_audit_command` | enabled |
+| `go` | `plugins/go` | `:prepare_detector`, `:autofix_command`, `:dependency_audit_command`, `:review_criteria_provider` | enabled |
+| `metrics_dashboard` | `plugins/metrics_dashboard` | `:sidebar_page` | disabled by default |
+| `mockups` | `plugins/mockups` | `:chat_mcp_tool_set` for preview-panel scratch files | enabled |
+| `mysql_db_browser` | `plugins/mysql_db_browser` | `:chat_mcp_tool_set`, `:mcp_tool_set` | disabled by default |
+| `operator_briefing` | `plugins/operator_briefing` | `:sidebar_page`, `:workflow_kinds`, `:mcp_tool_set`, `:callbacks` | disabled by default |
+| `plugin_runtime` | `plugins/plugin_runtime` | `:admin_page`, `:callbacks`, `:purge_contributor`; hosts `"plugin_runtime:service"` and `"plugin_runtime:privileged_service"` | disabled by default |
+| `rails` / `syrus-rails` | `plugins/rails` | `:mcp_tool_set`, `:artifact_renderer`, `:prompt_injector`, `:preview_provider` | enabled |
+| `runtime_terminal` | `plugins/runtime_terminal` | `:runtime_session_provider` | disabled by default |
+| `scheduled_tasks` | `plugins/scheduled_tasks` | `:sidebar_page`, `:repo_page_tab`, `:chat_mcp_tool_set`, `:job_origin`, `:domain_subscriber`, `:callbacks`, `:repository_recommendation`, CLI schedule commands | enabled |
+| `sdlc_pipeline` | `plugins/sdlc_pipeline` | `:repo_page_tab`; read-only lifecycle/deployment projection | enabled |
+| `spending_insights` | `plugins/spending_insights` | `:sidebar_page` | enabled |
+| `syrus_dev` | `plugins/syrus_dev` | `:admin_page`, `:mcp_tool_set` | disabled by default |
+| `tailscale` | `plugins/tailscale` | `:admin_page`, `:callbacks`, `"plugin_runtime:privileged_service"` | disabled by default |
+| `team_directory` | `plugins/team_directory` | `:sidebar_page` | enabled |
+| `terminal` | `plugins/terminal` | `:sidebar_page` | disabled by default |
+| `test_insights` | `plugins/test_insights` | `:repo_page_tab`, `:ui_slot`, `:mcp_tool_set`, `:chat_mcp_tool_set`, `:test_evidence`, `:domain_subscriber`, `"global_search:source"` | enabled |
+| `theming_tools` | `plugins/theming_tools` | `:chat_mcp_tool_set` | disabled by default |
+| `throughput` | `plugins/throughput` | `:repo_page_tab` | enabled |
+| `video_walkthroughs` | `plugins/video_walkthroughs` | `:chat_mcp_tool_set`, `:chat_media_source`, `:chat_turn_orientation` | disabled by default |
+| `whisper_stt` | `plugins/whisper_stt` | `:speech_to_text_provider`, `"plugin_runtime:service"` | disabled by default |
+| `whiteboard` | `plugins/whiteboard` | `:chat_mcp_tool_set`, `:workspace_tab`, `:chat_payload_contributor`, `:chat_media_source`, `:chat_prompt_injector` | enabled |
+| `worker_timeline` | `plugins/worker_timeline` | `:sidebar_page` | disabled by default |
+
+### Persistence and enable/disable
+
+Each registered plugin gets a `PluginRecord` row (name, enabled,
+default_enabled, disableable). The registry queries `PluginRecord` at
+call time so enable/disable changes take effect immediately without a
+restart. Non-disableable plugins (currently `github_source`) cannot be
+disabled through the API. The `Admin::PluginDisableGuard` checks for
+active usage blockers (open Jobs, configured users, active workflows)
+before allowing disable.
+
+Manifests can mark a plugin `experimental true`. Experimental plugins
+and experimental feature flags are visible in admin surfaces but cannot
+be enabled until the instance-level `AppSetting.beta_mode_enabled` gate
+is on. Beta mode is only a capability gate: turning it on does not
+enable any plugin or feature by itself, and turning it off hides/blocks
+new experimental enablement without rewriting already-persisted plugin
+data.
+
+Admin operators manage plugins at **`/admin/plugins`**. APIs:
+`GET /api/v1/app/admin/plugins`, `POST .../plugins/:name/enable`,
+`POST .../plugins/:name/disable`.
+
+Some plugins host extension points for other plugins. `global_search`
+hosts `"global_search:source"` so Design Docs, Test Insights, and other
+record-owning plugins can contribute searchable result types without core
+knowing their tables. `plugin_runtime` hosts `"plugin_runtime:service"`
+for ordinary container-backed services and
+`"plugin_runtime:privileged_service"` for the small first-party set that
+needs Linux capabilities/devices; Git Mirror uses the ordinary lane, and
+Tailscale uses the privileged lane. The runtime manager owns Docker in
+Compose installs; on Kubernetes the services are deployed separately and
+Syrus is pointed at their URLs.
+
+### Input sources
+
+`InputSource` is an STI model (`app/models/input_source.rb`).
+`PollAllInputSourcesJob` fans out to `PollInputSourceJob` per active
+`InputSource` record whose plugin is enabled. The `github_source` plugin
+provides `InputSources::Github` (backed by the existing `PollRepositoryJob`
+flow); the `linear_source` plugin provides `InputSources::Linear` (polls
+Linear teams for issues and creates Jobs). Each subclass implements
+`#poll!`, `#validate_credentials!`, `#config_schema`, and `#dedup_key`.
+
+### Plugin routes and frontend
+
+Plugins declare API routes and React frontend components in their
+manifest. `PluginRouteResolver` dispatches matching requests at runtime.
+Frontend components are discovered from plugin route/sidebar/repository/
+workspace-tab manifests under `plugins/*/app/frontend/`; i18n strings
+from `plugins/*/app/frontend/i18n/locales/*/`. `App::SidebarPagesPayload`
+and plugin `:sidebar_page` providers merge enabled plugin pages into the
+primary React sidebar, where user sidebar ordering can persist custom
+navigation order.
+
+### Credential store
+
+The default-enabled `credential_store` plugin is the shared home for
+credentials that do not belong as one-off encrypted columns on `User`.
+`CredentialStore::Credential` stores payload material in one encrypted text
+column and exposes only safe metadata (type, scope, target constraints,
+rotation/revocation timestamps, and audit summaries) to pages and APIs.
+Scopes are `user`, `repository`, `team`, or `instance`, with authorization
+following the matching ownership boundary.
+
+Other plugins can declare credential type names in their manifest, and tools
+that need payload material go through the broker API instead of receiving
+plaintext from an MCP call. A broker request authorizes the current
+`McpToolContext`, credential scope, expected type, allowed tool/surface, and
+target constraints, then issues a short-lived local lease and materializes the
+payload only inside a block as a restrictive temp file, env var, exec wrapper,
+or SSH agent. Every allowed or denied access writes a
+`CredentialStore::CredentialAccessEvent` without storing secret material.
+The plugin also exposes sidebar/admin management pages, workflow/chat MCP tool
+sets, and a static Go CLI namespace (`syrus credential ...`) for operators and
+scripts.
+
+### Repository content providers
+
+`RepositoryContent` (`app/services/repository_content.rb`) reads files,
+trees, diffs, commit history, and commit tree SHAs through
+`:repository_content_provider` plugins instead of calling `GithubClient`
+directly. A resolved revision is immutable; callers get a provider result
+(`tree`, `read`, `changes`, etc.) and the chain only stops on a final
+answer. `NotFound` is final, while `Unavailable`, `Unsupported`, and
+`UnknownRevision` fall through to the next provider; `Truncated` carries
+a partial answer only display code may use.
+
+The default `github_host` plugin answers via the GitHub API. The optional
+`git_mirror` plugin is a replica provider in front of it: a local mirror
+service keeps bare repositories in sync, answers content reads first when
+it has the requested revision, and also contributes
+`:workspace_git_transport` so `WorkflowWorkspace` and `ChatWorkspace`
+clone/fetch through the mirror before falling back to the host. This is
+how `.syrus.yml` reads, preview project discovery, skills, source
+browsing, diff views, and `read_pr` avoid consuming host API quota when a
+mirror is available.
+
+## MCP sidecar
+
+Provider adapters construct a `SyrusMcp::Sidecar` per Run and point the
+agent at it over stdio. Today's tool surface:
+
+- `read_live_state(detail:)` — read-only snapshot of the current Job,
+  Workflow, Run, queue, and related chat state; agents use it before
+  making operational claims. In chat contexts this related state can
+  include attached sessions, pending chat action counts, turn-in-flight
+  status, stop requests, and recent message snippets.
+- `report_cannot_proceed(reason:, details:)` — available to workflow
+  agent roles for concrete environment/capability blockers. It records a
+  `cannot_proceed` Workflow artifact, blocks the current
+  Run/Step/Workflow after the provider turn exits, and flags the Job for
+  operator attention instead of treating the situation as an ordinary
+  implementation failure.
+- `submit_summary(pr_title:, pr_body:, summary:)` — records
+  agent-authored PR copy on Workflow artifacts and appends an audit
+  `JobLog` line. Read tier-1 by `pr_open`/`push`/summary promotion
+  paths.
+- `submit_test_plan(steps:, notes:)` — records reviewer-facing manual
+  test steps on Workflow artifacts and appends an audit `JobLog` line.
+  `pr_open` reads this artifact and adds a Test Plan section to initial
+  PR bodies, headed by a copy-pasteable `syrus checkout JOB-<id>` command.
+- `submit_adversarial_review(critique:, verdict:)` — records one
+  adversarial review iteration on Workflow artifacts. The
+  `adversarial_review` Step requires this tool call; the stored
+  critique is fed into later review-loop iterations, while the verdict
+  is retained for audit/future control.
+- `submit_security_review(critique:, verdict:)` — records a security-review
+  iteration for the corresponding bounded review loop. Like adversarial
+  review, the Step requires an explicit verdict and feeds `needs_work`
+  critiques into its repair iteration.
+- `get_coverage_report()` — returns the coverage artifact from the most
+  recent `coverage_analyze` step: summary, per-file breakdown, diff
+  annotations, and any threshold miss. Returns `coverage_unavailable`
+  when no coverage configuration is present or no artifact has been
+  written yet.
+- `read_memory(id:)` — reads the full content of a `ChatMemory` owned
+  by the current Job's user. Agents use this to recall prior session
+  notes without having every memory inlined into the system prompt.
+- `write_memory(content:, kind:)` — creates a repository-scoped memory
+  record stamped with `author: agent` and `source_id: run.id` for
+  provenance. Scope is always forced to `repository` so agents cannot
+  write global memories.
+- `delete_memory(memory_id:)` — soft-deletes a repository-scoped memory,
+  recording an audit event with `actor_run_id` for traceability.
+- `search_memories(query:, kind:, limit:)` — content-searches
+  repository-scoped memories visible to the current user (their own plus
+  published memories from other users in the same repo).
+- `list_memories(kind:, limit:)` — lists repository-scoped memories
+  visible to the current user.
+- `report_main_concern(reason:, failing_tests:)` — agents call this
+  when graders or tests are failing in files they did not modify,
+  suggesting the main branch was already broken before their changes.
+  `MainConcernAggregator` applies crowd-quorum logic and triggers the
+  shared broken-main response once enough agents report within the
+  rolling window.
+- `read_run_worker_health(run_id:)` — returns retained worker host
+  health samples and grader command spans correlated to a Run window,
+  used mainly by insight and diagnostics agents.
+- `list_repository_test_insights(...)` / `read_test_insight(id:)` —
+  expose repository-level Test Insights to workflow agents through an
+  agent-safe query layer.
+- `read_job_test_results(job_id:)` / `read_run_test_results(run_id:)` —
+  return ingested test-result summaries and failures tied to a Job or
+  Run.
+- `compare_test_runtime(...)` — compares current test runtimes against
+  retained `TestIdentityRuntimeSummary` baselines so agents can diagnose
+  likely slowdowns without pasting raw grader logs.
+- `submit_artifact(type:, title:, payload:)` — stores a named, typed
+  artifact on the current Workflow's `typed_artifacts` artifact slot.
+  `type` is a free-form string identifier (e.g. `rails_schema_erd`,
+  `rails_migration_diff`); `payload` is an arbitrary JSON object whose
+  schema is defined by the type. Idempotent by type — calling with the
+  same type replaces the previous entry. Plugins register `:artifact_renderer`
+  extensions that map type strings to UI renderer kinds (erd_diagram,
+  migration_diff, data_table, before_after_diff); unregistered types fall
+  back to a raw JSON display. The Job detail page surfaces typed artifacts
+  in an Artifacts panel.
+  The Rails plugin's `explain_migration` path uses
+  `SyrusRails::MigrationArtifactGenerator` to discover the owning Rails app,
+  copy its migration inputs into disposable before/after databases, and
+  generate a `rails_migration_diff` without mutating the workflow's normal
+  development or test database; structure-only apps use a structure-based
+  fallback renderer.
+- `submit_visual_artifact(...)`, `list_artifacts(...)`, and
+  `read_artifact(type:)` — store and retrieve image-backed Workflow
+  artifacts such as visual-review screenshots and before/after visual
+  diffs. `submit_visual_artifact` can accept explicit image data or
+  capture from the current browser session, stores the binary as a
+  Workflow visual artifact, and writes typed-artifact metadata with
+  provenance so later reports can reference it. `read_artifact` returns
+  image content rather than forcing agents or the UI to parse raw JSON or
+  base64.
+- `submit_insight(...)` — available only to `agent_insight_run` roles
+  while the `agent_insights` feature is enabled; creates one structured
+  `InsightSuggestion` for operator review.
+- `list_insights(...)`, `read_insight(id:)`, `update_insight(...)`,
+  `retire_insight(...)`, `list_recent_workflows(...)`, and
+  `read_insight_run_transcript(...)` — insight-analysis tools available
+  to insight-capable workflow roles for inspecting and maintaining the
+  repository's operational insight set.
+- `submit_visual_review(critique:, verdict:)` — records one visual-review
+  iteration (`approved` / `needs_work` / `skipped`) on Workflow artifacts.
+  Required by the `visual_review` Step; see
+  [Per-Workflow pipeline](#per-workflow-pipeline).
+- `start_preview(port:)` / `stop_preview()` / `read_preview_log(...)` —
+  spawn, poll (health-check path, up to 60s), and tear down the target app
+  as a background process inside the workflow runner container for the
+  active Run. `start_preview` resolves the start command from `.syrus.yml`
+  `preview:` or a registered `:preview_provider` plugin
+  (`PreviewCommandSource`), runs setup/seed commands, and tracks the
+  spawned pid in an in-process `AgentPreviewRegistry` keyed by Run id so it
+  is force-killed when the sidecar exits. Available to every workflow
+  step role, not just `visual_review` — any agentic step can boot its own
+  ephemeral preview. This is distinct from the operator-facing, longer-lived
+  hosted preview described under [Preview hosting](#preview-hosting).
+
+The bundled `browser` plugin adds a `browser_navigate` / `browser_snapshot`
+/ `browser_click` / `browser_fill` / `browser_hover` / `browser_screenshot`
+/ `browser_wait_for` / `browser_close` MCP tool set, proxying each call to a per-Run
+`@playwright/mcp` stdio subprocess. `browser_navigate` is hard-restricted to
+loopback URLs (`LoopbackGuard`) so an LLM driving a real browser cannot be
+steered at an arbitrary network destination.
+
+The `design_docs` plugin adds workflow-scoped `list_design_docs`,
+`read_design_doc`, and `list_design_doc_sections` tools for
+repository-aware workflow agents when the plugin is enabled. Its
+chat-scoped tool set adds authoring/comment/suggestion tools; workflow
+agents only get read/outline access.
+
+The sidecar lives in-process with Rails, so tool handlers are plain
+ActiveRecord calls scoped to the active Run. No network, no auth
+plumbing.
+
+`bin/syrus-mcp-sidecar` is the binstub providers spawn; it boots Rails
+and hands stdio to `SyrusMcp::Sidecar`. For Claude, the MCP config key
+must match the binary basename (`syrus-mcp-sidecar`) so resumed sessions
+keep the same tool prefix. SIGTERM is trapped to drain cleanly.
+
+**Persistent MCP sidecar daemon.** The per-Run stdio spawn above pays a
+fresh Rails boot every time. Behind the `persistent_mcp_sidecar` Labs
+flag, `PersistentMcpDaemon` (`bin/syrus-mcp-daemon`) is a worker-local
+Puma process that boots Rails once and serves long-lived MCP servers over
+streamable HTTP (`/mcp`, role-scoped `/mcp/workflow/<role-token>` paths,
+plus `/healthz`). `ChatMcpTransportSelector` and
+`WorkflowMcpTransportSelector` health-check and capability-gate per call:
+when the feature is enabled, the daemon is healthy, and `/healthz`
+advertises `chat_tools` or `workflow_tools`, the corresponding chat turn
+or workflow agent routes through the daemon; otherwise it falls back to
+the existing stdio sidecar with a logged reason. Workflow tools are
+mounted as one MCP server per workflow agent role so `tools/list` stays
+scoped like stdio mode rather than exposing a daemon-wide superset.
+Signed, short-lived `McpInvocationContext` tokens carry per-call run/chat
+identity into the shared daemon process. Stdio-only agent CLIs can still
+use `bin/syrus-mcp-proxy`, which forwards to the selected daemon with the
+same short-lived invocation token instead of booting Rails inside the
+agent process.
+
+## Chat sidecar and workspaces
+
+Top-level chat is separate from Workflow execution. A `ChatTurnJob`
+runs on the dedicated `chat` queue, serialized per `ChatSession`, and
+invokes Claude in a persistent `ChatWorkspace`. That workspace lives at
+`$SYRUS_DATA_ROOT/chat-workspaces/<chat_session_id>/`, survives across
+turns, and is pruned after idle retention by
+`WorkflowWorkspacePruneJob`. Repository attachments are cloned lazily
+under `repositories/<owner>/<name>` with depth 50 and fast-forwarded to
+the repository default branch on reuse. Chat agents are configured with
+write/edit tools disabled; they inspect code, maintain notes and
+whiteboard state, and propose or queue work rather than editing a
+repository checkout directly.
+
+`ChatSession#mode` is a three-value enum that controls how implementation
+work originates from a chat session:
+
+- `planning` (default) — agent plans and proposes work; implementation
+  belongs to Workflow Runs, not the chat workspace.
+- `coding` (labs; `coding_mode` feature flag) — the agent codes
+  directly in the chat workspace and then calls `submit_coding_changes`
+  to create a Job from the committed branch and kick off a
+  `coding_handoff` Workflow (graders → summarize → PR open). On grader
+  failure the Job reverts to `coding` state so the operator can fix and
+  re-submit. Uses `CodingHandoff` workflow.
+- `local` (labs; `local_mode` feature flag) — the agent delegates
+  file-system and shell work to the user's own machine via a
+  reverse WebSocket tunnel established by `syrus local` (Go CLI). The
+  daemon connects to `LocalTunnelChannel` (Action Cable), authenticates
+  with a per-session token, and receives tool-call dispatches from the
+  chat agent. The agent then calls `complete_implement_step` to signal
+  that implementation is done. That tool creates a pending operator
+  confirmation; only after confirmation does Syrus trigger a
+  `local_mode_handoff` Workflow (graders with `local_mode_handoff_fix`
+  repair → summarize → PR open or amend). `LocalDaemonSession` tracks
+  connection state, heartbeat, and the repo/branch the daemon has
+  checked out. The `open_in_local_mode` chat MCP tool lets the agent take
+  over an existing implemented/approved Job for local-mode editing.
+
+Runtime sessions are the provider-neutral bridge for interactive
+tool/runtime surfaces inside chat and, where attached, workflow Runs.
+`RuntimeSession` rows belong to a repository and may also point at a
+chat session, Job, Workflow, or Run. A session records the selected
+provider (`provider_key` from the `:runtime_session_provider` registry),
+workspace reference, capabilities, current state, and provider metadata.
+The app API exposes session listing, logs, visual frames, snapshots,
+build/reload/lifecycle commands, and input delivery under the chat's
+runtime-session routes. Browser and Runtime Terminal providers both use this
+common model instead of inventing separate UI contracts.
+
+`RuntimeControlLease` serializes control over a runtime session. The
+operator can always observe, but input requires an active `input` lease;
+build and lifecycle commands share a separate `build_lifecycle` group.
+Leases are short-lived, renewable, and enforced with a database unique
+key so two actors cannot concurrently hold the same serialization group.
+Input events without an active lease are rejected and audited; sessions
+attached to a Run write lease/input audit lines to `JobLog`, while
+chat-only sessions rely on the lease rows plus Action Cable broadcasts
+for live visibility.
+
+`ChatSession` carries two optional fields that enable additional sharing
+features. `share_token` (unique, nullable) enables read-only access for
+teammates who have the link — shared chats are visible without
+authentication. `pinned_context` stores serialized content that the
+operator has pinned to persist across turns. Chat sessions can also be
+branched: `POST /api/v1/app/chats/:id/branch` forks the full transcript
+into a fresh `ChatSession` and returns the new session's id, letting the
+operator explore an alternative direction without losing the original
+thread. The chat agent exposes `/branch`, `/pin`, `/copy`, `/search`,
+and `/report` slash commands; `/report` files a GitHub issue to the
+repository configured in `AppSetting.report_issue_repo_slug`.
+
+`ChatWorkEvents.publish!` records operational events as `ChatScopedEvent`
+rows for ordinary chats that originated the affected Job, Epic, Workflow,
+Run, or PR, resolved through confirmed proposal lineage
+(`ChatScopedEventRecipients`). Each scoped event is evaluated in a disposable
+read-only provider session by `ChatScopedEventEvaluatorJob`; `no_op`
+decisions stay audit-only, while `respond` and `act` create a real
+`ChatWakeup` message that wakes the live chat agent with the structured
+event context.
+
+Each chat turn writes a temporary MCP config for `bin/syrus-chat-sidecar`
+with `SYRUS_CHAT_SESSION_ID` in the environment and `alwaysLoad: true`.
+`SyrusChatMcp::Sidecar` boots Rails over stdio and scopes every tool to
+that chat session. Its tools cover:
+
+- Repository context: attach repositories, read repo metadata and notes,
+  list/read attached documents, list Jobs/issues/PRs, and read Job,
+  Epic, or PR details.
+- Operator actions: propose GitHub issues, Syrus Jobs, Epics, or an
+  Epic with child Jobs; delete proposals; schedule recurring work;
+  schedule/list/cancel one-shot chat wakeups; schedule one-shot chat
+  messages through `/schedule`; update Job
+  title/description copy; submit chat feedback, retry, rebase, or
+  cancel Jobs visible to the session; `submit_coding_changes` to
+  create a Job from committed branch work (Coding Mode); and
+  `open_in_local_mode` / `complete_implement_step` to manage Local
+  Mode implementation handoff.
+- Collaboration state: ask blocking operator questions, set bookmarks,
+  read/search/manage chat memories, and mutate the chat whiteboard
+  through scene/drawing tools.
+- Admin diagnostics and controls, for admin users only: overview,
+  stuck-item, queue, process, run, user, and version reads plus
+  confirmed actions such as killing a subprocess, pausing/unpausing
+  polling or runs, pausing user scheduling, retrying failed Steps,
+  cleaning workspaces, clearing GitHub cache, and refreshing
+  installations. Admin users also bypass per-user scope checks on
+  standard resource-reading tools (jobs, epics, workflows, runs,
+  repositories, scheduled tasks), so they can inspect any user's work
+  through the chat interface. Chat messages, personal memories, canvas
+  files, and creation tools remain user-scoped regardless of role.
+
+Most chat actions stop at a confirmation boundary. `ChatPendingAction`
+stores these proposed mutations, with `pending` actions shown to the
+operator for confirm/reject and `queued` actions held until their target
+Job reaches an actionable state. For `submit_chat_feedback`, the MCP
+tool creates the pending action after the agent and operator agree on
+feedback; feedback for queued/running Jobs is stored as `queued` and
+promoted when the Job is implemented or approved. Confirming it queues a
+`chat_feedback` Workflow and stores the feedback text in Workflow
+artifacts; rejecting or cancelling it leaves the Job untouched.
+
+One-shot chat wakeups are `ChatWakeup` rows owned by the chat session
+and user. `schedule_wakeup` creates a pending wakeup and enqueues
+`ChatWakeupFireJob` for `fire_at`; callers provide either a short
+relative `delay_minutes` value or an absolute UTC ISO 8601 `fire_at`
+timestamp. `list_wakeups` and `cancel_wakeup` operate only on pending
+wakeups for the current session. When the fire job runs,
+`ChatSession::WakeupTurn` appends a user-role message tagged with
+`requested_by: "wakeup"` and the wakeup id, marks the wakeup fired, and
+enqueues `ChatTurnJob` so the follow-up stays in the same transcript.
+
+Small metadata edits that do not schedule work, such as `update_job`,
+apply immediately after repository-scoped authorization. The tool can
+change `issue_title`, `issue_body`, or both for a Job visible to the
+chat's repository, and returns the updated copy plus the Job state.
+
+Onboarding chat uses the same chat substrate with an `onboarding: true`
+session and extra `Prompts::ChatOnboarding` guidance. The final setup
+step is intentionally chat-led: the agent proposes an Epic and child Jobs
+as normal `ChatProposal` rows, the operator confirms the proposal card,
+and materialization creates the Epic/Jobs without starting the Epic
+automatically. A confirmed Epic proposal whose materialized Epic is still
+`backlog` or `ready` renders a small **Start** action in chat; clicking it
+calls the Epic state API to move the Epic to `in_progress`, which is the
+point where its child Jobs become runnable.
+
+Role-aware chat guidance keeps product-owner and developer work
+separate. Product-owner chats can shape backlog Epics and preserve
+their vision in Epic version history; developer chats on those Epics
+switch into elaboration mode, pull the original description into the
+agent environment snapshot, and produce the implementation-ready child
+Jobs.
+
+`ChatTurnJob` persists assistant text, tool calls, tool results, and MCP
+health events as `ChatMessage` rows, updates cumulative token/cost
+fields on the `ChatSession`, and retains the provider session for
+resumed turns. If a user sends another message while the turn is busy,
+the controller stores a `ChatQueuedMessage`; when the active turn
+finishes, `ChatTurnJob` atomically delivers the next queued message and
+enqueues the following turn. Ctrl+C from the CLI and the UI Stop control
+both set `stop_requested_at`, which the running Claude invocation polls
+and records as a cancelled chat turn; each turn clears stale stop
+requests as it exits so the next turn is not cancelled by an old signal.
+Chat index records and app events carry `turn_in_flight`/`agent_busy`
+state, letting the React sidebar mark active chat turns without waiting
+for a full recent-chat refetch.
+
+The chat composer's microphone/dictation input resolves backend
+transcription through enabled `speech_to_text_provider` plugins. Core does
+not register a backend provider by default; `SYRUS_STT_PROVIDER` can pin a
+plugin by `provider_key`, and when no plugin provider is available dictation
+falls back to the browser's own built-in speech recognition.
+
+## External platform chat
+
+Operators can link an external chat-platform account to their Syrus user
+and talk to their Syrus chat from Telegram, Discord, or (once wired up)
+Slack, instead of only the web/CLI/desktop clients.
+
+`PlatformIdentity` (`user`, `platform`, `external_id`, `external_handle`,
+`linked_at`) records the link. `PLATFORMS = %w[telegram slack]` are core;
+`PlatformIdentity.available_platforms` extends that with every enabled
+`:platform_delivery` plugin's `platform_key` (currently `discord` — see
+[Plugin system](#plugin-system)). Slack is reserved in the core list but
+has no working adapter yet. Linking is token-based: `POST
+/api/v1/app/platform_identities/linking_token` returns a signed, 15-minute
+`Rails.application.message_verifier(:platform_linking)` token and
+platform-specific instructions (e.g. "send `/start <token>` to the bot");
+the platform's inbound handler verifies the token and creates the
+`PlatformIdentity` row. Operators manage linked accounts at
+`/settings` → Connected Platforms (`ConnectedPlatforms.tsx`), which live-
+updates via the `platform_identity_linked` app event.
+
+Inbound delivery for every platform funnels through
+`InboundMessageRouter`: given `platform:`/`external_id:`/`message_text:`,
+it resolves the linked `PlatformIdentity`, gets or creates a
+per-platform `ChatSession` (`ChatSession.for_platform(user:, platform:)`),
+appends a user-role `ChatMessage`, and enqueues `ChatTurnJob` when the
+session's `trigger_policy` is `speak_when_spoken_to` (currently the only
+policy implemented — every inbound platform message wakes the agent).
+Outbound delivery — the agent's reply going back to the platform — goes
+through a shared `Syrus::Plugin::PlatformDelivery` interface
+(`.platform_key`, `.connector_job_class`, `.platform_config_class`,
+`#deliver(message:, platform_identity:)`), so core (Telegram) and plugin
+(Discord) adapters share the same shape.
+
+Telegram is long-polled: `PollTelegramUpdatesJob` (a `PlatformPollingJob`,
+self-re-enqueuing rather than cron-scheduled) calls `TelegramClient#get_updates`
+against `GET /bot<token>/getUpdates`, tracks `AppSetting.telegram_update_offset`
+as the polling cursor, and routes non-`/start` messages through
+`InboundMessageRouter`; `PlatformDelivery::TelegramAdapter` chunks outbound
+text to Telegram's 4096-character message cap. Discord instead holds a
+persistent Gateway websocket connection (`Discord::GatewayConnectionJob`,
+also a self-re-enqueuing `PlatformPollingJob` — reconnecting counts as
+"polling again" when the socket drops) and chunks outbound text to
+Discord's 2000-character cap via `Discord::PlatformAdapter`. Both
+connectors are started at boot (`config/initializers/platform_polling.rb`,
+server processes only) rather than through `config/recurring.yml`.
+
+## Failure recovery
+
+Several layers, each catching different failure modes:
+
+1. **Provider timeout** — 30-minute wall-clock cap (and Claude
+   `--max-turns` for users with `agent_max_turns > 0`). The provider
+   adapter kills the subprocess and returns a timed-out result; `RunJob`
+   calls `fail!`.
+2. **Workflow terminal cleanup** — terminal transitions clean up or retain
+   the shared workspace according to state. Cleanup failures are logged but
+   don't suppress the original exception.
+3. **Run reaper** — `ReapStaleRunsJob` runs every minute and combines
+   Solid Queue state with Run state. It fails `running` Runs whose
+   RunJob was pruned with `ProcessPrunedError`, `running` Runs that have
+   no active RunJob after the grace period, and `running` Runs whose
+   heartbeat is older than 30 min. It also re-enqueues orphaned
+   `queued` successor Runs that were created for inline execution before
+   their worker died, and finishes terminal Workflows left active by a
+   crash.
+4. **Work-engine reconciler** — `WorkEngine::Reconciler` is the shared
+   classifier and repair planner used by admin stuck surfaces and the
+   structured stuck explainer. It snapshots Job, Workflow, Step, Run,
+   Solid Queue, spawned-process, worker-health, workspace, dependency,
+   main-health, and rate-limit evidence, then emits structured issue
+   records and side-effect-free repair plans. `ReapStaleRunsJob` and
+   `ReconcileJobStatesJob` are thin delegators that call
+   `WorkEngine::Reconciler.request`; all mutation is centralized in
+   `WorkEngine::ReconcileJob` / `RepairExecutor`, which executes only
+   plans marked `auto_executable` after re-checking preconditions. The
+   newer [Work engine](#work-engine) (`WorkUnit`/`WorkIntent`) is the
+   typed ownership layer the reconciler now consults first. The reconciler
+   still snapshots legacy Workflow/Step/Run evidence for repair planning
+   and compatibility, but the removed WorkUnit rollout flags no longer
+   select between two schedulers.
+   Worker-queue affinity failures are classified in bulk by
+   `DeadWorkerQueueDetector`: the repair pending action captures an audited
+   snapshot of every affected Run, revalidates the group at confirmation,
+   and atomically moves only still-eligible deliveries away from dead
+   worker-specific queues. Incident fan-out actions use the same grouped
+   pending-action mechanism so one confirmation has one coherent outcome.
+   A queued Run stranded on a dead worker-specific affinity queue is also an
+   automatic repair: immediately before deleting the ready queue row, the
+   executor revalidates the exact delivery and worker liveness, then clears
+   stale affinity and re-enqueues on a general lane. A revived worker, claimed
+   row, or concurrent repair turns the action into a no-op.
+5. **`RunJob` execution guards** — two distinct safety rails inside
+   `RunJob#perform`. The *re-entrancy guard* bails silently if the Run
+   is already `terminal?` (idempotent retry), or calls `fail!` and skips
+   execution if the Run is already `running` — which only happens when
+   the prior worker crashed. The *SIGTERM checkpoint* installs a trap
+   that sets a `@shutdown_requested` flag and chains to the prior handler;
+   the inline step loop checks this flag at the top of each iteration and
+   at every inter-step boundary (one Step succeeded, successor is
+   `:queued`). On shutdown it breaks cleanly; `ReapStaleRunsJob`
+   re-enqueues the queued successor with no wasted retry budget. The prior
+   trap is always restored in `ensure`.
+6. **Failure classification + auto-retry** — failed Runs persist a
+   `RunFailureClassification` from diagnostics, logs, spawned process
+   outcomes, and agent outcome. `WorkEngine::RepairExecutor` schedules
+   retry attempts through `AutoRetryAttempt` and `AutoRetryJob`:
+   `worker_died` events (deploy kills, OOM, pod eviction) draw from a
+   separate 20-attempt budget, so a rolling deploy cannot exhaust the
+   3-attempt budget used for actual failures. `ProviderCircuitBreaker`
+   suppresses automatic retries during provider-wide outages.
+7. **Subprocess inventory** — `ProcessRunner` registers agent, grader,
+   git, and prepare subprocesses as `SpawnedProcess` rows with
+   heartbeats, host metrics, and a cross-pod kill switch. An in-process
+   supervisor catches local dead pids; `ReapOrphanedSpawnedProcessesJob`
+   catches dead worker hosts.
+8. **`failure_count` and auto-close** — `Job#record_run_failure!` is
+   called by `RunJob` after a non-rebase Run fails. It increments
+   `failure_count`; if the result hits `AppSetting.max_job_failures`,
+   the Job auto-closes with `closure_reason="too_many_failures"`.
+   Reopening a Job resets the counter. **Rebase Run failures don't
+   count** — they're independent of the issue's progress and a
+   transient base-branch tangle shouldn't burn through the failure
+   budget. Rebase and stack-rebase workflows have their own caps.
+9. **Operator repair toolkit** — admin chat exposes
+   confirmed repair actions through a `PendingActions::Base` framework.
+   Repair actions (provider circuit evidence, CI repair no-op, CI repair
+   rerun, provider admission wake, state reconciliation, state
+   transitions, stale-work cancellation, re-enqueue) require operator
+   confirmation and record before/after snapshots via
+   `PendingActions::RepairAuditSnapshot`. MCP tools (`repair_provider_circuit_evidence`,
+   `mark_ci_repair_noop`, `rerun_ci_repair`, `wake_provider_admission`,
+   `reconcile_job_state`, `force_state_transition`, `cancel_stale_work`,
+   `reenqueue_work`) create pending actions; `Admin::PluginDisableGuard`
+   and `JobStateRepair` enforce valid transitions before execution.
+
+## UI surface (what shows up where)
+
+- **`/onboarding`** — first-run setup checklist. The route opens guided
+  modals for GitHub credentials (PAT first, then GitHub App
+  registration/installation), agent credentials, and the first repository,
+  checks static execution readiness for that repository, and can launch a
+  disposable execution probe before autonomous work is enabled. The probe
+  clones the default branch, performs bounded toolchain and dependency setup,
+  runs one configured or discovered grader, records actionable diagnostics,
+  and removes its workspace. It then starts the onboarding chat that creates
+  and lands the first Epic.
+  `/setup` is retired and redirects here.
+- **`/`** and **`/dashboard/*`** — dashboard: Epic, Job, and Workflow
+  list/Kanban views with ownership scopes, smart folders, status pills,
+  bulk actions, search filters, and landing controls.
+- **`/repositories`** — registry: add/remove, archive, toggle
+  polling, per-repo trigger label, prepare/trust-rebase settings,
+  agent provider, manual poll, scheduled tasks.
+- **`/repositories/:id`** — show page: metadata, recent jobs,
+  GitHub link, retry failed Jobs with alternate providers,
+  plugin-provided repository tabs (for example Throughput, Git
+  History, and Design Docs), hosted "Preview main" controls, and Agent
+  Insights entry points when enabled.
+- **`/repositories/:id/insights`** — per-repository
+  `InsightSuggestion` review surface, gated by the `agent_insights`
+  feature flag.
+- **`/jobs/:id`** — the operational hub for a single thread:
+  live-streaming transcript per Run, agent diff, PR + branch links,
+  action buttons (`run_again`, `restart`, `cancel`, `reopen`,
+  `poll_feedback`, `rebase`, `check_mergeability`, `stop_run`,
+  approval/landing actions, claim/release, dependencies, tags). Job
+  detail payloads include `source_chat` links back to the chat proposal
+  that created the Job (or the Epic proposal for bundled child Jobs) and
+  `scheduled_task` links back to the recurring task that created a cron
+  Job. The Review tab is versioned through `DiffReviewVersion` rows so
+  comments, review notes, typed artifacts, and coverage/metric gutters can
+  stay attached to the exact base/head diff that produced them. The Summary
+  tab renders feedback history from `pr_comment` and `chat_feedback`
+  Workflows.
+- **`/scheduled_tasks`** — cron task management.
+- **`/cron_templates`** — reusable schedule templates and links to apply
+  them to repositories.
+- **`/jobs/new`** — operator-created free-form Jobs.
+- **`/chats`** — top-level chat sessions, proposal review,
+  attached repository/document context, bookmarks, whiteboard state, MCP
+  health, queued follow-up messages, and plugin-provided workspace tabs.
+- **`/agent_activity`** and **`/admin/agent_activity`** — optional
+  session-level agent activity feeds from the `agent_activity` plugin.
+  Operator scope shows sessions visible through repository permissions;
+  admin scope shows every workflow/design-doc session while chat sessions
+  stay self-scoped.
+- **`/terminal`** — labs terminal surface, gated by the `terminal`
+  feature flag. Sessions can attach to a recent Workflow workspace or a
+  scratch directory and are backed by worker-side PTYs, not browser-side
+  shells.
+- **`/notifications`** and **`/notifications/settings`** — app
+  notification inbox and per-kind preferences. The API returns unread
+  counts, Job ids/titles, PR URLs, and read state; web and desktop
+  clients mark rows read through the app API. Mark-read and
+  mark-all-read actions broadcast compact `notification_read` app events
+  so every open client updates read state and unread counts without
+  waiting for the next full notification refetch. Settings include both
+  app notification kinds (`job_failed`, `job_implemented`,
+  `pr_comment_addressed`, `pr_merged`, `epic_completed`) and
+  desktop-native alert toggles for implemented/failed Jobs.
+- **`/design_docs`** and **`/design_docs/:id`** — first-party
+  collaborative Markdown design documents from the `design_docs` plugin,
+  with canonical `DOC-<id>` identifiers, repository links, versions,
+  comments, owner-reviewed suggestions, and smart-folder navigation.
+- **`/briefing`**, **`/briefing/history`**, and
+  **`/briefing/topics/:id`** — disabled-by-default Operator Briefing
+  plugin surface. Each signed-in operator gets per-visible-repository
+  briefing subscriptions, streamed typed briefing blocks, archived
+  history, source preferences, explicit feedback, and wiki-style dive
+  topics produced by follow-up briefing workflows.
+- **`/insights/spending`** — Run and chat spend by window, Epic, user,
+  repository, trigger kind, provider, trend, and top Runs. This page is
+  supplied by the default-enabled `spending_insights` sidebar plugin.
+- **`/insights/attention`** — optional per-user estimates of deciding,
+  judging, and avoidable operator attention, supplied by the default-off
+  `attention_report` plugin. It derives classifications from existing records
+  and keeps agent runtime and queue wait separate as machine time. Optional
+  core `UiEngagementSample` telemetry adds active visible-time percentiles for
+  Job, review, and chat pages; collection is disabled by default, scoped to
+  the signed-in user, and pruned after 90 days.
+- **`/credential_store`** and **`/admin/credential_store`** —
+  default-enabled credential-store plugin pages for scoped encrypted
+  credentials. Operators manage their own/repository/team credentials from
+  the sidebar page; global admins can manage instance scope and audit history
+  from the admin page. Payloads are write-only and never returned by list/show
+  APIs.
+- **`/search`** — unified search from the `global_search` plugin,
+  spanning Jobs, Epics, chats, and enabled plugin-contributed sources
+  such as Design Docs and Test Insights.
+- **`/worker_timeline`** and **`/worker_timeline/workflow`** — optional
+  worker activity timeline plugin surface, disabled by default, with
+  filter chips and suggested-filter typeahead for queue/worker/time/job
+  type slices.
+- **`/admin/insights`** — cross-repository Agent Insights review and
+  memory-promotion/removal controls, gated by `agent_insights`.
+- **`/credentials/edit`** — GitHub, Claude, Codex, scheduling pause,
+  default provider settings, and passkey management. Passkeys use
+  WebAuthn (resident-key, phishing-resistant); `Passkey` and
+  `PasskeyChallenge` models back the registration and authentication
+  endpoints (`/api/v1/app/passkeys/*`). No feature flag — available
+  to all users once migrations run.
+- **Theme toggle** — rendered in the React app shell for authenticated
+  users. It optimistically flips the `dark` class on `<html>`, persists
+  `User#theme` through `/api/v1/app/theme`, and re-syncs from the
+  bootstrap/current-user payload.
+- **Feature flags** — declared in `config/features.yml`, synchronized
+  into `Feature` rows, serialized through the bootstrap
+  `feature_flags` payload, and toggled by admins at `/admin/features`.
+  Notable operational/labs flags include `terminal` and
+  `agent_insights`.
+- **`/admin/plugins`** — plugin management: view registered plugins and
+  their extension points, enable/disable disableable plugins, inspect
+  disable blockers (active Jobs, configured users, open Workflows).
+  Non-disableable plugins (e.g. `github_source`) are shown but cannot
+  be toggled.
+- **`/settings/edit`** — admin settings toggles (signups open, max job
+  failures, review rounds, engagement telemetry, etc.); redirects non-admins to
+  credentials.
+- **`/settings`**, **`/profile`**, **`/settings/agent`**, and
+  **`/settings/preferences`** — account profile, credentials, agent
+  defaults, and per-user preferences.
+- **`/invitations`** — admin invite flow.
+- **`/admin/queue`** — admin Solid Queue view for active, pending,
+  failed, recurring, and worker tabs. Queue filters support built-in and
+  user-saved smart folders scoped to the queue surface; invalid filter
+  expressions return structured `invalid_filter` errors instead of
+  crashing the page.
+- **`/admin/processes`** — subprocess inventory with host metrics and
+  kill controls.
+- **`/admin/performance`** and worker health panels — operational
+  diagnostics for request/SQL/phase timings and retained worker host
+  pressure samples.
+- **Operational log search** — Syrus's own internal application logs
+  (distinct from per-Run `JobLog` transcripts) are batch-persisted to
+  `OperationalLogEvent` (level, role, hostname, app revision, pid, source,
+  request id, optional Job/Workflow/Run association, message, JSON
+  context; 6-hour retention) and asynchronously indexed into an FTS5
+  virtual table (`OperationalLogIndex`) for full-text search. Exposed via
+  the admin REST API and the admin-only chat MCP tool
+  `admin_read_operational_logs`, so an admin chat can
+  search Syrus's own error/warning history the same way they'd grep
+  worker logs.
+- **Admin stuck surfaces** — the overview health tile, stuck list, token
+  admin stuck API, and chat `explain_stuck_job` tool share reconciler
+  issue/repair-plan evidence so operators see the same wait/repair/action
+  status that automated recovery uses.
+- **`/api/v1/admin/*`** — bearer-token admin API for overview, jobs,
+  workflows, runs, queues, processes, and version/instance status.
+
+During first-run setup, React uses bootstrap setup payloads to gate app
+chrome. Before the onboarding chat
+starts, root/dashboard visits are redirected to `/onboarding`, the only
+top-level navigation item is **Setup**, and the brand link returns to
+onboarding. Starting the onboarding chat refreshes bootstrap in place,
+reveals the normal tabs, and points the brand link at that onboarding
+chat. Once the first Epic lands, setup is complete and the Setup tab
+disappears.
+
+Realtime updates use `AppUserChannel` app events consumed by React. Most
+events invalidate TanStack Query keys for the affected resource
+(`job`, `workflow`, `epic`, `repository`, `chat`, and admin overview);
+some high-churn surfaces patch cached payloads directly, including chat
+message tails/control state, whiteboard snapshots, notification create
+counts, and notification read state. Dashboard invalidations are
+throttled and deferred while a dashboard fetch is already in flight.
+Dev mode uses `solid_cable` (NOT `async`) so cross-process events work
+between web and worker.
+
+Primary-sidebar navigation is partly plugin-driven. Core nav items live
+in React, while enabled `:sidebar_page` providers are returned by
+`/api/v1/app/sidebar_pages` and merged into the app shell. Users can
+persist drag-and-drop ordering in `User#sidebar_nav_order`; missing or
+newly-enabled plugin pages fall back to provider order.
+
+Tailwind runs in class-based dark mode (`darkMode: "class"`). The Rails
+SPA layout emits `<html class="dark">` for users whose persisted theme is
+dark, and React keeps that root class in sync after client-side toggles.
+
+The dashboard JSON is assembled by `App::DashboardPayload` for the
+active subject (`epic`, `job`, or `workflow`). Reads are intentionally
+side-effect-light: the payload ensures only that subject's built-in
+`SmartFolder` rows exist, applies ownership/smart-folder filters, and
+returns current preferences without persisting navigation choices.
+Preference writes go through `PATCH /api/v1/app/dashboard/preferences`
+for subject defaults and, when `active_smart_folder_id` is supplied,
+folder-specific view/sort slots. Built-in folder defaults layer below
+saved preferences: All Epics defaults to Kanban and Landing Queue
+defaults to queue-position sorting. Job list mode defaults to the Inbox
+smart folder when no smart-folder id or filter is present; operators can
+still request the unfiltered list with `smart_folder_id=all`. Job smart
+folders are backed by `attention` preset chips: Inbox includes
+actionable unread feedback, failed Jobs, open Jobs with
+`landing_failure_reason`, validity review, and approval-ready Jobs; Just
+failed includes both failed Jobs and open landing failures. Job rows
+carry `source_chat` links and their latest Workflow snapshot through
+correlated subqueries on `workflows` so the dashboard can show recent
+Workflow state without joining every Workflow row into the paginated Job
+query.
+
+Chat rendering deliberately treats authors differently. Assistant,
+system, proposal, and tool-facing content use the local `Markdown`
+renderer so transcripts preserve lists, code blocks, tables, and inline
+formatting. User-authored chat messages use `PlainText` with preserved
+whitespace and word wrapping, so the UI displays exactly what the user
+typed instead of interpreting numbered answers, bullets, or code-like
+phrases as Markdown.
+
+The standalone Go CLI (`cli/`) shares the app API rather than a separate
+backend. `syrus login` stores the instance URL and API token in
+`~/.syrus/credentials`. Running `syrus` without a subcommand lists recent
+chat sessions, prefers sessions for the current checkout's GitHub repo
+when it can detect one, and enters an interactive REPL. `syrus chat
+CHAT_ID MESSAGE` sends a single streaming turn. Both chat paths post to
+`/api/v1/app/chats/:id/message` with `Accept: text/event-stream`, render
+assistant chunks as server-sent events arrive, expose proposed Jobs/Epics
+for inline confirm/reject, surface queued-message state, and translate
+Ctrl+C into the chat stop API instead of abandoning the Rails-side turn.
+
+The same binary also covers operator workflows from a terminal:
+`syrus status`, `syrus inbox`, `syrus checkout`, `syrus test-plan`, and
+`syrus approve` are top-level shortcuts; grouped commands under
+`syrus job`, `syrus epic`, `syrus repo`, and `syrus schedule` inspect and
+act on Jobs, Epics, repositories, and recurring schedules. These commands
+use the app-scoped JSON API where possible so ordinary users can inspect
+and act on their own work; admin-only commands still call admin endpoints
+such as `GET /api/v1/admin/jobs/:id` when they need cross-workflow
+artifacts. Repository-aware commands detect the current GitHub checkout
+from `origin`, scope lists to that repository by default, and refuse
+checkout-changing operations when the local repository does not match the
+Job's repository.
+
+The Electron desktop shell (`desktop/`) uses the same credentials file
+and app API as the CLI. The main process owns stored instance/token
+settings, local repository path mappings, app-user Cable connection,
+native notifications, unread-notification count sync, notification
+inbox IPC, global hotkey registration, checkout/approval IPC handlers,
+and external browser launches. It listens for app-event
+`notification_created` payloads, dispatches native notifications using
+the user's desktop notification preferences, and broadcasts the event to
+renderer windows so they can refresh notification lists without polling
+alone. The React renderer shows the compact inbox, notification inbox,
+Job detail with summary and feedback tabs, repository picker, direct-Job
+form, admin controls, and preferences UI. The inbox consumes the app Job
+payload's
+`repository_id` and `repository_slug` to group rows by repository and
+link back to repository pages; checkout actions delegate to the `syrus`
+CLI so the desktop app does not reimplement branch-management semantics.
+
+Terminal sessions are owned by `User`, optionally linked to a
+`Workflow`, and run on the `chat` queue through `TerminalSessionJob`.
+The app API creates a `TerminalSession` with an auth token and a working
+directory; the worker starts `TerminalRelay`, publishes
+`relay_address`, and spawns `bash` in a PTY. The browser connects
+directly to that relay socket, sends the token as the first frame, and
+then exchanges JSON control frames for input/resize plus raw PTY output.
+Disconnects close only the client socket while the PTY stays alive for a
+short reconnect window; killing the session marks `finished_at`, the
+relay polls that state, terminates the child process, and finalizes the
+session outcome.
+
+## Deployment topology
+
+- Single-host Docker Compose is the low-friction distribution path for
+  new operators. `install.sh --docker` pulls the prebuilt
+  `ghcr.io/tkadauke/syrus-backend` image, generates `.env` secrets on
+  first run, refuses to regenerate encryption keys over an existing data
+  volume, and starts web + worker containers backed by the local data
+  volume. `install.sh --bare-metal` remains the macOS source install
+  path. `bin/compose-up` is the source-build Compose helper for local
+  development.
+- `bin/publish-image` builds the distribution image, runs
+  `bin/test-docker` against the freshly built image, and pushes to GHCR
+  only after that integration gate passes. The Docker integration suite
+  brings up an isolated Compose project and verifies database setup
+  across the app/Solid databases, Active Storage on the local volume,
+  worker registration and job draining, bundled Ruby/Node/Python/Go
+  runtimes, and the MCP sidecar handshake.
+- The production topology has web (`syrus-web`, Puma), a home worker tier
+  (`bin/jobs` with chat, videos, control-plane, polling, indexing, cleanup,
+  and low-priority maintenance queues), and optional compute worker tiers for
+  heavy workflow execution. Compute workers consume `runs`/`merges` plus
+  capability-specific lanes such as `runs-linux-amd64`, `runs-macos-arm64`,
+  and each worker's `resume-<key>` queue for workspace-affine retries. MySQL
+  runs in its own pod.
+- Ingress routes the configured app host, for example `syrus.example.com`.
+- Persistent volume mounted at `$SYRUS_DATA_ROOT` (default
+  `/home/rails/.syrus`) on worker pods, holding active Workflow
+  workspaces at `workflows/<workflow_id>/`, hosted preview clones under
+  `previews/<environment_id>/`, and provider homes under the
+  agent workspace area. Web pods don't need this volume.
+- A shared `mise` runtime cache is mounted at `/opt/mise` on worker pods
+  (`bin/deploy` patches both the `syrus-worker-home` Deployment and the
+  `syrus-worker-compute` DaemonSet with a hostPath volume,
+  `MISE_CACHE_HOST_PATH`, default `/data/syrus-mise-cache`; Docker Compose
+  mirrors it with a named volume) so per-Workflow `mise install` runs reuse
+  downloaded language runtimes instead of re-fetching them every time. The
+  image also seeds `/opt/mise-seed` from a cached runtime layer so a cold
+  cache directory still has usable shims before the shared cache
+  populates.
+- Native macOS compute workers are external launchd services, not Kubernetes
+  nodes. They run `bin/macos-worker` from a versioned source artifact, consume
+  only compute queues through `config/queue.compute.yml`, advertise capabilities
+  such as `os:macos`, `arch:arm64`, and `toolchains:xcode`, and keep workflow
+  data under their own `SYRUS_DATA_ROOT`. A pull-based updater activates
+  `syrus-worker-macos-arm64-<sha>.tar.gz` releases after local dependency
+  setup and `bin/macos-worker-check`; drain-aware rolling updates stop routing
+  new Mac-capability Runs to a host while it finishes active work and switches
+  releases.
+- A shared **sccache** compiler cache backs C/C++ (and other
+  sccache-supported) compilation during `prepare`/grader commands: the
+  worker image symlinks `cc`/`c++`/`gcc`/`g++`/`clang`/`clang++` ahead of
+  the real toolchain on `PATH` to sccache's wrapper. It's backed by a
+  dedicated bucket on the same self-hosted MinIO instance used for
+  Active Storage (`SCCACHE_BUCKET`/`SCCACHE_ENDPOINT`/etc.); with no
+  bucket configured it silently falls back to local per-pod disk cache.
+  Hit/miss stats are captured per prepare/grader command and shown on
+  the Job detail page; operators can inspect and clear the cache at
+  **`/admin/build_cache`**.
+- Terminal relay sockets are advertised from worker-side sessions.
+  Bare-metal/local development can leave `SYRUS_TERMINAL_HOST` unset and
+  the relay uses `127.0.0.1`; Docker Compose points it at the worker
+  service name; Kubernetes workers should advertise their pod IP so the
+  web/browser path can connect to the per-session relay address. The
+  relay is not routed through public ingress.
+- Every web and worker process registers an `InstanceVersion` row on
+  boot when `SYRUS_ROLE` is set, heartbeats every 30s, and is finalized
+  on graceful exit or by `ReapStaleInstanceVersionsJob`. The admin
+  version endpoint shows the request handler plus fresh instances, which
+  makes rolling deploy state visible.
+- `bin/deploy` supports a two-cluster split: staging on the default
+  kubeconfig and production on an explicit one, so the two cannot race
+  each other through context switches. Both kubeconfigs, the namespaces,
+  and the workload names are environment variables with defaults
+  (`SYRUS_PRODUCTION_KUBECONFIG`, `SYRUS_NAMESPACE_PRODUCTION`,
+  `SYRUS_DEPLOYMENTS`, ...); a single-cluster deployment overrides them
+  rather than editing the script. Diagnostic recipes are in `CLAUDE.md`
+  under "Debugging staging / production via kubectl".
+- Kubernetes deploys use `bin/deploy` to build and push the web and
+  worker images for the configured cluster architecture. That path uses
+  plain `docker build` plus `docker push` through `bin/docker-image-lib`
+  instead of buildx registry exporters, because the deploy path has
+  observed buildx hangs after image export. Local Compose and publish
+  flows still share the same helper and can opt into the registry-backed
+  BuildKit cache. See CLAUDE.md "Deploy target" for platform-specific
+  notes.
+- Releases are cut by the CI pipeline (`.github/workflows/release.yml`) —
+  a manual dispatch that computes the version, builds and signs the CLI,
+  the macOS universal DMG, and the backend image, and publishes them
+  atomically (see `docs/releasing.md`). Versions
+  are tag-driven: `desktop/package.json` stays at `0.0.0` permanently;
+  the release tag is the canonical version. The backend image is published
+  using `GITHUB_TOKEN` (no PAT required — the package auto-connects to
+  the repo via `org.opencontainers.image.source`). The `bin/release*`
+  scripts are LOCAL build/verify tools: `bin/release` builds CLI/desktop
+  artifacts under `dist/releases/<version>/<component>/` (no tagging or
+  publishing); `bin/release-cli` / `bin/release-desktop` are the
+  per-component builders; `bin/publish-image` builds, integration-tests,
+  and pushes the image (used directly and by the workflow); `bin/release-notes`
+  previews Claude-written notes. Shared version/checksum/output-dir helpers
+  live in `bin/release-lib`.
+
+## What's intentionally not here
+
+These belong to `ROADMAP.md`; only their current status is recorded:
+
+- **Sandboxed Docker-per-Run isolation.** Today: fresh per-Workflow clone
+  on the worker filesystem; the agent is trusted not to escape.
+- **Public REST / MCP API.** The sidecar is internal-only; there's no
+  external auth surface.
+- **Agent-authored graders.** Today configured command graders from
+  `.syrus.yml` are first-class Workflow Steps, visual review is a
+  first-class optional agent QA Step, and the initial Workflow can
+  collect an agent-authored reviewer test plan.
+  Fully general agent-authored grading remains roadmap.
+- **Global rate limiting.** Today only Solid Queue's per-key
+  concurrency: per-repo polling, per-Job PR/rebase polling, per-Job
+  RunJob serialization. No tenant-wide or process-wide cap.
+- **Fully general agent MCP API.** The internal sidecar exposes only
+  scoped operational tools needed by active Runs.
+
+See `ROADMAP.md` for design notes on each.
