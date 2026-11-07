@@ -177,6 +177,21 @@ RSpec.describe DistributedRunAdmissionRouter do
     expect(decision.queue_name).not_to eq("resume-shared")
   end
 
+  it "reroutes workers without a reported storage identity" do
+    resolver_with(worker("worker-a", "storage-a"), worker("worker-b", nil))
+    sample("worker-a", cpu_pressure_some: 55, cpu_pressure_full: 6)
+    sample("worker-b")
+
+    decision = described_class.call(run: run, admission: admission)
+
+    expect(decision).to be_reroute
+    expect(decision.queue_name).to eq("worker-worker-b")
+    expect(decision.details).to include(
+      "routed_worker" => "worker-b",
+      "routed_worker_storage_key" => nil
+    )
+  end
+
   it "does not claim a targeted reroute when an alternative lacks its worker queue" do
     alternative = worker("worker-b", "shared")
     alternative["queues"] = %w[runs resume-shared]
