@@ -144,7 +144,7 @@ module App
           id: id,
           sequence: sequence,
           kind: kind,
-          chunk: chunk,
+          chunk: serialized_chunk(kind, chunk),
           tool_name: metadata["tool_name"],
           tool_input: metadata["tool_input"],
           tool_use_id: metadata["tool_use_id"],
@@ -152,6 +152,12 @@ module App
           tool_result_error: metadata["tool_result_error"],
           created_at: created_at&.iso8601
         }
+      end
+
+      def serialized_chunk(kind, chunk)
+        return chunk unless %w[tool_call tool_result].include?(kind)
+
+        ToolPayloadRedactor.redact_text(chunk.to_s)
       end
     end
 
