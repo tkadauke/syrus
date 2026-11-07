@@ -532,22 +532,28 @@ module Api
         end
 
         def mark_read
-          update_chat_read_at(find_chat_session, Time.current)
+          return unless update_chat_read_at(find_chat_session, Time.current)
 
           head :no_content
         end
 
         def mark_unread
-          update_chat_read_at(find_chat_session, nil)
+          return unless update_chat_read_at(find_chat_session, nil)
 
           head :no_content
         end
 
         def update_chat_read_at(chat_session, timestamp)
-          participant = current_participant_for(chat_session) || chat_session.chat_participants.find_or_create_by!(user: Current.user) do |new_participant|
-            new_participant.role = chat_session.user_id == Current.user.id ? "owner" : "member"
+          participant = current_participant_for(chat_session)
+          unless participant
+            return false unless require_chat_owner(chat_session, action: "update read state")
+
+            participant = chat_session.chat_participants.find_or_create_by!(user: Current.user) do |new_participant|
+              new_participant.role = "owner"
+            end
           end
           participant.update_columns(last_read_at: timestamp)
+          true
         end
         private :update_chat_read_at
 

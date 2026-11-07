@@ -1477,6 +1477,23 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(participant).to have_attributes(role: "owner", last_read_at: nil)
   end
 
+  it "does not turn a share-only reader into a participant when marking a chat read" do
+    owner = Factories.user
+    chat = ChatSession.create!(user: owner, repository: repository, last_message_at: Time.current)
+    chat.chat_shares.create!(target: user, shared_by_user: owner)
+    sign_in_as(user)
+
+    patch "/api/v1/app/chats/#{chat.id}/mark_read"
+
+    expect(response).to have_http_status(:forbidden)
+    expect(chat.reload.chat_participants.exists?(user: user)).to be(false)
+
+    get "/api/v1/app/chats/#{chat.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("chat")).to include("read_only" => true)
+  end
+
   it "rejects unauthenticated mark_unread requests" do
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.hour.ago, last_read_at: Time.current)
 
