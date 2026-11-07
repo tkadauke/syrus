@@ -10,6 +10,12 @@ module ReviewEvidence::VerdictSubmission
       )
     end
 
+    existing = existing_submission(run.workflow, artifact_key, run.id)
+    if existing
+      evidence&.mark_submitted! unless evidence&.state == "submitted"
+      return existing
+    end
+
     reviewer = evidence&.reviewer
     if reviewer&.respond_to?(:finalize_review_memory!)
       reviewer.finalize_review_memory!(run:, key_learning: key_learning.presence || critique, verdict:)
@@ -61,5 +67,9 @@ module ReviewEvidence::VerdictSubmission
         evidence&.mark_submitted!
       end
     end
+  end
+
+  def existing_submission(workflow, artifact_key, run_id)
+    Array(workflow.reload.artifact(artifact_key)).find { |candidate| candidate["run_id"] == run_id }
   end
 end
