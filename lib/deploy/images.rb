@@ -53,7 +53,8 @@ module Deploy
 
     def login!
       reporter.step("#{config.registry} login")
-      token = shell.docker_lib("syrus_read_ghcr_token", config.ghcr_token_file, mode: :read)
+      token = shell.docker_lib("syrus_read_ghcr_token", config.ghcr_token_file,
+        env: { "GHCR_TOKEN" => config.env["GHCR_TOKEN"] }, mode: :read)
       raise Failure.new("no GHCR token found", detail: token.stderr) unless token.success?
 
       # The token travels in the environment, never in argv. Everything a
