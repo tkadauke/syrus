@@ -461,7 +461,7 @@ module App
       def epic_dependency_count(epic)
         return @epic_dependency_counts_by_epic_id.fetch(epic.id, 0) if defined?(@epic_dependency_counts_by_epic_id)
 
-        epic.dependencies.size
+        EpicDependency.effective(epic.dependencies.to_a).size
       end
 
       def epic_job_state_counts(child_jobs, stats = nil)
