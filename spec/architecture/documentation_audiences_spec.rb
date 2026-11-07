@@ -293,15 +293,17 @@ RSpec.describe "documentation audiences" do
   it "keeps the remaining harness guides focused on supported behavior" do
     forbidden_details = {
       "issue_triage.md" => %w[JobClassificationAttempt ClassifyIssueJob accept_triage],
-      "skills.md" => %w[Skills::ParameterSchema SkillJobs::Creator workflow_serializers.rb],
-      "chat_goals.md" => %w[ChatGoalIterationAuditor ChatScopedEvent ChatQueuedMessagePromoter],
-      "target_graph.md" => %w[TargetHealthRecord NestedConfigDiscovery /api/v1/app/repositories],
+      "skills.md" => %w[Skills::ParameterSchema SkillJobs::Creator workflow_serializers.rb ChatTurnJob],
+      "chat_goals.md" => %w[ChatGoalIterationAuditor ChatScopedEvent ChatQueuedMessagePromoter ChatTurnJob],
+      "target_graph.md" => %w[TargetHealthRecord NestedConfigDiscovery TargetGraph:: Steps:: /api/v1/app/repositories],
       "coverage.md" => %w[CoverageHitMapPruneJob CoverageSnapshot.where],
       "local_mode.md" => %w[LocalTunnelChannel LocalDaemonSessionController],
       "pr_feedback_classification.md" => %w[PrCommentClassifier classification_decision pr_review_comments],
       "epicless_job_bundling.md" => %w[JobBundleDispatcher JobsTable.tsx landing_queue_entry_key],
       "push_protection_recovery.md" => %w[GithubPushProtection::Rejected Steps::PushProtectionRecovery SYRUS_DATA_ROOT],
-      "landing_queue.md" => %w[LandingValidationCache work_unit_locks WorkUnits::Ownership],
+      "landing_queue.md" => %w[LandingValidationCache work_unit_locks WorkUnits::Ownership LandingQueueProcessor StepDispatcher /api/v1/],
+      "trigger_kinds.md" => %w[SkillJobs::Creator Admin::JobStateSerializer PollPullRequestJob StepDispatcher app/models/workflow],
+      "external_pr_ingestion.md" => %w[PollExternalPrJob PollPullRequestJob PrCommentIngester Workflows:: external_pr_number],
       "adversarial_review.md" => %w[Prompts::AdversarialReview workflow.artifacts],
       "repository_readiness.md" => %w[execution-probes single-flight],
       "emergency_land.md" => %w[EmergencyLand::Permission emergency_landed_by_user_id]
@@ -310,6 +312,26 @@ RSpec.describe "documentation audiences" do
     forbidden_details.each do |filename, terms|
       searchable = root.join("config/syrus_docs", filename).read
       terms.each { |term| expect(searchable).not_to include(term) }
+    end
+
+    implementation_free_pages = %w[
+      target_graph.md landing_queue.md trigger_kinds.md chat_goals.md skills.md
+      external_pr_ingestion.md
+    ]
+    implementation_patterns = {
+      "Ruby class/module names" => /\b[A-Z][A-Za-z0-9]*(?:::[A-Z][A-Za-z0-9]*)+/,
+      "Ruby method references" => /\b[A-Z][A-Za-z0-9]*#[a-z_]/,
+      "internal application paths" => %r{(?<![\w-])app/(?:models|services|frontend)/},
+      "UI-only REST routes" => %r{/api/v1/}
+    }
+
+    implementation_free_pages.each do |filename|
+      searchable = root.join("config/syrus_docs", filename).read
+      prose = searchable.gsub(/```.*?```/m, "")
+
+      implementation_patterns.each do |description, pattern|
+        expect(prose).not_to match(pattern), "#{filename} contains #{description}"
+      end
     end
 
     expect(root.join("config/syrus_docs/reconciliation.md")).not_to exist
