@@ -283,5 +283,12 @@ RSpec.describe ScheduledTasks::Schedules::RecurringSchedule do
       expect(result).not_to be_valid
       expect(result.errors).to include("timezone must be a valid IANA time zone identifier")
     end
+
+    it "rejects Rails-friendly time zone aliases that are not IANA identifiers" do
+      result = described_class.preview(input: "Every day at 9am", timezone: "Eastern Time (US & Canada)")
+
+      expect(result).not_to be_valid
+      expect(result.errors).to include("timezone must be a valid IANA time zone identifier")
+    end
   end
 end
