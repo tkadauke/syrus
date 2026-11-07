@@ -12,6 +12,8 @@ module Api
       class ChatsController < BaseController
         DEFAULT_PER = 50
         MAX_PER = 200
+        DEFAULT_RELATED_PER = 50
+        MAX_RELATED_PER = 100
 
         def index
           message_count_sql = ChatMessage.where("chat_messages.chat_session_id = chat_sessions.id").select("COUNT(*)").to_sql
@@ -42,8 +44,7 @@ module Api
 
         def show
           chat = ChatSession.includes(
-            :user,
-            chat_attachments: :attachable
+            :user
           ).find(params[:id])
 
           per = per_param
@@ -96,7 +97,7 @@ module Api
           ids = scope.reorder(id: :desc).limit(per + 1).pluck(:id)
           has_more_older = ids.size > per
           ids = ids.first(per)
-          messages_by_id = ChatMessage.includes(:bookmarks, :proposal).where(id: ids).index_by(&:id)
+          messages_by_id = ChatMessage.includes(:bookmarks, proposal: :repository).where(id: ids).index_by(&:id)
 
           [ ids.reverse.filter_map { |id| messages_by_id[id] }, has_more_older ]
         end
@@ -131,11 +132,22 @@ module Api
         end
 
         def serialize_chat(chat)
+          related_per = (params[:related_per].presence || DEFAULT_RELATED_PER).to_i.clamp(1, MAX_RELATED_PER)
+          attachments = chat.chat_attachments.includes(:attachable).order(:attached_at, :id).limit(related_per).to_a
+          bookmarks = chat.bookmarks.order(:created_at, :id).limit(related_per).to_a
+          proposals = chat.proposals.includes(:repository).order(:created_at, :id).limit(related_per).to_a
+
           serialize_compact(chat, include_message_count: false).merge(
             workspace_path: chat.workspace_path,
-            attachments: chat.chat_attachments.order(:attached_at, :id).map { |attachment| attachment_payload(attachment) },
-            bookmarks: chat.bookmarks.map { |bookmark| bookmark_payload(bookmark) },
-            proposals: chat.proposals.order(:created_at, :id).map { |proposal| proposal_payload(proposal) },
+            related_page: {
+              per: related_per,
+              attachments_total: chat.chat_attachments.count,
+              bookmarks_total: chat.bookmarks.count,
+              proposals_total: chat.proposals.count
+            },
+            attachments: attachments.map { |attachment| attachment_payload(attachment) },
+            bookmarks: bookmarks.map { |bookmark| bookmark_payload(bookmark) },
+            proposals: proposals.map { |proposal| proposal_payload(proposal) },
             turn_in_flight: chat.turn_in_flight?,
             agent_busy: chat.agent_busy?
           )
@@ -163,7 +175,7 @@ module Api
           return content unless max&.positive?
 
           serialized = content.to_json
-          serialized.bytesize > max ? { "truncated" => true, "preview" => serialized.byteslice(0, max) } : content
+          serialized.bytesize > max ? { "truncated" => true, "preview" => serialized.byteslice(0, max).scrub("") } : content
         end
 
         def attachment_payload(attachment)

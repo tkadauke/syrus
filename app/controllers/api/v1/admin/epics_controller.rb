@@ -7,6 +7,8 @@ module Api
       class EpicsController < BaseController
         DEFAULT_PER = 50
         MAX_PER = 100
+        DEFAULT_DESCRIPTION_MAX = 4_000
+        MAX_DESCRIPTION_MAX = 100_000
 
         # Compact list. Filter via:
         #   ?state=backlog|ready|in_progress|done|archived
@@ -157,15 +159,12 @@ module Api
             display_number:     epic.slug,
             state:              epic.state,
             title:              epic.title,
-            owner_email:        epic.owner&.email_address,
             claimed_at:         epic.claimed_at,
             auto_approve_mode:      epic.auto_approve_mode,
             epic_dependency_policy: epic.epic_dependency_policy,
             resolved_epic_dependency_policy: epic.resolved_epic_dependency_policy,
             goal_provenance: ::App::GoalProvenancePayload.for(epic),
-            owner_user_id:          epic.owner_user_id,
-            owner_status:           owner_status(epic),
-            owner_user:             owner_user_json(epic.owner_user),
+            owner:                  owner_json(epic),
             repository:             epic.repository.slug,
             github_issue_url:   epic.github_issue_url,
             done_at:            epic.done_at,
@@ -175,22 +174,22 @@ module Api
         end
 
         def serialize(epic)
+          description = epic.description.to_s
+          description_max = (Integer(params[:description_max], exception: false) || DEFAULT_DESCRIPTION_MAX).clamp(1, MAX_DESCRIPTION_MAX)
           {
             id:                 epic.id,
             number:             epic.number,
             display_number:     epic.slug,
             state:              epic.state,
             title:              epic.title,
-            description:        epic.description,
-            owner:              serialize_owner(epic.owner),
+            description:        description.bytesize > description_max ? description.byteslice(0, description_max).scrub("") : description,
+            description_truncated: description.bytesize > description_max,
+            owner:              owner_json(epic),
             claimed_at:         epic.claimed_at,
             auto_approve_mode:   epic.auto_approve_mode,
             epic_dependency_policy: epic.epic_dependency_policy,
             resolved_epic_dependency_policy: epic.resolved_epic_dependency_policy,
             goal_provenance: ::App::GoalProvenancePayload.for(epic),
-            owner_user_id:       epic.owner_user_id,
-            owner_status:        owner_status(epic),
-            owner_user:          owner_user_json(epic.owner_user),
             github_issue_url:    epic.github_issue_url,
             done_at:            epic.done_at,
             created_at:         epic.created_at,
@@ -212,13 +211,11 @@ module Api
           { error_serializing: "#{e.class}: #{e.message}" }
         end
 
-        def serialize_owner(owner)
-          return nil unless owner
+        def owner_json(epic)
+          owner = epic.owner_user || epic.owner
+          return { status: "unclaimed", user: nil } unless owner
 
-          {
-            id: owner.id,
-            email_address: owner.email_address
-          }
+          { status: owner_status(epic), user: owner_user_json(owner) }
         end
 
         def serialize_child_job(job)
@@ -241,8 +238,9 @@ module Api
         end
 
         def owner_status(epic)
-          return "unclaimed" if epic.owner_user_id.blank?
-          return "mine" if epic.owner_user_id == current_api_user.id
+          owner_id = epic.owner_user_id || epic.owner_id
+          return "unclaimed" if owner_id.blank?
+          return "mine" if owner_id == current_api_user.id
 
           "other_owned"
         end

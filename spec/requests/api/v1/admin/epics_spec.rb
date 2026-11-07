@@ -123,7 +123,7 @@ RSpec.describe "API: /api/v1/admin/epics", type: :request do
       body = parse_body
       expect(body["count"]).to eq(3)
       epic_payload = body["epics"].find { |e| e["title"] == "Launch" }
-      expect(epic_payload).to include("id", "number", "state", "repository", "auto_approve_mode", "epic_dependency_policy", "resolved_epic_dependency_policy", "owner_user_id", "owner_status", "owner_user")
+      expect(epic_payload).to include("id", "number", "state", "repository", "auto_approve_mode", "epic_dependency_policy", "resolved_epic_dependency_policy", "owner")
       expect(epic_payload["repository"]).to eq("acme/widgets")
     end
 
@@ -182,22 +182,21 @@ RSpec.describe "API: /api/v1/admin/epics", type: :request do
       get "/api/v1/admin/epics", params: { owner: "mine" }, headers: auth(admin_token)
       expect(parse_body["epics"].map { |e| e["id"] }).to include(mine.id)
       expect(parse_body["epics"].map { |e| e["id"] }).not_to include(other.id, unclaimed.id)
-      expect(parse_body["epics"].find { |e| e["id"] == mine.id }).to include(
-        "owner_status" => "mine",
-        "owner_user" => include("id" => admin.id, "email_address" => admin.email_address)
+      expect(parse_body["epics"].find { |e| e["id"] == mine.id }.dig("owner")).to include(
+        "status" => "mine",
+        "user" => include("id" => admin.id, "email_address" => admin.email_address)
       )
 
       get "/api/v1/admin/epics", params: { owner: "other_owned" }, headers: auth(admin_token)
       expect(parse_body["epics"].map { |e| e["id"] }).to include(other.id)
       expect(parse_body["epics"].map { |e| e["id"] }).not_to include(mine.id, unclaimed.id)
-      expect(parse_body["epics"].find { |e| e["id"] == other.id }).to include("owner_status" => "other_owned")
+      expect(parse_body["epics"].find { |e| e["id"] == other.id }.dig("owner", "status")).to eq("other_owned")
 
       get "/api/v1/admin/epics", params: { owner: "unclaimed" }, headers: auth(admin_token)
       expect(parse_body["epics"].map { |e| e["id"] }).to include(unclaimed.id)
       expect(parse_body["epics"].map { |e| e["id"] }).not_to include(mine.id, other.id)
-      expect(parse_body["epics"].find { |e| e["id"] == unclaimed.id }).to include(
-        "owner_status" => "unclaimed",
-        "owner_user" => nil
+      expect(parse_body["epics"].find { |e| e["id"] == unclaimed.id }.dig("owner")).to eq(
+        "status" => "unclaimed", "user" => nil
       )
     end
   end
@@ -221,8 +220,7 @@ RSpec.describe "API: /api/v1/admin/epics", type: :request do
         "id" => epic.id,
         "state" => "ready",
         "title" => "Launch",
-        "owner_status" => "unclaimed",
-        "owner_user" => nil,
+        "owner" => { "status" => "unclaimed", "user" => nil },
         "epic_dependency_policy" => "linear",
         "resolved_epic_dependency_policy" => "linear",
         "complete" => false,
@@ -233,6 +231,17 @@ RSpec.describe "API: /api/v1/admin/epics", type: :request do
       expect(body["jobs"].map { |j| j["id"] }).to contain_exactly(child_a.id, child_b.id)
       child_a_payload = body["jobs"].find { |j| j["id"] == child_a.id }
       expect(child_a_payload).to include("state" => "queued", "kind" => "issue", "repository" => "acme/widgets")
+    end
+
+    it "bounds descriptions and can omit child jobs" do
+      epic.update!(description: "é" * 3_000)
+
+      get "/api/v1/admin/epics/#{epic.id}", params: { jobs: false, description_max: 101 }, headers: auth(admin_token)
+
+      body = parse_body
+      expect(body).to include("description_truncated" => true, "jobs" => [])
+      expect(body.fetch("description").encoding).to eq(Encoding::UTF_8)
+      expect(body.fetch("description").bytesize).to be <= 101
     end
 
     it "404s with a JSON error envelope for an unknown id" do

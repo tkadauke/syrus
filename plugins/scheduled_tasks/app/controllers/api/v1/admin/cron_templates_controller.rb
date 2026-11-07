@@ -56,7 +56,7 @@ module Api
             pr_pileup_policy: template.pr_pileup_policy,
             enabled: template.enabled?,
             skill_name: template.skill_name,
-            applied_tasks_count: @applied_tasks_counts&.fetch(template.id, 0) || template.scheduled_tasks.alive.count,
+            applied_tasks_count: defined?(@applied_tasks_counts) ? @applied_tasks_counts.fetch(template.id, 0) : template.scheduled_tasks.alive.count,
             next_fire_at: template.next_fire_at&.iso8601,
             created_at: template.created_at,
             updated_at: template.updated_at
