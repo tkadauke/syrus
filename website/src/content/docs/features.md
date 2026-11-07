@@ -901,6 +901,11 @@ flow.
 
 ## Chats
 
+On touch devices, press and hold a live-chat message to open its timestamp,
+copy, and any applicable pin or bookmark actions. Run transcripts use the same gesture for a
+copy action on both rendered agent messages and compact log rows; tapping
+elsewhere closes the actions without interrupting normal transcript scrolling.
+
 Typing `@` in a message shows only people and agents relevant to that chat,
 plus your own coworkers that can be added and Syrus. Continue typing to filter
 by handle, name, or role, then use the arrow keys and Enter or Tab to insert a

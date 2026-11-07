@@ -262,7 +262,7 @@ export function RunTranscriptLogs({
 
             if (item.role === "assistant") {
               return (
-                <SharedMessageRenderer as="li" key={item.id} readOnly testId="run-transcript-log-assistant">
+                <SharedMessageRenderer as="li" copyText={item.text} key={item.id} readOnly testId="run-transcript-log-assistant">
                   <ChatAssistantMarkdownSurface text={item.text} />
                 </SharedMessageRenderer>
               )
@@ -270,7 +270,7 @@ export function RunTranscriptLogs({
 
             const sourceLog = logs.find((log) => log.id === item.id)
             return (
-              <SharedMessageRenderer as="li" key={item.id} readOnly testId="run-transcript-log-system">
+              <SharedMessageRenderer as="li" copyText={item.text} key={item.id} readOnly testId="run-transcript-log-system">
                 <SystemMessage
                   item={{ tone: "neutral", label: transcriptLogKindLabel(sourceLog?.kind, t), body: item.text, prominent: true }}
                   prefix=""
