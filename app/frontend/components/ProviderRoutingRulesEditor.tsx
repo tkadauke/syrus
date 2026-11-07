@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react"
-import type { KeyboardEvent } from "react"
+import { useEffect, useRef, useState } from "react"
+import type { DragEvent, KeyboardEvent, SVGProps } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Button } from "./Button"
-import { ChevronIcon } from "./ChevronIcon"
 import { Modal } from "./Modal"
 import { RoutingTestPanel } from "./ProviderRoutingTestPanel"
 import { PanelMessage } from "./PanelMessage"
@@ -88,6 +87,9 @@ const EMPTY_OPTIONS: ProviderRoutingOptions = {
   action_strategies: [],
   condition_keys: []
 }
+
+const DRAG_HANDLE_CLASSES =
+  "self-stretch rounded text-text-secondary hover:bg-surface-raised hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-not-allowed disabled:opacity-60"
 
 export function ProviderRoutingRulesEditor({
   basePath,
@@ -294,6 +296,7 @@ export function RoutingRulesPanel({
             onDuplicate={duplicate}
             onEdit={edit}
             onMove={move}
+            onReorder={onReorderRules}
             onToggle={onToggleRule}
             options={routingOptions}
             reorderPending={reorderPending}
@@ -347,6 +350,7 @@ function RulesTable({
   onDuplicate,
   onEdit,
   onMove,
+  onReorder,
   onToggle,
   options,
   readOnly = false,
@@ -360,6 +364,7 @@ function RulesTable({
   onDuplicate?: (rule: ProviderRoutingRule) => void
   onEdit?: (rule: ProviderRoutingRule) => void
   onMove?: (rule: ProviderRoutingRule, direction: -1 | 1) => void
+  onReorder?: (ids: number[]) => void
   onToggle?: (rule: ProviderRoutingRule, enabled: boolean) => void
   options: ProviderRoutingOptions
   readOnly?: boolean
@@ -367,101 +372,153 @@ function RulesTable({
   rules: ProviderRoutingRule[]
   t: (key: string, options?: Record<string, unknown>) => string
 }) {
+  const draggedRuleId = useRef<number | null>(null)
+
+  function reorder(sourceId: number, targetId: number) {
+    if (sourceId === targetId) return
+
+    const ids = rules.map((rule) => rule.id)
+    const sourceIndex = ids.indexOf(sourceId)
+    const targetIndex = ids.indexOf(targetId)
+    if (sourceIndex < 0 || targetIndex < 0) return
+
+    const [id] = ids.splice(sourceIndex, 1)
+    ids.splice(targetIndex, 0, id)
+    onReorder?.(ids)
+  }
+
+  function startDrag(rule: ProviderRoutingRule, event: DragEvent<HTMLButtonElement>) {
+    draggedRuleId.current = rule.id
+    event.dataTransfer.effectAllowed = "move"
+    event.dataTransfer.setData("text/plain", String(rule.id))
+  }
+
+  function dropOn(rule: ProviderRoutingRule, event: DragEvent<HTMLLIElement>) {
+    event.preventDefault()
+    const sourceId = draggedRuleId.current
+    draggedRuleId.current = null
+    if (sourceId != null) reorder(sourceId, rule.id)
+  }
+
   const table = (
     <ul aria-label={inheritedLabel || t("provider_routing.rules_table")} className="divide-y divide-border">
       {rules.map((rule, index) => (
         <li
-          className={`space-y-1.5 px-3 py-2.5 ${readOnly ? "bg-surface-subtle/50" : "bg-surface"} ${rule.enabled === false ? "opacity-55" : ""}`}
+          className={`grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2 px-3 py-2.5 ${readOnly ? "bg-surface-subtle/50" : "bg-surface"} ${rule.enabled === false ? "opacity-55" : ""}`}
           data-testid="routing-rule-row"
           key={rule.id}
+          onDragOver={
+            readOnly
+              ? undefined
+              : (event) => {
+                  if (draggedRuleId.current == null) return
+                  event.preventDefault()
+                  event.dataTransfer.dropEffect = "move"
+                }
+          }
+          onDrop={readOnly ? undefined : (event) => dropOn(rule, event)}
         >
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="w-5 text-xs font-medium text-text-secondary">{index + 1}</span>
+          <div className="flex min-w-0 gap-2">
             {!readOnly ? (
-              <Checkbox
-                aria-label={t("provider_routing.enabled_aria", { name: ruleName(rule, t) })}
-                checked={rule.enabled !== false}
-                className="h-4 w-4 accent-brand"
-                onChange={(event) => {
-                  void onToggle?.(rule, event.target.checked)
+              <button
+                aria-label={t("provider_routing.drag_aria", { name: ruleName(rule, t) })}
+                className={DRAG_HANDLE_CLASSES}
+                disabled={reorderPending}
+                draggable={!reorderPending}
+                onDragEnd={() => {
+                  draggedRuleId.current = null
                 }}
-              />
+                onDragStart={(event) => startDrag(rule, event)}
+                onKeyDown={(event) => {
+                  if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return
+                  event.preventDefault()
+                  onMove?.(rule, event.key === "ArrowUp" ? -1 : 1)
+                }}
+                title={t("provider_routing.drag_hint")}
+                type="button"
+              >
+                <DragHandleIcon className="h-5 w-5" />
+              </button>
             ) : null}
-            <span className="min-w-0 break-words font-medium text-text-primary">{ruleName(rule, t)}</span>
-            {rule.enabled === false ? <Pill tone="neutral">{t("provider_routing.disabled")}</Pill> : null}
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <Pill tone="info" wrap>
-              {triggerLabel(rule.trigger, options, t)}
-            </Pill>
-            <span className="text-xs font-medium text-text-primary">{actionLabel(rule, options, t)}</span>
-            {conditionSummaries(rule.conditions, options, t).map((label) => (
-              <Pill key={label} tone="neutral" wrap>
-                {label}
-              </Pill>
-            ))}
-          </div>
-          <div className="text-xs text-text-secondary">
-            {rule.action?.type === "hold" ? (
-              <div>{holdSummary(rule.action, t)}</div>
-            ) : (
-              <ol className="list-decimal space-y-0.5 pl-4">
-                {ruleCandidates(rule).map((candidate, candidateIndex) => (
-                  <li key={`${rule.id}-${candidateIndex}`}>{candidateLabel(candidate, options, t)}</li>
+            <div className="min-w-0 space-y-1.5">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="w-5 text-xs font-medium text-text-secondary">{index + 1}</span>
+                {!readOnly ? (
+                  <Checkbox
+                    aria-label={t("provider_routing.enabled_aria", { name: ruleName(rule, t) })}
+                    checked={rule.enabled !== false}
+                    className="h-4 w-4 accent-brand"
+                    onChange={(event) => {
+                      void onToggle?.(rule, event.target.checked)
+                    }}
+                  />
+                ) : null}
+                <span className="min-w-0 break-words font-medium text-text-primary">{ruleName(rule, t)}</span>
+                {rule.enabled === false ? <Pill tone="neutral">{t("provider_routing.disabled")}</Pill> : null}
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Pill tone="info" wrap>
+                  {triggerLabel(rule.trigger, options, t)}
+                </Pill>
+                <span className="text-xs font-medium text-text-primary">{actionLabel(rule, options, t)}</span>
+                {conditionSummaries(rule.conditions, options, t).map((label) => (
+                  <Pill key={label} tone="neutral" wrap>
+                    {label}
+                  </Pill>
                 ))}
-              </ol>
-            )}
+              </div>
+              <div className="text-xs text-text-secondary">
+                {rule.action?.type === "hold" ? (
+                  <div>{holdSummary(rule.action, t)}</div>
+                ) : (
+                  <ol className="list-decimal space-y-0.5 pl-4">
+                    {ruleCandidates(rule).map((candidate, candidateIndex) => (
+                      <li key={`${rule.id}-${candidateIndex}`}>{candidateLabel(candidate, options, t)}</li>
+                    ))}
+                  </ol>
+                )}
+              </div>
+              {readOnly ? <Pill tone="neutral">{t("provider_routing.read_only")}</Pill> : null}
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {readOnly ? (
-              <Pill tone="neutral">{t("provider_routing.read_only")}</Pill>
-            ) : (
-              <>
-                <Button
-                  aria-label={t("provider_routing.move_up_aria", { name: ruleName(rule, t) })}
-                  className="h-7 w-7"
-                  disabled={index === 0 || reorderPending}
-                  onClick={() => onMove?.(rule, -1)}
-                  size="icon"
-                  variant="secondary"
-                >
-                  <ChevronIcon className="h-4 w-4 -rotate-90" />
-                </Button>
-                <Button
-                  aria-label={t("provider_routing.move_down_aria", { name: ruleName(rule, t) })}
-                  className="h-7 w-7"
-                  disabled={index === rules.length - 1 || reorderPending}
-                  onClick={() => onMove?.(rule, 1)}
-                  size="icon"
-                  variant="secondary"
-                >
-                  <ChevronIcon className="h-4 w-4 rotate-90" />
-                </Button>
-                <Button onClick={() => onEdit?.(rule)} size="sm" variant="secondary">
-                  {t("provider_routing.edit")}
-                </Button>
-                <Button onClick={() => onDuplicate?.(rule)} size="sm" variant="secondary">
-                  {t("provider_routing.duplicate")}
-                </Button>
-                <Button
-                  disabled={destroyPending}
-                  onClick={() => {
-                    void onDelete?.(rule)
-                  }}
-                  size="sm"
-                  variant="danger"
-                >
-                  {t("provider_routing.delete")}
-                </Button>
-              </>
-            )}
-          </div>
+          {!readOnly ? (
+            <div aria-label={t("provider_routing.actions_aria", { name: ruleName(rule, t) })} className="flex shrink-0 items-start gap-1" role="group">
+              <Button
+                aria-label={t("provider_routing.edit_aria", { name: ruleName(rule, t) })}
+                className="h-8 w-8"
+                onClick={() => onEdit?.(rule)}
+                size="icon"
+                variant="secondary"
+              >
+                <PencilIcon className="h-4 w-4" />
+              </Button>
+              <Button
+                aria-label={t("provider_routing.duplicate_aria", { name: ruleName(rule, t) })}
+                className="h-8 w-8"
+                onClick={() => onDuplicate?.(rule)}
+                size="icon"
+                variant="secondary"
+              >
+                <DuplicateIcon className="h-4 w-4" />
+              </Button>
+              <Button
+                aria-label={t("provider_routing.delete_aria", { name: ruleName(rule, t) })}
+                className="h-8 w-8"
+                disabled={destroyPending}
+                onClick={() => {
+                  void onDelete?.(rule)
+                }}
+                size="icon"
+                variant="danger"
+              >
+                <TrashIcon className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : null}
         </li>
       ))}
     </ul>
   )
-
-  if (!inheritedLabel) return table
 
   return (
     <div className="overflow-hidden rounded-[var(--radius-panel)] border border-[length:var(--border-width)] border-border bg-surface">
@@ -473,6 +530,64 @@ function RulesTable({
       ) : null}
       {table}
     </div>
+  )
+}
+
+function DragHandleIcon({ className = "" }: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" className={className} fill="currentColor" viewBox="0 0 20 20">
+      <circle cx="7" cy="5" r="1.25" />
+      <circle cx="13" cy="5" r="1.25" />
+      <circle cx="7" cy="10" r="1.25" />
+      <circle cx="13" cy="10" r="1.25" />
+      <circle cx="7" cy="15" r="1.25" />
+      <circle cx="13" cy="15" r="1.25" />
+    </svg>
+  )
+}
+
+function PencilIcon({ className = "" }: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      viewBox="0 0 24 24"
+    >
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  )
+}
+
+function DuplicateIcon({ className = "" }: SVGProps<SVGSVGElement>) {
+  return (
+    <svg aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 20 20">
+      <rect height="11" rx="2" width="11" x="6" y="3" />
+      <path d="M3 7v8a2 2 0 0 0 2 2h8" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function TrashIcon({ className = "" }: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.8"
+      viewBox="0 0 20 20"
+    >
+      <path d="M3.5 5.5h13M8 3h4l1 2.5H7L8 3Z" />
+      <path d="m5.5 5.5.7 11h7.6l.7-11M8 9v4.5M12 9v4.5" />
+    </svg>
   )
 }
 
