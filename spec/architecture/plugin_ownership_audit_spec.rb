@@ -38,7 +38,7 @@ RSpec.describe Admin::PluginOwnershipAudit do
     YAML
   end
 
-  it "requires the compatibility quarantine to track both shrinkage and growth" do
+  it "reports baseline differences for both shrinkage and growth" do
     Dir.mktmpdir do |directory|
       root = Pathname.new(directory)
       root.join("app/services").mkpath
@@ -47,21 +47,21 @@ RSpec.describe Admin::PluginOwnershipAudit do
       ownership = synthetic_ownership(quarantine: { "app/services/dashboard.rb" => 2 })
 
       audit = described_class.new(root:, ownerships: [ ownership ])
-      expect(audit.violations).to eq([])
+      expect(audit.findings).to eq([])
 
       source.write("forecast_widget = true\n")
-      expect(audit.violations.map(&:message)).to contain_exactly(
-        "app/services/dashboard.rb: weather owns 1 vocabulary occurrence(s), compatibility quarantine allows 2"
+      expect(audit.findings.map(&:message)).to contain_exactly(
+        "app/services/dashboard.rb: weather vocabulary inventory actual 1, baseline 2, trend -1"
       )
 
       source.write("forecast_widget = forecast_widget_provider(forecast_widget)\n")
-      expect(audit.violations.map(&:message)).to contain_exactly(
-        "app/services/dashboard.rb: weather owns 3 vocabulary occurrence(s), compatibility quarantine allows 2"
+      expect(audit.findings.map(&:message)).to contain_exactly(
+        "app/services/dashboard.rb: weather vocabulary inventory actual 3, baseline 2, trend +1"
       )
     end
   end
 
-  it "rejects owned vocabulary in a new core file" do
+  it "reports owned vocabulary in a new core file" do
     Dir.mktmpdir do |directory|
       root = Pathname.new(directory)
       root.join("config").mkpath
@@ -69,7 +69,7 @@ RSpec.describe Admin::PluginOwnershipAudit do
 
       audit = described_class.new(root:, ownerships: [ synthetic_ownership ])
 
-      expect(audit.violations.map(&:path)).to eq([ "config/settings.yml" ])
+      expect(audit.findings.map(&:path)).to eq([ "config/settings.yml" ])
     end
   end
 

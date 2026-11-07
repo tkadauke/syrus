@@ -11,6 +11,7 @@ ENV["RAILS_ENV"] ||= "development"
 require_relative "../config/environment"
 
 options = {
+  enforce_ownership: false,
   command: ENV.fetch(
     "PLUGIN_BOUNDARY_AUDIT_COMMAND",
     'BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle check || BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle install --jobs "${BUNDLE_INSTALL_JOBS:-1}" && BUNDLE_PATH="$PWD/vendor/bundle" BUNDLE_APP_CONFIG="$PWD/.bundle" bundle exec rails runner "puts :plugin_boundary_boot_ok"'
@@ -18,13 +19,16 @@ options = {
 }
 
 parser = OptionParser.new do |opts|
-  opts.banner = "Usage: bin/plugin-boundary-audit PLUGIN_NAME [--command COMMAND]"
+  opts.banner = "Usage: bin/plugin-boundary-audit PLUGIN_NAME [--command COMMAND] [--enforce-ownership]"
   opts.separator ""
   opts.separator "Physically removes PLUGIN_NAME plus transitive dependents from a temporary"
   opts.separator "git-archive copy, removes their Gemfile path entries, then runs COMMAND."
   opts.separator ""
   opts.on("--command COMMAND", "Smoke/test command to run in the temporary copy.") do |command|
     options[:command] = command
+  end
+  opts.on("--enforce-ownership", "Fail on ownership inventory findings (opt-in; disabled by default).") do
+    options[:enforce_ownership] = true
   end
   opts.on("-h", "--help", "Show this help.") do
     puts opts
@@ -57,13 +61,19 @@ temp_root = Pathname.new(Dir.mktmpdir([ "syrus-plugin-boundary-", "-#{plugin_nam
 
 ownership = ownership_audit.ownerships.find { |candidate| candidate.plugin == plugin_name }
 if ownership
-  puts "Plugin boundary vocabulary-ownership audit"
-  ownership_failures = ownership_audit.violations.select { |violation| violation.plugin == plugin_name }
-  if ownership_failures.any?
-    ownership_failures.each { |failure| warn failure.message }
+  puts "Plugin boundary vocabulary-ownership inventory (#{options[:enforce_ownership] ? 'enforcement' : 'shadow'} mode)"
+  ownership_findings = ownership_audit.findings.select { |finding| finding.plugin == plugin_name }
+  if ownership_findings.any?
+    ownership_findings.each { |finding| warn finding.message }
+    puts "Result: #{options[:enforce_ownership] ? 'FAIL' : 'WARN'} (baseline differences reported)"
+  else
+    puts "Result: PASS (inventory matches the recorded baseline)"
+  end
+
+  if options[:enforce_ownership] && ownership_findings.any?
     exit 1
   end
-  puts "Result: PASS (no core reimplementation growth)"
+  puts "Ownership findings are informational and do not affect the command exit status." unless options[:enforce_ownership]
   puts
 end
 

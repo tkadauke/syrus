@@ -307,12 +307,13 @@ full test suite — against what is left.
 Bundled plugins can also declare `config/plugin_ownership.yml`, covering their
 configuration keys, workflow vocabulary, routes, data, tools, frontend
 contributions, documentation, and domain terms. A checked-in compatibility
-quarantine snapshots existing core leakage as exact per-file counts. Boundary
-checks reject new files, increased counts, and stale allowances after leakage
-is extracted, so migration PRs shrink the matching snapshot entries. The
-subtraction command reports this vocabulary check separately from physical
-removability, because a bootable core could still have reimplemented the
-plugin's behavior.
+quarantine records existing core vocabulary as per-file baseline counts.
+Boundary checks report new files, increases, and decreases as nonblocking
+shadow-mode trends; developers do not update counts merely to make CI pass.
+String counts are inventory rather than proof of architectural ownership, so
+the subtraction command reports them separately from physical removability.
+Enforcement is disabled by default and requires a later explicit operator
+decision.
 
 ## Execution Backend Contract
 

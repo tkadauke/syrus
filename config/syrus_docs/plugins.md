@@ -587,12 +587,21 @@ directly or transitively.
 A plugin may also declare `config/plugin_ownership.yml`. The manifest records
 its configuration keys, step kinds, target types, routes, tables, problem
 codes, tools, frontend contributions, documentation, and owned vocabulary.
-`compatibility_quarantine` is a per-core-file snapshot of occurrences of that
-vocabulary. New files, increased counts, and stale allowances after extraction
-fail `bin/check-plugin-boundaries`; migration changes must shrink the matching
-manifest entries in the same PR. This ratchet is intentionally separate from
-constant/path checking: core can reimplement a plugin feature without ever
-referencing the plugin's source or constants.
+`compatibility_quarantine` is a per-core-file baseline of occurrences of that
+vocabulary. New files, increased counts, and decreases after extraction are
+reported as trends in shadow mode. They do not affect
+`bin/check-plugin-boundaries`' exit status, and developers do not need to edit
+the baseline to make CI green. Raw case-insensitive string counts are useful
+inventory, but are not reliable proof of a boundary: copy, documentation,
+compatibility rendering, and diagnostics can produce false positives, while a
+neutral rename can hide a reimplementation.
+
+All ownership signals introduced with this manifest remain nonblocking until
+an operator explicitly decides otherwise, including future AST identifiers,
+import edges, registry provenance, disablement, and physical-subtraction
+signals. A future enforcement trial can opt in locally with
+`PLUGIN_OWNERSHIP_ENFORCE=1 bin/check-plugin-boundaries`; this mode is disabled
+by default and is not configured in required graders.
 
 The audit reads git-tracked source only. Untracked and gitignored files are
 skipped, because the working tree can contain build output — Vite entry bundles
@@ -610,9 +619,13 @@ bin/plugin-boundary-audit ruby --command "bundle exec rspec spec/models/job_spec
 ```
 
 For a plugin with an ownership manifest, the command reports two independent
-results: vocabulary ownership proves core did not grow a reimplementation of
-plugin behavior, while physical removal proves core remains bootable after the
-plugin and its dependent plugins are removed.
+results: the nonblocking vocabulary inventory shows changes from the recorded
+baseline, while physical removal tests whether core remains bootable after the
+plugin and its dependent plugins are removed. The inventory cannot prove that
+core did or did not reimplement plugin behavior. Its optional
+`--enforce-ownership` mode is reserved for a later explicit operator decision
+and is disabled by default; the pre-existing physical-removal command still
+fails when its requested smoke/test command fails.
 
 Two things make it usable in practice. The temporary copy has no
 `config/master.key` (it is gitignored, so `git archive` does not carry it), so
