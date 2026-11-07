@@ -494,8 +494,8 @@ and reserve a weighted strategy for future load balancing. Review steps whose
 }
 ```
 
-Panels require at least two distinct members and currently apply to
-`adversarial_review` and `security_review`. Consensus may be `unanimous`,
+Panels require at least two distinct members and apply to
+`adversarial_review`, `security_review`, and `coworker_review`. Consensus may be `unanimous`,
 `majority` (strictly more than half of non-skipped votes), or
 `{"at_least": N}`. Unavailable members are evaluated with the normal provider
 credential, availability, and circuit evidence. `drop` removes them and
