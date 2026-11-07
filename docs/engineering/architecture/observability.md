@@ -1,48 +1,9 @@
-# Observability Event Streams
+# Observability architecture
+
 
 Syrus uses structured event streams for operational/debug data that needs to be
 queried after the fact. New streams should use `Observability::EventStream` and
 `Observability::EventSink` instead of writing bespoke inline event-table code.
-
-## System Alert Delivery
-
-`SystemAlerts` still renders authenticated in-app banners, and
-`SystemAlertDeliveryJob` evaluates the same alert sources every minute so
-alarm-severity alerts can be sent even when no operator has a browser open.
-Configure either or both of:
-
-- `SYRUS_ALERT_WEBHOOK_URL` — POSTs a JSON payload for each alarm;
-- `SYRUS_ALERT_EMAIL_TO` — comma-separated mail recipients.
-
-System-alert email has no user recipient record from which to select a locale,
-so its fixed subject and labels always use the application's configured default
-locale. Alert titles, messages, action steps, and CTA text are operational
-payload text and are delivered verbatim; they are not treated as translation
-keys.
-
-Delivery is deduplicated by the alert's `dismissal_key` in
-`system_alert_notifications`, so repeated scheduler ticks or multiple operators
-seeing the same banner do not flood the sink. Only `:alarm` alerts are delivered
-outbound; warning and info banners remain UI-only. Failed deliveries stay
-eligible for the recurring job and are retried with bounded backoff. When the
-retry bound is exhausted, the notification is marked with `dead_lettered_at`;
-the readiness probe reports that as an alert-delivery failure until an operator
-fixes the sink and clears or redelivers the affected row.
-
-The shared sink provides:
-
-- a per-process in-memory ring for very recent events;
-- optional JSONL spooling for durable streams;
-- a lazy background flusher plus `FlushObservabilityEventsJob` as a scheduled
-  backstop;
-- model-specific row builders via `from_event_hash`;
-- consistent timestamp parsing and JSON normalization through
-  `ObservabilityEventRecord`.
-
-Use durable streams for lifecycle or incident evidence that should survive a
-worker restart before the next database flush. Avoid using durable streams for
-high-cardinality debug noise unless the event is actionable and retention is
-bounded.
 
 ## How writes are paced
 
@@ -86,45 +47,6 @@ events are visible. Do NOT flush on the write path to make a row immediately
 readable — that is a one-row INSERT per event, and it is what made reconciler
 activity the largest source of single-row writes in the system.
 
-## Workflow Activity
-
-The `workflow_activity_events` stream is the broad Syrus activity timeline. It
-records lifecycle events that explain what Syrus is doing and where time is
-being spent:
-
-- `workflow_created`
-- `workflow_started`
-- `workflow_finished`
-- `run_started`
-- `run_finished`
-- `landing_queue_changed`
-- `landing_workflow_dispatched`
-
-Events include references where available: repository, Epic, Job, Workflow,
-Step, Run, trigger kind, state, reason key, duration, source, message, and
-structured metadata. Landing queue snapshots are recorded only when the cached
-queue state materially changes; recurring queue ticks with the same blocker and
-position do not create another row.
-
-The admin UI exposes this stream at **Admin -> Activity** (`/admin/activity`).
-The app API endpoint is `GET /api/v1/app/admin/activity`; the token admin API
-endpoint is `GET /api/v1/admin/activity`. Both are paginated newest-first and
-accept `event_type`, `job_id`, `workflow_id`, `run_id`, `trigger_kind`, and
-`reason_key` filters.
-
-`workflow_activity_events` retain 14 days of data. This is intentionally longer
-than performance and operational logs so operators and agents can reconstruct
-landing queue stalls and delayed retries across deploys.
-
-## Browser Errors
-
-The `browser_error_events` table records React error-boundary crashes from the
-browser. Route-level and app-level error boundaries automatically post a
-structured event to `POST /api/v1/app/browser_errors`; when the operator clicks
-**Send error report** in the fallback banner, Syrus files from that persisted
-event instead of rebuilding a partial report from the visible stack. The
-fallback UI shows the captured browser error ID so an operator can correlate a
-visible crash with the admin event stream.
 
 Browser error events include the signed-in user, app revision, fingerprint,
 error name/message, JavaScript stack, React component stack, URL/path, viewport,
@@ -151,15 +73,6 @@ with the normal SPA assets, so this is appropriate for Syrus' internal admin
 deployment model; public deployments should make an explicit choice about
 whether source maps are acceptable to serve.
 
-The admin UI exposes this stream at **Admin -> Browser Errors**
-(`/admin/browser_errors`). The app API endpoint is
-`GET /api/v1/app/admin/browser_errors`; the token admin API endpoint is
-`GET /api/v1/admin/browser_errors`. Both are paginated newest-first and accept
-`query`, `since`, `until`, `fingerprint`, `path`, and `revision_scope` filters.
-Rows can advertise event actions. Browser error rows expose **File Job**, which
-routes through `POST /api/v1/app/event_actions/file_job` with
-`event_type=browser_error` and includes the full stored log entry in the created
-Job prompt.
 
 Unlike the high-volume observability streams, browser errors are inserted
 synchronously instead of through `Observability::EventSink` because the browser
@@ -167,14 +80,6 @@ fallback needs the persisted event ID immediately. The row is still append-only
 and pruned by `FlushObservabilityEventsJob`. Browser error events retain 14 days
 of data.
 
-The default-off `browser_error_auto_reports` feature can turn captured browser
-errors into normal Syrus bug-report jobs. When enabled, every new browser error
-enqueues `BrowserErrorAutoReportJob`; the job claims a separate
-`browser_error_auto_reports` row keyed by fingerprint and app revision, then
-routes one bug report through the standard `BugReports::Router`. Duplicate
-events with the same fingerprint on the same revision do not create more jobs.
-The captured `BrowserErrorEvent` remains append-only evidence independent of
-whether bug-report routing succeeds.
 
 ## Backend Exceptions
 
@@ -197,31 +102,6 @@ accept `query`, `since`, `until`, `fingerprint`, `source`, `exception_class`,
 of data. Backend exception rows expose the same generic **File Job** event
 action, but only admins may use it. The created Job prompt includes the full
 stored exception entry.
-
-## Existing Streams
-
-Admins in regular chat and coworkers with the `ops.read_logs` grant share one
-read-only diagnostics tool family. In addition to the operational-log,
-worker-health, backend-exception, browser-error, and performance-event queries,
-it composes the existing Metrics Dashboard history, Worker Timeline occupancy
-and Workflow queries, resource-admission diagnostics, and per-Run queue
-diagnosis. Timeline and admission results are restricted to Jobs and
-repositories visible to the caller, including a coworker chat's attached
-repository scope; live worker slots outside that scope are omitted. Global
-fleet results require the same operational authority. Timeline ranges are
-limited to seven days. Responses identify their source and freshness, enforce
-fixed result caps, redact secrets, and never include mutation actions. The
-grant defaults to confirmation and may be raised to automatic access; it never
-adds repair, retry, pause, process-control, or event-filing actions. Metrics and
-timeline tools report a disabled-plugin error instead of creating a parallel
-data path when their owning plugin is off.
-
-`performance_log_events` contain slow request, slow SQL, slow phase, and browser
-trace diagnostics. They retain 24 hours and are surfaced by Admin -> Performance
-when the `performance_logging` feature is enabled. Phase SQL counts are
-inclusive of nested work, but phase SQL fingerprint drilldowns are exclusive:
-each query is attributed to the deepest active phase so the same statement does
-not appear under multiple nested phases.
 
 ### Frontend performance markers
 
@@ -364,108 +244,6 @@ see below. Monitoring and hunting are deliberately separate: the summary is
 always on and costs nothing, the diagnostics are opt-in and some of them are
 expensive.
 
-### On-demand process diagnostics (SIGUSR2)
-
-Some questions can only be answered from inside a running process: what is on
-its heap, why its memory grows, what it is holding. Syrus answers those with a
-signal, not an endpoint.
-
-**Why a signal.** The processes worth inspecting are Solid Queue workers, and
-an HTTP endpoint executes in the web pod -- it would inspect the wrong process.
-A pod also runs several Ruby processes (supervisor, runs worker, merges worker,
-dispatcher), so the trigger has to address exactly one: several simultaneous
-whole-heap walks are how you OOM a pod that is already near its memory limit.
-A signal names a single pid, and sending one requires a shell in the container.
-That is the access gate -- there is no port, no listener and no token.
-
-**Usage.** Write a request file naming the diagnostic, then signal the pid:
-
-```bash
-kubectl exec -it <pod> -c syrus-worker -- sh
-ps -eo pid,rss,args --sort=-rss | head        # pick the process
-mkdir -p "$SYRUS_DATA_ROOT/diagnostics"
-echo '{"kind":"heap_histogram","top_n":50}' > "$SYRUS_DATA_ROOT/diagnostics/request.json"
-kill -USR2 <pid>
-ls "$SYRUS_DATA_ROOT/diagnostics"/           # <kind>-<pid>-<timestamp>.<ext>
-```
-
-The signal says "go"; the file says what to do, because a signal carries no
-arguments. The file is optional in the sense that a malformed or missing one
-is not an error -- but it must name a `kind`, or the process logs the known
-kinds and does nothing. One diagnostic runs at a time: a second signal while
-one is in flight is ignored rather than stacking another heap walk.
-
-Output is written next to the request and the path is logged. Retrieve it with
-`kubectl cp`. Nothing is written to the database and nothing is exposed over
-HTTP.
-
-**Available kinds**, cheapest first:
-
-| `kind` | Cost | Answers |
-|---|---|---|
-| `process_overview` | free | Something is wrong and I do not know what |
-| `thread_backtraces` | free | What is this process doing right now? |
-| `db_pool` | free | Are we starved of database connections? |
-| `fd_table` | free | Are we leaking file descriptors? |
-| `gc_stat` | free | Is this retention or heap bloat? |
-| `heap_histogram` | seconds of pause | What is being retained? |
-| `allocation_trace` | ~2x memory for a window | Which line allocates the leak? |
-| `heap_dump` | expensive, risky | What is holding the references? |
-
-Start with `process_overview`. It combines GC counters, shallow thread
-backtraces, pool stats and a descriptor count in one capture, so triage does
-not cost three signals; reach for the specific kinds once it points somewhere.
-
-`thread_backtraces` answers the question behind every wedged worker and
-stalled Run. It costs microseconds and pauses nothing, so take it twice a few
-seconds apart: a thread stuck at the same frame is blocked, one that moved is
-merely busy. `depth` defaults to 40, max 200. Note `status` is reported
-verbatim because its encoding matters -- `"run"`/`"sleep"` are alive, `false`
-means the thread finished normally, `nil` means it died on an exception.
-
-`db_pool` exists because connection starvation and slow queries look identical
-from the outside: requests take seconds while the database sits idle. The
-difference is `waiting`. If threads are queued for a connection, no query
-optimisation will help and the pool size or thread count is the thing to
-change.
-
-`fd_table` classifies `/proc/self/fd` by socket, pipe, anon_inode, device and
-file, and lists the most repeated targets. Descriptor leaks cause mysterious
-intermittent failures long before the limit is hit, and nothing else reports
-them. Linux only; on other platforms it reports `available: false` rather
-than guessing.
-
-`allocation_trace` turns "we are retaining String" into a source location. It
-records an allocation site on every object allocated while tracing is on, runs
-for `seconds` (default 30, max 300), then reports the sites whose objects
-*survived* the window -- which is what a leak looks like. It roughly doubles
-memory while active, so it carries the same refusal threshold as `heap_dump`
-and always stops, including on error.
-
-`gc_stat` reads counters only. Rising `heap_live_slots` alongside rising RSS
-means objects are still reachable -- a leak. High RSS with flat live slots
-means the heap simply is not being returned to the OS, which is a different
-problem with a different fix.
-
-`heap_histogram` walks every live object once, reporting per-class counts and
-retained sizes (`top_n`, default 50, max 500). It includes the `gc_stat`
-counters, so one capture answers both questions.
-
-`heap_dump` writes the full object graph via `ObjectSpace.dump_all`. It is
-**refused above 75% of the cgroup memory limit**: the dump allocates while it
-writes, so taking it on a nearly-full pod kills the process holding the
-evidence. Restart the worker to make room, or override with
-`{"kind":"heap_dump","force":true}` when you have deliberately made space. The
-output is several times the size of the heap and is written raw then
-compressed, so the volume needs room for both.
-
-**Adding a diagnostic.** Register a block with
-`Diagnostics::SignalTrigger.register("my_kind") { |request| ... }` and return
-either a Hash (written as pretty JSON) or a path you wrote yourself. The
-request exposes `options` (the parsed file), `path_for(extension)`, and
-`fetch_integer`. New diagnostics need no new signal -- that is why there is
-only one.
-
 ### WebSocket connect latency (`cable.connect`)
 
 A slow live-updates connection is invisible in request timing. The HTTP
@@ -542,17 +320,3 @@ retain 6 hours and can be indexed for full-text search when
 `work_engine_reconciler_activity_events` contain detailed reconciler issue,
 plan, and repair execution rows. They retain 7 days and are surfaced by
 Admin -> Reconciler Events.
-
-## Page engagement telemetry
-
-Syrus can collect opt-in estimates of an operator's active time on Job,
-PR-review, and chat pages. Enable **Page engagement telemetry** in App Settings
-(`AppSetting.ui_engagement_telemetry_enabled`). It is off by default; while it
-is off the browser does not send samples and the API discards any that arrive.
-
-Each page visit records only the signed-in user, an allowlisted route identifier,
-the Job or chat ID, start/end timestamps, visible-tab time, and active time.
-Active time stops after 60 seconds without pointer, keyboard, or scroll input.
-It resumes with new input and never includes hidden-tab time. Samples are sent
-when the page is hidden or left and are deleted after 90 days. Core exposes no
-cross-user read endpoint for these samples.

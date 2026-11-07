@@ -234,7 +234,7 @@ Planner examples:
   regardless of `scheduled_at` or `performed_at`. This is what keeps a
   pressured host's `visual_diff` (or any other) worker_died Run from
   accumulating duplicate retry attempts across repeated reconciler passes; see
-  `multi_worker.md` for the related per-host `visual_diff` preview admission
+  [Multi-worker architecture](multi-worker.md) for the related per-host `visual_diff` preview admission
   guard.
 - When a `worker_died` failure has a critical `run_resource_summary`
   host-pressure level, `RunFailureClassifier` records
