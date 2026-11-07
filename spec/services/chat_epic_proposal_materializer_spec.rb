@@ -499,15 +499,13 @@ RSpec.describe ChatEpicProposalMaterializer do
     job = dependent_result.jobs.first
 
     expect(job).to be_blocked_by_epic
-    expect(epic.may_start_implementing?(actor: user)).to be(false)
+    expect(epic.may_start_implementing?(actor: user)).to be(true)
 
     expect {
-      expect {
-        epic.start_implementing!(actor: user)
-      }.to raise_error(Epic::NotStartable, /waiting on Epic dependencies: Upstream/)
+      epic.start_implementing!(actor: user)
     }.not_to change(Run, :count)
 
-    expect(epic.reload).to be_ready
+    expect(epic.reload).to be_in_progress
     expect(job.reload).to be_blocked_by_epic
 
     upstream_result = materializer.file!(upstream)
@@ -520,14 +518,11 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(epic.may_start_implementing?(actor: user)).to be(false)
     expect(job.reload).to be_blocked_by_epic
 
-    upstream_result.epic.override_state!("done")
-
-    expect(epic.reload.may_start_implementing?(actor: user)).to be(true)
     expect {
-      epic.start_implementing!(actor: user)
-    }.to change { epic.reload.state }.from("ready").to("in_progress")
+      upstream_result.epic.override_state!("done")
+    }.to change { job.reload.state }.from("blocked_by_epic").to("queued")
 
-    expect(job.reload).to be_queued
+    expect(epic.reload).to be_in_progress
   end
 
   it "materializes Epic dependencies from string-encoded Epic ids" do

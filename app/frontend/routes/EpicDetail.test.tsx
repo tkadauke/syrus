@@ -38,7 +38,7 @@ function detailPayload(overrides: Partial<EpicDetailPayload["epic"]> = {}): Epic
       stuck: false,
       startable: true,
       can_unland: false,
-      start_blocked_on: [],
+      execution_blocked_on: [],
       owner: null,
       owned_by_current_user: false,
       claimable: true,
@@ -418,15 +418,15 @@ describe("EpicDetail start implementing", () => {
     expect(screen.queryByRole("button", { name: "Start implementing" })).not.toBeInTheDocument()
   })
 
-  it("shows a muted waiting hint when the Epic is blocked on dependencies", () => {
-    renderDetail(detailPayload({ state: "backlog", startable: false, start_blocked_on: ["Pave the road first", "JOB-19"] }))
+  it("explains when an in-progress Epic's children are blocked on dependencies", () => {
+    renderDetail(detailPayload({ state: "in_progress", startable: false, execution_blocked_on: ["Pave the road first", "JOB-19"] }))
 
     expect(screen.queryByRole("button", { name: "Start implementing" })).not.toBeInTheDocument()
-    expect(screen.getByText("Waiting on Pave the road first, JOB-19")).toBeInTheDocument()
+    expect(screen.getByText("Implementation started; child Jobs are waiting on Pave the road first, JOB-19")).toBeInTheDocument()
   })
 
-  it("does not show the waiting hint for startable Epics", () => {
-    renderDetail(detailPayload({ start_blocked_on: [] }))
+  it("does not show the waiting hint when execution is unblocked", () => {
+    renderDetail(detailPayload({ execution_blocked_on: [] }))
 
     expect(screen.queryByText(/^Waiting on /)).not.toBeInTheDocument()
   })

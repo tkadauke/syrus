@@ -741,7 +741,6 @@ de:
       started: "Epic gestartet — bereite untergeordnete Jobs werden gestartet."
       created_and_started: "Epic erstellt und gestartet — bereite untergeordnete Jobs starten."
       not_startable: "Epic kann aus dem Zustand %{state} nicht mit der Umsetzung beginnen."
-      start_blocked_by_dependencies: "Epic kann noch nicht mit der Umsetzung beginnen — wartet auf Epic-Abhängigkeiten: %{names}."
       start_children_empty: "Epic kann erst mit der Umsetzung beginnen, wenn es mindestens einen untergeordneten Job hat."
       start_children_unconfirmed: "Epic kann erst mit der Umsetzung beginnen, wenn seine untergeordneten Jobs bestätigt sind."
       start_claimed_by_other: "Epic ist von einem anderen Benutzer beansprucht."
