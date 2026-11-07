@@ -5049,7 +5049,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     }
 
     expect(response).to have_http_status(:unprocessable_content)
-    expect(parse_body.dig("error", "message")).to eq("Backlog routing is only available for direct Job proposals.")
+    expect(parse_body.dig("error", "message")).to eq("Backlog routing is only available for standalone Job and Epic proposals.")
     expect(child.reload.route_to_backlog).to be(false)
   end
 
@@ -6361,6 +6361,31 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     expect(proposal.reload.epic).to be_ready
     expect(child.reload.job).to be_blocked_by_epic
+  end
+
+  it "confirms an Epic proposal to backlog without starting even when start is requested" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    proposal = chat.proposals.create!(slug: "hold-auth", title: "Hold auth", body: "Keep the complete bundle for later.", kind: "epic", repository: repository)
+    first = proposal.child_proposals.create!(chat_session: chat, slug: "auth-schema", title: "Auth schema", body: "Add tables.", repository: repository)
+    second = proposal.child_proposals.create!(chat_session: chat, slug: "auth-ui", title: "Auth UI", body: "Add screens.", repository: repository)
+    ChatProposalDependency.create!(proposal: second, depends_on: first)
+
+    expect {
+      post "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm", params: { route_to_backlog: true, start: true }
+    }.to change(Epic, :count).by(1)
+      .and change(Job, :count).by(2)
+      .and change(JobDependency, :count).by(1)
+      .and change(Workflow, :count).by(0)
+      .and change(Run, :count).by(0)
+
+    expect(response).to have_http_status(:ok)
+    expect(proposal.reload.route_to_backlog).to be(true)
+    expect(proposal.epic).to be_backlog
+    expect([ first.reload.job, second.reload.job ]).to all(be_blocked_by_epic)
+    expect(second.job.dependencies.sole.depends_on_job).to eq(first.job)
+    expect(chat.reload.attached_epics).to include(proposal.epic)
+    expect(chat.attached_jobs).to contain_exactly(first.job, second.job)
   end
 
   it "returns an actionable validation error when confirming a nonlinear Epic proposal" do

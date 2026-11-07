@@ -26,6 +26,9 @@ class ChatEpicProposalMaterializer
       validate_child_dependency_policy!(epic_proposal, job_proposals)
       ensure_active_repositories!([ epic_proposal ] + job_proposals)
       ensure_repository_write!(epic_proposal, job_proposals)
+      if epic_proposal.route_to_backlog? && epic_proposal.target_epic && !epic_proposal.target_epic.backlog?
+        raise ArgumentError, "Only a new Epic bundle or an existing backlog Epic can be routed to backlog."
+      end
 
       epic = create_epic_for(epic_proposal)
       chat_session.chat_attachments.find_or_create_by!(attachable: epic)
@@ -58,6 +61,10 @@ class ChatEpicProposalMaterializer
       ChatEpicProposalDependencyWirer.new(user: user).resolve_confirmed_proposal!(epic_proposal)
       epic.dependencies.reload # class-level create! bypasses the in-memory association target
       jobs.each { |job| job.advance_after_triage! if job.may_advance_after_triage? }
+      # Creating and Epic-blocking the first child invokes Epic's normal
+      # auto-readiness callback. An explicit backlog route wins over that
+      # automatic transition once the complete bundle has materialized.
+      epic.move_to_backlog! if epic_proposal.route_to_backlog? && epic.ready?
     end
 
     Result.new(epic_proposal: epic_proposal, epic: epic, job_proposals: job_proposals, jobs: jobs)
@@ -91,10 +98,6 @@ class ChatEpicProposalMaterializer
     return proposal.target_epic if proposal.target_epic
 
     repository = proposal.repository || proposal.chat_session.repository
-    # Chat-authored Epics are fully-specified by Claude in one shot;
-    # land them in :ready so the operator can promote to :in_progress
-    # without first walking them through the backlog→ready transition
-    # (which is meant for partially-specified epics).
     user.epics.create!(
       repository: repository,
       title: proposal.title,
@@ -102,7 +105,7 @@ class ChatEpicProposalMaterializer
       chat_goal: proposal.chat_goal,
       goal_prompt_snapshot: proposal.goal_prompt_snapshot,
       epic_dependency_policy: "linear",
-      state: "ready"
+      state: proposal.route_to_backlog? ? "backlog" : "ready"
     )
   end
 

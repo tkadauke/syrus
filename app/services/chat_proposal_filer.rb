@@ -195,17 +195,13 @@ class ChatProposalFiler
   def create_epic(proposal)
     ensure_repository_write!(proposal.effective_repository || repository)
 
-    # Chat-authored Epics are fully-specified by Claude in one shot;
-    # land them in :ready (not the default :backlog) so the operator
-    # can promote to :in_progress directly. Backlog is meant for
-    # partially-specified epics that still need filling out.
     user.epics.create!(
       repository: proposal.effective_repository || repository,
       title: proposal.title,
       description: proposal.body,
       chat_goal: proposal.chat_goal,
       goal_prompt_snapshot: proposal.goal_prompt_snapshot,
-      state: "ready"
+      state: proposal.route_to_backlog? ? "backlog" : "ready"
     )
   end
 
