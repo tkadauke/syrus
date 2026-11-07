@@ -1930,6 +1930,12 @@ export function UnifiedDiffTable({
             autoFocus
             className="min-h-20 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm normal-case tracking-normal text-gray-900 shadow-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
             onChange={(event) => onChangeComposingBody?.(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" || (!event.metaKey && !event.ctrlKey) || event.altKey || event.shiftKey || event.nativeEvent.isComposing) return
+              event.preventDefault()
+              if (!composingBody?.trim() || composingPending) return
+              onSaveComposing?.()
+            }}
             value={composingBody ?? ""}
           />
           <div className="flex gap-2">

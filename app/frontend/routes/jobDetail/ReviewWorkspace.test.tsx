@@ -124,6 +124,35 @@ describe("ReviewWorkspace", () => {
     })
   })
 
+  it("creates an anchored comment with Cmd+Enter while plain Enter remains multiline", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+    vi.mocked(createDiffReviewComment).mockResolvedValue(commentsPayload([comment()]))
+
+    renderWorkspace()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Comment on app/models/user.rb:new:1" }))
+
+    const textarea = within(screen.getByTestId("diff-review-composer")).getByLabelText("Comment")
+    fireEvent.change(textarea, { target: { value: "Please add a regression spec." } })
+    expect(fireEvent.keyDown(textarea, { key: "Enter" })).toBe(true)
+    expect(createDiffReviewComment).not.toHaveBeenCalled()
+
+    expect(fireEvent.keyDown(textarea, { key: "Enter", metaKey: true })).toBe(false)
+
+    await waitFor(() => {
+      expect(createDiffReviewComment).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          body: "Please add a regression spec.",
+          path: "app/models/user.rb",
+          side: "right",
+          new_line: 1
+        })
+      )
+    })
+  })
+
   it("keeps an unsaved line-comment draft when whole-review feedback is submitted", async () => {
     const globalComment = comment({
       id: 2,
