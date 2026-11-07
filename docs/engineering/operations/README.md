@@ -29,8 +29,8 @@ recovering Syrus itself. Operator feature instructions remain in
   with SIGUSR2 and Kubernetes.
 - [Preview environments](preview-environments.md) — deployment variables,
   wildcard routing, preview processes, and production setup.
-- [Admin recovery](admin-recovery.md) — deployed restart and stuck-work
-  recovery procedures.
+- [Admin recovery](admin-recovery.md) — deployed web and worker restart
+  procedures and checks.
 - [iOS and macOS compute](ios-compute.md) — native worker installation,
   launchd, environment, updates, and pool topology.
 - [Speech-to-text](chat-speech-to-text.md) — transcription daemon deployment,

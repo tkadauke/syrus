@@ -4106,10 +4106,7 @@ Bundled plugins:
   both workflow transcript routes share `App::RunArtifactsPayload.build(run:)`
   for the JSON shape so they can't drift apart — see
   `plugins/agent_activity/docs/syrus_docs/agent_activity.md`.
-
-
 ## Adding a new external messaging platform
-
 
 **Core platform** (built directly into `app/`, like Telegram):
 
