@@ -34,8 +34,8 @@ module App
       new(job: workflow.job, user: user).workflow_preview_payload(workflow)
     end
 
-    def self.build_dependency_options(job:, user:)
-      new(job: job, user: user).dependency_options_payload
+    def self.build_dependency_options(job:, user:, params: {})
+      new(job: job, user: user, params: params).dependency_options_payload
     end
 
     # Lean re-derivation of just the actions hash, for command endpoints

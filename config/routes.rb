@@ -106,6 +106,7 @@ Rails.application.routes.draw do
         patch "credentials/provider_routing_rules/:id", to: "provider_routing_rules#update", constraints: { id: /\d+/ }
         delete "credentials/provider_routing_rules/:id", to: "provider_routing_rules#destroy", constraints: { id: /\d+/ }
         get "jobs/new", to: "direct_jobs#new"
+        get "jobs/new/prompt_templates/:template_id", to: "direct_jobs#prompt_template", constraints: { template_id: /[a-z0-9-]+/ }
         get "jobs/graph", to: "jobs#graph"
         get "jobs", to: "jobs#index"
         post "jobs", to: "direct_jobs#create"
