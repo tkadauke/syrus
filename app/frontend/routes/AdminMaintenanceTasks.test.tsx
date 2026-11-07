@@ -3,7 +3,8 @@ import { fireEvent, render, screen, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "../testSupport"
-import { AdminMaintenanceTaskDetail, AdminMaintenanceTasks } from "./AdminMaintenanceTasks"
+import type { AdminMaintenanceTaskDetailPayload } from "../api/maintenanceTasks"
+import { AdminMaintenanceTaskDetail, AdminMaintenanceTasks, maintenanceTaskPollSearch, mergeMaintenanceTaskPoll } from "./AdminMaintenanceTasks"
 
 function renderDetailRoute(initialEntry = "/app-shell/admin/maintenance_tasks/1?log_page=2") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -92,21 +93,51 @@ describe("AdminMaintenanceTaskDetail", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("maintenance task is not runnable from succeeded")
   })
+
+  it("polls the first log page incrementally and merges new events", () => {
+    const previous = taskPayload({
+      events: [taskPayload().events[0]],
+      events_pagination: { ...taskPayload().events_pagination, page: 1, total_events: 101, first_item: 1, last_item: 100 }
+    })
+    const update = taskPayload({
+      events: [{ ...taskPayload().events[0], id: 102, message: "A newer event" }],
+      events_pagination: { ...taskPayload().events_pagination, page: 1, total_events: 1, total_pages: 1, first_item: 1, last_item: 1 }
+    })
+
+    expect(maintenanceTaskPollSearch("", previous)).toBe("?since_event_id=101")
+    expect(maintenanceTaskPollSearch("?log_page=2", previous)).toBe("?log_page=2")
+    const merged = mergeMaintenanceTaskPoll(previous, update)
+    expect(merged.events.map((event) => event.id)).toEqual([102, 101])
+    expect(merged.events_pagination).toMatchObject({ total_events: 102, total_pages: 2, next_page: 2 })
+  })
 })
 
 describe("AdminMaintenanceTasks", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("shows discovery failures", async () => {
-    vi.spyOn(window, "fetch").mockImplementation((_input, options) => Promise.resolve(options?.method === "POST"
-      ? jsonResponse({ error: { message: "Discovery unavailable" } }, 503)
-      : jsonResponse({
-          tasks: [], total: 0, filter: { and: [] }, filter_schema: [],
-          filters: {}, pagination: { page: 1, per_page: 50, total: 0, total_pages: 0, first_item: 0, last_item: 0, previous_path: null, next_path: null },
-          sort: { column: "updated_at", direction: "desc" }
-        })))
+    vi.spyOn(window, "fetch").mockImplementation((_input, options) =>
+      Promise.resolve(
+        options?.method === "POST"
+          ? jsonResponse({ error: { message: "Discovery unavailable" } }, 503)
+          : jsonResponse({
+              tasks: [],
+              total: 0,
+              filter: { and: [] },
+              filters: {},
+              pagination: { page: 1, per_page: 50, total: 0, total_pages: 0, first_item: 0, last_item: 0, previous_path: null, next_path: null },
+              sort: { column: "updated_at", direction: "desc" }
+            })
+      )
+    )
     const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-    render(<QueryClientProvider client={client}><MemoryRouter><AdminMaintenanceTasks /></MemoryRouter></QueryClientProvider>)
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <AdminMaintenanceTasks />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
 
     fireEvent.click(await screen.findByRole("button", { name: "Check now" }))
 
@@ -114,7 +145,7 @@ describe("AdminMaintenanceTasks", () => {
   })
 })
 
-function taskPayload(overrides: Record<string, unknown> = {}) {
+function taskPayload(overrides: Partial<AdminMaintenanceTaskDetailPayload> = {}): AdminMaintenanceTaskDetailPayload {
   return {
     id: 1,
     definition_key: "agents_backfill",

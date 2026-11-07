@@ -44,8 +44,11 @@ RSpec.describe "API: /api/v1/app/themes", type: :request do
       "name" => "Mine",
       "built_in" => false,
       "position" => nil,
-      "tokens" => JSON.parse(mine.tokens_with_defaults.to_json)
+      "swatch" => mine.tokens_with_defaults.dig("light", "brand")
     )
+
+    get "/api/v1/app/themes", params: { full: 1 }
+    expect(parse_body.fetch("themes").find { |item| item["slug"] == "mine" }.fetch("tokens")).to eq(JSON.parse(mine.tokens_with_defaults.to_json))
   end
 
   it "requires authentication" do

@@ -5,7 +5,9 @@ module Api
         def sidebar
           return render json: { tasks: [] } unless Current.user&.admin?
 
-          render json: ::App::MaintenanceTasksPayload.sidebar
+          payload = ::App::MaintenanceTasksPayload.sidebar
+          fresh_when(etag: payload, public: false)
+          render json: payload unless performed?
         end
       end
     end
