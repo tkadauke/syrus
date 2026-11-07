@@ -1164,11 +1164,14 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
             return item
           }
           if (entry.kind !== "epic") return entry
-          return { ...entry, children: entry.children.map((child) => {
-            if (child.job_id !== jobStatusChanged.job_id || item.kind !== "job") return child
-            found = true
-            return item
-          }) }
+          return {
+            ...entry,
+            children: entry.children.map((child) => {
+              if (child.job_id !== jobStatusChanged.job_id || item.kind !== "job") return child
+              found = true
+              return item
+            })
+          }
         })
         return { ...current, items: found ? items : [item, ...items] }
       })
@@ -1657,7 +1660,7 @@ function chatJobStatusChangedPayload(payload: unknown): ChatJobStatusChangedPayl
   if (candidate.action !== "job_status_changed") return null
   if (typeof candidate.job_id !== "number") return null
 
-  const item = candidate.item && typeof candidate.item === "object" ? candidate.item as ChatJobStatusItem : undefined
+  const item = candidate.item && typeof candidate.item === "object" ? (candidate.item as ChatJobStatusItem) : undefined
   return { action: "job_status_changed", job_id: candidate.job_id, item }
 }
 
