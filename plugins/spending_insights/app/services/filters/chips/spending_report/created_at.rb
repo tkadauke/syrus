@@ -33,7 +33,7 @@ module Filters
         def parse_time(raw)
           return if raw.blank?
 
-          Time.zone.parse(raw.to_s)
+          ActiveSupport::TimeZone[user.time_zone].parse(raw.to_s)
         end
       end
     end
