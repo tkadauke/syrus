@@ -89,7 +89,7 @@ module Ruby
       minutes = Integer(raw)
       raise ArgumentError, "timeout_minutes must be positive" unless minutes.positive?
 
-      [ minutes, 90 ].min
+      [ minutes, SyrusYml::MAX_GRADE_TIMEOUT_MINUTES ].min
     rescue ArgumentError
       raise ArgumentError, "timeout_minutes must be a positive integer"
     end

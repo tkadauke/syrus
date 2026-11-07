@@ -890,6 +890,15 @@ RSpec.describe Ruby::RspecGraderType do
     ])
   end
 
+  it "allows timeouts up to the repository grader ceiling" do
+    steps = described_class.grade_steps(
+      config: { "timeout_minutes" => 120 },
+      default_failures: "strict"
+    )
+
+    expect(steps.map(&:timeout_minutes)).to all(eq(120))
+  end
+
   it "can disable the auto Rails test database prepare hook" do
     step = described_class.grade_steps(
       config: { "database_prepare" => false },
