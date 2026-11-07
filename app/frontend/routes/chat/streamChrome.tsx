@@ -1,5 +1,4 @@
 import { useEffect, useId, useMemo, useState } from "react"
-import "@excalidraw/excalidraw/index.css"
 import type { ChatAgentActivity, ChatTurnRetryState } from "../../api/chats"
 import { classes } from "../../components/ui/classes"
 import { TONE_CHIP_CLASSES, type SemanticTone } from "../../components/ui"

@@ -27,6 +27,7 @@ module Syrus
         output_path.glob("**/*").select do |path|
           path.file? &&
             COMPRESSIBLE_EXTENSIONS.include?(path.extname) &&
+            (path.extname != ".map" || ENV["VITE_BUILD_SOURCEMAP"] == "true") &&
             !path.to_s.end_with?(".br", ".gz")
         end
       end
