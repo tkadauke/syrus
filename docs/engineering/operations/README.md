@@ -1,14 +1,14 @@
 # Operations
 
-Operations documents are maintainer procedures for developing, deploying,
-observing, diagnosing, and recovering Syrus itself. The maintainer responsible
-for the procedure owns its accuracy and should keep commands safe, portable,
-and verifiable. End-user and operator feature documentation remains in
-`config/syrus_docs/`; public deployment guidance remains in `website/`.
+These are maintainer procedures for deploying, observing, diagnosing, and
+recovering Syrus itself. Operator feature instructions remain in
+`config/syrus_docs/`; public installation guidance remains in `website/`.
 
-Current detailed references:
-
-- [Deployed operations](../../../.claude/reference/deployed-operations.md)
+- [Deployment](deployment.md) — build, migrate, roll out, and verify.
+- [Production debugging](production-debugging.md) — inspect Kubernetes,
+  processes, logs, queues, workers, and data safely.
+- [Workflow recovery](workflow-recovery.md) — diagnose and repair stuck or
+  failed Jobs, WorkUnits, Workflows, Runs, and workspaces.
 - [Release troubleshooting](../../release-troubleshooting.md)
 - [Releasing](../../releasing.md)
 
