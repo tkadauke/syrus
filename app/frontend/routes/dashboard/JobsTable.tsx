@@ -1381,9 +1381,6 @@ function JobAttentionLine({ job, includeBlockedReason = false }: { job: Dashboar
       {job.retry_state && job.retry_state.state_label !== "No failure" ? <RetryStateInline job={job} /> : null}
       {job.state === "queued" && job.start_blocked_reason ? (
         <StartBlockedReasonPill
-          count={job.start_blocked_count}
-          details={job.start_blocked_details}
-          nextCheckAt={job.start_blocked_next_check_at}
           reason={job.start_blocked_reason}
           startBlockedAt={job.start_blocked_at}
         />
