@@ -50,8 +50,9 @@ RSpec.describe K8sCluster::PodLogsTool do
     coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Gilfoyle", handle: "gilfoyle-logs",
       workspace_repo: "https://github.com/example/workspace.git")
     PluginRecord.find_by!(name: "k8s_cluster").update!(enabled: true)
+    PluginRecord.find_by!(name: "coworkers").update!(enabled: true)
     Syrus::PluginRegistry.clear_plugin_record_cache!
-    coworker.grants.create!(capability: "k8s.read", approval_policy: "confirm", scope: cluster.id)
+    coworker.permission_rules.update!(capability: "k8s.read", approval_policy: "auto", scope: cluster.id, actor: owner)
     coworker_chat = ChatSession.create!(user: owner)
     coworker_chat.define_singleton_method(:coworker) { coworker }
     service = instance_double(K8sCluster::Pods, logs: { available: true, log: "API_TOKEN=very-secret-token-value" })

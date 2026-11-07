@@ -14,6 +14,8 @@ module ContainerExecution
     BuildLock = Data.define(:concurrency_key) do
       def concurrency_limit = 1
       def concurrency_duration = BUILD_LOCK_TIMEOUT
+      def acquired_semaphore_id = nil
+      def acquired_concurrency_limit = nil
     end
 
     def initialize(request, runner: Open3, semaphore: SolidQueue::Semaphore, sleeper: ->(duration) { sleep(duration) }, image_namespace: Configuration.docker_image_namespace)

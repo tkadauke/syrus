@@ -21,7 +21,9 @@ module Coworkers
     def entries
       grouped = loaded_rules.group_by { |rule| unversioned(rule.capability) }
       Coworkers::GrantCatalog.all.map do |descriptor|
-        matching = grouped.fetch(descriptor.name, [])
+        matching = canonical_descriptors(descriptor.name)
+          .flat_map { |canonical| grouped.fetch(unversioned(canonical.capability), []) }
+          .uniq
         policy = matching.map(&:policy).min_by { |value| policy_rank(value) }
         source = matching.first
         {
