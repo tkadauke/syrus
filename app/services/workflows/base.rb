@@ -86,6 +86,13 @@ module Workflows
 
       effective_artifacts = (artifacts || {}).merge(plugin_workflow_artifacts(job))
       effective_chain_template = chain_template
+      gate_step_kinds = serialize_chain_template(effective_chain_template).filter_map do |node|
+        node["steps"]&.last if node["type"] == "loop"
+      end
+      gate_snapshots = Workflows::ReviewGateRegistry.definitions.filter_map do |gate|
+        gate.snapshot if gate_step_kinds.include?(gate.step_kind)
+      end
+      effective_artifacts["review_gate_contributions"] = gate_snapshots if gate_snapshots.any?
       if (skip_reason = job.prepare_skip_reason)
         effective_chain_template = effective_chain_template.reject { |node| node == "prepare" }
         effective_artifacts = (effective_artifacts || {}).merge(
@@ -240,32 +247,14 @@ module Workflows
     # step, or the previous loop's own last repair -- so there is no longer
     # a call site where iteration 1 needs to produce the initial draft
     # itself.
-    def self.adversarial_review_loop(job, agent_step:, syrus_yml: nil)
-      rounds = adversarial_review_rounds(job, syrus_yml: syrus_yml)
-      return nil unless rounds.positive?
-
-      Workflows::Loop.new(max_iterations: rounds, steps: [ agent_step, :adversarial_review ])
-    end
-
-    def self.security_review_loop(job, agent_step:, syrus_yml: nil)
-      rounds = security_review_rounds(job, syrus_yml: syrus_yml)
-      return nil unless rounds.positive?
-
-      Workflows::Loop.new(max_iterations: rounds, steps: [ agent_step, :security_review ])
-    end
-
-    def self.coworker_review_loop(job, agent_step:, syrus_yml: nil)
-      plan = resolve_plan(RepoCoworkerReviewPlan, job, syrus_yml)
-      return nil unless plan.enabled?
-
-      Workflows::Loop.new(max_iterations: plan.rounds, steps: [ agent_step, :coworker_review ])
-    end
-
-    def self.visual_review_loop(job, agent_step:, syrus_yml: nil)
-      plan = syrus_yml ? RepoVisualReviewPlan.for_job(job, loaded: syrus_yml) : RepoVisualReviewPlan.for_job(job)
-      return nil unless plan.enabled? && plan.rounds.positive?
-
-      Workflows::Loop.new(max_iterations: plan.rounds, steps: [ agent_step, :visual_review ])
+    def self.review_gate_loops(job, agent_step:, syrus_yml: nil, slot: :after_agent)
+      context = { job: job, agent_step: agent_step.to_s, trigger_kind: trigger_kind.to_s, syrus_yml: syrus_yml }
+      Workflows::ReviewGateRegistry.for(**context, slot: slot).map do |gate|
+        Workflows::Loop.new(
+          max_iterations: gate.budget(context),
+          steps: [ gate.repair_step_for(context), gate.step_kind ]
+        )
+      end
     end
 
     # `autofix:` inserts the config-driven format (rubocop -a, eslint --fix,

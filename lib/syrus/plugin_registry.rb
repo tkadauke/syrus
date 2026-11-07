@@ -71,6 +71,7 @@ module Syrus
       permission_provider
       reviewer_target_provider
       repository_configuration
+      review_gate
     ].freeze
 
     # Lambdas defer constant resolution until call time (autoload-friendly).
@@ -144,7 +145,8 @@ module Syrus
       slug_type:               -> { Syrus::Plugin::SlugType },
       permission_provider:     -> { Syrus::Plugin::PermissionProvider },
       reviewer_target_provider: -> { Syrus::Plugin::ReviewerTargetProvider },
-      repository_configuration: -> { Syrus::Plugin::RepositoryConfiguration }
+      repository_configuration: -> { Syrus::Plugin::RepositoryConfiguration },
+      review_gate:             -> { Syrus::Plugin::ReviewGate }
     }.freeze
 
     RegistrationError = Class.new(StandardError)
