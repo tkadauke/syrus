@@ -367,6 +367,14 @@ root `.syrus.yml`:
   the usual fix is a missing or too-narrow `sources`, `when_files_changed`, or
   `deps:` declaration.
 
+The repository and Job Target Graph tabs present this information as a compact,
+virtualized target table. Each row shows the target's outcome, decision or
+health summary, project, and explicit **depends on** and **used by** counts.
+Open a row for its command, complete decision evidence, target-health references,
+dependencies, and dependents. On Job snapshots, the decision chips can focus
+selected, skipped, cached, or failing targets; repository snapshots omit the
+workflow-only selection filters.
+
 None of these surfaces performs magical project inference. If a project, target,
 dependency edge, preview, coverage source, CI mapping, or hook matters, declare
 it in `.syrus.yml` or import it through a trusted build-system provider.
