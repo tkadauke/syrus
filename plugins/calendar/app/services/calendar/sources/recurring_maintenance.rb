@@ -85,11 +85,14 @@ module Calendar
 
       def self.build_event(key:, definition:, schedule:, starts_at:, band:, observation:, ends_at: nil)
         observation ||= { state: "planned" }
+        estimate = observation[:duration_seconds] || 1.minute.to_i
         occurrence_id = band ? "band" : starts_at.utc.strftime("%Y%m%dT%H%M%SZ")
         Event.new(source_id: "calendar:solid_queue", id: "recurring-#{key}-#{occurrence_id}", kind: "recurring_maintenance",
           title: event_title(key, definition), starts_at:, ends_at:,
           cadence: { label: schedule, band: }, destination_path: "/admin/queues", state: observation[:state],
           actual_started_at: observation[:started_at], actual_finished_at: observation[:finished_at],
+          estimated_duration_seconds: estimate,
+          duration_estimate_provenance: "source",
           metadata: { key:, queue: definition["queue"], schedule:, duration_seconds: observation[:duration_seconds] }.compact)
       end
 

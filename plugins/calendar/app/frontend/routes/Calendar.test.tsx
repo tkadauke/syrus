@@ -178,4 +178,74 @@ describe("CalendarRoute", () => {
     expect(screen.getByRole("link", { name: "Open main chat" })).toHaveAttribute("href", "/chats/12")
     expect(screen.getByRole("link", { name: "Open coworker" })).toHaveAttribute("href", "/coworkers/2")
   })
+
+  it("keeps the week spatial and places separated and overlapping events on the hour grid", async () => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    today.setDate(today.getDate() - ((today.getDay() + 6) % 7))
+    const at = (hours: number, minutes = 0) => {
+      const value = new Date(today)
+      value.setHours(hours, minutes)
+      return value.toISOString()
+    }
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        events: [
+          {
+            source_id: "calendar:test",
+            id: "early",
+            kind: "test",
+            title: "Early",
+            starts_at: at(2),
+            ends_at: at(3),
+            destination_path: "/test",
+            state: "planned",
+            metadata: {}
+          },
+          {
+            source_id: "calendar:test",
+            id: "noon",
+            kind: "test",
+            title: "Noon",
+            starts_at: at(12),
+            ends_at: at(13),
+            destination_path: "/test",
+            state: "planned",
+            metadata: {}
+          },
+          {
+            source_id: "calendar:test",
+            id: "overlap",
+            kind: "test",
+            title: "Overlap",
+            starts_at: at(12, 30),
+            ends_at: at(13, 30),
+            destination_path: "/test",
+            state: "planned",
+            metadata: {}
+          },
+          { source_id: "calendar:test", id: "late", kind: "test", title: "Late", starts_at: at(20), destination_path: "/test", state: "planned", metadata: {} }
+        ],
+        failures: []
+      })
+    )
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/calendar"]}>
+          <CalendarRoute />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await screen.findByText("Early")
+    const grid = screen.getByTestId("week-time-grid")
+    expect(grid).toHaveClass("overflow-auto")
+    expect(grid.firstElementChild).toHaveClass("min-w-[76rem]")
+    expect(grid.querySelector<HTMLElement>('[data-calendar-event="early"]')?.style.top).toBe("96px")
+    expect(grid.querySelector<HTMLElement>('[data-calendar-event="late"]')?.style.top).toBe("960px")
+    expect(grid.querySelector<HTMLElement>('[data-calendar-event="noon"]')?.style.width).toBe("50%")
+    expect(grid.querySelector<HTMLElement>('[data-calendar-event="overlap"]')?.style.left).toBe("50%")
+    expect(grid.querySelectorAll("[data-calendar-day]")).toHaveLength(7)
+  })
 })

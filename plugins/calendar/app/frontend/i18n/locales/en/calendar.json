@@ -21,6 +21,14 @@
   "planned_time": "Planned: {{time}}",
   "actual_time": "Actual: {{start}} – {{finish}}",
   "duration": "Duration: {{seconds}} seconds",
+  "display_duration": "Displayed duration: {{minutes}} minutes ({{provenance}})",
+  "duration_provenance": {
+    "actual": "actual elapsed time",
+    "planned": "explicit planned duration",
+    "representative": "recent successful executions",
+    "source": "source estimate",
+    "fallback": "30-minute fallback"
+  },
   "running": "running",
   "open_owner": "Open owning feature",
   "open_schedule": "Open scheduled task",

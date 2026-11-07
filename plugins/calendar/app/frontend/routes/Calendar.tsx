@@ -7,6 +7,7 @@ import { Notice, Page, PageHeading, Section, Text } from "@app/components/ui"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
 import { fetchCalendar, type CalendarEvent } from "../api/calendar"
+import { DAY_HEIGHT, HOUR_HEIGHT, positionEvents, resolveDuration, zonedParts, type DurationResolution } from "./calendarLayout"
 
 export default function CalendarRoute() {
   const { t, i18n } = useT("calendar")
@@ -61,15 +62,16 @@ export default function CalendarRoute() {
       {query.isError ? <Notice tone="danger">{t("error")}</Notice> : null}
       {query.data?.failures.length ? <Notice tone="warning">{t("partial")}</Notice> : null}
       {query.data && events.length === 0 ? <Notice>{t("empty")}</Notice> : null}
-      {view === "week" ? <Week events={events} anchor={anchor} formatter={formatter} /> : <Agenda events={events} formatter={formatter} />}
+      {view === "week" ? <Week events={events} anchor={anchor} formatter={formatter} timeZone={timeZone} /> : <Agenda events={events} formatter={formatter} />}
     </Page.Root>
   )
 }
 
-function Week({ events, anchor, formatter }: { events: CalendarEvent[]; anchor: Date; formatter: Intl.DateTimeFormat }) {
+function Week({ events, anchor, formatter, timeZone }: { events: CalendarEvent[]; anchor: Date; formatter: Intl.DateTimeFormat; timeZone: string }) {
   const { t } = useT("calendar")
   const bands = events.filter((event) => event.cadence?.band)
   const occurrences = events.filter((event) => !event.cadence?.band)
+  const positioned = positionEvents(occurrences, timeZone)
   return (
     <div className="space-y-3">
       {bands.length ? (
@@ -81,21 +83,52 @@ function Week({ events, anchor, formatter }: { events: CalendarEvent[]; anchor: 
           </div>
         </Section.Root>
       ) : null}
-      <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-7">
-        {Array.from({ length: 7 }, (_, day) => {
-          const date = addCalendarDays(anchor, day)
-          const daily = occurrences.filter((event) => sameLocalDate(new Date(event.starts_at), date))
-          return (
-            <Section.Root className="min-w-0 p-2" key={date.toISOString()}>
-              <Text className="font-semibold">{formatter.format(date).split(",").slice(0, 2).join(",")}</Text>
-              <div className="mt-2 space-y-2">
-                {daily.map((event) => (
-                  <EventCard event={event} formatter={formatter} key={`${event.source_id}-${event.id}`} />
+      <div className="max-h-[75vh] overflow-auto rounded border border-border" data-testid="week-time-grid">
+        <div className="grid min-w-[76rem] grid-cols-[4rem_repeat(7,minmax(10rem,1fr))]">
+          <div className="sticky left-0 top-0 z-30 border-b border-r border-border bg-surface" />
+          {Array.from({ length: 7 }, (_, day) => {
+            const date = addCalendarDays(anchor, day)
+            return (
+              <div className="sticky top-0 z-20 border-b border-r border-border bg-surface px-2 py-2 font-semibold" key={date.toISOString()}>
+                {formatter.format(date).split(",").slice(0, 2).join(",")}
+              </div>
+            )
+          })}
+          <div className="sticky left-0 z-20 border-r border-border bg-surface" style={{ height: DAY_HEIGHT }}>
+            {Array.from({ length: 24 }, (_, hour) => (
+              <div className="relative border-t border-border px-1 text-right text-xs text-muted" key={hour} style={{ height: HOUR_HEIGHT }}>
+                <span className="relative -top-2.5 bg-surface px-1">{String(hour).padStart(2, "0")}:00</span>
+              </div>
+            ))}
+          </div>
+          {Array.from({ length: 7 }, (_, day) => {
+            const date = addCalendarDays(anchor, day)
+            const dayKey = zonedParts(date, timeZone).dayKey
+            const daily = positioned.filter((item) => item.dayKey === dayKey)
+            return (
+              <div className="relative border-r border-border" data-calendar-day={dayKey} key={dayKey} style={{ height: DAY_HEIGHT }}>
+                {Array.from({ length: 24 }, (_, hour) => (
+                  <div className="absolute inset-x-0 border-t border-border" key={hour} style={{ top: hour * HOUR_HEIGHT }} />
+                ))}
+                {daily.map((item) => (
+                  <div
+                    className="absolute z-10 px-0.5 focus-within:z-30"
+                    data-calendar-event={item.event.id}
+                    key={`${item.event.source_id}-${item.event.id}`}
+                    style={{
+                      top: item.top,
+                      height: item.height,
+                      left: `${(item.lane / item.laneCount) * 100}%`,
+                      width: `${100 / item.laneCount}%`
+                    }}
+                  >
+                    <EventCard event={item.event} formatter={formatter} compact durationResolution={item.duration} />
+                  </div>
                 ))}
               </div>
-            </Section.Root>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
     </div>
   )
@@ -111,10 +144,21 @@ function Agenda({ events, formatter }: { events: CalendarEvent[]; formatter: Int
   )
 }
 
-function EventCard({ event, formatter }: { event: CalendarEvent; formatter: Intl.DateTimeFormat }) {
+function EventCard({
+  event,
+  formatter,
+  compact = false,
+  durationResolution
+}: {
+  event: CalendarEvent
+  formatter: Intl.DateTimeFormat
+  compact?: boolean
+  durationResolution?: DurationResolution
+}) {
   const { t } = useT("calendar")
   const [expanded, setExpanded] = useState(false)
   const duration = typeof event.metadata.duration_seconds === "number" ? event.metadata.duration_seconds : null
+  const displayDuration = durationResolution ?? resolveDuration(event)
   const taskPath = typeof event.metadata.scheduled_task_path === "string" ? event.metadata.scheduled_task_path : null
   const coworkerName = typeof event.metadata.coworker_name === "string" ? event.metadata.coworker_name : null
   const coworkerHandle = typeof event.metadata.coworker_handle === "string" ? event.metadata.coworker_handle : null
@@ -127,7 +171,9 @@ function EventCard({ event, formatter }: { event: CalendarEvent; formatter: Intl
   const delayedReason = typeof event.metadata.delayed_reason === "string" ? event.metadata.delayed_reason : null
   const delayedReasonLabel = delayedReason ? t(`delay_reasons.${delayedReason}`, { defaultValue: delayedReason.replaceAll("_", " ") }) : null
   return (
-    <article className="min-w-0 rounded border border-border bg-surface-subtle p-2">
+    <article
+      className={`min-w-0 rounded border bg-surface-subtle ${displayDuration.estimated ? "border-dashed border-muted" : "border-border"} ${compact && !expanded ? "h-full overflow-hidden p-1" : compact ? "relative z-30 min-h-full p-1 shadow-lg" : "p-2"}`}
+    >
       <button className="w-full min-w-0 text-left" type="button" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
         <span className="flex min-w-0 items-center gap-2">
           {coworkerName ? <Avatar name={coworkerName} avatarUrl={avatarUrl} accentHex={accentHex} size="xs" /> : null}
@@ -137,7 +183,7 @@ function EventCard({ event, formatter }: { event: CalendarEvent; formatter: Intl
       <Text variant="caption" tone="muted">
         {event.cadence?.band ? event.cadence.label : formatter.format(new Date(event.starts_at))}
       </Text>
-      <span className="mt-1 inline-block rounded-full bg-surface px-2 py-0.5 text-xs">{event.state}</span>
+      {!compact ? <span className="mt-1 inline-block rounded-full bg-surface px-2 py-0.5 text-xs">{event.state}</span> : null}
       {expanded ? (
         <div className="mt-2 space-y-1 border-t border-border pt-2">
           <Text variant="caption" tone="muted">
@@ -156,6 +202,12 @@ function EventCard({ event, formatter }: { event: CalendarEvent; formatter: Intl
               {t("duration", { seconds: duration.toFixed(1) })}
             </Text>
           ) : null}
+          <Text variant="caption" tone="muted">
+            {t("display_duration", {
+              minutes: Math.round(displayDuration.seconds / 60),
+              provenance: t(`duration_provenance.${displayDuration.provenance}`)
+            })}
+          </Text>
           {coworkerName ? (
             <Text variant="caption" tone="muted">
               {t("coworker_identity", { name: coworkerName, handle: coworkerHandle ? `@${coworkerHandle}` : "" })}
@@ -211,10 +263,6 @@ function addCalendarDays(input: Date, days: number) {
   const date = new Date(input)
   date.setDate(date.getDate() + days)
   return date
-}
-
-function sameLocalDate(left: Date, right: Date) {
-  return left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth() && left.getDate() === right.getDate()
 }
 
 function decodeFilter(search: string): FilterTree {

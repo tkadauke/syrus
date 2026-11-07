@@ -28,7 +28,7 @@ module Coworkers
       Job.visible_to(user, scope:).to_a.group_by(&:scheduled_task_id)
     end
 
-    def event(task, planned_at, job)
+    def event(task, planned_at, job, representative_duration)
       coworker = @coworkers_by_id.fetch(task.coworker_id)
       main_chat = coworker.coworker_chats.find(&:main?)&.chat_session
       workflow = job&.workflows&.min_by(&:created_at)
@@ -43,6 +43,8 @@ module Coworkers
         starts_at: planned_at,
         actual_started_at:,
         actual_finished_at:,
+        estimated_duration_seconds: representative_duration || 30.minutes.to_i,
+        duration_estimate_provenance: representative_duration ? "representative" : "source",
         cadence: task.cron? ? { label: task.schedule_explanation || task.schedule_expression, band: false } : nil,
         destination_path: job ? "/jobs/#{job.id}" : "/coworkers/#{coworker.id}",
         state: coworker_occurrence_state(task, planned_at, job, workflow),

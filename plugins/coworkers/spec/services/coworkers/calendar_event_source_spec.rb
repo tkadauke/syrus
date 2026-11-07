@@ -91,7 +91,8 @@ RSpec.describe Coworkers::CalendarEventSource do
     workflow.update!(state: "succeeded", started_at: planned_at + 4.minutes, finished_at: planned_at + 9.minutes)
     completed = events(starts_at:, ends_at: starts_at + 1.day).sole
     expect(completed).to include(state: "success", actual_started_at: planned_at + 4.minutes,
-      actual_finished_at: planned_at + 9.minutes)
+      actual_finished_at: planned_at + 9.minutes, estimated_duration_seconds: 300.0,
+      duration_estimate_provenance: "representative")
     expect(completed.fetch(:metadata)).to include(duration_seconds: 300.0, workflow_state: "succeeded")
 
     workflow.update!(state: "failed")
