@@ -79,7 +79,7 @@ export async function fetchProfiledSourceDiff(jobId: string, search = "") {
     const requestPath = scrubApiRequestPath(`/api/v1/app/jobs/${jobId}/source_diff${search}`)
     const recentRequest = [...getRecentApiRequests()].reverse().find((request) => request.path === requestPath)
     const meta = recentRequest ? { ...recentRequest, path: SOURCE_DIFF_API_PATH } : null
-    const patchCharacters = data.files.reduce((sum, file) => sum + (file.patch?.length ?? 0), 0)
+    const patchCharacters = data.files.reduce((sum, file) => sum + (file.patch?.length ?? file.patch_bytes ?? 0), 0)
     const changedLines = data.files.reduce((sum, file) => sum + file.additions + file.deletions, 0)
     const totalDuration = performance.now() - startedAt
     const request = apiRequestTrace("source_diff", meta)
@@ -157,7 +157,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
     resizeEdge: "start",
     clampWidth: clampReviewCommentsWidth
   })
-  const versions = versionsQuery.data?.versions || sourceDiff.data?.versions || []
+  const versions = versionsQuery.data?.versions || []
   const payloadVersionId = sourceDiff.data?.version?.id ?? null
   const defaultVersionId = preferredReviewVersionId(sourceDiff.data ?? null, versions)
   const rangeSearch = selectedRange ? `?${new URLSearchParams({ base: selectedRange.baseSha, head: selectedRange.headSha }).toString()}` : ""
