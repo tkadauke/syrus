@@ -68,10 +68,8 @@ grade:
   - type: vitest
 ```
 
-Internally, Syrus still compiles this into the TargetGraph under the implicit
-root project, with labels such as `//:repo`, `//:prepare`, and
-`//:grade/rspec`. Operators do not need to care unless they open the target
-graph inspector.
+Syrus compiles this into one implicit root project, visible in the target graph
+inspector.
 
 Stay at Level 0 when:
 
@@ -365,8 +363,8 @@ steps.
 
 ### Declare the shared code nested projects build on
 
-Every legacy target gains an implicit dependency on the root target (`//:repo`),
-but that target has no source scope, and a dependency with an empty scope never
+Every legacy target depends on the root project, but that project has no source
+scope, and a dependency with an empty scope never
 marks anything affected — otherwise that one universal edge would select the
 whole repository on every change. So a nested project's graders are selected by
 its own sources and its sibling dependencies, and by nothing in the root

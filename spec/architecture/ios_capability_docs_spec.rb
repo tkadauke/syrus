@@ -2,7 +2,8 @@ require "rails_helper"
 
 RSpec.describe "iOS capability documentation" do
   OPERATOR_DOC = Rails.root.join("config/syrus_docs/syrus_yml.md")
-  RUNBOOK_DOC = Rails.root.join("config/syrus_docs/ios_compute_runbook.md")
+  PLUGIN_DOC = Rails.root.join("plugins/ios/docs/syrus_docs/ios.md")
+  RUNBOOK_DOC = Rails.root.join("docs/engineering/operations/ios-compute.md")
   PUBLIC_DOCS = [
     Rails.root.join("website/src/content/docs/configuration.md"),
     Rails.root.join("website/src/content/docs/monorepo-adoption.md"),
@@ -25,10 +26,12 @@ RSpec.describe "iOS capability documentation" do
     expect(body).to include("type: xcodebuild")
     expect(body).to include("type: swiftpm")
     expect(body).to include("JUnit")
-    expect(body).to include("\"planned_execution\"")
-    expect(body).to include("Xcode license")
-    expect(body).to include("simulator runtime")
-    expect(body).to include("Keychain")
+    expect(PLUGIN_DOC.read).to include("\"planned_execution\"", "ios_simulator")
+
+    runbook = RUNBOOK_DOC.read
+    expect(runbook).to include("Xcode license")
+    expect(runbook).to include("simulator runtime")
+    expect(runbook).to match(/keychain/i)
   end
 
   it "documents the iOS compute readiness runbook" do
