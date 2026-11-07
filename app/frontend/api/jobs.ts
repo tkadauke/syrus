@@ -1849,7 +1849,8 @@ export function fetchDiffReviewComments(jobId: string | number, search = ""): Pr
     ...payload,
     comments: payload.comments.map((comment) => ({
       ...comment,
-      diff_review_version: comment.diff_review_version_id === payload.diff_review_version?.id ? payload.diff_review_version : (comment.diff_review_version ?? null),
+      diff_review_version:
+        comment.diff_review_version_id === payload.diff_review_version?.id ? payload.diff_review_version : (comment.diff_review_version ?? null),
       user: payload.users?.[String(comment.user_id)] ?? comment.user ?? null,
       workflow: comment.workflow_id == null ? null : (payload.workflows?.[String(comment.workflow_id)] ?? comment.workflow ?? null)
     }))
