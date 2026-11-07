@@ -416,7 +416,7 @@ module Api
               total_jobs_count: jobs.size,
               dependency_edge_count: epic.dependencies.size + epic.dependent_links.size,
               blocked: blocked_dependency.present?,
-              blocked_reason: epic_blocked_reason(blocked_dependency),
+              blocked_reason: epic_blocked_reason(blocked_dependency)
             },
             state_transitions: PerformanceLogging.phase("epic_detail.state_transitions", epic_id: epic.id) do
               ::App::Presentation.epic_state_transition_options(epic).map do |label, target_state|
