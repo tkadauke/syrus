@@ -5,6 +5,7 @@ module Api
         include Paginatable
 
         PER_PAGE = 20
+        AUDIT_EVENTS_PER_PAGE = 50
 
         def index
           render json: memories_payload
@@ -17,7 +18,7 @@ module Api
           return unless ensure_repository_scope_belongs_to_owner(memory, attrs)
 
           if memory.save
-            render json: memories_payload.merge(message: "Memory created."), status: :created
+            render json: { message: "Memory created.", memory: memory_json(memory, changed: false) }, status: :created
           else
             render_validation_error(memory)
           end
@@ -36,7 +37,7 @@ module Api
           end
 
           if memory.update(attrs)
-            render json: memories_payload.merge(message: "Memory updated.")
+            render json: { message: "Memory updated.", memory: memory_json(memory, changed: true) }
           else
             render_validation_error(memory)
           end
@@ -47,7 +48,7 @@ module Api
           return unless memory
 
           memory.soft_delete_by!(Current.user)
-          render json: memories_payload.merge(message: "Memory deleted.")
+          render json: { message: "Memory deleted." }
         end
 
         def publish
@@ -61,7 +62,7 @@ module Api
             render_error("validation_failed", "Repository must belong to the memory owner.",
                          status: :unprocessable_content)
           elsif memory.update(published: true)
-            render json: memories_payload.merge(message: "Memory published.")
+            render json: { message: "Memory published.", memory: memory_json(memory, changed: true) }
           else
             render_validation_error(memory)
           end
@@ -72,7 +73,7 @@ module Api
           return unless memory
 
           if memory.update(published: false)
-            render json: memories_payload.merge(message: "Memory unpublished.")
+            render json: { message: "Memory unpublished.", memory: memory_json(memory, changed: true) }
           else
             render_validation_error(memory)
           end
@@ -82,9 +83,16 @@ module Api
           memory = find_memory_for_owner_or_admin
           return unless memory
 
+          events = memory.audit_events.includes(:actor_user).reorder(id: :desc)
+          events = events.where("agent_memory_audit_events.id < ?", params[:before]) if params[:before].present?
+          events = events.limit(AUDIT_EVENTS_PER_PAGE + 1).to_a
+          has_more = events.length > AUDIT_EVENTS_PER_PAGE
+          events = events.first(AUDIT_EVENTS_PER_PAGE)
+
           render json: {
             memory_id: memory.id,
-            audit_events: memory.audit_events.includes(:actor_user).map { |event| audit_event_json(event) }
+            audit_events: events.reverse.map { |event| audit_event_json(event) },
+            next_cursor: has_more ? events.last.id : nil
           }
         end
 
@@ -94,17 +102,16 @@ module Api
           relation = filtered_memories
           total = relation.count
           page = page_param
-          per_page = PER_PAGE
+          per_page = per_page_param
           total_pages = (total.to_f / per_page).ceil
           memories = relation
             .includes(:user, :repository, :deleted_by_user)
             .order(created_at: :desc, id: :desc)
             .offset((page - 1) * per_page)
             .limit(per_page)
-          changed_memory_ids = changed_memory_ids_for(memories)
 
           {
-            memories: memories.map { |memory| memory_json(memory, changed: changed_memory_ids.include?(memory.id)) },
+            memories: memories.map { |memory| memory_json(memory, changed: memory.updated_at != memory.created_at) },
             kinds: ::AgentMemory::Entry::KIND,
             scopes: ::AgentMemory::Entry::SCOPE,
             repositories: Current.user.repositories.active.order(:owner, :name).map { |repository| repository_json(repository) },
@@ -143,11 +150,6 @@ module Api
           ActiveModel::Type::Boolean.new.cast(params[:deleted]) || false
         end
 
-        def changed_memory_ids_for(memories)
-          ::AgentMemory::AuditEvent.where(entry_id: memories.map(&:id), event_type: %w[ updated deleted ])
-                              .distinct.pluck(:entry_id).to_set
-        end
-
         def find_memory_for_owner_or_admin
           memory = ::AgentMemory::Entry.find(params[:id])
           return memory if Current.user.admin? || memory.user_id == Current.user.id
@@ -183,11 +185,6 @@ module Api
             permissions: {
               can_manage: can_manage,
               can_publish: can_publish
-            },
-            paths: {
-              app_memory_path: "/api/v1/app/memories/#{memory.id}",
-              app_publish_path: "/api/v1/app/memories/#{memory.id}/publish",
-              app_audit_events_path: "/api/v1/app/memories/#{memory.id}/audit_events"
             }
           }
         end

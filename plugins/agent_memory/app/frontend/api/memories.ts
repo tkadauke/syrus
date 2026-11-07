@@ -25,11 +25,6 @@ export type MemoryRow = {
     can_manage: boolean
     can_publish: boolean
   }
-  paths: {
-    app_memory_path: string
-    app_publish_path: string
-    app_audit_events_path: string
-  }
 }
 
 export type MemoryAuditEventActor =
@@ -49,7 +44,10 @@ export type MemoryAuditEvent = {
 export type MemoryAuditEventsPayload = {
   memory_id: number
   audit_events: MemoryAuditEvent[]
+  next_cursor: number | null
 }
+
+export type MemoryMutationPayload = { message?: string; memory?: MemoryRow }
 
 export type MemoryRepository = {
   id: number
@@ -98,25 +96,26 @@ export function fetchMemories(search: string) {
 }
 
 export function createMemory(values: MemoryInput) {
-  return postJson<MemoriesPayload>("/api/v1/app/memories", { memory: values })
+  return postJson<MemoryMutationPayload>("/api/v1/app/memories", { memory: values })
 }
 
-export function updateMemory(path: string, values: MemoryUpdateInput) {
-  return patchJson<MemoriesPayload>(path, { memory: values })
+export function updateMemory(id: number, values: MemoryUpdateInput) {
+  return patchJson<MemoryMutationPayload>(`/api/v1/app/memories/${id}`, { memory: values })
 }
 
-export function deleteMemory(path: string) {
-  return deleteJson<MemoriesPayload>(path)
+export function deleteMemory(id: number) {
+  return deleteJson<MemoryMutationPayload>(`/api/v1/app/memories/${id}`)
 }
 
-export function publishMemory(path: string) {
-  return postJson<MemoriesPayload>(path)
+export function publishMemory(id: number) {
+  return postJson<MemoryMutationPayload>(`/api/v1/app/memories/${id}/publish`)
 }
 
-export function unpublishMemory(path: string) {
-  return deleteJson<MemoriesPayload>(path)
+export function unpublishMemory(id: number) {
+  return deleteJson<MemoryMutationPayload>(`/api/v1/app/memories/${id}/publish`)
 }
 
-export function fetchMemoryAuditEvents(path: string) {
-  return getJson<MemoryAuditEventsPayload>(path)
+export function fetchMemoryAuditEvents(id: number, before?: number) {
+  const cursor = before ? `?before=${before}` : ""
+  return getJson<MemoryAuditEventsPayload>(`/api/v1/app/memories/${id}/audit_events${cursor}`)
 }

@@ -292,14 +292,14 @@ function MemoryActions({
   const [editing, setEditing] = useState(false)
   const [viewingHistory, setViewingHistory] = useState(false)
   const publish = useMutation({
-    mutationFn: () => (memory.published ? unpublishMemory(memory.paths.app_publish_path) : publishMemory(memory.paths.app_publish_path)),
+    mutationFn: () => (memory.published ? unpublishMemory(memory.id) : publishMemory(memory.id)),
     onSuccess: (payload) => {
       queryClient.invalidateQueries({ queryKey: ["memories"] })
       onNotice(payload.message || (memory.published ? t("unpublished_notice") : t("published_notice")))
     }
   })
   const destroy = useMutation({
-    mutationFn: () => deleteMemory(memory.paths.app_memory_path),
+    mutationFn: () => deleteMemory(memory.id),
     onSuccess: (payload) => {
       queryClient.invalidateQueries({ queryKey: ["memories"] })
       onNotice(payload.message || t("deleted"))
@@ -398,8 +398,8 @@ function MemoryContentModal({ memory, onClose }: { memory: MemoryRow; onClose: (
 function MemoryHistoryModal({ memory, onClose }: { memory: MemoryRow; onClose: () => void }) {
   const { t } = useT("agent_memory")
   const query = useQuery({
-    queryKey: ["memory-audit-events", memory.paths.app_audit_events_path],
-    queryFn: () => fetchMemoryAuditEvents(memory.paths.app_audit_events_path)
+    queryKey: ["memory-audit-events", memory.id],
+    queryFn: () => fetchMemoryAuditEvents(memory.id)
   })
 
   useEffect(() => {
@@ -549,7 +549,7 @@ function MemoryModal({
   })
   const update = useMutation({
     mutationFn: () =>
-      updateMemory(memory?.paths.app_memory_path || "", {
+      updateMemory(memory?.id || 0, {
         content,
         kind,
         scope,

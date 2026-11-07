@@ -92,6 +92,16 @@ RSpec.describe "API: /api/v1/app/memories", type: :request do
     expect(parse_body["pagination"]).to include("page" => 2, "per_page" => 20, "total" => 21, "total_pages" => 2)
   end
 
+  it "honors caller page sizes while capping them at 100" do
+    sign_in_as(user)
+    3.times { |index| memory_for(user, content: "Memory #{index}") }
+
+    get "/api/v1/app/memories", params: { per_page: 2 }
+
+    expect(parse_body["memories"].size).to eq(2)
+    expect(parse_body.dig("pagination", "per_page")).to eq(2)
+  end
+
   it "flags memories with audit history beyond creation as changed" do
     sign_in_as(user)
     unchanged = memory_for(user, content: "Never touched.")
@@ -224,10 +234,11 @@ RSpec.describe "API: /api/v1/app/memories", type: :request do
     patch "/api/v1/app/memories/#{memory.id}", params: { memory: { content: "Admin edited.", kind: "decision" } }
 
     expect(response).to have_http_status(:ok)
-    row = parse_body["memories"].find { |item| item["id"] == memory.id }
+    row = parse_body["memory"]
     expect(memory.reload.content).to eq("Admin edited.")
     expect(row.dig("owner", "id")).to eq(other.id)
     expect(row.dig("permissions", "can_manage")).to be(true)
+    expect(parse_body).not_to have_key("memories")
   end
 
   it "publishes and unpublishes repository memories" do
@@ -396,6 +407,17 @@ RSpec.describe "API: /api/v1/app/memories", type: :request do
 
       expect(response).to have_http_status(:forbidden)
       expect(parse_body.dig("error", "code")).to eq("forbidden")
+    end
+
+    it "caps audit history and returns an opaque next cursor" do
+      sign_in_as(user)
+      memory = memory_for(user)
+      51.times { |index| memory.update!(content: "Revision #{index}") }
+
+      get "/api/v1/app/memories/#{memory.id}/audit_events"
+
+      expect(parse_body["audit_events"].size).to eq(50)
+      expect(parse_body["next_cursor"]).to be_a(Integer)
     end
   end
 end

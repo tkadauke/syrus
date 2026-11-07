@@ -28,7 +28,7 @@ export function TeamDirectoryRoute() {
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const profiles = useQuery({
     queryKey: ["profiles"],
-    queryFn: fetchProfiles
+    queryFn: () => fetchProfiles()
   })
 
   return (
@@ -101,6 +101,10 @@ function ProfileCard({ profile, prefix }: { profile: TeamProfileSummary; prefix:
 
 function ProfileDetail({ profile, prefix }: { profile: TeamProfileDetail; prefix: string }) {
   const { t } = useT("team_directory")
+  const recentActivity: TeamProfileActivity[] = [
+    ...profile.jobs.map((job) => ({ type: "job" as const, title: job.title, state: job.state, repository_slug: job.repository.slug, occurred_at: job.updated_at, path: job.path })),
+    ...profile.epics.map((epic) => ({ type: "epic" as const, title: epic.title, state: epic.state, repository_slug: epic.repository.slug, occurred_at: epic.updated_at, path: epic.path }))
+  ].sort((left, right) => (right.occurred_at || "").localeCompare(left.occurred_at || "")).slice(0, 8)
   return (
     <>
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
@@ -155,7 +159,7 @@ function ProfileDetail({ profile, prefix }: { profile: TeamProfileDetail; prefix
         <SummaryList
           title={t("profiles.recent_activity")}
           empty={t("profiles.empty_activity")}
-          items={profile.recent_activity}
+          items={recentActivity}
           prefix={prefix}
           renderItem={(activity) => <ActivityRow activity={activity} prefix={prefix} />}
         />
