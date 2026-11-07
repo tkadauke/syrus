@@ -7,7 +7,7 @@ import { Notice, Page, PageHeading, Section, Text } from "@app/components/ui"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
 import { fetchCalendar, type CalendarEvent } from "../api/calendar"
-import { DAY_HEIGHT, HOUR_HEIGHT, positionEvents, resolveDuration, zonedParts, type DurationResolution } from "./calendarLayout"
+import { addCalendarDays, DAY_HEIGHT, HOUR_HEIGHT, positionEvents, resolveDuration, zonedParts, type DurationResolution } from "./calendarLayout"
 
 export default function CalendarRoute() {
   const { t, i18n } = useT("calendar")
@@ -37,13 +37,13 @@ export default function CalendarRoute() {
         </Page.HeadingGroup>
       </Page.Header>
       <div className="flex flex-wrap items-center gap-2 py-3" aria-label={t("controls")}>
-        <button className="rounded border border-border px-3 py-1.5" onClick={() => setAnchor(new Date(anchor.getTime() - 7 * 86_400_000))}>
+        <button className="rounded border border-border px-3 py-1.5" onClick={() => setAnchor(addCalendarDays(anchor, -7))}>
           {t("previous")}
         </button>
         <button className="rounded border border-border px-3 py-1.5" onClick={() => setAnchor(startOfWeek(new Date()))}>
           {t("today")}
         </button>
-        <button className="rounded border border-border px-3 py-1.5" onClick={() => setAnchor(new Date(anchor.getTime() + 7 * 86_400_000))}>
+        <button className="rounded border border-border px-3 py-1.5" onClick={() => setAnchor(addCalendarDays(anchor, 7))}>
           {t("next")}
         </button>
         <FilterBar className="min-w-64 flex-1" filter={filterTree} filterSchema={filterSchema} pathname={location.pathname} search={location.search} />
@@ -256,12 +256,6 @@ function startOfWeek(input: Date) {
   const date = new Date(input)
   date.setHours(0, 0, 0, 0)
   date.setDate(date.getDate() - ((date.getDay() + 6) % 7))
-  return date
-}
-
-function addCalendarDays(input: Date, days: number) {
-  const date = new Date(input)
-  date.setDate(date.getDate() + days)
   return date
 }
 
