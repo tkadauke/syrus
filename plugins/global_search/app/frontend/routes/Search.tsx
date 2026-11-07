@@ -78,13 +78,20 @@ export function SearchRoute() {
   const params = new URLSearchParams(location.search)
   const query = searchTextFromParams(params)
   const activeFilter = activeFilterFromParams(params)
+  const controls = useQuery({
+    queryKey: ["search", "controls", activeFilter],
+    queryFn: ({ signal }) => fetchSearch(location.search, signal, true),
+    enabled: query.length >= 2,
+    staleTime: 5 * 60 * 1000
+  })
   const search = useQuery({
     queryKey: ["search", location.search],
     queryFn: ({ signal }) => fetchSearch(location.search, signal),
     enabled: query.length >= 2
   })
   const results = search.data?.results || []
-  const typeFilters = search.data?.controls.types?.length ? search.data.controls.types : fallbackFilters
+  const searchControls = controls.data?.controls
+  const typeFilters = searchControls?.types?.length ? searchControls.types : fallbackFilters
   const filters = [
     { type: "all", label: t("filters.all") },
     ...typeFilters.map((filter) => ({
@@ -112,13 +119,13 @@ export function SearchRoute() {
               </Link>
             ))}
           </nav>
-          {search.data ? (
+          {search.data && searchControls ? (
             <div data-testid="search-filter-bar">
               <FilterBar
                 buildLink={searchFilterLink}
                 className="space-y-2"
                 filter={search.data.filter}
-                filterSchema={search.data.controls.filter_schema}
+                filterSchema={searchControls.filter_schema}
                 pathname={location.pathname}
                 search={location.search}
                 suggestionSearch={suggestionSearchForFilter(activeFilter)}

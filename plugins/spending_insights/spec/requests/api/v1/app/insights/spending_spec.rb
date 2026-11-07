@@ -156,6 +156,26 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
     expect(body.fetch("top_runs")).to contain_exactly(include("id" => initial_run(mine).id, "cost_usd" => 0.4))
   end
 
+  it "caps entity breakdowns and rolls the remainder into Other" do
+    user = Factories.user(email_address: "breakdowns@example.com")
+    26.times do |index|
+      repository = Factories.repository(user: user, owner: "acme", name: "repo-#{index}")
+      job = Factories.job(user: user, repository: repository, issue_number: 1_000 + index)
+      set_run_cost(initial_run(job), index + 1, created_at: Time.zone.parse("2026-06-02 12:00:00"))
+    end
+
+    sign_in_as(user)
+    get "/api/v1/app/insights/spending", params: { start_date: "2026-06-01", end_date: "2026-06-05" }
+
+    repositories = parse_body.dig("breakdowns", "repositories")
+    expect(repositories.length).to eq(26)
+    expect(repositories.last).to include("id" => "other", "label" => "Other", "jobs_count" => 1, "total_usd" => 1.0)
+
+    etag = response.headers.fetch("ETag")
+    get "/api/v1/app/insights/spending", params: { start_date: "2026-06-01", end_date: "2026-06-05" }, headers: { "If-None-Match" => etag }
+    expect(response).to have_http_status(:not_modified)
+  end
+
   it "filters workflow spending by agent provider" do
     user = Factories.user(email_address: "mine@example.com")
     repo = Factories.repository(user: user)

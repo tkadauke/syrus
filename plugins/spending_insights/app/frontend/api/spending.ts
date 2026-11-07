@@ -2,9 +2,9 @@ import { getJson } from "@app/api/client"
 import type { FilterSchemaField } from "@app/components/FilterBar"
 
 export type SpendingBreakdownRow = {
-  id: number
+  id: number | "other"
   label: string
-  path: string
+  path: string | null
   jobs_count: number
   total_usd: number
   average_job_usd: number

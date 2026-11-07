@@ -4,8 +4,10 @@ The V2 sidebar search opens `/search` and sends the full-text term as
 `query=`. The legacy plain-text `q=` form is still accepted when `query=` is
 absent, so old links keep working.
 
-The global search API (`/api/v1/app/search`) returns a payload with `results`,
-`filter`, `controls.types`, and `controls.filter_schema`. `controls.types`
+The global search API (`/api/v1/app/search`) returns `results` and `filter`.
+Pass `controls=1` when the caller also needs `controls.types` and
+`controls.filter_schema`; the web page fetches and reuses those controls rather
+than resending them with every search term. `controls.types`
 lists the currently enabled selectable result types and their labels. `q=` is
 now the FilterBar AST parameter on this route, matching dashboard/list
 filtering. Result type selection remains `types[]`; when omitted, search
@@ -32,6 +34,9 @@ result types that do not understand them rather than failing the whole
 search.
 
 This phase intentionally has no explicit sort controls or sort URL parameters.
+The API applies the requested result limit before hydrating records and
+serializing result objects. Highlight snippets retain their existing sanitized
+HTML rendering in the web client.
 
 Job, Epic, and plugin result rows with canonical identifiers show a copyable
 slug next to the type badge (the `CopyableSlug` control also used on dashboards
