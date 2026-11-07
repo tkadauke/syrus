@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import type { CalendarEvent } from "../api/calendar"
-import { DAY_HEIGHT, HOUR_HEIGHT, positionEvents, resolveDuration, zonedParts } from "./calendarLayout"
+import { addCalendarDays, DAY_HEIGHT, HOUR_HEIGHT, positionEvents, resolveDuration, zonedParts } from "./calendarLayout"
 
 const event = (id: string, starts_at: string, extra: Partial<CalendarEvent> = {}): CalendarEvent => ({
   source_id: "calendar:test",
@@ -15,6 +15,22 @@ const event = (id: string, starts_at: string, extra: Partial<CalendarEvent> = {}
 })
 
 describe("calendar time-grid layout", () => {
+  it("navigates by local calendar days across daylight-saving changes", () => {
+    vi.stubEnv("TZ", "America/New_York")
+    try {
+      const beforeSpringForward = new Date(2026, 2, 2, 0, 0, 0)
+      const followingWeek = addCalendarDays(beforeSpringForward, 7)
+
+      expect(followingWeek.getFullYear()).toBe(2026)
+      expect(followingWeek.getMonth()).toBe(2)
+      expect(followingWeek.getDate()).toBe(9)
+      expect(followingWeek.getHours()).toBe(0)
+      expect(followingWeek.getTime() - beforeSpringForward.getTime()).toBe(167 * 60 * 60 * 1000)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it("uses a constant 24-hour scale and minute-accurate positions", () => {
     const [item] = positionEvents([event("quarter", "2026-11-02T10:15:00Z")], "UTC")
     expect(HOUR_HEIGHT).toBe(48)

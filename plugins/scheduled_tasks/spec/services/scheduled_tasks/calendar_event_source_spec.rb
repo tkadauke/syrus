@@ -113,4 +113,26 @@ RSpec.describe ScheduledTasks::CalendarEventSource do
 
     expect(result.count { |event| event.fetch(:metadata)[:job_id] == job.id }).to eq(1)
   end
+
+  it "estimates duration from only the most recent successful executions" do
+    scheduled = task(created_at: 1.month.ago)
+    old_started_at = 3.weeks.ago
+    old_job = Factories.job(repository:, user:, kind: "cron", issue_number: nil,
+      scheduled_task_id: scheduled.id, created_at: old_started_at)
+    Workflow.create!(job: old_job, user:, trigger_kind: "initial", state: "succeeded",
+      started_at: old_started_at, finished_at: old_started_at + 6.hours)
+    described_class::MAX_REPRESENTATIVE_EXECUTIONS_PER_TASK.times do |index|
+      finished_at = (index + 1).days.ago
+      job = Factories.job(repository:, user:, kind: "cron", issue_number: nil,
+        scheduled_task_id: scheduled.id, created_at: finished_at - 6.minutes)
+      Workflow.create!(job:, user:, trigger_kind: "initial", state: "succeeded",
+        started_at: finished_at - 5.minutes, finished_at:)
+    end
+
+    starts_at = 1.day.from_now.beginning_of_day
+    event = events(starts_at:, ends_at: starts_at + 1.day).sole
+
+    expect(event).to include(estimated_duration_seconds: 5.minutes.to_f,
+      duration_estimate_provenance: "representative")
+  end
 end
