@@ -13,7 +13,7 @@ module Syrus
     #   .chat_payload(chat_session:, context:) => { key => value }
     #   .chat_message_payload(messages:, payloads:) => payloads        (optional)
     #   .chat_payload_paths(chat_session:)    => { key => "/api/..." }   (optional)
-    #   .chat_payload_counts(chat_session:)   => { key => Integer }      (optional)
+    #   .chat_payload_counts(chat_session:, context:) => { key => Integer } (optional)
     #
     # `context` carries what the host resolved for this request: `:params`, so
     # a contributor can honour a query flag it owns (whiteboard only
@@ -32,7 +32,7 @@ module Syrus
       def self.included(base) = base.extend(self)
 
       def chat_payload_paths(chat_session:) = {}
-      def chat_payload_counts(chat_session:) = {}
+      def chat_payload_counts(chat_session:, context: {}) = {}
       def chat_message_payload(messages:, payloads:) = payloads
     end
   end

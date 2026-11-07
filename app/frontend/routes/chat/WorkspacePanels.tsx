@@ -1117,7 +1117,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
           ...currentPayload,
           whiteboard: {
             version: result.payload.version,
-            ...normalizeWhiteboardScene(result.payload.scene_json),
+            ...mergedScene,
             loaded: true
           }
         }
