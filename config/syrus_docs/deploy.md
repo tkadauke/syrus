@@ -124,23 +124,44 @@ otherwise rejects a `.js`-format response fetched as a worker.
 
 ## Syrus Kubernetes rollout ordering
 
+`bin/deploy` is a Ruby program. It loads no Rails -- it runs on an operator's
+machine, against a cluster, before the image it is deploying exists -- and its
+implementation lives in `lib/deploy/`, one file per phase, with
+`lib/deploy/cluster_rollout.rb` holding the order a rollout runs in.
+
+`bin/deploy --dry-run` changes nothing and prints the sequence of commands a
+deploy would run, one `DRYRUN <command>` per line. Reads still execute, because
+almost everything the deploy does is derived from live cluster state, and a dry
+run that could not read would describe a deploy against a cluster it never
+looked at. `DRY_RUN_STREAM=path` captures the stream to a file for diffing.
+
+The previous Bash implementation is kept as `bin/deploy-legacy`. It takes the
+same flags, including `--dry-run`, so the two can be compared rather than
+trusted, and it is the fallback if the Ruby one is ever in doubt.
+
 Syrus's own `bin/deploy` applies database migrations as an explicit
 pre-rollout step. After images are built and pushed, and after Flux is
 suspended/image overrides are pinned, the script creates a one-shot
 `syrus-db-prepare-*` Kubernetes Job from the `syrus-web` deployment's runtime
 environment. That Job runs the newly built app image with `./bin/rails
-db:prepare` and must complete before `pin_live_images` changes `syrus-web`,
-`syrus-worker-home`, `syrus-worker-compute`, `syrus-preview`, or plugin service
-workloads to the new SHA.
+db:prepare` and must complete before any live workload is pointed at the new
+SHA -- the web, worker, preview, and plugin service workloads alike.
+
+Workloads are discovered by image rather than named in the script: every
+container (init containers included) of a Deployment, DaemonSet, or StatefulSet
+whose image repository is one Syrus publishes is pinned to the deploy's SHA, at
+whatever tag or digest it currently runs. Changing the image is the only
+rollout trigger; `bin/deploy` never issues a `kubectl rollout restart`, because
+Flux strips the imperative annotation when it resumes and would replace every
+pod a second time.
 
 While that work runs, a cluster-side watchdog guarantees that Flux is resumed
 if the deploy process exits before its cleanup runs. By default,
 `FLUX_SUSPEND_TTL` is derived separately for each cluster from the enabled
-pre-pull timeout, database preparation timeout, discovered core and plugin
-rollout targets, one additional rollout window, and `FLUX_SUSPEND_SLACK`
-(default `5m`). Operators may set `FLUX_SUSPEND_TTL` to a fixed number of
-seconds, but `bin/deploy` warns when that override is shorter than the computed
-budget.
+pre-pull timeout, both migration budgets, discovered core and plugin rollout
+targets, one additional rollout window, and `FLUX_SUSPEND_SLACK` (default
+`5m`). Operators may set `FLUX_SUSPEND_TTL` to a fixed number of seconds, but
+`bin/deploy` warns when that override is shorter than the computed budget.
 
 This deliberately trades "new code against the old schema" for "old code
 against the new schema" during the rollout. That is the safe direction only
@@ -160,7 +181,7 @@ the Job and retries: `DB_PREPARE_ATTEMPTS` attempts (default `4`), waiting
 `DB_PREPARE_RETRY_DELAY` seconds (default `20`) between them. Only that specific
 error is retried -- a migration that genuinely failed stops the deploy on the
 first attempt, and the failure message distinguishes a Job that failed from one
-that ran out of `DB_PREPARE_TIMEOUT`.
+that ran out of its budget.
 
 Before each retry, and before giving up, `bin/deploy` asks whether the work is
 still outstanding at all: `db_prepare_satisfied` runs a short Job on
@@ -177,6 +198,48 @@ That check exists because its absence cost a production deploy. Every attempt
 lost the race to a web pod's `db-prepare` initContainer, the Job exhausted its
 attempts, and `bin/deploy` rolled the image overrides back -- while the
 migration had already been applied successfully by the pod that won.
+
+### Two migration budgets, not one
+
+Getting a migration pod running and applying migrations are separately
+budgeted, because they fail for unrelated reasons and on unrelated timescales:
+
+- `MIGRATION_START_TIMEOUT` (default `5m`) covers scheduling the pod, pulling
+  the image and booting Rails. A container state that will never resolve on its
+  own -- `ImagePullBackOff`, `CreateContainerConfigError`, an unschedulable pod
+  -- fails the deploy immediately with the reason, instead of being waited out.
+- `MIGRATION_RUN_TIMEOUT` (default `30m`) covers applying the migrations, which
+  is legitimately long: Syrus has shipped single data migrations that rewrote
+  tens of thousands of rows. While it runs, `bin/deploy` reports elapsed time
+  and the migration Job's latest log line every 30 seconds, so a slow migration
+  and a wedged one do not look alike.
+
+`DB_PREPARE_TIMEOUT` is still honoured and sets the migration run budget, which
+is what raising it has always been used for. Both accept seconds or a compound
+duration such as `1h30m`. The Job's own `activeDeadlineSeconds` is derived from
+the sum of both budgets, so Kubernetes never kills a migration before
+`bin/deploy` decides to.
+
+A single shared budget is what made this worth separating: one ten-minute clock
+covering both phases failed a production deploy -- and rolled it back -- over a
+data migration that was running correctly and would have finished.
+
+### An interrupted deploy never kills a running migration
+
+Deleting a Kubernetes Job propagates to its pod, which means SIGTERM to Rails
+in the middle of whatever it is applying: a half-finished `ALTER`, a backfill
+stopped at an arbitrary row. So `bin/deploy` will not delete a migration Job
+whose pod is still running, on any path -- a failure elsewhere in the deploy,
+`SIGTERM`, or Ctrl-C. It reports that it left the Job alone and prints the
+`kubectl logs -f` command to watch it:
+
+```
+⚠ left migration job/syrus-db-prepare-… in place: it is still applying
+  migrations — watch it with `kubectl logs -f -n syrus-production job/…`,
+  and deploy again once it finishes
+```
+
+A Job that has finished is deleted as usual; only an active one is spared.
 
 Worker containers also check `db:abort_if_pending_migrations` before starting
 `bin/jobs`. In a normal deploy that check is already satisfied by the

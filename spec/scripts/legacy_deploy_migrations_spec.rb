@@ -4,9 +4,9 @@ require "open3"
 require "shellwords"
 require "tmpdir"
 
-RSpec.describe "bin/deploy database migrations" do
+RSpec.describe "bin/deploy-legacy database migrations" do
   let(:root) { File.expand_path("../..", __dir__) }
-  let(:deploy) { File.read(File.join(root, "bin/deploy")) }
+  let(:deploy) { File.read(File.join(root, "bin/deploy-legacy")) }
 
   def bash(script, env = {})
     Open3.capture3(env, "bash", "-c", script, chdir: root)
@@ -19,7 +19,7 @@ RSpec.describe "bin/deploy database migrations" do
       run_database_migrations apply_and_wait_db_prepare_job
       wait_for_db_prepare_job duration_to_seconds delete_db_prepare_job
       db_prepare_satisfied
-    ].map { |name| deploy[/^#{name}\(\) \{.*?\n\}/m] or raise "#{name} not found in bin/deploy" }
+    ].map { |name| deploy[/^#{name}\(\) \{.*?\n\}/m] or raise "#{name} not found in bin/deploy-legacy" }
       .join("\n")
   end
 

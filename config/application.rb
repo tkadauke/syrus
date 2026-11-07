@@ -26,7 +26,11 @@ module Syrus
     # Please, add to the `ignore` list any other `lib` subdirectories that do
     # not contain `.rb` files, or that should not be reloaded or eager loaded.
     # Common ones are `templates`, `generators`, or `middleware`, for example.
-    config.autoload_lib(ignore: %w[assets tasks generators syrus/plugin_api.rb syrus/plugin_gemspec.rb])
+    # `deploy` is bin/deploy's implementation, not application code. It runs on
+    # an operator's machine against a cluster, loads no Rails, and must not be
+    # eager loaded into a running Syrus -- a web pod has no business holding
+    # the code that replaces it.
+    config.autoload_lib(ignore: %w[assets tasks generators deploy syrus/plugin_api.rb syrus/plugin_gemspec.rb])
 
     config.generators do |g|
       g.test_framework :rspec, fixture: false, view_specs: false, helper_specs: false, routing_specs: false
