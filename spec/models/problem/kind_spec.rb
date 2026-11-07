@@ -9,7 +9,11 @@ RSpec.describe Problem::Kind do
         Dir[Rails.root.join("plugins/*/app/services/steps/**/*.rb")] +
         Dir[Rails.root.join("plugins/*/lib/**/steps/**/*.rb")]
 
-      classifier_source.scan(/result\(\s*"([a-z_]+)"/).flatten +
+      classifier_constants = classifier_source.scan(/result\(\s*([A-Z][A-Z0-9_]*)/).flatten.filter_map do |name|
+        classifier_source[/\b#{Regexp.escape(name)}\s*=\s*"([a-z_]+)"/, 1]
+      end
+
+      classifier_source.scan(/result\(\s*"([a-z_]+)"/).flatten + classifier_constants +
         repair_executor_source.scan(/classification:\s*"([a-z_]+)"/).flatten +
         step_sources.flat_map { |path| File.read(path).scan(/(?:fail_with!\(|problem_code )[:\s]*:([a-z0-9_]+)/).flatten } +
         [ RunFailureClassifier::UNCLASSIFIED, ProviderUsageLimit::CLASSIFICATION, ProviderModelUnsupported::CLASSIFICATION ]
