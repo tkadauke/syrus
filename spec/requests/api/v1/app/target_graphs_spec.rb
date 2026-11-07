@@ -342,6 +342,53 @@ RSpec.describe "App API target graph inspection", type: :request do
       expect(TargetGraph::Compiler).to have_received(:compile).twice
     end
 
+    it "rejects a live workspace config symlink that resolves outside the workspace" do
+      job = Factories.job_with_run(repository: repository, user: user)
+      workflow = job.workflows.sole
+
+      Dir.mktmpdir("target-graph-live-workspace-spec-") do |dir|
+        Dir.mktmpdir("target-graph-outside-spec-") do |outside_dir|
+          path = Pathname.new(dir)
+          outside_config = Pathname.new(outside_dir).join("secret.yml")
+          outside_config.write("secret: do-not-read\n")
+          git = GitRunner.new
+          git.run("init", "-q", "-b", "main", chdir: dir)
+          path.join(".syrus.yml").make_symlink(outside_config)
+          git.run("add", ".syrus.yml", chdir: dir)
+          git.run("-c", "user.name=Syrus Spec", "-c", "user.email=syrus@example.test", "commit", "-q", "-m", "initial", chdir: dir)
+          allow(WorkflowWorkspace).to receive(:path_for).and_return(path)
+
+          get "/api/v1/app/workflows/#{workflow.id}/target_graph"
+
+          expect(response).to have_http_status(:ok)
+          expect(parse_body["error"]).to include("resolves outside the workflow workspace")
+        end
+      end
+    end
+
+    it "returns a fresh payload when workflow overlays change at the same graph revision" do
+      with_graph_checkout(graph_yaml)
+      job = Factories.job_with_run(repository: repository, user: user)
+      workflow = job.workflows.sole
+
+      with_memory_cache do
+        with_cleaned_workflow_workspace do
+          get "/api/v1/app/workflows/#{workflow.id}/target_graph"
+          etag = response.headers.fetch("ETag")
+          workflow.set_artifact!(
+            Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY,
+            [ { "target_label" => "//:grade/tests", "affected" => true, "reason" => "changed" } ]
+          )
+
+          get "/api/v1/app/workflows/#{workflow.id}/target_graph", headers: { "If-None-Match" => etag }
+        end
+
+        expect(response).to have_http_status(:ok)
+        expect(parse_body["targets"].find { |target| target["label"] == "//:grade/tests" }.dig("selection", "state"))
+          .to eq("selected")
+      end
+    end
+
     it "returns workflow-scoped selection and cache overlays" do
       with_graph_checkout(graph_yaml)
       job = Factories.job_with_run(repository: repository, user: user)
@@ -461,6 +508,24 @@ RSpec.describe "App API target graph inspection", type: :request do
   end
 
   describe "GET /api/v1/app/jobs/:job_id/target_graph" do
+    it "reuses the latest workflow graph and returns 304 for its ETag" do
+      with_graph_checkout(graph_yaml)
+      job = Factories.job_with_run(repository: repository, user: user)
+      allow(TargetGraph::Compiler).to receive(:compile).and_call_original
+
+      with_memory_cache do
+        with_cleaned_workflow_workspace do
+          get "/api/v1/app/jobs/#{job.id}/target_graph"
+          etag = response.headers.fetch("ETag")
+
+          get "/api/v1/app/jobs/#{job.id}/target_graph", headers: { "If-None-Match" => etag }
+        end
+
+        expect(response).to have_http_status(:not_modified)
+        expect(TargetGraph::Compiler).to have_received(:compile).once
+      end
+    end
+
     it "uses the requested workflow when provided" do
       with_graph_checkout(graph_yaml)
       job = Factories.job_with_run(repository: repository, user: user)

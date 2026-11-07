@@ -100,15 +100,41 @@ module App
 
     def self.target_graph_config_digest(path)
       digest = Digest::SHA256.new
+      workspace = path.realpath
       config_paths = [ path.join(SyrusYml::CONFIG_FILE) ]
       config_paths.concat(
         TargetGraph::NestedConfigDiscovery.call(path).map { |dir| path.join(dir, SyrusYml::CONFIG_FILE) }
       )
-      config_paths.select(&:file?).each do |config_path|
-        digest << config_path.relative_path_from(path).to_s << "\0"
-        digest << config_path.binread << "\0"
+      config_paths.select { |config_path| config_path.exist? || config_path.symlink? }.each do |config_path|
+        relative_path = config_path.relative_path_from(path).to_s
+        digest << relative_path << "\0"
+        digest_target_graph_config(digest, config_path, workspace, relative_path)
+        digest << "\0"
       end
       digest.hexdigest
+    end
+
+    def self.digest_target_graph_config(digest, config_path, workspace, relative_path)
+      resolved = config_path.realpath
+      relative = resolved.relative_path_from(workspace)
+      raise SyrusYml::ParseError, "#{relative_path} resolves outside the workflow workspace" if relative.each_filename.first == ".."
+
+      File.open(config_path, File::RDONLY | File::NOFOLLOW) do |file|
+        stat = file.stat
+        raise SyrusYml::ParseError, "#{relative_path} must be a regular file" unless stat.file?
+        if stat.size > SyrusYml::MAX_CONFIG_BYTES
+          raise SyrusYml::ParseError, "#{relative_path} exceeds the maximum size of #{SyrusYml::MAX_CONFIG_BYTES} bytes"
+        end
+
+        loop do
+          chunk = file.read(64.kilobytes)
+          break unless chunk
+
+          digest << chunk
+        end
+      end
+    rescue Errno::ELOOP
+      raise SyrusYml::ParseError, "#{relative_path} must not be a symlink"
     end
 
     def self.graph_revision_candidates(workflow)
@@ -158,7 +184,7 @@ module App
     private_class_method :graph_revision_candidates, :workflow_checkpoints, :job_checkpoints,
       :workflow_publication_branch_name,
       :checkpoint_revision, :branch_revision, :landed_revision, :workspace_cache_revision, :workspace_revision,
-      :target_graph_config_digest
+      :target_graph_config_digest, :digest_target_graph_config
 
     def self.error_payload(repository:, params:, source:, error:, workflow: nil)
       {
