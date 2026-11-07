@@ -392,7 +392,7 @@ RSpec.describe "documentation audiences" do
       expect(architecture_index).to include("(#{page}.md)")
     end
 
-    %w[multi-worker metrics].each do |page|
+    %w[multi-worker metrics observability].each do |page|
       expect(root.join("docs/engineering/operations/#{page}.md")).to exist
       expect(operations_index).to include("(#{page}.md)")
     end
@@ -404,11 +404,34 @@ RSpec.describe "documentation audiences" do
     searchable_observability = root.join("config/syrus_docs/observability.md").read
 
     expect(searchable_chat).to include("`submit_coding_changes`")
+    expect(searchable_chat).to include("`failed_step`")
+    expect(searchable_chat).to include("`cancel_stale_work` uses a `targets` array")
+    expect(searchable_chat).to include("`satisfaction_mode`")
+    expect(searchable_chat).to include("`spawn_chats`")
     expect(searchable_chat).not_to include("CodexRolloutSanitizer")
     expect(searchable_workers).to include("SYRUS_WORKER_CAPABILITIES")
+    expect(searchable_workers).to include("no_capable_worker")
+    expect(searchable_workers).to include("AppSetting.max_concurrent_agent_runs")
+    expect(searchable_workers).to include("AppSetting.host_admission_policy")
+    expect(searchable_workers).to include("AppSetting.workflow_admission_policy")
     expect(searchable_workers).not_to include("db/search_migrate")
     expect(searchable_observability).to include("SYRUS_ALERT_WEBHOOK_URL")
+    expect(searchable_observability).to include("browser_error_auto_reports")
+    expect(searchable_observability).to include("ops.read_logs")
     expect(searchable_observability).not_to include("Observability::EventSink")
+
+    architecture_chat = root.join("docs/engineering/architecture/chat.md").read
+    architecture_workers = root.join("docs/engineering/architecture/multi-worker.md").read
+    operations_workers = root.join("docs/engineering/operations/multi-worker.md").read
+    architecture_observability = root.join("docs/engineering/architecture/observability.md").read
+    operations_observability = root.join("docs/engineering/operations/observability.md").read
+
+    expect(architecture_chat).not_to include("`schedule_wakeup` continues the current conversation")
+    expect(architecture_workers).not_to include("## Spreading workers across nodes")
+    expect(operations_workers).to include("## Native macOS compute workers")
+    expect(operations_workers).to include("### Docker Compose CPU sizing")
+    expect(architecture_observability).not_to include("### On-demand process diagnostics")
+    expect(operations_observability).to include("### On-demand process diagnostics")
   end
 
   it "keeps plugin authoring out of the searchable behavior guide" do
