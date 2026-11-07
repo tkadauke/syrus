@@ -87,10 +87,14 @@ module Calendar
         observation ||= { state: "planned" }
         occurrence_id = band ? "band" : starts_at.utc.strftime("%Y%m%dT%H%M%SZ")
         Event.new(source_id: "calendar:solid_queue", id: "recurring-#{key}-#{occurrence_id}", kind: "recurring_maintenance",
-          title: definition["class"] || key.humanize, starts_at:, ends_at:,
+          title: humanized_job_name(definition["class"]) || key.humanize, starts_at:, ends_at:,
           cadence: { label: schedule, band: }, destination_path: "/admin/queues", state: observation[:state],
           actual_started_at: observation[:started_at], actual_finished_at: observation[:finished_at],
           metadata: { key:, queue: definition["queue"], schedule:, duration_seconds: observation[:duration_seconds] }.compact)
+      end
+
+      def self.humanized_job_name(class_name)
+        class_name&.demodulize&.delete_suffix("Job")&.underscore&.humanize
       end
     end
   end

@@ -25,6 +25,17 @@ RSpec.describe Calendar::Sources::RecurringMaintenance do
     expect(event.destination_path).to eq("/admin/queues")
   end
 
+  it "uses a human-readable recurring job title" do
+    allow(described_class).to receive(:definitions).and_return(
+      "poll_repositories" => { "class" => "Maintenance::PollAllRepositoriesJob", "schedule" => "every 5 minutes" }
+    )
+    allow(described_class).to receive(:execution_observations_by_class).and_return({})
+
+    event = described_class.calendar_events(user: admin, starts_at:, ends_at:).first
+
+    expect(event.title).to eq("Poll all repositories")
+  end
+
   it "expands lower-frequency schedules at their actual planned times" do
     allow(described_class).to receive(:definitions).and_return("hourly" => { "class" => "HourlyJob", "schedule" => "every hour at minute 12" })
     allow(described_class).to receive(:execution_observations_by_class).and_return({})
