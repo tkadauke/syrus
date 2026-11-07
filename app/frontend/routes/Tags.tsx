@@ -9,15 +9,7 @@ import { NoticeToast } from "../components/NoticeToast"
 import { Input } from "../components/Input"
 import { Select } from "../components/Select"
 import { PageHeading, SectionHeading } from "../components/Heading"
-import {
-  createTag,
-  deleteTag,
-  fetchTags,
-  updateTag,
-  type TagPaletteColor,
-  type TagRow,
-  type TagsPayload
-} from "../api/tags"
+import { createTag, deleteTag, fetchTags, updateTag, type TagPaletteColor, type TagRow, type TagsPayload } from "../api/tags"
 import { errorMessage } from "../lib/errorMessage"
 import { DataTable } from "../components/ui"
 import {
@@ -59,12 +51,12 @@ export function Tags() {
   return (
     <main aria-label={t("aria_tags")} className="mx-auto max-w-6xl space-y-6 p-6">
       <header>
-        <PageHeading>{t('tags.heading')}</PageHeading>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t('tags.description')}</p>
+        <PageHeading>{t("tags.heading")}</PageHeading>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("tags.description")}</p>
       </header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {tags.isPending ? <PanelMessage>{t('tags.loading')}</PanelMessage> : null}
+      {tags.isPending ? <PanelMessage>{t("tags.loading")}</PanelMessage> : null}
       {tags.isError ? <TagsError error={tags.error} /> : null}
       {tags.isSuccess ? <TagsView onNotice={setNotice} payload={tags.data} /> : null}
     </main>
@@ -89,10 +81,10 @@ function CreateTagForm({ palette, onNotice }: { palette: TagPaletteColor[]; onNo
   const create = useMutation({
     mutationFn: () => createTag({ name, color }),
     onSuccess: (payload) => {
-      queryClient.setQueryData<TagsPayload>(queryKey, (current) => current ? { ...current, tags: [...current.tags, payload.tag] } : current)
+      queryClient.setQueryData<TagsPayload>(queryKey, (current) => (current ? { ...current, tags: [...current.tags, payload.tag] } : current))
       setName("")
       setColor("gray")
-      onNotice(payload.message || t('tags.created'))
+      onNotice(payload.message || t("tags.created"))
     }
   })
 
@@ -104,10 +96,10 @@ function CreateTagForm({ palette, onNotice }: { palette: TagPaletteColor[]; onNo
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-      <SectionHeading>{t('tags.create')}</SectionHeading>
+      <SectionHeading>{t("tags.create")}</SectionHeading>
       <form className="mt-3 flex flex-wrap items-end gap-3" onSubmit={submit}>
         <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor="new-tag-name">
-          {t('tags.field_name')}
+          {t("tags.field_name")}
           <Input
             id="new-tag-name"
             className="mt-1 normal-case"
@@ -119,16 +111,12 @@ function CreateTagForm({ palette, onNotice }: { palette: TagPaletteColor[]; onNo
           />
         </label>
         <label className="block text-xs font-medium uppercase text-gray-500 dark:text-gray-400" htmlFor="new-tag-color">
-          {t('tags.field_color')}
-          <Select
-            id="new-tag-color"
-            className="mt-1 normal-case"
-            fullWidth={false}
-            onChange={(event) => setColor(event.target.value)}
-            value={color}
-          >
+          {t("tags.field_color")}
+          <Select id="new-tag-color" className="mt-1 normal-case" fullWidth={false} onChange={(event) => setColor(event.target.value)} value={color}>
             {palette.map((option) => (
-              <option key={option.key} value={option.key}>{option.label}</option>
+              <option key={option.key} value={option.key}>
+                {option.label}
+              </option>
             ))}
           </Select>
         </label>
@@ -137,10 +125,14 @@ function CreateTagForm({ palette, onNotice }: { palette: TagPaletteColor[]; onNo
           disabled={create.isPending}
           type="submit"
         >
-          {create.isPending ? t('tags.creating') : t('tags.create_btn')}
+          {create.isPending ? t("tags.creating") : t("tags.create_btn")}
         </button>
       </form>
-      {create.isError ? <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(create.error, t("tags.error_create"))}</p> : null}
+      {create.isError ? (
+        <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">
+          {errorMessage(create.error, t("tags.error_create"))}
+        </p>
+      ) : null}
     </section>
   )
 }
@@ -151,10 +143,7 @@ function TagsTable({ tags, palette, onNotice }: { tags: TagRow[]; palette: TagPa
   const [sortState, setSortState] = useState<TagSortState>(DEFAULT_TAG_SORT)
   const filterSchema = buildTagFilterSchema(t)
   const filterTree = filterTreeFromSearch(location.search)
-  const visibleTags = useMemo(
-    () => sortedTags(filteredTags(tags, filterTree), sortState),
-    [filterTree, sortState, tags]
-  )
+  const visibleTags = useMemo(() => sortedTags(filteredTags(tags, filterTree), sortState), [filterTree, sortState, tags])
   const columns = buildTagColumns({ onNotice, palette, t })
   const preferences = useLocalStorageColumnPreferences({ columns, storageKey: TAGS_VISIBLE_COLUMNS_STORAGE_KEY })
 
@@ -165,14 +154,11 @@ function TagsTable({ tags, palette, onNotice }: { tags: TagRow[]; palette: TagPa
   return (
     <section className="space-y-4 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <FilterBar
-          filter={filterTree}
-          filterSchema={filterSchema}
-          pathname={location.pathname}
-          search={location.search}
-        />
+        <FilterBar filter={filterTree} filterSchema={filterSchema} pathname={location.pathname} search={location.search} />
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500 dark:text-gray-400">{visibleTags.length} / {tags.length}</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            {visibleTags.length} / {tags.length}
+          </span>
           <DataTableColumnMenu
             columns={columns}
             downLabel={t("tags.column_down")}
@@ -190,7 +176,7 @@ function TagsTable({ tags, palette, onNotice }: { tags: TagRow[]; palette: TagPa
         </div>
       </div>
 
-      <DataTable.Root aria-label={t('tags.heading')}>
+      <DataTable.Root aria-label={t("tags.heading")}>
         <DataTable.Header>
           <DataTableColumnHeaderRow
             columns={columns}
@@ -204,11 +190,11 @@ function TagsTable({ tags, palette, onNotice }: { tags: TagRow[]; palette: TagPa
         <DataTable.Body>
           {visibleTags.length === 0 ? (
             <DataTable.Row>
-              <DataTable.Empty colSpan={columns.length}>{t('tags.empty')}</DataTable.Empty>
+              <DataTable.Empty colSpan={columns.length}>{t("tags.empty")}</DataTable.Empty>
             </DataTable.Row>
-          ) : visibleTags.map((tag) => (
-            <TagTableRow columns={columns} key={tag.id} onNotice={onNotice} order={preferences.order} palette={palette} tag={tag} />
-          ))}
+          ) : (
+            visibleTags.map((tag) => <TagTableRow columns={columns} key={tag.id} onNotice={onNotice} order={preferences.order} palette={palette} tag={tag} />)
+          )}
         </DataTable.Body>
       </DataTable.Root>
     </section>
@@ -290,7 +276,17 @@ function buildTagColumns({
   ]
 }
 
-function TagTableRow({ tag, columns, order }: { tag: TagRow; columns: DataTableColumnDef<TagRow>[]; order: string[] | null | undefined; palette: TagPaletteColor[]; onNotice: (message: string | null) => void }) {
+function TagTableRow({
+  tag,
+  columns,
+  order
+}: {
+  tag: TagRow
+  columns: DataTableColumnDef<TagRow>[]
+  order: string[] | null | undefined
+  palette: TagPaletteColor[]
+  onNotice: (message: string | null) => void
+}) {
   return (
     <DataTable.Row>
       <DataTableColumnCells columns={columns} order={order} row={tag} />
@@ -306,11 +302,15 @@ function TagEditForm({ tag, palette, onNotice }: { tag: TagRow; palette: TagPale
   const update = useMutation({
     mutationFn: () => updateTag(tag.id, { name, color }),
     onSuccess: (payload) => {
-      queryClient.setQueryData<TagsPayload>(queryKey, (current) => current ? {
-        ...current,
-        tags: current.tags.map((candidate) => candidate.id === payload.tag.id ? payload.tag : candidate)
-      } : current)
-      onNotice(payload.message || t('tags.tag_updated'))
+      queryClient.setQueryData<TagsPayload>(queryKey, (current) =>
+        current
+          ? {
+              ...current,
+              tags: current.tags.map((candidate) => (candidate.id === payload.tag.id ? payload.tag : candidate))
+            }
+          : current
+      )
+      onNotice(payload.message || t("tags.tag_updated"))
     }
   })
 
@@ -324,22 +324,13 @@ function TagEditForm({ tag, palette, onNotice }: { tag: TagRow; palette: TagPale
     <>
       <form className="flex flex-wrap items-center gap-2" onSubmit={submit}>
         <div className="w-48">
-          <Input
-            aria-label={t('tags.name_for', { name: tag.name })}
-            onChange={(event) => setName(event.target.value)}
-            required
-            type="text"
-            value={name}
-          />
+          <Input aria-label={t("tags.name_for", { name: tag.name })} onChange={(event) => setName(event.target.value)} required type="text" value={name} />
         </div>
-        <Select
-          aria-label={t('tags.color_for', { name: tag.name })}
-          fullWidth={false}
-          onChange={(event) => setColor(event.target.value)}
-          value={color}
-        >
+        <Select aria-label={t("tags.color_for", { name: tag.name })} fullWidth={false} onChange={(event) => setColor(event.target.value)} value={color}>
           {palette.map((option) => (
-            <option key={option.key} value={option.key}>{option.label}</option>
+            <option key={option.key} value={option.key}>
+              {option.label}
+            </option>
           ))}
         </Select>
         <button
@@ -347,10 +338,14 @@ function TagEditForm({ tag, palette, onNotice }: { tag: TagRow; palette: TagPale
           disabled={update.isPending}
           type="submit"
         >
-          {update.isPending ? t('tags.saving') : t('tags.save')}
+          {update.isPending ? t("tags.saving") : t("tags.save")}
         </button>
       </form>
-      {update.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(update.error, t("tags.error_update"))}</p> : null}
+      {update.isError ? (
+        <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">
+          {errorMessage(update.error, t("tags.error_update"))}
+        </p>
+      ) : null}
     </>
   )
 }
@@ -362,11 +357,15 @@ function TagDeleteButton({ tag, onNotice }: { tag: TagRow; onNotice: (message: s
   const destroy = useMutation({
     mutationFn: () => deleteTag(tag.id),
     onSuccess: (payload) => {
-      queryClient.setQueryData<TagsPayload>(queryKey, (current) => current ? {
-        ...current,
-        tags: current.tags.filter((candidate) => candidate.id !== payload.deleted_id)
-      } : current)
-      onNotice(payload.message || t('tags.deleted'))
+      queryClient.setQueryData<TagsPayload>(queryKey, (current) =>
+        current
+          ? {
+              ...current,
+              tags: current.tags.filter((candidate) => candidate.id !== payload.deleted_id)
+            }
+          : current
+      )
+      onNotice(payload.message || t("tags.deleted"))
     }
   })
 
@@ -376,16 +375,20 @@ function TagDeleteButton({ tag, onNotice }: { tag: TagRow; onNotice: (message: s
         className="text-sm text-red-600 dark:text-red-300 underline hover:no-underline disabled:cursor-not-allowed disabled:text-red-300 dark:disabled:text-red-500"
         disabled={destroy.isPending}
         onClick={async () => {
-          if (await confirm({ message: t('tags.confirm_delete', { name: tag.name }), destructive: true })) {
+          if (await confirm({ message: t("tags.confirm_delete", { name: tag.name }), destructive: true })) {
             onNotice(null)
             destroy.mutate()
           }
         }}
         type="button"
       >
-        {destroy.isPending ? t('tags.deleting') : t('tags.delete')}
+        {destroy.isPending ? t("tags.deleting") : t("tags.delete")}
       </button>
-      {destroy.isError ? <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(destroy.error, t("tags.error_delete"))}</p> : null}
+      {destroy.isError ? (
+        <p className="mt-2 text-xs text-red-700 dark:text-red-300" role="alert">
+          {errorMessage(destroy.error, t("tags.error_delete"))}
+        </p>
+      ) : null}
       {dialog}
     </>
   )
@@ -466,7 +469,7 @@ function sortedTags(tags: TagRow[], sortState: TagSortState) {
 
 function toggleSort<TColumn extends string>(current: { column: TColumn; direction: SortDirection }, column: TColumn) {
   if (current.column !== column) return { column, direction: "ascending" as const }
-  return { column, direction: current.direction === "ascending" ? "descending" as const : "ascending" as const }
+  return { column, direction: current.direction === "ascending" ? ("descending" as const) : ("ascending" as const) }
 }
 
 function compareSortValues(left: SortValue, right: SortValue) {
@@ -511,7 +514,7 @@ function filterTreeFromSearch(search: string): FilterTree {
   const encoded = new URLSearchParams(search).get("q")
   if (!encoded) return { and: [] }
   try {
-    const padded = `${encoded.replace(/-/g, "+").replace(/_/g, "/")}${"=".repeat((4 - encoded.length % 4) % 4)}`
+    const padded = `${encoded.replace(/-/g, "+").replace(/_/g, "/")}${"=".repeat((4 - (encoded.length % 4)) % 4)}`
     const bytes = Uint8Array.from(atob(padded), (character) => character.charCodeAt(0))
     const parsed = JSON.parse(new TextDecoder().decode(bytes)) as FilterTree
     return { and: topLevelNodes(parsed) }

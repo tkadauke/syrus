@@ -725,12 +725,15 @@ export function requestDashboardMainBranchRepair(path: string) {
   return postJson<{ message?: string }>(path, {})
 }
 
-const pendingFilterUsage = new Map<string, {
-  input: DashboardFilterUsageInput
-  timer: ReturnType<typeof setTimeout>
-  resolve: (payload: DashboardFilterUsagePayload) => void
-  reject: (error: unknown) => void
-}>()
+const pendingFilterUsage = new Map<
+  string,
+  {
+    input: DashboardFilterUsageInput
+    timer: ReturnType<typeof setTimeout>
+    resolve: (payload: DashboardFilterUsagePayload) => void
+    reject: (error: unknown) => void
+  }
+>()
 
 export function recordDashboardFilterUsage(input: DashboardFilterUsageInput) {
   const key = input.subject

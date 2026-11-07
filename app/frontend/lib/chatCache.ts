@@ -107,10 +107,14 @@ export function removeRecentChatFromCache(queryClient: QueryClient, chatId: numb
     .getQueryCache()
     .findAll({ queryKey: ["chats", "recent"] })
     .forEach((query) => {
-      queryClient.setQueryData<ChatsIndexPayload>(query.queryKey, (current) => current && {
-        ...current,
-        groups: withoutChat(current.groups, chatId).filter((group) => group.chats.length > 0 || query.queryKey[6] === true)
-      })
+      queryClient.setQueryData<ChatsIndexPayload>(
+        query.queryKey,
+        (current) =>
+          current && {
+            ...current,
+            groups: withoutChat(current.groups, chatId).filter((group) => group.chats.length > 0 || query.queryKey[6] === true)
+          }
+      )
     })
 }
 
