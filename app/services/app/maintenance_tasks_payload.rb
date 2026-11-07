@@ -125,7 +125,7 @@ module App
         checkpoint: task.checkpoint,
         documentation: include_documentation ? definition.documentation : nil,
         paths: {
-          admin: "/admin/maintenance_tasks/#{task.id}",
+          admin: "/admin/maintenance_tasks/#{task.id}"
         }
       }
     end
