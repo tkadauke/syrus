@@ -199,7 +199,10 @@ module ScheduledTasks
 
     def record_system_result!(date:, result:, reason: nil)
       with_lock do
-        entry = { "date" => date.iso8601, "result" => result.to_s, "reason" => reason }
+        entry = {
+          "date" => date.iso8601, "result" => result.to_s, "reason" => reason,
+          "recorded_at" => Time.current.iso8601
+        }
         history = Array(system_result_history).reject { |item| item["date"] == entry["date"] }
         attributes = {
           system_result_history: (history << entry).last(31),
@@ -244,6 +247,11 @@ module ScheduledTasks
       record_failure!
       return unless system_schedule?
 
+      # A raised handler is still an attempted fire. Stamping the attempt keeps
+      # the minute poller from hammering the same broken system schedule for the
+      # rest of its hourly window; the definition's catch-up policy controls
+      # subsequent retries.
+      record_fire!(at: at)
       date = system_schedule_definition.failure_date(task: self, now: at)
       return unless date
 

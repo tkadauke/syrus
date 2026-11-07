@@ -112,6 +112,7 @@ RSpec.describe "Coworker scheduled tasks" do
 
   it "records a dormant journal date without creating a Job or invoking an agent" do
     journaling = Coworkers::SystemSchedules.reconcile!(coworker)
+    journaling.update_columns(created_at: Time.utc(2026, 11, 3, 9))
     allow(WorkUnits::Launcher).to receive(:instantiate)
 
     travel_to(Time.utc(2026, 11, 4, 1, 0)) do
@@ -122,7 +123,7 @@ RSpec.describe "Coworker scheduled tasks" do
         last_journaled_on: Date.new(2026, 11, 3), last_system_result: "skipped", last_system_result_reason: "dormant"
       )
       expect(journaling.system_result_history).to include(
-        "date" => "2026-11-03", "result" => "skipped", "reason" => "dormant"
+        a_hash_including("date" => "2026-11-03", "result" => "skipped", "reason" => "dormant")
       )
     end
     expect(WorkUnits::Launcher).not_to have_received(:instantiate)
@@ -130,7 +131,10 @@ RSpec.describe "Coworker scheduled tasks" do
 
   it "catches up a journaling schedule on the next poll after its fire window was missed" do
     journaling = Coworkers::SystemSchedules.reconcile!(coworker)
-    journaling.update_columns(last_fired_at: nil, last_journaled_on: nil, minute_offset: 8)
+    journaling.update_columns(
+      last_fired_at: nil, last_journaled_on: nil, minute_offset: 8,
+      created_at: Time.utc(2026, 11, 3, 9)
+    )
     allow(WorkUnits::Launcher).to receive(:instantiate)
 
     travel_to(Time.utc(2026, 11, 4, 3, 15)) do
@@ -148,18 +152,62 @@ RSpec.describe "Coworker scheduled tasks" do
     expect(WorkUnits::Launcher).not_to have_received(:instantiate)
   end
 
-  it "does not treat today's journal as overdue before its scheduled fire time" do
+  it "selects every real-shaped journaling schedule regardless of legacy minute offset" do
+    schedules = [ 26, 31, 8 ].each_with_index.map do |minute_offset, index|
+      shaped_owner = Factories.user
+      shaped_repository = Factories.repository(user: shaped_owner)
+      shaped_coworker = Coworkers::Coworker.create!(
+        owner_user: shaped_owner, name: "Coworker #{index}", handle: "poll-shape-#{index}",
+        workspace_repo: shaped_repository.remote_url
+      )
+      schedule = Coworkers::SystemSchedules.reconcile!(shaped_coworker)
+      schedule.update_columns(
+        minute_offset: minute_offset,
+        last_fired_at: index == 1 ? Time.utc(2026, 11, 6, 0, 30, 1) : nil,
+        last_journaled_on: index == 1 ? Date.new(2026, 11, 5) : nil
+      )
+      schedule
+    end
+    fired_ids = []
+    allow_any_instance_of(ScheduledTasks::Fire).to receive(:call) do |fire|
+      fired_ids << fire.instance_variable_get(:@task).id
+      ScheduledTasks::Fire::Result.new(job: nil, skipped: true, reason: "dormant")
+    end
+
+    now = Time.utc(2026, 11, 7, 0, 31)
+    expect(schedules).to all(satisfy { |schedule| schedule.reload.due?(now: now) })
+
+    travel_to(now) { PollScheduledTasksJob.perform_now }
+
+    expect(fired_ids).to include(*schedules.map(&:id))
+  end
+
+  it "does not label the first pending journal overdue until it is more than one day behind" do
     journaling = Coworkers::SystemSchedules.reconcile!(coworker)
-    journaling.update_columns(last_fired_at: nil, last_journaled_on: nil)
+    journaling.update_columns(
+      last_fired_at: nil, last_journaled_on: nil, created_at: Time.utc(2026, 11, 3, 9)
+    )
+    definition = Coworkers::Prompts::Journaling.new
 
     travel_to(Time.utc(2026, 11, 4, 0, 15)) do
       expect(journaling.reload).not_to be_due(now: Time.current)
+      expect(definition).not_to be_overdue(task: journaling, now: Time.current)
+    end
+    travel_to(Time.utc(2026, 11, 4, 0, 31)) do
+      expect(journaling.reload).to be_due(now: Time.current)
+      expect(definition).not_to be_overdue(task: journaling, now: Time.current)
+    end
+    travel_to(Time.utc(2026, 11, 5, 0, 31)) do
+      expect(definition).to be_overdue(task: journaling, now: Time.current)
     end
   end
 
   it "records the failed journal date and exception details when a catch-up fire raises" do
     journaling = Coworkers::SystemSchedules.reconcile!(coworker)
-    journaling.update_columns(last_fired_at: nil, last_journaled_on: nil, minute_offset: 31)
+    journaling.update_columns(
+      last_fired_at: nil, last_journaled_on: nil, minute_offset: 31,
+      created_at: Time.utc(2026, 11, 3, 9)
+    )
     allow_any_instance_of(Coworkers::ScheduledTaskFireHandler).to receive(:fire!).and_raise(RuntimeError, "workspace locked")
 
     travel_to(Time.utc(2026, 11, 4, 3, 15)) do
@@ -173,8 +221,36 @@ RSpec.describe "Coworker scheduled tasks" do
       last_system_result_reason: "RuntimeError: workspace locked"
     )
     expect(journaling.system_result_history).to include(
-      "date" => "2026-11-03", "result" => "failed", "reason" => "RuntimeError: workspace locked"
+      a_hash_including(
+        "date" => "2026-11-03", "result" => "failed", "reason" => "RuntimeError: workspace locked"
+      )
     )
+  end
+
+  it "backs off a failed catch-up fire before retrying it" do
+    journaling = Coworkers::SystemSchedules.reconcile!(coworker)
+    journaling.update_columns(
+      last_fired_at: nil, last_journaled_on: nil, created_at: Time.utc(2026, 11, 3, 9)
+    )
+    allow_any_instance_of(Coworkers::ScheduledTaskFireHandler).to receive(:fire!).and_raise("workspace locked")
+
+    travel_to(Time.utc(2026, 11, 4, 3, 15)) { PollScheduledTasksJob.perform_now }
+    expect(journaling.reload.last_fired_at).to eq(Time.utc(2026, 11, 4, 3, 15))
+
+    expect(journaling).not_to be_due(now: Time.utc(2026, 11, 4, 3, 16))
+    expect {
+      travel_to(Time.utc(2026, 11, 4, 3, 16)) { PollScheduledTasksJob.perform_now }
+    }.not_to change(BackendExceptionEvent, :count)
+    expect(journaling).to be_due(now: Time.utc(2026, 11, 4, 3, 30))
+  end
+
+  it "counts active coworkers without a fire or recorded skip inside 25 hours" do
+    journaling = Coworkers::SystemSchedules.reconcile!(coworker)
+
+    travel_to(26.hours.from_now) do
+      expect { journaling.update!(last_fired_at: Time.current) }
+        .to change { Coworkers::SystemSchedules.unhealthy_count }.from(1).to(0)
+    end
   end
 
   it "counts a pending local daily-memory change as activity before it is pushed" do
