@@ -18,7 +18,7 @@ module Coworkers
     default_enabled false
     disableable true
     depends_on [ "scheduled_tasks" ]
-    optionally_depends_on [ "credential_store" ]
+    optionally_depends_on [ "credential_store", "calendar" ]
     provides mentionable: "Coworkers::MentionableProvider",
              callbacks: "Coworkers::Callbacks",
              mcp_run_context_contributor: "Coworkers::RunContextContributor",
@@ -39,7 +39,8 @@ module Coworkers
              review_presentation_contributor: "Coworkers::ReviewPresentationContributor",
              repository_configuration: "Coworkers::RepositoryConfiguration",
              mcp_tool_set: "Coworkers::ReviewToolSet",
-             retention_policy: "Coworkers::ReviewContextRetentionPolicy"
+             retention_policy: "Coworkers::ReviewContextRetentionPolicy",
+             "calendar:event_source" => "Coworkers::CalendarEventSource"
     tick_interval 5.minutes
     route :get, "/api/v1/app/coworkers", to: "api/v1/app/coworkers#index"
     route :get, "/api/v1/app/coworkers/options", to: "api/v1/app/coworkers#options"

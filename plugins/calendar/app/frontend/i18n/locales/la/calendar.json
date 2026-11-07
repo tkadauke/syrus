@@ -24,5 +24,10 @@
   "running": "currit",
   "open_owner": "Munus proprium aperire",
   "open_schedule": "Munus destinatum aperire",
+  "open_main_chat": "Colloquium principale aperire",
+  "open_coworker": "Sodalis aperire",
+  "coworker_identity": "{{name}} {{handle}}",
+  "after_run": "Post cursum: {{policy}}",
+  "system_schedule": "Ordo systematis: {{key}}",
   "cadence_bands": "Fasciae frequentiae altae"
 }
