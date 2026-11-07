@@ -18,8 +18,9 @@ module ChatMessagePagination
     ChatMessageWindow.new(message_scope(chat_session)).call
   end
 
-  def paginated_before(chat_session, before_id)
-    ChatMessageWindow.new(message_scope(chat_session)).call(before: before_id&.positive? ? before_id : nil)
+  def paginated_before(chat_session, before_id, limit: ChatMessageWindow::MAX_MESSAGES)
+    max_messages = limit.to_i.clamp(1, ChatMessageWindow::MAX_MESSAGES)
+    ChatMessageWindow.new(message_scope(chat_session), max_messages: max_messages).call(before: before_id&.positive? ? before_id : nil)
   end
 
   def message_scope(chat_session)
