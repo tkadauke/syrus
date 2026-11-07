@@ -16059,22 +16059,13 @@ describe("App", () => {
         materialized_path: null
       }
     }
-    const pendingActionMessage = {
-      ...chatPayload().messages[0],
-      pending_action: {
-        id: 7,
-        label: "Cancel JOB-44",
-        action: "cancel_job",
-        state: "pending",
-        resource_title: "Stop the aqueduct dig",
-        resource_url: "/jobs/44",
-        app_confirm_path: "/api/v1/app/chats/8/pending_actions/7/confirm",
-        app_reject_path: "/api/v1/app/chats/8/pending_actions/7/reject"
-      }
+    const action = {
+      ...pendingAction({ id: 7, label: "Cancel JOB-44" }),
+      resource_title: "Stop the aqueduct dig",
+      resource_url: "/jobs/44"
     }
     const initialPayload = {
-      ...chatPayload({ messages: [pendingActionMessage, proposalMessage] }),
-      pending_actions: []
+      ...chatPayload({ messages: [chatPayload().messages[0], proposalMessage], pendingActions: [action] })
     }
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
@@ -16134,16 +16125,7 @@ describe("App", () => {
             JSON.stringify({
               ...initialPayload,
               message: "Pending action confirmed.",
-              messages: [
-                {
-                  ...pendingActionMessage,
-                  pending_action: {
-                    ...pendingActionMessage.pending_action,
-                    state: "confirmed"
-                  }
-                },
-                proposalMessage
-              ],
+              messages: [chatPayload().messages[0], proposalMessage],
               pending_actions: []
             }),
             { status: 200, headers: { "Content-Type": "application/json" } }
@@ -16354,65 +16336,43 @@ describe("App", () => {
     expect(timeEl).toHaveAttribute("dateTime", oldCreatedAt)
   })
 
-  it("renders pending action cards inline in chat messages", async () => {
-    const pendingMessage = {
-      type: "message",
-      id: 12,
-      role: "assistant",
-      tool_name: null,
-      content: { text: "This needs confirmation." },
-      text: "This needs confirmation.",
-      bookmarkable: true,
-      pending_action: {
-        id: 7,
-        label: "Cancel job",
-        detail: "Cancel **this job** before it lands.\n\n- Notify reviewers.",
-        action: "cancel_job",
-        state: "pending",
-        resource_title: "Refactor checkout flow",
-        resource_url: "/jobs/44",
-        app_confirm_path: "/api/v1/app/chats/8/pending_actions/7/confirm",
-        app_reject_path: "/api/v1/app/chats/8/pending_actions/7/reject"
-      }
+  it("renders pending action cards one at a time in the bottom carousel", async () => {
+    const pending = {
+      id: 7,
+      label: "Cancel job",
+      detail: "Cancel **this job** before it lands.\n\n- Notify reviewers.",
+      action: "cancel_job",
+      state: "pending",
+      resource_title: "Refactor checkout flow",
+      resource_url: "/jobs/44",
+      app_confirm_path: "/api/v1/app/chats/8/pending_actions/7/confirm",
+      app_reject_path: "/api/v1/app/chats/8/pending_actions/7/reject"
     }
-    const confirmedMessage = {
-      type: "message",
-      id: 13,
-      role: "assistant",
-      tool_name: null,
-      content: { text: "Already handled." },
-      text: "Already handled.",
-      bookmarkable: true,
-      pending_action: {
-        id: 8,
-        label: "Retry job",
-        action: "retry_job",
-        state: "confirmed",
-        resource_title: "Retry flaky build",
-        resource_url: "/jobs/45",
-        app_confirm_path: "/api/v1/app/chats/8/pending_actions/8/confirm",
-        app_reject_path: "/api/v1/app/chats/8/pending_actions/8/reject"
-      }
+    const confirmed = {
+      id: 8,
+      label: "Retry job",
+      action: "retry_job",
+      state: "confirmed",
+      resource_title: "Retry flaky build",
+      resource_url: "/jobs/45",
+      app_confirm_path: "/api/v1/app/chats/8/pending_actions/8/confirm",
+      app_reject_path: "/api/v1/app/chats/8/pending_actions/8/reject"
     }
-    const rejectedMessage = {
-      type: "message",
-      id: 14,
-      role: "assistant",
-      tool_name: null,
-      content: { text: "No link action." },
-      text: "No link action.",
-      bookmarkable: true,
-      pending_action: {
-        id: 9,
-        label: "Submit feedback",
-        action: "submit_chat_feedback",
-        state: "rejected",
-        app_confirm_path: "/api/v1/app/chats/8/pending_actions/9/confirm",
-        app_reject_path: "/api/v1/app/chats/8/pending_actions/9/reject"
-      }
+    const rejected = {
+      id: 9,
+      label: "Submit feedback",
+      action: "submit_chat_feedback",
+      state: "rejected",
+      app_confirm_path: "/api/v1/app/chats/8/pending_actions/9/confirm",
+      app_reject_path: "/api/v1/app/chats/8/pending_actions/9/reject"
     }
     const payload = chatPayload({
-      messages: [pendingMessage, confirmedMessage, rejectedMessage]
+      messages: [
+        { ...chatPayload().messages[0], id: 12, text: "This needs confirmation.", content: { text: "This needs confirmation." } },
+        { ...chatPayload().messages[0], id: 13, text: "Already handled.", content: { text: "Already handled." } },
+        { ...chatPayload().messages[0], id: 14, text: "No link action.", content: { text: "No link action." } }
+      ],
+      pendingActions: [pending, confirmed, rejected]
     })
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
@@ -16421,14 +16381,7 @@ describe("App", () => {
           new Response(
             JSON.stringify({
               ...payload,
-              messages: [
-                {
-                  ...pendingMessage,
-                  pending_action: { ...pendingMessage.pending_action, state: "rejected" }
-                },
-                confirmedMessage,
-                rejectedMessage
-              ]
+              pending_actions: [{ ...pending, state: "rejected" }, confirmed, rejected]
             }),
             { status: 200, headers: { "Content-Type": "application/json" } }
           )
@@ -16454,13 +16407,22 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "Refactor checkout flow" })).toHaveAttribute("href", "/jobs/44")
     expect(screen.getByRole("button", { name: "Confirm" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Decline" })).toBeInTheDocument()
+    expect(screen.getByText("1 of 3")).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Retry job" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Next pending action" }))
     expect(screen.getByRole("heading", { name: "Retry job" })).toBeInTheDocument()
     expect(screen.getAllByText("Confirmed").length).toBeGreaterThan(0)
+    expect(screen.queryByRole("heading", { name: "Cancel job" })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Next pending action" }))
     expect(screen.getByRole("heading", { name: "Submit feedback" })).toBeInTheDocument()
     expect(screen.getAllByText("Rejected").length).toBeGreaterThan(0)
     expect(screen.queryByRole("link", { name: "Submit feedback" })).not.toBeInTheDocument()
     expect(screen.queryByRole("heading", { name: "Pending actions" })).not.toBeInTheDocument()
 
+    fireEvent.click(screen.getByRole("button", { name: "Previous pending action" }))
+    fireEvent.click(screen.getByRole("button", { name: "Previous pending action" }))
     fireEvent.click(screen.getByRole("button", { name: "Decline" }))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/8/pending_actions/7/reject", expect.objectContaining({ method: "POST" }))
@@ -16667,12 +16629,14 @@ describe("App", () => {
 
     expect(await screen.findByText("Working…")).toBeInTheDocument()
     expect(screen.getAllByText("Cancelling workflow...")).toHaveLength(1)
+    expect(screen.queryByText("ArgumentError: Job is not accessible.")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Next pending action" }))
     expect(screen.getAllByText("Failed").length).toBeGreaterThan(0)
     expect(screen.getByText("ArgumentError: Job is not accessible.")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument()
   })
 
-  it("renders pending actions after their linked message in the stream", async () => {
+  it("renders linked pending actions below the message stream in the bottom carousel", async () => {
     appendBootstrapScript()
 
     const userMessage = {
@@ -16739,7 +16703,7 @@ describe("App", () => {
 
     expect(screen.queryByRole("heading", { name: "Pending actions" })).not.toBeInTheDocument()
     expect(linkedArticle.compareDocumentPosition(actionCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(actionCard.compareDocumentPosition(laterArticle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(laterArticle.compareDocumentPosition(actionCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByRole("link", { name: "JOB-44" })).toHaveAttribute("href", "/jobs/JOB-44")
     expect(
       screen.getByText((_content, element) => element?.tagName === "P" && element.textContent === "Please tighten this implementation.")
@@ -16806,7 +16770,10 @@ describe("App", () => {
 
     expect(await screen.findByText("Cancel JOB-44")).toBeInTheDocument()
     expect(screen.getAllByText("Confirmed").length).toBeGreaterThan(0)
+    expect(screen.queryByText("Retry JOB-45")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Next pending action" }))
     expect(screen.getAllByText("Rejected").length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByRole("button", { name: "Next pending action" }))
     expect(screen.getAllByText("Cancelled").length).toBeGreaterThan(0)
     expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument()
