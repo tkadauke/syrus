@@ -105,7 +105,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     get "/api/v1/app/credentials/options"
 
     expect(response).to have_http_status(:ok)
-    expect(response.headers["Cache-Control"]).to include("private", "max-age=86400")
+    expect(response.headers["Cache-Control"]).to include("private", "max-age=0", "must-revalidate")
     etag = response.headers.fetch("ETag")
 
     get "/api/v1/app/credentials/options", headers: { "If-None-Match" => etag }

@@ -19,7 +19,7 @@ module Api
           user = Current.user
           return unless stale?(etag: [ "credentials-options", user.cache_key_with_version ], public: false)
 
-          expires_in 1.day, public: false
+          expires_in 0, public: false, must_revalidate: true
           render json: { options: credentials_options(user) }
         end
 
