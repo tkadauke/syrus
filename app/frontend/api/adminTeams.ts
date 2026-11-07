@@ -47,6 +47,7 @@ export type AdminTeamDetailPayload = {
   team: AdminTeamRow
   can_manage: boolean
   memberships: TeamMembership[]
+  membership_pagination: { page: number; per_page: number; total: number; total_pages: number }
   repository_grants: TeamRepositoryGrant[]
   message?: string
 }
@@ -55,8 +56,8 @@ export function fetchAdminTeams() {
   return getJson<AdminTeamsPayload>("/api/v1/app/teams")
 }
 
-export function fetchAdminTeam(id: string) {
-  return getJson<AdminTeamDetailPayload>(`/api/v1/app/teams/${id}`)
+export function fetchAdminTeam(id: string, search = "") {
+  return getJson<AdminTeamDetailPayload>(`/api/v1/app/teams/${id}${search}`)
 }
 
 export function createAdminTeam(name: string) {

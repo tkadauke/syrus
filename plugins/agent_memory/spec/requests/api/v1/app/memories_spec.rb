@@ -43,9 +43,7 @@ RSpec.describe "API: /api/v1/app/memories", type: :request do
     expect(response).to have_http_status(:ok)
     ids = parse_body["memories"].map { |row| row["id"] }
     expect(ids).to contain_exactly(own_global.id, own_repo.id)
-    expect(parse_body["repositories"]).to include("id" => repository.id, "name" => "acme/widgets")
     expect(parse_body["filter"]).to eq("and" => [])
-    expect(parse_body.dig("controls", "filter_schema").map { |field| field["field"] }).to include("content", "scope", "kind", "repository_id", "published")
     expect(parse_body["current_user"]).to include("id" => user.id, "admin" => false)
   end
 
@@ -418,6 +416,18 @@ RSpec.describe "API: /api/v1/app/memories", type: :request do
 
       expect(parse_body["audit_events"].size).to eq(50)
       expect(parse_body["next_cursor"]).to be_a(Integer)
+    end
+  end
+
+  describe "GET /api/v1/app/memories/metadata" do
+    it "returns reusable controls separately from rows" do
+      sign_in_as(user)
+
+      get "/api/v1/app/memories/metadata"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.keys).to contain_exactly("controls", "kinds", "repositories", "scopes")
+      expect(parse_body).not_to have_key("memories")
     end
   end
 end

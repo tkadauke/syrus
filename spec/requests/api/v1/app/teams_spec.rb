@@ -111,6 +111,21 @@ RSpec.describe "API: /api/v1/app/teams", type: :request do
       expect(parse_body.dig("team", "id")).to eq(team.id)
     end
 
+    it "paginates memberships" do
+      team = Team.create!(name: "Platform")
+      team.team_memberships.create!(user: owner, role: "member")
+      50.times do |index|
+        user = User.create!(email_address: "member#{index}@example.com", password: "password123")
+        team.team_memberships.create!(user: user, role: "member")
+      end
+      sign_in_as(owner)
+
+      get "/api/v1/app/teams/#{team.id}", params: { membership_page: 2 }
+
+      expect(parse_body["memberships"].size).to eq(1)
+      expect(parse_body["membership_pagination"]).to include("page" => 2, "per_page" => 50, "total" => 51, "total_pages" => 2)
+    end
+
     it "404s for a non-member" do
       team = Team.create!(name: "Platform")
       sign_in_as(outsider)
