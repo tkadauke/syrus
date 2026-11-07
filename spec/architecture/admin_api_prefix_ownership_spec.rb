@@ -3,7 +3,7 @@ require "rails_helper"
 # The route snapshot is intentionally explicit. The two admin prefixes serve
 # different consumers; when a route changes, reviewers should see that choice
 # instead of letting the split grow by accident. See
-# config/syrus_docs/admin_api_prefixes.md.
+# docs/engineering/architecture/admin_api_prefixes.md.
 RSpec.describe "admin API prefix ownership" do
   REVIEWED_APP_ADMIN_ROUTES = <<~ROUTES.lines.map(&:strip).reject(&:blank?).freeze
     GET /api/v1/app/admin/overview api/v1/app/admin/overview#show
@@ -343,7 +343,7 @@ RSpec.describe "admin API prefix ownership" do
     expect(current).to match_array(REVIEWED_APP_ADMIN_ROUTES), <<~MSG
       /api/v1/app/admin is for the admin React UI, not new operator automation.
       If this route is UI-only, update the reviewed list and
-      config/syrus_docs/admin_api_prefixes.md. If it is scriptable operator
+      docs/engineering/architecture/admin_api_prefixes.md. If it is scriptable operator
       surface, put it under /api/v1/admin instead.
     MSG
   end
@@ -354,7 +354,7 @@ RSpec.describe "admin API prefix ownership" do
     expect(current).to match_array(REVIEWED_PLUGIN_APP_ADMIN_ROUTES), <<~MSG
       Plugin-declared /api/v1/app/admin routes are dispatched through the Rails
       wildcard, but they still serve the admin React UI. If this route is
-      UI-only, update the reviewed list and config/syrus_docs/admin_api_prefixes.md.
+      UI-only, update the reviewed list and docs/engineering/architecture/admin_api_prefixes.md.
       If it is scriptable operator surface, declare it under /api/v1/admin instead.
     MSG
   end
@@ -366,7 +366,7 @@ RSpec.describe "admin API prefix ownership" do
       /api/v1/admin is the token-only operator and automation API. If this
       route is a page-shaped admin UI endpoint, put it under /api/v1/app/admin
       instead. Otherwise update the reviewed list and
-      config/syrus_docs/admin_api_prefixes.md.
+      docs/engineering/architecture/admin_api_prefixes.md.
     MSG
   end
 
@@ -377,7 +377,7 @@ RSpec.describe "admin API prefix ownership" do
       Plugin-declared /api/v1/admin routes are token-only operator automation
       surface. If this route is a page-shaped admin UI endpoint, declare it
       under /api/v1/app/admin instead. Otherwise update the reviewed list and
-      config/syrus_docs/admin_api_prefixes.md.
+      docs/engineering/architecture/admin_api_prefixes.md.
     MSG
   end
 
@@ -391,7 +391,7 @@ RSpec.describe "admin API prefix ownership" do
   end
 
   it "documents the prefix rule and known migration gaps" do
-    doc = Rails.root.join("config/syrus_docs/admin_api_prefixes.md").read
+    doc = Rails.root.join("docs/engineering/architecture/admin_api_prefixes.md").read
 
     expect(doc).to include("`/api/v1/admin/*` is the operator and automation API")
     expect(doc).to include("`/api/v1/app/admin/*` serves the admin UI")

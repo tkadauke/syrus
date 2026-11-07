@@ -36,7 +36,7 @@ module.exports = [
     // scope), plus raw gray/status colors, repeated panel shells, raw table
     // cell/header markup, and excessive class strings (graduated from the
     // report-only style_debt/ rules by the DOC-27 ratchet-extension job --
-    // see config/syrus_docs/style_debt_report.md).
+    // see docs/engineering/conventions/style_debt_report.md).
     files: ["app/frontend/**/*.{ts,tsx}", "plugins/*/app/frontend/**/*.{ts,tsx}"],
     languageOptions: jsxLanguageOptions,
     plugins: basePlugins,

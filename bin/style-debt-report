@@ -9,7 +9,7 @@
 // strings started here too, but have since graduated into the enforced
 // design-system ratchet in eslint-rules/ -- see
 // eslint-rules/style_debt/index.js.) Report-only: it never fails CI on its
-// own account. See config/syrus_docs/style_debt_report.md and
+// own account. See docs/engineering/conventions/style_debt_report.md and
 // eslint-rules/style_debt/ for the rule implementations and tests -- this
 // file is a thin CLI entry point over eslint-rules/style_debt/report.js.
 //

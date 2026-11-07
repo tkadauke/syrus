@@ -192,7 +192,8 @@ this as an "MCP startup lifecycle" table alongside the tool-usage sections.
 
 `sidecar_mode` is `"stdio"` or `"persistent"` (`McpToolUsage::SIDECAR_MODES`),
 recording which MCP transport actually served a given call — see
-`persistent_mcp_sidecar.md` for the two transports themselves. Two recording
+For the two transports themselves, see
+`docs/engineering/architecture/persistent_mcp_sidecar.md`. Two recording
 paths write to the same `mcp_tool_usages` table, and each call is recorded by
 exactly one of them, never both, per invocation:
 

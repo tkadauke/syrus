@@ -18,7 +18,8 @@ Agent processes only, deliberately: no checks (graders/format/generate) and no
 non-agent subprocesses appear here. Workflow PR feedback and CI repair appear
 only when they launch an agentic Run; chat turns and design-doc mentions appear
 through their own Agent records. The per-Job "Agent Conversation" causal graph
-remains separate. See `agent_conversation.md`.
+remains separate. See
+`docs/engineering/architecture/agent_conversation.md`.
 
 ## Role and outcome, never inferred from transcript text
 
