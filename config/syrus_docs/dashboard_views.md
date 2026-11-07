@@ -206,11 +206,12 @@ unavailable candidates before the first Run starts. A hold action leaves the
 Workflow queued without creating a Run and is reported as a non-failure held
 decision rather than provider exhaustion.
 If an unstarted workflow automatically moves from one candidate to another, it
-also records `provider_failover_decision`. Dashboard rows, Job detail,
-repository Job rows, and Workflow cards show the original unavailable provider
-and the provider selected for the workflow. Operator-selected alternate retry
-providers render distinct operator copy. Explicit Job provider settings still
-win over routing rules, and chat provider switching remains explicit.
+also records `provider_failover_decision`. Job detail, repository Job rows, and
+Workflow cards show the original unavailable provider and the provider selected
+for the workflow; compact Dashboard rows omit that diagnostic detail.
+Operator-selected alternate retry providers render distinct operator copy.
+Explicit Job provider settings still win over routing rules, and chat provider
+switching remains explicit.
 
 The routing rules editor (user, repository, and Job scopes) has a Test button
 that dry-runs the effective rules against any Job the operator can see, for a

@@ -184,8 +184,7 @@ export function workflowDateValue(workflow: DashboardWorkflowItem, column: strin
     created_at: workflow.created_at,
     updated_at: workflow.updated_at,
     started_at: workflow.started_at,
-    finished_at: workflow.finished_at,
-    cleaned_up_at: workflow.cleaned_up_at
+    finished_at: workflow.finished_at
   }
 
   return values[column] || null

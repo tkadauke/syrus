@@ -4,7 +4,6 @@ import type { JobDeliveryStatus, JobRetryState, LandingQueueBlockerJob, LandingQ
 import type { BlockedReason } from "../lib/translateBlockedReason"
 import type { ProviderAvailability, ProviderMismatch } from "./providerAvailability"
 import type { GoalProvenance } from "./chats"
-import type { StartBlockedDetails } from "../types/startBlocked"
 
 import type { SetupStatusPayload } from "./setup"
 import type { UiSlotPanel } from "../pluginUiSlots"
@@ -186,6 +185,7 @@ export type DashboardJobItem = {
   claimed_by_current_user: boolean
   dependencies_overridden_at: string | null
   dependencies?: DashboardJobDependency[]
+  unsatisfied_dependency_count?: number
   last_feedback_addressed_at: string | null
   last_seen_comment_at: string | null
   pr_mergeable_checked_at: string | null
@@ -202,9 +202,6 @@ export type DashboardJobItem = {
   delivery_status?: JobDeliveryStatus
   start_blocked_reason: string | null
   start_blocked_at: string | null
-  start_blocked_next_check_at: string | null
-  start_blocked_count: number | null
-  start_blocked_details: StartBlockedDetails | null
   manual_paused?: boolean
   manual_paused_at?: string | null
   active_repair_work?: ActiveRepairWork | null
@@ -268,12 +265,8 @@ export type DashboardWorkflowItem = {
   updated_at: string | null
   started_at: string | null
   finished_at: string | null
-  cleaned_up_at: string | null
   steps_count: number
-  run_count?: number
   failure_reason?: string | null
-  worker_hostname?: string | null
-  worker_storage_key?: string | null
   job: {
     id: number
     title: string
