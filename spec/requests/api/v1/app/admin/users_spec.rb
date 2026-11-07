@@ -98,7 +98,7 @@ RSpec.describe "API: /api/v1/app/admin/users", type: :request do
     expect(response.body).not_to include("ghp_secret")
   end
 
-  it "reports per-user provider availability without conflating users" do
+  it "omits detail-only provider availability from list rows" do
     sign_in_as(admin)
     healthy = Factories.user(email_address: "healthy@example.com", claude_oauth_token: "claude-ok")
     broken = Factories.user(email_address: "broken@example.com", claude_oauth_token: "claude-broken")
@@ -125,12 +125,8 @@ RSpec.describe "API: /api/v1/app/admin/users", type: :request do
 
     expect(response).to have_http_status(:ok)
     rows = parse_body.fetch("users").index_by { |user| user.fetch("email_address") }
-    expect(rows.dig("healthy@example.com", "provider_availability", "claude", "state")).to eq("available")
-    expect(rows.dig("broken@example.com", "provider_availability", "claude", "state")).to eq("auth_error")
-    expect(rows.dig("broken@example.com", "provider_availability", "claude", "evidence", "current")).to include(
-      "status" => "auth_error",
-      "http_status" => 401
-    )
+    expect(rows.fetch("healthy@example.com")).not_to have_key("provider_availability")
+    expect(rows.fetch("broken@example.com")).not_to have_key("credential_attention")
   end
 
   it "batches provider availability evidence and blocked-work counts for the users page" do
@@ -179,13 +175,9 @@ RSpec.describe "API: /api/v1/app/admin/users", type: :request do
 
     row = parse_body.fetch("users").sole
     expect(row).to include(
-      "needs_attention" => true,
-      "needs_attention_reason" => "stale_provider_credential"
+      "needs_attention" => true
     )
-    expect(row.fetch("credential_attention")).to include(
-      "provider" => "claude",
-      "blocked_work_units_count" => 1
-    )
+    expect(row).not_to include("needs_attention_reason", "credential_attention")
   end
 
   it "does not raise attention for a fresh provider auth error" do
@@ -207,10 +199,9 @@ RSpec.describe "API: /api/v1/app/admin/users", type: :request do
 
     row = parse_body.fetch("users").sole
     expect(row).to include(
-      "needs_attention" => false,
-      "needs_attention_reason" => nil,
-      "credential_attention" => nil
+      "needs_attention" => false
     )
+    expect(row).not_to include("needs_attention_reason", "credential_attention")
   end
 
   it "reports an unconfigured provider distinctly" do
@@ -220,10 +211,7 @@ RSpec.describe "API: /api/v1/app/admin/users", type: :request do
     get "/api/v1/app/admin/users", params: { q: Filters::QueryParam.encode("and" => [ { "field" => "email", "op" => "contains", "value" => "missing-provider@example.com" } ]) }
 
     row = parse_body.fetch("users").sole
-    expect(row.dig("provider_availability", "claude")).to include(
-      "state" => "not_configured",
-      "reason" => "Provider credentials are not configured."
-    )
+    expect(row).not_to have_key("provider_availability")
   end
 
   it "filters and sorts by newly exposed admin user fields" do

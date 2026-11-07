@@ -4,21 +4,23 @@ module GithubSource
     MAX_HOURS = 168
     LIMIT = 100
 
-    def initialize(params:)
+    def initialize(params:, include_filter_schema: true)
       @params = params
+      @include_filter_schema = include_filter_schema
     end
 
     def as_json(*)
-      {
+      payload = {
         hours: hours,
         filter: filter_tree,
-        filter_schema: filter_schema,
         generated_at: Time.current.iso8601,
         totals: totals,
         by_operation: by_operation,
         by_repository: by_repository,
         recent_rate_limits: recent_rate_limits
       }
+      payload[:filter_schema] = filter_schema if @include_filter_schema
+      payload
     end
 
     private

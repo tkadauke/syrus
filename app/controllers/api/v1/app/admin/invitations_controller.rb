@@ -23,7 +23,7 @@ module Api
             if invitation.save
               InvitationMailer.with(locale: invitation.locale).invite(invitation).deliver_later
 
-              render json: invitations_payload.merge(message: I18n.t("api.admin_invitations.created", email: invitation.email_address)),
+              render json: { invitation: invitation_json(invitation), message: I18n.t("api.admin_invitations.created", email: invitation.email_address) },
                      status: :created
             else
               render_error("validation_failed", invitation.errors.full_messages.to_sentence,
@@ -35,7 +35,7 @@ module Api
             invitation = Invitation.find(params[:id])
             invitation.destroy!
 
-            render json: invitations_payload.merge(message: I18n.t("api.admin_invitations.revoked"))
+            render json: { ok: true, id: invitation.id, message: I18n.t("api.admin_invitations.revoked") }
           end
 
           private
@@ -147,7 +147,6 @@ module Api
             {
               id: invitation.id,
               email_address: invitation.email_address,
-              token: invitation.token,
               share_url: new_user_url(token: invitation.token),
               expires_at: invitation.expires_at.iso8601,
               created_at: invitation.created_at.iso8601,

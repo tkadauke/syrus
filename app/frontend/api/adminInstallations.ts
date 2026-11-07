@@ -48,5 +48,5 @@ export function fetchAdminInstallations() {
 }
 
 export function refreshInstallations() {
-  return postJson<AdminInstallationsPayload>("/api/v1/app/admin/installations/refresh")
+  return postJson<{ ok: true; message: string }>("/api/v1/app/admin/installations/refresh")
 }

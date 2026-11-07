@@ -30,6 +30,10 @@ module BuildCache
       }
     end
 
+    def request(request)
+      { request: request_payload(request) }
+    end
+
     private
 
     attr_reader :params

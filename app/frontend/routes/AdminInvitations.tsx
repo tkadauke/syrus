@@ -224,7 +224,7 @@ function InvitationActions({ invitation, onNotice }: { invitation: AdminInvitati
   const [confirming, setConfirming] = useState(false)
   const revoke = useMutation({
     mutationFn: () => revokeAdminInvitation(invitation.id),
-    onSuccess: (payload: AdminInvitationsPayload) => {
+    onSuccess: (payload) => {
       void queryClient.invalidateQueries({ queryKey })
       onNotice(payload.message || t("invitations.revoke_confirm"))
     },

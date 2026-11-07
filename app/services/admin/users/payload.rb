@@ -162,18 +162,11 @@ module Admin
       end
 
       def serialize_user_row(user, provider_context:)
-        provider_availability = provider_availability_payload(user, provider_context)
         credential_attention = provider_context.first_attention_for(user)
         {
           id: user.id,
           email_address: user.email_address,
           name: user.name,
-          first_name: user.first_name,
-          last_name: user.last_name,
-          profile_bio: user.profile_bio,
-          profile_location: user.profile_location,
-          profile_company: user.profile_company,
-          profile_website: user.profile_website,
           display_name: user.display_name,
           github_handle: user.github_handle,
           admin: user.admin?,
@@ -185,8 +178,6 @@ module Admin
           has_github_token: user.github_token.present?,
           has_claude_token: user.claude_oauth_token.present?,
           has_codex_token: user.codex_api_key.present? || user.codex_auth_json.present?,
-          has_codex_api_key: user.codex_api_key.present?,
-          has_codex_auth_json: user.codex_auth_json.present?,
           has_muse_token: user.muse_api_key.present?,
           has_api_token: user.api_token.present?,
           agent_max_turns: user.agent_max_turns,
@@ -194,10 +185,7 @@ module Admin
           github_api_blocked_at: user.gh_api_blocked_at,
           github_api_blocked_reason: user.gh_api_blocked_reason,
           github_rate_limit: github_rate_limit_payload(user),
-          provider_availability: provider_availability,
           needs_attention: credential_attention.present?,
-          needs_attention_reason: credential_attention&.fetch(:reason, nil),
-          credential_attention: credential_attention,
           created_at: user.created_at,
           updated_at: user.updated_at
         }
@@ -205,6 +193,17 @@ module Admin
 
       def serialize_user_detail(user, provider_context:)
         serialize_user_row(user, provider_context: provider_context).merge(
+          first_name: user.first_name,
+          last_name: user.last_name,
+          profile_bio: user.profile_bio,
+          profile_location: user.profile_location,
+          profile_company: user.profile_company,
+          profile_website: user.profile_website,
+          has_codex_api_key: user.codex_api_key.present?,
+          has_codex_auth_json: user.codex_auth_json.present?,
+          provider_availability: provider_availability_payload(user, provider_context),
+          needs_attention_reason: provider_context.first_attention_for(user)&.fetch(:reason, nil),
+          credential_attention: provider_context.first_attention_for(user),
           recent_jobs: user.jobs.order(created_at: :desc).limit(10).map do |job|
             {
               id: job.id,

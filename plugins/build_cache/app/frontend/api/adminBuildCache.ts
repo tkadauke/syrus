@@ -43,6 +43,7 @@ export type AdminBuildCachePayload = {
 }
 
 export type AdminBuildCacheStatsPayload = Pick<AdminBuildCachePayload, "configured" | "stats" | "stats_error">
+export type AdminBuildCacheMutationPayload = { request: BuildCacheClearRequest }
 
 export function fetchAdminBuildCache(search = "", options: { includeStats?: boolean } = {}) {
   const params = new URLSearchParams(search)
@@ -56,17 +57,17 @@ export function fetchAdminBuildCacheStats() {
 }
 
 export function createBuildCacheClearRequest(params: { scope: BuildCacheClearRequestScope; older_than_days?: number | null; reason: string }) {
-  return postJson<AdminBuildCachePayload>("/api/v1/app/admin/build_cache/clear_requests", {
+  return postJson<AdminBuildCacheMutationPayload>("/api/v1/app/admin/build_cache/clear_requests", {
     admin_build_cache_clear_request: params
   })
 }
 
 export function confirmBuildCacheClearRequest(id: number) {
-  return postJson<AdminBuildCachePayload>(`/api/v1/app/admin/build_cache/clear_requests/${id}/confirm`)
+  return postJson<AdminBuildCacheMutationPayload>(`/api/v1/app/admin/build_cache/clear_requests/${id}/confirm`)
 }
 
 export function cancelBuildCacheClearRequest(id: number) {
-  return postJson<AdminBuildCachePayload>(`/api/v1/app/admin/build_cache/clear_requests/${id}/cancel`)
+  return postJson<AdminBuildCacheMutationPayload>(`/api/v1/app/admin/build_cache/clear_requests/${id}/cancel`)
 }
 
 export type JobSccacheInfo = {

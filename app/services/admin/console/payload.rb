@@ -5,10 +5,10 @@ module Admin
         @actor = actor
       end
 
-      def show
+      def show(include_users: true)
         {
           settings: settings_payload,
-          users: users_payload,
+          users: include_users ? users_payload : nil,
           recent_admin_actions: recent_admin_actions_payload,
           active_runs: Run.active.count
         }
@@ -52,11 +52,11 @@ module Admin
               error_message: e.message
             }
           )
-          return show.merge(ok: false, message: "Failed to clear GitHub cache entries #{summary}.")
+          return mutation_payload.merge(ok: false, message: "Failed to clear GitHub cache entries #{summary}.")
         end
 
         AdminAction.log!(user: actor, action: :clear_github_cache, params: { source: source, scope: pattern, cleared_count: cleared })
-        show.merge(ok: true, message: "Cleared #{cleared} GitHub cache entries #{summary}.")
+        mutation_payload.merge(ok: true, message: "Cleared #{cleared} GitHub cache entries #{summary}.")
       end
 
       private
@@ -75,7 +75,11 @@ module Admin
 
         AppSetting.current.update!(attrs)
         AdminAction.log!(user: actor, action: action, params: { source: source })
-        show.merge(ok: true)
+        mutation_payload.merge(ok: true)
+      end
+
+      def mutation_payload
+        { settings: settings_payload, active_runs: Run.active.count }
       end
 
       def settings_payload

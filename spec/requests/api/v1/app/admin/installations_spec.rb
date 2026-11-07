@@ -87,14 +87,7 @@ RSpec.describe "API: /api/v1/app/admin/installations", type: :request do
       "app_credential_inactive_reason" => nil,
       "credential_mode" => "app"
     )
-    expect(app_row["recent_auth_fallbacks"].first).to include(
-      "id" => fallback.id,
-      "operation_type" => "git_pr_open_push",
-      "error_class" => "GitRunner::GitError",
-      "error_message" => "Authentication failed",
-      "refresh_attempted" => true,
-      "refresh_succeeded" => false
-    )
+    expect(app_row).not_to have_key("recent_auth_fallbacks")
     expect(pat_row).to include(
       "slug" => pat_repo.slug,
       "owner_user" => include("id" => admin.id, "email_address" => admin.email_address),
