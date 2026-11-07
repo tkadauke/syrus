@@ -101,6 +101,8 @@ RSpec.describe "documentation audiences" do
       affected_test_analyzer review_criteria_provider
       build_system_graph_provider execution_backend secret_env
     ].each { |term| expect(searchable).to include(term) }
+    expect(searchable).to include("`ios` — enabled iOS project intelligence")
+    expect(searchable).to include("`throughput` — enabled delivery-throughput views")
     expect(searchable).not_to include("Syrus::PluginRegistry.register")
     expect(searchable).not_to include("app/services/")
 
