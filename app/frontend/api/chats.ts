@@ -1292,8 +1292,9 @@ export function fetchChatBookmarks(path: string, options: { signal?: AbortSignal
   return getJson<{ bookmarks: ChatBookmark[] }>(path, options)
 }
 
-export function fetchSharedChat(token: string) {
-  return getJson<SharedChatPayload>(`/api/v1/app/shared_chats/${encodeURIComponent(token)}`)
+export function fetchSharedChat(token: string, beforeId?: number | null) {
+  const search = beforeId == null ? "" : `?before_id=${encodeURIComponent(String(beforeId))}`
+  return getJson<SharedChatPayload>(`/api/v1/app/shared_chats/${encodeURIComponent(token)}${search}`)
 }
 
 export function markChatRead(id: string | number) {
@@ -1498,7 +1499,7 @@ export function updateChatPinned(id: number | string, pinned: boolean) {
 }
 
 export function updateChatRepository(id: number | string, repositoryId: string | number | null) {
-  return patchJson<ChatPayload>(`/api/v1/app/chats/${id}`, { chat: { repository_id: repositoryId ?? "" } })
+  return patchJson<ChatPayloadUpdate>(`/api/v1/app/chats/${id}`, { chat: { repository_id: repositoryId ?? "" } })
 }
 
 export function switchChatProvider(path: string, chatProvider: string) {
@@ -1567,7 +1568,7 @@ export function createLocalDaemonSession(chatId: number | string) {
 }
 
 export function clearChatHistory(path: string) {
-  return deleteJson<ChatPayload>(path)
+  return deleteJson<ChatPayloadUpdate>(path)
 }
 
 // Soft-deletes the chat while retaining its durable conversation data for

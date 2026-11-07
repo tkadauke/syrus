@@ -311,8 +311,9 @@ export function Compose({
   const updateRepository = useMutation({
     mutationFn: (nextRepositoryId: string) => updateChatRepository(chatId, nextRepositoryId || null),
     onSuccess: (updated) => {
-      mergeChatPayloadUpdate(queryClient, queryKey, updated)
-      updateRecentChatCache(queryClient, currentRecentChat(updated) || updated.chat)
+      const merged = mergeChatPayloadUpdate(queryClient, queryKey, updated)
+      updateRecentChatCache(queryClient, currentRecentChat(merged))
+      void queryClient.invalidateQueries({ queryKey })
       onNotice(null)
     },
     onError: (error) => {

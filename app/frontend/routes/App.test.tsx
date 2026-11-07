@@ -14544,35 +14544,56 @@ describe("App", () => {
   })
 
   it("renders shared chats as read-only message streams", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(
-      async () =>
-        new Response(
-          JSON.stringify({
-            chat: { id: 8, title: "Aqueduct planning" },
-            messages: [
-              {
-                type: "message",
-                id: 10,
-                role: "user",
-                tool_name: null,
-                content: { text: "Can the team view this?" },
-                text: "Can the team view this?",
-                bookmarkable: false
-              },
-              {
-                type: "message",
-                id: 11,
-                role: "assistant",
-                tool_name: null,
-                content: { text: "Yes, this is read-only." },
-                text: "Yes, this is read-only.",
-                bookmarkable: false
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+      const olderPage = String(input).includes("before_id=10")
+      return new Response(
+        JSON.stringify(
+          olderPage
+            ? {
+                chat: { id: 8, title: "Aqueduct planning" },
+                messages: [
+                  {
+                    type: "message",
+                    id: 9,
+                    role: "user",
+                    tool_name: null,
+                    content: { text: "What did we decide earlier?" },
+                    text: "What did we decide earlier?",
+                    bookmarkable: false
+                  }
+                ],
+                has_more_older: false,
+                before_id: null
               }
-            ]
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } }
-        )
-    )
+            : {
+                chat: { id: 8, title: "Aqueduct planning" },
+                messages: [
+                  {
+                    type: "message",
+                    id: 10,
+                    role: "user",
+                    tool_name: null,
+                    content: { text: "Can the team view this?" },
+                    text: "Can the team view this?",
+                    bookmarkable: false
+                  },
+                  {
+                    type: "message",
+                    id: 11,
+                    role: "assistant",
+                    tool_name: null,
+                    content: { text: "Yes, this is read-only." },
+                    text: "Yes, this is read-only.",
+                    bookmarkable: false
+                  }
+                ],
+                has_more_older: true,
+                before_id: 10
+              }
+        ),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    })
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -14589,6 +14610,13 @@ describe("App", () => {
     expect(screen.queryByPlaceholderText("Ask about this repository...")).toBeNull()
     expect(screen.queryByRole("button", { name: /Bookmark/ })).toBeNull()
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/shared_chats/token-123", expect.objectContaining({ credentials: "same-origin" }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Load earlier messages" }))
+
+    expect(await screen.findByText("What did we decide earlier?")).toBeInTheDocument()
+    expect(screen.getByText("Can the team view this?")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Load earlier messages" })).not.toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/shared_chats/token-123?before_id=10", expect.objectContaining({ credentials: "same-origin" }))
   })
 
   it("updates the v2 sidebar immediately after chat slash commands change chats", async () => {
@@ -14704,10 +14732,19 @@ describe("App", () => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/messages" && init?.method === "DELETE") {
         return Promise.resolve(
-          new Response(JSON.stringify(chatPayload({ message: "Chat history cleared.", messages: [] })), {
-            status: 200,
-            headers: { "Content-Type": "application/json" }
-          })
+          new Response(
+            JSON.stringify({
+              message: "Chat history cleared.",
+              chat: { id: 8, entity_revision: 3, turn_in_flight: false, agent_busy: false, stop_requested_at: null },
+              messages: [],
+              queued_messages: [],
+              has_more_older: false
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" }
+            }
+          )
         )
       }
 
@@ -14731,6 +14768,7 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Clear" }))
     expect(await screen.findByText("Chat history cleared.")).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByText("Discuss aqueducts.")).not.toBeInTheDocument())
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/8/messages", expect.objectContaining({ method: "DELETE" }))
     expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/chats/8/message", expect.objectContaining({ method: "POST" }))
   })
