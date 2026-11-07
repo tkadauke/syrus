@@ -25,7 +25,24 @@ RSpec.describe "bin/plugin-boundary-audit" do
 
     expect(status).to be_success, "stdout=#{stdout}\nstderr=#{stderr}"
     expect(stdout).to include("Removed plugins: ruby, syrus-rails")
+    expect(stdout).to include("physical-removal audit (physical removability)")
     expect(stdout).to include("Result: PASS")
+  end
+
+  it "reports vocabulary ownership separately from physical removability", :requires_git_checkout do
+    stdout, stderr, status = Open3.capture3(
+      { "BUNDLE_PATH" => "#{root}/vendor/bundle", "BUNDLE_APP_CONFIG" => "#{root}/.bundle" },
+      "bin/plugin-boundary-audit",
+      "coworkers",
+      "--command",
+      "true",
+      chdir: root
+    )
+
+    expect(status).to be_success, "stdout=#{stdout}\nstderr=#{stderr}"
+    expect(stdout).to include("vocabulary-ownership audit")
+    expect(stdout).to include("no core reimplementation growth")
+    expect(stdout).to include("physical-removal audit (physical removability)")
   end
 
   it "reports unknown plugins before creating a temporary copy" do

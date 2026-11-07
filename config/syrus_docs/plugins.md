@@ -584,6 +584,15 @@ plugins through explicit extension boundaries or documented legacy exceptions,
 and that plugin-to-plugin source references follow a declared dependency edge
 directly or transitively.
 
+A plugin may also declare `config/plugin_ownership.yml`. The manifest records
+its configuration keys, step kinds, target types, routes, tables, problem
+codes, tools, frontend contributions, documentation, and owned vocabulary.
+`compatibility_quarantine` is a per-core-file upper bound on occurrences of
+that vocabulary. Existing leakage may shrink without changing the manifest;
+new files and increased counts fail `bin/check-plugin-boundaries`. This ratchet
+is intentionally separate from constant/path checking: core can reimplement a
+plugin feature without ever referencing the plugin's source or constants.
+
 The audit reads git-tracked source only. Untracked and gitignored files are
 skipped, because the working tree can contain build output — Vite entry bundles
 under `app/assets/builds/` are gitignored but present after any frontend build,
@@ -592,12 +601,17 @@ violation that does not exist in the source. When no git index is available (the
 `git archive` copy the physical-removal script builds), everything is scanned
 instead.
 
-The stronger physical-absence check is manual for now:
+The stronger subtraction check is manual for now:
 
 ```bash
 bin/plugin-boundary-audit ruby
 bin/plugin-boundary-audit ruby --command "bundle exec rspec spec/models/job_spec.rb"
 ```
+
+For a plugin with an ownership manifest, the command reports two independent
+results: vocabulary ownership proves core did not grow a reimplementation of
+plugin behavior, while physical removal proves core remains bootable after the
+plugin and its dependent plugins are removed.
 
 Two things make it usable in practice. The temporary copy has no
 `config/master.key` (it is gitignored, so `git archive` does not carry it), so

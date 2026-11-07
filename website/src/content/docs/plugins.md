@@ -303,6 +303,15 @@ Syrus checks the last two by actually removing a plugin: `bin/plugin-boundary-au
 on it, and runs a command of your choosing — a boot check by default, or the
 full test suite — against what is left.
 
+Bundled plugins can also declare `config/plugin_ownership.yml`, covering their
+configuration keys, workflow vocabulary, routes, data, tools, frontend
+contributions, documentation, and domain terms. A checked-in compatibility
+quarantine snapshots existing core leakage as per-file upper bounds. Boundary
+checks allow that inventory to shrink but reject new files or increased counts.
+The subtraction command reports this vocabulary check separately from physical
+removability, because a bootable core could still have reimplemented the
+plugin's behavior.
+
 ## Execution Backend Contract
 
 Execution backends use the stable, versioned `Execution::Backend` contract.
