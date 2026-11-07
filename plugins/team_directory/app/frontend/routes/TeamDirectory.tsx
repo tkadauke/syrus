@@ -31,6 +31,7 @@ export function TeamDirectoryRoute() {
   const navigate = useNavigate()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const params = new URLSearchParams(location.search)
+  const searching = Boolean(params.get("q")?.trim())
   const [search, setSearch] = useState(params.get("q") || "")
   const profiles = useQuery({
     queryKey: ["profiles", location.search],
@@ -68,8 +69,8 @@ export function TeamDirectoryRoute() {
 
       {profiles.isPending ? <PanelMessage>{t("profiles.loading")}</PanelMessage> : null}
       {profiles.isError ? <ProfilesError error={profiles.error} /> : null}
-      {profiles.isSuccess && profiles.data.team_user_count <= 1 ? <PanelMessage>{t("profiles.single_user")}</PanelMessage> : null}
-      {profiles.isSuccess && profiles.data.team_user_count > 1 ? (
+      {profiles.isSuccess && !searching && profiles.data.team_user_count <= 1 ? <PanelMessage>{t("profiles.single_user")}</PanelMessage> : null}
+      {profiles.isSuccess && (searching || profiles.data.team_user_count > 1) ? (
         <>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {profiles.data.profiles.map((profile) => (
