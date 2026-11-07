@@ -5,6 +5,14 @@ RSpec.describe "runtime process execution boundary" do
     allowed = Rails.root.join("app/services/process_runner.rb").to_s
     production_files = %w[app lib plugins].flat_map { |directory| Dir[Rails.root.join("#{directory}/**/*.rb")] }
       .reject { |path| Pathname.new(path).each_filename.include?("spec") }
+      # bin/deploy's implementation is not runtime Rails code: it loads no
+      # Rails, is excluded from the autoload paths, and runs on an operator's
+      # machine against a cluster. This boundary exists so that launches made
+      # while serving are attributable to a Run and recorded as a
+      # SpawnedProcess; a deploy has no Run to attribute to and no worker to
+      # record on, and lib/deploy/shell.rb is its own single door for the same
+      # reason ProcessRunner is Rails's.
+      .reject { |path| Pathname.new(path).each_filename.include?("deploy") && path.include?("/lib/") }
     violations = production_files.flat_map do |path|
       next [] if path == allowed
 

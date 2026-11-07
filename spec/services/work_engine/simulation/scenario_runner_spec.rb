@@ -428,11 +428,29 @@ RSpec.describe WorkEngine::Simulation::ScenarioRunner, :work_engine_simulation_a
     expect(result.events.join("\n")).to include("retry #{job.slug}")
   end
 
-  it "can opt into workspace availability recovery" do
+  # This scenario's implement step never completes (`outcomes.implement:
+  # pending`), so it exists to exercise detection and recovery rather than
+  # completion -- the fixture declares `expected_status: stuck` for that reason,
+  # and the status itself is asserted by the fixture-driven examples above.
+  #
+  # What matters here is the whole chain: the reconciler notices the missing
+  # workspace, the repair fails the unreconstructable attempt, and the retry it
+  # schedules actually starts a fresh Workflow. That last link used to be
+  # missing. The retry was skipped as "failure is not retryable", nothing
+  # further happened, and a single tick settled -- which is how this example
+  # came to assert success while the Job it describes would have been
+  # abandoned.
+  it "recovers an unreconstructable workspace into a fresh workflow" do
     result = run_scenario("workspace_missing_diagnostic", max_ticks: 1)
 
-    expect(result).to be_success
-    expect(result.events.join("\n")).to include("workspace_missing")
+    events = result.events.join("\n")
+    expect(events).to include("reconciler workspace_missing")
+    expect(events).to include("repair recover_missing_workspace -> applied")
+    expect(events).to include("auto retry 1 retry_workflow -> started")
+
+    job = Job.find(result.job_ids.first)
+    expect(job.workflows.count).to eq(2)
+    expect(job.latest_workflow).to be_running
   end
 
   it "reconstructs lost grader-fanout storage and resumes every stranded run" do

@@ -60,12 +60,33 @@ by the latest successful mutation; an older but otherwise valid snapshot is not
 a recovery candidate. The rebuilt checkout must resolve to the recorded commit
 before ownership is transferred. Stranded immutable grader Runs are requeued
 before their `grader_collect` barrier, and later phases continue normally.
+
+A Workflow that has not committed anything yet -- the state between a
+successful `prepare` and the first mutation -- has no snapshot, no published
+checkpoint and no branch of its own. Its recovery candidate is the Job's
+effective base branch, the same ref `prepare` checked out, because no mutation
+has been recorded and so there is nothing of the agent's to lose. This is the
+common case: it is what "the worker holding a just-prepared workspace was
+replaced" looks like. The base branch stops being a candidate the moment any
+mutation succeeds, since reconstructing from it would then publish or grade a
+checkout with the implementation missing.
+
 Syrus never replays a running mutable Step: when no durable head exists,
 validation disagrees, or a mutable Run may still have side effects, the attempt
 fails with the retryable
 `workspace_recovery_failed` outcome. Normal automatic retry then releases the
 old WorkUnit locks and starts a fresh Workflow from the Job's effective base,
 including approved dependency branches.
+
+That retry is load-bearing, and it is worth knowing how it can be lost. A Run
+the repair ended carries no exception and no agent output, so re-classifying it
+finds nothing to read. `RunFailureClassifier` therefore refuses to overwrite a
+confident verdict with its own no-evidence fallback
+(`application_error, retryable: false`); without that refusal, the
+re-classification `AutoRetryJob` performs before acting turned a retryable
+outcome into a non-retryable one, skipped the attempt as "failure is not
+retryable", and left the Job failed with `failure_count` 0 and no second
+Workflow.
 
 `StepDispatcher` keeps the legacy one-successor walk unless distributed DAG
 placement is enabled for both the instance and the repository. With those

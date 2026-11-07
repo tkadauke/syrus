@@ -92,6 +92,62 @@ RSpec.describe WorkEngine::RepairExecutor do
       expect(work_unit.reload).to be_failed
       expect(work_unit.work_unit_locks.active).not_to exist
     end
+
+    # The half-step this spec used to stop before. Scheduling the retry is not
+    # the same thing as the retry happening: AutoRetryJob re-derives the
+    # failure classification before it will act, and these Runs carry no
+    # evidence for a classifier to read, because this repair is what ended
+    # them.
+    it "keeps its verdict when the classifier re-derives and finds nothing" do
+      workflow.update_columns(state: "running", started_at: 5.minutes.ago)
+      run = workflow.runs.last
+      recovery_fails_with("durable head validation failed")
+
+      described_class.call(
+        result: RepairResult.new([ repair_plan(action: "recover_missing_workspace", target: workflow) ])
+      )
+
+      # Re-derivation on its own finds nothing and would say so.
+      expect(RunFailureClassifier.classify(run.reload)).to have_attributes(
+        classification: RunFailureClassifier::UNCLASSIFIED, retryable: false
+      )
+      # Persisting that must not replace the repair's confident verdict.
+      expect(RunFailureClassifier.persist!(run)).to have_attributes(
+        classification: "workspace_recovery_failed", retryable: true, confidence: 1.0
+      )
+    end
+
+    # The regression. These Runs carry no exception and no agent output --
+    # the repair is what ended them -- so with nothing declared the classifier
+    # fell through to `application_error, retryable: false`, AutoRetryJob
+    # skipped the attempt as "failure is not retryable", and the Job stayed
+    # failed with failure_count 0 and no second workflow. Seven Jobs died that
+    # way in one night.
+    it "lets the scheduled retry actually start a fresh workflow" do
+      workflow.update_columns(state: "running", started_at: 5.minutes.ago)
+      recovery_fails_with("no durable source snapshot, branch head, or agent checkpoint is available")
+
+      described_class.call(
+        result: RepairResult.new([ repair_plan(action: "recover_missing_workspace", target: workflow) ])
+      )
+      attempt = workflow.auto_retry_attempts.last
+      expect(attempt).to be_present
+
+      expect { AutoRetryJob.perform_now(attempt.id) }.to change { job.workflows.count }.by(1)
+
+      expect(attempt.reload).to have_attributes(skipped_reason: nil)
+      expect(attempt.performed_at).to be_present
+    end
+
+    def recovery_fails_with(message)
+      result = WorkflowWorkspaceRecovery::Result.new(
+        status: "retry_required", workflow: workflow, run: workflow.runs.last, message: message
+      )
+      allow(File).to receive(:directory?).and_call_original
+      allow(File).to receive(:directory?).with(WorkflowWorkspace.path_for(workflow)).and_return(false)
+      allow(WorkflowWorkspaceRecovery).to receive(:call).with(workflow: workflow).and_return(result)
+      result
+    end
   end
 
   describe "release_urgent_blocked_landing_slot" do
