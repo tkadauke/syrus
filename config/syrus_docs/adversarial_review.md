@@ -46,6 +46,11 @@ If the agent does not call the required `submit_adversarial_review` tool, the st
 
 Findings accumulate across review iterations and appear in the workflow detail UI.
 
+- The reviewer gets all prior findings so later rounds know what was already flagged.
+- The repair agent gets the `needs_work` findings it must address.
+
+### Review panels
+
 Provider-routing rules may select a serial review panel. At execution time the
 review step expands into one provider-pinned member step per available member
 and a collect step. The collector applies the configured unanimous, majority,
@@ -56,9 +61,6 @@ are retained as non-blocking notes rather than required repair feedback.
 Unavailable members follow the rule's `drop`, `hold`, or `fail` policy and its
 minimum-member requirement. Rules that resolve to zero or one effective member
 retain the ordinary single-review behavior.
-
-- The reviewer gets all prior findings so later rounds know what was already flagged.
-- The repair agent gets the `needs_work` findings it must address.
 
 ## Configuration
 
