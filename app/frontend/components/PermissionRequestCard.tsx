@@ -36,19 +36,22 @@ export function PermissionRequestCard({ request, jobId }: { request: PermissionR
     if (resolved) {
       const wasPending = request.state === "pending"
       const wasBlocked = wasPending && request.checkpoint_state === "waiting"
-      queryClient.setQueriesData<PermissionRequestsPayload>({
-        predicate: ({ queryKey }) => queryKey[0] === "permission_requests" && queryKey[1] !== "count" && queryKey[1] !== "detail"
-      }, (current) => {
-        if (!current) return current
-        return {
-          ...current,
-          requests: current.requests.map((item) => (item.id === resolved.id ? { ...item, ...resolved } : item)),
-          summary: {
-            pending_count: Math.max(0, current.summary.pending_count - (wasPending ? 1 : 0)),
-            blocked_agent_count: Math.max(0, current.summary.blocked_agent_count - (wasBlocked ? 1 : 0))
+      queryClient.setQueriesData<PermissionRequestsPayload>(
+        {
+          predicate: ({ queryKey }) => queryKey[0] === "permission_requests" && queryKey[1] !== "count" && queryKey[1] !== "detail"
+        },
+        (current) => {
+          if (!current) return current
+          return {
+            ...current,
+            requests: current.requests.map((item) => (item.id === resolved.id ? { ...item, ...resolved } : item)),
+            summary: {
+              pending_count: Math.max(0, current.summary.pending_count - (wasPending ? 1 : 0)),
+              blocked_agent_count: Math.max(0, current.summary.blocked_agent_count - (wasBlocked ? 1 : 0))
+            }
           }
         }
-      })
+      )
       queryClient.setQueryData<Pick<PermissionRequestsPayload, "summary">>(["permission_requests", "count"], (current) =>
         current
           ? {
