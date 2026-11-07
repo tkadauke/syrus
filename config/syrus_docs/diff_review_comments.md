@@ -52,19 +52,22 @@ Diff review versions are persisted separately in `DiffReviewVersion`. Each
 version is immutable and pinned to exact `base_sha`/`head_sha` values, with
 optional display refs (`base_ref`/`head_ref`), source `workflow_id`/`run_id`,
 `trigger_kind`, a per-Job `version_index`, label/reason metadata, and a JSON
-`files_snapshot` containing the path/status/additions/deletions/patch payload
-needed to render that version later. Agentic change steps create a version as
+`files_snapshot` containing the path/status/additions/deletions and immutable
+patch source needed to render that version later. Agentic change steps create a version as
 soon as they record `run.base_sha`/`run.head_sha`, so an initial implementation
 or feedback attempt is preserved even if the branch advances before an operator
 opens the source diff. The `source_diff` payload also resolves or idempotently
 persists a version for the displayed comparison, including explicit `base`/
-`head` selections from the source browser, and now includes `version` plus
-`versions` summary fields for clients that already load that endpoint.
+`head` selections from the source browser. Version summaries are loaded from
+the dedicated versions index instead of being repeated in this payload.
 
 `GET /diff_review_versions` lists stable version metadata in ascending
 `version_index` order and includes `latest_version_id`. `GET
 /diff_review_versions/:id` returns the selected version plus its stored
-`files` array; it does not call GitHub or depend on the current branch head.
+`files` array without embedded patches; clients load a selected patch through
+`source_file_diff`. It does not depend on the current branch head. The selected
+version response is ETag-revalidated because its review and coverage annotations
+can change even though the version row and exact base/head SHAs are immutable.
 
 Closed Jobs may also have a final `"All changes"` `DiffReviewVersion` with
 `reason: "source_diff"` and `metadata.final_snapshot: true`. Syrus creates or
@@ -97,8 +100,8 @@ reported with a reason instead of receiving an empty or misleading final
 snapshot.
 
 Each file entry in `source_diff`'s `files` array (and the equivalent
-`diff_review_versions` `files` array) also carries `is_image`: true only when
-`patch` is `nil` (GitHub omitted it for a binary/oversized file) and the path's
+`diff_review_versions` `files` array) carries `patch_bytes` rather than the
+patch body, plus `is_image`: true when the provider omitted a text patch and the path's
 extension looks like an image (`.png .jpg .jpeg .gif .webp .svg .bmp .ico`).
 Generated/noisy files may also carry `generated: true`, with optional
 `generated_reason` and `generated_source`. Classification comes from
@@ -118,6 +121,14 @@ a `removed` file has no "after" thumbnail. Thumbnails are fetched from
 (non-UTF-8-transcoded) file bytes at an arbitrary path+ref with the correct
 `Content-Type` — the JSON `source`/`source_diff` endpoints can't carry binary
 content without corrupting it.
+
+Source browsing similarly keeps tree navigation and selected file bytes
+separate. `GET /jobs/:id/source` returns refs and a directory listing, while
+`GET /jobs/:id/source_file?ref=<sha>&path=<path>` returns one file and is
+immutably cached when the request itself uses an exact SHA. Branch-addressed
+tree and file URLs revalidate instead of retaining a moving ref for a year.
+This avoids repeating branch history and the tree whenever an operator opens
+another file.
 
 SVG and Markdown (`.md`, `.markdown`, and `.mdown`) remain text-reviewable and
 default to Code mode. The persisted `renderable_files` review setting can make

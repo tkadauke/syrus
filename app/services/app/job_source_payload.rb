@@ -52,7 +52,9 @@ module App
       return fixture_payload if preview_fixture.present?
       return unavailable_payload unless source_available?
 
-      history = @params.key?(:tree_path) ? RepositoryContent::CommitHistory.new(commits: [], merge_base_id: nil) : branch_history
+      return file_only_payload if @params[:file_only]
+
+      history = @params[:ref].present? || @params.key?(:tree_path) ? empty_history : branch_history
       branch_commits = history.commits.map { |commit| commit_hash(commit) }
       merge_base_sha = history.merge_base_id
 
@@ -70,6 +72,14 @@ module App
     end
 
     private
+
+    def file_only_payload
+      selected_ref = @params[:ref].presence || @repository.default_branch
+      selected_path = @params[:path].presence
+      @selected_revision = content.resolve(selected_ref)
+      base_payload(selected_ref: @selected_revision.id, selected_path: selected_path)
+        .merge(file_result(selected_path, nil))
+    end
 
     def source_available?
       @repository.installation&.active? || @user.github_token.present?
@@ -198,6 +208,10 @@ module App
       e.partial
     end
 
+    def empty_history
+      RepositoryContent::CommitHistory.new(commits: [], merge_base_id: nil)
+    end
+
     def commit_hash(commit)
       { sha: commit.sha, message: commit.message, date: commit.authored_at }
     end
@@ -206,12 +220,14 @@ module App
       @selected_revision = content.resolve(selected_ref)
       entries, truncated = tree_entries(@selected_revision, tree_path)
       {
+        resolved_sha: @selected_revision.id,
         tree_items: entries.sort_by(&:path).map { |entry| tree_item_json(entry) },
         tree_truncated: truncated,
         source_error: nil
       }
     rescue => e
       {
+        resolved_sha: nil,
         tree_items: [],
         tree_truncated: false,
         source_error: "Could not load file tree: #{e.message}"

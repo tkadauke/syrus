@@ -1812,8 +1812,25 @@ describe("ReviewableDiff", () => {
     expect(screen.queryByRole("button", { name: "Load whole file" })).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Download raw .diff" })).toHaveAttribute("href", "/download.diff")
     fireEvent.click(screen.getByRole("button", { name: "Load full diff" }))
-    expect(await screen.findByText("new")).toBeInTheDocument()
+    await waitFor(() => expect(getCodeCellText("new")).toBeInTheDocument())
     expect(onLoadFileDiff).toHaveBeenCalledWith(expect.objectContaining({ path: "large.txt" }))
+  })
+
+  it("automatically loads an omitted ordinary text patch", async () => {
+    const onLoadFileDiff = vi.fn().mockResolvedValue({ patch: "@@ -1 +1 @@\n-old\n+new" })
+
+    render(
+      <ReviewableDiff
+        files={[{ path: "app/models/job.rb", patch: null, patch_bytes: 24, additions: 1, deletions: 1 }]}
+        mode="single-file"
+        onLoadFileDiff={onLoadFileDiff}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    await waitFor(() => expect(getCodeCellText("new")).toBeInTheDocument())
+    expect(onLoadFileDiff).toHaveBeenCalledOnce()
+    expect(onLoadFileDiff).toHaveBeenCalledWith(expect.objectContaining({ path: "app/models/job.rb" }))
   })
 
   it("delegates to renderImageDiff for a patch-less image file instead of the plain placeholder", () => {
@@ -1954,6 +1971,19 @@ describe("generated-file gating", () => {
     expect(screen.getByTitle("package-lock.json")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Show diff for this file" })).toBeInTheDocument()
     expect(screen.queryByText("new")).not.toBeInTheDocument()
+  })
+
+  it("loads an omitted generated patch only after the reviewer reveals it", async () => {
+    const onLoadFileDiff = vi.fn().mockResolvedValue({ patch: '@@ -1 +1 @@\n-{"lockfileVersion": 2}\n+{"lockfileVersion": 3}' })
+    const file = { ...generatedPackageLockFile(), patch: undefined, patch_bytes: 64 }
+
+    render(<ReviewableDiff files={[file]} mode="continuous" onLoadFileDiff={onLoadFileDiff} showFileHeaders />)
+
+    expect(onLoadFileDiff).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Show diff for this file" }))
+
+    await waitFor(() => expect(onLoadFileDiff).toHaveBeenCalledOnce())
+    await waitFor(() => expect(screen.getAllByText("lockfileVersion").length).toBeGreaterThan(0))
   })
 
   it("keeps a package-lock diff hidden by default in the mobile changed-files flow", () => {

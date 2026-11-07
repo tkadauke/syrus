@@ -1399,6 +1399,7 @@ export type JobSourcePayload = {
   branch_name: string | null
   default_ref: string
   selected_ref: string
+  resolved_sha?: string | null
   selected_path: string | null
   tree_path: string
   merge_base_sha: string | null
@@ -1428,7 +1429,7 @@ export type DiffReviewVersion = {
   truncated: boolean
   files_count: number
   comments_count: number
-  metadata: Record<string, unknown>
+  metadata?: Record<string, unknown>
   created_at: string | null
 }
 
@@ -1507,7 +1508,7 @@ export type JobSourceDiffPayload = {
     status: string
     additions: number
     deletions: number
-    patch: string | null
+    patch?: string | null
     is_image?: boolean
     patch_status?: "binary" | "oversized" | null
     patch_bytes?: number | null
@@ -1515,7 +1516,8 @@ export type JobSourceDiffPayload = {
   truncated: boolean
   diff_error: string | null
   version: DiffReviewVersion | null
-  versions: DiffReviewVersion[]
+  /** @deprecated Accepted by older fixtures/responses; versions are loaded from diff_review_versions. */
+  versions?: DiffReviewVersion[]
   review_annotations: DiffReviewAnnotationsPayload
   coverage_annotations?: CoverageDiffAnnotationsPayload
 }
@@ -1757,8 +1759,12 @@ export function fetchJobAgentConversation(id: string | number, workflowId?: stri
 // endpoint rather than a dedicated one, so it's fetched only when a reviewer
 // actually asks for more context on one specific file.
 export function fetchJobSourceFileContent(id: string | number, ref: string, path: string) {
+  return fetchJobSourceFile(id, ref, path).then((payload) => payload.file?.content ?? null)
+}
+
+export function fetchJobSourceFile(id: string | number, ref: string, path: string) {
   const params = new URLSearchParams({ ref, path })
-  return getJson<JobSourcePayload>(`/api/v1/app/jobs/${id}/source?${params.toString()}`).then((payload) => payload.file?.content ?? null)
+  return getJson<Pick<JobSourcePayload, "file" | "file_error">>(`/api/v1/app/jobs/${id}/source_file?${params.toString()}`)
 }
 
 export function fetchJobSourceDiff(id: string, search = "") {

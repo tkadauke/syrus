@@ -39,6 +39,7 @@ RSpec.describe "App API diff review versions", type: :request do
       "head_sha" => "deadbeef12345678",
       "files_count" => 1
     ))
+    expect(body["versions"].first).not_to have_key("metadata")
   end
 
   it "fetches a selected version from its stored file snapshot" do
@@ -58,8 +59,23 @@ RSpec.describe "App API diff review versions", type: :request do
     )
     expect(body["files"]).to contain_exactly(include(
       "path" => "app/models/user.rb",
-      "patch" => "@@ -1 +1 @@\n-old\n+new"
+      "patch_bytes" => 21
     ))
+    expect(body["files"].first).not_to have_key("patch")
+    expect(response.headers["Cache-Control"]).not_to include("immutable")
+    etag = response.headers.fetch("ETag")
+
+    DiffReviewComment.create!(
+      job: job,
+      diff_review_version: version,
+      user: user,
+      anchor_kind: "review",
+      body: "Review-wide note"
+    )
+    get "/api/v1/app/jobs/#{job.id}/diff_review_versions/#{version.id}", headers: { "If-None-Match" => etag }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["comments_count"]).to eq(1)
   end
 
   it "does not expose another user's versions" do

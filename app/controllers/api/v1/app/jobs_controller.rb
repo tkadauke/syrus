@@ -184,11 +184,28 @@ module Api
         end
 
         def source
-          render json: ::App::JobSourcePayload.build(job: find_job, user: Current.user, params: params)
+          payload = ::App::JobSourcePayload.build(job: find_job, user: Current.user, params: params)
+          if payload[:source_error].blank?
+            return unless stale?(etag: payload_etag("job-source", payload), public: false)
+
+            expires_in 1.year, public: false, immutable: true if exact_revision?(params[:ref])
+          end
+          render json: payload
+        end
+
+        def source_file
+          payload = ::App::JobSourcePayload.build(job: find_job, user: Current.user, params: params.to_unsafe_h.symbolize_keys.merge(file_only: true))
+          return unless stale?(etag: payload_etag("source-file", payload), public: false)
+
+          expires_in 1.year, public: false, immutable: true if exact_revision?(params[:ref])
+          render json: payload.slice(:job_id, :selected_ref, :selected_path, :file, :file_error)
         end
 
         def source_diff
-          render json: ::App::JobSourceDiffPayload.build(job: find_job, user: Current.user, params: params)
+          payload = ::App::JobSourceDiffPayload.build(job: find_job, user: Current.user, params: params)
+          return unless stale?(etag: payload_etag("source-diff", payload), public: false)
+
+          render json: payload
         end
 
         def source_file_diff
@@ -199,6 +216,9 @@ module Api
               render json: { error: { code: "interactive_diff_limit", message: t("api.jobs.errors.interactive_diff_limit"), rows: rows,
                                       bytes: patch.bytesize, download_url: source_file_diff_download_url(path) } }, status: :unprocessable_content
             else
+              return unless stale?(etag: [ "source-file-diff", params[:base], params[:head], path, params[:previous_path] ], public: false)
+
+              expires_in 1.year, public: false, immutable: true if exact_diff_revisions?
               render json: { patch: patch, rows: rows, bytes: patch.bytesize }
             end
           end
@@ -206,10 +226,23 @@ module Api
 
         def source_file_diff_download
           with_file_patch_errors do
-            content, base, head, path, previous_path = requested_file_patch_arguments
+            job, base, head, path, previous_path = requested_file_patch_arguments
             file = Tempfile.new([ "syrus-diff-", ".diff" ], binmode: true)
             begin
-              content.file_patch_to(file, base: content.revision(base), head: content.revision(head), path: path, previous_path: previous_path)
+              preview_patch = preview_file_patch(job, base, head, path, previous_path)
+              if preview_patch
+                file.write(preview_patch)
+              else
+                raise ArgumentError unless exact_diff_revisions?(base, head)
+
+                stored_patch = stored_file_patch(job, base, head, path, previous_path)
+                if stored_patch
+                  file.write(stored_patch)
+                else
+                  content = RepositoryContent.for(job.repository, user: Current.user)
+                  content.file_patch_to(file, base: content.revision(base), head: content.revision(head), path: path, previous_path: previous_path)
+                end
+              end
             rescue StandardError
               file.close!
               raise
@@ -345,18 +378,39 @@ module Api
             return
           end
 
+          head_sha = job.runs.where.not(head_sha: [ nil, "" ]).reorder(created_at: :desc, id: :desc).pick(:head_sha)
+          return unless stale?(etag: [ "job-pr-diff", job.id, head_sha ], public: false) if exact_revision?(head_sha)
+
           client = GithubClient.for(repository: job.repository, user: Current.user)
           uri = URI("https://api.github.com/repos/#{job.repository.slug}/pulls/#{job.pr_number}")
           request = Net::HTTP::Get.new(uri)
           request["Accept"] = "application/vnd.github.diff"
           request["Authorization"] = "Bearer #{client.access_token}"
           request["User-Agent"] = GithubClient::USER_AGENT
-          response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 10, read_timeout: 30) do |http|
-            http.request(request)
+          response = nil
+          diff = +""
+          too_large = false
+          Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 10, read_timeout: 30) do |http|
+            http.request(request) do |streamed_response|
+              response = streamed_response
+              streamed_response.read_body do |chunk|
+                if diff.bytesize + chunk.bytesize > 10.megabytes
+                  too_large = true
+                  break
+                end
+                diff << chunk
+              end
+            end
           end
 
           if response.is_a?(Net::HTTPSuccess)
-            render json: { job_id: job.id, pr_url: ::App::Presentation.job_pr_url(job), diff: response.body.to_s }
+            if too_large
+              render_error("diff_too_large", t("api.jobs.errors.download_diff_limit"), status: :content_too_large)
+              return
+            end
+
+            expires_in 1.year, public: false, immutable: true if exact_revision?(head_sha)
+            render json: { job_id: job.id, pr_url: ::App::Presentation.job_pr_url(job), diff: diff }
           else
             render_error("github_error", t("api.jobs.errors.github_diff_failed", status: response.code), status: :bad_gateway)
           end
@@ -575,9 +629,30 @@ module Api
         end
 
         def requested_file_patch
-          content, base, head, path, previous_path = requested_file_patch_arguments
+          job, base, head, path, previous_path = requested_file_patch_arguments
+          preview_patch = preview_file_patch(job, base, head, path, previous_path)
+          return [ preview_patch, path ] if preview_patch
+
+          raise ArgumentError unless exact_diff_revisions?(base, head)
+
+          stored_patch = stored_file_patch(job, base, head, path, previous_path)
+          return [ stored_patch, path ] if stored_patch
+
+          content = RepositoryContent.for(job.repository, user: Current.user)
           patch = content.file_patch(base: content.revision(base), head: content.revision(head), path: path, previous_path: previous_path)
           [ patch, path ]
+        end
+
+        def exact_revision?(value)
+          value.to_s.match?(/\A[0-9a-f]{40,64}\z/i)
+        end
+
+        def exact_diff_revisions?(base = params[:base], head = params[:head])
+          exact_revision?(base) && exact_revision?(head)
+        end
+
+        def payload_etag(namespace, payload)
+          [ namespace, payload[:resolved_sha] || payload[:base_sha], payload[:head_sha], Digest::SHA256.hexdigest(payload.to_json) ]
         end
 
         def requested_file_patch_arguments
@@ -586,9 +661,39 @@ module Api
           head = params[:head].to_s
           path = params[:path].to_s
           previous_path = params[:previous_path].to_s.presence
-          raise ArgumentError unless base.match?(/\A[0-9a-f]{40,64}\z/i) && head.match?(/\A[0-9a-f]{40,64}\z/i) && path.present?
+          raise ArgumentError unless base.present? && head.present? && valid_repository_path?(path) && (!previous_path || valid_repository_path?(previous_path))
 
-          [ RepositoryContent.for(job.repository, user: Current.user), base, head, path, previous_path ]
+          [ job, base, head, path, previous_path ]
+        end
+
+        def valid_repository_path?(path)
+          path.present? && !path.start_with?("/") && path.split("/").exclude?("..") && !path.include?("\0")
+        end
+
+        def preview_file_patch(job, base, head, path, previous_path)
+          return unless Rails.env.development? && job.diff_fixture.present?
+
+          fixture = job.diff_fixture.with_indifferent_access
+          fixture_base = fixture[:base_sha].presence || fixture[:merge_base_sha].presence || fixture[:base_ref]
+          fixture_head = fixture[:head_sha].presence || fixture[:head_ref]
+          return unless fixture_base.to_s == base && fixture_head.to_s == head
+
+          file = Array(fixture[:files]).find do |candidate|
+            candidate = candidate.with_indifferent_access
+            candidate[:path].to_s == path && candidate[:previous_path].to_s.presence == previous_path
+          end
+          file&.with_indifferent_access&.fetch(:patch, nil)
+        end
+
+        def stored_file_patch(job, base, head, path, previous_path)
+          snapshot = job.diff_review_versions
+                        .where(base_sha: base, head_sha: head)
+                        .latest_first
+                        .pick(:files_snapshot)
+          file = Array(snapshot).find do |candidate|
+            candidate["path"].to_s == path && candidate["previous_path"].to_s.presence == previous_path
+          end
+          file&.fetch("patch", nil)
         end
 
         def source_file_diff_download_url(path)
