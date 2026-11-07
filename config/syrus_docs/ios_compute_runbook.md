@@ -1,13 +1,16 @@
 # iOS compute readiness
 
 Declare iOS project requirements in the owning `.syrus.yml` and give Xcode
-graders the same capability requirements:
+graders the same capability requirements. Only `os` is an admission dimension
+for the mutable implementation workspace; `arch`, `toolchain`, and `runtime`
+describe the toolchain and simulator the project's commands and dependencies
+need (preparation and grader targets), not where planned execution is placed:
 
 ```yaml
 project:
   capabilities:
-    os: macos
-    arch: arm64
+    os: macos            # the only placement/admission dimension
+    arch: arm64          # preparation, commands, dependencies
     toolchain:
       xcode: ">= 16.0"
     runtime:
