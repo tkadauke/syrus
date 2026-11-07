@@ -42,7 +42,7 @@ function detail(panelOverrides: Record<string, unknown> = {}) {
       entry_content_type: "text/html",
       entry_viewer_kind: "html",
       updated_at: "2026-09-05T10:00:00Z",
-      versions: [ { id: 9, created_at: "2026-09-05T10:00:00Z", entry_path: "index.html", entry_content_type: "text/html", entry_viewer_kind: "html" } ],
+      versions: [{ id: 9, created_at: "2026-09-05T10:00:00Z", entry_path: "index.html", entry_content_type: "text/html", entry_viewer_kind: "html" }],
       ...panelOverrides
     }
   }
@@ -52,7 +52,7 @@ function renderPage(initialEntry = "/mockups") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[ initialEntry ]}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route element={<MockupsPage />} path="/mockups" />
           <Route element={<MockupsPage />} path="/mockups/:id" />
@@ -69,7 +69,14 @@ function mockMockupsFetch() {
     if (path.startsWith("/api/v1/app/preview_panels/4/files/index.html")) {
       return Promise.resolve(jsonResponse({ content: "<h1>Rendered mockup</h1>", binary: false }))
     }
-    return Promise.resolve(jsonResponse({ mockups: [ summary() ], filter: null, filter_schema: [], pagination: { page: 1, per_page: 30, total: 1, has_next_page: false, has_previous_page: false } }))
+    return Promise.resolve(
+      jsonResponse({
+        mockups: [summary()],
+        filter: null,
+        filter_schema: [],
+        pagination: { page: 1, per_page: 30, total: 1, has_next_page: false, has_previous_page: false }
+      })
+    )
   })
 }
 
@@ -78,7 +85,15 @@ describe("MockupsPage", () => {
 
   it("lists mockups by slug and title", async () => {
     vi.spyOn(window, "fetch").mockImplementation(() =>
-      Promise.resolve(jsonResponse({ mockups: [ summary() ], filter: null, filter_schema: [], pagination: { page: 1, per_page: 30, total: 1, has_next_page: false, has_previous_page: false } })))
+      Promise.resolve(
+        jsonResponse({
+          mockups: [summary()],
+          filter: null,
+          filter_schema: [],
+          pagination: { page: 1, per_page: 30, total: 1, has_next_page: false, has_previous_page: false }
+        })
+      )
+    )
 
     renderPage()
 
@@ -90,16 +105,20 @@ describe("MockupsPage", () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/mockups?schema=1") {
-        return Promise.resolve(jsonResponse({
-          filter_schema: [ { field: "title", label: "Title", bucket: "text", operators: [ "contains" ] } ]
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            filter_schema: [{ field: "title", label: "Title", bucket: "text", operators: ["contains"] }]
+          })
+        )
       }
-      return Promise.resolve(jsonResponse({
-        mockups: [ summary() ],
-        filter: null,
-        filter_schema: null,
-        pagination: { page: 2, per_page: 30, has_next_page: false, has_previous_page: true }
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          mockups: [summary()],
+          filter: null,
+          filter_schema: null,
+          pagination: { page: 2, per_page: 30, has_next_page: false, has_previous_page: true }
+        })
+      )
     })
 
     renderPage("/mockups?page=2")
@@ -110,7 +129,15 @@ describe("MockupsPage", () => {
 
   it("says so when there are none, rather than showing an empty frame", async () => {
     vi.spyOn(window, "fetch").mockImplementation(() =>
-      Promise.resolve(jsonResponse({ mockups: [], filter: null, filter_schema: [], pagination: { page: 1, per_page: 30, total: 0, has_next_page: false, has_previous_page: false } })))
+      Promise.resolve(
+        jsonResponse({
+          mockups: [],
+          filter: null,
+          filter_schema: [],
+          pagination: { page: 1, per_page: 30, total: 0, has_next_page: false, has_previous_page: false }
+        })
+      )
+    )
 
     renderPage()
 
@@ -150,16 +177,20 @@ describe("MockupsPage", () => {
       if (path.startsWith("/api/v1/app/mockups/")) {
         return Promise.resolve(jsonResponse(detail({ visibility: "private" })))
       }
-      return Promise.resolve(jsonResponse({ mockups: [ summary() ], filter: null, filter_schema: [], pagination: { page: 1, per_page: 30, total: 1, has_next_page: false, has_previous_page: false } }))
+      return Promise.resolve(
+        jsonResponse({
+          mockups: [summary()],
+          filter: null,
+          filter_schema: [],
+          pagination: { page: 1, per_page: 30, total: 1, has_next_page: false, has_previous_page: false }
+        })
+      )
     })
 
     renderPage("/mockups/MOCKUP-1")
 
     await waitFor(() => {
-      expect(screen.getByTitle("Nav sketch")).toHaveAttribute(
-        "src",
-        "http://preview-panel-4.lvh.me/?v=9&token=fresh-token"
-      )
+      expect(screen.getByTitle("Nav sketch")).toHaveAttribute("src", "http://preview-panel-4.lvh.me/?v=9&token=fresh-token")
     })
   })
 
@@ -173,7 +204,14 @@ describe("MockupsPage", () => {
       if (path.startsWith("/api/v1/app/mockups/")) {
         return Promise.resolve(jsonResponse({ ...detail(), panel: { ...detail().panel, visibility: "private" } }))
       }
-      return Promise.resolve(jsonResponse({ mockups: [ summary() ], filter: null, filter_schema: [], pagination: { page: 1, per_page: 30, total: 1, has_next_page: false, has_previous_page: false } }))
+      return Promise.resolve(
+        jsonResponse({
+          mockups: [summary()],
+          filter: null,
+          filter_schema: [],
+          pagination: { page: 1, per_page: 30, total: 1, has_next_page: false, has_previous_page: false }
+        })
+      )
     })
 
     renderPage("/mockups/MOCKUP-1")
@@ -191,7 +229,6 @@ describe("MockupsPage", () => {
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("http://preview-panel-4.lvh.me")
     expect(await screen.findByRole("status")).toHaveTextContent("Link copied to clipboard")
   })
-
 
   it("stacks the list and preview until the wide breakpoint", async () => {
     mockMockupsFetch()
