@@ -87,10 +87,10 @@ RSpec.describe "API: coworkers", type: :request do
     task.record_fire_failure!(RuntimeError.new("push rejected for token=#{secret}"))
     sign_in_as(owner)
 
-    get "/api/v1/app/coworkers/#{coworker.id}"
+    get "/api/v1/app/coworkers/#{coworker.id}/schedules"
 
     expect(response).to have_http_status(:ok)
-    schedule = response.parsed_body.dig("coworker", "schedules").find { |item| item.fetch("id") == task.id }
+    schedule = response.parsed_body.fetch("schedules").find { |item| item.fetch("id") == task.id }
     expect(schedule.fetch("last_system_result_reason")).to eq("RuntimeError: push rejected for token=[REDACTED]")
     expect(schedule.fetch("system_result_history").to_json).not_to include(secret)
   end
