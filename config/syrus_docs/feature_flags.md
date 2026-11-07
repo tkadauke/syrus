@@ -56,7 +56,7 @@ Reclamation is safe and transparent: before deleting, standalone default-branch 
 
 **Multi-pod (Kubernetes) setup.** The four coding sidebar endpoints (`coding_files`, `coding_commits`, `coding_file`, `coding_diff`) proxy to a lightweight HTTP relay running on the `chat` queue worker. The relay address is recorded per-session in `chat_sessions.coding_relay_address`. For web pods to reach the worker relay, set `SYRUS_TERMINAL_HOST` to the worker pod IP via the Downward API field `status.podIP` on worker pods — the same setting used by the terminal feature. In single-host and Docker Compose deployments the relay binds to `127.0.0.1` and both web and worker share the same host, so no additional configuration is needed.
 
-**`coding_files`/`coding_file` are not gated by this flag.** Those two read-only endpoints (file tree and file content) work for any chat with an attached repository regardless of mode, so a planning-mode chat gets a read-only Files workspace tab even when `coding_mode` is disabled instance-wide. `coding_commits` and `coding_diff` still require this flag — see `coding_workspace_relay.md`.
+**`coding_files`/`coding_file` are not gated by this flag.** Those two read-only endpoints (file tree and file content) work for any chat with an attached repository regardless of mode, so a planning-mode chat gets a read-only Files workspace tab even when `coding_mode` is disabled instance-wide. `coding_commits` and `coding_diff` still require this flag — see [Chat](chat.md#repository-files-and-coding-mode-workspaces).
 
 ## local_mode
 
