@@ -1,34 +1,31 @@
 module DesignDocs
   class Serializer
     class << self
-      def summary(design_doc)
-        {
+      def summary(design_doc, include_preview: true)
+        payload = {
           id: design_doc.id,
           display_id: design_doc.display_id,
           title: design_doc.title,
           visibility: design_doc.visibility,
           state: design_doc.state,
           owner: user_json(design_doc.owner_user),
-          collaborators: design_doc.collaborator_users.map { |user| user_json(user) },
-          repository_ids: design_doc.repositories.map(&:id),
+          collaborators: design_doc.collaborator_users.map { |user| compact_user_json(user) },
           repositories: design_doc.repositories.map { |repository| repository_json(repository) },
           comments_count: design_doc.comments_count,
           current_version_number: design_doc.current_version&.version_number,
           origin_chat_session_id: design_doc.origin_chat_session_id,
-          preview_text: design_doc.preview_text,
           updated_at: design_doc.updated_at.iso8601,
           created_at: design_doc.created_at.iso8601
         }
+        payload[:preview_text] = design_doc.preview_text if include_preview
+        payload
       end
 
       def detail(design_doc, user: nil)
         summary(design_doc).merge(
-          markdown: design_doc.markdown,
           rendered_markdown: DesignDocs::AnchorMarkers.strip(design_doc.markdown),
           canonical_revision: design_doc.canonical_revision,
           permissions: permissions_json(design_doc, user),
-          collaborator_ids: design_doc.collaborator_users.map(&:id),
-          collaborators: design_doc.collaborator_users.map { |user| user_json(user) },
           pending_suggestions_count: design_doc.suggestions.where(state: "pending").count,
           open_threads_count: design_doc.threads.where(state: "open").count,
           threads: design_doc.threads.includes(:anchor, :agent_runs, comments: [ :author_user, :agent_run ]).order(:created_at, :id).map { |thread| self.thread(thread) },
@@ -39,17 +36,18 @@ module DesignDocs
         )
       end
 
-      def version(version)
-        {
+      def version(version, include_markdown: true)
+        payload = {
           id: version.id,
           version_number: version.version_number,
-          markdown: version.markdown,
           actor_kind: version.actor_kind,
           actor: user_json(version.actor_user),
           change_summary: version.change_summary,
           metadata: version.metadata || {},
           created_at: version.created_at.iso8601
         }
+        payload[:markdown] = version.markdown if include_markdown
+        payload
       end
 
       def suggestion(suggestion)
@@ -59,7 +57,6 @@ module DesignDocs
           suggested_by_kind: suggestion.suggested_by_kind,
           suggested_by: user_json(suggestion.suggested_by_user),
           original_markdown: suggestion.original_markdown,
-          suggested_markdown: suggestion.suggested_markdown,
           proposed_markdown: suggestion.proposed_markdown_value,
           change_type: suggestion.change_type,
           render_mode: suggestion.render_mode,
@@ -69,7 +66,7 @@ module DesignDocs
           provenance: suggestion.provenance || {},
           conflict_reason: suggestion.conflict_reason,
           anchor: anchor_json(suggestion.anchor),
-          thread: suggestion.thread ? thread(suggestion.thread) : nil,
+          thread_id: suggestion.design_doc_thread_id,
           reviewed_by: user_json(suggestion.reviewed_by_user),
           reviewed_at: suggestion.reviewed_at&.iso8601,
           created_at: suggestion.created_at.iso8601
@@ -150,6 +147,12 @@ module DesignDocs
           name: user.display_name,
           email_address: user.email_address
         }
+      end
+
+      def compact_user_json(user)
+        return nil unless user
+
+        { id: user.id, name: user.display_name }
       end
 
       def repository_json(repository)

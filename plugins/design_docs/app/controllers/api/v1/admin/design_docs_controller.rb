@@ -6,6 +6,7 @@ module Api
       # operators/orchestrators instead of borrowing the SPA's
       # session-shaped app API with an admin token.
       class DesignDocsController < BaseController
+        PER_PAGE = 50
         before_action :require_design_docs_enabled
 
         # ?state=draft|accepted|archived
@@ -18,9 +19,14 @@ module Api
           if params[:user].present?
             scope = scope.joins(:owner_user).where("users.email_address LIKE ?", "%#{params[:user]}%")
           end
-          design_docs = scope.limit(50)
+          total = scope.count
+          design_docs = scope.limit(PER_PAGE).offset((page - 1) * PER_PAGE)
 
-          render json: { count: design_docs.size, design_docs: design_docs.map { |doc| serialize_summary(doc) } }
+          render json: {
+            count: design_docs.size,
+            design_docs: design_docs.map { |doc| serialize_summary(doc, include_preview: false) },
+            pagination: { page: page, per_page: PER_PAGE, total: total, total_pages: (total.to_f / PER_PAGE).ceil }
+          }
         end
 
         def show
@@ -43,7 +49,7 @@ module Api
             actor_kind: "user"
           )
 
-          payload = { design_doc: serialize_detail(result.design_doc), mode: result.mode }
+          payload = { canonical_revision: result.design_doc.canonical_revision, mode: result.mode }
           payload[:version] = serialize_version(result.version) if result.version
           payload[:suggestion] = ::DesignDocs::Serializer.suggestion(result.suggestion) if result.suggestion
           render json: payload
@@ -57,9 +63,11 @@ module Api
 
         def versions
           design_doc = find_design_doc_with_summary_associations
+          versions = design_doc.versions.includes(:actor_user).order(version_number: :desc)
           render json: {
             design_doc: serialize_summary(design_doc),
-            versions: design_doc.versions.includes(:actor_user).order(version_number: :desc).map { |version| serialize_version(version) }
+            versions: versions.limit(PER_PAGE).offset((page - 1) * PER_PAGE).map { |version| serialize_version(version, include_markdown: include_markdown?) },
+            pagination: { page: page, per_page: PER_PAGE, total: versions.count, total_pages: (versions.count.to_f / PER_PAGE).ceil }
           }
         end
 
@@ -98,8 +106,8 @@ module Api
           source.permit(:title, :markdown, :visibility, :state, :change_summary, :checkpoint, :base_revision)
         end
 
-        def serialize_summary(design_doc)
-          ::DesignDocs::Serializer.summary(design_doc)
+        def serialize_summary(design_doc, include_preview: true)
+          ::DesignDocs::Serializer.summary(design_doc, include_preview: include_preview)
         rescue => e
           ::Admin::JobStateSerializer.per_record_error(design_doc, e)
         end
@@ -110,10 +118,18 @@ module Api
           ::Admin::JobStateSerializer.per_record_error(design_doc, e)
         end
 
-        def serialize_version(version)
-          ::DesignDocs::Serializer.version(version)
+        def serialize_version(version, include_markdown: true)
+          ::DesignDocs::Serializer.version(version, include_markdown: include_markdown)
         rescue => e
           ::Admin::JobStateSerializer.per_record_error(version, e)
+        end
+
+        def page
+          [ params.fetch(:page, 1).to_i, 1 ].max
+        end
+
+        def include_markdown?
+          params[:include].to_s == "markdown"
         end
       end
     end
