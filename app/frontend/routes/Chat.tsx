@@ -152,7 +152,6 @@ import {
 } from "./chat/messageStream"
 import { appendSearch, chatDisplayTitle, currentRecentChat, formatCurrency, formatTokenCount, withRoutePrefix } from "./chat/utils"
 import { keyboardVisualViewport } from "../lib/visualViewport"
-import { PendingActionCard, PendingActionGroupCard } from "./chat/ProposalCards"
 import { AgentQuestions } from "./chat/AgentQuestions"
 import { GroupChatParticipants } from "./chat/GroupChatParticipants"
 import { ChatShareDialog } from "./chat/ChatShareDialog"
@@ -173,7 +172,7 @@ import {
   replaceProposalInMessages
 } from "./chat/messageStreamItems"
 import { PROPOSAL_UPDATED_EVENT, type ProposalUpdatedDetail } from "../lib/appEvents"
-import { buildMessageStreamItems, createChatRenderCache, injectTemporalMarkers, pendingActionCardData, renderChatMessages } from "./chat/streamBuilders"
+import { createChatRenderCache, injectTemporalMarkers, renderChatMessages } from "./chat/streamBuilders"
 import { useMarkedRender } from "../lib/performanceMarkers"
 import type { MobileChatTab, WorkspaceTab } from "./chat/workspaceTabs"
 import { countIncomingVisibleMessages, isAgentActive, isLowPrioritySystemMessage, retryTextByMessageId } from "./chat/messageDisplay"
@@ -291,6 +290,8 @@ export function ChatRoute() {
     placeholderData: (previousData, previousQuery) => (previousQuery?.queryKey[0] === "chats" && previousQuery.queryKey[1] === id ? previousData : undefined)
   })
   const readOnly = chat.data?.chat.read_only === true
+  const lastMessageAt = chat.data?.chat.last_message_at
+  const [hasReadingAttention, setHasReadingAttention] = useState(() => document.visibilityState === "visible" && document.hasFocus())
 
   usePageTitle(chat.isSuccess ? chatDisplayTitle(chat.data.chat) : undefined)
 
@@ -304,14 +305,44 @@ export function ChatRoute() {
   }, [chat.data, chat.isSuccess, navigate, prefix])
 
   useEffect(() => {
-    if (!id || !chat.isSuccess || readOnly) return
+    const updateAttention = () => setHasReadingAttention(document.visibilityState === "visible" && document.hasFocus())
+    const handleFocus = () => setHasReadingAttention(document.visibilityState === "visible")
+    const handleBlur = () => setHasReadingAttention(false)
 
-    void markChatRead(id)
-      .then(() => {
+    document.addEventListener("visibilitychange", updateAttention)
+    window.addEventListener("focus", handleFocus)
+    window.addEventListener("blur", handleBlur)
+    return () => {
+      document.removeEventListener("visibilitychange", updateAttention)
+      window.removeEventListener("focus", handleFocus)
+      window.removeEventListener("blur", handleBlur)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!id || !chat.isSuccess || readOnly || !hasReadingAttention) return
+
+    let cancelled = false
+    let retryTimer: ReturnType<typeof setTimeout> | undefined
+    const markRead = async (retry: boolean) => {
+      try {
+        await markChatRead(id)
+        if (!cancelled) refreshRecentChats(queryClient)
+      } catch {
+        if (cancelled) return
+        await queryClient.refetchQueries({ queryKey, exact: true })
         refreshRecentChats(queryClient)
-      })
-      .catch(() => undefined)
-  }, [chat.isSuccess, id, queryClient, readOnly])
+        if (!retry) retryTimer = setTimeout(() => void markRead(true), 1_000)
+      }
+    }
+
+    const debounceTimer = setTimeout(() => void markRead(false), 250)
+    return () => {
+      cancelled = true
+      clearTimeout(debounceTimer)
+      if (retryTimer) clearTimeout(retryTimer)
+    }
+  }, [chat.isSuccess, hasReadingAttention, id, lastMessageAt, queryClient, queryKey, readOnly])
 
   // Chat-scoped Action Cable subscription: message content and other
   // detail-only payloads (see ChatChannel, ChatMessage#broadcast_app_event)
@@ -382,7 +413,6 @@ function ReadOnlyMessageStream({ payload }: { payload: SharedChatPayload }) {
   const renderCache = useRef(createChatRenderCache())
   const items = useMemo(() => renderChatMessages(payload.messages, renderCache.current), [payload.messages])
   const placeholderPayload = useMemo(() => sharedChatRenderPayload(payload), [payload])
-  const pendingActionIds = useMemo(() => new Set<number>(), [])
   const { t } = useT("chat")
 
   if (items.length === 0) {
@@ -408,7 +438,6 @@ function ReadOnlyMessageStream({ payload }: { payload: SharedChatPayload }) {
             item={item}
             key={renderItemKey(item)}
             payload={placeholderPayload}
-            pendingActionIds={pendingActionIds}
             prefix=""
             queryKey={chatQueryKey(payload.chat.id, "")}
             readOnly
@@ -723,12 +752,7 @@ function MessageStream({
     () => (showSystemMessages ? displayedItems : displayedItems.filter((item) => !isLowPrioritySystemMessage(item))),
     [displayedItems, showSystemMessages]
   )
-  const pendingActionIds = useMemo(() => new Set(payload.pending_actions.map((action) => action.id)), [payload.pending_actions])
-  const pendingActionGroups = payload.pending_action_groups || []
-  const streamItems = useMemo(
-    () => injectTemporalMarkers(buildMessageStreamItems(visibleItems, payload.pending_actions, pendingActionGroups)),
-    [visibleItems, payload.pending_actions, pendingActionGroups]
-  )
+  const streamItems = useMemo(() => injectTemporalMarkers(visibleItems), [visibleItems])
   const toolCardMedia = useQuery({
     queryKey: ["chat_media", String(payload.chat.id)],
     queryFn: () => fetchChatMedia(payload.chat.id),
@@ -1108,7 +1132,7 @@ function MessageStream({
     loadOlder.mutate({ before: oldestId, chatId: String(payload.chat.id), path: payload.paths.app_messages_path })
   }, [activeBookmarkTarget, hasMoreOlder, loadOlder, oldestId, payload.chat.id, payload.paths.app_messages_path, visibleItemsSignature])
 
-  if (displayedItems.length === 0 && payload.pending_actions.length === 0 && pendingActionGroups.length === 0) {
+  if (displayedItems.length === 0) {
     return (
       <div
         className="flex h-full min-h-0 flex-col gap-4 overflow-x-hidden overflow-y-auto p-4 text-sm text-gray-500 dark:text-gray-400"
@@ -1195,10 +1219,6 @@ function MessageStream({
               <MessageTimestamp fullDatetime={item.fullDatetime} key={renderItemKey(item)} time={item.time} />
             ) : item.type === "day_divider" ? (
               <DayDivider date={item.date} key={renderItemKey(item)} label={item.label} />
-            ) : item.type === "pending_action" ? (
-              <PendingActionCard pendingAction={pendingActionCardData(item.pendingAction)} key={renderItemKey(item)} queryKey={queryKey} onNotice={onNotice} />
-            ) : item.type === "pending_action_group" ? (
-              <PendingActionGroupCard key={renderItemKey(item)} pendingActionGroup={item.pendingActionGroup} queryKey={queryKey} onNotice={onNotice} />
             ) : item.type === "tool_group" ? (
               <SharedMessageRenderer compact key={renderItemKey(item)}>
                 <ToolGroup chatMedia={toolCardMedia.data} chatSessionId={payload.chat.id} item={item} payload={payload} />
@@ -1209,7 +1229,6 @@ function MessageStream({
                 item={item}
                 key={renderItemKey(item)}
                 payload={payload}
-                pendingActionIds={pendingActionIds}
                 prefix={prefix}
                 queryKey={queryKey}
                 retryText={retryTextMap.get(item.id) ?? null}
@@ -2029,7 +2048,7 @@ function ChatColumn({
   const { t } = useT("chat")
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
   const activeGoal = currentChatGoal(payload)
-  const landing = payload.messages.length === 0 && payload.pending_actions.length === 0 && !hasSentFirstMessage && !activeGoal
+  const landing = payload.messages.length === 0 && !hasSentFirstMessage && !activeGoal
   const title = chatDisplayTitle(payload.chat)
   const showsLocalConnection = payload.local_mode_enabled && payload.chat.mode === "local" && payload.chat.local_daemon_state === "connected"
   const alignPlainPlanningHeader = payload.chat.mode === "planning" && !activeGoal && !showsLocalConnection

@@ -4,10 +4,10 @@
 // exactly one visual line at every width: title without a line break, then
 // pills, then a clipped/ellipsized details preview. Full details belong only
 // in the expanded state.
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   boundedChatMarkdown,
   ChatMessage,
@@ -22,6 +22,15 @@ import type { ChatMessagePin, ChatPayload, ChatRenderItem, ChatSystemMessage, Ch
 import { createChatMessagePin, deleteChatMessagePin, fetchChatMessagePins, fetchSourceFileContent } from "../../api/chats"
 import { setSlugReferenceRegistryForTests, type SlugReferenceRegistryEntry } from "../../lib/slugReferenceRegistry"
 import i18n from "../../i18n"
+
+class TestPointerEvent extends MouseEvent {
+  pointerType: string
+
+  constructor(type: string, init: PointerEventInit = {}) {
+    super(type, init)
+    this.pointerType = init.pointerType || ""
+  }
+}
 
 vi.mock("../../api/chats", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/chats")>()
@@ -141,14 +150,7 @@ function renderMessage(text: string, payload = makePayload(), options: { pinnabl
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
-        <ChatMessage
-          item={assistantMessage(text, options)}
-          payload={payload}
-          pendingActionIds={new Set()}
-          prefix=""
-          queryKey={["chats", "122", ""] as const}
-          onNotice={() => {}}
-        />
+        <ChatMessage item={assistantMessage(text, options)} payload={payload} prefix="" queryKey={["chats", "122", ""] as const} onNotice={() => {}} />
       </MemoryRouter>
     </QueryClientProvider>
   )
@@ -163,15 +165,7 @@ function renderChatMessageItem(
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
-        <ChatMessage
-          item={item}
-          payload={payload}
-          pendingActionIds={new Set()}
-          prefix=""
-          queryKey={["chats", "122", ""] as const}
-          onNotice={() => {}}
-          {...extra}
-        />
+        <ChatMessage item={item} payload={payload} prefix="" queryKey={["chats", "122", ""] as const} onNotice={() => {}} {...extra} />
       </MemoryRouter>
     </QueryClientProvider>
   )
@@ -266,6 +260,65 @@ describe("shared message presentation", () => {
     const compact = screen.getByTestId("compact-tool-message")
     expect(compact).toHaveClass("pt-1")
     expect(compact).not.toHaveClass("pt-6")
+  })
+})
+
+describe("mobile message actions", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.stubGlobal("PointerEvent", TestPointerEvent)
+    Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
+  })
+
+  afterEach(() => vi.useRealTimers())
+
+  it("opens the existing live-message toolbar after a deliberate long press and keeps desktop hover visibility", () => {
+    renderMessage("Complete live message")
+    const message = screen.getByText("Complete live message").closest("article")!
+    const copyButton = screen.getByRole("button", { name: "Copy" })
+    const toolbar = copyButton.parentElement!
+
+    expect(toolbar).toHaveClass("hidden", "group-hover/message:flex", "group-focus-within/message:flex")
+    fireEvent.pointerDown(message, { pointerType: "touch", clientX: 20, clientY: 20 })
+    act(() => vi.advanceTimersByTime(500))
+
+    expect(toolbar).toHaveClass("flex")
+    expect(copyButton).toHaveFocus()
+  })
+
+  it("does not open for a short tap or a press cancelled by movement", () => {
+    renderMessage("Gesture target")
+    const message = screen.getByText("Gesture target").closest("article")!
+    const toolbar = screen.getByRole("button", { name: "Copy" }).parentElement!
+
+    fireEvent.pointerDown(message, { pointerType: "touch", clientX: 10, clientY: 10 })
+    act(() => vi.advanceTimersByTime(200))
+    fireEvent.pointerUp(message, { pointerType: "touch" })
+    act(() => vi.advanceTimersByTime(500))
+    expect(toolbar).toHaveClass("hidden")
+
+    fireEvent.pointerDown(message, { pointerType: "touch", clientX: 10, clientY: 10 })
+    fireEvent.pointerMove(message, { pointerType: "touch", clientX: 30, clientY: 10 })
+    act(() => vi.advanceTimersByTime(500))
+    expect(toolbar).toHaveClass("hidden")
+  })
+
+  it("dismisses an open toolbar outside and closes it after copying the full text", () => {
+    renderMessage("First line\nsecond line")
+    const message = screen.getByText(/First line/).closest("article")!
+    const copyButton = screen.getByRole("button", { name: "Copy" })
+    const toolbar = copyButton.parentElement!
+
+    fireEvent.pointerDown(message, { pointerType: "touch", clientX: 5, clientY: 5 })
+    act(() => vi.advanceTimersByTime(500))
+    fireEvent.pointerDown(document.body, { pointerType: "touch" })
+    expect(toolbar).toHaveClass("hidden")
+
+    fireEvent.pointerDown(message, { pointerType: "touch", clientX: 5, clientY: 5 })
+    act(() => vi.advanceTimersByTime(500))
+    fireEvent.click(copyButton)
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith("First line\nsecond line")
+    expect(toolbar).toHaveClass("hidden")
   })
 })
 

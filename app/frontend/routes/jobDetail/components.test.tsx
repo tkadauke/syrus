@@ -1,10 +1,19 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react"
+import { act, render, screen, fireEvent, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
-import { describe, expect, it, vi, beforeEach } from "vitest"
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest"
 import { AttachmentCard, EpicSummaryLink, RunTranscriptLogs } from "./components"
 import type { JobAttachment, JobEpic } from "../../api/jobs"
 import { fetchJobAttachmentContent } from "../../api/jobs"
+
+class TestPointerEvent extends MouseEvent {
+  pointerType: string
+
+  constructor(type: string, init: PointerEventInit = {}) {
+    super(type, init)
+    this.pointerType = init.pointerType || ""
+  }
+}
 
 vi.mock("../../api/jobs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/jobs")>()
@@ -177,6 +186,80 @@ describe("EpicSummaryLink", () => {
 })
 
 describe("RunTranscriptLogs", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.stubGlobal("PointerEvent", TestPointerEvent)
+    Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
+  })
+
+  afterEach(() => vi.useRealTimers())
+
+  it("copies complete agentic and compact transcript text from their long-press actions", () => {
+    const { rerender } = render(
+      <MemoryRouter>
+        <RunTranscriptLogs agentic logs={[{ id: 1, sequence: 1, kind: "assistant_text", chunk: "Agent line one\nagent line two", created_at: null }]} />
+      </MemoryRouter>
+    )
+
+    const agenticRow = screen.getByTestId("run-transcript-log-assistant")
+    fireEvent.pointerDown(agenticRow, { pointerType: "touch", clientX: 5, clientY: 5 })
+    act(() => vi.advanceTimersByTime(500))
+    fireEvent.click(within(agenticRow).getByRole("button", { name: "Copy" }))
+    expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith("Agent line one\nagent line two")
+
+    rerender(
+      <MemoryRouter>
+        <RunTranscriptLogs agentic={false} logs={[{ id: 2, sequence: 1, kind: "stdout", chunk: "compact full log", created_at: null }]} />
+      </MemoryRouter>
+    )
+    const compactRow = screen.getByTestId("run-transcript-log-compact")
+    fireEvent.pointerDown(compactRow, { pointerType: "touch", clientX: 5, clientY: 5 })
+    act(() => vi.advanceTimersByTime(500))
+    fireEvent.click(within(compactRow).getByRole("button", { name: "Copy" }))
+    expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith("compact full log")
+  })
+
+  it("copies the displayed tool call and result text from an agentic transcript row", () => {
+    render(
+      <MemoryRouter>
+        <RunTranscriptLogs
+          agentic
+          logs={[
+            {
+              id: 1,
+              sequence: 1,
+              kind: "tool_call",
+              chunk: "raw command marker",
+              tool_name: "bash",
+              tool_input: { command: "bundle exec rspec spec/models/job_spec.rb" },
+              tool_use_id: "cmd-1",
+              created_at: null
+            },
+            {
+              id: 2,
+              sequence: 2,
+              kind: "tool_result",
+              chunk: "raw result marker",
+              tool_name: "bash",
+              tool_use_id: "cmd-1",
+              tool_result_content: "12 examples, 0 failures",
+              tool_result_error: false,
+              created_at: null
+            }
+          ]}
+        />
+      </MemoryRouter>
+    )
+
+    const toolRow = screen.getByTestId("run-transcript-tool-group")
+    fireEvent.pointerDown(toolRow, { pointerType: "touch", clientX: 5, clientY: 5 })
+    act(() => vi.advanceTimersByTime(500))
+    fireEvent.click(within(toolRow).getByRole("button", { name: "Copy" }))
+
+    expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith(expect.stringContaining("bundle exec rspec spec/models/job_spec.rb"))
+    expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith(expect.stringContaining("12 examples, 0 failures"))
+  })
+
   it("renders assistant, system, and structured tools with the chat surfaces", () => {
     render(
       <MemoryRouter>

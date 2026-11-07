@@ -171,6 +171,16 @@ RSpec.describe ChatProposalFiler do
       expect(job.runs).to be_empty
     end
 
+    it "creates a backlog-routed standalone Epic in backlog while retaining ready as the default" do
+      backlog_proposal = proposal(slug: "backlog-epic", title: "Backlog Epic", kind: "epic", route_to_backlog: true)
+      ready_proposal = proposal(slug: "ready-epic", title: "Ready Epic", kind: "epic")
+
+      described_class.new(user: user, repository: repository).file!([ backlog_proposal, ready_proposal ])
+
+      expect(backlog_proposal.reload.epic).to be_backlog
+      expect(ready_proposal.reload.epic).to be_ready
+    end
+
     it "creates an investigation-flagged direct Job that dispatches Workflows::Investigation" do
       job_proposal = proposal(
         slug: "investigate-flaky-deploys",

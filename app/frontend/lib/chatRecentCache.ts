@@ -47,7 +47,16 @@ export function updateRecentChatMessageStateCache(
   chatId: number | string,
   updates: Pick<ChatRecord, "turn_in_flight"> & { agent_busy?: boolean; last_message_at: string; unread: boolean }
 ) {
-  updateChatUnread(queryClient, Number(chatId), updates.unread)
+  const visibleOpenChat =
+    document.visibilityState === "visible" &&
+    document.hasFocus() &&
+    queryClient
+      .getQueryCache()
+      .findAll({ queryKey: ["chats", String(chatId)] })
+      .some((query) => query.getObserversCount() > 0)
+  const effectiveUpdates = visibleOpenChat ? { ...updates, unread: false } : updates
+
+  updateChatUnread(queryClient, Number(chatId), effectiveUpdates.unread)
   queryClient
     .getQueryCache()
     .findAll({ queryKey: ["chats", "recent"] })
@@ -61,7 +70,7 @@ export function updateRecentChatMessageStateCache(
           groups: current.groups.map((group) => {
             const existing = group.chats.find((chat) => String(chat.id) === String(chatId))
             if (!existing) return group
-            const chats = group.chats.map((chat) => (String(chat.id) === String(chatId) ? { ...chat, ...updates } : chat))
+            const chats = group.chats.map((chat) => (String(chat.id) === String(chatId) ? { ...chat, ...effectiveUpdates } : chat))
             return { ...group, chats: sortByLastActivity ? [...chats].sort(compareRecentChatActivity) : chats }
           })
         }

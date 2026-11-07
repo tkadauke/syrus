@@ -20,7 +20,7 @@ import { getStartingPhrase } from "./chat/streamChrome"
 import { shouldAnimateMessageEntrance } from "./chat/MessageCards"
 import { numericArg } from "./chat/utils"
 import { storedWorkspaceCollapsed, storedWorkspaceTab, workspaceTabLabel, mobileChatTabLabel, type WorkspaceTab } from "./chat/workspaceTabs"
-import { buildMessageStreamItems, renderChatMessages } from "./chat/streamBuilders"
+import { renderChatMessages } from "./chat/streamBuilders"
 import { asExcalidrawElements, VALID_EXCALIDRAW_TYPES } from "./chat/whiteboardScene"
 import { __resetDraftAttachmentsForTests, getDraftAttachments, setDraftAttachments } from "./chat/attachmentDraftStore"
 import { __resetInFlightComposerDraftsForTests } from "./chat/inFlightComposerDraftStore"
@@ -3656,7 +3656,7 @@ describe("chat proposal cards", () => {
     expect(screen.queryByText(/depends on/)).not.toBeInTheDocument()
   })
 
-  it("shortens the visible Epic confirmation label while preserving the full accessible name", async () => {
+  it("shows explicit backlog and implement routes for an Epic proposal", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
@@ -3687,13 +3687,13 @@ describe("chat proposal cards", () => {
 
     renderRoute()
 
-    const confirmButton = await screen.findByRole("button", { name: "Confirm Epic" })
-    expect(confirmButton).toHaveTextContent("Backlog")
-    expect(confirmButton).toHaveAttribute("title", "Confirm Epic")
-    expect(screen.queryByText("Confirm Epic")).not.toBeInTheDocument()
+    const backlogButton = await screen.findByRole("button", { name: "Confirm proposal to backlog" })
+    expect(backlogButton).toHaveTextContent("Backlog")
+    expect(backlogButton).toHaveAttribute("title", "Confirm proposal to backlog")
+    expect(screen.getByRole("button", { name: "Confirm proposal and implement" })).toHaveTextContent("Implement")
   })
 
-  it("shortens the visible Epic and Jobs confirmation label while preserving the full accessible name", async () => {
+  it("shows explicit backlog and implement routes for an Epic proposal with Jobs", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
@@ -3738,13 +3738,13 @@ describe("chat proposal cards", () => {
 
     renderRoute()
 
-    const confirmButton = await screen.findByRole("button", { name: "Confirm Epic and Jobs" })
-    expect(confirmButton).toHaveTextContent("Backlog")
-    expect(confirmButton).toHaveAttribute("title", "Confirm Epic and Jobs")
-    expect(screen.queryByText("Confirm Epic and Jobs")).not.toBeInTheDocument()
+    const backlogButton = await screen.findByRole("button", { name: "Confirm proposal to backlog" })
+    expect(backlogButton).toHaveTextContent("Backlog")
+    expect(backlogButton).toHaveAttribute("title", "Confirm proposal to backlog")
+    expect(screen.getByRole("button", { name: "Confirm proposal and implement" })).toHaveTextContent("Implement")
   })
 
-  it("offers Create Epic & Start Implementing on Epic proposals to developers and sends the start flag", async () => {
+  it("offers Implement on Epic proposals to developers and sends route and start flags", async () => {
     const fetchMock = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
@@ -3781,20 +3781,20 @@ describe("chat proposal cards", () => {
 
     renderRoute()
 
-    const startButton = await screen.findByRole("button", { name: "Create Epic & Start Implementing" })
+    const startButton = await screen.findByRole("button", { name: "Confirm proposal and implement" })
     expect(startButton).toHaveTextContent("Implement")
-    expect(startButton).toHaveAttribute("title", "Create Epic & Start Implementing")
+    expect(startButton).toHaveAttribute("title", "Confirm proposal and implement")
 
     fireEvent.click(startButton)
 
     await waitFor(() => {
       const confirmCall = fetchMock.mock.calls.find((call) => String(call[0]).startsWith("/api/v1/app/chats/8/proposals/1/confirm"))
       expect(confirmCall).toBeTruthy()
-      expect(JSON.parse(confirmCall?.[1]?.body as string)).toEqual({ start: true })
+      expect(JSON.parse(confirmCall?.[1]?.body as string)).toEqual({ start: true, route_to_backlog: false })
     })
   })
 
-  it("hides Create Epic & Start Implementing from non-developers on Epic proposals", async () => {
+  it("offers backlog and implement routes to non-developers on Epic proposals", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
@@ -3828,8 +3828,8 @@ describe("chat proposal cards", () => {
 
     renderRoute()
 
-    expect(await screen.findByRole("button", { name: "Confirm Epic" })).toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "Create Epic & Start Implementing" })).not.toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "Confirm proposal to backlog" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Confirm proposal and implement" })).toBeInTheDocument()
   })
 
   it("keeps Epic proposal action labels on one row at mobile width", async () => {
@@ -3881,7 +3881,7 @@ describe("chat proposal cards", () => {
 
     renderRoute()
 
-    await screen.findByRole("button", { name: "Confirm Epic and Jobs" })
+    await screen.findByRole("button", { name: "Confirm proposal to backlog" })
     const footer = screen.getByTestId("proposal-action-footer")
     await within(footer).findByText("Implement")
     expect(footer).toHaveClass("flex-nowrap", "overflow-hidden")
@@ -7807,9 +7807,62 @@ describe("chat agent roster", () => {
   })
 })
 
-function renderRoute(initialEntry = "/app-shell/chats/8") {
+describe("open chat read tracking", () => {
+  it("marks the chat read again after its last message changes", async () => {
+    const focus = vi.spyOn(document, "hasFocus").mockReturnValue(true)
+    const payload = chatPayload({ chat: { last_message_at: "2026-11-06T10:00:00Z" } })
+    const markReadRequests: string[] = []
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path.endsWith("/mark_read") && init?.method === "PATCH") {
+        markReadRequests.push(path)
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      return Promise.resolve(jsonResponse(payload))
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    renderRoute("/app-shell/chats/8", queryClient)
+
+    await screen.findByText("Discuss aqueducts.")
+    await waitFor(() => expect(markReadRequests).toHaveLength(1))
+    act(() => {
+      queryClient.setQueryData<ChatPayload>(chatQueryKey("8", ""), (current) =>
+        current ? { ...current, chat: { ...current.chat, last_message_at: "2026-11-06T10:01:00Z" } } : current
+      )
+    })
+
+    await waitFor(() => expect(markReadRequests).toHaveLength(2))
+    focus.mockRestore()
+  })
+
+  it("refetches and retries when marking the open chat read fails", async () => {
+    const focus = vi.spyOn(document, "hasFocus").mockReturnValue(true)
+    const payload = chatPayload({ chat: { last_message_at: "2026-11-06T10:00:00Z" } })
+    let markReadRequests = 0
+    let chatFetches = 0
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path.endsWith("/mark_read") && init?.method === "PATCH") {
+        markReadRequests += 1
+        return Promise.resolve(new Response(null, { status: markReadRequests === 1 ? 503 : 204 }))
+      }
+      chatFetches += 1
+      return Promise.resolve(jsonResponse(payload))
+    })
+
+    renderRoute()
+
+    await screen.findByText("Discuss aqueducts.")
+    await waitFor(() => expect(markReadRequests).toBe(2), { timeout: 3_000 })
+    expect(chatFetches).toBeGreaterThanOrEqual(2)
+    focus.mockRestore()
+  })
+})
+
+function renderRoute(initialEntry = "/app-shell/chats/8", queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route element={<ChatRoute />} path="/app-shell/chats/:id" />
@@ -9608,7 +9661,7 @@ describe("chat effort selector in toolbar", () => {
 })
 
 describe("renderChatMessages tool_result content key", () => {
-  it("anchors proposal and pending action cards after the tool events that produced them", () => {
+  it("keeps proposals in the message stream without injecting pending actions", () => {
     const proposal = {
       id: 88,
       kind: "job",
@@ -9722,17 +9775,15 @@ describe("renderChatMessages tool_result content key", () => {
       }
     ]
 
-    const stream = buildMessageStreamItems(renderChatMessages(messages), pendingActions)
+    const stream = renderChatMessages(messages)
     const proposalIndex = stream.findIndex((item) => item.type === "message" && item.proposal?.id === proposal.id)
-    const pendingActionIndex = stream.findIndex((item) => item.type === "pending_action" && item.pendingAction.id === 114)
 
     expect(proposalIndex).toBeGreaterThan(stream.findIndex((item) => item.type === "tool_group" && item.calls.some((call) => call.message_id === 3)))
-    expect(pendingActionIndex).toBeGreaterThan(stream.findIndex((item) => item.type === "tool_group" && item.calls.some((call) => call.message_id === 6)))
-    expect(pendingActionIndex).toBeLessThan(stream.findIndex((item) => item.type === "message" && item.id === 5) + 3)
-    expect(stream[pendingActionIndex - 1].type).toBe("tool_group")
+    expect(stream.map((item) => item.type)).not.toContain("pending_action")
+    expect(pendingActions).toHaveLength(1)
   })
 
-  it("appends only truly unanchored pending actions at the bottom", () => {
+  it("does not append anchored or unanchored pending actions to the message stream", () => {
     const messages = [
       {
         type: "message" as const,
@@ -9794,12 +9845,10 @@ describe("renderChatMessages tool_result content key", () => {
       chat_message_id: null
     }
 
-    const stream = buildMessageStreamItems(renderChatMessages(messages), [anchored, legacy])
-    const anchoredIndex = stream.findIndex((item) => item.type === "pending_action" && item.pendingAction.id === 201)
-    const legacyIndex = stream.findIndex((item) => item.type === "pending_action" && item.pendingAction.id === 202)
+    const stream = renderChatMessages(messages)
 
-    expect(stream[anchoredIndex - 1].type).toBe("tool_group")
-    expect(legacyIndex).toBe(stream.length - 1)
+    expect(stream.map((item) => item.type)).not.toContain("pending_action")
+    expect([anchored, legacy]).toHaveLength(2)
   })
 
   it("renders result_body from the canonical 'content' key, not the legacy 'result' key", () => {

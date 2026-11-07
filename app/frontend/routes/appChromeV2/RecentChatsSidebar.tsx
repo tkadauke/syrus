@@ -562,7 +562,15 @@ export function RecentChatsSidebar({
                       }}
                       onDragOver={(e) => e.preventDefault()}
                     >
-                      <Link className={recentChatLinkClass(active)} onClick={onCloseDrawer} title={title} to={withRoutePrefix(chat.chat_path, prefix)}>
+                      <Link aria-label={title} className={recentChatLinkClass(active)} onClick={onCloseDrawer} title={title} to={withRoutePrefix(chat.chat_path, prefix)}>
+                        {unread ? (
+                          <span
+                            aria-label={t("chat:unread_indicator")}
+                            className="h-2 w-2 shrink-0 rounded-full bg-brand"
+                            data-testid="recent-chat-unread-indicator"
+                            role="img"
+                          />
+                        ) : null}
                         {chat.agent_appearance ? (
                           <Avatar
                             avatarUrl={chat.agent_appearance.avatar_url}
@@ -580,7 +588,7 @@ export function RecentChatsSidebar({
                         ) : null}
                         {chat.pinned ? <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" /> : null}
                         <ProviderAvailabilityWarning availability={chat.provider_availability} className="mt-0.5" />
-                        <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold" : "font-medium"}`}>{title}</span>
+                        <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold text-text-primary" : "font-medium text-text-muted"}`}>{title}</span>
                         <span
                           className={`${RECENT_CHAT_MARKER_SLOT_CLASS} group-hover/recent-chat:invisible ${openActionChatId === chat.id ? "invisible" : ""}`}
                           data-testid="recent-chat-marker-slot"

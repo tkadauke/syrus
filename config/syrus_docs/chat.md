@@ -5,6 +5,12 @@ chat provider such as Muse or Antigravity. Each chat stores a concrete
 `chat_provider` when it is created. The seed value comes from the user's chat
 provider setting, then the user's default agent provider, then Claude.
 
+Touch and pen users can long-press a live message to reveal the same timestamp,
+copy, and applicable pin or bookmark actions available on desktop hover. Run transcript
+messages and compact log rows expose Copy through the same gesture. Meaningful
+pointer movement or early release cancels the gesture, and opening another
+message or tapping elsewhere dismisses the current actions.
+
 If a chat is created through an indirect path that somehow leaves the provider
 blank, the first message/admission path pins `chat_sessions.chat_provider`
 before title generation or turn execution. Later changes to the user's defaults
@@ -154,7 +160,11 @@ schema migration; explicitly recovering one associates its original message
 when possible, or backfills the actual outcome without waking the agent again.
 Chat payload reads do not create messages or enqueue turns. Once a confirmed,
 rejected, or cancelled action has its durable outcome message, its card retires
-from the stream automatically and stays retired after reload. Failed actions
+from the composer-adjacent pending-action carousel automatically and stays
+retired after reload. The carousel shows one standalone action or action group
+at a time, keeps its selection by record identity across live updates, and
+offers arrow, keyboard, and horizontal-swipe navigation. Job and Epic proposal
+cards remain inline with their originating assistant messages. Failed actions
 remain visible for operator attention until explicitly hidden. Manual hiding
 only stamps the presentation dismissal time; it does not change the terminal
 state, audit fields, result, or outcome message. Queued and pending actions
@@ -174,11 +184,9 @@ endpoint remains available to hide a resolved card already present in a stale
 client without reusing reject semantics. A member of a group never renders its own standalone pending-action
 card — `pending_actions_json` filters out any
 `ChatPendingAction` with a `pending_action_group_id` — and the group card
-itself anchors to the chat message that created it the same way an individual
-pending action does. The stream builder also falls back to member anchors, so
-a grouped card still renders immediately below the collapsed tool group that
-created it when a member has the usable tool-call anchor; only groups with no
-renderable anchor append at the end of the stream.
+itself occupies one item in the same bottom carousel as an individual pending
+action. Message and tool-call identifiers remain execution context, not card
+placement instructions.
 
 Confirming applies every still-pending member independently, in its own
 transaction, so one member failing (e.g. a Job that no longer meets the
@@ -935,24 +943,22 @@ Job's denormalized lifecycle state has become stale.
 The state check and definition update hold the Job row lock together, so a
 concurrent start cannot race a late edit.
 
-`propose_job` also accepts `route_to_backlog` for a single direct Job proposal
-card. It defaults to false, preserving the current confirmation path: the Job
-starts normally after dependency wiring and triage advancement when it is not
-blocked. When true, the card shows the route as Backlog before confirmation,
-and confirming creates an owned `direct` Job in `state: "backlog"`, links it
-to the originating chat, wires dependencies, attaches proposal media, and does
-not call `advance_after_triage!`, so no initial Workflow or Run is created
-until an operator releases the Job from backlog. The route is editable only on
-the standalone direct Job proposal card; grouped Epic proposal children keep
-their existing materialization behavior and cannot be routed to backlog by this
-v1 control.
+Standalone direct Job and Epic bundle proposals accept `route_to_backlog`. It
+defaults to false, preserving normal confirmation behavior. For a direct Job,
+Backlog creates the owned Job without advancing triage. For an Epic bundle, it
+creates the Epic in `backlog` with its complete child Job chain, proposal media,
+chat link, and goal link intact. Its children remain blocked by the Epic, and
+no initial Workflow or Run is created until an operator starts the Epic through
+the normal lifecycle. Grouped Epic proposal children cannot be routed
+individually.
 
 The Jobs workspace's Proposed section adds selection checkboxes to these
 pending Job and Epic proposals, including a select-all control. Once anything
-is selected, operators can backlog, implement, or reject the selection. A
-selection containing an Epic cannot use Backlog, because backlog routing is a
-direct Job capability; Implement starts a newly materialized Epic just like
-the Epic proposal card's Implement action.
+is selected, operators can backlog, implement, or reject Job-only, Epic-only,
+or mixed selections. Implement starts a newly materialized Epic just like the
+Epic proposal card's Implement action. Confirmations retain dependency-safe
+ordering, and a failure is reported after the remaining selected proposals
+have been attempted.
 
 `propose_job` also accepts `investigation` for a read-only "go look into X and
 tell me what you find" request (a QA walkthrough, an audit, answering a

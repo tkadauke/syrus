@@ -1,4 +1,4 @@
-import { ChatCommandOutputSurface } from "../routes/chat/MessageCards"
+import { ChatCommandOutputSurface, SharedMessageRenderer } from "../routes/chat/MessageCards"
 
 type TranscriptMessageRowProps = {
   chunk: string
@@ -10,8 +10,10 @@ type TranscriptMessageRowProps = {
 export function TranscriptMessageRow({ chunk, kind, label, sequence }: TranscriptMessageRowProps) {
   const displayLabel = label || `#${sequence}`
   return (
-    <li className="min-w-0" data-kind={kind || "log"} data-testid="run-transcript-log-compact">
-      <ChatCommandOutputSurface command={displayLabel} compact emptyLabel="" output={chunk} testId="run-transcript-compact-output" />
-    </li>
+    <SharedMessageRenderer as="li" compact copyText={chunk} readOnly testId="run-transcript-log-compact">
+      <div data-kind={kind || "log"}>
+        <ChatCommandOutputSurface command={displayLabel} compact emptyLabel="" output={chunk} testId="run-transcript-compact-output" />
+      </div>
+    </SharedMessageRenderer>
   )
 }

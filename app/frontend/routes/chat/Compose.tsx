@@ -75,6 +75,8 @@ import {
   type ChatMentionable,
   type ChatPayload,
   type ChatPayloadUpdate,
+  type ChatPendingAction,
+  type ChatPendingActionGroup,
   type ChatProposal,
   type ChatQueuedMessage,
   type ChatRepository,
@@ -143,6 +145,7 @@ import { isAgentActive } from "./messageDisplay"
 import { storeWorkspacePreference } from "./workspaceTabs"
 import { JobEpicPickerPopup } from "./JobEpicPickerPopup"
 import { ScheduleMessageModal } from "./ScheduleMessageModal"
+import { PendingActionCard, PendingActionGroupCard } from "./ProposalCards"
 
 type SubmittedChatDraft = {
   messageText: string
@@ -174,6 +177,123 @@ const COMPOSER_ICON_BUTTON_CLASS =
 const COMPOSER_BUTTON_HOVER_CLASS = "hover:bg-gray-100 dark:hover:bg-gray-800"
 const COMPOSER_SELECTOR_TRIGGER_CLASS =
   "min-h-11 !border-transparent !bg-transparent !gap-1 !px-1.5 hover:!border-border hover:!bg-surface-raised focus-visible:!border-brand data-[open=true]:!border-border data-[open=true]:!bg-surface sm:min-h-0 sm:!px-2.5"
+
+type PendingActionCarouselItem = { key: string; type: "action"; action: ChatPendingAction } | { key: string; type: "group"; group: ChatPendingActionGroup }
+
+const ACTION_CAROUSEL_SWIPE_THRESHOLD = 48
+
+export function PendingActionCarousel({
+  items,
+  queryKey,
+  onNotice
+}: {
+  items: PendingActionCarouselItem[]
+  queryKey: ChatQueryKey
+  onNotice: (message: string | null) => void
+}) {
+  const { t } = useT("chat")
+  const [selectedKey, setSelectedKey] = useState<string | null>(() => items[0]?.key ?? null)
+  const previousKeysRef = useRef(items.map((item) => item.key))
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null)
+  const carouselRef = useRef<HTMLElement | null>(null)
+  const focusWithinRef = useRef(false)
+  const matchingIndex = items.findIndex((item) => item.key === selectedKey)
+  const previousIndex = Math.max(0, previousKeysRef.current.indexOf(selectedKey || ""))
+  const selectedIndex = matchingIndex >= 0 ? matchingIndex : Math.min(previousIndex, Math.max(0, items.length - 1))
+  const selectedItem = items[selectedIndex]
+
+  useEffect(() => {
+    const keys = items.map((item) => item.key)
+    if (items.length === 0) {
+      setSelectedKey(null)
+    } else if (!selectedKey || !keys.includes(selectedKey)) {
+      setSelectedKey(items[Math.min(previousIndex, items.length - 1)].key)
+      if (focusWithinRef.current) requestAnimationFrame(() => carouselRef.current?.focus())
+    }
+    previousKeysRef.current = keys
+  }, [items, previousIndex, selectedKey])
+
+  if (!selectedItem) return null
+
+  const navigate = (direction: -1 | 1) => {
+    const nextIndex = (selectedIndex + direction + items.length) % items.length
+    setSelectedKey(items[nextIndex].key)
+  }
+
+  return (
+    <section
+      aria-label={t("pending_action_carousel_label")}
+      className="rounded-lg border border-border bg-surface p-2 shadow-lg motion-safe:transition-opacity"
+      data-testid="pending-action-carousel"
+      onBlurCapture={(event) => {
+        focusWithinRef.current = event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)
+      }}
+      onFocusCapture={() => {
+        focusWithinRef.current = true
+      }}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
+        if (event.key === "ArrowLeft") {
+          event.preventDefault()
+          navigate(-1)
+        } else if (event.key === "ArrowRight") {
+          event.preventDefault()
+          navigate(1)
+        }
+      }}
+      onTouchStart={(event) => {
+        const touch = event.touches[0]
+        touchStartRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null
+      }}
+      onTouchEnd={(event) => {
+        const start = touchStartRef.current
+        const touch = event.changedTouches[0]
+        touchStartRef.current = null
+        if (!start || !touch || items.length < 2) return
+        const deltaX = touch.clientX - start.x
+        const deltaY = touch.clientY - start.y
+        if (Math.abs(deltaX) < ACTION_CAROUSEL_SWIPE_THRESHOLD || Math.abs(deltaX) <= Math.abs(deltaY) * 1.25) return
+        navigate(deltaX < 0 ? 1 : -1)
+      }}
+      style={{ touchAction: "pan-y" }}
+      tabIndex={0}
+      ref={carouselRef}
+    >
+      <div className="mb-2 flex items-center justify-between gap-2 px-1">
+        <span aria-live="polite" className="text-xs font-medium text-text-muted">
+          {t("pending_action_carousel_position", { current: selectedIndex + 1, total: items.length })}
+        </span>
+        {items.length > 1 ? (
+          <div className="flex shrink-0 gap-1">
+            <button
+              aria-label={t("pending_action_carousel_previous")}
+              className="flex h-9 w-9 items-center justify-center rounded border border-border bg-surface hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              onClick={() => navigate(-1)}
+              type="button"
+            >
+              <span aria-hidden="true">←</span>
+            </button>
+            <button
+              aria-label={t("pending_action_carousel_next")}
+              className="flex h-9 w-9 items-center justify-center rounded border border-border bg-surface hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              onClick={() => navigate(1)}
+              type="button"
+            >
+              <span aria-hidden="true">→</span>
+            </button>
+          </div>
+        ) : null}
+      </div>
+      <div key={selectedItem.key} className="motion-safe:animate-chat-message-in">
+        {selectedItem.type === "action" ? (
+          <PendingActionCard pendingAction={selectedItem.action} queryKey={queryKey} onNotice={onNotice} />
+        ) : (
+          <PendingActionGroupCard pendingActionGroup={selectedItem.group} queryKey={queryKey} onNotice={onNotice} />
+        )}
+      </div>
+    </section>
+  )
+}
 
 // Chat composer extracted from Chat.tsx: the Compose input component and its whole
 // support cast — the report-issue dialog, the slash-command palette/confirmation,
@@ -346,7 +466,14 @@ export function Compose({
     })
   }, [payload.messages])
   const pendingProposalCount = payload.pending_proposal_count ?? pendingProposals.length
-  const composerBannerStackVisible = pendingProposalCount > 0 || shellCommandRunning
+  const pendingActionCarouselItems = useMemo<PendingActionCarouselItem[]>(
+    () => [
+      ...payload.pending_actions.map((action) => ({ key: `action:${action.id}`, type: "action" as const, action })),
+      ...(payload.pending_action_groups || []).map((group) => ({ key: `group:${group.id}`, type: "group" as const, group }))
+    ],
+    [payload.pending_actions, payload.pending_action_groups]
+  )
+  const composerBannerStackVisible = pendingProposalCount > 0 || shellCommandRunning || pendingActionCarouselItems.length > 0
   const [jumpIndex, setJumpIndex] = useState(0)
   const dictationRangeRef = useRef<{ start: number; end: number } | null>(null)
   const dictation = useChatDictation({
@@ -2067,6 +2194,9 @@ export function Compose({
                 onError={(error) => onNotice(errorMessage(error, t("command_cancel_error")))}
                 onUpdate={setShellCommand}
               />
+            ) : null}
+            {pendingActionCarouselItems.length > 0 ? (
+              <PendingActionCarousel items={pendingActionCarouselItems} queryKey={queryKey} onNotice={onNotice} />
             ) : null}
           </div>
         ) : null}

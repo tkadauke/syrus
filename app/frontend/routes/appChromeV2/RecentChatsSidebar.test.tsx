@@ -193,6 +193,28 @@ describe("RecentChatsSidebar repository quick-start", () => {
     const chatLink = screen.getByRole("link", { name: "Research partner" })
     expect(chatLink).toBeInTheDocument()
     expect(within(chatLink).getByText("Research partner")).toHaveClass("font-semibold")
+    expect(within(chatLink).getByTestId("recent-chat-unread-indicator")).toHaveAccessibleName("Unread chat")
+  })
+
+  it("dims read chats and omits the unread indicator from the active chat", () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    queryClient.setQueryData<ChatsIndexPayload>(
+      ["chats", "recent"],
+      chatsIndexPayload({
+        groups: [chatGroup({ chats: [chatNav({ id: 42, title: "Active unread", unread: true }), chatNav({ id: 7, title: "Already read", unread: false })] })]
+      })
+    )
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/chats/42"]}>
+          <RecentChatsSidebar featureFlags={{}} onCloseDrawer={() => {}} onNotice={() => {}} prefix="" userPresent />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(within(screen.getByRole("link", { name: "Active unread" })).queryByTestId("recent-chat-unread-indicator")).not.toBeInTheDocument()
+    expect(within(screen.getByRole("link", { name: "Already read" })).getByText("Already read")).toHaveClass("text-text-muted")
   })
 
   it("starts a new chat attached to the repository group", () => {

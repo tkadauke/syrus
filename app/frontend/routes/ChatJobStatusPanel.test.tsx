@@ -732,7 +732,7 @@ describe("ChatJobStatusPanel pending proposals", () => {
     expect(screen.queryByTestId("proposal-bulk-actions")).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("checkbox", { name: "Select all proposals" }))
     expect(screen.getByTestId("proposal-bulk-actions")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Backlog" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Backlog" })).toBeEnabled()
 
     fireEvent.click(screen.getByRole("button", { name: "Implement" }))
 
@@ -741,7 +741,7 @@ describe("ChatJobStatusPanel pending proposals", () => {
     expect(String(postCalls[0][0])).toContain("/chats/8/proposals/1/confirm")
     expect(JSON.parse(String(postCalls[0][1]?.body))).toEqual({ route_to_backlog: false })
     expect(String(postCalls[1][0])).toContain("/chats/8/proposals/2/confirm")
-    expect(JSON.parse(String(postCalls[1][1]?.body))).toEqual({ start: true })
+    expect(JSON.parse(String(postCalls[1][1]?.body))).toEqual({ route_to_backlog: false, start: true })
   })
 
   it("confirms selected dependencies before their dependents", async () => {
@@ -792,6 +792,47 @@ describe("ChatJobStatusPanel pending proposals", () => {
     const postCall = fetchSpy.mock.calls.find(([, init]) => init?.method === "POST")
     expect(String(postCall?.[0])).toContain("/chats/8/proposals/1/confirm")
     expect(JSON.parse(String(postCall?.[1]?.body))).toEqual({ route_to_backlog: true })
+  })
+
+  it.each([
+    ["Epic-only", [pendingProposal({ id: 1, kind: "epic" }), pendingProposal({ id: 2, kind: "epic", title: "Reservoir epic" })]],
+    ["mixed Job and Epic", [pendingProposal({ id: 1 }), pendingProposal({ id: 2, kind: "epic", title: "Reservoir epic" })]]
+  ])("routes a %s selection to backlog", async (_label, pendingProposals) => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((_input, init) => {
+      if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal confirmed." }))
+      return Promise.resolve(jsonResponse({ pending_proposals: pendingProposals, items: [] }))
+    })
+
+    renderPanel()
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Select all proposals" }))
+    fireEvent.click(screen.getByRole("button", { name: "Backlog" }))
+
+    await waitFor(() => expect(fetchSpy.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(2))
+    expect(fetchSpy.mock.calls.filter(([, init]) => init?.method === "POST").map(([, init]) => JSON.parse(String(init?.body)))).toEqual([
+      { route_to_backlog: true },
+      { route_to_backlog: true }
+    ])
+  })
+
+  it("continues backlog routing after a failure and exposes the partial failure inline", async () => {
+    const attempted: number[] = []
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      if (init?.method === "POST") {
+        const proposalId = Number(String(input).match(/proposals\/(\d+)\/confirm/)?.[1])
+        attempted.push(proposalId)
+        if (proposalId === 1) return Promise.resolve(jsonResponse({ error: { message: "First proposal failed." } }, 422))
+        return Promise.resolve(jsonResponse({ message: "Proposal confirmed." }))
+      }
+      return Promise.resolve(jsonResponse({ pending_proposals: [pendingProposal({ id: 1, kind: "epic" }), pendingProposal({ id: 2 })], items: [] }))
+    })
+
+    renderPanel()
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Select all proposals" }))
+    fireEvent.click(screen.getByRole("button", { name: "Backlog" }))
+
+    await waitFor(() => expect(attempted).toEqual([1, 2]))
+    expect(screen.getByRole("alert")).toHaveTextContent("First proposal failed.")
+    expect(screen.getByRole("button", { name: "Backlog" })).toBeEnabled()
   })
 
   it("rejects every selected proposal", async () => {
