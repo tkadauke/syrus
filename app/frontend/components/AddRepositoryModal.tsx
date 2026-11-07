@@ -194,8 +194,8 @@ export function AddRepositoryModal({
   // to land (SyncInstallationsJob links it) and flip the panel to a green
   // check the moment the App covers the repo.
   const installWatch = useQuery({
-    queryKey: ["repositories", "install-watch", saved?.repository.id],
-    queryFn: () => fetchRepositoryDetail(String(saved!.repository.id)),
+    queryKey: ["repositories", "install-watch", saved?.id],
+    queryFn: () => fetchRepositoryDetail(String(saved!.id)),
     enabled: (awaitingInstall || reconciling) && !!saved,
     refetchInterval: (query) =>
       awaitingInstall || reconciling ? installWatchInterval(query.state.data?.credential_status.mode, reconciliationRefetchIntervalMs) : false
@@ -319,17 +319,17 @@ export function AddRepositoryModal({
             </button>
           </div>
 
-          <Box tone="ok">{t("add_repository.repository_ready", { slug: saved.repository.slug })}</Box>
+          <Box tone="ok">{t("add_repository.repository_ready", { slug: `${values?.owner}/${values?.name}` })}</Box>
 
           {installedNow ? (
-            <Box tone="ok">{t("add_repository.app_connected", { owner: saved.repository.owner })}</Box>
+            <Box tone="ok">{t("add_repository.app_connected", { owner: values?.owner })}</Box>
           ) : reconciling ? (
             <p className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400" role="status">
               <Spinner /> {t("add_repository.reconciling_installation")}
             </p>
           ) : (
             <>
-              <p className="text-sm text-gray-600 dark:text-gray-400">{t("add_repository.install_optional", { owner: saved.repository.owner })}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t("add_repository.install_optional", { owner: values?.owner })}</p>
               {awaitingInstall ? (
                 <p className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400" role="status">
                   <Spinner /> {t("add_repository.waiting_for_install")}

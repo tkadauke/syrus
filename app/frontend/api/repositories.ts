@@ -20,7 +20,7 @@ export type RepositoryRow = {
   slug: string
   owner: string
   name: string
-  owner_user: RepositoryOwnerUser
+  owner_email: string
   default_branch: string
   upstream_owner: string | null
   upstream_name: string | null
@@ -29,7 +29,6 @@ export type RepositoryRow = {
   trigger_label: string
   polling_enabled: boolean
   archived: boolean
-  archived_at: string | null
   main_health: string
   open_jobs_count: number
   last_job_activity_at: string | null
@@ -39,8 +38,6 @@ export type RepositoryRow = {
   last_poll_error: string | null
   poll_issue_errors?: RepositoryPollIssueError[]
   can_edit: boolean
-  repository_path: string
-  edit_repository_path: string
 }
 
 export type RepositoriesPayload = {
@@ -184,9 +181,9 @@ export type RepositoryCredentialStatus = {
 }
 
 export type RepositorySavedPayload = {
+  id: number
   message: string
   redirect_to: string
-  repository: RepositoryRow
   credential_status: RepositoryCredentialStatus
 }
 

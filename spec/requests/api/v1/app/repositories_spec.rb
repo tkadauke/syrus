@@ -260,7 +260,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       include(
         "id" => active.id,
         "slug" => "acme/widgets",
-        "owner_user" => include("id" => user.id, "email_address" => user.email_address),
+        "owner_email" => user.email_address,
         "default_branch" => "main",
         "trigger_label" => "syrus",
         "polling_enabled" => true,
@@ -268,9 +268,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
         "open_jobs_count" => 1,
         "last_job_activity_at" => job_activity_at.iso8601,
         "last_poll_status" => "ok",
-        "can_edit" => true,
-        "repository_path" => repository_path(active),
-        "edit_repository_path" => edit_repository_path(active)
+        "can_edit" => true
       )
     )
     expect(body["archived_repositories"]).to contain_exactly(
@@ -278,7 +276,10 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     )
     expect(body.to_s).not_to include("other/private")
     expect(body["new_repository_path"]).to eq(new_repository_path)
-    expect(body["repositories"]).to include(
+    expect(body).not_to have_key("repositories")
+
+    get "/api/v1/app/repositories", params: { shape: "cli" }
+    expect(parse_body["repositories"]).to include(
       include("slug" => "acme/widgets", "active_jobs_count" => 1),
       include("slug" => "old/repo", "archived" => true)
     )
@@ -311,7 +312,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body["active_repositories"]).to contain_exactly(include("id" => match.id, "slug" => "acme/widgets"))
-    expect(body["repositories"]).to contain_exactly(include("id" => match.id, "slug" => "acme/widgets"))
+    expect(body).not_to have_key("repositories")
   end
 
   it "filters repository index activity by job activity instead of polling activity, via the Recent smart folder's fixed 30-day cutoff" do
@@ -393,7 +394,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     body = parse_body
     expect(body["active_repositories"]).to be_empty
     expect(body["archived_repositories"]).to contain_exactly(include("id" => archived.id, "slug" => "acme/archived", "archived" => true))
-    expect(body["repositories"]).to contain_exactly(include("id" => archived.id, "slug" => "acme/archived"))
+    expect(body).not_to have_key("repositories")
   end
 
   it "rejects self-enrollment when the same GitHub slug is already registered by another user" do
@@ -1331,7 +1332,8 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(repository.epic_dependency_policy).to eq("linear")
     expect(repository.github_owner_id).to eq(123)
     expect(repository.github_repository_id).to eq(456)
-    expect(parse_body).to include("message" => "Repository acme/widgets added.", "redirect_to" => repositories_path)
+    expect(parse_body).to include("id" => repository.id, "message" => "Repository acme/widgets added.", "redirect_to" => repositories_path)
+    expect(parse_body).not_to have_key("repository")
   end
 
   it "rejects an unknown Epic dependency policy on repository create" do
@@ -1681,6 +1683,20 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(parse_body).to eq("user" => "john", "orgs" => [ "org-a" ])
   end
 
+  it "filters and conditionally caches GitHub owners" do
+    sign_in_as(user)
+    client = instance_double(GithubClient, accessible_owners: { user: "john", orgs: %w[alpha beta] })
+    allow(GithubClient).to receive(:for_user).and_return(client)
+
+    get "/api/v1/app/repositories/owners", params: { q: "alp" }
+    etag = response.headers.fetch("ETag")
+    expect(parse_body).to eq("user" => nil, "orgs" => [ "alpha" ])
+
+    get "/api/v1/app/repositories/owners", params: { q: "alp" }, headers: { "If-None-Match" => etag }
+    expect(response).to have_http_status(:not_modified)
+    expect(client).to have_received(:accessible_owners).once
+  end
+
   it "returns no_token for owner selectors without GitHub credentials" do
     sign_in_as(user)
     allow(GithubClient).to receive(:for_user).and_raise(ArgumentError)
@@ -1758,6 +1774,17 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     )
   end
 
+  it "filters repository selector results with q" do
+    sign_in_as(user)
+    allow(GithubClient).to receive(:for_user).and_return(
+      instance_double(GithubClient, owner_repos: [ { name: "alpha" }, { name: "beta" } ])
+    )
+
+    get "/api/v1/app/repositories/repos", params: { owner: "john", owner_type: "user", q: "bet" }
+
+    expect(parse_body["repos"]).to eq([ { "name" => "beta" } ])
+  end
+
   it "500s and logs unexpected repository selector errors" do
     sign_in_as(user)
     client = instance_double(GithubClient)
@@ -1798,6 +1825,17 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(parse_body.dig("error", "code")).to eq("github_selector_error")
     expect(Rails.logger).to have_received(:error)
       .with(/GitHub selector branches failed unexpectedly: StandardError: boom/)
+  end
+
+  it "filters branch selector results with q" do
+    sign_in_as(user)
+    allow(GithubClient).to receive(:for_user).and_return(
+      instance_double(GithubClient, repo_branches: { branches: %w[main feature/login], default_branch: "main" })
+    )
+
+    get "/api/v1/app/repositories/branches", params: { owner: "john", name: "alpha", q: "feature" }
+
+    expect(parse_body).to eq("branches" => [ "feature/login" ], "default_branch" => "main")
   end
 
   it "includes feedback_policy in the edit form payload" do
@@ -2378,6 +2416,18 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       expect(body["days"]).to eq(10)
       trend_dates = body["trend"].map { |row| row["date"] }
       expect(trend_dates).not_to include(old_snap.created_at.to_date.to_s)
+    end
+
+    it "caps the days param and supports conditional requests" do
+      sign_in_as(user)
+      create_snapshot(created_at: 5.days.ago)
+
+      get "/api/v1/app/repositories/#{repository.id}/coverage_trend", params: { days: 10_000 }
+
+      expect(parse_body["days"]).to eq(365)
+      etag = response.headers.fetch("ETag")
+      get "/api/v1/app/repositories/#{repository.id}/coverage_trend", params: { days: 10_000 }, headers: { "If-None-Match" => etag }
+      expect(response).to have_http_status(:not_modified)
     end
 
     it "returns 401 when not signed in" do

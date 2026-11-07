@@ -533,9 +533,7 @@ describe("RepositoryForm plugin input-source decoupling", () => {
     renderRoute()
 
     await screen.findByRole("heading", { name: "Linear" })
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/1/input_sources/linear", expect.objectContaining({ credentials: "same-origin" }))
-    })
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/repositories/1/input_sources/linear", expect.anything())
     fireEvent.change(screen.getByLabelText("API key"), { target: { value: "lin_api_secret" } })
 
     expect(fetchSpy).not.toHaveBeenCalledWith(expect.stringContaining("/api/v1/app/linear/teams?"), expect.anything())

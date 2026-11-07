@@ -59,7 +59,8 @@ export function RepositoryFormRoute({ mode }: { mode: "new" | "edit" }) {
   const form = useQuery({
     queryKey: ["repositories", mode, id],
     queryFn: () => (mode === "new" ? fetchNewRepositoryForm() : fetchEditRepositoryForm(id)),
-    enabled: mode === "new" || id.length > 0
+    enabled: mode === "new" || id.length > 0,
+    staleTime: mode === "new" ? 5 * 60_000 : 0
   })
 
   return (
@@ -1046,7 +1047,9 @@ function InputSourceSection({ sourceType }: { sourceType: InputSourceType }) {
   const sourceQuery = useQuery({
     queryKey: ["input_source", sourceType.path],
     queryFn: () => fetchInputSource(sourceType.path || ""),
-    enabled: !!sourceType.path
+    enabled: !!sourceType.path,
+    initialData: sourceType.path ? { input_source: initialSource } : undefined,
+    staleTime: 60_000
   })
 
   const currentSource = sourceQuery.data?.input_source ?? initialSource

@@ -103,7 +103,7 @@ func (c *Client) CreateEpic(ctx context.Context, params CreateEpicParams) (Creat
 
 func (c *Client) ListRepositories(ctx context.Context) (RepositoryList, error) {
 	var out RepositoryList
-	err := c.do(ctx, http.MethodGet, "/api/v1/app/repositories", nil, &out)
+	err := c.do(ctx, http.MethodGet, "/api/v1/app/repositories?shape=cli", nil, &out)
 	if len(out.Repositories) == 0 {
 		out.Repositories = append(out.Repositories, out.ActiveRepositories...)
 		out.Repositories = append(out.Repositories, out.ArchivedRepositories...)
