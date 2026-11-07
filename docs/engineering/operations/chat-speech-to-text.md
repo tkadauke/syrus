@@ -1,100 +1,50 @@
-# Chat speech-to-text
+# Speech-to-Text Operations
 
-Live dictation uses `ChatDictationChannel` over ActionCable. Dictation starts
-before a chat message exists, so it intentionally does not reuse
-`stream_chat_turn`, which is coupled to a submitted user message and
-`ChatTurnJob`.
+This runbook covers backend deployment and diagnosis. See
+[speech-to-text architecture](../architecture/chat-speech-to-text.md) for the
+ActionCable protocol, frames, statuses, and event design, and the
+[searchable guide](../../../config/syrus_docs/chat_speech_to_text.md) for
+operator-visible behavior.
 
-ActionCable fits the Rails, browser, and Electron deployment shape better than
-HTTP upload chunks plus a separate SSE response because the browser needs one
-bidirectional, authenticated connection for `start`, ordered `audio_chunk`,
-`stop`, `cancel`, and transcript delta frames. Solid Cable is already the app's
-cross-process cable adapter, and the same signed-in user/session boundary used
-by other app channels scopes the dictation stream to one user and chat.
+## Deploying the backend
 
-The stream is ephemeral. Syrus does not persist interim or final dictation text;
-the frontend keeps the buffered audio blob while streaming so an `error` frame's
-`fallback` payload can retry the existing backend batch endpoint.
+Chat dictation is feature-gated by `chat_speech_to_text`. Backend modes also
+require an installed, enabled, and healthy `speech_to_text_provider` plugin.
+The bundled `whisper_stt` plugin supplies the local whisper.cpp backend:
 
-Interim transcript frames replace the current hypothesis in place. A final
-frame commits that range exactly once; it does not append a duplicate. Text
-that was already in the composer remains outside the replaceable dictation
-range. Browser Web Speech results use the same interim replacement and final
-commit behavior.
+1. Enable Plugin Runtime.
+2. Enable `whisper_stt`.
+3. Wait for the `whisper-stt` service to become healthy.
+4. Confirm `PluginRuntime::Services.endpoint_for("whisper-stt")` returns an
+   endpoint and that the service health response advertises streaming.
 
-## Backend deployment
-
-Chat dictation is feature-gated by `chat_speech_to_text`. With the flag off,
-all modes are reported unavailable. With the flag on, Syrus core reports
-browser speech recognition as available and resolves backend dictation through
-enabled `speech_to_text_provider` plugins. If no plugin provider is installed,
-enabled, and currently available, `ChatSpeechToText::Providers.configured`
-returns nil and the UI falls back to browser speech recognition when the
-browser supports it.
-
-Backend batch dictation is available when a `speech_to_text_provider` plugin is
-installed, enabled, and currently available. The bundled `whisper_stt` plugin
-provides the local whisper.cpp backend: enable Plugin Runtime, enable
-`whisper_stt`, and wait for its `whisper-stt` service to become healthy. Once
-`PluginRuntime::Services.endpoint_for("whisper-stt")` has an endpoint, the chat
-capability payload reports both backend modes available when the service health
-response explicitly advertises streaming. The microphone sends ordered chunks
-over ActionCable while retaining the continuous recording for batch fallback.
-The Whisper gateway feeds those chunks to one persistent media decoder per
-session and emits revised hypotheses from a bounded PCM window; arbitrary WebM
-continuation fragments are not decoded on their own and inference input does
-not grow without bound.
-
-Without `whisper_stt`, with the plugin disabled, or while the daemon is absent,
-starting, unhealthy, or otherwise unreachable through Plugin Runtime,
-`ChatSpeechToText::Providers.configured` returns nil. The capability payload
-then reports backend batch unavailable with `provider_unset`, while
-`modes.browser.available` remains true when the feature flag is on. The UI uses
-that payload to fall back to browser speech recognition when the browser
-supports it.
-
-Core only owns the provider-selection contract: `SYRUS_STT_PROVIDER` may pin a
-plugin provider by `provider_key`; when unset, Syrus uses the first available
-provider in plugin registration order. To pin the bundled daemon-backed
-provider:
+Core provider selection can be pinned with:
 
 ```
 SYRUS_STT_PROVIDER=whisper_stt
 ```
 
-See the plugin's own docs
-(`plugins/whisper_stt/docs/syrus_docs/whisper_stt.md`) for daemon, model, and
-runtime setup.
+When unset, core selects the first available provider in plugin registration
+order. The plugin's own
+[`whisper_stt` documentation](../../../plugins/whisper_stt/docs/syrus_docs/whisper_stt.md)
+owns daemon, model, container, and runtime setup details.
 
-The chat payload includes sanitized backend availability metadata:
-`feature_disabled`, `provider_unset`, or no reason when the backend is usable.
-Operators can inspect this payload, request errors, or logs to tell whether the
-UI chose backend streaming, backend batch, browser fallback, or no mode.
+## Diagnosing availability
 
-Operational logs are structured as `chat_speech_to_text.*` events and include
-mode, provider name, latency, fallback reason, and error class/code. They must
-not include transcript text, prompts, uploaded audio bytes, executable paths, or
-model paths. Provider-specific diagnostics belong in the provider plugin's docs.
-Batch recordings under 256 bytes are rejected as `audio_too_small` (422).
-Backend timeouts return `speech_to_text_timeout` (504), and unavailable
-backends return `speech_to_text_backend_unavailable` (503). The composer retries
-either status once, does not retry 4xx input errors, and keeps existing or
-progressive composer text when finalization fails.
-Disconnect, cancel, idle timeout, normal finalization, and provider error paths
-close the provider session. Failures emit mode and fallback metadata without
-audio bytes or transcript text.
+When the plugin is disabled or its daemon is absent, starting, unhealthy, or
+unreachable, the capability payload reports backend batch unavailable with
+`provider_unset`. Browser speech recognition can remain available. Inspect the
+capability payload first to distinguish feature-disabled, provider-unset, and
+healthy-backend states.
 
-## Querying STT operational logs from chat
+Use an admin chat's `admin_read_operational_logs` tool to query
+`chat_speech_to_text.*` events by time, level, role, or hostname. Events show
+the selected mode and provider, latency, fallback reason, and sanitized error
+class/code. They deliberately omit audio and transcript content.
 
-The `chat_speech_to_text.*` operational log events above are queryable from an
-admin chat session, not just via kubectl/log-scraping. `admin_read_operational_logs`
-(`Mcp::Tools::AdminReadOperationalLogsTool`, registered `admin_only: true` in
-`McpToolRegistry`) wraps `OperationalLogIndex.search` with the same
-query/since/level/role/hostname/limit shape, `OperationalLogging.enabled_for_instance?`
-disabled-response guard, and write-time redaction as the workflow/agent-insight
-`read_syrus_logs` tool (`SyrusDev::ReadSyrusLogsTool`); the shared search and
-row-rendering logic lives in `OperationalLogSearch`. Unlike `read_syrus_logs`,
-it is not restricted to runs on a `tkadauke/syrus` repository — any admin chat
-session, including one with no attached repository, can call it — so an
-operator can ask "which STT mode fired for that transcription?" and get an
-answer in seconds.
+For provider-specific failures, inspect Plugin Runtime service health and the
+plugin logs described in the plugin documentation. A 503
+`speech_to_text_backend_unavailable` indicates provider availability; a 504
+`speech_to_text_timeout` indicates a selected backend that did not complete in
+time. Input errors such as `audio_too_small` are client/request problems and
+are not retried.

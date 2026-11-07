@@ -92,7 +92,6 @@ RSpec.describe "documentation audiences" do
   it "splits chat, worker, metrics, and observability docs by audience" do
     architecture_index = root.join("docs/engineering/architecture/README.md").read
     operations_index = root.join("docs/engineering/operations/README.md").read
-
     %w[chat multi-worker metrics observability].each do |page|
       expect(root.join("docs/engineering/architecture/#{page}.md")).to exist
       expect(architecture_index).to include("(#{page}.md)")
@@ -226,6 +225,15 @@ RSpec.describe "documentation audiences" do
     ]
     architecture_index = root.join("docs/engineering/architecture/README.md").read
     operations_index = root.join("docs/engineering/operations/README.md").read
+    preview_architecture = root.join("docs/engineering/architecture/preview-environments.md").read
+    preview_operations = root.join("docs/engineering/operations/preview-environments.md").read
+    recovery_architecture = root.join("docs/engineering/architecture/admin-recovery.md").read
+    recovery_operations = root.join("docs/engineering/operations/admin-recovery.md").read
+    stt_architecture = root.join("docs/engineering/architecture/chat-speech-to-text.md").read
+    stt_operations = root.join("docs/engineering/operations/chat-speech-to-text.md").read
+    typed_artifacts = root.join("docs/engineering/architecture/typed-artifacts.md").read
+    plugin_authoring = root.join("docs/engineering/conventions/plugins/authoring.md").read
+    rails_plugin = root.join("plugins/rails/docs/syrus_docs/rails.md").read
 
     architecture_pages.each do |page|
       expect(root.join("docs/engineering/architecture/#{page}.md")).to exist
@@ -258,5 +266,27 @@ RSpec.describe "documentation audiences" do
       .not_to include("Filters::SmartFolderResolution")
     expect(root.join("config/syrus_docs/chat_scheduled_messages.md").read)
       .not_to include("ScheduledChatMessageFireJob")
+
+    expect(preview_architecture).to include("PreviewProxyMiddleware", "PreviewControlServer", "error_reason")
+    expect(preview_architecture).not_to include("## Production setup")
+    expect(preview_operations).to include("SYRUS_PREVIEW_BASE_DOMAIN", "## Production setup")
+    expect(preview_operations).not_to include("PreviewEnvironment#error_reason")
+    expect(preview_architecture).not_to eq(preview_operations)
+
+    expect(recovery_architecture).to include("## Admin mutation feedback")
+    expect(recovery_architecture).not_to include("RestartWatcher")
+    expect(recovery_operations).to include("RestartWatcher", "SIGTERM", "restart: unless-stopped")
+    expect(recovery_operations).not_to include("## Admin mutation feedback")
+    expect(recovery_architecture).not_to eq(recovery_operations)
+
+    expect(stt_architecture).to include("ChatDictationChannel", "audio_chunk", "chat_speech_to_text.*")
+    expect(stt_architecture).not_to include("## Deploying the backend")
+    expect(stt_operations).to include("whisper-stt", "SYRUS_STT_PROVIDER=whisper_stt")
+    expect(stt_operations).not_to include("ChatDictationChannel")
+    expect(stt_architecture).not_to eq(stt_operations)
+
+    expect(typed_artifacts).not_to include("Syrus::PluginRegistry.register", "uniquely named disposable database")
+    expect(plugin_authoring).to include("provides: { artifact_renderer:")
+    expect(rails_plugin).to include("uniquely named disposable database", "storage_unavailable")
   end
 end
