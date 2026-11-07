@@ -1153,7 +1153,6 @@ module Api
 
         def media
           chat_session = find_chat_session
-          ChatMediaLibrary.materialize_inline_images!(chat_session)
 
           chat_images = chat_session.attached_repository_documents
                                     .with_attached_file
