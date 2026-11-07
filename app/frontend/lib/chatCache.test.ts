@@ -220,15 +220,17 @@ describe("updateRecentChatCache", () => {
     const key = recentChatsQueryKey({ group_by: "date" })
     queryClient.setQueryData(key, {
       repositories: [],
-      groups: [{
-        key: "date-today",
-        label: "Today",
-        repository_id: null,
-        group_by: "date",
-        group_value: "today",
-        chats: [chatRecord({ id: 1, title: "Before", lastMessageAt: "2026-06-25T11:00:00Z" })],
-        has_more: false
-      }]
+      groups: [
+        {
+          key: "date-today",
+          label: "Today",
+          repository_id: null,
+          group_by: "date",
+          group_value: "today",
+          chats: [chatRecord({ id: 1, title: "Before", lastMessageAt: "2026-06-25T11:00:00Z" })],
+          has_more: false
+        }
+      ]
     })
 
     updateRecentChatCache(queryClient, { id: 1, title: "After" })
@@ -243,16 +245,15 @@ describe("updateRecentChatCache", () => {
     const key = recentChatsQueryKey({ sort_by: "name" })
     queryClient.setQueryData(key, {
       repositories: [],
-      groups: [{
-        key: "general",
-        label: "General",
-        repository_id: null,
-        chats: [
-          chatRecord({ id: 1, title: "Alpha", lastMessageAt: null }),
-          chatRecord({ id: 2, title: "Bravo", lastMessageAt: null })
-        ],
-        has_more: false
-      }]
+      groups: [
+        {
+          key: "general",
+          label: "General",
+          repository_id: null,
+          chats: [chatRecord({ id: 1, title: "Alpha", lastMessageAt: null }), chatRecord({ id: 2, title: "Bravo", lastMessageAt: null })],
+          has_more: false
+        }
+      ]
     })
 
     updateRecentChatCache(queryClient, { id: 2, title: "Aardvark" })
@@ -269,13 +270,15 @@ describe("updateRecentChatCache", () => {
     for (const key of [defaultKey, dateKey]) {
       queryClient.setQueryData(key, {
         repositories: [],
-        groups: [{
-          key: "general",
-          label: "General",
-          repository_id: null,
-          chats: [chatRecord({ id: 1, title: "Hidden", lastMessageAt: null })],
-          has_more: false
-        }]
+        groups: [
+          {
+            key: "general",
+            label: "General",
+            repository_id: null,
+            chats: [chatRecord({ id: 1, title: "Hidden", lastMessageAt: null })],
+            has_more: false
+          }
+        ]
       })
     }
 
