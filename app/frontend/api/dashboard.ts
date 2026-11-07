@@ -725,11 +725,36 @@ export function requestDashboardMainBranchRepair(path: string) {
   return postJson<{ message?: string }>(path, {})
 }
 
+const pendingFilterUsage = new Map<
+  string,
+  {
+    input: DashboardFilterUsageInput
+    timer: ReturnType<typeof setTimeout>
+    resolve: (payload: DashboardFilterUsagePayload) => void
+    reject: (error: unknown) => void
+  }
+>()
+
 export function recordDashboardFilterUsage(input: DashboardFilterUsageInput) {
-  return postJson<DashboardFilterUsagePayload>("/api/v1/app/filters/usage", {
-    surface: "dashboard",
-    subject: input.subject,
-    filter: input.filter
+  const key = input.subject
+  const pending = pendingFilterUsage.get(key)
+  if (pending) clearTimeout(pending.timer)
+
+  return new Promise<DashboardFilterUsagePayload>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      const latest = pendingFilterUsage.get(key)
+      pendingFilterUsage.delete(key)
+      if (!latest) return
+
+      void postJson<DashboardFilterUsagePayload>("/api/v1/app/filters/usage", {
+        surface: "dashboard",
+        subject: latest.input.subject,
+        filter: latest.input.filter
+      }).then(latest.resolve, latest.reject)
+    }, 250)
+
+    pendingFilterUsage.set(key, { input, timer, resolve, reject })
+    if (pending) pending.resolve({ recorded: true })
   })
 }
 

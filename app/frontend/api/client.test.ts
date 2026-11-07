@@ -49,7 +49,9 @@ describe("GET request single-flight", () => {
   it("shares one network request for concurrent identical getJson reads", async () => {
     const { getJson, getRecentApiRequests } = await import("./client")
     let resolveFetch: ((response: Response) => void) | undefined
-    const fetchPromise = new Promise<Response>((resolve) => { resolveFetch = resolve })
+    const fetchPromise = new Promise<Response>((resolve) => {
+      resolveFetch = resolve
+    })
     const fetch = vi.spyOn(window, "fetch").mockReturnValue(fetchPromise)
 
     const first = getJson("/api/v1/app/jobs/42")
@@ -59,11 +61,17 @@ describe("GET request single-flight", () => {
 
     resolveFetch?.(jsonResponse({ job: { id: 42 } }))
 
-    await expect(Promise.all([first, second])).resolves.toEqual([
-      { job: { id: 42 } },
-      { job: { id: 42 } }
-    ])
+    await expect(Promise.all([first, second])).resolves.toEqual([{ job: { id: 42 } }, { job: { id: 42 } }])
     expect(getRecentApiRequests()).toHaveLength(1)
+  })
+
+  it("revalidates GET requests instead of accepting a fresh browser cache entry", async () => {
+    const { getJson } = await import("./client")
+    const fetch = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ ok: true }))
+
+    await getJson("/api/v1/app/chats")
+
+    expect(fetch).toHaveBeenCalledWith("/api/v1/app/chats", expect.objectContaining({ cache: "no-cache" }))
   })
 
   it("does not coalesce reads that carry abort signals", async () => {
@@ -84,9 +92,9 @@ describe("GET request single-flight", () => {
     const secondJobRead = deferred<Response>()
     const fetch = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       if (input === "/api/v1/app/jobs/42" && init?.method == null) {
-        return fetch.mock.calls.filter(([calledInput, calledInit]) => (
-          calledInput === "/api/v1/app/jobs/42" && calledInit?.method == null
-        )).length === 1 ? pendingJobRead.promise : secondJobRead.promise
+        return fetch.mock.calls.filter(([calledInput, calledInit]) => calledInput === "/api/v1/app/jobs/42" && calledInit?.method == null).length === 1
+          ? pendingJobRead.promise
+          : secondJobRead.promise
       }
       if (input === "/api/v1/app/jobs/42/approve" && init?.method === "POST") {
         return Promise.resolve(jsonResponse({ ok: true }))
@@ -118,10 +126,7 @@ describe("GET request single-flight", () => {
     await getJson("/api/v1/app/linear/teams?api_key=lin_api_secret")
     await patchJson("/api/v1/app/auth/passwords/reset-token", { password: "secret" })
 
-    expect(getRecentApiRequests().map((request) => request.path)).toEqual([
-      "/api/v1/app/linear/teams?[FILTERED]",
-      "/api/v1/app/auth/passwords/[FILTERED]"
-    ])
+    expect(getRecentApiRequests().map((request) => request.path)).toEqual(["/api/v1/app/linear/teams?[FILTERED]", "/api/v1/app/auth/passwords/[FILTERED]"])
   })
 })
 

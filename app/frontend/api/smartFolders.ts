@@ -9,10 +9,8 @@ export type SmartFolderRow = {
 }
 
 type SmartFolderMutationPayload = {
-  subject_type: string
-  subject_label: string
-  dashboard_path: string
-  smart_folders: SmartFolderRow[]
+  smart_folder?: SmartFolderRow
+  deleted_id?: number
   message?: string
   redirect_to?: string
 }
