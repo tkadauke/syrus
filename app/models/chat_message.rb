@@ -3,7 +3,6 @@ class ChatMessage < ApplicationRecord
   include EnqueuesSearchIndex
 
   ROLES = %w[ user assistant tool_use tool_result system ].freeze
-  SPA_EVENT_TAIL_SIZE = 24
   SPA_EVENT_MAX_INLINE_BYTES = 128.kilobytes
   PREVIEW_TEXT_MAX_BYTES = 500
 
@@ -178,13 +177,12 @@ class ChatMessage < ApplicationRecord
   def broadcast_app_event
     chat = chat_session
     agent_busy = chat.agent_busy?
-    tail_payload = realtime_tail_payload(chat) unless invalidate_realtime_tail
+    messages_payload = realtime_messages_payload(chat) unless invalidate_realtime_tail
 
-    detail_payload = if tail_payload
+    detail_payload = if messages_payload
       {
-        action: "replace_tail",
-        replace_from_id: tail_payload.fetch(:replace_from_id),
-        messages: tail_payload.fetch(:messages),
+        action: "upsert_messages",
+        messages: messages_payload,
         turn_in_flight: chat.turn_in_flight?,
         agent_busy: agent_busy,
         turn_retry_state: App::ChatTurnRetryState.for(chat),
@@ -197,7 +195,7 @@ class ChatMessage < ApplicationRecord
         agent_busy: chat.agent_busy?,
         turn_retry_state: App::ChatTurnRetryState.for(chat),
         stop_requested_at: chat.stop_requested_at&.iso8601,
-        reason: invalidate_realtime_tail ? "targeted_invalidation" : "tail_payload_too_large"
+        reason: invalidate_realtime_tail ? "targeted_invalidation" : "message_payload_too_large"
       }
     end
 
@@ -245,25 +243,13 @@ class ChatMessage < ApplicationRecord
     end
   end
 
-  def realtime_tail_payload(chat)
-    tail = chat.messages
-               .active
-               .includes(:pending_action, proposal: [ :repository, :job, :epic, :target_epic, dependencies: [], child_proposals: [ :repository, dependencies: [] ] ])
-               .order(id: :desc)
-               .limit(SPA_EVENT_TAIL_SIZE)
-               .to_a
-               .reverse
-
-    messages_payload = ::App::ChatMessagePayload.messages(tail, repository: chat.repository)
+  def realtime_messages_payload(chat)
+    messages_payload = ::App::ChatMessagePayload.messages([ self ], repository: chat.repository)
     return nil if ActiveSupport::JSON.encode(messages_payload).bytesize > SPA_EVENT_MAX_INLINE_BYTES
-
-    {
-      replace_from_id: tail.first&.id,
-      messages: messages_payload
-    }
+    messages_payload
   rescue ActiveRecord::StatementInvalid => e
     Rails.logger.warn(
-      "[chat_message] realtime tail payload skipped " \
+      "[chat_message] realtime message payload skipped " \
       "chat_id=#{chat.id} message_id=#{id} error=#{e.class}: #{e.message}"
     )
     nil

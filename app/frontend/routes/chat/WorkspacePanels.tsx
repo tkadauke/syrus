@@ -1636,7 +1636,7 @@ function CodingFilesPanel({
   const agentBusy = Boolean(payload.chat.agent_busy ?? (payload as ChatPayload & { agent_busy?: boolean }).agent_busy)
   const [relayBackoffUntil, setRelayBackoffUntil] = useState(0)
   const relayBackoffActive = relayBackoffUntil > Date.now()
-  const refetchInterval = relayBackoffActive ? false : agentBusy ? 3000 : 15000
+  const refetchInterval = relayBackoffActive ? false : agentBusy ? 3000 : 60_000
   const recordRelayUnavailable = useCallback((error: unknown) => {
     if (isCodingRelayUnavailable(error)) {
       const retryAfterMs = Math.max(5, error.retryAfter ?? 30) * 1000

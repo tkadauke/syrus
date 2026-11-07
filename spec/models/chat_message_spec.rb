@@ -143,7 +143,7 @@ RSpec.describe ChatMessage do
       described_class.create!(chat_session: session, role: "user", content: { "text" => "Hi" })
     end
 
-    it "broadcasts a typed replace-tail payload to the chat-scoped channel for React chat rendering" do
+    it "broadcasts only the changed message to the chat-scoped channel for React chat rendering" do
       described_class.create!(chat_session: session, role: "user", content: { "text" => "Hi" })
       expect(session).not_to receive(:broadcast_controls)
 
@@ -153,9 +153,9 @@ RSpec.describe ChatMessage do
         expect(resource).to eq("chat")
         expect(id).to eq(session.id)
         expect(changed).to eq([ "messages" ])
-        expect(payload).to include(action: "replace_tail", turn_in_flight: false, agent_busy: false)
-        expect(payload[:replace_from_id]).to be_present
-        expect(payload[:messages].last).to include(
+        expect(payload).to include(action: "upsert_messages", turn_in_flight: false, agent_busy: false)
+        expect(payload[:messages].size).to eq(1)
+        expect(payload[:messages].sole).to include(
           type: "message",
           role: "assistant",
           content: {},
@@ -168,7 +168,7 @@ RSpec.describe ChatMessage do
     end
 
     it "falls back to invalidating messages on the chat-scoped channel when the realtime tail payload cannot be loaded" do
-      allow_any_instance_of(described_class).to receive(:realtime_tail_payload).and_return(nil)
+      allow_any_instance_of(described_class).to receive(:realtime_messages_payload).and_return(nil)
 
       expect(AppEvents).to receive(:broadcast_chat_resource) do |chat_session_id:, type:, resource:, id:, changed:, payload:|
         expect(chat_session_id).to eq(session.id)
@@ -178,7 +178,7 @@ RSpec.describe ChatMessage do
         expect(changed).to eq([ "messages" ])
         expect(payload).to include(
           action: "invalidate_messages",
-          reason: "tail_payload_too_large",
+          reason: "message_payload_too_large",
           turn_in_flight: false,
           agent_busy: false
         )
@@ -190,7 +190,7 @@ RSpec.describe ChatMessage do
     end
 
     it "supports targeted message invalidation without loading the realtime tail" do
-      expect_any_instance_of(described_class).not_to receive(:realtime_tail_payload)
+      expect_any_instance_of(described_class).not_to receive(:realtime_messages_payload)
 
       expect(AppEvents).to receive(:broadcast_chat_resource) do |payload|
         expect(payload[:payload]).to include(
