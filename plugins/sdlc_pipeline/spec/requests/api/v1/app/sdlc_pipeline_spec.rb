@@ -119,4 +119,69 @@ RSpec.describe "API: repository SDLC pipeline", type: :request do
     expect(ids).to eq([ proposed.id ])
     expect(response.parsed_body.fetch("filter")).to eq(tree.deep_stringify_keys)
   end
+
+  it "applies an associated-chat cohort to live and historical requests" do
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    chat = ChatSession.create!(user: user, title: "Release planning")
+    job = Factories.job_record(repository: repository, user: user, state: "running")
+    chat.proposals.create!(kind: "job", slug: "release", title: "Release", body: "Body", state: "confirmed", job: job)
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).and_return(double(stages: []))
+    sign_in_as(user)
+    tree = { "and" => [ { "field" => "associated_chat_id", "op" => "is", "value" => chat.id } ] }
+
+    { "0" => false, "1" => true }.each do |history, expected_history|
+      get "/api/v1/app/repositories/#{repository.id}/sdlc_pipeline",
+          params: { q: Filters::QueryParam.encode(tree), history: history }
+
+      expect(response).to have_http_status(:ok)
+      ids = response.parsed_body.fetch("stages").flat_map { |stage| stage.fetch("highlighted_items") }.map { |row| row.fetch("id") }
+      expect(ids).to eq([ job.id ])
+      expect(response.parsed_body.key?("history")).to eq(expected_history)
+    end
+  end
+
+  it "follows the chat Jobs-tab Pipeline action through to a successful filtered response" do
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    chat = ChatSession.create!(user: user, title: "Release planning")
+    job = Factories.job_record(repository: repository, user: user, state: "running")
+    chat.proposals.create!(kind: "job", slug: "release", title: "Release", body: "Body", state: "confirmed", job: job)
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).and_return(double(stages: []))
+    sign_in_as(user)
+
+    action = SdlcPipeline::ChatJobStatusExtension.payload(chat_session: chat, jobs: [ job ]).fetch(:actions).sole
+    get action.fetch(:path)
+    expect(response).to have_http_status(:ok)
+
+    get "/api/v1/app/repositories/#{repository.id}/sdlc_pipeline?#{URI.parse(action.fetch(:path)).query}"
+    expect(response).to have_http_status(:ok)
+    ids = response.parsed_body.fetch("stages").flat_map { |stage| stage.fetch("highlighted_items") }.map { |row| row.fetch("id") }
+    expect(ids).to eq([ job.id ])
+  end
+
+  it "follows the agent popup path through to a successful filtered response" do
+    user = Factories.user
+    repository = Factories.repository(user: user)
+    chat = ChatSession.create!(user: user, title: "Release planning")
+    job = Factories.job_record(repository: repository, user: user, state: "running")
+    chat.proposals.create!(kind: "job", slug: "release", title: "Release", body: "Body", state: "confirmed", job: job)
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).and_return(double(stages: []))
+    allow(AppEvents).to receive(:broadcast_chat_resource)
+    sign_in_as(user)
+    filter = { "and" => [ { "field" => "associated_chat_id", "op" => "is", "value" => chat.id } ] }
+
+    tool_response = SdlcPipeline::ShowPipelineTool.call(
+      repository_id: repository.id, filter: filter, server_context: { chat_session: chat }
+    )
+    path = JSON.parse(tool_response.content.first[:text]).fetch("path")
+    get path
+
+    expect(response).to have_http_status(:ok)
+
+    get "/api/v1/app/repositories/#{repository.id}/sdlc_pipeline?#{URI.parse(path).query}"
+    expect(response).to have_http_status(:ok)
+    ids = response.parsed_body.fetch("stages").flat_map { |stage| stage.fetch("highlighted_items") }.map { |row| row.fetch("id") }
+    expect(ids).to eq([ job.id ])
+  end
 end
