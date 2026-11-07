@@ -2,6 +2,7 @@
 
 require_relative "deploy_helper"
 require "stringio"
+require "tempfile"
 
 RSpec.describe Deploy::Images do
   let(:out) { StringIO.new }
@@ -73,13 +74,17 @@ RSpec.describe Deploy::Images do
       stream = StringIO.new
       shell = Deploy::Shell.new(reporter: reporter, clock: Deploy::Clock::Immediate.new,
         dry_run: true, stream: stream)
-      images = described_class.new(
-        config: Deploy::Config.new(env: { "GHCR_TOKEN" => "ghp_super_secret_value" }, dry_run: true),
-        repo: instance_double(Deploy::Repo, sha: "abc1234"),
-        shell: shell, reporter: reporter
-      )
+      Tempfile.create("ghcr-token") do |token_file|
+        token_file.write("ghp_super_secret_value")
+        token_file.flush
+        images = described_class.new(
+          config: Deploy::Config.new(env: { "SYRUS_GHCR_TOKEN_FILE" => token_file.path }, dry_run: true),
+          repo: instance_double(Deploy::Repo, sha: "abc1234"),
+          shell: shell, reporter: reporter
+        )
 
-      images.ensure_available!
+        images.ensure_available!
+      end
 
       expect(stream.string).not_to include("ghp_super_secret_value")
       expect(stream.string).to include("syrus_ghcr_login")
