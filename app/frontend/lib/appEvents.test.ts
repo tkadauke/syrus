@@ -442,6 +442,8 @@ describe("applyAppEvent", () => {
     expect(predicate?.({ queryKey: ["dashboard", "rows", "?state=open"] })).toBe(true)
     expect(predicate?.({ queryKey: ["dashboard", "graph", "jobs", "?state=open"] })).toBe(true)
     expect(predicate?.({ queryKey: ["jobs", "42", "source_diff", ""] })).toBe(false)
+    vi.advanceTimersByTime(15_000)
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["dashboard", "chrome"] })
   })
 
   it("targets repository index list queries without invalidating repository detail or plugin tab queries", () => {
