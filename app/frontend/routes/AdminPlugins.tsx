@@ -12,6 +12,7 @@ import {
   type AdminPluginDisableConfirmation,
   type AdminPluginExtensionPoint,
   type AdminPluginExperimentalBlock,
+  type AdminPluginTogglePayload,
   type AdminPluginsPayload
 } from "../api/adminPlugins"
 import { AdminFiltersLayout } from "../components/AdminFiltersLayout"
@@ -212,7 +213,7 @@ function usePluginToggle(plugin: AdminPlugin, betaModeEnabled: boolean, onToggle
     mutationFn: enableBetaModeForInstance,
     onSuccess: () => pageReload.reloadPage()
   })
-  const toggle = useMutation<AdminPluginsPayload | AdminPluginDisableConfirmation | AdminPluginExperimentalBlock, unknown, boolean | undefined>({
+  const toggle = useMutation<AdminPluginTogglePayload | AdminPluginDisableConfirmation | AdminPluginExperimentalBlock, unknown, boolean | undefined>({
     mutationFn: (confirmCascade) => (plugin.enabled ? disableAdminPlugin(plugin.name, confirmCascade) : enableAdminPlugin(plugin.name)),
     onSuccess: (data) => {
       if ("requires_confirmation" in data && data.requires_confirmation) {

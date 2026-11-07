@@ -22,7 +22,7 @@ export type ConsoleAction = {
 
 export type AdminConsolePayload = {
   settings: ConsoleSettings
-  users: ConsoleUser[]
+  users?: ConsoleUser[] | null
   recent_admin_actions: ConsoleAction[]
   active_runs: number
   ok?: boolean
@@ -35,13 +35,17 @@ export function fetchAdminConsole() {
   return getJson<AdminConsolePayload>("/api/v1/app/admin/console")
 }
 
+export function fetchAdminConsoleUsers() {
+  return getJson<AdminConsolePayload>("/api/v1/app/admin/console?include_users=true")
+}
+
 export function runConsoleCommand(command: ConsoleCommand) {
-  return postJson<AdminConsolePayload>(`/api/v1/app/admin/console/${command}`)
+  return postJson<Pick<AdminConsolePayload, "settings" | "active_runs" | "ok">>(`/api/v1/app/admin/console/${command}`)
 }
 
 export function clearGithubCache(userId: string) {
   const body = userId.length > 0 ? { user_id: userId } : undefined
-  return postJson<AdminConsolePayload>("/api/v1/app/admin/console/clear_github_cache", body)
+  return postJson<Pick<AdminConsolePayload, "settings" | "active_runs" | "ok" | "message">>("/api/v1/app/admin/console/clear_github_cache", body)
 }
 
 export { reapStaleRuns }

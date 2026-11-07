@@ -4,7 +4,6 @@ import type { FilterSchemaField } from "../components/FilterBar"
 export type AdminInvitation = {
   id: number
   email_address: string
-  token: string
   share_url: string
   expires_at: string
   created_at: string
@@ -38,11 +37,11 @@ export function fetchAdminInvitations(search = "") {
 }
 
 export function createAdminInvitation(emailAddress: string) {
-  return postJson<AdminInvitationsPayload>("/api/v1/app/admin/invitations", {
+  return postJson<{ invitation: AdminInvitation; message: string }>("/api/v1/app/admin/invitations", {
     invitation: { email_address: emailAddress }
   })
 }
 
 export function revokeAdminInvitation(id: number) {
-  return deleteJson<AdminInvitationsPayload>(`/api/v1/app/admin/invitations/${id}`)
+  return deleteJson<{ ok: true; id: number; message: string }>(`/api/v1/app/admin/invitations/${id}`)
 }

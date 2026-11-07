@@ -13,7 +13,7 @@ module Api
 
           def refresh
             SyncInstallationsJob.perform_later(Current.user.id)
-            render json: ::Admin::Installations::Payload.new.show.merge(ok: true, message: "Installation sync queued.")
+            render json: { ok: true, message: "Installation sync queued." }
           end
         end
       end
