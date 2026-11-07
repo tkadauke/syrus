@@ -371,6 +371,10 @@ folder definitions can present one named Preset chip. Adding, editing, or
 removing any visible chip changes the complete effective filter while the
 sidebar continues to show which folder supplied the starting view.
 
+Bulk actions on the Jobs and Epics lists show completed and total counts while
+they run. You can cancel between items; Syrus lets the request already in
+flight finish and does not start the remaining selected items.
+
 Main branch health warnings distinguish severity: `broken` health can pause
 repository work while Syrus opens or offers repair, while `inconclusive`
 health is warning-only and does not hold queued work or the landing queue by
