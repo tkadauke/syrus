@@ -14,9 +14,9 @@ to do. It complements, rather than replaces, three more detailed docs:
 - `app/frontend/components/ui/README.md` — the full per-component contract
   table and import examples. Read that first for "what does `Surface`
   actually support."
-- `config/syrus_docs/design_system_eslint_ratchet.md` — the enforced
+- `design_system_eslint_ratchet.md` — the enforced
   ESLint rules, baseline mechanics, and how to add a local exception.
-- `config/syrus_docs/style_debt_report.md` — the report-only script that
+- `style_debt_report.md` — the report-only script that
   tracks migration hot spots not yet promoted into the enforced ratchet.
 
 ## Import path and conventions
@@ -133,7 +133,7 @@ A baseline bump is **not** an exception mechanism — the baseline tracks
 debt that already existed when a rule started enforcing, not new usage. New
 intentional usage always gets a disable comment or an exemption-list entry,
 so the reasoning is visible in the diff. See
-`config/syrus_docs/design_system_eslint_ratchet.md` for the full rule table
+`design_system_eslint_ratchet.md` for the full rule table
 and how to extend the ratchet with a new rule.
 
 ## Plugin expectations

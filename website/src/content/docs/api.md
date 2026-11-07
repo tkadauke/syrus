@@ -23,7 +23,8 @@ a JSON `401` error.
 
 The generated [user API catalog](/docs/generated/user-api-catalog) lists every
 registered `/api/v1/app/*` endpoint. Operator/admin endpoint inventory lives
-with the operator docs in `config/syrus_docs/admin_api_catalog.md`.
+with the engineering catalog in
+`docs/engineering/architecture/admin_api_catalog.md`.
 
 Dashboard clients can fetch `section=chrome` and `section=rows` separately.
 Stable controls are available from
