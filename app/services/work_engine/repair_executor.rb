@@ -547,9 +547,11 @@ module WorkEngine
           active_runs = workflow.runs.active.to_a
           active_runs.each { |run| declare_workspace_recovery_failure!(workflow, run, reason, now) }
           workflow.runs.active.update_all(state: "failed", finished_at: now, agent_outcome: "workspace_recovery_failed", updated_at: now)
-          workflow.steps.active.update_all(state: "failed", finished_at: now, updated_at: now)
+          failed_step_ids = active_runs.map(&:step_id).compact.uniq
+          workflow.steps.active.where(id: failed_step_ids).update_all(state: "failed", finished_at: now, updated_at: now)
           workflow.finished_at = now
           workflow.fail! if workflow.may_fail?
+          workflow.cancel_active_descendants!(reason: "workspace_recovery_failed")
           schedule_auto_retry!(
             retry_kind: "retry_workflow",
             source_run: active_runs.last,

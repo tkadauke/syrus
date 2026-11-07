@@ -1,7 +1,5 @@
 module App
   class JobRetryActions
-    GIT_STATE_CORRUPT_PROBLEM_CODE = "git_state_corrupt".freeze
-
     def self.for(job)
       new(job).as_json
     end
@@ -34,7 +32,7 @@ module App
       return if latest_workflow&.infrastructure_workflow?
       return unless latest_workflow&.retry_available?
       return unless failed_step
-      return if failed_step_workspace_git_state_corrupt?
+      return if RetryFailedStepEnqueuer.fresh_workflow_required_for?(failed_step)
       return if merge_train_dispatch_blocked?
 
       {
@@ -91,20 +89,6 @@ module App
       return if train_id.blank?
 
       MergeTrain.find_by(id: train_id)
-    end
-
-    # The failed step's own workspace has no valid git HEAD, not the step
-    # itself -- so the IMPLEMENTATION_FAILURE_STEP_KINDS allowlist doesn't
-    # apply, and resuming the same step in place (retry_failed_step) is
-    # guaranteed to hit the same WorkflowWorkspace refusal every time. Only
-    # a full restart (a fresh Workflow + fresh workspace) can recover.
-    def failed_step_workspace_git_state_corrupt?
-      return false unless failed_step
-
-      classification = failed_step.latest_run&.run_failure_classification&.classification
-      return false if classification.blank?
-
-      Problem::Kind.resolve(classification)&.code == GIT_STATE_CORRUPT_PROBLEM_CODE
     end
   end
 end
