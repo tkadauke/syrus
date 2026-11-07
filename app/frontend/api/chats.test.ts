@@ -61,7 +61,7 @@ describe("chat API", () => {
     )
   })
 
-  it("omits the repository when creating an explicitly repositoryless empty chat", async () => {
+  it("posts null when creating an explicitly repositoryless empty chat", async () => {
     const fetchMock = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(createdChatPayload()))
 
     await createEmptyChat(null, "claude")
@@ -71,6 +71,7 @@ describe("chat API", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
+          repository_id: null,
           chat_provider: "claude"
         })
       })
