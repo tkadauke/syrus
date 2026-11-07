@@ -262,11 +262,7 @@ function DashboardView({ payload, pathname, search }: { payload: DashboardPayloa
         <DashboardCreateActions payload={payload} prefix={prefix} />
       </Page.Header>
       <ReadinessPanel className={marginGutterRestore} prefix={prefix} readiness={readiness} />
-      <RepositoryHealthBanners
-        className={marginGutterRestore}
-        prefix={prefix}
-        repositories={payload.health_blocked_repositories ?? []}
-      />
+      <RepositoryHealthBanners className={marginGutterRestore} prefix={prefix} repositories={payload.health_blocked_repositories ?? []} />
 
       {isDesktop ? (
         <>
