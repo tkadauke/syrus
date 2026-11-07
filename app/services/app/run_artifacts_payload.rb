@@ -149,7 +149,7 @@ module App
           id: id,
           sequence: sequence,
           kind: kind,
-          chunk: chunk,
+          chunk: serialized_chunk(kind, chunk),
           tool_name: metadata["tool_name"],
           tool_input: tool_input,
           tool_use_id: metadata["tool_use_id"],
@@ -212,6 +212,12 @@ module App
 
       def truncate_string(value, bytes)
         value.byteslice(0, bytes).to_s.scrub
+      end
+
+      def serialized_chunk(kind, chunk)
+        return chunk unless %w[tool_call tool_result].include?(kind)
+
+        ToolPayloadRedactor.redact_text(chunk.to_s)
       end
     end
 
