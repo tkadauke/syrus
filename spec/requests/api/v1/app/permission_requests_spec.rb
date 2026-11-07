@@ -67,8 +67,21 @@ RSpec.describe "API: /api/v1/app/permission_requests", type: :request do
     expect(payload).not_to have_key("filter_options")
     expect(payload.dig("pagination", "per_page")).to eq(5)
     payload.fetch("requests").flat_map { |request| request.fetch("items") }.each do |item|
-      expect(item.keys).not_to include("arguments", "policy_chain", "decisive_rule")
+      expect(item.keys).not_to include("arguments", "policy_chain", "decisive_rule", "smart_option")
     end
+  end
+
+  it "serves count-only polling and lazily loads full smart-decision detail" do
+    request = authorization_request
+    request.authorization_items.create!(item_attributes)
+
+    get "/api/v1/app/permission_requests/count"
+    expect(JSON.parse(response.body)).to eq("summary" => { "pending_count" => 1, "blocked_agent_count" => 0 })
+    expect(response.headers["ETag"]).to be_present
+
+    get "/api/v1/app/permission_requests/#{request.id}"
+    item = JSON.parse(response.body).dig("request", "items", 0)
+    expect(item).to include("arguments", "policy_chain", "decisive_rule", "smart_option")
   end
 
   it "records one compatible decision across the request items" do

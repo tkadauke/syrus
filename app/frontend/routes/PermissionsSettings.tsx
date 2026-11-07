@@ -16,7 +16,8 @@ import {
   type PermissionHistoryEntry,
   type PermissionLease,
   type PermissionPreview,
-  type PermissionRule
+  type PermissionRule,
+  type PermissionRulesDynamicPayload
 } from "../api/permissions"
 import { AiApprovalDelegations } from "./AiApprovalDelegations"
 import { PermissionRuleEditor, type RuleEditorSeed } from "../components/PermissionRuleEditor"
@@ -63,8 +64,20 @@ export function PermissionsSettingsRoute() {
   const role = roleFor(subject)
   // Capabilities that can carry a standing (permanent) rule for some role.
   const authorableCapabilities = useMemo(() => descriptors.filter((item) => item.requestable_roles.length > 0), [descriptors])
-  const refresh = () => queryClient.invalidateQueries({ queryKey })
-  const revoke = useMutation({ mutationFn: revokePermissionRule, onSuccess: refresh })
+  const patchRules = (result: PermissionRulesDynamicPayload) =>
+    queryClient.setQueryData<Awaited<ReturnType<typeof fetchPermissions>>>(queryKey, (current) =>
+      current
+        ? {
+            ...current,
+            ...result,
+            inherited: current.inherited.map((descriptor) => ({
+              ...descriptor,
+              matrix_states: result.matrix_states?.[`${descriptor.capability}|${descriptor.operation}`] ?? descriptor.matrix_states
+            }))
+          }
+        : current
+    )
+  const revoke = useMutation({ mutationFn: revokePermissionRule, onSuccess: patchRules })
   const preset = useMutation({
     mutationFn: ({ item, name }: { item: InheritedPermission; name: string }) =>
       applyPermissionPreset({
@@ -76,7 +89,7 @@ export function PermissionsSettingsRoute() {
         resource_scope: {},
         constraints: {}
       }),
-    onSuccess: refresh
+    onSuccess: patchRules
   })
   const bulkPreview = useMutation({
     mutationFn: (operations: PermissionBulkOperation[]) => previewPermissionBulk(operations),
@@ -84,11 +97,11 @@ export function PermissionsSettingsRoute() {
   })
   const bulkApply = useMutation({
     mutationFn: () => applyPermissionBulk(preview!.operations, preview!.digest),
-    onSuccess: () => {
+    onSuccess: (result) => {
       setPreview(null)
       setSelectedKeys([])
       setSelectedRuleIds([])
-      void refresh()
+      patchRules(result)
     }
   })
   const loadProfilePreview = useMutation({
@@ -97,9 +110,9 @@ export function PermissionsSettingsRoute() {
   })
   const applyProfile = useMutation({
     mutationFn: () => applyPermissionProfile(profilePreview!.preview.profile.key, profileSubject, profilePreview!.digest),
-    onSuccess: () => {
+    onSuccess: (result) => {
       setProfilePreview(null)
-      void refresh()
+      patchRules(result)
     }
   })
 
@@ -362,7 +375,6 @@ export function PermissionsSettingsRoute() {
                 onApplied={() => {
                   closeEditor()
                   setSavedNotice(true)
-                  void refresh()
                   void queryClient.invalidateQueries({ queryKey: ["permission_history"] })
                 }}
                 onCancel={closeEditor}

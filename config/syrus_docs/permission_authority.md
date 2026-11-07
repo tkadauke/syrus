@@ -83,6 +83,16 @@ requests can be selected and decided atomically when their items share a duratio
 remain available as history; dismissing an obsolete request does not create a
 deny rule.
 
+The app API keeps compact polling separate from the full inbox payload.
+`GET /api/v1/app/permission_requests/count` returns only pending and blocked
+counts. `GET /api/v1/app/permission_requests?view=summary&limit=5` returns at
+most five lightweight cards; cards lazily load smart-decision evidence from
+`GET /api/v1/app/permission_requests/:id`. These reads use private ETags. The
+full inbox endpoint continues to include filter options and paginated detail.
+The Permissions Hub loads its static descriptor/profile catalog from the
+privately ETagged `GET /api/v1/app/permission_rules/catalog`; the ordinary
+rules response contains active user rules and dynamic matrix state only.
+
 Interactive, Coding, Local, coworker, scheduled, and workflow agents use this
 same request lifecycle. Policy evaluation records the actor's canonical role or
 named-agent selector, deduplicates the exact redacted invocation, and checkpoints

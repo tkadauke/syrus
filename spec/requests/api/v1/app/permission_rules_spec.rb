@@ -36,7 +36,7 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     get "/api/v1/app/permission_rules/history", params: { page: 2, per_page: 1_000 }
 
     payload = JSON.parse(response.body)
-    expect(payload.fetch("pagination")).to include("page" => 2, "per_page" => Permissions::HistoryPayload::LIMIT)
+    expect(payload.fetch("pagination")).to include("page" => 2, "per_page" => Permissions::HistoryPayload::MAX_PER_PAGE)
     expect(payload.fetch("history")).to be_empty
   end
 
