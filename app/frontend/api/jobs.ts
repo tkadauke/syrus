@@ -1544,7 +1544,7 @@ export type DiffReviewComment = {
   id: number
   job_id: number
   diff_review_version_id: number
-  diff_review_version: {
+  diff_review_version?: {
     id: number
     version_index: number
     base_sha: string
@@ -1582,11 +1582,13 @@ export type DiffReviewComment = {
 }
 
 export type DiffReviewCommentsPayload = {
-  job_id: number
-  diff_review_version_id: number | null
-  latest_version_id: number | null
+  job_id?: number
+  diff_review_version_id?: number | null
+  latest_version_id?: number | null
+  diff_review_version?: DiffReviewVersion | null
+  users?: Record<string, NonNullable<DiffReviewComment["user"]>>
+  workflows?: Record<string, NonNullable<DiffReviewComment["workflow"]>>
   comments: DiffReviewComment[]
-  by_path: Record<string, Record<string, DiffReviewComment[]>>
 }
 
 export type DiffReviewCommentInput = {
@@ -1811,8 +1813,17 @@ export function fetchDiffReviewVersion(jobId: string | number, versionId: number
   return getJson<DiffReviewVersionPayload>(`/api/v1/app/jobs/${jobId}/diff_review_versions/${versionId}`)
 }
 
-export function fetchDiffReviewComments(jobId: string | number, search = "") {
-  return getJson<DiffReviewCommentsPayload>(`/api/v1/app/jobs/${jobId}/diff_review_comments${search}`)
+export function fetchDiffReviewComments(jobId: string | number, search = ""): Promise<DiffReviewCommentsPayload> {
+  return getJson<DiffReviewCommentsPayload>(`/api/v1/app/jobs/${jobId}/diff_review_comments${search}`).then((payload) => ({
+    ...payload,
+    comments: payload.comments.map((comment) => ({
+      ...comment,
+      diff_review_version:
+        comment.diff_review_version_id === payload.diff_review_version?.id ? payload.diff_review_version : (comment.diff_review_version ?? null),
+      user: payload.users?.[String(comment.user_id)] ?? comment.user ?? null,
+      workflow: comment.workflow_id == null ? null : (payload.workflows?.[String(comment.workflow_id)] ?? comment.workflow ?? null)
+    }))
+  }))
 }
 
 export function createDiffReviewComment(jobId: string | number, input: DiffReviewCommentInput) {

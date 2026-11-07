@@ -11265,14 +11265,10 @@ describe("App", () => {
         return Promise.resolve(new Response(JSON.stringify(jobSourceDiffPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path.startsWith("/api/v1/app/jobs/42/diff_review_comments") && init?.method === "POST") {
-        return Promise.resolve(
-          new Response(JSON.stringify({ job_id: 42, comments: [], by_path: {} }), { status: 201, headers: { "Content-Type": "application/json" } })
-        )
+        return Promise.resolve(new Response(JSON.stringify({ job_id: 42, comments: [] }), { status: 201, headers: { "Content-Type": "application/json" } }))
       }
       if (path.startsWith("/api/v1/app/jobs/42/diff_review_comments")) {
-        return Promise.resolve(
-          new Response(JSON.stringify({ job_id: 42, comments: [], by_path: {} }), { status: 200, headers: { "Content-Type": "application/json" } })
-        )
+        return Promise.resolve(new Response(JSON.stringify({ job_id: 42, comments: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path.startsWith("/api/v1/app/jobs/42/source_diff?")) {
         return Promise.resolve(

@@ -25,7 +25,7 @@ module Api
             head_ref: comment_params[:head_ref].presence || version.head_sha
           ))
           if comment.save
-            render json: comments_payload(job, job.diff_review_comments.where(id: comment.id), version: version), status: :created
+            render json: { comments: comments_payload(job, [ comment ], version: version)[:comments] }, status: :created
           else
             render_error("validation_failed", comment.errors.full_messages.to_sentence, status: :unprocessable_content)
           end
@@ -37,7 +37,7 @@ module Api
 
           comment = find_versioned_comment(job)
           if comment.update(comment_params.except(:diff_review_version_id))
-            render json: comments_payload(job, job.diff_review_comments.where(id: comment.id), version: comment.diff_review_version)
+            render json: { comments: comments_payload(job, [ comment ], version: comment.diff_review_version)[:comments] }
           else
             render_error("validation_failed", comment.errors.full_messages.to_sentence, status: :unprocessable_content)
           end
@@ -63,7 +63,7 @@ module Api
 
           comment = find_versioned_comment(job)
           comment.resolve!
-          render json: comments_payload(job, job.diff_review_comments.where(id: comment.id), version: comment.diff_review_version)
+          render json: { comments: comments_payload(job, [ comment ], version: comment.diff_review_version)[:comments] }
         end
 
         def reply
@@ -73,7 +73,7 @@ module Api
           parent = find_versioned_comment(job)
           reply = parent.build_reply(user: Current.user, body: params[:body])
           if reply.save
-            render json: comments_payload(job, job.diff_review_comments.where(id: reply.id), version: parent.diff_review_version), status: :created
+            render json: { comments: comments_payload(job, [ reply ], version: parent.diff_review_version)[:comments] }, status: :created
           else
             render_error("validation_failed", reply.errors.full_messages.to_sentence, status: :unprocessable_content)
           end
