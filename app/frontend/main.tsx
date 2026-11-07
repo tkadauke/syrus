@@ -6,6 +6,7 @@ import { I18nextProvider } from "react-i18next"
 import { App } from "./routes/App"
 import { AppErrorBoundary } from "./components/AppErrorBoundary"
 import i18n from "./i18n"
+import { I18nStartupGate } from "./i18n/I18nStartupGate"
 import { initErrorRingBuffer } from "./lib/errorRingBuffer"
 import { startBrowserPerformanceObservers } from "./lib/performanceTrace"
 import { markStartupMilestone } from "./lib/startupDiagnostics"
@@ -26,14 +27,16 @@ if (root) {
   createRoot(root).render(
     <StrictMode>
       <I18nextProvider i18n={i18n}>
-        <QueryClientProvider client={queryClient}>
-          <BrowserRouter>
-            <AppErrorBoundary>
-              <StartupRenderMarker />
-              <App />
-            </AppErrorBoundary>
-          </BrowserRouter>
-        </QueryClientProvider>
+        <I18nStartupGate>
+          <QueryClientProvider client={queryClient}>
+            <BrowserRouter>
+              <AppErrorBoundary>
+                <StartupRenderMarker />
+                <App />
+              </AppErrorBoundary>
+            </BrowserRouter>
+          </QueryClientProvider>
+        </I18nStartupGate>
       </I18nextProvider>
     </StrictMode>
   )
