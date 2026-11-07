@@ -17,6 +17,7 @@ RSpec.describe "German localization orthography", type: :unit do
   LEGITIMATE_WORDS = %w[
     Steuer Neuer Quelle Dauer zuerst manuell visuell Vertrauen muss dass lassen
   ].freeze
+  LEGITIMATE_WORD_PREFIX = /\A(?:#{LEGITIMATE_WORDS.map { |word| Regexp.escape(word) }.join('|')})/i
 
   UMLAUT_TRANSLITERATION_STEMS = %w[
     aeltest aender angehaeng aufzaehl ausfuehr ausgewaehl auswaehl bestaet
@@ -85,7 +86,7 @@ RSpec.describe "German localization orthography", type: :unit do
   end
 
   def legitimate_word?(token)
-    LEGITIMATE_WORDS.any? { |word| token.match?(/\A#{Regexp.escape(word)}/i) }
+    token.match?(LEGITIMATE_WORD_PREFIX)
   end
 
   def findings_for(entries)
@@ -118,7 +119,7 @@ RSpec.describe "German localization orthography", type: :unit do
   it "requires native German spelling in every maintained catalog" do
     entries = catalog_entries
     findings = findings_for(entries)
-    stale_debt = stale_debt_for(entries)
+    stale_debt = DEBT_BASELINE - findings.map(&:coordinate).to_set
     unexpected = findings.reject { |finding| DEBT_BASELINE.include?(finding.coordinate) }
 
     expect(stale_debt).to be_empty, <<~MESSAGE
