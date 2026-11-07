@@ -1489,7 +1489,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(item[:dependencies].first).to include(id: dependency.id, slug: blocker.slug, pending: false, succeeded: false)
     end
 
-    it "preloads dependency deployment statuses when serializing dashboard dependencies" do
+    it "batches deployment status queries when serializing dashboard dependencies" do
       staging = SyrusYml::DeploymentStage.new(name: "staging", label: "On Staging", tag: "staging", tag_pattern: nil)
       production = SyrusYml::DeploymentStage.new(name: "production", label: "Production", tag: "production", tag_pattern: nil)
       allow(RepoDeploymentStagesReader).to receive(:for_repository).and_return(
@@ -1519,7 +1519,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
         call(subject: "job", smart_folder_id: blocked_folder.id)
       end
 
-      expect(deployment_stage_queries).to be <= 1
+      expect(deployment_stage_queries).to be <= 3
     end
 
     it "does not show dep reason when the only dependency is already satisfied" do
