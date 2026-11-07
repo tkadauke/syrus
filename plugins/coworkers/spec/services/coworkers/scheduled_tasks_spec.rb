@@ -128,6 +128,55 @@ RSpec.describe "Coworker scheduled tasks" do
     expect(WorkUnits::Launcher).not_to have_received(:instantiate)
   end
 
+  it "catches up a journaling schedule on the next poll after its fire window was missed" do
+    journaling = Coworkers::SystemSchedules.reconcile!(coworker)
+    journaling.update_columns(last_fired_at: nil, last_journaled_on: nil, minute_offset: 8)
+    allow(WorkUnits::Launcher).to receive(:instantiate)
+
+    travel_to(Time.utc(2026, 11, 4, 3, 15)) do
+      expect(journaling.reload).to be_due(now: Time.current)
+
+      PollScheduledTasksJob.perform_now
+    end
+
+    expect(journaling.reload).to have_attributes(
+      last_fired_at: Time.utc(2026, 11, 4, 3, 15),
+      last_journaled_on: Date.new(2026, 11, 3),
+      last_system_result: "skipped",
+      last_system_result_reason: "dormant"
+    )
+    expect(WorkUnits::Launcher).not_to have_received(:instantiate)
+  end
+
+  it "does not treat today's journal as overdue before its scheduled fire time" do
+    journaling = Coworkers::SystemSchedules.reconcile!(coworker)
+    journaling.update_columns(last_fired_at: nil, last_journaled_on: nil)
+
+    travel_to(Time.utc(2026, 11, 4, 0, 15)) do
+      expect(journaling.reload).not_to be_due(now: Time.current)
+    end
+  end
+
+  it "records the failed journal date and exception details when a catch-up fire raises" do
+    journaling = Coworkers::SystemSchedules.reconcile!(coworker)
+    journaling.update_columns(last_fired_at: nil, last_journaled_on: nil, minute_offset: 31)
+    allow_any_instance_of(Coworkers::ScheduledTaskFireHandler).to receive(:fire!).and_raise(RuntimeError, "workspace locked")
+
+    travel_to(Time.utc(2026, 11, 4, 3, 15)) do
+      expect { PollScheduledTasksJob.perform_now }.to change(BackendExceptionEvent, :count).by(1)
+    end
+
+    expect(journaling.reload).to have_attributes(
+      consecutive_failure_count: 1,
+      last_system_result: "failed",
+      last_system_result_on: Date.new(2026, 11, 3),
+      last_system_result_reason: "RuntimeError: workspace locked"
+    )
+    expect(journaling.system_result_history).to include(
+      "date" => "2026-11-03", "result" => "failed", "reason" => "RuntimeError: workspace locked"
+    )
+  end
+
   it "counts a pending local daily-memory change as activity before it is pushed" do
     chat = ChatSession.create!(user: owner, repository: repository, title: "Maya")
     Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")

@@ -163,6 +163,8 @@
     "run_now": "Nunc exsequere",
     "system": "Systema",
     "journaling_paused": "Diarium sistitur",
+    "journaling_overdue": "Diarium sero / defecit: {{reason}}",
+    "missed_fire": "tempus statutum praetermissum est",
     "last_result": "Eventus ultimus: {{result}} · usque ad {{date}} scriptum",
     "never_run": "numquam actum",
     "system_run_time": "Hora consilii systematis",
