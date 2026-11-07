@@ -1461,9 +1461,9 @@ function RecentChatActionsMenu({
     mutationFn: (title: string) => renameChat(`/api/v1/app/chats/${chat.id}/rename`, title),
     onSuccess: (payload) => {
       updateRecentChatCache(queryClient, payload.chat)
-      queryClient.setQueriesData({ queryKey: ["chats", String(chat.id)] }, (current: unknown) => current && typeof current === "object"
-        ? { ...current, chat: { ...(current as { chat?: object }).chat, ...payload.chat } }
-        : current)
+      queryClient.setQueriesData({ queryKey: ["chats", String(chat.id)] }, (current: unknown) =>
+        current && typeof current === "object" ? { ...current, chat: { ...(current as { chat?: object }).chat, ...payload.chat } } : current
+      )
       setRenameOpen(false)
       onNotice(null)
     },
