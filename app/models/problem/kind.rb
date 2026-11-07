@@ -180,7 +180,12 @@ class Problem
     ].freeze
 
     REGISTRY = Syrus::KindRegistry.new(
-      built_in: BUILT_IN_ENTRIES, entry_class: Entry, provider_method: :problem_kinds, key: :code
+      built_in: BUILT_IN_ENTRIES, entry_class: Entry, provider_method: :problem_kinds, key: :code,
+      extension_point: :problem_provider,
+      validate_plugin_entry: lambda { |provider, attrs|
+        namespace = provider.problem_namespace.to_s
+        namespace.match?(/\A[a-z][a-z0-9_]*\z/) && attrs.fetch(:code).to_s.start_with?("#{namespace}.")
+      }
     )
 
     def self.entries = REGISTRY.entries
