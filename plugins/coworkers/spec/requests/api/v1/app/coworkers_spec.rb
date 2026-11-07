@@ -63,16 +63,27 @@ RSpec.describe "API: coworkers", type: :request do
     coworker.grants.create!(capability: "workspace.shell", approval_policy: "auto")
     sign_in_as(owner)
 
-    get "/api/v1/app/coworkers/#{coworker.id}"
+    get "/api/v1/app/coworkers/#{coworker.id}/capabilities"
 
     expect(response).to have_http_status(:ok)
-    report = response.parsed_body.dig("coworker", "permission_cutover_report")
+    report = response.parsed_body.fetch("permission_cutover_report")
     expect(report).to include("ready" => false)
     expect(report.fetch("legacy_grants")).to contain_exactly(
       include("capability" => "syrus.read_jobs", "approval_policy" => "auto"),
       include("capability" => "workspace.shell", "approval_policy" => "auto")
     )
     expect(report.fetch("descriptor_gaps")).to contain_exactly(include("legacy_capability" => "workspace.shell"))
+  end
+
+  it "keeps the base detail response free of tab-specific payloads" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-lean-detail", workspace_repo: "https://github.com/acme/workspace.git")
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}"
+
+    expect(response).to have_http_status(:ok)
+    payload = response.parsed_body.fetch("coworker")
+    expect(payload.keys & %w[soul available_chats grants grant_catalog schedules message_traffic]).to be_empty
   end
 
   it "adds coworker sender and receiver appearances to chat messages without per-message queries" do
@@ -154,8 +165,9 @@ RSpec.describe "API: coworkers", type: :request do
       capability: "workspace.files", approval_policy: "confirm", confirmed: true,
       constraints: { confirm_paths: [ "SOUL.md", "AGENTS.md" ] }
     }
-    expect(response).to have_http_status(:ok)
-    expect(response.parsed_body.dig("coworker", "grants")).to contain_exactly(
+    expect(response).to have_http_status(:no_content)
+    get "/api/v1/app/coworkers/#{coworker.id}/capabilities"
+    expect(response.parsed_body.fetch("grants")).to contain_exactly(
       "capability" => "workspace.files", "approval_policy" => "confirm",
       "constraints" => { "confirm_paths" => %w[SOUL.md AGENTS.md] }
     )
@@ -279,7 +291,11 @@ RSpec.describe "API: coworkers", type: :request do
     body = JSON.parse(response.body)
     expect(body.dig("syrus", "built_in")).to be(true)
     expect(body.fetch("coworkers")).to contain_exactly(include("id" => mine.id, "handle" => "maya"))
-    expect(body.fetch("model_options")).to include(
+    expect(body).not_to have_key("model_options")
+    expect(body).not_to have_key("grant_catalog")
+
+    get "/api/v1/app/coworkers/options"
+    expect(response.parsed_body.fetch("model_options")).to include(
       include("provider" => "codex", "models" => include(include("id" => AgentProviders::Codex.available_models.first.id)))
     )
   end
@@ -383,9 +399,9 @@ RSpec.describe "API: coworkers", type: :request do
     Coworkers::ChatAgent.create!(coworker: coworker, chat_session: roster_chat, added_by_user: owner)
     sign_in_as(owner)
 
-    get "/api/v1/app/coworkers/#{coworker.id}"
+    get "/api/v1/app/coworkers/#{coworker.id}/chats"
 
-    chats = response.parsed_body.dig("coworker", "available_chats").index_by { |chat| chat.fetch("id") }
+    chats = response.parsed_body.fetch("available_chats").index_by { |chat| chat.fetch("id") }
     expect(chats.fetch(own_chat.id)).to include("implicit" => true, "rostered" => false)
     expect(chats.fetch(roster_chat.id)).to include("implicit" => false, "rostered" => true)
   end
@@ -402,14 +418,34 @@ RSpec.describe "API: coworkers", type: :request do
     old.update_columns(created_at: 31.days.ago)
     sign_in_as(owner)
 
-    get "/api/v1/app/coworkers/#{coworker.id}"
+    get "/api/v1/app/coworkers/#{coworker.id}/activity"
 
-    traffic = response.parsed_body.dig("coworker", "message_traffic")
+    traffic = response.parsed_body.fetch("message_traffic")
     expect(traffic).to include("sent" => 1, "received" => 1, "window_days" => 30)
     expect(traffic.fetch("delivery_events")).to contain_exactly(
       include("status" => "refused", "receiver_handle" => "rin", "reason" => "Message to @rin was not delivered")
     )
-    expect(response.parsed_body.dig("coworker", "spend_usd")).to eq(1.25)
+    expect(response.parsed_body.dig("spend", "total_usd")).to eq(1.25)
+  end
+
+  it "bounds activity collections and provides independent cursors" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-bounded-activity", workspace_repo: "https://github.com/acme/workspace.git")
+    51.times do |index|
+      chat = ChatSession.create!(user: owner, title: "Side #{index}", last_message_at: index.minutes.ago)
+      Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "side")
+    end
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/activity"
+
+    expect(response.parsed_body.fetch("side_chats").length).to eq(50)
+    cursor = response.parsed_body.dig("next_cursors", "side_chats")
+    expect(cursor).to be_present
+
+    get "/api/v1/app/coworkers/#{coworker.id}/activity?side_chat_cursor=#{CGI.escape(cursor)}"
+
+    expect(response.parsed_body.fetch("side_chats").length).to eq(1)
+    expect(response.parsed_body.dig("next_cursors", "side_chats")).to be_nil
   end
 
   it "refuses to add another user's coworker" do
@@ -858,8 +894,8 @@ RSpec.describe "API: coworkers", type: :request do
       unsaved_workspace_operation: "chat_branch", unsaved_workspace_attempt_count: 3,
       unsaved_workspace_retry_scheduled_at: Time.current, unsaved_workspace_retry_token: "old-token")
     sign_in_as(owner)
-    get "/api/v1/app/coworkers/#{coworker.id}"
-    expect(response.parsed_body.dig("coworker", "chats", 0, "unsaved_workspace")).to include("attempt_count" => 3)
+    get "/api/v1/app/coworkers/#{coworker.id}/chats"
+    expect(response.parsed_body.dig("chats", 0, "unsaved_workspace")).to include("attempt_count" => 3)
     expect { post "/api/v1/app/coworkers/#{coworker.id}/workspace/retry", params: { chat_id: link.id } }
       .to have_enqueued_job(Coworkers::WorkspaceSaveRetryJob)
     expect(response).to have_http_status(:accepted)

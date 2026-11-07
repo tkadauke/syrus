@@ -13,16 +13,44 @@ module Api
           render json: {
             coworkers: coworkers.map { |coworker| summary_json(coworker, weekly_spend_usd: weekly_spend.fetch(coworker.id)) },
             syrus: syrus_json,
-            model_options: model_options_json,
             provisioning_attempts: Coworkers::ProvisioningAttempt.where(owner_user: Current.user)
-              .where.not(state: "completed").order(updated_at: :desc).limit(25).map(&:public_status),
-            grant_catalog: grant_catalog_json
+              .where.not(state: "completed").order(updated_at: :desc).limit(25).map(&:public_status)
           }
+        end
+
+        def options
+          render json: { model_options: model_options_json, grant_catalog: grant_catalog_json }
         end
 
         def show
           coworker = find_coworker
-          render json: { coworker: detail_json(coworker) }
+          render json: { coworker: summary_json(coworker).merge(workspace_repo: coworker.workspace_repo) }
+        end
+
+        def profile
+          coworker = find_coworker
+          render json: {
+            chat_provider: coworker.chat_provider, chat_model: coworker.chat_model,
+            effective_model: coworker.chat_model, workspace_repo: coworker.workspace_repo,
+            soul: soul_for(coworker)
+          }
+        end
+
+        def chats
+          coworker = find_coworker
+          render json: { available_chats: available_chats_json(coworker), chats: coworker_chats_json(coworker) }
+        end
+
+        def capabilities
+          coworker = find_coworker
+          render json: { grants: coworker.permission_rules.entries.reject { |entry| entry[:approval_policy] == "off" },
+            permission_cutover_report: Coworkers::PermissionCutoverReport.new(coworker: coworker).as_json,
+            grant_catalog: grant_catalog_json }
+        end
+
+        def schedules
+          coworker = find_coworker
+          render json: { schedules: coworker.schedules.alive.order(:created_at).map { |task| schedule_json(task) } }
         end
 
         def create
@@ -30,7 +58,7 @@ module Api
           authorize coworker, :create?, policy_class: CoworkerPolicy
           created = Coworkers::Create.call(owner: Current.user, idempotency_key: request.headers["Idempotency-Key"] || params[:idempotency_key],
             **create_params.to_h.symbolize_keys, avatar: params[:avatar], grants: requested_grants)
-          render json: { coworker: detail_json(created), redirect_to: "/coworkers/#{created.id}" }, status: :created
+          render json: { redirect_to: "/coworkers/#{created.id}" }, status: :created
         rescue ActiveRecord::RecordInvalid => error
           render_error("validation_failed", error.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         rescue Coworkers::Create::InvalidRemote, Coworkers::Create::BranchExists, ArgumentError => error
@@ -58,7 +86,7 @@ module Api
           coworker = find_coworker
           authorize coworker, :update?, policy_class: CoworkerPolicy
           Coworkers::BranchLifecycle.new(coworker).rename!(handle: params.require(:handle))
-          render json: { coworker: detail_json(coworker.reload) }
+          head :no_content
         rescue Coworkers::OperationLock::Busy => error
           render_error("coworker_busy", error.message, status: :conflict)
         rescue ActiveRecord::RecordInvalid, ArgumentError => error
@@ -82,7 +110,7 @@ module Api
             approval_policy: params.require(:approval_policy), constraints: grant_constraints, **grant_scope_argument,
             confirmed: params[:confirmed]
           )
-          render json: { coworker: detail_json(coworker.reload) }
+          head :no_content
         rescue Coworkers::GrantUpdate::ConfirmationRequired => error
           render_error("confirmation_required", error.message, status: :conflict)
         rescue ActiveRecord::RecordInvalid, ArgumentError, KeyError => error
@@ -158,7 +186,10 @@ module Api
         def activity
           coworker = find_coworker
           authorize coworker, :show?, policy_class: CoworkerPolicy
-          render json: Coworkers::Activity.new(coworker: coworker, user: Current.user).call
+          render json: Coworkers::Activity.new(coworker: coworker, user: Current.user).call(
+            run_cursor: request.query_parameters["run_cursor"],
+            side_chat_cursor: request.query_parameters["side_chat_cursor"]
+          ).merge(message_traffic: message_traffic_json(coworker))
         end
 
         def approvals
@@ -339,22 +370,11 @@ module Api
           }
         end
 
-        def detail_json(coworker)
-          summary_json(coworker).merge(
-            chat_provider: coworker.chat_provider, chat_model: coworker.chat_model,
-            effective_model: coworker.chat_model,
-            workspace_repo: coworker.workspace_repo, soul: soul_for(coworker),
-            available_chats: available_chats_json(coworker),
-            chats: coworker.coworker_chats.sort_by { |link| [ link.main? ? 0 : 1, link.id ] }.map { |link|
+        def coworker_chats_json(coworker)
+          coworker.coworker_chats.sort_by { |link| [ link.main? ? 0 : 1, link.id ] }.map { |link|
               { id: link.chat_session_id, link_id: link.id, role: link.role, title: link.chat_session.title,
                 path: "/chats/#{link.chat_session_id}", unsaved_workspace: link.unsaved_workspace_json }
-            },
-            grants: coworker.permission_rules.entries.reject { |entry| entry[:approval_policy] == "off" },
-            permission_cutover_report: Coworkers::PermissionCutoverReport.new(coworker: coworker).as_json,
-            grant_catalog: grant_catalog_json,
-            schedules: coworker.schedules.alive.order(:created_at).map { |task| schedule_json(task) },
-            message_traffic: message_traffic_json(coworker), spend_usd: spend_usd(coworker)
-          )
+          }
         end
 
         def schedule_json(task)
@@ -383,27 +403,19 @@ module Api
           nil
         end
 
-        def spend_usd(coworker)
-          chat_spend = coworker.coworker_chats.joins(:chat_session).sum("chat_sessions.cumulative_cost_usd")
-          run_spend = Run.joins(:job).where(jobs: { origin: "coworkers", origin_id: coworker.id.to_s }).sum(:cost_usd)
-          (chat_spend + run_spend).to_f
-        end
-
         def message_traffic_json(coworker)
           main_chat = coworker.coworker_chats.find(&:main?)&.chat_session
-          messages = main_chat ? main_chat.messages.active.where("created_at >= ?", 30.days.ago).to_a : []
-          metadata = messages.filter_map { |message| message.content["coworker_message"] if message.content.is_a?(Hash) }
-          delivered = metadata.select { |entry| entry["status"].blank? }
-          events = messages.filter_map do |message|
+          messages = main_chat ? main_chat.messages.active.where("created_at >= ?", 30.days.ago) : ChatMessage.none
+          delivered = messages.where("content ->> '$.coworker_message.status' IS NULL")
+          counts = delivered.group("content ->> '$.coworker_message.direction'").count
+          events = messages.where("content ->> '$.coworker_message.status' IN (?)", %w[refused rate_limited])
+            .order(created_at: :desc, id: :desc).limit(20).filter_map do |message|
             entry = message.content["coworker_message"] if message.content.is_a?(Hash)
-            next unless entry&.fetch("status", nil).in?(%w[refused rate_limited])
-
             { status: entry.fetch("status"), receiver_handle: entry.fetch("receiver_handle"),
               reason: message.extract_text_from_content, occurred_at: message.created_at.iso8601 }
           end
-          { sent: delivered.count { |entry| entry["direction"] == "outgoing" },
-            received: delivered.count { |entry| entry["direction"] == "incoming" },
-            window_days: 30, delivery_events: events.reverse.first(20) }
+          { sent: counts.fetch("outgoing", 0), received: counts.fetch("incoming", 0),
+            window_days: 30, delivery_events: events }
         end
 
         def soul_for(coworker)

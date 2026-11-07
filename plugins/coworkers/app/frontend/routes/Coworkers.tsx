@@ -25,6 +25,8 @@ import {
   createCoworker,
   createSideChat,
   fetchCoworker,
+  fetchCoworkerOptions,
+  fetchCoworkerTab,
   fetchCoworkerActivity,
   fetchCoworkerApprovals,
   fetchCoworkerMemory,
@@ -145,12 +147,13 @@ function NewCoworker() {
   const [modelSelection, setModelSelection] = useState("")
   const [colorPopupOpen, setColorPopupOpen] = useState(false)
   const [idempotencyKey] = useState(() => crypto.randomUUID())
-  const optionsQuery = useQuery({ queryKey: ["coworkers"], queryFn: fetchCoworkers })
+  const coworkersQuery = useQuery({ queryKey: ["coworkers"], queryFn: fetchCoworkers })
+  const optionsQuery = useQuery({ queryKey: ["coworkers", "options"], queryFn: fetchCoworkerOptions })
   const mutation = useMutation({ mutationFn: createCoworker, onSuccess: (data) => navigate(withRoutePrefix(data.redirect_to, prefix)) })
   const remoteTest = useMutation({ mutationFn: () => testCoworkerRemote(remote) })
   useEffect(() => {
-    if (optionsQuery.data && !colorEdited) setColor(defaultAccentSelection(optionsQuery.data.coworkers.map((coworker) => coworker.accent_hex)))
-  }, [colorEdited, optionsQuery.data])
+    if (coworkersQuery.data && !colorEdited) setColor(defaultAccentSelection(coworkersQuery.data.coworkers.map((coworker) => coworker.accent_hex)))
+  }, [colorEdited, coworkersQuery.data])
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
@@ -306,18 +309,28 @@ function CoworkerPage({ id }: { id: string }) {
   const requestedTab = new URLSearchParams(location.search).get("tab")
   const [tab, setTab] = useState(id === "syrus" ? "chats" : requestedTab || "chat")
   const query = useQuery({ queryKey: ["coworkers", id], queryFn: () => fetchCoworker(id), enabled: id !== "syrus" })
+  const endpointTab = ({ chat: "chats", profile: "profile", capabilities: "capabilities", schedule: "schedules" } as const)[
+    tab as "chat" | "profile" | "capabilities" | "schedule"
+  ]
+  const tabQuery = useQuery({
+    queryKey: ["coworkers", id, endpointTab],
+    queryFn: () => fetchCoworkerTab(id, endpointTab!),
+    enabled: id !== "syrus" && endpointTab != null
+  })
   const sideChat = useMutation({ mutationFn: () => createSideChat(Number(id)), onSuccess: (data) => navigate(withRoutePrefix(data.chat_path, prefix)) })
   const [selectedChatId, setSelectedChatId] = useState("")
   const roster = useMutation({
     mutationFn: ({ chatId, add }: { chatId: number; add: boolean }) =>
       add ? addCoworkerToChat(Number(id), chatId) : removeCoworkerFromChat(Number(id), chatId),
-    onSuccess: () => void query.refetch()
+    onSuccess: () => void tabQuery.refetch()
   })
   if (id === "syrus") return <SyrusPage tab={tab} setTab={setTab} />
   if (query.isPending) return <PanelMessage>{t("loading")}</PanelMessage>
   if (!query.data) return <PanelMessage>{t("error")}</PanelMessage>
-  const coworker = query.data.coworker
-  const selectedChat = coworker.available_chats.find((chat) => chat.id === Number(selectedChatId))
+  if (endpointTab && tabQuery.isPending) return <PanelMessage>{t("loading")}</PanelMessage>
+  if (endpointTab && !tabQuery.data) return <PanelMessage>{t("error")}</PanelMessage>
+  const coworker = { ...query.data.coworker, ...tabQuery.data } as CoworkerDetail
+  const selectedChat = coworker.available_chats?.find((chat) => chat.id === Number(selectedChatId))
   return (
     <Page.Root gutter="responsive" size="wide">
       <Page.Header>
@@ -386,12 +399,12 @@ function CoworkerPage({ id }: { id: string }) {
           <div className="whitespace-pre-wrap rounded bg-surface-subtle p-4 text-sm">{coworker.soul || t("detail.soul_unavailable")}</div>
         </section>
       ) : null}
-      {tab === "capabilities" ? <CoworkerCapabilities coworker={coworker} onChanged={() => void query.refetch()} /> : null}
+      {tab === "capabilities" ? <CoworkerCapabilities coworker={coworker} onChanged={() => void tabQuery.refetch()} /> : null}
       {tab === "approvals" ? <CoworkerApprovals id={id} /> : null}
-      {tab === "schedule" ? <CoworkerSchedules coworker={coworker} onChanged={() => void query.refetch()} /> : null}
+      {tab === "schedule" ? <CoworkerSchedules coworker={coworker} onChanged={() => void tabQuery.refetch()} /> : null}
       {tab === "memory" ? <CoworkerMemory id={id} /> : null}
       {tab === "workspace" ? <CoworkerWorkspace id={id} remote={coworker.workspace_repo} /> : null}
-      {tab === "activity" ? <CoworkerActivity id={id} traffic={coworker.message_traffic} /> : null}
+      {tab === "activity" ? <CoworkerActivity id={id} fallbackTraffic={query.data.coworker.message_traffic} /> : null}
       {!["chat", "profile", "capabilities", "approvals", "schedule", "memory", "workspace", "activity"].includes(tab) ? (
         <PanelMessage>{t("coming_later")}</PanelMessage>
       ) : null}
@@ -870,12 +883,14 @@ function SystemScheduleTime({ coworkerId, schedule, onChanged }: { coworkerId: s
   )
 }
 
-function CoworkerActivity({ id, traffic }: { id: string; traffic: CoworkerDetail["message_traffic"] }) {
+function CoworkerActivity({ id, fallbackTraffic }: { id: string; fallbackTraffic?: CoworkerDetail["message_traffic"] }) {
   const { t } = useT("coworkers")
   const query = useQuery({ queryKey: ["coworkers", id, "activity"], queryFn: () => fetchCoworkerActivity(id) })
   if (query.isPending) return <PanelMessage>{t("activity.loading")}</PanelMessage>
   if (query.isError || !query.data) return <PanelMessage>{t("activity.unavailable")}</PanelMessage>
   const activity = query.data
+  const traffic = activity.message_traffic || fallbackTraffic
+  if (!traffic) return <PanelMessage>{t("activity.unavailable")}</PanelMessage>
   return (
     <section className="space-y-6 rounded border border-border bg-surface p-5">
       <div>

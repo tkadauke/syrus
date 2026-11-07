@@ -1,4 +1,5 @@
 class Coworkers::Activity
+  PAGE_SIZE = 50
   def self.weekly_spend_by_coworker(coworkers:, user:, now: Time.current)
     coworker_ids = coworkers.map(&:id)
     return {} if coworker_ids.empty?
@@ -28,8 +29,9 @@ class Coworkers::Activity
     @now = now
   end
 
-  def call
-    ordered_runs = runs.order(created_at: :desc, id: :desc).to_a
+  def call(run_cursor: nil, side_chat_cursor: nil)
+    ordered_runs, next_run_cursor = page(runs, run_cursor, timestamp: :created_at)
+    ordered_side_chats, next_side_chat_cursor = page(side_chats, side_chat_cursor, timestamp: :last_message_at)
     tool_call_counts = JobLog.where(run_id: ordered_runs.map(&:id), kind: "tool_call").group(:run_id).count
 
     {
@@ -38,7 +40,11 @@ class Coworkers::Activity
         total_usd: decimal_to_float(chats.sum(:cumulative_cost_usd) + runs.sum(:cost_usd))
       },
       runs: ordered_runs.map { |run| run_json(run, tool_call_counts) },
-      side_chats: side_chats.map { |chat| side_chat_json(chat) }
+      side_chats: ordered_side_chats.map { |chat| side_chat_json(chat) },
+      next_cursors: {
+        runs: next_run_cursor,
+        side_chats: next_side_chat_cursor
+      }
     }
   end
 
@@ -63,7 +69,23 @@ class Coworkers::Activity
   def side_chats
     side_ids = coworker.coworker_chats.where(role: "side").select(:chat_session_id)
     ChatSession.where(id: side_ids)
-      .order(last_message_at: :desc, id: :desc)
+  end
+
+  def page(relation, cursor, timestamp:)
+    if cursor.present?
+      encoded_time, id = Base64.urlsafe_decode64(cursor).split("|", 2)
+      time = Time.iso8601(encoded_time)
+      relation = relation.where("#{timestamp} < ? OR (#{timestamp} = ? AND id < ?)", time, time, id)
+    end
+    records = relation.order(timestamp => :desc, id: :desc).limit(PAGE_SIZE + 1).to_a
+    page_records = records.first(PAGE_SIZE)
+    [ page_records, records.length > PAGE_SIZE ? cursor_for(page_records.last, timestamp:) : nil ]
+  rescue ArgumentError
+    [ [], nil ]
+  end
+
+  def cursor_for(record, timestamp:)
+    Base64.urlsafe_encode64("#{record.public_send(timestamp)&.iso8601(6)}|#{record.id}", padding: false)
   end
 
   def chat_spend_entries

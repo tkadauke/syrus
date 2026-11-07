@@ -343,10 +343,10 @@ it("renders the custom profile, editable capabilities, and creates side chats", 
   expect(await screen.findByRole("heading", { name: "Maya" })).toBeInTheDocument()
   expect(screen.getByRole("link", { name: "Main chat" })).toHaveAttribute("href", "/chats/12")
   fireEvent.click(screen.getByRole("button", { name: "Profile" }))
-  expect(screen.getByText("gpt-6.1-sol")).toBeInTheDocument()
+  expect(await screen.findByText("gpt-6.1-sol")).toBeInTheDocument()
   expect(screen.getByText(/Curious and concise/)).toBeInTheDocument()
   fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
-  expect(screen.getByRole("heading", { name: "Permission cutover report" })).toBeInTheDocument()
+  expect(await screen.findByRole("heading", { name: "Permission cutover report" })).toBeInTheDocument()
   expect(screen.getByText("Blocked")).toBeInTheDocument()
   expect(screen.getByText(/workspace.files: missing explicit descriptors/)).toBeInTheDocument()
   expect(screen.getByText("This coworker can read and edit workspace files.")).toBeInTheDocument()
@@ -368,7 +368,7 @@ it("confirms grant escalation and refreshes the live tool surface", async () => 
   renderRoute("/coworkers/7")
   await screen.findByRole("heading", { name: "Maya" })
   fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
-  fireEvent.change(screen.getByRole("combobox", { name: "Approval policy for workspace.shell" }), { target: { value: "confirm" } })
+  fireEvent.change(await screen.findByRole("combobox", { name: "Approval policy for workspace.shell" }), { target: { value: "confirm" } })
 
   expect(confirm).toHaveBeenCalledOnce()
   await waitFor(() =>
@@ -377,7 +377,7 @@ it("confirms grant escalation and refreshes the live tool surface", async () => 
       expect.objectContaining({ method: "PATCH", body: expect.stringContaining('"confirmed":true') })
     )
   )
-  await waitFor(() => expect(fetchSpy.mock.calls.filter(([input]) => String(input) === "/api/v1/app/coworkers/7")).toHaveLength(2))
+  await waitFor(() => expect(fetchSpy.mock.calls.filter(([input]) => String(input) === "/api/v1/app/coworkers/7/capabilities")).toHaveLength(2))
 })
 
 it("preserves a scoped grant when changing its policy and allows disabling it", async () => {
@@ -413,7 +413,7 @@ it("preserves a scoped grant when changing its policy and allows disabling it", 
   renderRoute("/coworkers/7")
   await screen.findByRole("heading", { name: "Maya" })
   fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
-  expect(screen.getByRole("combobox", { name: "Scope for Database" })).toHaveValue("22")
+  expect(await screen.findByRole("combobox", { name: "Scope for Database" })).toHaveValue("22")
   expect(screen.getByText("Unlocks: read_database")).toBeInTheDocument()
 
   fireEvent.change(screen.getByRole("combobox", { name: "Approval policy for database.read" }), { target: { value: "queue" } })
@@ -456,7 +456,7 @@ it("explains an unavailable privileged grant while preserving revocation", async
   await screen.findByRole("heading", { name: "Maya" })
   fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
 
-  expect(screen.getByText("Unavailable until a live worker verifies confined coworker execution.")).toBeInTheDocument()
+  expect(await screen.findByText("Unavailable until a live worker verifies confined coworker execution.")).toBeInTheDocument()
   const policy = screen.getByRole("combobox", { name: "Approval policy for database.read" })
   expect(policy).toBeEnabled()
   expect(within(policy).getByRole("option", { name: "Confirm" })).toBeDisabled()
@@ -497,7 +497,7 @@ it("sends the displayed default scope when enabling a scoped grant", async () =>
   renderRoute("/coworkers/7")
   await screen.findByRole("heading", { name: "Maya" })
   fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
-  expect(screen.getByRole("combobox", { name: "Scope for Database" })).toHaveValue("11")
+  expect(await screen.findByRole("combobox", { name: "Scope for Database" })).toHaveValue("11")
 
   fireEvent.change(screen.getByRole("combobox", { name: "Approval policy for database.read" }), { target: { value: "confirm" } })
 
@@ -530,7 +530,7 @@ it("confirms before removing a protected workspace path", async () => {
   renderRoute("/coworkers/7")
   await screen.findByRole("heading", { name: "Maya" })
   fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
-  fireEvent.change(screen.getByPlaceholderText("SOUL.md, AGENTS.md"), { target: { value: "SOUL.md" } })
+  fireEvent.change(await screen.findByPlaceholderText("SOUL.md, AGENTS.md"), { target: { value: "SOUL.md" } })
   fireEvent.click(screen.getByRole("button", { name: "Save constraints" }))
 
   expect(confirm).toHaveBeenCalledOnce()
@@ -565,7 +565,7 @@ it("surfaces and saves per-run and per-day Syrus chat spawn limits", async () =>
   await screen.findByRole("heading", { name: "Maya" })
   fireEvent.click(screen.getByRole("button", { name: "Capabilities" }))
 
-  const runInput = screen.getAllByRole("spinbutton", { name: "Maximum per run" }).find((input) => input.getAttribute("value") === "2")
+  const runInput = (await screen.findAllByRole("spinbutton", { name: "Maximum per run" })).find((input) => input.getAttribute("value") === "2")
   const dayInput = screen.getAllByRole("spinbutton", { name: "Maximum per day" }).find((input) => input.getAttribute("value") === "8")
   const save = screen.getAllByRole("button", { name: "Save spawn limits" }).find((button) => !button.hasAttribute("disabled"))
   expect(runInput).toBeDefined()
@@ -811,7 +811,7 @@ it("lists and manages schedules on the coworker page", async () => {
   await screen.findByRole("heading", { name: "Maya" })
   fireEvent.click(screen.getByRole("button", { name: "Schedule" }))
 
-  expect(screen.getByText("Morning briefing")).toBeInTheDocument()
+  expect(await screen.findByText("Morning briefing")).toBeInTheDocument()
   expect(screen.getByText(/Every day at 9:00 AM UTC/)).toBeInTheDocument()
   expect(screen.getByRole("combobox", { name: "After each run" })).toHaveValue("wake")
   const firedRow = screen.getByText("Completed one-shot").closest("li")
