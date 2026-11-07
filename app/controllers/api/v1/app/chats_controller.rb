@@ -1980,12 +1980,6 @@ module Api
           end
         end
 
-        CLAUDE_CHAT_MODELS = [
-          { value: "claude-opus-4-7", label: "Claude Opus 4.7" },
-          { value: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
-          { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5" }
-        ].freeze
-
         def chat_json(chat_session, counts: nil, turn_in_flight: nil, agent_busy: nil, turn_retry_state: nil)
           PerformanceLogging.phase("chat_json", chat_id: chat_session.id) do
             chat_session_json(
@@ -2030,15 +2024,6 @@ module Api
           repository = PerformanceLogging.phase("chat_json.repository", chat_id: chat_session.id) { chat_session.repository }
           participants = chat_session.participants_payload
           effective_provider = PerformanceLogging.phase("chat_json.effective_provider", chat_id: chat_session.id) { chat_session.effective_chat_provider }
-          provider_availability = PerformanceLogging.phase("chat_json.provider_availability", chat_id: chat_session.id, provider: effective_provider) do
-            ::App::ProviderAvailability.for_user(Current.user, effective_provider)
-          end
-          chat_provider_options_payload = PerformanceLogging.phase("chat_json.provider_options", chat_id: chat_session.id, provider: effective_provider) do
-            chat_provider_options(chat_session)
-          end
-          available_chat_models_payload = PerformanceLogging.phase("chat_json.available_models", chat_id: chat_session.id, provider: effective_provider) do
-            available_chat_models_for(chat_session)
-          end
           counts ||= PerformanceLogging.phase("chat_json.counts", chat_id: chat_session.id) do
             chat_session_payload_counts(chat_session.id)
           end
@@ -2062,16 +2047,13 @@ module Api
             chat_provider: chat_session.chat_provider,
             effective_chat_provider: effective_provider,
             effective_chat_provider_label: chat_provider_label(effective_provider),
-            provider_availability: provider_availability,
-            chat_provider_options: chat_provider_options_payload,
             chat_model: chat_session.chat_model,
-            available_chat_models: available_chat_models_payload,
             mode: chat_session.mode,
             local_daemon_state: chat_session.local_daemon_state,
             local_daemon_repo: chat_session.local_daemon_repo,
             local_daemon_branch: chat_session.local_daemon_branch,
             chat_path: chat_path(chat_session),
-            repository: repository ? repository_json(repository).merge(repository_path: repository_path(repository)) : nil,
+            repository: repository ? { id: repository.id, slug: repository.slug, repository_path: repository_path(repository) } : nil,
             turn_in_flight: turn_in_flight.nil? ? chat_session.turn_in_flight? : turn_in_flight,
             agent_busy: agent_busy.nil? ? chat_session.agent_busy? : agent_busy,
             turn_retry_state: turn_retry_state.nil? ? ::App::ChatTurnRetryState.for(chat_session) : turn_retry_state,
@@ -2178,9 +2160,7 @@ module Api
         end
 
         def available_chat_models_for(chat_session)
-          return [] unless chat_session.effective_chat_provider == "claude"
-
-          CLAUDE_CHAT_MODELS
+          ChatProviders.available_models(chat_session.effective_chat_provider)
         end
       end
     end

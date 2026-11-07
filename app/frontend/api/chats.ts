@@ -1192,13 +1192,67 @@ export type ChatSearchMessagesPayload = {
 export function fetchChat(id: string, search = "") {
   return getJson<ChatPayload>(`/api/v1/app/chats/${id}${search}`).then((payload) => {
     const capabilities = readInitialBootstrap()?.chat_capabilities
+    const legacy = payload as ChatPayload & {
+      turn_in_flight?: boolean
+      agent_busy?: boolean
+      agent_activity?: ChatAgentActivity | null
+      turn_retry_state?: ChatTurnRetryState | null
+    }
     return {
       ...payload,
-      speech_to_text: capabilities?.speech_to_text,
-      coding_mode_enabled: Boolean(capabilities?.coding_mode_enabled),
-      local_mode_enabled: Boolean(capabilities?.local_mode_enabled)
+      chat: {
+        ...payload.chat,
+        chat_provider_options: capabilities?.chat_provider_options ?? payload.chat.chat_provider_options,
+        available_chat_models: capabilities?.available_chat_models?.[payload.chat.effective_chat_provider || ""] ?? payload.chat.available_chat_models,
+        provider_availability:
+          readInitialBootstrap()?.provider_availability?.[payload.chat.effective_chat_provider || ""] ?? payload.chat.provider_availability,
+        turn_in_flight: payload.chat.turn_in_flight ?? legacy.turn_in_flight ?? false,
+        agent_busy: payload.chat.agent_busy ?? legacy.agent_busy ?? false,
+        agent_activity: payload.chat.agent_activity ?? legacy.agent_activity ?? null,
+        turn_retry_state: payload.chat.turn_retry_state ?? legacy.turn_retry_state ?? null
+      },
+      paths: payload.paths?.app_message_path ? payload.paths : { ...chatPaths(payload.chat.id), ...(payload.paths || {}) },
+      speech_to_text: capabilities?.speech_to_text ?? payload.speech_to_text,
+      coding_mode_enabled: capabilities?.coding_mode_enabled ?? payload.coding_mode_enabled ?? false,
+      local_mode_enabled: capabilities?.local_mode_enabled ?? payload.local_mode_enabled ?? false
     }
   })
+}
+
+export function chatPaths(chatId: string | number): ChatPayload["paths"] {
+  const base = `/api/v1/app/chats/${encodeURIComponent(String(chatId))}`
+  return {
+    credentials_path: "/credentials",
+    repositories_path: "/repositories",
+    app_messages_path: `${base}/messages`,
+    app_message_path: `${base}/message`,
+    app_rename_path: `${base}/rename`,
+    app_delete_path: base,
+    app_clear_path: `${base}/messages`,
+    app_branch_path: `${base}/branch`,
+    app_share_path: `${base}/share`,
+    app_enqueue_message_path: `${base}/queued_messages`,
+    app_scheduled_messages_path: `${base}/scheduled_messages`,
+    app_retry_turn_path: `${base}/retry_turn`,
+    app_stop_path: `${base}/stop`,
+    app_daemon_connection_path: `${base}/daemon_connection`,
+    app_switch_provider_path: `${base}/switch_provider`,
+    app_bookmarks_path: `${base}/bookmarks`,
+    app_bookmarks_index_path: `${base}/bookmarks`,
+    app_scratchpad_reorder_path: `${base}/scratchpad_items/reorder`,
+    app_speech_to_text_batch_path: `${base}/speech_to_text`,
+    app_speech_to_text_stream_path: `${base}/speech_to_text/stream`,
+    app_create_coding_handoff_path: `${base}/coding_handoff`,
+    app_whiteboard_path: `${base}/whiteboard`,
+    app_cancel_coding_checkout_path: `${base}/coding_checkout`,
+    app_coding_files_path: `${base}/coding_files`,
+    app_coding_commits_path: `${base}/coding_commits`,
+    app_coding_file_path: `${base}/coding_file`,
+    app_coding_file_preview_path: `${base}/coding_file_preview`,
+    app_coding_diff_path: `${base}/coding_diff`,
+    app_source_file_path: `${base}/source_file`,
+    app_source_file_raw_path: `${base}/source_file/raw`
+  }
 }
 
 // Slim payload for the CHAT-<id> hover preview card — mirrors fetchJobDetail
