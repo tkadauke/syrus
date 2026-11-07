@@ -26,8 +26,8 @@ export type MockupPanel = PreviewPanelPayload & {
 export type MockupsIndexPayload = {
   mockups: MockupSummary[]
   filter: Record<string, unknown> | null
-  filter_schema: FilterSchemaField[]
-  pagination: { page: number; per_page: number; total: number; has_next_page: boolean; has_previous_page: boolean }
+  filter_schema: FilterSchemaField[] | null
+  pagination: { page: number; per_page: number; has_next_page: boolean; has_previous_page: boolean }
 }
 
 export type MockupDetailPayload = {
