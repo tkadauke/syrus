@@ -2,11 +2,42 @@ require "rails_helper"
 require "tmpdir"
 
 RSpec.describe Syrus::SpaBuildVerifier do
-  def with_output(files)
+  def with_output(files, manifest: nil)
     Dir.mktmpdir("spa-build-verifier") do |dir|
       output = Pathname.new(dir)
       files.each { |name, content| output.join(name).write(content) }
-      yield described_class.new(output_path: output)
+      manifest_path = output.join("manifest.json")
+      manifest_path.write(JSON.generate(manifest)) if manifest
+      yield described_class.new(output_path: output, manifest_path: manifest && manifest_path)
+    end
+  end
+
+  it "accepts locale sources emitted as separate hashed dynamic chunks" do
+    manifest = {
+      "app/frontend/i18n/locales/de/common.json" => {
+        "file" => "spa-common-B8x_2ab.digested.js",
+        "isDynamicEntry" => true
+      },
+      "plugins/git_history/app/frontend/i18n/locales/de/git_history.json" => {
+        "file" => "spa-git_history-C9y_3cd.digested.js",
+        "isDynamicEntry" => true
+      }
+    }
+
+    with_output({}, manifest:) do |verifier|
+      expect { verifier.call }.not_to raise_error
+    end
+  end
+
+  it "rejects a manifest that folds locale sources into a non-dynamic asset" do
+    manifest = {
+      "app/frontend/i18n/locales/de/common.json" => {
+        "file" => "spa-entry-B8x_2ab.digested.js"
+      }
+    }
+
+    with_output({}, manifest:) do |verifier|
+      expect { verifier.call }.to raise_error(described_class::BrokenReferences, /non-dynamic or unhashed entries/)
     end
   end
 
@@ -40,7 +71,7 @@ RSpec.describe Syrus::SpaBuildVerifier do
   # Excalidraw's vendor code names its fonts as `./fonts/...` and resolves
   # them against EXCALIDRAW_ASSET_PATH, not against the chunk.
   it "ignores non-module data paths that libraries resolve themselves" do
-    with_output("spa-vendor-Q1w2e3r4.digested.js" => %(var a="./fonts/Virgil/Virgil-Regular.woff2";)) do |verifier|
+    with_output({ "spa-vendor-Q1w2e3r4.digested.js" => %(var a="./fonts/Virgil/Virgil-Regular.woff2";) }) do |verifier|
       expect { verifier.call }.not_to raise_error
     end
   end

@@ -83,8 +83,4 @@ export function pluginNamespacesFor(plugin: string | null | undefined) {
   return plugin ? [...(pluginNamespaces.get(plugin) ?? [])] : []
 }
 
-export function allPluginNamespacesForTests() {
-  return [...new Set([...pluginNamespaces.values()].flatMap((namespaces) => [...namespaces]))]
-}
-
 export default i18n
