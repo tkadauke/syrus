@@ -100,6 +100,8 @@ the rest of the tree.
 
 ### merge_train
 
+`merge_train:` takes two optional keys, `failure_policy` and `failure_rungs`.
+
 `merge_train.failure_policy` is an ordered escalation ladder for failed merge
 trains. It belongs in `.syrus.yml` because the rung order expresses repository
 workflow semantics: which recovery strategies are acceptable, and in what
@@ -165,6 +167,27 @@ instance `AppSetting.merge_train_failure_policy` compatibility default. If
 Syrus cannot parse or read the repository's default-branch `.syrus.yml`, it
 uses the conservative `restart` behavior instead of applying the instance
 default.
+
+`merge_train.failure_rungs` is a separate, optional list of enabled
+failure-response rungs. Today the only
+supported value is `multisect`; any other value is a parse error. A single
+string is accepted as well as a list.
+
+```yaml
+merge_train:
+  failure_rungs: [multisect]
+```
+
+The multisect section width is instance-wide:
+`AppSetting.merge_train_multisect_section_width` controls how many sections the
+walk uses per round. It must be between 2 and 16 and defaults to 4. Wider values
+spend more concurrent focused grades per round to reduce wall-clock rounds, so
+raise the setting only when the instance's worker/build capacity can absorb the
+extra subset builds. The rung runs as visible prepare/evaluate/collect Steps
+inside the failed merge-train workflow; with distributed workflow DAG execution
+enabled for the repository, each focused section evaluation gets its own
+immutable-source workspace and Run. Terminal multisect results are record-only
+and preserve the train for the next rung or operator review.
 
 ### capabilities
 
@@ -865,29 +888,6 @@ graders whose `when_files_changed` glob newly matches always run. After an
 infrastructure-only failure (lost worker, database interruption), unchanged
 successful required graders are carried forward regardless of this setting and
 only failed or inconclusive graders rerun.
-
-## merge_train
-
-Configures repository-local merge-train failure handling.
-
-```yaml
-merge_train:
-  failure_rungs: [multisect]
-```
-
-`failure_rungs` is an ordered list of enabled failure-response rungs. Today the
-supported repository-configured rung is `multisect`.
-
-The multisect section width is instance-wide:
-`AppSetting.merge_train_multisect_section_width` controls how many sections the
-walk uses per round. It must be between 2 and 16 and defaults to 4. Wider values
-spend more concurrent focused grades per round to reduce wall-clock rounds, so
-raise the setting only when the instance's worker/build capacity can absorb the
-extra subset builds. The rung runs as visible prepare/evaluate/collect Steps
-inside the failed merge-train workflow; with distributed workflow DAG execution
-enabled for the repository, each focused section evaluation gets its own
-immutable-source workspace and Run. Terminal multisect results are record-only
-and preserve the train for the next rung or operator review.
 
 ## formatters
 
