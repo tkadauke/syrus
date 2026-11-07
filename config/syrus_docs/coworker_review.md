@@ -14,7 +14,8 @@ coworker_review:
     - Identify rollout or support risks not covered by technical checks
 ```
 
-`rounds` is bounded from 1 through 10. `required` defaults to `false` and uses
+For an enabled gate, `rounds` is bounded from 1 through 10. An explicitly
+disabled gate may use `rounds: 0`. `required` defaults to `false` and uses
 the same unavailable-review semantics as the other automated gates: an
 optional gate may record a skip for an eligible transient review failure,
 while a required gate fails. Configuration and routing errors fail

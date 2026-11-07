@@ -450,7 +450,8 @@ class SyrusYml
 
     enabled = ActiveModel::Type::Boolean.new.cast(raw.fetch("enabled", false)) || false
     rounds = Integer(raw.fetch("rounds", 1))
-    unless rounds.between?(MIN_COWORKER_REVIEW_ROUNDS, MAX_COWORKER_REVIEW_ROUNDS)
+    valid_rounds = enabled ? rounds.between?(MIN_COWORKER_REVIEW_ROUNDS, MAX_COWORKER_REVIEW_ROUNDS) : rounds.between?(0, MAX_COWORKER_REVIEW_ROUNDS)
+    unless valid_rounds
       raise ParseError, "coworker_review.rounds: must be between #{MIN_COWORKER_REVIEW_ROUNDS} and #{MAX_COWORKER_REVIEW_ROUNDS}"
     end
 
