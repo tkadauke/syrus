@@ -10,10 +10,13 @@ import {
   fetchJobSource,
   fetchJobSourceDiff,
   fetchJobSourceFileContent,
+  fetchJobSourceFile,
   fetchJobSourceFileDiff,
+  fetchDiffReviewVersions,
   jobSourceFileDiffDownloadUrl,
   fetchWorkflowCoverageHitMap,
   type CoverageArtifact,
+  type DiffReviewVersion,
   type JobSourceDiffPayload,
   type JobSourcePayload
 } from "../../api/jobs"
@@ -55,17 +58,28 @@ export function SourceTab({
   const [diffBaseRef, setDiffBaseRef] = useState<string | null>(initialDiff?.base ?? null)
   const [diffHeadRef, setDiffHeadRef] = useState<string | null>(initialDiff?.head ?? null)
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(() => new Set())
-  const search = sourceSearch(sourceRef, sourcePath)
+  const search = sourceSearch(sourceRef, null)
   const diffSearch = sourceDiffSearch(diffBaseRef, diffHeadRef)
   const source = useQuery({
     queryKey: ["jobs", jobId, "source", search],
     queryFn: () => fetchJobSource(jobId, search),
     placeholderData: keepPreviousData
   })
+  const sourceFile = useQuery({
+    enabled: Boolean((source.data?.resolved_sha || source.data?.selected_ref) && sourcePath),
+    queryKey: ["jobs", jobId, "source_file", source.data?.resolved_sha || source.data?.selected_ref, sourcePath],
+    queryFn: () => fetchJobSourceFile(jobId, source.data!.resolved_sha || source.data!.selected_ref, sourcePath!)
+  })
   const sourceDiff = useQuery({
     enabled: mode === "diff",
     queryKey: ["jobs", jobId, "source_diff", diffSearch],
     queryFn: () => fetchJobSourceDiff(jobId, diffSearch)
+  })
+  const versionsQuery = useQuery({
+    enabled: mode === "diff",
+    queryKey: ["jobs", jobId, "diff_review_versions"],
+    queryFn: () => fetchDiffReviewVersions(jobId),
+    staleTime: 30_000
   })
 
   const { t } = useT("jobs")
@@ -102,6 +116,7 @@ export function SourceTab({
         onSelectBaseRef={setDiffBaseRef}
         onSelectHeadRef={setDiffHeadRef}
         payload={sourceDiff.data}
+        versions={versionsQuery.data?.versions || sourceDiff.data.versions || []}
         showDiffToggle={source.data.branch_commits.length > 0}
       />
     )
@@ -116,7 +131,12 @@ export function SourceTab({
       key={source.data.selected_ref}
       mode={mode}
       onModeChange={setMode}
-      payload={source.data}
+      payload={{
+        ...source.data,
+        selected_path: sourcePath,
+        file: sourceFile.data?.file ?? null,
+        file_error: sourceFile.isError ? errorMessage(sourceFile.error, t("source_error")) : (sourceFile.data?.file_error ?? null)
+      }}
       setExpandedPaths={setExpandedPaths}
       onSelectPath={(path) => {
         setSourceRef(source.data.selected_ref)
@@ -366,6 +386,7 @@ export function SourceDiffBrowser({
   onSelectBaseRef,
   onSelectHeadRef,
   payload,
+  versions,
   showDiffToggle
 }: {
   canReviewDiff: boolean
@@ -375,6 +396,7 @@ export function SourceDiffBrowser({
   onSelectBaseRef: (ref: string) => void
   onSelectHeadRef: (ref: string) => void
   payload: JobSourceDiffPayload
+  versions: DiffReviewVersion[]
   showDiffToggle: boolean
 }) {
   const { t } = useT("jobs")
@@ -395,7 +417,6 @@ export function SourceDiffBrowser({
   const sortedDiffFiles = useMemo(() => sortReviewFiles(payload.files, reviewSettings.file_sort), [payload.files, reviewSettings.file_sort])
   const selectedFile = selectedPath ? payload.files.find((file) => file.path === selectedPath) || null : null
   const refOptions = refOptionsFor(payload, [payload.base_ref, payload.head_ref])
-  const versions = payload.versions || []
   const selectedVersionId = payload.version?.id ?? null
   const feedback = useDiffReviewFeedback({
     baseRef: payload.base_ref,

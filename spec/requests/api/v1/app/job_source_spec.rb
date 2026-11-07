@@ -58,6 +58,7 @@ RSpec.describe "App API job source browser", type: :request do
       "content" => "line 1\nline 2\nline 3\n",
       "truncated" => false
     )
+    expect(response.headers["Cache-Control"]).to include("immutable")
   end
 
   it "returns refs, compact tree items, and selected file content" do
@@ -111,6 +112,24 @@ RSpec.describe "App API job source browser", type: :request do
     )
     expect(FakeRepositoryContentProvider.calls.select { |call| call.first == :children }.map(&:last)).to include("", "app/models")
     expect(FakeRepositoryContentProvider.calls.map(&:first)).not_to include(:tree)
+  end
+
+  it "loads selected file content separately with an immutable resolved-revision cache" do
+    user.update!(github_token: "ghp_test_token")
+    job.update!(branch_name: nil)
+    sha = "a" * 40
+    stub_repository_content(repo, ref: sha, files: { "README.md" => "hello\n" })
+
+    get "/api/v1/app/jobs/#{job.id}/source_file", params: { ref: sha, path: "README.md" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["file"]).to include("path" => "README.md", "content" => "hello\n")
+    expect(parse_body).not_to have_key("tree_items")
+    expect(response.headers["Cache-Control"]).to include("immutable")
+    etag = response.headers.fetch("ETag")
+
+    get "/api/v1/app/jobs/#{job.id}/source_file", params: { ref: sha, path: "README.md" }, headers: { "If-None-Match" => etag }
+    expect(response).to have_http_status(:not_modified)
   end
 
   it "reports a missing file without failing the tree" do
