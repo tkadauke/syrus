@@ -58,7 +58,7 @@ RSpec.describe "App API job source browser", type: :request do
       "content" => "line 1\nline 2\nline 3\n",
       "truncated" => false
     )
-    expect(response.headers["Cache-Control"]).to include("immutable")
+    expect(response.headers["Cache-Control"]).not_to include("immutable")
   end
 
   it "returns refs, compact tree items, and selected file content" do
@@ -130,6 +130,17 @@ RSpec.describe "App API job source browser", type: :request do
 
     get "/api/v1/app/jobs/#{job.id}/source_file", params: { ref: sha, path: "README.md" }, headers: { "If-None-Match" => etag }
     expect(response).to have_http_status(:not_modified)
+  end
+
+  it "revalidates moving refs instead of caching their URLs as immutable" do
+    user.update!(github_token: "ghp_test_token")
+    job.update!(branch_name: nil)
+    stub_repository_content(repo, files: { "README.md" => "hello\n" })
+
+    get "/api/v1/app/jobs/#{job.id}/source_file", params: { ref: "main", path: "README.md" }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.headers["Cache-Control"]).not_to include("immutable")
   end
 
   it "reports a missing file without failing the tree" do

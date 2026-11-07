@@ -116,7 +116,7 @@ export function SourceTab({
         onSelectBaseRef={setDiffBaseRef}
         onSelectHeadRef={setDiffHeadRef}
         payload={sourceDiff.data}
-        versions={versionsQuery.data?.versions || sourceDiff.data.versions || []}
+        versions={versionsQuery.data?.versions || []}
         showDiffToggle={source.data.branch_commits.length > 0}
       />
     )

@@ -10,16 +10,20 @@ RSpec.describe "App API job source diff browser", type: :request do
   def parse_body = JSON.parse(response.body)
 
   it "returns source diff refs and changed files" do
+    base_sha = "a" * 40
+    head_sha = "b" * 40
     stub_repository_history(repo, base: "main", head: "syrus/issue-42",
-      commits: [ { sha: "deadbeef12345678", message: "Change source browser", date: "2026-05-01T12:00:00Z" } ],
-      merge_base_sha: "aabbccdd1234567")
-    stub_repository_diff(repo, base: "aabbccdd1234567", head: "deadbeef12345678",
+      commits: [ { sha: head_sha, message: "Change source browser", date: "2026-05-01T12:00:00Z" } ],
+      merge_base_sha: base_sha)
+    stub_repository_diff(repo, base: base_sha, head: head_sha,
         files: [
           { path: "app/models/user.rb", status: "modified", additions: 4, deletions: 1, patch: "@@ -1 +1 @@\n-old\n+new" },
           { path: "public/logo.png", status: "added", additions: 0, deletions: 0, patch: nil, patch_status: "binary" }
         ],
         truncated: false
       )
+    resolved_base_sha = FakeRepositoryContentProvider.snapshots.fetch(repo.id).fetch(base_sha).fetch(:id)
+    resolved_head_sha = FakeRepositoryContentProvider.snapshots.fetch(repo.id).fetch(head_sha).fetch(:id)
 
     get "/api/v1/app/jobs/#{job.id}/source_diff"
 
@@ -27,31 +31,44 @@ RSpec.describe "App API job source diff browser", type: :request do
     body = parse_body
     expect(body).to include(
       "job_id" => job.id,
-      "base_ref" => "aabbccdd1234567",
-      "head_ref" => "deadbeef12345678",
-      "base_sha" => "aabbccdd1234567",
-      "head_sha" => "deadbeef12345678",
-      "merge_base_sha" => "aabbccdd1234567",
+      "base_ref" => base_sha,
+      "head_ref" => head_sha,
+      "base_sha" => resolved_base_sha,
+      "head_sha" => resolved_head_sha,
+      "merge_base_sha" => base_sha,
       "default_ref" => "main",
       "truncated" => false,
       "diff_error" => nil
     )
-    expect(body["branch_commits"]).to contain_exactly(include("sha" => "deadbeef12345678", "short_sha" => "deadbee"))
+    expect(body["branch_commits"]).to contain_exactly(include("sha" => head_sha, "short_sha" => "bbbbbbb"))
     expect(body["files"]).to contain_exactly(
       include("path" => "app/models/user.rb", "status" => "modified", "additions" => 4, "deletions" => 1, "patch_bytes" => 21, "is_image" => false),
       include("path" => "public/logo.png", "status" => "added", "patch_status" => "binary", "is_image" => true)
     )
     expect(body["files"]).to all(satisfy { |file| !file.key?("patch") })
     expect(body).not_to have_key("versions")
-    expect(response.headers["Cache-Control"]).to include("immutable")
+    expect(response.headers["Cache-Control"]).not_to include("immutable")
     etag = response.headers.fetch("ETag")
 
+    version = job.diff_review_versions.last
+    DiffReviewComment.create!(
+      job: job,
+      diff_review_version: version,
+      user: user,
+      anchor_kind: "review",
+      body: "Review-wide note"
+    )
     get "/api/v1/app/jobs/#{job.id}/source_diff", headers: { "If-None-Match" => etag }
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("version", "comments_count")).to eq(1)
+    refreshed_etag = response.headers.fetch("ETag")
+
+    get "/api/v1/app/jobs/#{job.id}/source_diff", headers: { "If-None-Match" => refreshed_etag }
     expect(response).to have_http_status(:not_modified)
     expect(body["version"]).to include(
       "version_index" => 1,
-      "base_sha" => "aabbccdd1234567",
-      "head_sha" => "deadbeef12345678",
+      "base_sha" => resolved_base_sha,
+      "head_sha" => resolved_head_sha,
       "label" => "All changes",
       "reason" => "source_diff",
       "metadata" => { "range_kind" => "all_changes" }

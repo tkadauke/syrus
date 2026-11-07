@@ -186,26 +186,25 @@ module Api
         def source
           payload = ::App::JobSourcePayload.build(job: find_job, user: Current.user, params: params)
           if payload[:source_error].blank?
-            return unless stale?(etag: [ "job-source", payload[:resolved_sha], payload[:tree_path], payload[:selected_path] ], public: false)
+            return unless stale?(etag: payload_etag("job-source", payload), public: false)
 
-            expires_in 1.year, public: false, immutable: true
+            expires_in 1.year, public: false, immutable: true if exact_revision?(params[:ref])
           end
           render json: payload
         end
 
         def source_file
           payload = ::App::JobSourcePayload.build(job: find_job, user: Current.user, params: params.to_unsafe_h.symbolize_keys.merge(file_only: true))
-          return unless stale?(etag: [ "source-file", payload[:selected_ref], payload[:selected_path] ], public: false)
+          return unless stale?(etag: payload_etag("source-file", payload), public: false)
 
-          expires_in 1.year, public: false, immutable: true
+          expires_in 1.year, public: false, immutable: true if exact_revision?(params[:ref])
           render json: payload.slice(:job_id, :selected_ref, :selected_path, :file, :file_error)
         end
 
         def source_diff
           payload = ::App::JobSourceDiffPayload.build(job: find_job, user: Current.user, params: params)
-          return unless stale?(etag: [ "source-diff", payload[:base_sha], payload[:head_sha] ], public: false)
+          return unless stale?(etag: payload_etag("source-diff", payload), public: false)
 
-          expires_in 1.year, public: false, immutable: true
           render json: payload
         end
 
@@ -366,8 +365,8 @@ module Api
             return
           end
 
-          head_sha = job.runs.where.not(head_sha: [ nil, "" ]).reorder(created_at: :desc, id: :desc).pick(:head_sha) || job.branch_name
-          return unless stale?(etag: [ "job-pr-diff", job.id, head_sha ], public: false)
+          head_sha = job.runs.where.not(head_sha: [ nil, "" ]).reorder(created_at: :desc, id: :desc).pick(:head_sha)
+          return unless stale?(etag: [ "job-pr-diff", job.id, head_sha ], public: false) if exact_revision?(head_sha)
 
           client = GithubClient.for(repository: job.repository, user: Current.user)
           uri = URI("https://api.github.com/repos/#{job.repository.slug}/pulls/#{job.pr_number}")
@@ -375,18 +374,30 @@ module Api
           request["Accept"] = "application/vnd.github.diff"
           request["Authorization"] = "Bearer #{client.access_token}"
           request["User-Agent"] = GithubClient::USER_AGENT
-          response = Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 10, read_timeout: 30) do |http|
-            http.request(request)
+          response = nil
+          diff = +""
+          too_large = false
+          Net::HTTP.start(uri.host, uri.port, use_ssl: true, open_timeout: 10, read_timeout: 30) do |http|
+            http.request(request) do |streamed_response|
+              response = streamed_response
+              streamed_response.read_body do |chunk|
+                if diff.bytesize + chunk.bytesize > 10.megabytes
+                  too_large = true
+                  break
+                end
+                diff << chunk
+              end
+            end
           end
 
           if response.is_a?(Net::HTTPSuccess)
-            if response.body.to_s.bytesize > 10.megabytes
+            if too_large
               render_error("diff_too_large", t("api.jobs.errors.download_diff_limit"), status: :content_too_large)
               return
             end
 
-            expires_in 1.year, public: false, immutable: true if head_sha.present?
-            render json: { job_id: job.id, pr_url: ::App::Presentation.job_pr_url(job), diff: response.body.to_s }
+            expires_in 1.year, public: false, immutable: true if exact_revision?(head_sha)
+            render json: { job_id: job.id, pr_url: ::App::Presentation.job_pr_url(job), diff: diff }
           else
             render_error("github_error", t("api.jobs.errors.github_diff_failed", status: response.code), status: :bad_gateway)
           end
@@ -608,6 +619,14 @@ module Api
           content, base, head, path, previous_path = requested_file_patch_arguments
           patch = content.file_patch(base: content.revision(base), head: content.revision(head), path: path, previous_path: previous_path)
           [ patch, path ]
+        end
+
+        def exact_revision?(value)
+          value.to_s.match?(/\A[0-9a-f]{40,64}\z/i)
+        end
+
+        def payload_etag(namespace, payload)
+          [ namespace, payload[:resolved_sha] || payload[:base_sha], payload[:head_sha], Digest::SHA256.hexdigest(payload.to_json) ]
         end
 
         def requested_file_patch_arguments

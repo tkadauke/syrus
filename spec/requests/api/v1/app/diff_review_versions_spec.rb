@@ -62,7 +62,20 @@ RSpec.describe "App API diff review versions", type: :request do
       "patch_bytes" => 21
     ))
     expect(body["files"].first).not_to have_key("patch")
-    expect(response.headers["Cache-Control"]).to include("immutable")
+    expect(response.headers["Cache-Control"]).not_to include("immutable")
+    etag = response.headers.fetch("ETag")
+
+    DiffReviewComment.create!(
+      job: job,
+      diff_review_version: version,
+      user: user,
+      anchor_kind: "review",
+      body: "Review-wide note"
+    )
+    get "/api/v1/app/jobs/#{job.id}/diff_review_versions/#{version.id}", headers: { "If-None-Match" => etag }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["comments_count"]).to eq(1)
   end
 
   it "does not expose another user's versions" do

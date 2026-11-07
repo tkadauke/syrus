@@ -65,8 +65,9 @@ the dedicated versions index instead of being repeated in this payload.
 `version_index` order and includes `latest_version_id`. `GET
 /diff_review_versions/:id` returns the selected version plus its stored
 `files` array without embedded patches; clients load a selected patch through
-`source_file_diff`. It does not depend on the current branch head. Both reads
-use immutable private caching keyed by the exact base/head SHAs.
+`source_file_diff`. It does not depend on the current branch head. The selected
+version response is ETag-revalidated because its review and coverage annotations
+can change even though the version row and exact base/head SHAs are immutable.
 
 Closed Jobs may also have a final `"All changes"` `DiffReviewVersion` with
 `reason: "source_diff"` and `metadata.final_snapshot: true`. Syrus creates or
@@ -124,8 +125,10 @@ content without corrupting it.
 Source browsing similarly keeps tree navigation and selected file bytes
 separate. `GET /jobs/:id/source` returns refs and a directory listing, while
 `GET /jobs/:id/source_file?ref=<sha>&path=<path>` returns one file and is
-immutably cached by resolved SHA. This avoids repeating branch history and the
-tree whenever an operator opens another file.
+immutably cached when the request itself uses an exact SHA. Branch-addressed
+tree and file URLs revalidate instead of retaining a moving ref for a year.
+This avoids repeating branch history and the tree whenever an operator opens
+another file.
 
 SVG and Markdown (`.md`, `.markdown`, and `.mdown`) remain text-reviewable and
 default to Code mode. The persisted `renderable_files` review setting can make
