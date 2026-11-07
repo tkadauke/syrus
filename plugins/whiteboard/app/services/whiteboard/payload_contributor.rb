@@ -27,8 +27,13 @@ module Whiteboard
     end
 
     def self.chat_payload_counts(chat_session:, context: {})
-      return {} unless context.dig(:params, :include_whiteboard).present?
-      { whiteboard_snapshot_count: Whiteboard::Snapshot.where(chat_session_id: chat_session.id).count }
+      snapshots = Whiteboard::Snapshot.where(chat_session_id: chat_session.id)
+      count = if context.dig(:params, :include_whiteboard).present?
+        snapshots.count
+      else
+        snapshots.exists? ? 1 : 0
+      end
+      { whiteboard_snapshot_count: count }
     end
 
     def self.scene_for(chat_session)
