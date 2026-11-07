@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import type { BootstrapPayload } from "../api/bootstrap"
+import { fetchSetup, type FullSetupStatusPayload } from "../api/setup"
 import { startOnboardingChat } from "../api/chats"
 import { GithubTokenModal } from "../components/GithubTokenModal"
 import { ConfigureAgentModal } from "../components/ConfigureAgentModal"
@@ -14,7 +15,7 @@ import type { TFunction } from "i18next"
 import { fetchRepositoryReadiness } from "../api/repositories"
 import { RepositoryReadinessModal, readinessTone } from "../components/RepositoryReadinessModal"
 
-type SetupStatus = NonNullable<BootstrapPayload["setup_status"]>
+type SetupStatus = FullSetupStatusPayload
 
 type ChecklistStep = {
   key: string
@@ -44,7 +45,8 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
   const [startingChat, setStartingChat] = useState(false)
   const [chatError, setChatError] = useState<string | null>(null)
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
-  const setup = bootstrap?.setup_status
+  const setupQuery = useQuery({ queryKey: ["setup"], queryFn: fetchSetup, staleTime: 30_000 })
+  const setup = setupQuery.data
   const user = bootstrap?.current_user
   const repositoryId = setup?.onboarding_repository_id
   const readiness = useQuery({
@@ -74,6 +76,7 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
       // Refresh bootstrap so the chrome reveals the other nav tabs (gated on
       // setup.chat_started) without needing a page reload.
       await queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
+      await queryClient.invalidateQueries({ queryKey: ["setup"] })
       navigate(withRoutePrefix(result.redirect_to, prefix))
     } catch {
       setChatError(t("onboarding.chat_start_error"))
