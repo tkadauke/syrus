@@ -84,7 +84,13 @@ export function AdminPluginServices() {
           {filterServices(payload.services, location.search).length === 0 ? (
             <Text tone="muted">{t("empty")}</Text>
           ) : (
-            <ServicesTable services={filterServices(payload.services, location.search)} onShowLogs={setLogsFor} logsFor={logsFor} onShowDetails={setDetailsFor} detailsFor={detailsFor} />
+            <ServicesTable
+              services={filterServices(payload.services, location.search)}
+              onShowLogs={setLogsFor}
+              logsFor={logsFor}
+              onShowDetails={setDetailsFor}
+              detailsFor={detailsFor}
+            />
           )}
 
           {detailsFor ? <DetailsPanel name={detailsFor} onClose={() => setDetailsFor(null)} /> : null}
@@ -106,7 +112,14 @@ function pluginServiceFilterFields(t: (key: string) => string): AdminEventFilter
     { name: "endpoint", label: t("filter_endpoint") },
     { name: "volume", label: t("filter_volume") },
     { name: "volume_plugin", label: t("filter_volume_plugin") },
-    { name: "volume_state", label: t("filter_volume_state"), options: [{ label: t("volume_in_use"), value: "in_use" }, { label: t("volume_unused"), value: "unused" }] },
+    {
+      name: "volume_state",
+      label: t("filter_volume_state"),
+      options: [
+        { label: t("volume_in_use"), value: "in_use" },
+        { label: t("volume_unused"), value: "unused" }
+      ]
+    },
     { name: "min_size", label: t("filter_min_size"), inputMode: "numeric" }
   ]
 }
@@ -117,23 +130,25 @@ function includesText(value: string | null | undefined, query: string | null) {
 
 function filterServices(services: PluginService[], search: string) {
   const params = new URLSearchParams(search)
-  return services.filter((service) =>
-    includesText(service.service, params.get("service")) &&
-    includesText(service.plugin, params.get("plugin")) &&
-    includesText(service.state, params.get("state")) &&
-    includesText(service.image, params.get("image")) &&
-    includesText(service.endpoint, params.get("endpoint"))
+  return services.filter(
+    (service) =>
+      includesText(service.service, params.get("service")) &&
+      includesText(service.plugin, params.get("plugin")) &&
+      includesText(service.state, params.get("state")) &&
+      includesText(service.image, params.get("image")) &&
+      includesText(service.endpoint, params.get("endpoint"))
   )
 }
 
 function filterVolumes(volumes: PluginServiceVolume[], search: string) {
   const params = new URLSearchParams(search)
   const minSize = Number(params.get("min_size") || "")
-  return volumes.filter((volume) =>
-    includesText(volume.name, params.get("volume")) &&
-    includesText(volume.plugin, params.get("volume_plugin")) &&
-    (!params.get("volume_state") || (params.get("volume_state") === "in_use" ? volume.in_use : !volume.in_use)) &&
-    (!Number.isFinite(minSize) || minSize <= 0 || (volume.size_bytes ?? 0) >= minSize)
+  return volumes.filter(
+    (volume) =>
+      includesText(volume.name, params.get("volume")) &&
+      includesText(volume.plugin, params.get("volume_plugin")) &&
+      (!params.get("volume_state") || (params.get("volume_state") === "in_use" ? volume.in_use : !volume.in_use)) &&
+      (!Number.isFinite(minSize) || minSize <= 0 || (volume.size_bytes ?? 0) >= minSize)
   )
 }
 
@@ -147,7 +162,15 @@ type PanelProps = {
 function ServicesTable({ services, ...panels }: { services: PluginService[] } & PanelProps) {
   const { t } = useT("plugin_runtime")
   const columns: Array<AdminEventLogTableColumn<PluginService>> = [
-    { key: "service", header: t("col_service"), required: true, sort: "service", sortValue: (service) => service.service, className: "font-mono text-xs", render: (service) => service.service },
+    {
+      key: "service",
+      header: t("col_service"),
+      required: true,
+      sort: "service",
+      sortValue: (service) => service.service,
+      className: "font-mono text-xs",
+      render: (service) => service.service
+    },
     { key: "plugin", header: t("col_plugin"), sort: "plugin", sortValue: (service) => service.plugin || "", render: (service) => service.plugin ?? "-" },
     {
       key: "state",
@@ -170,9 +193,30 @@ function ServicesTable({ services, ...panels }: { services: PluginService[] } & 
         </>
       )
     },
-    { key: "image", header: t("col_image"), sort: "image", sortValue: (service) => service.image || "", className: "break-all font-mono text-xs", render: (service) => service.image ?? "-" },
-    { key: "endpoint", header: t("col_endpoint"), sort: "endpoint", sortValue: (service) => service.endpoint || "", className: "font-mono text-xs", render: (service) => service.endpoint ?? "-" },
-    { key: "actions", header: t("col_actions"), pin: "end", align: "right", required: true, render: (service) => <ServiceActions service={service} {...panels} /> }
+    {
+      key: "image",
+      header: t("col_image"),
+      sort: "image",
+      sortValue: (service) => service.image || "",
+      className: "break-all font-mono text-xs",
+      render: (service) => service.image ?? "-"
+    },
+    {
+      key: "endpoint",
+      header: t("col_endpoint"),
+      sort: "endpoint",
+      sortValue: (service) => service.endpoint || "",
+      className: "font-mono text-xs",
+      render: (service) => service.endpoint ?? "-"
+    },
+    {
+      key: "actions",
+      header: t("col_actions"),
+      pin: "end",
+      align: "right",
+      required: true,
+      render: (service) => <ServiceActions service={service} {...panels} />
+    }
   ]
 
   return (
@@ -386,11 +430,38 @@ function formatBytes(bytes: number) {
 function VolumesSection({ volumes }: { volumes: PluginServiceVolume[] }) {
   const { t } = useT("plugin_runtime")
   const columns: Array<AdminEventLogTableColumn<PluginServiceVolume>> = [
-    { key: "name", header: t("col_volume"), required: true, sort: "name", sortValue: (volume) => volume.name, className: "font-mono text-xs", render: (volume) => volume.name },
+    {
+      key: "name",
+      header: t("col_volume"),
+      required: true,
+      sort: "name",
+      sortValue: (volume) => volume.name,
+      className: "font-mono text-xs",
+      render: (volume) => volume.name
+    },
     { key: "plugin", header: t("col_plugin"), sort: "plugin", sortValue: (volume) => volume.plugin || "", render: (volume) => volume.plugin ?? "-" },
-    { key: "size", header: t("col_size"), sort: "size", sortValue: (volume) => volume.size_bytes ?? -1, render: (volume) => typeof volume.size_bytes === "number" ? formatBytes(volume.size_bytes) : "-" },
-    { key: "state", header: t("col_state"), sort: "state", sortValue: (volume) => volume.in_use ? 1 : 0, render: (volume) => <Pill tone={volume.in_use ? "success" : "neutral"}>{volume.in_use ? t("volume_in_use") : t("volume_unused")}</Pill> },
-    { key: "actions", header: t("col_actions"), pin: "end", align: "right", required: true, render: (volume) => volume.in_use ? null : <DeleteVolumeButton volume={volume} /> }
+    {
+      key: "size",
+      header: t("col_size"),
+      sort: "size",
+      sortValue: (volume) => volume.size_bytes ?? -1,
+      render: (volume) => (typeof volume.size_bytes === "number" ? formatBytes(volume.size_bytes) : "-")
+    },
+    {
+      key: "state",
+      header: t("col_state"),
+      sort: "state",
+      sortValue: (volume) => (volume.in_use ? 1 : 0),
+      render: (volume) => <Pill tone={volume.in_use ? "success" : "neutral"}>{volume.in_use ? t("volume_in_use") : t("volume_unused")}</Pill>
+    },
+    {
+      key: "actions",
+      header: t("col_actions"),
+      pin: "end",
+      align: "right",
+      required: true,
+      render: (volume) => (volume.in_use ? null : <DeleteVolumeButton volume={volume} />)
+    }
   ]
 
   return (
