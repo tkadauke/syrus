@@ -14,7 +14,7 @@ class Coworkers::ReviewMemoryLifecycle
 
       selected = eligible_memories(coworker, run)
       identity = [ "Name: #{coworker.name}", "Handle: @#{coworker.handle}", "Role: #{coworker.role_summary}" ].join("\n")
-      memory_text = selected.map { |entry| "[memory #{entry.id} revision #{entry.updated_at.iso8601}]\n#{entry.content}" }.join("\n\n")
+      memory_text = selected.map { |entry| "[memory #{entry.fetch(:id)} revision #{entry.fetch(:revision)}]\n#{entry.fetch(:content)}" }.join("\n\n")
       criteria_text = Array(criteria).map { |criterion| "- #{criterion}" }.join("\n")
       protected_prompt = [ "# Protected coworker reviewer context", identity,
         "## Review instructions\n#{Prompts::CoworkerReview.protected_instructions}",
@@ -25,7 +25,10 @@ class Coworkers::ReviewMemoryLifecycle
       clone_home!(coworker, run, path)
       manifest = { "protected_prompt" => { "bytes" => protected_prompt.bytesize,
         "sha256" => Digest::SHA256.hexdigest(protected_prompt) } }
-      manifest["memories"] = selected.map { |entry| { "id" => entry.id, "revision" => entry.updated_at.iso8601, "sha256" => Digest::SHA256.hexdigest(entry.content) } }
+      manifest["memories"] = selected.map do |entry|
+        { "id" => entry.fetch(:id), "revision" => entry.fetch(:revision),
+          "sha256" => Digest::SHA256.hexdigest(entry.fetch(:content)) }
+      end
       Coworkers::ReviewContext.create!(run:, review_evidence: evidence, coworker:, manifest:, exact_context: exact, workspace_path: path.to_s)
     end
 
@@ -74,13 +77,10 @@ class Coworkers::ReviewMemoryLifecycle
     private
 
     def eligible_memories(coworker, run)
-      return [] unless defined?(AgentMemory::Entry)
-
       ids = Array(run.step.details.to_h["review_memory_ids"]).filter_map { |value| Integer(value, exception: false) }.uniq
       return [] if ids.empty?
 
-      AgentMemory::Entry.active.repository_scope(run.job.repository_id)
-        .where(id: ids, user_id: coworker.owner_user_id, published: true).order(:id).to_a
+      Syrus::Memory.selected_review_memories(user: coworker.owner_user, repository_id: run.job.repository_id, ids:)
     end
 
     def checkout_path(run)

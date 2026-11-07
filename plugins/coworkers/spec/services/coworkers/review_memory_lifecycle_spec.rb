@@ -41,6 +41,16 @@ RSpec.describe Coworkers::ReviewMemoryLifecycle do
     expect(record.reload.exact_context).to eq("protected_prompt" => "secret")
   end
 
+  it "requests only explicitly selected memories through the memory provider boundary" do
+    step.update!(details: { "review_memory_ids" => [ "12", 12, "invalid" ] })
+    selected = [ { id: 12, revision: "2026-11-06T10:00:00Z", content: "Use the repository policy." } ]
+    allow(Syrus::Memory).to receive(:selected_review_memories).and_return(selected)
+
+    expect(described_class.send(:eligible_memories, coworker, run)).to eq(selected)
+    expect(Syrus::Memory).to have_received(:selected_review_memories)
+      .with(user: owner, repository_id: repository.id, ids: [ 12 ])
+  end
+
   it "writes one deterministic journal and makes persistence retry-idempotent" do
     record = context
     allow(described_class).to receive(:persist_checkout!) do
