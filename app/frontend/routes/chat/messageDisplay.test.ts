@@ -1,6 +1,24 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import type { ChatMessageItem, ChatRenderItem } from "../../api/chats"
-import { countIncomingVisibleMessages, isLowPrioritySystemMessage, retryTextByMessageId } from "./messageDisplay"
+import {
+  countIncomingVisibleMessages,
+  formatMessageTimestamp,
+  formatMessageTimestampExact,
+  isLowPrioritySystemMessage,
+  retryTextByMessageId
+} from "./messageDisplay"
+
+afterEach(() => vi.useRealTimers())
+
+describe("message timestamps", () => {
+  it("uses the selected timezone for calendar-relative and exact values", () => {
+    vi.setSystemTime(new Date("2026-01-02T08:30:00Z"))
+
+    expect(formatMessageTimestamp("2026-01-01T08:45:00Z", "America/Los_Angeles")).toBe("yesterday")
+    expect(formatMessageTimestampExact("2026-01-02T08:30:00Z", "America/Los_Angeles")).toContain("PST")
+    expect(formatMessageTimestampExact("2026-01-02T08:30:00Z", "Asia/Tokyo")).toContain("GMT+9")
+  })
+})
 
 function message(overrides: Partial<ChatMessageItem> & { id: number; role: ChatMessageItem["role"] }): ChatMessageItem {
   return {
