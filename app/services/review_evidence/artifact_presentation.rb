@@ -1,13 +1,13 @@
 module ReviewEvidence::ArtifactPresentation
   module_function
 
-  def call(entries, evidence_by_id: nil)
+  def call(entries, evidence_by_id: nil, user: nil)
     entries = Array(entries)
     evidence_by_id ||= ReviewEvidence.where(id: evidence_ids(entries)).index_by(&:id)
-    entries.map { |entry| present(entry, evidence_by_id) }
+    entries.map { |entry| present(entry, evidence_by_id, user:) }
   end
 
-  def present(entry, evidence_by_id)
+  def present(entry, evidence_by_id, user: nil)
     return entry unless entry.is_a?(Hash)
 
     evidence_id = entry["review_evidence_id"] || entry[:review_evidence_id]
@@ -21,7 +21,13 @@ module ReviewEvidence::ArtifactPresentation
       )
     end
 
-    presented = entry.merge("review_evidence" => evidence_payload(evidence))
+    presented = entry.merge(
+      "review_evidence" => evidence_payload(evidence),
+      "cost_usd" => evidence.run.cost_usd&.to_f
+    ).compact
+    if user && evidence.reviewer&.respond_to?(:review_evidence_links)
+      presented["operator_links"] = evidence.reviewer.review_evidence_links(run: evidence.run, user:).presence
+    end
     presented["verdict"] = evidence.state if evidence.state.in?(%w[pending failed stale])
     presented
   end

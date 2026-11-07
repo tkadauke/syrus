@@ -629,6 +629,9 @@ export type JobCoworkerReviewIteration = Omit<JobAdversarialReviewIteration, "ve
   reviewer?: { label?: string | null; type?: string | null; reference?: string | null; provider?: string | null; model?: string | null } | null
   review_context_manifest?: Record<string, unknown> | null
   memory_persistence?: { state: string; persisted_commit_sha?: string | null; error_code?: string | null } | null
+  cost_usd?: number | null
+  repair_response?: string | null
+  operator_links?: { journal?: string | null; restricted_context?: string | null } | null
   review_evidence?: {
     id?: number | null
     state: string

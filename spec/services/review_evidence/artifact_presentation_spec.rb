@@ -34,4 +34,19 @@ RSpec.describe ReviewEvidence::ArtifactPresentation do
       "terminal_failure_code" => "review_evidence_mismatch"
     )
   end
+
+  it "presents the billed review cost without exposing operator links by default" do
+    run.update!(cost_usd: 0.125)
+    evidence = ReviewEvidence.create!(
+      run: run, workflow: workflow, step: step, review_kind: "adversarial",
+      provider: "codex", model: "gpt-test", reviewed_base_sha: "a" * 40,
+      reviewed_head_sha: "b" * 40, canonical_diff_sha256: "c" * 64,
+      prompt_version: "1", checklist_version: "d" * 64, tool_policy_version: "1"
+    )
+
+    presented = described_class.call([ { "review_evidence_id" => evidence.id, "verdict" => "approved" } ]).sole
+
+    expect(presented).to include("cost_usd" => 0.125)
+    expect(presented).not_to have_key("operator_links")
+  end
 end

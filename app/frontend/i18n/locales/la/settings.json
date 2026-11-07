@@ -1581,6 +1581,7 @@
     "validation_coworker_targets": "Omnis recensor collegae dedicatus collegam nominare debet.",
     "provider_candidates_help": "Candidati ordine ostenso temptantur cum ordo subsidiarius electus est.",
     "named_reviewer_help": "Recensio provisoris sola sine nomine est. Collega electus identitatem memoriamque durabilem addit, dum provisor et exemplar recensionem tantum legendam exsequuntur. Neutrum approbatio humana est.",
+    "review_identity_accessibility": "Discrimen inter identitatem recensentis automatici et approbationem humanam",
     "dedicated_coworker_help": "Recensio collegae dedicata collegam nominatum pro omni candidato requirit. .syrus.yml portam repositorii activat; haec regula localis collegam vel consilium atque provisorem exemplarque eligit. Approbationem humanam numquam praebet.",
     "rules_table": "Regulae itineris praebitorum",
     "provider": "Praebitor",

@@ -84,10 +84,8 @@ module Api
         end
 
         def review_context
-          coworker = Coworkers::Coworker.find(params[:id])
-          unless Current.user.admin? || coworker.owner_user_id == Current.user.id
-            return head :forbidden
-          end
+          coworker = authorized_review_coworker
+          return unless coworker
           context = Coworkers::ReviewContext.find_by!(coworker:, run_id: params[:run_id])
           AdminAction.log!(user: Current.user, action: "coworker_review_context_read",
             params: { "coworker_id" => coworker.id, "run_id" => context.run_id })
@@ -96,10 +94,8 @@ module Api
         end
 
         def review_journal
-          coworker = Coworkers::Coworker.find(params[:id])
-          unless Current.user.admin? || coworker.owner_user_id == Current.user.id
-            return head :forbidden
-          end
+          coworker = authorized_review_coworker
+          return unless coworker
           context = Coworkers::ReviewContext.find_by!(coworker:, run_id: params[:run_id])
           repository = coworker.workspace_repository or raise ActiveRecord::RecordNotFound
           reader = RepositoryContent.for(repository, user: Current.user)
@@ -351,6 +347,14 @@ module Api
         end
 
         private
+
+        def authorized_review_coworker
+          coworker = Coworkers::Coworker.find(params[:id])
+          return coworker if Current.user.admin? || coworker.owner_user_id == Current.user.id
+
+          head :forbidden
+          nil
+        end
 
         def provisioning_attempt
           Coworkers::ProvisioningAttempt.where(owner_user: Current.user).find(params[:attempt_id])
