@@ -467,8 +467,7 @@ resolution, Coding Mode gating, and handoff-confirmation behavior.
 
 Typing `!` as the first character of an empty composer, in a `coding`- or
 `local`-mode chat, flips it into command-mode styling (red border/background/
-text — `isBangCommandMode` in `app/frontend/lib/bangCommand.ts`, modeled on
-the slash-command derived-state pattern; shown every time, no one-time
+text, like the slash-command derived state; shown every time, no one-time
 dismissal) and routes Send to this endpoint instead of the normal
 message/enqueue path. Backspacing the draft back to empty reverts to a
 normal message. While a command is running, a second `!` submission is
