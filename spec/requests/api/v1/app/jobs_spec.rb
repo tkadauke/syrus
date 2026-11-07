@@ -101,6 +101,24 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(response.headers["Cache-Control"]).to eq("no-cache")
   end
 
+  it "returns retryable unavailable JSON when visual evidence storage is temporarily unreachable" do
+    workflow = job.workflows.first
+    run = workflow.runs.first
+    evidence = workflow.visual_evidences.create!(
+      run: run, step: run.step, sequence: 1, status: "draft", captured_at: Time.current,
+      page_identity: {}, viewport: {}, content_digest: "digest"
+    )
+    evidence.image.attach(io: StringIO.new("png-data"), filename: "evidence.png", content_type: "image/png")
+    allow_any_instance_of(ActiveStorage::Blob).to receive(:download).and_raise(Errno::ECONNREFUSED, "minio:9000")
+
+    get "/api/v1/app/jobs/#{job.id}/visual_evidence/#{evidence.stable_id}"
+
+    expect(response).to have_http_status(:service_unavailable)
+    expect(response.headers["Retry-After"]).to eq(StorageConnectivity::RETRY_AFTER_SECONDS.to_s)
+    expect(response.headers["Cache-Control"]).not_to include("immutable")
+    expect(parse_body.dig("error", "code")).to eq("storage_unavailable")
+  end
+
   it "rejects Job unland preflight and mutation without resolving commits while the flag is off" do
     original = Factories.job_record(
       user: user, repository: repo, state: "closed", closure_reason: "pr_merged", landed_sha: "landed"
