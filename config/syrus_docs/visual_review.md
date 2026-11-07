@@ -194,7 +194,7 @@ visual_review(1) → [coding_handoff_fix → visual_review(2) → ...] → grade
 ```
 
 Because the chain has no `implement`/`respond` step at all,
-`Steps::VisualReview#latest_agentic_diff` falls back to a fresh `git diff`
+Visual review falls back to a fresh `git diff`
 against the default branch — the same fallback path used by the standalone
 `manual_visual_review` workflow. A `needs_work` verdict is repaired by
 `coding_handoff_fix`, which also handles the workflow's grader retry loop.

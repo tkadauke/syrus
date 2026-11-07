@@ -42,7 +42,7 @@ the linear policy, each side has a unique root and tail, and every upstream
 work Job has both a PR branch and captured head SHA. Syrus connects the
 downstream root to the upstream tail using `parent_job` plus a concrete
 `JobDependency`; Workflow base artifacts retain the selected parent branch,
-Job ID, and head SHA. `Epic#dependencies_done?` remains the strict landing
+Job ID, and head SHA. Epic dependency completion remains the strict landing
 gate. Cross-repository, unresolved, multi-upstream, incomplete, and nonlinear
 graphs stay blocked.
 

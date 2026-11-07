@@ -9,7 +9,7 @@ failure policy, but there is no global enable/disable switch.
 ## When a merge train fires
 
 1. An operator approves the last open child Job in an Epic.
-2. `LandingQueueProcessor` confirms all upstream Epic dependencies completed successfully and all open sibling Jobs are `approved`.
+2. Syrus confirms all upstream Epic dependencies completed successfully and all open sibling Jobs are `approved`.
 3. Syrus dispatches a `merge_train` workflow on the Epic.
 4. All member Jobs move to `landing` state until the train succeeds or fails.
 

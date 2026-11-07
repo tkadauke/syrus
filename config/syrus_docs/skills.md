@@ -110,7 +110,7 @@ are first-class system commands: the React composer calls the goal API, and
 the backend message endpoint also intercepts raw `/goal ...` text before it
 can be sent to the model as prose.
 
-Active goal turns include goal context in `ChatTurnJob#prompt_for`, and chat
+Active goal turns include goal context in the agent prompt, and chat
 agents may call `mark_goal_completed(reason, details?)` or
 `mark_goal_blocked(reason, details?)` to terminate the loop. MCP does not
 expose pause/resume/stop controls to agents.

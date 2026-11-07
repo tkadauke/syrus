@@ -13,7 +13,9 @@ adversarial_review(1)
                       review after it, adversarial_review(2) → repeat the same decision
 ```
 
-- **A `needs_work` verdict always gets a repair reaction** — the corresponding `implement`/`respond` step is inserted unconditionally, regardless of remaining review budget. This is the fix for a defect where a `needs_work` verdict at `rounds: 1` used to produce zero repair attempts.
+- **A `needs_work` verdict always gets a repair reaction** — the corresponding
+  `implement`/`respond` step is inserted regardless of remaining review budget,
+  including when `rounds: 1`.
 - **The repair pairs with another review whenever budget remains** — iteration N's repair is followed by review N+1 as long as N was not the last round `rounds` allows.
 - **Once the review that just ran was the last one `rounds` allows**, its `needs_work` repair runs alone, with no trailing review — there's no budget left to act on further feedback, so the loop exits straight to grading once that last repair finishes.
 

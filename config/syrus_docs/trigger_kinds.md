@@ -1,6 +1,6 @@
 # Workflow Trigger Kinds
 
-Every `Workflow` has a `trigger_kind` that identifies what the attempt is for and which step chain it runs. Trigger kinds are defined in `app/models/workflow/trigger_kind.rb`.
+Every Workflow has a trigger kind that identifies why the attempt exists and which step chain it runs.
 
 ## initial
 
@@ -46,41 +46,13 @@ reopening or rewriting the original record.
 
 ## skill
 
-**When it fires:** A `direct` Job is created with `skill_name` + `skill_args` set (`SkillJobs::Creator`), rather than a free-form prompt.
+**When it fires:** A direct Job launches a named built-in or repository-local skill with validated arguments.
 
 **Step chain:** `prepare → run_skill → retry_until(run_skill, graders) → summarize → pr_open`
 
-`run_skill` resolves the named skill via `Skills.for` (a repo-local
-`.syrus/skills/<name>/SKILL.md` override, or a built-in skill),
-renders its instructions with `skill_args` substituted, and invokes the agent
-the same way `implement` does. There is no dedicated "conditional PR" control
-node: like `implement`, `run_skill` raises `Steps::Base::NoChangesProduced`
-when the agent commits nothing, which fails the step before the grader retry
-loop has anything to grade — `propagate_fail_to_job!` then closes the Job
-with `closure_reason: "no_changes"` instead of `:failed`, the same happy path
-cron Jobs use for a no-op survey. This makes read-only skills (an
-`investigate` skill, an operational skill that only reports) first-class: no
-diff is a successful, PR-less outcome, not an error.
+The named skill resolves repository overrides before built-ins, renders its instructions with the supplied arguments, and invokes the agent. A read-only skill that produces no diff closes successfully without a PR. Ending while expecting background work to notify a later turn is instead a retryable misuse.
 
-The exception is the background-wait misuse pattern: if the transcript shows
-the agent backgrounded or scheduled work and ended the turn expecting a later
-notification or `ScheduleWakeup` continuation, Syrus raises
-`Steps::Base::AgentGaveUpWaiting` and classifies the run as retryable
-`agent_gave_up_waiting` instead of closing the Job as `no_changes`.
-
-When the agent does commit a diff, it is gated through the same
-`retry_until(agent_step, graders)` mechanism `initial`/`retry` use for
-`implement`: `run_skill` repairs, `grader_fanout`/`grader_collect` check, and
-a failing check re-runs `run_skill` (not just the graders) up to
-`AppSetting.grade_max_iterations` before the workflow fails outright. This
-closes the gap where a `skill` Job could open a PR with zero automated
-verification. The `adversarial_review`/`visual_review` loops that `initial`
-also runs are intentionally not part of the `skill` chain.
-
-Which tier resolved (`skill_source`: `repo_override` or `built_in`) and the
-resolved path/class are recorded on the Run so a repo-local skill silently
-shadowing a built-in one of the same name is never a debugging trap — see the
-Run detail payload and `Admin::JobStateSerializer`.
+A committed diff enters the same bounded grader-repair loop as implementation work. The Run detail shows whether a built-in or repository override resolved, including its path, so shadowing remains visible.
 
 ## investigation
 
@@ -94,7 +66,7 @@ Investigation attempts are bounded and must use the repository's available tools
 
 **Step chain:** `prepare → retry_until(respond, graders) → coverage_analyze? → coverage_pr_comment? → summarize_amend → refresh_job_metadata → try(push)`
 
-Addresses review feedback, produces revision-scoped commit copy, optionally refreshes canonical Job/PR metadata when feedback changed the effective intent, and pushes. Comments authored by the configured Syrus GitHub App bot are ignored so automated comments such as coverage reports do not self-trigger feedback workflows. Syrus records which `PrReviewComment` rows a workflow is handling, marks them handled only after the workflow succeeds, and leaves failed or rate-limited handling visible on the Job detail pending-feedback panel for manual retry. If the push encounters a non-fast-forward conflict, dynamically inserts an agent-rebase recovery chain.
+Syrus records which comments the workflow is addressing and marks them handled only after success. Failed or rate-limited feedback remains visible for manual retry. A non-fast-forward push adds an agent-assisted rebase recovery chain.
 
 ## chat_feedback
 
@@ -138,10 +110,8 @@ the same observed main SHA, failing grader, and reason, Syrus instead records
 continues to `summarize_amend`/`push`. This avoids burning the full retry budget
 against a self-diagnosed pre-existing main failure.
 
-`PollPullRequestJob#react_to_ci_failures` skips dispatch entirely — without
-spending any of the Job's `CI_FAILURE_CAP` budget — while the repository's
-main branch is known-broken (`repository.landing_paused? && repository.main_health_broken?`,
-the same condition `StepDispatcher` already uses to hold workflow starts). This
+Syrus skips CI-repair dispatch without spending its retry budget while the
+repository's main branch is known broken and landing is paused. This
 avoids blaming the Job's own diff for a red check caused by a broken base
 revision. `main_branch_repair` Jobs are exempt from this guard the same way
 they're exempt from the `ci_failure` cap, since a repair job must keep
@@ -257,7 +227,7 @@ documentation for details.
 
 ## rebase
 
-**When it fires:** `PollAllMergeStatesJob` detects that the Job's PR branch is `mergeable: false` and Syrus controls the head branch.
+**When it fires:** Polling detects that the Job's PR branch is unmergeable and Syrus controls the head branch.
 
 **Step chain:** `auto_rebase → agent_rebase → force_push`
 
