@@ -1,4 +1,5 @@
 require "rails_helper"
+require "digest"
 require "fileutils"
 require "tmpdir"
 
@@ -14,7 +15,7 @@ RSpec.describe "App API target graph inspection", type: :request do
     allow(App::TargetGraphCheckout).to receive(:with_default_branch) do |repository:, user:, &block|
       Dir.mktmpdir("target-graph-spec-") do |dir|
         File.write(File.join(dir, ".syrus.yml"), yaml)
-        block.call(Pathname.new(dir))
+        block.call(Pathname.new(dir), Digest::SHA256.hexdigest(yaml))
       end
     end
   end
@@ -30,9 +31,18 @@ RSpec.describe "App API target graph inspection", type: :request do
           FileUtils.mkdir_p(File.dirname(full_path))
           File.write(full_path, contents)
         end
-        block.call(Pathname.new(dir))
+        revision = Digest::SHA256.hexdigest(files.sort.map { |path, contents| "#{path}\0#{contents}" }.join("\0"))
+        block.call(Pathname.new(dir), revision)
       end
     end
+  end
+
+  def with_memory_cache
+    original_cache = Rails.cache
+    Rails.cache = ActiveSupport::Cache::MemoryStore.new
+    yield
+  ensure
+    Rails.cache = original_cache
   end
 
   def with_cleaned_workflow_workspace
@@ -80,6 +90,41 @@ RSpec.describe "App API target graph inspection", type: :request do
   end
 
   describe "GET /api/v1/app/repositories/:id/target_graph" do
+    it "reuses the compiled graph at the default-branch head and misses when the head changes" do
+      revisions = [ "a" * 40, "a" * 40, "b" * 40 ]
+      allow(App::TargetGraphCheckout).to receive(:with_default_branch) do |repository:, user:, &block|
+        Dir.mktmpdir("target-graph-cache-spec-") do |dir|
+          File.write(File.join(dir, ".syrus.yml"), graph_yaml)
+          block.call(Pathname.new(dir), revisions.shift)
+        end
+      end
+      allow(TargetGraph::Compiler).to receive(:compile).and_call_original
+      allow(TargetGraph::Compiler).to receive(:diagnose).and_call_original
+
+      with_memory_cache do
+        get "/api/v1/app/repositories/#{repository.id}/target_graph", params: { limit: 1 }
+        get "/api/v1/app/repositories/#{repository.id}/target_graph", params: { limit: 2 }
+        get "/api/v1/app/repositories/#{repository.id}/target_graph", params: { limit: 3 }
+      end
+
+      expect(TargetGraph::Compiler).to have_received(:compile).twice
+      expect(TargetGraph::Compiler).to have_received(:diagnose).twice
+    end
+
+    it "returns 304 for the ETag of the same default-branch head" do
+      with_graph_checkout(graph_yaml)
+
+      with_memory_cache do
+        get "/api/v1/app/repositories/#{repository.id}/target_graph"
+        etag = response.headers.fetch("ETag")
+
+        get "/api/v1/app/repositories/#{repository.id}/target_graph", headers: { "If-None-Match" => etag }
+
+        expect(response).to have_http_status(:not_modified)
+        expect(response.body).to be_empty
+      end
+    end
+
     it "returns projects, targets, dependency edges, executable metadata, health, and pagination" do
       with_graph_checkout(graph_yaml)
       create_target_health(
@@ -232,6 +277,25 @@ RSpec.describe "App API target graph inspection", type: :request do
   end
 
   describe "GET /api/v1/app/workflows/:workflow_id/target_graph" do
+    it "reuses the compiled workflow revision and returns 304 for its ETag" do
+      with_graph_checkout(graph_yaml)
+      job = Factories.job_with_run(repository: repository, user: user)
+      workflow = job.workflows.sole
+      allow(TargetGraph::Compiler).to receive(:compile).and_call_original
+
+      with_memory_cache do
+        with_cleaned_workflow_workspace do
+          get "/api/v1/app/workflows/#{workflow.id}/target_graph"
+          etag = response.headers.fetch("ETag")
+
+          get "/api/v1/app/workflows/#{workflow.id}/target_graph", headers: { "If-None-Match" => etag }
+        end
+
+        expect(response).to have_http_status(:not_modified)
+        expect(TargetGraph::Compiler).to have_received(:compile).once
+      end
+    end
+
     it "returns workflow-scoped selection and cache overlays" do
       with_graph_checkout(graph_yaml)
       job = Factories.job_with_run(repository: repository, user: user)

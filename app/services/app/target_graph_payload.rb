@@ -6,42 +6,53 @@ module App
     MAX_LIMIT = 2_000
     GraphResult = Struct.new(:graph, :diagnostics, :source, keyword_init: true)
     GraphRevision = Struct.new(:ref, :label, keyword_init: true)
+    Response = Data.define(:payload, :cache_key)
 
     def self.for_repository(repository:, user:, params:)
-      App::TargetGraphCheckout.with_default_branch(repository: repository, user: user) do |path|
-        new(
+      App::TargetGraphCheckout.with_default_branch(repository: repository, user: user) do |path, revision|
+        revision ||= workspace_revision(path)
+        compiled = App::CompiledTargetGraph.for(repository: repository, revision: revision, path: path)
+        Response.new(payload: new(
           repository: repository,
-          graph: TargetGraph::Compiler.compile(path),
-          diagnostics: TargetGraph::Compiler.diagnose(path),
+          graph: compiled.graph,
+          diagnostics: compiled.diagnostics,
           params: params
-        ).as_json
+        ).as_json, cache_key: App::CompiledTargetGraph.cache_key(repository: repository, revision: revision))
       end
     rescue StandardError => e
-      error_payload(repository: repository, params: params, source: { scope: "repository", ref: repository.default_branch }, error: e)
+      Response.new(
+        payload: error_payload(repository: repository, params: params, source: { scope: "repository", ref: repository.default_branch }, error: e),
+        cache_key: nil
+      )
     end
 
     def self.for_workflow(workflow:, params:)
-      result = graph_for_workflow(workflow)
-      new(
+      result, cache_key = graph_for_workflow(workflow)
+      Response.new(payload: new(
         repository: workflow.job.repository,
         graph: result.graph,
         diagnostics: result.diagnostics,
         source: result.source,
         workflow: workflow,
         params: params
-      ).as_json
+      ).as_json, cache_key: cache_key)
     rescue StandardError => e
-      error_payload(repository: workflow.job.repository, params: params, source: workflow_source_json(workflow), workflow: workflow, error: e)
+      Response.new(
+        payload: error_payload(repository: workflow.job.repository, params: params, source: workflow_source_json(workflow), workflow: workflow, error: e),
+        cache_key: nil
+      )
     end
 
     def self.graph_for_workflow(workflow)
       path = WorkflowWorkspace.path_for(workflow)
       if path.join(".git").directory?
-        return GraphResult.new(
-          graph: TargetGraph::Compiler.compile(path),
-          diagnostics: TargetGraph::Compiler.diagnose(path),
+        revision = workspace_cache_revision(workflow, path)
+        compiled = App::CompiledTargetGraph.for(repository: workflow.job.repository, revision: revision, path: path)
+        return [ GraphResult.new(
+          graph: compiled.graph,
+          diagnostics: compiled.diagnostics,
           source: workflow_source_json(workflow).merge(ref: "workflow workspace #{workflow.slug}")
-        )
+        ), App::CompiledTargetGraph.cache_key(repository: workflow.job.repository, revision: revision) ]
       end
 
       graph_revision_candidates(workflow).each do |revision|
@@ -50,25 +61,39 @@ module App
             repository: workflow.job.repository,
             user: workflow.user,
             ref: revision.ref
-          ) do |checkout|
-            GraphResult.new(
-              graph: TargetGraph::Compiler.compile(checkout),
-              diagnostics: TargetGraph::Compiler.diagnose(checkout),
+          ) do |checkout, resolved_revision|
+            revision_key = resolved_revision || revision.ref
+            compiled = App::CompiledTargetGraph.for(repository: workflow.job.repository, revision: revision_key, path: checkout)
+            [ GraphResult.new(
+              graph: compiled.graph,
+              diagnostics: compiled.diagnostics,
               source: workflow_source_json(workflow).merge(ref: revision.label)
-            )
+            ), App::CompiledTargetGraph.cache_key(repository: workflow.job.repository, revision: revision_key) ]
           end
         rescue GitRunner::GitError
           next
         end
       end
 
-      App::TargetGraphCheckout.with_default_branch(repository: workflow.job.repository, user: workflow.user) do |checkout|
-        GraphResult.new(
-          graph: TargetGraph::Compiler.compile(checkout),
-          diagnostics: TargetGraph::Compiler.diagnose(checkout),
+      App::TargetGraphCheckout.with_default_branch(repository: workflow.job.repository, user: workflow.user) do |checkout, resolved_revision|
+        revision_key = resolved_revision || workspace_revision(checkout)
+        compiled = App::CompiledTargetGraph.for(repository: workflow.job.repository, revision: revision_key, path: checkout)
+        [ GraphResult.new(
+          graph: compiled.graph,
+          diagnostics: compiled.diagnostics,
           source: workflow_source_json(workflow).merge(ref: workflow.job.repository.default_branch)
-        )
+        ), App::CompiledTargetGraph.cache_key(repository: workflow.job.repository, revision: revision_key) ]
       end
+    end
+
+    def self.workspace_cache_revision(workflow, path)
+      head = workspace_revision(path)
+      snapshot = WorkflowSourceSnapshots.current_for(workflow)
+      snapshot&.source_sha == head ? snapshot.tree_identity : head
+    end
+
+    def self.workspace_revision(path)
+      GitRunner.new.run("rev-parse", "HEAD", chdir: path.to_s).strip
     end
 
     def self.graph_revision_candidates(workflow)
@@ -117,7 +142,7 @@ module App
 
     private_class_method :graph_revision_candidates, :workflow_checkpoints, :job_checkpoints,
       :workflow_publication_branch_name,
-      :checkpoint_revision, :branch_revision, :landed_revision
+      :checkpoint_revision, :branch_revision, :landed_revision, :workspace_cache_revision, :workspace_revision
 
     def self.error_payload(repository:, params:, source:, error:, workflow: nil)
       {

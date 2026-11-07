@@ -24,14 +24,18 @@ RSpec.describe App::TargetGraphCheckout do
         chdir: clone_path.to_s,
         env: { "GIT_TERMINAL_PROMPT" => "0" }
       )
+    expect(git).to receive(:run)
+      .with("--git-dir=#{clone_path}", "rev-parse", "#{ref}^{commit}", chdir: clone_path.to_s)
+      .and_return("#{'a' * 40}\n")
 
     allow(checkout).to receive(:export_ref!) do |_source, exported_ref, destination|
       expect(exported_ref).to eq(ref)
       File.write(File.join(destination, ".syrus.yml"), "prepare: []\n")
     end
 
-    checkout.with_ref(ref) do |path|
+    checkout.with_ref(ref) do |path, revision|
       expect(path.join(".syrus.yml")).to exist
+      expect(revision).to eq("a" * 40)
     end
   end
 end
