@@ -39,12 +39,19 @@ RSpec.describe Steps::CoworkerReview do
   end
 
   it "uses dedicated criteria, submission tool, and iteration artifact" do
+    evidence = instance_double(ReviewEvidence, id: 42, state: "submitted", reviewer: nil)
+    allow(run).to receive(:review_evidence).and_return(evidence)
+    allow(run).to receive(:reload).and_return(run)
+    allow(ReviewEvidence::VerifySubmission).to receive(:call!).and_return(evidence)
     expect(handler).to receive(:run_agent) do |prompt:, required_mcp_tools:, **|
       expect(prompt).to include("accountable coworker", "Check rollout ownership")
       expect(required_mcp_tools).to eq(%w[submit_coworker_review])
       workflow.set_artifact!("coworker_review_iterations", [
-        { "iteration" => 1, "critique" => "Operationally sound.", "verdict" => "approved" }
+        { "iteration" => 1, "review_evidence_id" => 42, "critique" => "Operationally sound.", "verdict" => "approved" }
       ])
+      review_step.update!(details: review_step.details.to_h.merge(
+        "review_persistence_receipt" => { "key" => "review/42", "version" => "1" }
+      ))
     end
 
     handler.call
@@ -85,16 +92,10 @@ RSpec.describe Steps::CoworkerReview do
     expect { handler.call }.to raise_error(Steps::AdversarialReview::EvidenceStale)
   end
 
-  it "requires reviewer memory persistence before succeeding" do
-    reviewer = double("coworker reviewer")
-    context = double("review context", persistence_state: "failed", persistence_error_details: { "message" => "push failed" })
-    evidence = instance_double(ReviewEvidence, id: 42, state: "submitted", reviewer: reviewer)
+  it "requires the contributed post-verdict update before succeeding" do
+    evidence = instance_double(ReviewEvidence, id: 42, state: "submitted", reviewer: nil)
     allow(run).to receive(:review_evidence).and_return(evidence)
     allow(run).to receive(:reload).and_return(run)
-    allow(reviewer).to receive(:prepare_review_context!).and_return(context)
-    allow(reviewer).to receive(:review_context_prompt).and_return("protected reviewer context")
-    allow(reviewer).to receive(:finalize_review_memory!)
-    allow(reviewer).to receive(:review_context_for).with(run).and_return(context)
     allow(ReviewEvidence::VerifySubmission).to receive(:call!).and_return(evidence)
     allow(handler).to receive(:run_agent) do
       workflow.set_artifact!("coworker_review_iterations", [
@@ -102,6 +103,6 @@ RSpec.describe Steps::CoworkerReview do
       ])
     end
 
-    expect { handler.call }.to raise_error(Steps::CoworkerReview::MemoryPersistenceFailed, /memory was not persisted/)
+    expect { handler.call }.to raise_error(Steps::CoworkerReview::MemoryPersistenceFailed, /post-verdict update was not persisted/)
   end
 end
