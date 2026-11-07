@@ -27,6 +27,10 @@ module CredentialStore
         }.compact
       end
 
+      def scope_from_arguments(arguments)
+        arguments.to_h.with_indifferent_access.slice(:credential, :host, :user, :port).to_h
+      end
+
       def validate_scope(scope, context:)
         errors = []
         errors << "credential is required" if scope["credential"].blank?
@@ -116,6 +120,7 @@ module CredentialStore
       maximum_autonomy: :permanent, authority_durations: %i[invocation chat_session permanent],
       resource_scope: :ssh_destination, classifier: SshCommandClassification,
       fingerprint_normalizer: method(:normalize_arguments), redactor: method(:redact_arguments),
+      resource_scope_resolver: method(:scope_from_arguments),
       constraint_fields: { command_sha256: :string, allow_unconstrained_host: :boolean, allow_risky_command: :boolean }
     )
 
@@ -126,6 +131,7 @@ module CredentialStore
       maximum_autonomy: :permanent, authority_durations: %i[invocation chat_session permanent],
       resource_scope: :ssh_destination, classifier: SshCommandClassification,
       fingerprint_normalizer: method(:normalize_arguments), redactor: method(:redact_arguments),
+      resource_scope_resolver: method(:scope_from_arguments),
       constraint_fields: { command_sha256: :string, allow_unconstrained_host: :boolean, allow_risky_command: :boolean }
     )
 

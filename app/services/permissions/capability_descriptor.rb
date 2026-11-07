@@ -33,13 +33,15 @@ module Permissions
       :defaults, :maximum_autonomy, :authority_durations, :maximum_duration,
       :resource_scope, :classifier, :fingerprint_normalizer, :redactor, :presets,
       :capability_aliases, :operation_aliases, :constraint_fields,
-      :fresh_authentication_window, :budget_dimensions, :benign_internal, :tool_set_bundle
+      :fresh_authentication_window, :budget_dimensions, :benign_internal, :tool_set_bundle,
+      :resource_scope_resolver
 
     def initialize(capability:, operation:, effects:, risk:, requestable_roles:, defaults:,
       maximum_autonomy:, authority_durations:, resource_scope:, classifier:,
       fingerprint_normalizer:, redactor:, maximum_duration: nil, presets: [],
       capability_aliases: [], operation_aliases: [], constraint_fields: {},
-      fresh_authentication_window: nil, budget_dimensions: [], benign_internal: nil, tool_set_bundle: nil)
+      fresh_authentication_window: nil, budget_dimensions: [], benign_internal: nil, tool_set_bundle: nil,
+      resource_scope_resolver: nil)
       @capability = versioned_identifier(capability, :capability)
       @operation = versioned_identifier(operation, :operation)
       @effects = Array(effects).map(&:to_sym).uniq.freeze
@@ -53,6 +55,7 @@ module Permissions
       @classifier = classifier
       @fingerprint_normalizer = fingerprint_normalizer
       @redactor = redactor
+      @resource_scope_resolver = resource_scope_resolver
       @presets = Array(presets).freeze
       @constraint_fields = constraint_fields.to_h.to_h { |name, type| [ name.to_s.freeze, type.to_sym ] }.freeze
       @fresh_authentication_window = fresh_authentication_window
@@ -70,6 +73,7 @@ module Permissions
     def classify(arguments) = classifier.call(arguments)
     def normalize_fingerprint(arguments) = fingerprint_normalizer.call(arguments)
     def redact(arguments) = redactor.call(arguments)
+    def resource_scope_for(arguments) = resource_scope_resolver ? resource_scope_resolver.call(arguments) : {}
     def role_recommendations = defaults
 
     def contract_key
@@ -97,6 +101,7 @@ module Permissions
         classifier: classifier,
         fingerprint_normalizer: fingerprint_normalizer,
         redactor: redactor,
+        resource_scope_resolver: resource_scope_resolver,
         presets: presets,
         capability_aliases: capability_aliases,
         operation_aliases: operation_aliases,
@@ -160,6 +165,9 @@ module Permissions
       end
       %i[classifier fingerprint_normalizer redactor].each do |hook|
         raise ArgumentError, "#{hook} must respond to call" unless public_send(hook).respond_to?(:call)
+      end
+      if resource_scope_resolver && !resource_scope_resolver.respond_to?(:call)
+        raise ArgumentError, "resource_scope_resolver must respond to call"
       end
     end
   end

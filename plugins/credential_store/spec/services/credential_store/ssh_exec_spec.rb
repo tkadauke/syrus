@@ -374,6 +374,63 @@ RSpec.describe CredentialStore::SshExec do
     expect(result[:ok]).to be(true)
   end
 
+  it "executes a risky chat command only with authorization for the exact invocation" do
+    credential = create_credential(allowed_surfaces: [ "chat" ])
+    arguments = {
+      credential: credential.id, host: "app.example.com", user: "deploy",
+      command: "rm -rf /tmp/app", port: nil,
+      allow_unconstrained_host: false, allow_risky_command: false
+    }
+    descriptor = CredentialStore::PermissionProvider.capability_descriptor("ssh.execute/risky@v1")
+    authorization = {
+      "tool_name" => "credential_store_ssh_exec",
+      "invocation_fingerprint" => Permissions::InvocationFingerprint.call(descriptor:, arguments:)
+    }
+    authorized_context = McpToolContext.from_chat_session(chat_session, permission_authorization: authorization)
+    allow(runner).to receive(:call).and_return(
+      CredentialStore::SshRunner::Result.new(stdout: "removed\n", stderr: "", status: 0)
+    )
+
+    result = described_class.call(context: authorized_context, **arguments)
+
+    expect(result).to include(ok: true, status: 0)
+    expect(runner).to have_received(:call).once
+    expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(result: "allowed", credential:)
+  end
+
+  it "rejects stale, cross-tool, and absent chat authorization before connecting" do
+    credential = create_credential(allowed_surfaces: [ "chat" ])
+    arguments = {
+      credential: credential.id, host: "app.example.com", user: "deploy",
+      command: "rm -rf /tmp/app", port: nil,
+      allow_unconstrained_host: false, allow_risky_command: false
+    }
+    descriptor = CredentialStore::PermissionProvider.capability_descriptor("ssh.execute/risky@v1")
+    stale_fingerprint = Permissions::InvocationFingerprint.call(
+      descriptor:, arguments: arguments.merge(command: "rm -rf /tmp/other")
+    )
+    contexts = [
+      chat_context,
+      McpToolContext.from_chat_session(chat_session, permission_authorization: {
+        "tool_name" => "credential_store_ssh_exec", "invocation_fingerprint" => stale_fingerprint
+      }),
+      McpToolContext.from_chat_session(chat_session, permission_authorization: {
+        "tool_name" => "another_tool",
+        "invocation_fingerprint" => Permissions::InvocationFingerprint.call(descriptor:, arguments:)
+      })
+    ]
+    allow(runner).to receive(:call)
+
+    contexts.each do |candidate_context|
+      expect {
+        described_class.call(context: candidate_context, **arguments)
+      }.to raise_error(CredentialStore::SshExec::RiskyCommand, /requires explicit/)
+    end
+
+    expect(runner).not_to have_received(:call)
+    expect(CredentialStore::CredentialAccessEvent.where(result: "denied").count).to eq(3)
+  end
+
   it "refuses risky rm flag variants before invoking the runner" do
     credential = create_credential
     allow(runner).to receive(:call)

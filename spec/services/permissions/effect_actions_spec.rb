@@ -81,5 +81,27 @@ RSpec.describe Permissions::EffectActions do
       }.not_to change(ChatWakeup, :count)
       expect(response).to equal(pending)
     end
+
+    it "keeps per-invocation authorization evidence out of the shared server context" do
+      tool = Class.new do
+        def self.call(server_context:, **) = server_context
+      end
+      tool.singleton_class.prepend(Mcp::Tools::AuthorizationSupport::ToolDispatch)
+      chat_session = ChatSession.create!(user: Factories.user)
+      shared_context = { chat_session: }
+
+      allow(Mcp::Tools::AuthorizationSupport).to receive(:pending_scheduled_authorization).and_return(nil)
+      allow(Mcp::Tools::AuthorizationSupport).to receive(:pending_coworker_approval).and_return(nil)
+      allow(Mcp::Tools::AuthorizationSupport).to receive(:pending_actor_approval) do |_tool, call_context, _arguments|
+        call_context[:permission_authorization] = { "tool_name" => "first", "invocation_fingerprint" => "fingerprint" }
+        nil
+      end
+
+      call_context = tool.call(server_context: shared_context)
+
+      expect(call_context).not_to equal(shared_context)
+      expect(call_context).to include(:permission_authorization)
+      expect(shared_context).not_to include(:permission_authorization)
+    end
   end
 end

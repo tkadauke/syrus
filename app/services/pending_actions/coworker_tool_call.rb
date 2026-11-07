@@ -54,8 +54,7 @@ module PendingActions
       authorized_context = server_context.merge(
         pending_action_id: action.id,
         authorized_invocation_id: invocation.id,
-        authorized_invocation_claim_key: claim_key,
-        permission_authorized: true
+        authorized_invocation_claim_key: claim_key
       )
       response = callable.call(**payload.fetch("arguments").symbolize_keys, server_context: authorized_context)
       if response.error?
