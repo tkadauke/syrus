@@ -102,6 +102,10 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "agent_max_turns" => 123
     )
     expect(body["team_user_count"]).to eq(1)
+    expect(body["time_zones"]).to eq(
+      "server" => { "name" => Rails.application.config.x.server_time_zone.name, "source" => Rails.application.config.x.server_time_zone.source },
+      "user" => { "name" => "Etc/UTC", "mode" => "automatic" }
+    )
     expect(body["app"]).to include(
       "revision" => "dev",
       "revision_url" => nil,

@@ -91,6 +91,9 @@ The chart should expose, at minimum, values for:
 - Optional per-worker `SYRUS_WORKER_CAPABILITIES` values when some worker
   pools should advertise `os:macos` instead of the default Linux placement.
 - `$SYRUS_DATA_ROOT` and `syrus-search` PVC size, storage class, access mode,
+- `SYRUS_TIME_ZONE` on every web and worker pod when the deployment should use
+  a zone other than `Etc/UTC`; use an IANA identifier and do not derive it from
+  cluster or cloud region,
   and retention policy.
 - Hostname, ingress class, TLS secret, and cert-manager issuer.
 - Worker resource requests and limits. Agent runs can be memory- and

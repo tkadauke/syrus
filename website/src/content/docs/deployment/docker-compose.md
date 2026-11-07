@@ -335,6 +335,8 @@ layer via `EXTRA_APT_PACKAGES`.
 and fills the secrets. Notable values:
 
 - `SYRUS_SQLITE=1`, `SYRUS_DATA_ROOT=/home/rails/.syrus` — SQLite local mode.
+- `SYRUS_TIME_ZONE=Europe/Berlin` — optional IANA server zone shared by web and
+  workers through `.env`; it does not change UTC database storage.
 - `SEARCH_DATABASE_PATH=/home/rails/.syrus-search/search.sqlite3` — dedicated
   chat full-text search database.
 - `SYRUS_APP_HOST=localhost:3000`, `SYRUS_ASSUME_SSL=false`,

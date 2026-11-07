@@ -1,6 +1,14 @@
 import { getJson } from "./client"
 
 export type AdminOverviewPayload = {
+  time_zones?: {
+    process_tz: string | null
+    rails_zone: string
+    server_zone: string
+    server_zone_source: string
+    active_record_default_timezone: string
+    database_storage_policy: "UTC"
+  }
   active_runs: {
     total: number
     by_trigger: Record<string, number>
