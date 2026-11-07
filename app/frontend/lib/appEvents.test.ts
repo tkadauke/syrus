@@ -405,7 +405,7 @@ describe("applyAppEvent", () => {
 
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["dashboard"], exact: true })
 
-    vi.runOnlyPendingTimers()
+    vi.advanceTimersByTime(0)
 
     expect(dashboardInvalidationCount(invalidate)).toBe(1)
 
