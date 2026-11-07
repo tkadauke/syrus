@@ -61,7 +61,6 @@ module App
       {
         tasks: apply_index_sort(scope, params).offset(offset).limit(per_page).map { |task| serialize_index_task(task) },
         filter: filter_tree,
-        filter_schema: FILTER_FIELDS.map { |field| filter_schema_field(field) },
         filters: filters,
         total: total,
         pagination: pagination_payload(total, page, per_page),
@@ -192,15 +191,6 @@ module App
         collect_chips(node.child, chips)
       end
       chips
-    end
-
-    def self.filter_schema_field(field)
-      {
-        bucket: "text",
-        field: field.fetch(:name),
-        label: field.fetch(:label),
-        operators: [ "is" ]
-      }
     end
 
     def self.normalized_page(params)

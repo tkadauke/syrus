@@ -1,5 +1,4 @@
 import { getJson, postJson } from "./client"
-import type { FilterSchemaField } from "../components/FilterBar"
 
 export type MaintenanceTaskState = "pending" | "running" | "paused" | "succeeded" | "failed" | "cancelled" | "dismissed" | "not_needed"
 
@@ -84,7 +83,6 @@ export type MaintenanceSidebarPayload = {
 export type AdminMaintenanceTasksPayload = {
   tasks: MaintenanceTask[]
   filter?: Record<string, unknown> | null
-  filter_schema: FilterSchemaField[]
   filters: Record<string, unknown>
   total: number
   pagination: {
