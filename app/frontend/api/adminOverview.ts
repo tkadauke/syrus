@@ -1,7 +1,7 @@
 import { getJson } from "./client"
 
 export type AdminOverviewPayload = {
-  time_zones: {
+  time_zones?: {
     process_tz: string | null
     rails_zone: string
     server_zone: string
