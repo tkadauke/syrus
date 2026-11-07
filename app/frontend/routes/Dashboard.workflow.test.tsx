@@ -18,7 +18,6 @@ function workflowItem(id: number, jobTitle: string): DashboardWorkflowItem {
     updated_at: null,
     started_at: null,
     finished_at: null,
-    cleaned_up_at: null,
     steps_count: 3,
     job: {
       id: id * 10,
