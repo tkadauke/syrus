@@ -2460,7 +2460,7 @@ describe("chat slash commands", () => {
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
-      if (path === "/api/v1/app/jobs?state=implemented&repo=acme%2Fwidgets&include_active_work=true&limit=50") {
+      if (path === "/api/v1/app/jobs?state=implemented&repo=acme%2Fwidgets&fields=picker&include_active_work=true&limit=50") {
         return Promise.resolve(
           jsonResponse({
             count: 1,
@@ -2491,7 +2491,7 @@ describe("chat slash commands", () => {
       if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") {
         return Promise.resolve(new Response(null, { status: 204 }))
       }
-      if (path === "/api/v1/app/jobs?repo=acme%2Fwidgets&include_active_work=true&limit=50") {
+      if (path === "/api/v1/app/jobs?repo=acme%2Fwidgets&fields=picker&include_active_work=true&limit=50") {
         return Promise.resolve(
           jsonResponse({
             count: 1,
