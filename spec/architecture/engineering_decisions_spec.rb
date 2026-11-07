@@ -59,6 +59,20 @@ RSpec.describe "engineering decision records" do
     expect(indexed_ids.sort).to eq(records.values.map { |attributes| attributes.fetch("id") }.sort)
   end
 
+  it "keeps accepted records focused on durable rationale and evidence" do
+    records.each do |path, attributes|
+      next unless attributes.fetch("status") == "accepted"
+
+      body = path.read.sub(/\A---\s*\n.*?\n---\s*\n/m, "")
+      headings = body.scan(/^## (.+)$/).flatten
+
+      expect(headings).to eq(%w[Context Decision Consequences Evidence]),
+        "unexpected accepted-record sections in #{path.relative_path_from(root)}"
+      expect(body.scan(/^- \[[^\]]+\]\([^)]+\)$/).size).to be >= 2,
+        "accepted ADRs need at least two durable evidence links in #{path.relative_path_from(root)}"
+    end
+  end
+
   it "keeps supersession links valid and reciprocal" do
     records_by_id = records.values.to_h { |attributes| [ attributes.fetch("id"), attributes ] }
 
