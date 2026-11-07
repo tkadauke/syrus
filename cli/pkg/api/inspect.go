@@ -67,10 +67,9 @@ type RepositoryItem struct {
 }
 
 type Bootstrap struct {
-	Whoami struct {
-		Email       string `json:"email"`
-		TokenSuffix string `json:"token_suffix"`
-	} `json:"whoami"`
+  CurrentUser struct {
+    EmailAddress string `json:"email_address"`
+  } `json:"current_user"`
 }
 
 func (c *Client) ListEpics(ctx context.Context, filters url.Values) (EpicList, error) {

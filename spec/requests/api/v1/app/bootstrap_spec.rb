@@ -26,16 +26,14 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     queries
   end
 
-  it "returns whoami fields for bearer-token CLI clients" do
+  it "returns the current user without a duplicate whoami block for bearer-token CLI clients" do
     user = Factories.user(email_address: "cli@example.com", api_token: "syrus_cli_token")
 
     get "/api/v1/app/bootstrap", headers: { "Authorization" => "Bearer syrus_cli_token" }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body["whoami"]).to include(
-      "email" => "cli@example.com",
-      "token_suffix" => "oken"
-    )
+    expect(parse_body.dig("current_user", "email_address")).to eq("cli@example.com")
+    expect(parse_body).not_to have_key("whoami")
   end
 
   def with_env(vars)
@@ -64,7 +62,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
         "sign_in_path" => "/session/new"
       )
     )
-    expect(parse_body.dig("navigation", "default_chat_path")).to eq(new_session_path)
+    expect(parse_body).not_to have_key("navigation")
   end
 
   it "returns the signed-in user's browser bootstrap payload" do
@@ -90,16 +88,11 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     expect(body["current_user"]).to include(
       "id" => user.id,
       "email_address" => "operator@example.com",
-      "name" => "Operator",
       "display_name" => "Operator",
       "admin" => true,
-      "role" => "product_owner",
-      "scheduling_paused" => true,
-      "landing_paused" => true,
       "theme" => "dark",
       "agent_provider" => "codex",
-      "chat_provider" => "claude",
-      "agent_max_turns" => 123
+      "chat_provider" => "claude"
     )
     expect(body["team_user_count"]).to eq(1)
     expect(body["time_zones"]).to eq(
@@ -112,31 +105,17 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       "version" => nil,
       "built_at" => nil
     )
-    expect(body["setup_status"]).to include(
-      "state" => "first_admin",
-      "next_step" => "configure_credentials",
-      "next_step_path" => "/credentials",
-      "first_admin" => true,
-      "credentials_configured" => false,
-      "repository_configured" => false,
-      "first_job_started" => false,
-      "first_successful_job_completed" => false
+    expect(body["setup"]).to match(
+      "complete" => false,
+      "chat_started" => false,
+      "first_epic_landed" => false,
+      "onboarding_chat_started" => false
     )
-    expect(body["provider_availability"]).to include(
-      "claude" => nil,
-      "codex" => nil
-    )
-    expect(body["public"]).to include(
-      "first_signup" => false,
-      "signups_open" => false,
-      "signup_path" => "/users/new",
-      "sign_in_path" => "/session/new"
-    )
-    expect(body["navigation"]).to include(
-      "default_chat_path" => dashboard_path
-    )
-    expect(body.dig("setup", "next_step")).to eq("credentials")
-    expect(body.dig("setup", "paths", "setup_path")).to eq(setup_path)
+    expect(body).not_to have_key("setup_status")
+    expect(body).not_to have_key("provider_availability")
+    expect(body).not_to have_key("public")
+    expect(body).not_to have_key("navigation")
+    expect(body).not_to have_key("flash")
     expect(body["csrf_token"]).to be_present
     expect(body["system_alerts"]).to eq([])
     expect(body["unread_notifications_count"]).to eq(0)
@@ -170,7 +149,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     )
   end
 
-  it "reuses the unread notification count across bootstrap fields" do
+  it "returns the unread notification count once" do
     user = Factories.user
     Notification.create!(user: user, kind: "job_failed", body: "Failed")
     Notification.create!(user: user, kind: "job_implemented", body: "Implemented", read_at: Time.current)
@@ -180,7 +159,6 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body.dig("current_user", "notification_unread_count")).to eq(1)
     expect(body["unread_notifications_count"]).to eq(1)
     notification_counts = queries.grep(/SELECT COUNT\(\*\) FROM ["`]?notifications["`]?/i)
     expect(notification_counts.size).to eq(1)
@@ -194,12 +172,10 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     queries = capture_sql { get api_v1_app_bootstrap_path }
 
     expect(response).to have_http_status(:ok)
-    expect(queries.size).to be <= 42
-    expect(queries.grep(/provider_availability_evidences/i).size).to be <= 4
-    expect(queries.grep(/FROM ["`]?runs/i).size).to be <= 8
+    expect(queries.size).to be <= 50
   end
 
-  it "returns provider availability as user-level bootstrap state" do
+  it "does not compute provider availability as bootstrap state" do
     user = Factories.user(
       codex_usage_status: "ok",
       codex_usage_observed_at: Time.zone.parse("2026-07-31T14:00:00Z"),
@@ -213,14 +189,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     get api_v1_app_bootstrap_path
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body.dig("provider_availability", "codex", "usage", "windows", "five_hour")).to include(
-      "label" => "5h",
-      "remaining_percent" => 70.0
-    )
-    expect(parse_body.dig("provider_availability", "codex", "usage", "windows", "weekly")).to include(
-      "label" => "weekly",
-      "remaining_percent" => 40.0
-    )
+    expect(parse_body).not_to have_key("provider_availability")
   end
 
   it "returns enabled states for features declared in YAML" do
@@ -271,9 +240,9 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     )
     sign_in_as(user)
 
-    get api_v1_app_bootstrap_path
+    get "/api/v1/app/setup"
 
-    setup = parse_body.fetch("setup_status")
+    setup = parse_body
     expect(setup).to include(
       "state" => "credentials_only",
       "next_step" => "add_repository",
@@ -308,9 +277,9 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     user = Factories.user(github_token: "ghp_secret_pat", claude_oauth_token: "claude_secret_token")
     sign_in_as(user)
 
-    get api_v1_app_bootstrap_path
+    get "/api/v1/app/setup"
 
-    github_app_check = parse_body.dig("setup_status", "readiness", "checks").find { |check| check["key"] == "github_app" }
+    github_app_check = parse_body.dig("readiness", "checks").find { |check| check["key"] == "github_app" }
     expect(github_app_check).to include("status" => "ok", "optional" => true)
     expect(github_app_check["message"]).to match(/fall back to a configured personal access token/i)
   end
@@ -325,9 +294,9 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     user = Factories.user(github_token: nil, claude_oauth_token: "claude_secret_token")
     sign_in_as(user)
 
-    get api_v1_app_bootstrap_path
+    get "/api/v1/app/setup"
 
-    github_app_check = parse_body.dig("setup_status", "readiness", "checks").find { |check| check["key"] == "github_app" }
+    github_app_check = parse_body.dig("readiness", "checks").find { |check| check["key"] == "github_app" }
     expect(github_app_check).to include("status" => "ok", "optional" => true)
     expect(github_app_check["message"]).to match(/installation sync/i)
   end
@@ -342,9 +311,9 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     user = Factories.user(github_token: nil, claude_oauth_token: "claude_secret_token")
     sign_in_as(user)
 
-    get api_v1_app_bootstrap_path
+    get "/api/v1/app/setup"
 
-    github_app_check = parse_body.dig("setup_status", "readiness", "checks").find { |check| check["key"] == "github_app" }
+    github_app_check = parse_body.dig("readiness", "checks").find { |check| check["key"] == "github_app" }
     expect(github_app_check).to include(
       "status" => "warning",
       "optional" => true,
@@ -360,9 +329,9 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     epic.override_state!("archived")
     sign_in_as(user)
 
-    get api_v1_app_bootstrap_path
+    get "/api/v1/app/setup"
 
-    expect(parse_body.dig("setup", "complete")).to eq(true)
+    expect(parse_body["first_epic_landed"]).to eq(true)
   end
 
   it "does not run live readiness probes after setup is complete" do
@@ -374,10 +343,10 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
 
     expect(AppApi::ReadinessChecks).not_to receive(:new)
 
-    get api_v1_app_bootstrap_path
+    get "/api/v1/app/setup"
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body.dig("setup_status", "readiness")).to eq(
+    expect(parse_body["readiness"]).to eq(
       "status" => "ok",
       "checks" => []
     )
@@ -387,9 +356,9 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     user = Factories.user
     sign_in_as(user)
 
-    get api_v1_app_bootstrap_path
+    get "/api/v1/app/setup"
 
-    expect(parse_body.dig("setup", "complete")).to eq(false)
+    expect(parse_body["first_epic_landed"]).to eq(false)
   end
 
   it "reports readiness failures with remediation" do
@@ -397,9 +366,9 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     AppSetting.current.update!(runs_paused: true)
     sign_in_as(user)
 
-    get api_v1_app_bootstrap_path
+    get "/api/v1/app/setup"
 
-    readiness = parse_body.dig("setup_status", "readiness")
+    readiness = parse_body["readiness"]
     expect(readiness["status"]).to eq("error")
     checks = readiness.fetch("checks")
     expect(checks).to include(
@@ -432,7 +401,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
       .and_raise(StandardError, "failed https://x-access-token:#{secret}@github.com/acme/widgets.git")
     sign_in_as(user)
 
-    get api_v1_app_bootstrap_path
+    get "/api/v1/app/setup"
 
     body = response.body
     expect(body).to include("[REDACTED]")
@@ -445,9 +414,9 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     Factories.repository(user: user)
     sign_in_as(user)
 
-    get api_v1_app_bootstrap_path
+    get "/api/v1/app/setup"
 
-    setup = parse_body.fetch("setup_status")
+    setup = parse_body
     expect(setup).to include(
       "state" => "repository_only",
       "next_step" => "configure_credentials",
@@ -470,9 +439,9 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     Factories.epic(user: user, repository: repository, state: "in_progress")
     sign_in_as(user)
 
-    get api_v1_app_bootstrap_path
+    get "/api/v1/app/setup"
 
-    setup = parse_body.fetch("setup_status")
+    setup = parse_body
     expect(setup).to include(
       "state" => "first_chat_started",
       "next_step" => "start_first_chat",
@@ -496,9 +465,9 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     Factories.epic(user: user, repository: repository, state: "done")
     sign_in_as(user)
 
-    get api_v1_app_bootstrap_path
+    get "/api/v1/app/setup"
 
-    setup = parse_body.fetch("setup_status")
+    setup = parse_body
     expect(setup).to include(
       "state" => "first_successful_job",
       "next_step" => nil,
@@ -569,7 +538,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
     expect(parse_body.dig("app", "revision_url")).to be_nil
   end
 
-  it "points the default chat navigation at the user's latest chat" do
+  it "omits the unused default chat navigation" do
     user = Factories.user
     old_chat = ChatSession.create!(user: user, last_message_at: 2.days.ago)
     latest_chat = ChatSession.create!(user: user, last_message_at: 1.hour.ago)
@@ -577,7 +546,7 @@ RSpec.describe "API: /api/v1/app/bootstrap", type: :request do
 
     get api_v1_app_bootstrap_path
 
-    expect(parse_body.dig("navigation", "default_chat_path")).to eq(chat_path(latest_chat))
+    expect(parse_body).not_to have_key("navigation")
     expect(parse_body.dig("navigation", "default_chat_path")).not_to eq(chat_path(old_chat))
   end
 

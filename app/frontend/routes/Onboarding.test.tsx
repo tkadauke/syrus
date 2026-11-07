@@ -80,6 +80,7 @@ function bootstrap(overrides: Partial<BootstrapPayload> = {}): BootstrapPayload 
 
 function renderOnboarding(payload: BootstrapPayload | null) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  client.setQueryData(["setup"], (payload as (BootstrapPayload & { setup_status?: unknown }) | null)?.setup_status)
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
@@ -122,6 +123,7 @@ describe("OnboardingRoute — revisiting completed steps", () => {
 
     expect(screen.getByText("Loading setup status...")).toBeInTheDocument()
 
+    client.setQueryData(["setup"], (bootstrap() as BootstrapPayload & { setup_status: unknown }).setup_status)
     expect(() =>
       view.rerender(
         <QueryClientProvider client={client}>

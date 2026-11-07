@@ -1,31 +1,28 @@
 module AppApi
   class BootstrapSerializer
-    def initialize(user:, csrf_token:, default_chat_path:, flash: {})
+    def initialize(user:, csrf_token:, flash: {})
       @user = user
       @csrf_token = csrf_token
-      @default_chat_path = default_chat_path
       @flash = flash
     end
 
     def as_json(*)
       PerformanceLogging.phase("bootstrap_payload", authenticated: user.present?) do
-        {
+        payload = {
           current_user: PerformanceLogging.phase("bootstrap.current_user") { user_payload },
           time_zones: time_zones_payload,
           team_user_count: PerformanceLogging.phase("bootstrap.team_user_count") { user ? User.count : 0 },
           app: PerformanceLogging.phase("bootstrap.app") { app_payload },
-          setup_status: PerformanceLogging.phase("bootstrap.setup_status") { setup_status_payload },
-          provider_availability: PerformanceLogging.phase("bootstrap.provider_availability") { provider_availability_payload },
-          public: PerformanceLogging.phase("bootstrap.public") { public_payload },
-          navigation: navigation_payload,
           setup: PerformanceLogging.phase("bootstrap.setup") { setup_payload },
-          flash: flash_payload,
           system_alerts: PerformanceLogging.phase("bootstrap.system_alerts") { system_alerts_payload },
           unread_notifications_count: PerformanceLogging.phase("bootstrap.unread_notifications_count") { unread_notifications_count },
           csrf_token: @csrf_token,
           slug_refs: PerformanceLogging.phase("bootstrap.slug_refs") { slug_refs_payload },
           feature_flags: PerformanceLogging.phase("bootstrap.feature_flags") { feature_flags_payload }
         }
+        payload[:public] = PerformanceLogging.phase("bootstrap.public") { public_payload } unless user
+        payload[:flash] = flash_payload if @flash[:alert].present? || @flash[:notice].present?
+        payload
       end
     end
 
@@ -39,29 +36,18 @@ module AppApi
       {
         id: user.id,
         email_address: user.email_address,
-        name: user.name,
-        first_name: user.first_name,
-        last_name: user.last_name,
         display_name: user.display_name,
         admin: user.admin?,
         role: user.role,
-        scheduling_paused: user.scheduling_paused,
-        landing_paused: user.landing_paused,
         theme: user.theme,
         color_theme_id: user.color_theme_id,
         color_theme: user.color_theme&.public_payload,
         locale: user.locale,
         agent_provider: user.agent_provider,
         chat_provider: user.chat_provider,
-        agent_max_turns: user.agent_max_turns,
-        # Gates the walkthrough-video UI: without a key the composer offers
-        # the Gemini setup sheet instead of the recorder/upload.
-        gemini_configured: user.gemini_configured?,
-        notification_unread_count: unread_notifications_count,
         seen_tours: user.seen_tours,
         sidebar_nav_order: user.sidebar_nav_order,
-        mobile_chat_auto_hide_header: user.mobile_chat_auto_hide_header?,
-        review_diff_settings: user.review_diff_settings
+        mobile_chat_auto_hide_header: user.mobile_chat_auto_hide_header?
       }
     end
 
@@ -85,20 +71,6 @@ module AppApi
       }
     end
 
-    def setup_status_payload
-      return nil unless user
-
-      @setup_status_payload ||= AppApi::SetupStatus.new(user).as_json
-    end
-
-    def provider_availability_payload
-      return {} unless user
-
-      PerformanceLogging.phase("bootstrap.provider_availability.all_for_user") do
-        ::App::ProviderAvailability.all_for_user(user)
-      end
-    end
-
     def public_payload
       {
         first_signup: User.count.zero?,
@@ -110,16 +82,15 @@ module AppApi
       }
     end
 
-    def navigation_payload
-      {
-        default_chat_path: @default_chat_path
-      }
-    end
-
     def setup_payload
       return nil unless user
 
-      @setup_payload ||= ::App::SetupStatus.call(user: user)
+      {
+        complete: user.first_run_setup_complete?,
+        chat_started: user.onboarding_chat_started?,
+        first_epic_landed: user.first_epic_landed?,
+        onboarding_chat_started: user.onboarding_chat_started?
+      }
     end
 
     def flash_payload
