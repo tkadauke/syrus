@@ -1420,6 +1420,18 @@ describe("applyAppEvent", () => {
     expect(queryClient.getQueryData<{ items: Array<{ title: string }> }>(["chats", "9", "job_status"])?.items[0].title).toBe("After")
   })
 
+  it("invalidates job status when a changed job is absent from the broadcast payload", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: { action: "job_status_changed", job_id: 77 }
+    })
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "9", "job_status"] })
+  })
+
   it("dispatches a syrus:theme-preview DOM event for open_theme_preview payloads", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")

@@ -1068,6 +1068,8 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
         })
         return { ...current, items: found ? items : [item, ...items] }
       })
+    } else {
+      invalidateAppQuery(queryClient, { queryKey: ["chats", String(event.id), "job_status"] })
     }
     if (typeof window !== "undefined") {
       window.dispatchEvent(

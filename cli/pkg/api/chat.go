@@ -344,12 +344,6 @@ func handleChatStreamEvent(ctx context.Context, event ChatStreamEvent, out, debu
 		if err := json.Unmarshal(event.Data, &payload); err != nil {
 			return err
 		}
-		if payload.Message.Proposal != nil {
-			if proposalHandler != nil {
-				return proposalHandler(ctx, *payload.Message.Proposal)
-			}
-			return nil
-		}
 		if payload.Message.Role == "assistant" && payload.Message.Text != "" {
 			rendered, err := renderer.Render(payload.Message.Text)
 			if err != nil {
@@ -359,9 +353,18 @@ func handleChatStreamEvent(ctx context.Context, event ChatStreamEvent, out, debu
 				return err
 			}
 			if !strings.HasSuffix(rendered, "\n") {
-				_, err = fmt.Fprintln(out)
-				return err
+				if _, err = fmt.Fprintln(out); err != nil {
+					return err
+				}
 			}
+		}
+		if payload.Message.Proposal != nil {
+			if proposalHandler != nil {
+				return proposalHandler(ctx, *payload.Message.Proposal)
+			}
+			return nil
+		}
+		if payload.Message.Role == "assistant" {
 			return nil
 		}
 		return renderLiveToolActivity(out, payload.Message)
