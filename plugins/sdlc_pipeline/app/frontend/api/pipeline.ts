@@ -76,7 +76,7 @@ export type PipelineHistory = {
   deltas: { at: string; job_id: number; from_stage: string | null; to_stage: string | null; item?: HistoricalPlacement }[]
   ticks: string[]
   traces: { job_id: number; segments: { stage: string; entered_at: string; left_at: string; dwell_seconds: number }[] }[]
-  accuracy: { status: "reconstructed" | "partial" | "bounded"; message: string; truncated: boolean; legacy_job_count?: number }
+  accuracy: { status: "reconstructed" | "partial" | "bounded" | "incomplete"; message: string; truncated: boolean; legacy_job_count?: number }
   bounds?: { maximum_days: number; maximum_jobs: number; maximum_deltas: number; included_jobs: number; omitted_jobs: number }
 }
 

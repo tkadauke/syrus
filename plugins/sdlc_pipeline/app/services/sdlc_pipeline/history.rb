@@ -46,7 +46,11 @@ module SdlcPipeline
       deltas = deltas.first(MAX_DELTAS)
       effective_to = deltas_truncated ? Time.zone.parse(deltas.last[:at]) : to
       traces = trace_payload(checkpoint, deltas, effective_to)
-      legacy_job_count = jobs.count { |job| transitions.fetch(job.id, []).empty? && job.updated_at > job.created_at }
+      legacy_jobs = jobs.select { |job| legacy_gap_in_range?(job, transitions.fetch(job.id, [])) }
+      inconsistent_evidence = deltas.empty? && jobs.any? do |job|
+        stage_changing_evidence_in_range?(job, entries, transitions.fetch(job.id, []))
+      end
+      incomplete = deltas.empty? && (legacy_jobs.any? || inconsistent_evidence)
 
       {
         from: from.iso8601,
@@ -60,10 +64,10 @@ module SdlcPipeline
           included_jobs: jobs.length, omitted_jobs: jobs_truncated ? job_scope.count - jobs.length : 0
         },
         accuracy: {
-          status: (jobs_truncated || deltas_truncated) ? "bounded" : (legacy_job_count.positive? ? "partial" : "reconstructed"),
-          message: accuracy_message(jobs_truncated:, deltas_truncated:),
+          status: accuracy_status(jobs_truncated:, deltas_truncated:, incomplete:, legacy_jobs:),
+          message: accuracy_message(jobs_truncated:, deltas_truncated:, incomplete:),
           truncated: jobs_truncated || deltas_truncated,
-          legacy_job_count: legacy_job_count
+          legacy_job_count: legacy_jobs.length
         }
       }
     end
@@ -84,6 +88,23 @@ module SdlcPipeline
       times << job.finished_at if job.finished_at&.between?(from, to)
       job.deployment_stage_statuses.each { |status| times << status.reached_at if status.reached_at.between?(from, to) }
       times.uniq.sort
+    end
+
+    def legacy_gap_in_range?(job, transitions)
+      transitions.empty? && job.updated_at > job.created_at && job.updated_at.between?(from, to)
+    end
+
+    # This is a consistency guard, not another reconstruction source. If durable
+    # evidence says an included Job crossed a visible stage in the requested
+    # window, returning a normal empty envelope would hide a reconstruction bug.
+    def stage_changing_evidence_in_range?(job, entries, transitions)
+      transitions.any? do |transition|
+        transition.created_at.between?(from, to) &&
+          lifecycle_key(transition.from_state) != lifecycle_key(transition.to_state)
+      end ||
+        (job.created_at.between?(from, to) && stage_at(job, job.created_at, entries, transitions).present?) ||
+        (job.finished_at&.between?(from, to) && landed_at?(job, job.finished_at)) ||
+        job.deployment_stage_statuses.any? { |status| status.reached_at.between?(from, to) }
     end
 
     def stage_at(job, at, entries, transitions)
@@ -148,7 +169,17 @@ module SdlcPipeline
       { stage: stage, entered_at: entered_at.iso8601, left_at: left_at.iso8601, dwell_seconds: (left_at - entered_at).to_i }
     end
 
-    def accuracy_message(jobs_truncated:, deltas_truncated:)
+    def accuracy_status(jobs_truncated:, deltas_truncated:, incomplete:, legacy_jobs:)
+      return "bounded" if jobs_truncated || deltas_truncated
+      return "incomplete" if incomplete
+      return "partial" if legacy_jobs.any?
+
+      "reconstructed"
+    end
+
+    def accuracy_message(jobs_truncated:, deltas_truncated:, incomplete:)
+      return "Historical evidence exists in this window, but it is not complete enough to reconstruct stage changes safely." if incomplete
+
       detail = if jobs_truncated
         " The cohort exceeds the job bound; only the earliest bounded cohort is shown."
       elsif deltas_truncated

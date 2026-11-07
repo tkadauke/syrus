@@ -426,6 +426,20 @@ describe("RepositoryPipelineRoute", () => {
       expect(screen.getByText(/No pipeline changes were recorded/)).toBeInTheDocument()
     })
 
+    it("distinguishes incomplete evidence from a genuinely empty window", async () => {
+      const body = historyBody([]) as ReturnType<typeof historyBody> & {
+        history: { accuracy: { status: "reconstructed" | "incomplete"; message: string } }
+      }
+      body.history.accuracy.status = "incomplete"
+      mockFetch(() => Promise.resolve(jsonResponse(body)))
+      renderRoute()
+      await screen.findByRole("region", { name: "Pipeline stages" })
+      await waitFor(() => expect(screen.getByTestId("history-status")).toHaveAttribute("data-history-status", "incomplete"))
+      expect(screen.getByText(/cannot safely reconstruct/)).toBeInTheDocument()
+      expect(screen.queryByText(/No pipeline changes were recorded/)).not.toBeInTheDocument()
+      expect(screen.getByRole("button", { name: "Play" })).toBeDisabled()
+    })
+
     it("keeps a single compact navigator when embedded", async () => {
       mockFetch(() => Promise.resolve(jsonResponse(historyBody(["2026-10-31T10:00:00Z"]))))
       renderRoute("?syrus_presentation=embedded")

@@ -72,6 +72,35 @@ RSpec.describe "API: repository SDLC pipeline", type: :request do
     expect(SdlcPipeline::History).not_to have_received(:new)
   end
 
+  it "resolves the same SmartFolder cohort and range for live and history requests" do
+    user = Factories.user
+    other_user = Factories.user
+    repository = Factories.repository(user: user)
+    included = Factories.job_record(repository: repository, user: user, owner_user: user, state: "queued")
+    included.update_columns(created_at: 1.hour.ago, updated_at: 1.hour.ago)
+    Factories.job_record(repository: repository, user: user, owner_user: other_user, state: "queued", issue_number: 43)
+    allow(RepoDeploymentStagesReader).to receive(:for_repository).and_return(double(stages: []))
+    SmartFolder.ensure_builtins_for_subject!(SdlcPipeline::SmartFolders::SUBJECT)
+    mine = SmartFolder.builtins(SdlcPipeline::SmartFolders::SUBJECT).find_by!(name: "Mine")
+    sign_in_as(user)
+    range_start = 1.day.ago.iso8601
+    range_end = Time.current.iso8601
+
+    get "/api/v1/app/repositories/#{repository.id}/sdlc_pipeline",
+      params: { history: "0", smart_folder_id: mine.id, range_start: range_start, range_end: range_end }
+    live_ids = response.parsed_body.fetch("stages").flat_map { |stage| stage.fetch("highlighted_items") }.map { |row| row.fetch("id") }
+
+    get "/api/v1/app/repositories/#{repository.id}/sdlc_pipeline",
+      params: { history: "1", smart_folder_id: mine.id, range_start: range_start, range_end: range_end }
+
+    expect(live_ids).to eq([ included.id ])
+    expect(response.parsed_body.fetch("filter")).to eq({ "and" => [ { "field" => "owner_user_id", "op" => "is", "value" => "me" } ] })
+    expect(response.parsed_body.dig("history", "from")).to eq(Time.zone.parse(range_start).iso8601)
+    expect(response.parsed_body.dig("history", "to")).to eq(Time.zone.parse(range_end).iso8601)
+    expect(response.parsed_body.dig("history", "deltas").map { |delta| delta.fetch("job_id") }.uniq).to eq([ included.id ])
+    expect(response.parsed_body.dig("history", "ticks")).not_to be_empty
+  end
+
   it "filters by the chat Jobs-tab association scope without including explicit attachments" do
     user = Factories.user
     repository = Factories.repository(user: user)

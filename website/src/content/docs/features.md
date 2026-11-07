@@ -216,7 +216,9 @@ scrubbing does not fetch a full board repeatedly. Historical mode is clearly
 read-only and URL-backed, keeps stage navigation spatially fixed, and shows
 entered/left times and dwell data in its trace contract. Stage placement is
 identified as reconstructed while titles and other mutable card metadata are
-identified as current when no historical record exists.
+identified as current when no historical record exists. A genuinely quiet
+window remains empty, while a legacy window with insufficient durable evidence
+is labeled incomplete instead of implying that no events occurred.
 
 Job kinds:
 
