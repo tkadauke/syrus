@@ -400,16 +400,40 @@ archive, pruning, and extension-point mechanics live in the
 
 | Setting | Default |
 | --- | ---: |
-| Completed Jobs | 90 days |
-| Workflow artifacts | 30 days |
-| Agent conversations | 30 days |
-| Operational logs | 30 days |
-| Job logs | 90 days |
-| Provider sessions | 30 days |
+| `draft_visual_evidence_retention_days` | 7 days |
+| `job_log_retention_days` | 30 days |
+| `performance_log_event_retention_hours` | 24 hours |
+| `run_diagnostic_retention_days` | 30 days |
+| `run_resource_summary_retention_days` | 30 days |
+| `workspace_reuse_outcome_retention_days` | 90 days |
+| `worker_host_health_sample_retention_days` | 7 days |
+| `work_engine_reconciler_activity_retention_days` | 7 days |
+| `provider_session_retention_days` | 14 days |
+| `spawned_process_retention_days` | 7 days |
+| `notification_retention_days` | 30 days |
+| `operational_log_event_retention_hours` | 6 hours |
+| `run_health_snapshot_retention_days` | 7 days |
+| `main_branch_health_check_retention_days` | 7 days |
+| `workflow_step_resource_profile_retention_days` | 180 days |
 
-`job_log_retention_days` controls terminal JobLog retention. Logs belonging
-to non-terminal Jobs are never pruned, regardless of age.
+`job_log_retention_days` controls the detailed output shown for a Run. After
+the default 30-day window, stdout, stderr, tool-call, and system chunks are
+deleted while the Run and its other history remain. Enable
+`job_log_archive_before_delete` before pruning if that detailed output must be
+preserved outside the live table. `performance_log_event_retention_hours` is a
+short diagnostic window; its default remains the 24 hours used by the
+performance UI.
 
-`provider_sessions` applies to provider session records only. Agent
-conversation events have their own retention policy and remain available
-independently when their policy is longer.
+`provider_sessions` is large primarily because each row can contain a provider
+transcript (`transcript_jsonl` is a 64 MiB-capable text column), not because of
+its metadata. For terminal Runs, the generic retention sweep clears `transcript_jsonl` and
+`normalized_messages` after seven days while retaining lightweight session
+metadata, then deletes the whole row after the configurable window (14 days by
+default). Both phases run in bounded batches and use the
+`(resumable_type, updated_at, resumable_id)` index, so finding candidates does
+not scan payload values. Clearing or deleting payloads frees pages for InnoDB
+reuse, although InnoDB does not necessarily return the physical tablespace
+file to the operating system. Active Run sessions remain protected because
+they can still be resumed. Enabling `provider_session_archive_before_delete`
+also disables the early payload clearing phase so the eventual archive still
+contains the transcript and normalized messages.
