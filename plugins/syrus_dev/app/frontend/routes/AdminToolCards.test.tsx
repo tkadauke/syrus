@@ -74,7 +74,9 @@ describe("AdminToolCards", () => {
     expect(within(region).getByTestId("tool-group-preview")).toBeEmptyDOMElement()
     expandToolGroup(region)
 
-    const rawDetails = within(region).getByText(/Raw details/).closest("details")
+    const rawDetails = within(region)
+      .getByText(/Raw details/)
+      .closest("details")
     expect(rawDetails).not.toBeNull()
     if (!rawDetails) return
     rawDetails.open = true
