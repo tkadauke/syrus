@@ -1,8 +1,8 @@
 class CreateCoworkerReviewContexts < ActiveRecord::Migration[8.1]
   def change
     create_table :coworker_review_contexts do |t|
-      t.references :run, null: false, foreign_key: true, index: { unique: true }
-      t.references :review_evidence, null: false, foreign_key: true, index: { unique: true }
+      t.references :run, null: false, index: { unique: true }
+      t.references :review_evidence, null: false, index: { unique: true }
       t.integer :coworker_id
       t.json :manifest
       t.text :exact_context

@@ -70,6 +70,15 @@ module AgentMemory
       TEXT
     end
 
+    def self.selected_review_memories(user:, repository_id:, ids:)
+      normalized_ids = Array(ids).filter_map { |value| Integer(value, exception: false) }.uniq
+      return [] if user.blank? || normalized_ids.empty?
+
+      Entry.active.repository_scope(repository_id)
+        .where(id: normalized_ids, user_id: user.id, published: true).order(:id)
+        .map { |entry| { id: entry.id, revision: entry.updated_at.iso8601, content: entry.content } }
+    end
+
     def self.label_for(entry)
       scope_suffix = entry.scope == "repository" ? "/#{entry.scope_id}" : ""
       "[#{entry.kind}#{scope_suffix}#{entry.published? ? "/shared" : ""}]"
