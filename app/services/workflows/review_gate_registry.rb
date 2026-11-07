@@ -104,14 +104,28 @@ module Workflows
         definitions.find { |definition| definition.step_kind == step_kind.to_s }
       end
 
+      def enabled_for_step_kind(step_kind, job:, agent_step:, trigger_kind:, syrus_yml: nil)
+        definition = active_for_step_kind(step_kind)
+        return false unless definition
+
+        context = { job: job, agent_step: agent_step.to_s, trigger_kind: trigger_kind.to_s, syrus_yml: syrus_yml }
+        definition.enabled?(context) && definition.budget(context).positive?
+      end
+
       # A contribution is resolved again between iterations. Keep the repair
       # reaction to the verdict that already ran, but do not invoke a provider
       # that was disabled or removed in the meantime.
-      def continuation_steps(loop_steps:, snapshotted_step_kinds:)
+      def continuation_steps(loop_steps:, snapshotted_step_kinds:, job:, trigger_kind:, syrus_yml: nil)
         steps = Array(loop_steps).map(&:to_s)
         review_kind = steps.last
         return steps unless Array(snapshotted_step_kinds).map(&:to_s).include?(review_kind)
-        return steps if active_for_step_kind(review_kind)
+        return steps if enabled_for_step_kind(
+          review_kind,
+          job: job,
+          agent_step: steps.first,
+          trigger_kind: trigger_kind,
+          syrus_yml: syrus_yml
+        )
 
         steps.first(steps.size - 1)
       end

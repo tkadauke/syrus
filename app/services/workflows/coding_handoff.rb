@@ -34,7 +34,7 @@ module Workflows
       syrus_yml = resolve_default_branch_syrus_yml(job)
       prepare_then(
         job,
-        review_gate_loops(job, agent_step: :coding_handoff_fix, syrus_yml: syrus_yml),
+        review_gate_loops(job, agent_step: :coding_handoff_fix),
         Workflows::RetryUntil.new(
           max_iterations: AppSetting.grade_max_iterations,
           repair_first: false,

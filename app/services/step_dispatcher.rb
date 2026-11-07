@@ -1824,7 +1824,9 @@ class StepDispatcher
       loop_steps = loop_steps.first(loop_steps.size - 1) if final_review_iteration?(loop_node, next_iteration)
       loop_steps = Workflows::ReviewGateRegistry.continuation_steps(
         loop_steps: loop_steps,
-        snapshotted_step_kinds: Array(@workflow.artifact("review_gate_contributions")).pluck("step_kind")
+        snapshotted_step_kinds: Array(@workflow.artifact("review_gate_contributions")).pluck("step_kind"),
+        job: @workflow.job,
+        trigger_kind: @workflow.trigger_kind
       )
       if skip_repair_for_transient_grader_failure?(current_grade, loop_node)
         loop_steps = Array(loop_node["check"]).map(&:to_s)

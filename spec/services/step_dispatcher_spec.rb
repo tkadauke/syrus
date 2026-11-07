@@ -3305,6 +3305,31 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(new_steps.first.runs.last.parent_session_id).to eq("implement-1")
     end
 
+    it "keeps the repair but omits a contributed review disabled between iterations" do
+      review_workflow = workflow_with_adversarial_review_loop(max_iterations: 2)
+      review = review_workflow.steps.find_by!(kind: "adversarial_review", iteration: 1)
+      review_workflow.set_artifact!("review_gate_contributions", [ { "step_kind" => "adversarial_review" } ])
+      review_workflow.set_artifact!("adversarial_review_iterations", [
+        { "iteration" => 1, "critique" => "needs work", "verdict" => "needs_work" }
+      ])
+      allow(Workflows::ReviewGateRegistry).to receive(:enabled_for_step_kind)
+        .with(
+          "adversarial_review",
+          job: review_workflow.job,
+          agent_step: "implement",
+          trigger_kind: "initial",
+          syrus_yml: nil
+        ).and_return(false)
+
+      expect {
+        described_class.advance_from(review)
+      }.to change { review_workflow.steps.count }.by(1)
+
+      expect(
+        review_workflow.reload.steps.where(loop_id: review.loop_id, iteration: 2).pluck(:kind)
+      ).to eq(%w[implement])
+    end
+
     it "retargets a later dependency when inserting an adversarial repair" do
       review_workflow = workflow_with_adversarial_review_loop(max_iterations: 1)
       review = review_workflow.steps.find_by!(kind: "adversarial_review", iteration: 1)
