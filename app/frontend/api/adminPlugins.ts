@@ -58,6 +58,8 @@ export type AdminPluginsPayload = {
   controls?: { filter_schema: FilterSchemaField[] }
 }
 
+export type AdminPluginTogglePayload = { ok: true; plugin: { name: string; enabled: boolean } }
+
 export type AdminPluginDisableConfirmation = {
   requires_confirmation: true
   plugin_name: string
@@ -78,11 +80,11 @@ export function fetchAdminPlugin(name: string) {
 }
 
 export function enableAdminPlugin(name: string) {
-  return postJson<AdminPluginsPayload | AdminPluginExperimentalBlock>(`/api/v1/app/admin/plugins/${encodeURIComponent(name)}/enable`)
+  return postJson<AdminPluginTogglePayload | AdminPluginExperimentalBlock>(`/api/v1/app/admin/plugins/${encodeURIComponent(name)}/enable`)
 }
 
 export function disableAdminPlugin(name: string, confirmCascade = false) {
-  return postJson<AdminPluginsPayload | AdminPluginDisableConfirmation>(
+  return postJson<AdminPluginTogglePayload | AdminPluginDisableConfirmation>(
     `/api/v1/app/admin/plugins/${encodeURIComponent(name)}/disable`,
     confirmCascade ? { confirm_cascade: true } : undefined
   )

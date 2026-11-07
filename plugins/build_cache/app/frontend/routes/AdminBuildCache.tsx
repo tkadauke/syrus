@@ -209,8 +209,10 @@ function ClearRequestForm({ search }: { search: string }) {
         older_than_days: scope === "partial" ? Number(olderThanDays) : null,
         reason
       }),
-    onSuccess: (updated) => {
-      queryClient.setQueryData([...QUERY_KEY, search], updated)
+    onSuccess: (result) => {
+      const request = result.request ?? (result as unknown as AdminBuildCachePayload).pending_request
+      if (!request) return
+      queryClient.setQueryData<AdminBuildCachePayload>([...QUERY_KEY, search], (current) => (current ? { ...current, pending_request: request } : current))
       setReason("")
     }
   })
@@ -291,14 +293,24 @@ function PendingRequestCard({ request, search }: { request: BuildCacheClearReque
 
   const confirmMutation = useMutation({
     mutationFn: () => confirmBuildCacheClearRequest(request.id),
-    onSuccess: (updated) => {
-      queryClient.setQueryData([...QUERY_KEY, search], updated)
+    onSuccess: (result) => {
+      const updated = result.request ?? (result as unknown as AdminBuildCachePayload).recent_requests?.[0]
+      if (!updated) return
+      queryClient.setQueryData<AdminBuildCachePayload>([...QUERY_KEY, search], (current) =>
+        current ? { ...current, pending_request: null, recent_requests: [updated, ...current.recent_requests.filter((item) => item.id !== updated.id)] } : current
+      )
       void queryClient.invalidateQueries({ queryKey: STATS_QUERY_KEY })
     }
   })
   const cancelMutation = useMutation({
     mutationFn: () => cancelBuildCacheClearRequest(request.id),
-    onSuccess: (updated) => queryClient.setQueryData([...QUERY_KEY, search], updated)
+    onSuccess: (result) => {
+      const updated = result.request ?? (result as unknown as AdminBuildCachePayload).recent_requests?.[0]
+      if (!updated) return
+      queryClient.setQueryData<AdminBuildCachePayload>([...QUERY_KEY, search], (current) =>
+        current ? { ...current, pending_request: null, recent_requests: [updated, ...current.recent_requests.filter((item) => item.id !== updated.id)] } : current
+      )
+    }
   })
 
   async function onConfirmClick() {

@@ -14,7 +14,7 @@ module AdminPluginCascadeActions
     plugin = find_plugin_record
     ::Admin::PluginEnabler.enable!(plugin)
 
-    render json: ::Admin::PluginsPayload.new.as_json
+    render json: { ok: true, plugin: { name: plugin.name, enabled: true } }
   rescue ::Admin::PluginEnabler::ExperimentalPluginsBlocked => e
     render json: {
       error: { code: "beta_mode_not_enabled", message: e.message },
@@ -39,7 +39,7 @@ module AdminPluginCascadeActions
       PluginRecord.where(name: dependents).find_each { |record| record.update!(enabled: false) }
     end
 
-    render json: ::Admin::PluginsPayload.new.as_json
+    render json: { ok: true, plugin: { name: plugin.name, enabled: false } }
   rescue ActiveRecord::RecordInvalid => e
     render_error("plugin_not_disableable", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
   rescue ::Admin::PluginDisableGuard::Blocked => e
