@@ -29,6 +29,10 @@ module Syrus
       ask(:chat_instructions, "").to_s
     end
 
+    def selected_review_memories(user:, repository_id:, ids:)
+      Array(ask(:selected_review_memories, [], user:, repository_id:, ids: Array(ids)))
+    end
+
     def ask(method, fallback, **kwargs)
       provider = store
       return fallback unless provider.respond_to?(method)

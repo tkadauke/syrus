@@ -13,6 +13,11 @@ module ReviewEvidence::VerdictSubmission
     ApplicationRecord.transaction do
       run.workflow.with_lock do
         iterations = Array(run.workflow.artifact(artifact_key))
+        existing = iterations.find { |candidate| candidate["run_id"] == run.id }
+        if existing
+          evidence&.mark_submitted! unless evidence&.state == "submitted"
+          return existing
+        end
         entry = {
           "iteration" => run.step.iteration,
           "step_id" => run.step_id,
@@ -21,6 +26,10 @@ module ReviewEvidence::VerdictSubmission
           "critique" => critique,
           "verdict" => verdict
         }
+        reviewer = evidence&.reviewer
+        if reviewer&.respond_to?(:review_context_manifest)
+          entry["review_context_manifest"] = reviewer.review_context_manifest(run)
+        end
         if run.step.details.to_h["panel_id"].present?
           entry.merge!("provider" => run.agent_provider, "model" => run.model,
                        "panel_id" => run.step.details["panel_id"])
