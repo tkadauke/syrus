@@ -39,12 +39,12 @@ module Permissions
         selected_duration: item.selected_duration,
         decision_reason: item.decision_reason, decided_at: item.decided_at,
         prerequisite_ids: item.prerequisites.map(&:id),
-        smart_option: @summary ? nil : SmartDecision.new(request:, item:, user: @current_user).option,
         resulting_authority: SmartDecision.authority_reference(item)
       }.tap do |json|
         unless @summary
           json.merge!(arguments: ToolPayloadRedactor.redact(item.normalized_arguments),
-            policy_chain: item.policy_chain, decisive_rule: item.decisive_rule)
+            policy_chain: item.policy_chain, decisive_rule: item.decisive_rule,
+            smart_option: SmartDecision.new(request:, item:, user: @current_user).option)
         end
       end
     end

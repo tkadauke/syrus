@@ -13,17 +13,31 @@ module Api
           relation = filter.apply.preload(:origin, :subject, :repository, authorization_items: [ :prerequisites, :resulting_authority ]).order(created_at: :desc)
           total = relation.count
           requests = relation.offset((page - 1) * per_page).limit(per_page)
-          fresh_when(etag: [ "permission-requests", Current.user.id, summary_view, page, per_page, total,
+          summary = request_summary(scope)
+          fresh_when(etag: [ "permission-requests", Current.user.id, summary_view, page, per_page, total, summary,
             relation.maximum(:updated_at)&.to_i,
-            PendingActionItem.where(chat_pending_action_id: relation.select(:id)).maximum(:updated_at)&.to_i ], public: false)
+            PendingActionItem.where(chat_pending_action_id: relation.select(:id)).maximum(:updated_at)&.to_i,
+            scope.maximum(:updated_at)&.to_i ], public: false)
           return if performed?
           payload = {
             requests: requests.map { |request| present(request, summary: summary_view) },
-            summary: request_summary(scope),
+            summary:,
             pagination: { page:, per_page:, total:, total_pages: (total.to_f / per_page).ceil }
           }
           payload[:filter_options] = filter.options unless summary_view
           render json: payload
+        end
+
+        def count
+          summary = request_summary(scope)
+          fresh_when(etag: [ "permission-request-count", Current.user.id, summary, scope.maximum(:updated_at)&.to_i ], public: false)
+          render json: { summary: } unless performed?
+        end
+
+        def show
+          request = scope.preload(:origin, :subject, :repository,
+            authorization_items: [ :prerequisites, :resulting_authority ]).find(params[:id])
+          render json: { request: present(request) }
         end
 
         def decide
