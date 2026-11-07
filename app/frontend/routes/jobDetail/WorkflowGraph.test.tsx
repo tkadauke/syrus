@@ -319,6 +319,97 @@ describe("WorkflowsTab", () => {
     expect(fetchSpy).not.toHaveBeenCalledWith(expect.stringContaining("/diff_review_comments"), expect.anything())
   })
 
+  it("offers the complete diff only after an explicit request for a truncated preview", async () => {
+    const requests: string[] = []
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      requests.push(path)
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            job_id: 42,
+            workflow_id: 10,
+            run_id: 51,
+            artifact: "agent_diff",
+            agent_diff: "diff --git a/a.rb b/a.rb\n+preview",
+            agent_diff_bytes: 3_000_000,
+            agent_diff_truncated: !path.includes("full=true")
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      )
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <WorkflowsTab command={command()} payload={payload({ job: { id: 42 } as JobDetailPayload["job"], workflows: [workflowWithDiffRun()] })} prefix="" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Diff" }))
+
+    expect(await screen.findByText("This diff is larger than 2 MB. Showing the first 2 MB.")).toBeInTheDocument()
+    expect(requests).toEqual(["/api/v1/app/jobs/42/runs/51/artifacts?artifact=agent_diff&page=1"])
+
+    fireEvent.click(screen.getByRole("button", { name: "Load full diff" }))
+
+    expect(await screen.findByText("preview")).toBeInTheDocument()
+    expect(requests).toContain("/api/v1/app/jobs/42/runs/51/artifacts?artifact=agent_diff&page=1&full=true")
+  })
+
+  it("requests and merges transcript deltas after the initial page", async () => {
+    const workflow = workflowWithDiffRun()
+    workflow.steps[0].runs[0].state = "running"
+    workflow.steps[0].runs[0].job_log_count = 2
+    const requests: string[] = []
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      requests.push(path)
+      const delta = path.includes("after_sequence=1")
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            job_id: 42,
+            workflow_id: 10,
+            run_id: 51,
+            artifact: "transcript",
+            logs_count: delta ? 2 : 1,
+            logs_page: 1,
+            logs_per_page: 100,
+            logs_total_pages: 1,
+            logs_max_sequence: delta ? 2 : 1,
+            logs: delta
+              ? [{ id: 2, sequence: 2, kind: "assistant_text", chunk: "second delta", created_at: null }]
+              : [{ id: 1, sequence: 1, kind: "assistant_text", chunk: "first page", created_at: null }]
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      )
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter>
+          <WorkflowsTab command={command()} payload={payload({ job: { id: 42 } as JobDetailPayload["job"], workflows: [workflow] })} prefix="" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(screen.getByRole("button", { name: /Implement/ }))
+    fireEvent.click(screen.getByRole("button", { name: "Transcript" }))
+    expect(await screen.findByText("first page")).toBeInTheDocument()
+
+    await queryClient.invalidateQueries({ queryKey: ["job_run_artifacts"] })
+
+    expect(await screen.findByText("second delta")).toBeInTheDocument()
+    expect(screen.getByText("first page")).toBeInTheDocument()
+    expect(requests).toContain("/api/v1/app/jobs/42/runs/51/artifacts?artifact=transcript&page=1&after_sequence=1")
+  })
+
   it("makes run artifact diffs the mobile flex child with their own vertical scroll region", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       if (String(input) === "/api/v1/app/jobs/42/runs/51/artifacts?artifact=agent_diff&page=1") {
