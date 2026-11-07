@@ -159,7 +159,20 @@ module Mcp
         # `available_for?` is a plugin contract that has only ever been handed
         # a concrete tier.
         plugin_tiers = all_tiers ? %i[essential deferred] : [ registry_tier ]
-        tools + plugin_tiers.flat_map { |t| plugin_tools_for(chat_session, tier: t, policy: surface, agent_actor:) }.uniq
+        seen_plugin_names = Set.new
+        plugin_tools = plugin_tiers.flat_map do |plugin_tier|
+          tier_tools = plugin_tools_for(chat_session, tier: plugin_tier, policy: surface, agent_actor:)
+          next tier_tools unless all_tiers
+
+          # A plugin may intentionally advertise the same callable in both
+          # tiers. Keep duplicate names within one tier visible so the MCP
+          # server still rejects conflicting providers, but do not add the
+          # deferred copy of a tool already exposed as essential.
+          unique_tools = tier_tools.reject { |tool| seen_plugin_names.include?(McpToolRegistry.tool_name_for(tool)) }
+          seen_plugin_names.merge(tier_tools.map { |tool| McpToolRegistry.tool_name_for(tool) })
+          unique_tools
+        end
+        (tools + plugin_tools).uniq
       end
     end
 
