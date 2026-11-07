@@ -16,7 +16,7 @@ import { formatRelativeDate } from "../../lib/relativeTime"
 import { bulkButtonClass, columnAriaSort, compactText, epicDateValue, humanizeOption, withRoutePrefix, workflowDateValue } from "./helpers"
 import type { DashboardSortState } from "./helpers"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import { useT } from "../../hooks/useT"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
@@ -40,6 +40,8 @@ import { WorkflowReference } from "../../components/WorkflowReference"
 // `controls` down from Dashboard.tsx just for this.
 const EPIC_REQUIRED_COLUMNS = ["checkbox", "epic"]
 const WORKFLOW_REQUIRED_COLUMNS = ["workflow", "job"]
+const BULK_TOOLBAR_CLASS =
+  "flex flex-wrap items-center justify-between gap-3 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
 
 export function EpicsTable({
   columns,
@@ -138,18 +140,80 @@ function BulkEpicActions({ selectedIds }: { selectedIds: number[] }) {
   const { t } = useT("dashboard")
   const queryClient = useQueryClient()
   const [notice, setNotice] = useState<string | null>(null)
+  const [progress, setProgress] = useState<{ completed: number; total: number } | null>(null)
+  const [cancellationRequested, setCancellationRequested] = useState(false)
+  const cancelRequestedRef = useRef(false)
   const action = useMutation({
-    mutationFn: (bulkAction: DashboardBulkEpicAction) => bulkDashboardEpics({ epic_ids: selectedIds, bulk_action: bulkAction }),
-    onSuccess: (payload) => {
-      setNotice(payload.message)
+    mutationFn: async ({ bulkAction, epicIds }: { bulkAction: DashboardBulkEpicAction; epicIds: number[] }) => {
+      let failed = 0
+      let lastMessage = ""
+      let processed = 0
+      let succeeded = 0
+
+      for (const epicId of epicIds) {
+        if (cancelRequestedRef.current) break
+
+        try {
+          const payload = await bulkDashboardEpics({ epic_ids: [epicId], bulk_action: bulkAction })
+          lastMessage = payload.message
+          succeeded += payload.affected_epic_ids?.length ?? 1
+          failed += payload.skipped_epic_ids?.length ?? 0
+        } catch (_error) {
+          failed += 1
+        }
+
+        processed += 1
+        setProgress({ completed: succeeded, total: epicIds.length })
+      }
+
+      return { canceled: cancelRequestedRef.current, failed, lastMessage, processed, succeeded, total: epicIds.length }
+    },
+    onSuccess: (result) => {
+      if (result.canceled) setNotice(t("bulk_epic_action_canceled", { completed: result.processed, total: result.total }))
+      else if (result.failed > 0) setNotice(t("bulk_epic_action_partial", { failed: result.failed, succeeded: result.succeeded, total: result.total }))
+      else setNotice(result.lastMessage)
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+      setProgress(null)
+      setCancellationRequested(false)
+      cancelRequestedRef.current = false
     }
   })
   const disabled = selectedIds.length === 0 || action.isPending
 
   function run(bulkAction: DashboardBulkEpicAction) {
     setNotice(null)
-    action.mutate(bulkAction)
+    const epicIds = [...selectedIds]
+    cancelRequestedRef.current = false
+    setCancellationRequested(false)
+    setProgress({ completed: 0, total: epicIds.length })
+    action.mutate({ bulkAction, epicIds })
+  }
+
+  if (progress) {
+    return (
+      <div className={BULK_TOOLBAR_CLASS} role="status">
+        <div className="inline-flex items-center gap-2 font-medium text-gray-900 dark:text-gray-100">
+          <span
+            aria-hidden="true"
+            className="inline-block h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600 dark:border-gray-700 dark:border-t-gray-200"
+          />
+          <span>{t("bulk_epic_progress.start", { completed: progress.completed, total: progress.total })}</span>
+        </div>
+        <button
+          className={bulkButtonClass(cancellationRequested)}
+          disabled={cancellationRequested}
+          onClick={() => {
+            cancelRequestedRef.current = true
+            setCancellationRequested(true)
+          }}
+          type="button"
+        >
+          {t(cancellationRequested ? "canceling" : "cancel")}
+        </button>
+      </div>
+    )
   }
 
   if (selectedIds.length === 0) {
@@ -157,7 +221,7 @@ function BulkEpicActions({ selectedIds }: { selectedIds: number[] }) {
   }
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900">
+    <div className={BULK_TOOLBAR_CLASS}>
       <div>
         <span className="font-medium text-gray-900 dark:text-gray-100">{t("selected_count", { count: selectedIds.length })}</span>
         <NoticeToast message={notice} onDismiss={() => setNotice(null)} />

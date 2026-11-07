@@ -557,6 +557,69 @@ describe("dashboard DataTable migrations", () => {
     expect(screen.getByText("Implementation started; child Jobs are waiting on Pave the road first")).toBeInTheDocument()
   })
 
+  it("reports epic bulk progress and allows cancellation between epics", async () => {
+    setDesktop(true)
+    let resolveRequest: ((response: Response) => void) | undefined
+    const request = new Promise<Response>((resolve) => {
+      resolveRequest = resolve
+    })
+    const fetchSpy = vi.spyOn(window, "fetch").mockReturnValue(request)
+
+    renderWithProviders(
+      <EpicsTable
+        columns={["checkbox", "epic", "state"]}
+        items={[epic(), epic({ id: 2, number: 2, display_number: "EPIC-2", title: "Widget delivery" })]}
+        prefix=""
+        sortState={sortState()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all Epics" }))
+    fireEvent.click(screen.getByRole("button", { name: "Move to In Progress" }))
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1))
+    expect(screen.getByText("0 of 2 moved to in progress")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+    expect(screen.getByRole("button", { name: "Canceling…" })).toBeDisabled()
+    resolveRequest?.(
+      new Response(JSON.stringify({ message: "Started 1 epic.", affected_epic_ids: [1], skipped_epic_ids: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      })
+    )
+
+    expect(await screen.findByText("Bulk action canceled after 1 of 2 epics.")).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it("continues epic bulk actions after an individual request fails", async () => {
+    setDesktop(true)
+    let request = 0
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() => {
+      request += 1
+      if (request === 2)
+        return Promise.resolve(
+          new Response(JSON.stringify({ error: { message: "Epic changed state." } }), { status: 422, headers: { "Content-Type": "application/json" } })
+        )
+      return Promise.resolve(
+        new Response(JSON.stringify({ message: "Started 1 epic.", affected_epic_ids: [request], skipped_epic_ids: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" }
+        })
+      )
+    })
+
+    renderWithProviders(
+      <EpicsTable columns={["checkbox", "epic", "state"]} items={[epic(), epic({ id: 2 }), epic({ id: 3 })]} prefix="" sortState={sortState()} />
+    )
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all Epics" }))
+    fireEvent.click(screen.getByRole("button", { name: "Move to In Progress" }))
+
+    expect(await screen.findByText("Bulk action completed for 2 of 3 epics; 1 failed or were skipped.")).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledTimes(3)
+  })
+
   it("preserves workflow mobile fallback while desktop uses DataTable", () => {
     setDesktop(false)
 
