@@ -3090,8 +3090,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_07_065614) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "entry_file", default: "index.html", null: false
-    t.integer "file_count", default: 0, null: false
-    t.string "entry_viewer_kind", default: "html", null: false
+    t.integer "file_count", null: false
+    t.string "entry_viewer_kind", null: false
     t.index ["preview_panel_id"], name: "index_preview_panel_versions_on_preview_panel_id"
   end
 
