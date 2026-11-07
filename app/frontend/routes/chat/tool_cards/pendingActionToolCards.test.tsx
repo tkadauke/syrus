@@ -5,6 +5,7 @@ import { normalizedToolCardParsedResult } from "../toolRendering"
 import retryJobCard, { examples as retryJobExamples } from "./retry_job"
 import baseRefreshRetryJobCard from "./base_refresh_retry_job"
 import runVisualReviewCard from "./run_visual_review"
+import runVisualDiffCard from "./run_visual_diff"
 import delegateIssueCard from "./delegate_issue"
 import checkJobMergeabilityCard from "./check_job_mergeability"
 import pauseLandingQueueCard from "./pause_landing_queue"
@@ -50,6 +51,7 @@ const CARDS: Array<[string, ToolCardRenderer]> = [
   ["retry_job", retryJobCard],
   ["base_refresh_retry_job", baseRefreshRetryJobCard],
   ["run_visual_review", runVisualReviewCard],
+  ["run_visual_diff", runVisualDiffCard],
   ["delegate_issue", delegateIssueCard],
   ["check_job_mergeability", checkJobMergeabilityCard],
   ["pause_landing_queue", pauseLandingQueueCard],
@@ -89,8 +91,8 @@ function context(toolName: string, parsedResult: unknown): ToolCardContext {
 
 describe("pending action tool card family", () => {
   it("registers exactly the expected tool names", () => {
-    expect(CARDS).toHaveLength(34)
-    expect(new Set(CARDS.map(([name]) => name)).size).toBe(34)
+    expect(CARDS).toHaveLength(35)
+    expect(new Set(CARDS.map(([name]) => name)).size).toBe(35)
   })
 
   it.each(CARDS)("%s registers under its exact MCP tool name", (name, card) => {

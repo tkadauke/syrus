@@ -70,6 +70,7 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `resume_landing_queue` | chat | deferred | write | no | - | - | - | - |
 | `revoke_permission` | chat | deferred | write | no | - | - | - | - |
 | `revoke_permission_lease` | chat | deferred | write | no | - | - | - | - |
+| `run_visual_diff` | chat | deferred | write | no | - | - | - | - |
 | `run_visual_review` | chat | deferred | write | no | - | - | - | - |
 | `schedule_wakeup` | chat | deferred | write | no | - | - | - | - |
 | `search_chats` | chat | deferred | read | no | - | - | - | - |

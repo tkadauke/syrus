@@ -528,6 +528,12 @@ the state to reproduce and the evidence to capture. Syrus shows those
 instructions for confirmation and keeps them with the manual review workflow;
 they guide visual QA only and do not start an implementation-feedback pass.
 
+For an actual before/after comparison, chat provides the separate,
+operator-confirmed `run_visual_diff` action. It uses valid screenshots from a
+completed visual review, captures matching images from the base revision, and
+renders the resulting comparison. It does not run the fresh visual QA pass
+performed by `run_visual_review`.
+
 A repository's `.syrus.yml` can opt a repository out, bound how many review
 rounds run, restrict visual review to specific changed files, and record seed
 notes (demo login, a record to look for) so the reviewer can reach an
