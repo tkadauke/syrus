@@ -2,7 +2,7 @@ module CredentialStore
   class WorkflowToolSet
     include Syrus::Plugin::McpToolSet
 
-    TOOL_CLASSES = [ SshExecTool ].freeze
+    TOOL_CLASSES = [ ListCredentialsTool, SshExecTool ].freeze
 
     def self.available_for?(repository)
       CredentialStore.enabled? && repository.present?
@@ -16,12 +16,13 @@ module CredentialStore
       return [] if context && !available_for_context?(context)
 
       TOOL_CLASSES.map do |klass|
-        {
+        definition = {
           name: klass.tool_name,
           description: klass.description_value,
-          input_schema: klass.input_schema_value.to_h,
-          capability_descriptor: PermissionProvider.capability_descriptor("ssh.execute/risky@v1")
+          input_schema: klass.input_schema_value.to_h
         }
+        definition[:capability_descriptor] = klass.capability_descriptor_value if klass.respond_to?(:capability_descriptor_value)
+        definition
       end
     end
 
