@@ -224,6 +224,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
       get "/api/v1/app/chats/new"
       etag = response.headers.fetch("ETag")
+      expect(response.headers.fetch("Cache-Control")).to include("private", "max-age=30")
 
       get "/api/v1/app/chats/new", headers: { "If-None-Match" => etag }
 
@@ -257,6 +258,11 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
         "pending_proposal_count" => 1,
         "pending_actions_count" => 1
       )
+      etag = response.headers.fetch("ETag")
+      expect(response.headers.fetch("Cache-Control")).to include("private", "max-age=30")
+
+      get "/api/v1/app/chats/#{chat.id}/preview", headers: { "If-None-Match" => etag }
+      expect(response).to have_http_status(:not_modified)
     end
 
     it "404s for a chat the current user does not participate in" do
@@ -541,6 +547,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     get "/api/v1/app/chats"
 
     expect(response).to have_http_status(:ok)
+    expect(response.headers.fetch("Cache-Control")).to include("private", "max-age=30")
     group = parse_body["groups"].find { |candidate| candidate["repository_id"] == repository.id }
     expect(group["chats"].map { |chat| chat["id"] }).to eq([ visible_chat.id ])
     expect(parse_body.to_s).not_to include(hidden_chat.title)
@@ -573,6 +580,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     get "/api/v1/app/chats"
 
     expect(response).to have_http_status(:ok)
+    expect(response.headers.fetch("Cache-Control")).to include("private", "max-age=30")
     body = parse_body
     old_group = body["groups"].find { |group| group["repository_id"] == old_repo.id }
     expect(old_group).to include("key" => "repository-#{old_repo.id}", "label" => "acme/old")
@@ -759,6 +767,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     get "/api/v1/app/chats"
 
     expect(response).to have_http_status(:ok)
+    index_etag = response.headers.fetch("ETag")
+    expect(response.headers.fetch("Cache-Control")).to include("private", "max-age=30")
     group = parse_body["groups"].find { |candidate| candidate["repository_id"] == repository.id }
     expect(group["chats"].map { |chat| chat["id"] }).to eq(chats.first(5).map(&:id))
     expect(group["has_more"]).to eq(true)
@@ -768,11 +778,21 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     end
 
     expect(response).to have_http_status(:ok)
+    more_etag = response.headers.fetch("ETag")
+    expect(response.headers.fetch("Cache-Control")).to include("private", "max-age=30")
     body = parse_body
     expect(body["chats"].map { |chat| chat["id"] }).to eq(chats.last(2).map(&:id))
     expect(body["has_more"]).to eq(false)
     busy_agent_queries = queries.grep(/FROM ["`]?spawned_processes["`]?.*["`]?workdir["`]?/im)
     expect(busy_agent_queries.size).to eq(1)
+
+    get "/api/v1/app/chats", headers: { "If-None-Match" => index_etag }
+    expect(response).to have_http_status(:not_modified)
+
+    get "/api/v1/app/chats/more",
+      params: { repository_id: repository.id, before_id: group["chats"].last["id"] },
+      headers: { "If-None-Match" => more_etag }
+    expect(response).to have_http_status(:not_modified)
   end
 
   it "defaults the sidebar chat group size to 10 and honors a smaller configured value" do
@@ -1485,7 +1505,9 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     patch "/api/v1/app/chats/#{chat.id}/mark_read"
 
-    expect(response).to have_http_status(:no_content)
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("chat", "id")).to eq(chat.id)
+    expect(parse_body.dig("chat", "unread")).to be(false)
     expect(chat.reload.chat_participants.find_by(user: user).last_read_at).to be_present
     expect(chat.updated_at.to_i).to eq(original_updated_at.to_i)
     expect(foreign_chat.reload.chat_participants.first.last_read_at).to be_nil
@@ -1643,6 +1665,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(chat.reload.title).to eq("Release planning")
     expect(parse_body["message"]).to eq("Chat renamed.")
     expect(parse_body.dig("chat", "title")).to eq("Release planning")
+    expect(parse_body).not_to have_key("messages")
   end
 
   it "clears a failed-generation fallback flag on rename so ChatTitleJob will not later overwrite it" do
@@ -5983,6 +6006,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(chat.reload.title).to eq("Canal review")
     expect(parse_body["message"]).to eq("Chat renamed.")
     expect(parse_body.dig("chat", "title")).to eq("Canal review")
+    expect(parse_body).not_to have_key("messages")
   end
 
   it "requests a kill for a running agent process when stopping a chat" do

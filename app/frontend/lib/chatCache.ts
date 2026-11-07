@@ -74,7 +74,9 @@ export function recentChatsQueryKey(settings: Partial<ChatSidebarSettings> = {})
   ]
 }
 
-export function updateRecentChatCache(queryClient: QueryClient, chat: ChatRecord | ChatNavRecord, options: { prepend?: boolean; occurredAt?: string } = {}) {
+type RecentChatUpdate = ChatRecord | ChatNavRecord | (Partial<ChatRecord> & Pick<ChatRecord, "id">)
+
+export function updateRecentChatCache(queryClient: QueryClient, chat: RecentChatUpdate, options: { prepend?: boolean; occurredAt?: string } = {}) {
   queryClient
     .getQueryCache()
     .findAll({ queryKey: ["chats", "recent"] })
@@ -180,7 +182,7 @@ function sortStatusGroups(groups: ChatGroupRecord[]) {
   return [...groups].sort((left, right) => (order.get(left.key) ?? 9) - (order.get(right.key) ?? 9))
 }
 
-function recentChatRecord(chat: ChatRecord | ChatNavRecord, existing?: ChatNavRecord, occurredAt = new Date().toISOString()): ChatNavRecord {
+function recentChatRecord(chat: RecentChatUpdate, existing?: ChatNavRecord, occurredAt = new Date().toISOString()): ChatNavRecord {
   const candidate = chat as unknown as ChatNavRecord
 
   return {
@@ -193,10 +195,10 @@ function recentChatRecord(chat: ChatRecord | ChatNavRecord, existing?: ChatNavRe
     scratchpad_items_count: candidate.scratchpad_items_count ?? existing?.scratchpad_items_count ?? 0,
     created_at: candidate.created_at ?? existing?.created_at ?? occurredAt,
     updated_at: latestTimestamp(candidate.updated_at, existing?.updated_at, occurredAt)
-  }
+  } as ChatNavRecord
 }
 
-function recentChatBelongsInQuery(chat: ChatRecord | ChatNavRecord, queryKey: QueryKey) {
+function recentChatBelongsInQuery(chat: RecentChatUpdate, queryKey: QueryKey) {
   if (queryKey.length < 3) return true
 
   const status = queryKey[2]
@@ -207,11 +209,11 @@ function recentChatBelongsInQuery(chat: ChatRecord | ChatNavRecord, queryKey: Qu
   return chatTypes.length === 0 || chatTypes.includes(chatTypeFor(chat))
 }
 
-function chatIsHidden(chat: ChatRecord | ChatNavRecord) {
+function chatIsHidden(chat: RecentChatUpdate) {
   return (chat as ChatRecord & { hidden_at?: string | null }).hidden_at != null
 }
 
-function chatTypeFor(chat: ChatRecord | ChatNavRecord) {
+function chatTypeFor(chat: RecentChatUpdate) {
   const record = chat as ChatRecord
   if (record.chat_type) return record.chat_type
   if (record.origin_platform) return "external"
