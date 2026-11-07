@@ -7,7 +7,10 @@ import type { DashboardPayload } from "../api/dashboard"
 import { DashboardTable } from "./Dashboard"
 
 vi.mock("../pluginUiSlots", () => ({
-  PluginUiSlotCarousel: ({ labels, panels }: {
+  PluginUiSlotCarousel: ({
+    labels,
+    panels
+  }: {
     labels: { region: string; position: (index: number, count: number) => string; previous: string; next: string }
     panels?: Array<{ id: string; order: number }>
   }) => {
@@ -51,8 +54,7 @@ function buildPayload(overrides: Partial<DashboardPayload> = {}): DashboardPaylo
       kanban_lanes: [],
       ownership_scope: "mine",
       owner_user_id: null,
-      owner_id: null,
-      raw: {}
+      owner_id: null
     },
     filter: null,
     controls: {
@@ -83,12 +85,12 @@ function buildPayload(overrides: Partial<DashboardPayload> = {}): DashboardPaylo
         visibility: "when_present",
         count: 2,
         active: true,
-        filter: { and: [{ field: "attention", op: "is", value: "landing_queue" }] },
         attention_preset: "landing_queue",
         path: `/dashboard/jobs?smart_folder_id=${LQ_FOLDER_ID}`
       }
     ],
     active_smart_folder_id: LQ_FOLDER_ID,
+    active_smart_folder_filter: { and: [{ field: "attention", op: "is", value: "landing_queue" }] },
     items: [],
     lanes: [],
     kanban_limit: null,
@@ -126,9 +128,7 @@ describe("DashboardTable landing queue sort race condition", () => {
     // navigated to another folder), but chrome still reports active_smart_folder_id
     // pointing to the LQ folder (stale). The bug fired a sort reset targeting the
     // LQ folder ID, corrupting its sort preference.
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse({ message: "ok", dashboard_preferences: {} })
-    )
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "ok", dashboard_preferences: {} }))
 
     const payload = buildPayload({
       // landing_queue.visible = false: rows response for the NEW folder
@@ -154,9 +154,7 @@ describe("DashboardTable landing queue sort race condition", () => {
     // This confirms the normal reset path: stored sort is landing_queue_position but the
     // active folder (from chrome) is a different one — no LQ folder in smart_folders
     // matches active_smart_folder_id.
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse({ message: "ok", dashboard_preferences: {} })
-    )
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "ok", dashboard_preferences: {} }))
 
     const payload = buildPayload({
       smart_folders: [
@@ -169,12 +167,12 @@ describe("DashboardTable landing queue sort race condition", () => {
           visibility: "always",
           count: 3,
           active: true,
-          filter: {},
           attention_preset: "inbox",
           path: "/dashboard/jobs?smart_folder_id=99"
         }
       ],
       active_smart_folder_id: 99,
+      active_smart_folder_filter: {},
       landing_queue: { visible: false, paused: false, toggle_path: "", entries: [] }
     })
 
@@ -205,24 +203,28 @@ describe("DashboardTable landing queue sort race condition", () => {
   })
 
   it("shows job notice panels when the job dashboard is otherwise empty", () => {
-    renderTable(buildPayload({
-      ui_panels: [{ id: "github_source.untagged_issues", component: "github_source/UntaggedIssuesBanner", order: 10 }],
-      total: 0,
-      counts: { jobs: 0, epics: 0, workflows: 0 },
-      items: []
-    }))
+    renderTable(
+      buildPayload({
+        ui_panels: [{ id: "github_source.untagged_issues", component: "github_source/UntaggedIssuesBanner", order: 10 }],
+        total: 0,
+        counts: { jobs: 0, epics: 0, workflows: 0 },
+        items: []
+      })
+    )
 
     expect(screen.getByRole("region", { name: "Dashboard notices" })).toBeInTheDocument()
     expect(screen.getByText("plugin notice github_source.untagged_issues")).toBeInTheDocument()
   })
 
   it("shows job notice panels when filters leave no matching job rows", () => {
-    renderTable(buildPayload({
-      ui_panels: [{ id: "github_source.untagged_issues", component: "github_source/UntaggedIssuesBanner", order: 10 }],
-      total: 3,
-      counts: { jobs: 3, epics: 0, workflows: 0 },
-      items: []
-    }))
+    renderTable(
+      buildPayload({
+        ui_panels: [{ id: "github_source.untagged_issues", component: "github_source/UntaggedIssuesBanner", order: 10 }],
+        total: 3,
+        counts: { jobs: 3, epics: 0, workflows: 0 },
+        items: []
+      })
+    )
 
     expect(screen.getByRole("region", { name: "Dashboard notices" })).toBeInTheDocument()
     expect(screen.getByText("plugin notice github_source.untagged_issues")).toBeInTheDocument()
