@@ -1,4 +1,4 @@
-import i18n, { i18nReady, supportedLocales } from "../i18n"
+import i18n, { i18nReady, loadPluginLocales, supportedLocales } from "../i18n"
 import "@testing-library/jest-dom/vitest"
 import { resetApiClientStateForTests } from "../api/clientTestState"
 import { cleanup, configure } from "@testing-library/react"
@@ -6,10 +6,22 @@ import { afterEach, vi } from "vitest"
 import { _clearRecentApiRequestsForTest } from "../api/client"
 
 await i18nReady
-// Keep core locale assertions deterministic without masking missing production
-// plugin boundaries. Plugin resources must be loaded by the UI module that
-// owns them, just as they are in the application.
+// Keep direct fixed-locale assertions deterministic. Production-shaped lazy
+// boundary specs explicitly remove the resource bundle they exercise.
 await i18n.loadLanguages([...supportedLocales])
+
+// Plugin card specs import their modules directly rather than through a real
+// route/tool-card boundary. Prepare their active-language resources here; the
+// production-shaped registry specs remove a bundle before rendering to prove
+// that the application boundary restores it.
+const pluginLocaleModules = import.meta.glob("../../../plugins/*/app/frontend/i18n/locales/*/*.json")
+const pluginNames = new Set(
+  Object.keys(pluginLocaleModules).flatMap((path) => {
+    const match = path.match(/\/plugins\/([^/]+)\/app\/frontend\/i18n\/locales\//)
+    return match ? [match[1]] : []
+  })
+)
+await Promise.all([...pluginNames].map(loadPluginLocales))
 
 // Components that use the shared Action Cable consumer must not open real
 // sockets from jsdom. Individual cable-focused specs can still provide their
