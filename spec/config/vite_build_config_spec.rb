@@ -23,6 +23,7 @@ RSpec.describe "Vite build config" do
       console.log(JSON.stringify({
         base: result.config.base,
         manifest: result.config.build.manifest,
+        sourcemap: result.config.build.sourcemap,
         excalidrawAssetPath: fontsConfig.define.__EXCALIDRAW_ASSET_PATH__,
         entryFileNames: output.entryFileNames,
         chunkFileNames: output.chunkFileNames,
@@ -30,8 +31,12 @@ RSpec.describe "Vite build config" do
         nonVendor: manualChunks("/repo/app/frontend/main.tsx") ?? null,
         react: manualChunks("/repo/node_modules/react/index.js"),
         tanstack: manualChunks("/repo/node_modules/@tanstack/react-query/build/index.js"),
-        visualization: manualChunks("/repo/node_modules/d3-scale/src/index.js"),
-        fallbackVendor: manualChunks("/repo/node_modules/lodash-es/lodash.js"),
+        d3: manualChunks("/repo/node_modules/d3-scale/src/index.js") ?? null,
+        excalidraw: manualChunks("/repo/node_modules/@excalidraw/excalidraw/dist/index.js") ?? null,
+        diagrams: manualChunks("/repo/node_modules/mermaid/dist/mermaid.js") ?? null,
+        editor: manualChunks("/repo/node_modules/@shikijs/core/dist/index.js") ?? null,
+        math: manualChunks("/repo/node_modules/katex/dist/katex.mjs") ?? null,
+        fallbackPackage: manualChunks("/repo/node_modules/lodash-es/lodash.js"),
         windowsReact: manualChunks("C:\\\\repo\\\\node_modules\\\\react-dom\\\\index.js")
       }));
     JS
@@ -88,9 +93,38 @@ RSpec.describe "Vite build config" do
       "nonVendor" => nil,
       "react" => "vendor-react",
       "tanstack" => "vendor-query",
-      "visualization" => "vendor-visualization",
-      "fallbackVendor" => "vendor",
+      "d3" => nil,
+      "excalidraw" => nil,
+      "diagrams" => nil,
+      "editor" => nil,
+      "math" => nil,
+      "fallbackPackage" => "vendor-lodash-es",
       "windowsReact" => "vendor-react"
     )
+  end
+
+  it "does not publish production sourcemaps by default" do
+    expect(config.fetch("sourcemap")).to be(false)
+  end
+
+  it "publishes production sourcemaps only when explicitly enabled" do
+    script = <<~JS
+      import { loadConfigFromFile } from "vite";
+      const result = await loadConfigFromFile(
+        { command: "build", mode: "production" },
+        "vite.config.ts",
+        process.cwd(),
+        "silent"
+      );
+      console.log(JSON.stringify(result.config.build.sourcemap));
+    JS
+    stdout, stderr, status = Open3.capture3(
+      { "VITE_BUILD_SOURCEMAP" => "true" },
+      "node", "--input-type=module", "-e", script, chdir: Rails.root.to_s
+    )
+
+    raise "failed to load Vite config: #{stderr}" unless status.success?
+
+    expect(JSON.parse(stdout)).to be(true)
   end
 end

@@ -1,5 +1,3 @@
-import { createHighlighterCore, createCssVariablesTheme } from "@shikijs/core"
-import { createOnigurumaEngine } from "@shikijs/engine-oniguruma"
 import type { HighlighterCore, LanguageInput, ThemedToken } from "@shikijs/core"
 import { endMarker, startMarker } from "./performanceMarkers"
 
@@ -188,11 +186,6 @@ const LANGUAGE_LOADERS: Record<HighlighterLanguageId, LanguageInput> = {
 export const HIGHLIGHTER_THEME_NAME = "css-variables"
 export const HIGHLIGHTER_CSS_VARIABLE_PREFIX = "--shiki-"
 
-const cssVariablesTheme = createCssVariablesTheme({
-  name: HIGHLIGHTER_THEME_NAME,
-  variablePrefix: HIGHLIGHTER_CSS_VARIABLE_PREFIX
-})
-
 let highlighterPromise: Promise<HighlighterCore> | null = null
 const languagePromises = new Map<HighlighterLanguageId, Promise<void>>()
 
@@ -274,10 +267,16 @@ function evictTokenizationsOverBudget(keep: string) {
 function getHighlighter(): Promise<HighlighterCore> {
   if (!highlighterPromise) {
     const marker = startMarker("diff_review.highlighter_initialize", { maxPerSession: 1 })
-    highlighterPromise = createHighlighterCore({
-      themes: [cssVariablesTheme],
-      langs: [],
-      engine: createOnigurumaEngine(() => import("@shikijs/engine-oniguruma/wasm-inlined"))
+    highlighterPromise = Promise.all([import("@shikijs/core"), import("@shikijs/engine-oniguruma")]).then(([core, oniguruma]) => {
+      const cssVariablesTheme = core.createCssVariablesTheme({
+        name: HIGHLIGHTER_THEME_NAME,
+        variablePrefix: HIGHLIGHTER_CSS_VARIABLE_PREFIX
+      })
+      return core.createHighlighterCore({
+        themes: [cssVariablesTheme],
+        langs: [],
+        engine: oniguruma.createOnigurumaEngine(() => import("@shikijs/engine-oniguruma/wasm-inlined"))
+      })
     })
     highlighterPromise.then(
       () => endMarker(marker),

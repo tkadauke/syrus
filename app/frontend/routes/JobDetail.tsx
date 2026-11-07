@@ -3,7 +3,7 @@ import { DeploymentStagePipeline } from "../components/DeploymentStagePipeline"
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { subscribeToJobResourceEvents } from "../lib/actionCable"
 import type { FormEvent, ReactNode } from "react"
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
@@ -96,7 +96,6 @@ import {
 import { formatCurrency, jobSlug, withRoutePrefix } from "./jobDetail/formatting"
 import { WorkflowsTab } from "./jobDetail/WorkflowGraph"
 import { AgentConversationTab } from "./jobDetail/AgentConversation"
-import { TimelineTab } from "./jobDetail/Timeline"
 import { SourceTab } from "./jobDetail/SourceBrowser"
 import { ReviewWorkspace } from "./jobDetail/ReviewWorkspace"
 import { ReportTab } from "./jobDetail/Report"
@@ -121,6 +120,7 @@ import { UnlandPlanConfirmation } from "../components/UnlandPlanConfirmation"
 import { normalizeJobDetailPayload } from "../lib/entityStore"
 import { useConfirm } from "../hooks/useConfirm"
 
+const TimelineTab = lazy(() => import("./jobDetail/Timeline").then((module) => ({ default: module.TimelineTab })))
 const HIDE_UNSATISFIED_DEPENDENCIES_STATES = new Set(["running", "coding", "implemented", "approved", "landing", "closed", "no_change_needed"])
 
 export function JobDetailRoute() {
@@ -549,7 +549,9 @@ export function JobDetailView({
       ) : null}
       {activeTab === "conversation" ? <AgentConversationTab jobId={payload.job.id} prUrl={payload.job.pr_url} /> : null}
       {activeTab === "timeline" ? (
-        <TimelineTab error={workflowsError} jobId={String(payload.job.id)} loading={workflowsLoading} workflows={payload.workflows} />
+        <Suspense fallback={<PanelMessage>{t("loading")}</PanelMessage>}>
+          <TimelineTab error={workflowsError} jobId={String(payload.job.id)} loading={workflowsLoading} workflows={payload.workflows} />
+        </Suspense>
       ) : null}
       {activeTab === "target_graph" ? <JobTargetGraphPanel jobId={payload.job.id} prefix={prefix} /> : null}
       {activeTab === "attachments" ? <AttachmentsTab payload={payload} queryKey={queryKey} onNotice={showNotice} /> : null}
