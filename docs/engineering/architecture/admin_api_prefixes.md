@@ -47,7 +47,7 @@ screen, including its count digest and typed whole-instance confirmation, and
 are not a general automation interface.
 
 The generated endpoint inventory lives in
-`config/syrus_docs/admin_api_catalog.md`; update it with
+`docs/engineering/architecture/admin_api_catalog.md`; update it with
 `bin/surface-catalogs` after route changes.
 
 Capability-surface review lives in `Admin::CapabilitySurfaceRegistry`. It
