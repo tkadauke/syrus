@@ -26,10 +26,20 @@ function comparisonArtifact(context: ToolCardContext): TypedArtifact | null {
 function VisualDiffDetails({ context }: { context: ToolCardContext }) {
   const jobId = displayValue(context.input?.job_id)
   const artifact = comparisonArtifact(context)
-  return <>
-    <Row label={i18n.t("chat:run_visual_diff.job")} value={jobId ? <EntityReference id={jobId} kind="job" /> : <EmptyState>{i18n.t("chat:run_visual_diff.missing_target")}</EmptyState>} />
-    {artifact ? <div className="space-y-1"><div className="text-2xs font-semibold uppercase text-text-muted">{i18n.t("chat:run_visual_diff.comparison")}</div><ArtifactBody artifact={artifact} /></div> : null}
-  </>
+  return (
+    <>
+      <Row
+        label={i18n.t("chat:run_visual_diff.job")}
+        value={jobId ? <EntityReference id={jobId} kind="job" /> : <EmptyState>{i18n.t("chat:run_visual_diff.missing_target")}</EmptyState>}
+      />
+      {artifact ? (
+        <div className="space-y-1">
+          <div className="text-2xs font-semibold uppercase text-text-muted">{i18n.t("chat:run_visual_diff.comparison")}</div>
+          <ArtifactBody artifact={artifact} />
+        </div>
+      ) : null}
+    </>
+  )
 }
 
 function collapsedSummary(context: ToolCardContext) {
@@ -50,11 +60,31 @@ const pendingResult = { pending_confirmation_id: 502, pending_action_id: 502, st
 export const examples: ToolCardExample[] = [
   { id: "pending", label: "Pending visual diff confirmation", input: { job_id: 4222 }, parsedResult: pendingResult, sourceType: "generic" },
   {
-    id: "completed", label: "Completed before/after comparison", input: { job_id: 4222 }, parsedResult: pendingResult, sourceType: "generic",
+    id: "completed",
+    label: "Completed before/after comparison",
+    input: { job_id: 4222 },
+    parsedResult: pendingResult,
+    sourceType: "generic",
     livePendingAction: {
-      id: 502, action: "run_visual_diff", state: "confirmed", label: "Run visual diff for JOB-4222", detail: "Before/after visual comparison completed.", execution_status: "applied", execution_step: "Applied.",
-      outcome: { workflow_id: 61271, job_id: 4222, comparison: { type: "visual_diff_comparison", title: "Before/after visual comparison", renderer_type: "before_after_visual_diff", payload: { base_branch: "main", head_revision: "syrus/direct-4222", pairs: [] } } },
-      app_confirm_path: "/api/v1/app/chats/7/pending_actions/502/confirm", app_reject_path: "/api/v1/app/chats/7/pending_actions/502/reject"
+      id: 502,
+      action: "run_visual_diff",
+      state: "confirmed",
+      label: "Run visual diff for JOB-4222",
+      detail: "Before/after visual comparison completed.",
+      execution_status: "applied",
+      execution_step: "Applied.",
+      outcome: {
+        workflow_id: 61271,
+        job_id: 4222,
+        comparison: {
+          type: "visual_diff_comparison",
+          title: "Before/after visual comparison",
+          renderer_type: "before_after_visual_diff",
+          payload: { base_branch: "main", head_revision: "syrus/direct-4222", pairs: [] }
+        }
+      },
+      app_confirm_path: "/api/v1/app/chats/7/pending_actions/502/confirm",
+      app_reject_path: "/api/v1/app/chats/7/pending_actions/502/reject"
     }
   }
 ]
