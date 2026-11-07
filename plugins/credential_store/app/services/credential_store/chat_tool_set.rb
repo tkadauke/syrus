@@ -15,7 +15,7 @@ module CredentialStore
         definition = {
           name: klass.tool_name,
           description: klass.description_value,
-          input_schema: klass.input_schema_value.to_h,
+          input_schema: klass.input_schema_value.to_h
         }
         definition[:capability_descriptor] = klass.capability_descriptor_value if klass.respond_to?(:capability_descriptor_value)
         definition
