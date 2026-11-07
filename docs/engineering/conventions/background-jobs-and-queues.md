@@ -6,24 +6,26 @@ Use these rules when adding or changing asynchronous execution, queue placement,
   keyed on `job_id` so two Workflows on the same Job never overlap. (Was
   per-repo; changed because the shared WorkflowWorkspace path is per-Workflow-id,
   so the collision risk is within a Job, not across repos.)
-- **SolidQueue queues** — `runs` for heavy workflow RunJobs, including
-  implementation, response, graders, and main-branch graders; `merges`
-  for auto-merge, rebase, and stack-rebase workflow roots; `chat`
-  (dedicated low-concurrency worker) for ChatTurnJob and ChatWorkspaceJob;
-  `videos` (low-concurrency) for VideoWalkthroughAnalysisJob, whose
-  multi-minute Gemini uploads/polling would otherwise pin default threads;
-  `control_plane` (the `ApplicationJob` default) for schedulers, landing
-  admission, reconciliation, and retry dispatch; `polling` for the
-  per-repository/per-PR poll fan-out; `indexing` for search-index writes;
-  `cleanup` for pruning; `low_priority_maintenance` for enrichment;
-  `connectivity` for plugin daemon lifecycle. Splitting prevents long
-  RunJobs from starving landing, chat, the reaper, and UI broadcasts.
-  **`default` is NOT consumed by any worker** — nothing in `config/queue.yml`
-  lists it, so anything enqueued there is never claimed and accumulates
-  silently. `ApplicationJob` sets `queue_as :control_plane` so Syrus jobs are
-  safe, but framework jobs that subclass `ActiveJob::Base` directly (Active
-  Storage, Action Mailer) must be routed explicitly in `config/application.rb`.
-  `spec/config/queue_partitioning_spec.rb` guards both cases.
+- **Consumed queue resolution** — every job class must resolve to a queue that
+  a deployed worker consumes. Prefer an explicit `queue_as` when the class has
+  its own workload policy; deliberate inheritance from `ApplicationJob` is
+  valid when the application default is the intended policy. Review either
+  choice when changing the class. Queue names, consumers, and worker topology
+  are operational inventory: read `config/queue.yml`,
+  `config/queue.compute.yml`, `ApplicationJob`, and
+  `spec/config/queue_partitioning_spec.rb` instead of copying their current
+  membership or thread counts into durable guidance. Framework jobs that
+  subclass `ActiveJob::Base` directly must be routed in
+  `config/application.rb` because they do not inherit the application queue.
+- **Recurring work is registry-owned** — add recurring entries through
+  `config/recurring.yml` and the recurring-work loader, with an allowed
+  isolated queue. Treat the entries and their cadences as executable inventory,
+  not durable prose; do not copy the current list here.
+- **Substantial repairs use maintenance definitions** — durable backfills and
+  repair tasks belong in `MaintenanceTasks::Registry` with a stable definition,
+  checkpoints, bounded batches, concurrency identity, and explicit completion
+  behavior. Registry membership is executable inventory. See the database
+  convention for the plugin boundary and small-migration exception.
 - **Per-user scheduling pause** — `User#scheduling_paused` (boolean).
   `PollScheduledTasksJob` skips paused users entirely. Operator can toggle
   via admin UI; user can toggle in `/credentials/edit`.

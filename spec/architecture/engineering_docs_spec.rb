@@ -17,6 +17,7 @@ RSpec.describe "engineering documentation hierarchy" do
         domain-model-and-work-engine workflow-execution workspace-lifecycle
         scheduling-and-polling runtime-services-and-ui repository-content
         chat-and-sidecars plugins frontend system-reference runtime-reference
+        work-unit-path-ownership
       ],
       operations: %w[deployment production-debugging workflow-recovery deployed-reference],
       maps: %w[
@@ -145,6 +146,25 @@ RSpec.describe "engineering documentation hierarchy" do
       expect(legacy).to include(target)
       expect(legacy.lines.length).to be <= 12
     end
+  end
+
+  it "labels known historical sources and adapter-specific schema authority" do
+    expect(root.join("docs/job-state-audit.md").read).to include("Historical snapshot")
+    expect(root.join("docs/plans/complete/landing-merge-train.md").read)
+      .to include("feature toggle described by this historical\nplan was removed")
+    expect(root.join("db/schema.rb").read)
+      .to include("MySQL schema authority is the migration history")
+  end
+
+  it "keeps repaired contracts aligned with their current authority" do
+    runtime = engineering_root.join("architecture/runtime-reference.md").read
+    queues = engineering_root.join("conventions/background-jobs-and-queues.md").read
+    migrations = engineering_root.join("conventions/database-and-migrations.md").read
+
+    expect(runtime).not_to include("AppSetting.merge_train_enabled")
+    expect(queues).to include("deliberate inheritance from `ApplicationJob`")
+    expect(migrations).to include("Historical migrations can contain `add_foreign_key`")
+    expect(root.join("CLAUDE.md").read).to include("separate capability\ncontract")
   end
 
   def markdown_links(markdown)
