@@ -87,8 +87,7 @@ export function DashboardRoute() {
       const response = await fetchDashboardChromeWithMeta(chromeSearch, { signal })
       chromeMeta.current = response.meta
       return response.data
-    },
-    placeholderData: (previousData) => previousData
+    }
   })
   const dashboardRows = useQuery({
     queryKey: ["dashboard", "rows", search],
