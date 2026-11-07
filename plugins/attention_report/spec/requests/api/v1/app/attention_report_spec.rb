@@ -20,5 +20,9 @@ RSpec.describe "Attention Report API", type: :request do
     expect(response.parsed_body.dig("window", "days")).to eq(14)
     expect(response.parsed_body.dig("attention", "deciding", "figures", "human_created_jobs", "count")).to eq(1)
     expect(response.parsed_body.dig("metadata", "current_user_only")).to be(true)
+
+    etag = response.headers.fetch("ETag")
+    get "/api/v1/app/insights/attention", params: { window_days: 14 }, headers: { "If-None-Match" => etag }
+    expect(response).to have_http_status(:not_modified)
   end
 end

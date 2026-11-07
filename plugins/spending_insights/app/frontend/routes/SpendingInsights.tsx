@@ -310,16 +310,39 @@ function breakdownColumns({
       key: "label",
       header: entityLabel,
       className: "max-w-0",
-      render: (row) => (
-        <Link className="block truncate font-medium text-brand underline hover:no-underline dark:text-brand-emphasis" title={breakdownLabel(row)} to={withRoutePrefix(row.path, prefix)}>
-          {breakdownLabel(row)}
-        </Link>
-      ),
+      render: (row) =>
+        row.path ? (
+          <Link
+            className="block truncate font-medium text-brand underline hover:no-underline dark:text-brand-emphasis"
+            title={breakdownLabel(row)}
+            to={withRoutePrefix(row.path, prefix)}
+          >
+            {breakdownLabel(row)}
+          </Link>
+        ) : (
+          <span className="block truncate font-medium">{breakdownLabel(row)}</span>
+        ),
       sort: "label",
       sortValue: (row) => breakdownLabel(row)
     },
-    { key: "jobs", header: t("col_jobs"), align: "right", className: "tabular-nums text-gray-700 dark:text-gray-300", render: (row) => row.jobs_count, sort: "jobs_count", sortValue: (row) => row.jobs_count },
-    { key: "total", header: t("col_total"), align: "right", className: "tabular-nums font-medium text-gray-900 dark:text-gray-100", render: (row) => formatSpendingCurrency(row.total_usd), sort: "total_usd", sortValue: (row) => row.total_usd },
+    {
+      key: "jobs",
+      header: t("col_jobs"),
+      align: "right",
+      className: "tabular-nums text-gray-700 dark:text-gray-300",
+      render: (row) => row.jobs_count,
+      sort: "jobs_count",
+      sortValue: (row) => row.jobs_count
+    },
+    {
+      key: "total",
+      header: t("col_total"),
+      align: "right",
+      className: "tabular-nums font-medium text-gray-900 dark:text-gray-100",
+      render: (row) => formatSpendingCurrency(row.total_usd),
+      sort: "total_usd",
+      sortValue: (row) => row.total_usd
+    },
     {
       key: columns === "users" ? "last_30_days" : "average_job",
       header: columns === "users" ? t("col_last_30") : t("col_avg_job"),
@@ -327,21 +350,58 @@ function breakdownColumns({
       className: "tabular-nums text-gray-700 dark:text-gray-300",
       render: (row) => formatSpendingCurrency(columns === "users" ? row.last_30_days_usd || 0 : row.average_job_usd),
       sort: columns === "users" ? "last_30_days_usd" : "average_job_usd",
-      sortValue: (row) => columns === "users" ? row.last_30_days_usd || 0 : row.average_job_usd
+      sortValue: (row) => (columns === "users" ? row.last_30_days_usd || 0 : row.average_job_usd)
     }
   ]
 }
 
 function triggerColumns(t: ReturnType<typeof useT>["t"]): Array<AdminEventLogTableColumn<SpendingTriggerRow>> {
   return [
-    { key: "trigger", header: t("col_trigger"), className: "font-medium text-gray-900 dark:text-gray-100", render: (row) => humanize(row.trigger_kind), sort: "label", sortValue: (row) => humanize(row.trigger_kind) },
-    { key: "runs", header: t("col_runs"), align: "right", className: "tabular-nums text-gray-700 dark:text-gray-300", render: (row) => row.runs_count, sort: "runs_count", sortValue: (row) => row.runs_count },
-    { key: "total", header: t("col_total"), align: "right", className: "tabular-nums font-medium text-gray-900 dark:text-gray-100", render: (row) => formatSpendingCurrency(row.total_usd), sort: "total_usd", sortValue: (row) => row.total_usd },
-    { key: "average", header: t("col_avg_run"), align: "right", className: "tabular-nums text-gray-700 dark:text-gray-300", render: (row) => formatSpendingCurrency(row.average_usd), sort: "average_usd", sortValue: (row) => row.average_usd }
+    {
+      key: "trigger",
+      header: t("col_trigger"),
+      className: "font-medium text-gray-900 dark:text-gray-100",
+      render: (row) => humanize(row.trigger_kind),
+      sort: "label",
+      sortValue: (row) => humanize(row.trigger_kind)
+    },
+    {
+      key: "runs",
+      header: t("col_runs"),
+      align: "right",
+      className: "tabular-nums text-gray-700 dark:text-gray-300",
+      render: (row) => row.runs_count,
+      sort: "runs_count",
+      sortValue: (row) => row.runs_count
+    },
+    {
+      key: "total",
+      header: t("col_total"),
+      align: "right",
+      className: "tabular-nums font-medium text-gray-900 dark:text-gray-100",
+      render: (row) => formatSpendingCurrency(row.total_usd),
+      sort: "total_usd",
+      sortValue: (row) => row.total_usd
+    },
+    {
+      key: "average",
+      header: t("col_avg_run"),
+      align: "right",
+      className: "tabular-nums text-gray-700 dark:text-gray-300",
+      render: (row) => formatSpendingCurrency(row.average_usd),
+      sort: "average_usd",
+      sortValue: (row) => row.average_usd
+    }
   ]
 }
 
-function topRunColumns({ prefix, t }: { prefix: string; t: ReturnType<typeof useT>["t"] }): Array<AdminEventLogTableColumn<SpendingPayload["top_runs"][number]>> {
+function topRunColumns({
+  prefix,
+  t
+}: {
+  prefix: string
+  t: ReturnType<typeof useT>["t"]
+}): Array<AdminEventLogTableColumn<SpendingPayload["top_runs"][number]>> {
   return [
     {
       key: "run",
@@ -363,7 +423,11 @@ function topRunColumns({ prefix, t }: { prefix: string; t: ReturnType<typeof use
       className: "max-w-0",
       render: (run) => (
         <>
-          <Link className="block truncate text-brand underline hover:no-underline dark:text-brand-emphasis" title={run.job.title || `JOB-${run.job.id}`} to={withRoutePrefix(run.job.path, prefix)}>
+          <Link
+            className="block truncate text-brand underline hover:no-underline dark:text-brand-emphasis"
+            title={run.job.title || `JOB-${run.job.id}`}
+            to={withRoutePrefix(run.job.path, prefix)}
+          >
             {run.job.title || `JOB-${run.job.id}`}
           </Link>
           {run.epic ? (
@@ -381,14 +445,26 @@ function topRunColumns({ prefix, t }: { prefix: string; t: ReturnType<typeof use
       header: t("col_repository"),
       className: "max-w-0",
       render: (run) => (
-        <Link className="block truncate font-mono text-xs text-brand underline hover:no-underline dark:text-brand-emphasis" title={run.repository.slug} to={withRoutePrefix(run.repository.path, prefix)}>
+        <Link
+          className="block truncate font-mono text-xs text-brand underline hover:no-underline dark:text-brand-emphasis"
+          title={run.repository.slug}
+          to={withRoutePrefix(run.repository.path, prefix)}
+        >
           {run.repository.slug}
         </Link>
       ),
       sort: "repository",
       sortValue: (run) => run.repository.slug
     },
-    { key: "cost", header: t("col_cost"), align: "right", className: "tabular-nums font-medium text-gray-900 dark:text-gray-100", render: (run) => formatSpendingCurrency(run.cost_usd), sort: "cost_usd", sortValue: (run) => run.cost_usd }
+    {
+      key: "cost",
+      header: t("col_cost"),
+      align: "right",
+      className: "tabular-nums font-medium text-gray-900 dark:text-gray-100",
+      render: (run) => formatSpendingCurrency(run.cost_usd),
+      sort: "cost_usd",
+      sortValue: (run) => run.cost_usd
+    }
   ]
 }
 

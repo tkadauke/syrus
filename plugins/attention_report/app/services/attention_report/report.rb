@@ -2,6 +2,7 @@ module AttentionReport
   class Report
     DEFAULT_WINDOW_DAYS = 7
     MAX_WINDOW_DAYS = 90
+    JOB_ID_LIMIT = 100
     FEEDBACK_TRIGGER_KINDS = %w[chat_feedback pr_comment].freeze
     HUMAN_JOB_KINDS = %w[issue direct external_pr].freeze
     WASTED_WORKFLOW_TRIGGER_KINDS = %w[retry rebase stack_rebase ci_failure base_refresh_retry].freeze
@@ -101,23 +102,23 @@ module AttentionReport
 
     def wasted
       operator_transitions = StateTransition.where(user_id: @user.id, source: "operator", created_at: @from..@to)
-      reason_counts = operator_transitions.pluck(:metadata).map { |metadata| metadata.to_h["reason_key"] }.tally
+      reason_counts = operator_transitions.group(metadata_reason_sql).count
       rechecks = LANDING_RECHECK_REASON_KEYS.sum { |key| reason_counts.fetch(key, 0) }
       overrides = Job.where(
         landing_blocker_override_requested_by_user_id: @user.id,
         landing_blocker_override_requested_at: @from..@to
       )
       rerun_job_ids = human_wasted_workflow_job_ids(operator_transitions)
-      recheck_job_ids = job_ids_for_transitions(operator_transitions.select do |transition|
-        LANDING_RECHECK_REASON_KEYS.include?(transition.metadata.to_h["reason_key"])
-      end)
+      recheck_job_ids = job_ids_for_transitions(
+        operator_transitions.where("#{metadata_reason_sql} IN (?)", LANDING_RECHECK_REASON_KEYS)
+      )
       reapproval_job_ids = reapproval_after_unchanged_diff_job_ids
       {
         rules: {
-          human_retry_rebase_ci_repair_reruns: figure(rerun_job_ids.length, job_ids: rerun_job_ids.uniq),
-          landing_blocker_overrides: figure(overrides.count, estimate: false, job_ids: overrides.pluck(:id)),
+          human_retry_rebase_ci_repair_reruns: figure(rerun_job_ids.length, job_ids: capped_job_ids(rerun_job_ids)),
+          landing_blocker_overrides: figure(overrides.count, estimate: false, job_ids: overrides.limit(JOB_ID_LIMIT).pluck(:id)),
           landing_blocker_rechecks_and_wakes: figure(rechecks, job_ids: recheck_job_ids),
-          reapproval_after_base_change_unchanged_diff: figure(reapproval_job_ids.length, job_ids: reapproval_job_ids.uniq)
+          reapproval_after_base_change_unchanged_diff: figure(reapproval_job_ids.length, job_ids: capped_job_ids(reapproval_job_ids))
         },
         estimate: true
       }
@@ -135,8 +136,9 @@ module AttentionReport
     end
 
     def job_ids_for_transitions(transitions)
-      workflow_job_ids = Workflow.where(id: transitions.filter_map { |item| item.subject_id if item.subject_type == "Workflow" }).pluck(:job_id)
-      (workflow_job_ids + transitions.filter_map { |item| item.subject_id if item.subject_type == "Job" }).uniq
+      workflow_ids = transitions.where(subject_type: "Workflow").limit(JOB_ID_LIMIT).pluck(:subject_id)
+      workflow_job_ids = Workflow.where(id: workflow_ids).limit(JOB_ID_LIMIT).pluck(:job_id)
+      capped_job_ids(workflow_job_ids + transitions.where(subject_type: "Job").limit(JOB_ID_LIMIT).pluck(:subject_id))
     end
 
     def reapproval_after_unchanged_diff_job_ids
@@ -191,15 +193,13 @@ module AttentionReport
 
     def machine_time
       runs = Run.where(user_id: @user.id, created_at: @from..@to)
-      runtime_ms = runs.where.not(started_at: nil, finished_at: nil).sum do |run|
-        [ ((run.finished_at - run.started_at) * 1000).round, 0 ].max
-      end
-      queue_ms = runs.where.not(started_at: nil).sum do |run|
-        [ ((run.started_at - run.created_at) * 1000).round, 0 ].max
-      end
+      runtime_scope = runs.where.not(started_at: nil, finished_at: nil)
+      queue_scope = runs.where.not(started_at: nil)
+      runtime_ms = duration_sum(runtime_scope, :started_at, :finished_at)
+      queue_ms = duration_sum(queue_scope, :created_at, :started_at)
       {
-        agent_runtime: duration_figure(runtime_ms, runs.where.not(started_at: nil, finished_at: nil).count, estimate: false),
-        queue_wait: duration_figure(queue_ms, runs.where.not(started_at: nil).count, estimate: false),
+        agent_runtime: duration_figure(runtime_ms, runtime_scope.count, estimate: false),
+        queue_wait: duration_figure(queue_ms, queue_scope.count, estimate: false),
         included_in_attention: false
       }
     end
@@ -224,6 +224,26 @@ module AttentionReport
 
     def duration_figure(value_ms, sample_count, estimate:)
       { value_ms: value_ms, sample_count: sample_count, estimate: estimate }
+    end
+
+    def capped_job_ids(ids)
+      ids.uniq.first(JOB_ID_LIMIT)
+    end
+
+    def metadata_reason_sql
+      adapter = ActiveRecord::Base.connection.adapter_name.downcase
+      expression = adapter.include?("mysql") ? "JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.reason_key'))" : "json_extract(metadata, '$.reason_key')"
+      Arel.sql(expression)
+    end
+
+    def duration_sum(scope, from_column, to_column)
+      adapter = ActiveRecord::Base.connection.adapter_name.downcase
+      difference = if adapter.include?("mysql")
+        "TIMESTAMPDIFF(MICROSECOND, #{from_column}, #{to_column}) / 1000"
+      else
+        "ROUND((julianday(#{to_column}) - julianday(#{from_column})) * 86400000)"
+      end
+      scope.sum(Arel.sql("CASE WHEN #{difference} > 0 THEN #{difference} ELSE 0 END")).to_i
     end
   end
 end

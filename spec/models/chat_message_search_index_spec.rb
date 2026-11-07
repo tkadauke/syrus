@@ -34,6 +34,23 @@ RSpec.describe ChatMessageSearchIndex do
     expect(results.first[:snippet]).to include("<mark>deploy</mark>")
   end
 
+  it "pages matching candidates without requiring a session id array" do
+    messages = 3.times.map do |index|
+      ChatMessage.create!(
+        chat_session: session,
+        role: "user",
+        content: { "text" => "candidate needle #{index}" },
+        created_at: index.minutes.ago
+      ).tap { |message| described_class.insert(message) }
+    end
+
+    first_page = described_class.search_candidates("needle", limit: 2)
+    second_page = described_class.search_candidates("needle", limit: 2, offset: 2)
+
+    expect(first_page.length).to eq(2)
+    expect(second_page.map { |row| row.fetch(:chat_message_id) }).to eq([ messages.last.id ])
+  end
+
   it "indexes only readable text from canonical assistant content" do
     message = ChatMessage.create!(
       chat_session: session,

@@ -2573,7 +2573,9 @@ reporting window. Chat cost recorded before this ledger existed is not assigned
 to a guessed historical date. The
 dashboard shows week, month, lifetime, average Job, and average merged-PR
 totals, plus breakdowns by Epic, user, repository, trigger kind, a daily trend
-chart, and the most expensive individual Runs. When spending exists across
+chart, and the most expensive individual Runs. Epic, user, and repository
+breakdowns show the 25 highest-cost entries and combine the rest into an Other
+row. When spending exists across
 multiple agent providers, the dashboard can filter those views by model
 provider such as Claude Code or Codex.
 

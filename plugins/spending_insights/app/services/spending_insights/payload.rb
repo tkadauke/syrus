@@ -2,6 +2,7 @@ module SpendingInsights
   class Payload
     DEFAULT_WINDOW_DAYS = SpendingInsights::Filter::DEFAULT_WINDOW_DAYS
     TOP_RUN_LIMIT = 10
+    BREAKDOWN_LIMIT = 25
     TREND_LIMIT_DAYS = 370
 
     def initialize(user:, params: {})
@@ -215,6 +216,8 @@ module SpendingInsights
       rows = filtered_runs
              .joins(job: :epic)
              .group("epics.id", "epics.number", "epics.title")
+             .order(Arel.sql("SUM(runs.cost_usd) DESC"))
+             .limit(BREAKDOWN_LIMIT)
              .pluck(
                "epics.id",
                "epics.number",
@@ -223,7 +226,7 @@ module SpendingInsights
                Arel.sql("SUM(runs.cost_usd)")
              )
 
-      rows.map do |id, number, title, jobs_count, total|
+      result = rows.map do |id, number, title, jobs_count, total|
         breakdown_row(
           id: id,
           label: title,
@@ -232,13 +235,16 @@ module SpendingInsights
           total: total,
           extra: { display_number: App::Presentation.epic_slug(number) }
         )
-      end.sort_by { |row| -row[:total_usd] }
+      end
+      append_other_breakdown(result, filtered_runs.joins(job: :epic).where.not(epics: { id: result.pluck(:id) }))
     end
 
     def user_breakdown
       rows = filtered_runs
              .joins(:user, :job)
              .group("users.id", "users.email_address", "users.name")
+             .order(Arel.sql("SUM(runs.cost_usd) DESC"))
+             .limit(BREAKDOWN_LIMIT)
              .pluck(
                "users.id",
                "users.email_address",
@@ -248,7 +254,7 @@ module SpendingInsights
              )
       last_30_by_user = runs_in_window(30.days.ago.to_date, today).group(:user_id).sum(:cost_usd)
 
-      rows.map do |id, email, name, jobs_count, total|
+      result = rows.map do |id, email, name, jobs_count, total|
         breakdown_row(
           id: id,
           label: name.presence || email,
@@ -257,13 +263,19 @@ module SpendingInsights
           total: total,
           extra: { last_30_days_usd: decimal_to_float(last_30_by_user[id] || 0) }
         )
-      end.sort_by { |row| -row[:total_usd] }
+      end
+      remaining_user_ids = result.pluck(:id)
+      append_other_breakdown(result, filtered_runs.joins(:user, :job).where.not(user_id: remaining_user_ids), extra: {
+        last_30_days_usd: decimal_to_float(runs_in_window(30.days.ago.to_date, today).where.not(user_id: remaining_user_ids).sum(:cost_usd))
+      })
     end
 
     def repository_breakdown
       rows = filtered_runs
              .joins(job: :repository)
              .group("repositories.id", "repositories.owner", "repositories.name")
+             .order(Arel.sql("SUM(runs.cost_usd) DESC"))
+             .limit(BREAKDOWN_LIMIT)
              .pluck(
                "repositories.id",
                "repositories.owner",
@@ -272,7 +284,7 @@ module SpendingInsights
                Arel.sql("SUM(runs.cost_usd)")
              )
 
-      rows.map do |id, owner, name, jobs_count, total|
+      result = rows.map do |id, owner, name, jobs_count, total|
         breakdown_row(
           id: id,
           label: "#{owner}/#{name}",
@@ -280,7 +292,8 @@ module SpendingInsights
           jobs_count: jobs_count,
           total: total
         )
-      end.sort_by { |row| -row[:total_usd] }
+      end
+      append_other_breakdown(result, filtered_runs.joins(job: :repository).where.not(repositories: { id: result.pluck(:id) }))
     end
 
     def trigger_kind_breakdown
@@ -315,6 +328,16 @@ module SpendingInsights
         total_usd: total_float,
         average_job_usd: average(total_float, jobs_count)
       }.merge(extra)
+    end
+
+    def append_other_breakdown(rows, relation, extra: {})
+      total_jobs, total_cost = relation.pick(
+        Arel.sql("COUNT(DISTINCT jobs.id)"),
+        Arel.sql("COALESCE(SUM(runs.cost_usd), 0)")
+      )
+      return rows if total_jobs.to_i.zero?
+
+      rows + [ breakdown_row(id: "other", label: "Other", path: nil, jobs_count: total_jobs, total: total_cost, extra: extra) ]
     end
 
     def top_runs
