@@ -206,3 +206,12 @@ user zone; elapsed durations still compare UTC instants. Operational absolute
 times such as schedules and wakeups show one zoned value when the user and
 server zones match, or explicitly labeled user and server values when they
 differ. The underlying HTML `time` value remains an ISO-8601 instant.
+
+Interactive chat agents receive one captured instant rendered in UTC, the
+server zone, and the user's zone (with identical zones collapsed). Relative
+calendar language defaults to the user zone. Recurring schedules continue to
+use their stored zone, while newly created schedules default to the server
+zone unless the operator names another one. Ordinary workflow workers do not
+receive this interactive time context. User-facing spending date filters,
+daily buckets, coworker daily memory, and journaling boundaries use the user's
+zone; persisted instants and database sessions remain UTC.
