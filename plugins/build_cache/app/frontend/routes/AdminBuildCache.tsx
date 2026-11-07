@@ -297,7 +297,9 @@ function PendingRequestCard({ request, search }: { request: BuildCacheClearReque
       const updated = result.request ?? (result as unknown as AdminBuildCachePayload).recent_requests?.[0]
       if (!updated) return
       queryClient.setQueryData<AdminBuildCachePayload>([...QUERY_KEY, search], (current) =>
-        current ? { ...current, pending_request: null, recent_requests: [updated, ...current.recent_requests.filter((item) => item.id !== updated.id)] } : current
+        current
+          ? { ...current, pending_request: null, recent_requests: [updated, ...current.recent_requests.filter((item) => item.id !== updated.id)] }
+          : current
       )
       void queryClient.invalidateQueries({ queryKey: STATS_QUERY_KEY })
     }
@@ -308,7 +310,9 @@ function PendingRequestCard({ request, search }: { request: BuildCacheClearReque
       const updated = result.request ?? (result as unknown as AdminBuildCachePayload).recent_requests?.[0]
       if (!updated) return
       queryClient.setQueryData<AdminBuildCachePayload>([...QUERY_KEY, search], (current) =>
-        current ? { ...current, pending_request: null, recent_requests: [updated, ...current.recent_requests.filter((item) => item.id !== updated.id)] } : current
+        current
+          ? { ...current, pending_request: null, recent_requests: [updated, ...current.recent_requests.filter((item) => item.id !== updated.id)] }
+          : current
       )
     }
   })
