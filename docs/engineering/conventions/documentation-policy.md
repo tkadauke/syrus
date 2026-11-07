@@ -20,13 +20,17 @@ Use these rules to keep public, operator, plugin, and repository guidance in the
   generated from the manifest's `long_description` (no separate teaser file to
   drift), leading with the fact that it is disabled. Guarded by
   `spec/architecture/plugin_docs_live_in_plugins_spec.rb`.
-- **Feature documentation is mandatory.** When adding or changing any
-  operator-facing feature — configuration keys, feature flags, `AppSetting`
-  columns, new step kinds, new trigger kinds, or changes to existing behavior
-  — update the matching file under `config/syrus_docs/` in the same PR. New
-  features that have no existing doc file should create one following the
-  format in the existing files. PRs that add operator-facing behavior while
-  leaving the docs stale are incomplete, same as public website docs.
+- **Searchable harness documentation is audience-specific.** Chat and
+  implementation agents working on any project can search `config/syrus_docs/`.
+  Put only behavior needed to use Syrus there: configuration, operator settings
+  and feature flags, workflow and review behavior, MCP tool semantics,
+  agent-facing permissions, and user-visible features. Update the matching
+  file when that behavior changes. Do not add internal code, file, class, or
+  database details; telemetry or audit storage; internal data APIs; incident
+  history; service runbooks; or plugin-authoring guidance. Route those through
+  the owning section in the [engineering index](../README.md). Internal-only
+  changes such as response compression, payload shapes, caching, or polling do
+  not require searchable harness documentation.
 - **Website/docs audit.** If no website/docs update is needed, the PR body
   must say why so reviewers can audit the call. `AGENTS.md` is a symlink to
   `CLAUDE.md`; preserve that relationship and edit the shared guidance through
