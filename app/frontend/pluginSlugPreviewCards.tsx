@@ -1,4 +1,5 @@
 import { lazy, type ComponentType } from "react"
+import { loadPluginModule } from "./i18n"
 
 // Discovers plugin-supplied DOC-<id>-style slug hover/preview card
 // components. A plugin registers the slug prefix it owns (e.g. "DOC")
@@ -23,12 +24,12 @@ const slugPreviewCardModules = import.meta.glob<PluginModule>([ "../../plugins/*
 const componentLoaders = Object.fromEntries(
   Object.entries(slugPreviewCardModules)
     .map(([path, loader]) => {
-      const match = path.match(/^\.\.\/\.\.\/plugins\/[^/]+\/app\/frontend\/slugPreviewCards\/([A-Z0-9]+)\.[^/.]+\.tsx$/)
+      const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/slugPreviewCards\/([A-Z0-9]+)\.[^/.]+\.tsx$/)
       if (!match) return []
 
-      return [match[1], loader]
+      return [match[2], { plugin: match[1], loader }]
     })
-    .filter((entry): entry is [string, () => Promise<PluginModule>] => entry.length === 2)
+    .filter((entry): entry is [string, { plugin: string; loader: () => Promise<PluginModule> }] => entry.length === 2)
 )
 
 const componentCache = new Map<string, ComponentType<PluginSlugPreviewCardProps>>()
@@ -42,11 +43,11 @@ export function pluginSlugPreviewCardComponentForPrefix(prefix: string | null | 
   const cached = componentCache.get(prefix)
   if (cached) return cached
 
-  const loader = componentLoaders[prefix]
-  if (!loader) return null
+  const entry = componentLoaders[prefix]
+  if (!entry) return null
 
   const Component = lazy(async () => {
-    const mod = await loader()
+    const mod = await loadPluginModule(entry.plugin, entry.loader)
     if (!mod.default) throw new Error(`Plugin slug preview card for prefix ${prefix} has no default export`)
     return { default: mod.default }
   })

@@ -4,6 +4,7 @@ import { matchPath, useLocation } from "react-router-dom"
 import { fetchSidebarPluginPages } from "./api/sidebarPages"
 import { Notice, Page, PageHeading, Text } from "./components/ui"
 import { useT } from "./hooks/useT"
+import { loadPluginModule } from "./i18n"
 
 type PluginModule = {
   default?: ComponentType
@@ -33,7 +34,7 @@ export function pluginSidebarComponentFor(key: string | null | undefined) {
   if (!loader) return null
 
   const Component = lazy(async () => {
-    const mod = await loader()
+    const mod = await loadPluginModule(key.split("/", 1)[0], loader)
     if (!mod.default) throw new Error(`Plugin sidebar component ${key} has no default export`)
     return { default: mod.default }
   })

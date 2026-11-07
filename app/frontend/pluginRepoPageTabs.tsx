@@ -4,6 +4,7 @@ import { useLocation, useParams } from "react-router-dom"
 import { fetchRepoPluginTabs } from "./api/repoPluginTabs"
 import { Notice, Page, PageHeading, Text } from "./components/ui"
 import { useT } from "./hooks/useT"
+import { loadPluginModule } from "./i18n"
 
 type PluginModule = {
   default?: ComponentType
@@ -35,7 +36,7 @@ export function pluginRepoComponentFor(key: string | null | undefined) {
   if (!loader) return null
 
   const Component = lazy(async () => {
-    const mod = await loader()
+    const mod = await loadPluginModule(key.split("/", 1)[0], loader)
     if (!mod.default) throw new Error(`Plugin repo tab component ${key} has no default export`)
     return { default: mod.default }
   })

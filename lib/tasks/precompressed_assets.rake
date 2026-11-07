@@ -31,7 +31,7 @@ unless defined?(Syrus::ASSETS_PRECOMPILE_HOOK_REGISTERED)
       entry = Syrus::ViteEntrypoint.current
       raise Syrus::SpaBuildVerifier::BrokenReferences, "SPA entry #{entry} was not published to #{output_path}" unless output_path.join(entry).file?
 
-      Syrus::SpaBuildVerifier.new(output_path: output_path).call
+      Syrus::SpaBuildVerifier.new(output_path: output_path, manifest_path: Syrus::ViteEntrypoint::MANIFEST_PATH).call
     end
   end
 
