@@ -176,7 +176,6 @@ export type EpicDetailJob = {
   path: string
   state: string
   agent_provider?: string | null
-  provider_availability?: ProviderAvailability
   landed: boolean
   pr_number: number | null
   pr_url: string | null
@@ -219,6 +218,7 @@ export type EpicDetailPayload = {
   dependents: EpicDependencyRecord[]
   deployment_stages?: EpicDeploymentStage[]
   jobs: EpicDetailJob[]
+  provider_availability?: Record<string, ProviderAvailability>
   versions?: EpicVersionRecord[]
   paths: {
     dashboard_epics_path: string
@@ -232,6 +232,16 @@ export type EpicDetailPayload = {
     app_dependencies_path: string
     app_unland_path: string | null
   }
+}
+
+export type EpicMutationPayload = {
+  message: string
+  epic: Partial<EpicDetailRecord> & { id: number }
+}
+
+export type EpicPreviewPayload = {
+  epic: Pick<EpicDetailRecord, "id" | "display_number" | "title" | "description" | "state" | "landing" | "jobs_count" | "epic_path">
+  jobs: Array<Pick<EpicDetailJob, "id" | "title" | "state">>
 }
 
 export type EpicUnlandPlan = {
@@ -265,6 +275,14 @@ export function fetchEpicDetail(id: string, options: { signal?: AbortSignal } = 
   return getJson<EpicDetailPayload>(`/api/v1/app/epics/${id}`, options)
 }
 
+export function fetchEpicPreview(id: string, options: { signal?: AbortSignal } = {}) {
+  return getJson<EpicPreviewPayload>(`/api/v1/app/epics/${id}/preview`, options)
+}
+
+export function fetchEpicHistory(id: number, options: { signal?: AbortSignal } = {}) {
+  return getJson<{ versions: EpicVersionRecord[] }>(`/api/v1/app/epics/${id}/history`, options)
+}
+
 export function searchEpicOptions(query: string, options: { signal?: AbortSignal } = {}) {
   const params = new URLSearchParams({ field: "epic_id", q: query })
   return getJson<{ options?: EpicSearchOption[] }>(`/api/v1/app/filters/fk_options?${params}`, options).then((payload) => payload.options || [])
@@ -279,7 +297,7 @@ export function updateEpic(id: number, values: EpicInput) {
 }
 
 export function updateEpicState(path: string, targetState: string) {
-  return patchJson<EpicDetailPayload>(path, { target_state: targetState })
+  return patchJson<EpicMutationPayload>(path, { target_state: targetState })
 }
 
 // Move an Epic straight to In Progress (override so a freshly-confirmed Epic
@@ -291,19 +309,19 @@ export function startEpic(path: string) {
 // Explicit "Start implementing" action (POST /api/v1/app/epics/:id/start):
 // moves the Epic to In progress and dispatches its ready child Jobs.
 export function startEpicImplementing(path: string) {
-  return postJson<EpicDetailPayload>(path, {})
+  return postJson<EpicMutationPayload>(path, {})
 }
 
 export function archiveEpic(path: string) {
-  return patchJson<EpicDetailPayload>(path)
+  return patchJson<EpicMutationPayload>(path)
 }
 
 export function claimEpic(path: string) {
-  return patchJson<EpicDetailPayload>(path)
+  return patchJson<EpicMutationPayload>(path)
 }
 
 export function unclaimEpic(path: string) {
-  return patchJson<EpicDetailPayload>(path)
+  return patchJson<EpicMutationPayload>(path)
 }
 
 export function fetchEpicUnlandPlan(path: string) {
@@ -315,7 +333,7 @@ export function startEpicUnland(path: string) {
 }
 
 export function addEpicDependency(path: string, dependsOnEpicId: number) {
-  return postJson<EpicDetailPayload>(path, { depends_on_epic_id: dependsOnEpicId })
+  return postJson<EpicMutationPayload>(path, { depends_on_epic_id: dependsOnEpicId })
 }
 
 export type PickerEpicRecord = {
@@ -332,12 +350,12 @@ export type PickerEpicsPayload = {
 }
 
 export function fetchPickerEpics(params: { repo?: string; limit?: number } = {}) {
-  const searchParams = new URLSearchParams()
+  const searchParams = new URLSearchParams({ compact: "picker" })
   if (params.repo) searchParams.set("repo", params.repo)
   searchParams.set("limit", String(params.limit ?? 50))
   return getJson<PickerEpicsPayload>(`/api/v1/app/epics?${searchParams}`)
 }
 
 export function removeEpicDependency(path: string, dependsOnEpicId: number) {
-  return deleteJson<EpicDetailPayload>(`${path}/${dependsOnEpicId}`)
+  return deleteJson<EpicMutationPayload>(`${path}/${dependsOnEpicId}`)
 }

@@ -192,6 +192,36 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     expect(parse_body.to_s).not_to include("Private")
   end
 
+  it "returns a picker-only Epic list without loading child Jobs" do
+    epic = Factories.epic(user: user, repository: repository, title: "Pick me", state: "ready")
+    Factories.job_record(user: user, repository: repository, epic: epic)
+    sign_in_as(user)
+
+    queries = capture_sql { get "/api/v1/app/epics", params: { compact: "picker" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("epics")).to contain_exactly(
+      "id" => epic.id, "number" => epic.number, "title" => "Pick me",
+      "state" => "ready", "repository_slug" => "acme/widgets"
+    )
+    expect(queries.grep(/FROM [`\"]jobs[`\"]/i)).to be_empty
+  end
+
+  it "returns a bounded Epic hover preview without detail-only fields" do
+    epic = Factories.epic(user: user, repository: repository, title: "Preview me", description: "Small payload")
+    6.times { |index| Factories.job_record(user: user, repository: repository, epic: epic, issue_number: index + 1) }
+    sign_in_as(user)
+
+    get "/api/v1/app/epics/#{epic.id}/preview"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("epic", "title")).to eq("Preview me")
+    expect(parse_body.dig("epic", "jobs_count")).to eq(6)
+    expect(parse_body.fetch("jobs").size).to eq(5)
+    expect(parse_body.keys).to contain_exactly("epic", "jobs")
+    expect(parse_body).not_to include("graph", "versions", "dependencies", "state_transitions")
+  end
+
   it "returns the edit epic form payload" do
     sign_in_as(user)
     epic = Factories.epic(
@@ -307,22 +337,19 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     expect(body["dependents"]).to eq([])
     expect(body["jobs"]).to include(include(
       "id" => job.id,
-      "kind" => "issue",
       "slug" => job.slug,
       "label" => "#12",
       "title" => "Survey forum",
       "path" => job_path(job),
       "state" => "closed",
-      "repository_slug" => "acme/widgets",
-      "branch_name" => "syrus/issue-12-#{epic.id}",
-      "depends_on_job_ids" => []
+      "repository_slug" => "acme/widgets"
     ))
-    expect(body["jobs"]).to include(include(
-      "id" => dependent.id,
-      "branch_name" => dependent.branch_name.to_s,
-      "depends_on_job_ids" => [ job.id ]
-    ))
-    expect(body["versions"]).to contain_exactly(include(
+    expect(body["jobs"]).to include(include("id" => dependent.id))
+    expect(body["jobs"].first.keys).not_to include("kind", "branch_name", "job_provider_setting", "depends_on_job_ids", "goal_provenance")
+    expect(body).not_to have_key("versions")
+
+    get "/api/v1/app/epics/#{epic.id}/history"
+    expect(parse_body["versions"]).to contain_exactly(include(
       "actor" => include("id" => user.id, "email_address" => user.email_address),
       "title_before" => "Old forum",
       "title_after" => "Raise the forum",
@@ -461,9 +488,8 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     get "/api/v1/app/epics/#{epic.id}"
 
     expect(response).to have_http_status(:ok)
-    jobs = parse_body.fetch("jobs").index_by { |job| job.fetch("id") }
-    expect(jobs.fetch(first.id).fetch("provider_availability")).to eq(availability.stringify_keys)
-    expect(jobs.fetch(second.id).fetch("provider_availability")).to eq(availability.stringify_keys)
+    expect(parse_body.dig("provider_availability", "codex")).to eq(availability.stringify_keys)
+    expect(parse_body.fetch("jobs").map { |job| job["provider_availability"] }).to all(be_nil)
   end
 
   it "includes aggregate deployment_stages on the epic payload for a done epic with landed jobs" do
@@ -647,12 +673,8 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body).to include("message" => "Dependency added.")
-    expect(parse_body["dependencies"]).to contain_exactly(include(
-      "epic_id" => blocker.id,
-      "title" => "Chat FTS5 infrastructure",
-      "state" => "in_progress",
-      "url" => epic_path(blocker)
-    ))
+    expect(parse_body.keys).to contain_exactly("message", "epic")
+    expect(epic.reload.dependencies.pluck(:depends_on_epic_id)).to eq([ blocker.id ])
   end
 
   it "rejects Epic dependencies that would create a cycle" do
@@ -698,14 +720,14 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body).to include("message" => "Dependency removed.")
-    expect(parse_body["dependencies"]).to eq([])
+    expect(parse_body.keys).to contain_exactly("message", "epic")
 
     expect {
       delete "/api/v1/app/epics/#{epic.id}/dependencies/#{blocker.id}", as: :json
     }.not_to change(EpicDependency, :count)
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body["dependencies"]).to eq([])
+    expect(parse_body.keys).to contain_exactly("message", "epic")
   end
 
   it "claims and unclaims ready Epics through the app API" do
@@ -783,10 +805,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     expect(epic.reload.owner_user).to eq(user)
     expect(unowned_child.reload.owner_user).to eq(user)
     expect(owned_child.reload.owner_user).to eq(existing_owner)
-    expect(parse_body["jobs"]).to include(
-      include("id" => unowned_child.id, "owner_user_id" => user.id, "owner_user" => include("email_address" => user.email_address)),
-      include("id" => owned_child.id, "owner_user_id" => existing_owner.id, "owner_user" => include("email_address" => "already-owned@example.com"))
-    )
+    expect(parse_body.keys).to contain_exactly("message", "epic")
   end
 
   it "rejects claim races instead of overwriting the current owner" do
@@ -1166,10 +1185,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     expect(epic.reload.owner_user).to eq(user)
     expect(unowned_child.reload.owner_user).to eq(user)
     expect(owned_child.reload.owner_user).to eq(existing_owner)
-    expect(parse_body["jobs"]).to include(
-      include("id" => unowned_child.id, "owner_user_id" => user.id, "owner_user" => include("email_address" => user.email_address)),
-      include("id" => owned_child.id, "owner_user_id" => existing_owner.id, "owner_user" => include("email_address" => "already-owned@example.com"))
-    )
+    expect(parse_body.keys).to contain_exactly("message", "epic")
   end
 
   it "does not take over an already-owned Epic when moving it to in-progress" do

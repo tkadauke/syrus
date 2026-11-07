@@ -51,11 +51,12 @@ describe("EpicPreviewCard", () => {
   })
 
   it("renders display number, state badge, and title after load", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(epicPayload()))
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(epicPayload()))
     renderCard(7)
     await waitFor(() => expect(screen.getByText("Onboarding flow")).toBeInTheDocument())
     expect(screen.getByRole("button", { name: "Copy EPIC-7 to clipboard" })).toBeInTheDocument()
     expect(screen.getByText("in progress")).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/epics/7/preview", expect.anything())
   })
 
   it("shows landing as the apparent status when the epic is landing", async () => {
@@ -206,85 +207,11 @@ describe("EpicPreviewCard", () => {
     expect(screen.getByText("in progress")).toBeInTheDocument()
   })
 
-  it("renders aggregate deployment stage row for done epics with deployment_stages", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      ...epicPayload({ state: "done" }),
-      deployment_stages: [
-        { name: "staging", label: "On Staging", reached_count: 5, total: 5, reached_at: "2026-01-01T10:00:00Z" },
-        { name: "production", label: "In Production", reached_count: 3, total: 5, reached_at: "2026-01-02T10:00:00Z" }
-      ]
-    }))
-    renderCard(7)
-    await waitFor(() => expect(screen.getByTestId("epic-deployment-stage-pipeline")).toBeInTheDocument())
-    expect(screen.getByText("On Staging")).toBeInTheDocument()
-    expect(screen.getByText("In Production")).toBeInTheDocument()
-  })
-
-  it("shows fully-reached badge as checkmark when reached_count equals total", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      ...epicPayload({ state: "done" }),
-      deployment_stages: [
-        { name: "staging", label: "On Staging", reached_count: 5, total: 5, reached_at: "2026-01-01T10:00:00Z" }
-      ]
-    }))
-    renderCard(7)
-    await waitFor(() => expect(screen.getByTestId("epic-deployment-stage-pipeline")).toBeInTheDocument())
-    expect(screen.getByText("✓")).toBeInTheDocument()
-  })
-
-  it("shows a half-filled circle and the reached/total count when jobs disagree on a stage", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      ...epicPayload({ state: "done" }),
-      deployment_stages: [
-        { name: "production", label: "In Production", reached_count: 3, total: 5, reached_at: null }
-      ]
-    }))
-    renderCard(7)
-    await waitFor(() => expect(screen.getByTestId("epic-deployment-stage-pipeline")).toBeInTheDocument())
-    const pipeline = screen.getByTestId("epic-deployment-stage-pipeline")
-    const partialStage = pipeline.querySelector("li[data-state='partial']")
-    expect(partialStage).not.toBeNull()
-    expect(partialStage!.querySelector(".w-1\\/2")).not.toBeNull()
-    expect(screen.getByText("3/5 Jobs")).toBeInTheDocument()
-  })
-
-  it("shows an empty circle for a stage no landed job has reached", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      ...epicPayload({ state: "done" }),
-      deployment_stages: [
-        { name: "public", label: "Released to Public", reached_count: 0, total: 5, reached_at: null }
-      ]
-    }))
-    renderCard(7)
-    await waitFor(() => expect(screen.getByTestId("epic-deployment-stage-pipeline")).toBeInTheDocument())
-    const pipeline = screen.getByTestId("epic-deployment-stage-pipeline")
-    expect(pipeline.querySelector("li[data-state='pending']")).not.toBeNull()
-    expect(screen.getByText("Pending")).toBeInTheDocument()
-  })
-
   it("does not render deployment stage row when deployment_stages is absent", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(epicPayload()))
     renderCard(7)
     await waitFor(() => expect(screen.getByText("Onboarding flow")).toBeInTheDocument())
     expect(screen.queryByTestId("epic-deployment-stage-pipeline")).not.toBeInTheDocument()
-  })
-
-  it("renders aggregate deployment stage row after the title, not before the slug/badge row", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      ...epicPayload({ state: "done", title: "My epic" }),
-      deployment_stages: [
-        { name: "staging", label: "On Staging", reached_count: 5, total: 5, reached_at: "2026-01-01T10:00:00Z" }
-      ]
-    }))
-    renderCard(7)
-    await waitFor(() => expect(screen.getByTestId("epic-deployment-stage-pipeline")).toBeInTheDocument())
-    const cardRoot = screen.getByTestId("epic-deployment-stage-pipeline").closest(".shadow-lg")!
-    const children = Array.from(cardRoot.children)
-    const slugRow = children.findIndex((el) => el.querySelector("[aria-label='Copy EPIC-7 to clipboard']"))
-    const titleLink = children.findIndex((el) => el.matches("a") && el.textContent === "My epic")
-    const pipeline = children.findIndex((el) => el.querySelector("[data-testid='epic-deployment-stage-pipeline']"))
-    expect(slugRow).toBeLessThan(titleLink)
-    expect(titleLink).toBeLessThan(pipeline)
   })
 
   it("compact: does not render deployment stage row even when deployment_stages are present", async () => {

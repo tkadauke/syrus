@@ -7,13 +7,16 @@ module Api
         ]
 
         def index
-          epics = policy_scope(Epic).includes(:repository, :jobs).order(updated_at: :desc, id: :desc)
+          picker = params[:compact] == "picker"
+          epics = policy_scope(Epic).includes(:repository)
+          epics = epics.includes(:jobs) unless picker
+          epics = epics.order(updated_at: :desc, id: :desc)
           epics = filter_epics(epics)
           limit = params.fetch(:limit, 20).to_i.clamp(1, 100)
 
           render json: {
             count: epics.count,
-            epics: epics.limit(limit).map { |epic| compact_epic_json(epic) }
+            epics: epics.limit(limit).map { |epic| picker ? picker_epic_json(epic) : compact_epic_json(epic) }
           }
         end
 
@@ -25,7 +28,10 @@ module Api
             smart_folder: url_filter.active? ? nil : smart_folder,
             user: Current.user
           ).apply(policy_scope(Epic))
-          epic_attrs = scope.pluck(:id, :title, :state, :number)
+          limit = params.fetch(:limit, 200).to_i.clamp(1, 200)
+          offset = params.fetch(:offset, 0).to_i.clamp(0, 100_000)
+          total_count = scope.count
+          epic_attrs = scope.order(:id).limit(limit).offset(offset).pluck(:id, :title, :state, :number)
           epic_ids = epic_attrs.map(&:first)
 
           dependency_rows = EpicDependency
@@ -50,12 +56,37 @@ module Api
             { from_id: "epic_#{depends_on_epic_id}", to_id: "epic_#{epic_id}" }
           end
 
-          render json: { nodes: nodes, edges: edges }
+          render json: {
+            nodes: nodes,
+            edges: edges,
+            pagination: { limit: limit, offset: offset, total_count: total_count, has_more: offset + epic_attrs.size < total_count }
+          }
         end
 
         def show
           epic = find_epic
           render json: PerformanceLogging.phase("epic_detail_payload", epic_id: epic.id) { detail_payload(epic) }
+        end
+
+        def preview
+          epic = find_epic
+          jobs = visible_epic_jobs(epic).order(:id).limit(5).to_a
+          render json: {
+            epic: {
+              id: epic.id, display_number: epic.slug, title: epic.title.to_s,
+              description: epic.description.to_s, state: epic.state,
+              landing: epic.landing?, jobs_count: visible_epic_jobs(epic).count,
+              epic_path: epic_path(epic)
+            },
+            jobs: jobs.map { |job| preview_job_json(job) }
+          }
+        end
+
+        def history
+          epic = find_epic
+          render json: {
+            versions: epic.versions.includes(:user).order(created_at: :desc, id: :desc).map { |version| version_json(version) }
+          }
         end
 
         def new
@@ -111,7 +142,7 @@ module Api
             I18n.t("api.epics.archived")
           end
 
-          render json: detail_payload(epic.reload, message: message)
+          render json: mutation_payload(epic.reload, message: message)
         end
 
         def claim
@@ -125,7 +156,7 @@ module Api
             epic.claim_unowned_child_jobs!(Current.user)
           end
 
-          render json: detail_payload(epic.reload, message: I18n.t("api.epics.claimed"))
+          render json: mutation_payload(epic.reload, message: I18n.t("api.epics.claimed"))
         rescue ArgumentError => e
           render_error("claim_not_allowed", e.message, status: :unprocessable_content)
         end
@@ -144,7 +175,7 @@ module Api
             epic.unclaim!(claimant: Current.user, force: Current.user.admin? || epic.owner_id.blank?)
           end
 
-          render json: detail_payload(epic.reload, message: I18n.t("api.epics.unclaimed"))
+          render json: mutation_payload(epic.reload, message: I18n.t("api.epics.unclaimed"))
         rescue ArgumentError => e
           render_error("unclaim_not_allowed", e.message, status: :unprocessable_content)
         end
@@ -173,7 +204,7 @@ module Api
             epic.reassign_child_jobs_to_owner!(owner)
           end
 
-          render json: detail_payload(epic.reload, message: I18n.t("api.epics.reassigned"))
+          render json: mutation_payload(epic.reload, message: I18n.t("api.epics.reassigned"))
         rescue ActionController::ParameterMissing, ArgumentError => e
           render_error("reassign_not_allowed", e.message, status: :unprocessable_content)
         end
@@ -190,7 +221,7 @@ module Api
           end
           epic.reload.start_released_child_workflows_if_ready!
 
-          render json: detail_payload(epic.reload, message: I18n.t("api.epics.started"))
+          render json: mutation_payload(epic.reload, message: I18n.t("api.epics.started"))
         rescue Epic::NotStartable => e
           render_error("epic_not_startable", e.message, status: :conflict)
         end
@@ -204,7 +235,7 @@ module Api
           )
           epic.reload.start_released_child_workflows_if_ready! if params[:target_state].to_s == "in_progress"
 
-          render json: detail_payload(epic.reload, message: I18n.t("api.epics.updated"))
+          render json: mutation_payload(epic.reload, message: I18n.t("api.epics.updated"))
         rescue ArgumentError
           render_error("unknown_state", I18n.t("api.epics.unknown_state"), status: :unprocessable_content)
         rescue UnavailableTransition
@@ -241,7 +272,7 @@ module Api
           dependency = epic.dependencies.build(depends_on_epic: depends_on_epic)
 
           if dependency.save
-            render json: detail_payload(epic.reload, message: I18n.t("api.epics.dependency_added"))
+            render json: mutation_payload(epic.reload, message: I18n.t("api.epics.dependency_added"))
           else
             render_error("validation_failed", dependency.errors.full_messages.to_sentence, status: :unprocessable_content)
           end
@@ -251,7 +282,7 @@ module Api
           epic = find_epic
           epic.dependencies.where(depends_on_epic_id: params[:depends_on_epic_id]).destroy_all
 
-          render json: detail_payload(epic.reload, message: I18n.t("api.epics.dependency_removed"))
+          render json: mutation_payload(epic.reload, message: I18n.t("api.epics.dependency_removed"))
         end
 
         private
@@ -294,6 +325,14 @@ module Api
           }
         end
 
+        def picker_epic_json(epic)
+          { id: epic.id, number: epic.number, title: epic.title.to_s, state: epic.state, repository_slug: epic.repository.slug }
+        end
+
+        def preview_job_json(job)
+          { id: job.id, title: job.issue_title.to_s, state: job_summary_state(job) }
+        end
+
         class UnavailableTransition < StandardError; end
 
         def form_payload(epic)
@@ -314,7 +353,7 @@ module Api
                                  .to_a
             order_jobs_by_chain(unordered_jobs)
           end
-          preload_epic_job_provider_availability(jobs)
+          provider_availability = preload_epic_job_provider_availability(jobs)
           deployment_stages_plan = PerformanceLogging.phase("epic_detail.deployment_stages_plan", epic_id: epic.id) do
             RepoDeploymentStagesReader.for_repository(epic.repository)
           end
@@ -364,9 +403,7 @@ module Api
             jobs: PerformanceLogging.phase("epic_detail.jobs.serialize", epic_id: epic.id, count: jobs.size) do
               jobs.map { |job| job_json(job, deployment_stages_plan: deployment_stages_plan) }
             end,
-            versions: PerformanceLogging.phase("epic_detail.versions", epic_id: epic.id) do
-              epic.versions.includes(:user).order(created_at: :desc, id: :desc).map { |version| version_json(version) }
-            end,
+            provider_availability: provider_availability,
             paths: {
               dashboard_epics_path: dashboard_epics_path,
               edit_epic_path: edit_epic_path(epic),
@@ -386,6 +423,21 @@ module Api
           end
           payload[:deployment_stages] = aggregate_stages if aggregate_stages
           payload
+        end
+
+        def mutation_payload(epic, message:)
+          {
+            message: message,
+            epic: {
+              id: epic.id, state: epic.state, archived: epic.archived?,
+              startable: epic.may_start_implementing?(actor: Current.user), owner: owner_json(epic.owner),
+              owner_user_id: epic.owner_user_id, owner_status: owner_status(epic),
+              owner_user: owner_user_json(epic.owner_user),
+              owned_by_current_user: epic.owner_user_id == Current.user.id || epic.claimed_by?(Current.user),
+              claimable: epic.claimable?, claimed_at: epic.claimed_at&.iso8601,
+              updated_at: epic.updated_at&.iso8601
+            }
+          }
         end
 
         def visible_epic_jobs(epic)
@@ -567,24 +619,18 @@ module Api
 
           result = {
             id: job.id,
-            kind: job.kind,
             slug: job.slug,
             label: label,
             title: job.issue_title.to_s,
             path: job_path(job),
             state: job_summary_state(job),
             agent_provider: job.workflow_agent_provider,
-            job_provider_setting: job.job_provider_setting,
-            provider_availability: provider_availability_for_job(job),
             landed: job.landed_sha.present?,
             pr_number: job.pr_number,
             pr_url: ::App::Presentation.job_pr_url(job),
             owner_user_id: job.owner_user_id,
             owner_user: owner_user_json(job.owner_user),
-            repository_slug: job.repository.slug,
-            branch_name: job.branch_name.to_s,
-            goal_provenance: ::App::GoalProvenancePayload.for(job),
-            depends_on_job_ids: job.dependencies.filter_map(&:depends_on_job_id)
+            repository_slug: job.repository.slug
           }
           stages = ::App::DeploymentStagesPayload.for_job(job, plan: deployment_stages_plan)
           stages ? result.merge(deployment_stages: stages) : result
@@ -596,14 +642,6 @@ module Api
               ::App::ProviderAvailability.for_user(Current.user, provider)
             end
           end
-        end
-
-        def provider_availability_for_job(job)
-          availability_by_provider = @epic_job_provider_availability_by_provider
-          provider = job.workflow_agent_provider
-          return availability_by_provider[provider] if availability_by_provider&.key?(provider)
-
-          ::App::ProviderAvailability.for_user(Current.user, provider)
         end
 
         def repository_json(repository)

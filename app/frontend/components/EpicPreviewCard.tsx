@@ -1,13 +1,12 @@
 import { forwardRef, type KeyboardEvent, type ReactNode } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Link } from "react-router-dom"
-import type { EpicDetailJob } from "../api/epics"
-import { fetchEpicDetail } from "../api/epics"
+import type { EpicPreviewPayload } from "../api/epics"
+import { fetchEpicPreview } from "../api/epics"
 import { useT } from "../hooks/useT"
 import { renderLightMarkdown } from "../lib/Markdown"
 import { Card, Skeleton } from "./Card"
 import { CopyableSlug } from "./CopyableSlug"
-import { EpicDeploymentStagePipeline } from "./DeploymentStagePipeline"
 import { StatusPill } from "./StatusPill"
 
 const PROGRESS_SEGMENTS = [
@@ -41,8 +40,8 @@ export function EpicPreviewCard({ id, compact = false, slug }: { id: number; com
   const { t } = useT("epics")
   const epicRef = slug ?? String(id)
   const { data, isPending } = useQuery({
-    queryKey: ["epics", epicRef],
-    queryFn: ({ signal }) => fetchEpicDetail(epicRef, { signal }),
+    queryKey: ["epics", epicRef, "preview"],
+    queryFn: ({ signal }) => fetchEpicPreview(epicRef, { signal }),
     staleTime: 30_000,
   })
 
@@ -66,9 +65,6 @@ export function EpicPreviewCard({ id, compact = false, slug }: { id: number; com
       <Link className={`mb-2 block text-sm font-medium text-gray-900 hover:underline dark:text-gray-100 ${compact ? "line-clamp-1" : "line-clamp-2"}`} to={epicPath}>
         {epic.title}
       </Link>
-      {!compact && data.deployment_stages?.length ? (
-        <EpicDeploymentStagePipeline stages={data.deployment_stages} />
-      ) : null}
       {!compact && totalCount > 0 && (
         <div
           aria-label={t("job_progress_label")}
@@ -91,7 +87,7 @@ export function EpicPreviewCard({ id, compact = false, slug }: { id: number; com
       )}
       {!compact && previewJobs.length > 0 && (
         <ul className="mb-3 space-y-1">
-          {previewJobs.map((job: EpicDetailJob) => (
+          {previewJobs.map((job: EpicPreviewPayload["jobs"][number]) => (
             <li key={job.id}>
               <Link
                 className="flex min-w-0 items-center gap-2 rounded text-xs text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
