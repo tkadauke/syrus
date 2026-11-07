@@ -5,8 +5,8 @@
 # exactly one RetentionArchive row for the batch before the caller proceeds
 # with its matching delete. No-ops (never touches RetentionArchive or Active
 # Storage) when the setting is off, matching the previous delete-only behavior
-# exactly — see config/syrus_docs/app_settings.md's "Archive-before-delete
-# storage" section.
+# exactly — see docs/engineering/operations/data-retention.md's
+# "Archive-before-delete storage" section.
 class RetentionArchiver
   DEFAULT_BATCH_SIZE = 1000
 

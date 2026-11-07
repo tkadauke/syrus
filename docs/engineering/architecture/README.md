@@ -10,6 +10,14 @@ system-wide overview and routes here for detail.
   landing, and reconciler launch ownership contract.
 - [Workflow execution](workflow-execution.md) — triggers, step chains,
   dispatch, providers, graders, and landing.
+- [Workflow-step internals](workflow-steps.md) — placement, failure reporting,
+  recovery, audit events, and grader command telemetry.
+- [App-setting internals](app-settings.md) — diagnostic state, prepared-layer
+  caching, and resource-admission mechanics.
+- [Feature flags](feature-flags.md) — internal rollout, instrumentation, and
+  confinement flags.
+- [MCP tool usage](mcp-tool-usage.md) — usage recording, admin diagnostics,
+  startup timing, retention, and dispatch attribution.
 - [Scheduling and polling](scheduling-and-polling.md) — recurring entry points,
   ingestion, scheduled work, external PRs, and stale-run repair.
 - [Runtime services and UI](runtime-services-and-ui.md) — service boundaries,
