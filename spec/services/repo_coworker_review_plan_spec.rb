@@ -56,7 +56,7 @@ RSpec.describe RepoCoworkerReviewPlan do
     YAML
 
     expect(result).to have_attributes(
-      enabled?: false, rounds: 0, note: "coworker_review provider is unavailable"
+      enabled?: false, rounds: 0, note: "no coworker_review configured"
     )
   end
 end
