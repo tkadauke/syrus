@@ -810,7 +810,7 @@ func TestWhoamiPrintsJSON(t *testing.T) {
 	}
 
 	var decoded struct {
-		Email string `json:"email"`
+		Email    string `json:"email"`
 		Instance string `json:"instance"`
 	}
 	if err := json.Unmarshal(output.Bytes(), &decoded); err != nil {
