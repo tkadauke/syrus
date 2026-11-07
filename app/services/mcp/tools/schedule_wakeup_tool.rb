@@ -50,8 +50,8 @@ module Mcp::Tools
 
         Mcp::Tools.success(
           wakeup_id: wakeup.id,
-          fire_at: wakeup.fire_at.iso8601,
-          message: "Wakeup scheduled for #{wakeup.fire_at.iso8601}"
+          fire_at: wakeup.fire_at.utc.iso8601,
+          message: "Wakeup scheduled for #{wakeup.fire_at.utc.iso8601}"
         )
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
