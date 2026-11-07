@@ -158,10 +158,15 @@ RSpec.describe "engineering documentation hierarchy" do
 
   it "keeps repaired contracts aligned with their current authority" do
     runtime = engineering_root.join("architecture/runtime-reference.md").read
+    workspace = engineering_root.join("architecture/workspace-lifecycle.md").read
     queues = engineering_root.join("conventions/background-jobs-and-queues.md").read
     migrations = engineering_root.join("conventions/database-and-migrations.md").read
 
     expect(runtime).not_to include("AppSetting.merge_train_enabled")
+    expect(workspace).to include("OS-only placement requirement")
+    expect(workspace).to include("separate capability contract")
+    expect(workspace).to include("Do not put grader-target capability dimensions")
+    expect(workspace).not_to include("Supported capability dimensions are `os`, `arch`")
     expect(queues).to include("deliberate inheritance from `ApplicationJob`")
     expect(migrations).to include("Historical migrations can contain `add_foreign_key`")
     expect(root.join("CLAUDE.md").read).to include("separate capability\ncontract")
