@@ -160,7 +160,11 @@ schema migration; explicitly recovering one associates its original message
 when possible, or backfills the actual outcome without waking the agent again.
 Chat payload reads do not create messages or enqueue turns. Once a confirmed,
 rejected, or cancelled action has its durable outcome message, its card retires
-from the stream automatically and stays retired after reload. Failed actions
+from the composer-adjacent pending-action carousel automatically and stays
+retired after reload. The carousel shows one standalone action or action group
+at a time, keeps its selection by record identity across live updates, and
+offers arrow, keyboard, and horizontal-swipe navigation. Job and Epic proposal
+cards remain inline with their originating assistant messages. Failed actions
 remain visible for operator attention until explicitly hidden. Manual hiding
 only stamps the presentation dismissal time; it does not change the terminal
 state, audit fields, result, or outcome message. Queued and pending actions
@@ -180,11 +184,9 @@ endpoint remains available to hide a resolved card already present in a stale
 client without reusing reject semantics. A member of a group never renders its own standalone pending-action
 card — `pending_actions_json` filters out any
 `ChatPendingAction` with a `pending_action_group_id` — and the group card
-itself anchors to the chat message that created it the same way an individual
-pending action does. The stream builder also falls back to member anchors, so
-a grouped card still renders immediately below the collapsed tool group that
-created it when a member has the usable tool-call anchor; only groups with no
-renderable anchor append at the end of the stream.
+itself occupies one item in the same bottom carousel as an individual pending
+action. Message and tool-call identifiers remain execution context, not card
+placement instructions.
 
 Confirming applies every still-pending member independently, in its own
 transaction, so one member failing (e.g. a Job that no longer meets the

@@ -31,29 +31,30 @@ export function mergeMessageTail(current: ChatMessageItem[], next: ChatMessageIt
   if (next.length === 0) return next
 
   const minNextId = Math.min(...next.map((message) => message.id))
-  return mergeChatMessages(current.filter((message) => message.id < minNextId), next)
+  return mergeChatMessages(
+    current.filter((message) => message.id < minNextId),
+    next
+  )
 }
 
 export function renderItemKey(item: ChatStreamItem) {
   if (item.type === "timestamp") return `timestamp-${item.fullDatetime}`
   if (item.type === "day_divider") return `day-divider-${item.date}`
-  if (item.type === "pending_action") return `pending-action-${item.pendingAction.id}`
-  if (item.type === "pending_action_group") return `pending-action-group-${item.pendingActionGroup.id}`
   if (item.type === "message") return `message-${item.id}`
 
   return `tool-${item.calls[0]?.message_id ?? item.tool}`
 }
 
 export function chatStreamItemsSignature(items: ChatStreamItem[]) {
-  return items.map((item) => {
-    if (item.type === "timestamp") return `${renderItemKey(item)}:${item.time}`
-    if (item.type === "day_divider") return `${renderItemKey(item)}:${item.label}`
-    if (item.type === "pending_action") return `${renderItemKey(item)}:${item.pendingAction.state}:${item.pendingAction.label.length}:${item.pendingAction.detail?.length || 0}`
-    if (item.type === "pending_action_group") return `${renderItemKey(item)}:${item.pendingActionGroup.state}:${item.pendingActionGroup.members.map((member) => member.state).join(",")}`
-    if (item.type === "message") return `${renderItemKey(item)}:${item.text.length}`
+  return items
+    .map((item) => {
+      if (item.type === "timestamp") return `${renderItemKey(item)}:${item.time}`
+      if (item.type === "day_divider") return `${renderItemKey(item)}:${item.label}`
+      if (item.type === "message") return `${renderItemKey(item)}:${item.text.length}`
 
-    return `${renderItemKey(item)}:${item.calls.map((call) => `${call.message_id}:${call.result_body.length}`).join(",")}`
-  }).join("|")
+      return `${renderItemKey(item)}:${item.calls.map((call) => `${call.message_id}:${call.result_body.length}`).join(",")}`
+    })
+    .join("|")
 }
 
 export function oldestMessageId(messages: ChatMessageItem[]) {
@@ -72,5 +73,5 @@ export function maxMessageId(messages: ChatMessageItem[]) {
 // keeps outside that cache — this helper is applied to both so an
 // accept/reject reaches a card regardless of scroll position.
 export function replaceProposalInMessages(messages: ChatMessageItem[], proposal: ChatProposal) {
-  return messages.map((message) => message.proposal?.id === proposal.id ? { ...message, proposal } : message)
+  return messages.map((message) => (message.proposal?.id === proposal.id ? { ...message, proposal } : message))
 }

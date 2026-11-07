@@ -1,20 +1,12 @@
 // Message-stream builder helpers extracted from Chat.tsx.
 //
-// Turn the raw message list + pending actions into the ordered render stream:
-// build the item list, inject timestamp/day-divider markers, transform a
+// Turn the raw message list into the ordered render stream: inject
+// timestamp/day-divider markers, transform a
 // single message into its render item (delegating tool/system messages to the
 // systemMessages parsers), and the small grouping/anchor predicates. Pure over
 // the shared utils, systemMessages, and chat types; imported back by the
 // MessageStream components.
-import type {
-  ChatMessageItem,
-  ChatPendingAction,
-  ChatPendingActionGroup,
-  ChatPendingActionInline,
-  ChatRenderItem,
-  ChatToolGroupCall,
-  ChatToolGroupItem
-} from "../../api/chats"
+import type { ChatMessageItem, ChatRenderItem, ChatToolGroupCall, ChatToolGroupItem } from "../../api/chats"
 import type { ChatStreamItem } from "./streamTypes"
 import { contentInput, contentRecord, dayDividerLabel, sameLocalDay } from "./utils"
 import { structuredTool, systemMessage } from "./systemMessages"
@@ -430,72 +422,6 @@ export function lastAssistantRenderedMessage(messages: ChatMessageItem[]) {
   return null
 }
 
-export function buildMessageStreamItems(
-  items: ChatRenderItem[],
-  pendingActions: ChatPendingAction[],
-  pendingActionGroups: ChatPendingActionGroup[] = []
-): ChatStreamItem[] {
-  if (pendingActions.length === 0 && pendingActionGroups.length === 0) return items
-
-  const anchoredByMessageId = new Map<number, ChatStreamItem[]>()
-  const unanchoredItems: ChatStreamItem[] = []
-  const renderedMessageIds = new Set<number>()
-  const renderedAnchoredItems = new Set<ChatStreamItem>()
-  const result: ChatStreamItem[] = []
-
-  const anchor = (messageId: number | null | undefined, streamItem: ChatStreamItem) => {
-    if (messageId == null) {
-      unanchoredItems.push(streamItem)
-      return
-    }
-
-    const bucket = anchoredByMessageId.get(messageId) || []
-    bucket.push(streamItem)
-    anchoredByMessageId.set(messageId, bucket)
-  }
-
-  for (const action of pendingActions) anchor(action.chat_message_id, { type: "pending_action", pendingAction: action })
-  for (const group of pendingActionGroups) {
-    const streamItem: ChatStreamItem = { type: "pending_action_group", pendingActionGroup: group }
-    const anchorIds = [group.chat_message_id, ...group.members.map((member) => member.chat_message_id)].filter((id): id is number => id != null)
-    const uniqueAnchorIds = Array.from(new Set(anchorIds))
-    if (uniqueAnchorIds.length === 0) {
-      unanchoredItems.push(streamItem)
-    } else {
-      for (const messageId of uniqueAnchorIds) anchor(messageId, streamItem)
-    }
-  }
-
-  for (const item of items) {
-    result.push(item)
-
-    const messageIds = streamItemMessageIds(item)
-    for (const messageId of messageIds) {
-      renderedMessageIds.add(messageId)
-      for (const anchoredItem of anchoredByMessageId.get(messageId) || []) {
-        if (renderedAnchoredItems.has(anchoredItem)) continue
-
-        renderedAnchoredItems.add(anchoredItem)
-        result.push(anchoredItem)
-      }
-    }
-  }
-
-  for (const [messageId, anchoredItems] of anchoredByMessageId) {
-    if (renderedMessageIds.has(messageId)) continue
-    for (const anchoredItem of anchoredItems) {
-      if (renderedAnchoredItems.has(anchoredItem)) continue
-
-      renderedAnchoredItems.add(anchoredItem)
-      unanchoredItems.push(anchoredItem)
-    }
-  }
-
-  result.push(...unanchoredItems)
-
-  return result
-}
-
 export function injectTemporalMarkers(items: ChatStreamItem[]): ChatStreamItem[] {
   const result: ChatStreamItem[] = []
   let lastMessageDate: Date | null = null
@@ -532,38 +458,6 @@ export function injectTemporalMarkers(items: ChatStreamItem[]): ChatStreamItem[]
 
 export function temporalAnchorRole(role: ChatMessageItem["role"]) {
   return role === "user" || role === "assistant"
-}
-
-export function streamItemMessageIds(item: ChatRenderItem) {
-  if (item.type === "message") return [item.id]
-  return item.calls.map((call) => call.message_id)
-}
-
-export function pendingActionCardData(action: ChatPendingAction): ChatPendingActionInline {
-  return {
-    id: action.id,
-    action: action.action || action.action_type,
-    state: action.state,
-    label: action.label,
-    detail: action.detail,
-    execution_status: action.execution_status,
-    execution_step: action.execution_step,
-    execution_error: action.execution_error,
-    reason: action.reason,
-    before_snapshot: action.before_snapshot,
-    after_snapshot: action.after_snapshot,
-    outcome: action.outcome,
-    review: action.review,
-    request_kind: action.request_kind,
-    authorization_items: action.authorization_items,
-    authorization_presentation: action.authorization_presentation,
-    resource_title: action.resource_title,
-    resource_url: action.resource_url,
-    document: action.document,
-    app_confirm_path: action.app_confirm_path,
-    app_reject_path: action.app_reject_path,
-    app_cancel_path: action.app_cancel_path
-  }
 }
 
 export function renderMessage(message: ChatMessageItem): ChatRenderItem | null {

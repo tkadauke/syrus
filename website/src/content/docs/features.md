@@ -454,7 +454,11 @@ the command and its output post to the chat and the agent takes a turn to
 look at the result.
 
 The handoff tools create a pending action that the operator must confirm before
-Syrus dispatches any automation. `reset_workspace` runs immediately, but only
+Syrus dispatches any automation. Chat collects pending actions and permission
+requests in a carousel immediately above the composer, showing one standalone
+action or grouped action at a time with arrow and swipe navigation. Job and
+Epic proposals stay beside the assistant message that proposed them.
+`reset_workspace` runs immediately, but only
 performs destructive cleanup when the call explicitly confirms discard.
 When a pending action finishes, Syrus immediately records its confirmed,
 failed, rejected, or cancelled outcome in chat. Confirmed, rejected, and
