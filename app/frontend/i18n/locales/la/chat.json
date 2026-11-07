@@ -1658,6 +1658,7 @@
   "snapshot_element_limit_error": "Hoc snapshot onerare limitem {{count}} elementorum excederet.",
   "snapshot_before_load": "Ante onerationem · {{date}}",
   "snapshot_whiteboard_changed": "Whiteboard ante onerationem snapshot mutatum est. Iterum tenta.",
+  "canvas_clear_conflict": "Whiteboard dum deleatur mutatum est. Iterum tenta.",
   "image_attachment": "Imago adiuncta",
   "attachment_size_error": "Quodque adiunctum 5 MB aut minus esse debet.",
   "attachments_total_size_error": "Adiuncta simul 20 MB aut minus esse debent.",
