@@ -3,7 +3,7 @@ class ChatScratchpadItem < ApplicationRecord
   has_many :chat_file_attachments, as: :attachable, dependent: :nullify
 
   after_commit :broadcast_chat_controls
-  after_commit -> { ChatFileAttachment.claim_for(self) }
+  after_commit -> { ChatFileAttachment.claim_for(self) }, on: %i[create update], if: :saved_change_to_content?
 
   validates :content, presence: true
   validate :draft_content_is_present
