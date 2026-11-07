@@ -539,6 +539,42 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(doc.current_version.markdown).to eq("v1")
   end
 
+  [ "", "marker-only" ].each do |candidate_kind|
+    it "rejects a #{candidate_kind.presence || 'blank'} canonical autosave without changing content, anchors, or versions" do
+      doc = create_design_doc(markdown: "Alpha beta gamma")
+      suggestion = ::DesignDocs::CreateSuggestion.call(
+        design_doc: doc,
+        user: owner,
+        attributes: { start_offset: 6, end_offset: 10, original_markdown: "beta", proposed_markdown: "bravo" }
+      ).suggestion
+      candidate = if candidate_kind == "marker-only"
+        DesignDocs::AnchorMarkers.range_start_marker(suggestion.anchor.marker_id) +
+          DesignDocs::AnchorMarkers.range_end_marker(suggestion.anchor.marker_id)
+      else
+        ""
+      end
+      before = {
+        markdown: doc.reload.markdown,
+        current_version_id: doc.current_version_id,
+        versions: doc.versions.count,
+        suggestion: suggestion.reload.attributes,
+        anchor: suggestion.anchor.reload.attributes
+      }
+      sign_in_as(owner)
+
+      patch "/api/v1/app/design_docs/#{doc.id}", params: { design_doc: { markdown: candidate, checkpoint: true } }
+
+      expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.dig("error", "code")).to eq("validation_failed")
+      expect(parse_body.dig("error", "message")).to include("visible body can't be blank")
+      expect(doc.reload.markdown).to eq(before[:markdown])
+      expect(doc.current_version_id).to eq(before[:current_version_id])
+      expect(doc.versions.count).to eq(before[:versions])
+      expect(suggestion.reload.attributes).to eq(before[:suggestion])
+      expect(suggestion.anchor.reload.attributes).to eq(before[:anchor])
+    end
+  end
+
   it "lets owners archive a design doc without deleting its records" do
     doc = create_design_doc(markdown: "Alpha beta")
     comment = ::DesignDocs::CreateComment.call(
@@ -1318,6 +1354,37 @@ RSpec.describe "API: /api/v1/app/design_docs", type: :request do
     expect(DesignDocs::AnchorMarkers.strip(doc.reload.markdown)).to eq("Hello Syrus")
     expect(doc.markdown).not_to include(suggestion.anchor.marker_id)
     expect(suggestion.anchor.reload.status).to eq("stale")
+  end
+
+  it "returns an actionable conflict without side effects when reviewing a marker-only canonical body" do
+    doc = create_design_doc(markdown: "Hello world")
+    doc.collaborators.create!(user: collaborator, role: "editor", added_by_user: owner)
+    suggestion = ::DesignDocs::CreateSuggestion.call(
+      design_doc: doc,
+      user: collaborator,
+      attributes: { start_offset: 6, end_offset: 11, original_markdown: "world", proposed_markdown: "Syrus" }
+    ).suggestion
+    marker_only = DesignDocs::AnchorMarkers.range_start_marker(suggestion.anchor.marker_id) +
+      DesignDocs::AnchorMarkers.range_end_marker(suggestion.anchor.marker_id)
+    doc.update_column(:markdown, marker_only)
+    before = {
+      current_version_id: doc.current_version_id,
+      versions: doc.versions.count,
+      suggestion: suggestion.reload.attributes,
+      anchor: suggestion.anchor.reload.attributes
+    }
+    sign_in_as(owner)
+
+    post "/api/v1/app/design_docs/#{doc.id}/suggestions/#{suggestion.id}/accept"
+
+    expect(response).to have_http_status(:conflict)
+    expect(parse_body.dig("error", "code")).to eq("blank_canonical_body")
+    expect(parse_body.dig("error", "message")).to include("Restore nonblank content")
+    expect(doc.reload.markdown).to eq(marker_only)
+    expect(doc.current_version_id).to eq(before[:current_version_id])
+    expect(doc.versions.count).to eq(before[:versions])
+    expect(suggestion.reload.attributes).to eq(before[:suggestion])
+    expect(suggestion.anchor.reload.attributes).to eq(before[:anchor])
   end
 
   it "classifies block-level heading suggestions and accepts them once into canonical markdown" do

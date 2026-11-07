@@ -11,6 +11,65 @@ RSpec.describe DesignDocs::ReviewSuggestion do
     doc
   end
 
+  it "atomically refuses to review a suggestion when canonical markdown is marker-only" do
+    suggestion = DesignDocs::CreateSuggestion.call(
+      design_doc: doc,
+      user: collaborator,
+      attributes: { start_offset: 6, end_offset: 10, original_markdown: "beta", proposed_markdown: "bravo" }
+    ).suggestion
+    marker_only = DesignDocs::AnchorMarkers.range_start_marker(suggestion.anchor.marker_id) +
+      DesignDocs::AnchorMarkers.range_end_marker(suggestion.anchor.marker_id)
+    doc.update_column(:markdown, marker_only)
+    before = {
+      markdown: doc.reload.markdown,
+      current_version_id: doc.current_version_id,
+      versions: doc.versions.count,
+      suggestion: suggestion.reload.attributes,
+      anchor: suggestion.anchor.reload.attributes
+    }
+
+    expect {
+      described_class.accept(suggestion: suggestion, user: owner)
+    }.to raise_error(described_class::BlankCanonicalBody, /Restore nonblank content/)
+
+    expect(doc.reload.markdown).to eq(before[:markdown])
+    expect(doc.current_version_id).to eq(before[:current_version_id])
+    expect(doc.versions.count).to eq(before[:versions])
+    expect(suggestion.reload.attributes).to eq(before[:suggestion])
+    expect(suggestion.anchor.reload.attributes).to eq(before[:anchor])
+  end
+
+  it "atomically refuses a suggestion that would delete the entire visible body" do
+    suggestion = DesignDocs::CreateSuggestion.call(
+      design_doc: doc,
+      user: collaborator,
+      attributes: {
+        start_offset: 0,
+        end_offset: DesignDocs::AnchorMarkers.strip(doc.markdown).length,
+        original_markdown: DesignDocs::AnchorMarkers.strip(doc.markdown),
+        proposed_markdown: "replacement"
+      }
+    ).suggestion
+    suggestion.update_columns(suggested_markdown: "", proposed_markdown: "")
+    before = {
+      markdown: doc.reload.markdown,
+      current_version_id: doc.current_version_id,
+      versions: doc.versions.count,
+      suggestion: suggestion.reload.attributes,
+      anchor: suggestion.anchor.reload.attributes
+    }
+
+    expect {
+      described_class.accept(suggestion: suggestion, user: owner)
+    }.to raise_error(described_class::BlankCanonicalBody, /would leave.*blank/)
+
+    expect(doc.reload.markdown).to eq(before[:markdown])
+    expect(doc.current_version_id).to eq(before[:current_version_id])
+    expect(doc.versions.count).to eq(before[:versions])
+    expect(suggestion.reload.attributes).to eq(before[:suggestion])
+    expect(suggestion.anchor.reload.attributes).to eq(before[:anchor])
+  end
+
   # Reproduces the DOC-20 production sequence: a comment anchor exists, then a
   # later full-document suggestion is accepted and its replaced range spans
   # every marker in the document, not just its own.
