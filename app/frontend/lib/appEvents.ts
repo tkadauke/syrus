@@ -406,7 +406,11 @@ function patchDashboardBulkRows(queryClient: QueryClient, event: AppEvent) {
   const payload = event.payload as { affected_job_ids?: unknown; affected_epic_ids?: unknown }
   const value = event.resource === "job" ? payload.affected_job_ids : event.resource === "epic" ? payload.affected_epic_ids : null
   if (!Array.isArray(value)) return false
-  return patchDashboardRowsForBulk(queryClient, event.resource, value.filter((id): id is number => typeof id === "number"))
+  return patchDashboardRowsForBulk(
+    queryClient,
+    event.resource,
+    value.filter((id): id is number => typeof id === "number")
+  )
 }
 
 export function patchDashboardRowsForBulk(queryClient: QueryClient, subject: string | undefined, affectedIds: number[]) {
@@ -419,7 +423,13 @@ export function patchDashboardRowsForBulk(queryClient: QueryClient, subject: str
     const lanes = current.lanes.map((lane) => ({ ...lane, items: lane.items.filter((item) => !ids.has(item.id)) }))
     if (items.length === current.items.length && lanes.every((lane, index) => lane.items.length === current.lanes[index].items.length)) return current
     const removed = current.items.length - items.length
-    return { ...current, items, lanes, total: Math.max(0, current.total - removed), total_pages: Math.ceil(Math.max(0, current.total - removed) / current.per_page) }
+    return {
+      ...current,
+      items,
+      lanes,
+      total: Math.max(0, current.total - removed),
+      total_pages: Math.ceil(Math.max(0, current.total - removed) / current.per_page)
+    }
   })
   return true
 }
