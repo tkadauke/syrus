@@ -356,6 +356,7 @@ module ChatSerialization
           presentation = Permissions::RequestPresentation.new(action, current_user: Current.user)
           payload[:authorization_presentation] = presentation.as_json
           payload[:authorization_items] = action.authorization_items.sort_by(&:id).map do |item|
+            smart_decision = Permissions::SmartDecision.new(request: action, item:, user: Current.user)
             {
               id: item.id,
               presentation: presentation.item_json(item),
@@ -366,7 +367,8 @@ module ChatSerialization
               effects: item.effects,
               prerequisite_ids: item.prerequisites.map(&:id),
               resulting_authority: Permissions::SmartDecision.authority_reference(item),
-              smart_option: Permissions::SmartDecision.new(request: action, item:, user: Current.user).option,
+              smart_option: smart_decision.option,
+              smart_options: smart_decision.options,
               app_decision_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/authorization_items/#{item.id}/decision",
               app_smart_decision_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/authorization_items/#{item.id}/smart_decision"
             }

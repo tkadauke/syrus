@@ -40,9 +40,15 @@ module Permissions
         selected_duration: item.selected_duration,
         decision_reason: item.decision_reason, decided_at: item.decided_at,
         prerequisite_ids: item.prerequisites.map(&:id),
-        smart_option: SmartDecision.new(request:, item:, user: @current_user).option,
+        smart_option: smart_decision(item).option,
+        smart_options: smart_decision(item).options,
         resulting_authority: SmartDecision.authority_reference(item)
       }
+    end
+
+    def smart_decision(item)
+      @smart_decisions ||= {}
+      @smart_decisions[item.id] ||= SmartDecision.new(request:, item:, user: @current_user)
     end
 
     def reference(record) = self.class.reference(record)

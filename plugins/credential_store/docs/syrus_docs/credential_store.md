@@ -317,16 +317,20 @@ normalization does not rewrite the encrypted credential payload.
 The plugin publishes a unified permission descriptor that is evaluated from
 the invocation arguments before the credential broker resolves or materializes
 a key. Permission requests are scoped to the credential handle, host, user,
-and port. The exact command is represented by a SHA-256 fingerprint in
-authorization arguments, not stored as permission material. Read-only
+and port. The review card shows a redacted command while durable permission
+material stores only its SHA-256 fingerprint. Read-only
 diagnostics classify as `ssh.execute/read@v1`; every other command and any
 explicit risky-command bypass classifies as `ssh.execute/risky@v1`. Both
-default to ask, and authority is limited to one exact invocation. A missing or
-invisible credential produces the same not-found lookup result, so permission
-discovery does not disclose whether a hidden credential exists.
+default to ask. An operator may allow the queued invocation once, allow future
+exact matches in the originating chat, or create a revocable permanent rule.
+Chat and permanent authority remain bound to the operation classification,
+credential handle, host, user, port, command fingerprint, and authorization
+flags; changing any of them asks again. A missing or invisible credential
+produces the same not-found lookup result, so permission discovery does not
+disclose whether a hidden credential exists.
 
 Permission authority and the broker lease are separate controls. Permission
-grants authority for one fingerprinted SSH invocation; the existing short
+grants authority only for the fingerprinted SSH invocation shape; the existing short
 broker lease bounds secret materialization and continues to enforce scope,
 surface, tool, destination, expiry, revocation, redaction, and audit rules.
 Permission cannot override any of those broker ceilings.

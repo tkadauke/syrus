@@ -27,6 +27,10 @@ module CredentialStore
         }.compact
       end
 
+      def scope_from_arguments(arguments)
+        arguments.to_h.with_indifferent_access.slice(:credential, :host, :user, :port).to_h
+      end
+
       def validate_scope(scope, context:)
         errors = []
         errors << "credential is required" if scope["credential"].blank?
@@ -69,7 +73,19 @@ module CredentialStore
       end
 
       def redact_arguments(arguments)
-        normalize_arguments(arguments).merge("credential" => "[REDACTED CREDENTIAL]")
+        source = arguments.to_h.with_indifferent_access
+        normalize_arguments(arguments).merge(
+          "credential_name" => normalize_identifier(source[:credential]),
+          "command" => safe_review_command(source[:command])
+        ).except("credential")
+      end
+
+      def safe_review_command(command)
+        reviewed = ToolPayloadRedactor.redact_text(command.to_s)
+        if reviewed.blank? || reviewed == ToolPayloadRedactor::REDACTED
+          raise Mcp::Tools::AuthorizationSupport::AuthorizationError, "SSH command cannot be represented safely for review"
+        end
+        reviewed
       end
 
       def normalize_identifier(value)
@@ -101,18 +117,22 @@ module CredentialStore
       capability: "ssh.execute@v1", operation: "ssh.execute/read@v1",
       effects: %i[network_read confidential_read credential_use operational],
       risk: :high, requestable_roles: ROLES, defaults: ASK_DEFAULTS,
-      maximum_autonomy: :invocation, authority_durations: %i[invocation],
+      maximum_autonomy: :permanent, authority_durations: %i[invocation chat_session permanent],
       resource_scope: :ssh_destination, classifier: SshCommandClassification,
-      fingerprint_normalizer: method(:normalize_arguments), redactor: method(:redact_arguments)
+      fingerprint_normalizer: method(:normalize_arguments), redactor: method(:redact_arguments),
+      resource_scope_resolver: method(:scope_from_arguments),
+      constraint_fields: { command_sha256: :string, allow_unconstrained_host: :boolean, allow_risky_command: :boolean }
     )
 
     register_capability(
       capability: "ssh.execute@v1", operation: "ssh.execute/risky@v1",
       effects: %i[network_read confidential_read credential_use external_write privilege_change operational destructive irreversible],
       risk: :critical, requestable_roles: ROLES, defaults: ASK_DEFAULTS,
-      maximum_autonomy: :invocation, authority_durations: %i[invocation],
+      maximum_autonomy: :permanent, authority_durations: %i[invocation chat_session permanent],
       resource_scope: :ssh_destination, classifier: SshCommandClassification,
-      fingerprint_normalizer: method(:normalize_arguments), redactor: method(:redact_arguments)
+      fingerprint_normalizer: method(:normalize_arguments), redactor: method(:redact_arguments),
+      resource_scope_resolver: method(:scope_from_arguments),
+      constraint_fields: { command_sha256: :string, allow_unconstrained_host: :boolean, allow_risky_command: :boolean }
     )
 
     register_permission_preset(

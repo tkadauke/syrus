@@ -38,8 +38,9 @@ module Permissions
       invocation = Invocation.new(capability: @descriptor.capability, operation: classification.operation,
         effects: classification.effects, risk: classification.risk,
         resource_scope: normalized.value, classification: classification)
+      normalized_arguments = @descriptor.normalize_fingerprint(@arguments).to_h.stringify_keys
       match_statuses = @rules.to_h do |rule|
-        [ rule, rule.match_status(invocation, descriptor: @descriptor, context: @context) ]
+        [ rule, rule.match_status(invocation, descriptor: @descriptor, context: @context, arguments: normalized_arguments) ]
       end
       return matching_failure(invocation) if match_statuses.value?(:failure)
 

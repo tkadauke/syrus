@@ -267,9 +267,7 @@ module Permissions
       end
       return {} if constraints.empty?
 
-      # Rules do not enforce argument constraints at evaluation time, so a
-      # permanent constrained rule would silently apply to every argument.
-      errors << error(:constraints_not_enforceable) if attributes["duration"] == "permanent" || attributes["policy"] != "allow"
+      errors << error(:constraints_not_enforceable) if attributes["policy"] != "allow"
       constraints.each do |key, value|
         type = descriptor.constraint_fields[key.to_s]
         if type.nil? || key.to_s.match?(ToolPayloadRedactor::SENSITIVE_KEY)
