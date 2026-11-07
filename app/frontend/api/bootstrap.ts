@@ -1,5 +1,6 @@
 import { getJson } from "./client"
 import type { ColorTheme } from "./themes"
+import type { ChatSpeechToTextCapability } from "./chats"
 
 export type SystemAlertAction =
   | {
@@ -40,6 +41,11 @@ export type BootstrapPayload = {
     user: { name: string; mode: "automatic" | "manual" } | null
   }
   team_user_count: number
+  chat_capabilities?: {
+    speech_to_text?: ChatSpeechToTextCapability
+    coding_mode_enabled?: boolean
+    local_mode_enabled?: boolean
+  }
   app: {
     revision: string
     revision_url: string | null

@@ -498,8 +498,6 @@ function chatPayload(): ChatPayload {
       chat_effort: null
     },
     chat_available: true,
-    turn_in_flight: false,
-    agent_busy: false,
     chat_shell_command_in_flight: null,
     switching_provider: false,
     has_more_older: false,
