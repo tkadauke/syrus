@@ -15,9 +15,14 @@ module Filters
 
         def apply
           ids = Array(value).filter_map { |candidate| Integer(candidate, exception: false) }
-          matches = ids.flat_map { |id| ChatSession.find_by(id: id, user_id: user&.id)&.then { |chat| ChatAssociatedJobs.scope(chat).select(:id) } }.compact
-          matching_scope = matches.empty? ? scope.none : scope.where(id: matches.reduce { |left, right| left.or(right) })
-          %i[is is_one_of].include?(op) ? matching_scope : exclude_matches(matching_scope)
+          chats = ChatSession.where(id: ids, user_id: user&.id, deleted_at: nil)
+          matching_scope = scope.where(id: ChatAssociatedJobs.scope_for(chats).select(:id))
+
+          case op
+          when :is, :is_one_of then matching_scope
+          when :is_not, :is_none_of then exclude_matches(matching_scope)
+          else unsupported_op!
+          end
         end
       end
     end
