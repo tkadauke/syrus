@@ -37,7 +37,10 @@ class ChatAttachmentRef
 
   def self.attachment_attributes(owner)
     content = owner.respond_to?(:content) ? owner.content : owner
+    content = JSON.parse(content) if content.is_a?(String)
     Array(content.is_a?(Hash) ? content["attachments"] : nil)
+  rescue JSON::ParserError
+    []
   end
   private_class_method :attachment_attributes
 
