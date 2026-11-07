@@ -189,14 +189,15 @@ it("shows overdue journaling with the durable failure reason", async () => {
     journaling_overdue: true,
     system_result_history: []
   } as never)
-  vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(payload)))
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => jsonResponse(payload))
+  )
 
   renderRoute("/coworkers/7")
 
   fireEvent.click(await screen.findByRole("button", { name: "Schedule" }))
-  expect(await screen.findByRole("status")).toHaveTextContent(
-    "Journaling overdue / failed: RuntimeError: workspace locked"
-  )
+  expect(await screen.findByRole("status")).toHaveTextContent("Journaling overdue / failed: RuntimeError: workspace locked")
 })
 
 it("tests the remote and submits appearance, upload, grants, and About", async () => {
