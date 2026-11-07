@@ -1387,7 +1387,8 @@ describe("App", () => {
                 chatSearchMatch({ message_id: 12, role: "user", snippet: "Second <b>needle</b>" }),
                 chatSearchMatch({ message_id: 13, role: "assistant", snippet: "Third <b>needle</b>" }),
                 chatSearchMatch({ message_id: 14, role: "tool_result", snippet: "Fourth <b>needle</b>" })
-              ]
+              ],
+              has_more: true
             }),
             { status: 200, headers: { "Content-Type": "application/json" } }
           )
@@ -1416,6 +1417,7 @@ describe("App", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "Show 1 more match" }))
       const secondMatch = await screen.findByText((_content, element) => element?.textContent === "Second needle")
+      expect(screen.getByText("Showing the first 4 matches.")).toBeInTheDocument()
       fireEvent.click(secondMatch.closest("button") as HTMLButtonElement)
 
       await waitFor(() => {
