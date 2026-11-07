@@ -112,7 +112,7 @@ class ChatMessage < ApplicationRecord
     Mentionables::Resolver.resolve(text: extract_text_from_content, chat: chat_session)
   end
 
-  def rendered_text_and_mentions(&mentionable_lookup)
+  def rendered_text_and_mentions(addressable: nil, &mentionable_lookup)
     text = extract_text_from_content.to_s
     rendered_parts = []
     rendered_mentions = []
@@ -124,7 +124,7 @@ class ChatMessage < ApplicationRecord
       else
         Mentionables::Resolver.find(kind: mention["kind"], id: mention["id"])
       end
-      next unless mentionable&.addressable_in?(chat_session)
+      next unless mentionable && (addressable ? addressable.call(mentionable, chat_session) : mentionable.addressable_in?(chat_session))
 
       start_offset = mention.fetch("start")
       end_offset = mention.fetch("end")
@@ -188,8 +188,7 @@ class ChatMessage < ApplicationRecord
         turn_in_flight: chat.turn_in_flight?,
         agent_busy: agent_busy,
         turn_retry_state: App::ChatTurnRetryState.for(chat),
-        stop_requested_at: chat.stop_requested_at&.iso8601,
-        queued_messages: chat.queued_messages_payload
+        stop_requested_at: chat.stop_requested_at&.iso8601
       }
     else
       {
@@ -198,7 +197,6 @@ class ChatMessage < ApplicationRecord
         agent_busy: chat.agent_busy?,
         turn_retry_state: App::ChatTurnRetryState.for(chat),
         stop_requested_at: chat.stop_requested_at&.iso8601,
-        queued_messages: chat.queued_messages_payload,
         reason: invalidate_realtime_tail ? "targeted_invalidation" : "tail_payload_too_large"
       }
     end

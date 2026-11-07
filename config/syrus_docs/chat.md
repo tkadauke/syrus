@@ -850,7 +850,11 @@ Requirements enforced by the endpoint and `ChatShellCommandJob`:
   on a `ChatShellCommand` row, and a `role: "user"` `ChatMessage` carrying
   `content["chat_shell_command_id"]` is always posted and a normal
   `ChatTurnJob` is enqueued so the agent sees and responds to the command and
-  its output.
+  its output. Transcript payloads omit output while the command is running and
+  bound completed output to a preview; the complete stored output remains
+  available from the message content endpoint. Oversized tool-call and
+  tool-result content uses that same lazy endpoint instead of being repeated
+  in every transcript page or realtime event.
 
 Independently of bookmarks, user and assistant messages can be pinned via
 `ChatMessagePin` (`POST`/`GET`/`DELETE /api/v1/app/chats/:id/pins`), gated on
