@@ -111,7 +111,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
       "google_doc_url" => "https://docs.google.com/document/d/user/edit",
       "source_url" => "https://docs.google.com/document/d/user/edit",
       "content_cache_state" => "cached",
-      "content_cached_at" => "2026-01-01T12:00:00Z",
+      "content_cached_at" => document.content_cached_at.utc.iso8601,
       "created_at" => document.created_at.iso8601,
       "updated_at" => document.updated_at.iso8601
     )

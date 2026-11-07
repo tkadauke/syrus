@@ -10,6 +10,14 @@ function payload(mode: "automatic" | "manual", name = "Etc/UTC") {
 }
 
 describe("useBrowserTimeZone", () => {
+  it("ignores bootstrap payloads without time-zone data", () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+
+    renderHook(() => useBrowserTimeZone({} as BootstrapPayload))
+
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
   it("reports a changed browser zone for automatic users", async () => {
     vi.spyOn(Intl, "DateTimeFormat").mockReturnValue({ resolvedOptions: () => ({ timeZone: "Europe/Berlin" }) } as Intl.DateTimeFormat)
     const fetchSpy = vi
