@@ -59,6 +59,17 @@ RSpec.describe "API: /api/v1/app/sidebar_pages", type: :request do
     )
   end
 
+  it "returns 304 when plugin metadata has not changed" do
+    sign_in_as(user)
+    get "/api/v1/app/sidebar_pages"
+    etag = response.headers.fetch("ETag")
+
+    get "/api/v1/app/sidebar_pages", headers: { "If-None-Match" => etag }
+
+    expect(response).to have_http_status(:not_modified)
+    expect(response.body).to be_empty
+  end
+
   it "honors a plugin's opt-out of the generic unfiltered All smart-folder link" do
     sign_in_as(user)
     Syrus::PluginRegistry.reset!

@@ -4,7 +4,7 @@ module Api
       class ThemesController < BaseController
         def index
           themes = Theme.selectable_by(Current.user).order(built_in: :desc, position: :asc, name: :asc)
-          render json: { themes: themes.map(&:public_payload) }
+          render json: { themes: themes.map { |theme| params[:full] == "1" ? theme.public_payload : theme.picker_payload } }
         end
 
         def create

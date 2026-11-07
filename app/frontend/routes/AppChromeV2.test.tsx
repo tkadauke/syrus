@@ -324,6 +324,7 @@ describe("AppChromeV2", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/themes") return Promise.resolve(jsonResponse({ themes: [oceanColorTheme(), forestColorTheme()] }))
+      if (path === `/api/v1/app/themes/${forestColorTheme().id}`) return Promise.resolve(jsonResponse({ theme: forestColorTheme() }))
       if (path === "/api/v1/app/theme")
         return Promise.resolve(jsonResponse({ theme: "light", color_theme_id: forestColorTheme().id, color_theme: forestColorTheme() }))
 

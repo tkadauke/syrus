@@ -538,7 +538,7 @@ function SettingsSectionRoute({ children }: { children: ReactNode }) {
   const pluginPages = useQuery({
     queryKey: ["sidebar", "plugin_pages"],
     queryFn: fetchSidebarPluginPages,
-    staleTime: 30_000
+    staleTime: Infinity
   })
   const pluginSettingsItems = (pluginPages.data?.pages ?? [])
     .filter((page) => page.section === "settings")
