@@ -1,6 +1,6 @@
 module Whiteboard
   # :workspace_tab provider for the chat sidebar's Whiteboard::Board tab (see
-  # Syrus::Plugin::WorkspaceTab / config/syrus_docs/plugins.md). Available in
+  # Syrus::Plugin::WorkspaceTab / docs/engineering/conventions/plugins/authoring.md). Available in
   # every chat, matching the tab's previous unconditional, hardcoded presence
   # in app/frontend/routes/chat/workspaceTabs.ts before this migration.
   class WorkspaceTabs

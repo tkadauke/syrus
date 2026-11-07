@@ -11,7 +11,7 @@ module Syrus
     # dispatch like `:artifact_renderer`: a plugin supplies a `component` key
     # naming a React component under its own `app/frontend/workspaceTabs/`,
     # discovered by app/frontend/pluginWorkspaceTabs.tsx via `import.meta.glob`.
-    # See config/syrus_docs/plugins.md for why a fixed renderer-type dispatch
+    # See docs/engineering/conventions/plugins/authoring.md for why a fixed renderer-type dispatch
     # was rejected for this extension point.
     #
     #   class MyPlugin::WorkspaceTabs

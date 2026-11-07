@@ -1,5 +1,5 @@
 # Resolves plugin-declared chat workspace sidebar tabs (see
-# Syrus::Plugin::WorkspaceTab / config/syrus_docs/plugins.md) for a given
+# Syrus::Plugin::WorkspaceTab / docs/engineering/conventions/plugins/authoring.md) for a given
 # chat, mirroring Admin::PluginPagesPayload's :admin_page resolution.
 class WorkspaceTabsPayload
   def initialize(chat_session)

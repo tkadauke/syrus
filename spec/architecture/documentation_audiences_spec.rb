@@ -86,4 +86,33 @@ RSpec.describe "documentation audiences" do
     expect(chat).to include("`submit_coding_changes`")
     expect(chat).to include("`reset_workspace`")
   end
+
+  it "keeps plugin authoring out of the searchable behavior guide" do
+    searchable = root.join("config/syrus_docs/plugins.md").read
+    authoring = root.join("docs/engineering/conventions/plugins/authoring.md").read
+    conventions = root.join("docs/engineering/conventions/README.md").read
+    plugin_readme = root.join("plugins/README.md").read
+
+    expect(searchable.lines.length).to be < 500
+    %w[
+      runtime_acquire_control known_flaky_failure_dismissal_enabled
+      isolated_repro_dismissal_enabled grader_type base_retry
+      prepare_detector autofix_command dependency_audit_command
+      affected_test_analyzer review_criteria_provider
+      build_system_graph_provider execution_backend secret_env
+    ].each { |term| expect(searchable).to include(term) }
+    expect(searchable).not_to include("Syrus::PluginRegistry.register")
+    expect(searchable).not_to include("app/services/")
+
+    %w[
+      preview_provider runtime_session_provider mcp_tool_set
+      diff_review_annotation_provider callbacks prompt_injector
+      artifact_renderer tool_card workspace_tab search_source workflow_kinds
+      memory_store domain_subscriber ui_slot slug_type grader_augmentor
+      repository_content_provider workspace_git_transport
+    ].each { |term| expect(authoring).to include(term) }
+    expect(authoring.lines.length).to be >= 4_000
+    expect(conventions).to include("(plugins/authoring.md)")
+    expect(plugin_readme).to include("docs/engineering/conventions/plugins/authoring.md")
+  end
 end
