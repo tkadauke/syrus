@@ -21,7 +21,7 @@ single web-serving convention worth modeling as its own plugin.
 
 `suggests_enabling` nudges an admin who hasn't enabled `go` yet when
 `signals.repositories_detecting("go")` reports repositories whose file layout
-matched the plugin's own detector — see `config/syrus_docs/plugins.md`'s
+matched the plugin's own detector — see `docs/engineering/conventions/plugins/authoring.md`'s
 "Telling an admin a plugin exists" section for the general mechanism.
 
 ## What this plugin intentionally does NOT provide

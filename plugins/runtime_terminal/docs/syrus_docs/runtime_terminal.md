@@ -10,7 +10,7 @@ installed but **disabled by default** (`default_enabled: false`,
 `depends_on: [ "terminal" ]` — enabling `runtime_terminal` cascades to enable
 `terminal`, which stays off by default and controls the underlying shell
 relay. See `plugins/terminal/docs/syrus_docs/terminal.md` for the terminal
-plugin itself and `config/syrus_docs/plugins.md`'s `:runtime_session_provider`
+plugin itself and `docs/engineering/conventions/plugins/authoring.md`'s `:runtime_session_provider`
 section for the general Runtime Session interface this plugin implements.
 
 ## What it provides
@@ -201,7 +201,7 @@ raising, since a bare shell has no separate build/launch step.
 
 `RuntimeTerminal::DataCleanup` installs an `always`-effect (runs even after
 the plugin is disabled, as long as it was enabled at least once — see
-`config/syrus_docs/plugins.md`'s "three states a plugin can be in") that
+`docs/engineering/conventions/plugins/authoring.md`'s "three states a plugin can be in") that
 destroys any `RuntimeTerminal::SessionLink` row whose parent `RuntimeSession`
 is destroyed, registered through `Syrus::DataCleanup`. This is `always`
 rather than `while_enabled` specifically so disabling the adapter stops new

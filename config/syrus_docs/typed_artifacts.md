@@ -108,7 +108,7 @@ To make a typed artifact renderable in the Syrus job detail UI, a plugin must:
 1. Register an `:artifact_renderer` extension that maps the artifact `type` to one of the core renderer types (`erd_diagram`, `migration_diff`, `data_table`, `before_after_diff`, `image_diff`).
 2. Optionally register a `:prompt_injector` to instruct the implementing agent when to call `submit_artifact` (or `submit_visual_artifact`, for images).
 
-See `config/syrus_docs/plugins.md` for the full `:artifact_renderer` extension point API.
+See `docs/engineering/conventions/plugins/authoring.md` for the full `:artifact_renderer` extension point API.
 
 Artifact renderers are registered by plugins in their `provides:` hash:
 

@@ -1,7 +1,7 @@
 module MetricsDashboard
   # Resolves the dashboard tabs contributed by other plugins through this
   # plugin's hosted "metrics_dashboard:tab" point (see MetricsDashboard::Tab
-  # and docs/syrus_docs/plugins.md's "Hosting a point for other plugins").
+  # and docs/engineering/conventions/plugins/authoring.md's "Hosting a point for other plugins").
   #
   # Mirrors App::UiSlotsPayload / WorkspaceTabsPayload: this plugin never
   # names its contributors, so a contributing plugin (spending_insights,

@@ -1,5 +1,8 @@
 # Syrus Plugins
 
+For the complete extension-point contracts and contributor guidance, see the
+[plugin-authoring reference](../docs/engineering/conventions/plugins/authoring.md).
+
 This directory hosts bundled plugin gems. Each subdirectory is a self-contained
 plugin that declares one or more extension points through `Syrus::PluginApi`.
 The API builds the plugin's Rails Engine and registers the manifest with

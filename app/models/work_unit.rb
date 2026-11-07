@@ -356,7 +356,7 @@ class WorkUnit < ApplicationRecord
 
   # A WorkUnit's kind can belong to a plugin that has since been
   # disabled (WorkDefinitions.for raises UnknownKind in that case, per
-  # the plugin-registry contract — see config/syrus_docs/plugins.md).
+  # the plugin-registry contract — see docs/engineering/conventions/plugins/authoring.md).
   # This callback runs on every save, so it must degrade to "not
   # enforced" rather than raise, or transitioning/finalizing a WorkUnit
   # whose plugin went away mid-flight would start failing outright.
