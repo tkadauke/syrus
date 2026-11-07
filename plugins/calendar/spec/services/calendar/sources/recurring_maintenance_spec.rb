@@ -50,4 +50,20 @@ RSpec.describe Calendar::Sources::RecurringMaintenance do
     expect(event.actual_started_at).to eq(job.created_at)
     expect(event.metadata[:duration_seconds]).to eq(60.0)
   end
+
+  it "bounds loaded execution history independently for each recurring class" do
+    classes = %w[FastJob OtherJob]
+    (described_class::MAX_OBSERVATIONS_PER_CLASS + 1).times do |index|
+      SolidQueue::Job.create!(class_name: classes.first, queue_name: "default", priority: 0,
+        active_job_id: SecureRandom.uuid, created_at: starts_at + index.seconds, updated_at: starts_at + index.seconds)
+    end
+    SolidQueue::Job.create!(class_name: classes.last, queue_name: "default", priority: 0,
+      active_job_id: SecureRandom.uuid, created_at: starts_at, updated_at: starts_at)
+
+    observations = described_class.execution_observations_by_class(classes, starts_at, ends_at)
+
+    expect(observations.fetch(classes.first).size).to eq(described_class::MAX_OBSERVATIONS_PER_CLASS)
+    expect(observations.fetch(classes.first).map { |item| item.fetch(:started_at) }).not_to include(starts_at)
+    expect(observations.fetch(classes.last).size).to eq(1)
+  end
 end
