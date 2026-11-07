@@ -35,4 +35,4 @@ raises the importance of parity and registry coverage tests.
 - [Permission authority operator documentation](../../../config/syrus_docs/permission_authority.md)
 - [Unified-authority architecture spec](../../../spec/architecture/unified_permission_cutover_spec.rb)
 - [Execution-authorship architecture spec](../../../spec/architecture/execution_kind_authorship_spec.rb)
-- [Permission diagnostics](../../../config/syrus_docs/permission_shadow_evaluation.md)
+- [Permission diagnostics](../architecture/permission_shadow_evaluation.md)

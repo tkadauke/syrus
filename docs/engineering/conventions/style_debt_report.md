@@ -22,7 +22,7 @@ Four categories already graduated this way: `raw-status-colors`,
 live here and now run as the enforced `no-raw-status-colors`,
 `no-panel-shell-repeats`, `no-raw-table-classes`, and `no-long-class-strings`
 rules under `eslint-rules/` — see
-`config/syrus_docs/design_system_eslint_ratchet.md` for the full enforced
+`design_system_eslint_ratchet.md` for the full enforced
 rule set, its baseline mechanics, and how to add a local exception. They were
 removed from this report so the same debt isn't counted twice. Until a
 remaining category graduates the same way, this script only reports it; it
@@ -105,4 +105,4 @@ a new `no-<name>.js` rule under `eslint-rules/` following
 and `eslint.config.js`, remove the old entry from this directory's `RULES`
 array and delete its files, then run `bin/generate-eslint-baseline` to
 capture the current count as the new rule's starting baseline. See
-`config/syrus_docs/design_system_eslint_ratchet.md`.
+`design_system_eslint_ratchet.md`.
