@@ -13,9 +13,16 @@ module Api
             return render_error("validation_failed", I18n.t("server.errors.chat_attachments.invalid_utf8", name: upload.original_filename), status: :unprocessable_content)
           end
 
-          attachment = chat.chat_file_attachments.build(name: upload.original_filename, mime_type: policy.mime_type, byte_size: bytes.bytesize, checksum: "pending")
-          attachment.file.attach(io: StringIO.new(bytes), filename: ChatAttachmentPolicy.sanitize_filename(upload.original_filename), content_type: policy.mime_type)
-          attachment.save!
+          attachment = chat.with_lock do
+            pending_bytes = chat.chat_file_attachments.where(attachable_id: nil).sum(:byte_size)
+            next if pending_bytes + bytes.bytesize > ChatMessageParams::CHAT_ATTACHMENT_TOTAL_MAX_BYTES
+
+            record = chat.chat_file_attachments.build(name: upload.original_filename, mime_type: policy.mime_type, byte_size: bytes.bytesize, checksum: "pending")
+            record.file.attach(io: StringIO.new(bytes), filename: ChatAttachmentPolicy.sanitize_filename(upload.original_filename), content_type: policy.mime_type)
+            record.save!
+            record
+          end
+          return render_error("validation_failed", I18n.t("server.errors.chat_attachments.total_too_large"), status: :unprocessable_content) unless attachment
 
           render json: attachment_json(attachment), status: :created
         end

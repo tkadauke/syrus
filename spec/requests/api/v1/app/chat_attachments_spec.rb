@@ -89,6 +89,25 @@ RSpec.describe "API: chat attachments", :ci_only, type: :request do
     expect(chat.chat_file_attachments.pluck(:name)).to contain_exactly("existing.txt", "extra.txt")
   end
 
+  it "caps the total size of pending unattached uploads" do
+    sign_in_as(user)
+    existing = chat.chat_file_attachments.build(
+      name: "pending.txt",
+      mime_type: "text/plain",
+      byte_size: ChatMessageParams::CHAT_ATTACHMENT_TOTAL_MAX_BYTES,
+      checksum: "pending"
+    )
+    existing.file.attach(io: StringIO.new("x"), filename: "pending.txt", content_type: "text/plain")
+    existing.save!
+    existing.update_column(:byte_size, ChatMessageParams::CHAT_ATTACHMENT_TOTAL_MAX_BYTES)
+    file = Rack::Test::UploadedFile.new(StringIO.new("x"), "text/plain", original_filename: "extra.txt")
+
+    post "/api/v1/app/chats/#{chat.id}/attachments", params: { file: file }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(chat.chat_file_attachments.pluck(:name)).to eq([ "pending.txt" ])
+  end
+
   it "enforces the aggregate size limit when uploaded refs are submitted with a message" do
     sign_in_as(user)
     attachments = 5.times.map do |index|
