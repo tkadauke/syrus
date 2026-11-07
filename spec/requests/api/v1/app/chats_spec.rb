@@ -1452,6 +1452,31 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(foreign_chat.reload.chat_participants.first.last_read_at).to be_present
   end
 
+  it "marks a historical owner chat read by restoring its missing participant row" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current, last_read_at: nil)
+    chat.chat_participants.delete_all
+
+    patch "/api/v1/app/chats/#{chat.id}/mark_read"
+
+    expect(response).to have_http_status(:no_content)
+    participant = chat.reload.chat_participants.find_by(user: user)
+    expect(participant).to have_attributes(role: "owner")
+    expect(participant.last_read_at).to be_present
+  end
+
+  it "marks a historical owner chat unread by restoring its missing participant row" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.hour.ago, last_read_at: Time.current)
+    chat.chat_participants.delete_all
+
+    patch "/api/v1/app/chats/#{chat.id}/mark_unread"
+
+    expect(response).to have_http_status(:no_content)
+    participant = chat.reload.chat_participants.find_by(user: user)
+    expect(participant).to have_attributes(role: "owner", last_read_at: nil)
+  end
+
   it "rejects unauthenticated mark_unread requests" do
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: 1.hour.ago, last_read_at: Time.current)
 

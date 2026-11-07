@@ -291,6 +291,8 @@ export function ChatRoute() {
     placeholderData: (previousData, previousQuery) => (previousQuery?.queryKey[0] === "chats" && previousQuery.queryKey[1] === id ? previousData : undefined)
   })
   const readOnly = chat.data?.chat.read_only === true
+  const lastMessageAt = chat.data?.chat.last_message_at
+  const [hasReadingAttention, setHasReadingAttention] = useState(() => document.visibilityState === "visible" && document.hasFocus())
 
   usePageTitle(chat.isSuccess ? chatDisplayTitle(chat.data.chat) : undefined)
 
@@ -304,14 +306,44 @@ export function ChatRoute() {
   }, [chat.data, chat.isSuccess, navigate, prefix])
 
   useEffect(() => {
-    if (!id || !chat.isSuccess || readOnly) return
+    const updateAttention = () => setHasReadingAttention(document.visibilityState === "visible" && document.hasFocus())
+    const handleFocus = () => setHasReadingAttention(document.visibilityState === "visible")
+    const handleBlur = () => setHasReadingAttention(false)
 
-    void markChatRead(id)
-      .then(() => {
+    document.addEventListener("visibilitychange", updateAttention)
+    window.addEventListener("focus", handleFocus)
+    window.addEventListener("blur", handleBlur)
+    return () => {
+      document.removeEventListener("visibilitychange", updateAttention)
+      window.removeEventListener("focus", handleFocus)
+      window.removeEventListener("blur", handleBlur)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!id || !chat.isSuccess || readOnly || !hasReadingAttention) return
+
+    let cancelled = false
+    let retryTimer: ReturnType<typeof setTimeout> | undefined
+    const markRead = async (retry: boolean) => {
+      try {
+        await markChatRead(id)
+        if (!cancelled) refreshRecentChats(queryClient)
+      } catch {
+        if (cancelled) return
+        await queryClient.refetchQueries({ queryKey, exact: true })
         refreshRecentChats(queryClient)
-      })
-      .catch(() => undefined)
-  }, [chat.isSuccess, id, queryClient, readOnly])
+        if (!retry) retryTimer = setTimeout(() => void markRead(true), 1_000)
+      }
+    }
+
+    const debounceTimer = setTimeout(() => void markRead(false), 250)
+    return () => {
+      cancelled = true
+      clearTimeout(debounceTimer)
+      if (retryTimer) clearTimeout(retryTimer)
+    }
+  }, [chat.isSuccess, hasReadingAttention, id, lastMessageAt, queryClient, queryKey, readOnly])
 
   // Chat-scoped Action Cable subscription: message content and other
   // detail-only payloads (see ChatChannel, ChatMessage#broadcast_app_event)

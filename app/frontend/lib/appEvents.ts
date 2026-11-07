@@ -280,7 +280,7 @@ type NotificationReadPayload = {
   read_at?: string
 }
 
-function patchCachedChatRecord(chat: ChatPayload["chat"], patch: Partial<Pick<ChatRecord, "stop_requested_at" | "turn_retry_state">>) {
+function patchCachedChatRecord(chat: ChatPayload["chat"], patch: Partial<Pick<ChatRecord, "last_message_at" | "stop_requested_at" | "turn_retry_state">>) {
   if (!chat) return chat
 
   return { ...chat, ...patch }
@@ -850,7 +850,8 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
         messages: replaceMessageTail(current.messages, replaceTail.replace_from_id, replaceTail.messages),
         chat: patchCachedChatRecord(current.chat, {
           turn_retry_state: replaceTail.turn_retry_state !== undefined ? replaceTail.turn_retry_state : current.chat?.turn_retry_state,
-          stop_requested_at: replaceTail.stop_requested_at ?? current.chat?.stop_requested_at
+          stop_requested_at: replaceTail.stop_requested_at ?? current.chat?.stop_requested_at,
+          last_message_at: replaceTail.last_message_at ?? current.chat?.last_message_at
         })
       }
     })
@@ -1106,6 +1107,7 @@ type ChatReplaceTailPayload = {
   agent_busy?: boolean
   turn_retry_state?: ChatPayload["turn_retry_state"]
   stop_requested_at?: string | null
+  last_message_at?: string | null
   queued_messages?: ChatQueuedMessage[]
 }
 
@@ -1126,6 +1128,7 @@ type ChatInvalidateMessagesPayload = {
   agent_busy?: boolean
   turn_retry_state?: ChatPayload["turn_retry_state"]
   stop_requested_at?: string | null
+  last_message_at?: string | null
   queued_messages?: ChatQueuedMessage[]
 }
 
@@ -1235,6 +1238,7 @@ function chatReplaceTailPayload(payload: unknown): ChatReplaceTailPayload | null
     agent_busy: typeof candidate.agent_busy === "boolean" ? candidate.agent_busy : undefined,
     turn_retry_state: isChatTurnRetryState(candidate.turn_retry_state) ? candidate.turn_retry_state : candidate.turn_retry_state === null ? null : undefined,
     stop_requested_at: typeof candidate.stop_requested_at === "string" || candidate.stop_requested_at === null ? candidate.stop_requested_at : undefined,
+    last_message_at: typeof candidate.last_message_at === "string" || candidate.last_message_at === null ? candidate.last_message_at : undefined,
     queued_messages: isChatQueuedMessages(candidate.queued_messages) ? candidate.queued_messages : undefined
   }
 }
@@ -1293,6 +1297,7 @@ function chatInvalidateMessagesPayload(payload: unknown): ChatInvalidateMessages
     agent_busy: typeof candidate.agent_busy === "boolean" ? candidate.agent_busy : undefined,
     turn_retry_state: isChatTurnRetryState(candidate.turn_retry_state) ? candidate.turn_retry_state : candidate.turn_retry_state === null ? null : undefined,
     stop_requested_at: typeof candidate.stop_requested_at === "string" || candidate.stop_requested_at === null ? candidate.stop_requested_at : undefined,
+    last_message_at: typeof candidate.last_message_at === "string" || candidate.last_message_at === null ? candidate.last_message_at : undefined,
     queued_messages: isChatQueuedMessages(candidate.queued_messages) ? candidate.queued_messages : undefined
   }
 }
