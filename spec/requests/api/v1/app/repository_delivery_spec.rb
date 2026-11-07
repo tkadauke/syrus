@@ -37,11 +37,11 @@ RSpec.describe "App API repository delivery payload", type: :request do
     FileUtils.rm_rf(work_dir) if work_dir
   end
 
-  describe "GET /api/v1/app/repositories/:id" do
+  describe "GET /api/v1/app/repositories/:id/delivery" do
     it "omits the delivery key for a repository with no delivery config" do
       write_bare_clone(repo)
 
-      get "/api/v1/app/repositories/#{repo.id}"
+      get "/api/v1/app/repositories/#{repo.id}/delivery"
 
       expect(response).to have_http_status(:ok)
       expect(parse_body["delivery"]).to be_nil
@@ -58,7 +58,7 @@ RSpec.describe "App API repository delivery payload", type: :request do
             mode: manual_pr
       YAML
 
-      get "/api/v1/app/repositories/#{repo.id}"
+      get "/api/v1/app/repositories/#{repo.id}/delivery"
 
       expect(response).to have_http_status(:ok)
       delivery = parse_body["delivery"]

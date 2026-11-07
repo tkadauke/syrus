@@ -344,7 +344,10 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/repositories/:id/check_ci_now` | `api/v1/app/repositories#check_ci_now` |
 | core | GET | `/api/v1/app/repositories/:id/cognitive_debt` | `api/v1/app/repositories#cognitive_debt` |
 | core | GET | `/api/v1/app/repositories/:id/coverage_trend` | `api/v1/app/repositories#coverage_trend` |
+| core | GET | `/api/v1/app/repositories/:id/delivery` | `api/v1/app/repositories#delivery` |
 | core | GET | `/api/v1/app/repositories/:id/edit` | `api/v1/app/repositories#edit` |
+| core | GET | `/api/v1/app/repositories/:id/health_history` | `api/v1/app/repositories#health_history` |
+| core | GET | `/api/v1/app/repositories/:id/jobs` | `api/v1/app/repositories#jobs` |
 | core | POST | `/api/v1/app/repositories/:id/override_readiness_probe` | `api/v1/app/repositories#override_readiness_probe` |
 | core | POST | `/api/v1/app/repositories/:id/poll` | `api/v1/app/repositories#poll` |
 | core | GET | `/api/v1/app/repositories/:id/readiness` | `api/v1/app/repositories#readiness` |
@@ -355,6 +358,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/repositories/:id/resume_landing` | `api/v1/app/repositories#resume_landing` |
 | core | POST | `/api/v1/app/repositories/:id/run_main_branch_graders` | `api/v1/app/repositories#run_main_branch_graders` |
 | core | POST | `/api/v1/app/repositories/:id/sync_fork` | `api/v1/app/repositories#sync_fork` |
+| core | GET | `/api/v1/app/repositories/:id/syrus_yml` | `api/v1/app/repositories#syrus_yml` |
 | core | GET | `/api/v1/app/repositories/:id/target_graph` | `api/v1/app/target_graphs#repository` |
 | core | POST | `/api/v1/app/repositories/:id/unarchive` | `api/v1/app/repositories#unarchive` |
 | core | GET | `/api/v1/app/repositories/:repository_id/documents` | `api/v1/app/repository_documents#index` |

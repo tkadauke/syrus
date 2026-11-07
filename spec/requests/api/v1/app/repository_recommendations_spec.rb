@@ -78,7 +78,7 @@ RSpec.describe "API: repository recommendations", type: :request do
     expect(parse_body.dig("error", "code")).to eq("forbidden")
   end
 
-  it "applies a low-risk repository toggle and returns the updated detail payload" do
+  it "applies a low-risk repository toggle and returns the changed setting" do
     repository.update!(prepare_enabled: false)
     sign_in_as(user)
 
@@ -86,7 +86,7 @@ RSpec.describe "API: repository recommendations", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(repository.reload.prepare_enabled).to be(true)
-    expect(parse_body.dig("repository", "id")).to eq(repository.id)
+    expect(parse_body.fetch("repository")).to eq("prepare_enabled" => true)
     expect(parse_body["message"]).to eq("Repository setting enabled.")
   end
 
