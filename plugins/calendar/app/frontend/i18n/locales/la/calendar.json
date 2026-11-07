@@ -21,6 +21,14 @@
   "planned_time": "Destinatum: {{time}}",
   "actual_time": "Re vera: {{start}} – {{finish}}",
   "duration": "Duratio: {{seconds}} secunda",
+  "display_duration": "Duratio monstrata: {{minutes}} minuta ({{provenance}})",
+  "duration_provenance": {
+    "actual": "tempus vere exactum",
+    "planned": "duratio expresse destinata",
+    "representative": "executiones prosperae recentes",
+    "source": "aestimatio fontis",
+    "fallback": "aestimatio triginta minutorum"
+  },
   "running": "currit",
   "open_owner": "Munus proprium aperire",
   "open_schedule": "Munus destinatum aperire",

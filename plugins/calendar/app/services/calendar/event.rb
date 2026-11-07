@@ -1,9 +1,11 @@
 module Calendar
   Event = Data.define(:source_id, :id, :kind, :title, :starts_at, :ends_at, :actual_started_at,
-    :actual_finished_at, :cadence, :destination_path, :state, :metadata) do
+    :actual_finished_at, :estimated_duration_seconds, :duration_estimate_provenance, :cadence,
+    :destination_path, :state, :metadata) do
     REQUIRED = %i[source_id id kind title starts_at destination_path state].freeze
 
-    def initialize(actual_started_at: nil, actual_finished_at: nil, ends_at: nil, cadence: nil, metadata: {}, **attributes)
+    def initialize(actual_started_at: nil, actual_finished_at: nil, ends_at: nil,
+      estimated_duration_seconds: nil, duration_estimate_provenance: nil, cadence: nil, metadata: {}, **attributes)
       super
       missing = REQUIRED.select { |name| public_send(name).blank? }
       raise ArgumentError, "calendar event missing #{missing.join(', ')}" if missing.any?
@@ -20,6 +22,15 @@ module Calendar
       validate_time!(:actual_finished_at, actual_finished_at) if actual_finished_at
       raise ArgumentError, "calendar ends_at must not precede starts_at" if ends_at && ends_at < starts_at
       raise ArgumentError, "calendar actual_finished_at must not precede actual_started_at" if actual_finished_at && actual_started_at && actual_finished_at < actual_started_at
+      if estimated_duration_seconds && (!estimated_duration_seconds.is_a?(Numeric) || estimated_duration_seconds <= 0)
+        raise ArgumentError, "calendar estimated_duration_seconds must be positive"
+      end
+      if duration_estimate_provenance && !%w[representative source].include?(duration_estimate_provenance)
+        raise ArgumentError, "calendar duration_estimate_provenance must be representative or source"
+      end
+      if estimated_duration_seconds.present? != duration_estimate_provenance.present?
+        raise ArgumentError, "calendar duration estimate and provenance must be supplied together"
+      end
       validate_cadence!
     end
 
