@@ -1340,7 +1340,7 @@ describe("AppChromeV2", () => {
     await waitFor(() => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/21")
     })
-    expect(createGroupChat).toHaveBeenCalledWith([5])
+    expect(createGroupChat).toHaveBeenCalledWith([5], null)
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 
