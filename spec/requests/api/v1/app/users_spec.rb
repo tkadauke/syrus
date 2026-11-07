@@ -51,5 +51,25 @@ RSpec.describe "App API users", type: :request do
       expect(response).to have_http_status(:ok)
       expect(parse_body.pluck("id")).to include(candidate.id)
     end
+
+    it "searches the directory and bounds the result size" do
+      sign_in_as(user)
+      matching = Factories.user(first_name: "Cornelia", last_name: "Africana", email_address: "cornelia@example.com")
+      Factories.user(first_name: "Tullia", last_name: "Ciceronis")
+
+      get "/api/v1/app/users/invitable", params: { q: "afric", limit: 1 }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to contain_exactly(hash_including("id" => matching.id))
+    end
+
+    it "defaults to a bounded first page" do
+      sign_in_as(user)
+      21.times { Factories.user }
+
+      get "/api/v1/app/users/invitable"
+
+      expect(parse_body.length).to eq(20)
+    end
   end
 end

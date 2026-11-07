@@ -36,6 +36,7 @@ export type BrowserTracePayload = {
 
 type BrowserObserverOptions = {
   enabled?: boolean
+  sampleRate?: number
   eventLoopIntervalMs?: number
   eventLoopLagThresholdMs?: number
   minEventLoopReportIntervalMs?: number
@@ -51,6 +52,12 @@ type PerformanceEventTimingEntry = PerformanceEntry & {
 
 let observersStarted = false
 let observerCleanups: Array<() => void> = []
+let traceQueue: BrowserTracePayload[] = []
+let idleFlushId: number | null = null
+let fallbackFlushTimer: ReturnType<typeof setTimeout> | null = null
+let traceLifecycleCleanups: Array<() => void> = []
+const TRACE_FLUSH_SIZE = 20
+const TRACE_FLUSH_TIMEOUT_MS = 2_000
 
 export function performanceLoggingEnabled(): boolean {
   return readInitialBootstrap()?.feature_flags?.performance_logging === true
@@ -77,19 +84,16 @@ export function recordBrowserTrace(payload: BrowserTracePayload, options: { enab
   if (options.enabled === false) return
   if (options.enabled !== true && !performanceLoggingEnabled()) return
 
-  const csrfToken = currentCsrfToken()
-  const body = JSON.stringify({ performance_event: payload, authenticity_token: csrfToken })
-  void fetch("/api/v1/app/performance_events", {
-    method: "POST",
-    credentials: "same-origin",
-    keepalive: body.length < 60_000,
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {})
-    },
-    body
-  }).catch(() => {})
+  traceQueue.push(payload)
+  scheduleTraceFlush()
+}
+
+export function flushBrowserTraceQueue(options: { beacon?: boolean } = {}): void {
+  cancelScheduledTraceFlush()
+  if (traceQueue.length === 0) return
+  const batch = traceQueue
+  traceQueue = []
+  postBrowserTraces(batch, { ...options, enabled: true })
 }
 
 // Batched sibling of recordBrowserTrace, used by the generic marker API's
@@ -136,6 +140,8 @@ export function startBrowserPerformanceObservers(options: BrowserObserverOptions
   if (observersStarted) return
   if (options.enabled === false) return
   if (options.enabled !== true && !performanceLoggingEnabled()) return
+  const sampleRate = Math.min(1, Math.max(0, options.sampleRate ?? 0.1))
+  if (Math.random() >= sampleRate) return
 
   observersStarted = true
   observeLongTasks(options)
@@ -147,6 +153,53 @@ export function resetBrowserPerformanceObserversForTest(): void {
   observerCleanups.forEach((cleanup) => cleanup())
   observerCleanups = []
   observersStarted = false
+  traceQueue = []
+  cancelScheduledTraceFlush()
+  traceLifecycleCleanups.forEach((cleanup) => cleanup())
+  traceLifecycleCleanups = []
+}
+
+function scheduleTraceFlush(): void {
+  ensureTraceLifecycleListeners()
+  if (traceQueue.length >= TRACE_FLUSH_SIZE) {
+    flushBrowserTraceQueue()
+    return
+  }
+  if (idleFlushId != null || fallbackFlushTimer != null) return
+  if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
+    idleFlushId = window.requestIdleCallback(() => {
+      idleFlushId = null
+      flushBrowserTraceQueue()
+    }, { timeout: TRACE_FLUSH_TIMEOUT_MS })
+  } else {
+    fallbackFlushTimer = setTimeout(() => {
+      fallbackFlushTimer = null
+      flushBrowserTraceQueue()
+    }, TRACE_FLUSH_TIMEOUT_MS)
+  }
+}
+
+function ensureTraceLifecycleListeners(): void {
+  if (traceLifecycleCleanups.length > 0 || typeof document === "undefined") return
+  const flushWithBeacon = () => flushBrowserTraceQueue({ beacon: true })
+  const onVisibilityChange = () => {
+    if (document.visibilityState === "hidden") flushWithBeacon()
+  }
+  document.addEventListener("visibilitychange", onVisibilityChange)
+  traceLifecycleCleanups.push(() => document.removeEventListener("visibilitychange", onVisibilityChange))
+  if (typeof window !== "undefined") {
+    window.addEventListener("pagehide", flushWithBeacon)
+    traceLifecycleCleanups.push(() => window.removeEventListener("pagehide", flushWithBeacon))
+  }
+}
+
+function cancelScheduledTraceFlush(): void {
+  if (idleFlushId != null && typeof window !== "undefined" && typeof window.cancelIdleCallback === "function") {
+    window.cancelIdleCallback(idleFlushId)
+  }
+  idleFlushId = null
+  if (fallbackFlushTimer != null) clearTimeout(fallbackFlushTimer)
+  fallbackFlushTimer = null
 }
 
 function observeLongTasks(_options: BrowserObserverOptions): void {
