@@ -562,7 +562,13 @@ export function RecentChatsSidebar({
                       }}
                       onDragOver={(e) => e.preventDefault()}
                     >
-                      <Link aria-label={title} className={recentChatLinkClass(active)} onClick={onCloseDrawer} title={title} to={withRoutePrefix(chat.chat_path, prefix)}>
+                      <Link
+                        aria-label={title}
+                        className={recentChatLinkClass(active)}
+                        onClick={onCloseDrawer}
+                        title={title}
+                        to={withRoutePrefix(chat.chat_path, prefix)}
+                      >
                         {unread ? (
                           <span
                             aria-label={t("chat:unread_indicator")}
