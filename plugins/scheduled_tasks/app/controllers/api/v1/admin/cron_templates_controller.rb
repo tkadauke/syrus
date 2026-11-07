@@ -10,6 +10,8 @@ module Api
       #   GET /api/v1/admin/cron_templates/:id
       class CronTemplatesController < BaseController
         before_action :require_scheduled_tasks_enabled
+        DEFAULT_PER = 50
+        MAX_PER = 100
 
         # ?user substring match against User#email_address
         def index
@@ -18,7 +20,13 @@ module Api
             templates = templates.joins(:user).where("users.email_address LIKE ?", "%#{params[:user]}%")
           end
 
-          render json: { count: templates.size, cron_templates: templates.map { |template| template_json(template) } }
+          total = templates.count
+          page = [ params[:page].to_i, 1 ].max
+          per = (params[:per].presence || DEFAULT_PER).to_i.clamp(1, MAX_PER)
+          templates = templates.offset((page - 1) * per).limit(per).to_a
+          @applied_tasks_counts = ::ScheduledTasks::Task.alive.where(cron_template_id: templates.map(&:id)).group(:cron_template_id).count
+
+          render json: { count: templates.size, total: total, page: page, per: per, cron_templates: templates.map { |template| template_json(template) } }
         end
 
         def show
@@ -48,7 +56,7 @@ module Api
             pr_pileup_policy: template.pr_pileup_policy,
             enabled: template.enabled?,
             skill_name: template.skill_name,
-            applied_tasks_count: template.scheduled_tasks.alive.count,
+            applied_tasks_count: @applied_tasks_counts&.fetch(template.id, 0) || template.scheduled_tasks.alive.count,
             next_fire_at: template.next_fire_at&.iso8601,
             created_at: template.created_at,
             updated_at: template.updated_at

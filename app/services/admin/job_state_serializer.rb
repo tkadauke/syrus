@@ -12,29 +12,32 @@ module Admin
   module JobStateSerializer
     module_function
 
-    def workflow(wf)
-      {
+    def workflow(wf, verbose: false)
+      payload = {
         id: wf.id,
         trigger_kind: wf.trigger_kind,
         agent_provider: wf.agent_provider,
         state: wf.state,
         failure_count: wf.failure_count,
-        artifacts: wf.artifacts,
-        landing_throughput_metrics: wf.artifact(LandingThroughputMetrics::ARTIFACT_KEY),
         cleaned_up_at: wf.cleaned_up_at,
         retry_available: wf.retry_available?,
         started_at: wf.started_at,
         finished_at: wf.finished_at,
         created_at: wf.created_at,
         updated_at: wf.updated_at,
-        failure_classification: workflow_failure_classification(wf),
-        steps: wf.steps.order(:position).map { |s| step(s) }
+        failure_classification: workflow_failure_classification(wf, verbose: verbose),
+        steps: wf.steps.sort_by(&:position).map { |s| step(s, verbose: verbose) }
       }
+      if verbose
+        payload[:artifacts] = wf.artifacts
+        payload[:landing_throughput_metrics] = wf.artifact(LandingThroughputMetrics::ARTIFACT_KEY)
+      end
+      payload
     rescue => e
       per_record_error(wf, e)
     end
 
-    def step(step)
+    def step(step, verbose: false)
       {
         id: step.id,
         kind: step.kind,
@@ -46,13 +49,13 @@ module Admin
         created_at: step.created_at,
         updated_at: step.updated_at,
         details: step.details.presence,
-        runs: step.runs.order(:created_at).map { |r| run(r) }
+        runs: step.runs.sort_by(&:created_at).map { |r| run(r, verbose: verbose) }
       }
     rescue => e
       per_record_error(step, e)
     end
 
-    def run(run)
+    def run(run, verbose: false)
       session = run.provider_session
       session_payload = agent_session_payload(session)
 
@@ -80,10 +83,10 @@ module Admin
         step_agent_diff_bytes: run.step_agent_diff&.bytesize || 0,
         job_log_count: run.job_logs.size,
         agent_session: session_payload,
-        failure_classification: failure_classification(run.run_failure_classification),
+        failure_classification: failure_classification(run.run_failure_classification, verbose: verbose),
         run_diagnostic: run.run_diagnostic && {
           error_class: run.run_diagnostic.error_class,
-          error_message: run.run_diagnostic.error_message,
+          error_message: run.run_diagnostic.error_message&.[](0, 1_000),
           created_at: run.run_diagnostic.created_at
         }
       }
@@ -105,27 +108,28 @@ module Admin
       }
     end
 
-    def workflow_failure_classification(wf)
+    def workflow_failure_classification(wf, verbose: false)
       run = wf.steps
               .flat_map { |step| step.runs.select(&:failed?) }
               .sort_by { |candidate| candidate.finished_at || candidate.updated_at || candidate.created_at }
               .last
-      failure_classification(run&.run_failure_classification)
+      failure_classification(run&.run_failure_classification, verbose: verbose)
     end
 
-    def failure_classification(classification)
+    def failure_classification(classification, verbose: false)
       return unless classification
 
-      {
+      payload = {
         id: classification.id,
         classification: classification.classification,
         confidence: classification.confidence&.to_f,
         retryable: classification.retryable,
         reason: classification.reason,
         diagnostic_summary: classification.diagnostic_summary,
-        classifier_inputs: classification.classifier_inputs,
         classified_at: classification.classified_at
       }
+      payload[:classifier_inputs] = classification.classifier_inputs if verbose
+      payload
     end
 
     def per_record_error(record, error)

@@ -30,11 +30,22 @@ RSpec.describe "API: /api/v1/admin/build_cache", type: :request do
     })
     BuildCache::Client.client_factory = -> { s3 }
 
-    get "/api/v1/admin/build_cache", headers: auth
+    get "/api/v1/admin/build_cache", params: { include_stats: true }, headers: auth
 
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body["configured"]).to be(true)
     expect(body["stats"]).to include("object_count" => 1, "total_size_bytes" => 100)
+  end
+
+
+  it "does not list the bucket by default" do
+    client = instance_double(BuildCache::Client)
+    allow(BuildCache::Client).to receive(:new).and_return(client)
+    expect(client).not_to receive(:stats)
+
+    get "/api/v1/admin/build_cache", headers: auth
+
+    expect(parse_body["stats"]).to be_nil
   end
 end

@@ -44,6 +44,16 @@ RSpec.describe "API: /api/v1/admin/worker_health", type: :request do
     )
   end
 
+  it "omits raw metrics by default and includes them on request" do
+    WorkerHostHealthSample.create!(hostname: "worker-a", role: "worker", version: "abc123", observed_at: 1.minute.ago, raw_metrics: { "secret" => "large" })
+
+    get "/api/v1/admin/worker_health", headers: auth
+    expect(parse_body.dig("hosts", 0, "recent_samples", 0)).not_to have_key("raw_metrics")
+
+    get "/api/v1/admin/worker_health", params: { include_raw_metrics: true }, headers: auth
+    expect(parse_body.dig("hosts", 0, "recent_samples", 0, "raw_metrics")).to eq("secret" => "large")
+  end
+
   it "returns bounded minute-resolution buckets with useful rollups" do
     travel_to Time.zone.parse("2026-07-31 12:30:30 UTC") do
       InstanceVersion.create!(hostname: "worker-a", role: "worker", version: "abc123",

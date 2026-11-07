@@ -52,7 +52,7 @@ module Api
         end
 
         def include_failures_param
-          return true if params[:include_failures].nil?
+          return false if params[:include_failures].nil?
 
           ActiveModel::Type::Boolean.new.cast(params[:include_failures])
         end

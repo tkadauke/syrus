@@ -73,9 +73,9 @@ RSpec.describe "API: /api/v1/admin/runs", type: :request do
       )
       expect(row["failure_classification"]).to include(
         "classification" => "worker_died",
-        "retryable" => true,
-        "classifier_inputs" => { "agent_outcome" => "worker_died" }
+        "retryable" => true
       )
+      expect(row["failure_classification"]).not_to have_key("classifier_inputs")
     end
 
     it "filters by state" do
@@ -151,7 +151,7 @@ RSpec.describe "API: /api/v1/admin/runs", type: :request do
       JobLog.append!(run: run, chunk: "starting auto_merge run", kind: nil)
       JobLog.append!(run: run, chunk: "auto_merge: deferred - mergeable_state=unknown", kind: "system")
 
-      get "/api/v1/admin/runs/#{run.id}/artifacts", headers: auth
+      get "/api/v1/admin/runs/#{run.id}/artifacts", params: { include: "diff,logs" }, headers: auth
 
       expect(response).to have_http_status(:ok)
       body = parse_body
@@ -174,12 +174,22 @@ RSpec.describe "API: /api/v1/admin/runs", type: :request do
       expect(body["logs"].first["created_at"]).to be_present
     end
 
+    it "omits heavyweight diff and logs unless requested" do
+      run = job.initial_run
+      run.update!(agent_diff: "large diff")
+      JobLog.append!(run: run, chunk: "large log", kind: "system")
+
+      get "/api/v1/admin/runs/#{run.id}/artifacts", headers: auth
+
+      expect(parse_body).to include("agent_diff" => nil, "agent_diff_bytes" => nil, "logs" => [], "logs_count" => 0)
+    end
+
     it "does not eager-load full JobLog rows" do
       run = job.initial_run
       JobLog.append!(run: run, chunk: "diagnostic row", kind: "system")
 
       sql = capture_sql do
-        get "/api/v1/admin/runs/#{run.id}/artifacts", headers: auth
+        get "/api/v1/admin/runs/#{run.id}/artifacts", params: { include: "logs" }, headers: auth
       end
 
       job_log_selects = sql.select { |statement| statement.match?(/FROM [`"]?job_logs[`"]?/i) }

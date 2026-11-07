@@ -16,7 +16,12 @@ module Api
               version: SyrusVersion.current
             },
             instances: fresh_instances.map { |iv| serialize(iv) },
-            worker_health: ::Admin::WorkerHealthPayload.new(sample_limit_per_host: 4).as_json
+            worker_health: ::Admin::WorkerHealthPayload.new(
+              sample_limit_per_host: 0,
+              minute_bucket_window_minutes: 0,
+              include_history: false,
+              include_raw_metrics: false
+            ).as_json
           }
         end
 
