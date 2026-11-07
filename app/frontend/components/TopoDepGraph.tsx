@@ -8,10 +8,12 @@ import { SlugHoverCard } from "./SlugHoverCard"
 export type GraphNode = {
   id: string
   kind: "epic" | "job"
-  label: string
+  label?: string
+  slug?: string
+  title?: string
   state: string
   epic_id: number | null
-  url: string
+  url?: string
   is_focal: boolean
 }
 
@@ -266,7 +268,7 @@ function numericNodeId(node: GraphNode): number | null {
   const idMatch = node.id.match(/_(\d+)$/)
   if (idMatch) return Number.parseInt(idMatch[1], 10)
 
-  const slugMatch = node.label.match(/\b(?:EPIC|JOB)-(\d+)\b/)
+  const slugMatch = (node.slug || node.label || "").match(/\b(?:EPIC|JOB)-(\d+)\b/)
   return slugMatch ? Number.parseInt(slugMatch[1], 10) : null
 }
 
@@ -280,6 +282,8 @@ export function TopoDepGraph({
   className?: string
 }) {
   const navigate = useNavigate()
+  const nodeLabel = (node: GraphNode) => node.label || [node.slug, node.title].filter(Boolean).join(" ")
+  const nodeUrl = (node: GraphNode) => node.url || `/${node.kind === "epic" ? "epics" : "jobs"}/${node.slug}`
   const markerId = `topo-arrow-${useId().replace(/:/g, "")}`
   const containerRef = useRef<HTMLDivElement>(null)
   const nodeRefs = useRef(new Map<string, Element>())
@@ -379,8 +383,8 @@ export function TopoDepGraph({
                 <EpicCompactCard
                   isFocal={node.is_focal}
                   key={node.id}
-                  label={node.label}
-                  onClick={() => navigate(node.url)}
+                  label={nodeLabel(node)}
+                  onClick={() => navigate(nodeUrl(node))}
                   renderSlug={(slug) => <GraphSlug id={numericNodeId(node)} kind="epic" slug={slug} />}
                   ref={(el) => {
                     if (el) nodeRefs.current.set(node.id, el)
@@ -393,8 +397,8 @@ export function TopoDepGraph({
                   epicId={node.epic_id}
                   isFocal={node.is_focal}
                   key={node.id}
-                  label={node.label}
-                  onClick={() => navigate(node.url)}
+                  label={nodeLabel(node)}
+                  onClick={() => navigate(nodeUrl(node))}
                   renderSlug={(slug) => <GraphSlug id={numericNodeId(node)} kind="job" slug={slug} />}
                   ref={(el) => {
                     if (el) nodeRefs.current.set(node.id, el)

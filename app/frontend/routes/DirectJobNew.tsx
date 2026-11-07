@@ -15,6 +15,7 @@ import { Form } from "../components/ui"
 import {
   createDirectJob,
   fetchDirectJobForm,
+  fetchDirectJobPromptTemplate,
   type DirectJobFormPayload,
   type DirectJobPromptTemplate
 } from "../api/directJobs"
@@ -44,7 +45,8 @@ export function DirectJobNewRoute() {
   const prefix = routePrefix(location.pathname)
   const form = useQuery({
     queryKey: ["direct_jobs", "new", location.search],
-    queryFn: () => fetchDirectJobForm(location.search)
+    queryFn: () => fetchDirectJobForm(location.search),
+    staleTime: 5 * 60 * 1000
   })
 
   return (
@@ -117,11 +119,12 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
       return
     }
 
-    setAppliedTemplate(template)
+    const selectedTemplate = template.prompt ? template : { ...template, ...(await fetchDirectJobPromptTemplate(template.id)) }
+    setAppliedTemplate(selectedTemplate)
     setValues((current) => ({
       ...current,
-      title: template.name,
-      prompt: template.prompt
+      title: selectedTemplate.name,
+      prompt: selectedTemplate.prompt || ""
     }))
     window.requestAnimationFrame(() => promptRef.current?.focus())
   }

@@ -1684,7 +1684,7 @@ export function searchChatProposals(chatId: string | number, query: string, excl
 }
 
 export function searchChatJobs(query: string, options: { signal?: AbortSignal } = {}) {
-  const params = new URLSearchParams({ q: query, include_active_work: "true", limit: "10" })
+  const params = new URLSearchParams({ q: query, fields: "picker", include_active_work: "true", limit: "10" })
   return getJson<{ jobs: ChatJobDependencySearchResult[] }>(`/api/v1/app/jobs?${params}`, options).then((payload) => payload.jobs || [])
 }
 

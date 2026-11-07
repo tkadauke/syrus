@@ -1691,8 +1691,11 @@ export function fetchJobWorkflows(id: string, search = "") {
   return getJson<JobWorkflowsPayload>(`/api/v1/app/jobs/${id}/workflows${search}`)
 }
 
-export function fetchJobDependencyOptions(path: string) {
-  return getJson<JobDependencyOptionsPayload>(path)
+export function fetchJobDependencyOptions(path: string, query = "", limit = 25) {
+  const url = new URL(path, window.location.origin)
+  if (query.trim()) url.searchParams.set("q", query.trim())
+  url.searchParams.set("limit", String(limit))
+  return getJson<JobDependencyOptionsPayload>(`${url.pathname}${url.search}`)
 }
 
 export function fetchJobTimeline(id: string) {
@@ -1991,6 +1994,7 @@ export function createJobAttachments(path: string, values: { files: File[]; goog
 
 export type PickerJobRecord = {
   id: number
+  slug?: string
   title: string
   issue_title: string
   state: string
@@ -1999,7 +2003,7 @@ export type PickerJobRecord = {
 }
 
 export type PickerJobsPayload = {
-  count: number
+  count?: number
   jobs: PickerJobRecord[]
 }
 
@@ -2009,6 +2013,7 @@ export function fetchPickerJobs(params: { state?: string; repo?: string; q?: str
   if (params.repo) searchParams.set("repo", params.repo)
   if (params.q) searchParams.set("q", params.q)
   if (params.withPr) searchParams.set("with_pr", "true")
+  searchParams.set("fields", "picker")
   searchParams.set("include_active_work", "true")
   searchParams.set("limit", String(params.limit ?? 50))
   return getJson<PickerJobsPayload>(`/api/v1/app/jobs?${searchParams}`)

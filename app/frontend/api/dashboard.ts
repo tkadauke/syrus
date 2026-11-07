@@ -572,10 +572,12 @@ export type DashboardEpicStatePayload = {
 export type DashboardGraphNode = {
   id: string
   kind: "epic" | "job"
-  label: string
+  label?: string
+  slug?: string
+  title?: string
   state: string
   epic_id: number | null
-  url: string
+  url?: string
   is_focal: boolean
 }
 

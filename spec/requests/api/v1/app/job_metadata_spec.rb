@@ -92,6 +92,16 @@ RSpec.describe "App API job metadata commands", type: :request do
     end
   end
 
+  it "searches and bounds dependency job options" do
+    matching = Factories.job_record(repository: repo, issue_number: 41, issue_title: "Prepare marble")
+    Factories.job_record(repository: repo, issue_number: 40, issue_title: "Unrelated work")
+
+    get app_job_path("/dependency_options"), params: { q: "marble", limit: 1 }, as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["dependency_target_options"]).to contain_exactly(include("value" => "issue:#{repo.id}:#{matching.issue_number}"))
+  end
+
   it "allows repository write collaborators to add visible job, issue, and epic dependencies" do
     writer = Factories.user
     repo.repository_memberships.create!(user: writer, role: "write")
