@@ -21,6 +21,9 @@ RSpec.describe "e2e:seed" do
     expect(demo_user.chat_provider).to eq("codex")
     expect(demo_epic.state).to eq("done")
     expect(demo_epic.done_at).to be_present
+    review_fixture = demo_epic.jobs.find_by!(issue_title: "Inspect preview dashboard states").diff_fixture
+    expect(review_fixture.fetch("merge_base_sha")).to match(/\A[0-9a-f]{40}\z/)
+    expect(review_fixture.fetch("branch_commits").pluck("sha")).to all(match(/\A[0-9a-f]{40}\z/))
     expect(Feature.find_by!(slug: "coding_mode")).to be_enabled
     coding_chat = demo_user.chat_sessions.find_by!(title: "Coding Mode handoff UI")
     expect(coding_chat).to have_attributes(
