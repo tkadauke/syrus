@@ -34,7 +34,6 @@ Rails.application.routes.draw do
         get "themes/:id", to: "themes#show", constraints: { id: /\d+/ }
         patch "themes/:id", to: "themes#update", constraints: { id: /\d+/ }
         delete "themes/:id", to: "themes#destroy", constraints: { id: /\d+/ }
-        get "auth/status", to: "auth#status"
         get "auth/signup", to: "auth#signup"
         post "auth/session", to: "auth#create_session"
         delete "auth/session", to: "auth#destroy_session"
