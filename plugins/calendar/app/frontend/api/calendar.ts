@@ -9,6 +9,8 @@ export type CalendarEvent = {
   ends_at?: string
   actual_started_at?: string
   actual_finished_at?: string
+  estimated_duration_seconds?: number
+  duration_estimate_provenance?: "representative" | "source"
   cadence?: { label: string; band: boolean }
   destination_path: string
   state: string

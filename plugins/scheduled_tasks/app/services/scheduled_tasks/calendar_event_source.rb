@@ -3,6 +3,7 @@ module ScheduledTasks
   # this provider keeps schedule authorization and execution correlation here.
   class CalendarEventSource
     MAX_OCCURRENCES_PER_TASK = 1_008
+    MAX_REPRESENTATIVE_EXECUTIONS_PER_TASK = 10
 
     def self.calendar_events(user:, starts_at:, ends_at:)
       new(user:, starts_at:, ends_at:).calendar_events
@@ -17,11 +18,14 @@ module ScheduledTasks
     def calendar_events
       selected_tasks = tasks.to_a
       jobs_by_task = visible_jobs_by_task(selected_tasks)
+      representative_durations = representative_durations_by_task(selected_tasks)
 
       selected_tasks.flat_map do |task|
         planned_times = occurrences(task)
-        jobs_by_occurrence = correlate_jobs(planned_times, jobs_by_task.fetch(task.id, []))
-        planned_times.map { |planned_at| event(task, planned_at, jobs_by_occurrence[planned_at]) }
+        task_jobs = jobs_by_task.fetch(task.id, [])
+        jobs_by_occurrence = correlate_jobs(planned_times, task_jobs)
+        estimate = representative_durations[task.id]
+        planned_times.map { |planned_at| event(task, planned_at, jobs_by_occurrence[planned_at], estimate) }
       end
     end
 
@@ -39,8 +43,27 @@ module ScheduledTasks
       task_ids = selected_tasks.map(&:id)
       return {} if task_ids.empty?
 
-      scope = Job.where(scheduled_task_id: task_ids).includes(:workflows).order(:created_at)
+      scope = Job.where(scheduled_task_id: task_ids, created_at: starts_at...(ends_at + 1.hour))
+        .includes(:workflows).order(:created_at)
       Job.visible_to(user, scope:).to_a.group_by(&:scheduled_task_id)
+    end
+
+    def representative_durations_by_task(selected_tasks)
+      task_ids = selected_tasks.map(&:id)
+      return {} if task_ids.empty?
+
+      visible_jobs = Job.visible_to(user, scope: Job.where(scheduled_task_id: task_ids))
+      ranked = Workflow.where(state: "succeeded", job_id: visible_jobs.select(:id))
+        .where.not(started_at: nil).where.not(finished_at: nil)
+        .joins(:job)
+        .select("workflows.*, jobs.scheduled_task_id AS calendar_scheduled_task_id, " \
+          "ROW_NUMBER() OVER (PARTITION BY jobs.scheduled_task_id ORDER BY workflows.finished_at DESC) AS calendar_row_number")
+      observations = Workflow.from("(#{ranked.to_sql}) workflows")
+        .where("calendar_row_number <= ?", MAX_REPRESENTATIVE_EXECUTIONS_PER_TASK).to_a
+
+      observations.group_by { |workflow| workflow[:calendar_scheduled_task_id] }.transform_values do |workflows|
+        median(workflows.map { |workflow| (workflow.finished_at - workflow.started_at).to_f })
+      end
     end
 
     def occurrences(task)
@@ -84,8 +107,9 @@ module ScheduledTasks
       end
     end
 
-    def event(task, planned_at, job)
+    def event(task, planned_at, job, representative_duration)
       workflow = job&.workflows&.min_by(&:created_at)
+      estimated_duration = representative_duration || 30.minutes.to_i
       {
         source_id: "scheduled_tasks:tasks",
         id: "task-#{task.id}-#{planned_at.utc.strftime('%Y%m%dT%H%M%SZ')}",
@@ -94,6 +118,8 @@ module ScheduledTasks
         starts_at: planned_at,
         actual_started_at: workflow&.started_at || job&.started_at || job&.created_at,
         actual_finished_at: workflow&.finished_at || job&.finished_at,
+        estimated_duration_seconds: estimated_duration,
+        duration_estimate_provenance: representative_duration ? "representative" : "source",
         cadence: task.cron? ? { label: task.schedule_explanation || task.schedule_expression, band: false } : nil,
         destination_path: job ? "/jobs/#{job.id}" : "/scheduled_tasks/#{task.id}",
         state: occurrence_state(task, planned_at, job, workflow),
@@ -110,6 +136,12 @@ module ScheduledTasks
           workflow_state: workflow&.state
         }.compact
       }
+    end
+
+    def median(durations)
+      durations.sort!
+      middle = durations.length / 2
+      durations.length.odd? ? durations[middle] : (durations[middle - 1] + durations[middle]) / 2.0
     end
 
     def occurrence_state(task, planned_at, job, workflow)

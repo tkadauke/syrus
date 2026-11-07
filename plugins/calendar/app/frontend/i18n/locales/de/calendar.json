@@ -21,8 +21,27 @@
   "planned_time": "Geplant: {{time}}",
   "actual_time": "Tatsächlich: {{start}} – {{finish}}",
   "duration": "Dauer: {{seconds}} Sekunden",
+  "display_duration": "Angezeigte Dauer: {{minutes}} Minuten ({{provenance}})",
+  "duration_provenance": {
+    "actual": "tatsächliche Laufzeit",
+    "planned": "explizit geplante Dauer",
+    "representative": "letzte erfolgreiche Ausführungen",
+    "source": "Schätzung der Quelle",
+    "fallback": "30-Minuten-Standardwert"
+  },
   "running": "läuft",
+  "close_details": "Details schließen",
   "open_owner": "Zugehörige Funktion öffnen",
   "open_schedule": "Geplanten Task öffnen",
+  "open_main_chat": "Hauptchat öffnen",
+  "open_coworker": "Coworker öffnen",
+  "coworker_identity": "{{name}} {{handle}}",
+  "after_run": "Nach dem Lauf: {{policy}}",
+  "system_schedule": "Systemzeitplan: {{key}}",
+  "delayed_reason": "Verzögert: {{reason}}",
+  "delay_reasons": {
+    "coworker_turn_in_flight": "im Hauptchat läuft noch eine Antwort",
+    "active_work_lock": "ein anderer geplanter Lauf läuft bereits"
+  },
   "cadence_bands": "Hochfrequente Taktbänder"
 }

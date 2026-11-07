@@ -21,8 +21,27 @@
   "planned_time": "Planned: {{time}}",
   "actual_time": "Actual: {{start}} – {{finish}}",
   "duration": "Duration: {{seconds}} seconds",
+  "display_duration": "Displayed duration: {{minutes}} minutes ({{provenance}})",
+  "duration_provenance": {
+    "actual": "actual elapsed time",
+    "planned": "explicit planned duration",
+    "representative": "recent successful executions",
+    "source": "source estimate",
+    "fallback": "30-minute fallback"
+  },
   "running": "running",
+  "close_details": "Close details",
   "open_owner": "Open owning feature",
   "open_schedule": "Open scheduled task",
+  "open_main_chat": "Open main chat",
+  "open_coworker": "Open coworker",
+  "coworker_identity": "{{name}} {{handle}}",
+  "after_run": "After run: {{policy}}",
+  "system_schedule": "System schedule: {{key}}",
+  "delayed_reason": "Delayed: {{reason}}",
+  "delay_reasons": {
+    "coworker_turn_in_flight": "main chat turn in progress",
+    "active_work_lock": "another scheduled occurrence is running"
+  },
   "cadence_bands": "High-frequency cadence bands"
 }

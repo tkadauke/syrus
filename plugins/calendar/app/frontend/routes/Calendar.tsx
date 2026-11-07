@@ -2,10 +2,18 @@ import { useQuery } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { FilterBar, topFilterChildren, type FilterChip, type FilterSchemaField, type FilterTree } from "@app/components/FilterBar"
+import { Avatar } from "@app/components/Avatar"
+import { Modal } from "@app/components/Modal"
 import { Notice, Page, PageHeading, Section, Text } from "@app/components/ui"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
 import { fetchCalendar, type CalendarEvent } from "../api/calendar"
+import { addCalendarDays, DAY_HEIGHT, HOUR_HEIGHT, positionEvents, resolveDuration, zonedParts, type DurationResolution } from "./calendarLayout"
+
+const EVENT_DETAILS_MODAL_CLASS = [
+  "max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto",
+  "rounded-[var(--radius-panel)] bg-surface p-5 shadow-[var(--shadow-panel)]"
+].join(" ")
 
 export default function CalendarRoute() {
   const { t, i18n } = useT("calendar")
@@ -35,13 +43,13 @@ export default function CalendarRoute() {
         </Page.HeadingGroup>
       </Page.Header>
       <div className="flex flex-wrap items-center gap-2 py-3" aria-label={t("controls")}>
-        <button className="rounded border border-border px-3 py-1.5" onClick={() => setAnchor(new Date(anchor.getTime() - 7 * 86_400_000))}>
+        <button className="rounded border border-border px-3 py-1.5" onClick={() => setAnchor(addCalendarDays(anchor, -7))}>
           {t("previous")}
         </button>
         <button className="rounded border border-border px-3 py-1.5" onClick={() => setAnchor(startOfWeek(new Date()))}>
           {t("today")}
         </button>
-        <button className="rounded border border-border px-3 py-1.5" onClick={() => setAnchor(new Date(anchor.getTime() + 7 * 86_400_000))}>
+        <button className="rounded border border-border px-3 py-1.5" onClick={() => setAnchor(addCalendarDays(anchor, 7))}>
           {t("next")}
         </button>
         <FilterBar className="min-w-64 flex-1" filter={filterTree} filterSchema={filterSchema} pathname={location.pathname} search={location.search} />
@@ -60,15 +68,16 @@ export default function CalendarRoute() {
       {query.isError ? <Notice tone="danger">{t("error")}</Notice> : null}
       {query.data?.failures.length ? <Notice tone="warning">{t("partial")}</Notice> : null}
       {query.data && events.length === 0 ? <Notice>{t("empty")}</Notice> : null}
-      {view === "week" ? <Week events={events} anchor={anchor} formatter={formatter} /> : <Agenda events={events} formatter={formatter} />}
+      {view === "week" ? <Week events={events} anchor={anchor} formatter={formatter} timeZone={timeZone} /> : <Agenda events={events} formatter={formatter} />}
     </Page.Root>
   )
 }
 
-function Week({ events, anchor, formatter }: { events: CalendarEvent[]; anchor: Date; formatter: Intl.DateTimeFormat }) {
+function Week({ events, anchor, formatter, timeZone }: { events: CalendarEvent[]; anchor: Date; formatter: Intl.DateTimeFormat; timeZone: string }) {
   const { t } = useT("calendar")
   const bands = events.filter((event) => event.cadence?.band)
   const occurrences = events.filter((event) => !event.cadence?.band)
+  const positioned = positionEvents(occurrences, timeZone)
   return (
     <div className="space-y-3">
       {bands.length ? (
@@ -80,21 +89,52 @@ function Week({ events, anchor, formatter }: { events: CalendarEvent[]; anchor: 
           </div>
         </Section.Root>
       ) : null}
-      <div className="grid min-w-0 grid-cols-1 gap-2 md:grid-cols-7">
-        {Array.from({ length: 7 }, (_, day) => {
-          const date = addCalendarDays(anchor, day)
-          const daily = occurrences.filter((event) => sameLocalDate(new Date(event.starts_at), date))
-          return (
-            <Section.Root className="min-w-0 p-2" key={date.toISOString()}>
-              <Text className="font-semibold">{formatter.format(date).split(",").slice(0, 2).join(",")}</Text>
-              <div className="mt-2 space-y-2">
-                {daily.map((event) => (
-                  <EventCard event={event} formatter={formatter} key={`${event.source_id}-${event.id}`} />
+      <div className="max-h-[75vh] overflow-auto rounded border border-border" data-testid="week-time-grid">
+        <div className="grid min-w-[76rem] grid-cols-[4rem_repeat(7,minmax(10rem,1fr))]">
+          <div className="sticky left-0 top-0 z-30 border-b border-r border-border bg-surface" />
+          {Array.from({ length: 7 }, (_, day) => {
+            const date = addCalendarDays(anchor, day)
+            return (
+              <div className="sticky top-0 z-20 border-b border-r border-border bg-surface px-2 py-2 font-semibold" key={date.toISOString()}>
+                {formatter.format(date).split(",").slice(0, 2).join(",")}
+              </div>
+            )
+          })}
+          <div className="sticky left-0 z-20 border-r border-border bg-surface" style={{ height: DAY_HEIGHT }}>
+            {Array.from({ length: 24 }, (_, hour) => (
+              <div className="relative border-t border-border px-1 text-right text-xs text-muted" key={hour} style={{ height: HOUR_HEIGHT }}>
+                <span className="relative -top-2.5 bg-surface px-1">{String(hour).padStart(2, "0")}:00</span>
+              </div>
+            ))}
+          </div>
+          {Array.from({ length: 7 }, (_, day) => {
+            const date = addCalendarDays(anchor, day)
+            const dayKey = zonedParts(date, timeZone).dayKey
+            const daily = positioned.filter((item) => item.dayKey === dayKey)
+            return (
+              <div className="relative border-r border-border" data-calendar-day={dayKey} key={dayKey} style={{ height: DAY_HEIGHT }}>
+                {Array.from({ length: 24 }, (_, hour) => (
+                  <div className="absolute inset-x-0 border-t border-border" key={hour} style={{ top: hour * HOUR_HEIGHT }} />
+                ))}
+                {daily.map((item) => (
+                  <div
+                    className="absolute z-10 px-0.5 focus-within:z-30"
+                    data-calendar-event={item.event.id}
+                    key={`${item.event.source_id}-${item.event.id}`}
+                    style={{
+                      top: item.top,
+                      height: item.height,
+                      left: `${(item.lane / item.laneCount) * 100}%`,
+                      width: `${100 / item.laneCount}%`
+                    }}
+                  >
+                    <EventCard event={item.event} formatter={formatter} compact durationResolution={item.duration} />
+                  </div>
                 ))}
               </div>
-            </Section.Root>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
     </div>
   )
@@ -110,49 +150,139 @@ function Agenda({ events, formatter }: { events: CalendarEvent[]; formatter: Int
   )
 }
 
-function EventCard({ event, formatter }: { event: CalendarEvent; formatter: Intl.DateTimeFormat }) {
+function EventCard({
+  event,
+  formatter,
+  compact = false,
+  durationResolution
+}: {
+  event: CalendarEvent
+  formatter: Intl.DateTimeFormat
+  compact?: boolean
+  durationResolution?: DurationResolution
+}) {
   const { t } = useT("calendar")
   const [expanded, setExpanded] = useState(false)
   const duration = typeof event.metadata.duration_seconds === "number" ? event.metadata.duration_seconds : null
+  const displayDuration = durationResolution ?? resolveDuration(event)
   const taskPath = typeof event.metadata.scheduled_task_path === "string" ? event.metadata.scheduled_task_path : null
-  return (
-    <article className="min-w-0 rounded border border-border bg-surface-subtle p-2">
-      <button className="w-full min-w-0 text-left" type="button" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
-        <Text className="truncate font-medium">{event.title}</Text>
-      </button>
+  const coworkerName = typeof event.metadata.coworker_name === "string" ? event.metadata.coworker_name : null
+  const coworkerHandle = typeof event.metadata.coworker_handle === "string" ? event.metadata.coworker_handle : null
+  const coworkerPath = typeof event.metadata.coworker_path === "string" ? event.metadata.coworker_path : null
+  const mainChatPath = typeof event.metadata.main_chat_path === "string" ? event.metadata.main_chat_path : null
+  const avatarUrl = typeof event.metadata.coworker_avatar_url === "string" ? event.metadata.coworker_avatar_url : null
+  const accentHex = typeof event.metadata.coworker_accent_hex === "string" ? event.metadata.coworker_accent_hex : null
+  const afterRun = typeof event.metadata.after_run === "string" ? event.metadata.after_run : null
+  const systemKey = typeof event.metadata.system_key === "string" ? event.metadata.system_key : null
+  const delayedReason = typeof event.metadata.delayed_reason === "string" ? event.metadata.delayed_reason : null
+  const delayedReasonLabel = delayedReason ? t(`delay_reasons.${delayedReason}`, { defaultValue: delayedReason.replaceAll("_", " ") }) : null
+  const details = (
+    <div className="space-y-1">
       <Text variant="caption" tone="muted">
-        {event.cadence?.band ? event.cadence.label : formatter.format(new Date(event.starts_at))}
+        {t("planned_time", { time: formatter.format(new Date(event.starts_at)) })}
       </Text>
-      <span className="mt-1 inline-block rounded-full bg-surface px-2 py-0.5 text-xs">{event.state}</span>
-      {expanded ? (
-        <div className="mt-2 space-y-1 border-t border-border pt-2">
-          <Text variant="caption" tone="muted">
-            {t("planned_time", { time: formatter.format(new Date(event.starts_at)) })}
-          </Text>
-          {event.actual_started_at ? (
-            <Text variant="caption" tone="muted">
-              {t("actual_time", {
-                start: formatter.format(new Date(event.actual_started_at)),
-                finish: event.actual_finished_at ? formatter.format(new Date(event.actual_finished_at)) : t("running")
-              })}
-            </Text>
-          ) : null}
-          {duration != null ? (
-            <Text variant="caption" tone="muted">
-              {t("duration", { seconds: duration.toFixed(1) })}
-            </Text>
-          ) : null}
-          <Link className="inline-block text-sm text-brand hover:underline" to={event.destination_path}>
-            {t("open_owner")}
-          </Link>
-          {taskPath && taskPath !== event.destination_path ? (
-            <Link className="ml-3 inline-block text-sm text-brand hover:underline" to={taskPath}>
-              {t("open_schedule")}
-            </Link>
-          ) : null}
-        </div>
+      {event.actual_started_at ? (
+        <Text variant="caption" tone="muted">
+          {t("actual_time", {
+            start: formatter.format(new Date(event.actual_started_at)),
+            finish: event.actual_finished_at ? formatter.format(new Date(event.actual_finished_at)) : t("running")
+          })}
+        </Text>
       ) : null}
-    </article>
+      {duration != null ? (
+        <Text variant="caption" tone="muted">
+          {t("duration", { seconds: duration.toFixed(1) })}
+        </Text>
+      ) : null}
+      <Text variant="caption" tone="muted">
+        {t("display_duration", {
+          minutes: Math.round(displayDuration.seconds / 60),
+          provenance: t(`duration_provenance.${displayDuration.provenance}`)
+        })}
+      </Text>
+      {coworkerName ? (
+        <Text variant="caption" tone="muted">
+          {t("coworker_identity", { name: coworkerName, handle: coworkerHandle ? `@${coworkerHandle}` : "" })}
+        </Text>
+      ) : null}
+      {afterRun ? (
+        <Text variant="caption" tone="muted">
+          {t("after_run", { policy: afterRun })}
+        </Text>
+      ) : null}
+      {systemKey ? (
+        <Text variant="caption" tone="muted">
+          {t("system_schedule", { key: systemKey })}
+        </Text>
+      ) : null}
+      {delayedReasonLabel ? (
+        <Text variant="caption" tone="muted">
+          {t("delayed_reason", { reason: delayedReasonLabel })}
+        </Text>
+      ) : null}
+      <Link className="inline-block text-sm text-brand hover:underline" to={event.destination_path}>
+        {t("open_owner")}
+      </Link>
+      {taskPath && taskPath !== event.destination_path ? (
+        <Link className="ml-3 inline-block text-sm text-brand hover:underline" to={taskPath}>
+          {t("open_schedule")}
+        </Link>
+      ) : null}
+      {mainChatPath ? (
+        <Link className="ml-3 inline-block text-sm text-brand hover:underline" to={mainChatPath}>
+          {t("open_main_chat")}
+        </Link>
+      ) : null}
+      {coworkerPath && coworkerPath !== event.destination_path ? (
+        <Link className="ml-3 inline-block text-sm text-brand hover:underline" to={coworkerPath}>
+          {t("open_coworker")}
+        </Link>
+      ) : null}
+    </div>
+  )
+  return (
+    <>
+      <article
+        className={`min-w-0 rounded border bg-surface-subtle ${displayDuration.estimated ? "border-dashed border-muted" : "border-border"} ${compact ? "h-full overflow-hidden" : "p-2"}`}
+      >
+        <button
+          className={`w-full min-w-0 text-left ${compact ? "flex h-full items-start px-0.5" : ""}`}
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+          title={compact ? `${event.title} — ${formatter.format(new Date(event.starts_at))}` : undefined}
+        >
+          <span className={`flex min-w-0 items-center ${compact ? "gap-0.5" : "gap-2"}`}>
+            {coworkerName && !compact ? <Avatar name={coworkerName} avatarUrl={avatarUrl} accentHex={accentHex} size="xs" /> : null}
+            <Text className={`truncate font-medium ${compact ? "text-[10px] leading-3" : ""}`}>{event.title}</Text>
+          </span>
+        </button>
+        {!compact ? (
+          <>
+            <Text variant="caption" tone="muted">
+              {event.cadence?.band ? event.cadence.label : formatter.format(new Date(event.starts_at))}
+            </Text>
+            <span className="mt-1 inline-block rounded-full bg-surface px-2 py-0.5 text-xs">{event.state}</span>
+          </>
+        ) : null}
+        {expanded && !compact ? <div className="mt-2 border-t border-border pt-2">{details}</div> : null}
+      </article>
+      {compact ? (
+        <Modal className={EVENT_DETAILS_MODAL_CLASS} label={event.title} onClose={() => setExpanded(false)} open={expanded}>
+          <div className="mb-3 flex items-start justify-between gap-3 border-b border-border pb-3">
+            <div className="flex min-w-0 items-center gap-2">
+              {coworkerName ? <Avatar name={coworkerName} avatarUrl={avatarUrl} accentHex={accentHex} size="xs" /> : null}
+              <Text className="font-medium">{event.title}</Text>
+            </div>
+            <button className="shrink-0 rounded border border-border px-2 py-1 text-sm" onClick={() => setExpanded(false)} type="button">
+              {t("close_details")}
+            </button>
+          </div>
+          <span className="mb-2 inline-block rounded-full bg-surface-subtle px-2 py-0.5 text-xs">{event.state}</span>
+          {details}
+        </Modal>
+      ) : null}
+    </>
   )
 }
 
@@ -161,16 +291,6 @@ function startOfWeek(input: Date) {
   date.setHours(0, 0, 0, 0)
   date.setDate(date.getDate() - ((date.getDay() + 6) % 7))
   return date
-}
-
-function addCalendarDays(input: Date, days: number) {
-  const date = new Date(input)
-  date.setDate(date.getDate() + days)
-  return date
-}
-
-function sameLocalDate(left: Date, right: Date) {
-  return left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth() && left.getDate() === right.getDate()
 }
 
 function decodeFilter(search: string): FilterTree {

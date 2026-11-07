@@ -21,8 +21,27 @@
   "planned_time": "Destinatum: {{time}}",
   "actual_time": "Re vera: {{start}} – {{finish}}",
   "duration": "Duratio: {{seconds}} secunda",
+  "display_duration": "Duratio monstrata: {{minutes}} minuta ({{provenance}})",
+  "duration_provenance": {
+    "actual": "tempus vere exactum",
+    "planned": "duratio expresse destinata",
+    "representative": "executiones prosperae recentes",
+    "source": "aestimatio fontis",
+    "fallback": "aestimatio triginta minutorum"
+  },
   "running": "currit",
+  "close_details": "Singula claudere",
   "open_owner": "Munus proprium aperire",
   "open_schedule": "Munus destinatum aperire",
+  "open_main_chat": "Colloquium principale aperire",
+  "open_coworker": "Sodalis aperire",
+  "coworker_identity": "{{name}} {{handle}}",
+  "after_run": "Post cursum: {{policy}}",
+  "system_schedule": "Ordo systematis: {{key}}",
+  "delayed_reason": "Dilatum: {{reason}}",
+  "delay_reasons": {
+    "coworker_turn_in_flight": "responsum in colloquio principali adhuc agitur",
+    "active_work_lock": "alius cursus destinatus iam currit"
+  },
   "cadence_bands": "Fasciae frequentiae altae"
 }

@@ -1,6 +1,6 @@
 import { jsonResponse } from "@app/testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import CalendarRoute from "./Calendar"
@@ -129,5 +129,148 @@ describe("CalendarRoute", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Repository sweep" }))
     expect(screen.getByRole("link", { name: "Open owning feature" })).toHaveAttribute("href", "/jobs/7")
     expect(screen.getByRole("link", { name: "Open scheduled task" })).toHaveAttribute("href", "/scheduled_tasks/1")
+  })
+
+  it("renders coworker identity, operational policy, and drill-through destinations", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        events: [
+          {
+            source_id: "coworkers:scheduled_work",
+            id: "coworker-task-1-slot",
+            kind: "coworker_scheduled_task",
+            title: "Morning briefing",
+            starts_at: new Date().toISOString(),
+            destination_path: "/jobs/7",
+            state: "delayed",
+            metadata: {
+              coworker_name: "Maya",
+              coworker_handle: "maya",
+              coworker_path: "/coworkers/2",
+              coworker_avatar_url: null,
+              coworker_accent_hex: "#b6492e",
+              main_chat_path: "/chats/12",
+              scheduled_task_path: "/coworkers/2?tab=schedules",
+              after_run: "wake",
+              system_key: "journaling",
+              delayed_reason: "coworker_turn_in_flight"
+            }
+          }
+        ],
+        failures: []
+      })
+    )
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/calendar"]}>
+          <CalendarRoute />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    fireEvent.click(await screen.findByRole("button", { name: "Morning briefing" }))
+    expect(screen.getByText("Maya @maya")).toBeInTheDocument()
+    expect(screen.getByText("After run: wake")).toBeInTheDocument()
+    expect(screen.getByText("System schedule: journaling")).toBeInTheDocument()
+    expect(screen.getByText("Delayed: main chat turn in progress")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open scheduled task" })).toHaveAttribute("href", "/coworkers/2?tab=schedules")
+    expect(screen.getByRole("link", { name: "Open main chat" })).toHaveAttribute("href", "/chats/12")
+    expect(screen.getByRole("link", { name: "Open coworker" })).toHaveAttribute("href", "/coworkers/2")
+  })
+
+  it("keeps the week spatial and places separated and overlapping events on the hour grid", async () => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    today.setDate(today.getDate() - ((today.getDay() + 6) % 7))
+    const at = (hours: number, minutes = 0) => {
+      const value = new Date(today)
+      value.setHours(hours, minutes)
+      return value.toISOString()
+    }
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        events: [
+          {
+            source_id: "calendar:test",
+            id: "early",
+            kind: "test",
+            title: "Early",
+            starts_at: at(2),
+            ends_at: at(3),
+            destination_path: "/test",
+            state: "planned",
+            metadata: {}
+          },
+          {
+            source_id: "calendar:test",
+            id: "noon",
+            kind: "test",
+            title: "Noon",
+            starts_at: at(12),
+            ends_at: at(13),
+            destination_path: "/test",
+            state: "planned",
+            metadata: {}
+          },
+          {
+            source_id: "calendar:test",
+            id: "overlap",
+            kind: "test",
+            title: "Overlap",
+            starts_at: at(12, 30),
+            ends_at: at(13, 30),
+            destination_path: "/test",
+            state: "planned",
+            metadata: {}
+          },
+          {
+            source_id: "calendar:test",
+            id: "short",
+            kind: "test",
+            title: "Short event",
+            starts_at: at(15),
+            actual_started_at: at(15),
+            actual_finished_at: at(15, 5),
+            destination_path: "/test/short",
+            state: "succeeded",
+            metadata: { duration_seconds: 300 }
+          },
+          { source_id: "calendar:test", id: "late", kind: "test", title: "Late", starts_at: at(20), destination_path: "/test", state: "planned", metadata: {} }
+        ],
+        failures: []
+      })
+    )
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/calendar"]}>
+          <CalendarRoute />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await screen.findByText("Early")
+    const grid = screen.getByTestId("week-time-grid")
+    expect(grid).toHaveClass("overflow-auto")
+    expect(grid.firstElementChild).toHaveClass("min-w-[76rem]")
+    expect(grid.querySelector<HTMLElement>('[data-calendar-event="early"]')?.style.top).toBe("96px")
+    expect(grid.querySelector<HTMLElement>('[data-calendar-event="late"]')?.style.top).toBe("960px")
+    expect(grid.querySelector<HTMLElement>('[data-calendar-event="noon"]')?.style.width).toBe("50%")
+    expect(grid.querySelector<HTMLElement>('[data-calendar-event="overlap"]')?.style.left).toBe("50%")
+    expect(grid.querySelectorAll("[data-calendar-day]")).toHaveLength(7)
+
+    const shortMarker = grid.querySelector<HTMLElement>('[data-calendar-event="short"]')
+    expect(shortMarker?.style.height).toBe("12px")
+    const shortButton = within(shortMarker!).getByRole("button", { name: "Short event" })
+    expect(shortButton).toHaveClass("h-full", "px-0.5")
+    expect(shortButton).toHaveAttribute("title", expect.stringContaining("Short event"))
+
+    fireEvent.click(shortButton)
+    const dialog = screen.getByRole("dialog", { name: "Short event" })
+    expect(within(dialog).getByText("Displayed duration: 5 minutes (actual elapsed time)")).toBeInTheDocument()
+    expect(within(dialog).getByRole("link", { name: "Open owning feature" })).toHaveAttribute("href", "/test/short")
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close details" }))
+    expect(screen.queryByRole("dialog", { name: "Short event" })).not.toBeInTheDocument()
   })
 })
