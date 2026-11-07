@@ -12,10 +12,7 @@ module Api
               note: feedback_params[:note].presence
             )
 
-            render json: {
-              feedback: feedback_payload(feedback),
-              briefing: ::OperatorBriefing::Payload.new(user: Current.user).as_json
-            }, status: :created
+            render json: { feedback: feedback_payload(feedback) }, status: :created
           end
 
           private

@@ -50,6 +50,30 @@ RSpec.describe OperatorBriefing::Payload do
     expect(repo_payload[:current][:latest_revision][:content_blocks].first.dig("payload", "text")).to eq("Live text")
     expect(repo_payload[:history].first[:id]).to eq(archived.id)
     expect(repo_payload[:history].first[:slug]).to eq("BRIEFING-#{archived.id}")
+    expect(repo_payload[:history].first).not_to have_key(:latest_revision)
+  end
+
+  it "loads only the maximum revision for each current briefing" do
+    OperatorBriefing::BriefingSubscription.create!(user: user, repository: repository, enabled: true)
+    live_job = Job.create!(user: user, owner_user: user, repository: repository, kind: "briefing_generate", priority: "low")
+    live = OperatorBriefing::Briefing.create!(job: live_job, owner_user: user, repository: repository, window_start: 1.day.ago, window_end: Time.current)
+    3.times do |index|
+      live.revisions.create!(revision_number: index + 1, generated_at: Time.current, content_blocks: [])
+    end
+
+    revision_queries = []
+    subscriber = lambda do |*, payload|
+      sql = payload[:sql]
+      revision_queries << sql if sql.include?(OperatorBriefing::BriefingRevision.table_name)
+    end
+
+    payload = ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      described_class.new(user: user).as_json
+    end
+
+    expect(payload[:repositories].sole.dig(:current, :latest_revision, :revision_number)).to eq(3)
+    expect(revision_queries.grep(/MAX\(revision_number\)/i)).to be_present
+    expect(revision_queries.none? { |sql| sql.match?(/ORDER BY .*revision_number DESC/i) }).to eq(true)
   end
 
   it "limits archived history in SQL" do

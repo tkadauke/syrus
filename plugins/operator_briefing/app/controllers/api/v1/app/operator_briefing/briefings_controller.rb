@@ -9,12 +9,27 @@ module Api
             render json: ::OperatorBriefing::Payload.new(user: Current.user).as_json
           end
 
+          def history
+            archived = ::OperatorBriefing::Briefing
+              .joins(:job)
+              .where(owner_user: Current.user, repository_id: Repository.accessible_repository_ids_for(Current.user))
+              .where(jobs: { state: "closed" })
+              .includes(:job)
+              .find(params.require(:briefing_id))
+
+            render json: { briefing: ::OperatorBriefing::Payload.new(user: Current.user).briefing_payload(archived) }
+          end
+
           def regenerate
             repository = Repository.where(id: Repository.accessible_repository_ids_for(Current.user)).find(params[:repository_id])
             ::OperatorBriefing::BriefingSubscription.find_or_create_by!(user: Current.user, repository: repository)
-            ::OperatorBriefing::Generator.generate!(user: Current.user, repository: repository, mode: :on_demand)
+            result = ::OperatorBriefing::Generator.generate!(user: Current.user, repository: repository, mode: :on_demand)
 
-            render json: ::OperatorBriefing::Payload.new(user: Current.user).as_json
+            render json: {
+              briefing: result.briefing && ::OperatorBriefing::Payload.new(user: Current.user).briefing_payload(result.briefing),
+              status: result.status,
+              reason: result.reason
+            }
           end
 
           def dive
@@ -36,8 +51,7 @@ module Api
 
             render json: {
               workflow_id: result.workflow.id,
-              status: result.status,
-              briefing: ::OperatorBriefing::Payload.new(user: Current.user).as_json
+              status: result.status
             }, status: :created
           end
 
