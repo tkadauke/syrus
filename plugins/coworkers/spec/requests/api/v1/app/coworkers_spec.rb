@@ -63,10 +63,10 @@ RSpec.describe "API: coworkers", type: :request do
     coworker.grants.create!(capability: "workspace.shell", approval_policy: "auto")
     sign_in_as(owner)
 
-    get "/api/v1/app/coworkers/#{coworker.id}"
+    get "/api/v1/app/coworkers/#{coworker.id}/capabilities"
 
     expect(response).to have_http_status(:ok)
-    report = response.parsed_body.dig("coworker", "permission_cutover_report")
+    report = response.parsed_body.fetch("permission_cutover_report")
     expect(report).to include("ready" => false)
     expect(report.fetch("legacy_grants")).to contain_exactly(
       include("capability" => "syrus.read_jobs", "approval_policy" => "auto"),
@@ -154,8 +154,10 @@ RSpec.describe "API: coworkers", type: :request do
       capability: "workspace.files", approval_policy: "confirm", confirmed: true,
       constraints: { confirm_paths: [ "SOUL.md", "AGENTS.md" ] }
     }
-    expect(response).to have_http_status(:ok)
-    expect(response.parsed_body.dig("coworker", "grants")).to contain_exactly(
+    expect(response).to have_http_status(:no_content)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/capabilities"
+    expect(response.parsed_body.fetch("grants")).to contain_exactly(
       "capability" => "workspace.files", "approval_policy" => "confirm",
       "constraints" => { "confirm_paths" => %w[SOUL.md AGENTS.md] }
     )
@@ -279,7 +281,8 @@ RSpec.describe "API: coworkers", type: :request do
     body = JSON.parse(response.body)
     expect(body.dig("syrus", "built_in")).to be(true)
     expect(body.fetch("coworkers")).to contain_exactly(include("id" => mine.id, "handle" => "maya"))
-    expect(body.fetch("model_options")).to include(
+    get "/api/v1/app/coworkers/options"
+    expect(response.parsed_body.fetch("model_options")).to include(
       include("provider" => "codex", "models" => include(include("id" => AgentProviders::Codex.available_models.first.id)))
     )
   end
@@ -383,9 +386,9 @@ RSpec.describe "API: coworkers", type: :request do
     Coworkers::ChatAgent.create!(coworker: coworker, chat_session: roster_chat, added_by_user: owner)
     sign_in_as(owner)
 
-    get "/api/v1/app/coworkers/#{coworker.id}"
+    get "/api/v1/app/coworkers/#{coworker.id}/chats"
 
-    chats = response.parsed_body.dig("coworker", "available_chats").index_by { |chat| chat.fetch("id") }
+    chats = response.parsed_body.fetch("available_chats").index_by { |chat| chat.fetch("id") }
     expect(chats.fetch(own_chat.id)).to include("implicit" => true, "rostered" => false)
     expect(chats.fetch(roster_chat.id)).to include("implicit" => false, "rostered" => true)
   end
@@ -402,14 +405,13 @@ RSpec.describe "API: coworkers", type: :request do
     old.update_columns(created_at: 31.days.ago)
     sign_in_as(owner)
 
-    get "/api/v1/app/coworkers/#{coworker.id}"
+    get "/api/v1/app/coworkers/#{coworker.id}/activity"
 
-    traffic = response.parsed_body.dig("coworker", "message_traffic")
+    traffic = response.parsed_body.fetch("message_traffic")
     expect(traffic).to include("sent" => 1, "received" => 1, "window_days" => 30)
     expect(traffic.fetch("delivery_events")).to contain_exactly(
       include("status" => "refused", "receiver_handle" => "rin", "reason" => "Message to @rin was not delivered")
     )
-    expect(response.parsed_body.dig("coworker", "spend_usd")).to eq(1.25)
   end
 
   it "refuses to add another user's coworker" do
@@ -422,6 +424,35 @@ RSpec.describe "API: coworkers", type: :request do
       post "/api/v1/app/chats/#{chat.id}/agents/#{coworker.id}"
     }.not_to change(Coworkers::ChatAgent, :count)
     expect(response).to have_http_status(:not_found)
+  end
+
+  it "keeps list options and expensive tab details behind scoped endpoints" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-tabs", workspace_repo: "https://github.com/acme/workspace.git")
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers"
+    expect(response.parsed_body).not_to include("model_options", "grant_catalog")
+
+    get "/api/v1/app/coworkers/options"
+    expect(response.parsed_body).to include("accent_hexes", "model_options", "grant_catalog")
+
+    get "/api/v1/app/coworkers/#{coworker.id}"
+    expect(response.parsed_body.fetch("coworker")).not_to include(
+      "soul", "available_chats", "grants", "schedules", "message_traffic"
+    )
+
+    get "/api/v1/app/coworkers/#{coworker.id}/capabilities"
+    expect(response.parsed_body).to include("grants", "grant_catalog", "permission_cutover_report")
+  end
+
+  it "returns bad request for a malformed activity cursor" do
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-cursor", workspace_repo: "https://github.com/acme/workspace.git")
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/activity", params: { runs_cursor: "broken" }
+
+    expect(response).to have_http_status(:bad_request)
+    expect(response.parsed_body.dig("error", "code")).to eq("invalid_cursor")
   end
 
   it "moves a newly rostered coworker into the addressable autocomplete scope" do
@@ -858,8 +889,8 @@ RSpec.describe "API: coworkers", type: :request do
       unsaved_workspace_operation: "chat_branch", unsaved_workspace_attempt_count: 3,
       unsaved_workspace_retry_scheduled_at: Time.current, unsaved_workspace_retry_token: "old-token")
     sign_in_as(owner)
-    get "/api/v1/app/coworkers/#{coworker.id}"
-    expect(response.parsed_body.dig("coworker", "chats", 0, "unsaved_workspace")).to include("attempt_count" => 3)
+    get "/api/v1/app/coworkers/#{coworker.id}/chats"
+    expect(response.parsed_body.dig("chats", 0, "unsaved_workspace")).to include("attempt_count" => 3)
     expect { post "/api/v1/app/coworkers/#{coworker.id}/workspace/retry", params: { chat_id: link.id } }
       .to have_enqueued_job(Coworkers::WorkspaceSaveRetryJob)
     expect(response).to have_http_status(:accepted)

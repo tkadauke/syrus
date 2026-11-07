@@ -13,16 +13,50 @@ module Api
           render json: {
             coworkers: coworkers.map { |coworker| summary_json(coworker, weekly_spend_usd: weekly_spend.fetch(coworker.id)) },
             syrus: syrus_json,
-            model_options: model_options_json,
             provisioning_attempts: Coworkers::ProvisioningAttempt.where(owner_user: Current.user)
-              .where.not(state: "completed").order(updated_at: :desc).limit(25).map(&:public_status),
+              .where.not(state: "completed").order(updated_at: :desc).limit(25).map(&:public_status)
+          }
+        end
+
+        def options
+          render json: {
+            accent_hexes: scope.pluck(:accent_hex),
+            model_options: model_options_json,
             grant_catalog: grant_catalog_json
           }
         end
 
         def show
           coworker = find_coworker
-          render json: { coworker: detail_json(coworker) }
+          render json: { coworker: base_detail_json(coworker) }
+        end
+
+        def profile
+          coworker = authorized_coworker
+          render json: {
+            chat_provider: coworker.chat_provider, chat_model: coworker.chat_model,
+            effective_model: coworker.chat_model, workspace_repo: coworker.workspace_repo,
+            soul: soul_for(coworker)
+          }
+        end
+
+        def chats
+          coworker = authorized_coworker
+          render json: { chats: chats_json(coworker), available_chats: available_chats_json(coworker) }
+        end
+
+        def capabilities
+          coworker = authorized_coworker
+          render json: {
+            grants: coworker.permission_rules.entries.reject { |entry| entry[:approval_policy] == "off" },
+            permission_cutover_report: Coworkers::PermissionCutoverReport.new(coworker: coworker).as_json,
+            grant_catalog: grant_catalog_json
+          }
+        end
+
+        def schedules
+          coworker = authorized_coworker
+          render json: { schedules: coworker.schedules.alive.order(:created_at).map { |task| schedule_json(task) } }
         end
 
         def create
@@ -58,7 +92,7 @@ module Api
           coworker = find_coworker
           authorize coworker, :update?, policy_class: CoworkerPolicy
           Coworkers::BranchLifecycle.new(coworker).rename!(handle: params.require(:handle))
-          render json: { coworker: detail_json(coworker.reload) }
+          head :no_content
         rescue Coworkers::OperationLock::Busy => error
           render_error("coworker_busy", error.message, status: :conflict)
         rescue ActiveRecord::RecordInvalid, ArgumentError => error
@@ -82,7 +116,7 @@ module Api
             approval_policy: params.require(:approval_policy), constraints: grant_constraints, **grant_scope_argument,
             confirmed: params[:confirmed]
           )
-          render json: { coworker: detail_json(coworker.reload) }
+          head :no_content
         rescue Coworkers::GrantUpdate::ConfirmationRequired => error
           render_error("confirmation_required", error.message, status: :conflict)
         rescue ActiveRecord::RecordInvalid, ArgumentError, KeyError => error
@@ -158,7 +192,12 @@ module Api
         def activity
           coworker = find_coworker
           authorize coworker, :show?, policy_class: CoworkerPolicy
-          render json: Coworkers::Activity.new(coworker: coworker, user: Current.user).call
+          render json: Coworkers::Activity.new(
+            coworker: coworker, user: Current.user,
+            runs_cursor: params[:runs_cursor], side_chats_cursor: params[:side_chats_cursor]
+          ).call.merge(message_traffic: message_traffic_json(coworker))
+        rescue Coworkers::Activity::InvalidCursor => error
+          render_error("invalid_cursor", error.message, status: :bad_request)
         end
 
         def approvals
@@ -268,6 +307,10 @@ module Api
 
         def find_coworker = scope.includes(coworker_chats: :chat_session).find(params[:id])
 
+        def authorized_coworker
+          find_coworker.tap { |coworker| authorize coworker, :show?, policy_class: CoworkerPolicy }
+        end
+
         def owned_chat
           ChatSession.active.find_by!(id: params[:chat_id], user_id: Current.user.id)
         end
@@ -339,22 +382,33 @@ module Api
           }
         end
 
-        def detail_json(coworker)
+        def base_detail_json(coworker)
           summary_json(coworker).merge(
             chat_provider: coworker.chat_provider, chat_model: coworker.chat_model,
             effective_model: coworker.chat_model,
-            workspace_repo: coworker.workspace_repo, soul: soul_for(coworker),
+            workspace_repo: coworker.workspace_repo
+          )
+        end
+
+        def detail_json(coworker)
+          base_detail_json(coworker).merge(profile_payload(coworker), chats: chats_json(coworker),
             available_chats: available_chats_json(coworker),
-            chats: coworker.coworker_chats.sort_by { |link| [ link.main? ? 0 : 1, link.id ] }.map { |link|
-              { id: link.chat_session_id, link_id: link.id, role: link.role, title: link.chat_session.title,
-                path: "/chats/#{link.chat_session_id}", unsaved_workspace: link.unsaved_workspace_json }
-            },
             grants: coworker.permission_rules.entries.reject { |entry| entry[:approval_policy] == "off" },
             permission_cutover_report: Coworkers::PermissionCutoverReport.new(coworker: coworker).as_json,
             grant_catalog: grant_catalog_json,
             schedules: coworker.schedules.alive.order(:created_at).map { |task| schedule_json(task) },
-            message_traffic: message_traffic_json(coworker), spend_usd: spend_usd(coworker)
-          )
+            message_traffic: message_traffic_json(coworker))
+        end
+
+        def profile_payload(coworker)
+          { soul: soul_for(coworker) }
+        end
+
+        def chats_json(coworker)
+          coworker.coworker_chats.sort_by { |link| [ link.main? ? 0 : 1, link.id ] }.map do |link|
+            { id: link.chat_session_id, link_id: link.id, role: link.role, title: link.chat_session.title,
+              path: "/chats/#{link.chat_session_id}", unsaved_workspace: link.unsaved_workspace_json }
+          end
         end
 
         def schedule_json(task)
@@ -383,27 +437,22 @@ module Api
           nil
         end
 
-        def spend_usd(coworker)
-          chat_spend = coworker.coworker_chats.joins(:chat_session).sum("chat_sessions.cumulative_cost_usd")
-          run_spend = Run.joins(:job).where(jobs: { origin: "coworkers", origin_id: coworker.id.to_s }).sum(:cost_usd)
-          (chat_spend + run_spend).to_f
-        end
-
         def message_traffic_json(coworker)
           main_chat = coworker.coworker_chats.find(&:main?)&.chat_session
-          messages = main_chat ? main_chat.messages.active.where("created_at >= ?", 30.days.ago).to_a : []
-          metadata = messages.filter_map { |message| message.content["coworker_message"] if message.content.is_a?(Hash) }
-          delivered = metadata.select { |entry| entry["status"].blank? }
-          events = messages.filter_map do |message|
+          messages = main_chat ? main_chat.messages.active.where("created_at >= ?", 30.days.ago) : ChatMessage.none
+          status_sql = "content ->> '$.coworker_message.status'"
+          delivered = messages.where("(#{status_sql} IS NULL OR #{status_sql} IN ('', 'null'))")
+          sent = delivered.where("content ->> '$.coworker_message.direction' = ?", "outgoing").count
+          received = delivered.where("content ->> '$.coworker_message.direction' = ?", "incoming").count
+          events = messages.where("#{status_sql} IN (?)", %w[refused rate_limited])
+            .order(created_at: :desc, id: :desc).limit(20).filter_map do |message|
             entry = message.content["coworker_message"] if message.content.is_a?(Hash)
-            next unless entry&.fetch("status", nil).in?(%w[refused rate_limited])
+            next unless entry
 
             { status: entry.fetch("status"), receiver_handle: entry.fetch("receiver_handle"),
               reason: message.extract_text_from_content, occurred_at: message.created_at.iso8601 }
           end
-          { sent: delivered.count { |entry| entry["direction"] == "outgoing" },
-            received: delivered.count { |entry| entry["direction"] == "incoming" },
-            window_days: 30, delivery_events: events.reverse.first(20) }
+          { sent: sent, received: received, window_days: 30, delivery_events: events }
         end
 
         def soul_for(coworker)

@@ -1,4 +1,5 @@
 class Coworkers::WorkspaceBrowser
+  MAX_FILES = 1_000
   MAX_FILE_BYTES = 256.kilobytes
 
   def initialize(coworker:, repository:, user:)
@@ -27,9 +28,10 @@ class Coworkers::WorkspaceBrowser
   def home_branch = "coworkers/#{@coworker.handle}"
 
   def workspace_entries(revision)
-    [ @reader.tree(revision).sort_by(&:path), false ]
+    entries = @reader.tree(revision).sort_by(&:path)
+    [ entries.first(MAX_FILES), entries.size > MAX_FILES ]
   rescue RepositoryContent::Truncated => error
-    [ Array(error.partial).sort_by(&:path), true ]
+    [ Array(error.partial).sort_by(&:path).first(MAX_FILES), true ]
   end
 
   def selected_file(revision, entries, requested_path)
