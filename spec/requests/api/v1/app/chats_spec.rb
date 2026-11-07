@@ -5634,7 +5634,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(panel.reload.state).to eq("closed")
   end
 
-  it "lists preview panel versions newest-first with the current version id" do
+  it "lists only the current preview panel version with its id" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, last_message_at: Time.current)
     panel = PreviewPanel::Service.open!(chat_session: chat, title: "Layout mockup", files: { "index.html" => "<p>v1</p>" })
@@ -5646,7 +5646,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     panel_payload = parse_body["preview_panels"].first
     expect(panel_payload["current_version_id"]).to eq(second_version_id)
-    expect(panel_payload["versions"].map { |v| v["id"] }).to eq([ second_version_id, first_version_id ])
+    expect(panel_payload["versions"].map { |v| v["id"] }).to eq([ second_version_id ])
     expect(panel_payload["file_count"]).to eq(1)
     expect(panel_payload["entry_path"]).to eq("index.html")
     expect(panel_payload["entry_viewer_kind"]).to eq("html")

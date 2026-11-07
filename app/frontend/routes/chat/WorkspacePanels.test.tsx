@@ -10,6 +10,7 @@ import {
   fetchChatMessagePins,
   fetchChatPreviewPanelAccessToken,
   fetchChatPreviewPanelFile,
+  fetchPreviewPanelHistory,
   fetchCodingCommits,
   fetchCodingDiff,
   fetchCodingFileContent,
@@ -46,6 +47,7 @@ vi.mock("../../api/chats", async (importOriginal) => {
     fetchChatMessagePins: vi.fn(),
     fetchChatPreviewPanelAccessToken: vi.fn(),
     fetchChatPreviewPanelFile: vi.fn(),
+    fetchPreviewPanelHistory: vi.fn(),
     fetchCodingCommits: vi.fn(),
     fetchCodingDiff: vi.fn(),
     fetchCodingFileContent: vi.fn(),
@@ -1558,6 +1560,14 @@ describe("ChatWorkspacePanel preview panels", () => {
     expect(iframe).not.toBeNull()
     expect(iframe?.getAttribute("src")).toBe("http://preview-panel-7.lvh.me/")
     expect(iframe?.getAttribute("sandbox")).toBe("allow-scripts")
+  })
+
+  it("loads version history only when the panel is opened", async () => {
+    vi.mocked(fetchPreviewPanelHistory).mockResolvedValue(payloadWithPanel().preview_panels[0])
+
+    renderWorkspacePanel(payloadWithPanel(), { activeTab: "preview:7" as WorkspaceTab })
+
+    await waitFor(() => expect(fetchPreviewPanelHistory).toHaveBeenCalledWith(7))
   })
 
   it("renders an https panel URL verbatim in the iframe src", () => {

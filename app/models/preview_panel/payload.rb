@@ -6,23 +6,23 @@ class PreviewPanel
   # shape is the same wherever it is shown; only the base path differs, so that
   # is the parameter.
   class Payload
-    def initialize(panel, base_path: nil, scheme: "http", base_domain: nil)
+    def initialize(panel, base_path: nil, scheme: "http", base_domain: nil, include_versions: false)
       @panel = panel
       @base_path = base_path.presence || "/api/v1/app/preview_panels/#{panel.id}"
       @scheme = scheme
       @base_domain = base_domain.presence || ENV.fetch("SYRUS_PREVIEW_BASE_DOMAIN", "lvh.me")
+      @include_versions = include_versions
     end
 
     def as_json(*)
-      versions = @panel.preview_panel_versions
-      current = versions.first
+      current = @panel.current_version
 
       {
         id: @panel.id,
         title: @panel.title,
         state: @panel.state,
         visibility: @panel.visibility,
-        file_count: current&.files&.size || 0,
+        file_count: current&.file_count || 0,
         url: @panel.preview_url(@base_domain, scheme: @scheme),
         app_visibility_path: @base_path,
         app_export_path: "#{@base_path}/export",
@@ -33,7 +33,7 @@ class PreviewPanel
         entry_content_type: current&.entry_content_type || EntryMetadata.content_type(DEFAULT_ENTRY_FILENAME),
         entry_viewer_kind: current&.entry_viewer_kind || "html",
         updated_at: @panel.updated_at&.iso8601,
-        versions: versions.map { |version| self.class.version_json(version) }
+        versions: serialized_versions(current)
       }
     end
 
@@ -45,6 +45,13 @@ class PreviewPanel
         entry_content_type: version.entry_content_type,
         entry_viewer_kind: version.entry_viewer_kind
       }
+    end
+
+    private
+
+    def serialized_versions(current)
+      selected = @include_versions ? @panel.preview_panel_versions : Array(current)
+      selected.map { |version| self.class.version_json(version) }
     end
   end
 end

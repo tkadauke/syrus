@@ -1665,6 +1665,10 @@ export function fetchChatPreviewPanelAccessToken(path: string) {
   return postJson<ChatPreviewPanelAccessToken>(path)
 }
 
+export function fetchPreviewPanelHistory(panelId: number) {
+  return getJson<PreviewPanelPayload>(`/api/v1/app/preview_panels/${panelId}?include=versions`)
+}
+
 export function chatPreviewPanelFileUrl(basePath: string, filePath: string, versionId?: number | null, raw = false) {
   const encodedPath = filePath
     .split("/")
