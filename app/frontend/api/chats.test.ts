@@ -219,6 +219,45 @@ describe("chat API", () => {
     const result = await fetchWhiteboardSnapshots(8)
     expect(result.whiteboard_snapshots).toEqual([{ id: 1 }, { id: 2 }])
   })
+
+  it("loads whiteboard files separately from the scene", async () => {
+    const fetchMock = vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+      const path = String(input)
+      if (path.endsWith("/files")) return jsonResponse({ files: { image: { id: "image" } } })
+      return jsonResponse({ version: 3, scene_json: { elements: [{ id: "box" }], appState: {} } })
+    })
+
+    await expect(fetchChatWhiteboard("/api/v1/app/chats/8/whiteboard")).resolves.toEqual({
+      version: 3,
+      scene_json: { elements: [{ id: "box" }], appState: {}, files: { image: { id: "image" } } }
+    })
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/chats/8/whiteboard", expect.anything())
+    expect(fetchMock).toHaveBeenCalledWith("/api/v1/app/chats/8/whiteboard/files", expect.anything())
+  })
+
+  it("returns the full conflict payload without refetching the whiteboard", async () => {
+    const conflict = { version: 4, scene_json: { elements: [{ id: "remote" }], appState: {}, files: {} } }
+    const fetchMock = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(conflict, 409))
+
+    await expect(patchChatWhiteboard("/api/v1/app/chats/8/whiteboard", { elements: [], appState: {}, files: {}, expected_version: 3 })).resolves.toEqual({
+      status: 409,
+      payload: conflict
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("loads every snapshot page exposed by the paginated endpoint", async () => {
+    vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+      const page = String(input).includes("page=2") ? 2 : 1
+      return jsonResponse({
+        whiteboard_snapshots: [{ id: page }],
+        pagination: { page, per_page: 30, total: 31, total_pages: 2, has_next_page: page === 1, has_previous_page: page > 1 }
+      })
+    })
+
+    const result = await fetchWhiteboardSnapshots(8)
+    expect(result.whiteboard_snapshots).toEqual([{ id: 1 }, { id: 2 }])
+  })
 })
 
 function createdChatPayload() {
