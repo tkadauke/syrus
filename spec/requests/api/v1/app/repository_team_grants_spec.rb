@@ -9,27 +9,16 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/team_grants", type:
     JSON.parse(response.body)
   end
 
-  it "401s with a JSON error when signed out" do
+  it "does not expose a redundant team-grants index" do
+    sign_in_as(owner)
+
     get "/api/v1/app/repositories/#{repository.id}/team_grants"
 
-    expect(response).to have_http_status(:unauthorized)
-    expect(parse_body.dig("error", "code")).to eq("unauthorized")
+    expect(response).to have_http_status(:not_found)
   end
 
   describe "as a repository admin" do
     before { sign_in_as(owner) }
-
-    it "lists existing team grants alongside memberships" do
-      repository.team_repositories.create!(team: team, role: "write")
-
-      get "/api/v1/app/repositories/#{repository.id}/team_grants"
-
-      expect(response).to have_http_status(:ok)
-      expect(parse_body["team_grants"]).to contain_exactly(
-        include("role" => "write", "team" => include("id" => team.id, "name" => "Platform"))
-      )
-      expect(parse_body["memberships"]).to contain_exactly(include("user" => include("id" => owner.id)))
-    end
 
     it "grants a team a role by name" do
       team
@@ -41,6 +30,7 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/team_grants", type:
       expect(response).to have_http_status(:created)
       grant = repository.team_repositories.find_by(team: team)
       expect(grant.role).to eq("write")
+      expect(parse_body["team_grant"]).to include("id" => grant.id, "role" => "write", "team" => include("name" => "Platform"))
     end
 
     it "looks up the team name case-insensitively" do
@@ -82,6 +72,7 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/team_grants", type:
 
       expect(response).to have_http_status(:ok)
       expect(grant.reload.role).to eq("admin")
+      expect(parse_body["team_grant"]).to include("id" => grant.id, "role" => "admin")
     end
 
     it "removes a grant" do
@@ -93,6 +84,7 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/team_grants", type:
 
       expect(response).to have_http_status(:ok)
       expect(TeamRepository.exists?(grant.id)).to be false
+      expect(parse_body["id"]).to eq(grant.id)
     end
 
     it "does not remove the repository membership -- a repo with zero grants stays direct-membership-only" do
@@ -105,15 +97,4 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/team_grants", type:
     end
   end
 
-  describe "as a non-admin repository member" do
-    it "404s for a write-tier member (team grants are admin-tier only)" do
-      writer = Factories.user
-      repository.repository_memberships.create!(user: writer, role: "write")
-      sign_in_as(writer)
-
-      get "/api/v1/app/repositories/#{repository.id}/team_grants"
-
-      expect(response).to have_http_status(:not_found)
-    end
-  end
 end
