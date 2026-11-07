@@ -28,8 +28,8 @@ module Api
             return
           end
 
-          team.team_memberships.create!(user: target_user, role: role)
-          render json: team_detail_payload(team.reload).merge(message: I18n.t("api.team_memberships.added", email: target_user.email_address, role: role)), status: :created
+          membership = team.team_memberships.create!(user: target_user, role: role)
+          render json: { membership: team_membership_json(membership), message: I18n.t("api.team_memberships.added", email: target_user.email_address, role: role) }, status: :created
         end
 
         def update
@@ -50,7 +50,7 @@ module Api
           end
 
           membership.update!(role: role)
-          render json: team_detail_payload(team.reload).merge(message: I18n.t("api.team_memberships.role_updated", role: role))
+          render json: { membership: team_membership_json(membership), message: I18n.t("api.team_memberships.role_updated", role: role) }
         end
 
         def destroy
@@ -65,7 +65,7 @@ module Api
           end
 
           membership.destroy!
-          render json: team_detail_payload(team.reload).merge(message: I18n.t("api.team_memberships.removed"))
+          render json: { message: I18n.t("api.team_memberships.removed") }
         end
 
         private

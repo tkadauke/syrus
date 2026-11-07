@@ -13,7 +13,7 @@ describe("MemoriesRoute", () => {
   })
 
   it("labels the memories page with the plugin locale", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(memoriesPayload()))
+    vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(memoriesPayload())))
 
     renderRoute(<MemoriesRoute />, "/app-shell/memories")
 
@@ -21,12 +21,14 @@ describe("MemoriesRoute", () => {
   })
 
   it("renders filters, admin owner column, rows, and pagination", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse(
-        memoriesPayload({
-          current_user: { id: 1, admin: true },
-          pagination: { page: 1, per_page: 20, total: 21, total_pages: 2 }
-        })
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse(
+          memoriesPayload({
+            current_user: { id: 1, admin: true },
+            pagination: { page: 1, per_page: 20, total: 21, total_pages: 2 }
+          })
+        )
       )
     )
 
@@ -45,15 +47,17 @@ describe("MemoriesRoute", () => {
   })
 
   it("renders memories with shared sortable and configurable table controls", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse(
-        memoriesPayload({
-          memories: [
-            memoryRow({ id: 10, content: "Zeta memory", created_at: "2026-06-20T12:00:00Z" }),
-            memoryRow({ id: 11, content: "Alpha memory", created_at: "2026-06-21T12:00:00Z" })
-          ],
-          pagination: { page: 1, per_page: 20, total: 2, total_pages: 1 }
-        })
+    vi.spyOn(window, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse(
+          memoriesPayload({
+            memories: [
+              memoryRow({ id: 10, content: "Zeta memory", created_at: "2026-06-20T12:00:00Z" }),
+              memoryRow({ id: 11, content: "Alpha memory", created_at: "2026-06-21T12:00:00Z" })
+            ],
+            pagination: { page: 1, per_page: 20, total: 2, total_pages: 1 }
+          })
+        )
       )
     )
 
@@ -75,7 +79,7 @@ describe("MemoriesRoute", () => {
   })
 
   it("updates query params when filters are applied", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(memoriesPayload()))
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(memoriesPayload())))
 
     renderRoute(
       <Routes>
@@ -95,15 +99,17 @@ describe("MemoriesRoute", () => {
   })
 
   it("renders memory content as markdown", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse(
-        memoriesPayload({
-          memories: [
-            memoryRow({
-              content: "## Setup\n\nUse **Rails** and [Vite](/docs/vite).\n\n- Keep tests green"
-            })
-          ]
-        })
+    vi.spyOn(window, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse(
+          memoriesPayload({
+            memories: [
+              memoryRow({
+                content: "## Setup\n\nUse **Rails** and [Vite](/docs/vite).\n\n- Keep tests green"
+              })
+            ]
+          })
+        )
       )
     )
 
@@ -117,15 +123,17 @@ describe("MemoriesRoute", () => {
   })
 
   it("opens long memory content in a markdown modal", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse(
-        memoriesPayload({
-          memories: [
-            memoryRow({
-              content: "## Long memory\n\nUse **Rails** for the app.\n\n" + "Keep repository setup documented. ".repeat(6)
-            })
-          ]
-        })
+    vi.spyOn(window, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse(
+          memoriesPayload({
+            memories: [
+              memoryRow({
+                content: "## Long memory\n\nUse **Rails** for the app.\n\n" + "Keep repository setup documented. ".repeat(6)
+              })
+            ]
+          })
+        )
       )
     )
 
@@ -143,15 +151,17 @@ describe("MemoriesRoute", () => {
   })
 
   it("opens short memory content in a markdown modal", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse(
-        memoriesPayload({
-          memories: [
-            memoryRow({
-              content: "## Short memory\n\nUse **Rails**."
-            })
-          ]
-        })
+    vi.spyOn(window, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse(
+          memoriesPayload({
+            memories: [
+              memoryRow({
+                content: "## Short memory\n\nUse **Rails**."
+              })
+            ]
+          })
+        )
       )
     )
 
@@ -262,11 +272,13 @@ describe("MemoriesRoute", () => {
   })
 
   it("does not show a changed badge for unmodified memories", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse(
-        memoriesPayload({
-          memories: [memoryRow({ changed: false })]
-        })
+    vi.spyOn(window, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse(
+          memoriesPayload({
+            memories: [memoryRow({ changed: false })]
+          })
+        )
       )
     )
 
@@ -378,11 +390,6 @@ function memoryRow(overrides: Record<string, unknown> = {}) {
     updated_at: "2026-06-23T12:00:00Z",
     owner: { id: 2, name: "Ada Lovelace" },
     permissions: { can_manage: true, can_publish: true },
-    paths: {
-      app_memory_path: "/api/v1/app/memories/10",
-      app_publish_path: "/api/v1/app/memories/10/publish",
-      app_audit_events_path: "/api/v1/app/memories/10/audit_events"
-    },
     ...overrides
   }
 }

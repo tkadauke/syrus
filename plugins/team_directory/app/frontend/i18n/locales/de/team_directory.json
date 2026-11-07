@@ -2,6 +2,13 @@
   "nav_team": "Team",
   "profiles": {
     "team_directory": "Teamverzeichnis",
+    "search_label": "Personen suchen",
+    "search_placeholder": "Name oder GitHub-Handle",
+    "search": "Suchen",
+    "pagination": "Profilseiten",
+    "previous": "Zurück",
+    "next": "Weiter",
+    "page": "Seite {{page}} von {{total}}",
     "loading": "Profile werden geladen...",
     "single_user": "Auf dieser Syrus-Instanz existiert nur ein Benutzer.",
     "loading_profile": "Profil wird geladen...",

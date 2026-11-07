@@ -25,7 +25,8 @@ making the feature behave like missing data or an authorization failure.
 
 ## Routes
 
-- `GET /api/v1/app/profiles` — profile summaries and aggregate work counts.
+- `GET /api/v1/app/profiles` — paginated profile summaries and cached
+  aggregate work counts. Use `q` to search names and GitHub handles.
 - `GET /api/v1/app/profiles/:id` — one profile and bounded recent work.
 - `/profiles` — the Team directory.
 - `/profiles/:id` — an operator profile.

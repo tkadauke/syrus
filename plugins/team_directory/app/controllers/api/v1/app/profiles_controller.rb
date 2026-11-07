@@ -2,15 +2,27 @@ module Api
   module V1
     module App
       class ProfilesController < BaseController
+        include Paginatable
+
         RECENT_LIMIT = 8
+        PER_PAGE = 50
 
         def index
-          users = User.order(Arel.sql("LOWER(email_address) ASC"), :id).to_a
-          counts_by_user_id = directory_counts(users)
+          relation = User.order(Arel.sql("LOWER(email_address) ASC"), :id)
+          if params[:q].present?
+            term = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q].strip)}%"
+            relation = relation.where("LOWER(first_name) LIKE LOWER(:term) OR LOWER(last_name) LIKE LOWER(:term) OR LOWER(name) LIKE LOWER(:term) OR LOWER(github_handle) LIKE LOWER(:term)", term: term)
+          end
+          total = relation.count
+          users = relation.offset((page_param - 1) * per_page_param).limit(per_page_param).to_a
+          counts_by_user_id = Rails.cache.fetch([ "profile-directory-counts", Current.user.cache_key_with_version, users.map(&:id) ], expires_in: 60.seconds) do
+            directory_counts(users)
+          end
 
           render json: {
-            team_user_count: User.count,
-            profiles: users.map { |user| directory_user_json(user, counts: counts_by_user_id.fetch(user.id)) }
+            team_user_count: total,
+            profiles: users.map { |user| directory_user_json(user, counts: counts_by_user_id.fetch(user.id)) },
+            pagination: { page: page_param, per_page: per_page_param, total: total, total_pages: (total.to_f / per_page_param).ceil }
           }
         end
 
@@ -53,21 +65,11 @@ module Api
             profile_company: user.profile_company,
             profile_website: user.profile_website,
             avatar_url: user.avatar_url,
-            counts: counts_json(user),
+            counts: directory_counts([ user ]).fetch(user.id),
             profile_path: profile_path(user),
             repositories: user.repositories.active.order(:owner, :name, :id).limit(RECENT_LIMIT).map { |repository| repository_json(repository) },
             epics: user.epics.includes(:repository).where.not(state: Epic::ARCHIVED_STATE).order(updated_at: :desc, id: :desc).limit(RECENT_LIMIT).map { |epic| epic_json(epic) },
-            jobs: visible_jobs_for(user).includes(:repository).order(updated_at: :desc, id: :desc).limit(RECENT_LIMIT).map { |job| job_json(job, show_owner: show_owner_labels_for?(user)) },
-            recent_activity: recent_activity_json(user)
-          }
-        end
-
-        def counts_json(user)
-          {
-            repositories: user.repositories.active.count,
-            epics: user.epics.where.not(state: Epic::ARCHIVED_STATE).count,
-            jobs: visible_jobs_for(user).count,
-            open_jobs: visible_jobs_for(user).where.not(state: "closed").count
+            jobs: visible_jobs_for(user).includes(:repository).order(updated_at: :desc, id: :desc).limit(RECENT_LIMIT).map { |job| job_json(job, show_owner: show_owner_labels_for?(user)) }
           }
         end
 
@@ -124,32 +126,6 @@ module Api
             path: job_path(job),
             owner: show_owner ? owner_json(job.user) : nil
           }.compact
-        end
-
-        def recent_activity_json(user)
-          activities = []
-          visible_jobs_for(user).includes(:repository).order(updated_at: :desc, id: :desc).limit(RECENT_LIMIT).each do |job|
-            activities << {
-              type: "job",
-              title: job.issue_title.presence || job.kind.humanize,
-              state: job.state,
-              repository_slug: job.repository.slug,
-              occurred_at: job.updated_at&.iso8601,
-              path: job_path(job)
-            }
-          end
-          user.epics.includes(:repository).where.not(state: Epic::ARCHIVED_STATE).order(updated_at: :desc, id: :desc).limit(RECENT_LIMIT).each do |epic|
-            activities << {
-              type: "epic",
-              title: epic.title,
-              state: epic.state,
-              repository_slug: epic.repository.slug,
-              occurred_at: epic.updated_at&.iso8601,
-              path: epic_path(epic)
-            }
-          end
-
-          activities.sort_by { |activity| activity.fetch(:occurred_at).to_s }.reverse.first(RECENT_LIMIT)
         end
 
         def owner_json(user)

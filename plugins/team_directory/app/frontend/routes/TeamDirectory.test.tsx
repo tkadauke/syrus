@@ -1,5 +1,5 @@
 import { jsonResponse } from "@app/testSupport"
-import { render, screen, within } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { describe, expect, it, vi } from "vitest"
 import type { ReactNode } from "react"
@@ -68,6 +68,54 @@ describe("profile routes", () => {
     expect(screen.queryByText("Private installation.")).not.toBeInTheDocument()
   })
 
+  it("renders a sole matching profile instead of the single-user instance message", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        team_user_count: 1,
+        profiles: [
+          {
+            id: 7,
+            display_name: "Ada Lovelace",
+            first_name: "Ada",
+            last_name: "Lovelace",
+            github_handle: "ada",
+            role_label: "Operator",
+            avatar_url: null,
+            bio_excerpt: "Keeps analytical engines from lying.",
+            counts: { repositories: 1, epics: 2, jobs: 3, open_jobs: 1 },
+            profile_path: "/profiles/7"
+          }
+        ],
+        pagination: { page: 1, per_page: 50, total: 1, total_pages: 1 }
+      })
+    )
+
+    renderRoute(<TeamDirectoryRoute />, "/profiles?q=Ada")
+
+    expect(await screen.findByRole("link", { name: "Ada Lovelace" })).toBeInTheDocument()
+    expect(screen.queryByText("Only one user exists on this Syrus instance.")).not.toBeInTheDocument()
+  })
+
+  it("searches and navigates paginated profile results", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() =>
+      Promise.resolve(
+        jsonResponse({
+          team_user_count: 51,
+          profiles: [],
+          pagination: { page: 1, per_page: 50, total: 51, total_pages: 2 }
+        })
+      )
+    )
+
+    renderRoute(<TeamDirectoryRoute />, "/profiles")
+    await screen.findByRole("navigation", { name: "Profile pages" })
+    fireEvent.change(screen.getByLabelText("Search people"), { target: { value: "Ada" } })
+    fireEvent.click(screen.getByRole("button", { name: "Search" }))
+    await waitFor(() => expect(fetchSpy.mock.calls.some(([url]) => String(url).includes("q=Ada"))).toBe(true))
+    fireEvent.click(await screen.findByRole("button", { name: "Next" }))
+    await waitFor(() => expect(fetchSpy.mock.calls.some(([url]) => String(url).includes("page=2"))).toBe(true))
+  })
+
   it("renders a team profile with public fields, work summaries, and prefixed links", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(teamProfilePayload()))
 
@@ -95,17 +143,20 @@ describe("profile routes", () => {
   })
 
   it("renders a team profile with empty work sections", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(teamProfilePayload({
-      profile_bio: null,
-      profile_company: null,
-      profile_location: null,
-      profile_website: null,
-      counts: { repositories: 0, epics: 0, jobs: 0, open_jobs: 0 },
-      epics: [],
-      jobs: [],
-      repositories: [],
-      recent_activity: []
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        teamProfilePayload({
+          profile_bio: null,
+          profile_company: null,
+          profile_location: null,
+          profile_website: null,
+          counts: { repositories: 0, epics: 0, jobs: 0, open_jobs: 0 },
+          epics: [],
+          jobs: [],
+          repositories: []
+        })
+      )
+    )
 
     renderRoute(
       <Routes>
@@ -126,9 +177,7 @@ describe("profile routes", () => {
 function renderRoute(children: ReactNode, path: string) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter initialEntries={[path]}>
-        {children}
-      </MemoryRouter>
+      <MemoryRouter initialEntries={[path]}>{children}</MemoryRouter>
     </QueryClientProvider>
   )
 }
@@ -150,9 +199,7 @@ function teamProfilePayload(overrides: Record<string, unknown> = {}) {
       avatar_url: null,
       profile_path: "/profiles/7",
       counts: { repositories: 1, epics: 1, jobs: 1, open_jobs: 1 },
-      repositories: [
-        { id: 3, slug: "acme/widgets", path: "/repositories/3" }
-      ],
+      repositories: [{ id: 3, slug: "acme/widgets", path: "/repositories/3" }],
       epics: [
         {
           id: 12,
@@ -172,16 +219,6 @@ function teamProfilePayload(overrides: Record<string, unknown> = {}) {
           kind: "issue",
           repository: { id: 3, slug: "acme/widgets", path: "/repositories/3" },
           updated_at: "2026-05-30T12:00:00Z",
-          path: "/jobs/55"
-        }
-      ],
-      recent_activity: [
-        {
-          type: "job",
-          title: "Ship profile page",
-          state: "running",
-          repository_slug: "acme/widgets",
-          occurred_at: "2026-05-30T12:00:00Z",
           path: "/jobs/55"
         }
       ],

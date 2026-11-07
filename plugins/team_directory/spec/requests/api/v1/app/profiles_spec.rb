@@ -93,6 +93,18 @@ RSpec.describe "API: /api/v1/app/profiles", type: :request do
     expect(response.body).not_to include("sk-solo-secret")
   end
 
+  it "searches and paginates directory profiles" do
+    viewer = Factories.user(first_name: "Viewer")
+    ada = Factories.user(email_address: "ada@example.com", first_name: "Ada")
+    Factories.user(email_address: "grace@example.com", first_name: "Grace")
+    sign_in_as(viewer)
+
+    get "/api/v1/app/profiles", params: { q: "ada", per_page: 1 }
+
+    expect(parse_body["profiles"].map { |profile| profile["id"] }).to eq([ ada.id ])
+    expect(parse_body["pagination"]).to include("page" => 1, "per_page" => 1, "total" => 1, "total_pages" => 1)
+  end
+
   it "loads directory counts with a constant number of aggregate queries" do
     viewer = Factories.user
     teammates = Array.new(4) { |index| Factories.user(email_address: "teammate#{index}@example.com") }
@@ -161,7 +173,7 @@ RSpec.describe "API: /api/v1/app/profiles", type: :request do
     expect(profile["repositories"]).to include(include("slug" => "navy/cobol", "path" => "/repositories/#{repo.id}"))
     expect(profile["epics"]).to include(include("id" => epic.id, "title" => "Directory", "path" => "/epics/#{epic.id}"))
     expect(profile["jobs"]).to include(include("id" => job.id, "title" => "Link owners", "path" => "/jobs/#{job.id}"))
-    expect(profile["recent_activity"].map { |activity| activity["title"] }).to include("Directory", "Link owners")
+    expect(profile).not_to have_key("recent_activity")
     expect(profile.keys).not_to include(
       "admin",
       "agent_provider",
@@ -205,7 +217,6 @@ RSpec.describe "API: /api/v1/app/profiles", type: :request do
       profile = parse_body.fetch("profile")
       expect(profile.dig("counts", "jobs")).to eq(1)
       expect(profile.fetch("jobs").map { |job| job.fetch("id") }).to eq([ visible.id ])
-      expect(profile.fetch("recent_activity").map { |activity| activity["title"] }).to include("Visible work")
       expect(response.body).not_to include(hidden.issue_title)
     end
   end
@@ -269,7 +280,7 @@ RSpec.describe "API: /api/v1/app/profiles", type: :request do
         }
       )
     )
-    expect(profile.fetch("recent_activity").map { |activity| activity["title"] }).to include("Add profile page", "Retire old forms")
+    expect(profile).not_to have_key("recent_activity")
     expect(response.body).not_to include("Other user's work")
   end
 

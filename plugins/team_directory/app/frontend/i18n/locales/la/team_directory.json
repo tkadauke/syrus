@@ -2,6 +2,13 @@
   "nav_team": "Collegium",
   "profiles": {
     "team_directory": "Directorium Manipuli",
+    "search_label": "Personas quaere",
+    "search_placeholder": "Nomen vel GitHub cognomen",
+    "search": "Quaere",
+    "pagination": "Paginae profilorum",
+    "previous": "Prior",
+    "next": "Proxima",
+    "page": "Pagina {{page}} ex {{total}}",
     "loading": "Imagines onerantur...",
     "single_user": "In hac instantia Syri unus solus utens exstat.",
     "loading_profile": "Imago onerans...",
