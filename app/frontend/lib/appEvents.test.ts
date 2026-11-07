@@ -295,7 +295,7 @@ describe("applyAppEvent", () => {
 
     applyAppEvent(queryClient, event("job", 42))
     applyAppEvent(queryClient, event("job", 42))
-    vi.runOnlyPendingTimers()
+    vi.advanceTimersByTime(0)
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs"], exact: true, refetchType: "none" })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs", "42"], exact: true, refetchType: "none" })
