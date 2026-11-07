@@ -107,7 +107,7 @@ import { ContextFindBar } from "../../components/ContextFindBar"
 // Chat workspace panels extracted from Chat.tsx: the workspace tab shell
 // (ChatWorkspacePanel) and its panels — local diff, media gallery, settings
 // dialog, coding files. The whiteboard panel moved to plugins/whiteboard (see
-// Whiteboard::WorkspaceTabs / config/syrus_docs/plugins.md).
+// Whiteboard::WorkspaceTabs / docs/engineering/conventions/plugins/authoring.md).
 // Depends only on leaf modules and shared UI imports; unused header imports pruned.
 
 export function ChatWorkspacePanel({

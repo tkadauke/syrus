@@ -152,7 +152,7 @@ enforced ratchet applies to `plugins/*/app/frontend` the same as core, and
 the not-yet-enforced `plugin-ui-imports` report (above) is specifically
 aimed at catching plugin pages that render substantial UI without touching
 the shared primitives at all. See
-`config/syrus_docs/plugins.md`'s "Frontend UI primitives" section for the
+`docs/engineering/conventions/plugins/authoring.md`'s "Frontend UI primitives" section for the
 full guidance plugin authors see.
 
 ## Theming beyond color

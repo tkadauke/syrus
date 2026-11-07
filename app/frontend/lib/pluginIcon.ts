@@ -1,6 +1,6 @@
 // Static plugin name -> icon URL lookup, mirroring the same
 // public/plugin-icons/*.svg assets and SPQR-eagle fallback
-// Admin::PluginsPayload serves as `icon_url` (see config/syrus_docs/plugins.md).
+// Admin::PluginsPayload serves as `icon_url` (see docs/engineering/conventions/plugins/authoring.md).
 // Surfaces that already have a plugin's `icon_url` from the admin API should
 // render that value directly; this lookup is for surfaces that only know a
 // plugin by name (provider selectors, the Workflow detected-plugins list)

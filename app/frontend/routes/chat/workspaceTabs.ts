@@ -43,7 +43,7 @@ export function mediaTabVisible(payload: ChatPayload): boolean {
   )
 }
 
-// Plugin-provided tabs (see Syrus::Plugin::WorkspaceTab / config/syrus_docs/plugins.md)
+// Plugin-provided tabs (see Syrus::Plugin::WorkspaceTab / docs/engineering/conventions/plugins/authoring.md)
 // are namespaced under "plugin:" so a plugin's own tab id can never collide
 // with one of the fixed core tab names below.
 export type PluginTab = `plugin:${string}`
