@@ -2,11 +2,11 @@ import { withRoutePrefix } from "../lib/routing"
 import { useQuery } from "@tanstack/react-query"
 import { useTranslation } from "react-i18next"
 import { Link } from "react-router-dom"
-import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
+import { fetchSetup, type FullSetupStatusPayload } from "../api/setup"
 import { useBackendOutage } from "../hooks/useBackendUpdate"
 import { buttonClasses } from "./Button"
 
-type SetupStatus = NonNullable<BootstrapPayload["setup_status"]>
+type SetupStatus = FullSetupStatusPayload
 
 type OnboardingEmptyStateProps = {
   fallbackActionPath?: string
@@ -18,15 +18,7 @@ type OnboardingEmptyStateProps = {
 }
 
 export function useSetupStatus() {
-  const initialBootstrap = readInitialBootstrap()
-  const bootstrap = useQuery({
-    queryKey: ["bootstrap"],
-    queryFn: fetchBootstrap,
-    enabled: false,
-    initialData: initialBootstrap ?? undefined,
-    staleTime: initialBootstrap ? Number.POSITIVE_INFINITY : 0
-  })
-  return bootstrap.data?.setup_status ?? initialBootstrap?.setup_status ?? null
+  return useQuery({ queryKey: ["setup"], queryFn: fetchSetup }).data ?? null
 }
 
 export function OnboardingEmptyState({
@@ -39,7 +31,7 @@ export function OnboardingEmptyState({
 }: OnboardingEmptyStateProps) {
   const { t } = useTranslation("nav")
   // While the desktop shell's backend update has the containers down,
-  // setup_status reflects failed checks, not reality — falling back to the
+  // setup status reflects failed checks, not reality — falling back to the
   // generic empty-state copy avoids telling the user to "connect credentials"
   // they already have. (During the image pull the old backend still serves,
   // so outage stays false and the setup CTA renders normally.)
@@ -92,4 +84,3 @@ export function OnboardingEmptyState({
     </section>
   )
 }
-
