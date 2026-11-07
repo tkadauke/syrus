@@ -399,7 +399,7 @@ class ChatMessageSearchIndex < SearchRecord
     end
 
     def content_for(message)
-      message.extract_text_from_content
+      ([ message.extract_text_from_content ] + ChatAttachmentRef.for(message).map(&:name)).compact_blank.join("\n")
     end
 
     def metadata_value(key)

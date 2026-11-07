@@ -25,6 +25,7 @@ class ChatSession < ApplicationRecord
           inverse_of: :chat_session
 
   has_many :chat_attachments, dependent: :destroy
+  has_many :chat_file_attachments, dependent: :destroy
   has_many :repository_attachments,
            -> { where(attachable_type: "Repository").order(:attached_at, :id) },
            class_name: "ChatAttachment"
