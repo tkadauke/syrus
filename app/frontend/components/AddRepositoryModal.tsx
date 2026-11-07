@@ -36,7 +36,7 @@ export function AddRepositoryModal({
   const { t } = useT("settings")
   const queryClient = useQueryClient()
   const form = useQuery({ queryKey: ["repositories", "new"], queryFn: fetchNewRepositoryForm, staleTime: 60_000 })
-  const owners = useQuery({ queryKey: ["repositories", "owners"], queryFn: fetchRepositoryOwners, staleTime: 60_000 })
+  const owners = useQuery({ queryKey: ["repositories", "owners"], queryFn: () => fetchRepositoryOwners(), staleTime: 60_000 })
 
   const [values, setValues] = useState<RepositoryInput | null>(null)
   const [ownerOptions, setOwnerOptions] = useState<OwnerOption[]>([])
