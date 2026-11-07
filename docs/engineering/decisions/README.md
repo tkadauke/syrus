@@ -12,20 +12,39 @@ evidence links.
 
 | ADR | Status | Decision |
 | --- | --- | --- |
-| [ADR-0001](0001-poll-github-instead-of-receiving-webhooks.md) | accepted | Poll GitHub instead of receiving inbound webhooks |
+| [ADR-0001](0001-poll-github-instead-of-receiving-webhooks.md) | retired | Polling remains current architecture, not a durable decision |
 | [ADR-0002](0002-keep-plugin-documentation-with-its-plugin.md) | accepted | Keep plugin-owned documentation with its plugin |
+| [ADR-0003](0003-isolate-workflow-git-state.md) | accepted | Isolate mutable Git state by workflow |
+| [ADR-0004](0004-prefer-github-app-identity-with-pat-compatibility.md) | accepted | Prefer GitHub App identity while retaining PAT compatibility |
+| [ADR-0005](0005-recheck-safety-before-automated-landing.md) | accepted | Recheck safety before automated landing |
+| [ADR-0006](0006-persist-canonical-dependency-graphs.md) | accepted | Persist canonical dependency graphs |
+| [ADR-0007](0007-separate-work-admission-from-workflow-execution.md) | accepted | Separate work admission from workflow execution |
+| [ADR-0008](0008-declare-worker-placement-explicitly.md) | accepted | Declare worker placement explicitly |
+| [ADR-0009](0009-extend-through-acyclic-plugin-boundaries.md) | accepted | Extend Syrus through acyclic plugin boundaries |
+| [ADR-0010](0010-record-immutable-workflow-source-snapshots.md) | accepted | Record immutable workflow source snapshots |
+| [ADR-0011](0011-centralize-permission-authority.md) | accepted | Centralize permission authority and distinguish harness authorship |
+| [ADR-0012](0012-separate-diagnosis-from-repair.md) | accepted | Separate operational diagnosis from repair |
+| [ADR-0013](0013-ratchet-semantic-ui-adoption.md) | accepted | Ratchet semantic UI adoption |
+| [ADR-0014](0014-use-adapter-specific-schema-authority.md) | accepted | Use adapter-specific schema authority |
+| [ADR-0015](0015-own-referential-integrity-in-the-application.md) | accepted | Own referential integrity in the application |
+| [ADR-0016](0016-centralize-bounded-retention.md) | accepted | Centralize bounded retention |
 
 ## Format and lifecycle
 
 Copy [the template](TEMPLATE.md) to
 `NNNN-short-kebab-case-title.md`. Allocate the next four-digit number and keep
 both the number and filename forever; the front matter identifier is
-`ADR-NNNN`. Required lifecycle states are:
+`ADR-NNNN`. The next available identifier is `ADR-0017`; advance this marker
+whenever allocating a record. Every lower-numbered record must remain present,
+including records that are retired or superseded. Required lifecycle states
+are:
 
 - `proposed`: under review and not yet binding.
 - `accepted`: the decision constrains future work.
 - `superseded`: replaced by one or more newer ADRs.
-- `retired`: deliberately no longer applicable, without a replacement.
+- `retired`: deliberately no longer applicable as a binding decision, without
+  a replacement. The implementation described by a retired record may remain
+  current architecture when the record was withdrawn after evidence review.
 
 Every record has YAML front matter with `id`, `title`, `status`, `date`,
 `supersedes`, and `superseded_by`. Link relationships use ADR identifiers. A

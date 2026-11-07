@@ -1,13 +1,22 @@
 ---
 id: ADR-0001
 title: Poll GitHub instead of receiving inbound webhooks
-status: accepted
+status: retired
 date: "2026-11-07"
 supersedes: []
 superseded_by: []
 ---
 
 # ADR-0001: Poll GitHub instead of receiving inbound webhooks
+
+## Retirement
+
+This record was retired after a broader evidence review found current polling
+behavior but not enough evidence of accepted alternatives and rationale to
+classify that behavior as a durable decision. Polling-driven ingestion remains
+current architecture; retiring this ADR does not remove that behavior or make
+webhooks current. The record remains here to preserve its allocated identifier
+and the history of the earlier classification.
 
 ## Context
 

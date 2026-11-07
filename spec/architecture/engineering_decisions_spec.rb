@@ -28,6 +28,15 @@ RSpec.describe "engineering decision records" do
     expect(ids).to eq(ids.uniq), "ADR identifiers must be unique"
   end
 
+  it "retains every allocated record below the documented next identifier" do
+    next_number = index.match(/next available identifier is `ADR-(\d{4})`/)&.captures&.first
+    expect(next_number).not_to be_nil, "decision index must document the next available ADR identifier"
+
+    allocated_numbers = records.values.map { |attributes| attributes.fetch("id").delete_prefix("ADR-").to_i }
+    expect(allocated_numbers.sort).to eq((1...next_number.to_i).to_a),
+      "allocated ADR identifiers and files must remain present forever"
+  end
+
   it "requires complete lifecycle metadata" do
     records.each do |path, attributes|
       expect(attributes.keys).to contain_exactly(
@@ -57,6 +66,20 @@ RSpec.describe "engineering decision records" do
 
     indexed_ids = index.scan(/\[(ADR-\d{4})\]\([^)]+\)/).flatten
     expect(indexed_ids.sort).to eq(records.values.map { |attributes| attributes.fetch("id") }.sort)
+  end
+
+  it "keeps accepted records focused on durable rationale and evidence" do
+    records.each do |path, attributes|
+      next unless attributes.fetch("status") == "accepted"
+
+      body = path.read.sub(/\A---\s*\n.*?\n---\s*\n/m, "")
+      headings = body.scan(/^## (.+)$/).flatten
+
+      expect(headings).to eq(%w[Context Decision Consequences Evidence]),
+        "unexpected accepted-record sections in #{path.relative_path_from(root)}"
+      expect(body.scan(/^- \[[^\]]+\]\([^)]+\)$/).size).to be >= 2,
+        "accepted ADRs need at least two durable evidence links in #{path.relative_path_from(root)}"
+    end
   end
 
   it "keeps supersession links valid and reciprocal" do
