@@ -1,5 +1,8 @@
 module App
   class ChatMessagePayload
+    MAX_TOOL_CONTENT_BYTES = 16.kilobytes
+    MAX_SHELL_OUTPUT_BYTES = 8.kilobytes
+    TRUNCATION_MARKER = "\n… truncated …".freeze
     include Rails.application.routes.url_helpers
 
     def self.messages(messages, repository:)
@@ -75,6 +78,7 @@ module App
       records = messages.to_a
       ChatAttachmentRef.preload(records)
       preload_message_associations(records)
+      preload_participant_ids(records)
       preload_pending_action_outcomes(records)
       preload_mentionables(records)
       preload_chat_shell_commands(records)
@@ -92,7 +96,6 @@ module App
         records: messages,
         associations: [
           :chat_session,
-          { chat_session: { chat_participants: :user } },
           { pending_action: { pending_action_group: :chat_pending_actions } },
           :sender_user
         ]
@@ -124,6 +127,12 @@ module App
           ]
         }
       ).call
+    end
+
+    def preload_participant_ids(messages)
+      chat_ids = messages.map(&:chat_session_id).uniq
+      @participant_ids_by_chat = ChatParticipant.where(chat_session_id: chat_ids).pluck(:chat_session_id, :user_id)
+        .group_by(&:first).transform_values { |pairs| pairs.map(&:last).to_set }
     end
 
     def preload_mentionables(messages)
@@ -170,7 +179,10 @@ module App
     end
 
     def message_json(message)
-      text, mentions = message.rendered_text_and_mentions do |kind, id|
+      addressable = lambda do |mentionable, chat_session|
+        mentionable.kind != "human" || @participant_ids_by_chat.fetch(chat_session.id, Set.new).include?(mentionable.id)
+      end
+      text, mentions = message.rendered_text_and_mentions(addressable: addressable) do |kind, id|
         key = [ kind.to_s, id.to_s ]
         @mentionables_by_key.fetch(key) do
           @mentionables_by_key[key] = Mentionables::Resolver.find(kind: kind, id: id)
@@ -182,7 +194,7 @@ module App
         entity_revision: message.entity_revision,
         role: message.role,
         tool_name: message.tool_name,
-        content: payload_content(message.content),
+        content: payload_content(message),
         text: text,
         mentions: mentions,
         bookmarkable: message.bookmarkable?,
@@ -213,10 +225,15 @@ module App
       payload
     end
 
-    def payload_content(content)
+    def payload_content(message)
+      content = message.content
       return content unless content.is_a?(Hash)
 
-      content.except("text", "attachments")
+      content = content.except("text", "attachments")
+      return content unless %w[tool_use tool_result].include?(message.role)
+      return content if content.to_json.bytesize <= MAX_TOOL_CONTENT_BYTES
+
+      { "truncated" => true, "content_path" => "/api/v1/app/chats/#{message.chat_session_id}/messages/#{message.id}/content" }
     end
 
     def sender_user_json(message)
@@ -232,15 +249,26 @@ module App
       shell_command = @chat_shell_commands_by_id[message.content["chat_shell_command_id"].to_i]
       return nil unless shell_command
 
-      {
+      payload = {
         id: shell_command.id,
         command: shell_command.command,
-        output: shell_command.output,
+        output: shell_command.running? ? nil : truncated_shell_output(shell_command.output),
         outcome: shell_command.outcome,
         exit_status: shell_command.exit_status,
         started_at: shell_command.started_at&.iso8601,
         finished_at: shell_command.finished_at&.iso8601
       }
+      if !shell_command.running? && shell_command.output.to_s.bytesize > MAX_SHELL_OUTPUT_BYTES
+        payload[:output_truncated] = true
+        payload[:output_path] = "/api/v1/app/chats/#{message.chat_session_id}/messages/#{message.id}/content"
+      end
+      payload
+    end
+
+    def truncated_shell_output(output)
+      return output if output.to_s.bytesize <= MAX_SHELL_OUTPUT_BYTES
+
+      output.to_s.safe_byteslice(0, MAX_SHELL_OUTPUT_BYTES) + TRUNCATION_MARKER
     end
 
     def bridge_thread_id(message)
