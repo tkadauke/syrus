@@ -159,6 +159,7 @@ RSpec.describe Mcp::Tools::SubmitAdversarialReviewTool do
     reviewer = Coworkers::Coworker.create!(owner_user: run.job.owner_user || run.job.user, name: "Monica",
       handle: "monica-failure", state: "active", workspace_repo: "https://github.com/example/reviewer-home.git")
     grant_review_access(reviewer)
+    expect(run.review_evidence).to be_nil
     evidence = ReviewEvidence.create!(
       run: run, workflow: run.workflow, step: run.step, reviewer: reviewer, review_kind: "adversarial",
       provider: "codex", model: "gpt-test", reviewed_base_sha: "a" * 40,
