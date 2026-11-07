@@ -53,13 +53,18 @@
   generated from the manifest's `long_description` (no separate teaser file to
   drift), leading with the fact that it is disabled. Guarded by
   `spec/architecture/plugin_docs_live_in_plugins_spec.rb`.
-- **Feature documentation is mandatory.** When adding or changing any
-  operator-facing feature — configuration keys, feature flags, `AppSetting`
-  columns, new step kinds, new trigger kinds, or changes to existing behavior
-  — update the matching file under `config/syrus_docs/` in the same PR. New
-  features that have no existing doc file should create one following the
-  format in the existing files. PRs that add operator-facing behavior while
-  leaving the docs stale are incomplete, same as public website docs.
+- **Feature documentation is mandatory and audience-specific.**
+  `config/syrus_docs/` is searchable by chat and implementation agents on any
+  project, so it contains only behavior needed to use Syrus: configuration,
+  operator-controlled settings and flags, workflow and review behavior, MCP
+  tool semantics, agent-facing permissions, and user-visible features. Update
+  the matching file for changes to that behavior. Do not document internal-
+  only implementation changes, code/class/file/database details, telemetry,
+  audit storage, internal APIs, incident history, operations, or plugin
+  authoring there. Contributor conventions belong in
+  `docs/dev/`, architecture/data/telemetry in `docs/internals/`, deployment
+  and maintenance runbooks in `docs/ops/`, and plugin-authoring reference in
+  `docs/plugins/`.
 - **Prompts** all live under `app/services/prompts/`. Core workflow prompt
   classes include
   (`Prompts::Implement`, `Prompts::PrFeedback`, `Prompts::CiFailure`,
