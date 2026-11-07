@@ -5,6 +5,12 @@ recovering Syrus itself. Operator feature instructions remain in
 `config/syrus_docs/`; public installation guidance remains in `website/`.
 
 - [Deployment](deployment.md) — build, migrate, roll out, and verify.
+- [Deploying Syrus](deploying-syrus.md) — two-version rollouts, PWA behavior,
+  Kubernetes ordering, and migration-job budgets.
+- [Data retention](data-retention.md) — retention registry, sweeping,
+  archiving, pruning, size estimation, and extension points.
+- [Per-spawn resource limits](resource-limits.md) — operational rollout note
+  for execution confinement.
 - [Production debugging](production-debugging.md) — inspect Kubernetes,
   processes, logs, queues, workers, and data safely.
 - [Workflow recovery](workflow-recovery.md) — diagnose and repair stuck or
