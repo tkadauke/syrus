@@ -15,9 +15,13 @@ module ScheduledTasks
     end
 
     def calendar_events
-      tasks.flat_map do |task|
-        jobs = visible_jobs(task)
-        occurrences(task).map { |planned_at| event(task, planned_at, matching_job(jobs, planned_at)) }
+      selected_tasks = tasks.to_a
+      jobs_by_task = visible_jobs_by_task(selected_tasks)
+
+      selected_tasks.flat_map do |task|
+        planned_times = occurrences(task)
+        jobs_by_occurrence = correlate_jobs(planned_times, jobs_by_task.fetch(task.id, []))
+        planned_times.map { |planned_at| event(task, planned_at, jobs_by_occurrence[planned_at]) }
       end
     end
 
@@ -29,11 +33,15 @@ module ScheduledTasks
       repository_ids = user.admin? ? Repository.all.select(:id) : Repository.accessible_repository_ids_for(user)
       ScheduledTasks::Task.where(coworker_id: nil)
         .where(repository_id: repository_ids)
-        .includes(:repository, jobs: :workflows)
+        .includes(:repository)
     end
 
-    def visible_jobs(task)
-      Job.visible_to(user, scope: task.jobs).order(:created_at).to_a
+    def visible_jobs_by_task(selected_tasks)
+      task_ids = selected_tasks.map(&:id)
+      return {} if task_ids.empty?
+
+      scope = Job.where(scheduled_task_id: task_ids).includes(:workflows).order(:created_at)
+      Job.visible_to(user, scope:).to_a.group_by(&:scheduled_task_id)
     end
 
     def occurrences(task)
@@ -42,11 +50,15 @@ module ScheduledTasks
       schedule = ScheduledTasks::Schedules::RecurringSchedule.from_expression(
         task.schedule_expression, timezone: task.schedule_timezone
       )
-      cursor = starts_at - 1.second
+      range_start = [ starts_at, task.created_at ].max
+      range_end = [ ends_at, task.archived_at ].compact.min
+      return [] if range_start >= range_end
+
+      cursor = range_start - 1.second
       result = []
       MAX_OCCURRENCES_PER_TASK.times do
         occurrence = schedule.next_fire_at(from: cursor)
-        break if occurrence.nil? || occurrence >= ends_at
+        break if occurrence.nil? || occurrence >= range_end
         cursor = occurrence
         result << occurrence
       end
@@ -56,12 +68,21 @@ module ScheduledTasks
     end
 
     def one_shot_occurrences(task)
-      task.fire_at && task.fire_at >= starts_at && task.fire_at < ends_at ? [ task.fire_at ] : []
+      return [] unless task.fire_at
+
+      range_start = [ starts_at, task.created_at ].max
+      range_end = [ ends_at, task.archived_at ].compact.min
+      task.fire_at >= range_start && task.fire_at < range_end ? [ task.fire_at ] : []
     end
 
-    def matching_job(jobs, planned_at)
-      jobs.select { |job| job.created_at >= planned_at && job.created_at < planned_at + 1.hour }
-        .min_by(&:created_at)
+    def correlate_jobs(planned_times, jobs)
+      unclaimed_jobs = jobs.dup
+      planned_times.index_with do |planned_at|
+        index = unclaimed_jobs.index do |job|
+          job.created_at >= planned_at && job.created_at < planned_at + 1.hour
+        end
+        index && unclaimed_jobs.delete_at(index)
+      end
     end
 
     def event(task, planned_at, job)
@@ -94,10 +115,9 @@ module ScheduledTasks
 
     def occurrence_state(task, planned_at, job, workflow)
       return execution_state(job, workflow) if job
-      return "archived" if task.archived?
-      return task.state if task.paused? || task.auto_paused?
-      return "skipped" if planned_at < Time.current && fired_without_job?(task, planned_at)
       return "fired" if task.fired?
+      return "skipped" if planned_at < Time.current
+      return task.state if task.paused? || task.auto_paused?
 
       "planned"
     end
@@ -108,10 +128,6 @@ module ScheduledTasks
       return "fired" if workflow || job
 
       "planned"
-    end
-
-    def fired_without_job?(task, planned_at)
-      task.last_fired_at && task.last_fired_at >= planned_at && task.last_fired_at < planned_at + 1.hour
     end
   end
 end

@@ -10,7 +10,8 @@ Calendar is an aggregation surface, not an editor. Disabling it hides the page a
 When Scheduled Tasks is enabled too, Calendar shows the repository schedules
 you may access. Recurring and one-shot slots use each task's configured
 timezone, including daylight-saving transitions. Past slots link the planned
-time to the Job and Workflow that actually ran; paused, auto-paused, archived,
-skipped pile-up, and failed slots remain distinguishable. Coworker-owned
+time to the Job and Workflow that actually ran; paused, auto-paused, fired,
+skipped, and failed slots remain distinguishable. Occurrences are bounded by
+the task's creation and archive times. Coworker-owned
 schedules are omitted because Coworkers presents those itself. Calendar stays
 optional: turning it off never pauses or otherwise changes a scheduled task.
