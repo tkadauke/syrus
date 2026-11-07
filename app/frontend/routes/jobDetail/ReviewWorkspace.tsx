@@ -653,10 +653,7 @@ export function VisualEvidenceGallery({ approved, gallery }: { approved: boolean
         </div>
       )}
       {preview ? (
-        <DocumentPreviewModal
-          file={{ contentType: "image/png", rawUrl: preview.url, title: preview.title }}
-          onClose={() => setPreview(null)}
-        />
+        <DocumentPreviewModal file={{ contentType: "image/png", rawUrl: preview.url, title: preview.title }} onClose={() => setPreview(null)} />
       ) : null}
     </Section.Root>
   )
