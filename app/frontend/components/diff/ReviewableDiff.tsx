@@ -2204,7 +2204,7 @@ export function UnifiedDiffTable({
                         />
                       ) : null}
                       {annotation === "covered" ? (
-                        <span className="text-emerald-600 dark:text-emerald-400">✓</span>
+                        <span className="text-success">✓</span>
                       ) : annotation === "uncovered" ? (
                         <span className="text-danger">✗</span>
                       ) : null}
