@@ -861,6 +861,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(response.headers["Content-Disposition"]).to include("attachment")
     expect(response.headers["X-Content-Type-Options"]).to eq("nosniff")
     expect(response.headers["Content-Security-Policy"]).to eq("sandbox")
+    expect(response.headers["Cache-Control"]).to include("private", "max-age=31536000", "immutable")
     expect(response.body).to eq("hello world")
   end
 

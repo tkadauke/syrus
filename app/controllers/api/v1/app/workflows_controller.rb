@@ -38,11 +38,7 @@ module Api
           attachment = workflow.visual_artifact_for(params[:type].to_s.strip)
           raise ActiveRecord::RecordNotFound, "Visual artifact not found" unless attachment
 
-          send_secure_file(
-            attachment.download,
-            filename: attachment.filename.to_s,
-            type: attachment.content_type || "application/octet-stream"
-          )
+          send_secure_blob(attachment.blob, immutable: true)
         rescue StandardError => e
           raise unless StorageConnectivity.transient_error?(e)
 
