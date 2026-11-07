@@ -49,7 +49,7 @@ describe("queryKeysFor", () => {
     expect(queryKeysFor(event("chat", 5))).toEqual([["chats"], ["chats", "5"]])
     expect(queryKeysFor({ ...event("chat", 5), changed: ["messages"] })).toEqual([["chats", "5"]])
     expect(queryKeysFor({ ...event("chat", 5), changed: ["media"] })).toEqual([["chats"], ["chats", "5"], ["chat_media", "5"], ["whiteboard_snapshots", "5"]])
-    expect(queryKeysFor(event("provider_availability", "codex"))).toEqual([["bootstrap"], ["dashboard"], ["chats"]])
+    expect(queryKeysFor(event("provider_availability", "codex"))).toEqual([["dashboard"], ["chats"]])
     expect(queryKeysFor(event("admin_overview", null))).toEqual([
       ["admin", "overview"],
       ["admin", "stuck"]
@@ -68,7 +68,7 @@ describe("queryKeysFor", () => {
 })
 
 describe("applyAppEvent", () => {
-  it("invalidates bootstrap, dashboard, and chats when provider availability changes", () => {
+  it("invalidates dashboard and chats when provider availability changes", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
 
@@ -79,7 +79,7 @@ describe("applyAppEvent", () => {
       changed: ["provider_availability"]
     })
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["bootstrap"] })
+    expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["bootstrap"] })
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["jobs"] })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats"], exact: true })
   })

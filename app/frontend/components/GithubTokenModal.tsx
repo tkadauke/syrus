@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { fetchBootstrap } from "../api/bootstrap"
+import { fetchSetup } from "../api/setup"
 import { CloseIcon } from "./CloseIcon"
 import { GithubAppPanel } from "./GithubAppPanel"
 import { GithubTokenStep } from "./credentials/GithubTokenStep"
@@ -14,8 +15,9 @@ import { useBackendOutage } from "../hooks/useBackendUpdate"
 export function GithubTokenModal({ onClose, onSaved }: { onClose: () => void; onSaved?: () => void }) {
   const { t } = useT("settings")
   const bootstrap = useQuery({ queryKey: ["bootstrap"], queryFn: fetchBootstrap })
+  const setup = useQuery({ queryKey: ["setup"], queryFn: fetchSetup })
   const isAdmin = !!bootstrap.data?.current_user?.admin
-  const credStatus = bootstrap.data?.setup_status?.credential_status
+  const credStatus = setup.data?.credential_status
   // While the desktop shell's backend update has the containers down,
   // credential status can't be read — a failed bootstrap here would present
   // the "no token yet" step to a user whose token sits safely in the DB. Say
@@ -42,15 +44,13 @@ export function GithubTokenModal({ onClose, onSaved }: { onClose: () => void; on
       <div className="space-y-5 p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id="github-title">{t('github_token.title')}</h2>
-            {phase === "pat" ? (
-              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                {t('github_token.description')}
-              </p>
-            ) : null}
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100" id="github-title">
+              {t("github_token.title")}
+            </h2>
+            {phase === "pat" ? <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t("github_token.description")}</p> : null}
           </div>
           <button
-            aria-label={t('github_token.close')}
+            aria-label={t("github_token.close")}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-brand"
             onClick={onClose}
             type="button"
@@ -60,14 +60,14 @@ export function GithubTokenModal({ onClose, onSaved }: { onClose: () => void; on
         </div>
 
         {backendOutage ? (
-          <Box tone="muted">{t('backend_updating')}</Box>
+          <Box tone="muted">{t("backend_updating")}</Box>
         ) : (
           <>
             <Stepper
               active={phase}
               steps={[
-                { key: "pat", label: t('github_token.step_pat_label'), done: patDone },
-                { key: "app", label: t('github_token.step_app_label'), done: appDone }
+                { key: "pat", label: t("github_token.step_pat_label"), done: patDone },
+                { key: "app", label: t("github_token.step_app_label"), done: appDone }
               ]}
             />
 
@@ -77,9 +77,7 @@ export function GithubTokenModal({ onClose, onSaved }: { onClose: () => void; on
               // Create → install the GitHub App, owned by the panel.
               <GithubAppPanel onClose={onClose} onSaved={onSaved} />
             ) : (
-              <Box tone="muted">
-                {t('github_token.admin_required')}
-              </Box>
+              <Box tone="muted">{t("github_token.admin_required")}</Box>
             )}
           </>
         )}
@@ -89,10 +87,15 @@ export function GithubTokenModal({ onClose, onSaved }: { onClose: () => void; on
 }
 
 function Box({ tone, children }: { tone: "ok" | "muted" | "error"; children: React.ReactNode }) {
-  const toneClass = tone === "ok"
-    ? "border-green-200 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"
-    : tone === "error"
-      ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
-      : "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400"
-  return <p className={`rounded border px-3 py-2 text-sm ${toneClass}`} role={tone === "error" ? "alert" : tone === "ok" ? "status" : undefined}>{children}</p>
+  const toneClass =
+    tone === "ok"
+      ? "border-green-200 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300"
+      : tone === "error"
+        ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+        : "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-400"
+  return (
+    <p className={`rounded border px-3 py-2 text-sm ${toneClass}`} role={tone === "error" ? "alert" : tone === "ok" ? "status" : undefined}>
+      {children}
+    </p>
+  )
 }
