@@ -8,6 +8,8 @@ module Workflows
   #
   #   prepare → implement
   #     → [loop(adversarial_review first, then implement ⇄ adversarial_review)]
+  #     → [loop(security_review first, then implement ⇄ security_review)]
+  #     → [loop(coworker_review first, then implement ⇄ coworker_review)]
   #     → [loop(visual_review first, then implement ⇄ visual_review)]
   #     → retry_until(format, generate, graders; repair: implement)
   #     → ...
@@ -21,9 +23,9 @@ module Workflows
   #
   # Every review loop is review-first: iteration 1 reviews the preceding
   # agent step's diff directly (no redundant re-implement first) — for the
-  # adversarial review loop, that's the top-level `implement`; for the
-  # visual review loop that follows it, that's whatever the adversarial
-  # loop last produced (its own top-level `implement`, or its last repair).
+  # adversarial review loop, that's the top-level `implement`; each later
+  # review gate reviews whatever the preceding technical or organizational
+  # gate last produced (the original implementation or its last repair).
   # On a `needs_work` verdict, a repair `implement` is always inserted,
   # unconditionally, regardless of remaining budget; if review budget
   # remains, another review follows it, repeating the same decision. Once
@@ -65,6 +67,7 @@ module Workflows
         :implement,
         adversarial_review_loop(job, agent_step: :implement, syrus_yml: syrus_yml),
         security_review_loop(job, agent_step: :implement, syrus_yml: syrus_yml),
+        coworker_review_loop(job, agent_step: :implement, syrus_yml: syrus_yml),
         visual_review_loop(job, agent_step: :implement, syrus_yml: syrus_yml),
         grader_retry_loop(job, :implement, autofix: true, repair_first: false, syrus_yml: syrus_yml),
         "coverage_analyze",

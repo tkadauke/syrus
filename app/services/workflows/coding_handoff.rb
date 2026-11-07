@@ -36,6 +36,7 @@ module Workflows
         job,
         adversarial_review_loop(job, agent_step: :coding_handoff_fix),
         security_review_loop(job, agent_step: :coding_handoff_fix),
+        coworker_review_loop(job, agent_step: :coding_handoff_fix),
         visual_review_loop(job, agent_step: :coding_handoff_fix),
         Workflows::RetryUntil.new(
           max_iterations: AppSetting.grade_max_iterations,

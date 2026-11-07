@@ -39,7 +39,7 @@ without changing the Job, pull request, or terminal Workflow.
 
 Trigger: a GitHub issue with the repository's trigger label, or a new cron
 or direct Job that uses the standard issue-to-PR path. Steps:
-`prepare -> implement -> [adversarial review loop] -> [visual review loop] -> grade loop -> coverage_analyze -> dependency_audit -> summarize -> test_plan -> pr_open`.
+`prepare -> implement -> [adversarial review loop] -> [security review loop] -> [coworker review loop] -> [visual review loop] -> grade loop -> coverage_analyze -> dependency_audit -> summarize -> test_plan -> pr_open`.
 
 Adversarial and security reviewer Runs freeze immutable evidence before the
 review begins: routed provider/model, reviewed base and head commits, and a
@@ -51,7 +51,7 @@ evidence remain readable with a legacy marker and no fabricated provenance.
 Existing review findings remain the verdict record, linked to evidence when
 available; historical findings are not assigned invented provenance.
 The agent makes and commits the change during the top-level `implement`
-step. Optional adversarial and visual review loops can ask for revisions
+step. Optional adversarial, security, coworker, and visual review loops can ask for revisions
 before grading. The grade loop then runs the repository's `grade:`
 configuration for the current phase, and failed required graders feed the
 next bounded repair iteration. Successful graders retain their declared
@@ -73,7 +73,7 @@ with a PR number attached.
 ### PrFeedback
 
 Trigger: new review feedback or PR comments on an existing Syrus PR. Steps:
-`prepare -> [adversarial review loop] -> [visual review loop] -> grade loop -> coverage_analyze -> coverage_pr_comment -> summarize_amend -> try(push)`.
+`prepare -> [adversarial review loop] -> [security review loop] -> [coworker review loop] -> [visual review loop] -> grade loop -> coverage_analyze -> coverage_pr_comment -> summarize_amend -> try(push)`.
 The agent receives the new comments plus PR context, commits follow-up
 changes on the existing branch, and graders can force another bounded
 response iteration before `summarize_amend` rewrites the follow-up commit
@@ -86,7 +86,7 @@ rebase; if that conflicts, it expands a recovery branch:
 
 Trigger: operator-confirmed feedback proposed from Syrus Chat on an
 implemented or approved Job. Steps:
-`prepare -> [adversarial review loop] -> [visual review loop] -> grade loop -> coverage_analyze -> coverage_pr_comment -> summarize_amend -> try(push)`.
+`prepare -> [adversarial review loop] -> [security review loop] -> [coworker review loop] -> [visual review loop] -> grade loop -> coverage_analyze -> coverage_pr_comment -> summarize_amend -> try(push)`.
 The agent receives the agreed chat feedback as structured workflow input
 and commits follow-up changes on the existing branch. Submitting feedback
 on an approved Job unapproves it so the updated PR returns to review before
@@ -304,6 +304,8 @@ rewriting the original record.
 | `prepare` | No | If the repository is a fork, sync its default branch with upstream (merge, then push); then run deterministic setup from `.syrus.yml` or auto-detected lockfiles |
 | `implement` | Yes | Make the requested code change for Initial, Retry, cron, and direct work |
 | `adversarial_review` | Yes | Independently review Initial and feedback workflow changes when `.syrus.yml` configures review rounds |
+| `security_review` | Yes | Run a security-focused review loop when configured |
+| `coworker_review` | Yes | Run an explicitly enabled coworker-only organizational review after technical review and before visual review and graders |
 | `visual_review` | Yes | Drive a preview in a browser and report visual findings when visual review is enabled |
 | `respond` | Yes | Address PR review feedback on an existing branch |
 | `analyze_and_fix` | Yes | Diagnose failed CI checks and commit a fix |

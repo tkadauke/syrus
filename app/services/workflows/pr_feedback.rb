@@ -4,6 +4,8 @@ module Workflows
   #
   #   prepare → respond
   #     → [loop(adversarial_review first, then respond ⇄ adversarial_review)]
+  #     → [loop(security_review first, then respond ⇄ security_review)]
+  #     → [loop(coworker_review first, then respond ⇄ coworker_review)]
   #     → [loop(visual_review first, then respond ⇄ visual_review)]
   #     → retry_until(format, generate, graders; repair: respond)
   #     → summarize_amend → try(push)
@@ -27,6 +29,7 @@ module Workflows
         :respond,
         adversarial_review_loop(job, agent_step: :respond),
         security_review_loop(job, agent_step: :respond),
+        coworker_review_loop(job, agent_step: :respond),
         visual_review_loop(job, agent_step: :respond),
         grader_retry_loop(job, :respond, autofix: true, repair_first: false),
         feedback_finish_steps(job)

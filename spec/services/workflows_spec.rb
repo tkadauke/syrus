@@ -12,6 +12,12 @@ RSpec.describe Workflows do
     visual_review_plan = RepoVisualReviewPlan::Result.new(enabled: false, rounds: 1, source: "none", note: "disabled")
     allow(RepoVisualReviewPlan).to receive(:for_job).and_return(visual_review_plan)
     allow(RepoVisualReviewPlan).to receive(:from_syrus_yml).and_return(visual_review_plan)
+
+    coworker_review_plan = RepoCoworkerReviewPlan::Result.new(
+      enabled: false, rounds: 0, source: "none", note: "disabled", criteria: [], required: false
+    )
+    allow(RepoCoworkerReviewPlan).to receive(:for_job).and_return(coworker_review_plan)
+    allow(RepoCoworkerReviewPlan).to receive(:from_syrus_yml).and_return(coworker_review_plan)
   end
 
   describe ".for(trigger_kind:)" do
@@ -232,6 +238,29 @@ RSpec.describe Workflows do
         { "type" => "step", "kind" => "pr_open" }
       ])
       expect(wf.steps.where.not(loop_id: nil).pluck(:kind)).to eq(%w[ adversarial_review format generate grader_fanout grader_collect ])
+    end
+
+    it "places the enabled coworker gate after technical reviews and before visual review and graders" do
+      allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml)
+        .and_return(RepoAdversarialReviewPlan::Result.new(rounds: 1, source: ".syrus.yml", note: nil, criteria: []))
+      allow(RepoSecurityReviewPlan).to receive(:from_syrus_yml)
+        .and_return(RepoSecurityReviewPlan::Result.new(rounds: 1, source: ".syrus.yml", note: nil, criteria: []))
+      allow(RepoCoworkerReviewPlan).to receive(:from_syrus_yml)
+        .and_return(RepoCoworkerReviewPlan::Result.new(
+          enabled: true, rounds: 2, source: ".syrus.yml", note: nil, criteria: [], required: true
+        ))
+      visual = RepoVisualReviewPlan::Result.new(enabled: true, rounds: 1, source: ".syrus.yml", note: nil)
+      allow(RepoVisualReviewPlan).to receive(:for_job).and_return(visual)
+
+      wf = Workflows::Initial.instantiate(job: job)
+
+      expect(wf.steps.pluck(:kind)).to eq(%w[
+        prepare implement adversarial_review security_review coworker_review visual_review
+        format generate grader_fanout grader_collect coverage_analyze dependency_audit summarize test_plan pr_open
+      ])
+      expect(wf.chain_template).to include(
+        { "type" => "loop", "max_iterations" => 2, "steps" => %w[implement coworker_review] }
+      )
     end
 
     it "keeps the Initial chain unchanged when adversarial review rounds is zero" do
