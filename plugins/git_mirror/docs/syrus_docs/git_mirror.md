@@ -111,7 +111,7 @@ to register repositories.
 - **Who answered:** `syrus_repository_content_reads_total` on `/metrics`
   counts reads by provider. Mirror hits show as `provider="git_mirror",
   outcome="answered"`; fall-backs as a `git_mirror` fall-through outcome
-  followed by `provider="github"`. See `metrics.md`.
+  followed by `provider="github"`. See `docs/engineering/architecture/metrics.md`.
 - **What the mirror did:** the service logs one line per request, e.g.
   `GET /v1/repositories/7/blob?revision=…&path=README 200 13B 2ms`, and every
   fetch failure. Health checks and credentials are never logged.
