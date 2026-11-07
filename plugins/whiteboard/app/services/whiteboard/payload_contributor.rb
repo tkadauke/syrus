@@ -8,6 +8,7 @@ module Whiteboard
     def self.chat_payload(chat_session:, context:)
       # The full scene is large, so it ships only when asked for.
       include_scene = context.dig(:params, :include_whiteboard).present?
+      return {} unless include_scene
       scene = scene_for(chat_session, include_scene: include_scene)
 
       {
@@ -25,7 +26,8 @@ module Whiteboard
       { app_whiteboard_path: "/api/v1/app/chats/#{chat_session.id}/whiteboard" }
     end
 
-    def self.chat_payload_counts(chat_session:)
+    def self.chat_payload_counts(chat_session:, context: {})
+      return {} unless context.dig(:params, :include_whiteboard).present?
       { whiteboard_snapshot_count: Whiteboard::Snapshot.where(chat_session_id: chat_session.id).count }
     end
 
