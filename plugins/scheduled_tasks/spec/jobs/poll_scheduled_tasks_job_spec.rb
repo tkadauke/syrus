@@ -119,4 +119,20 @@ RSpec.describe PollScheduledTasksJob do
       expect(call_count).to eq(2)  # both tasks attempted
     end
   end
+
+  it "durably records a failed fire and emits a backend exception event" do
+    freeze_time Time.current.change(min: 2, sec: 0, usec: 0) do
+      task = cron_task
+      task.update_columns(last_fired_at: 2.hours.ago)
+      allow_any_instance_of(ScheduledTasks::Fire).to receive(:call).and_raise(ArgumentError, "broken handler")
+
+      expect { described_class.perform_now }.to change(BackendExceptionEvent, :count).by(1)
+
+      expect(task.reload.consecutive_failure_count).to eq(1)
+      expect(BackendExceptionEvent.last).to have_attributes(
+        source: "active_job", job_class: described_class.name,
+        exception_class: "ArgumentError", message: "broken handler"
+      )
+    end
+  end
 end

@@ -167,6 +167,8 @@
     "run_now": "Jetzt ausführen",
     "system": "System",
     "journaling_paused": "Journaling pausiert",
+    "journaling_overdue": "Journaling überfällig / fehlgeschlagen: {{reason}}",
+    "missed_fire": "die geplante Ausführung wurde verpasst",
     "last_result": "Letztes Ergebnis: {{result}} · journalisiert bis {{date}}",
     "never_run": "noch nie ausgeführt",
     "system_run_time": "Ausführungszeit des Systemzeitplans",

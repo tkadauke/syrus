@@ -791,6 +791,13 @@ function CoworkerSchedules({ coworker, onChanged }: { coworker: CoworkerDetail; 
                 </div>
                 {schedule.system_key ? (
                   <>
+                    {schedule.journaling_overdue ? (
+                      <div className="text-sm font-medium text-danger-text" role="status">
+                        {t("schedule.journaling_overdue", {
+                          reason: schedule.last_system_result_reason || t("schedule.missed_fire")
+                        })}
+                      </div>
+                    ) : null}
                     <div className="text-sm text-text-secondary">
                       {schedule.state === "paused"
                         ? t("schedule.journaling_paused")

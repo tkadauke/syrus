@@ -24,6 +24,18 @@ class PollScheduledTasksJob < ApplicationJob
         Rails.logger.info("[PollScheduledTasksJob] task ##{task.id} fired → #{result.job.slug}")
       end
     rescue StandardError => e
+      begin
+        task.record_fire_failure!(e, at: now)
+      rescue StandardError => recording_error
+        Rails.logger.error(
+          "[PollScheduledTasksJob] task ##{task.id} failure record failed: " \
+          "#{recording_error.class}: #{recording_error.message}"
+        )
+      end
+      BackendExceptionLogging.ingest_job(
+        { job: self, exception_object: e, exception: [ e.class.name, e.message ] },
+        0
+      )
       Rails.logger.warn("[PollScheduledTasksJob] task ##{task.id} fire failed: #{e.class}: #{e.message}")
     end
   end

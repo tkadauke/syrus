@@ -2,6 +2,12 @@ module ScheduledTasks
   module SystemSchedules
     class Definition
       def prompt(task:, target_date:) = raise NotImplementedError
+
+      def catch_up_due?(task:, now:) = false
+
+      def failure_date(task:, now:) = nil
+
+      def overdue?(task:, now:) = false
     end
 
     class << self
