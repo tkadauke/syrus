@@ -52,6 +52,12 @@ RSpec.describe SyrusYml do
     expect(parse("coworker_review:\n  rounds: 2\n").coworker_review.enabled).to be(false)
   end
 
+  it "accepts a zero round budget when coworker review is explicitly disabled" do
+    config = parse("coworker_review:\n  enabled: false\n  rounds: 0\n").coworker_review
+
+    expect(config).to have_attributes(enabled: false, rounds: 0)
+  end
+
   it "rejects an invalid coworker review round budget deterministically" do
     expect { parse("coworker_review:\n  enabled: true\n  rounds: 11\n") }
       .to raise_error(described_class::ParseError, /coworker_review\.rounds: must be between 1 and 10/)

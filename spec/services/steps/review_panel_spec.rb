@@ -197,6 +197,23 @@ RSpec.describe "serial review panels" do
     expect(aggregate["non_blocking_findings"]).to contain_exactly(include("provider" => "codex", "critique" => "Minor concern."))
   end
 
+  it "collects dedicated coworker votes with the configured consensus" do
+    collect = Step.create!(
+      workflow: workflow, kind: "review_panel_collect", position: 100, iteration: 1, loop_id: "coworker-loop",
+      details: { "panel_review_kind" => "coworker_review", "panel_id" => "routing-rule-44",
+                 "consensus" => "unanimous", "min_members" => 2, "dropped_members" => [] }
+    )
+    workflow.set_artifact!("coworker_review_iterations", [
+      { "iteration" => 1, "panel_id" => "routing-rule-44", "provider" => "claude", "verdict" => "approved", "critique" => "Ready." },
+      { "iteration" => 1, "panel_id" => "routing-rule-44", "provider" => "codex", "verdict" => "needs_work", "critique" => "Name an owner." }
+    ])
+
+    Steps::ReviewPanelCollect.new(Run.create!(job: job, step: collect, trigger_kind: workflow.trigger_kind)).call
+
+    aggregate = workflow.reload.artifact("coworker_review_iterations").last
+    expect(aggregate).to include("aggregate" => true, "verdict" => "needs_work", "consensus" => "unanimous")
+  end
+
   it "resumes only the same panel member's prior provider session" do
     prior_steps = %w[claude codex].map.with_index do |provider, index|
       step = Step.create!(workflow: workflow, kind: "adversarial_review", position: 100 + index, iteration: 1, loop_id: "review-loop",
@@ -222,5 +239,16 @@ RSpec.describe "serial review panels" do
     handler = Steps::Implement.new(Run.create!(job: job, step: implement, trigger_kind: workflow.trigger_kind))
 
     expect(handler.send(:needs_work_review_section, "adversarial_review_iterations", "Review feedback:")).to be_nil
+  end
+
+  it "feeds a dedicated coworker needs-work verdict to the repair agent" do
+    workflow.set_artifact!("coworker_review_iterations", [
+      { "iteration" => 1, "verdict" => "needs_work", "critique" => "Assign rollout ownership." }
+    ])
+    implement = workflow.steps.find_by!(kind: "implement")
+    handler = Steps::Implement.new(Run.create!(job: job, step: implement, trigger_kind: workflow.trigger_kind))
+
+    expect(handler.send(:needs_work_review_section, "coworker_review_iterations", "Coworker feedback:"))
+      .to include("Assign rollout ownership.")
   end
 end
