@@ -21,8 +21,9 @@ module Coworkers
     def entries
       grouped = loaded_rules.group_by { |rule| unversioned(rule.capability) }
       Coworkers::GrantCatalog.all.map do |descriptor|
-        matching = canonical_descriptors(descriptor.name)
-          .flat_map { |canonical| grouped.fetch(unversioned(canonical.capability), []) }
+        capability_names = [ descriptor.name ] + registered_descriptors(descriptor.name).map(&:capability)
+        matching = capability_names
+          .flat_map { |capability| grouped.fetch(unversioned(capability), []) }
           .uniq
         policy = matching.map(&:policy).min_by { |value| policy_rank(value) }
         source = matching.first
@@ -84,6 +85,18 @@ module Coworkers
     end
 
     def canonical_descriptors(capability)
+      descriptors = registered_descriptors(capability)
+      return descriptors if descriptors.any?
+
+      grant = Coworkers::GrantCatalog.fetch(capability)
+      [ Permissions::CapabilityDescriptorAdapter.for_registry_entry(
+        tool_name: "#{capability}.access", capability:, mutation: grant.default_policy != "auto",
+        required_roles: [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ],
+        default_policy: POLICY.fetch(grant.default_policy).to_sym
+      ) ]
+    end
+
+    def registered_descriptors(capability)
       registered = Permissions::CapabilityRegistryValidator.for_application.registrations.filter_map do |registration|
         descriptor = registration.descriptor
         descriptor if descriptor && unversioned(descriptor.capability) == capability.to_s
@@ -101,15 +114,7 @@ module Coworkers
           Permissions::CapabilityDescriptorAdapter.for_plugin_definition(tool.definition)
         end
       end
-      descriptors = (registered + catalog).uniq { |descriptor| [ descriptor.capability, descriptor.operation ] }
-      return descriptors if descriptors.any?
-
-      grant = Coworkers::GrantCatalog.fetch(capability)
-      [ Permissions::CapabilityDescriptorAdapter.for_registry_entry(
-        tool_name: "#{capability}.access", capability:, mutation: grant.default_policy != "auto",
-        required_roles: [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ],
-        default_policy: POLICY.fetch(grant.default_policy).to_sym
-      ) ]
+      (registered + catalog).uniq { |descriptor| [ descriptor.capability, descriptor.operation ] }
     end
 
     def scopes_for(descriptor, legacy_scope)
