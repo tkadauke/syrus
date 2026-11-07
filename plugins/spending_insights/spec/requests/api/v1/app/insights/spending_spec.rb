@@ -176,6 +176,32 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
     expect(response).to have_http_status(:not_modified)
   end
 
+  it "computes the user remainder from excluded users when jobs overlap" do
+    admin = Factories.user(admin: true, email_address: "spending-admin@example.com")
+    repository = Factories.repository(user: admin)
+    shared_job = Factories.job(user: admin, repository: repository, issue_number: 2_000)
+
+    26.times do |index|
+      run_user = Factories.user(email_address: "spender-#{index}@example.com")
+      source_job = Factories.job(user: run_user, repository: repository, issue_number: 2_001 + index)
+      run = initial_run(source_job)
+      run.update_columns(job_id: shared_job.id, user_id: run_user.id)
+      set_run_cost(run, index + 1, created_at: Time.zone.parse("2026-06-02 12:00:00"))
+    end
+
+    sign_in_as(admin)
+    get "/api/v1/app/insights/spending", params: { start_date: "2026-06-01", end_date: "2026-06-05" }
+
+    users = parse_body.dig("breakdowns", "users")
+    expect(users.length).to eq(26)
+    expect(users.last).to include(
+      "id" => "other",
+      "jobs_count" => 1,
+      "total_usd" => 1.0,
+      "last_30_days_usd" => 0.0
+    )
+  end
+
   it "filters workflow spending by agent provider" do
     user = Factories.user(email_address: "mine@example.com")
     repo = Factories.repository(user: user)

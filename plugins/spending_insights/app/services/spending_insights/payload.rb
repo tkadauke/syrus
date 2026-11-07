@@ -236,7 +236,7 @@ module SpendingInsights
           extra: { display_number: App::Presentation.epic_slug(number) }
         )
       end
-      append_other_breakdown(result, filtered_runs.joins(job: :epic))
+      append_other_breakdown(result, filtered_runs.joins(job: :epic).where.not(epics: { id: result.pluck(:id) }))
     end
 
     def user_breakdown
@@ -264,8 +264,9 @@ module SpendingInsights
           extra: { last_30_days_usd: decimal_to_float(last_30_by_user[id] || 0) }
         )
       end
-      append_other_breakdown(result, filtered_runs.joins(:user, :job), extra: {
-        last_30_days_usd: decimal_to_float(last_30_by_user.values.sum - result.sum { |row| row[:last_30_days_usd] })
+      remaining_user_ids = result.pluck(:id)
+      append_other_breakdown(result, filtered_runs.joins(:user, :job).where.not(user_id: remaining_user_ids), extra: {
+        last_30_days_usd: decimal_to_float(runs_in_window(30.days.ago.to_date, today).where.not(user_id: remaining_user_ids).sum(:cost_usd))
       })
     end
 
@@ -292,7 +293,7 @@ module SpendingInsights
           total: total
         )
       end
-      append_other_breakdown(result, filtered_runs.joins(job: :repository))
+      append_other_breakdown(result, filtered_runs.joins(job: :repository).where.not(repositories: { id: result.pluck(:id) }))
     end
 
     def trigger_kind_breakdown
@@ -334,11 +335,9 @@ module SpendingInsights
         Arel.sql("COUNT(DISTINCT jobs.id)"),
         Arel.sql("COALESCE(SUM(runs.cost_usd), 0)")
       )
-      other_jobs = total_jobs.to_i - rows.sum { |row| row[:jobs_count].to_i }
-      return rows unless other_jobs.positive?
+      return rows if total_jobs.to_i.zero?
 
-      other_cost = total_cost.to_d - rows.sum { |row| row[:total_usd].to_d }
-      rows + [ breakdown_row(id: "other", label: "Other", path: nil, jobs_count: other_jobs, total: other_cost, extra: extra) ]
+      rows + [ breakdown_row(id: "other", label: "Other", path: nil, jobs_count: total_jobs, total: total_cost, extra: extra) ]
     end
 
     def top_runs
