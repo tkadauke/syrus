@@ -392,8 +392,10 @@ describe("RepositoryPipelineRoute", () => {
       expect(screen.getAllByTestId("pipeline-time-rail")).toHaveLength(1)
       expect(screen.queryByTestId("compact-pipeline-time-rail")).not.toBeInTheDocument()
       expect(screen.queryByTestId("history-status")).not.toBeInTheDocument()
-      expect(screen.getByRole("button", { name: "Play" })).toBeEnabled()
-      expect(screen.getByRole("button", { name: "Previous event" })).toBeEnabled()
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "Play" })).toBeEnabled()
+        expect(screen.getByRole("button", { name: "Previous event" })).toBeEnabled()
+      })
       fireEvent.click(screen.getByRole("button", { name: "Previous event" }))
       await waitFor(() => expect(screen.getByTestId("selected-history-time")).toHaveAttribute("datetime", "2026-10-31T11:00:00.000Z"))
       fireEvent.click(screen.getByRole("button", { name: "Previous event" }))
