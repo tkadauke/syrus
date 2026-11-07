@@ -165,5 +165,4 @@ class ChatMediaLibrary
     else ""
     end
   end
-
 end
