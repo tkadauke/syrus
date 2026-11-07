@@ -378,6 +378,11 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
       get "/api/v1/app/shared_chats/#{chat_session.share_token}", params: { limit: 2 }, headers: { "If-None-Match" => etag }
       expect(response).to have_http_status(:not_modified)
+
+      chat_session.messages.find_by!(role: "user", content: { "text" => "Message 2" }).update!(content: { "text" => "Edited message" })
+      get "/api/v1/app/shared_chats/#{chat_session.share_token}", params: { limit: 2 }, headers: { "If-None-Match" => etag }
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("messages").pluck("text")).to include("Edited message")
     end
 
     it "serves shared stored attachments by URL" do
