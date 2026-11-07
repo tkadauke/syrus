@@ -152,7 +152,8 @@ describe("CalendarRoute", () => {
               main_chat_path: "/chats/12",
               scheduled_task_path: "/coworkers/2?tab=schedules",
               after_run: "wake",
-              system_key: "journaling"
+              system_key: "journaling",
+              delayed_reason: "coworker_turn_in_flight"
             }
           }
         ],
@@ -172,6 +173,7 @@ describe("CalendarRoute", () => {
     expect(screen.getByText("Maya @maya")).toBeInTheDocument()
     expect(screen.getByText("After run: wake")).toBeInTheDocument()
     expect(screen.getByText("System schedule: journaling")).toBeInTheDocument()
+    expect(screen.getByText("Delayed: main chat turn in progress")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Open scheduled task" })).toHaveAttribute("href", "/coworkers/2?tab=schedules")
     expect(screen.getByRole("link", { name: "Open main chat" })).toHaveAttribute("href", "/chats/12")
     expect(screen.getByRole("link", { name: "Open coworker" })).toHaveAttribute("href", "/coworkers/2")
