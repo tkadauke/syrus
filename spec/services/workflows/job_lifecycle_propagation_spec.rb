@@ -1,6 +1,17 @@
 require "rails_helper"
 
 RSpec.describe Workflows::JobLifecyclePropagation do
+  Workflow::TriggerKind::NON_APPROVAL_BLOCKING_VALUES.each do |kind|
+    it "keeps an implemented Job approvable when a #{kind} workflow starts" do
+      job = Factories.job_record(state: "implemented")
+      workflow = Workflow.create!(job: job, trigger_kind: kind, state: "running")
+
+      described_class.start!(workflow)
+
+      expect(job.reload).to be_implemented
+    end
+  end
+
   it "closes a failed workflow as no_changes when the failed run produced no changes" do
     job = Factories.job
     workflow = job.workflows.last
