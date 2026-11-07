@@ -94,7 +94,7 @@ function renderDetail(payload: EpicDetailPayload) {
 
 describe("EpicDetail", () => {
   it("canonicalizes slug routes so mutations update the displayed payload", async () => {
-    const started = detailPayload({ id: 5, display_number: "EPIC-5", state: "in_progress", startable: false })
+    const started = { message: "Started", epic: { id: 5, state: "in_progress", startable: false } }
     const initial = detailPayload({ id: 5, display_number: "EPIC-5" })
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((_input, init) => Promise.resolve(jsonResponse(init?.method === "POST" ? started : initial)))
     const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
@@ -113,7 +113,7 @@ describe("EpicDetail", () => {
     await waitFor(() => expect(screen.getByTestId("epic-location")).toHaveTextContent("/epics/5"))
     fireEvent.click(screen.getByRole("button", { name: "Start implementing" }))
     await waitFor(() => expect(screen.queryByRole("button", { name: "Start implementing" })).not.toBeInTheDocument())
-    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    expect(fetchSpy).toHaveBeenCalledTimes(3)
   })
 
   it("uses responsive page gutters while keeping the header inset", async () => {
@@ -147,7 +147,7 @@ describe("EpicDetail", () => {
     expect(jobsSection).not.toHaveClass("px-4", "sm:px-0")
   })
 
-  it("organizes peer Epic workspaces behind shared underline tabs", () => {
+  it("organizes peer Epic workspaces behind shared underline tabs", async () => {
     const payload = detailPayload({ description: "Coordinate the rollout across the child jobs." })
     payload.jobs = [job("open")]
     payload.graph = {
@@ -173,6 +173,9 @@ describe("EpicDetail", () => {
         description_after: null
       }
     ]
+    vi.spyOn(window, "fetch").mockImplementation((input) =>
+      Promise.resolve(String(input).endsWith("/history") ? jsonResponse({ versions: payload.versions }) : jsonResponse({ provider_availability: {} }))
+    )
 
     renderDetail(payload)
 
@@ -195,7 +198,7 @@ describe("EpicDetail", () => {
 
     fireEvent.click(within(tabs).getByRole("button", { name: "History" }))
     expect(within(tabs).getByRole("button", { name: "History" })).toHaveClass("border-brand")
-    expect(screen.getByText("Old title")).toBeInTheDocument()
+    expect(await screen.findByText("Old title")).toBeInTheDocument()
   })
 
   it("shows the Epic's own state when no child Job is landing", () => {
