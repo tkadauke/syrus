@@ -29,5 +29,10 @@
   "coworker_identity": "{{name}} {{handle}}",
   "after_run": "Nach dem Lauf: {{policy}}",
   "system_schedule": "Systemzeitplan: {{key}}",
+  "delayed_reason": "Verzögert: {{reason}}",
+  "delay_reasons": {
+    "coworker_turn_in_flight": "im Hauptchat läuft noch eine Antwort",
+    "active_work_lock": "ein anderer geplanter Lauf läuft bereits"
+  },
   "cadence_bands": "Hochfrequente Taktbänder"
 }
