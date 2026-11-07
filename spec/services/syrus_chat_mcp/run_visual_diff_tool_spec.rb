@@ -49,4 +49,15 @@ RSpec.describe Mcp::Tools::RunVisualDiffTool do
     expect(action.reload).to be_rejected
     expect(job.workflows.where(trigger_kind: "visual_diff")).to be_empty
   end
+
+  it "creates no workflow when the pending request is withdrawn" do
+    job = Factories.job_record(repository: repository, state: "implemented")
+    action = chat_session.pending_actions.find(payload(call_tool(job_id: job.id))[:pending_confirmation_id])
+
+    result = PendingActions::Withdrawal.new(action, user: user).call
+
+    expect(result).to have_attributes(prior_state: "pending", resulting_state: "rejected", changed: true)
+    expect(action.reload).to be_rejected
+    expect(job.workflows.where(trigger_kind: "visual_diff")).to be_empty
+  end
 end
