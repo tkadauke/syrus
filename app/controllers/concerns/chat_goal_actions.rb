@@ -31,7 +31,7 @@ module ChatGoalActions
 
     ChatGoalWakeup.publish_start!(goal) if publish_start
 
-    render json: chat_payload(chat_session.reload, message: "Goal updated.")
+    render json: chat_mutation_payload(chat_session, message: "Goal updated.", include: :active_goal)
   rescue ActiveRecord::RecordInvalid => e
     render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
   rescue ActiveRecord::RecordNotUnique
@@ -78,7 +78,7 @@ module ChatGoalActions
     end
 
     yield goal
-    render json: chat_payload(chat_session.reload, message: message)
+    render json: chat_mutation_payload(chat_session, message: message, include: :active_goal)
   rescue ActiveRecord::RecordInvalid => e
     render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
   end
