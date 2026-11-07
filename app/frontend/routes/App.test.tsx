@@ -103,6 +103,7 @@ async function clickWhiteboardTab() {
 describe("App", () => {
   beforeEach(() => {
     document.getElementById("syrus-bootstrap-data")?.remove()
+    Object.defineProperty(document, "hasFocus", { configurable: true, value: () => true })
     window.localStorage.clear()
     window.localStorage.setItem("syrus.chat.workspace.collapsed", "false")
     document.documentElement.classList.remove("dark")
