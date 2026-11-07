@@ -10,15 +10,17 @@ type PluginModule = {
   default?: ComponentType
 }
 
-const routeModules = import.meta.glob<PluginModule>([ "../../plugins/*/app/frontend/routes/*.tsx", "!../../plugins/*/app/frontend/routes/*.test.tsx" ])
+const routeModules = import.meta.glob<PluginModule>(["../../plugins/*/app/frontend/routes/*.tsx", "!../../plugins/*/app/frontend/routes/*.test.tsx"])
 
 const componentLoaders = Object.fromEntries(
-  Object.entries(routeModules).map(([path, loader]) => {
-    const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/routes\/([^/.]+)\.tsx$/)
-    if (!match) return []
+  Object.entries(routeModules)
+    .map(([path, loader]) => {
+      const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/routes\/([^/.]+)\.tsx$/)
+      if (!match) return []
 
-    return [ `${match[1]}/${match[2]}`, loader ]
-  }).filter((entry): entry is [ string, () => Promise<PluginModule> ] => entry.length === 2)
+      return [`${match[1]}/${match[2]}`, loader]
+    })
+    .filter((entry): entry is [string, () => Promise<PluginModule>] => entry.length === 2)
 )
 
 const componentCache = new Map<string, ComponentType>()
@@ -60,9 +62,7 @@ export function usePluginAdminPage() {
     staleTime: 30_000
   })
 
-  const page = pages.data?.pages.find((candidate) =>
-    candidate.paths.some((path) => matchPath({ path, end: false }, normalizedPath) !== null)
-  )
+  const page = pages.data?.pages.find((candidate) => candidate.paths.some((path) => matchPath({ path, end: false }, normalizedPath) !== null))
 
   return { isPending: pages.isPending, page, Component: pluginAdminComponentFor(page?.component) }
 }
@@ -91,7 +91,13 @@ export function PluginAdminPageRoute() {
   }
 
   return (
-    <Suspense fallback={<Page.Root size="narrow"><Notice>{t("loading")}</Notice></Page.Root>}>
+    <Suspense
+      fallback={
+        <Page.Root size="narrow">
+          <Notice>{t("loading")}</Notice>
+        </Page.Root>
+      }
+    >
       <Component />
     </Suspense>
   )

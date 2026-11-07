@@ -16,7 +16,10 @@ type PluginModule = {
   default?: ComponentType<PluginReviewAnnotationComponentProps>
 }
 
-const annotationModules = import.meta.glob<PluginModule>([ "../../plugins/*/app/frontend/review_annotations/*.tsx", "!../../plugins/*/app/frontend/review_annotations/*.test.tsx" ])
+const annotationModules = import.meta.glob<PluginModule>([
+  "../../plugins/*/app/frontend/review_annotations/*.tsx",
+  "!../../plugins/*/app/frontend/review_annotations/*.test.tsx"
+])
 
 export const pluginReviewAnnotationComponentKeys = Object.keys(annotationModules)
   .map((path) => path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/review_annotations\/([^/.]+)\.tsx$/))

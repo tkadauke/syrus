@@ -21,15 +21,20 @@ type PluginModule = {
   default?: ComponentType<PluginWorkspaceTabProps>
 }
 
-const workspaceTabModules = import.meta.glob<PluginModule>([ "../../plugins/*/app/frontend/workspaceTabs/*.tsx", "!../../plugins/*/app/frontend/workspaceTabs/*.test.tsx" ])
+const workspaceTabModules = import.meta.glob<PluginModule>([
+  "../../plugins/*/app/frontend/workspaceTabs/*.tsx",
+  "!../../plugins/*/app/frontend/workspaceTabs/*.test.tsx"
+])
 
 const componentLoaders = Object.fromEntries(
-  Object.entries(workspaceTabModules).map(([path, loader]) => {
-    const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/workspaceTabs\/([^/.]+)\.tsx$/)
-    if (!match) return []
+  Object.entries(workspaceTabModules)
+    .map(([path, loader]) => {
+      const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/workspaceTabs\/([^/.]+)\.tsx$/)
+      if (!match) return []
 
-    return [ `${match[1]}/${match[2]}`, loader ]
-  }).filter((entry): entry is [ string, () => Promise<PluginModule> ] => entry.length === 2)
+      return [`${match[1]}/${match[2]}`, loader]
+    })
+    .filter((entry): entry is [string, () => Promise<PluginModule>] => entry.length === 2)
 )
 
 const componentCache = new Map<string, ComponentType<PluginWorkspaceTabProps>>()
