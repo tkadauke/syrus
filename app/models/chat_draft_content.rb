@@ -13,7 +13,7 @@ class ChatDraftContent
 
   def self.from_record(record)
     draft = from_content(record.content)
-    refs = draft.attachments.map { |attributes| ChatAttachmentRef.new(attributes, chat_session: record.chat_session) }
+    refs = ChatAttachmentRef.for(record)
     new(text: draft.text, attachments: refs.map(&:payload), metadata: draft.metadata)
   end
 
@@ -75,13 +75,14 @@ class ChatDraftContent
     attributes = attachment.respond_to?(:to_unsafe_h) ? attachment.to_unsafe_h : attachment
     attributes = {} unless attributes.respond_to?(:stringify_keys)
     attributes = attributes.stringify_keys
-    {
+    normalized = {
       "id" => attributes["id"],
       "name" => attributes["name"].to_s,
       "mime_type" => (attributes["mime_type"] || attributes["mimeType"]).to_s,
-      "data" => attributes["data"].to_s,
       "size" => attributes["size"],
       "url" => attributes["url"]
     }.compact
+    normalized["data"] = attributes["data"].to_s if attributes.key?("data")
+    normalized
   end
 end

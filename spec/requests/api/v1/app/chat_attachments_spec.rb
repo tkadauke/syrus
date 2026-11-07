@@ -53,4 +53,28 @@ RSpec.describe "API: chat attachments", :ci_only, type: :request do
     expect(response).to have_http_status(:unprocessable_content)
     expect(chat.chat_file_attachments).to be_empty
   end
+
+  it "enforces the total attachment size limit" do
+    sign_in_as(user)
+    existing = chat.chat_file_attachments.build(name: "existing.txt", mime_type: "text/plain", byte_size: ChatMessageParams::CHAT_ATTACHMENT_TOTAL_MAX_BYTES, checksum: "pending")
+    existing.file.attach(io: StringIO.new("x"), filename: "existing.txt", content_type: "text/plain")
+    existing.save!
+    existing.update_column(:byte_size, ChatMessageParams::CHAT_ATTACHMENT_TOTAL_MAX_BYTES)
+    file = Rack::Test::UploadedFile.new(StringIO.new("x"), "text/plain", original_filename: "extra.txt")
+
+    post "/api/v1/app/chats/#{chat.id}/attachments", params: { file: file }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(chat.chat_file_attachments.count).to eq(1)
+  end
+
+  it "rejects invalid UTF-8 text uploads" do
+    sign_in_as(user)
+    file = Rack::Test::UploadedFile.new(StringIO.new("\xFF".b), "text/plain", original_filename: "invalid.txt")
+
+    post "/api/v1/app/chats/#{chat.id}/attachments", params: { file: file }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(chat.chat_file_attachments).to be_empty
+  end
 end
