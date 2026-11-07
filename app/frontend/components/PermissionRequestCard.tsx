@@ -7,6 +7,7 @@ import {
   smartDecidePermissionRequest,
   type PermissionRequest,
   type PermissionRequestsPayload,
+  type SlimPermissionRequest,
   type SmartPermissionOption
 } from "../api/permissionRequests"
 import { useT } from "../hooks/useT"
@@ -22,7 +23,7 @@ export function PermissionRequestCard({ request, jobId }: { request: PermissionR
     []
   )
   const [duration, setDuration] = useState(durationChoices[0] || "invocation")
-  const refresh = (resolved?: PermissionRequest) => {
+  const refresh = (resolved?: SlimPermissionRequest) => {
     if (resolved) {
       queryClient.setQueriesData<PermissionRequestsPayload>({ queryKey: ["permission_requests"] }, (current) => {
         if (!current) return current
@@ -30,7 +31,7 @@ export function PermissionRequestCard({ request, jobId }: { request: PermissionR
         const wasBlocked = wasPending && request.checkpoint_state === "waiting"
         return {
           ...current,
-          requests: current.requests.map((item) => (item.id === resolved.id ? resolved : item)),
+          requests: current.requests.map((item) => (item.id === resolved.id ? { ...item, ...resolved } : item)),
           summary: {
             pending_count: Math.max(0, current.summary.pending_count - (wasPending ? 1 : 0)),
             blocked_agent_count: Math.max(0, current.summary.blocked_agent_count - (wasBlocked ? 1 : 0))

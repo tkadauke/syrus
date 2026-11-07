@@ -335,6 +335,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/permission_rules/apply_preset` | `api/v1/app/permission_rules#apply_preset` |
 | core | POST | `/api/v1/app/permission_rules/apply_profile` | `api/v1/app/permission_rules#apply_profile` |
 | core | POST | `/api/v1/app/permission_rules/bulk` | `api/v1/app/permission_rules#bulk` |
+| core | GET | `/api/v1/app/permission_rules/catalog` | `api/v1/app/permission_rules#catalog` |
 | core | GET | `/api/v1/app/permission_rules/history` | `api/v1/app/permission_rules#history` |
 | core | POST | `/api/v1/app/permission_rules/preview_bulk` | `api/v1/app/permission_rules#preview_bulk` |
 | core | POST | `/api/v1/app/permission_rules/preview_profile` | `api/v1/app/permission_rules#preview_profile` |

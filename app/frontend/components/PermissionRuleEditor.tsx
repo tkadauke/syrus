@@ -83,7 +83,8 @@ export function PermissionRuleEditor({
   const optionsQuery = useQuery({
     queryKey: ["permission_rule_options", fields.capability, fields.operation],
     queryFn: () => fetchRuleDraftOptions(fields.capability, fields.operation),
-    enabled: Boolean(fields.capability && fields.operation)
+    enabled: Boolean(fields.capability && fields.operation),
+    staleTime: 5 * 60_000
   })
   const options = optionsQuery.data?.options
 

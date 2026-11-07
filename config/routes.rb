@@ -443,6 +443,7 @@ Rails.application.routes.draw do
         end
         resources :permission_rules, only: %i[ index create ] do
           collection do
+            get :catalog
             post :preview_profile
             post :apply_profile
             get :history
