@@ -1,9 +1,10 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { Link } from "react-router-dom"
 import {
   decidePermissionRequest,
   dismissPermissionRequest,
+  fetchPermissionRequest,
   smartDecidePermissionRequest,
   type PermissionRequest,
   type PermissionRequestsPayload,
@@ -18,17 +19,27 @@ import { LinkedPermissionRule, SmartPermissionActions } from "./SmartPermissionA
 export function PermissionRequestCard({ request, jobId }: { request: PermissionRequest; jobId?: number }) {
   const { t } = useT("settings")
   const queryClient = useQueryClient()
-  const durationChoices = request.items.reduce<string[]>(
+  const needsDetail = request.items.some((item) => !("smart_option" in item))
+  const detailQuery = useQuery({
+    queryKey: ["permission_requests", "detail", request.id],
+    queryFn: () => fetchPermissionRequest(request.id),
+    enabled: needsDetail && request.state === "pending",
+    staleTime: 5 * 60_000
+  })
+  const displayedRequest = detailQuery.data?.request ?? request
+  const durationChoices = displayedRequest.items.reduce<string[]>(
     (choices, item, index) => (index === 0 ? item.requested_durations : choices.filter((choice) => item.requested_durations.includes(choice))),
     []
   )
   const [duration, setDuration] = useState(durationChoices[0] || "invocation")
   const refresh = (resolved?: SlimPermissionRequest) => {
     if (resolved) {
-      queryClient.setQueriesData<PermissionRequestsPayload>({ queryKey: ["permission_requests"] }, (current) => {
+      const wasPending = request.state === "pending"
+      const wasBlocked = wasPending && request.checkpoint_state === "waiting"
+      queryClient.setQueriesData<PermissionRequestsPayload>({
+        predicate: ({ queryKey }) => queryKey[0] === "permission_requests" && queryKey[1] !== "count" && queryKey[1] !== "detail"
+      }, (current) => {
         if (!current) return current
-        const wasPending = request.state === "pending"
-        const wasBlocked = wasPending && request.checkpoint_state === "waiting"
         return {
           ...current,
           requests: current.requests.map((item) => (item.id === resolved.id ? { ...item, ...resolved } : item)),
@@ -38,25 +49,35 @@ export function PermissionRequestCard({ request, jobId }: { request: PermissionR
           }
         }
       })
+      queryClient.setQueryData<Pick<PermissionRequestsPayload, "summary">>(["permission_requests", "count"], (current) =>
+        current
+          ? {
+              summary: {
+                pending_count: Math.max(0, current.summary.pending_count - (wasPending ? 1 : 0)),
+                blocked_agent_count: Math.max(0, current.summary.blocked_agent_count - (wasBlocked ? 1 : 0))
+              }
+            }
+          : current
+      )
     }
-    void queryClient.invalidateQueries({ queryKey: ["permission_requests"] })
+    void queryClient.invalidateQueries({ queryKey: ["permission_requests"], refetchType: "inactive" })
     if (jobId) void queryClient.invalidateQueries({ queryKey: ["jobs", String(jobId), "detail"] })
   }
   const decide = useMutation({
     mutationFn: (decision: "approved" | "denied") => decidePermissionRequest(request.id, decision, decision === "approved" ? duration : undefined),
     onSuccess: ({ request: resolved }) => refresh(resolved)
   })
-  const smartItem = request.items.find((item) => item.smart_options?.length || item.smart_option)
+  const smartItem = displayedRequest.items.find((item) => item.smart_options?.length || item.smart_option)
   const smartDecide = useMutation({
     mutationFn: (option: SmartPermissionOption) => smartDecidePermissionRequest(request.id, smartItem!.id, option),
     onSuccess: ({ request: resolved }) => refresh(resolved)
   })
   const dismiss = useMutation({ mutationFn: () => dismissPermissionRequest(request.id), onSuccess: ({ request: resolved }) => refresh(resolved) })
-  const pending = request.state === "pending" && request.actionable
+  const pending = displayedRequest.state === "pending" && displayedRequest.actionable
   const failure = decide.error || dismiss.error
-  const linkedAuthority = request.items.find((item) => item.resulting_authority)?.resulting_authority
+  const linkedAuthority = displayedRequest.items.find((item) => item.resulting_authority)?.resulting_authority
 
-  const summary = request.presentation ?? {}
+  const summary = displayedRequest.presentation ?? {}
   const context = [summary.agent, summary.origin].filter((value): value is string => Boolean(value))
   const details = (
     [
