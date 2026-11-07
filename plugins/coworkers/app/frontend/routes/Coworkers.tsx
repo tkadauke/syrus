@@ -25,6 +25,8 @@ import {
   createCoworker,
   createSideChat,
   fetchCoworker,
+  fetchCoworkerOptions,
+  fetchCoworkerTab,
   fetchCoworkerActivity,
   fetchCoworkerApprovals,
   fetchCoworkerMemory,
@@ -145,11 +147,11 @@ function NewCoworker() {
   const [modelSelection, setModelSelection] = useState("")
   const [colorPopupOpen, setColorPopupOpen] = useState(false)
   const [idempotencyKey] = useState(() => crypto.randomUUID())
-  const optionsQuery = useQuery({ queryKey: ["coworkers"], queryFn: fetchCoworkers })
+  const optionsQuery = useQuery({ queryKey: ["coworkers", "options"], queryFn: fetchCoworkerOptions })
   const mutation = useMutation({ mutationFn: createCoworker, onSuccess: (data) => navigate(withRoutePrefix(data.redirect_to, prefix)) })
   const remoteTest = useMutation({ mutationFn: () => testCoworkerRemote(remote) })
   useEffect(() => {
-    if (optionsQuery.data && !colorEdited) setColor(defaultAccentSelection(optionsQuery.data.coworkers.map((coworker) => coworker.accent_hex)))
+    if (optionsQuery.data && !colorEdited) setColor(defaultAccentSelection(optionsQuery.data.accent_hexes))
   }, [colorEdited, optionsQuery.data])
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -306,18 +308,27 @@ function CoworkerPage({ id }: { id: string }) {
   const requestedTab = new URLSearchParams(location.search).get("tab")
   const [tab, setTab] = useState(id === "syrus" ? "chats" : requestedTab || "chat")
   const query = useQuery({ queryKey: ["coworkers", id], queryFn: () => fetchCoworker(id), enabled: id !== "syrus" })
+  const detailTab = ({ chat: "chats", profile: "profile", capabilities: "capabilities", schedule: "schedules" } as const)[
+    tab as "chat" | "profile" | "capabilities" | "schedule"
+  ]
+  const tabQuery = useQuery({
+    queryKey: ["coworkers", id, detailTab],
+    queryFn: () => fetchCoworkerTab(id, detailTab!),
+    enabled: id !== "syrus" && Boolean(detailTab)
+  })
   const sideChat = useMutation({ mutationFn: () => createSideChat(Number(id)), onSuccess: (data) => navigate(withRoutePrefix(data.chat_path, prefix)) })
   const [selectedChatId, setSelectedChatId] = useState("")
   const roster = useMutation({
     mutationFn: ({ chatId, add }: { chatId: number; add: boolean }) =>
       add ? addCoworkerToChat(Number(id), chatId) : removeCoworkerFromChat(Number(id), chatId),
-    onSuccess: () => void query.refetch()
+    onSuccess: () => void tabQuery.refetch()
   })
   if (id === "syrus") return <SyrusPage tab={tab} setTab={setTab} />
   if (query.isPending) return <PanelMessage>{t("loading")}</PanelMessage>
   if (!query.data) return <PanelMessage>{t("error")}</PanelMessage>
-  const coworker = query.data.coworker
-  const selectedChat = coworker.available_chats.find((chat) => chat.id === Number(selectedChatId))
+  if (detailTab && tabQuery.isPending) return <PanelMessage>{t("loading")}</PanelMessage>
+  const coworker = { ...query.data.coworker, ...tabQuery.data } as CoworkerDetail
+  const selectedChat = coworker.available_chats?.find((chat) => chat.id === Number(selectedChatId))
   return (
     <Page.Root gutter="responsive" size="wide">
       <Page.Header>
@@ -386,12 +397,12 @@ function CoworkerPage({ id }: { id: string }) {
           <div className="whitespace-pre-wrap rounded bg-surface-subtle p-4 text-sm">{coworker.soul || t("detail.soul_unavailable")}</div>
         </section>
       ) : null}
-      {tab === "capabilities" ? <CoworkerCapabilities coworker={coworker} onChanged={() => void query.refetch()} /> : null}
+      {tab === "capabilities" ? <CoworkerCapabilities coworker={coworker} onChanged={() => void tabQuery.refetch()} /> : null}
       {tab === "approvals" ? <CoworkerApprovals id={id} /> : null}
-      {tab === "schedule" ? <CoworkerSchedules coworker={coworker} onChanged={() => void query.refetch()} /> : null}
+      {tab === "schedule" ? <CoworkerSchedules coworker={coworker} onChanged={() => void tabQuery.refetch()} /> : null}
       {tab === "memory" ? <CoworkerMemory id={id} /> : null}
       {tab === "workspace" ? <CoworkerWorkspace id={id} remote={coworker.workspace_repo} /> : null}
-      {tab === "activity" ? <CoworkerActivity id={id} traffic={coworker.message_traffic} /> : null}
+      {tab === "activity" ? <CoworkerActivity id={id} /> : null}
       {!["chat", "profile", "capabilities", "approvals", "schedule", "memory", "workspace", "activity"].includes(tab) ? (
         <PanelMessage>{t("coming_later")}</PanelMessage>
       ) : null}
@@ -870,12 +881,29 @@ function SystemScheduleTime({ coworkerId, schedule, onChanged }: { coworkerId: s
   )
 }
 
-function CoworkerActivity({ id, traffic }: { id: string; traffic: CoworkerDetail["message_traffic"] }) {
+function CoworkerActivity({ id }: { id: string }) {
   const { t } = useT("coworkers")
   const query = useQuery({ queryKey: ["coworkers", id, "activity"], queryFn: () => fetchCoworkerActivity(id) })
+  const [olderRuns, setOlderRuns] = useState<Awaited<ReturnType<typeof fetchCoworkerActivity>>["runs"]>([])
+  const [olderChats, setOlderChats] = useState<Awaited<ReturnType<typeof fetchCoworkerActivity>>["side_chats"]>([])
+  const [nextCursors, setNextCursors] = useState<{ runs: string | null; side_chats: string | null }>({ runs: null, side_chats: null })
+  useEffect(() => {
+    if (query.data) setNextCursors(query.data.next_cursors)
+  }, [query.data])
+  const loadMore = useMutation({
+    mutationFn: () => fetchCoworkerActivity(id, { runs: nextCursors.runs, sideChats: nextCursors.side_chats }),
+    onSuccess: (page) => {
+      setOlderRuns((current) => [...current, ...page.runs])
+      setOlderChats((current) => [...current, ...page.side_chats])
+      setNextCursors(page.next_cursors)
+    }
+  })
   if (query.isPending) return <PanelMessage>{t("activity.loading")}</PanelMessage>
   if (query.isError || !query.data) return <PanelMessage>{t("activity.unavailable")}</PanelMessage>
   const activity = query.data
+  const runs = [...activity.runs, ...olderRuns]
+  const sideChats = [...activity.side_chats, ...olderChats]
+  const traffic = activity.message_traffic
   return (
     <section className="space-y-6 rounded border border-border bg-surface p-5">
       <div>
@@ -894,9 +922,9 @@ function CoworkerActivity({ id, traffic }: { id: string; traffic: CoworkerDetail
       </div>
       <div>
         <h2 className="font-semibold">{t("activity.runs")}</h2>
-        {activity.runs.length ? (
+        {runs.length ? (
           <ul className="mt-3 divide-y divide-border rounded border border-border">
-            {activity.runs.map((run) => (
+            {runs.map((run) => (
               <li className="grid gap-2 p-3 text-sm sm:grid-cols-4" key={run.id}>
                 <span>{t("activity.run_label", { id: run.id })}</span>
                 <span>{t(`activity.status.${run.state}`, { defaultValue: run.state })}</span>
@@ -911,9 +939,9 @@ function CoworkerActivity({ id, traffic }: { id: string; traffic: CoworkerDetail
       </div>
       <div>
         <h2 className="font-semibold">{t("activity.side_chats")}</h2>
-        {activity.side_chats.length ? (
+        {sideChats.length ? (
           <ul className="mt-3 space-y-2">
-            {activity.side_chats.map((chat) => (
+            {sideChats.map((chat) => (
               <li className="flex justify-between rounded border border-border p-3 text-sm" key={chat.id}>
                 <Link className="text-brand" to={chat.path}>
                   {chat.title || t("activity.untitled_chat")}
@@ -926,6 +954,11 @@ function CoworkerActivity({ id, traffic }: { id: string; traffic: CoworkerDetail
           <p className="mt-2 text-sm text-text-secondary">{t("activity.no_side_chats")}</p>
         )}
       </div>
+      {nextCursors.runs || nextCursors.side_chats ? (
+        <button className="rounded border border-border px-3 py-2 text-sm" disabled={loadMore.isPending} onClick={() => loadMore.mutate()} type="button">
+          {t("activity.load_more")}
+        </button>
+      ) : null}
       <div>
         <h2 className="font-semibold">{t("activity.message_traffic")}</h2>
         <p className="mt-1 text-sm text-text-secondary">{t("activity.window", { count: traffic.window_days })}</p>
@@ -970,8 +1003,8 @@ function CoworkerWorkspace({ id, remote }: { id: string; remote: string }) {
     queryFn: () => fetchCoworkerWorkspace(id, selectedPath)
   })
   const pushTest = useMutation({ mutationFn: () => testCoworkerRemote(remote) })
-  const coworkerQuery = useQuery({ queryKey: ["coworkers", id], queryFn: () => fetchCoworker(id) })
-  const unsavedChats = coworkerQuery.data?.coworker.chats.filter((chat) => chat.unsaved_workspace) || []
+  const coworkerQuery = useQuery({ queryKey: ["coworkers", id, "chats"], queryFn: () => fetchCoworkerTab(id, "chats") })
+  const unsavedChats = coworkerQuery.data?.chats?.filter((chat) => chat.unsaved_workspace) || []
   const retrySave = useMutation({
     mutationFn: (chatLinkId: number) => retryCoworkerWorkspaceSave(id, chatLinkId),
     onSuccess: () => void coworkerQuery.refetch()

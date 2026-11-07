@@ -73,6 +73,34 @@ RSpec.describe Coworkers::Activity do
     expect(queries.grep(/FROM ["`]runs["`]/i).size).to eq(1)
   end
 
+  it "paginates runs and side chats with bounded opaque cursors" do
+    runs = 51.times.map { coworker_run(cost: 0.01, finished_at: 1.day.ago) }
+    chats = 51.times.map do |index|
+      ChatSession.create!(user: owner, title: "Side #{index}").tap do |chat|
+        Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "side")
+      end
+    end
+
+    first = described_class.new(coworker: coworker, user: owner).call
+    second = described_class.new(
+      coworker: coworker, user: owner,
+      runs_cursor: first.dig(:next_cursors, :runs),
+      side_chats_cursor: first.dig(:next_cursors, :side_chats)
+    ).call
+
+    expect(first.fetch(:runs).size).to eq(50)
+    expect(first.fetch(:side_chats).size).to eq(50)
+    expect(second.fetch(:runs).pluck(:id)).to eq([ runs.first.id ])
+    expect(second.fetch(:side_chats).pluck(:id)).to eq([ chats.first.id ])
+    expect(second.fetch(:next_cursors)).to eq(runs: nil, side_chats: nil)
+  end
+
+  it "rejects malformed cursors" do
+    expect {
+      described_class.new(coworker: coworker, user: owner, runs_cursor: "not-a-cursor").call
+    }.to raise_error(Coworkers::Activity::InvalidCursor)
+  end
+
   private
 
   def sql_queries

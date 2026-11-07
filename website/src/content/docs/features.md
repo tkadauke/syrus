@@ -908,6 +908,12 @@ implicit coworker nor on its roster remain plain text and do not start a turn.
 Coworker turns in the same chat run one at a time. The chat owner can remove a
 coworker from the roster.
 
+Coworker detail tabs load independently, so opening a coworker does not fetch
+remote profile content, chat rosters, permissions, schedules, and activity all
+at once. Activity initially shows the 50 newest runs and side chats and offers
+**Load more** for older entries. Memory and workspace file listings are capped
+at 1,000 entries and clearly identify partial results.
+
 Chats are operator conversations that can start with or without repository
 context. New chats default to the operator's most recently used repository
 in an ordinary chat when one is available; dedicated coworker main and side
