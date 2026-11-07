@@ -2,7 +2,7 @@ import { getJson, getJsonWithMeta, patchJson, postJson } from "./client"
 import type { JsonResponseMeta } from "./client"
 import type { JobDeliveryStatus, JobRetryState, LandingQueueBlockerJob, LandingQueueDependencyEdge } from "./jobs"
 import type { BlockedReason } from "../lib/translateBlockedReason"
-import type { ProviderAvailability, ProviderFailover, ProviderMismatch } from "./providerAvailability"
+import type { ProviderAvailability, ProviderMismatch } from "./providerAvailability"
 import type { GoalProvenance } from "./chats"
 import type { StartBlockedDetails } from "../types/startBlocked"
 
@@ -114,27 +114,12 @@ export type ActiveRepairWork = {
   blocked_reason: string | null
 }
 
-export type DashboardDependencyTarget = {
+export type DashboardJobDependency = {
   id: number
   slug: string
-  title: string | null
-  state: string
-  repository_slug?: string
-  job_path?: string
-  epic_path?: string
-  latest_deployment_stage?: DashboardDeploymentStage | null
-}
-
-export type DashboardJobDependency = {
-  id: number | string
+  state: string | null
   pending: boolean
   succeeded: boolean
-  satisfaction_mode?: "success" | "landed" | "closed" | "deployment_stage"
-  required_deployment_stage_name?: string | null
-  latest_deployment_stage?: DashboardDeploymentStage | null
-  unresolved_slug: string | null
-  depends_on_job: DashboardDependencyTarget | null
-  depends_on_epic: DashboardDependencyTarget | null
 }
 
 export type DashboardLandingQueueEntry = {
@@ -166,7 +151,6 @@ export type DashboardJobItem = {
   priority: string
   agent_provider: string | null
   provider_availability?: ProviderAvailability
-  provider_failover?: ProviderFailover
   provider_mismatch?: ProviderMismatch | null
   total_cost_usd: number | null
   issue_number: number | null
@@ -202,7 +186,6 @@ export type DashboardJobItem = {
   claimed_by_current_user: boolean
   dependencies_overridden_at: string | null
   dependencies?: DashboardJobDependency[]
-  unsatisfied_dependencies?: DashboardJobDependency[]
   last_feedback_addressed_at: string | null
   last_seen_comment_at: string | null
   pr_mergeable_checked_at: string | null
@@ -224,22 +207,10 @@ export type DashboardJobItem = {
   start_blocked_details: StartBlockedDetails | null
   manual_paused?: boolean
   manual_paused_at?: string | null
-  manual_paused_by_user?: DashboardOwnerUser | null
   active_repair_work?: ActiveRepairWork | null
   bulk_actions?: Partial<Record<DashboardBulkJobAction, boolean>>
-  can_approve?: boolean
-  can_release_from_backlog?: boolean
-  can_move_to_backlog?: boolean
   paths: {
     job_path: string
-    source_path: string
-    app_pause_path?: string
-    app_unpause_path?: string
-    app_release_from_backlog_path?: string
-    app_move_to_backlog_path?: string
-    app_approve_path?: string
-    app_preview_path?: string
-    app_preview_logs_path?: string
   }
 }
 
@@ -254,7 +225,6 @@ export type DashboardEpicItem = {
   landing: boolean
   stuck: boolean
   all_jobs_closed: boolean
-  owner: DashboardOwner | null
   owned_by_current_user: boolean
   claimable: boolean
   owner_badge: DashboardOwnerBadge | null
@@ -266,7 +236,6 @@ export type DashboardEpicItem = {
   landed_jobs_count: number
   open_child_count?: number
   blocked_child_count?: number
-  child_progress_percent?: number
   dependency_count?: number
   has_epic_dependency?: boolean
   execution_blocked_on: string[]
