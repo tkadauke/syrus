@@ -37,9 +37,9 @@ module ProviderRouting
           "reason" => reason,
           "availability_state" => availability_state(availability),
           "candidate_availability_state" => availability_state(candidate_availability),
-          "evidence_observed_at" => evidence_observed_at(availability)&.iso8601,
-          "candidate_evidence_observed_at" => evidence_observed_at(candidate_availability)&.iso8601,
-          "decided_at" => decided_at.iso8601,
+          "evidence_observed_at" => utc_iso8601(evidence_observed_at(availability)),
+          "candidate_evidence_observed_at" => utc_iso8601(evidence_observed_at(candidate_availability)),
+          "decided_at" => utc_iso8601(decided_at),
           "automatic_failover" => true,
           "manual_override" => false,
           "exhausted" => exhausted?,
@@ -77,8 +77,8 @@ module ProviderRouting
           "state" => payload[:state] || payload["state"],
           "reason" => payload[:reason] || payload["reason"],
           "retry_after" => payload[:retry_after] || payload["retry_after"],
-          "reset_at" => reset_at(usage)&.iso8601,
-          "observed_at" => evidence_observed_at(payload)&.iso8601,
+          "reset_at" => utc_iso8601(reset_at(usage)),
+          "observed_at" => utc_iso8601(evidence_observed_at(payload)),
           "evidence" => {
             "status" => evidence[:status] || evidence["status"],
             "source" => evidence[:source] || evidence["source"],
@@ -93,6 +93,10 @@ module ProviderRouting
 
       def reset_at(usage)
         ProviderRouting::UsageWindows.earliest_reset_at(usage)
+      end
+
+      def utc_iso8601(value)
+        value&.utc&.iso8601
       end
     end
 
