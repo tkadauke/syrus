@@ -124,6 +124,18 @@ const BASH_EXAMPLES: ToolPresentationExample[] = [
     resultError: true,
     resultBody: "Failures:\n\n  1) Job#approve! transitions to approved\n     Failure/Error: job.approve!\n\n1 example, 1 failure",
     sourceType: "claude"
+  },
+  {
+    id: "running_multiline_command",
+    label: "Running multiline command",
+    description: "Keeps the in-flight one-line collapsed-header geometry reviewable with a long multiline command at every catalog viewport.",
+    input: {
+      command:
+        '/bin/bash -lc \'rg -n "Visual evidence|No screenshots captured" app spec\n  && sed -n "1,220p" app/frontend/routes/jobDetail/ReviewWorkspace.tsx\''
+    },
+    resultBody: "",
+    resultSettled: false,
+    sourceType: "claude"
   }
 ]
 

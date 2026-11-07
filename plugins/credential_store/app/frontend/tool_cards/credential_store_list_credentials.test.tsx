@@ -1,4 +1,6 @@
+import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
+import { redactToolCardValue } from "@app/toolCardSecurity"
 import toolCard, { examples } from "./credential_store_list_credentials"
 
 describe("credential_store_list_credentials tool card", () => {
@@ -28,5 +30,33 @@ describe("credential_store_list_credentials tool card", () => {
         ]
       }
     })
+  })
+
+  it("renders safe credential and tool identifiers without exposing secret assignments", () => {
+    const parsedResult = redactToolCardValue({
+      credentials: [
+        {
+          credential_type: "credential_store.url_token",
+          allowed_tools: ["credential_store_ssh_exec"],
+          safe_metadata: { host: "example.test", note: "password=hunter2-secret" }
+        }
+      ]
+    })
+
+    render(
+      <>
+        {toolCard.renderExpanded({
+          toolName: toolCard.toolName,
+          resultBody: "",
+          resultError: false,
+          parsedResult
+        })}
+      </>
+    )
+
+    expect(screen.getByText(/credential_store\.url_token/)).toBeInTheDocument()
+    expect(screen.getByText(/credential_store_ssh_exec/)).toBeInTheDocument()
+    expect(screen.queryByText(/hunter2-secret/)).not.toBeInTheDocument()
+    expect(screen.getByText(/password=\[redacted\]/)).toBeInTheDocument()
   })
 })
