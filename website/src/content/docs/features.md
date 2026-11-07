@@ -2623,7 +2623,8 @@ only starts a new briefing when repository activity changed since the previous
 closed briefing; manual regeneration always runs without enabling future
 scheduled generation by itself. Starting a new briefing supersedes the previous
 live briefing for that repository and keeps older revisions browsable as
-read-only history.
+read-only history. History content is loaded only when an archived briefing is
+selected, and wiki-style topic pages load older revisions in bounded pages.
 
 Briefing revisions render typed content blocks: narrative, small fixed-shape
 charts, image and artifact references to existing typed artifacts, and link

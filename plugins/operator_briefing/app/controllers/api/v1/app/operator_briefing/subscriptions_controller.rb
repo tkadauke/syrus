@@ -10,7 +10,7 @@ module Api
             subscription.update!(enabled: ActiveModel::Type::Boolean.new.cast(subscription_params.fetch(:enabled)))
             ::OperatorBriefing::OptOutCleanup.cancel_for_subscription!(subscription) unless subscription.enabled?
 
-            render json: ::OperatorBriefing::Payload.new(user: Current.user).as_json
+            render json: { subscription: ::OperatorBriefing::Payload.new(user: Current.user).subscription_payload(subscription) }
           end
 
           private
