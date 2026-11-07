@@ -554,7 +554,9 @@ curl "https://syrus.example.com/api/v1/admin/scheduled_tasks?paused=true" \
 
 `GET /api/v1/admin/scheduled_tasks/:id` returns full detail, including the
 cron expression, `pr_pileup_policy`, `consecutive_failure_count`,
-`last_fired_at`, and `next_fire_at`.
+`schedule_timezone`, `last_fired_at`, and `next_fire_at`. Recurring expressions
+are wall-clock rules in that stored IANA zone; returned occurrence instants are
+ISO 8601 UTC values.
 
 `POST /api/v1/admin/scheduled_tasks/:id/pause` and `.../unpause` toggle a
 task the same way the operator UI does — useful for silencing a task that is

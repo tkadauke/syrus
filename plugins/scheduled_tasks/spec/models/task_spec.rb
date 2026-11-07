@@ -12,6 +12,7 @@ RSpec.describe ScheduledTasks::Task do
       prompt: "Write missing tests.",
       kind: "cron",
       cron_expression: "0 9 * * 1",
+      schedule_timezone: "UTC",
       minute_offset: 5,
       pr_pileup_policy: "skip"
     }.merge(overrides))
@@ -30,6 +31,20 @@ RSpec.describe ScheduledTasks::Task do
   end
 
   describe "validation" do
+    it "defaults new tasks to the configured server time zone" do
+      expect(described_class.new.schedule_timezone).to eq(Rails.configuration.x.server_time_zone.name)
+    end
+
+    it "preserves a legacy stored UTC schedule when the server uses another zone" do
+      task = build_cron(schedule_timezone: "UTC")
+      task.save!
+
+      task.update!(name: "Still UTC")
+
+      expect(task.reload.schedule_timezone).to eq("UTC")
+      expect(task.schedule_explanation).to eq("Every Monday at 9:00 AM UTC")
+    end
+
     it "is valid with reasonable cron defaults" do
       expect(build_cron).to be_valid
     end

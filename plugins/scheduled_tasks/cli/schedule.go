@@ -177,7 +177,7 @@ func runScheduleCreate(cmd *cobra.Command, yes bool) error {
 	if err != nil {
 		return err
 	}
-	cron, err := cliplugin.Prompt(reader, cmd.OutOrStdout(), `Cron expression (e.g. 0 9 * * 1 = every Monday at 9am UTC): `)
+	cron, err := cliplugin.Prompt(reader, cmd.OutOrStdout(), `Cron expression (e.g. 0 9 * * 1 = every Monday at 9am in the schedule time zone): `)
 	if err != nil {
 		return err
 	}

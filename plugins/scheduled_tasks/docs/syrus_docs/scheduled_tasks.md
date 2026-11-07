@@ -22,14 +22,14 @@ Tasks are usually created from a repository's Schedules tab (`/repositories/:id/
 
 ### cron
 
-Fires on a recurring schedule stored canonically as an RRULE-compatible expression in UTC. Operators enter natural cadence text such as `Every Monday at 9:00 AM`; five-field cron input (minute hour day-of-month month day-of-week) is also accepted and preserved in `legacy_cron_expression` for audit/compatibility. Cron lists, ranges, and steps are supported, including day-of-week forms such as `1-5`, `*/2`, and `1-5/2`; both `0` and `7` mean Sunday. When day-of-month and day-of-week are both restricted, a date matching either field fires, following cron OR semantics (the canonical expression carries an `X-SYRUS-CRON-DAY-OR=TRUE` marker because standard RRULE combines those fields with AND). Recurring tasks fire at most once per hour — expressions that would fire more frequently are rejected.
+Fires on a recurring wall-clock schedule stored canonically as an RRULE-compatible expression plus a validated IANA time zone. New tasks and templates default to the configured server time zone; existing rows keep their stored zone, including legacy UTC schedules. Operators enter natural cadence text such as `Every Monday at 9:00 AM`; five-field cron input (minute hour day-of-month month day-of-week) is also accepted and preserved in `legacy_cron_expression` for audit/compatibility. Cron lists, ranges, and steps are supported, including day-of-week forms such as `1-5`, `*/2`, and `1-5/2`; both `0` and `7` mean Sunday. When day-of-month and day-of-week are both restricted, a date matching either field fires, following cron OR semantics (the canonical expression carries an `X-SYRUS-CRON-DAY-OR=TRUE` marker because standard RRULE combines those fields with AND). Recurring tasks fire at most once per hour — expressions that would fire more frequently are rejected.
 
 ```
-# Fire at 9:00 AM UTC every Monday
+# Fire at 9:00 AM in the task's stored time zone every Monday
 Every Monday at 9:00 AM
 ```
 
-The minute is honored exactly. Syrus evaluates due tasks in UTC hourly windows so repeated poller ticks within the same hour do not double-fire. Fire-time scheduling is deterministic and does not call an AI provider.
+The minute is honored exactly. Calendar schedules retain their local wall time across offset changes. A nonexistent spring-forward time is skipped, and a duplicated fall-back time fires once. Hourly schedules remain fixed elapsed intervals. Occurrence instants and due windows are converted to UTC for storage, comparison, deduplication, and execution. Fire-time scheduling is deterministic and does not call an AI provider.
 
 ### Tiered cadence parsing
 
@@ -155,9 +155,9 @@ A brand-new Syrus installation seeds three starter templates (`CronTemplate::DEF
 
 | Template | Cadence | Purpose |
 |---|---|---|
-| Deduplicate code | Weekly, Monday 9:00 AM UTC | Finds and consolidates duplicated logic |
-| Keep documentation up to date | Weekly, Wednesday 9:00 AM UTC | Audits docs against recent code changes |
-| Increase test coverage | Weekly, Friday 9:00 AM UTC | Adds tests for under-covered, high-risk code |
+| Deduplicate code | Weekly, Monday 9:00 AM server time | Finds and consolidates duplicated logic |
+| Keep documentation up to date | Weekly, Wednesday 9:00 AM server time | Audits docs against recent code changes |
+| Increase test coverage | Weekly, Friday 9:00 AM server time | Adds tests for under-covered, high-risk code |
 
 They're seeded once via `User#seed_default_cron_templates` (an `after_create` callback gated on being the very first `User` row) and are ordinary templates from then on — operators can edit, disable, or delete them like any other. `CronTemplate.seed_defaults_for(user)` is idempotent (`find_or_create_by!` on name), so re-running it is a no-op. Later signups don't get a copy.
 

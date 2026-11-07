@@ -20,8 +20,9 @@ module ScheduledTasks
 
       input_schema(
         properties: {
-          schedule_input: { type: "string", description: "Natural cadence text such as 'Every Monday at 9:00 AM' or a five-field cron expression. Interpreted in UTC." },
+          schedule_input: { type: "string", description: "Natural cadence text such as 'Every Monday at 9:00 AM' or a five-field cron expression. Interpreted as wall-clock time in schedule_timezone." },
           cron_expression: { type: "string", description: "Compatibility alias for schedule_input when providing a five-field cron expression." },
+          schedule_timezone: { type: "string", description: "IANA time zone for the wall-clock schedule. Defaults to the configured server time zone." },
           label: { type: "string", description: "Short operator-facing label for this recurring task." },
           prompt: { type: "string", description: "Prompt to run as a scheduled cron Job each time the schedule fires." }
         },
@@ -29,7 +30,7 @@ module ScheduledTasks
       )
 
       class << self
-        def call(label:, prompt:, server_context:, schedule_input: nil, cron_expression: nil)
+        def call(label:, prompt:, server_context:, schedule_input: nil, cron_expression: nil, schedule_timezone: nil)
           chat_session = server_context.fetch(:chat_session)
           unless chat_session.repository && RepositoryPolicy.new(chat_session.user, chat_session.repository).write?
             return Mcp::Tools.invalid("repository write access is required to create a scheduled task")
@@ -52,6 +53,7 @@ module ScheduledTasks
             kind: "cron",
             name: label,
             schedule_input: schedule_input,
+            schedule_timezone: schedule_timezone.presence || ScheduledTasks::Schedules::RecurringSchedule.server_timezone,
             cron_expression: cron_expression,
             prompt: prompt
           )
@@ -72,7 +74,7 @@ module ScheduledTasks
               "schedule_timezone" => preview.schedule_timezone,
               "label" => label,
               "prompt" => prompt,
-              "next_fire_at" => next_fire_at&.iso8601
+              "next_fire_at" => next_fire_at&.utc&.iso8601
             }
           )
 
@@ -81,9 +83,10 @@ module ScheduledTasks
             label: label,
             prompt: prompt,
             schedule_input: schedule_input,
+            schedule_timezone: preview.schedule_timezone,
             cron_expression: preview.cron_expression,
             schedule_explanation: preview.schedule_explanation,
-            next_fire_at: next_fire_at&.iso8601
+            next_fire_at: next_fire_at&.utc&.iso8601
           )
         rescue ActiveRecord::RecordInvalid => e
           Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)

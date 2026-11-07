@@ -48,6 +48,7 @@ module Api
           result = ScheduledTasks::Schedules::CadencePreview.call(
             input: params[:schedule_input].presence || params[:cron_expression],
             structured_intent: unsafe_hash(params[:structured_intent]),
+            timezone: params[:schedule_timezone].presence || ScheduledTasks::Schedules::RecurringSchedule.server_timezone,
             user: Current.user
           )
 
@@ -92,7 +93,7 @@ module Api
             schedule_expression: template.schedule_expression,
             schedule_explanation: template.schedule_explanation,
             schedule_timezone: template.schedule_timezone,
-            next_fire_at: template.next_fire_at&.iso8601,
+            next_fire_at: template.next_fire_at&.utc&.iso8601,
             legacy_cron_expression: template.legacy_cron_expression,
             pr_pileup_policy: template.pr_pileup_policy,
             enabled: template.enabled?,
@@ -130,7 +131,7 @@ module Api
             state: task.state,
             repository_id: task.repository_id,
             repository_slug: task.repository.slug,
-            last_fired_at: task.last_fired_at&.iso8601,
+            last_fired_at: task.last_fired_at&.utc&.iso8601,
             scheduled_task_path: "/scheduled_tasks/#{task.id}",
             repository_path: repository_path(task.repository)
           }

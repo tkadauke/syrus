@@ -35,6 +35,10 @@ module ScheduledTasks
             type: "string",
             description: "Compatibility alias for schedule_input when providing a five-field cron expression."
           },
+          schedule_timezone: {
+            type: "string",
+            description: "IANA time zone for the recurring wall-clock schedule (cron tasks only)."
+          },
           fire_at: {
             type: "string",
             description: "New ISO 8601 datetime for when to fire (one_shot tasks only)."
@@ -50,7 +54,7 @@ module ScheduledTasks
 
       class << self
         def call(scheduled_task_id:, server_context:, name: nil, prompt: nil,
-                 schedule_input: nil, cron_expression: nil, fire_at: nil, pr_pileup_policy: nil)
+                 schedule_input: nil, cron_expression: nil, schedule_timezone: nil, fire_at: nil, pr_pileup_policy: nil)
           chat_session = server_context.fetch(:chat_session)
           task, error = find_mutable_scheduled_task(chat_session, scheduled_task_id)
           return error if error
@@ -63,11 +67,16 @@ module ScheduledTasks
             return Mcp::Tools.invalid("fire_at cannot be set on a cron task")
           end
 
+          if schedule_timezone && task.one_shot?
+            return Mcp::Tools.invalid("schedule_timezone cannot be set on a one_shot task")
+          end
+
           attrs = {}
           attrs[:name] = name if name
           attrs[:prompt] = prompt if prompt
           attrs[:schedule_input] = schedule_input || cron_expression if schedule_input || cron_expression
           attrs[:cron_expression] = cron_expression if cron_expression
+          attrs[:schedule_timezone] = schedule_timezone if schedule_timezone
           attrs[:fire_at] = Time.parse(fire_at) if fire_at
           attrs[:pr_pileup_policy] = pr_pileup_policy if pr_pileup_policy
 
