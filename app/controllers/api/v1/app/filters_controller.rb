@@ -42,7 +42,11 @@ module Api
         end
 
         def schema
-          render json: { fields: ::Filters::Schema.for(subject: params[:subject].presence || "job", user: Current.user) }
+          payload = { fields: ::Filters::Schema.for(subject: params[:subject].presence || "job", user: Current.user) }
+          expires_in 5.minutes, public: false
+          return unless stale?(etag: payload, public: false)
+
+          render json: payload
         rescue ArgumentError, KeyError
           render_error("unknown_subject", I18n.t("api.filters.unknown_field"), status: :bad_request)
         end
