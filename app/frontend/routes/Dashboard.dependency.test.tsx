@@ -227,12 +227,12 @@ describe("graphSearchWithSmartFolder", () => {
 })
 
 describe("dashboardChromeSearch", () => {
-  it("keeps chrome stable across smart folder and page changes", () => {
-    expect(dashboardApi.dashboardChromeSearch("/dashboard/jobs", "?smart_folder_id=8&page=3&view=list&ownership_scope=team")).toBe("?view=list&ownership_scope=team&subject=job")
+  it("keys chrome by smart folder while ignoring page changes", () => {
+    expect(dashboardApi.dashboardChromeSearch("/dashboard/jobs", "?smart_folder_id=8&page=3&view=list&ownership_scope=team")).toBe("?smart_folder_id=8&view=list&ownership_scope=team&subject=job")
   })
 
   it("keeps filter params because they change filter chrome", () => {
-    expect(dashboardApi.dashboardChromeSearch("/dashboard/jobs", "?smart_folder_id=8&q=abc123&view=list")).toBe("?q=abc123&view=list&subject=job")
+    expect(dashboardApi.dashboardChromeSearch("/dashboard/jobs", "?smart_folder_id=8&q=abc123&view=list")).toBe("?smart_folder_id=8&q=abc123&view=list&subject=job")
   })
 })
 
