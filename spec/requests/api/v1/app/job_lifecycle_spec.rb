@@ -865,6 +865,21 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     expect(parse_body.dig("actions", "can_approve")).to be(false)
   end
 
+  it "approves an implemented job while a stack rebase is running" do
+    job.update!(state: "implemented")
+    job.initial_run.update_columns(state: "succeeded")
+    finish_work_units_for(job)
+    stack_rebase = WorkUnits::Launcher.instantiate(kind: "stack_rebase", job: job)
+
+    stack_rebase.start!
+    post app_job_path(job, "approve"), as: :json
+
+    expect(response).to have_http_status(:ok)
+    expect(job.reload).to be_approved
+    expect(stack_rebase.reload).to be_running
+    expect(stack_rebase.work_unit.reload).to be_running
+  end
+
   it "rejects approval while normal runtime work is active" do
     job.update!(state: "implemented")
     job.initial_run.update_columns(state: "succeeded")
