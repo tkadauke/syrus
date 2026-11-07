@@ -217,6 +217,19 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
         include("value" => "codex", "label" => "Codex", "configured" => true)
       )
     end
+
+    it "supports conditional requests for unchanged picker data" do
+      sign_in_as(user)
+      repository
+
+      get "/api/v1/app/chats/new"
+      etag = response.headers.fetch("ETag")
+
+      get "/api/v1/app/chats/new", headers: { "If-None-Match" => etag }
+
+      expect(response).to have_http_status(:not_modified)
+      expect(response.body).to be_empty
+    end
   end
 
   describe "GET /api/v1/app/chats/:id/preview" do
@@ -1799,6 +1812,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   it "creates an empty chat session without a first message" do
     sign_in_as(user)
     user.update!(chat_provider: "claude")
+    repository
     jobs_before_request = enqueued_jobs.count
 
     expect {
@@ -1810,7 +1824,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(chat.user).to eq(user)
     expect(chat.chat_provider).to eq("claude")
     expect(chat.effective_chat_provider).to eq("claude")
-    expect(chat.repository).to be_nil
+    expect(chat.repository).to eq(repository)
     expect(chat.last_message_at).to be_nil
     expect(chat.messages).to be_empty
     expect(ChatMessage.count).to eq(0)
@@ -2418,7 +2432,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     sign_in_as(user)
 
     expect {
-      post "/api/v1/app/chats", params: { chat_message: { text: "Map tkadauke/syrus" } }
+      post "/api/v1/app/chats", params: { repository_id: nil, chat_message: { text: "Map tkadauke/syrus" } }
     }.to change(ChatSession, :count).by(1)
       .and change(ChatMessage, :count).by(1)
       .and have_enqueued_job(ChatTurnJob)

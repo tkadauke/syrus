@@ -805,6 +805,8 @@ export type ChatCreatedPayload = {
   agent_appearances?: Record<string, ChatAgentAppearance>
 }
 
+export const NEW_CHAT_PICKER_STALE_TIME = 10 * 60 * 1000
+
 export type ChatBranchPayload = {
   id: number
   app_path: string
@@ -1383,7 +1385,7 @@ export function createChat(values: CreateChatInput) {
 
 export function createEmptyChat(repositoryId?: number | string | null, chatProvider?: string | null) {
   const payload = {
-    ...(repositoryId == null || repositoryId === "" ? {} : { repository_id: repositoryId }),
+    ...(repositoryId === undefined || repositoryId === "" ? {} : { repository_id: repositoryId }),
     ...(chatProvider ? { chat_provider: chatProvider } : {})
   }
   return postJson<ChatCreatedPayload>("/api/v1/app/chats", Object.keys(payload).length === 0 ? undefined : payload)

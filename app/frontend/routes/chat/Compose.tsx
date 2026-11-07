@@ -50,6 +50,7 @@ import {
   fetchChatMentionables,
   fetchChatWhiteboard,
   fetchNewChat,
+  NEW_CHAT_PICKER_STALE_TIME,
   patchChatGoal,
   patchChatWhiteboard,
   pauseChatGoal,
@@ -305,7 +306,7 @@ export function Compose({
     queryKey: ["chats", "new"],
     queryFn: fetchNewChat,
     enabled: newChatForm,
-    staleTime: 30_000
+    staleTime: NEW_CHAT_PICKER_STALE_TIME
   })
   const updateRepository = useMutation({
     mutationFn: (nextRepositoryId: string) => updateChatRepository(chatId, nextRepositoryId || null),
