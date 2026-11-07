@@ -218,6 +218,7 @@ function SuggestionCard({ canWrite, repositoryId, suggestion }: { canWrite: bool
   const [expanded, setExpanded] = useState(false)
   const [showEvidence, setShowEvidence] = useState(false)
   const [showAcceptForm, setShowAcceptForm] = useState(false)
+  const [acceptSuggestion, setAcceptSuggestion] = useState<InsightSuggestion | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const detailQuery = useQuery({
@@ -229,6 +230,20 @@ function SuggestionCard({ canWrite, repositoryId, suggestion }: { canWrite: bool
   const canCreateJob = suggestion.proposal_type === "create_job"
 
   const queryKey = ["repositories", repositoryId, "insight_suggestions"]
+
+  async function openAcceptForm() {
+    try {
+      const payload = await queryClient.fetchQuery({
+        queryKey: ["insight_suggestion", suggestion.id],
+        queryFn: () => fetchInsightSuggestion(suggestion.id)
+      })
+      setAcceptSuggestion(payload.suggestion)
+      setShowAcceptForm(true)
+      setError(null)
+    } catch (fetchError) {
+      setError(errorMessage(fetchError, t("load_error")))
+    }
+  }
 
   const dismissMutation = useMutation({
     mutationFn: () => dismissInsightSuggestion(suggestion.id),
@@ -458,7 +473,7 @@ function SuggestionCard({ canWrite, repositoryId, suggestion }: { canWrite: bool
                 {acceptRemoveMemoryMutation.isPending ? t("removing_memory") : t("accept_remove_memory")}
               </Button>
             ) : canWrite && canCreateJob ? (
-              <Button disabled={showAcceptForm} onClick={() => setShowAcceptForm(true)} size="sm" variant="primary">
+              <Button disabled={showAcceptForm || detailQuery.isFetching} onClick={() => void openAcceptForm()} size="sm" variant="primary">
                 {t("accept")}
               </Button>
             ) : null}
@@ -505,16 +520,20 @@ function SuggestionCard({ canWrite, repositoryId, suggestion }: { canWrite: bool
         )}
       </div>
 
-      {canWrite && showAcceptForm && suggestion.state === "pending" && (
+      {canWrite && showAcceptForm && acceptSuggestion && suggestion.state === "pending" && (
         <AcceptSuggestionModal
-          onClose={() => setShowAcceptForm(false)}
+          onClose={() => {
+            setShowAcceptForm(false)
+            setAcceptSuggestion(null)
+          }}
           onError={(msg) => setError(msg)}
           onSuccess={(msg) => {
             setShowAcceptForm(false)
+            setAcceptSuggestion(null)
             setNotice(msg)
             queryClient.invalidateQueries({ queryKey })
           }}
-          suggestion={suggestion}
+          suggestion={acceptSuggestion}
         />
       )}
     </article>
