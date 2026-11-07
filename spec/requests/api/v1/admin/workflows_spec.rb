@@ -153,7 +153,7 @@ RSpec.describe "API: /api/v1/admin/workflows/:id/*", type: :request do
       }
       workflow.set_artifact!(LandingThroughputMetrics::ARTIFACT_KEY, metrics)
 
-      get "/api/v1/admin/workflows/#{workflow.id}", headers: auth
+      get "/api/v1/admin/workflows/#{workflow.id}", params: { verbose: 1 }, headers: auth
 
       expect(response).to be_successful
       expect(parse_body["landing_throughput_metrics"]).to eq(metrics)

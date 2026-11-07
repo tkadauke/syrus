@@ -46,11 +46,12 @@ module Api
 
           page = [ params[:page].to_i, 1 ].max
           per = (params[:per].presence || DEFAULT_PER).to_i.clamp(1, MAX_PER)
+          if params[:due_before].present? && (cutoff = parse_time(params[:due_before]))
+            due_ids = scope.filter_map { |task| task.id if (next_fire = task.next_fire_at) && next_fire <= cutoff }
+            scope = scope.where(id: due_ids)
+          end
           total = scope.count
           tasks = scope.offset((page - 1) * per).limit(per).to_a
-          if params[:due_before].present? && (cutoff = parse_time(params[:due_before]))
-            tasks = tasks.select { |task| (next_fire = task.next_fire_at) && next_fire <= cutoff }
-          end
 
           render json: { count: tasks.size, total: total, page: page, per: per, scheduled_tasks: tasks.map { |task| task_json(task) } }
         end
