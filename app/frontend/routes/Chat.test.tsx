@@ -48,6 +48,20 @@ vi.mock("@rails/actioncable", () => ({
   })
 }))
 
+vi.mock("../api/chats", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/chats")>()
+  return {
+    ...actual,
+    uploadChatAttachment: vi.fn(async (_chatId: string | number, file: File) => ({
+      id: 991,
+      name: file.name,
+      mime_type: file.type || "application/octet-stream",
+      size: file.size,
+      url: `/api/v1/app/chats/8/attachments/991/file`
+    }))
+  }
+})
+
 function registryEntry(overrides: Partial<SlugReferenceRegistryEntry> & Pick<SlugReferenceRegistryEntry, "prefix" | "type">): SlugReferenceRegistryEntry {
   return {
     displayLabel: overrides.prefix,
@@ -4297,10 +4311,10 @@ describe("chat message image attachments", () => {
                 text: "Inspect this.",
                 bookmarkable: true,
                 attachments: [
-                  { name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" },
-                  { name: "notes.pdf", mime_type: "application/pdf", data: "cGRm" },
-                  { name: "untrusted.svg", mime_type: "image/svg+xml", data: "PHN2Zz48L3N2Zz4=" },
-                  { name: "page.html", mime_type: "text/html", data: "PGgxPkhlbGxvPC9oMT4=" }
+                  { name: "diagram.png", mime_type: "image/png", url: "/attachments/diagram", size: 6 },
+                  { name: "notes.pdf", mime_type: "application/pdf", url: "/attachments/notes", size: 3 },
+                  { name: "untrusted.svg", mime_type: "image/svg+xml", url: "/attachments/untrusted", size: 11 },
+                  { name: "page.html", mime_type: "text/html", url: "/attachments/page", size: 14 }
                 ]
               }
             ]
@@ -4312,13 +4326,13 @@ describe("chat message image attachments", () => {
     renderRoute()
 
     const thumbnail = await screen.findByRole("button", { name: "Open diagram.png" })
-    expect(screen.getByAltText("diagram.png")).toHaveAttribute("src", "data:image/png;base64,cGl4ZWxz")
+    expect(screen.getByAltText("diagram.png")).toHaveAttribute("src", "/attachments/diagram")
     // Non-image attachments (a PDF) render as a labeled chip, not a thumbnail, so
     // they never leave a blank bubble and are always visible in the transcript.
     expect(screen.getByText("notes.pdf")).toBeInTheDocument()
     expect(screen.queryByAltText("untrusted.svg")).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: /untrusted.svg/ })).toHaveAttribute("download", "untrusted.svg")
-    expect(screen.getByRole("link", { name: /untrusted.svg/ })).toHaveAttribute("href", "data:application/octet-stream;base64,PHN2Zz48L3N2Zz4=")
+    expect(screen.getByRole("link", { name: /untrusted.svg/ })).toHaveAttribute("href", "/attachments/untrusted")
     expect(screen.getByRole("link", { name: /page.html/ })).toHaveAttribute("download", "page.html")
 
     fireEvent.click(thumbnail)
@@ -4419,8 +4433,8 @@ describe("chat message image attachments", () => {
                 text: "First image.",
                 bookmarkable: true,
                 attachments: [
-                  { name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" },
-                  { name: "notes.pdf", mime_type: "application/pdf", data: "cGRm" }
+                  { name: "diagram.png", mime_type: "image/png", url: "/attachments/diagram", size: 6 },
+                  { name: "notes.pdf", mime_type: "application/pdf", url: "/attachments/notes", size: 3 }
                 ]
               },
               {
@@ -4431,7 +4445,7 @@ describe("chat message image attachments", () => {
                 content: { text: "Second image." },
                 text: "Second image.",
                 bookmarkable: true,
-                attachments: [{ name: "mockup.jpg", mime_type: "image/jpeg", data: "anBlZw==" }]
+                attachments: [{ name: "mockup.jpg", mime_type: "image/jpeg", url: "/attachments/mockup", size: 4 }]
               }
             ]
           })
@@ -4665,7 +4679,7 @@ describe("chat message image attachments", () => {
                 content: { text: "Screenshot." },
                 text: "Screenshot.",
                 bookmarkable: true,
-                attachments: [{ name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" }]
+                attachments: [{ name: "diagram.png", mime_type: "image/png", url: "/attachments/diagram", size: 6 }]
               }
             ]
           })
@@ -5728,7 +5742,7 @@ describe("scratchpad stash button", () => {
             id: 1,
             content: "Draft idea",
             text: "Draft idea",
-            attachments: [{ name: "screen.png", mime_type: "image/png", data: "cGl4ZWxz" }],
+            attachments: [{ id: 991, name: "screen.png", mime_type: "image/png", size: 6, url: "/api/v1/app/chats/8/attachments/991/file" }],
             app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
             app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
           }
@@ -5769,7 +5783,7 @@ describe("scratchpad stash button", () => {
     expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({
       scratchpad_item: {
         content: "Draft idea",
-        attachments: [{ name: "screen.png", mime_type: "image/png", data: "cGl4ZWxz" }]
+        attachments: [{ id: 991 }]
       }
     })
   })
@@ -5782,7 +5796,7 @@ describe("scratchpad stash button", () => {
             id: 1,
             content: "Command note",
             text: "Command note",
-            attachments: [{ name: "command.png", mime_type: "image/png", data: "cGl4ZWxz" }],
+            attachments: [{ id: 991, name: "command.png", mime_type: "image/png", size: 6, url: "/api/v1/app/chats/8/attachments/991/file" }],
             app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
             app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
           }
@@ -5823,7 +5837,7 @@ describe("scratchpad stash button", () => {
     expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({
       scratchpad_item: {
         content: "Command note",
-        attachments: [{ name: "command.png", mime_type: "image/png", data: "cGl4ZWxz" }]
+        attachments: [{ id: 991 }]
       }
     })
   })
@@ -5836,7 +5850,7 @@ describe("scratchpad stash button", () => {
             id: 1,
             content: "",
             text: "",
-            attachments: [{ name: "only.png", mime_type: "image/png", data: "cGl4ZWxz" }],
+            attachments: [{ id: 991, name: "only.png", mime_type: "image/png", size: 6, url: "/api/v1/app/chats/8/attachments/991/file" }],
             app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
             app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
           }
@@ -5878,7 +5892,7 @@ describe("scratchpad stash button", () => {
     expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({
       scratchpad_item: {
         content: "",
-        attachments: [{ name: "only.png", mime_type: "image/png", data: "cGl4ZWxz" }]
+        attachments: [{ id: 991 }]
       }
     })
   })
@@ -6600,7 +6614,7 @@ describe("scratchpad panel", () => {
                 id: 1,
                 content: "",
                 text: "",
-                attachments: [{ name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" }],
+                attachments: [{ id: 991, name: "diagram.png", mime_type: "image/png", size: 6, url: "/api/v1/app/chats/8/attachments/991/file" }],
                 app_update_path: "/api/v1/app/chats/8/scratchpad_items/1",
                 app_delete_path: "/api/v1/app/chats/8/scratchpad_items/1"
               }
@@ -6976,7 +6990,7 @@ describe("scratchpad panel", () => {
   })
 
   it("moves scratchpad attachments to the queue", async () => {
-    const queuedAttachment = { name: "diagram.png", mime_type: "image/png", data: "cGl4ZWxz" }
+    const queuedAttachment = { id: 41, name: "diagram.png", mime_type: "image/png", size: 6, url: "/attachments/41" }
     const afterEnqueue = {
       ...chatPayload({
         scratchpad_items: [
@@ -7049,7 +7063,7 @@ describe("scratchpad panel", () => {
       (call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/queued_messages" && (call[1] as RequestInit)?.method === "POST"
     )
     expect(JSON.parse((enqueueCalls[0][1] as RequestInit).body as string)).toEqual({
-      chat_message: { text: "", attachments: [queuedAttachment] }
+      chat_message: { text: "", attachments: [{ id: 41 }] }
     })
   })
 
@@ -7169,7 +7183,7 @@ describe("queued message stash", () => {
   })
 
   it("moves queued attachments to scratchpad", async () => {
-    const attachment = { name: "queue.png", mime_type: "image/png", data: "cGl4ZWxz" }
+    const attachment = { id: 42, name: "queue.png", mime_type: "image/png", size: 6, url: "/attachments/42" }
     const afterCreate = chatPayload({
       queued_messages: [
         {
@@ -7239,7 +7253,7 @@ describe("queued message stash", () => {
       (call: unknown[]) => String(call[0]) === "/api/v1/app/chats/8/scratchpad_items" && (call[1] as RequestInit)?.method === "POST"
     )
     expect(JSON.parse((stashCalls[0][1] as RequestInit).body as string)).toEqual({
-      scratchpad_item: { content: "", attachments: [attachment] }
+      scratchpad_item: { content: "", attachments: [{ id: 42 }] }
     })
   })
 })
