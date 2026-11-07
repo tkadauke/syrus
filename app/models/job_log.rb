@@ -38,24 +38,41 @@ class JobLog < ApplicationRecord
       tool_result_error: tool_result_error
     )
     attempts = 0
+    sequence = next_sequence_for(run.id)
     begin
-      log = create!(run_id: run.id, chunk: text, sequence: next_sequence_for(run.id), kind: kind,
+      log = create!(run_id: run.id, chunk: text, sequence: sequence, kind: kind,
                     tool_metadata: tool_metadata)
       remember_next_sequence!(run.id, log.sequence + 1)
       log
     rescue ActiveRecord::RecordNotUnique
-      forget_next_sequence!(run.id)
+      sequence = advance_sequence(run.id, sequence)
       attempts += 1
       retry if attempts < MAX_APPEND_ATTEMPTS
-      append_with_run_lock!(run_id: run.id, chunk: text, kind: kind, tool_metadata: tool_metadata)
+      append_with_run_lock!(run_id: run.id, chunk: text, kind: kind, tool_metadata: tool_metadata,
+                            after: sequence - 1)
     rescue ActiveRecord::RecordInvalid => e
       raise unless e.record.errors.of_kind?(:sequence, :taken)
-      forget_next_sequence!(run.id)
+      sequence = advance_sequence(run.id, sequence)
       attempts += 1
       retry if attempts < MAX_APPEND_ATTEMPTS
-      append_with_run_lock!(run_id: run.id, chunk: text, kind: kind, tool_metadata: tool_metadata)
+      append_with_run_lock!(run_id: run.id, chunk: text, kind: kind, tool_metadata: tool_metadata,
+                            after: sequence - 1)
     end
   end
+
+  # A collision means another writer holds this slot. Re-reading MAX(sequence)
+  # is not enough to find the next free one: when append! runs inside a
+  # caller's open transaction -- as the landing queue's audit writes do, under
+  # `Job.transaction` with the Job row locked -- the re-read answers from the
+  # same snapshot it already answered from, so every retry recomputes the
+  # identical colliding sequence and the append fails deterministically. That
+  # is how a log line aborted whole landing transactions. Step past the
+  # collision instead, and prefer the re-read only where it is already ahead.
+  def self.advance_sequence(run_id, collided_at)
+    forget_next_sequence!(run_id)
+    [ next_sequence_for(run_id), collided_at + 1 ].max
+  end
+  private_class_method :advance_sequence
 
   def self.next_sequence_for(run_id)
     cached = next_sequence_cache[run_id.to_i]
@@ -79,29 +96,40 @@ class JobLog < ApplicationRecord
   end
   private_class_method :forget_next_sequence!
 
-  def self.append_with_run_lock!(run_id:, chunk:, kind:, tool_metadata:)
+  # `after:` is the last sequence the lock-free path saw taken, so this path
+  # starts beyond it rather than re-deriving a number already known to collide.
+  #
+  # The retry is deliberately outside the transaction. `retry` inside the block
+  # re-ran the body without rolling anything back, leaving the same transaction
+  # and the same read snapshot in place -- so the "fresh max" this fallback
+  # exists to take was never fresh, and all five attempts failed identically.
+  def self.append_with_run_lock!(run_id:, chunk:, kind:, tool_metadata:, after: nil)
     attempts = 0
+    sequence = nil
 
-    Run.transaction do
-      Run.where(id: run_id).lock(true).pick(:id)
-      log = create!(
-        run_id: run_id,
-        chunk: chunk,
-        sequence: (where(run_id: run_id).maximum(:sequence) || -1) + 1,
-        kind: kind,
-        tool_metadata: tool_metadata
-      )
-      remember_next_sequence!(run_id, log.sequence + 1)
-      log
+    begin
+      Run.transaction do
+        Run.where(id: run_id).lock(true).pick(:id)
+        sequence ||= [ (where(run_id: run_id).maximum(:sequence) || -1) + 1, after.to_i + 1 ].max
+        log = create!(
+          run_id: run_id,
+          chunk: chunk,
+          sequence: sequence,
+          kind: kind,
+          tool_metadata: tool_metadata
+        )
+        remember_next_sequence!(run_id, log.sequence + 1)
+        log
+      end
     rescue ActiveRecord::RecordNotUnique
-      forget_next_sequence!(run_id)
+      sequence = advance_sequence(run_id, sequence)
       attempts += 1
       retry if attempts < MAX_APPEND_ATTEMPTS
       raise
     rescue ActiveRecord::RecordInvalid => e
       raise unless e.record.errors.of_kind?(:sequence, :taken)
 
-      forget_next_sequence!(run_id)
+      sequence = advance_sequence(run_id, sequence)
       attempts += 1
       retry if attempts < MAX_APPEND_ATTEMPTS
       raise

@@ -79,6 +79,43 @@ RSpec.describe JobLog do
     )
   end
 
+  # Sequences are assigned by reading MAX(sequence) and retrying on collision.
+  # That retry cannot work when append! runs inside a caller's open
+  # transaction, as the landing queue's audit writes do: the re-read answers
+  # from the same snapshot, recomputes the same taken sequence, and the append
+  # fails the same way every attempt until it gives up -- aborting the caller's
+  # transaction over a log line. The suite runs on one connection, so the stale
+  # view a snapshotted reader gets is staged by pinning what MAX(sequence)
+  # reports; the rows it cannot see are really there.
+  describe "appending against a stale view of the sequence" do
+    def pin_reported_max(value)
+      original = ActiveRecord::Calculations.instance_method(:maximum)
+      allow_any_instance_of(ActiveRecord::Relation).to receive(:maximum) do |relation, *args|
+        relation.klass == JobLog ? value : original.bind(relation).call(*args)
+      end
+    end
+
+    it "steps past sequences the re-read cannot see" do
+      3.times { |index| JobLog.create!(run: run, chunk: "existing #{index}", sequence: index) }
+      pin_reported_max(0)
+
+      log = described_class.append!(run: run, chunk: "from the landing queue", kind: "system")
+
+      expect(log.sequence).to eq(3)
+      expect(run.reload.job_logs.order(:sequence).pluck(:chunk).last).to eq("from the landing queue")
+    end
+
+    it "gives up rather than looping when the gap exceeds its budget" do
+      30.times { |index| JobLog.create!(run: run, chunk: "existing #{index}", sequence: index) }
+      pin_reported_max(0)
+
+      # Either shape is correct here: the model's uniqueness validation
+      # usually loses the race first, the index catches what it misses.
+      expect { described_class.append!(run: run, chunk: "doomed", kind: "system") }
+        .to raise_error(ActiveRecord::ActiveRecordError)
+    end
+  end
+
   it "reuses the next sequence within the current thread" do
     max_sequence_queries = []
     subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|

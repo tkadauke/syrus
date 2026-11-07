@@ -42,7 +42,14 @@ class DistributedRunAdmissionRouter
           "excluded_workers" => exclusions,
           "healthy_alternatives_considered" => considered,
           "routed_worker" => alternative.fetch("hostname"),
-          "routed_worker_storage_key" => alternative.fetch("worker_storage_key")
+          # RunQueueResolver compacts its live-worker diagnostics, so a worker
+          # that has not reported a storage key yet arrives with no
+          # `worker_storage_key` entry at all rather than a nil one. `fetch`
+          # turned that into a KeyError that escaped admission entirely and
+          # failed the Run instead of rerouting it. Read it the way
+          # candidate_diagnostics already does: an unknown storage key is a
+          # fact to record about the chosen worker, not a routing failure.
+          "routed_worker_storage_key" => alternative["worker_storage_key"]
         }
       )
     end
@@ -77,9 +84,15 @@ class DistributedRunAdmissionRouter
     Decision.new(action: "defer", queue_name: nil, delay: admission.delay, details: {})
   end
 
+  # Hostname is the one field every downstream step requires: it names the
+  # dispatch queue and keys the load bookkeeping. Dropping an anonymous worker
+  # here keeps the `fetch("hostname")` calls below honest rather than letting a
+  # compacted-away hostname raise out of the middle of a routing decision.
   def eligible_workers
     workers = Array(RunQueueResolver.resolve(run: run).details["live_workers"])
     workers.select do |worker|
+      next false if worker["hostname"].blank?
+
       dispatch_queue = WorkerStorageIdentity.dispatch_queue_name(hostname: worker["hostname"])
       worker["eligible"] && Array(worker["queues"]).include?(dispatch_queue)
     end

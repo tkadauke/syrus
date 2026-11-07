@@ -817,7 +817,19 @@ module WorkEngine
           return skipped("Workflow is not running") unless run.workflow&.running?
           return skipped("required grader conclusion is no longer cached failed") unless GraderConclusionCache.failed_for_workflow?(run.workflow)
 
-          RunDiagnostic.find_or_create_by!(run: run) do |diagnostic|
+          # Keyed by `run_id`, deliberately, not by `run:`.
+          #
+          # `run_diagnostics.run_id` is uniquely indexed, and two passes
+          # repairing the same Run concurrently made the loser raise
+          # RecordNotUnique — not out of this write, but out of `run.save!`
+          # below. Passing the record assigns the candidate into Run's
+          # `has_one :run_diagnostic` inverse. When the insert loses the race
+          # its savepoint rolls back and the row is reloaded, but that unsaved
+          # candidate stays the association target, so the Run's own save
+          # autosaves it and attempts the duplicate insert a second time. The
+          # bare id never touches the association, so there is nothing left
+          # behind to re-insert.
+          RunDiagnostic.create_or_find_by!(run_id: run.id) do |diagnostic|
             diagnostic.error_class = "Steps::Base::StepFailed"
             diagnostic.error_message = "required graders failed: cached grader conclusion failed"
           end

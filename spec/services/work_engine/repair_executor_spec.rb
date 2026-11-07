@@ -20,6 +20,61 @@ RSpec.describe WorkEngine::RepairExecutor do
     )
   end
 
+  describe "mark_cached_grader_collect_failed" do
+    def queued_grader_collect
+      workflow.update_columns(state: "running", started_at: 5.minutes.ago)
+      step = workflow.steps.create!(kind: "grader_collect", position: 99, state: "queued")
+      step.runs.create!(
+        job: job, trigger_kind: workflow.trigger_kind,
+        agent_provider: workflow.agent_provider, state: "queued"
+      )
+    end
+
+    def mark_failed(run)
+      described_class.call(
+        result: RepairResult.new([ repair_plan(action: "mark_cached_grader_collect_failed", target: run) ])
+      ).sole
+    end
+
+    before { allow(GraderConclusionCache).to receive(:failed_for_workflow?).and_return(true) }
+
+    # `run_diagnostics.run_id` is uniquely indexed, and a second pass repairing
+    # the same Run raised RecordNotUnique. The raise did not come from the
+    # diagnostic write — Rails' find_or_create_by! already falls back to
+    # create_or_find_by! — it came from `run.fail!` afterwards. Writing the
+    # diagnostic through `run:` assigns the losing candidate into Run's
+    # has_one inverse; its savepoint rolls back, the unsaved record stays the
+    # association target, and the Run's own save re-attempts the insert. So
+    # the repair caused the duplicate it was recording a failure for.
+    #
+    # Reproducing it needs the row to be missing when this pass looks and
+    # present when it inserts, which is two connections, and the suite runs on
+    # one. So the row is committed up front and only RunDiagnostic's relation
+    # lookup is blinded — the state the losing pass actually sees.
+    def blind_run_diagnostic_lookups
+      original = ActiveRecord::FinderMethods.instance_method(:find_by)
+      allow_any_instance_of(ActiveRecord::Relation).to receive(:find_by) do |relation, *args|
+        relation.klass == RunDiagnostic ? nil : original.bind(relation).call(*args)
+      end
+    end
+
+    it "does not re-insert the diagnostic when failing the Run afterwards" do
+      run = queued_grader_collect
+      RunDiagnostic.create!(run: run, error_class: "Steps::Base::StepFailed", error_message: "written by the winner")
+      blind_run_diagnostic_lookups
+
+      execution = described_class.call(
+        result: RepairResult.new([ repair_plan(action: "mark_cached_grader_collect_failed", target: run) ])
+      ).sole
+
+      expect(execution.status).to eq("applied")
+      expect(RunDiagnostic.where(run: run).count).to eq(1)
+      expect(RunDiagnostic.find_by(run: run).error_message).to eq("written by the winner")
+      expect(run.reload).to be_failed
+    end
+
+  end
+
   describe "recover_missing_workspace" do
     it "keeps a successfully reconstructed workflow active" do
       workflow.update_columns(
