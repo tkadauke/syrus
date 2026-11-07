@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
 import CognitiveReviewNotePanel from "./note_panel"
 
@@ -47,9 +48,11 @@ describe("CognitiveReviewNotePanel query reconciliation", () => {
     const invalidateQueries = vi.spyOn(client, "invalidateQueries")
 
     render(
-      <QueryClientProvider client={client}>
-        <HistoricalNote fetchVersion={fetchVersion} />
-      </QueryClientProvider>
+      <MemoryRouter>
+        <QueryClientProvider client={client}>
+          <HistoricalNote fetchVersion={fetchVersion} />
+        </QueryClientProvider>
+      </MemoryRouter>
     )
 
     fireEvent.click(screen.getByRole("button", { name: "Acknowledge" }))

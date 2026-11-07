@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { MemoryRouter } from "react-router-dom"
 import { stubVirtualizerMeasurements } from "../../test/virtualizerMeasurements"
 import * as performanceMarkers from "../../lib/performanceMarkers"
 import * as apiClient from "../../api/client"
@@ -80,11 +81,13 @@ afterEach(() => {
 function renderWorkspace(payload = jobPayload(), options: { diffLineMetricProviders?: DiffLineMetricProvider[] } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
   const result = render(
-    <ShortcutsProvider>
-      <QueryClientProvider client={client}>
-        <ReviewWorkspace diffLineMetricProviders={options.diffLineMetricProviders} payload={payload} />
-      </QueryClientProvider>
-    </ShortcutsProvider>
+    <MemoryRouter>
+      <ShortcutsProvider>
+        <QueryClientProvider client={client}>
+          <ReviewWorkspace diffLineMetricProviders={options.diffLineMetricProviders} payload={payload} />
+        </QueryClientProvider>
+      </ShortcutsProvider>
+    </MemoryRouter>
   )
   return { client, ...result }
 }
@@ -515,7 +518,11 @@ describe("ReviewWorkspace", () => {
 
     await screen.findAllByText("Inspect this branch")
     const sidebar = screen.getByText("Review conversation").closest("section") as HTMLElement
-    const noteCard = sidebar.querySelector('[data-cognitive-review-note-id="7"]') as HTMLElement
+    const noteCard = await waitFor(() => {
+      const card = sidebar.querySelector('[data-cognitive-review-note-id="7"]') as HTMLElement | null
+      expect(card).not.toBeNull()
+      return card as HTMLElement
+    })
     fireEvent.click(within(noteCard).getByRole("button", { name: "Discuss" }))
 
     expect(await screen.findByRole("dialog", { name: "Discuss review note" })).toBeInTheDocument()
@@ -3847,7 +3854,7 @@ function version(overrides: Partial<NonNullable<JobSourceDiffPayload["version"]>
 }
 
 function commentsPayload(comments: DiffReviewComment[], selectedVersionId = 100): DiffReviewCommentsPayload {
-  return { job_id: 42, diff_review_version_id: selectedVersionId, latest_version_id: selectedVersionId, comments, by_path: {} }
+  return { job_id: 42, diff_review_version_id: selectedVersionId, latest_version_id: selectedVersionId, comments }
 }
 
 function comment(overrides: Partial<DiffReviewComment> = {}): DiffReviewComment {

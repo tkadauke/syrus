@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useNavigate } from "react-router-dom"
 import { useRef, useState, type FocusEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from "react"
 import type { PluginReviewAnnotationComponentProps } from "@app/pluginReviewAnnotations"
 import { Button } from "@app/components/Button"
@@ -148,6 +149,7 @@ function summaryText(t: ReturnType<typeof useT>["t"], rollup: NotePanelProps["ro
 function CognitiveReviewNoteCard({ note, showRange }: { note: CognitiveReviewNote; showRange: boolean }) {
   const { t } = useT("cognitive_review")
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const hoveredRef = useRef(false)
   const focusedRef = useRef(false)
   const [replyBody, setReplyBody] = useState("")
@@ -174,7 +176,7 @@ function CognitiveReviewNoteCard({ note, showRange }: { note: CognitiveReviewNot
     onSuccess: (payload) => {
       setDiscussionDialogOpen(false)
       invalidateReviewQueries(queryClient, note.job_id)
-      window.location.assign(payload.redirect_to)
+      navigate(payload.redirect_to)
     }
   })
   const comment = useMutation({

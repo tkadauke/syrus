@@ -14,11 +14,7 @@ export type CognitiveReviewNotePayload = {
 }
 
 export type CognitiveReviewNotesPayload = {
-  job_id: number
-  diff_review_version_id?: number | null
-  unresolved_count: number
-  handled_count: number
-  notes: CognitiveReviewNotePayload[]
+  note: CognitiveReviewNotePayload
 }
 
 export function acknowledgeCognitiveReviewNote(jobId: number, noteId: number) {

@@ -19,13 +19,11 @@ module CognitiveReview
              diff_review_annotation_provider: "CognitiveReview::DiffReviewAnnotationProvider",
              mcp_tool_set: "CognitiveReview::McpToolSet"
 
-    route :get, "/api/v1/app/jobs/:job_id/review_notes", to: "api/v1/app/cognitive_review_notes#index"
     route :get, "/api/v1/app/jobs/:job_id/review_notes/:id", to: "api/v1/app/cognitive_review_notes#show"
     route :post, "/api/v1/app/jobs/:job_id/review_notes/:id/acknowledge", to: "api/v1/app/cognitive_review_notes#acknowledge"
     route :post, "/api/v1/app/jobs/:job_id/review_notes/:id/start_discussion", to: "api/v1/app/cognitive_review_notes#start_discussion"
     route :post, "/api/v1/app/jobs/:job_id/review_notes/:id/discussion_entries", to: "api/v1/app/cognitive_review_notes#create_discussion_entry"
 
-    route :get, "/api/v1/app/jobs/:job_id/cognitive_review_notes", to: "api/v1/app/cognitive_review_notes#index"
     route :get, "/api/v1/app/jobs/:job_id/cognitive_review_notes/:id", to: "api/v1/app/cognitive_review_notes#show"
     route :post, "/api/v1/app/jobs/:job_id/cognitive_review_notes/:id/acknowledge", to: "api/v1/app/cognitive_review_notes#acknowledge"
     route :post, "/api/v1/app/jobs/:job_id/cognitive_review_notes/:id/start_discussion", to: "api/v1/app/cognitive_review_notes#start_discussion"

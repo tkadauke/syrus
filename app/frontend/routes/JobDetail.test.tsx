@@ -5637,7 +5637,7 @@ function mockReviewWorkspaceRequests(files: JobSourceDiffPayload["files"] = []) 
   return vi.spyOn(window, "fetch").mockImplementation((input) => {
     const url = requestUrl(input)
     if (url.includes("/diff_review_comments")) {
-      return Promise.resolve(jsonResponse({ job_id: 1, diff_review_version_id: 100, latest_version_id: 100, comments: [], by_path: {} }))
+      return Promise.resolve(jsonResponse({ job_id: 1, diff_review_version_id: 100, latest_version_id: 100, comments: [] }))
     }
 
     return Promise.resolve(

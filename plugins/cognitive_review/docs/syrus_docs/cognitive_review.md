@@ -97,7 +97,6 @@ separate integration.
 When the plugin is enabled, these app API routes are available under the same
 Job permissions used by the review tab:
 
-- `GET /api/v1/app/jobs/:job_id/review_notes`
 - `GET /api/v1/app/jobs/:job_id/review_notes/:id`
 - `POST /api/v1/app/jobs/:job_id/review_notes/:id/acknowledge`
 - `POST /api/v1/app/jobs/:job_id/review_notes/:id/start_discussion`
@@ -105,7 +104,7 @@ Job permissions used by the review tab:
 
 The older `/cognitive_review_notes` routes remain accepted as aliases.
 
-Read-tier repository members can list and read notes. Acknowledgement, starting
+Read-tier repository members can read notes. Acknowledgement, starting
 agent discussion, and writing legacy discussion entries require the Job owner,
 a write-tier repository member, or an admin. Disabled plugin routes return the
 standard `plugin_disabled` error.
