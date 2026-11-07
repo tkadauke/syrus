@@ -91,7 +91,6 @@ RSpec.describe "documentation audiences" do
   it "splits chat, worker, metrics, and observability docs by audience" do
     architecture_index = root.join("docs/engineering/architecture/README.md").read
     operations_index = root.join("docs/engineering/operations/README.md").read
-
     %w[chat multi-worker metrics observability].each do |page|
       expect(root.join("docs/engineering/architecture/#{page}.md")).to exist
       expect(architecture_index).to include("(#{page}.md)")
