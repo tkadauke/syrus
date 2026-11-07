@@ -32,6 +32,7 @@ import {
 } from "./toolRendering"
 import { isReadOnlyToolName } from "../../toolPresentationRegistry"
 import { measureSync } from "../../lib/performanceMarkers"
+import { intlLocale, validTimeZone } from "../../lib/relativeTime"
 
 // Groups are tracked per "parent" tool_use id rather than a single global
 // "last open group": a nested Agent/Task call's own tool_use/tool_result
@@ -496,7 +497,7 @@ export function buildMessageStreamItems(
   return result
 }
 
-export function injectTemporalMarkers(items: ChatStreamItem[]): ChatStreamItem[] {
+export function injectTemporalMarkers(items: ChatStreamItem[], timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone): ChatStreamItem[] {
   const result: ChatStreamItem[] = []
   let lastMessageDate: Date | null = null
 
@@ -504,19 +505,27 @@ export function injectTemporalMarkers(items: ChatStreamItem[]): ChatStreamItem[]
     if (item.type === "message" && temporalAnchorRole(item.role) && item.created_at) {
       const messageDate = new Date(item.created_at)
       if (!Number.isNaN(messageDate.getTime())) {
-        if (lastMessageDate === null || !sameLocalDay(messageDate, lastMessageDate)) {
+        if (lastMessageDate === null || !sameLocalDay(messageDate, lastMessageDate, timeZone)) {
           result.push({
             type: "day_divider",
             date: item.created_at,
-            label: dayDividerLabel(messageDate)
+            label: dayDividerLabel(messageDate, timeZone)
           })
         }
 
         if (lastMessageDate === null || messageDate.getTime() - lastMessageDate.getTime() >= 5 * 60 * 1000) {
           result.push({
             type: "timestamp",
-            time: messageDate.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }),
-            fullDatetime: messageDate.toLocaleString()
+            time: new Intl.DateTimeFormat(intlLocale(), { timeZone: validTimeZone(timeZone), hour: "numeric", minute: "2-digit" }).format(messageDate),
+            fullDatetime: new Intl.DateTimeFormat(intlLocale(), {
+              timeZone: validTimeZone(timeZone),
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+              timeZoneName: "short"
+            }).format(messageDate)
           })
         }
 

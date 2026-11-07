@@ -596,5 +596,9 @@
   },
   "timeline_axis": {
     "timezone_hint": "Times shown in your local time ({{offset}})"
+  },
+  "absolute_time": {
+    "user": "Your time: {{value}}",
+    "server": "Server time: {{value}}"
   }
 }

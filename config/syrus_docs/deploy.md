@@ -200,3 +200,9 @@ users as they travel and never move manual overrides. This state is independent
 from approval-delivery quiet hours, whose existing zone and behavior are not
 changed. Admin Overview shows process `TZ`, the Rails zone, resolution source,
 and database UTC policy separately.
+
+Calendar-relative UI (including chat day dividers and date groups) uses the
+user zone; elapsed durations still compare UTC instants. Operational absolute
+times such as schedules and wakeups show one zoned value when the user and
+server zones match, or explicitly labeled user and server values when they
+differ. The underlying HTML `time` value remains an ISO-8601 instant.

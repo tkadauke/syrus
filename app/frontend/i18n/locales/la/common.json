@@ -596,5 +596,9 @@
   },
   "timeline_axis": {
     "timezone_hint": "Tempora in hora tua locali monstrantur ({{offset}})"
+  },
+  "absolute_time": {
+    "user": "Tempus tuum: {{value}}",
+    "server": "Tempus ministri: {{value}}"
   }
 }
