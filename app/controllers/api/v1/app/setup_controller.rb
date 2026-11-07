@@ -3,7 +3,7 @@ module Api
     module App
       class SetupController < BaseController
         def show
-          render json: ::App::SetupStatus.call(user: Current.user)
+          render json: AppApi::SetupStatus.new(Current.user).as_json
         end
       end
     end

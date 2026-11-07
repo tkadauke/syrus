@@ -613,7 +613,7 @@ export function queryKeysFor(event: AppEvent): QueryKey[] {
             ? [["chats", String(event.id)]]
             : [["chats"], ["chats", String(event.id)]]
     case "provider_availability":
-      return [["bootstrap"], ["dashboard"], ["chats"]]
+      return [["dashboard"], ["chats"]]
     case "admin_overview":
       return [
         ["admin", "overview"],

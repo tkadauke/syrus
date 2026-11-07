@@ -143,7 +143,8 @@ describe("GithubTokenModal", () => {
 
   it("admin: advances to the GitHub App registration after the token is saved", async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    client.setQueryData(["bootstrap"], { current_user: { admin: true }, setup_status: { credential_status: { github_pat: true, github_app: false } } })
+    client.setQueryData(["bootstrap"], { current_user: { admin: true } })
+    client.setQueryData(["setup"], { credential_status: { github_pat: true, github_app: false } })
     vi.spyOn(window, "fetch").mockImplementation(async (input) => {
       const url = String(input)
       if (url.includes("/admin/github_app/register")) {
@@ -156,8 +157,8 @@ describe("GithubTokenModal", () => {
       }
       if (url.endsWith("/admin/github_app/confirm"))
         return jsonResponse({ github_app: { registered: false, id: null, slug: null, registered_at: null, install_url: null } })
-      if (url.endsWith("/api/v1/app/bootstrap"))
-        return jsonResponse({ current_user: { admin: true }, setup_status: { credential_status: { github_pat: true, github_app: false } } })
+      if (url.endsWith("/api/v1/app/bootstrap")) return jsonResponse({ current_user: { admin: true } })
+      if (url.endsWith("/api/v1/app/setup")) return jsonResponse({ credential_status: { github_pat: true, github_app: false } })
       return jsonResponse({})
     })
 
