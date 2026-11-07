@@ -682,7 +682,7 @@ critically pressured.
 Scheduling a `worker_died` retry is idempotent per failed Run: once any
 unskipped `AutoRetryAttempt` exists for a given `(run, retry_kind)` pair, no
 further attempt is scheduled for it, even after the first is marked performed.
-See `work_engine_reconciler.md` for why more than one issue classifier can
+See `docs/engineering/architecture/work_engine_reconciler.md` for why more than one issue classifier can
 otherwise propose the same repair for one Run and how that used to slip a
 duplicate attempt past the "retry already pending" guard.
 
