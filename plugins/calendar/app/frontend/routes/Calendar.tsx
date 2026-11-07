@@ -114,6 +114,7 @@ function EventCard({ event, formatter }: { event: CalendarEvent; formatter: Intl
   const { t } = useT("calendar")
   const [expanded, setExpanded] = useState(false)
   const duration = typeof event.metadata.duration_seconds === "number" ? event.metadata.duration_seconds : null
+  const taskPath = typeof event.metadata.scheduled_task_path === "string" ? event.metadata.scheduled_task_path : null
   return (
     <article className="min-w-0 rounded border border-border bg-surface-subtle p-2">
       <button className="w-full min-w-0 text-left" type="button" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
@@ -144,6 +145,11 @@ function EventCard({ event, formatter }: { event: CalendarEvent; formatter: Intl
           <Link className="inline-block text-sm text-brand hover:underline" to={event.destination_path}>
             {t("open_owner")}
           </Link>
+          {taskPath && taskPath !== event.destination_path ? (
+            <Link className="ml-3 inline-block text-sm text-brand hover:underline" to={taskPath}>
+              {t("open_schedule")}
+            </Link>
+          ) : null}
         </div>
       ) : null}
     </article>

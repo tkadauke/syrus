@@ -15,7 +15,7 @@ module ScheduledTasks
     # Only for CadenceLlmFallback, the third tier of the cadence parser, which
     # borrows that plugin's Gemini client. It already fails closed for every
     # user without a Gemini API key, so an absent plugin is a case it handles.
-    optionally_depends_on [ "video_walkthroughs", "metrics_dashboard" ]
+    optionally_depends_on [ "video_walkthroughs", "metrics_dashboard", "calendar" ]
     disableable true
     # Due schedules are polled once a minute, the cadence the host's
     # recurring.yml used before this moved.
@@ -29,7 +29,8 @@ module ScheduledTasks
              sidebar_page: "ScheduledTasks::SidebarPages",
              repo_page_tab: "ScheduledTasks::RepoPageTabs",
              repository_recommendation: "ScheduledTasks::Recommendations",
-             "metrics_dashboard:tab" => "ScheduledTasks::MetricsDashboardTabs"
+             "metrics_dashboard:tab" => "ScheduledTasks::MetricsDashboardTabs",
+             "calendar:event_source" => "ScheduledTasks::CalendarEventSource"
 
     route :get,    "/api/v1/app/cron_templates", to: "api/v1/app/cron_templates#index"
     route :post,   "/api/v1/app/cron_templates", to: "api/v1/app/cron_templates#create"

@@ -23,5 +23,6 @@
   "duration": "Duratio: {{seconds}} secunda",
   "running": "currit",
   "open_owner": "Munus proprium aperire",
+  "open_schedule": "Munus destinatum aperire",
   "cadence_bands": "Fasciae frequentiae altae"
 }
