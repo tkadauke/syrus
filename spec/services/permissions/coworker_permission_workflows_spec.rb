@@ -120,10 +120,10 @@ RSpec.describe "coworker permission requests and self-surrender" do
       expect(response.content.first[:text]).to include("duration_not_offered")
     end
 
-    it "does not offer permanent authority for a constrained request" do
+    it "offers enforceable permanent authority for a constrained request" do
       payload = body(request_permission(constraints: { "table" => "orders" }))
 
-      expect(payload.fetch(:offered_durations)).to eq([ "chat_session" ])
+      expect(payload.fetch(:offered_durations)).to eq(%w[chat_session permanent])
     end
 
     it "caps the owner's approval at the duration the coworker asked for" do

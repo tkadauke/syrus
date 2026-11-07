@@ -1022,7 +1022,7 @@ export function PendingActionCard({
   const dismissPath = "app_cancel_path" in pendingAction ? pendingAction.app_cancel_path : null
   const canDismiss = Boolean(terminalLabel && dismissPath)
   const isEmergencyLand = actionKey === "emergency_land"
-  const coworkerReview = actionKey === "coworker_tool_call" ? pendingAction.review : null
+  const toolReview = ["coworker_tool_call", "authorized_tool_call"].includes(actionKey) ? pendingAction.review : null
   const authorizationSummary = pendingAction.request_kind === "authorization_request" ? pendingAction.authorization_presentation : undefined
   const authorizationContext = (
     [
@@ -1124,11 +1124,11 @@ export function PendingActionCard({
             {actionKey === "schedule_recurring" && !terminalLabel ? (
               <p className="mt-2 break-words text-sm font-semibold text-warning-text">{t("pending_action_schedule_recurring_warning")}</p>
             ) : null}
-            {coworkerReview ? (
+            {toolReview ? (
               <ToolApprovalDetails
-                actor={coworkerReview.actor as ToolApprovalActor | undefined}
-                args={coworkerReview.arguments}
-                toolName={typeof coworkerReview.tool_name === "string" ? coworkerReview.tool_name : pendingAction.detail}
+                actor={toolReview.actor as ToolApprovalActor | undefined}
+                args={toolReview.arguments}
+                toolName={typeof toolReview.tool_name === "string" ? toolReview.tool_name : pendingAction.detail}
               />
             ) : pendingAction.detail ? (
               <PendingActionDetail detail={pendingAction.detail} />

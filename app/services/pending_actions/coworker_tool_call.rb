@@ -54,7 +54,8 @@ module PendingActions
       authorized_context = server_context.merge(
         pending_action_id: action.id,
         authorized_invocation_id: invocation.id,
-        authorized_invocation_claim_key: claim_key
+        authorized_invocation_claim_key: claim_key,
+        permission_authorized: true
       )
       response = callable.call(**payload.fetch("arguments").symbolize_keys, server_context: authorized_context)
       if response.error?
@@ -90,7 +91,7 @@ module PendingActions
     def tool_card_review
       {
         tool_name: payload["tool_name"],
-        arguments: payload["arguments"],
+        arguments: operation_item.normalized_arguments,
         actor: payload["actor"]
       }.compact
     end

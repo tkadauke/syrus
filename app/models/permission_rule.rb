@@ -72,7 +72,7 @@ class PermissionRule < ApplicationRecord
   def to_policy_rule
     Permissions::PolicyRule.new(
       id: "permission-rule-#{id}", layer: policy_layer, policy:, source: "permission_rule",
-      capability:, operation:, resource_scope:, selectors: subject_selectors,
+      capability:, operation:, resource_scope:, constraints:, selectors: subject_selectors,
       delegable:, rationale:
     )
   end

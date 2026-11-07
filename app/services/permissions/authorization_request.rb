@@ -24,7 +24,7 @@ module Permissions
 
     def call
       authorization = Management.new(context.user).authorize(
-        descriptor:, role: context.role, resource_scope: {}, arguments:, context: evaluation_context
+        descriptor:, role: context.role, resource_scope: arguments, arguments:, context: evaluation_context
       )
       decision = authorization.decision
       raise Mcp::Tools::AuthorizationSupport::AuthorizationError, "permission policy denies this operation" if decision.deny?
