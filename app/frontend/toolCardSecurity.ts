@@ -21,6 +21,7 @@ const SAFE_SENSITIVE_METADATA_KEYS = new Set([
   "jwt_error_message"
 ])
 const IDENTIFIER_VALUE_KEY_PATTERN = /(?:^|_)(?:key_names?|resource_names?|name)$/i
+const SAFE_IDENTIFIER_VALUE_KEYS = new Set(["allowed_tools", "credential_type"])
 const SECRET_RESOURCE_METADATA_KEY_PATTERN = /^(?:name|namespace|type|key_count|key_names|immutable|owner_references|created_at)$/i
 const CREDENTIAL_METADATA_KEY_PATTERN = /^(?:credential_id|credential_name|credential_type)$/i
 const DESIGN_TOKEN_CONTAINER_KEY_PATTERN = /^(?:tokens|light|dark)$/i
@@ -88,7 +89,8 @@ function safeSensitiveMetadataKey(key: string) {
 }
 
 function identifierValueKey(key: string) {
-  return IDENTIFIER_VALUE_KEY_PATTERN.test(normalizedKey(key))
+  const normalized = normalizedKey(key).toLowerCase()
+  return SAFE_IDENTIFIER_VALUE_KEYS.has(normalized) || IDENTIFIER_VALUE_KEY_PATTERN.test(normalized)
 }
 
 function credentialMetadataObject(key: string, value: unknown): value is Record<string, unknown> {

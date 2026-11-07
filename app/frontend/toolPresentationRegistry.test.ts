@@ -74,6 +74,7 @@ describe("toolPresentationRegistry", () => {
       expect(bash.examples.length).toBeGreaterThan(0)
       expect(bash.examples.some((example) => example.sourceType === "claude")).toBe(true)
       expect(bash.examples.some((example) => example.sourceType === "codex")).toBe(true)
+      expect(bash.examples).toContainEqual(expect.objectContaining({ id: "running_multiline_command", resultSettled: false }))
 
       const read = toolPresentationEntryFor("Read")
       expect(read.examples.length).toBeGreaterThan(0)

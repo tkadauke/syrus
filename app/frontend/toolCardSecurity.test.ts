@@ -185,6 +185,18 @@ describe("toolCardSecurity", () => {
     })
   })
 
+  it("preserves credential discovery identifiers while still redacting secret assignments", () => {
+    expect(
+      redactToolCardValue({
+        credential_type: "credential_store.url_token",
+        allowed_tools: ["credential_store_ssh_exec", "password=hunter2-secret"]
+      })
+    ).toEqual({
+      credential_type: "credential_store.url_token",
+      allowed_tools: ["credential_store_ssh_exec", "password=[redacted]"]
+    })
+  })
+
   it("preserves theme design tokens while redacting real secrets nested beside them", () => {
     expect(
       redactToolCardValue({

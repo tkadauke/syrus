@@ -69,9 +69,14 @@ describe("AdminToolCards", () => {
 
     const region = screen.getByRole("region", { name: "Bash" })
     expect(within(region).getByText("provider_builtin")).toBeInTheDocument()
+    fireEvent.click(within(region).getByRole("tab", { name: "Running multiline command" }))
+    expect(within(region).getByText("Running")).toBeInTheDocument()
+    expect(within(region).getByTestId("tool-group-preview")).toHaveTextContent(
+      '/bin/bash -lc \'rg -n "Visual evidence|No screenshots captured" app spec && sed -n "1,220p" app/frontend/routes/jobDetail/ReviewWorkspace.tsx\''
+    )
     expandToolGroup(region)
 
-    expect(within(region).getByText("Bash(ls)")).toBeInTheDocument()
+    expect(within(region).getByText(/Bash\(\/bin\/bash -lc/)).toBeInTheDocument()
 
     fireEvent.click(within(region).getByRole("tab", { name: "List the repo root (Codex)" }))
     expect(within(region).getByText("Bash(ls -la)")).toBeInTheDocument()
@@ -89,6 +94,17 @@ describe("AdminToolCards", () => {
     fireEvent.click(within(region).getByRole("tab", { name: "No pending insights" }))
     expect(within(region).getByText("No insights match this query.")).toBeInTheDocument()
     expect(within(region).queryAllByText("LandingQueueProcessor re-fetches PR mergeability on every poll tick")).toHaveLength(0)
+  })
+
+  it("keeps credential discovery planning identifiers visible through the catalog redaction path", () => {
+    renderRoute("/admin/tool_cards?tool_name=credential_store_list_credentials")
+
+    const region = screen.getByRole("region", { name: "Credential store list credentials" })
+    expandToolGroup(region)
+
+    expect(within(region).getByText(/credential_store\.url_token/)).toBeInTheDocument()
+    expect(within(region).getByText(/credential_store_ssh_exec/)).toBeInTheDocument()
+    expect(region).not.toHaveTextContent("[redacted]")
   })
 
   it("preserves chat context for catalog links into preview-panel workspaces", () => {

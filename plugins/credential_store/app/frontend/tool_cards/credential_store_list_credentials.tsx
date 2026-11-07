@@ -1,3 +1,4 @@
+import { CodeSurface } from "@app/components/ui"
 import { isPlainObject, type ToolCardContext, type ToolCardExample, type ToolCardRenderer } from "@app/pluginToolCards"
 
 function credentialCount(context: ToolCardContext): number | null {
@@ -13,10 +14,14 @@ const credentialStoreListCredentialsToolCard: ToolCardRenderer = {
     const count = credentialCount(context)
     return count == null ? null : String(count)
   },
-  renderExpanded() {
-    // The generic JSON body is intentional: every returned field is safe
-    // discovery metadata, and keeping it visible helps agents plan usage.
-    return null
+  renderExpanded(context) {
+    if (!isPlainObject(context.parsedResult) || !Array.isArray(context.parsedResult.credentials)) return null
+
+    // The discovery response contains only server-selected safe columns. A
+    // dedicated JSON surface prevents the generic text scrubber from
+    // mistaking identifier values such as `credential_store.url_token` for
+    // secret material after the structured redactor has already run.
+    return <CodeSurface code={JSON.stringify(context.parsedResult, null, 2)} lang="json" maxHeightClassName="max-h-72" />
   }
 }
 
