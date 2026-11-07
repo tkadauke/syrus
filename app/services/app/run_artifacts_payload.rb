@@ -136,8 +136,50 @@ module App
         serialized = value.is_a?(String) ? value : JSON.generate(value)
         return [ value, false ] if serialized.bytesize <= MAX_ROW_FIELD_BYTES
 
-        preview = serialized.byteslice(0, MAX_ROW_FIELD_BYTES).scrub
-        [ value.is_a?(String) ? preview : { "preview" => preview }, true ]
+        bounded = value.is_a?(String) ? truncate_string(value, MAX_ROW_FIELD_BYTES) : truncate_structure(value)
+        [ bounded, true ]
+      end
+
+      def truncate_structure(value)
+        bounded = value.deep_dup
+        while JSON.generate(bounded).bytesize > MAX_ROW_FIELD_BYTES
+          string = largest_string(bounded)
+          if string
+            excess = JSON.generate(bounded).bytesize - MAX_ROW_FIELD_BYTES
+            string.replace(truncate_string(string, [ string.bytesize - excess - 8, 0 ].max))
+          elsif !remove_last_value(bounded)
+            break
+          end
+        end
+        bounded
+      end
+
+      def largest_string(value)
+        case value
+        when Hash then value.values.filter_map { |child| largest_string(child) }.max_by(&:bytesize)
+        when Array then value.filter_map { |child| largest_string(child) }.max_by(&:bytesize)
+        when String then value unless value.empty?
+        end
+      end
+
+      def remove_last_value(value)
+        case value
+        when Array
+          return false if value.empty?
+          value.clear
+          true
+        when Hash
+          key = value.keys.last
+          return false unless key
+          value.delete(key)
+          true
+        else
+          false
+        end
+      end
+
+      def truncate_string(value, bytes)
+        value.byteslice(0, bytes).to_s.scrub
       end
     end
 

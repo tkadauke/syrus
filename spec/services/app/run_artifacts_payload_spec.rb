@@ -106,7 +106,9 @@ RSpec.describe App::RunArtifactsPayload do
     log = described_class.build(run: run).fetch(:logs).first
 
     expect(log[:chunk].bytesize).to eq(described_class::Transcript::MAX_ROW_FIELD_BYTES)
-    expect(log[:tool_input]).to have_key("preview")
+    expect(log[:tool_input]).to have_key("value")
+    expect(log[:tool_input]["value"].bytesize).to be < oversized.bytesize
+    expect(JSON.generate(log[:tool_input]).bytesize).to be <= described_class::Transcript::MAX_ROW_FIELD_BYTES
     expect(log[:tool_result_content].bytesize).to eq(described_class::Transcript::MAX_ROW_FIELD_BYTES)
     expect(log).to include(chunk_truncated: true, tool_input_truncated: true, tool_result_content_truncated: true)
   end

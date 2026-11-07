@@ -285,6 +285,17 @@ RSpec.describe AgentActivity::SessionsQuery do
   describe "preloading" do
     it "loads process and context associations needed by the serializer" do
       workflow_job = agent_activity_job_with_run(repository: my_repository, user: operator, run_attrs: { state: "succeeded", started_at: 4.minutes.ago })
+      workflow_agent_record = Agent.find_by!(resumable: workflow_job.runs.last)
+      SpawnedProcess.create!(
+        agent: workflow_agent_record,
+        run: workflow_job.runs.last,
+        kind: "grader",
+        command: "bin/grade",
+        hostname: "spec-host",
+        started_at: 3.minutes.ago,
+        finished_at: 2.minutes.ago,
+        outcome: "succeeded"
+      )
       chat = ChatSession.create!(user: operator, repository: my_repository, mode: "coding")
       chat_agent = record_chat_process(chat, started_at: 3.minutes.ago, finished_at: 2.minutes.ago, outcome: "succeeded")
       design_agent = record_design_doc_process(design_doc_agent_run(requested_by_user: operator, repository: my_repository))
@@ -293,6 +304,10 @@ RSpec.describe AgentActivity::SessionsQuery do
 
       workflow_agent = result[:rows].find { |agent| agent.resumable == workflow_job.runs.last }
       expect(workflow_agent.association(:spawned_processes)).to be_loaded
+      expect(workflow_agent.spawned_processes.map(&:kind)).to eq([ "agent" ])
+      expect(workflow_agent.spawned_processes.first.attributes.keys).to contain_exactly(
+        "id", "agent_id", "kind", "started_at", "finished_at", "outcome"
+      )
       expect(workflow_agent.resumable.association(:job)).to be_loaded
       expect(workflow_agent.resumable.association(:step)).to be_loaded
       expect(workflow_agent.resumable.step.association(:workflow)).to be_loaded
