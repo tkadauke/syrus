@@ -598,7 +598,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     setGroupChatCreating(true)
     setGroupChatError(null)
     try {
-      const created = await createGroupChat(userIds)
+      const created = await createGroupChat(userIds, null)
       updateRecentChatCache(queryClient, created.chat, { prepend: true })
       setGroupChatPickerOpen(false)
       navigate(withRoutePrefix(created.redirect_to, prefix))
