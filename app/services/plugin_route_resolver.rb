@@ -1,5 +1,6 @@
 class PluginRouteResolver
   Route = Data.define(:verb, :path, :controller, :params, :plugin_name, :enabled)
+  ROUTE_CACHE_MUTEX = Mutex.new
 
   # What an `:id`/`:*_id` sidebar path segment is allowed to look like: a bare
   # Rails id, or a "PREFIX-<digits>" slug like "MOCKUP-1"/"DOC-2" (the same
@@ -46,18 +47,33 @@ class PluginRouteResolver
     private
 
     def plugin_routes(enabled:)
-      Syrus::PluginRegistry.all_plugins.flat_map do |manifest|
-        next [] unless enabled.nil? || manifest.enabled? == enabled
+      all_plugin_routes.select { |route| enabled.nil? || route.enabled == enabled }
+    end
 
-        metadata = manifest.metadata.with_indifferent_access
-        Array(metadata[:routes]).filter_map do |raw_route|
-          route = raw_route.to_h.with_indifferent_access
-          next if route[:controller].blank? || route[:path].blank?
+    def all_plugin_routes
+      generation = Syrus::PluginRegistry.generation
+      return @plugin_routes if @plugin_routes_generation == generation
+
+      ROUTE_CACHE_MUTEX.synchronize do
+        generation = Syrus::PluginRegistry.generation
+        return @plugin_routes if @plugin_routes_generation == generation
+
+        @plugin_routes = build_plugin_routes.freeze
+        @plugin_routes_generation = generation
+        @plugin_routes
+      end
+    end
+
+    def build_plugin_routes
+      Syrus::PluginRegistry.all_plugins.flat_map do |manifest|
+        Array(manifest.metadata.with_indifferent_access[:routes]).filter_map do |raw_route|
+          attributes = raw_route.to_h.with_indifferent_access
+          next if attributes[:controller].blank? || attributes[:path].blank?
 
           Route.new(
-            verb: route[:verb].presence || "GET",
-            path: route[:path].to_s,
-            controller: route[:controller].to_s,
+            verb: attributes[:verb].presence || "GET",
+            path: attributes[:path].to_s,
+            controller: attributes[:controller].to_s,
             params: {},
             plugin_name: manifest.name,
             enabled: manifest.enabled?
