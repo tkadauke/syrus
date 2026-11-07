@@ -23,5 +23,6 @@
   "duration": "Duration: {{seconds}} seconds",
   "running": "running",
   "open_owner": "Open owning feature",
+  "open_schedule": "Open scheduled task",
   "cadence_bands": "High-frequency cadence bands"
 }
