@@ -41,8 +41,18 @@ RSpec.describe Whiteboard::PayloadContributor do
 
     expect(described_class.chat_payload_paths(chat_session: chat))
       .to eq(app_whiteboard_path: "/api/v1/app/chats/#{chat.id}/whiteboard")
-    expect(described_class.chat_payload_counts(chat_session: chat)).to eq({})
+    expect(described_class.chat_payload_counts(chat_session: chat)).to eq(whiteboard_snapshot_count: 1)
     expect(described_class.chat_payload_counts(chat_session: chat, context: { params: { include_whiteboard: "1" } }))
       .to eq(whiteboard_snapshot_count: 1)
+  end
+
+  it "uses an existence query until the whiteboard is requested" do
+    snapshots = Whiteboard::Snapshot.where(chat_session_id: chat.id)
+    allow(Whiteboard::Snapshot).to receive(:where).and_return(snapshots)
+    expect(snapshots).to receive(:exists?).and_return(false)
+    expect(snapshots).not_to receive(:count)
+
+    expect(described_class.chat_payload_counts(chat_session: chat, context: { params: {} }))
+      .to eq(whiteboard_snapshot_count: 0)
   end
 end

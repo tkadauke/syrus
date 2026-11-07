@@ -1311,8 +1311,19 @@ export function fetchChatWhiteboardVersion(path: string) {
   return getJson<ChatWhiteboardVersionPayload>(`${path}${separator}fields=version`)
 }
 
-export function fetchWhiteboardSnapshots(chatSessionId: string | number) {
-  return getJson<WhiteboardSnapshotsPayload>(`/api/v1/app/chats/${encodeURIComponent(String(chatSessionId))}/whiteboard_snapshots`)
+export async function fetchWhiteboardSnapshots(chatSessionId: string | number) {
+  const path = `/api/v1/app/chats/${encodeURIComponent(String(chatSessionId))}/whiteboard_snapshots`
+  const firstPage = await getJson<WhiteboardSnapshotsPayload>(path)
+  const totalPages = firstPage.pagination?.total_pages ?? 1
+  if (totalPages <= 1) return firstPage
+
+  const remainingPages = await Promise.all(
+    Array.from({ length: totalPages - 1 }, (_, index) => getJson<WhiteboardSnapshotsPayload>(`${path}?page=${index + 2}`))
+  )
+  return {
+    ...firstPage,
+    whiteboard_snapshots: [firstPage, ...remainingPages].flatMap((page) => page.whiteboard_snapshots)
+  }
 }
 
 export function fetchWhiteboardSnapshot(chatSessionId: string | number, snapshotId: string | number) {
