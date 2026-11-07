@@ -24,6 +24,7 @@ class ProviderRoutingRule < ApplicationRecord
   before_validation :normalize_scope_columns
   before_validation :normalize_position
   before_validation :normalize_payloads
+  before_validation :snapshot_reviewer_targets
 
   def scope_type_user? = scope_type == "user"
   def scope_type_repository? = scope_type == "repository"
@@ -285,6 +286,25 @@ class ProviderRoutingRule < ApplicationRecord
     candidate_list.each_with_index do |candidate, index|
       validate_candidate(candidate, index, valid_providers)
     end
+    if reviewer_target_required? && candidate_list.any? { |candidate| candidate.to_h["reviewer_target"].blank? }
+      errors.add(:candidates, :coworker_review_requires_reviewer_targets)
+    end
+  end
+
+  def snapshot_reviewer_targets
+    return unless action.is_a?(Hash) && action["candidates"].is_a?(Array) && user
+
+    action["candidates"] = action["candidates"].map do |candidate|
+      next candidate unless candidate.respond_to?(:to_h)
+
+      candidate = candidate.to_h.deep_stringify_keys
+      target = candidate["reviewer_target"]
+      next candidate if target.blank?
+
+      candidate.merge("reviewer_target" => ReviewerTargets.snapshot(target, owner: user, repository: repository || job&.repository))
+    rescue ReviewerTargets::ResolutionError
+      candidate
+    end
   end
 
   def action_definition
@@ -312,6 +332,26 @@ class ProviderRoutingRule < ApplicationRecord
 
     errors.add(:candidates, :entry_weight_not_positive, index: index) if candidate.key?("weight") && candidate["weight"].to_f <= 0
     validate_candidate_model(provider, candidate["model"], index) if candidate["model"].present?
+    validate_reviewer_target(candidate["reviewer_target"], index) if candidate["reviewer_target"].present?
+  end
+
+  def validate_reviewer_target(target, index)
+    unless reviewer_target_trigger?
+      errors.add(:candidates, :reviewer_target_not_allowed, index: index)
+      return
+    end
+
+    ReviewerTargets.resolve(target, owner: user, repository: repository || job&.repository)
+  rescue ReviewerTargets::ResolutionError => e
+    errors.add(:candidates, :reviewer_target_invalid, index: index, message: e.message)
+  end
+
+  def reviewer_target_trigger?
+    trigger["type"] == "step" && trigger["kind"].in?(%w[adversarial_review security_review coworker_review])
+  end
+
+  def reviewer_target_required?
+    trigger["type"] == "step" && Step::Kind.by_kind[trigger["kind"]]&.reviewer_target_required == true
   end
 
   # Enforced for any provider that exposes a model catalog. Providers that do

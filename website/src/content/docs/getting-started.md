@@ -217,7 +217,10 @@ Confirm these settings:
 - **Polling enabled** is on for issue ingestion.
 - **Agent routing** is configured with provider routing rules on the
   repository's edit page. Without repository rules, your own routing rules
-  and default provider apply.
+  and default provider apply. Review-step rules can separately select an
+  authorized, installation-local coworker identity and the provider/model that
+  runs it, including ordered reviewer panels. Coworker references remain in
+  Syrus routing data rather than repository `.syrus.yml`.
 - **Run prepare step** is on unless this repository intentionally needs no
   setup.
 
@@ -314,7 +317,8 @@ Watch these checkpoints:
   failure.
 - `implement` starts a Run, streams transcript output, and captures the
   agent's commits.
-- Review loops run only when adversarial or visual review is configured.
+- Review loops run only when configured. Routing rules may attach accountable
+  coworkers; dedicated coworker review never falls back to an unnamed reviewer.
 - The grade loop runs the configured review-phase graders and can feed a
   bounded repair iteration.
 - The Run or Workflow shows the captured diff.

@@ -110,8 +110,8 @@ module ProviderRouting
       ).call
     end
 
-    def self.candidate(provider:, model: nil, effort_level: nil)
-      ProviderRouting::Resolver::Candidate.new(provider: provider, model: model, effort_level: effort_level)
+    def self.candidate(provider:, model: nil, effort_level: nil, reviewer_target: nil)
+      ProviderRouting::Resolver::Candidate.new(provider: provider, model: model, effort_level: effort_level, reviewer_target: reviewer_target)
     end
 
     def self.panel(job:, task_key:, trigger: nil, workflow_trigger_kind: nil, now: Time.current)

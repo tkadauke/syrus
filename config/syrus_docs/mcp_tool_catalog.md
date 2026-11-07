@@ -259,6 +259,7 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `submit_job_metadata` | workflow | - | write | no | `workflow:summary_test_plan`, `workflow:manual` | `refresh_job_metadata` | `submit_job_metadata` | - |
 | `submit_report` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | `submit_report` | `submit_report` | - |
 | `submit_security_review` | workflow | - | write | no | `workflow:security_reviewer`, `workflow:manual` | - | `submit_security_review` | - |
+| `submit_coworker_review` | workflow | - | write | no | `workflow:coworker_reviewer`, `workflow:manual` | - | `submit_coworker_review` | - |
 | `submit_summary` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | `submit_summary` | - |
 | `submit_test_plan` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual` | - | `submit_test_plan` | - |
 | `submit_visual_artifact` | workflow | - | write | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual`, `workflow:visual_reviewer` | - | `submit_visual_artifact` | - |

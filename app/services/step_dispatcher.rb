@@ -724,15 +724,16 @@ class StepDispatcher
       return ProviderRouting::AvailabilitySelector.candidate(
         provider: step.details["provider"],
         model: step.details["model"],
-        effort_level: step.details["effort_level"]
+        effort_level: step.details["effort_level"], reviewer_target: step.details["reviewer_target"]
       )
     end
     if (panel_execution = step.details.to_h["panel_execution"])
       members = Array(panel_execution["members"])
       if members.one? && members.size >= panel_execution["min_members"].to_i
         member = members.first
+        step.update!(details: step.details.to_h.merge("reviewer_target" => member["reviewer_target"]).compact)
         return ProviderRouting::AvailabilitySelector.candidate(
-          provider: member["provider"], model: member["model"], effort_level: member["effort_level"]
+          provider: member["provider"], model: member["model"], effort_level: member["effort_level"], reviewer_target: member["reviewer_target"]
         )
       end
 
@@ -758,7 +759,7 @@ class StepDispatcher
       end
 
       return ProviderRouting::AvailabilitySelector.candidate(
-        provider: member["provider"], model: member["model"], effort_level: member["effort_level"]
+        provider: member["provider"], model: member["model"], effort_level: member["effort_level"], reviewer_target: member["reviewer_target"]
       )
     end
 
@@ -779,7 +780,9 @@ class StepDispatcher
     end
 
     ProviderRouting::HoldAdmission.apply!(workflow: workflow, decision: selection, step: step)
-
+    if selection.candidate&.reviewer_target
+      step.update!(details: step.details.to_h.merge("reviewer_target" => selection.candidate.reviewer_target))
+    end
     selection.candidate
   end
 
@@ -790,6 +793,7 @@ class StepDispatcher
   def self.step_specific_provider_task_key?(step, workflow)
     return false if step.blank?
     return false unless Step::AGENTIC_KINDS.include?(step.kind)
+    return true if Step::Kind.fetch(step.kind).reviewer_target_required
 
     ProviderRouting::Resolver.rule_configured?(
       job: workflow.job,

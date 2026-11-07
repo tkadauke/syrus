@@ -645,6 +645,7 @@ function RuleEditorModal({
                 onRemove={() => onUpdate({ ...currentDraft, candidates: currentDraft.candidates.filter((_, itemIndex) => itemIndex !== index) })}
                 options={options}
                 removable={currentDraft.candidates.length > 1}
+                reviewerTargetEnabled={["step:adversarial_review", "step:security_review", "step:coworker_review"].includes(currentDraft.triggerKey)}
                 t={t}
               />
             ))}
@@ -709,6 +710,7 @@ function RoutingCandidateRow({
   onRemove,
   options,
   removable,
+  reviewerTargetEnabled,
   t
 }: {
   candidate: ProviderRoutingCandidate
@@ -716,11 +718,12 @@ function RoutingCandidateRow({
   onRemove: () => void
   options: ProviderRoutingOptions
   removable: boolean
+  reviewerTargetEnabled: boolean
   t: (key: string, options?: Record<string, unknown>) => string
 }) {
   const provider = providerOption(options, candidate.provider)
   return (
-    <div className="grid gap-2 rounded border border-border p-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_9rem_auto]">
+    <div className="grid gap-2 rounded border border-border p-2 sm:grid-cols-[repeat(2,minmax(0,1fr))_9rem_auto]">
       <Select
         aria-label={t("provider_routing.provider")}
         onChange={(event) => onChange({ provider: event.target.value, model: null, effort_level: candidate.effort_level || null })}
@@ -757,6 +760,24 @@ function RoutingCandidateRow({
           </option>
         ))}
       </Select>
+      {reviewerTargetEnabled ? (
+        <Select
+          aria-label={t("provider_routing.reviewer_target")}
+          onChange={(event) => {
+            const target = options.reviewer_targets?.find((item) => `${item.type}:${item.reference}` === event.target.value)
+            onChange({ ...candidate, reviewer_target: target || null })
+          }}
+          value={candidate.reviewer_target ? `${candidate.reviewer_target.type}:${candidate.reviewer_target.reference}` : ""}
+        >
+          <option value="">{t("provider_routing.unnamed_reviewer")}</option>
+          {(options.reviewer_targets || []).map((target) => (
+            <option key={`${target.type}:${target.reference}`} value={`${target.type}:${target.reference}`}>
+              {target.display.name}
+              {target.display.handle ? ` (@${target.display.handle})` : ""}
+            </option>
+          ))}
+        </Select>
+      ) : null}
       <Button disabled={!removable} onClick={onRemove} size="sm" variant="secondary">
         {t("provider_routing.remove")}
       </Button>
@@ -838,6 +859,7 @@ function normalizeOptions(options?: ProviderRoutingOptions): ProviderRoutingOpti
   return {
     agent_providers: options?.agent_providers || EMPTY_OPTIONS.agent_providers,
     effort_levels: options?.effort_levels || EMPTY_OPTIONS.effort_levels,
+    reviewer_targets: options?.reviewer_targets || [],
     triggers: {
       chat_roles: options?.triggers?.chat_roles || [],
       step_kinds: options?.triggers?.step_kinds || []
@@ -903,6 +925,9 @@ function validateDraft(draft: DraftRule, options: ProviderRoutingOptions, t: (ke
   if (!draft.name.trim()) errors.name = t("provider_routing.validation_name")
   if (!draft.triggerKey) errors.trigger = t("provider_routing.validation_trigger")
   if (draft.actionType === "route" && !draft.candidates.some((candidate) => candidate.provider)) errors.candidates = t("provider_routing.validation_candidates")
+  if (draft.actionType === "route" && draft.triggerKey === "step:coworker_review" && draft.candidates.some((candidate) => !candidate.reviewer_target)) {
+    errors.candidates = t("provider_routing.validation_coworker_targets")
+  }
   if (draft.actionType === "route" && draft.actionStrategy === "panel") {
     const distinct = new Set(draft.candidates.filter((candidate) => candidate.provider).map((candidate) => JSON.stringify(candidate))).size
     const stepKind = draft.triggerKey.startsWith("step:") ? draft.triggerKey.slice("step:".length) : ""
