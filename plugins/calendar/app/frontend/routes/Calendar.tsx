@@ -3,11 +3,17 @@ import { useMemo, useState } from "react"
 import { Link, useLocation } from "react-router-dom"
 import { FilterBar, topFilterChildren, type FilterChip, type FilterSchemaField, type FilterTree } from "@app/components/FilterBar"
 import { Avatar } from "@app/components/Avatar"
+import { Modal } from "@app/components/Modal"
 import { Notice, Page, PageHeading, Section, Text } from "@app/components/ui"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
 import { fetchCalendar, type CalendarEvent } from "../api/calendar"
 import { addCalendarDays, DAY_HEIGHT, HOUR_HEIGHT, positionEvents, resolveDuration, zonedParts, type DurationResolution } from "./calendarLayout"
+
+const EVENT_DETAILS_MODAL_CLASS = [
+  "max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto",
+  "rounded-[var(--radius-panel)] bg-surface p-5 shadow-[var(--shadow-panel)]"
+].join(" ")
 
 export default function CalendarRoute() {
   const { t, i18n } = useT("calendar")
@@ -170,85 +176,113 @@ function EventCard({
   const systemKey = typeof event.metadata.system_key === "string" ? event.metadata.system_key : null
   const delayedReason = typeof event.metadata.delayed_reason === "string" ? event.metadata.delayed_reason : null
   const delayedReasonLabel = delayedReason ? t(`delay_reasons.${delayedReason}`, { defaultValue: delayedReason.replaceAll("_", " ") }) : null
-  return (
-    <article
-      className={`min-w-0 rounded border bg-surface-subtle ${displayDuration.estimated ? "border-dashed border-muted" : "border-border"} ${compact && !expanded ? "h-full overflow-hidden p-1" : compact ? "relative z-30 min-h-full p-1 shadow-lg" : "p-2"}`}
-    >
-      <button className="w-full min-w-0 text-left" type="button" aria-expanded={expanded} onClick={() => setExpanded((value) => !value)}>
-        <span className="flex min-w-0 items-center gap-2">
-          {coworkerName ? <Avatar name={coworkerName} avatarUrl={avatarUrl} accentHex={accentHex} size="xs" /> : null}
-          <Text className="truncate font-medium">{event.title}</Text>
-        </span>
-      </button>
+  const details = (
+    <div className="space-y-1">
       <Text variant="caption" tone="muted">
-        {event.cadence?.band ? event.cadence.label : formatter.format(new Date(event.starts_at))}
+        {t("planned_time", { time: formatter.format(new Date(event.starts_at)) })}
       </Text>
-      {!compact ? <span className="mt-1 inline-block rounded-full bg-surface px-2 py-0.5 text-xs">{event.state}</span> : null}
-      {expanded ? (
-        <div className="mt-2 space-y-1 border-t border-border pt-2">
-          <Text variant="caption" tone="muted">
-            {t("planned_time", { time: formatter.format(new Date(event.starts_at)) })}
-          </Text>
-          {event.actual_started_at ? (
-            <Text variant="caption" tone="muted">
-              {t("actual_time", {
-                start: formatter.format(new Date(event.actual_started_at)),
-                finish: event.actual_finished_at ? formatter.format(new Date(event.actual_finished_at)) : t("running")
-              })}
-            </Text>
-          ) : null}
-          {duration != null ? (
-            <Text variant="caption" tone="muted">
-              {t("duration", { seconds: duration.toFixed(1) })}
-            </Text>
-          ) : null}
-          <Text variant="caption" tone="muted">
-            {t("display_duration", {
-              minutes: Math.round(displayDuration.seconds / 60),
-              provenance: t(`duration_provenance.${displayDuration.provenance}`)
-            })}
-          </Text>
-          {coworkerName ? (
-            <Text variant="caption" tone="muted">
-              {t("coworker_identity", { name: coworkerName, handle: coworkerHandle ? `@${coworkerHandle}` : "" })}
-            </Text>
-          ) : null}
-          {afterRun ? (
-            <Text variant="caption" tone="muted">
-              {t("after_run", { policy: afterRun })}
-            </Text>
-          ) : null}
-          {systemKey ? (
-            <Text variant="caption" tone="muted">
-              {t("system_schedule", { key: systemKey })}
-            </Text>
-          ) : null}
-          {delayedReasonLabel ? (
-            <Text variant="caption" tone="muted">
-              {t("delayed_reason", { reason: delayedReasonLabel })}
-            </Text>
-          ) : null}
-          <Link className="inline-block text-sm text-brand hover:underline" to={event.destination_path}>
-            {t("open_owner")}
-          </Link>
-          {taskPath && taskPath !== event.destination_path ? (
-            <Link className="ml-3 inline-block text-sm text-brand hover:underline" to={taskPath}>
-              {t("open_schedule")}
-            </Link>
-          ) : null}
-          {mainChatPath ? (
-            <Link className="ml-3 inline-block text-sm text-brand hover:underline" to={mainChatPath}>
-              {t("open_main_chat")}
-            </Link>
-          ) : null}
-          {coworkerPath && coworkerPath !== event.destination_path ? (
-            <Link className="ml-3 inline-block text-sm text-brand hover:underline" to={coworkerPath}>
-              {t("open_coworker")}
-            </Link>
-          ) : null}
-        </div>
+      {event.actual_started_at ? (
+        <Text variant="caption" tone="muted">
+          {t("actual_time", {
+            start: formatter.format(new Date(event.actual_started_at)),
+            finish: event.actual_finished_at ? formatter.format(new Date(event.actual_finished_at)) : t("running")
+          })}
+        </Text>
       ) : null}
-    </article>
+      {duration != null ? (
+        <Text variant="caption" tone="muted">
+          {t("duration", { seconds: duration.toFixed(1) })}
+        </Text>
+      ) : null}
+      <Text variant="caption" tone="muted">
+        {t("display_duration", {
+          minutes: Math.round(displayDuration.seconds / 60),
+          provenance: t(`duration_provenance.${displayDuration.provenance}`)
+        })}
+      </Text>
+      {coworkerName ? (
+        <Text variant="caption" tone="muted">
+          {t("coworker_identity", { name: coworkerName, handle: coworkerHandle ? `@${coworkerHandle}` : "" })}
+        </Text>
+      ) : null}
+      {afterRun ? (
+        <Text variant="caption" tone="muted">
+          {t("after_run", { policy: afterRun })}
+        </Text>
+      ) : null}
+      {systemKey ? (
+        <Text variant="caption" tone="muted">
+          {t("system_schedule", { key: systemKey })}
+        </Text>
+      ) : null}
+      {delayedReasonLabel ? (
+        <Text variant="caption" tone="muted">
+          {t("delayed_reason", { reason: delayedReasonLabel })}
+        </Text>
+      ) : null}
+      <Link className="inline-block text-sm text-brand hover:underline" to={event.destination_path}>
+        {t("open_owner")}
+      </Link>
+      {taskPath && taskPath !== event.destination_path ? (
+        <Link className="ml-3 inline-block text-sm text-brand hover:underline" to={taskPath}>
+          {t("open_schedule")}
+        </Link>
+      ) : null}
+      {mainChatPath ? (
+        <Link className="ml-3 inline-block text-sm text-brand hover:underline" to={mainChatPath}>
+          {t("open_main_chat")}
+        </Link>
+      ) : null}
+      {coworkerPath && coworkerPath !== event.destination_path ? (
+        <Link className="ml-3 inline-block text-sm text-brand hover:underline" to={coworkerPath}>
+          {t("open_coworker")}
+        </Link>
+      ) : null}
+    </div>
+  )
+  return (
+    <>
+      <article
+        className={`min-w-0 rounded border bg-surface-subtle ${displayDuration.estimated ? "border-dashed border-muted" : "border-border"} ${compact ? "h-full overflow-hidden" : "p-2"}`}
+      >
+        <button
+          className={`w-full min-w-0 text-left ${compact ? "flex h-full items-start px-0.5" : ""}`}
+          type="button"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+          title={compact ? `${event.title} — ${formatter.format(new Date(event.starts_at))}` : undefined}
+        >
+          <span className={`flex min-w-0 items-center ${compact ? "gap-0.5" : "gap-2"}`}>
+            {coworkerName && !compact ? <Avatar name={coworkerName} avatarUrl={avatarUrl} accentHex={accentHex} size="xs" /> : null}
+            <Text className={`truncate font-medium ${compact ? "text-[10px] leading-3" : ""}`}>{event.title}</Text>
+          </span>
+        </button>
+        {!compact ? (
+          <>
+            <Text variant="caption" tone="muted">
+              {event.cadence?.band ? event.cadence.label : formatter.format(new Date(event.starts_at))}
+            </Text>
+            <span className="mt-1 inline-block rounded-full bg-surface px-2 py-0.5 text-xs">{event.state}</span>
+          </>
+        ) : null}
+        {expanded && !compact ? <div className="mt-2 border-t border-border pt-2">{details}</div> : null}
+      </article>
+      {compact ? (
+        <Modal className={EVENT_DETAILS_MODAL_CLASS} label={event.title} onClose={() => setExpanded(false)} open={expanded}>
+          <div className="mb-3 flex items-start justify-between gap-3 border-b border-border pb-3">
+            <div className="flex min-w-0 items-center gap-2">
+              {coworkerName ? <Avatar name={coworkerName} avatarUrl={avatarUrl} accentHex={accentHex} size="xs" /> : null}
+              <Text className="font-medium">{event.title}</Text>
+            </div>
+            <button className="shrink-0 rounded border border-border px-2 py-1 text-sm" onClick={() => setExpanded(false)} type="button">
+              {t("close_details")}
+            </button>
+          </div>
+          <span className="mb-2 inline-block rounded-full bg-surface-subtle px-2 py-0.5 text-xs">{event.state}</span>
+          {details}
+        </Modal>
+      ) : null}
+    </>
   )
 }
 

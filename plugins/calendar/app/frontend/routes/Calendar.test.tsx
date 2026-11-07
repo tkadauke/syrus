@@ -1,6 +1,6 @@
 import { jsonResponse } from "@app/testSupport"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import CalendarRoute from "./Calendar"
@@ -224,6 +224,18 @@ describe("CalendarRoute", () => {
             state: "planned",
             metadata: {}
           },
+          {
+            source_id: "calendar:test",
+            id: "short",
+            kind: "test",
+            title: "Short event",
+            starts_at: at(15),
+            actual_started_at: at(15),
+            actual_finished_at: at(15, 5),
+            destination_path: "/test/short",
+            state: "succeeded",
+            metadata: { duration_seconds: 300 }
+          },
           { source_id: "calendar:test", id: "late", kind: "test", title: "Late", starts_at: at(20), destination_path: "/test", state: "planned", metadata: {} }
         ],
         failures: []
@@ -247,5 +259,18 @@ describe("CalendarRoute", () => {
     expect(grid.querySelector<HTMLElement>('[data-calendar-event="noon"]')?.style.width).toBe("50%")
     expect(grid.querySelector<HTMLElement>('[data-calendar-event="overlap"]')?.style.left).toBe("50%")
     expect(grid.querySelectorAll("[data-calendar-day]")).toHaveLength(7)
+
+    const shortMarker = grid.querySelector<HTMLElement>('[data-calendar-event="short"]')
+    expect(shortMarker?.style.height).toBe("12px")
+    const shortButton = within(shortMarker!).getByRole("button", { name: "Short event" })
+    expect(shortButton).toHaveClass("h-full", "px-0.5")
+    expect(shortButton).toHaveAttribute("title", expect.stringContaining("Short event"))
+
+    fireEvent.click(shortButton)
+    const dialog = screen.getByRole("dialog", { name: "Short event" })
+    expect(within(dialog).getByText("Displayed duration: 5 minutes (actual elapsed time)")).toBeInTheDocument()
+    expect(within(dialog).getByRole("link", { name: "Open owning feature" })).toHaveAttribute("href", "/test/short")
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close details" }))
+    expect(screen.queryByRole("dialog", { name: "Short event" })).not.toBeInTheDocument()
   })
 })
