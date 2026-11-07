@@ -74,6 +74,7 @@ import { isAuthPath } from "./appChromeV2/helpers"
 import { fetchSidebarPluginPages } from "../api/sidebarPages"
 import { AdminPluginServices } from "@plugins/plugin_runtime/app/frontend/routes/AdminPluginServices"
 import { UiEngagementTelemetry } from "../lib/uiEngagement"
+import { useBrowserTimeZone } from "../hooks/useBrowserTimeZone"
 
 type AppRouteDefinition = {
   path: string
@@ -281,6 +282,7 @@ function AppShell({ initialBootstrap }: { initialBootstrap: BootstrapPayload | n
     initialData: initialBootstrap ?? undefined,
     staleTime: initialBootstrap ? Number.POSITIVE_INFINITY : 0
   })
+  useBrowserTimeZone(bootstrap.data)
   const routes = (
     <Routes>
       <Route path="/" element={<RootRoute initialBootstrap={initialBootstrap} />} />

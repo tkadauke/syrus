@@ -3,6 +3,32 @@ require "rails_helper"
 RSpec.describe User do
   let(:attrs) { { email_address: "user@example.com", password: "supersecret" } }
 
+  describe "time zone preferences" do
+    it "accepts IANA zones and rejects Rails-only aliases" do
+      user = User.new(attrs.merge(time_zone: "Europe/Berlin"))
+      expect(user).to be_valid
+
+      user.time_zone = "Eastern Time (US & Canada)"
+      expect(user).not_to be_valid
+    end
+
+    it "keeps approval-delivery quiet-hour settings independent" do
+      user = Factories.user(
+        approval_delivery_preferences: User::APPROVAL_DELIVERY_DEFAULTS.merge(
+          "quiet_hours_enabled" => true,
+          "time_zone" => "Eastern Time (US & Canada)"
+        )
+      )
+
+      user.update!(time_zone: "Europe/Berlin", time_zone_mode: "manual")
+
+      expect(user.approval_delivery_preferences).to include(
+        "quiet_hours_enabled" => true,
+        "time_zone" => "Eastern Time (US & Canada)"
+      )
+    end
+  end
+
   describe "email address validation" do
     it "requires an email address" do
       user = User.new(attrs.merge(email_address: "   "))

@@ -46,6 +46,7 @@ class User < ApplicationRecord
   THEMES = %w[ light dark system ].freeze
   ROLES = %w[ developer product_owner ].freeze
   LOCALES = %w[ en de la ].freeze
+  TIME_ZONE_MODES = %w[ automatic manual ].freeze
   EMAIL_LOCAL_PART_SEPARATORS = /[._+-]+/
   # Mirrors Job::SEARCH_TEXT_COLUMNS / Job.search's MySQL FULLTEXT vs.
   # cross-DB LIKE fallback (see AddSearchFulltextIndexToUsers).
@@ -185,6 +186,19 @@ class User < ApplicationRecord
   GLOBAL_ROLES = %w[ admin user ].freeze
 
   enum :role, { developer: "developer", product_owner: "product_owner" }
+
+  validates :time_zone, presence: true, inclusion: { in: ->(_) { TZInfo::Timezone.all_identifiers } }
+  validates :time_zone_mode, inclusion: { in: TIME_ZONE_MODES }
+
+  def report_browser_time_zone!(browser_time_zone)
+    self.class.validate_time_zone!(browser_time_zone)
+    update!(time_zone: browser_time_zone) if time_zone_mode == "automatic" && time_zone != browser_time_zone
+    self
+  end
+
+  def self.validate_time_zone!(value)
+    Syrus::ServerTimeZone.validate!(value, variable: "time_zone")
+  end
 
   scope :admin, -> { where(global_role: "admin") }
 

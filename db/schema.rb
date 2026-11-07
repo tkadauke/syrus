@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_06_105035) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_07_015406) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -4280,6 +4280,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_06_105035) do
     t.integer "recent_chats_group_size", default: 10, null: false
     t.bigint "app_event_sequence", default: 0, null: false
     t.json "approval_delivery_preferences"
+    t.string "time_zone", default: "Etc/UTC", null: false
+    t.string "time_zone_mode", default: "automatic", null: false
     t.index ["api_token"], name: "index_users_on_api_token", unique: true
     t.index ["color_theme_id"], name: "index_users_on_color_theme_id"
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
