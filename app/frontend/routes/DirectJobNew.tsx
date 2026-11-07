@@ -12,13 +12,7 @@ import { PanelMessage } from "../components/PanelMessage"
 import { NoticeToast } from "../components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import { Form } from "../components/ui"
-import {
-  createDirectJob,
-  fetchDirectJobForm,
-  fetchDirectJobPromptTemplate,
-  type DirectJobFormPayload,
-  type DirectJobPromptTemplate
-} from "../api/directJobs"
+import { createDirectJob, fetchDirectJobForm, fetchDirectJobPromptTemplate, type DirectJobFormPayload, type DirectJobPromptTemplate } from "../api/directJobs"
 import type { ProviderRoutingOptions } from "../api/providerRoutingRules"
 import { errorMessage } from "../lib/errorMessage"
 import { useConfirm } from "../hooks/useConfirm"
@@ -70,6 +64,8 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
   const setupStatus = useSetupStatus()
   const promptRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const templateRequestRef = useRef(0)
+  const promptEditRef = useRef(0)
   const [notice, setNotice] = useState<string | null>(null)
   const [files, setFiles] = useState<File[]>([])
   const [values, setValues] = useState<DirectJobFormState>(() => initialValues(payload))
@@ -112,14 +108,18 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
   }
 
   async function applyTemplate(template: DirectJobPromptTemplate) {
+    const requestId = ++templateRequestRef.current
     const hasManualTitle = values.title.trim() !== "" && values.title !== (appliedTemplate?.name ?? "")
     const hasManualPrompt = values.prompt.trim() !== "" && values.prompt !== (appliedTemplate?.prompt ?? "")
 
-    if ((hasManualTitle || hasManualPrompt) && !await confirm({ message: t("form_template_confirm") })) {
+    if ((hasManualTitle || hasManualPrompt) && !(await confirm({ message: t("form_template_confirm") }))) {
       return
     }
 
+    const editVersion = promptEditRef.current
     const selectedTemplate = template.prompt ? template : { ...template, ...(await fetchDirectJobPromptTemplate(template.id)) }
+    if (requestId !== templateRequestRef.current || editVersion !== promptEditRef.current) return
+
     setAppliedTemplate(selectedTemplate)
     setValues((current) => ({
       ...current,
@@ -166,7 +166,9 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
             >
               <option value="">{t("form_repository_placeholder")}</option>
               {payload.repositories.map((repository) => (
-                <option key={repository.id} value={repository.id}>{repository.slug}</option>
+                <option key={repository.id} value={repository.id}>
+                  {repository.slug}
+                </option>
               ))}
             </Form.Select>
           </Field>
@@ -175,16 +177,25 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
             <Field label={t("form_agent_label")}>
               <div className="flex items-center gap-2">
                 {values.agentProvider || selectedRepository?.default_agent_provider ? (
-                  <img alt="" aria-hidden="true" className="h-4 w-4 shrink-0" src={providerIconSrc(values.agentProvider || selectedRepository?.default_agent_provider || "")} />
+                  <img
+                    alt=""
+                    aria-hidden="true"
+                    className="h-4 w-4 shrink-0"
+                    src={providerIconSrc(values.agentProvider || selectedRepository?.default_agent_provider || "")}
+                  />
                 ) : null}
                 <Form.Select
                   name="agent_provider"
                   onChange={(event) => setValues({ ...values, agentProvider: event.target.value, model: "" })}
                   value={values.agentProvider}
                 >
-                  <option value="">{t("form_agent_repository_default")} ({selectedRepository?.default_agent_provider_label || "default"})</option>
+                  <option value="">
+                    {t("form_agent_repository_default")} ({selectedRepository?.default_agent_provider_label || "default"})
+                  </option>
                   {payload.configured_agent_providers.map((provider) => (
-                    <option key={provider.value} value={provider.value}>{provider.label}</option>
+                    <option key={provider.value} value={provider.value}>
+                      {provider.label}
+                    </option>
                   ))}
                 </Form.Select>
               </div>
@@ -194,26 +205,22 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
         {values.agentProvider ? (
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={t("provider_model_label")}>
-              <Form.Select
-                name="model"
-                onChange={(event) => setValues({ ...values, model: event.target.value })}
-                value={values.model}
-              >
+              <Form.Select name="model" onChange={(event) => setValues({ ...values, model: event.target.value })} value={values.model}>
                 <option value="">{t("provider_default_model")}</option>
                 {(selectedProvider?.models || []).map((model) => (
-                  <option key={model.id} value={model.id}>{model.label}</option>
+                  <option key={model.id} value={model.id}>
+                    {model.label}
+                  </option>
                 ))}
               </Form.Select>
             </Field>
             <Field label={t("provider_effort_label")}>
-              <Form.Select
-                name="effort_level"
-                onChange={(event) => setValues({ ...values, effortLevel: event.target.value })}
-                value={values.effortLevel}
-              >
+              <Form.Select name="effort_level" onChange={(event) => setValues({ ...values, effortLevel: event.target.value })} value={values.effortLevel}>
                 <option value="">{t("provider_default_effort")}</option>
                 {providerRoutingOptions.effort_levels.map((effort) => (
-                  <option key={effort.value} value={effort.value}>{t(`provider_effort_level_${effort.value}`, { defaultValue: effort.label })}</option>
+                  <option key={effort.value} value={effort.value}>
+                    {t(`provider_effort_level_${effort.value}`, { defaultValue: effort.label })}
+                  </option>
                 ))}
               </Form.Select>
             </Field>
@@ -253,7 +260,10 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
         <Field label={t("form_title_label")}>
           <Form.Input
             name="title"
-            onChange={(event) => setValues({ ...values, title: event.target.value })}
+            onChange={(event) => {
+              promptEditRef.current += 1
+              setValues({ ...values, title: event.target.value })
+            }}
             placeholder={t("form_title_placeholder")}
             type="text"
             value={values.title}
@@ -263,7 +273,10 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
           <Form.Textarea
             className="font-mono"
             name="prompt"
-            onChange={(event) => setValues({ ...values, prompt: event.target.value })}
+            onChange={(event) => {
+              promptEditRef.current += 1
+              setValues({ ...values, prompt: event.target.value })
+            }}
             placeholder={t("form_prompt_placeholder")}
             ref={promptRef}
             required
@@ -272,11 +285,7 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
           />
         </Field>
         <Field label={t("form_priority_label")}>
-          <Form.Select
-            name="priority"
-            onChange={(event) => setValues({ ...values, priority: event.target.value })}
-            value={values.priority}
-          >
+          <Form.Select name="priority" onChange={(event) => setValues({ ...values, priority: event.target.value })} value={values.priority}>
             {payload.priorities.map((priority) => (
               <option key={priority.value} value={priority.value}>
                 {priority.label} {priority.description ? `- ${priority.description}` : ""}
@@ -346,7 +355,12 @@ function DirectJobForm({ payload, prefix }: { payload: DirectJobFormPayload; pre
         <Button disabled={save.isPending} type="submit">
           {save.isPending ? t("form_creating") : t("form_create_job")}
         </Button>
-        <Link className="text-sm text-gray-600 underline hover:no-underline dark:text-gray-400 dark:hover:text-gray-200" to={withRoutePrefix(payload.dashboard_jobs_path, prefix)}>{t("cancel")}</Link>
+        <Link
+          className="text-sm text-gray-600 underline hover:no-underline dark:text-gray-400 dark:hover:text-gray-200"
+          to={withRoutePrefix(payload.dashboard_jobs_path, prefix)}
+        >
+          {t("cancel")}
+        </Link>
       </div>
       {dialog}
     </form>
