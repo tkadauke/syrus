@@ -1067,8 +1067,12 @@ function JobStateMarkers({ summary }: { summary?: ChatJobSummary }) {
 
 function rollupJobSummaries(chats: ChatNavRecord[]): ChatJobSummary {
   const jobsById = new Map<number, ChatJobSummary["jobs"][number]>()
+  const epics: ChatJobSummary["epics"] = {}
   chats
-    .flatMap((chat) => chat.job_summary?.jobs || [])
+    .flatMap((chat) => {
+      Object.assign(epics, chat.job_summary?.epics)
+      return chat.job_summary?.jobs || []
+    })
     .forEach((job) => {
       const existing = jobsById.get(job.id)
       if (!existing || (!existing.group && job.group)) jobsById.set(job.id, job)
@@ -1076,7 +1080,7 @@ function rollupJobSummaries(chats: ChatNavRecord[]): ChatJobSummary {
   const jobs = Array.from(jobsById.values())
   const active_count = jobs.filter((job) => job.group === "running").length
   const outcome = jobs.some((job) => job.group === "failed") ? "failed" : jobs.some((job) => job.group === "ready") ? "ready" : null
-  return { active_count, outcome, jobs }
+  return { active_count, outcome, jobs, epics }
 }
 
 function IndicatorPopover({ chat, children, prefix, rowHovered }: { chat: ChatNavRecord; children: ReactNode; prefix: string; rowHovered: boolean }) {
@@ -1138,6 +1142,7 @@ function IndicatorPopover({ chat, children, prefix, rowHovered }: { chat: ChatNa
             <div key={group}>
               <div className="text-xs font-medium text-text-secondary">{t(`popover_job_${group}`)}</div>
               <JobActivityRows
+                epics={chat.job_summary?.epics || {}}
                 group={group}
                 onNestedOpenChange={(nestedOpen) => (nestedOpen ? cancelClose() : scheduleClose())}
                 prefix={prefix}
@@ -1223,12 +1228,14 @@ function IndicatorPopover({ chat, children, prefix, rowHovered }: { chat: ChatNa
 }
 
 function JobActivityRows({
+  epics,
   group,
   onNestedOpenChange,
   prefix,
   rows,
   t
 }: {
+  epics: ChatJobSummary["epics"]
   group: "running" | "failed" | "ready"
   onNestedOpenChange: (open: boolean) => void
   prefix: string
@@ -1236,17 +1243,18 @@ function JobActivityRows({
   t: TFunction<"nav">
 }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
-  const epicRows = new Map<number, { epic: NonNullable<ChatJobSummary["jobs"][number]["epic"]>; jobs: ChatJobSummary["jobs"] }>()
+  const epicRows = new Map<number, { epic: ChatJobSummary["epics"][string]; jobs: ChatJobSummary["jobs"] }>()
   const standalone: ChatJobSummary["jobs"] = []
 
   rows.forEach((job) => {
-    if (!job.epic) {
+    const epic = job.epic_id == null ? undefined : epics[String(job.epic_id)]
+    if (!epic) {
       standalone.push(job)
       return
     }
-    const entry = epicRows.get(job.epic.id)
+    const entry = epicRows.get(epic.id)
     if (entry) entry.jobs.push(job)
-    else epicRows.set(job.epic.id, { epic: job.epic, jobs: [job] })
+    else epicRows.set(epic.id, { epic, jobs: [job] })
   })
 
   return (
