@@ -111,10 +111,15 @@ describe("PermissionsSettingsRoute", () => {
       if (path.includes("/permission_rule_drafts/options")) return Promise.resolve(jsonResponse({ options: hubOptions }))
       if (path.endsWith("/permission_rule_drafts/preview")) return Promise.resolve(jsonResponse({ preview: hubPreview }))
       if (path.endsWith("/permission_rule_drafts/apply"))
-        return Promise.resolve(jsonResponse({
-          authority: { kind: "PermissionRule", id: 9, capability: "syrus.jobs@v1", operation: "cancel@v1" },
-          permissions: data
-        }, 201))
+        return Promise.resolve(
+          jsonResponse(
+            {
+              authority: { kind: "PermissionRule", id: 9, capability: "syrus.jobs@v1", operation: "cancel@v1" },
+              permissions: data
+            },
+            201
+          )
+        )
       return Promise.resolve(jsonResponse(data))
     })
     renderRoute()
@@ -171,19 +176,21 @@ describe("PermissionsSettingsRoute", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path.endsWith("/preview_bulk"))
-        return Promise.resolve(jsonResponse({
-          preview: [
-            {
-              action: "grant",
-              policy: "allow",
-              subject: "interactive_chat",
-              capability: "syrus.jobs@v1",
-              operation: "cancel@v1",
-              resource_scope_label: "All resources"
-            }
-          ],
-          confirmation_digest: "signed-preview"
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            preview: [
+              {
+                action: "grant",
+                policy: "allow",
+                subject: "interactive_chat",
+                capability: "syrus.jobs@v1",
+                operation: "cancel@v1",
+                resource_scope_label: "All resources"
+              }
+            ],
+            confirmation_digest: "signed-preview"
+          })
+        )
       if (path.endsWith("/bulk")) return Promise.resolve(jsonResponse({ rules: [] }))
       return Promise.resolve(jsonResponse(payload()))
     })
@@ -334,10 +341,15 @@ function mockHub() {
     if (path.endsWith("/permission_rule_drafts/preview") || path.endsWith("/permission_rule_drafts/from_request"))
       return Promise.resolve(jsonResponse({ preview: hubPreview }))
     if (path.endsWith("/permission_rule_drafts/apply"))
-      return Promise.resolve(jsonResponse({
-        authority: { kind: "PermissionRule", id: 5, capability: "syrus.jobs@v1", operation: "cancel@v1" },
-        permissions: payload()
-      }, 201))
+      return Promise.resolve(
+        jsonResponse(
+          {
+            authority: { kind: "PermissionRule", id: 5, capability: "syrus.jobs@v1", operation: "cancel@v1" },
+            permissions: payload()
+          },
+          201
+        )
+      )
     return Promise.resolve(jsonResponse(payload()))
   })
 }
