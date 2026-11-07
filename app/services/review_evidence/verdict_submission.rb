@@ -2,7 +2,7 @@ module ReviewEvidence::VerdictSubmission
   module_function
 
   def call!(run:, artifact_key:, review_kind:, critique:, verdict:, key_learning: nil)
-    evidence = run.review_evidence
+    evidence = ReviewEvidence.find_by(run_id: run.id)
     if evidence
       ReviewEvidence::VerifySubmission.call!(
         evidence: evidence,
