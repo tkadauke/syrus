@@ -69,6 +69,21 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", :ci_only, type: :request do
       expect(artifact_queries.size).to eq(1)
     end
 
+    it "caps nested workflows and keeps heavyweight fields opt-in" do
+      4.times do |index|
+        workflow = Workflow.create!(job: job, trigger_kind: "retry")
+        workflow.set_artifact!("attempt", index)
+      end
+
+      get "/api/v1/admin/jobs/#{job.id}", headers: auth(admin_token)
+      expect(parse_body["workflows"].size).to eq(3)
+      expect(parse_body["workflows"]).to all(satisfy { |workflow| !workflow.key?("artifacts") })
+
+      get "/api/v1/admin/jobs/#{job.id}", params: { workflows: "latest", verbose: 1 }, headers: auth(admin_token)
+      expect(parse_body["workflows"].size).to eq(1)
+      expect(parse_body.dig("workflows", 0)).to have_key("artifacts")
+    end
+
     it "resolves a job by its human-readable slug" do
       slugged = Factories.job(user: admin, issue_title: "Invite the statues to speak")
 
@@ -408,7 +423,7 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", :ci_only, type: :request do
       ProviderSession.create!(resumable: run, provider: "codex", session_id: "abc-123",
                             transcript_jsonl: "{\"a\":1}\n{\"b\":2}\n")
 
-      get "/api/v1/admin/jobs/#{job.id}", headers: auth(admin_token)
+      get "/api/v1/admin/jobs/#{job.id}", params: { verbose: 1 }, headers: auth(admin_token)
       body = parse_body
 
       expect(body["id"]).to eq(job.id)

@@ -76,7 +76,7 @@ module Api
         end
 
         def show
-          job = find_job_by_ref(Job.includes(workflows: [ :workflow_artifact_values, { steps: :runs } ]), params[:id])
+          job = find_job_by_ref(Job.includes(:repository, :user, :owner_user), params[:id])
           payload = serialize(job)
           payload[:github_pr] = github_pr_snapshot(job) if truthy?(params[:include_github])
           render json: payload
@@ -370,10 +370,24 @@ module Api
             pr_checks_attribution: (PrCheckAttribution.for(job)&.to_h if job.pr_checks_state == "failing"),
             created_at: job.created_at,
             updated_at: job.updated_at,
-            workflows: job.workflows.sort_by(&:created_at).map { |wf| ::Admin::JobStateSerializer.workflow(wf) }
+            workflows: selected_workflows(job).map { |wf| ::Admin::JobStateSerializer.workflow(wf, verbose: verbose?) }
           }
         rescue => e
           ::Admin::JobStateSerializer.per_record_error(job, e)
+        end
+
+        def selected_workflows(job)
+          limit = params[:workflows].to_s == "latest" ? 1 : (Integer(params[:workflows], exception: false) || 3).clamp(1, 100)
+          job.workflows
+            .includes(:workflow_artifact_values, steps: { runs: [ :run_diagnostic, :run_failure_classification, :provider_session, :job_logs ] })
+            .order(created_at: :desc, id: :desc)
+            .limit(limit)
+            .to_a
+            .reverse
+        end
+
+        def verbose?
+          truthy?(params[:verbose])
         end
 
         def github_pr_snapshot(job)

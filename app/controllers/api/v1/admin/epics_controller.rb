@@ -206,7 +206,7 @@ module Api
             depends_on_epic_ids: epic.dependencies.map(&:depends_on_epic_id).compact,
             dependent_epic_ids:  epic.dependent_links.map(&:epic_id),
             pending_epic_dependency_refs: epic.pending_epic_dependency_refs,
-            jobs: epic.jobs.map { |j| serialize_child_job(j) }
+            jobs: include_jobs? ? epic.jobs.map { |j| serialize_child_job(j) } : []
           }
         rescue => e
           { error_serializing: "#{e.class}: #{e.message}" }
@@ -245,6 +245,10 @@ module Api
           return "mine" if epic.owner_user_id == current_api_user.id
 
           "other_owned"
+        end
+
+        def include_jobs?
+          params[:jobs].nil? || truthy?(params[:jobs])
         end
 
         def owner_user_json(owner_user)

@@ -14,7 +14,8 @@ module Api
             ::Throughput::AdminMetricsPayload.new(
               repository: repository_filter,
               since: params[:since],
-              until_time: params[:until]
+              until_time: params[:until],
+              granularity: params[:granularity]
             ).as_json
           }
         end
