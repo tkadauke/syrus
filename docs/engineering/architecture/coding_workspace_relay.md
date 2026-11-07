@@ -171,7 +171,7 @@ waking the agent into a half-prepared checkout.
 
 The chat queue must run on exactly one worker pod. Chat workspaces are on local
 disk and the relay address recorded in the DB points to that pod. Do not put the
-`chat` queue on multiple pods or scale it past one replica. See `multi_worker.md`
+`chat` queue on multiple pods or scale it past one replica. See [Multi-worker architecture](multi-worker.md)
 for the full constraint. `workspace_storage_key` routing (above) makes relay
 *refresh* resilient to that constraint being violated — a scaled-out `chat`
 queue no longer strands the refresh on a pod without the checkout — but it does
