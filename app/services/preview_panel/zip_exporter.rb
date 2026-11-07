@@ -8,6 +8,12 @@ class PreviewPanel::ZipExporter
 
   # Returns the zip archive as a binary String, suitable for send_data.
   def call
+    Rails.cache.fetch([ "preview-panel-export", version.id ]) { build_zip }
+  end
+
+  private
+
+  def build_zip
     buffer = Zip::OutputStream.write_buffer do |zip|
       version.files.each do |attachment|
         zip.put_next_entry(attachment.blob.metadata["relative_path"])
@@ -16,8 +22,6 @@ class PreviewPanel::ZipExporter
     end
     buffer.string
   end
-
-  private
 
   attr_reader :version
 end
