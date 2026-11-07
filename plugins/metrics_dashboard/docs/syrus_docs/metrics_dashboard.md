@@ -189,7 +189,7 @@ has two very different causes and an empty chart does not distinguish them.
 ## Plugin tabs
 
 Core panels are not the whole page. Any other plugin that declares its own Prometheus metrics (via the
-manifest's `metrics do ... end` block, see `config/syrus_docs/metrics.md`) can contribute a tab of its own,
+manifest's `metrics do ... end` block, see `docs/engineering/architecture/metrics.md`) can contribute a tab of its own,
 without this plugin ever naming it -- the same reason a contributing plugin staying independently deletable
 matters (`bin/plugin-boundary-audit`) applies between this plugin and its contributors, not just between a
 plugin and core.

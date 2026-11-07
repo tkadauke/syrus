@@ -136,7 +136,7 @@ When `consecutive_failure_count` reaches `AppSetting.max_job_failures` (default:
 
 An auto-paused task stops firing silently -- nothing about it looks different from a task nobody has touched
 in a while, which is exactly what makes it easy to miss. While enabled, the plugin exports
-`syrus_scheduled_tasks_autopaused_total` (a gauge) to `/metrics` (see `config/syrus_docs/metrics.md`): the
+`syrus_scheduled_tasks_autopaused_total` (a gauge) to `/metrics` (see `docs/engineering/operations/metrics.md`): the
 count of tasks currently in the `auto_paused` state, so a silently-stopped cron task shows up on a dashboard
 the same way a stalled queue does. It uses the declarative sample-block form of the manifest `metrics` DSL
 (`gauge :autopaused_total do ... end`, see `Syrus::PluginApi::Definition#metrics`), so it is sampled once a

@@ -15,5 +15,9 @@ recovering Syrus itself. Operator feature instructions remain in
 - [Releasing](../../releasing.md)
 - [macOS worker updates](macos_worker_updates.md)
 - [Docker Compose](docker_compose.md)
+- [Multi-worker operations](multi-worker.md) — queue partitioning, native
+  macOS workers, storage remediation, and capacity sizing.
+- [Metrics operations](metrics.md) — scrape authentication, readiness, alert
+  rules, and the operator metric catalog.
 
 Return to the [engineering documentation index](../README.md).

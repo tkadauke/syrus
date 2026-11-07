@@ -756,7 +756,7 @@ Rails.application.routes.draw do
   get "readyz" => "readiness#show", as: :readiness_check
 
   # Prometheus scrape endpoint. Aggregate, label-bounded metrics only; see
-  # config/syrus_docs/metrics.md.
+  # docs/engineering/operations/metrics.md.
   get "metrics" => "metrics#show", as: :metrics
 
   # Render dynamic PWA files from app/views/pwa/* (remember to link manifest in application.html.erb)

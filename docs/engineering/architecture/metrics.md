@@ -290,7 +290,7 @@ duration for the whole Step rather than one per Run.
 `syrus_admission_decisions_total` is a cluster-backed GLOBAL counter. Admission
 decisions happen inline in
 `WorkflowAdmissionBudget#call` and `RunHostAdmission#call` -- see
-`config/syrus_docs/multi_worker.md` -- and the counter is incremented at the
+`docs/engineering/architecture/multi-worker.md` -- and the counter is incremented at the
 exact moment a decision is produced, in whichever process (web or worker)
 made it. It is declared once, in `WorkflowAdmissionBudget`, and
 `RunHostAdmission` increments the same declared counter for its own
