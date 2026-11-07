@@ -8,12 +8,16 @@ RSpec.describe Workflows::ReviewGateRegistry do
     Class.new do
       include Syrus::Plugin::ReviewGate
 
+      class << self
+        attr_accessor :gate_enabled
+      end
+
       def self.review_gates
         [ {
           key: "synthetic", step_kind: "synthetic_review", slot: "after_agent",
           after: %w[security], before: %w[coworker],
           enabled_resolver: ->(job:, trigger_kind:, syrus_yml:, **) {
-            job.present? && trigger_kind.present? && [ nil, :project_overlay ].include?(syrus_yml)
+            gate_enabled != false && job.present? && trigger_kind.present? && [ nil, :project_overlay ].include?(syrus_yml)
           },
           loop_budget: 2, repair_step: ->(agent_step:, **) { agent_step },
           handler_provider: "Synthetic::ReviewStep", prompt_provider: "Synthetic::ReviewPrompt",
@@ -26,6 +30,7 @@ RSpec.describe Workflows::ReviewGateRegistry do
   end
 
   before do
+    fake_provider.gate_enabled = true
     allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:review_gate).and_return([ fake_provider ])
     allow(RepoAdversarialReviewPlan).to receive(:for_job).and_return(double(enabled?: false, rounds: 0, source: "none", note: "disabled"))
@@ -77,7 +82,22 @@ RSpec.describe Workflows::ReviewGateRegistry do
     expect(
       described_class.continuation_steps(
         loop_steps: %w[implement synthetic_review],
-        snapshotted_step_kinds: %w[synthetic_review]
+        snapshotted_step_kinds: %w[synthetic_review],
+        job: job,
+        trigger_kind: :initial
+      )
+    ).to eq(%w[implement])
+  end
+
+  it "re-resolves contribution enablement between iterations" do
+    fake_provider.gate_enabled = false
+
+    expect(
+      described_class.continuation_steps(
+        loop_steps: %w[implement synthetic_review],
+        snapshotted_step_kinds: %w[synthetic_review],
+        job: job,
+        trigger_kind: :initial
       )
     ).to eq(%w[implement])
   end
@@ -103,11 +123,25 @@ RSpec.describe Workflows::ReviewGateRegistry do
     )
   end
 
+  it "preserves the visual-review exclusion for external PR feedback" do
+    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(double(enabled?: true, rounds: 1))
+
+    gates = described_class.for(
+      slot: :after_agent,
+      job: job,
+      agent_step: :respond,
+      trigger_kind: :external_pr_feedback
+    )
+
+    expect(gates.map(&:key)).to include("synthetic")
+    expect(gates.map(&:key)).not_to include("visual")
+  end
+
   it "lets every host workflow builder iterate the same contribution contract" do
     allow(RepoDefaultBranchSyrusYml).to receive(:for_job).and_return(:project_overlay)
     builders = [
       Workflows::Initial, Workflows::Retry, Workflows::PrFeedback,
-      Workflows::ChatFeedback, Workflows::CodingHandoff
+      Workflows::ChatFeedback, Workflows::ExternalPrFeedback, Workflows::CodingHandoff
     ]
 
     builders.each do |builder|

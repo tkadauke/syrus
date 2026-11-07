@@ -8,7 +8,14 @@ RSpec.describe "security review workflow loop" do
       source: ".syrus.yml", note: nil
     )
 
-    loop_node = Workflows::Base.security_review_loop(job, agent_step: :implement, syrus_yml: loaded)
+    allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml).and_return(
+      RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "disabled", criteria: [])
+    )
+    allow(RepoCoworkerReviewPlan).to receive(:from_syrus_yml).and_return(double(enabled?: false))
+    allow(RepoVisualReviewPlan).to receive(:for_job).and_return(double(enabled?: false, rounds: 0))
+
+    loop_node = Workflows::Initial.review_gate_loops(job, agent_step: :implement, syrus_yml: loaded)
+      .find { |loop| loop.steps.last == "security_review" }
 
     expect(loop_node.max_iterations).to eq(3)
     expect(loop_node.steps).to eq(%w[implement security_review])
