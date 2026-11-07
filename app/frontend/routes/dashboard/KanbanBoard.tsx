@@ -1,6 +1,7 @@
 import {
   epicApparentState,
   EpicProgressBar,
+  EpicExecutionBlockedHint,
   EpicStuckBadge,
   ExternalMetadataLink,
   ExternalPrBadge,
@@ -327,6 +328,7 @@ function KanbanCard({
             repository={item.repository}
           />
         </div>
+        <EpicExecutionBlockedHint names={item.execution_blocked_on} />
       </div>
       <EpicProgressBar epic={item} fullWidth />
     </article>

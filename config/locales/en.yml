@@ -427,7 +427,7 @@ en:
       tag_not_found: "Tag not found."
       choose_tag: "Choose or enter a tag."
       product_owner_epic_start_forbidden: "Product owners cannot advance Epics beyond backlog."
-      none_epics_ready: "No selected Epics were ready to start."
+      none_epics_startable: "No selected Epics can start implementing."
       retry_enqueued:
         one: "Retry enqueued for 1 job."
         other: "Retry enqueued for %{count} jobs."

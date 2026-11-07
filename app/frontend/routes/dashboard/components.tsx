@@ -128,6 +128,13 @@ export function EpicStuckBadge({ stuck }: { stuck: boolean }) {
   )
 }
 
+export function EpicExecutionBlockedHint({ names }: { names: string[] }) {
+  const { t } = useT("dashboard")
+  if (names.length === 0) return null
+
+  return <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">{t("epic_implementation_waiting_on_dependencies", { names: names.join(", ") })}</p>
+}
+
 export function ExternalPrBadge({ external }: { external?: boolean }) {
   const { t } = useT("dashboard")
   if (!external) return null

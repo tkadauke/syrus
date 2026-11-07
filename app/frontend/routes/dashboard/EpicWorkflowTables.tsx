@@ -4,6 +4,7 @@ import {
   TimestampCell,
   useMediaQuery,
   EpicCommitsBehindBadge,
+  EpicExecutionBlockedHint,
   EpicProgressBar,
   EpicStuckBadge,
   NeutralStatePill,
@@ -237,6 +238,7 @@ function MobileEpicRow({
         {compactText(epic.description) ? (
           <p className="mt-1 line-clamp-2 text-sm leading-snug text-gray-500 dark:text-gray-400">{compactText(epic.description)}</p>
         ) : null}
+        <EpicExecutionBlockedHint names={epic.execution_blocked_on} />
         <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
           <RepositorySlugLink prefix={prefix} repository={epic.repository} />
           <OwnerBadge badge={epic.owner_badge} />
@@ -295,6 +297,7 @@ function EpicCell({
           <EpicStuckBadge stuck={epic.stuck} />
           <EpicCommitsBehindBadge commits={epic.max_commits_behind_base} />
         </div>
+        <EpicExecutionBlockedHint names={epic.execution_blocked_on} />
         {showProgress ? (
           <div className="absolute inset-x-0 bottom-0">
             <EpicProgressBar epic={epic} fullWidth />

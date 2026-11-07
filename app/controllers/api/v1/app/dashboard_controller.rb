@@ -677,8 +677,8 @@ module Api
           skipped_ids = []
 
           epics.find_each do |epic|
-            if RepositoryPolicy.new(Current.user, epic.repository).write? && epic.ready? && epic.may_start?(actor: Current.user)
-              epic.start!(actor: Current.user)
+            if RepositoryPolicy.new(Current.user, epic.repository).write? && epic.may_start_implementing?(actor: Current.user)
+              epic.start_implementing!(actor: Current.user)
               started_ids << epic.id
             else
               skipped_ids << epic.id
@@ -686,7 +686,7 @@ module Api
           end
 
           if started_ids.empty?
-            render_error("validation_failed", dashboard_t("none_epics_ready"), status: :unprocessable_content)
+            render_error("validation_failed", dashboard_t("none_epics_startable"), status: :unprocessable_content)
           else
             render_epic_bulk_success(
               dashboard_t("epics_started", count: started_ids.size),
