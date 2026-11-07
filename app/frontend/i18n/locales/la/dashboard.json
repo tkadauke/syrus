@@ -258,5 +258,6 @@
     "delivery_needs_attention": "Traditio attentionem requirit"
   },
   "epic_commits_behind_one": "{{count}} comissio post",
-  "epic_commits_behind_other": "{{count}} comissiones post"
+  "epic_commits_behind_other": "{{count}} comissiones post",
+  "epic_implementation_waiting_on_dependencies": "Effectio coepta est; Job filii exspectant {{names}}"
 }

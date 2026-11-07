@@ -402,6 +402,7 @@ module App
           child_progress_percent: epic_child_progress_percent(child_jobs, stats),
           dependency_count: epic_dependency_count(epic),
           has_epic_dependency: epic_dependency_count(epic).positive?,
+          execution_blocked_on: epic.in_progress? ? epic.unfinished_dependency_names : [],
           job_state_counts: epic_job_state_counts(child_jobs, stats),
           max_commits_behind_base: epic_max_commits_behind_base(child_jobs, stats),
           created_at: epic.created_at&.iso8601,

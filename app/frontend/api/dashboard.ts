@@ -269,6 +269,7 @@ export type DashboardEpicItem = {
   child_progress_percent?: number
   dependency_count?: number
   has_epic_dependency?: boolean
+  execution_blocked_on: string[]
   job_state_counts: Record<string, number>
   max_commits_behind_base: number | null
   created_at: string | null

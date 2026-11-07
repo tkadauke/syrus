@@ -76,17 +76,26 @@ module Api
           epic = Current.user.epics.new(attrs)
           start_requested = ActiveModel::Type::Boolean.new.cast(params[:start])
 
-          if epic.save
-            started = start_requested && start_created_epic!(epic)
+          if start_requested
+            Epic.transaction do
+              epic.save!
+              start_created_epic!(epic)
+            end
+            started = true
+          else
+            epic.save!
+            started = false
+          end
+
+          if epic.persisted?
             Metrics::ProductUsage.record(:epic_created)
             message = started ? I18n.t("api.epics.created_and_started") : I18n.t("api.epics.created")
             render json: saved_payload(epic, message: message), status: :created
-          else
-            render_error("validation_failed", epic.errors.full_messages.to_sentence, status: :unprocessable_content)
           end
         rescue Epic::NotStartable => e
-          epic.destroy! if epic&.persisted?
           render_error("epic_not_startable", e.message, status: :unprocessable_content)
+        rescue ActiveRecord::RecordInvalid => e
+          render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         end
 
         def update

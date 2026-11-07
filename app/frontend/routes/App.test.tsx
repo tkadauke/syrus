@@ -18781,6 +18781,7 @@ function dashboardEpicItem(overrides: Record<string, unknown> = {}) {
     jobs_count: 1,
     landed_jobs_count: 0,
     job_state_counts: {},
+    execution_blocked_on: [],
     created_at: "2026-05-30T10:00:00Z",
     updated_at: "2026-05-30T12:00:00Z",
     done_at: null,
