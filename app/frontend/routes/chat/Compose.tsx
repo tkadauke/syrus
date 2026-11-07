@@ -34,6 +34,7 @@ import {
 } from "../../api/videoWalkthroughs"
 import { MAX_TRANSCRIPTION_BYTES, MIN_TRANSCRIPTION_BYTES, startChatAudioStream, transcribeChatAudio } from "../../api/speechToText"
 import { getAppConsumer } from "../../lib/actionCable"
+import { ApiError } from "../../api/client"
 import { mergeChatPayloadUpdate, refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
 import {
   branchChat,
@@ -779,6 +780,7 @@ export function Compose({
           expected_version: result.payload.version
         })
       }
+      if (result.status === 409) throw new ApiError(t("canvas_clear_conflict"), { status: 409 })
       queryClient.setQueryData(queryKey, (currentPayload: ChatPayload | undefined) =>
         currentPayload
           ? {
