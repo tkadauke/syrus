@@ -8,6 +8,7 @@ import type { ChatNavRecord, ChatPayload, WhiteboardSnapshot } from "../../api/c
 import { buttonClasses } from "../../components/Button"
 import { formatNumber } from "../../lib/format"
 import { CHAT_ENTER_SUBMIT_MIN_WIDTH } from "./constants"
+import { calendarDayKey, intlLocale, validTimeZone } from "../../lib/relativeTime"
 
 export function stringValue(value: unknown) {
   return typeof value === "string" ? value : value == null ? "" : String(value)
@@ -73,12 +74,8 @@ export function providerLabel(provider: string, labels: Record<string, string | 
   return labels[provider] || provider
 }
 
-export function startOfLocalDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
-}
-
-export function sameLocalDay(left: Date, right: Date) {
-  return left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth() && left.getDate() === right.getDate()
+export function sameLocalDay(left: Date, right: Date, timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone) {
+  return calendarDayKey(left, timeZone) === calendarDayKey(right, timeZone)
 }
 
 export function appendSearch(path: string, search: string) {
@@ -109,15 +106,17 @@ export function diffLineClass(line: string): string {
   return "text-gray-800 dark:text-gray-200"
 }
 
-export function dayDividerLabel(date: Date) {
-  const today = startOfLocalDay(new Date())
-  const candidate = startOfLocalDay(date)
-  const dayDelta = Math.round((today.getTime() - candidate.getTime()) / (24 * 60 * 60 * 1000))
+export function dayDividerLabel(date: Date, timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone, now = new Date()) {
+  const candidate = calendarDayKey(date, timeZone)
+  const today = calendarDayKey(now, timeZone)
+  const [year, month, day] = candidate.split("-").map(Number)
+  const [todayYear, todayMonth, todayDay] = today.split("-").map(Number)
+  const dayDelta = Math.round((Date.UTC(todayYear, todayMonth - 1, todayDay) - Date.UTC(year, month - 1, day)) / (24 * 60 * 60 * 1000))
 
   if (dayDelta === 0) return "Today"
   if (dayDelta === 1) return "Yesterday"
 
-  return date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })
+  return new Intl.DateTimeFormat(intlLocale(), { timeZone: validTimeZone(timeZone), weekday: "long", month: "long", day: "numeric" }).format(date)
 }
 
 export function codingFilesTabVisible(payload: ChatPayload): boolean {

@@ -788,6 +788,9 @@ process `TZ` is accepted only when `SYRUS_TIME_ZONE` is absent; otherwise Syrus
 uses `Etc/UTC`. Persisted instants and MySQL sessions remain UTC regardless of
 the presentation zone. Signed-in browsers report their IANA zone automatically;
 automatic user zones can follow travel, while a manual override remains fixed.
+Calendar labels and chat date groups follow that user zone. Operational
+schedule and wakeup times show both labeled user and server values when the
+zones differ, while the stored instant remains UTC.
 Web pods do not need clone storage. The mounted directory must be writable
 by the container's `rails` user (`1000:1000`); the published Docker images
 create `/home/rails/.syrus` with that ownership so a fresh named volume can

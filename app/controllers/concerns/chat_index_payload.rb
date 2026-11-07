@@ -316,6 +316,27 @@ module ChatIndexPayload
     end
     return special_specs if page_keys.empty?
 
+    if chat_index_settings.fetch(:group_by) == "date"
+      zone = ActiveSupport::TimeZone[Current.user.time_zone]
+      first_date = Date.iso8601(page_keys.last)
+      last_date = Date.iso8601(page_keys.first)
+      start_at = zone.local(first_date.year, first_date.month, first_date.day)
+      end_date = last_date.next_day
+      end_at = zone.local(end_date.year, end_date.month, end_date.day)
+      chats_by_date = chat_index_base_scope.active.ordinary_chats
+        .where("#{chat_activity_order_sql} >= ? AND #{chat_activity_order_sql} < ?", start_at, end_at)
+        .order(Arel.sql(chat_index_order_sql))
+        .preload(*chat_repository_preloads)
+        .group_by { |chat| chat_activity_at(chat).in_time_zone(zone).to_date.iso8601 }
+      return special_specs + page_keys.map do |group_key|
+        group_chats = chats_by_date.fetch(group_key, [])
+        chat_index_group_spec_for(group_key, repository_id: nil, repositories_by_id: {}).merge(
+          chats: group_chats.first(chat_index_group_size),
+          has_more: group_chats.size > chat_index_group_size
+        )
+      end
+    end
+
     rows = chat_index_initial_group_rows
     chat_ids = rows.map { |row| row.fetch("chat_session_id").to_i }.uniq
     repository_ids = rows.filter_map { |row| row.fetch("repository_id")&.to_i }.uniq
@@ -380,11 +401,22 @@ module ChatIndexPayload
 
   def chat_index_group_page
     @chat_index_group_page ||= begin
-      rows = ActiveRecord::Base.connection.select_all(chat_index_group_page_sql).to_a
-      limited_rows = rows.first(CHAT_INDEX_GROUP_PAGE_SIZE)
+      date_grouping = chat_index_settings.fetch(:group_by) == "date"
+      keys = if date_grouping
+        chat_index_base_scope.active.ordinary_chats
+          .pluck(:last_message_at, :created_at)
+          .map { |last_message_at, created_at| (last_message_at || created_at).in_time_zone(Current.user.time_zone).to_date.iso8601 }
+          .uniq
+          .sort
+          .reverse
+      else
+        ActiveRecord::Base.connection.select_all(chat_index_group_page_sql).map { |row| row.fetch("group_key").to_s }
+      end
+      page = (date_grouping ? keys.drop(chat_index_group_offset) : keys).first(CHAT_INDEX_GROUP_PAGE_SIZE + 1)
+      limited_keys = page.first(CHAT_INDEX_GROUP_PAGE_SIZE)
       {
-        keys: limited_rows.map { |row| row.fetch("group_key").to_s },
-        has_more: rows.size > CHAT_INDEX_GROUP_PAGE_SIZE
+        keys: limited_keys,
+        has_more: page.size > CHAT_INDEX_GROUP_PAGE_SIZE
       }
     end
   end
@@ -461,6 +493,14 @@ module ChatIndexPayload
       .ordinary_chats
       .order(Arel.sql(chat_index_order_sql))
     scope = scope.left_outer_joins(:repository_attachments) if group_by == "repository"
+
+    if group_by == "date"
+      date = Date.iso8601(group_key)
+      zone = ActiveSupport::TimeZone[Current.user.time_zone]
+      start_at = zone.local(date.year, date.month, date.day)
+      end_at = zone.local(date.next_day.year, date.next_day.month, date.next_day.day)
+      return scope.where("#{chat_activity_order_sql} >= ? AND #{chat_activity_order_sql} < ?", start_at, end_at)
+    end
 
     scope.where(chat_index_group_match_sql(group_by), group_key)
   end
@@ -647,7 +687,7 @@ module ChatIndexPayload
 
   def chat_index_date_label(group_key)
     date = Date.iso8601(group_key)
-    today = Time.zone.today
+    today = Time.current.in_time_zone(Current.user.time_zone).to_date
     return "Today" if date == today
     return "Yesterday" if date == today - 1
 
