@@ -719,19 +719,23 @@ export function fetchRepositoryDetail(id: string, search = "") {
 export function fetchRepositoryJobs(id: string, search = "") {
   return getJson<Pick<RepositoryDetailPayload, "jobs" | "pagination"> & { provider_availability?: Record<string, ProviderAvailability> }>(
     `/api/v1/app/repositories/${id}/jobs${search}`
-  ).then(hydrateRepositoryJobs)
+  )
+    .then(hydrateRepositoryJobs)
+    .then(({ jobs, pagination }) => ({ jobs, pagination }))
 }
 
 export function fetchRepositoryHealthHistory(id: string) {
-  return getJson<Pick<RepositoryDetailPayload, "health_history">>(`/api/v1/app/repositories/${id}/health_history`)
+  return getJson<Pick<RepositoryDetailPayload, "health_history">>(`/api/v1/app/repositories/${id}/health_history`).then(({ health_history }) => ({
+    health_history
+  }))
 }
 
 export function fetchRepositoryDelivery(id: string) {
-  return getJson<Pick<RepositoryDetailPayload, "delivery">>(`/api/v1/app/repositories/${id}/delivery`)
+  return getJson<Pick<RepositoryDetailPayload, "delivery">>(`/api/v1/app/repositories/${id}/delivery`).then(({ delivery }) => ({ delivery }))
 }
 
 export function fetchRepositorySyrusYml(id: string) {
-  return getJson<Pick<RepositoryDetailPayload, "syrus_yml">>(`/api/v1/app/repositories/${id}/syrus_yml`)
+  return getJson<Pick<RepositoryDetailPayload, "syrus_yml">>(`/api/v1/app/repositories/${id}/syrus_yml`).then(({ syrus_yml }) => ({ syrus_yml }))
 }
 
 // Fetched on its own rather than inside the detail payload: the rollup walks
