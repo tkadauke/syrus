@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { jsonResponse } from "../testSupport"
@@ -10,16 +10,16 @@ import * as useConfirmModule from "../hooks/useConfirm"
 const template1 = {
   id: "add-github-actions-ci",
   name: "Add GitHub Actions CI",
-  description: "Add a CI workflow that runs tests.",
-  prompt: "Add a GitHub Actions CI workflow."
+  description: "Add a CI workflow that runs tests."
 }
+const template1Prompt = "Add a GitHub Actions CI workflow."
 
 const template2 = {
   id: "update-dependencies",
   name: "Update dependencies",
-  description: "Update all packages to latest.",
-  prompt: "Update all packages to their latest compatible versions."
+  description: "Update all packages to latest."
 }
+const template2Prompt = "Update all packages to their latest compatible versions."
 
 function formPayload(overrides: Partial<DirectJobFormPayload> = {}): DirectJobFormPayload {
   return {
@@ -50,8 +50,19 @@ function formPayload(overrides: Partial<DirectJobFormPayload> = {}): DirectJobFo
   }
 }
 
-function renderRoute(payload = formPayload()) {
-  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
+function renderRoute(payload = formPayload(), fetchTemplate?: (id: string) => Promise<Response>) {
+  vi.spyOn(window, "fetch").mockImplementation((input) => {
+    const path = typeof input === "string" ? input : input.url
+    if (path.endsWith(`/prompt_templates/${template1.id}`)) {
+      if (fetchTemplate) return fetchTemplate(template1.id)
+      return Promise.resolve(jsonResponse({ id: template1.id, prompt: template1Prompt }))
+    }
+    if (path.endsWith(`/prompt_templates/${template2.id}`)) {
+      if (fetchTemplate) return fetchTemplate(template2.id)
+      return Promise.resolve(jsonResponse({ id: template2.id, prompt: template2Prompt }))
+    }
+    return Promise.resolve(jsonResponse(payload))
+  })
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
@@ -77,13 +88,15 @@ describe("DirectJobNew agent provider icon", () => {
   })
 
   it("renders the selected provider's icon at the expected size", async () => {
-    renderRoute(formPayload({
-      selected_agent_provider: "claude",
-      configured_agent_providers: [
-        { value: "claude", label: "Claude" },
-        { value: "codex", label: "Codex" }
-      ]
-    }))
+    renderRoute(
+      formPayload({
+        selected_agent_provider: "claude",
+        configured_agent_providers: [
+          { value: "claude", label: "Claude" },
+          { value: "codex", label: "Codex" }
+        ]
+      })
+    )
 
     const select = await screen.findByRole("combobox", { name: "Agent" })
     const icon = select.parentElement?.querySelector('img[src="/plugin-icons/claude_agent.svg"]')
@@ -92,13 +105,15 @@ describe("DirectJobNew agent provider icon", () => {
   })
 
   it("falls back to the repository's default provider icon when no explicit provider is selected", async () => {
-    renderRoute(formPayload({
-      selected_agent_provider: null,
-      configured_agent_providers: [
-        { value: "claude", label: "Claude" },
-        { value: "codex", label: "Codex" }
-      ]
-    }))
+    renderRoute(
+      formPayload({
+        selected_agent_provider: null,
+        configured_agent_providers: [
+          { value: "claude", label: "Claude" },
+          { value: "codex", label: "Codex" }
+        ]
+      })
+    )
 
     const select = await screen.findByRole("combobox", { name: "Agent" })
     const icon = select.parentElement?.querySelector('img[src="/plugin-icons/claude_agent.svg"]')
@@ -110,10 +125,12 @@ describe("DirectJobNew epic linking", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("shows which epic the job will join when the form payload targets one", async () => {
-    renderRoute(formPayload({
-      selected_epic_id: "7",
-      epic: { id: 7, display_number: "EPIC-7", title: "Ship the thing" }
-    }))
+    renderRoute(
+      formPayload({
+        selected_epic_id: "7",
+        epic: { id: 7, display_number: "EPIC-7", title: "Ship the thing" }
+      })
+    )
 
     const link = await screen.findByRole("link", { name: "EPIC-7 · Ship the thing" })
     expect(link).toHaveAttribute("href", "/epics/7")
@@ -131,18 +148,36 @@ describe("DirectJobNew epic linking", () => {
     vi.spyOn(window, "fetch").mockImplementation((_url, init) => {
       if (init?.method === "POST") {
         submittedBody = init.body as FormData
-        return Promise.resolve(jsonResponse({
-          message: "Direct job created.",
-          create_more: false,
-          redirect_to: "/jobs/99",
-          job: { id: 99, title: "Ship the thing", state: "queued", repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", default_agent_provider: "claude", default_agent_provider_label: "Claude" }, job_path: "/jobs/99" }
-        }))
+        return Promise.resolve(
+          jsonResponse({
+            message: "Direct job created.",
+            create_more: false,
+            redirect_to: "/jobs/99",
+            job: {
+              id: 99,
+              title: "Ship the thing",
+              state: "queued",
+              repository: {
+                id: 1,
+                slug: "acme/widgets",
+                repository_path: "/repositories/1",
+                default_agent_provider: "claude",
+                default_agent_provider_label: "Claude"
+              },
+              job_path: "/jobs/99"
+            }
+          })
+        )
       }
 
-      return Promise.resolve(jsonResponse(formPayload({
-        selected_epic_id: "7",
-        epic: { id: 7, display_number: "EPIC-7", title: "Ship the thing" }
-      })))
+      return Promise.resolve(
+        jsonResponse(
+          formPayload({
+            selected_epic_id: "7",
+            epic: { id: 7, display_number: "EPIC-7", title: "Ship the thing" }
+          })
+        )
+      )
     })
 
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -177,8 +212,10 @@ describe("DirectJobNew template selection", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /Add GitHub Actions CI/i }))
 
-    expect((screen.getByRole("textbox", { name: "Title" }) as HTMLInputElement).value).toBe(template1.name)
-    expect((screen.getByRole("textbox", { name: "Prompt" }) as HTMLTextAreaElement).value).toBe(template1.prompt)
+    await waitFor(() => {
+      expect(screen.getByRole("textbox", { name: "Title" })).toHaveValue(template1.name)
+      expect(screen.getByRole("textbox", { name: "Prompt" })).toHaveValue(template1Prompt)
+    })
   })
 
   it("clicking a second template updates both title and prompt when no manual edits were made", async () => {
@@ -187,8 +224,10 @@ describe("DirectJobNew template selection", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Add GitHub Actions CI/i }))
     fireEvent.click(screen.getByRole("button", { name: /Update dependencies/i }))
 
-    expect((screen.getByRole("textbox", { name: "Title" }) as HTMLInputElement).value).toBe(template2.name)
-    expect((screen.getByRole("textbox", { name: "Prompt" }) as HTMLTextAreaElement).value).toBe(template2.prompt)
+    await waitFor(() => {
+      expect(screen.getByRole("textbox", { name: "Title" })).toHaveValue(template2.name)
+      expect(screen.getByRole("textbox", { name: "Prompt" })).toHaveValue(template2Prompt)
+    })
   })
 
   it("does not prompt for confirmation when switching templates without manual edits", async () => {
@@ -197,6 +236,7 @@ describe("DirectJobNew template selection", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Add GitHub Actions CI/i }))
     fireEvent.click(screen.getByRole("button", { name: /Update dependencies/i }))
 
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Prompt" })).toHaveValue(template2Prompt))
     expect(mockConfirm).not.toHaveBeenCalled()
   })
 
@@ -208,7 +248,9 @@ describe("DirectJobNew template selection", () => {
     fireEvent.click(screen.getByRole("button", { name: /Add GitHub Actions CI/i }))
 
     await waitFor(() => {
-      expect(mockConfirm).toHaveBeenCalledWith(expect.objectContaining({ message: "Are you sure you want to apply this template? All of your changes will be lost." }))
+      expect(mockConfirm).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "Are you sure you want to apply this template? All of your changes will be lost." })
+      )
     })
   })
 
@@ -260,6 +302,45 @@ describe("DirectJobNew template selection", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Add GitHub Actions CI/i }))
 
     expect(mockConfirm).not.toHaveBeenCalled()
-    expect((screen.getByRole("textbox", { name: "Title" }) as HTMLInputElement).value).toBe(template1.name)
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Title" })).toHaveValue(template1.name))
+  })
+
+  it("ignores an older template response that arrives after a newer selection", async () => {
+    const resolvers = new Map<string, (response: Response) => void>()
+    renderRoute(formPayload(), (id) => new Promise((resolve) => resolvers.set(id, resolve)))
+
+    fireEvent.click(await screen.findByRole("button", { name: /Add GitHub Actions CI/i }))
+    fireEvent.click(screen.getByRole("button", { name: /Update dependencies/i }))
+
+    resolvers.get(template2.id)!(jsonResponse({ id: template2.id, prompt: template2Prompt }))
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Prompt" })).toHaveValue(template2Prompt))
+
+    await act(async () => {
+      resolvers.get(template1.id)!(jsonResponse({ id: template1.id, prompt: template1Prompt }))
+      await Promise.resolve()
+    })
+    expect(screen.getByRole("textbox", { name: "Title" })).toHaveValue(template2.name)
+    expect(screen.getByRole("textbox", { name: "Prompt" })).toHaveValue(template2Prompt)
+  })
+
+  it("does not overwrite prompt edits made while a template is loading", async () => {
+    let resolveTemplate!: (response: Response) => void
+    renderRoute(
+      formPayload(),
+      () =>
+        new Promise((resolve) => {
+          resolveTemplate = resolve
+        })
+    )
+
+    fireEvent.click(await screen.findByRole("button", { name: /Add GitHub Actions CI/i }))
+    fireEvent.change(screen.getByRole("textbox", { name: "Prompt" }), { target: { value: "Keep my in-flight edit" } })
+    await act(async () => {
+      resolveTemplate(jsonResponse({ id: template1.id, prompt: template1Prompt }))
+      await Promise.resolve()
+    })
+
+    expect(screen.getByRole("textbox", { name: "Title" })).toHaveValue("")
+    expect(screen.getByRole("textbox", { name: "Prompt" })).toHaveValue("Keep my in-flight edit")
   })
 })
