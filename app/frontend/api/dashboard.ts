@@ -368,7 +368,8 @@ export type DashboardPayload = {
     ownership_scope: string
     owner_user_id: number | null
     owner_id: number | null
-    raw: Record<string, unknown>
+    /** Legacy fixture compatibility; dashboard responses no longer include stored preference internals. */
+    raw?: Record<string, unknown>
   }
   filter?: Record<string, unknown> | null
   controls: {
@@ -394,7 +395,6 @@ export type DashboardPayload = {
     status?: DashboardLandingQueueStatus | null
   }
   provider_availability?: Record<string, ProviderAvailability>
-  broken_repositories?: DashboardHealthBlockedRepository[]
   health_blocked_repositories?: DashboardHealthBlockedRepository[]
   ui_panels?: UiSlotPanel[]
   ownership: {
@@ -421,7 +421,7 @@ export type DashboardPayload = {
   }
 }
 
-export type DashboardChromePayload = Omit<DashboardPayload, "total" | "total_pages" | "total_estimated" | "items" | "lanes" | "kanban_limit"> & {
+export type DashboardChromePayload = Omit<DashboardPayload, "controls" | "total" | "total_pages" | "total_estimated" | "items" | "lanes" | "kanban_limit"> & {
   total?: number
   total_pages?: number
   total_estimated?: boolean
@@ -429,6 +429,8 @@ export type DashboardChromePayload = Omit<DashboardPayload, "total" | "total_pag
   lanes?: DashboardLane[]
   kanban_limit?: number | null
 }
+
+export type DashboardControlsPayload = Pick<DashboardPayload, "subject" | "controls">
 
 export type DashboardRowsPayload = Pick<
   DashboardPayload,
@@ -451,7 +453,6 @@ export type DashboardPreferencesInput = {
 
 export type DashboardPreferencesPayload = {
   message: string
-  dashboard_preferences: Record<string, unknown>
 }
 
 export type DashboardBulkJobAction =
@@ -588,6 +589,10 @@ export function fetchDashboardChromeWithMeta(search = "", options: { signal?: Ab
   return getJsonWithMeta<DashboardChromePayload>(`/api/v1/app/dashboard${dashboardSectionSearch(search, "chrome")}`, options)
 }
 
+export function fetchDashboardControls(subject: DashboardSubject, options: { signal?: AbortSignal } = {}) {
+  return getJson<DashboardControlsPayload>(`/api/v1/app/dashboard/controls?subject=${encodeURIComponent(subject)}`, options)
+}
+
 export function fetchDashboardRows(search = "", options: { signal?: AbortSignal } = {}) {
   return getJson<DashboardRowsPayload>(`/api/v1/app/dashboard${dashboardSectionSearch(search, "rows")}`, options)
 }
@@ -604,6 +609,7 @@ export type DashboardTimedPayload<T> = {
 export function mergeDashboardPayload(
   chrome: DashboardChromePayload,
   rows: DashboardRowsPayload,
+  controls: DashboardControlsPayload,
   options: { rowsCurrentForSearch?: boolean } = {}
 ): DashboardPayload {
   const activeSmartFolderId = rows.active_smart_folder_id ?? chrome.active_smart_folder_id
@@ -614,9 +620,9 @@ export function mergeDashboardPayload(
     ...rows,
     counts: chrome.counts,
     controls: {
-      ...chrome.controls,
+      ...controls.controls,
       ...rowControls,
-      columns: rowControls.columns ?? chrome.controls.columns
+      columns: rowControls.columns ?? controls.controls.columns
     },
     ownership_scope: chrome.ownership_scope,
     preferences: rows.preferences ?? chrome.preferences,
@@ -627,7 +633,6 @@ export function mergeDashboardPayload(
       ...rows.landing_queue
     },
     provider_availability: chrome.provider_availability,
-    broken_repositories: chrome.broken_repositories,
     health_blocked_repositories: chrome.health_blocked_repositories,
     ui_panels: rows.ui_panels ?? chrome.ui_panels,
     smart_folders: chrome.smart_folders.map((folder) => ({ ...folder, active: folder.id === activeSmartFolderId })),

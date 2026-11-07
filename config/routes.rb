@@ -243,6 +243,7 @@ Rails.application.routes.draw do
         get "filters/suggestions", to: "filters#suggestions"
         get "users/invitable", to: "users#invitable"
         get "dashboard", to: "dashboard#show"
+        get "dashboard/controls", to: "dashboard#controls"
         get "permission_requests", to: "permission_requests#index"
         post "permission_requests/batch_decide", to: "permission_requests#batch_decide"
         post "permission_requests/:id/decide", to: "permission_requests#decide", constraints: { id: /\d+/ }

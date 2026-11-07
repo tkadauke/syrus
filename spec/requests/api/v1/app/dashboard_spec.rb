@@ -225,12 +225,25 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(chrome).to include(
         "subject" => "job",
         "counts" => include("jobs" => 1),
-        "controls" => include("views" => %w[list kanban dependencies]),
         "smart_folders" => be_an(Array)
       )
+      expect(chrome).not_to have_key("controls")
       expect(chrome).not_to have_key("items")
       expect(chrome).not_to have_key("lanes")
       expect(chrome).not_to have_key("total")
+      expect(chrome).not_to have_key("broken_repositories")
+      expect(chrome.dig("preferences")).not_to have_key("raw")
+      expect(chrome.fetch("smart_folders")).to all(satisfy { |folder| !folder.key?("filter") })
+
+      get "/api/v1/app/dashboard/controls", params: { subject: "job" }
+
+      expect(response).to have_http_status(:ok)
+      expect(response.headers.fetch("Cache-Control")).to include("private", "max-age=3600")
+      expect(response.headers.fetch("ETag")).to be_present
+      expect(parse_body).to include(
+        "subject" => "job",
+        "controls" => include("views" => %w[list kanban dependencies])
+      )
 
       get "/api/v1/app/dashboard", params: { subject: "job", section: "rows" }
 
@@ -2160,7 +2173,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
             as: :json
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body["message"]).to eq("Dashboard preferences updated.")
+      expect(parse_body).to eq("message" => "Dashboard preferences updated.")
       preferences = user.reload.dashboard_preferences.fetch("jobs")
       expect(preferences).to include(
         "sort_column" => "started_at",
