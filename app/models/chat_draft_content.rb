@@ -11,6 +11,12 @@ class ChatDraftContent
     new(text: content.to_s)
   end
 
+  def self.from_record(record)
+    draft = from_content(record.content)
+    refs = draft.attachments.map { |attributes| ChatAttachmentRef.new(attributes, chat_session: record.chat_session) }
+    new(text: draft.text, attachments: refs.map(&:payload), metadata: draft.metadata)
+  end
+
   def self.from_hash(content)
     hash = content.respond_to?(:to_unsafe_h) ? content.to_unsafe_h : content
     text = (hash["text"].presence || hash[:text].presence || hash["content"].presence || hash[:content].presence).to_s.strip
@@ -70,9 +76,12 @@ class ChatDraftContent
     attributes = {} unless attributes.respond_to?(:stringify_keys)
     attributes = attributes.stringify_keys
     {
+      "id" => attributes["id"],
       "name" => attributes["name"].to_s,
       "mime_type" => (attributes["mime_type"] || attributes["mimeType"]).to_s,
-      "data" => attributes["data"].to_s
-    }
+      "data" => attributes["data"].to_s,
+      "size" => attributes["size"],
+      "url" => attributes["url"]
+    }.compact
   end
 end
