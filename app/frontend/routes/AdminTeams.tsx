@@ -34,6 +34,7 @@ import {
   updateTeamMemberRole,
   TEAM_MEMBERSHIP_ROLES,
   type AdminTeamDetailPayload,
+  type AdminTeamsPayload,
   type AdminTeamRow,
   type TeamMembership,
   type TeamMembershipRole
@@ -55,7 +56,9 @@ export function AdminTeamsIndex() {
   const create = useMutation({
     mutationFn: (name: string) => createAdminTeam(name),
     onSuccess: (payload) => {
-      queryClient.setQueryData(["admin", "teams"], payload)
+      if (payload.team) {
+        queryClient.setQueryData<AdminTeamsPayload>(["admin", "teams"], (current) => current ? { ...current, teams: [...current.teams, payload.team!] } : current)
+      }
       setNotice(payload.message || null)
     }
   })
@@ -347,12 +350,21 @@ function TeamMembers({ teamId, memberships, canManage }: { teamId: number; membe
 
   const updateRole = useMutation({
     mutationFn: ({ membershipId, role }: { membershipId: number; role: TeamMembershipRole }) => updateTeamMemberRole(teamId, membershipId, role),
-    onSuccess: (updated) => queryClient.setQueryData(queryKey, updated)
+    onSuccess: (updated) => {
+      if (!updated.membership) return
+      queryClient.setQueryData<AdminTeamDetailPayload>(queryKey, (current) => current ? {
+        ...current,
+        memberships: current.memberships.map((membership) => membership.id === updated.membership!.id ? updated.membership! : membership)
+      } : current)
+    }
   })
 
   const destroy = useMutation({
     mutationFn: (membership: TeamMembership) => removeTeamMember(teamId, membership.id),
-    onSuccess: (updated) => queryClient.setQueryData(queryKey, updated)
+    onSuccess: (_updated, removed) => queryClient.setQueryData<AdminTeamDetailPayload>(queryKey, (current) => current ? {
+      ...current,
+      memberships: current.memberships.filter((membership) => membership.id !== removed.id)
+    } : current)
   })
 
   return (
@@ -444,7 +456,12 @@ function AddMemberForm({ teamId }: { teamId: number }) {
   const create = useMutation({
     mutationFn: () => addTeamMember(teamId, { email, role }),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      if (updated.membership) {
+        queryClient.setQueryData<AdminTeamDetailPayload>(queryKey, (current) => current ? {
+          ...current,
+          memberships: [...current.memberships, updated.membership!]
+        } : current)
+      }
       setEmail("")
       setRole("member")
     }
@@ -483,6 +500,7 @@ function AddMemberForm({ teamId }: { teamId: number }) {
     </div>
   )
 }
+
 
 function TeamRepositoryGrants({ payload }: { payload: AdminTeamDetailPayload }) {
   const { t } = useT("admin")

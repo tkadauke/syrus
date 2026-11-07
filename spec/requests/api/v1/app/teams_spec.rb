@@ -12,6 +12,13 @@ RSpec.describe "API: /api/v1/app/teams", type: :request do
     JSON.parse(response.body)
   end
 
+  def capture_sql
+    queries = []
+    callback = ->(_name, _started, _finished, _id, payload) { queries << payload[:sql].to_s unless payload[:name].to_s.match?(/\ASCHEMA|TRANSACTION\z/) }
+    ActiveSupport::Notifications.subscribed(callback, "sql.active_record") { yield }
+    queries
+  end
+
   it "401s with a JSON error when signed out" do
     get "/api/v1/app/teams"
 
@@ -41,6 +48,18 @@ RSpec.describe "API: /api/v1/app/teams", type: :request do
 
       expect(parse_body["teams"].size).to eq(2)
     end
+
+    it "loads team counts with two grouped queries" do
+      3.times do |index|
+        team = Team.create!(name: "Team #{index}")
+        team.team_memberships.create!(user: owner, role: "member")
+      end
+      sign_in_as(owner)
+
+      queries = capture_sql { get "/api/v1/app/teams" }
+
+      expect(queries.grep(/COUNT\(\*\).*GROUP BY.*team_id/i).size).to eq(2)
+    end
   end
 
   describe "create" do
@@ -54,6 +73,7 @@ RSpec.describe "API: /api/v1/app/teams", type: :request do
       expect(response).to have_http_status(:created)
       team = Team.find_by(name: "Platform")
       expect(team.owned_by?(owner)).to be true
+      expect(parse_body.keys).to contain_exactly("message", "team")
     end
 
     it "rejects a blank name" do
@@ -146,6 +166,7 @@ RSpec.describe "API: /api/v1/app/teams", type: :request do
       }.to change(Team, :count).by(-1)
 
       expect(response).to have_http_status(:ok)
+      expect(parse_body.keys).to contain_exactly("message")
     end
 
     it "forbids a non-owner member from deleting" do
