@@ -88,14 +88,14 @@ module Api
           end
 
           if repository.update(attrs)
-            render json: repository_detail_payload(repository.reload, page: detail_page, message: "Repository setting enabled.")
+            render json: {
+              message: "Repository setting enabled.",
+              repository: repository.slice(*attrs.keys),
+              recommended_actions: ::App::RepositoryFeatureRecommendations.for(repository: repository, user: Current.user)
+            }
           else
             render_error("validation_failed", repository.errors.full_messages.to_sentence, status: :unprocessable_content)
           end
-        end
-
-        def detail_page
-          [ params.fetch(:page, 1).to_i, 1 ].max
         end
       end
     end

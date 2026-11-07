@@ -67,7 +67,7 @@ export function MainBranchHealthSection({
   const graders = useMutation({
     mutationFn: () => runMainBranchGraders(appendSearch(payload.paths.app_run_main_branch_graders_repository_path, search), 1),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      void queryClient.invalidateQueries({ queryKey })
       void queryClient.invalidateQueries({ queryKey: healthQueryKey })
       void queryClient.invalidateQueries({ queryKey: ["repositories", String(repository.id), "jobs"] })
       void queryClient.invalidateQueries({ queryKey: ["repositories", String(repository.id), "delivery"] })
@@ -77,7 +77,7 @@ export function MainBranchHealthSection({
   const ciCheck = useMutation({
     mutationFn: () => checkCiNow(appendSearch(payload.paths.app_check_ci_now_repository_path, search), 1),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      void queryClient.invalidateQueries({ queryKey })
       void queryClient.invalidateQueries({ queryKey: healthQueryKey })
       void queryClient.invalidateQueries({ queryKey: ["repositories", String(repository.id), "jobs"] })
       void queryClient.invalidateQueries({ queryKey: ["repositories", String(repository.id), "delivery"] })
@@ -87,7 +87,7 @@ export function MainBranchHealthSection({
   const repair = useMutation({
     mutationFn: () => repairMainBranch(appendSearch(payload.paths.app_repair_main_branch_repository_path, search), 1),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      void queryClient.invalidateQueries({ queryKey })
       void queryClient.invalidateQueries({ queryKey: healthQueryKey })
       void queryClient.invalidateQueries({ queryKey: ["repositories", String(repository.id), "jobs"] })
       void queryClient.invalidateQueries({ queryKey: ["repositories", String(repository.id), "delivery"] })
@@ -97,7 +97,9 @@ export function MainBranchHealthSection({
   const resumeWork = useMutation({
     mutationFn: () => resumeRepositoryLanding(payload.paths.app_resume_landing_repository_path, 1),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      queryClient.setQueryData(queryKey, (current: RepositoryDetailPayload | undefined) =>
+        current ? { ...current, repository: { ...current.repository, landing_paused: updated.landing_paused } } : current
+      )
       void queryClient.invalidateQueries({ queryKey: healthQueryKey })
       void queryClient.invalidateQueries({ queryKey: ["repositories", String(repository.id), "jobs"] })
       void queryClient.invalidateQueries({ queryKey: ["repositories", String(repository.id), "delivery"] })

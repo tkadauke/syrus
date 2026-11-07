@@ -11,7 +11,7 @@ import { AddRepositoryModal } from "../components/AddRepositoryModal"
 import { buttonClasses } from "../components/Button"
 import { useT } from "../hooks/useT"
 import type { TFunction } from "i18next"
-import { fetchRepositoryReadiness } from "../api/repositories"
+import { fetchRepositoryReadiness, fetchRepositoryReadinessProbe, fetchRepositoryReadinessSummary } from "../api/repositories"
 import { RepositoryReadinessModal, readinessTone } from "../components/RepositoryReadinessModal"
 
 type SetupStatus = NonNullable<BootstrapPayload["setup_status"]>
@@ -47,14 +47,27 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
   const setup = bootstrap?.setup_status
   const user = bootstrap?.current_user
   const repositoryId = setup?.onboarding_repository_id
+  const readinessSummary = useQuery({
+    queryKey: ["repository-readiness-summary", repositoryId],
+    queryFn: () => fetchRepositoryReadinessSummary(repositoryId!),
+    enabled: Boolean(repositoryId),
+    staleTime: 60_000
+  })
   const readiness = useQuery({
     queryKey: ["repository-readiness", repositoryId],
     queryFn: () => fetchRepositoryReadiness(repositoryId!),
-    enabled: Boolean(repositoryId),
-    staleTime: 60_000,
+    enabled: Boolean(repositoryId) && openModal === "readiness",
+    staleTime: 60_000
+  })
+  const readinessProbe = useQuery({
+    queryKey: ["repository-readiness-probe", repositoryId],
+    queryFn: () => fetchRepositoryReadinessProbe(repositoryId!),
+    enabled:
+      Boolean(repositoryId) &&
+      (readiness.data?.readiness?.execution_probe?.status === "queued" || readiness.data?.readiness?.execution_probe?.status === "running"),
     refetchInterval: (query) => {
-      const status = query.state.data?.readiness.execution_probe?.status
-      return status === "queued" || status === "running" ? 1_000 : false
+      const status = query.state.data?.execution_probe?.status
+      return status === "queued" || status === "running" ? Math.min(1_000 * 2 ** query.state.dataUpdateCount, 8_000) : false
     }
   })
 
@@ -112,13 +125,13 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
                   </div>
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
-                  {step.key === "repository" && step.complete && readiness.data ? (
+                  {step.key === "repository" && step.complete && readinessSummary.data ? (
                     <button
-                      className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${readinessTriggerClass(readinessTone(readiness.data.readiness.status))}`}
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${readinessTriggerClass(readinessTone(readinessSummary.data.readiness.status))}`}
                       onClick={() => setOpenModal("readiness")}
                       type="button"
                     >
-                      {readiness.data.readiness.summary}
+                      {readinessSummary.data.readiness.summary}
                     </button>
                   ) : null}
                   {step.complete ? (
@@ -185,7 +198,12 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
       {openModal === "configure_agent" ? <ConfigureAgentModal onClose={() => setOpenModal(null)} /> : null}
       {openModal === "add_repository" ? <AddRepositoryModal onClose={() => setOpenModal(null)} /> : null}
       {openModal === "readiness" && repositoryId && readiness.data ? (
-        <RepositoryReadinessModal onClose={() => setOpenModal(null)} open repositoryId={repositoryId} report={readiness.data.readiness} />
+        <RepositoryReadinessModal
+          onClose={() => setOpenModal(null)}
+          open
+          repositoryId={repositoryId}
+          report={{ ...readiness.data.readiness, execution_probe: readinessProbe.data?.execution_probe ?? readiness.data.readiness.execution_probe }}
+        />
       ) : null}
     </main>
   )

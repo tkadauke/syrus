@@ -232,12 +232,22 @@ export function fetchRepositoryReadiness(id: number | string) {
   return getJson<RepositoryReadinessPayload>(`/api/v1/app/repositories/${id}/readiness`)
 }
 
+export function fetchRepositoryReadinessSummary(id: number | string) {
+  return getJson<{ readiness: Pick<RepositoryReadinessPayload["readiness"], "status" | "summary" | "revision"> }>(
+    `/api/v1/app/repositories/${id}/readiness?view=summary`
+  )
+}
+
+export function fetchRepositoryReadinessProbe(id: number | string) {
+  return getJson<{ execution_probe: RepositoryExecutionProbe | null }>(`/api/v1/app/repositories/${id}/readiness_probe`)
+}
+
 export function startRepositoryReadinessProbe(id: number | string) {
-  return postJson<{ execution_probe: RepositoryExecutionProbe }>(`/api/v1/app/repositories/${id}/readiness_probe`, {})
+  return postJson<{ id: number; status: RepositoryExecutionProbe["status"] }>(`/api/v1/app/repositories/${id}/readiness_probe`, {})
 }
 
 export function overrideRepositoryReadinessProbe(id: number | string, probeId: number) {
-  return postJson<{ execution_probe: RepositoryExecutionProbe }>(`/api/v1/app/repositories/${id}/override_readiness_probe`, { probe_id: probeId })
+  return postJson<{ id: number; status: RepositoryExecutionProbe["status"] }>(`/api/v1/app/repositories/${id}/override_readiness_probe`, { probe_id: probeId })
 }
 
 export type GitHubOwnersPayload = {
@@ -443,6 +453,12 @@ export type RepositoryRecommendationJobPayload = {
     issue_title: string
     job_path: string
   }
+}
+
+export type RepositoryRecommendationTogglePayload = {
+  message: string
+  repository: Partial<RepositoryDetailRecord>
+  recommended_actions: RepositoryFeatureRecommendation[]
 }
 
 export type RepositoryDetailRecord = {
@@ -747,27 +763,27 @@ export function fetchRepositoryCognitiveDebt(id: string, view?: "summary") {
 }
 
 export function pollRepositoryDetail(path: string, page: number) {
-  return postJson<RepositoryDetailPayload>(path, { return_to: "detail", page })
+  return postJson<{ message: string }>(path, { return_to: "detail", page })
 }
 
 export function releaseNeedsTriageRepositoryJob(path: string, jobId: number, page: number) {
-  return postJson<RepositoryDetailPayload>(path, { job_id: jobId, page })
+  return postJson<{ message: string; needs_triage_count: number; released_job_id: number }>(path, { job_id: jobId, page })
 }
 
 export function resumeRepositoryLanding(path: string, page: number) {
-  return postJson<RepositoryDetailPayload>(path, { page })
+  return postJson<{ message: string; landing_paused: false }>(path, { page })
 }
 
 export function runMainBranchGraders(path: string, page: number) {
-  return postJson<RepositoryDetailPayload>(path, { return_to: "detail", page })
+  return postJson<{ message: string }>(path, { return_to: "detail", page })
 }
 
 export function repairMainBranch(path: string, page: number) {
-  return postJson<RepositoryDetailPayload>(path, { return_to: "detail", page })
+  return postJson<{ message: string }>(path, { return_to: "detail", page })
 }
 
 export function checkCiNow(path: string, page: number) {
-  return postJson<RepositoryDetailPayload>(path, { return_to: "detail", page })
+  return postJson<{ message: string }>(path, { return_to: "detail", page })
 }
 
 export function dispatchRepositoryRefMovementAction(path: string, actionName: string) {
@@ -775,15 +791,15 @@ export function dispatchRepositoryRefMovementAction(path: string, actionName: st
 }
 
 export function runRepositoryRecommendation(path: string, page: number) {
-  return postJson<RepositoryDetailPayload | RepositoryRecommendationJobPayload>(path, { return_to: "detail", page })
+  return postJson<RepositoryRecommendationTogglePayload | RepositoryRecommendationJobPayload>(path, { return_to: "detail", page })
 }
 
 export function archiveRepositoryFromPath(path: string) {
-  return postJson<RepositoriesPayload>(path)
+  return postJson<{ message: string }>(path)
 }
 
 export function unarchiveRepositoryFromPath(path: string) {
-  return postJson<RepositoriesPayload>(path)
+  return postJson<{ message: string }>(path)
 }
 
 export function fetchNewRepositoryForm() {
@@ -920,7 +936,7 @@ export function syncFork(id: number) {
 }
 
 export function unarchiveRepository(id: number) {
-  return postJson<RepositoriesPayload>(`/api/v1/app/repositories/${id}/unarchive`)
+  return postJson<{ message: string }>(`/api/v1/app/repositories/${id}/unarchive`)
 }
 
 export function runInsightAnalysis(path: string) {

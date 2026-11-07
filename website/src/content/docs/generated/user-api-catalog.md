@@ -348,6 +348,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/repositories/:id/override_readiness_probe` | `api/v1/app/repositories#override_readiness_probe` |
 | core | POST | `/api/v1/app/repositories/:id/poll` | `api/v1/app/repositories#poll` |
 | core | GET | `/api/v1/app/repositories/:id/readiness` | `api/v1/app/repositories#readiness` |
+| core | GET | `/api/v1/app/repositories/:id/readiness_probe` | `api/v1/app/repositories#readiness_probe_status` |
 | core | POST | `/api/v1/app/repositories/:id/readiness_probe` | `api/v1/app/repositories#readiness_probe` |
 | core | POST | `/api/v1/app/repositories/:id/release_needs_triage_job` | `api/v1/app/repositories#release_needs_triage_job` |
 | core | POST | `/api/v1/app/repositories/:id/repair_main_branch` | `api/v1/app/repositories#repair_main_branch` |
@@ -384,7 +385,6 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/repositories/:repository_id/ref_movement_actions` | `api/v1/app/repository_ref_movement_actions#create` |
 | core | GET | `/api/v1/app/repositories/:repository_id/skills` | `api/v1/app/skills#index` |
 | core | POST | `/api/v1/app/repositories/:repository_id/skills` | `api/v1/app/skills#create` |
-| core | GET | `/api/v1/app/repositories/:repository_id/team_grants` | `api/v1/app/repository_team_grants#index` |
 | core | POST | `/api/v1/app/repositories/:repository_id/team_grants` | `api/v1/app/repository_team_grants#create` |
 | core | DELETE | `/api/v1/app/repositories/:repository_id/team_grants/:id` | `api/v1/app/repository_team_grants#destroy` |
 | core | PATCH | `/api/v1/app/repositories/:repository_id/team_grants/:id` | `api/v1/app/repository_team_grants#update` |

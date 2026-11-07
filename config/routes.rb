@@ -377,13 +377,14 @@ Rails.application.routes.draw do
             post :check_ci_now
             get :coverage_trend
             get :readiness
+            get :readiness_probe, action: :readiness_probe_status
             post :readiness_probe
             post :override_readiness_probe
             get :target_graph, to: "target_graphs#repository"
           end
           post "recommendations/:recommendation_id", to: "repository_recommendations#create"
           resources :memberships, controller: "repository_memberships", only: %i[ index create update destroy ]
-          resources :team_grants, controller: "repository_team_grants", only: %i[ index create update destroy ]
+          resources :team_grants, controller: "repository_team_grants", only: %i[ create update destroy ]
           resources :final_approvers, controller: "repository_final_approvers", only: %i[ index create destroy ]
           resources :provider_routing_rules, controller: "provider_routing_rules", only: %i[ index create update destroy ] do
             collection do

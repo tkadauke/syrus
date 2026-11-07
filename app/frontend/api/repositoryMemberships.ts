@@ -16,17 +16,12 @@ export type RepositoryMembershipUser = {
   name: string
 }
 
-export const GITHUB_PERMISSION_MISMATCH_REASONS = [
-  "no_github_handle",
-  "not_a_github_collaborator",
-  "insufficient_github_permission"
-] as const
+export const GITHUB_PERMISSION_MISMATCH_REASONS = ["no_github_handle", "not_a_github_collaborator", "insufficient_github_permission"] as const
 export type GithubPermissionMismatchReason = (typeof GITHUB_PERMISSION_MISMATCH_REASONS)[number]
 
 export type RepositoryMembership = {
   id: number
   role: RepositoryMembershipRole
-  agent_provider: string | null
   created_at: string
   github_permission_mismatch_reason: GithubPermissionMismatchReason | null
   github_permission_mismatch_checked_at: string | null
@@ -53,13 +48,13 @@ export function fetchRepositoryMemberships(repositoryId: string) {
 }
 
 export function createRepositoryMembership(repositoryId: number, values: { email: string; role: RepositoryMembershipRole }) {
-  return postJson<RepositoryMembershipsPayload>(`/api/v1/app/repositories/${repositoryId}/memberships`, values)
+  return postJson<{ membership: RepositoryMembership; message: string }>(`/api/v1/app/repositories/${repositoryId}/memberships`, values)
 }
 
 export function updateRepositoryMembershipRole(repositoryId: number, membershipId: number, role: RepositoryMembershipRole) {
-  return patchJson<RepositoryMembershipsPayload>(`/api/v1/app/repositories/${repositoryId}/memberships/${membershipId}`, { role })
+  return patchJson<{ membership: RepositoryMembership; message: string }>(`/api/v1/app/repositories/${repositoryId}/memberships/${membershipId}`, { role })
 }
 
 export function deleteRepositoryMembership(repositoryId: number, membershipId: number) {
-  return deleteJson<RepositoryMembershipsPayload>(`/api/v1/app/repositories/${repositoryId}/memberships/${membershipId}`)
+  return deleteJson<{ id: number; message: string }>(`/api/v1/app/repositories/${repositoryId}/memberships/${membershipId}`)
 }

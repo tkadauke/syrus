@@ -25,8 +25,8 @@ module Api
             return
           end
 
-          repository.repository_final_approvers.create!(user: target_user)
-          render json: final_approvers_payload(repository.reload).merge(message: "#{target_user.email_address} added as final approver."), status: :created
+          approver = repository.repository_final_approvers.create!(user: target_user)
+          render json: { final_approver: final_approver_json(approver), message: "#{target_user.email_address} added as final approver." }, status: :created
         end
 
         def destroy
@@ -34,7 +34,7 @@ module Api
           approver = repository.repository_final_approvers.find(params[:id])
           approver.destroy!
 
-          render json: final_approvers_payload(repository.reload).merge(message: "Final approver removed.")
+          head :no_content
         end
 
         private
@@ -45,18 +45,13 @@ module Api
 
         def final_approvers_payload(repository)
           {
-            final_approvers: repository.repository_final_approvers.includes(:user).order(:created_at).map do |approver|
-              {
-                id: approver.id,
-                created_at: approver.created_at.iso8601,
-                user: {
-                  id: approver.user.id,
-                  name: approver.user.display_name,
-                  email_address: approver.user.email_address
-                }
-              }
-            end
+            final_approvers: repository.repository_final_approvers.includes(:user).order(:created_at).map { |approver| final_approver_json(approver) }
           }
+        end
+
+        def final_approver_json(approver)
+          { id: approver.id, created_at: approver.created_at.iso8601,
+            user: { id: approver.user.id, name: approver.user.display_name, email_address: approver.user.email_address } }
         end
 
         def target_user_from_params
