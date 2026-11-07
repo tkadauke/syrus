@@ -174,7 +174,7 @@ function BulkEpicActions({ selectedIds }: { selectedIds: number[] }) {
       else setNotice(result.lastMessage)
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "rows"] })
       setProgress(null)
       setCancellationRequested(false)
       cancelRequestedRef.current = false

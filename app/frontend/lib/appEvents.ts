@@ -755,7 +755,7 @@ function listFamilyTarget(queryKey: QueryKey): InvalidationTarget | null {
 
   if (queryKey.length !== 1) return null
   if (root === "dashboard") {
-    return { queryKey, key: "list-family:dashboard", predicate: dashboardListQuery }
+    return { queryKey, key: "list-family:dashboard-rows", predicate: dashboardRowsQuery }
   }
   if (root === "repositories") {
     return { queryKey, key: "list-family:repositories", predicate: repositoryListQuery }
@@ -809,6 +809,11 @@ function invalidateEventQuery(queryClient: QueryClient, queryKey: QueryKey) {
 function dashboardListQuery(query: { queryKey: QueryKey }) {
   const queryKey = query.queryKey
   return queryKey[0] === "dashboard" && (queryKey[1] === "chrome" || queryKey[1] === "rows" || queryKey[1] === "graph")
+}
+
+function dashboardRowsQuery(query: { queryKey: QueryKey }) {
+  const queryKey = query.queryKey
+  return queryKey[0] === "dashboard" && (queryKey[1] === "rows" || queryKey[1] === "graph")
 }
 
 function repositoryListQuery(query: { queryKey: QueryKey }) {

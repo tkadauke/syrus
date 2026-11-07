@@ -16,7 +16,7 @@ import { SmartFolderNavigation } from "./SmartFolderNavigation"
 
 const dashboardFilterOverrideKeys = ["q", "state", "repository_id", "kind", "trigger_kind", "job_id", "attention", "start_blocked", "tag_ids", "pr", "age"]
 
-type DashboardSmartFolderPayload = Pick<DashboardPayload, "active_smart_folder_id" | "broken_repositories" | "filter" | "health_blocked_repositories" | "landing_queue" | "ownership" | "rows_current_for_search" | "smart_folders" | "subject" | "view">
+type DashboardSmartFolderPayload = Pick<DashboardPayload, "active_smart_folder_id" | "filter" | "health_blocked_repositories" | "landing_queue" | "ownership" | "rows_current_for_search" | "smart_folders" | "subject" | "view">
 
 export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: DashboardSmartFolderPayload; prefix: string; search: string }) {
   const { t } = useT("nav")
@@ -30,7 +30,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
   const updatePreferences = useMutation({
     mutationFn: updateDashboardPreferences,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "rows"] })
     }
   })
   const allPath = dashboardLink(subjectPath(payload.subject), { view: payload.view })
@@ -161,7 +161,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
           <Button className="w-full" disabled={landingPause.isPending} onClick={toggleLandingPause} size="sm" variant="secondary">
             {payload.landing_queue.paused ? t("smart_folder.resume_landing") : t("smart_folder.pause_landing")}
           </Button>
-          {payload.landing_queue.paused && (payload.health_blocked_repositories ?? payload.broken_repositories)?.some((repo) => repo.main_branch_repair_blocks_work) ? (
+          {payload.landing_queue.paused && payload.health_blocked_repositories?.some((repo) => repo.main_branch_repair_blocks_work) ? (
             <p className="text-xs text-amber-700 dark:text-amber-300">{t("smart_folder.landing_paused_main_health")}</p>
           ) : null}
           <NoticeToast message={landingPause.isSuccess ? landingPause.data.message : null} onDismiss={() => landingPause.reset()} />
