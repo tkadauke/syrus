@@ -536,7 +536,11 @@ function WorkflowCard({
           {workflow.blocked_reason_text ? <p className="min-w-0 flex-1 truncate text-xs text-text-muted">{workflow.blocked_reason_text}</p> : null}
           <CommandButton
             command={command}
-            input={{ method: "post", path: workflow.app_dismiss_path, confirm: t(workflow.state === "blocked" ? "workflow_dismiss_confirm" : "workflow_cancel_confirm") }}
+            input={{
+              method: "post",
+              path: workflow.app_dismiss_path,
+              confirm: t(workflow.state === "blocked" ? "workflow_dismiss_confirm" : "workflow_cancel_confirm")
+            }}
             tone="secondary"
           >
             {t(workflow.state === "blocked" ? "workflow_dismiss" : "workflow_cancel")}
