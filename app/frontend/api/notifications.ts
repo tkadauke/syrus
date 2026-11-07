@@ -22,7 +22,7 @@ export type NotificationsPagination = {
 export type NotificationsPayload = {
   notifications: NotificationRecord[]
   unread_count: number
-  pagination: NotificationsPagination
+  pagination?: NotificationsPagination
 }
 
 export type NotificationPayload = {
@@ -58,18 +58,19 @@ export type ApprovalDeliveryPreferences = {
   time_zone: string
 }
 
-export function fetchNotifications(options: { page?: number; unread?: boolean } = {}) {
+export function fetchNotifications(options: { page?: number; unread?: boolean; pagination?: boolean } = {}) {
   const params = new URLSearchParams()
 
   if (options.page && options.page > 1) params.set("page", String(options.page))
   if (options.unread) params.set("unread", "true")
+  if (options.pagination === false) params.set("pagination", "false")
 
   const search = params.toString()
   return getJson<NotificationsPayload>(`/api/v1/app/notifications${search ? `?${search}` : ""}`)
 }
 
 export function markAllNotificationsRead() {
-  return postJson<NotificationsPayload>("/api/v1/app/notifications/mark_all_read")
+  return postJson<{ unread_count: number }>("/api/v1/app/notifications/mark_all_read")
 }
 
 export function markNotificationRead(id: string | number) {

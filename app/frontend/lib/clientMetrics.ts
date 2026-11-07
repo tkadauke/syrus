@@ -9,8 +9,7 @@
 // shape) instead of one request per occurrence.
 import { readInitialBootstrap } from "../api/bootstrap"
 
-export type ClientMetricResource =
-  | "job" | "workflow" | "step" | "run" | "chat" | "dashboard" | "epic" | "repository" | "notification" | "unknown"
+export type ClientMetricResource = "job" | "workflow" | "step" | "run" | "chat" | "dashboard" | "epic" | "repository" | "notification" | "unknown"
 
 export type ClientMetricName = "entity_patch_applications" | "revision_gap_recoveries" | "hidden_tab_suppressed_fetches"
 
@@ -24,20 +23,15 @@ const FLUSH_SIZE = 50
 // The backend's own closed resource enum (ClientMetrics::RESOURCES);
 // anything else already normalizes to "unknown" via resourceTagFor below, but
 // keeping the two lists in sync is what makes that mapping meaningful.
-const KNOWN_RESOURCES: readonly string[] = [
-  "job", "workflow", "step", "run", "chat", "dashboard", "epic", "repository", "notification"
-]
+const KNOWN_RESOURCES: readonly string[] = ["job", "workflow", "step", "run", "chat", "dashboard", "epic", "repository", "notification"]
 
 let queue = new Map<string, QueuedIncrement>()
 let flushTimer: ReturnType<typeof setTimeout> | null = null
+let idleFlushId: number | null = null
 let lifecycleListenersInstalled = false
 let lifecycleCleanups: Array<() => void> = []
 
-export function recordClientMetric(
-  name: ClientMetricName,
-  resource: ClientMetricResource = "unknown",
-  visibilityState?: ClientMetricVisibilityState
-): void {
+export function recordClientMetric(name: ClientMetricName, resource: ClientMetricResource = "unknown", visibilityState?: ClientMetricVisibilityState): void {
   const key = `${name}:${resource}:${visibilityState ?? ""}`
   const existing = queue.get(key)
   if (existing) {
@@ -74,6 +68,10 @@ export function resetClientMetricsForTest(): void {
     clearTimeout(flushTimer)
     flushTimer = null
   }
+  if (idleFlushId != null && typeof window !== "undefined" && typeof window.cancelIdleCallback === "function") {
+    window.cancelIdleCallback(idleFlushId)
+  }
+  idleFlushId = null
   lifecycleCleanups.forEach((cleanup) => cleanup())
   lifecycleCleanups = []
   lifecycleListenersInstalled = false
@@ -85,8 +83,18 @@ function scheduleFlush(): void {
     flushQueue()
     return
   }
-  if (flushTimer != null) return
-  flushTimer = setTimeout(() => flushQueue(), FLUSH_DELAY_MS)
+  if (flushTimer != null || idleFlushId != null) return
+  if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
+    idleFlushId = window.requestIdleCallback(
+      () => {
+        idleFlushId = null
+        flushQueue()
+      },
+      { timeout: FLUSH_DELAY_MS }
+    )
+  } else {
+    flushTimer = setTimeout(() => flushQueue(), FLUSH_DELAY_MS)
+  }
 }
 
 function flushQueue(options: { beacon?: boolean } = {}): void {
@@ -94,6 +102,10 @@ function flushQueue(options: { beacon?: boolean } = {}): void {
     clearTimeout(flushTimer)
     flushTimer = null
   }
+  if (idleFlushId != null && typeof window !== "undefined" && typeof window.cancelIdleCallback === "function") {
+    window.cancelIdleCallback(idleFlushId)
+  }
+  idleFlushId = null
   if (queue.size === 0) return
 
   const batch = Array.from(queue.values())
@@ -106,7 +118,7 @@ function postClientMetrics(clientMetrics: QueuedIncrement[], options: { beacon?:
   const body = JSON.stringify({ client_metrics: clientMetrics, authenticity_token: csrfToken })
 
   if (options.beacon && typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
-    const blob = new Blob([ body ], { type: "application/json" })
+    const blob = new Blob([body], { type: "application/json" })
     if (navigator.sendBeacon("/api/v1/app/client_metrics", blob)) return
   }
 
