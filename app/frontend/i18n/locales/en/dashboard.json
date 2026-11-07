@@ -50,6 +50,8 @@
   "bulk_action_error": "Bulk action failed.",
   "bulk_action_canceled": "Bulk action canceled after {{completed}} of {{total}} jobs.",
   "bulk_action_partial": "Bulk action completed for {{succeeded}} of {{total}} jobs; {{failed}} failed or were skipped.",
+  "bulk_epic_action_canceled": "Bulk action canceled after {{completed}} of {{total}} epics.",
+  "bulk_epic_action_partial": "Bulk action completed for {{succeeded}} of {{total}} epics; {{failed}} failed or were skipped.",
   "bulk_close_success_one": "{{count}} job closed.",
   "bulk_close_success_other": "{{count}} jobs closed.",
   "bulk_progress": {
@@ -65,6 +67,9 @@
     "approve": "{{completed}} of {{total}} approved",
     "accept_triage": "{{completed}} of {{total}} accepted",
     "close": "{{completed}} of {{total}} closed"
+  },
+  "bulk_epic_progress": {
+    "start": "{{completed}} of {{total}} moved to in progress"
   },
   "cancel": "Cancel",
   "canceling": "Canceling…",
