@@ -30,6 +30,7 @@
     "fallback": "30-minute fallback"
   },
   "running": "running",
+  "close_details": "Close details",
   "open_owner": "Open owning feature",
   "open_schedule": "Open scheduled task",
   "open_main_chat": "Open main chat",
