@@ -75,7 +75,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
       }),
     onSuccess: (created) => {
       setFolderName("")
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "chrome"] })
       navigate(withRoutePrefix(created.redirect_to, prefix))
     }
   })
@@ -91,7 +91,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
     },
     onSuccess: () => {
       navigate(clearDashboardFilterOverrides(`${prefix}${subjectPath(payload.subject)}`, search), { replace: true })
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "chrome"] })
     }
   })
 
@@ -138,7 +138,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
         }
         moreLabel={t("smart_folder.more")}
         onMutationSuccess={() => {
-          void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+          void queryClient.invalidateQueries({ queryKey: ["dashboard", "chrome"] })
         }}
         onSelect={(folder) => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: folder.id })}
         prefix={prefix}
