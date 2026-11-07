@@ -17,6 +17,7 @@ describe("lazy locale loading", () => {
   })
 
   it("loads a plugin namespace through its plugin lazy boundary", async () => {
+    for (const locale of ["en", "de", "la"]) i18n.removeResourceBundle(locale, "git_history")
     await i18n.changeLanguage("de")
     await loadPluginLocales("git_history")
 
