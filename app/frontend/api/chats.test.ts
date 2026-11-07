@@ -219,6 +219,7 @@ describe("chat API", () => {
     const result = await fetchWhiteboardSnapshots(8)
     expect(result.whiteboard_snapshots).toEqual([{ id: 1 }, { id: 2 }])
   })
+
 })
 
 function createdChatPayload() {
