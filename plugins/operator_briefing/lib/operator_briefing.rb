@@ -25,6 +25,7 @@ module OperatorBriefing
              callbacks: "OperatorBriefing::Callbacks"
     tick_interval 1.minute
     route :get, "/api/v1/app/briefing", to: "api/v1/app/operator_briefing/briefings#show"
+    route :get, "/api/v1/app/briefing/history", to: "api/v1/app/operator_briefing/briefings#history"
     route :get, "/api/v1/app/briefing/topics/:id", to: "api/v1/app/operator_briefing/topics#show"
     route :post, "/api/v1/app/briefing/repositories/:repository_id/regenerate", to: "api/v1/app/operator_briefing/briefings#regenerate"
     route :post, "/api/v1/app/briefing/:id/dive", to: "api/v1/app/operator_briefing/briefings#dive"

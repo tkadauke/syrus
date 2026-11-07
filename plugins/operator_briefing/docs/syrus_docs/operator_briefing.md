@@ -14,6 +14,14 @@ Each Briefing has its own `BRIEFING-<id>` slug so chats, history cards, and
 MCP tools can point at the Briefing directly instead of only naming the
 underlying Job.
 
+The main payload includes full content only for each repository's current
+briefing. Archived entries are lightweight identity, window, and Job metadata;
+the history page requests the selected archived briefing's content on demand.
+Topic pages return the latest three revisions and use a revision cursor to load
+older pages. Subscription, source-preference, feedback, regeneration, and dive
+mutations return only the record or launch result they changed instead of
+repeating the main briefing payload.
+
 The generation pipeline creates one `Briefing` wrapper per
 `briefing_generate` Job and one `BriefingRevision` per generation Workflow.
 Generation appends blocks progressively through `submit_briefing_block` and

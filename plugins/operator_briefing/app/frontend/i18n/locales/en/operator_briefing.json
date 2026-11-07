@@ -58,5 +58,6 @@
   "topic_latest": "Latest revision",
   "topic_empty": "No dive report has been submitted yet.",
   "topic_history": "Revision history",
-  "topic_revision": "Revision {{number}}"
+  "topic_revision": "Revision {{number}}",
+  "load_more": "Load more"
 }
