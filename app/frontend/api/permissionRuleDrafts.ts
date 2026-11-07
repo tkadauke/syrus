@@ -116,11 +116,14 @@ export const previewRuleDraftFromRequest = (requestId: number, itemId: number, d
   postJson<{ preview: RuleDraftPreview }>(`${BASE}/from_request`, { request_id: requestId, item_id: itemId, duration, policy })
 
 export const applyRuleDraft = (fields: RuleDraftFields, digest: string, options: { replaceRuleId?: number | null } = {}) =>
-  postJson<{ authority: { kind: string; id: number; capability: string; operation: string | null }; permissions: PermissionRulesDynamicPayload }>(`${BASE}/apply`, {
-    draft: draftBody(fields),
-    digest,
-    ...(options.replaceRuleId ? { replace_rule_id: options.replaceRuleId } : {})
-  })
+  postJson<{ authority: { kind: string; id: number; capability: string; operation: string | null }; permissions: PermissionRulesDynamicPayload }>(
+    `${BASE}/apply`,
+    {
+      draft: draftBody(fields),
+      digest,
+      ...(options.replaceRuleId ? { replace_rule_id: options.replaceRuleId } : {})
+    }
+  )
 
 /** Maps a server preview's normalized draft back onto editable fields. */
 export function fieldsFromPreview(preview: RuleDraftPreview): RuleDraftFields {
