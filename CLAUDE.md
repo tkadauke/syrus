@@ -114,15 +114,16 @@ presentation/diagnostic fallbacks, not in the launch funnel.
 first. Admin surface: `/admin/work_units`, with normal Job-page WorkUnit
 internals gated by `AppSetting.show_work_unit_debug?`.
 
-Jobs and Workflows also carry a `PlannedExecutionRequirement`
-(project/target/capabilities/source), defaulting to Linux. Proposal tools must
-declare explicit `planned_execution.capabilities`; Syrus does not infer
-placement from proposal prose. `.syrus.yml` project/target/grader capability
-metadata can narrow where specific targets run. Supported capability dimensions
-are `os`, `arch`, `toolchain`, and `runtime`; `os` is limited to `linux` or
-`macos`. Workers advertise capabilities via `SYRUS_WORKER_CAPABILITIES` plus
-local probes, and `RunQueueResolver` routes or blocks starts
-(`no_capable_worker`) when a live worker cannot satisfy the requirement.
+Jobs and Workflows carry a `PlannedExecutionRequirement` for the mutable
+primary implementation workspace. Its placement contract is explicitly
+declared (currently by OS, defaulting to Linux), never inferred from proposal
+prose. Immutable distributed grader targets have a separate capability
+contract from `.syrus.yml`; target requirements may additionally constrain
+architecture, toolchain, and runtime. Workers advertise capabilities via
+`SYRUS_WORKER_CAPABILITIES` plus local probes, and `RunQueueResolver` routes or
+blocks starts (`no_capable_worker`) when no live worker satisfies the applicable
+contract. See the placement architecture rather than treating the two
+contracts as interchangeable.
 
 **Repository content** (`app/services/repository_content.rb`) is how Syrus
 reads a repository without cloning it: the pre-workflow `.syrus.yml` read,
