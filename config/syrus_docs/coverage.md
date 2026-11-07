@@ -72,7 +72,8 @@ When coverage diff annotations are available for the selected review version, th
 
 ## hitmap_ttl_days
 
-How long the hit-map blob (per-file line hit data) is retained. Default: 7 days. `CoverageHitMapPruneJob` cleans up expired blobs. The coverage summary artifact and PR annotations persist indefinitely; only the raw hit-map blob is pruned.
+How long per-file line hit data is retained. Default: 7 days. Coverage
+summaries and PR annotations persist; only the raw hit map expires.
 
 ## Which phase collects coverage
 
@@ -98,39 +99,13 @@ suite. `threshold.pr_lines` reads correctly from that sample; a repository-wide
 for the overall threshold or set `pr_lines` alone. A custom `run:` grader
 decides its own instrumentation and is not subject to the phase rule.
 
-## How coverage flows through the workflow
-
-1. Successful graders retain only their declared `coverage_outputs` as Run attachments before their immutable checkouts can be retired. Each attachment records its grader, project-relative artifact path, format, and source snapshot. Collection accepts only bounded regular files whose filename and content match a supported coverage format (`lcov`, `cobertura`, `go-cover`, or `simplecov`); missing, oversized, unsupported, malformed, symlinked, and path-traversing outputs are logged and rejected.
-2. `coverage_analyze` (non-agentic) reads attachments from the grader iteration that satisfied the final collection barrier, including explicitly carried-forward passing graders. Outputs matching each configured project/source are merged deterministically, so parallel graders cannot overwrite one another. Workflows whose graders still use the shared workspace retain the existing direct-file fallback.
-3. It annotates the PR diff, evaluates thresholds, and stores results as `workflow.artifacts["coverage"]`.
-4. `coverage_pr_comment` (non-agentic) posts the PR comment if configured.
-5. The `CoverageSnapshot` model stores a per-SHA, per-project summary for trend tracking.
-
 ## Cognitive debt queue
 
-Repository detail pages include a dedicated Cognitive Debt tab. It combines the latest
-default-branch coverage snapshot, normalized cognitive engagement events
-(review comments, PR comments, approvals, and known human-authored commits),
-recent diff-review churn, and current target health records to rank files that
-deserve human attention.
-
-The rollups show repository, subsystem, and file counts for `covered`,
-`stale`, and `blind` lines, plus a cognitive coverage percentage. Cognitive
-coverage is a proxy for human engagement, not guaranteed understanding:
-approvals are intentionally treated as weak range evidence, and blind or stale
-labels mean Syrus has not found fresh engagement evidence for that code.
-
-Queue chips explain why a file ranked highly, such as `blind`, `high churn`,
-`untested`, `low test coverage`, `high complexity`, or `unhealthy target` when
-those signals are available. Each queue item links to the file on GitHub, and
-links back to the relevant Syrus review context when the engagement evidence
-comes from an existing diff-review version.
-
-Repository-level queues are computed without a checked-out workspace. If
-line-specific evidence comes from a different revision than the queue target,
-Syrus links that review evidence as context but does not count it as covered
-unless it can project the range. Those items carry an `unprojected review
-evidence` chip so operators know why the file can still appear blind.
+Repository detail pages include a Cognitive Debt tab that combines coverage,
+human review signals, recent churn, and target health to rank files needing
+attention. It labels evidence as covered, stale, or blind and explains ranking
+signals such as low coverage, high churn, complexity, or unhealthy targets.
+Cognitive coverage is a proxy for human engagement, not proof of understanding.
 
 ## Formats
 
@@ -164,12 +139,3 @@ The `set`, `count`, and `atomic` profile modes are supported. No `gocov`,
 percentages use Go's statement counts; changed-line annotations project each
 statement block onto the source lines it spans. Module-qualified paths are
 resolved with the nearest `go.mod`.
-
-## Coverage in the spending insights
-
-Coverage data is stored per-workflow, per-SHA, and per-project in `CoverageSnapshot`. It is not currently surfaced in the spending insights UI, but the snapshots are available via the Rails console for trend queries:
-
-```ruby
-CoverageSnapshot.where(repository: repo).for_project("repo").order(:created_at).pluck(:sha, :lines_pct)
-CoverageSnapshot.where(repository: repo).for_project("desktop").order(:created_at).pluck(:sha, :lines_pct)
-```

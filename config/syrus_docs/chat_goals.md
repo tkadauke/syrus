@@ -16,17 +16,13 @@ turn when the chat is idle. `resume` records a goal control event and queues a
 continuation turn when the chat is idle. Editing an already-active goal does not
 queue another continuation.
 
-The backend also intercepts raw `/goal ...` messages in
-`Api::V1::App::ChatsController#message`, so API callers that bypass the React
-composer still get first-class goal command behavior.
+The backend also intercepts raw `/goal ...` messages, so UI and API callers
+get the same first-class goal command behavior.
 
 ## Continuation loop
 
-Goal wakeups use `ChatScopedEvent.record!` for dedupe and provenance and
-`ChatQueuedMessagePromoter.deliver_one_if_idle!` for dispatch. This keeps
-`stop_requested_at`, `turn_in_flight?`, and `agent_busy?` as the shared
-concurrency gate; goal code does not start a second chat turn when another one
-is in flight.
+Goal wakeups are deduplicated and dispatched only while the chat is idle; goal
+continuation never starts a second chat turn while another is in flight.
 
 Goal events are published for goal start/resume boundaries, goal-linked proposal
 confirmation, goal-linked Job implementation/approval/close boundaries, and
@@ -61,9 +57,9 @@ separate trusted path.
 
 ## Safeguards
 
-`ChatGoalIterationAuditor` records no-op goal continuation turns when a
+Syrus records no-op goal continuation turns when a
 continuation finishes without creating or updating provenance-linked goal work.
-After `ChatGoal::MAX_CONSECUTIVE_NO_OP_ITERATIONS`, the goal is marked blocked
+After repeated consecutive no-op iterations, the goal is marked blocked
 and a system audit message is written to the chat. Repeated blocked wake events
 are similarly counted by signature and block the goal after
-`ChatGoal::MAX_CONSECUTIVE_BLOCKED_EVENTS`.
+repeated blocked events.
