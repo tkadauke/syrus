@@ -83,6 +83,29 @@ RSpec.describe ChatEpicProposalMaterializer do
     expect(chat_session.attached_jobs).to contain_exactly(*result.jobs)
   end
 
+  it "materializes a backlog-routed Epic bundle without starting child work" do
+    proposal = epic_proposal
+    proposal.update!(route_to_backlog: true)
+    first = child_for(proposal, "foundation")
+    second = child_for(proposal, "finish")
+    depend_on(second, first)
+
+    expect {
+      @result = described_class.new(user: user).file!(proposal)
+    }.to change(Epic, :count).by(1)
+      .and change(Job, :count).by(2)
+      .and change(JobDependency, :count).by(1)
+      .and change(Workflow, :count).by(0)
+      .and change(Run, :count).by(0)
+
+    result = @result
+    expect(result.epic).to be_backlog
+    expect(result.jobs).to all(be_blocked_by_epic)
+    expect(second.reload.job.dependencies.sole.depends_on_job).to eq(first.reload.job)
+    expect(chat_session.reload.attached_epics).to include(result.epic)
+    expect(chat_session.attached_jobs).to contain_exactly(*result.jobs)
+  end
+
   it "materializes mixed child priorities" do
     proposal = epic_proposal
     urgent = child_for(proposal, "urgent").tap { |child| child.update!(priority: "urgent") }
