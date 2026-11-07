@@ -22,9 +22,6 @@ module ChatSerialization
       counts = PerformanceLogging.phase("chat_payload.counts", chat_id: chat_session.id) do
         chat_session_payload_counts(chat_session.id)
       end
-      speech_to_text = PerformanceLogging.phase("chat_payload.speech_to_text", chat_id: chat_session.id) do
-        ChatSpeechToText::Capability.for(user: Current.user).as_json
-      end
       turn_in_flight = chat_session.turn_in_flight?
       agent_busy = PerformanceLogging.phase("chat_payload.agent_busy", chat_id: chat_session.id) do
         chat_session.agent_busy?
@@ -98,10 +95,7 @@ module ChatSerialization
           app_source_file_path: "/api/v1/app/chats/#{chat_session.id}/source_file",
           app_source_file_raw_path: "/api/v1/app/chats/#{chat_session.id}/source_file/raw"
         },
-        speech_to_text: speech_to_text,
         attached_coding_job: attached_coding_job_json(chat_session),
-        coding_mode_enabled: Feature.coding_mode_enabled?,
-        local_mode_enabled: Feature.local_mode_enabled?,
         local_tunnel_connected: Feature.local_mode_enabled? && LocalDaemonSession.connected.exists?(chat_session_id: chat_session.id)
       }.then { |payload| merge_chat_payload_contributions(payload, chat_session) }
     end
@@ -289,6 +283,14 @@ module ChatSerialization
     ChatPendingAction.repair_tool_call_anchors_for!(chat_session)
 
     pending_actions_for_payload(chat_session).map do |action|
+      if ChatPendingAction::TERMINAL_REQUEST_STATES.include?(action.state)
+        next {
+          id: action.id,
+          label: pending_action_label(action),
+          state: action.state
+        }
+      end
+
       {
         id: action.id,
         label: pending_action_label(action),
@@ -353,7 +355,7 @@ module ChatSerialization
   def pending_actions_for_payload(chat_session)
     # Grouped members render only inside their PendingActionGroup card
     # (pending_action_groups_json below), never as their own standalone card.
-    base_scope = chat_session.pending_actions.where(pending_action_group_id: nil)
+    base_scope = chat_session.pending_actions.where(pending_action_group_id: nil, chat_message_id: nil)
       .includes(:tool_call_message, :message, authorization_items: [ :prerequisites, :resulting_authority ])
     base_scope.where(dismissed_at: nil).order(:created_at, :id).select(&:visible_in_chat_payload?)
   end

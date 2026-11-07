@@ -280,7 +280,10 @@ type NotificationReadPayload = {
   read_at?: string
 }
 
-function patchCachedChatRecord(chat: ChatPayload["chat"], patch: Partial<Pick<ChatRecord, "last_message_at" | "stop_requested_at" | "turn_retry_state">>) {
+function patchCachedChatRecord(
+  chat: ChatPayload["chat"],
+  patch: Partial<Pick<ChatRecord, "last_message_at" | "stop_requested_at" | "turn_retry_state" | "turn_in_flight" | "agent_busy">>
+) {
   if (!chat) return chat
 
   return { ...chat, ...patch }
@@ -843,12 +846,11 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
 
       return {
         ...current,
-        turn_in_flight: replaceTail.turn_in_flight ?? current.turn_in_flight,
-        agent_busy: replaceTail.agent_busy ?? current.agent_busy,
-        turn_retry_state: replaceTail.turn_retry_state !== undefined ? replaceTail.turn_retry_state : current.turn_retry_state,
         queued_messages: replaceTail.queued_messages ?? current.queued_messages,
         messages: replaceMessageTail(current.messages, replaceTail.replace_from_id, replaceTail.messages),
         chat: patchCachedChatRecord(current.chat, {
+          turn_in_flight: replaceTail.turn_in_flight ?? current.chat?.turn_in_flight,
+          agent_busy: replaceTail.agent_busy ?? current.chat?.agent_busy,
           turn_retry_state: replaceTail.turn_retry_state !== undefined ? replaceTail.turn_retry_state : current.chat?.turn_retry_state,
           stop_requested_at: replaceTail.stop_requested_at ?? current.chat?.stop_requested_at,
           last_message_at: replaceTail.last_message_at ?? current.chat?.last_message_at
@@ -865,11 +867,10 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
       current
         ? {
             ...current,
-            turn_in_flight: invalidateMessages.turn_in_flight ?? current.turn_in_flight,
-            agent_busy: invalidateMessages.agent_busy ?? current.agent_busy,
-            turn_retry_state: invalidateMessages.turn_retry_state !== undefined ? invalidateMessages.turn_retry_state : current.turn_retry_state,
             queued_messages: invalidateMessages.queued_messages ?? current.queued_messages,
             chat: patchCachedChatRecord(current.chat, {
+              turn_in_flight: invalidateMessages.turn_in_flight ?? current.chat?.turn_in_flight,
+              agent_busy: invalidateMessages.agent_busy ?? current.chat?.agent_busy,
               turn_retry_state: invalidateMessages.turn_retry_state !== undefined ? invalidateMessages.turn_retry_state : current.chat?.turn_retry_state,
               stop_requested_at: invalidateMessages.stop_requested_at ?? current.chat?.stop_requested_at
             })
@@ -893,12 +894,11 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
 
       return {
         ...current,
-        turn_in_flight: controls.turn_in_flight,
-        agent_busy: controls.agent_busy ?? current.agent_busy,
-        turn_retry_state: controls.turn_retry_state !== undefined ? controls.turn_retry_state : current.turn_retry_state,
         switching_provider: controls.switching_provider ?? current.switching_provider,
         queued_messages: controls.queued_messages ?? current.queued_messages,
         chat: patchCachedChatRecord(current.chat, {
+          turn_in_flight: controls.turn_in_flight,
+          agent_busy: controls.agent_busy ?? current.chat?.agent_busy,
           turn_retry_state: controls.turn_retry_state !== undefined ? controls.turn_retry_state : current.chat?.turn_retry_state,
           stop_requested_at: controls.stop_requested_at
         })
@@ -1105,7 +1105,7 @@ type ChatReplaceTailPayload = {
   messages: ChatMessageItem[]
   turn_in_flight?: boolean
   agent_busy?: boolean
-  turn_retry_state?: ChatPayload["turn_retry_state"]
+  turn_retry_state?: ChatRecord["turn_retry_state"]
   stop_requested_at?: string | null
   last_message_at?: string | null
   queued_messages?: ChatQueuedMessage[]
@@ -1115,7 +1115,7 @@ type ChatControlsPayload = {
   action: "update_controls"
   turn_in_flight: boolean
   agent_busy?: boolean
-  turn_retry_state?: ChatPayload["turn_retry_state"]
+  turn_retry_state?: ChatRecord["turn_retry_state"]
   stop_requested_at: string | null
   switching_provider?: boolean
   queued_messages?: ChatQueuedMessage[]
@@ -1126,7 +1126,7 @@ type ChatInvalidateMessagesPayload = {
   action: "invalidate_messages"
   turn_in_flight?: boolean
   agent_busy?: boolean
-  turn_retry_state?: ChatPayload["turn_retry_state"]
+  turn_retry_state?: ChatRecord["turn_retry_state"]
   stop_requested_at?: string | null
   last_message_at?: string | null
   queued_messages?: ChatQueuedMessage[]
@@ -1265,10 +1265,10 @@ function chatControlsPayload(payload: unknown): ChatControlsPayload | null {
   }
 }
 
-function isChatTurnRetryState(value: unknown): value is NonNullable<ChatPayload["turn_retry_state"]> {
+function isChatTurnRetryState(value: unknown): value is NonNullable<ChatRecord["turn_retry_state"]> {
   if (!value || typeof value !== "object") return false
 
-  const candidate = value as NonNullable<ChatPayload["turn_retry_state"]>
+  const candidate = value as NonNullable<ChatRecord["turn_retry_state"]>
   return (
     (typeof candidate.classification === "string" || candidate.classification === null) &&
     typeof candidate.classification_label === "string" &&
