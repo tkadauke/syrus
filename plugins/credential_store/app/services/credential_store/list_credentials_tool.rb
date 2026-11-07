@@ -18,6 +18,12 @@ module CredentialStore
     )
 
     class << self
+      def capability_descriptor_value
+        PermissionProvider.capability_descriptor("credential.metadata/list@v1")
+      end
+    end
+
+    class << self
       def call(server_context:, credential_type: nil, scope: nil, query: nil, limit: CredentialDiscovery::DEFAULT_LIMIT)
         context = McpToolContext.from_server_context(server_context)
         payload = CredentialDiscovery.call(
