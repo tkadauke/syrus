@@ -893,7 +893,7 @@ describe("ProposalCard media", () => {
   it("lets proposal edits add and remove media refs", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
-      if (url.includes("/media?")) {
+      if (url.endsWith("/media") || url.includes("/media?")) {
         return Promise.resolve(jsonResponse(mediaPayload))
       }
       if (init?.method === "PATCH") return Promise.resolve(jsonResponse(payloadFor(["chats", "122", ""], proposal({ media_ids: ["chat_image:77"] }))))
@@ -975,7 +975,7 @@ describe("ProposalCard routing", () => {
   it("lets operators choose backlog routing before confirming a direct Job proposal", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
-      if (url.includes("/media?")) return Promise.resolve(jsonResponse(mediaPayload))
+      if (url.endsWith("/media") || url.includes("/media?")) return Promise.resolve(jsonResponse(mediaPayload))
       if (init?.method === "PATCH")
         return Promise.resolve(jsonResponse(payloadFor(["chats", "122", ""], proposal({ kind: "job", route_to_backlog: true, route_label: "Backlog" }))))
 
@@ -1182,7 +1182,7 @@ describe("ProposalCard live sync", () => {
     const confirmed = proposal({ state: "confirmed", state_label: "Confirmed", proposed: false, resolved: true })
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
-      if (url.includes("/media?")) return Promise.resolve(jsonResponse(mediaPayload))
+      if (url.endsWith("/media") || url.includes("/media?")) return Promise.resolve(jsonResponse(mediaPayload))
       if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal confirmed.", proposal: confirmed }))
 
       return Promise.resolve(jsonResponse({}))
@@ -1205,7 +1205,7 @@ describe("ProposalCard live sync", () => {
     const rejected = proposal({ state: "rejected", state_label: "Rejected", proposed: false, resolved: true })
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
-      if (url.includes("/media?")) return Promise.resolve(jsonResponse(mediaPayload))
+      if (url.endsWith("/media") || url.includes("/media?")) return Promise.resolve(jsonResponse(mediaPayload))
       if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "Proposal rejected.", proposal: rejected }))
 
       return Promise.resolve(jsonResponse({}))
@@ -1225,7 +1225,7 @@ describe("ProposalCard live sync", () => {
     const updatedProposal = proposal({ title: "Updated title" })
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
-      if (url.includes("/media?")) return Promise.resolve(jsonResponse(mediaPayload))
+      if (url.endsWith("/media") || url.includes("/media?")) return Promise.resolve(jsonResponse(mediaPayload))
       if (init?.method === "PATCH") {
         return Promise.resolve(
           jsonResponse({

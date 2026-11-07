@@ -1153,7 +1153,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
   // there. The result is awaited so the notice reflects what actually
   // happened rather than assuming success.
   async function attachImageToComposer(image: ChatMediaImage) {
-    const src = image.file_path || ""
+    const src = image.file_path || image.image_url || ""
     if (!src) return
 
     const result = await attachMediaLibraryImage({
@@ -1320,7 +1320,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
           <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("image_attachments")}</h2>
           <div className="grid grid-cols-3 gap-2">
             {images.map((image, index) => {
-              const src = image.file_path || ""
+              const src = image.file_path || image.image_url || ""
               const thumbnailSrc = image.thumbnail_url || src
               const name = image.title || image.filename || "image attachment"
 
@@ -1380,12 +1380,12 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
           imageCount={images.length}
           imageIndex={lightboxImageIndex ?? 0}
           name={lightboxImage.title || lightboxImage.filename || t("image_attachment")}
-          nextSrc={nextLightboxImage?.file_path || null}
+          nextSrc={(nextLightboxImage?.file_path || nextLightboxImage?.image_url) ?? null}
           onClose={() => setLightboxImageIndex(null)}
           onNext={() => setLightboxImageIndex((index) => (index == null ? index : Math.min(index + 1, images.length - 1)))}
           onPrevious={() => setLightboxImageIndex((index) => (index == null ? index : Math.max(index - 1, 0)))}
-          previousSrc={previousLightboxImage?.file_path || null}
-          src={lightboxImage.file_path || ""}
+          previousSrc={(previousLightboxImage?.file_path || previousLightboxImage?.image_url) ?? null}
+          src={lightboxImage.file_path || lightboxImage.image_url || ""}
         />
       ) : null}
     </div>

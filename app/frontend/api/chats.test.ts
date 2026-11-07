@@ -171,6 +171,8 @@ describe("chat API", () => {
     expect(result.chat_images.map((image) => image.id)).toEqual([1, 2])
     expect(result.typed_artifacts.map((artifact) => artifact.artifact_index)).toEqual([0, 1])
     expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/v1/app/chats/8/media")
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/v1/app/chats/8/media?image_page=2&artifact_page=2")
   })
 })
 

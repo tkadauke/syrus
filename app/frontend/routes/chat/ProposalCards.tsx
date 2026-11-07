@@ -941,7 +941,7 @@ function proposalMediaItem(ref: string, media: ChatMediaPayload | undefined, pre
       kind,
       label: image?.title || image?.filename || ref,
       detail: image?.content_type || i18n.t("chat:chat_image"),
-      imageUrl: image?.file_path,
+      imageUrl: image?.file_path || image?.image_url,
       thumbnailUrl: image?.thumbnail_url,
       contentType: image?.content_type
     }

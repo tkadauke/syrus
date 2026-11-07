@@ -1340,7 +1340,8 @@ export function fetchWhiteboardSnapshot(chatSessionId: string | number, snapshot
 }
 
 export function fetchChatMedia(chatId: string | number, page = 1) {
-  return getJson<ChatMediaPayload>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/media?image_page=${page}&artifact_page=${page}`)
+  const path = `/api/v1/app/chats/${encodeURIComponent(String(chatId))}/media`
+  return getJson<ChatMediaPayload>(page === 1 ? path : `${path}?image_page=${page}&artifact_page=${page}`)
 }
 
 export async function fetchAllChatMedia(chatId: string | number) {
@@ -1358,8 +1359,8 @@ export async function fetchAllChatMedia(chatId: string | number) {
 
   return {
     ...firstPage,
-    chat_images: pages.flatMap((entry) => entry.chat_images),
-    typed_artifacts: pages.flatMap((entry) => entry.typed_artifacts),
+    chat_images: pages.flatMap((entry) => entry.chat_images || []),
+    typed_artifacts: pages.flatMap((entry) => entry.typed_artifacts || []),
     pagination: pages.at(-1)?.pagination
   }
 }
