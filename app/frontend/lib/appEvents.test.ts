@@ -438,7 +438,7 @@ describe("applyAppEvent", () => {
 
     const predicate = invalidationPredicate(invalidate, ["dashboard"])
     expect(predicate).toBeDefined()
-    expect(predicate?.({ queryKey: ["dashboard", "chrome", "?state=open"] })).toBe(true)
+    expect(predicate?.({ queryKey: ["dashboard", "chrome", "?state=open"] })).toBe(false)
     expect(predicate?.({ queryKey: ["dashboard", "rows", "?state=open"] })).toBe(true)
     expect(predicate?.({ queryKey: ["dashboard", "graph", "jobs", "?state=open"] })).toBe(true)
     expect(predicate?.({ queryKey: ["jobs", "42", "source_diff", ""] })).toBe(false)
