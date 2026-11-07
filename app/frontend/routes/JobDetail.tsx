@@ -2509,14 +2509,16 @@ function AutoApprovalEvidenceNote({ evidence, prefix }: { evidence: JobApprovalE
 function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; command: ReturnType<typeof useJobCommand> }) {
   const { t } = useT("jobs")
   const [query, setQuery] = useState("")
+  const [debouncedQuery, setDebouncedQuery] = useState("")
   const [addingDependency, setAddingDependency] = useState(false)
   const [epicQuery, setEpicQuery] = useState("")
   const [addingEpicDependency, setAddingEpicDependency] = useState(false)
   const dependencyOptions = useQuery({
-    queryKey: ["job", payload.job.id, "dependency_options"],
+    queryKey: ["job", payload.job.id, "dependency_options", addingDependency ? debouncedQuery.trim() : ""],
     queryFn: () =>
       fetchJobDependencyOptions(
-        payload.paths.app_dependency_options_path || `${payload.paths.app_dependencies_path.replace(/\/dependencies$/, "")}/dependency_options`
+        payload.paths.app_dependency_options_path || `${payload.paths.app_dependencies_path.replace(/\/dependencies$/, "")}/dependency_options`,
+        addingDependency ? debouncedQuery : ""
       ),
     enabled: addingDependency || addingEpicDependency,
     staleTime: 30000
@@ -2525,14 +2527,18 @@ function DependenciesPanel({ payload, command }: { payload: JobDetailPayload; co
   const epicDependencyOptions = dependencyOptions.data?.epic_dependency_target_options ?? payload.epic_dependency_target_options
 
   const trimmedQuery = query.trim()
-  const filteredOptions =
-    trimmedQuery.length > 0 ? jobDependencyOptions.filter((option) => option.label.toLowerCase().includes(trimmedQuery.toLowerCase())) : jobDependencyOptions
+  const filteredOptions = jobDependencyOptions
 
   const trimmedEpicQuery = epicQuery.trim()
   const filteredEpicOptions =
     trimmedEpicQuery.length > 0
       ? epicDependencyOptions.filter((option) => option.label.toLowerCase().includes(trimmedEpicQuery.toLowerCase()))
       : epicDependencyOptions
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedQuery(query), 200)
+    return () => window.clearTimeout(timeout)
+  }, [query])
 
   function choose(value: string) {
     command.mutate(
