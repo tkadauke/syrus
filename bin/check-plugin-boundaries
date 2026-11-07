@@ -27,6 +27,7 @@ end
 
 failures.concat(audit.core_violations.map(&:message))
 failures.concat(audit.plugin_violations.map(&:message))
+failures.concat(Admin::PluginOwnershipAudit.new.violations.map(&:message))
 
 if failures.empty?
   puts "Plugin source boundaries look good."

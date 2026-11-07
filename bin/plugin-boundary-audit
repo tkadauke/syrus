@@ -42,6 +42,7 @@ end
 
 root = Rails.root
 audit = Admin::PluginSourceBoundaryAudit.new(root: root)
+ownership_audit = Admin::PluginOwnershipAudit.new(root: root)
 removed = audit.removed_plugin_names_for(plugin_name)
 
 if removed.empty?
@@ -54,7 +55,19 @@ gem_paths = audit.bundled_gem_paths.slice(*removed)
 kept = audit.bundled_manifest_names - removed
 temp_root = Pathname.new(Dir.mktmpdir([ "syrus-plugin-boundary-", "-#{plugin_name}" ]))
 
-puts "Plugin boundary physical-removal audit"
+ownership = ownership_audit.ownerships.find { |candidate| candidate.plugin == plugin_name }
+if ownership
+  puts "Plugin boundary vocabulary-ownership audit"
+  ownership_failures = ownership_audit.violations.select { |violation| violation.plugin == plugin_name }
+  if ownership_failures.any?
+    ownership_failures.each { |failure| warn failure.message }
+    exit 1
+  end
+  puts "Result: PASS (no core reimplementation growth)"
+  puts
+end
+
+puts "Plugin boundary physical-removal audit (physical removability)"
 puts "Selected plugin: #{plugin_name}"
 puts "Removed plugins: #{removed.join(', ')}"
 puts "Kept plugins: #{kept.join(', ')}"
