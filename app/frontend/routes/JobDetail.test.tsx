@@ -4721,14 +4721,23 @@ describe("SourceTab", () => {
   })
 
   it("falls back to plain source text for unsupported languages", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse(
-        jobSourcePayload({
-          file: { path: "README.unknownext", name: "README.unknownext", size: 20, language: "plaintext", content: "class User\n" }
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const url = requestUrl(input)
+      if (url.includes("/source_file?")) {
+        return Promise.resolve(
+          jsonResponse({ file: { path: "README.unknownext", name: "README.unknownext", size: 20, language: "plaintext", content: "class User\n" } })
+        )
+      }
+      return Promise.resolve(
+        jsonResponse({
+          ...jobSourcePayload(),
+          tree_items: [{ path: "README.unknownext", name: "README.unknownext", size: 20, language: "plaintext", type: "file" }]
         })
       )
-    )
+    })
     renderJobSource()
+
+    fireEvent.click(await screen.findByRole("button", { name: "README.unknownext" }))
 
     const code = await screen.findByText("class User")
 
