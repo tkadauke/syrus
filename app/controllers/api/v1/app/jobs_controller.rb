@@ -218,7 +218,7 @@ module Api
             else
               return unless stale?(etag: [ "source-file-diff", params[:base], params[:head], path, params[:previous_path] ], public: false)
 
-              expires_in 1.year, public: false, immutable: true
+              expires_in 1.year, public: false, immutable: true if exact_diff_revisions?
               render json: { patch: patch, rows: rows, bytes: patch.bytesize }
             end
           end
@@ -229,12 +229,19 @@ module Api
             job, base, head, path, previous_path = requested_file_patch_arguments
             file = Tempfile.new([ "syrus-diff-", ".diff" ], binmode: true)
             begin
-              stored_patch = stored_file_patch(job, base, head, path, previous_path)
-              if stored_patch
-                file.write(stored_patch)
+              preview_patch = preview_file_patch(job, base, head, path, previous_path)
+              if preview_patch
+                file.write(preview_patch)
               else
-                content = RepositoryContent.for(job.repository, user: Current.user)
-                content.file_patch_to(file, base: content.revision(base), head: content.revision(head), path: path, previous_path: previous_path)
+                raise ArgumentError unless exact_diff_revisions?(base, head)
+
+                stored_patch = stored_file_patch(job, base, head, path, previous_path)
+                if stored_patch
+                  file.write(stored_patch)
+                else
+                  content = RepositoryContent.for(job.repository, user: Current.user)
+                  content.file_patch_to(file, base: content.revision(base), head: content.revision(head), path: path, previous_path: previous_path)
+                end
               end
             rescue StandardError
               file.close!
@@ -623,6 +630,11 @@ module Api
 
         def requested_file_patch
           job, base, head, path, previous_path = requested_file_patch_arguments
+          preview_patch = preview_file_patch(job, base, head, path, previous_path)
+          return [ preview_patch, path ] if preview_patch
+
+          raise ArgumentError unless exact_diff_revisions?(base, head)
+
           stored_patch = stored_file_patch(job, base, head, path, previous_path)
           return [ stored_patch, path ] if stored_patch
 
@@ -635,6 +647,10 @@ module Api
           value.to_s.match?(/\A[0-9a-f]{40,64}\z/i)
         end
 
+        def exact_diff_revisions?(base = params[:base], head = params[:head])
+          exact_revision?(base) && exact_revision?(head)
+        end
+
         def payload_etag(namespace, payload)
           [ namespace, payload[:resolved_sha] || payload[:base_sha], payload[:head_sha], Digest::SHA256.hexdigest(payload.to_json) ]
         end
@@ -645,9 +661,28 @@ module Api
           head = params[:head].to_s
           path = params[:path].to_s
           previous_path = params[:previous_path].to_s.presence
-          raise ArgumentError unless base.match?(/\A[0-9a-f]{40,64}\z/i) && head.match?(/\A[0-9a-f]{40,64}\z/i) && path.present?
+          raise ArgumentError unless base.present? && head.present? && valid_repository_path?(path) && (!previous_path || valid_repository_path?(previous_path))
 
           [ job, base, head, path, previous_path ]
+        end
+
+        def valid_repository_path?(path)
+          path.present? && !path.start_with?("/") && path.split("/").exclude?("..") && !path.include?("\0")
+        end
+
+        def preview_file_patch(job, base, head, path, previous_path)
+          return unless Rails.env.development? && job.diff_fixture.present?
+
+          fixture = job.diff_fixture.with_indifferent_access
+          fixture_base = fixture[:base_sha].presence || fixture[:merge_base_sha].presence || fixture[:base_ref]
+          fixture_head = fixture[:head_sha].presence || fixture[:head_ref]
+          return unless fixture_base.to_s == base && fixture_head.to_s == head
+
+          file = Array(fixture[:files]).find do |candidate|
+            candidate = candidate.with_indifferent_access
+            candidate[:path].to_s == path && candidate[:previous_path].to_s.presence == previous_path
+          end
+          file&.with_indifferent_access&.fetch(:patch, nil)
         end
 
         def stored_file_patch(job, base, head, path, previous_path)
