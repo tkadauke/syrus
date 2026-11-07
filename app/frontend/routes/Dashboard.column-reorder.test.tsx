@@ -21,8 +21,7 @@ function buildPayload(overrides: Partial<DashboardPayload> = {}): DashboardPaylo
       kanban_lanes: [],
       ownership_scope: "team",
       owner_user_id: null,
-      owner_id: null,
-      raw: {}
+      owner_id: null
     },
     controls: {
       views: ["list", "kanban"],
@@ -50,7 +49,15 @@ function buildPayload(overrides: Partial<DashboardPayload> = {}): DashboardPaylo
     items: [],
     lanes: [],
     kanban_limit: null,
-    paths: { dashboard_path: "/dashboard/jobs", dashboard_jobs_path: "/dashboard/jobs", dashboard_epics_path: "/dashboard/epics", dashboard_workflows_path: "/dashboard/workflows", new_epic_path: "/epics/new", new_job_path: "/jobs/new", app_dashboard_path: "/api/v1/app/dashboard" },
+    paths: {
+      dashboard_path: "/dashboard/jobs",
+      dashboard_jobs_path: "/dashboard/jobs",
+      dashboard_epics_path: "/dashboard/epics",
+      dashboard_workflows_path: "/dashboard/workflows",
+      new_epic_path: "/epics/new",
+      new_job_path: "/jobs/new",
+      app_dashboard_path: "/api/v1/app/dashboard"
+    },
     ...overrides
   }
 }
@@ -76,9 +83,7 @@ describe("Dashboard column visibility menu", () => {
   })
 
   it("sends a move-up reorder as visible_columns in the requested order", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse({ message: "ok", dashboard_preferences: {} })
-    )
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "ok", dashboard_preferences: {} }))
 
     renderToolbar(buildPayload())
 
@@ -94,9 +99,7 @@ describe("Dashboard column visibility menu", () => {
   })
 
   it("sends a dragged reorder as visible_columns in the requested order", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse({ message: "ok", dashboard_preferences: {} })
-    )
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "ok", dashboard_preferences: {} }))
 
     renderToolbar(buildPayload())
 
@@ -118,9 +121,7 @@ describe("Dashboard column visibility menu", () => {
   })
 
   it("toggling a column off still sends the remaining columns in their current order", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse({ message: "ok", dashboard_preferences: {} })
-    )
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "ok", dashboard_preferences: {} }))
 
     renderToolbar(buildPayload())
 

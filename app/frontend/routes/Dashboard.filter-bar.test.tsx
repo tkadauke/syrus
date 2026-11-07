@@ -18,13 +18,14 @@ it("keeps built-in SmartFolder navigation when an expanded scope chip is removed
   const payload = {
     subject: "job",
     active_smart_folder_id: 7,
+    active_smart_folder_filter: {},
     filter: {
       and: [
         { field: "attention", op: "is", value: "inbox" },
         { field: "eligible_approver", op: "is", value: "me" }
       ]
     },
-    smart_folders: [{ id: 7, name: "Inbox", kind: "builtin", subject_type: "job", filter: {}, position: 0, visibility: "always", count: 1, active: true }],
+    smart_folders: [{ id: 7, name: "Inbox", kind: "builtin", subject_type: "job", position: 0, visibility: "always", count: 1, active: true }],
     controls: {
       filter_schema: [
         {
@@ -66,13 +67,14 @@ it("clears built-in SmartFolder navigation when its preset is removed", async ()
   const payload = {
     subject: "job",
     active_smart_folder_id: 7,
+    active_smart_folder_filter: {},
     filter: {
       and: [
         { field: "attention", op: "is", value: "inbox" },
         { field: "eligible_approver", op: "is", value: "me" }
       ]
     },
-    smart_folders: [{ id: 7, name: "Inbox", kind: "builtin", subject_type: "job", filter: {}, position: 0, visibility: "always", count: 1, active: true }],
+    smart_folders: [{ id: 7, name: "Inbox", kind: "builtin", subject_type: "job", position: 0, visibility: "always", count: 1, active: true }],
     controls: {
       filter_schema: [
         {

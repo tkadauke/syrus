@@ -32,8 +32,7 @@ function buildPayload(items: DashboardJobItem[]): DashboardPayload {
       kanban_lanes: [],
       ownership_scope: "mine",
       owner_user_id: null,
-      owner_id: null,
-      raw: {}
+      owner_id: null
     },
     filter: null,
     controls: {
@@ -82,14 +81,14 @@ function renderTable(items: DashboardJobItem[]) {
 
 describe("deployment column rendering", () => {
   it("renders the latest deployment stage as a job link", () => {
-    renderTable([ jobItem(12, "On Staging") ])
+    renderTable([jobItem(12, "On Staging")])
     const link = screen.getByRole("link", { name: "On Staging" })
 
     expect(link.getAttribute("href")).toBe("/jobs/JOB-12")
   })
 
   it("renders a dash when no deployment stage has been reached", () => {
-    renderTable([ jobItem(13, null) ])
+    renderTable([jobItem(13, null)])
 
     expect(screen.getByText("—")).toBeTruthy()
   })

@@ -26,6 +26,7 @@ const dashboardFilterOverrideKeys = ["q", "state", "repository_id", "kind", "tri
 type DashboardSmartFolderPayload = Pick<
   DashboardPayload,
   | "active_smart_folder_id"
+  | "active_smart_folder_filter"
   | "filter"
   | "health_blocked_repositories"
   | "landing_queue"
@@ -57,7 +58,10 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
   const selectedFolder = payload.smart_folders.find((folder) => folder.id === activeSmartFolderId)
   const rowsCurrentForSearch = payload.rows_current_for_search ?? true
   const filterChangedFromSelectedFolder =
-    rowsCurrentForSearch && selectedFolder?.filter != null && !filterTreesEqual(appliedTree, filterTreeFromPayload(selectedFolder.filter))
+    rowsCurrentForSearch &&
+    selectedFolder != null &&
+    payload.active_smart_folder_filter != null &&
+    !filterTreesEqual(appliedTree, filterTreeFromPayload(payload.active_smart_folder_filter))
   const canUpdateFilter = activeFolder != null && filterChangedFromSelectedFolder
   const canSaveFilter = hasAppliedFilter && (selectedFolder == null || filterChangedFromSelectedFolder)
   const landingPause = useMutation({
