@@ -12,7 +12,7 @@ RSpec.describe MaintenanceTasks::Definitions::ChatAttachmentBackfill do
   end
 
   it "is batched, resumable, idempotent, and retries a partial failure" do
-    good = chat.messages.create!(role: "user", content: inline_content("good.txt", Base64.strict_encode64("good")))
+    good = create_legacy_message(inline_content("good.txt", Base64.strict_encode64("good")))
     bad = chat.queued_messages.create!(content: inline_content("bad.txt", "%%%"))
     task = build_task
 
@@ -41,13 +41,17 @@ RSpec.describe MaintenanceTasks::Definitions::ChatAttachmentBackfill do
 
   def create_inline_records
     encoded = Base64.strict_encode64("bytes")
-    chat.messages.create!(role: "user", content: inline_content("message.txt", encoded))
+    create_legacy_message(inline_content("message.txt", encoded))
     chat.queued_messages.create!(content: inline_content("queue.txt", encoded))
     chat.scratchpad_items.create!(content: JSON.generate(inline_content("draft.txt", encoded)), position: 0)
   end
 
   def inline_content(name, data)
     { "text" => "Attachment", "attachments" => [ { "name" => name, "mime_type" => "text/plain", "data" => data } ] }
+  end
+
+  def create_legacy_message(content)
+    chat.messages.build(role: "user", content: content).tap { |message| message.save!(validate: false) }
   end
 
   def build_task

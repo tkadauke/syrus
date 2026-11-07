@@ -3,7 +3,7 @@ class ChatFileAttachment < ApplicationRecord
 
   belongs_to :chat_session
   belongs_to :attachable, polymorphic: true, optional: true
-  has_one_attached :file
+  has_one_attached :file, dependent: :purge
 
   validates :name, :mime_type, :checksum, presence: true
   validates :byte_size, numericality: { greater_than_or_equal_to: 0 }
