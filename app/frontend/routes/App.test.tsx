@@ -2120,8 +2120,8 @@ describe("App", () => {
       expect(await screen.findByText("No bookmarks yet")).toBeInTheDocument()
       fireEvent.click(screen.getByRole("button", { name: "Hide Chat" }))
 
-      expect(within(recentNav).queryByRole("link", { name: "Widgets two" })).not.toBeInTheDocument()
       await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/11/hide", expect.objectContaining({ method: "PATCH" })))
+      await waitFor(() => expect(within(recentNav).queryByRole("link", { name: "Widgets two" })).not.toBeInTheDocument())
     } finally {
       fetchSpy.mockRestore()
       script.remove()
@@ -8671,8 +8671,7 @@ describe("App", () => {
         return Promise.resolve(
           new Response(
             JSON.stringify({
-              palette,
-              tags: [{ id: 4, name: "epic:attachments", color: "indigo", jobs_count: 0 }],
+              tag: { id: 4, name: "epic:attachments", color: "indigo", jobs_count: 0 },
               message: "Tag created."
             }),
             { status: 201, headers: { "Content-Type": "application/json" } }
