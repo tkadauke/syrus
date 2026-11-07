@@ -24,6 +24,7 @@ import {
 } from "./toolRendering"
 import { isReadOnlyToolName } from "../../toolPresentationRegistry"
 import { measureSync } from "../../lib/performanceMarkers"
+import { intlLocale, validTimeZone } from "../../lib/relativeTime"
 
 // Groups are tracked per "parent" tool_use id rather than a single global
 // "last open group": a nested Agent/Task call's own tool_use/tool_result
@@ -422,7 +423,73 @@ export function lastAssistantRenderedMessage(messages: ChatMessageItem[]) {
   return null
 }
 
-export function injectTemporalMarkers(items: ChatStreamItem[]): ChatStreamItem[] {
+export function buildMessageStreamItems(
+  items: ChatRenderItem[],
+  pendingActions: ChatPendingAction[],
+  pendingActionGroups: ChatPendingActionGroup[] = []
+): ChatStreamItem[] {
+  if (pendingActions.length === 0 && pendingActionGroups.length === 0) return items
+
+  const anchoredByMessageId = new Map<number, ChatStreamItem[]>()
+  const unanchoredItems: ChatStreamItem[] = []
+  const renderedMessageIds = new Set<number>()
+  const renderedAnchoredItems = new Set<ChatStreamItem>()
+  const result: ChatStreamItem[] = []
+
+  const anchor = (messageId: number | null | undefined, streamItem: ChatStreamItem) => {
+    if (messageId == null) {
+      unanchoredItems.push(streamItem)
+      return
+    }
+
+    const bucket = anchoredByMessageId.get(messageId) || []
+    bucket.push(streamItem)
+    anchoredByMessageId.set(messageId, bucket)
+  }
+
+  for (const action of pendingActions) anchor(action.chat_message_id, { type: "pending_action", pendingAction: action })
+  for (const group of pendingActionGroups) {
+    const streamItem: ChatStreamItem = { type: "pending_action_group", pendingActionGroup: group }
+    const anchorIds = [group.chat_message_id, ...group.members.map((member) => member.chat_message_id)].filter((id): id is number => id != null)
+    const uniqueAnchorIds = Array.from(new Set(anchorIds))
+    if (uniqueAnchorIds.length === 0) {
+      unanchoredItems.push(streamItem)
+    } else {
+      for (const messageId of uniqueAnchorIds) anchor(messageId, streamItem)
+    }
+  }
+
+  for (const item of items) {
+    result.push(item)
+
+    const messageIds = streamItemMessageIds(item)
+    for (const messageId of messageIds) {
+      renderedMessageIds.add(messageId)
+      for (const anchoredItem of anchoredByMessageId.get(messageId) || []) {
+        if (renderedAnchoredItems.has(anchoredItem)) continue
+
+        renderedAnchoredItems.add(anchoredItem)
+        result.push(anchoredItem)
+      }
+    }
+  }
+
+  for (const [messageId, anchoredItems] of anchoredByMessageId) {
+    if (renderedMessageIds.has(messageId)) continue
+    for (const anchoredItem of anchoredItems) {
+      if (renderedAnchoredItems.has(anchoredItem)) continue
+
+      renderedAnchoredItems.add(anchoredItem)
+      unanchoredItems.push(anchoredItem)
+    }
+  }
+
+  result.push(...unanchoredItems)
+
+  return result
+}
+
+export function injectTemporalMarkers(items: ChatStreamItem[], timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone): ChatStreamItem[] {
   const result: ChatStreamItem[] = []
   let lastMessageDate: Date | null = null
 
@@ -430,19 +497,27 @@ export function injectTemporalMarkers(items: ChatStreamItem[]): ChatStreamItem[]
     if (item.type === "message" && temporalAnchorRole(item.role) && item.created_at) {
       const messageDate = new Date(item.created_at)
       if (!Number.isNaN(messageDate.getTime())) {
-        if (lastMessageDate === null || !sameLocalDay(messageDate, lastMessageDate)) {
+        if (lastMessageDate === null || !sameLocalDay(messageDate, lastMessageDate, timeZone)) {
           result.push({
             type: "day_divider",
             date: item.created_at,
-            label: dayDividerLabel(messageDate)
+            label: dayDividerLabel(messageDate, timeZone)
           })
         }
 
         if (lastMessageDate === null || messageDate.getTime() - lastMessageDate.getTime() >= 5 * 60 * 1000) {
           result.push({
             type: "timestamp",
-            time: messageDate.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }),
-            fullDatetime: messageDate.toLocaleString()
+            time: new Intl.DateTimeFormat(intlLocale(), { timeZone: validTimeZone(timeZone), hour: "numeric", minute: "2-digit" }).format(messageDate),
+            fullDatetime: new Intl.DateTimeFormat(intlLocale(), {
+              timeZone: validTimeZone(timeZone),
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+              timeZoneName: "short"
+            }).format(messageDate)
           })
         }
 

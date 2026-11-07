@@ -599,6 +599,21 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body["groups"].flat_map { |group| group["chats"].map { |chat| chat["id"] } }).to eq(chats.last(2).map(&:id))
   end
 
+  it "groups and labels chat dates in the current user's timezone" do
+    user.update!(time_zone: "America/Los_Angeles")
+    sign_in_as(user)
+    travel_to Time.utc(2026, 1, 2, 8, 30) do
+      yesterday = ChatSession.create!(user: user, title: "West coast yesterday", last_message_at: Time.utc(2026, 1, 2, 7, 45))
+      today = ChatSession.create!(user: user, title: "West coast today", last_message_at: Time.utc(2026, 1, 2, 8, 15))
+
+      get "/api/v1/app/chats", params: { group_by: "date" }
+
+      groups = parse_body.fetch("groups")
+      expect(groups.find { |group| group["label"] == "Today" }.fetch("chats").map { |chat| chat["id"] }).to include(today.id)
+      expect(groups.find { |group| group["label"] == "Yesterday" }.fetch("chats").map { |chat| chat["id"] }).to include(yesterday.id)
+    end
+  end
+
   it "loads initial sidebar chat groups without one chat query per repository" do
     sign_in_as(user)
     8.times do |index|

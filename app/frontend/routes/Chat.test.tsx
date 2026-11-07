@@ -2574,7 +2574,7 @@ describe("chat temporal markers", () => {
 
     expect(await screen.findByText("First update.")).toBeInTheDocument()
     expect(screen.getByText(shortTime(secondDate))).toBeInTheDocument()
-    expect(screen.getByText(shortTime(secondDate)).closest("[title]")).toHaveAttribute("title", secondDate.toLocaleString())
+    expect(screen.getByText(shortTime(secondDate)).closest("[title]")?.getAttribute("title")).toContain("EST")
   })
 
   it("renders a day divider between messages on different local days", async () => {

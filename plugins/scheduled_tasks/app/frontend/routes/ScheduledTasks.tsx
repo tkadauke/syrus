@@ -1,4 +1,5 @@
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
+import { AbsoluteTimestamp } from "@app/components/AbsoluteTimestamp"
 import { PageHeading } from "@app/components/Heading"
 import { routePrefix, withRoutePrefix } from "@app/lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
@@ -437,10 +438,10 @@ function TaskDetail({ payload, basePath, prefix }: { payload: ScheduledTaskDetai
             {payload.task.schedule_expression || payload.task.cron_expression || t("scheduled_tasks.none")}
           </DescriptionList.Item>
           <DescriptionList.Item label={t("scheduled_tasks.field_fire_at")}>
-            <RelativeTimestamp fallback={t("scheduled_tasks.none")} value={payload.task.fire_at} />
+            <AbsoluteTimestamp fallback={t("scheduled_tasks.none")} value={payload.task.fire_at} />
           </DescriptionList.Item>
           <DescriptionList.Item label={t("scheduled_tasks.field_next_fire")}>
-            <RelativeTimestamp fallback={t("scheduled_tasks.none")} value={payload.task.next_fire_at} />
+            <AbsoluteTimestamp fallback={t("scheduled_tasks.none")} value={payload.task.next_fire_at} />
           </DescriptionList.Item>
           <DescriptionList.Item label={t("scheduled_tasks.field_pileup")}>{payload.task.pr_pileup_policy}</DescriptionList.Item>
           <DescriptionList.Item label={t("scheduled_tasks.field_auto_approve")}>{payload.task.auto_approve_preview}</DescriptionList.Item>
