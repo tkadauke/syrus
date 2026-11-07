@@ -45,6 +45,7 @@ export function AdminPluginServices() {
   const services = useQuery({
     queryKey: QUERY_KEY,
     queryFn: fetchPluginServices,
+    staleTime: 0,
     refetchInterval: 10_000
   })
   const payload = services.data
@@ -256,6 +257,7 @@ function LogsPanel({ name, onClose }: { name: string; onClose: () => void }) {
   const logs = useQuery({
     queryKey: ["admin", "plugin_services_logs", name, tail],
     queryFn: () => fetchPluginServiceLogs(name, tail),
+    staleTime: 0,
     refetchInterval: follow ? 3_000 : false
   })
 
@@ -310,6 +312,7 @@ function DetailsPanel({ name, onClose }: { name: string; onClose: () => void }) 
   const details = useQuery({
     queryKey: ["admin", "plugin_services_details", name],
     queryFn: () => fetchPluginServiceDetails(name),
+    staleTime: 0,
     refetchInterval: 30_000
   })
   const data = details.data?.details

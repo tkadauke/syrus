@@ -30,6 +30,7 @@ export function TerminalRoute() {
   const sessionsQuery = useQuery({
     queryKey: terminalSessionsQueryKey,
     queryFn: ({ signal }) => fetchTerminalSessions({ signal }),
+    staleTime: 0,
     refetchInterval: 5000
   })
 

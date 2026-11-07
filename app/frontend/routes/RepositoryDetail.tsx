@@ -158,7 +158,7 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
   const readiness = useQuery({
     queryKey: ["repository-readiness", payload.repository.id],
     queryFn: () => fetchRepositoryReadiness(payload.repository.id),
-    staleTime: 60_000,
+    staleTime: 0,
     refetchInterval: (query) => {
       const data = query.state.data
       if (!data || !("readiness" in data) || !data.readiness) return false

@@ -29,6 +29,7 @@ export function MetricsDashboardRoute() {
     queryKey: ["metrics_dashboard", window],
     queryFn: () => fetchMetricsDashboard(window),
     placeholderData: keepPreviousData,
+    staleTime: 0,
     refetchInterval: 60_000
   })
 

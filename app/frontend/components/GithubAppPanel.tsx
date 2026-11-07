@@ -50,6 +50,7 @@ export function GithubAppPanel({
   const confirm = useQuery({
     queryKey: ["admin", "github_app", "confirm"],
     queryFn: fetchAdminGithubAppConfirm,
+    staleTime: 0,
     refetchInterval: awaiting || awaitingInstall ? confirmRefetchIntervalMs : false,
     refetchOnWindowFocus: true
   })

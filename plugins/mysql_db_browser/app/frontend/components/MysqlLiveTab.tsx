@@ -23,6 +23,7 @@ export function MysqlLiveTab({ connectionId }: { connectionId: number }) {
   const live = useQuery({
     queryKey: ["mysql_db_browser", "live", connectionId, selectedId],
     queryFn: () => executeMysqlQuery(connectionId, canned.sql),
+    staleTime: 0,
     refetchInterval: 10_000
   })
 

@@ -55,6 +55,7 @@ function PodStatusLive({ clusterId }: { clusterId: number }) {
   const pods = useQuery({
     queryKey: [ "k8s_cluster", "live", "pods", clusterId ],
     queryFn: () => fetchKubernetesPods(clusterId),
+    staleTime: 0,
     refetchInterval: 10_000
   })
 
@@ -90,6 +91,7 @@ function RecentEventsLive({ clusterId }: { clusterId: number }) {
   const events = useQuery({
     queryKey: [ "k8s_cluster", "live", "events", clusterId ],
     queryFn: () => fetchKubernetesEvents(clusterId),
+    staleTime: 0,
     refetchInterval: 10_000
   })
 

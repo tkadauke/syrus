@@ -19,6 +19,7 @@ export function AdminMysql() {
   const mysql = useQuery({
     queryKey: ["admin", "mysql", limit, includeSlowLog],
     queryFn: () => fetchAdminMysql(limit, includeSlowLog),
+    staleTime: 0,
     refetchInterval: includeSlowLog ? false : 10_000
   })
   const killQuery = useMutation({
