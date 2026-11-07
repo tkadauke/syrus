@@ -35,13 +35,15 @@ RSpec.describe App::JobSourceDiffPayload do
       )
 
     payload = described_class.build(job: job, user: user)
+    resolved_base = ensure_fake_ref(repo, "aabbccdd1234567")
+    resolved_head = ensure_fake_ref(repo, "deadbeef12345678")
 
     expect(payload).to include(
       job_id: job.id,
       base_ref: "aabbccdd1234567",
       head_ref: "deadbeef12345678",
-      base_sha: "aabbccdd1234567",
-      head_sha: "deadbeef12345678",
+      base_sha: resolved_base,
+      head_sha: resolved_head,
       merge_base_sha: "aabbccdd1234567",
       default_ref: "main",
       truncated: false,
@@ -58,7 +60,7 @@ RSpec.describe App::JobSourceDiffPayload do
       status: "modified",
       additions: 4,
       deletions: 1,
-      patch: "@@ -1 +1 @@\n-old\n+new",
+      patch_bytes: 21,
       is_image: false
     )
     expect(payload[:review_annotations]).to eq(
@@ -72,8 +74,8 @@ RSpec.describe App::JobSourceDiffPayload do
     )
     expect(payload[:version]).to include(
       version_index: 1,
-      base_sha: "aabbccdd1234567",
-      head_sha: "deadbeef12345678",
+      base_sha: resolved_base,
+      head_sha: resolved_head,
       label: "All changes",
       reason: "source_diff",
       metadata: { "range_kind" => "all_changes" }
@@ -296,10 +298,10 @@ RSpec.describe App::JobSourceDiffPayload do
     payload = described_class.build(job: job, user: user)
 
     expect(payload[:files]).to contain_exactly(
-      { path: "app/assets/images/logo.png", status: "modified", additions: 0, deletions: 0, patch: nil, is_image: true },
-      { path: "app/assets/images/UPPER.PNG", status: "added", additions: 0, deletions: 0, patch: nil, is_image: true },
-      { path: "vendor/some.bin", status: "modified", additions: 0, deletions: 0, patch: nil, is_image: false },
-      { path: "app/models/user.rb", status: "modified", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-old\n+new", is_image: false }
+      { path: "app/assets/images/logo.png", status: "modified", additions: 0, deletions: 0, is_image: true },
+      { path: "app/assets/images/UPPER.PNG", status: "added", additions: 0, deletions: 0, is_image: true },
+      { path: "vendor/some.bin", status: "modified", additions: 0, deletions: 0, is_image: false },
+      { path: "app/models/user.rb", status: "modified", additions: 1, deletions: 1, patch_bytes: 21, is_image: false }
     )
   end
 
@@ -319,7 +321,7 @@ RSpec.describe App::JobSourceDiffPayload do
       status: "modified",
       additions: 3,
       deletions: 1,
-      patch: "@@ -1 +1 @@\n-old\n+new",
+      patch_bytes: 21,
       is_image: false
     )
   end
@@ -352,7 +354,7 @@ RSpec.describe App::JobSourceDiffPayload do
       status: "modified",
       additions: 2,
       deletions: 0,
-      patch: "@@ -1 +1,2 @@\n+new",
+      patch_bytes: 18,
       is_image: false
     )
   end
@@ -378,14 +380,15 @@ RSpec.describe App::JobSourceDiffPayload do
       ], truncated: false)
 
     payload = described_class.build(job: job, user: user, params: { base: "old-base", head: "old-head" })
+    resolved_base = ensure_fake_ref(repo, "old-base")
+    resolved_head = ensure_fake_ref(repo, "old-head")
 
     expect(payload[:version]).to include(
       version_index: 1,
-      base_sha: "old-base",
-      head_sha: "old-head",
+      base_sha: resolved_base,
+      head_sha: resolved_head,
       reason: "source_diff_selection"
     )
-    expect(payload[:versions].map { |version| version[:id] }).to eq([ payload.dig(:version, :id) ])
     expect(job.diff_review_versions.last.files_snapshot).to contain_exactly(
       "path" => "app/models/widget.rb",
       "status" => "modified",
@@ -396,17 +399,16 @@ RSpec.describe App::JobSourceDiffPayload do
   end
 
   it "reuses an existing version for an explicit SHA pair" do
+    stub_repository_history(repo, base: "main", head: "syrus/issue-42", commits: [], merge_base_sha: "aabbccdd1234567")
+    stub_repository_diff(repo, base: "old-base", head: "old-head", files: [], truncated: false)
     existing = DiffReviewVersions::Creator.call(
       job: job,
-      base_sha: "old-base",
-      head_sha: "old-head",
+      base_sha: ensure_fake_ref(repo, "old-base"),
+      head_sha: ensure_fake_ref(repo, "old-head"),
       files: [],
       label: "Earlier review",
       reason: "initial"
     )
-    stub_repository_history(repo, base: "main", head: "syrus/issue-42", commits: [], merge_base_sha: "aabbccdd1234567")
-    stub_repository_diff(repo, base: "old-base", head: "old-head", files: [], truncated: false)
-
     payload = described_class.build(job: job, user: user, params: { base: "old-base", head: "old-head" })
 
     expect(payload.dig(:version, :id)).to eq(existing.id)
@@ -423,7 +425,7 @@ RSpec.describe App::JobSourceDiffPayload do
     second_payload = described_class.build(job: job, user: user, params: { base: "old-base", head: "old-head" })
 
     expect(second_payload.dig(:version, :id)).to eq(first_payload.dig(:version, :id))
-    expect(job.diff_review_versions.pluck(:base_sha, :head_sha)).to eq([ [ "old-base", "old-head" ] ])
+    expect(job.diff_review_versions.pluck(:base_sha, :head_sha)).to eq([ [ ensure_fake_ref(repo, "old-base"), ensure_fake_ref(repo, "old-head") ] ])
   end
 
   it "defaults to the full branch range when the latest implement repair step changed fewer files" do
@@ -474,12 +476,14 @@ RSpec.describe App::JobSourceDiffPayload do
       ], truncated: false)
 
     payload = described_class.build(job: job, user: user)
+    resolved_base = ensure_fake_ref(repo, "branch-base")
+    resolved_head = ensure_fake_ref(repo, "branch-head")
 
     expect(payload[:version]).to include(
       label: "All changes",
       reason: "source_diff",
-      base_sha: "branch-base",
-      head_sha: "branch-head",
+      base_sha: resolved_base,
+      head_sha: resolved_head,
       metadata: { "range_kind" => "all_changes" }
     )
     expect(payload[:files]).to contain_exactly(
@@ -488,7 +492,7 @@ RSpec.describe App::JobSourceDiffPayload do
         status: "modified",
         additions: 10,
         deletions: 0,
-        patch: "@@ -1 +1,2 @@\n+ui",
+        patch_bytes: 17,
         is_image: false
       },
       {
@@ -496,17 +500,16 @@ RSpec.describe App::JobSourceDiffPayload do
         status: "added",
         additions: 6,
         deletions: 0,
-        patch: "@@ -0,0 +1,6 @@\n+class AddReusableInputIndex",
+        patch_bytes: 44,
         is_image: false
       },
       path: "app/services/step_dispatcher.rb",
       status: "modified",
       additions: 2,
       deletions: 0,
-      patch: "@@ -1 +1,2 @@\n+backend",
+      patch_bytes: 22,
       is_image: false
     )
-    expect(payload[:versions].map { |version| version[:id] }).to include(repair_step.id, payload.dig(:version, :id))
   end
 
   it "uses the latest stored review version instead of diffing old base to main when the branch has no commits ahead" do
@@ -544,7 +547,7 @@ RSpec.describe App::JobSourceDiffPayload do
       status: "modified",
       additions: 2,
       deletions: 0,
-      patch: "@@ -1 +1,2 @@\n+implemented",
+      patch_bytes: 26,
       is_image: false
     )
     expect(job.diff_review_versions.count).to eq(1)
@@ -580,7 +583,7 @@ RSpec.describe App::JobSourceDiffPayload do
       status: "modified",
       additions: 2,
       deletions: 0,
-      patch: "@@ -1 +1,2 @@\n+implemented",
+      patch_bytes: 26,
       is_image: false
     )
   end
@@ -619,7 +622,7 @@ RSpec.describe App::JobSourceDiffPayload do
       status: "modified",
       additions: 3,
       deletions: 1,
-      patch: "@@ -1 +1,3 @@\n+merged",
+        patch_bytes: 21,
       is_image: false
     )
     operations = FakeRepositoryContentProvider.calls.map(&:first)
@@ -638,8 +641,7 @@ RSpec.describe App::JobSourceDiffPayload do
       head_ref: "old-main-base",
       merge_base_sha: "old-main-base",
       files: [],
-      version: nil,
-      versions: []
+      version: nil
     )
     expect(job.diff_review_versions).to be_empty
   end
@@ -670,8 +672,8 @@ RSpec.describe App::JobSourceDiffPayload do
 
     new_version = job.diff_review_versions.find(payload.dig(:version, :id))
     expect(new_version).to have_attributes(
-      base_sha: "branch-base",
-      head_sha: "branch-head",
+      base_sha: ensure_fake_ref(repo, "branch-base"),
+      head_sha: ensure_fake_ref(repo, "branch-head"),
       base_ref: "main",
       head_ref: "syrus/issue-42",
       label: "All changes",
@@ -722,6 +724,10 @@ RSpec.describe App::JobSourceDiffPayload do
         { path: "app/services/step_dispatcher.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -1 +1,2 @@\n+backend" },
         { path: "db/migrate/repair.rb", status: "added", additions: 6, deletions: 0, patch: "@@ -0,0 +1,6 @@\n+class Repair" }
       ], truncated: false)
+    resolved_base = ensure_fake_ref(repo, "branch-base")
+    resolved_head = ensure_fake_ref(repo, "branch-head")
+    full_range.update_columns(base_sha: resolved_base, head_sha: resolved_head)
+    full_range_run.update_columns(base_sha: resolved_base, head_sha: resolved_head)
 
     payload = described_class.build(job: job, user: user)
     reused = full_range.reload
@@ -729,7 +735,6 @@ RSpec.describe App::JobSourceDiffPayload do
     expect(payload.dig(:version, :id)).to eq(full_range.id)
     expect(reused.reason).to eq("initial")
     expect(reused.files_snapshot.map { |file| file["path"] }).to eq([ "app/services/step_dispatcher.rb" ])
-    expect(payload[:versions].map { |version| version[:id] }).to include(repair_step.id, full_range.id)
   end
 
   it "creates a new All changes version instead of overwriting the existing one when the branch head changes" do
@@ -748,6 +753,9 @@ RSpec.describe App::JobSourceDiffPayload do
     stub_repository_diff(repo, base: "base-sha", head: "claude-head", files: [
         { path: "app/models/widget.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1,2 @@\n+claude" }
       ], truncated: false)
+    claude_base = ensure_fake_ref(repo, "base-sha")
+    claude_head = ensure_fake_ref(repo, "claude-head")
+    claude_run.update_columns(base_sha: claude_base, head_sha: claude_head)
 
     first_payload = described_class.build(job: job, user: user)
 
@@ -758,13 +766,15 @@ RSpec.describe App::JobSourceDiffPayload do
     stub_repository_diff(repo, base: "base-sha", head: "codex-head", files: [
         { path: "app/models/widget.rb", status: "modified", additions: 2, deletions: 0, patch: "@@ -1 +1,2 @@\n+codex" }
       ], truncated: false)
+    codex_base = ensure_fake_ref(repo, "base-sha")
+    codex_head = ensure_fake_ref(repo, "codex-head")
+    codex_run.update_columns(base_sha: codex_base, head_sha: codex_head)
 
     second_payload = described_class.build(job: job, user: user)
 
     all_changes_versions = job.diff_review_versions.where(reason: "source_diff").order(:version_index)
     expect(all_changes_versions.count).to eq(2)
     expect(second_payload.dig(:version, :id)).not_to eq(first_payload.dig(:version, :id))
-    expect(second_payload[:versions].size).to eq(2)
 
     first_version, second_version = all_changes_versions.to_a
     expect(first_payload.dig(:version, :id)).to eq(first_version.id)
@@ -773,22 +783,22 @@ RSpec.describe App::JobSourceDiffPayload do
     # The Job's first "All changes" computation stays exactly as it was
     # persisted -- it is never rewritten by a later, unrelated request.
     expect(first_version.reload).to have_attributes(
-      base_sha: "base-sha",
-      head_sha: "claude-head",
+      base_sha: claude_base,
+      head_sha: claude_head,
       workflow_id: claude_workflow.id,
       run_id: claude_run.id,
       trigger_kind: "initial",
       label: "All changes"
     )
     expect(second_version).to have_attributes(
-      base_sha: "base-sha",
-      head_sha: "codex-head",
+      base_sha: codex_base,
+      head_sha: codex_head,
       workflow_id: codex_workflow.id,
       run_id: codex_run.id,
       trigger_kind: "retry",
       label: "All changes"
     )
-    expect(second_payload[:version]).to include(base_sha: "base-sha", head_sha: "codex-head")
+    expect(second_payload[:version]).to include(base_sha: codex_base, head_sha: codex_head)
   end
 
   it "resolves the live payload to an exact current range row even when an older All changes row exists" do
@@ -825,12 +835,15 @@ RSpec.describe App::JobSourceDiffPayload do
     stub_repository_diff(repo, base: "current-base", head: "current-head", files: [
       { path: "app/services/current_rebase.rb", status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1 @@\n+current" }
     ], truncated: false)
+    current_version.update_columns(
+      base_sha: ensure_fake_ref(repo, "current-base"),
+      head_sha: ensure_fake_ref(repo, "current-head")
+    )
 
     payload = described_class.build(job: job, user: user)
 
     expect(payload.dig(:version, :id)).to eq(current_version.id)
     expect(payload[:files]).to contain_exactly(include(path: "app/services/current_rebase.rb"))
-    expect(payload[:versions].map { |version| version[:id] }).to include(current_version.id)
     expect(job.diff_review_versions.count).to eq(2)
   end
 
@@ -848,7 +861,9 @@ RSpec.describe App::JobSourceDiffPayload do
     # change) -- the same row is reused, untouched.
     expect(second_payload.dig(:version, :id)).to eq(first_payload.dig(:version, :id))
     first_version = job.diff_review_versions.find(first_payload.dig(:version, :id))
-    expect(first_version).to have_attributes(base_sha: "base-sha", head_sha: "head-one")
+    first_base_sha = first_payload.fetch(:base_sha)
+    first_head_sha = first_payload.fetch(:head_sha)
+    expect(first_version).to have_attributes(base_sha: first_base_sha, head_sha: first_head_sha)
     expect(first_version.files_snapshot.map { |file| file["path"] }).to eq([ "app/models/widget.rb" ])
     original_updated_at = first_version.updated_at
 
@@ -863,11 +878,11 @@ RSpec.describe App::JobSourceDiffPayload do
     third_payload = described_class.build(job: job, user: user)
 
     expect(third_payload.dig(:version, :id)).not_to eq(first_version.id)
-    expect(first_version.reload).to have_attributes(base_sha: "base-sha", head_sha: "head-one", updated_at: original_updated_at)
+    expect(first_version.reload).to have_attributes(base_sha: first_base_sha, head_sha: first_head_sha, updated_at: original_updated_at)
     expect(first_version.files_snapshot.map { |file| file["path"] }).to eq([ "app/models/widget.rb" ])
 
     new_version = job.diff_review_versions.find(third_payload.dig(:version, :id))
-    expect(new_version).to have_attributes(base_sha: "base-sha", head_sha: "head-two")
+    expect(new_version).to have_attributes(base_sha: third_payload.fetch(:base_sha), head_sha: third_payload.fetch(:head_sha))
   end
 
   describe "preview diff fixture" do
@@ -913,7 +928,7 @@ RSpec.describe App::JobSourceDiffPayload do
         status: "modified",
         additions: 4,
         deletions: 1,
-        patch: "@@ -1 +1 @@\n-old\n+new",
+        patch_bytes: 21,
         is_image: false
       )
       expect(payload[:version]).to include(

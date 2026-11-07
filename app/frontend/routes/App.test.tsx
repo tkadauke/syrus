@@ -11160,6 +11160,9 @@ describe("App", () => {
         )
       }
       if (path.startsWith("/api/v1/app/jobs/42/source?")) {
+        return Promise.resolve(new Response(JSON.stringify(jobSourcePayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path.startsWith("/api/v1/app/jobs/42/source_file?")) {
         return Promise.resolve(
           new Response(JSON.stringify(jobSourcePayload({ withFile: true })), { status: 200, headers: { "Content-Type": "application/json" } })
         )
@@ -11193,7 +11196,7 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/42/source?ref=deadbeef12345678&path=app%2Fmodels%2Fuser.rb",
+        "/api/v1/app/jobs/42/source_file?ref=deadbeef12345678&path=app%2Fmodels%2Fuser.rb",
         expect.objectContaining({ credentials: "same-origin" })
       )
     })

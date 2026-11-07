@@ -157,7 +157,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
     resizeEdge: "start",
     clampWidth: clampReviewCommentsWidth
   })
-  const versions = versionsQuery.data?.versions || []
+  const versions = versionsQuery.data?.versions ?? sourceDiff.data?.versions ?? []
   const payloadVersionId = sourceDiff.data?.version?.id ?? null
   const defaultVersionId = preferredReviewVersionId(sourceDiff.data ?? null, versions)
   const rangeSearch = selectedRange ? `?${new URLSearchParams({ base: selectedRange.baseSha, head: selectedRange.headSha }).toString()}` : ""
