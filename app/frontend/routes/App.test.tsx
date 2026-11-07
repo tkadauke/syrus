@@ -2127,6 +2127,7 @@ describe("App", () => {
   })
 
   it("clears an active chat unread marker after opening it", async () => {
+    const focus = vi.spyOn(document, "hasFocus").mockReturnValue(true)
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
     script.type = "application/json"
@@ -2184,6 +2185,7 @@ describe("App", () => {
       await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/10/mark_read", expect.objectContaining({ method: "PATCH" })))
       await waitFor(() => expect(screen.getByText("Widgets active")).toHaveClass("font-medium"))
     } finally {
+      focus.mockRestore()
       fetchSpy.mockRestore()
       script.remove()
     }
@@ -12837,6 +12839,7 @@ describe("App", () => {
   })
 
   it("renders a chat and sends a message from the app API", async () => {
+    const focus = vi.spyOn(document, "hasFocus").mockReturnValue(true)
     const invalidateSpy = vi.spyOn(QueryClient.prototype, "invalidateQueries")
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
@@ -12938,6 +12941,7 @@ describe("App", () => {
     await waitFor(() => {
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
     })
+    focus.mockRestore()
   })
 
   it("renders a chat attachment add button in the composer", async () => {
