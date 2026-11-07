@@ -11,7 +11,7 @@ triage state, so operators can distinguish an in-flight classifier from a Job
 with no active classifier evidence. Classification agent processes also appear
 on the admin processes surface.
 
-`Job#triaging_reason` says what it is waiting for:
+The triaging reason says what the Job is waiting for:
 
 | Reason | Waiting on | Exit |
 |---|---|---|

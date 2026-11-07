@@ -225,7 +225,7 @@ its transcript evidence differs from the last evaluation.
 
 ### Delegation and audit management
 
-The Permissions Hub's AI approvals view (`/api/v1/app/approval_delegations`)
+The Permissions Hub's AI approvals view
 shows providers with their disclosure and default guidance, the owner's
 delegations (provider, capability, resource type, bounded scope, status),
 the core human-only exclusions, and the owner's `ai_approval_evaluated`
@@ -363,16 +363,28 @@ Scopes are visibility-safe: the repository scope is the slug alone and is never 
 
 ## Host and container execution (fail-closed enforcement)
 
-Processes Syrus starts through `Execution::Router` are evaluated by `Permissions::ExecutionGate` under `syrus.execution@v1` (`host_process` on the worker, `container_process` in a confined backend). The classifier derives `network_read`, `external_write`, `credential_use`, `destructive`, and `privilege_change` from the command line (sharing the Local Mode patterns) and the network profile. Injected environment variables are not treated as credential use. Plain work keeps its `allow` default; sensitive effects that were allowed only by default become `ask`.
+Processes Syrus starts use `syrus.execution@v1` (`host_process` on the worker,
+`container_process` in a confined backend). Classification derives
+`network_read`, `external_write`, `credential_use`, `destructive`, and
+`privilege_change` from the command and network profile. Injected environment
+variables are not treated as credential use. Plain work keeps its `allow`
+default; sensitive effects allowed only by default become `ask`.
 
 An explicit `allow` is required before the process starts. A `deny` stops it, whether it comes from the owner's durable rules or from a ceiling. An `ask` also stops it: raw process execution has no exact-invocation replay boundary, so a noninteractive caller cannot convert missing approval into authority. Invocation-limited authority is reserved only after all ceilings allow the request, committed when the backend reports that the process spawned, and released if startup fails before that boundary. Rules are created through the normal permission tools and the Permissions Hub (the execution operations are in the catalog) and match a process by subject selector: the chat role (`interactive_chat`, `coding_chat`, `local_chat`), `workflow_role`, `repository_role`, `agent`, or `eligible_roles`. When several apply, the strictest result wins. The only default ceiling is `FailClosedHost`, which denies host execution under a fail-closed workload policy. `NetworkProfile` and provider `ProviderLimits` ceilings exist but are opt-in. Ceilings only lower a decision; no rule or lease raises one, and existing confinement (the grader network profile, container backends) is unchanged.
 
 Workflow MCP operations use the same descriptors, rules, leases, ceilings, and authorization records as chat. Their subject and owner derive from the Job, and their runtime role derives from the current Step. An `ask` persists a checkpoint on the Run, releases the provider process, and resumes the exact invocation after approval or with a structured denial. Scheduled MCP operations derive authority from the schedule owner's durable rules and leases. Equivalent later fires attach to the existing request and skip only the gated operation instead of opening prompt storms or treating silence as approval.
 
-**Unsupported provider-native gap:** a provider's own shell, file, browser, or web tools run inside its CLI and do not cross `Execution::Router` or the MCP dispatch boundary. Syrus cannot broker or audit those individual calls until that provider exposes a pre-execution interception hook. `ExecutionActions.subject_for_provider_action` and `ProviderLimits` describe the intended contract, but they are not enforcement. Deployments that require hard guarantees must restrict or disable provider-native tools and route effects through brokered Syrus tools or a confined execution backend.
+**Unsupported provider-native gap:** a provider's own shell, file, browser, or
+web tools run inside its CLI and do not cross Syrus's brokered execution or MCP
+boundaries. Syrus cannot audit those individual calls without a provider
+interception hook. Deployments requiring hard guarantees must restrict native
+tools and use brokered Syrus tools or a confined execution backend.
 
 ## Fresh authentication and budget metadata
 
 A capability descriptor may declare `fresh_authentication_window`. When the approver's authentication is older than that window (or unknown), an `allow` is lowered to `ask`; like the execution ceilings it can never raise a decision, and a `deny` stays a `deny`. Dropping the window or lengthening it in a capability successor is reported as semantic widening.
 
-A descriptor may also declare `budget_dimensions` (`model_tokens`, `compute_time`, `network_egress`, `external_spend`, `storage`). This is effect metadata only: `Permissions::EffectMetadata` hands observers the classified effects, risk, and dimensions of a non-denied decision. Budgets are not permission grants — observer return values are ignored and a failing observer never changes the decision.
+A descriptor may also declare `budget_dimensions` (`model_tokens`,
+`compute_time`, `network_egress`, `external_spend`, `storage`). This is effect
+metadata only. Budgets are not permission grants, and budget observers never
+change the permission decision.
