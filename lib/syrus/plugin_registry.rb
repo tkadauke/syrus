@@ -70,6 +70,7 @@ module Syrus
       slug_type
       permission_provider
       reviewer_target_provider
+      repository_configuration
     ].freeze
 
     # Lambdas defer constant resolution until call time (autoload-friendly).
@@ -142,7 +143,8 @@ module Syrus
       workspace_git_transport: -> { Syrus::Plugin::WorkspaceGitTransport },
       slug_type:               -> { Syrus::Plugin::SlugType },
       permission_provider:     -> { Syrus::Plugin::PermissionProvider },
-      reviewer_target_provider: -> { Syrus::Plugin::ReviewerTargetProvider }
+      reviewer_target_provider: -> { Syrus::Plugin::ReviewerTargetProvider },
+      repository_configuration: -> { Syrus::Plugin::RepositoryConfiguration }
     }.freeze
 
     RegistrationError = Class.new(StandardError)
@@ -366,6 +368,10 @@ module Syrus
 
         direct = @mutex.synchronize { @direct_providers[ep].dup }
         manifest_providers + direct
+      end
+
+      def direct_providers_for(extension_point)
+        @mutex.synchronize { @direct_providers[extension_point.to_sym].dup }
       end
 
       # Returns every definition a tool set can advertise, independent of a
