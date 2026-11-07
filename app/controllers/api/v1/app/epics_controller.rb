@@ -37,6 +37,7 @@ module Api
           dependency_rows = EpicDependency
             .where(epic_id: all_epic_ids, depends_on_epic_id: all_epic_ids)
             .where.not(depends_on_epic_id: nil)
+            .distinct
             .pluck(:epic_id, :depends_on_epic_id)
 
           nodes = epic_attrs.map do |id, title, state, number|
