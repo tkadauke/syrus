@@ -521,6 +521,28 @@ RSpec.describe Mcp::Sidecar do
 
       expect(tool_names).not_to include("chat_plugin_ping")
     end
+
+    it "advertises a plugin tool only once when the all tier spans essential and deferred" do
+      both_tiers_tool_set = Class.new do
+        include Syrus::Plugin::ChatMcpToolSet
+
+        def self.available_for?(_chat_session, tier:) = %i[essential deferred].include?(tier.to_sym)
+        def self.tool_definitions(tier:) = [ { name: "both_tiers_ping", description: "Ping from either tier.", input_schema: {} } ]
+
+        def handle(_tool_name, _params, _context)
+          MCP::Tool::Response.new([ { type: "text", text: "pong" } ])
+        end
+      end
+      Syrus::PluginRegistry.register(
+        name: "both-tiers-plugin",
+        version: "0.1.0",
+        provides: { chat_mcp_tool_set: both_tiers_tool_set }
+      )
+
+      tool_names = described_class.tool_names(chat_session, tier: :all)
+
+      expect(tool_names.count("both_tiers_ping")).to eq(1)
+    end
   end
 
   describe ".chat" do
