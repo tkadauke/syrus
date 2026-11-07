@@ -283,6 +283,38 @@ func TestStreamTurnRendersToolUseDuringLiveTurn(t *testing.T) {
 	}
 }
 
+func TestStreamTurnRendersAssistantTextBeforeDispatchingProposalFromMessageEvent(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Write([]byte("event: message\ndata: {\"message\":{\"role\":\"assistant\",\"text\":\"**Plan ready**\",\"proposal\":{\"id\":5,\"title\":\"Add dark mode\"}}}\n\n"))
+		w.Write([]byte("event: turn_complete\ndata: {}\n\n"))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "secret-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := &bytes.Buffer{}
+	var proposals []ChatProposal
+	err = client.StreamTurn(context.Background(), "42", "draft it", StreamTurnOptions{
+		Out: out, Renderer: stubRenderer{},
+		ProposalHandler: func(_ context.Context, proposal ChatProposal) error {
+			proposals = append(proposals, proposal)
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("StreamTurn returned error: %v", err)
+	}
+	if got := out.String(); got != "rendered:**Plan ready**\n" {
+		t.Fatalf("output = %q", got)
+	}
+	if len(proposals) != 1 || proposals[0].ID != 5 {
+		t.Fatalf("proposals = %#v", proposals)
+	}
+}
+
 func TestStreamTurnRendersToolResultSummaryDuringLiveTurn(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")

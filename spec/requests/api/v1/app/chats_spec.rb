@@ -3424,6 +3424,24 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(parse_body["checkout_branch"]).to eq("syrus-chat-42")
     end
 
+    it "returns not modified when a coding file-tree ETag still matches" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, mode: "coding",
+        coding_checkout_branch: "syrus-chat-42",
+        coding_relay_address: "127.0.0.1:9283",
+        coding_relay_token: "test-relay-token")
+      enable_coding_mode!
+      stub_request(:get, "http://127.0.0.1:9283/workspace/files")
+        .with(query: hash_including("session_id" => chat.id.to_s))
+        .to_return(status: 200, body: { files: [ "README.md" ], checkout_branch: "syrus-chat-42" }.to_json)
+
+      get "/api/v1/app/chats/#{chat.id}/coding_files"
+      etag = response.headers.fetch("ETag")
+      get "/api/v1/app/chats/#{chat.id}/coding_files", headers: { "If-None-Match" => etag }
+
+      expect(response).to have_http_status(:not_modified)
+    end
+
     it "forwards ref to the coding relay" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, mode: "coding",
@@ -7884,7 +7902,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(response.media_type).to eq("text/event-stream")
-    expect(response.body).to include("event: text_chunk")
+    expect(response.body).to include("event: message")
     expect(response.body).to include("Built **aqueducts**.")
     expect(response.body).to include("event: turn_complete")
     expect(chat.reload.messages.where(role: "user").last.content).to eq("text" => "Now inspect proposals")
