@@ -1,0 +1,11 @@
+# Operations calendar
+
+The disableable Calendar plugin provides a read-only week and agenda view at `/calendar`. It combines planned work with observed execution state while keeping editing and remediation in the owning feature.
+
+## Event-source extension
+
+A plugin may optionally depend on `calendar` and contribute a provider under `"calendar:event_source"`. Providers implement `calendar_events(user:, starts_at:, ends_at:)` and **must authorize before querying**; returning global data for Calendar to filter is not supported. Queries always have a bounded range (at most 42 days).
+
+Each result supplies stable namespaced `source_id` and `id` values, `kind`, `title`, `starts_at`, `destination_path`, and `state`. It may also supply `ends_at`, actual start/finish timestamps, cadence metadata, and source-specific `metadata`. Calendar validates results, instruments provider calls, and isolates failures so one source cannot remove the rest of the calendar.
+
+Built-in sources show pending chat wakeups only to their owner. Administrators additionally see recurring Solid Queue maintenance definitions and observable execution health. High-frequency definitions appear as cadence bands rather than expanded occurrences.
