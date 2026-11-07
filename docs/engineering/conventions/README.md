@@ -20,8 +20,8 @@ Read the guide that matches the work in front of you:
 - [Frontend](frontend.md) — React routing, interaction patterns, and visual
   consistency.
 - [Localization](localization.md) — frontend and backend user-visible copy.
-- [Plugins](plugins.md) — lifecycle, registration, boundaries, and plugin-owned
-  coverage.
+- [Plugins](plugins.md) — lifecycle, registration, boundaries, plugin-owned
+  coverage, and the [full authoring reference](plugins/authoring.md).
 - [Prompts and agent tools](prompts-and-tools.md) — prompt composition, chat
   orientation, and invocation limits.
 - [CLI and desktop](cli-and-desktop.md) — Go CLI and Electron application

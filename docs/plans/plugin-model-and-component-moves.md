@@ -390,7 +390,7 @@ Original problem, for the record:
 `PluginLifecycleJob`. No plugin can run a scheduled job today without editing
 the host's `config/recurring.yml`.
 
-`config/syrus_docs/plugins.md` (lines 366 and 406) currently documents both as
+`docs/engineering/conventions/plugins/authoring.md` (lines 366 and 406) currently documents both as
 working; that documentation is wrong and must be corrected or made true as part
 of this gap.
 
@@ -477,7 +477,7 @@ into three variants of `spec.files`, two of `require_paths`, and
 different spellings, and each engine chose its own registration hook.
 
 `Syrus::PluginApi` replaces all of it: one declaration per plugin, and the
-framework owns timing. See `config/syrus_docs/plugins.md` for the shape. The
+framework owns timing. See `docs/engineering/conventions/plugins/authoring.md` for the shape. The
 parts that matter beyond tidiness:
 
 - **Registration moved to `to_prepare`.** `lib/` is autoloaded, so

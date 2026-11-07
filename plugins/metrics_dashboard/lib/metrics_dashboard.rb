@@ -27,7 +27,7 @@ module MetricsDashboard
     # naming them -- the same reverse-registration shape as core's ui_slot,
     # but hosted here rather than in core's own EXTENSION_POINTS/
     # INTERFACE_FOR, because the consumer (this plugin, off by default) is
-    # itself optional. See docs/syrus_docs/plugins.md's "Hosting a point
+    # itself optional. See docs/engineering/conventions/plugins/authoring.md's "Hosting a point
     # for other plugins".
     hosts [ :tab ]
 

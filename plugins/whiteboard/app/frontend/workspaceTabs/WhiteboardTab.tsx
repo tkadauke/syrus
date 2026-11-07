@@ -13,7 +13,7 @@ import { useT } from "@app/hooks/useT"
 import type { PluginWorkspaceTabProps } from "@app/pluginWorkspaceTabs"
 
 // Whiteboard workspace tab (see Whiteboard::WorkspaceTabs /
-// config/syrus_docs/plugins.md). Ported from the core WhiteboardPanel that
+// docs/engineering/conventions/plugins/authoring.md). Ported from the core WhiteboardPanel that
 // used to render behind a hardcoded "whiteboard" tab id. The plugin
 // :workspace_tab extension point only hands a component `payload:
 // ChatPayload` -- no fullscreen prop/callback exists on that contract, so
