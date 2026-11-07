@@ -166,7 +166,6 @@ export function AddRepositoryModal({
   const save = useMutation({
     mutationFn: () => createRepository(values as RepositoryInput),
     onSuccess: async (payload) => {
-      await queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
       await queryClient.invalidateQueries({ queryKey: ["setup"] })
       await queryClient.invalidateQueries({ queryKey: ["repositories"] })
       // The App install link is offered exactly when it's actionable: the

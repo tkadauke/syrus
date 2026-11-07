@@ -162,28 +162,23 @@ describe("useTour", () => {
     expect(dismissCall).toBeUndefined()
   })
 
-  it("triggers a bootstrap refetch after dismissing so seen_tours stays in sync", async () => {
+  it("patches seen_tours after dismissing without refetching bootstrap", async () => {
     let bootstrapCallCount = 0
     vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
       if (String(url).includes("/api/v1/app/bootstrap")) {
         bootstrapCallCount++
-        // Refetch after dismiss returns the tour as seen
         return Promise.resolve(jsonResponse(buildBootstrap(["dashboard"])))
       }
-      return Promise.resolve(jsonResponse({}))
+      return Promise.resolve(jsonResponse({ seen_tours: ["dashboard"] }))
     })
 
-    // Cache is pre-populated; staleTime: Infinity means no automatic refetch on mount.
-    // After dismiss, invalidateQueries explicitly marks it stale and triggers a fetch.
     renderProbe("dashboard", [])
 
-    // Data is already in cache (seeded by renderProbe), so no initial fetch fires.
-    // After dismissal, invalidateQueries forces a refetch regardless of staleTime.
     act(() => screen.getByTestId("finish").click())
 
-    // onSuccess from dismiss mutation calls invalidateQueries → triggers a fetch
     await waitFor(() => {
-      expect(bootstrapCallCount).toBeGreaterThanOrEqual(1)
+      expect(screen.getByTestId("run")).toHaveTextContent("false")
     })
+    expect(bootstrapCallCount).toBe(0)
   })
 })

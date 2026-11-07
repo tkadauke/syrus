@@ -388,7 +388,6 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           }
         }
       })
-      void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
     }
   })
   const primaryNavItems = useMemo(
@@ -1022,7 +1021,9 @@ function SystemAlertItem({
   const action = useMutation<{ redirect_to?: string } | null, Error, Extract<SystemAlertAction, { path: string }>>({
     mutationFn: (payload: Extract<SystemAlertAction, { path: string }>) => postJson(payload.path, payload.params || {}),
     onSuccess: (payload) => {
-      void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
+      queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) =>
+        current ? { ...current, system_alerts: current.system_alerts?.filter((candidate) => candidate.id !== alert.id) } : current
+      )
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
       void queryClient.invalidateQueries({ queryKey: ["chats"] })
       if (payload?.redirect_to) navigate(withRoutePrefix(payload.redirect_to, prefix))
@@ -1095,7 +1096,10 @@ function SystemAlertItem({
           onClose={() => setReauthorizingProvider(null)}
           onSaved={() => {
             setReauthorizingProvider(null)
-            void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
+            queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) =>
+              current ? { ...current, system_alerts: current.system_alerts?.filter((candidate) => candidate.id !== alert.id) } : current
+            )
+            void queryClient.invalidateQueries({ queryKey: ["me"] })
             void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
             void queryClient.invalidateQueries({ queryKey: ["chats"] })
           }}
