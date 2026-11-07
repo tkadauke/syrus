@@ -46,6 +46,13 @@ class ProcessRunner
     end
 
     def truncated? = @truncated
+
+    # An abandoned drain leaves a real but incomplete capture. Callers decide
+    # what a partial stream is worth; they cannot decide it if it looks whole.
+    def truncate!
+      @truncated = true
+      self
+    end
   end
 
   # A background process remains a normal ProcessRunner invocation: it gets
@@ -171,6 +178,8 @@ class ProcessRunner
 
   TERM_GRACE_SECONDS = 5
   READ_CHUNK_BYTES = 16 * 1024
+  # Only ever spent after the child has exited, draining what it already wrote.
+  CAPTURE_DRAIN_GRACE_SECONDS = 5
   MAX_OUTPUT_LINE_BYTES = 1.megabyte
   KILL_POLL_INTERVAL_SECONDS = 5
   SPAWNED_PROCESS_HEARTBEAT_INTERVAL_SECONDS = 120
@@ -754,7 +763,7 @@ class ProcessRunner
       @command = [ "/bin/bash", "-c", '"$@" > "$PROCESS_RUNNER_STDOUT" 2> "$PROCESS_RUNNER_STDERR"', "process-runner", *@command ]
       @display_command ||= original_command.compact.map(&:to_s).join(" ")
       result = run
-      readers.each(&:value)
+      drain_capture_readers!(readers, [ stdout, stderr ])
       CaptureResult.new(
         result: result,
         stdout: stdout.value,
@@ -799,10 +808,49 @@ class ProcessRunner
 
   private
 
+  # `run` returns once the child is gone, but a FIFO reader only sees EOF after
+  # every writer has closed. Anything that inherited the redirected descriptors
+  # -- a grandchild the command left behind, a daemon it started -- keeps them
+  # open past the child's exit, and joining these readers without a deadline
+  # then blocks the calling thread for as long as that process lives. A
+  # two-second capability probe is how a worker came to sit wedged for hours,
+  # with its own timeout machinery already satisfied and nothing left to
+  # enforce.
+  #
+  # The deadline on the child belongs to `run` and has already been served by
+  # the time we get here, so this grace is only for draining bytes already
+  # written, which is fast. Past it, take what arrived, say so in the capture,
+  # and let the orphan hold its end of a pipe that is about to be unlinked.
+  def drain_capture_readers!(readers, buffers)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + CAPTURE_DRAIN_GRACE_SECONDS
+    readers.each do |reader|
+      remaining = deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      reader.join(remaining.clamp(0, CAPTURE_DRAIN_GRACE_SECONDS))
+    end
+    return if readers.none?(&:alive?)
+
+    readers.each { |reader| reader.kill if reader.alive? }
+    buffers.each(&:truncate!)
+    Rails.logger.warn(
+      "[ProcessRunner] abandoned capture drain after #{CAPTURE_DRAIN_GRACE_SECONDS}s; " \
+      "a writer outlived #{(@display_command || @command.to_s).to_s.truncate(200)}"
+    ) if defined?(Rails) && Rails.respond_to?(:logger) && Rails.logger
+  end
+
+  # `readpartial`, not `read`: `read(n)` only returns once it has the whole n
+  # bytes or reaches EOF, so a child that writes a little and leaves its pipe
+  # open -- or whose descriptors outlive it -- left those bytes sitting unread
+  # in the kernel buffer and out of the capture. Taking each chunk as it
+  # arrives is also what makes the drain continuous, which is the reason it
+  # runs on its own thread at all.
   def drain_capture_pipe(path, buffer)
     File.open(path, "rb") do |pipe|
-      while (chunk = pipe.read(READ_CHUNK_BYTES))
-        buffer << chunk
+      loop do
+        begin
+          buffer << pipe.readpartial(READ_CHUNK_BYTES)
+        rescue EOFError
+          break
+        end
       end
     end
   end
