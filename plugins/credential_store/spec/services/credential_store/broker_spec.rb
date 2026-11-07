@@ -79,6 +79,13 @@ RSpec.describe CredentialStore::Broker do
     expect(event.attributes.values.compact.join(" ")).not_to include(secret)
   end
 
+  it "shares surface eligibility without accessing credential material" do
+    credential = create_credential(allowed_surfaces: [ "workflow" ])
+
+    expect(described_class.surface_allowed?(credential, surface: "workflow")).to be(true)
+    expect(described_class.surface_allowed?(credential, surface: "chat")).to be(false)
+  end
+
   it "leases a credential as an env hash and clears the local material after use" do
     credential = create_credential
     yielded_env = nil

@@ -2,7 +2,7 @@ module CredentialStore
   class ChatToolSet
     include Syrus::Plugin::ChatMcpToolSet
 
-    TOOL_CLASSES = [ SshExecTool ].freeze
+    TOOL_CLASSES = [ ListCredentialsTool, SshExecTool ].freeze
 
     def self.available_for?(chat_session, tier:)
       CredentialStore.enabled? && chat_session.present? && tier.to_sym == :deferred
@@ -12,12 +12,13 @@ module CredentialStore
       return [] unless tier.nil? || tier.to_sym == :deferred
 
       TOOL_CLASSES.map do |klass|
-        {
+        definition = {
           name: klass.tool_name,
           description: klass.description_value,
           input_schema: klass.input_schema_value.to_h,
-          capability_descriptor: PermissionProvider.capability_descriptor("ssh.execute/risky@v1")
         }
+        definition[:capability_descriptor] = klass.capability_descriptor_value if klass.respond_to?(:capability_descriptor_value)
+        definition
       end
     end
 

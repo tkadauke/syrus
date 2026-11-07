@@ -295,6 +295,14 @@ is streamed back.
 
 ## SSH MCP Tools
 
+`credential_store_list_credentials` is a read-only deferred chat and workflow
+tool. It lists active credentials visible to the current user and attached
+repository context, returning only safe selection metadata. Listing never
+decrypts payload material or creates a credential-access audit event. Discovery
+does not grant use: the broker still enforces permissions, leases, scope,
+surface and tool allowlists, target constraints, expiration, and execution-time
+audit logging.
+
 `credential_store_ssh_exec` is available to workflow agents and as a deferred
 chat tool when the plugin is enabled. It accepts a credential id or name,
 `host`, `user`, optional `port`, and a remote `command`. The tool requests an

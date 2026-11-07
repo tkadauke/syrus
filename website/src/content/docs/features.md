@@ -1951,7 +1951,9 @@ Each user owns their own profile, credentials, defaults, and preferences:
   owned by the bundled `credential_store` plugin. It stores payload material as
   encrypted write-only blobs, exposes only safe metadata and last-used audit
   details, and lets operators scope credentials to a user, repository, team, or
-  the whole instance. Its brokered tools include deferred MCP SSH command
+  the whole instance. Chat and workflow agents can list visible active
+  credentials by safe metadata without decrypting them or receiving authority
+  to use them. Its brokered tools include deferred MCP SSH command
   execution, a runtime CLI `syrus credential ssh-agent` wrapper for SSH deploy
   scripts, and `syrus credential exec` for non-SSH script credentials. Wrapper
   intent can be declared in `.syrus.yml` `scripts:` metadata using credential
