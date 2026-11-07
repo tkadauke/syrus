@@ -307,9 +307,10 @@ full test suite — against what is left.
 Bundled plugins can also declare `config/plugin_ownership.yml`, covering their
 configuration keys, workflow vocabulary, routes, data, tools, frontend
 contributions, documentation, and domain terms. A checked-in compatibility
-quarantine snapshots existing core leakage as per-file upper bounds. Boundary
-checks allow that inventory to shrink but reject new files or increased counts.
-The subtraction command reports this vocabulary check separately from physical
+quarantine snapshots existing core leakage as exact per-file counts. Boundary
+checks reject new files, increased counts, and stale allowances after leakage
+is extracted, so migration PRs shrink the matching snapshot entries. The
+subtraction command reports this vocabulary check separately from physical
 removability, because a bootable core could still have reimplemented the
 plugin's behavior.
 
