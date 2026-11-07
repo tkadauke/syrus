@@ -969,9 +969,8 @@ describe("chat workspace source links", () => {
 
 describe("tool result rendering", () => {
   function expandToolGroup(label: string) {
-    // The header summary and the per-call label can render identical text, so
-    // resolve the click through the enclosing <summary> instead of assuming
-    // uniqueness.
+    // Resolve the click through the enclosing <summary> so grouped call labels
+    // cannot make a tool title ambiguous.
     const summary = screen
       .getAllByText(label)
       .map((element) => element.closest("summary"))
@@ -1059,7 +1058,12 @@ describe("tool result rendering", () => {
 
     fireEvent.click(header)
     expect(header.closest("details")).toHaveAttribute("open")
-    expect(screen.getAllByText(title)).toHaveLength(count + 1)
+    expect(screen.getAllByText(title)).toHaveLength(1)
+    expect(screen.queryAllByTestId("tool-group-call-label")).toHaveLength(count > 1 ? count : 0)
+    if (count > 1) {
+      expect(screen.getByText("#1")).toHaveAccessibleName(`${title} 1`)
+      expect(screen.getByText("#2")).toHaveAccessibleName(`${title} 2`)
+    }
     if (detail) expect(screen.queryByText((_, element) => element?.textContent === `${title}(${detail})`)).not.toBeInTheDocument()
     expect(screen.getAllByText(/Raw details/)).toHaveLength(count)
 
@@ -1107,7 +1111,7 @@ describe("tool result rendering", () => {
     expect(header).not.toHaveTextContent('{"job_id":50}')
 
     fireEvent.click(header)
-    expect(screen.getAllByText("Add job dependency")).toHaveLength(2)
+    expect(screen.getAllByText("Add job dependency")).toHaveLength(1)
     expect(screen.queryByText('Add job dependency({"job_id":50})')).not.toBeInTheDocument()
     expect(document.body).not.toHaveTextContent('"job_id": 50')
 
@@ -1391,7 +1395,9 @@ describe("tool result rendering", () => {
 
     expandToolGroup("Inspected 18 sources")
     expect(screen.getByText("complete result 18")).toBeInTheDocument()
-    expect(screen.getAllByText("Read")).toHaveLength(18)
+    expect(screen.getAllByTestId("tool-group-call-label")).toHaveLength(18)
+    expect(screen.getByText("#1")).toHaveAccessibleName("Read 1")
+    expect(screen.getByText("#18")).toHaveAccessibleName("Read 18")
   })
 
   it("keeps a live in-progress tool call collapsed until the operator expands it", () => {
@@ -1422,7 +1428,7 @@ describe("tool result rendering", () => {
 
     render(<ToolGroup item={item} />)
 
-    expect(screen.getAllByText("Bash")).toHaveLength(2)
+    expect(screen.getAllByText("Bash")).toHaveLength(1)
     expect(screen.getByText("Running")).toBeInTheDocument()
     const preview = screen.getByTestId("tool-group-preview")
     expect(preview).toBeEmptyDOMElement()
@@ -1431,7 +1437,7 @@ describe("tool result rendering", () => {
 
     expandToolGroup("Bash")
 
-    expect(screen.getAllByText("Bash")).toHaveLength(2)
+    expect(screen.getAllByText("Bash")).toHaveLength(1)
     expect(screen.getByText("Raw details")).toBeInTheDocument()
   })
 
@@ -1862,8 +1868,8 @@ describe("tool result rendering", () => {
     expandToolGroup("Unknown tool")
 
     expect(screen.queryByText("No arguments")).not.toBeInTheDocument()
-    // The expanded label renders bare, with no argument suffix.
-    expect(screen.getAllByText("Unknown tool")).toHaveLength(2)
+    // A single call flows directly into its body without a duplicate label.
+    expect(screen.getAllByText("Unknown tool")).toHaveLength(1)
     // No registered card, so the generic body keeps its summary line.
     expect(screen.getAllByText("custom summary")).toHaveLength(2)
   })
@@ -2196,6 +2202,8 @@ describe("tool result rendering", () => {
 
     expandToolGroup("Actions")
 
+    expect(screen.getByText("#1 Set bookmark")).toHaveAccessibleName("Set bookmark 1")
+    expect(screen.getByText("#2 Read job")).toHaveAccessibleName("Read job 2")
     expect(screen.getByText("Launch notes")).toBeInTheDocument()
     expect(screen.getByText("topic")).toBeInTheDocument()
     expect(screen.getByText("JOB-4048")).toBeInTheDocument()

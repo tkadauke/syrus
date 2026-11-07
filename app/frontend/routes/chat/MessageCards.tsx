@@ -1302,11 +1302,22 @@ const ToolGroupContent = memo(function ToolGroupContent({ chatSessionId, item, p
         }}
       />
       <div className="mt-1 min-w-0 max-w-full space-y-2 border-l border-gray-200 pl-3 text-xs sm:ml-5 dark:border-gray-700">
-        {item.calls.map((call) => {
+        {item.calls.map((call, index) => {
           const resultSummary = toolCardAwareResultSummary(call, presentation, timeZone)
+          const callLabel = call.display_label || item.tool
+          const repeatedGroupLabel = item.calls.every((groupCall) => (groupCall.display_label || item.tool) === callLabel)
           return (
             <div className="min-w-0 max-w-full overflow-hidden" key={call.message_id}>
-              <div className="break-words font-mono text-gray-700 dark:text-gray-300">{call.display_label || item.tool}</div>
+              {item.calls.length > 1 ? (
+                <div
+                  aria-label={`${callLabel} ${index + 1}`}
+                  className="break-words font-mono text-gray-700 dark:text-gray-300"
+                  data-testid="tool-group-call-label"
+                >
+                  #{index + 1}
+                  {repeatedGroupLabel ? null : ` ${callLabel}`}
+                </div>
+              ) : null}
               {!callHasExpandedCard(call) && resultSummary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{resultSummary}</div> : null}
               {expanded && (toolCallSettled(call) || callRendersWhilePending(call)) ? (
                 <ToolResultBody
