@@ -215,7 +215,9 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
             ) : null}
             {payload.epic.state === "in_progress" && (payload.epic.execution_blocked_on ?? []).length > 0 ? (
               <span className="text-sm text-gray-500 dark:text-gray-400">
-                {t("implementation_intent_waiting_on_dependencies", { names: (payload.epic.execution_blocked_on ?? []).join(", ") })}
+                {t("implementation_intent_waiting_on_dependencies", {
+                  names: [...new Set(payload.epic.execution_blocked_on ?? [])].join(", ")
+                })}
               </span>
             ) : null}
             {payload.epic.claimable && payload.epic.owner_status === "unclaimed" ? (

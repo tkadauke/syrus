@@ -426,7 +426,9 @@ describe("EpicDetail start implementing", () => {
   })
 
   it("names an overlapping upstream Epic once in the waiting message", () => {
-    renderDetail(detailPayload({ state: "in_progress", startable: false, execution_blocked_on: ["Deliver marble"] }))
+    renderDetail(
+      detailPayload({ state: "in_progress", startable: false, execution_blocked_on: ["Deliver marble", "Deliver marble"] })
+    )
 
     const message = screen.getByText("Implementation started; child Jobs are waiting on Deliver marble")
     expect(message.textContent?.match(/Deliver marble/g)).toHaveLength(1)
