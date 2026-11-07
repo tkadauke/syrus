@@ -948,6 +948,7 @@ RSpec.describe ChatPendingAction, :ci_only do
     it "delivers a failed confirmation immediately and exactly once" do
       allow(AppEvents).to receive(:broadcast)
       action = chat_session.pending_actions.create!(action: "pause_landing_queue", payload: {})
+      action.update!(state: "confirming")
 
       expect {
         action.fail_confirmation!(StandardError.new("boom"))
@@ -973,6 +974,7 @@ RSpec.describe ChatPendingAction, :ci_only do
     it "hides a terminal card without rewriting or redelivering its outcome" do
       allow(AppEvents).to receive(:broadcast)
       action = chat_session.pending_actions.create!(action: "pause_landing_queue", payload: {})
+      action.update!(state: "confirming")
       action.fail_confirmation!(StandardError.new("boom"))
       original_message = action.reload.outcome_message
       queued_turns = ActiveJob::Base.queue_adapter.enqueued_jobs.count { |job| job[:job] == ChatTurnJob }

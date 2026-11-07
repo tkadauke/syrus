@@ -6827,6 +6827,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       action: "cancel_job",
       payload: { "job_id" => job.id }
     )
+    action.update!(state: "confirming")
     action.fail_confirmation!(StandardError.new("boom"))
 
     get "/api/v1/app/chats/#{chat.id}"
