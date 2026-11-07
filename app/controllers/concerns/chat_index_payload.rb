@@ -195,7 +195,7 @@ module ChatIndexPayload
         active_goal: chat_nav_goal_json(context.fetch(:active_goals).fetch(chat_session.id, nil)),
         pending_proposal_count: context.fetch(:pending_proposal_counts).fetch(chat_session.id, 0),
         scratchpad_items_count: context.fetch(:scratchpad_counts).fetch(chat_session.id, 0),
-        job_summary: context.fetch(:job_summaries).fetch(chat_session.id, { active_count: 0, outcome: nil, jobs: [] }),
+        job_summary: context.fetch(:job_summaries).fetch(chat_session.id, { active_count: 0, outcome: nil, jobs: [], epics: {} }),
         coding_checkout_uncommitted: chat_session.coding_checkout_uncommitted?,
         last_message_at: chat_session.last_message_at&.iso8601,
         created_at: chat_session.created_at.iso8601,
