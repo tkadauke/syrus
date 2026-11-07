@@ -73,7 +73,7 @@ module App
         preferences: PerformanceLogging.phase("dashboard_chrome.preferences", subject: subject) { preferences_json },
         ownership: PerformanceLogging.phase("dashboard_chrome.ownership", subject: subject) { ownership_json },
         filter: smart_folder_resolution.filter.to_h,
-        landing_queue: PerformanceLogging.phase("dashboard_chrome.landing_queue", subject: subject) { landing_queue_chrome_json },
+        landing_queue: PerformanceLogging.phase("dashboard_chrome.landing_queue", subject: subject) { landing_queue_json },
         provider_availability: PerformanceLogging.phase("dashboard_chrome.provider_availability", subject: subject) { provider_availability_by_provider },
         health_blocked_repositories: health_blocked_repositories,
         ui_panels: PerformanceLogging.phase("dashboard_chrome.ui_panels", subject: subject) { ui_panels_json },
@@ -103,12 +103,6 @@ module App
         total: result.fetch(:total),
         total_pages: total_pages(result.fetch(:total)),
         total_estimated: result.fetch(:total_estimated, false),
-        active_smart_folder_id: smart_folder_resolution.active_smart_folder_id,
-        filter: smart_folder_resolution.filter.to_h,
-        preferences: PerformanceLogging.phase("dashboard_rows.preferences", subject: subject) { preferences_json },
-        controls: PerformanceLogging.phase("dashboard_rows.controls", subject: subject) { rows_controls_json },
-        landing_queue: PerformanceLogging.phase("dashboard_rows.landing_queue", subject: subject, view: view) { landing_queue_json },
-        ui_panels: PerformanceLogging.phase("dashboard_rows.ui_panels", subject: subject, view: view) { ui_panels_json },
         items: result.fetch(:items),
         lanes: lanes,
         kanban_limit: view == "kanban" ? kanban_limit : nil
@@ -463,19 +457,9 @@ module App
       end
     end
 
-    def rows_controls_json
-      {
-        columns: column_options_json
-      }
-    end
-
     def merge_chrome_and_rows_payload(chrome, rows, controls_payload)
-      controls = controls_payload.fetch(:controls).merge(rows[:controls].to_h) do |key, control_value, rows_value|
-        key == :columns ? rows_value : control_value
-      end
-
       chrome.merge(rows).merge(
-        controls: controls,
+        controls: controls_payload.fetch(:controls),
         smart_folders: chrome[:smart_folders]
       )
     end
