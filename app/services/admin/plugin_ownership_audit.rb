@@ -78,9 +78,20 @@ module Admin
 
         Dir.glob(absolute.join("**/*")).filter_map do |candidate|
           path = Pathname.new(candidate)
-          path if path.file? && SOURCE_EXTENSIONS.include?(path.extname) && tracked?(path)
+          path if path.file? && contained_in_root?(path) && SOURCE_EXTENSIONS.include?(path.extname) && tracked?(path)
         end
       end
+    end
+
+    def contained_in_root?(path)
+      resolved = path.realpath
+      resolved == root_realpath || resolved.to_s.start_with?("#{root_realpath}#{File::SEPARATOR}")
+    rescue Errno::ENOENT, Errno::EACCES, Errno::ELOOP
+      false
+    end
+
+    def root_realpath
+      @root_realpath ||= root.realpath
     end
 
     def tracked?(path)
