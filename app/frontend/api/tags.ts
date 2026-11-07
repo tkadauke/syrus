@@ -22,6 +22,9 @@ export type TagsPayload = {
   message?: string
 }
 
+export type TagMutationPayload = { tag: TagRow; message?: string }
+export type TagDeletePayload = { deleted_id: number; message?: string }
+
 export type TagInput = {
   name: string
   color: string
@@ -32,13 +35,13 @@ export function fetchTags() {
 }
 
 export function createTag(values: TagInput) {
-  return postJson<TagsPayload>("/api/v1/app/tags", { tag: values })
+  return postJson<TagMutationPayload>("/api/v1/app/tags", { tag: values })
 }
 
 export function updateTag(id: number, values: TagInput) {
-  return patchJson<TagsPayload>(`/api/v1/app/tags/${id}`, { tag: values })
+  return patchJson<TagMutationPayload>(`/api/v1/app/tags/${id}`, { tag: values })
 }
 
 export function deleteTag(id: number) {
-  return deleteJson<TagsPayload>(`/api/v1/app/tags/${id}`)
+  return deleteJson<TagDeletePayload>(`/api/v1/app/tags/${id}`)
 }

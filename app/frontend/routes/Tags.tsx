@@ -89,7 +89,7 @@ function CreateTagForm({ palette, onNotice }: { palette: TagPaletteColor[]; onNo
   const create = useMutation({
     mutationFn: () => createTag({ name, color }),
     onSuccess: (payload) => {
-      queryClient.setQueryData(queryKey, payload)
+      queryClient.setQueryData<TagsPayload>(queryKey, (current) => current ? { ...current, tags: [...current.tags, payload.tag] } : current)
       setName("")
       setColor("gray")
       onNotice(payload.message || t('tags.created'))
@@ -306,7 +306,10 @@ function TagEditForm({ tag, palette, onNotice }: { tag: TagRow; palette: TagPale
   const update = useMutation({
     mutationFn: () => updateTag(tag.id, { name, color }),
     onSuccess: (payload) => {
-      queryClient.setQueryData(queryKey, payload)
+      queryClient.setQueryData<TagsPayload>(queryKey, (current) => current ? {
+        ...current,
+        tags: current.tags.map((candidate) => candidate.id === payload.tag.id ? payload.tag : candidate)
+      } : current)
       onNotice(payload.message || t('tags.tag_updated'))
     }
   })
@@ -359,7 +362,10 @@ function TagDeleteButton({ tag, onNotice }: { tag: TagRow; onNotice: (message: s
   const destroy = useMutation({
     mutationFn: () => deleteTag(tag.id),
     onSuccess: (payload) => {
-      queryClient.setQueryData(queryKey, payload)
+      queryClient.setQueryData<TagsPayload>(queryKey, (current) => current ? {
+        ...current,
+        tags: current.tags.filter((candidate) => candidate.id !== payload.deleted_id)
+      } : current)
       onNotice(payload.message || t('tags.deleted'))
     }
   })
