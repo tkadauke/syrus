@@ -473,7 +473,7 @@ function SuggestionCard({ canWrite, repositoryId, suggestion }: { canWrite: bool
                 {acceptRemoveMemoryMutation.isPending ? t("removing_memory") : t("accept_remove_memory")}
               </Button>
             ) : canWrite && canCreateJob ? (
-              <Button disabled={showAcceptForm || detailQuery.isFetching} onClick={() => void openAcceptForm()} size="sm" variant="primary">
+              <Button disabled={showAcceptForm} onClick={() => void openAcceptForm()} size="sm" variant="primary">
                 {t("accept")}
               </Button>
             ) : null}
