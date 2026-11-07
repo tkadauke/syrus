@@ -112,7 +112,7 @@ class ChatMediaLibrary
 
   def image_attachments_in(message)
     ChatAttachmentRef.for(message).each_with_index.filter_map do |attachment, index|
-      [ attachment, index ] if attachment.mime_type.start_with?("image/")
+      [ attachment, index ] if attachment.mime_type.start_with?("image/") && attachment.bytes_present?
     end
   end
 

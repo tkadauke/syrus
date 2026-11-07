@@ -23,6 +23,30 @@ RSpec.describe App::ChatMessagePayload do
     expect(payload.fetch(:content)).to eq({ "text" => "Hello legacy." })
   end
 
+  it "preserves an explicitly empty attachment array" do
+    message = chat.messages.create!(role: "user", sender_user: user, content: { "text" => "Hello", "attachments" => [] }, skip_turn_trigger: true)
+
+    payload = described_class.messages([ message ], repository: repository).first
+
+    expect(payload.fetch(:attachments)).to eq([])
+  end
+
+  it "serializes stored attachments as URL references without downloading their bytes" do
+    attachment = chat.chat_file_attachments.build(name: "notes.txt", mime_type: "text/plain", byte_size: 5, checksum: "pending")
+    attachment.file.attach(io: StringIO.new("hello"), filename: "notes.txt", content_type: "text/plain")
+    attachment.save!
+    message = chat.messages.create!(role: "user", sender_user: user, content: { "text" => "", "attachments" => [ { "id" => attachment.id } ] }, skip_turn_trigger: true)
+
+    payload = described_class.messages([ message ], repository: repository).first
+
+    expect(payload.fetch(:attachments).sole).to include(
+      "id" => attachment.id,
+      "name" => "notes.txt",
+      "url" => "/api/v1/app/chats/#{chat.id}/attachments/#{attachment.id}/file"
+    )
+    expect(payload.fetch(:attachments).sole).not_to have_key("data")
+  end
+
   it "renders a stored mention with the mentionable's current handle" do
     message = chat.messages.create!(
       role: "user",

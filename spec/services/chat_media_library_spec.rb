@@ -28,6 +28,17 @@ RSpec.describe ChatMediaLibrary do
       }.not_to change(Document, :count)
       expect(chat_session.reload.attached_repository_documents).to be_empty
     end
+
+    it "ignores legacy image metadata without inline data" do
+      chat_session.messages.create!(
+        role: "user",
+        content: { "text" => "Missing image", "attachments" => [ { "name" => "missing.png", "mime_type" => "image/png" } ] }
+      )
+
+      expect {
+        described_class.materialize_inline_images!(chat_session)
+      }.not_to change(Document, :count)
+    end
   end
 
   describe ".materialize_captured_image!" do
