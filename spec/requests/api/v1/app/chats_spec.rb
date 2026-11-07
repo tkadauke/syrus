@@ -4896,18 +4896,45 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body["messages"].map { |message| message.fetch("id") }).to eq(messages.last(2).map(&:id))
   end
 
+  it "bounds and briefly caches mentionable queries" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    allow(Rails).to receive(:cache).and_return(ActiveSupport::Cache::MemoryStore.new)
+    allow(Mentionables::Suggestions).to receive(:for).and_return([])
+    query = "x" * 500
+
+    2.times { get "/api/v1/app/chats/#{chat.id}/mentionables", params: { q: query } }
+
+    expect(Mentionables::Suggestions).to have_received(:for).once.with(chat: chat, user: user, query: "x" * 100)
+  end
+
+  it "clamps message page limits to the supported range" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    35.times { |i| chat.messages.create!(role: "user", content: { "text" => "msg-#{i}" }) }
+
+    get "/api/v1/app/chats/#{chat.id}/messages", params: { limit: 0 }
+    expect(parse_body["messages"].size).to eq(1)
+
+    get "/api/v1/app/chats/#{chat.id}/messages", params: { limit: 1000 }
+    expect(parse_body["messages"].size).to eq(ChatSession::MESSAGE_PAGE_SIZE)
+  end
+
   it "serves full message and shell content lazily" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
     command = chat.chat_shell_commands.create!(user: user, command: "echo hi", output: "full output",
       outcome: "succeeded", exit_status: 0, started_at: 1.minute.ago, finished_at: Time.current)
-    message = chat.messages.create!(role: "tool_result", content: { "content" => "full tool result", "chat_shell_command_id" => command.id })
+    message = chat.messages.create!(role: "tool_result", content: {
+      "text" => "derived text", "attachments" => [ { "id" => 1 } ],
+      "content" => "full tool result", "chat_shell_command_id" => command.id
+    })
 
     get "/api/v1/app/chats/#{chat.id}/messages/#{message.id}/content"
 
     expect(response).to have_http_status(:ok)
     expect(parse_body).to eq(
-      "content" => message.content,
+      "content" => message.content.except("text", "attachments"),
       "chat_shell_command_output" => "full output"
     )
   end
@@ -4940,6 +4967,9 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     proposal_payload = parse_body["messages"].first.fetch("proposal")
     expect(proposal_payload).to include("body" => "Trace **auth** and `<script>`.")
     expect(proposal_payload).not_to have_key("body_html")
+
+    get "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}"
+    expect(parse_body).to eq("proposal" => { "id" => proposal.id, "body" => "Trace **auth** and `<script>`." })
   end
 
   it "serializes direct proposal route metadata in chat payloads" do
@@ -4959,9 +4989,9 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     proposal_payload = parse_body["messages"].first.fetch("proposal")
     expect(proposal_payload).to include(
-      "route_to_backlog" => true,
-      "route_label" => "Backlog"
+      "route_to_backlog" => true
     )
+    expect(proposal_payload).not_to have_key("route_label")
   end
 
   it "includes media refs for child proposal payloads" do

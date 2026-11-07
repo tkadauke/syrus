@@ -638,6 +638,17 @@ curl "https://syrus.example.com/api/v1/app/settings/hidden_chats?page=1" \
   -H "Authorization: Bearer $SYRUS_API_TOKEN"
 ```
 
+## Read Chat Message History
+
+`GET /api/v1/app/chats/:id/messages?before=:message_id&limit=:count` reads an
+older page of messages. `limit` defaults to 30 and is clamped to 1–30. Large
+tool inputs/results and completed shell output are represented by bounded
+previews with a message content path; authenticated chat participants can
+follow that path to load the full filtered content on demand.
+
+Resolved proposal bodies are likewise omitted from repeated message pages and
+include a proposal body path for on-demand expansion.
+
 ## Search Chats
 
 `GET /api/v1/app/search` searches the authenticated user's Jobs, Epics,
