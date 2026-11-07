@@ -180,8 +180,23 @@ High-frequency reminders:
 
 - **Public website/docs stay current.** Product-facing behavior changes must
   update `website/` in the same PR.
-- Keep product-facing behavior aligned with `website/` and operator-facing
-  behavior aligned with `config/syrus_docs/`.
+- **Keep searchable harness docs audience-safe.** `config/syrus_docs/` is
+  searchable by chat and implementation agents working on any project. Put
+  only behavior and functionality needed to use Syrus there: `.syrus.yml`
+  keys, operator settings and feature flags, workflow steps and trigger kinds,
+  review/grader/landing/merge behavior, MCP tool semantics, permission behavior
+  as it affects agents, and user-visible features. Internal-only changes such
+  as response compression, payload shapes, caching, or polling do not require
+  a `config/syrus_docs/` page.
+- Keep contributor conventions in `docs/engineering/conventions/`; internal
+  architecture, data models, and telemetry in `docs/engineering/architecture/`
+  (with maps in `docs/engineering/maps/`); runbooks for running, deploying,
+  scaling, and upgrading Syrus in `docs/engineering/operations/`; plugin-
+  authoring guidance in `docs/engineering/conventions/plugins.md`; durable
+  choices in `docs/engineering/decisions/`; and recurring failure modes in
+  `docs/engineering/pitfalls/`. Do not put internal code/class/file/database
+  details, telemetry or audit tables, internal data APIs, incident post-mortems,
+  or historical “we used to” material in `config/syrus_docs/`.
 - Preserve `AGENTS.md -> CLAUDE.md`; edit the shared guidance through this file.
 - Add new Job, Workflow, or Step metadata in `Job::Kind`,
   `Workflow::TriggerKind`, or `Step::Kind` rather than scattering constants;
