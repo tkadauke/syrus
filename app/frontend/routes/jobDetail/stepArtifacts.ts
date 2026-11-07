@@ -3,7 +3,13 @@
 // Defensively parse the raw test-plan and adversarial-review step artifacts
 // (untyped JSON bags) into the typed shapes the panels render. Pure over the
 // job API types; lifted out of the 3k-line JobDetail.tsx.
-import type { JobAdversarialReviewIteration, JobSecurityReviewIteration, JobVisualReviewArtifact, JobVisualReviewIteration } from "../../api/jobs"
+import type {
+  JobAdversarialReviewIteration,
+  JobCoworkerReviewIteration,
+  JobSecurityReviewIteration,
+  JobVisualReviewArtifact,
+  JobVisualReviewIteration
+} from "../../api/jobs"
 
 export function stepArtifactTestPlan(raw: unknown): { steps: string[]; notes: string | null } | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
@@ -79,6 +85,18 @@ function parsePanelFinding(raw: unknown) {
 
 export function stepArtifactSecurityReview(raw: unknown): JobSecurityReviewIteration[] | null {
   return stepArtifactAdversarialReview(raw)
+}
+
+export function stepArtifactCoworkerReview(raw: unknown): JobCoworkerReviewIteration[] | null {
+  if (!Array.isArray(raw)) return null
+  const result = raw
+    .filter(isRecord)
+    .filter((entry) => typeof entry.iteration === "number" && typeof entry.critique === "string" && isCoworkerReviewVerdict(entry.verdict))
+  return result.length > 0 ? (result as JobCoworkerReviewIteration[]) : null
+}
+
+function isCoworkerReviewVerdict(value: unknown): value is JobCoworkerReviewIteration["verdict"] {
+  return isReviewVerdict(value) || value === "pending" || value === "failed" || value === "stale" || value === "missing"
 }
 
 export type VisualReviewArtifactFilter = {

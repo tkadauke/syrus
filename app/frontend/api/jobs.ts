@@ -136,6 +136,14 @@ export type JobRecord = {
   inherited_provider_routing_context?: ProviderRoutingInheritedContext[]
   provider_routing_resolution?: ProviderRoutingResolution | null
   active_provider_routing_holds?: ProviderRoutingHold[]
+  coworker_review_configuration?: {
+    enabled: boolean
+    rounds: number
+    required: boolean
+    criteria: string[]
+    source: string | null
+    note: string | null
+  }
   provider_availability?: ProviderAvailability
   provider_failover?: ProviderFailover
   stack_base: string
@@ -613,6 +621,26 @@ export type JobAdversarialReviewIteration = {
 }
 
 export type JobSecurityReviewIteration = JobAdversarialReviewIteration
+
+export type JobCoworkerReviewIteration = Omit<JobAdversarialReviewIteration, "verdict"> & {
+  verdict: "needs_work" | "approved" | "skipped" | "pending" | "failed" | "stale" | "missing"
+  step_id?: number | null
+  run_id?: number | null
+  reviewer?: { label?: string | null; type?: string | null; reference?: string | null; provider?: string | null; model?: string | null } | null
+  review_context_manifest?: Record<string, unknown> | null
+  memory_persistence?: { state: string; persisted_commit_sha?: string | null; error_code?: string | null } | null
+  review_evidence?: {
+    id?: number | null
+    state: string
+    provider?: string | null
+    model?: string | null
+    reviewed_base_sha?: string | null
+    reviewed_head_sha?: string | null
+    canonical_diff_sha256?: string | null
+    terminal_failure_code?: string | null
+    terminal_failure_details?: Record<string, unknown> | null
+  } | null
+}
 
 export type JobReviewPanelMember = {
   provider: string

@@ -260,6 +260,7 @@ module App
         ),
         provider_routing_resolution: provider_routing_resolution_json,
         active_provider_routing_holds: active_provider_routing_holds_json,
+        coworker_review_configuration: coworker_review_configuration_json,
         provider_availability: provider_availability,
         provider_failover: App::ProviderFailoverPayload.for_workflow(@job.latest_workflow, configured_provider: workflow_agent_provider),
         stack_base: @job.stack_base,
@@ -376,6 +377,18 @@ module App
             created_at: hold.created_at.iso8601
           }
         end
+    end
+
+    def coworker_review_configuration_json
+      plan = RepoCoworkerReviewPlan.for_job(@job)
+      {
+        enabled: plan.enabled?,
+        rounds: plan.rounds,
+        required: plan.required,
+        criteria: plan.criteria,
+        source: plan.source,
+        note: plan.note
+      }
     end
 
     def provider_routing_resolution_json

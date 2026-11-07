@@ -33,6 +33,21 @@ RSpec.describe "API: coworker review contexts", type: :request do
     expect(AdminAction.last).to have_attributes(action: "coworker_review_context_read")
   end
 
+  it "lets the owner read only the durable journal entry through an audited endpoint" do
+    review_context.update!(persistence_state: "persisted", persisted_commit_sha: "d" * 40)
+    stub_repository_content(workspace_repository, ref: "coworkers/#{coworker.handle}",
+      files: { "reviews/journal/evidence-#{evidence.id}.md" => "# Repository review\nVerdict: approved\n" })
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/review_journal/#{run.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body).to include("content" => include("Verdict: approved"),
+      "path" => "reviews/journal/evidence-#{evidence.id}.md", "persisted_commit_sha" => "d" * 40)
+    expect(response.body).not_to include("restricted")
+    expect(AdminAction.last).to have_attributes(action: "coworker_review_journal_read")
+  end
+
   it "denies an unrelated user without exposing restricted context" do
     sign_in_as(Factories.user(email_address: "unrelated-reviewer@example.com"))
     get "/api/v1/app/coworkers/#{coworker.id}/review_contexts/#{run.id}"
