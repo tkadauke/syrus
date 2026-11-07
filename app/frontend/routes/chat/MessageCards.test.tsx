@@ -969,9 +969,9 @@ describe("chat workspace source links", () => {
 
 describe("tool result rendering", () => {
   function expandToolGroup(label: string) {
-    // The header summary and the per-call label can render identical text
-    // (zero-arg calls omit the parenthesized detail), so resolve the click
-    // through the enclosing <summary> instead of assuming uniqueness.
+    // The header summary and the per-call label can render identical text, so
+    // resolve the click through the enclosing <summary> instead of assuming
+    // uniqueness.
     const summary = screen
       .getAllByText(label)
       .map((element) => element.closest("summary"))
@@ -1050,16 +1050,71 @@ describe("tool result rendering", () => {
     expect(header.className).not.toMatch(/(?:sm|md|lg|xl):/)
     expect(titleElement).toHaveClass("truncate")
     expect(preview).toHaveClass("flex-1", "truncate")
-    const expectedPreview = [resultBody ? "summary 1" : "", detail].filter(Boolean).join(" · ")
+    const expectedPreview = resultBody ? "summary 1" : ""
     expect(preview).toHaveTextContent(expectedPreview.replace(/\s+/g, " ").trim())
+    if (detail) expect(header).not.toHaveTextContent(detail)
     expect(pills).toHaveLength(count > 1 ? 2 : 1)
     expect(titleElement.compareDocumentPosition(pills[0])).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(pills[pills.length - 1].compareDocumentPosition(preview)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
 
     fireEvent.click(header)
     expect(header.closest("details")).toHaveAttribute("open")
-    if (detail) expect(screen.getAllByText((_, element) => element?.textContent === `${title}(${detail})`)).toHaveLength(count)
+    expect(screen.getAllByText(title)).toHaveLength(count + 1)
+    if (detail) expect(screen.queryByText((_, element) => element?.textContent === `${title}(${detail})`)).not.toBeInTheDocument()
     expect(screen.getAllByText(/Raw details/)).toHaveLength(count)
+
+    const firstRawDetails = screen.getAllByText(/Raw details/)[0].closest("details")
+    expect(firstRawDetails).not.toBeNull()
+    if (!firstRawDetails) throw new Error("missing raw details")
+    firstRawDetails.open = true
+    fireEvent(firstRawDetails, new Event("toggle"))
+    expect(firstRawDetails).toHaveTextContent(rawName)
+    expect(firstRawDetails).toHaveTextContent('"detail":')
+    expect(firstRawDetails).toHaveTextContent('"result":')
+  })
+
+  it("keeps add_job_dependency JSON arguments only in Raw details", () => {
+    render(
+      <ToolGroup
+        item={{
+          type: "tool_group",
+          tool: "Add job dependency",
+          calls: [
+            {
+              message_id: 50,
+              tool_name: "add_job_dependency",
+              raw_name: "mcp__syrus-chat-sidecar__add_job_dependency",
+              detail: '{"job_id":50}',
+              display_label: "Add job dependency",
+              progress_label: "Adding job dependency",
+              raw_payload: { job_id: 50 },
+              result_body: '{"message":"Dependency added"}',
+              result_json: { message: "Dependency added" },
+              result_error: false,
+              result_kind: "record",
+              result_summary: "Dependency added",
+              result_settled: true
+            }
+          ]
+        }}
+      />
+    )
+
+    const header = screen.getByTestId("collapsed-tool-group-header")
+    expect(header).toHaveTextContent("Add job dependency")
+    expect(header).toHaveTextContent("Done")
+    expect(header).toHaveTextContent("Dependency added")
+    expect(header).not.toHaveTextContent('{"job_id":50}')
+
+    fireEvent.click(header)
+    expect(screen.getAllByText("Add job dependency")).toHaveLength(2)
+    expect(screen.queryByText('Add job dependency({"job_id":50})')).not.toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent('"job_id": 50')
+
+    const rawDetails = openRawDetails()
+    expect(rawDetails).toHaveTextContent("mcp__syrus-chat-sidecar__add_job_dependency")
+    expect(rawDetails).toHaveTextContent('"job_id": 50')
+    expect(rawDetails).toHaveTextContent('"message": "Dependency added"')
   })
 
   it("routes tool-card markdown workspace links through the chat source preview", async () => {
@@ -1240,7 +1295,7 @@ describe("tool result rendering", () => {
 
     render(<ToolGroup item={item} />)
 
-    expect(screen.getByText("summary")).toBeInTheDocument()
+    expect(screen.getAllByText("summary")).toHaveLength(2)
     expect(screen.queryByText("very large hidden body")).not.toBeInTheDocument()
 
     const details = screen.getByText("read_live_state").closest("details")
@@ -1326,7 +1381,7 @@ describe("tool result rendering", () => {
 
     render(<ToolGroup item={{ type: "tool_group", tool: "Read", summary_label: "Inspected 18 sources", calls }} />)
 
-    const metadata = screen.getByText(Array(18).fill(`A long result summary · ${detail}`).join(", "))
+    const metadata = screen.getByText(Array(18).fill("A long result summary").join(", "))
     expect(metadata).toHaveClass("min-w-0", "flex-1", "truncate")
     expect(metadata.closest("summary")).toHaveClass("flex", "overflow-hidden", "whitespace-nowrap")
     expect(screen.getByText("Inspected 18 sources")).toBeVisible()
@@ -1336,7 +1391,7 @@ describe("tool result rendering", () => {
 
     expandToolGroup("Inspected 18 sources")
     expect(screen.getByText("complete result 18")).toBeInTheDocument()
-    expect(screen.getAllByText(`Read(${detail})`)).toHaveLength(18)
+    expect(screen.getAllByText("Read")).toHaveLength(18)
   })
 
   it("keeps a live in-progress tool call collapsed until the operator expands it", () => {
@@ -1367,16 +1422,16 @@ describe("tool result rendering", () => {
 
     render(<ToolGroup item={item} />)
 
-    expect(screen.getByText("Bash")).toBeInTheDocument()
+    expect(screen.getAllByText("Bash")).toHaveLength(2)
     expect(screen.getByText("Running")).toBeInTheDocument()
     const preview = screen.getByTestId("tool-group-preview")
-    expect(preview).toHaveTextContent("bin/rspec spec/models/job_spec.rb && npm run lint")
-    expect(preview).toHaveAttribute("title", "bin/rspec spec/models/job_spec.rb && npm run lint")
+    expect(preview).toBeEmptyDOMElement()
+    expect(preview).not.toHaveAttribute("title")
     expect(screen.queryByText("Raw details")).not.toBeInTheDocument()
 
     expandToolGroup("Bash")
 
-    expect(screen.getByText((_, element) => element?.textContent === `Bash(${command})`)).toBeInTheDocument()
+    expect(screen.getAllByText("Bash")).toHaveLength(2)
     expect(screen.getByText("Raw details")).toBeInTheDocument()
   })
 
@@ -1457,7 +1512,7 @@ describe("tool result rendering", () => {
 
     expect(screen.getByText("Requested memory")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: /MEMORY-22/ })).toHaveAttribute("href", "/memories")
-    expect(screen.getByText("Publishing memory...")).toBeInTheDocument()
+    expect(screen.getAllByText("Publishing memory...")).toHaveLength(2)
   })
 
   it("keeps an expanded tool group open when a streamed call joins it", () => {
@@ -1577,7 +1632,7 @@ describe("tool result rendering", () => {
     }
 
     render(<ToolGroup item={item} />)
-    const details = screen.getByText("Read").closest("details")
+    const details = screen.getByTestId("collapsed-tool-group-header").closest("details")
     expect(details).not.toBeNull()
     if (!details) return
 
@@ -1775,7 +1830,7 @@ describe("tool result rendering", () => {
     expect(screen.getByText("No media in this chat yet.")).toBeInTheDocument()
   })
 
-  it("omits the zero-argument sentinel from the header subtitle and the expanded label", () => {
+  it("omits argument details from the header subtitle and expanded label", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
       tool: "Unknown tool",
@@ -1807,7 +1862,7 @@ describe("tool result rendering", () => {
     expandToolGroup("Unknown tool")
 
     expect(screen.queryByText("No arguments")).not.toBeInTheDocument()
-    // The expanded label renders bare, with no parenthesized sentinel.
+    // The expanded label renders bare, with no argument suffix.
     expect(screen.getAllByText("Unknown tool")).toHaveLength(2)
     // No registered card, so the generic body keeps its summary line.
     expect(screen.getAllByText("custom summary")).toHaveLength(2)
@@ -2009,9 +2064,9 @@ describe("tool result rendering", () => {
     render(<ToolGroup item={item} />)
 
     expect(screen.getByText("Done")).toBeInTheDocument()
-    // Single ownership: the summary lives only in the header's
-    // result + detail subtitle; the registered card body doesn't repeat it.
-    expect(screen.getByText("Resize 390x844 · success · 390x844")).toBeInTheDocument()
+    // Single ownership: the result summary lives only in the header subtitle;
+    // the registered card body doesn't repeat it.
+    expect(screen.getByText("Resize 390x844 · success")).toBeInTheDocument()
 
     expandToolGroup("Browser resize")
 
@@ -2050,10 +2105,10 @@ describe("tool result rendering", () => {
     expect(screen.getByText("Done")).toBeInTheDocument()
     expect(screen.queryByText("Running")).not.toBeInTheDocument()
     // Single ownership: the summary lives only in the header subtitle.
-    expect(screen.getByText("Screenshot Hero panel · Browser screenshot · success · Hero panel")).toBeInTheDocument()
+    expect(screen.getByText("Screenshot Hero panel · Browser screenshot · success")).toBeInTheDocument()
   })
 
-  it("prioritizes a typed result summary before long arguments in collapsed headers", () => {
+  it("shows a typed result summary without arguments in collapsed headers", () => {
     const item: ChatToolGroupItem = {
       type: "tool_group",
       tool: "Approve job",
@@ -2081,7 +2136,7 @@ describe("tool result rendering", () => {
 
     render(<ToolGroup item={item} />)
 
-    const details = screen.getByText('Approval requested · 3 JOBs · pending group #5 · {"job_ids":[53,54,55]}')
+    const details = screen.getByText("Approval requested · 3 JOBs · pending group #5")
     expect(details).toHaveClass("min-w-0", "flex-1", "truncate")
     expect(details.closest("summary")).toHaveClass("max-w-full", "flex", "whitespace-nowrap")
     expect(details.closest("details")).toHaveClass("max-w-full", "overflow-hidden")
@@ -2135,7 +2190,7 @@ describe("tool result rendering", () => {
 
     // Single ownership: both calls have registered cards, so their summaries
     // live only in the joined header subtitle, not as separate per-call lines.
-    expect(screen.getByText("1 bookmark · Launch notes, 1 Job · 4048")).toBeInTheDocument()
+    expect(screen.getByText("1 bookmark, 1 Job")).toBeInTheDocument()
     expect(screen.queryByText("topic")).not.toBeInTheDocument()
     expect(screen.queryByText("Typed renderers")).not.toBeInTheDocument()
 
@@ -2407,7 +2462,6 @@ describe("tool result rendering", () => {
 
     render(<ToolGroup item={item} />)
 
-    expect(screen.getAllByText(/token=\[redacted\]/).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/password=\[redacted\]/).length).toBeGreaterThan(0)
     expect(screen.queryByText(/detail-secret/)).not.toBeInTheDocument()
     expect(screen.queryByText(/summary-secret/)).not.toBeInTheDocument()
@@ -2590,9 +2644,9 @@ describe("tool result rendering", () => {
 
     render(<ToolGroup item={item} />)
 
-    // The registered card owns the expanded view, so the summary lives only
-    // in the header subtitle (joined with the redacted detail).
-    expect(screen.getByText(/1 design doc · \[redacted\]/)).toBeInTheDocument()
+    // The registered card owns the expanded view, so the result summary lives
+    // only in the header subtitle without the argument detail.
+    expect(screen.getByText("1 design doc")).toBeInTheDocument()
     expect(screen.queryByText(/plugin-input-secret/)).not.toBeInTheDocument()
     expect(screen.queryByText(/plugin-title-secret/)).not.toBeInTheDocument()
 
@@ -2680,8 +2734,8 @@ describe("tool result rendering", () => {
 
     expect(screen.getByText("Failed")).toBeInTheDocument()
     // Single ownership: the registered card owns the expanded view, so the
-    // result summary stays visible before the lower-priority argument detail.
-    expect(screen.getByText("ActiveRecord::RecordInvalid: Validation failed: proposal is already confirmed · proposal-42")).toBeInTheDocument()
+    // The result summary stays visible without duplicating the argument detail.
+    expect(screen.getByText("ActiveRecord::RecordInvalid: Validation failed: proposal is already confirmed")).toBeInTheDocument()
     expect(screen.queryByText("Affected entities")).not.toBeInTheDocument()
 
     expandToolGroup("Delete proposal")
