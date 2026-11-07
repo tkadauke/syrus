@@ -421,4 +421,8 @@ and stranded immutable graders are requeued before their collector. If the
 exact implementation cannot be reconstructed without replaying mutable work,
 Syrus fails the attempt as a retryable infrastructure failure and starts a
 fresh Workflow automatically; the Job should not remain indefinitely running
-behind the lost workspace.
+behind the lost workspace. The failed Run remains the causal failed Step in the
+workflow graph, while downstream Steps that never started appear as cancelled.
+For manual recovery, use **Retry implementation** to create a fresh Workflow;
+an in-place **Retry failed step** is intentionally unavailable because the old
+workspace cannot be resumed safely.

@@ -8,7 +8,6 @@ module RetryJobs
         grader
         grader_collect
       ].freeze
-      GIT_STATE_CORRUPT_PROBLEM_CODE = "git_state_corrupt".freeze
       FRESH_IMPLEMENTATION_ESCAPE_TRIGGER_KINDS = %w[base_refresh_retry rebase stack_rebase].freeze
 
       def initialize(job:, agent_provider: nil, retry_context: nil, explicit_operator_intent: false,
@@ -33,7 +32,7 @@ module RetryJobs
         step = failed_step unless fresh_implementation_escape? || explicit_operator_intent?
         if step.present? &&
             !IMPLEMENTATION_FAILURE_STEP_KINDS.include?(step.kind) &&
-            !failed_step_workspace_git_state_corrupt?(step)
+            !RetryFailedStepEnqueuer.fresh_workflow_required_for?(step)
           return failure("The failed #{Step::Kind.label_for(step.kind)} step should be retried from that step.")
         end
 
@@ -95,13 +94,6 @@ module RetryJobs
 
       def fresh_implementation_escape?
         FRESH_IMPLEMENTATION_ESCAPE_TRIGGER_KINDS.include?(latest_workflow&.trigger_kind)
-      end
-
-      def failed_step_workspace_git_state_corrupt?(step)
-        classification = step.latest_run&.run_failure_classification&.classification
-        return false if classification.blank?
-
-        Problem::Kind.resolve(classification)&.code == GIT_STATE_CORRUPT_PROBLEM_CODE
       end
     end
   end

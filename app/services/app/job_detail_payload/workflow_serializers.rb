@@ -1229,7 +1229,10 @@ module App
       end
 
       def workflow_retry_available?(workflow)
-        workflow.failed? && workflow.cleaned_up_at.nil? && workflow.id == latest_workflow_id
+        return false unless workflow.failed? && workflow.cleaned_up_at.nil? && workflow.id == latest_workflow_id
+
+        failed_step = RetryFailedStepEnqueuer.failed_step_for(workflow)
+        failed_step.present? && !RetryFailedStepEnqueuer.fresh_workflow_required_for?(failed_step)
       end
 
       def latest_workflow_id

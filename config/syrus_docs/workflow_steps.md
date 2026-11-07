@@ -78,6 +78,13 @@ fails with the retryable
 old WorkUnit locks and starts a fresh Workflow from the Job's effective base,
 including approved dependency branches.
 
+The Step whose active Run was interrupted remains failed and retains the
+failure classification. Downstream Steps that never started are cancelled,
+so the workflow graph distinguishes the causal failure from work that did not
+run. Manual recovery follows the same boundary: Syrus offers a fresh
+implementation retry and does not advertise an in-place failed-Step retry for
+this outcome.
+
 That retry is load-bearing, and it is worth knowing how it can be lost. A Run
 the repair ended carries no exception and no agent output, so re-classifying it
 finds nothing to read. `RunFailureClassifier` therefore refuses to overwrite a

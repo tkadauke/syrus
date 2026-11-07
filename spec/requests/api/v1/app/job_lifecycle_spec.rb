@@ -497,6 +497,32 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     )
   end
 
+  it "executes the fresh implementation retry advertised for workspace recovery failure" do
+    job.update!(state: "failed")
+    run = job.initial_run
+    step = run.step
+    run.update!(state: "failed", agent_outcome: "workspace_recovery_failed", finished_at: 1.minute.ago)
+    step.update!(kind: "visual_review", state: "failed", finished_at: 1.minute.ago)
+    job.latest_workflow.update!(state: "failed", started_at: 2.minutes.ago, finished_at: 1.minute.ago)
+    classification = run.run_failure_classification || run.build_run_failure_classification
+    classification.update!(
+      classification: "workspace_recovery_failed",
+      retryable: true,
+      confidence: 1.0,
+      reason: "workspace could not be reconstructed",
+      classified_at: Time.current
+    )
+    finish_work_units_for(job)
+
+    expect {
+      post app_job_path(job, "retry_implementation"), as: :json
+    }.to change { job.reload.workflows.where(trigger_kind: "retry").count }.by(1)
+      .and have_enqueued_job(RunJob)
+
+    expect(response).to have_http_status(:ok), response.body
+    expect(parse_body.dig("error", "message")).not_to eq("No failed step to retry.")
+  end
+
   it "records retry-from-current-PR as the selected recovery on a diverged source workflow" do
     job.initial_run.tap { |run| run.start!; run.fail!; run.save! }
     source = job.latest_workflow
