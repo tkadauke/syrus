@@ -674,8 +674,7 @@ RSpec.describe User do
         last_feedback_addressed_at last_seen_comment_at pr_mergeable_checked_at
       ]
       workflow_columns = %w[
-        trigger_kind agent_provider failure_reason run_count worker_hostname worker_storage_key
-        created_at updated_at started_at finished_at cleaned_up_at
+        trigger_kind agent_provider failure_reason created_at updated_at started_at finished_at
       ]
 
       user.update_dashboard_columns!(subject: "epics", columns: epic_columns)
@@ -693,7 +692,7 @@ RSpec.describe User do
       {
         epics: %w[number auto_approve_mode child_job_count open_child_count blocked_child_count child_progress_percent dependency_count],
         jobs: %w[kind job_type agent_provider closure_reason triaging_reason validity pr_number issue_number branch_name claimed_by claimed_at manual_pause_state needs_attention_reason workflows_count],
-        workflows: %w[trigger_kind agent_provider failure_reason run_count worker_hostname worker_storage_key]
+        workflows: %w[trigger_kind agent_provider failure_reason]
       }.each do |subject, columns|
         columns.each do |column|
           expect {

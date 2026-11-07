@@ -434,26 +434,7 @@ function BulkJobActions({ controls, items, selectedIds }: { controls: DashboardP
 }
 
 function dashboardJobBulkActionApplies(job: DashboardJobItem, bulkAction: DashboardBulkJobAction) {
-  if (job.bulk_actions) {
-    return Boolean(job.bulk_actions[bulkAction])
-  }
-
-  const open = job.state !== "closed" && job.state !== "no_change_needed"
-  if (bulkAction === "retry") return open && (job.state === "failed" || job.state === "implemented" || Boolean(job.retry_state?.retryable))
-  if (bulkAction === "release_from_backlog") return false
-  if (bulkAction === "move_to_backlog") return false
-  if (bulkAction === "pause") return open && !job.manual_paused
-  if (bulkAction === "unpause") return open && Boolean(job.manual_paused)
-  if (bulkAction === "claim") return !job.claimed_by_user || job.claimed_by_current_user
-  if (bulkAction === "release_claim") return Boolean(job.claimed_by_current_user)
-  if (bulkAction === "assign_owner") return open
-  if (bulkAction === "set_priority") return open
-  if (bulkAction === "approve") return false
-  if (bulkAction === "accept_triage")
-    return job.state === "triaging" && (job.triaging_reason === "classifier_uncertain" || job.triaging_reason === "proposed_job")
-  if (bulkAction === "close") return job.state !== "closed"
-
-  return false
+  return Boolean(job.bulk_actions?.[bulkAction])
 }
 
 // Group key for the landing-queue delineation: one key per *landing unit*.
