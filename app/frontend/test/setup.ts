@@ -1,10 +1,12 @@
-import "../i18n"
+import i18n, { allPluginNamespacesForTests, i18nReady } from "../i18n"
 import "@testing-library/jest-dom/vitest"
 import { resetApiClientStateForTests } from "../api/clientTestState"
 import { cleanup, configure } from "@testing-library/react"
 import { afterEach, vi } from "vitest"
 import { _clearRecentApiRequestsForTest } from "../api/client"
-import "../i18n"
+
+await i18nReady
+await i18n.loadNamespaces(allPluginNamespacesForTests())
 
 // Components that use the shared Action Cable consumer must not open real
 // sockets from jsdom. Individual cable-focused specs can still provide their

@@ -40,13 +40,16 @@ RSpec.describe "assets:precompile" do
   it "creates a compressed variant for the content-hashed SPA entry after the production asset build" do
     publish(
       "spa-entry-AbC_12-x.digested.js" => %(import "./spa-Search-Zz9_ab-c.digested.js";),
-      "spa-Search-Zz9_ab-c.digested.js" => %(import {a} from "./spa-entry-AbC_12-x.digested.js";)
+      "spa-Search-Zz9_ab-c.digested.js" => %(import {a} from "./spa-entry-AbC_12-x.digested.js";),
+      "spa-common-De_locale.digested.js" => %(export default {loading: "Wird geladen"};)
     )
 
     Rake::Task["assets:precompile"].invoke
 
     expect(output_path.join("spa-entry-AbC_12-x.digested.js.gz")).to exist
     expect(output_path.join("spa-entry-AbC_12-x.digested.js.br")).to exist
+    expect(output_path.join("spa-common-De_locale.digested.js.gz")).to exist
+    expect(output_path.join("spa-common-De_locale.digested.js.br")).to exist
   end
 
   # Regression: Vite named the entry `spa.digested.js`, which Propshaft does
