@@ -19,7 +19,6 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | DELETE | `/api/v1/app/auth/session` | `api/v1/app/auth#destroy_session` |
 | core | POST | `/api/v1/app/auth/session` | `api/v1/app/auth#create_session` |
 | core | GET | `/api/v1/app/auth/signup` | `api/v1/app/auth#signup` |
-| core | GET | `/api/v1/app/auth/status` | `api/v1/app/auth#status` |
 | core | POST | `/api/v1/app/auth/users` | `api/v1/app/auth#create_user` |
 | core | GET | `/api/v1/app/bootstrap` | `api/v1/app/bootstrap#show` |
 | core | POST | `/api/v1/app/browser_errors` | `api/v1/app/browser_errors#create` |

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { postBrowserTraces, recordBrowserTrace, resetBrowserPerformanceObserversForTest, startBrowserPerformanceObservers } from "./performanceTrace"
+import { flushBrowserTraceQueue, postBrowserTraces, recordBrowserTrace, resetBrowserPerformanceObserversForTest, startBrowserPerformanceObservers } from "./performanceTrace"
 import { jsonResponse } from "../testSupport"
 
 describe("recordBrowserTrace", () => {
@@ -23,6 +23,7 @@ describe("recordBrowserTrace", () => {
       },
       { enabled: true }
     )
+    flushBrowserTraceQueue()
 
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/performance_events",
@@ -50,6 +51,40 @@ describe("recordBrowserTrace", () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
+  it("batches trace bursts until the browser is idle", () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
+    let idleCallback: IdleRequestCallback | undefined
+    vi.stubGlobal("requestIdleCallback", vi.fn((callback: IdleRequestCallback) => {
+      idleCallback = callback
+      return 1
+    }))
+    vi.stubGlobal("cancelIdleCallback", vi.fn())
+
+    recordBrowserTrace({ trace_id: "trace-1", name: "one", path: "/", duration_ms: 1, visibility_state: "visible" }, { enabled: true })
+    recordBrowserTrace({ trace_id: "trace-2", name: "two", path: "/", duration_ms: 2, visibility_state: "visible" }, { enabled: true })
+
+    expect(fetchSpy).not.toHaveBeenCalled()
+    idleCallback?.({ didTimeout: false, timeRemaining: () => 20 })
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    const body = JSON.parse(String((fetchSpy.mock.calls[0][1] as RequestInit).body))
+    expect(body.performance_events.map((event: { name: string }) => event.name)).toEqual(["one", "two"])
+  })
+
+  it("samples passive performance observers before installing them", () => {
+    const observe = vi.fn()
+    class FakePerformanceObserver {
+      static supportedEntryTypes = ["longtask"]
+      constructor(_callback: PerformanceObserverCallback) {}
+      observe = observe
+      disconnect() {}
+    }
+    vi.stubGlobal("PerformanceObserver", FakePerformanceObserver)
+
+    startBrowserPerformanceObservers({ enabled: true, sampleRate: 0 })
+
+    expect(observe).not.toHaveBeenCalled()
+  })
+
   it("records long main-thread tasks through the global browser observer", () => {
     const callbacks: Array<PerformanceObserverCallback> = []
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
@@ -65,13 +100,14 @@ describe("recordBrowserTrace", () => {
     }
     vi.stubGlobal("PerformanceObserver", FakePerformanceObserver)
 
-    startBrowserPerformanceObservers({ enabled: true })
+    startBrowserPerformanceObservers({ enabled: true, sampleRate: 1 })
     callbacks[0]?.(
       {
         getEntries: () => [{ duration: 125.42, entryType: "longtask", name: "self", startTime: 12.34 } as PerformanceEntry]
       } as PerformanceObserverEntryList,
       {} as PerformanceObserver
     )
+    flushBrowserTraceQueue()
 
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/performance_events",
@@ -189,6 +225,7 @@ describe("event loop lag sampling", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({}))
     startBrowserPerformanceObservers({
       enabled: true,
+      sampleRate: 1,
       eventLoopIntervalMs: 1_000,
       eventLoopLagThresholdMs: 150,
       minEventLoopReportIntervalMs: minReportIntervalMs,
@@ -203,13 +240,16 @@ describe("event loop lag sampling", () => {
     vi.advanceTimersByTime(1_000)
   }
 
-  const lagBodies = (fetchSpy: ReturnType<typeof vi.spyOn>): Array<Record<string, unknown>> =>
-    fetchSpy.mock.calls
-      .map((call: unknown[]) => {
+  const lagBodies = (fetchSpy: ReturnType<typeof vi.spyOn>): Array<Record<string, unknown>> => {
+    flushBrowserTraceQueue()
+    return fetchSpy.mock.calls
+      .flatMap((call: unknown[]) => {
         const init = call[1] as RequestInit
-        return JSON.parse(String(init.body)).performance_event as Record<string, unknown>
+        const body = JSON.parse(String(init.body)) as { performance_events?: Array<Record<string, unknown>> }
+        return body.performance_events ?? []
       })
       .filter((event: Record<string, unknown>) => event.name === "browser.event_loop_lag")
+  }
 
   it("reports a plausible block on a visible tab", () => {
     const fetchSpy = startSampler()

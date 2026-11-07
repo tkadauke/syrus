@@ -239,17 +239,18 @@ RSpec.describe "SPA shell", type: :request do
     expect(diagnostics_index).to be_present
     expect(module_index).to be_present
     expect(diagnostics_index).to be < module_index
-    expect(response.body).to include('window.SyrusStartupDiagnostics')
-    expect(response.body).to include('/api/v1/app/performance_events')
-    expect(response.body).to include('/api/v1/app/browser_errors')
-    expect(response.body).to include('StartupWatchdog')
-    expect(response.body).to include('StartupResourceError')
-    expect(response.body).to include('navigator.standalone')
-    expect(response.body).to include('display-mode: standalone')
-    expect(response.body).to include('MAX_STARTUP_RESOURCES = 40')
-    expect(response.body).to include('react_module_evaluated')
-    expect(response.body).to include('react_commit')
-    expect(response.body).to include('startup_timings')
+    diagnostics_asset = Rails.root.join("app/assets/javascripts/startup_diagnostics.js").read
+    expect(response.body).not_to include('window.SyrusStartupDiagnostics')
+    expect(diagnostics_asset).to include('/api/v1/app/performance_events')
+    expect(diagnostics_asset).to include('/api/v1/app/browser_errors')
+    expect(diagnostics_asset).to include('StartupWatchdog')
+    expect(diagnostics_asset).to include('StartupResourceError')
+    expect(diagnostics_asset).to include('navigator.standalone')
+    expect(diagnostics_asset).to include('display-mode: standalone')
+    expect(diagnostics_asset).to include('MAX_STARTUP_RESOURCES = 40')
+    expect(diagnostics_asset).to include('react_module_evaluated')
+    expect(diagnostics_asset).to include('react_commit')
+    expect(diagnostics_asset).to include('startup_timings')
   end
 
   # Regression: the entry was built as `spa.digested.js`, which Propshaft

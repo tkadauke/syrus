@@ -2,12 +2,9 @@ module Api
   module V1
     module App
       class PerformanceEventsController < BaseController
-        # Accepts either a single `performance_event` (the original shape,
-        # still used by the passive browser observers for immediate sends)
-        # or a batched `performance_events` array (used by the marker API's
-        # queued flush, including `navigator.sendBeacon` on page hide, which
-        # cannot make more than one request). Batched or not, each event is
-        # recorded independently through the same ingestion path.
+        # Accepts the legacy single-event shape plus the shared browser queue's
+        # batched shape. The queue flushes during idle time or via sendBeacon
+        # on page hide; each event still uses the same ingestion path.
         def create
           performance_events_params.each { |event| PerformanceLogging.record_browser_trace(event) }
           head :accepted

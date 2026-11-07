@@ -1357,11 +1357,13 @@ export type InvitableUser = {
   avatar_url: string | null
 }
 
-export function fetchInvitableUsers(excludeChatId?: number | string | null) {
+export function fetchInvitableUsers(excludeChatId?: number | string | null, query?: string, limit = 20) {
   const params = new URLSearchParams()
   if (excludeChatId != null) params.set("exclude_chat_id", String(excludeChatId))
-  const query = params.toString()
-  return getJson<InvitableUser[]>(`/api/v1/app/users/invitable${query ? `?${query}` : ""}`)
+  if (query?.trim()) params.set("q", query.trim())
+  params.set("limit", String(limit))
+  const search = params.toString()
+  return getJson<InvitableUser[]>(`/api/v1/app/users/invitable?${search}`)
 }
 
 export function createGroupChat(participantUserIds: number[], repositoryId?: number | string | null) {

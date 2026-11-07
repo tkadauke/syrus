@@ -30,6 +30,7 @@ const KNOWN_RESOURCES: readonly string[] = [
 
 let queue = new Map<string, QueuedIncrement>()
 let flushTimer: ReturnType<typeof setTimeout> | null = null
+let idleFlushId: number | null = null
 let lifecycleListenersInstalled = false
 let lifecycleCleanups: Array<() => void> = []
 
@@ -74,6 +75,10 @@ export function resetClientMetricsForTest(): void {
     clearTimeout(flushTimer)
     flushTimer = null
   }
+  if (idleFlushId != null && typeof window !== "undefined" && typeof window.cancelIdleCallback === "function") {
+    window.cancelIdleCallback(idleFlushId)
+  }
+  idleFlushId = null
   lifecycleCleanups.forEach((cleanup) => cleanup())
   lifecycleCleanups = []
   lifecycleListenersInstalled = false
@@ -85,8 +90,15 @@ function scheduleFlush(): void {
     flushQueue()
     return
   }
-  if (flushTimer != null) return
-  flushTimer = setTimeout(() => flushQueue(), FLUSH_DELAY_MS)
+  if (flushTimer != null || idleFlushId != null) return
+  if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
+    idleFlushId = window.requestIdleCallback(() => {
+      idleFlushId = null
+      flushQueue()
+    }, { timeout: FLUSH_DELAY_MS })
+  } else {
+    flushTimer = setTimeout(() => flushQueue(), FLUSH_DELAY_MS)
+  }
 }
 
 function flushQueue(options: { beacon?: boolean } = {}): void {
@@ -94,6 +106,10 @@ function flushQueue(options: { beacon?: boolean } = {}): void {
     clearTimeout(flushTimer)
     flushTimer = null
   }
+  if (idleFlushId != null && typeof window !== "undefined" && typeof window.cancelIdleCallback === "function") {
+    window.cancelIdleCallback(idleFlushId)
+  }
+  idleFlushId = null
   if (queue.size === 0) return
 
   const batch = Array.from(queue.values())
