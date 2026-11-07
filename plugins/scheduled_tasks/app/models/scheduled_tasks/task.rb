@@ -255,7 +255,7 @@ module ScheduledTasks
       date = system_schedule_definition.failure_date(task: self, now: at)
       return unless date
 
-      reason = "#{error.class}: #{error.message}".truncate(1_000)
+      reason = "#{error.class}: #{CommandRedactor.redact(error.message)}".truncate(1_000)
       record_system_result!(date: date, result: "failed", reason: reason)
     end
 
