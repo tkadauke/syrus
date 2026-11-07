@@ -512,8 +512,7 @@ describe("AppChromeV2", () => {
               kanban_lanes: [],
               ownership_scope: "team",
               owner_user_id: null,
-              owner_id: null,
-              raw: {}
+              owner_id: null
             },
             controls: {
               views: ["list"],
@@ -3564,8 +3563,7 @@ function dashboardChromePayload(overrides: { subject: "job" | "epic" | "workflow
       kanban_lanes: [],
       ownership_scope: "team",
       owner_user_id: null,
-      owner_id: null,
-      raw: {}
+      owner_id: null
     },
     controls: {
       views: ["list"],
