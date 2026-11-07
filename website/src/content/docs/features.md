@@ -1957,8 +1957,12 @@ Each user owns their own profile, credentials, defaults, and preferences:
   execution, a runtime CLI `syrus credential ssh-agent` wrapper for SSH deploy
   scripts, and `syrus credential exec` for non-SSH script credentials. Wrapper
   intent can be declared in `.syrus.yml` `scripts:` metadata using credential
-  handles, never payload material. The broker enforces scope, surface, tool,
-  type, target constraints, expiry, and revocation. Omitted target constraints
+  handles, never payload material. Credential type automatically selects safe
+  typed consumers: SSH keys can use typed SSH execution without an internal MCP
+  tool allowlist, while unified permissions still authorize each command and
+  raw child-process wrappers remain explicit opt-ins. Discovery reports typed
+  consumers separately from raw-wrapper grants. The broker enforces scope,
+  surface, type, target constraints, expiry, and revocation. Omitted target constraints
   are unrestricted, while present empty constraints deny access; URL prefixes
   require the same HTTP(S) origin and a traversal-safe path-boundary match.
   Wrappers use temporary process-local material, redaction, cleanup, and access

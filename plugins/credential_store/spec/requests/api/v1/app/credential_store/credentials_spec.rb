@@ -296,6 +296,24 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
     expect(names).to include("k8s_cluster.kubeconfig")
   end
 
+  it "reports inferred typed consumers separately from explicit wrapper grants" do
+    credential = create_credential(
+      credential_type: "ssh_private_key",
+      allowed_tools: [ "credential.ssh-agent", "ha.core.info", "credential_store_stale" ]
+    )
+    sign_in_as(admin)
+
+    get "/api/v1/app/credential_store/credentials"
+
+    row = parse_body.fetch("credentials").find { |candidate| candidate.fetch("id") == credential.id }
+    expect(row).to include(
+      "effective_typed_consumers" => [ "credential_store_ssh_exec" ],
+      "explicit_wrapper_grants" => [ "credential.ssh-agent" ]
+    )
+    expect(parse_body.dig("options", "credential_wrappers").map { |wrapper| wrapper.fetch("name") })
+      .to contain_exactly("credential.exec", "credential.ssh-agent")
+  end
+
   it "returns plugin_disabled when the credential store plugin is disabled" do
     PluginRecord.find_by!(name: "credential_store").update!(enabled: false)
 
@@ -523,12 +541,12 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
       headers: { "Authorization" => "Bearer #{token}" }
 
     expect(response).to have_http_status(:forbidden)
-    expect(parse_body.dig("error", "message")).to include("tool not allowed")
+    expect(parse_body.dig("error", "message")).to include("raw-wrapper opt-in missing")
     expect(response.body).not_to include("exec-secret-token")
     expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
       credential: credential,
       result: "denied",
-      denial_reason: "tool not allowed",
+      denial_reason: "raw-wrapper opt-in missing",
       tool_name: "credential.exec"
     )
   end
@@ -733,12 +751,12 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
       headers: { "Authorization" => "Bearer #{token}" }
 
     expect(response).to have_http_status(:forbidden)
-    expect(parse_body.dig("error", "message")).to include("tool not allowed")
+    expect(parse_body.dig("error", "message")).to include("raw-wrapper opt-in missing")
     expect(response.body).not_to include("private-key")
     expect(CredentialStore::CredentialAccessEvent.last).to have_attributes(
       credential: credential,
       result: "denied",
-      denial_reason: "tool not allowed",
+      denial_reason: "raw-wrapper opt-in missing",
       tool_name: "credential.ssh-agent"
     )
   end

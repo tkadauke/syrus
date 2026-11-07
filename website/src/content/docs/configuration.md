@@ -806,7 +806,13 @@ plugin, which stores payloads as encrypted blobs and keeps only safe display
 metadata outside the encrypted payload. The plugin also exposes brokered MCP
 tools for controlled credential use, including SSH command execution backed by
 `ssh_private_key` leases, temporary key files, target constraints, redaction,
-and audit rows. The SSH editor guides operators through private-key entry,
+and audit rows. Credential type selects compatible typed consumers, so an SSH
+key is eligible for typed SSH execution without configuring an internal MCP
+tool name. This does not grant command authority: unified permissions still
+evaluate the operation and exact invocation, while raw-materialization wrappers
+remain explicit grants under **Allowed credential wrappers**. Management and
+discovery payloads report inferred typed consumers separately from those raw
+wrapper grants. The SSH editor guides operators through private-key entry,
 destination allowlists, and explicit host-key enrollment. A discovered key is
 not proof of server identity: verify its SHA-256 fingerprint through a trusted
 channel before confirming it. SSH execution requires that confirmed entry,

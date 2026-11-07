@@ -25,6 +25,8 @@ module CredentialStore
         target_constraints: credential.target_constraints || {},
         allowed_surfaces: credential.allowed_surfaces || [],
         allowed_tools: credential.allowed_tools || [],
+        effective_typed_consumers: ConsumerRegistry.typed_for(credential.credential_type).map(&:name),
+        explicit_wrapper_grants: explicit_wrapper_grants(credential),
         expires_at: credential.expires_at&.iso8601,
         last_rotated_at: credential.last_rotated_at&.iso8601,
         revoked_at: credential.revoked_at&.iso8601,
@@ -45,6 +47,7 @@ module CredentialStore
         credentials: credentials.map { |credential| credential_json(credential, manageable_scope_keys: manageable_scope_keys) },
         options: {
           credential_types: credential_types,
+          credential_wrappers: credential_wrappers,
           safe_metadata_keys: Credential::SAFE_METADATA_KEYS,
           target_constraint_keys: Credential::TARGET_CONSTRAINT_KEYS
         }.merge(authorization.manageable_options)
@@ -65,6 +68,23 @@ module CredentialStore
           plugin: entry["plugin"]
         }.compact
       end
+    end
+
+    def credential_wrappers
+      ConsumerRegistry::CONSUMERS.values.filter_map do |consumer|
+        next unless consumer.kind == :raw_wrapper
+
+        {
+          name: consumer.name,
+          credential_types: consumer.credential_types,
+          description: consumer.description
+        }
+      end
+    end
+
+    def explicit_wrapper_grants(credential)
+      compatible = ConsumerRegistry.raw_wrappers_for(credential.credential_type).map(&:name)
+      Array(credential.allowed_tools) & compatible
     end
 
     def scope_label(credential)

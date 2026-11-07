@@ -236,8 +236,9 @@ of these are true:
 - The declaration or instruction names a credential handle, type, wrapper,
   purpose, and target metadata; it never includes payload material.
 - The credential is scoped so the current user/repository/team/instance context
-  can use it, and its `allowed_surfaces`, `allowed_tools`, type, target
-  constraints, expiry, and revocation state authorize the requested wrapper.
+  can use it, and its allowed surfaces, explicit credential-wrapper grants,
+  type, target constraints, expiry, and revocation state authorize the
+  requested wrapper.
 - The agent is running inside Syrus runtime authentication
   (`SYRUS_CLI_INVOCATION_CONTEXT`), not from a human's local
   `~/.syrus/credentials`.
@@ -280,8 +281,10 @@ Operator setup flow:
    `allowed_hosts`, `base_url`, or `allowed_url_prefixes`.
 4. Set `allowed_surfaces` to the intended runtime, usually `workflow` for Jobs
    and optionally `chat` for chat-assisted runs.
-5. Set `allowed_tools` to the wrapper namespace, such as
-   `credential.ssh-agent` or `credential.exec`.
+5. Under **Allowed credential wrappers**, explicitly select a raw-materialization
+   wrapper such as `credential.ssh-agent` or `credential.exec`. This setting is
+   not a command allowlist. Specialized typed consumers do not require a wrapper
+   grant.
 6. Commit a `.syrus.yml` `scripts:` entry that names the handle and wrapper,
    then invoke the wrapper command from the deploy/debug script or from the
    trusted runtime instruction.
@@ -300,8 +303,9 @@ tool. It lists active credentials visible to the current user and attached
 repository context, returning only safe selection metadata. Listing never
 decrypts payload material or creates a credential-access audit event. Discovery
 does not grant use: the broker still enforces permissions, leases, scope,
-surface and tool allowlists, target constraints, expiration, and execution-time
-audit logging.
+surface, target constraints, expiration, and execution-time audit logging.
+Discovery reports inferred typed consumers separately from explicit raw-wrapper
+grants so the reason a credential is eligible remains visible.
 
 `credential_store_ssh_exec` is available to workflow agents and as a deferred
 chat tool when the plugin is enabled. It accepts a credential id or name,
@@ -313,6 +317,15 @@ with `private_key` and optional `passphrase`; passphrases are passed through a
 temporary askpass helper and redacted from results. SSH private-key material is
 written with exactly one final newline for OpenSSH compatibility; this runtime
 normalization does not rewrite the encrypted credential payload.
+
+Credential type selects safe typed consumers: every `ssh_private_key` is
+eligible for `credential_store_ssh_exec`, regardless of empty, stale, or
+command-like legacy `allowed_tools` values. This inference does not authorize a
+command. Unified permissions and the exact invocation fingerprint authorize the
+operation, while scope, surfaces, destinations, host identity, and target
+constraints limit where the key can be used. Broader raw-materialization
+wrappers (`credential.exec` and `credential.ssh-agent`) always require their own
+explicit **Allowed credential wrappers** grant.
 
 The plugin publishes a unified permission descriptor that is evaluated from
 the invocation arguments before the credential broker resolves or materializes
