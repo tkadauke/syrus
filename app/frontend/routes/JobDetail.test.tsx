@@ -3245,6 +3245,7 @@ describe("JobDetailRoute", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
     queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+    seedJobPanelQueries(queryClient, payload)
 
     render(
       <QueryClientProvider client={queryClient}>
@@ -5516,6 +5517,7 @@ function renderJobDetail(
 ) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
   queryClient.setQueryData(["bootstrap"], buildBootstrap(["job_detail"]))
+  seedJobPanelQueries(queryClient, payload)
 
   const detailView = (
     <JobDetailView
@@ -5543,6 +5545,19 @@ function renderJobDetail(
       </ShortcutsProvider>
     </QueryClientProvider>
   )
+}
+
+function seedJobPanelQueries(queryClient: QueryClient, payload: JobDetailPayload) {
+  // JobDetailView tests exercise the server-provided snapshot. Keep the
+  // always-fresh preview/deploy queries from consuming action-specific fetch
+  // mocks; PreviewPanel.test.tsx covers their mount refetching and polling.
+  const updatedAt = Date.now() + 60 * 60 * 1000
+  queryClient.setQueryData(
+    ["job-preview", payload.job.id],
+    { preview: payload.preview, preview_projects: payload.preview_projects ?? [] },
+    { updatedAt }
+  )
+  queryClient.setQueryData(["job-deploy", payload.job.id], { deploy: payload.deploy ?? null }, { updatedAt })
 }
 
 function LocationProbe() {
