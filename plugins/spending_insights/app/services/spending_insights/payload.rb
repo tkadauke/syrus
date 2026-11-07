@@ -82,8 +82,8 @@ module SpendingInsights
     def run_cost_totals
       @run_cost_totals ||= begin
         week, month, lifetime = unwindowed_runs.pick(
-          Arel.sql(cost_sum_between_sql(day_start(today.beginning_of_week), day_end(today))),
-          Arel.sql(cost_sum_between_sql(day_start(today.beginning_of_month), day_end(today))),
+          Arel.sql(cost_sum_within_sql(day_start(today.beginning_of_week), day_start(today.next_day))),
+          Arel.sql(cost_sum_within_sql(day_start(today.beginning_of_month), day_start(today.next_day))),
           Arel.sql("COALESCE(SUM(runs.cost_usd), 0)")
         )
 
@@ -94,8 +94,8 @@ module SpendingInsights
     def chat_cost_totals
       @chat_cost_totals ||= begin
         week, month, lifetime = provider_scoped_unwindowed_chat_spend_entries.pick(
-          Arel.sql(chat_cost_sum_between_sql(day_start(today.beginning_of_week), day_end(today))),
-          Arel.sql(chat_cost_sum_between_sql(day_start(today.beginning_of_month), day_end(today))),
+          Arel.sql(chat_cost_sum_within_sql(day_start(today.beginning_of_week), day_start(today.next_day))),
+          Arel.sql(chat_cost_sum_within_sql(day_start(today.beginning_of_month), day_start(today.next_day))),
           Arel.sql("COALESCE(SUM(chat_spend_entries.cost_usd), 0)")
         )
 
@@ -124,7 +124,7 @@ module SpendingInsights
     def scoped_chat_spend_entries
       relation = ChatSpendEntry.all
       relation = relation.where(incurred_at: day_start(filter.start_date)..) if filter.start_date
-      relation = relation.where(incurred_at: ..day_end(filter.end_date)) if filter.end_date
+      relation = relation.where(incurred_at: ...day_start(filter.end_date.next_day)) if filter.end_date
       relation = relation.where(user_id: filter_value("user_id")) if user.admin? && filter_value("user_id").present?
       return relation if user.admin?
 
@@ -392,20 +392,19 @@ module SpendingInsights
     end
 
     def day_start(date) = zone.local(date.year, date.month, date.day)
-    def day_end(date) = day_start(date.next_day) - 1
 
-    def cost_sum_between_sql(first_time, last_time)
+    def cost_sum_within_sql(first_time, end_time)
       connection = ActiveRecord::Base.connection
       start_sql = connection.quote(first_time)
-      end_sql = connection.quote(last_time)
-      "COALESCE(SUM(CASE WHEN runs.finished_at BETWEEN #{start_sql} AND #{end_sql} THEN runs.cost_usd ELSE 0 END), 0)"
+      end_sql = connection.quote(end_time)
+      "COALESCE(SUM(CASE WHEN runs.finished_at >= #{start_sql} AND runs.finished_at < #{end_sql} THEN runs.cost_usd ELSE 0 END), 0)"
     end
 
-    def chat_cost_sum_between_sql(first_time, last_time)
+    def chat_cost_sum_within_sql(first_time, end_time)
       connection = ActiveRecord::Base.connection
       start_sql = connection.quote(first_time)
-      end_sql = connection.quote(last_time)
-      "COALESCE(SUM(CASE WHEN chat_spend_entries.incurred_at BETWEEN #{start_sql} AND #{end_sql} THEN chat_spend_entries.cost_usd ELSE 0 END), 0)"
+      end_sql = connection.quote(end_time)
+      "COALESCE(SUM(CASE WHEN chat_spend_entries.incurred_at >= #{start_sql} AND chat_spend_entries.incurred_at < #{end_sql} THEN chat_spend_entries.cost_usd ELSE 0 END), 0)"
     end
 
     def parse_date(value)
