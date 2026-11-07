@@ -9,7 +9,7 @@
 //
 // no-raw-status-colors, no-panel-shell-repeats, no-raw-table-classes, and
 // no-long-class-strings graduated from the report-only rules under
-// style_debt/ (see config/syrus_docs/style_debt_report.md) once the DOC-27
+// style_debt/ (see docs/engineering/conventions/style_debt_report.md) once the DOC-27
 // ratchet-extension job decided they were ready to block new debt instead of
 // merely counting it.
 

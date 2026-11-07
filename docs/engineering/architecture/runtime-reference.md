@@ -525,7 +525,7 @@ loop**, so every prefix in `AutoRetryAttempt::BUDGET_EXEMPT_SKIPPED_REASON_PREFI
 must name a *transient* condition; a permanent one there means the skip never
 advances the budget, the planner keeps seeing room, and attempts accumulate at
 ~2/second (production has hit this twice — see
-`config/syrus_docs/work_engine_reconciler.md`). Non-retryable skips use
+`docs/engineering/architecture/work_engine_reconciler.md`). Non-retryable skips use
 `AutoRetryAttempt::NOT_RETRYABLE_SKIP_PREFIX`, which is not exempt. Failed agentic runs with captured sessions can resume from the
 failed Step instead of starting over. `ProviderCircuitBreaker` suppresses
 automatic retries/CI repair during provider-wide transient outages.
