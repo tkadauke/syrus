@@ -511,3 +511,12 @@ become persistence targets. This blocks ordinary native-shell writes and Git
 persistence. Until the agent sandbox supplies a true read-only mount, a hostile
 process running as the checkout owner could restore its own mode bits; that
 remaining gap belongs to sandbox enforcement.
+
+## Coworker page payload limits
+
+The coworkers UI loads the lightweight list and identity records first, then
+fetches creation options and each detail tab only when needed. Activity
+history is returned in pages of at most 50 runs and 50 side chats; **Load
+more** follows opaque cursors. Memory and workspace browsers return at most
+1,000 files, identify partial results, and cap individual file reads at 256
+KiB.

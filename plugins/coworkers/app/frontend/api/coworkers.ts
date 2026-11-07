@@ -20,7 +20,6 @@ export type CoworkerDetail = CoworkerSummary & {
   effective_model: string | null
   workspace_repo: string
   soul: string | null
-  spend_usd: number
   chats: { id: number; link_id: number; role: "main" | "side"; title: string; path: string; unsaved_workspace: UnsavedWorkspace | null }[]
   grants: {
     capability: string
@@ -109,6 +108,8 @@ export type CoworkerActivityPayload = {
     cost_usd: number
   }[]
   side_chats: { id: number; title: string | null; path: string; cost_usd: number }[]
+  next_cursors: { runs: string | null; side_chats: string | null }
+  message_traffic: CoworkerDetail["message_traffic"]
 }
 export type CoworkerApproval = {
   id: number
@@ -168,14 +169,23 @@ export const fetchCoworkers = () =>
   getJson<{
     coworkers: CoworkerSummary[]
     syrus: CoworkerSummary
-    model_options: CoworkerModelOptions[]
     provisioning_attempts: ProvisioningAttempt[]
-    grant_catalog: CoworkerDetail["grant_catalog"]
   }>("/api/v1/app/coworkers")
+export const fetchCoworkerOptions = () =>
+  getJson<{
+    accent_hexes: string[]
+    model_options: CoworkerModelOptions[]
+    grant_catalog: CoworkerDetail["grant_catalog"]
+  }>("/api/v1/app/coworkers/options")
 export const retryProvisioningCleanup = (id: number) => postJson(`/api/v1/app/coworkers/provisioning_attempts/${id}/retry`)
 export const acknowledgeProvisioningCleanup = (id: number) => postJson(`/api/v1/app/coworkers/provisioning_attempts/${id}/acknowledge`)
 export function fetchCoworker(id: string) {
-  return getJson<{ coworker: CoworkerDetail }>(`/api/v1/app/coworkers/${id}`)
+  return getJson<{ coworker: CoworkerSummary & Pick<CoworkerDetail, "chat_provider" | "chat_model" | "effective_model" | "workspace_repo"> }>(
+    `/api/v1/app/coworkers/${id}`
+  )
+}
+export function fetchCoworkerTab(id: string, tab: "profile" | "chats" | "capabilities" | "schedules") {
+  return getJson<Partial<CoworkerDetail>>(`/api/v1/app/coworkers/${id}/${tab}`)
 }
 export function fetchCoworkerMemory(id: string, search: string) {
   return getJson<CoworkerMemoryPayload>(`/api/v1/app/coworkers/${id}/memory${search}`)
@@ -184,8 +194,13 @@ export function fetchCoworkerWorkspace(id: string, path?: string) {
   return getJson<CoworkerWorkspacePayload>(`/api/v1/app/coworkers/${id}/workspace${path ? `?path=${encodeURIComponent(path)}` : ""}`)
 }
 export const retryCoworkerWorkspaceSave = (id: string, chatLinkId: number) => postJson(`/api/v1/app/coworkers/${id}/workspace/retry`, { chat_id: chatLinkId })
-export function fetchCoworkerActivity(id: string) {
-  return getJson<CoworkerActivityPayload>(`/api/v1/app/coworkers/${id}/activity`)
+export function fetchCoworkerActivity(id: string, cursors?: { runs?: string | null; sideChats?: string | null }) {
+  const query = new URLSearchParams()
+  if (cursors) {
+    query.set("runs_cursor", cursors.runs || "")
+    query.set("side_chats_cursor", cursors.sideChats || "")
+  }
+  return getJson<CoworkerActivityPayload>(`/api/v1/app/coworkers/${id}/activity${query.size ? `?${query}` : ""}`)
 }
 export function fetchCoworkerApprovals(id: string) {
   return getJson<{ approvals: CoworkerApproval[] }>(`/api/v1/app/coworkers/${id}/approvals`)
@@ -222,7 +237,7 @@ export const updateCoworkerGrant = (
   confirmed = false,
   scope?: unknown
 ) =>
-  patchJson<{ coworker: CoworkerDetail }>(`/api/v1/app/coworkers/${id}/grants`, {
+  patchJson<void>(`/api/v1/app/coworkers/${id}/grants`, {
     capability,
     approval_policy: approvalPolicy,
     constraints,

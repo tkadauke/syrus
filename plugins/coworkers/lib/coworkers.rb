@@ -36,6 +36,7 @@ module Coworkers
              chat_mcp_tool_set: "Coworkers::ChatToolSet"
     tick_interval 5.minutes
     route :get, "/api/v1/app/coworkers", to: "api/v1/app/coworkers#index"
+    route :get, "/api/v1/app/coworkers/options", to: "api/v1/app/coworkers#options"
     route :post, "/api/v1/app/coworkers", to: "api/v1/app/coworkers#create"
     route :post, "/api/v1/app/coworkers/test_remote", to: "api/v1/app/coworkers#test_remote"
     route :post, "/api/v1/app/coworkers/provisioning_attempts/:attempt_id/retry", to: "api/v1/app/coworkers#retry_provisioning_cleanup"
@@ -45,6 +46,10 @@ module Coworkers
     route :post, "/api/v1/app/coworkers/:id/approvals/:approval_id/approve", to: "api/v1/app/coworkers#approve"
     route :post, "/api/v1/app/coworkers/:id/approvals/:approval_id/reject", to: "api/v1/app/coworkers#reject"
     route :get, "/api/v1/app/coworkers/:id", to: "api/v1/app/coworkers#show"
+    route :get, "/api/v1/app/coworkers/:id/profile", to: "api/v1/app/coworkers#profile"
+    route :get, "/api/v1/app/coworkers/:id/chats", to: "api/v1/app/coworkers#chats"
+    route :get, "/api/v1/app/coworkers/:id/capabilities", to: "api/v1/app/coworkers#capabilities"
+    route :get, "/api/v1/app/coworkers/:id/schedules", to: "api/v1/app/coworkers#schedules"
     route :patch, "/api/v1/app/coworkers/:id", to: "api/v1/app/coworkers#update"
     route :patch, "/api/v1/app/coworkers/:id/grants", to: "api/v1/app/coworkers#update_grant"
     route :delete, "/api/v1/app/coworkers/:id", to: "api/v1/app/coworkers#destroy"
