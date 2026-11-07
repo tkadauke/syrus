@@ -6,6 +6,9 @@ This is the canonical system-wide overview and routing map. It explains how
 Syrus fits together; focused engineering documents own subsystem detail.
 Executable code, schema, configuration, and tests remain the final authority.
 See the [engineering hierarchy](docs/engineering/README.md) for precedence.
+The [detailed system reference](docs/engineering/architecture/system-reference.md)
+retains the full model, flow, service, UI, and deployment inventory formerly
+kept in this overview.
 
 ## System shape
 
