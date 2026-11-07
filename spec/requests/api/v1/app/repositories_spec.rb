@@ -383,6 +383,53 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(match).to be_present
   end
 
+  it "reuses repository index metadata across filter requests until its inputs change" do
+    sign_in_as(user)
+    allow(Rails).to receive(:cache).and_return(ActiveSupport::Cache::MemoryStore.new)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+    controller = Api::V1::App::RepositoriesController
+    folder_count_calls = 0
+    schema_calls = 0
+    allow_any_instance_of(controller).to receive(:repository_count_for_folder).and_wrap_original do |method, *args|
+      folder_count_calls += 1
+      method.call(*args)
+    end
+    allow_any_instance_of(controller).to receive(:repository_filter_schema).and_wrap_original do |method, *args|
+      schema_calls += 1
+      method.call(*args)
+    end
+
+    get "/api/v1/app/repositories", params: { q: "widgets" }
+    initial_folder_count_calls = folder_count_calls
+
+    get "/api/v1/app/repositories", params: { q: "acme" }
+
+    expect(response).to have_http_status(:ok)
+    expect(folder_count_calls).to eq(initial_folder_count_calls)
+    expect(schema_calls).to eq(1)
+
+    repository.update!(owner: "renamed")
+    get "/api/v1/app/repositories", params: { q: "renamed" }
+
+    expect(folder_count_calls).to be > initial_folder_count_calls
+    expect(schema_calls).to eq(2)
+    expect(parse_body.fetch("filter_schema").find { |field| field["field"] == "github_owner" }.fetch("values"))
+      .to include("value" => "renamed", "label" => "renamed")
+
+    folder = SmartFolder.create!(
+      user: user,
+      kind: "user_defined",
+      subject_type: "repository",
+      name: "Renamed repos",
+      filter: { "and" => [ { "field" => "slug", "op" => "contains", "value" => "renamed" } ] },
+      position: 0
+    )
+    get "/api/v1/app/repositories"
+
+    expect(schema_calls).to eq(3)
+    expect(parse_body.fetch("smart_folders")).to include(include("id" => folder.id, "count" => 1))
+  end
+
   it "returns archived rows when the repository index archived filter is true" do
     sign_in_as(user)
     active = Factories.repository(user: user, owner: "acme", name: "active")

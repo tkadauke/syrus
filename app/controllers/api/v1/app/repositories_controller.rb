@@ -458,16 +458,17 @@ module Api
             end
             PerformanceLogging.phase("repositories_index.preload_job_state", repository_count: repos.size) { preload_repository_index_job_state(repos) }
             filtered_repos = PerformanceLogging.phase("repositories_index.apply_filters", repository_count: repos.size) { filter_repository_index_repositories(repos) }
+            metadata = PerformanceLogging.phase("repositories_index.metadata", repository_count: repos.size) { cached_repository_index_metadata(repos) }
 
             payload = {
               active_repositories: PerformanceLogging.phase("repositories_index.active_repositories_json", repository_count: filtered_repos.size) { filtered_repos.select { |repository| !repository.archived? }.map { |repository| repository_json(repository) } },
               archived_repositories: PerformanceLogging.phase("repositories_index.archived_repositories_json", repository_count: filtered_repos.size) { filtered_repos.select(&:archived?).map { |repository| repository_json(repository) } },
               new_repository_path: new_repository_path,
               setup: PerformanceLogging.phase("repositories_index.setup") { cached_repository_setup },
-              smart_folders: PerformanceLogging.phase("repositories_index.smart_folders", repository_count: repos.size) { repository_smart_folders_json(repos) },
+              smart_folders: metadata.fetch(:smart_folders),
               active_smart_folder_id: active_repository_smart_folder&.id,
               filter: repository_filter.to_h,
-              filter_schema: repository_filter_schema(repos),
+              filter_schema: metadata.fetch(:filter_schema),
               message: message
             }
             if params[:shape] == "cli"
@@ -1098,11 +1099,6 @@ module Api
         end
 
         def repository_smart_folders_json(repositories)
-          Rails.cache.fetch([ "repository_smart_folder_builtins", Current.user.id ], expires_in: 5.minutes) do
-            SmartFolder.ensure_builtins_for_subject!("repository")
-            true
-          end
-
           ::Admin::SmartFolderNavigation.new(
             subject: "repository",
             user: Current.user,
@@ -1111,6 +1107,43 @@ module Api
             filter_class: Repositories::Filter,
             count_provider: ->(folder) { repository_count_for_folder(folder, repositories) }
           ).folders
+        end
+
+        def cached_repository_index_metadata(repositories)
+          ensure_repository_smart_folder_builtins
+          folder_versions = visible_repository_smart_folders.map(&:cache_key_with_version)
+          repository_versions = repositories.map do |repository|
+            [
+              repository.cache_key_with_version,
+              @repository_index_open_job_counts.fetch(repository.id, 0),
+              repository_index_last_job_activity_by_id[repository.id]&.iso8601
+            ]
+          end
+          version = ActiveSupport::Digest.hexdigest(ActiveSupport::Cache.expand_cache_key([ folder_versions, repository_versions ]))
+
+          Rails.cache.fetch(
+            [ "repository_index_metadata", Current.user.id, active_repository_smart_folder&.id, version ],
+            expires_in: 1.minute
+          ) do
+            {
+              smart_folders: repository_smart_folders_json(repositories),
+              filter_schema: repository_filter_schema(repositories)
+            }
+          end
+        end
+
+        def ensure_repository_smart_folder_builtins
+          Rails.cache.fetch([ "repository_smart_folder_builtins", Current.user.id ], expires_in: 5.minutes) do
+            SmartFolder.ensure_builtins_for_subject!("repository")
+            true
+          end
+        end
+
+        def visible_repository_smart_folders
+          SmartFolder.for_subject("repository")
+            .where("user_id IS NULL OR user_id = ?", Current.user.id)
+            .order(:id)
+            .to_a
         end
 
         # The repository index's chip-bar UI (FilterBar) renders its
