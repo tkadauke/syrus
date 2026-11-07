@@ -16,6 +16,7 @@ RSpec.describe "collapsed tool group header design lock" do
 
   it "keeps the shared header a single non-wrapping row with a clipped preview" do
     expect(implementation).to include('className="flex min-w-0 max-w-full')
+    expect(implementation).to include("items-center")
     expect(implementation).to include("overflow-hidden whitespace-nowrap")
     expect(implementation).to include('data-testid="tool-group-preview"')
     expect(implementation).to include("min-w-0 flex-1 truncate")
