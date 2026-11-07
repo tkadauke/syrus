@@ -10,7 +10,7 @@ show where work ran and detect process restarts within a durable lane.
 The only timeline-specific instrumentation is the `queue_role` captured on
 `WorkflowActivityEvent` for `RunJob` executions. The queries otherwise read
 from data Syrus already collects: `Workflow`/`Step`/`Run` timestamps,
-`WorkflowActivityEvent` (see `config/syrus_docs/observability.md`),
+`WorkflowActivityEvent` (see [observability](observability.md)),
 `SpawnedProcess`, `SolidQueue::Process`, `WorkerHostHealthSample`, and
 `InstanceVersion`. There is no thread-slot allocator or per-thread
 concurrency instrumentation; overlapping spans inside a lane are packed by

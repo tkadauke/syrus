@@ -6,7 +6,7 @@ module Metrics
   # docs/plans/complete/prometheus-dashboard.md, "Product throughput").
   #
   # /metrics is currently served by the **web** role only (see
-  # config/syrus_docs/metrics.md); every event this class counts -- a Run
+  # docs/engineering/architecture/metrics.md); every event this class counts -- a Run
   # finishing, a Job landing, a Solid Queue job completing -- happens on a
   # **worker** process. A counter or histogram mutated in-process at the
   # event site, or even just in-process during #sample! (which itself runs

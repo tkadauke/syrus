@@ -14,7 +14,7 @@ module Metrics
   #
   # `syrus_admission_decisions_total{decision}` is the other metric in this
   # plan section, but it is genuinely per-process (see
-  # config/syrus_docs/metrics.md's "Aggregating" section) -- it is declared
+  # docs/engineering/architecture/metrics.md's "Aggregating" section) -- it is declared
   # and incremented directly inside WorkflowAdmissionBudget/RunHostAdmission
   # at the moment a decision is made, not sampled here.
   class WorkerSampler

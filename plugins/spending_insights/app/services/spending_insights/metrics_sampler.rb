@@ -3,7 +3,7 @@ module SpendingInsights
   #
   # A Run's cost is finalized on whichever worker process ran its agent
   # invocation (see AgentProviders::Base#record_result!), but /metrics is
-  # served by the web role only (config/syrus_docs/metrics.md, "Scope") --
+  # served by the web role only (docs/engineering/architecture/metrics.md, "Scope") --
   # incrementing a counter directly at that call site would sit invisible in
   # the worker's own registry forever. So this follows Metrics::LandingSampler's
   # shape: #sample! runs on the shared control-plane tick (registered via the

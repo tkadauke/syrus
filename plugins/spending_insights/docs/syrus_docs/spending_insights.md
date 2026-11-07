@@ -24,7 +24,7 @@ with an ETag.
 
 ## Metrics
 
-While enabled, exports one Prometheus counter to `/metrics` (see `config/syrus_docs/metrics.md`):
+While enabled, exports one Prometheus counter to `/metrics` (see `docs/engineering/operations/metrics.md`):
 
 | Metric | Meaning |
 |---|---|
