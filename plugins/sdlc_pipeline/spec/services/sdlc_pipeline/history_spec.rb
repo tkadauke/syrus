@@ -49,6 +49,25 @@ RSpec.describe SdlcPipeline::History do
     expect(payload.dig(:accuracy, :status)).to eq("reconstructed")
   end
 
+  it "replays durable stage evidence when the current row cannot describe the historical instant" do
+    job = Factories.job_record(repository: repository, user: user, state: "implemented", created_at: now - 2.days)
+    job.update_columns(created_at: now - 2.days)
+    transition_at = now - 1.hour
+    travel_to(transition_at) { job.approve!(via: "operator", by_user: user) }
+    job.update_columns(state: "implemented")
+
+    payload = described_class.new(
+      repository: repository, user: user, filter: filter,
+      from: (now - 1.day).iso8601, to: now.iso8601, now: now
+    ).call
+
+    expect(payload[:deltas]).to include(
+      include(at: transition_at.iso8601(6), job_id: job.id, from_stage: "review", to_stage: "landing")
+    )
+    expect(payload[:ticks]).to eq([ transition_at.iso8601(6) ])
+    expect(payload.dig(:accuracy, :status)).to eq("reconstructed")
+  end
+
   it "records Job creation as entry into its first visible stage" do
     job = Factories.job_record(repository: repository, user: user, state: "queued", created_at: now - 1.hour)
     job.update_columns(created_at: now - 1.hour, updated_at: now - 1.hour)

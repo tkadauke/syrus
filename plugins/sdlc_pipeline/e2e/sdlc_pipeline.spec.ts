@@ -38,6 +38,8 @@ test("SDLC Pipeline repository tab is aggregate-first and drills into a bounded 
   for (const control of ["Play", "Previous event", "Next event"]) {
     const box = await pipeline.getByRole("button", { name: control, exact: true }).boundingBox()
     expect(box, `${control} must remain in the 1728×917 viewport`).not.toBeNull()
+    expect(box!.x).toBeGreaterThanOrEqual(0)
+    expect(box!.x + box!.width).toBeLessThanOrEqual(1728)
     expect(box!.y).toBeGreaterThanOrEqual(0)
     expect(box!.y + box!.height).toBeLessThanOrEqual(917)
   }
