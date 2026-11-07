@@ -41,16 +41,20 @@ module Api
           rows.sort_by! do |row|
             [ row.fetch(:priority), row.fetch(:rank), row.fetch(:type_order), row.fetch(:ordinal) ]
           end
+          rows = rows.first(limit)
           @search_result_rows = rows
 
-          render json: {
-            results: rows.filter_map { |row| result_json(row) }.first(limit),
-            filter: active_filter_tree,
-            controls: {
+          payload = {
+            results: rows.filter_map { |row| result_json(row) },
+            filter: active_filter_tree
+          }
+          if ActiveModel::Type::Boolean.new.cast(params[:controls])
+            payload[:controls] = {
               types: type_options,
               filter_schema: filter_schema(selected_types)
             }
-          }
+          end
+          render json: payload
         rescue ActiveRecord::StatementInvalid => e
           raise unless fts_syntax_error?(e)
 

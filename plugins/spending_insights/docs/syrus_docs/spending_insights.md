@@ -17,6 +17,11 @@ user, repository, Epic, provider, and trigger filters. Lifetime includes both
 workflow and chat costs. CLI `--since` and `--until` flags may be used together
 or independently; a lone flag creates an open-ended date filter.
 
+Epic, user, and repository breakdowns show the 25 highest-cost entries and
+combine the remainder into an **Other** row. Report responses are cached per
+operator and filter set for up to five minutes and support conditional requests
+with an ETag.
+
 ## Metrics
 
 While enabled, exports one Prometheus counter to `/metrics` (see `config/syrus_docs/metrics.md`):
