@@ -16,6 +16,16 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     clear_performed_jobs
   end
 
+  before do
+    # Most examples exercise state repair, not workspace-loss recovery. Treat
+    # their workflow fixtures as having a workspace; recovery examples opt out
+    # with an explicit File.directory? stub or a temporary data root.
+    workflow_root = WorkflowWorkspace.data_root.join("workflows").to_s
+    allow(File).to receive(:directory?).and_wrap_original do |method, path|
+      Pathname(path).to_s.start_with?("#{workflow_root}/") || method.call(path)
+    end
+  end
+
   def reconcile(**attrs)
     described_class.call(source: "spec", **attrs)
   end
