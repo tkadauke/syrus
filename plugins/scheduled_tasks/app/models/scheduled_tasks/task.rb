@@ -146,7 +146,8 @@ module ScheduledTasks
         fire_at.present? && fire_at <= now
       else
         window_start = scheduled_fire_window_start(now: now)
-        window_start.present? && !fired_in_window?(window_start)
+        scheduled_due = window_start.present? && !fired_in_window?(window_start)
+        scheduled_due || system_catch_up_due?(now: now)
       end
     end
 
@@ -156,7 +157,7 @@ module ScheduledTasks
       elsif manual
         now.utc.change(min: 0, sec: 0, usec: 0)
       else
-        scheduled_fire_window_start(now: now)
+        scheduled_fire_window_start(now: now) || system_catch_up_window_start(now: now)
       end
     end
 
@@ -239,6 +240,17 @@ module ScheduledTasks
       end
     end
 
+    def record_fire_failure!(error, at: Time.current)
+      record_failure!
+      return unless system_schedule?
+
+      date = system_schedule_definition.failure_date(task: self, now: at)
+      return unless date
+
+      reason = "#{error.class}: #{error.message}".truncate(1_000)
+      record_system_result!(date: date, result: "failed", reason: reason)
+    end
+
     private
 
     def prevent_system_schedule_destruction
@@ -267,6 +279,22 @@ module ScheduledTasks
       Schedules::RecurringSchedule.due_window_start(schedule_expression, timezone: schedule_timezone, now: now)
     rescue ArgumentError
       nil
+    end
+
+    def system_catch_up_due?(now: Time.current)
+      system_schedule? && system_schedule_definition.catch_up_due?(task: self, now: now)
+    rescue ArgumentError
+      false
+    end
+
+    def system_catch_up_window_start(now: Time.current)
+      return unless system_catch_up_due?(now: now)
+
+      now.utc.change(min: 0, sec: 0, usec: 0)
+    end
+
+    def system_schedule_definition
+      ScheduledTasks::SystemSchedules.fetch(system_key).new
     end
 
     def seed_minute_offset_for_cron

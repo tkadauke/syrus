@@ -3,6 +3,40 @@ module Coworkers
     class Journaling < ScheduledTasks::SystemSchedules::Definition
       SUPERSEDED_FORMAT = "~~original text~~ (superseded YYYY-MM-DD by <reference>: <reason>)".freeze
 
+      def catch_up_due?(task:, now:)
+        first_target = Coworkers::SystemSchedules.target_dates(task, now: now).first
+        return false unless first_target
+
+        latest_tick = latest_scheduled_tick(task, now: now)
+        return false unless latest_tick
+
+        zone = ActiveSupport::TimeZone[task.schedule_timezone] || ActiveSupport::TimeZone["UTC"]
+        first_target <= latest_tick.in_time_zone(zone).to_date - 1
+      end
+
+      def failure_date(task:, now:)
+        Coworkers::SystemSchedules.target_dates(task, now: now).first
+      end
+
+      private
+
+      def latest_scheduled_tick(task, now:)
+        cursor = now - 2.days
+        latest = nil
+        loop do
+          candidate = ScheduledTasks::Schedules::RecurringSchedule.next_fire_at(
+            task.schedule_expression, timezone: task.schedule_timezone, from: cursor
+          )
+          break if candidate.nil? || candidate > now
+
+          latest = candidate
+          cursor = candidate
+        end
+        latest
+      end
+
+      public
+
       def prompt(task:, target_date:)
         coworker = Coworkers::Coworker.find(task.coworker_id)
         material = Coworkers::JournalingActivity.new(coworker:, date: target_date).material
