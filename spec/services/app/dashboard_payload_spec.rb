@@ -397,6 +397,32 @@ RSpec.describe App::DashboardPayload, :ci_only do
   describe "backlogged job dashboard surfaces" do
     before { SmartFolder.ensure_builtins_for_subject!("job") }
 
+    it "paginates each kanban lane with the default limit and next offset" do
+      stub_const("App::DashboardPayload::KANBAN_PER_PAGE", 2)
+      user.update_dashboard_kanban_lanes!(subject: :jobs, lanes: %w[backlog])
+      jobs = 3.times.map do |index|
+        Factories.job_record(
+          user: user,
+          repository: repo,
+          kind: "direct",
+          state: "backlog",
+          issue_number: nil,
+          issue_title: "Backlog #{index}",
+          owner_user: user
+        )
+      end
+
+      first_page = call(subject: "job", view: "kanban", scope: "mine")
+      first_lane = first_page.fetch(:lanes).sole
+      second_page = call(subject: "job", view: "kanban", scope: "mine", kanban_lane: "backlog", kanban_offset: first_lane.fetch(:next_offset))
+      second_lane = second_page.fetch(:lanes).sole
+
+      expect(first_lane).to include(total_count: 3, loaded_count: 2, has_more: true, next_offset: 2)
+      expect(first_lane.fetch(:items).map { |item| item.fetch(:id) }).to eq(jobs.reverse.first(2).map(&:id))
+      expect(second_lane).to include(total_count: 3, loaded_count: 3, has_more: false, next_offset: 3)
+      expect(second_lane.fetch(:items).map { |item| item.fetch(:id) }).to eq([ jobs.first.id ])
+    end
+
     it "places user-facing backlogged jobs in the backlog lane with dependencies and actions" do
       blocker = Factories.job_record(user: user, repository: repo, kind: "direct", state: "queued", issue_number: nil, issue_title: "Prepare schema")
       backlogged = Factories.job_record(user: user, repository: repo, kind: "direct", state: "backlog", issue_number: nil, issue_title: "Build dashboard lane", priority: "high", owner_user: user)
@@ -2183,6 +2209,16 @@ RSpec.describe App::DashboardPayload, :ci_only do
   end
 
   describe "epic row job aggregates" do
+    it "bounds descriptions on compact epic rows" do
+      epic = Factories.epic(user: user, repository: repo, description: "x" * 300)
+
+      result = call(subject: "epic", view: "list", section: "rows")
+      item = result[:items].find { |row| row[:id] == epic.id }
+
+      expect(item[:description].length).to eq(200)
+      expect(item[:description]).to end_with("...")
+    end
+
     it "serializes epic job state without loading full child job rows" do
       epic = Factories.epic(user: user, repository: repo, state: "in_progress")
       Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 201, state: "approved", commits_behind_base: 4)

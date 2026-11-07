@@ -3945,7 +3945,7 @@ describe("App", () => {
     expect(within(bulkToolbar()).queryByRole("button", { name: "Accept" })).not.toBeInTheDocument()
   }, 30000)
 
-  it("uses conservative bulk job action fallback when row payloads omit bulk_actions", async () => {
+  it("fails closed when row payloads omit bulk_actions", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (dashboardPathMatches(path, "/api/v1/app/dashboard?view=list&subject=job")) {
@@ -3966,9 +3966,6 @@ describe("App", () => {
                     title: "Implemented fixture",
                     state: "implemented",
                     issue_number: 46,
-                    can_approve: true,
-                    can_release_from_backlog: false,
-                    can_move_to_backlog: false,
                     claimed_by_user: null
                   }),
                   dashboardJobItem({
@@ -3976,9 +3973,6 @@ describe("App", () => {
                     title: "Failed fixture",
                     state: "failed",
                     issue_number: 47,
-                    can_approve: false,
-                    can_release_from_backlog: false,
-                    can_move_to_backlog: false,
                     claimed_by_user: null,
                     retry_state: {
                       classification: "git_failure",
@@ -4013,7 +4007,7 @@ describe("App", () => {
 
     fireEvent.click(screen.getByLabelText("Select Implemented fixture"))
     expect(await screen.findByText("1 selected")).toBeInTheDocument()
-    expect(within(bulkToolbar()).getByRole("button", { name: "Approve" })).toBeInTheDocument()
+    expect(within(bulkToolbar()).queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
     expect(within(bulkToolbar()).queryByRole("button", { name: "Start" })).not.toBeInTheDocument()
     expect(within(bulkToolbar()).queryByRole("button", { name: "Backlog" })).not.toBeInTheDocument()
     expect(within(bulkToolbar()).queryByRole("button", { name: "Unpause" })).not.toBeInTheDocument()
@@ -4353,7 +4347,7 @@ describe("App", () => {
             pr_url: null,
             manual_paused: true,
             manual_paused_at: "2026-05-30T11:00:00Z",
-            manual_paused_by_user: { id: 1, name: "Operator", email_address: "operator@example.com" },
+            bulk_actions: { unpause: true },
             tags: [],
             source_chat: null
           })
@@ -6408,28 +6402,16 @@ describe("App", () => {
       dependencies: [
         {
           id: 4,
+          slug: "JOB-41",
+          state: "queued",
           pending: false,
-          succeeded: false,
-          unresolved_slug: null,
-          depends_on_job: { id: 41, slug: "JOB-41", title: "Prepare schema", state: "queued", repository_slug: "acme/widgets", job_path: "/jobs/41" },
-          depends_on_epic: null
+          succeeded: false
         }
       ],
-      unsatisfied_dependencies: [
-        {
-          id: 4,
-          pending: false,
-          succeeded: false,
-          unresolved_slug: null,
-          depends_on_job: { id: 41, slug: "JOB-41", title: "Prepare schema", state: "queued", repository_slug: "acme/widgets", job_path: "/jobs/41" },
-          depends_on_epic: null
-        }
-      ],
-      can_release_from_backlog: true,
+      unsatisfied_dependency_count: 1,
+      bulk_actions: { release_from_backlog: true },
       paths: {
-        job_path: "/jobs/88",
-        source_path: "/jobs/88/source",
-        app_release_from_backlog_path: "/api/v1/app/jobs/88/release_from_backlog"
+        job_path: "/jobs/88"
       }
     })
     mockDashboardFetch(
@@ -6446,7 +6428,7 @@ describe("App", () => {
           kanban_lanes: [{ key: "backlog", title: "Backlog" }]
         },
         lanes: [{ key: "backlog", title: "Backlog", count: 1, items: [backloggedJob] }],
-        kanban_limit: 100
+        kanban_limit: 25
       })
     )
 
