@@ -7,6 +7,8 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
 
   it "lists only the signed-in user's rules alongside read-only inherited descriptors" do
     mine = permission_rule(owner: user)
+    revoked = permission_rule(owner: user)
+    revoked.revoke!(actor: user)
     permission_rule(owner: Factories.user)
 
     get "/api/v1/app/permission_rules"
@@ -16,14 +18,26 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     expect(payload.fetch("rules").pluck("id")).to eq([ mine.id ])
     expect(payload.dig("rules", 0, "editable")).to be(true)
     expect(payload.dig("rules", 0, "owner", "id")).to eq(user.id)
-    expect(payload.fetch("inherited")).not_to be_empty
-    expect(payload.fetch("inherited")).to all(include("editable" => false, "explanation" => "role_default"))
-    expect(payload.fetch("inherited")).to all(include("requestable_roles", "authority_durations"))
-    expect(payload.fetch("profiles").pluck("key")).to eq(%w[full_access@v1 ask_on_first_use@v1 restricted@v1])
     expect(payload.fetch("current_profiles")).to include("interactive_chat" => nil)
-    expect(payload.fetch("inherited")).to all(include("matrix_states" => include(
-      "interactive_chat", "coding_chat", "local_chat"
-    )))
+    expect(payload.fetch("matrix_states").values).to all(include("interactive_chat", "coding_chat", "local_chat"))
+
+    get "/api/v1/app/permission_rules/catalog"
+    catalog = JSON.parse(response.body)
+    expect(response.headers["ETag"]).to be_present
+    expect(catalog.fetch("inherited")).not_to be_empty
+    expect(catalog.fetch("inherited")).to all(include("editable" => false, "explanation" => "role_default"))
+    expect(catalog.fetch("inherited")).to all(include("requestable_roles", "authority_durations"))
+    expect(catalog.fetch("profiles").pluck("key")).to eq(%w[full_access@v1 ask_on_first_use@v1 restricted@v1])
+  end
+
+  it "paginates history with a capped page size" do
+    3.times { permission_rule(owner: user) }
+
+    get "/api/v1/app/permission_rules/history", params: { page: 2, per_page: 1_000 }
+
+    payload = JSON.parse(response.body)
+    expect(payload.fetch("pagination")).to include("page" => 2, "per_page" => Permissions::HistoryPayload::LIMIT)
+    expect(payload.fetch("history")).to be_empty
   end
 
   it "atomically replaces one chat surface's custom rules with a canonical profile" do
@@ -183,20 +197,16 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
 
     get "/api/v1/app/permission_rules"
 
-    inherited = JSON.parse(response.body).fetch("inherited").find do |candidate|
-      candidate["capability"] == descriptor.capability && candidate["operation"] == descriptor.operation
-    end
-    expect(inherited.dig("matrix_states", "interactive_chat")).to eq("deny")
+    states = JSON.parse(response.body).fetch("matrix_states").fetch("#{descriptor.capability}|#{descriptor.operation}")
+    expect(states.fetch("interactive_chat")).to eq("deny")
 
     PermissionRule.where(owner_user: user).find_each { |rule| rule.revoke!(actor: user) }
     permission_rule(owner: user, descriptor:, policy: "allow", resource_scope: { resource_id: "one" })
 
     get "/api/v1/app/permission_rules"
 
-    inherited = JSON.parse(response.body).fetch("inherited").find do |candidate|
-      candidate["capability"] == descriptor.capability && candidate["operation"] == descriptor.operation
-    end
-    expect(inherited.dig("matrix_states", "interactive_chat")).to eq("scoped")
+    states = JSON.parse(response.body).fetch("matrix_states").fetch("#{descriptor.capability}|#{descriptor.operation}")
+    expect(states.fetch("interactive_chat")).to eq("scoped")
   end
 
   it "creates a permanent allow rule for an eligible capability" do

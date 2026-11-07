@@ -8,17 +8,27 @@ module Api
 
         def index
           management = Permissions::Management.new(Current.user)
-          active_rules = management.rules.to_a
+          active_rules = management.rules.includes(:owner_user).to_a
           render json: {
-            rules: management.rules(active: false).map { |rule| serialize_rule(rule) },
-            inherited: Permissions::Catalog.descriptors.map { |descriptor| serialize_descriptor(descriptor, management:, active_rules:) },
-            profiles: Permissions::PermissionProfiles.all.map(&:to_h),
+            rules: active_rules.map { |rule| serialize_rule(rule) },
+            matrix_states: Permissions::Catalog.descriptors.to_h { |descriptor|
+              [ descriptor_key(descriptor), matrix_states(descriptor, management:, active_rules:) ]
+            },
             current_profiles: PermissionRule::SUBJECT_SELECTORS.filter_map { |subject, definition|
               next unless definition[:role]
               [ subject, management.current_profile(subject_selector_type: subject) ]
             }.to_h,
             ownership: { editable_layer: "agent", owner_user_id: Current.user.id }
           }
+        end
+
+        def catalog
+          payload = {
+            inherited: Permissions::Catalog.descriptors.map { |descriptor| serialize_descriptor(descriptor) },
+            profiles: Permissions::PermissionProfiles.all.map(&:to_h)
+          }
+          fresh_when(etag: [ "permission-rules-catalog", payload ], public: false)
+          render json: payload unless performed?
         end
 
         def preview_profile
@@ -44,7 +54,7 @@ module Api
         end
 
         def history
-          render json: Permissions::HistoryPayload.new(Current.user).as_json
+          render json: Permissions::HistoryPayload.new(Current.user, page: params[:page], per_page: params[:per_page]).as_json
         end
 
         def create
@@ -166,16 +176,17 @@ module Api
           serialized.merge("resource_scope_label" => rule.resource_scope.to_json)
         end
 
-        def serialize_descriptor(descriptor, management:, active_rules:)
+        def serialize_descriptor(descriptor)
           Permissions::Catalog.as_json(descriptor).slice(
             :capability, :operation, :effects, :risk, :defaults, :resource_scope,
             :requestable_roles, :authority_durations, :presets
           ).merge(
             owner: { kind: "provider", name: descriptor.capability.split(".").first },
-            editable: false, explanation: "role_default",
-            matrix_states: matrix_states(descriptor, management:, active_rules:)
+            editable: false, explanation: "role_default"
           )
         end
+
+        def descriptor_key(descriptor) = [ descriptor.capability, descriptor.operation ].join("|")
 
         def bulk_operations
           params.require(:operations).map do |operation|
