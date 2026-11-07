@@ -197,7 +197,7 @@ development_preview_seed = lambda do
   demo_diff_review_fixture = {
     base_ref: "main",
     head_ref: "a1c9f7e0b2d4536170849f2ab6c3d8e1f0a9b7c6",
-    merge_base_sha: "7a6b5c4d3e2f10908070605040302010fedcba9",
+    merge_base_sha: "07a6b5c4d3e2f10908070605040302010fedcba9",
     branch_commits: [
       {
         sha: "a1c9f7e0b2d4536170849f2ab6c3d8e1f0a9b7c6",
@@ -206,7 +206,7 @@ development_preview_seed = lambda do
         date: "2026-09-03T15:41:00Z"
       },
       {
-        sha: "f1e2d3c4b5a697887766554433221100ffeeddc",
+        sha: "0f1e2d3c4b5a697887766554433221100ffeeddc",
         short_sha: "f1e2d3c",
         message: "Add needs_attention_count to dashboard summary",
         date: "2026-09-03T14:22:00Z"
