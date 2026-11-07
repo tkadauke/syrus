@@ -71,15 +71,19 @@ describe("AdminToolCards", () => {
     expect(within(region).getByText("provider_builtin")).toBeInTheDocument()
     fireEvent.click(within(region).getByRole("tab", { name: "Running multiline command" }))
     expect(within(region).getByText("Running")).toBeInTheDocument()
-    expect(within(region).getByTestId("tool-group-preview")).toHaveTextContent(
-      '/bin/bash -lc \'rg -n "Visual evidence|No screenshots captured" app spec && sed -n "1,220p" app/frontend/routes/jobDetail/ReviewWorkspace.tsx\''
-    )
+    expect(within(region).getByTestId("tool-group-preview")).toBeEmptyDOMElement()
     expandToolGroup(region)
 
-    expect(within(region).getByText(/Bash\(\/bin\/bash -lc/)).toBeInTheDocument()
+    const rawDetails = within(region).getByText(/Raw details/).closest("details")
+    expect(rawDetails).not.toBeNull()
+    if (!rawDetails) return
+    rawDetails.open = true
+    fireEvent(rawDetails, new Event("toggle"))
+    expect(rawDetails).toHaveTextContent(/\/bin\/bash -lc/)
 
     fireEvent.click(within(region).getByRole("tab", { name: "List the repo root (Codex)" }))
-    expect(within(region).getByText("Bash(ls -la)")).toBeInTheDocument()
+    expect(within(region).getByTestId("tool-group-preview")).toBeEmptyDOMElement()
+    expect(within(region).queryByText("Bash(ls -la)")).not.toBeInTheDocument()
   })
 
   it("renders a plugin-provided card's example through the real chat tool-card path", () => {
@@ -289,12 +293,14 @@ describe("AdminToolCards", () => {
 
     const region = screen.getByRole("region", { name: "Bash" })
     expandToolGroup(region)
-    expect(within(region).getByText("Bash(ls)")).toBeInTheDocument()
+    expect(within(region).getByTestId("tool-group-title")).toHaveTextContent("Bash")
+    expect(within(region).queryByText("Bash(ls)")).not.toBeInTheDocument()
 
     fireEvent.click(within(switcher).getByRole("tab", { name: "Phone (390px)" }))
 
     expect(within(switcher).getByRole("tab", { name: "Phone (390px)", selected: true })).toBeInTheDocument()
-    expect(within(region).getByText("Bash(ls)")).toBeInTheDocument()
+    expect(within(region).getByTestId("tool-group-title")).toHaveTextContent("Bash")
+    expect(within(region).queryByText("Bash(ls)")).not.toBeInTheDocument()
   })
 
   it("switches the default preview to phone when the browser is resized to a phone width", () => {
