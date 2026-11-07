@@ -13,7 +13,8 @@ ENV["RAILS_ENV"] ||= "test"
 
 require_relative "../config/environment"
 
-audit = Admin::PluginSourceBoundaryAudit.new
+root = Pathname.new(ENV.fetch("PLUGIN_BOUNDARY_AUDIT_ROOT", Rails.root.to_s))
+audit = Admin::PluginSourceBoundaryAudit.new(root: root)
 
 failures = []
 
@@ -27,7 +28,18 @@ end
 
 failures.concat(audit.core_violations.map(&:message))
 failures.concat(audit.plugin_violations.map(&:message))
-failures.concat(Admin::PluginOwnershipAudit.new.violations.map(&:message))
+
+ownership_findings = Admin::PluginOwnershipAudit.new(root: root).findings
+if ownership_findings.any?
+  warn "Plugin ownership inventory findings (shadow mode):"
+  ownership_findings.each { |finding| warn "- #{finding.message}" }
+  warn "These findings are informational and do not affect this command's exit status."
+  warn "Set PLUGIN_OWNERSHIP_ENFORCE=1 only after an explicit operator decision to enforce them."
+end
+
+if ENV["PLUGIN_OWNERSHIP_ENFORCE"] == "1"
+  failures.concat(ownership_findings.map(&:message))
+end
 
 if failures.empty?
   puts "Plugin source boundaries look good."

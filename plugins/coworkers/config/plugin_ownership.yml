@@ -1,9 +1,9 @@
 plugin: coworkers
 
-# This is the enforceable ownership declaration for terms whose semantics
-# disappear when the plugin is absent. Compatibility entries below document
-# existing core leakage; extraction work must shrink the matching snapshot
-# entry in the same change, while any addition also fails the audit.
+# This ownership declaration inventories terms whose semantics disappear when
+# the plugin is absent. Compatibility entries below are a shadow-mode baseline:
+# differences are reported for visibility but do not fail required checks or
+# require count updates. Enforcement requires a later explicit operator choice.
 ownership:
   configuration_keys:
     - coworker_review

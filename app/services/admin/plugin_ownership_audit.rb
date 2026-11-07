@@ -3,9 +3,10 @@ require "yaml"
 module Admin
   class PluginOwnershipAudit
     Ownership = Data.define(:plugin, :path, :categories, :vocabulary, :quarantine)
-    Violation = Data.define(:plugin, :path, :actual, :allowed) do
+    Finding = Data.define(:plugin, :path, :actual, :allowed) do
       def message
-        "#{path}: #{plugin} owns #{actual} vocabulary occurrence(s), compatibility quarantine allows #{allowed}"
+        trend = actual - allowed
+        "#{path}: #{plugin} vocabulary inventory actual #{actual}, baseline #{allowed}, trend #{trend.positive? ? '+' : ''}#{trend}"
       end
     end
 
@@ -22,7 +23,7 @@ module Admin
       @ownerships ||= plugin_dirs.filter_map { |dir| ownership_for(dir) }
     end
 
-    def violations
+    def findings
       ownerships.flat_map do |ownership|
         actual = inventory_for(ownership)
         paths = actual.keys | ownership.quarantine.keys
@@ -31,7 +32,7 @@ module Admin
           allowed = ownership.quarantine.fetch(path, 0)
           next if count == allowed
 
-          Violation.new(plugin: ownership.plugin, path:, actual: count, allowed:)
+          Finding.new(plugin: ownership.plugin, path:, actual: count, allowed:)
         end
       end
     end

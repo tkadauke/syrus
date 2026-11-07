@@ -5,7 +5,7 @@ require "tmpdir"
 RSpec.describe "bin/plugin-boundary-audit" do
   let(:root) { Rails.root.to_s }
 
-  def build_synthetic_repository(directory)
+  def build_synthetic_repository(directory, source: "forecast_widget = true\n", quarantine: 1)
     synthetic_root = Pathname.new(directory)
     synthetic_root.join("plugins/weather/lib").mkpath
     synthetic_root.join("plugins/weather/config").mkpath
@@ -28,9 +28,9 @@ RSpec.describe "bin/plugin-boundary-audit" do
         tools: [read_forecast]
         vocabulary: [forecast_widget]
       compatibility_quarantine:
-        app/services/dashboard.rb: 1
+        app/services/dashboard.rb: #{quarantine}
     YAML
-    synthetic_root.join("app/services/dashboard.rb").write("forecast_widget = true\n")
+    synthetic_root.join("app/services/dashboard.rb").write(source)
     synthetic_root.join("Gemfile").write("gem \"weather\", path: \"plugins/weather\"\n")
     system("git", "init", "--quiet", synthetic_root.to_s, exception: true)
     system("git", "-C", synthetic_root.to_s, "add", ".", exception: true)
@@ -84,9 +84,66 @@ RSpec.describe "bin/plugin-boundary-audit" do
       )
 
       expect(status).to be_success, "stdout=#{stdout}\nstderr=#{stderr}"
-      expect(stdout).to include("vocabulary-ownership audit")
-      expect(stdout).to include("no core reimplementation growth")
+      expect(stdout).to include("vocabulary-ownership inventory (shadow mode)")
+      expect(stdout).to include("inventory matches the recorded baseline")
       expect(stdout).to include("physical-removal audit (physical removability)")
+    end
+  end
+
+  it "reports changed vocabulary without blocking the default boundary check or subtraction command", :requires_git_checkout do
+    Dir.mktmpdir("plugin-boundary-shadow") do |directory|
+      synthetic_root = build_synthetic_repository(
+        directory,
+        source: "forecast_widget = forecast_widget_provider(forecast_widget)\n"
+      )
+      environment = {
+        "BUNDLE_PATH" => "#{root}/vendor/bundle",
+        "BUNDLE_APP_CONFIG" => "#{root}/.bundle",
+        "PLUGIN_BOUNDARY_AUDIT_ROOT" => synthetic_root.to_s
+      }
+
+      check_stdout, check_stderr, check_status = Open3.capture3(
+        environment,
+        "bin/check-plugin-boundaries",
+        chdir: root
+      )
+      audit_stdout, audit_stderr, audit_status = Open3.capture3(
+        environment,
+        "bin/plugin-boundary-audit",
+        "weather",
+        "--command",
+        "true",
+        chdir: root
+      )
+
+      expect(check_status).to be_success, "stdout=#{check_stdout}\nstderr=#{check_stderr}"
+      expect(check_stderr).to include("Plugin ownership inventory findings (shadow mode)")
+      expect(check_stderr).to include("actual 3, baseline 1, trend +2")
+      expect(audit_status).to be_success, "stdout=#{audit_stdout}\nstderr=#{audit_stderr}"
+      expect(audit_stdout).to include("Result: WARN (baseline differences reported)")
+      expect(audit_stderr).to include("actual 3, baseline 1, trend +2")
+    end
+  end
+
+  it "keeps ownership enforcement explicit and opt-in", :requires_git_checkout do
+    Dir.mktmpdir("plugin-boundary-enforcement") do |directory|
+      synthetic_root = build_synthetic_repository(directory, source: "forecast_widget forecast_widget\n")
+      _stdout, stderr, status = Open3.capture3(
+        {
+          "BUNDLE_PATH" => "#{root}/vendor/bundle",
+          "BUNDLE_APP_CONFIG" => "#{root}/.bundle",
+          "PLUGIN_BOUNDARY_AUDIT_ROOT" => synthetic_root.to_s
+        },
+        "bin/plugin-boundary-audit",
+        "weather",
+        "--command",
+        "true",
+        "--enforce-ownership",
+        chdir: root
+      )
+
+      expect(status.exitstatus).to eq(1)
+      expect(stderr).to include("actual 2, baseline 1, trend +1")
     end
   end
 
