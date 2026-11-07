@@ -53,7 +53,7 @@ function PodStatusLive({ clusterId }: { clusterId: number }) {
   const { t } = useT("k8s_cluster")
   const { query, setQuery } = useTableSearch()
   const pods = useQuery({
-    queryKey: [ "k8s_cluster", "live", "pods", clusterId ],
+    queryKey: ["k8s_cluster", "live", "pods", clusterId],
     queryFn: () => fetchKubernetesPods(clusterId),
     staleTime: 0,
     refetchInterval: 10_000
@@ -75,7 +75,9 @@ function PodStatusLive({ clusterId }: { clusterId: number }) {
         <ul className="divide-y divide-border rounded border border-border bg-surface">
           {visible.map((pod) => (
             <li className="flex items-center justify-between gap-3 px-4 py-2 text-sm" key={`${pod.namespace}/${pod.name}`}>
-              <span className="min-w-0 truncate font-medium text-text-primary">{pod.namespace}/{pod.name}</span>
+              <span className="min-w-0 truncate font-medium text-text-primary">
+                {pod.namespace}/{pod.name}
+              </span>
               <StatusBadge tone={pod.status === "Running" ? "success" : pod.status === "Failed" ? "error" : "neutral"}>{pod.status || "-"}</StatusBadge>
             </li>
           ))}
@@ -89,7 +91,7 @@ function RecentEventsLive({ clusterId }: { clusterId: number }) {
   const { t } = useT("k8s_cluster")
   const { query, setQuery } = useTableSearch()
   const events = useQuery({
-    queryKey: [ "k8s_cluster", "live", "events", clusterId ],
+    queryKey: ["k8s_cluster", "live", "events", clusterId],
     queryFn: () => fetchKubernetesEvents(clusterId),
     staleTime: 0,
     refetchInterval: 10_000
@@ -114,7 +116,9 @@ function RecentEventsLive({ clusterId }: { clusterId: number }) {
           {visible.map((event, index) => (
             <li className="flex items-center gap-3 px-4 py-2 text-sm" key={`${event.namespace}/${event.name}/${index}`}>
               <StatusBadge tone={event.type === "Warning" ? "warning" : "neutral"}>{event.type || "-"}</StatusBadge>
-              <span className="min-w-0 flex-1 truncate text-text-secondary">{event.reason}: {event.message}</span>
+              <span className="min-w-0 flex-1 truncate text-text-secondary">
+                {event.reason}: {event.message}
+              </span>
             </li>
           ))}
         </ul>
