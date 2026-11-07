@@ -12,6 +12,7 @@ import { Checkbox } from "@app/components/Checkbox"
 import { NoticeToast } from "@app/components/NoticeToast"
 import { OnboardingEmptyState, useSetupStatus } from "@app/components/OnboardingEmptyState"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
+import { useRepositoryTabs } from "@app/api/repoPluginTabs"
 import { Button } from "@app/components/Button"
 import { DataTable, type DataTableSortDirection } from "@app/components/ui/DataTable"
 import {
@@ -504,6 +505,7 @@ export default function RepositoryIssuesTab() {
     enabled: repositoryId.length > 0
   })
   const payload = issues.data
+  const tabs = useRepositoryTabs(repositoryId)
 
   return (
     <RepositoryPageShell
@@ -518,7 +520,7 @@ export default function RepositoryIssuesTab() {
         ) : null
       }
       prefix={prefix}
-      tabs={payload?.tabs ?? []}
+      tabs={tabs.data?.tabs ?? []}
     >
       {issues.isPending ? <PanelMessage>{t("repository.loading_issues")}</PanelMessage> : null}
       {!issues.isPending && (issues.isError || !payload) ? <PanelMessage tone="error">{t("repository.load_error")}</PanelMessage> : null}

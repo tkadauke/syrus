@@ -16,6 +16,7 @@ import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { RepositorySlugLink, useMediaQuery } from "@app/routes/dashboard/components"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { fetchRepositories } from "@app/api/repositories"
+import { useRepositoryTabs } from "@app/api/repoPluginTabs"
 import { errorMessage } from "@app/lib/errorMessage"
 import { Markdown, renderLightMarkdown } from "@app/lib/Markdown"
 import { routePrefix } from "@app/lib/routing"
@@ -122,6 +123,7 @@ export function DesignDocsSurface({
     enabled: showIndexControls
   })
   const repositoryPayload = mode === "repository" ? (indexQuery.data as RepositoryDesignDocsPayload | undefined) : undefined
+  const repositoryTabs = useRepositoryTabs(mode === "repository" ? repositoryId || "" : "")
   const detailQuery = useQuery({
     queryKey: ["design_docs", "detail", String(effectiveId || "")],
     queryFn: () => fetchDesignDoc(effectiveId || ""),
@@ -295,7 +297,7 @@ export function DesignDocsSurface({
           ) : null
         }
         prefix={prefix}
-        tabs={repositoryPayload?.tabs ?? []}
+        tabs={repositoryTabs.data?.tabs ?? []}
       >
         {content}
       </RepositoryPageShell>

@@ -10,6 +10,7 @@ import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { fetchRepositoryDetail, type RepositoryDetailPayload } from "../api/repositories"
 import { errorMessage } from "../lib/errorMessage"
+import { useRepositoryTabs } from "../api/repoPluginTabs"
 
 export function RepositoryCognitiveDebtRoute() {
   const params = useParams()
@@ -36,6 +37,7 @@ function RepositoryCognitiveDebt({
 }) {
   const { t } = useT("settings")
   const payload = detail.data
+  const tabs = useRepositoryTabs(payload?.repository.id ?? "")
 
   return (
     <RepositoryPageShell
@@ -51,7 +53,7 @@ function RepositoryCognitiveDebt({
         ) : null
       }
       prefix={prefix}
-      tabs={payload?.tabs ?? []}
+      tabs={tabs.data?.tabs ?? []}
     >
       {detail.isPending ? <PanelMessage>{t("repository.loading")}</PanelMessage> : null}
       {detail.isError ? <PanelMessage tone="error">{errorMessage(detail.error, t("repository.error_load"))}</PanelMessage> : null}

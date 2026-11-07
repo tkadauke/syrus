@@ -22,6 +22,7 @@ import { errorMessage } from "../lib/errorMessage"
 import { formatBytes } from "../lib/format"
 import { useConfirm } from "../hooks/useConfirm"
 import { DocumentPreviewModal, isPreviewableContentType } from "../components/DocumentPreviewModal"
+import { useRepositoryTabs } from "../api/repoPluginTabs"
 
 export function RepositoryDocumentsRoute() {
   const { t } = useT("settings")
@@ -35,6 +36,7 @@ export function RepositoryDocumentsRoute() {
     enabled: repositoryId.length > 0
   })
   const payload = documents.data
+  const tabs = useRepositoryTabs(repositoryId)
 
   return (
     <RepositoryPageShell
@@ -50,7 +52,7 @@ export function RepositoryDocumentsRoute() {
         ) : null
       }
       prefix={prefix}
-      tabs={payload?.tabs ?? []}
+      tabs={tabs.data?.tabs ?? []}
     >
       {documents.isPending ? <PanelMessage>{t("repository_documents.loading")}</PanelMessage> : null}
       {documents.isError ? <RepositoryDocumentsError error={documents.error} /> : null}

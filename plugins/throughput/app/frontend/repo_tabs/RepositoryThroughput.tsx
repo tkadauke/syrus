@@ -3,6 +3,7 @@ import { useState } from "react"
 import { useLocation, useParams } from "react-router-dom"
 import { DescriptionList, Notice, PageHeading, Section, SectionHeading, Text } from "@app/components/ui"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
+import { useRepositoryTabs } from "@app/api/repoPluginTabs"
 import { TonePill } from "@app/components/StatusPill"
 import { errorMessage } from "@app/lib/errorMessage"
 import { routePrefix } from "@app/lib/routing"
@@ -18,6 +19,7 @@ const THROUGHPUT_WINDOWS: Array<{ key: RepositoryThroughputWindowKey; labelKey?:
 ]
 
 export function RepositoryThroughputRoute({ repositoryId, prefix }: { repositoryId: string; prefix: string }) {
+  const tabs = useRepositoryTabs(repositoryId)
   const { t } = useT("throughput")
   const [windowKey, setWindowKey] = useState<RepositoryThroughputWindowKey>("4h")
   const metrics = useQuery({
@@ -35,7 +37,7 @@ export function RepositoryThroughputRoute({ repositoryId, prefix }: { repository
         </PageHeading>
       ) : null}
       prefix={prefix}
-      tabs={metrics.data?.tabs ?? []}
+      tabs={tabs.data?.tabs ?? []}
     >
       {metrics.isPending ? <Notice>{t("loading")}</Notice> : null}
       {metrics.isError ? <Notice tone="danger">{errorMessage(metrics.error, t("load_error"))}</Notice> : null}

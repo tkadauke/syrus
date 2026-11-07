@@ -12,6 +12,7 @@ import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { fetchRepositoryDetail, type RepositoryDetailPayload } from "../api/repositories"
 import { errorMessage } from "../lib/errorMessage"
+import { useRepositoryTabs } from "../api/repoPluginTabs"
 
 // The Health tab: main branch health, moved out of the Overview tab so it
 // no longer competes with recent jobs for attention. Reads/writes the same
@@ -39,6 +40,7 @@ export function RepositoryHealthRoute() {
 function RepositoryHealth({ detail, prefix, queryKey }: { detail: { data?: RepositoryDetailPayload; isPending: boolean; isError: boolean; error: unknown }; prefix: string; queryKey: ReturnType<typeof repositoryDetailQueryKey> }) {
   const { t } = useT("settings")
   const payload = detail.data
+  const tabs = useRepositoryTabs(payload?.repository.id ?? "")
   const [notice, setNotice] = useState<string | null>(payload?.message || null)
 
   return (
@@ -51,7 +53,7 @@ function RepositoryHealth({ detail, prefix, queryKey }: { detail: { data?: Repos
         </PageHeading>
       ) : null}
       prefix={prefix}
-      tabs={payload?.tabs ?? []}
+      tabs={tabs.data?.tabs ?? []}
     >
       {detail.isPending ? (
         <PanelMessage>

@@ -38,7 +38,42 @@ module Repositories
     end
 
     def as_json(*)
-      { tabs: self.class.tabs_for(repository: @repository, user: @user) }
+      { tabs: core_tabs + plugin_tabs }
+    end
+
+    private
+
+    def core_tabs
+      health_tab = tab(id: "health", label: "Health", path: "/repositories/#{@repository.id}/health", order: 10)
+      health_tab[:badge] = "!" if @repository.main_health_broken?
+
+      [
+        tab(id: "overview", label: "Overview", path: Rails.application.routes.url_helpers.repository_path(@repository), order: 0),
+        health_tab,
+        tab(id: "cognitive_debt", label: "Cognitive Debt", path: "/repositories/#{@repository.id}/cognitive_debt", order: 20),
+        tab(id: "target_graph", label: "Target Graph", path: "/repositories/#{@repository.id}/target_graph", order: 30),
+        tab(id: "documents", label: "Documents", path: Rails.application.routes.url_helpers.repository_documents_path(@repository), order: 35)
+      ]
+    end
+
+    def plugin_tabs
+      self.class.tabs_for(repository: @repository, user: @user).map do |plugin_tab|
+        plugin_tab.merge(key: plugin_tab[:id])
+      end
+    end
+
+    def tab(id:, label:, path:, order:)
+      {
+        id: id,
+        key: id,
+        label: label,
+        label_key: nil,
+        path: path,
+        paths: [ path ],
+        component: nil,
+        order: order,
+        badge: nil
+      }
     end
   end
 end

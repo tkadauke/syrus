@@ -19,7 +19,8 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/plugin_tabs", type:
             path: "/repositories/#{repository.id}/plugin/example",
             paths: [ "/repositories/#{repository.id}/plugin/example" ],
             component: "tab_plugin/Example",
-            order: 40
+            order: 40,
+            badge: 7
           }
         ]
       end
@@ -52,17 +53,36 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/plugin_tabs", type:
     get "/api/v1/app/repositories/#{repository.id}/plugin_tabs"
 
     expect(response).to have_http_status(:ok)
+    expect(response.headers["ETag"]).to be_present
+    expect(response.headers["Cache-Control"]).to include("max-age=30", "private")
+    expect(parse_body.fetch("tabs")).to include(
+      include("id" => "overview", "key" => "overview", "path" => "/repositories/#{repository.id}"),
+      include("id" => "health", "key" => "health"),
+      include("id" => "documents", "key" => "documents")
+    )
     expect(parse_body.fetch("tabs")).to include(
       include(
         "id" => "tab-plugin.example",
+        "key" => "tab-plugin.example",
         "label" => "Example Tab",
         "label_key" => "tab_plugin:nav_example",
         "path" => "/repositories/#{repository.id}/plugin/example",
         "paths" => [ "/repositories/#{repository.id}/plugin/example" ],
         "component" => "tab_plugin/Example",
-        "order" => 40
+        "order" => 40,
+        "badge" => 7
       )
     )
+  end
+
+  it "returns not modified when the complete tab payload ETag matches" do
+    sign_in_as(owner)
+    get "/api/v1/app/repositories/#{repository.id}/plugin_tabs"
+
+    get "/api/v1/app/repositories/#{repository.id}/plugin_tabs", headers: { "If-None-Match" => response.headers.fetch("ETag") }
+
+    expect(response).to have_http_status(:not_modified)
+    expect(response.body).to be_empty
   end
 
   it "returns repo page tabs for a RepositoryMembership collaborator" do

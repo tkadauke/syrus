@@ -3,6 +3,7 @@ import { useInfiniteQuery } from "@tanstack/react-query"
 import { Link, useLocation, useParams } from "react-router-dom"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
+import { useRepositoryTabs } from "@app/api/repoPluginTabs"
 import { SlugHoverCard } from "@app/components/SlugHoverCard"
 import { TonePill } from "@app/components/StatusPill"
 import { Button } from "@app/components/Button"
@@ -44,6 +45,7 @@ export function GitHistory() {
   )
   const groups = useMemo(() => groupCommits(commits), [commits])
   const firstPage = history.data?.pages[0]
+  const tabs = useRepositoryTabs(repositoryId || "")
   const available = firstPage?.available ?? false
 
   return (
@@ -56,7 +58,7 @@ export function GitHistory() {
         </PageHeading>
       ) : null}
       prefix={prefix}
-      tabs={firstPage?.tabs ?? []}
+      tabs={tabs.data?.tabs ?? []}
     >
       {history.isPending ? <Notice>{t("loading")}</Notice> : null}
       {history.isError ? <Notice tone="danger">{t("error")}</Notice> : null}

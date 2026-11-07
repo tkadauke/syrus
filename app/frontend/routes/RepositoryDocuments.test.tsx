@@ -76,6 +76,26 @@ describe("RepositoryDocumentsRoute delete", () => {
 
   afterEach(() => vi.restoreAllMocks())
 
+  it("renders repository tabs only from the dedicated cached query", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input).endsWith("/plugin_tabs")) {
+        return Promise.resolve(jsonResponse({
+          tabs: [{ id: "overview", key: "overview", label: "Cached Overview", path: "/repositories/1", paths: ["/repositories/1"], order: 0 }]
+        }))
+      }
+      return Promise.resolve(jsonResponse(documentsPayload({
+        tabs: [{ key: "legacy", label: "Legacy Embedded Tab", path: "/legacy" }]
+      })))
+    })
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<QueryClientProvider client={client}><MemoryRouter initialEntries={["/app-shell/repositories/1/documents"]}><Routes><Route element={<RepositoryDocumentsRoute />} path="/app-shell/repositories/:repositoryId/documents" /></Routes></MemoryRouter></QueryClientProvider>)
+
+    expect(await screen.findByRole("link", { name: "Cached Overview" })).toBeInTheDocument()
+    expect(screen.queryByText("Legacy Embedded Tab")).not.toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/1/plugin_tabs", expect.anything())
+  })
+
   it("opens confirm dialog instead of window.confirm when deleting a document", async () => {
     renderRoute()
 

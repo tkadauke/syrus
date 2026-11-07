@@ -1,5 +1,6 @@
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
+import { useRepositoryTabs } from "@app/api/repoPluginTabs"
 import { Button } from "@app/components/Button"
 import {
   DataTableColumnCells,
@@ -30,6 +31,7 @@ import { DataTable, Notice, PageHeading, Section, SectionHeading, Text } from "@
 import { TonePill } from "@app/components/StatusPill"
 
 export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: { repositoryId: string; prefix: string; selectedTestId: string | null }) {
+  const tabs = useRepositoryTabs(repositoryId)
   const { t } = useT("test_insights")
   const location = useLocation()
   const listSearch = useMemo(() => searchWithoutTestId(location.search), [location.search])
@@ -67,7 +69,7 @@ export function RepositoryTestsRoute({ repositoryId, prefix, selectedTestId }: {
         ) : null
       }
       prefix={prefix}
-      tabs={shell?.tabs ?? []}
+      tabs={tabs.data?.tabs ?? []}
     >
       {tests.isPending && !shell ? <Notice>{t("repo_loading_tests")}</Notice> : null}
       {tests.isError && !tests.data ? <Notice tone="danger">{errorMessage(tests.error, t("repo_error_load_tests"))}</Notice> : null}

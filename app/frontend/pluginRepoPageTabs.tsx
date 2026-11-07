@@ -1,7 +1,6 @@
-import { useQuery } from "@tanstack/react-query"
 import { lazy, Suspense, type ComponentType } from "react"
 import { useLocation, useParams } from "react-router-dom"
-import { fetchRepoPluginTabs } from "./api/repoPluginTabs"
+import { useRepositoryTabs } from "./api/repoPluginTabs"
 import { Notice, Page, PageHeading, Text } from "./components/ui"
 import { useT } from "./hooks/useT"
 
@@ -49,12 +48,7 @@ export function PluginRepoPageTabRoute() {
   const params = useParams()
   const repositoryId = params.repositoryId || ""
   const normalizedPath = location.pathname.replace(/^\/app-shell/, "") || "/"
-  const tabs = useQuery({
-    queryKey: ["repositories", repositoryId, "plugin_tabs"],
-    queryFn: () => fetchRepoPluginTabs(repositoryId),
-    enabled: repositoryId.length > 0,
-    staleTime: 30_000
-  })
+  const tabs = useRepositoryTabs(repositoryId)
 
   if (tabs.isPending) {
     return (

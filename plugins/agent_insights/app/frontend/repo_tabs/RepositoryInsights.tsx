@@ -5,6 +5,7 @@ import { routePrefix, withRoutePrefix } from "@app/lib/routing"
 import { useT } from "@app/hooks/useT"
 import { useConfirm } from "@app/hooks/useConfirm"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
+import { useRepositoryTabs } from "@app/api/repoPluginTabs"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import { Modal } from "@app/components/Modal"
 import {
@@ -43,6 +44,7 @@ export function RepositoryInsightsRoute() {
     placeholderData: keepPreviousData
   })
   const payload = query.data
+  const tabs = useRepositoryTabs(repositoryId)
 
   return (
     <RepositoryPageShell
@@ -58,7 +60,7 @@ export function RepositoryInsightsRoute() {
         ) : null
       }
       prefix={prefix}
-      tabs={payload?.tabs ?? []}
+      tabs={tabs.data?.tabs ?? []}
     >
       {query.isPending ? <Notice>{t("loading")}</Notice> : null}
       {query.isError ? <Notice tone="danger">{errorMessage(query.error, t("load_error"))}</Notice> : null}

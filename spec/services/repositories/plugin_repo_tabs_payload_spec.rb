@@ -57,4 +57,19 @@ RSpec.describe Repositories::PluginRepoTabsPayload do
       )
     )
   end
+
+  it "serializes core and plugin tabs as one complete shell list" do
+    tabs = described_class.new(repository: repository, user: owner).as_json.fetch(:tabs)
+
+    expect(tabs.first(5).map { |tab| tab[:key] }).to eq(%w[overview health cognitive_debt target_graph documents])
+    expect(tabs).to include(include(id: "tab-plugin.example", key: "tab-plugin.example"))
+  end
+
+  it "includes the core health badge when main branch health is broken" do
+    allow(repository).to receive(:main_health_broken?).and_return(true)
+
+    health_tab = described_class.new(repository: repository, user: owner).as_json.fetch(:tabs).find { |tab| tab[:key] == "health" }
+
+    expect(health_tab).to include(badge: "!")
+  end
 end

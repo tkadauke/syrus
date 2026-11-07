@@ -27,6 +27,7 @@ import { NoticeToast } from "../components/NoticeToast"
 import { ProviderAvailabilityWarning, ProviderFailoverNotice } from "../components/ProviderAvailabilityWarning"
 import { OnboardingEmptyState, useSetupStatus } from "../components/OnboardingEmptyState"
 import { RepositoryPageShell } from "../components/RepositoryPageShell"
+import { useRepositoryTabs } from "../api/repoPluginTabs"
 import { usePageGutterRestoreClassName } from "../components/ui/Page"
 import { StatusPill as StateStatusPill, TonePill, type PillTone } from "../components/StatusPill"
 import { CoverageSparkline } from "../components/CoverageSparkline"
@@ -87,6 +88,7 @@ function RepositoryDetail({
   const { t } = useT("settings")
   const setupStatus = useSetupStatus()
   const payload = detail.data
+  const tabs = useRepositoryTabs(payload?.repository.id ?? "")
   const [notice, setNotice] = useState<string | null>(payload?.message || null)
 
   return (
@@ -103,7 +105,7 @@ function RepositoryDetail({
         ) : null
       }
       prefix={prefix}
-      tabs={payload?.tabs ?? []}
+      tabs={tabs.data?.tabs ?? []}
       tipBanner={payload ? <RecommendedActions payload={payload} prefix={prefix} queryKey={queryKey} onNotice={setNotice} /> : undefined}
     >
       {detail.isPending ? <PanelMessage>{t("repository.loading")}</PanelMessage> : null}

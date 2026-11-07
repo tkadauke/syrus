@@ -8,6 +8,7 @@ import { AdminSmartFolderNav } from "@app/components/AdminSmartFolderNav"
 import { FilterBar } from "@app/components/FilterBar"
 import { SmartFolderFilterBar } from "@app/components/SmartFolderFilterBar"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
+import { useRepositoryTabs } from "@app/api/repoPluginTabs"
 import { TonePill } from "@app/components/StatusPill"
 import { useT } from "@app/hooks/useT"
 import { routePrefix } from "@app/lib/routing"
@@ -920,6 +921,7 @@ function PipelineOverview({
 }
 
 export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId: string; prefix: string }) {
+  const tabs = useRepositoryTabs(repositoryId)
   const { t } = useT("sdlc_pipeline")
   const location = useLocation()
   const embedded = new URLSearchParams(location.search).get("syrus_presentation") === "embedded"
@@ -1031,7 +1033,7 @@ export function RepositoryPipelineRoute({ repositoryId, prefix }: { repositoryId
       ariaLabel={t("aria_pipeline")}
       heading={pipeline.data ? <PageHeading mono>{pipeline.data.repository.slug}</PageHeading> : null}
       prefix={prefix}
-      tabs={pipeline.data?.tabs ?? []}
+      tabs={tabs.data?.tabs ?? []}
     >
       {loading}
       {error}

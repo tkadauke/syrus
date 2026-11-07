@@ -14,6 +14,7 @@ import { TonePill, type PillTone } from "../components/StatusPill"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { errorMessage } from "../lib/errorMessage"
 import { useT } from "../hooks/useT"
+import { useRepositoryTabs } from "../api/repoPluginTabs"
 
 const DEFAULT_LIMIT = 180
 const FOCUS_STATES = ["selected", "failing", "skipped", "cached"] as const
@@ -31,6 +32,7 @@ export function RepositoryTargetGraphRoute() {
     queryFn: () => fetchRepositoryTargetGraph(repositoryId, graphQuery),
     enabled: repositoryId.length > 0
   })
+  const tabs = useRepositoryTabs(repositoryId)
 
   return (
     <RepositoryPageShell
@@ -42,7 +44,7 @@ export function RepositoryTargetGraphRoute() {
         </PageHeading>
       ) : null}
       prefix={prefix}
-      tabs={query.data?.tabs ?? []}
+      tabs={tabs.data?.tabs ?? []}
     >
       {query.isPending ? <PanelMessage>{t("target_graph.loading")}</PanelMessage> : null}
       {query.isError ? <PanelMessage tone="error">{errorMessage(query.error, t("target_graph.error_load"))}</PanelMessage> : null}

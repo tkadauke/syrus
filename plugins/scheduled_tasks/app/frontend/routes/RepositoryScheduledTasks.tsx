@@ -12,6 +12,7 @@ import {
   type RepositoryScheduledTasksPayload
 } from "../api/scheduledTasks"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
+import { useRepositoryTabs } from "@app/api/repoPluginTabs"
 import { PageHeading, SectionHeading } from "@app/components/Heading"
 import { toRomanDate } from "@app/lib/romanCalendar"
 import { useT } from "@app/hooks/useT"
@@ -38,6 +39,7 @@ export function RepositoryScheduledTasksRoute() {
     enabled: repositoryId.length > 0
   })
   const payload = tasks.data
+  const tabs = useRepositoryTabs(repositoryId)
   const slug = payload?.repository.slug
   usePageTitle(slug ? t("page_title_repo_schedules", { slug }) : t("page_title_schedules"))
 
@@ -55,7 +57,7 @@ export function RepositoryScheduledTasksRoute() {
         ) : null
       }
       prefix={prefix}
-      tabs={payload?.tabs ?? []}
+      tabs={tabs.data?.tabs ?? []}
     >
       {tasks.isPending ? <PanelMessage>{t("scheduled_tasks.loading")}</PanelMessage> : null}
       {tasks.isError ? <RepositoryScheduledTasksError error={tasks.error} /> : null}
