@@ -2488,9 +2488,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body["documents_in_scope"]).to eq([])
     expect(body).not_to have_key("attachment_results")
     expect(body).not_to have_key("attachment_groups")
-    expect(body.dig("whiteboard", "loaded")).to eq(false)
-    expect(body.dig("whiteboard", "version")).to eq(0)
-    expect(body.dig("whiteboard", "elements")).to eq([])
+    expect(body).not_to have_key("whiteboard")
     expect(body.dig("paths", "app_messages_path")).to eq("/api/v1/app/chats/#{chat.id}/messages")
     expect(body.dig("paths", "app_message_path")).to eq("/api/v1/app/chats/#{chat.id}/message")
     expect(body.dig("paths", "app_rename_path")).to eq("/api/v1/app/chats/#{chat.id}/rename")
@@ -4608,7 +4606,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body["scratchpad_items"]).to contain_exactly(include("content" => "Follow-up note"))
     expect(body["queued_messages"]).to contain_exactly(include("text" => "Queued follow-up"))
     expect(body["agent_questions"]).to contain_exactly(include("questions" => [ include("question" => "Ship it?") ]))
-    expect(body["whiteboard"]).to include("loaded" => false)
+    expect(body).not_to have_key("whiteboard")
     expect(body["preview_panels"]).to contain_exactly(include("title" => "Payload preview"))
 
     expect(queries.grep(/SELECT COUNT\(\*\) FROM ["`]?chat_proposals["`]?/i).size).to be <= 2
@@ -6906,6 +6904,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       action: "cancel_job",
       payload: { "job_id" => job.id }
     )
+    action.update!(state: "confirming")
     action.fail_confirmation!(StandardError.new("boom"))
 
     get "/api/v1/app/chats/#{chat.id}"
