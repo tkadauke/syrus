@@ -1,13 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { render, screen } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
-import { describe, expect, it, vi } from "vitest"
-import * as repoPluginTabsApi from "./api/repoPluginTabs"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { PluginRepoPageTabRoute, pluginRepoComponentFor, pluginRepoComponentKeys } from "./pluginRepoPageTabs"
 
-vi.mock("./api/repoPluginTabs", () => ({ fetchRepoPluginTabs: vi.fn() }))
-
 describe("plugin repo page tab registry", () => {
+  afterEach(() => vi.restoreAllMocks())
+
   it("discovers installed plugin repo tab route components by component key", () => {
     expect(pluginRepoComponentKeys()).toEqual(expect.arrayContaining([
       "design_docs/RepositoryDesignDocs",
@@ -19,7 +18,10 @@ describe("plugin repo page tab registry", () => {
   })
 
   it("renders a native unavailable notice when a repository plugin tab is disabled or missing", async () => {
-    vi.mocked(repoPluginTabsApi.fetchRepoPluginTabs).mockResolvedValue({ tabs: [] })
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(new Response(JSON.stringify({ tabs: [] }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" }
+    }))
 
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -34,5 +36,6 @@ describe("plugin repo page tab registry", () => {
     expect(await screen.findByRole("heading", { name: "Page unavailable" })).toBeInTheDocument()
     expect(screen.getByText("This repository tab is not available. The plugin that provides it may be disabled or missing.")).toBeInTheDocument()
     expect(screen.queryByText("plugin_repo_tabs.unavailable_heading")).not.toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/42/plugin_tabs", expect.anything())
   })
 })
