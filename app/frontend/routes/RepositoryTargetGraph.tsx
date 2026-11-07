@@ -1,6 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { useQuery } from "@tanstack/react-query"
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from "react"
+import { useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import {
   fetchJobTargetGraph,
@@ -18,6 +18,8 @@ import { Input } from "../components/Input"
 import { Button } from "../components/Button"
 import { Select } from "../components/Select"
 import { FilterBar } from "../components/FilterBar"
+import { CloseIcon } from "../components/CloseIcon"
+import { Modal } from "../components/Modal"
 import { TonePill, type PillTone } from "../components/StatusPill"
 import { Surface } from "../components/ui"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
@@ -210,7 +212,7 @@ export function TargetGraphExplorer({
         onSubmit={submitSearch}
         onUpdate={updateQuery}
       />
-      <TargetGraphDecisionSummary payload={payload} query={query} overlaysAvailable={Boolean(payload.workflow)} onUpdate={updateQuery} />
+      <TargetGraphDecisionSummary payload={detailPayload ?? payload} query={query} overlaysAvailable={Boolean(payload.workflow)} onUpdate={updateQuery} />
       <section className="flex flex-wrap gap-2" aria-label={t("target_graph.additional_details")}>
         <Button onClick={() => setShowExplanations((value) => !value)} size="sm" type="button" variant="secondary">
           {showExplanations ? t("target_graph.hide_explanations") : t("target_graph.show_explanations")}
@@ -725,57 +727,44 @@ function TargetGraphRowButton({ row, selected, onSelect }: { row: TargetGraphRow
 function TargetDetailPanel({ row, onClose, onFocus }: { row: TargetGraphRow; onClose: () => void; onFocus: (label: string) => void }) {
   const { t } = useT("settings")
   const target = row.target
-  useEffect(() => {
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose()
-    }
-    document.addEventListener("keydown", closeOnEscape)
-    return () => document.removeEventListener("keydown", closeOnEscape)
-  }, [onClose])
   return (
-    <div
-      className="fixed inset-0 z-40 flex justify-end bg-black/20"
-      onMouseDown={(event) => {
-        if (event.currentTarget === event.target) onClose()
-      }}
+    <Modal
+      backdropClassName="fixed inset-0 z-50 flex justify-end bg-black/20"
+      className="flex h-full w-full max-w-md flex-col bg-surface shadow-2xl"
+      label={t("target_graph.target_details")}
+      onClose={onClose}
+      open
     >
-      <aside
-        aria-label={t("target_graph.target_details")}
-        className="flex h-full w-full max-w-md flex-col bg-surface shadow-2xl"
-        role="dialog"
-        aria-modal="true"
-      >
-        <div className="flex items-start justify-between gap-3 border-b border-border p-4">
-          <div className="min-w-0">
-            <div className="text-xs font-semibold uppercase tracking-wide text-text-secondary">{t("target_graph.target_details")}</div>
-            <h2 className="mt-1 truncate font-mono font-semibold">{target.label}</h2>
-          </div>
-          <Button aria-label={t("target_graph.close_details")} autoFocus onClick={onClose} size="sm" type="button" variant="secondary">
-            ×
-          </Button>
+      <div className="flex items-start justify-between gap-3 border-b border-border p-4">
+        <div className="min-w-0">
+          <div className="text-xs font-semibold uppercase tracking-wide text-text-secondary">{t("target_graph.target_details")}</div>
+          <h2 className="mt-1 truncate font-mono font-semibold">{target.label}</h2>
         </div>
-        <div className="flex-1 space-y-5 overflow-auto p-4 text-sm">
-          <DetailSection title={t("target_graph.command")}>
-            <code className="block rounded bg-surface-raised p-2 text-xs">{target.executable_metadata?.command || t("target_graph.no_command")}</code>
-          </DetailSection>
-          <DetailSection title={t("target_graph.project")}>
-            <p>{target.project?.label || target.project_id}</p>
-            {target.project?.path ? <code className="text-xs text-text-secondary">{target.project.path}</code> : null}
-          </DetailSection>
-          <DetailSection title={t("target_graph.decision_evidence")}>
-            <p className="border-l-2 border-brand bg-brand-muted p-2 text-xs">{target.selection?.reason || t("target_graph.no_decision")}</p>
-            {target.selection ? <TargetHealthRefs entry={{ target_label: target.label, ...target.selection }} /> : null}
-            {target.health?.target_health_record_id ? (
-              <div className="mt-2 font-mono text-xs">
-                THR-{target.health.target_health_record_id} · {target.health.status}
-              </div>
-            ) : null}
-          </DetailSection>
-          <RelationshipList title={t("target_graph.depends_on")} empty={t("target_graph.no_dependencies")} labels={row.dependencies} onFocus={onFocus} />
-          <RelationshipList title={t("target_graph.used_by")} empty={t("target_graph.no_dependents")} labels={row.dependents} onFocus={onFocus} />
-        </div>
-      </aside>
-    </div>
+        <Button aria-label={t("target_graph.close_details")} onClick={onClose} size="sm" type="button" variant="secondary">
+          <CloseIcon />
+        </Button>
+      </div>
+      <div className="flex-1 space-y-5 overflow-auto p-4 text-sm">
+        <DetailSection title={t("target_graph.command")}>
+          <code className="block rounded bg-surface-raised p-2 text-xs">{target.executable_metadata?.command || t("target_graph.no_command")}</code>
+        </DetailSection>
+        <DetailSection title={t("target_graph.project")}>
+          <p>{target.project?.label || target.project_id}</p>
+          {target.project?.path ? <code className="text-xs text-text-secondary">{target.project.path}</code> : null}
+        </DetailSection>
+        <DetailSection title={t("target_graph.decision_evidence")}>
+          <p className="border-l-2 border-brand bg-brand-muted p-2 text-xs">{target.selection?.reason || t("target_graph.no_decision")}</p>
+          {target.selection ? <TargetHealthRefs entry={{ target_label: target.label, ...target.selection }} /> : null}
+          {target.health?.target_health_record_id ? (
+            <div className="mt-2 font-mono text-xs">
+              THR-{target.health.target_health_record_id} · {target.health.status}
+            </div>
+          ) : null}
+        </DetailSection>
+        <RelationshipList title={t("target_graph.depends_on")} empty={t("target_graph.no_dependencies")} labels={row.dependencies} onFocus={onFocus} />
+        <RelationshipList title={t("target_graph.used_by")} empty={t("target_graph.no_dependents")} labels={row.dependents} onFocus={onFocus} />
+      </div>
+    </Modal>
   )
 }
 
@@ -856,14 +845,6 @@ function stateLabel(state: (typeof FOCUS_STATES)[number], t: ReturnType<typeof u
       : state === "skipped"
         ? t("target_graph.state_skipped")
         : t("target_graph.state_cached")
-}
-
-function kindTone(kind: string): PillTone {
-  if (kind === "grader") return "red"
-  if (kind === "builder") return "blue"
-  if (kind === "prepare") return "amber"
-  if (kind === "formatter" || kind === "generator") return "green"
-  return "gray"
 }
 
 function healthTone(status: string): PillTone {
