@@ -29,5 +29,10 @@
   "coworker_identity": "{{name}} {{handle}}",
   "after_run": "Post cursum: {{policy}}",
   "system_schedule": "Ordo systematis: {{key}}",
+  "delayed_reason": "Dilatum: {{reason}}",
+  "delay_reasons": {
+    "coworker_turn_in_flight": "responsum in colloquio principali adhuc agitur",
+    "active_work_lock": "alius cursus destinatus iam currit"
+  },
   "cadence_bands": "Fasciae frequentiae altae"
 }
