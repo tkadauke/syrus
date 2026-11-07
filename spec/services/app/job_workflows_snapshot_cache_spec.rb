@@ -23,8 +23,8 @@ RSpec.describe App::JobWorkflowsSnapshotCache do
       .to_h { |labels, value| [ labels[:outcome], value ] }
   end
 
-  def fetch(admin: false, page: 1, &block)
-    described_class.fetch(job: job, page: page, admin: admin, &block)
+  def fetch(admin: false, evidence_access: false, page: 1, &block)
+    described_class.fetch(job: job, page: page, admin: admin, evidence_access: evidence_access, &block)
   end
 
   it "computes and caches the block result on a miss, recording a computed outcome" do
@@ -207,6 +207,14 @@ RSpec.describe App::JobWorkflowsSnapshotCache do
 
     expect(fetch(admin: false) { [ "unexpected" ] }).to eq([ "non-admin" ])
     expect(fetch(admin: true) { [ "unexpected" ] }).to eq([ "admin" ])
+  end
+
+  it "keeps authorized evidence links out of other non-admin snapshots" do
+    fetch(evidence_access: false) { [ "redacted" ] }
+    fetch(evidence_access: true) { [ "authorized" ] }
+
+    expect(fetch(evidence_access: false) { [ "unexpected" ] }).to eq([ "redacted" ])
+    expect(fetch(evidence_access: true) { [ "unexpected" ] }).to eq([ "authorized" ])
   end
 
   it "keeps different pages in separate cache entries" do

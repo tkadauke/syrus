@@ -1354,7 +1354,7 @@ function JobRoutingPanel({ payload, queryKey }: { payload: JobDetailPayload; que
         ) : null}
       </div>
       {payload.job.coworker_review_configuration ? (
-        <div className="mt-3 rounded border border-border bg-surface-subtle p-3">
+        <div aria-label={t("coworker_review_repository_accessibility")} className="mt-3 rounded border border-border bg-surface-subtle p-3" role="region">
           <p className="text-xs font-medium uppercase tracking-wide text-text-muted">{t("coworker_review_repository_heading")}</p>
           <p className="mt-1 text-sm text-text-primary">
             {payload.job.coworker_review_configuration.enabled

@@ -76,6 +76,23 @@ RSpec.describe App::JobDetailPayload do
     )
   end
 
+  it "pairs a needs-work review with the following repair Run response" do
+    job = Factories.job_record(user: user, repository: repo)
+    workflow = Workflow.create!(job: job, trigger_kind: "initial")
+    review = Step.create!(workflow:, kind: "coworker_review", position: 1, iteration: 1, loop_id: "coworker-loop")
+    repair = Step.create!(workflow:, kind: "implement", position: 2, iteration: 2, loop_id: "coworker-loop")
+    repair.runs.create!(job:, trigger_kind: "initial", agent_summary: "Clarified rollout ownership.")
+    workflow.set_artifact!("coworker_review_iterations", [
+      { "iteration" => 1, "step_id" => review.id, "verdict" => "needs_work", "critique" => "Ownership is unclear." }
+    ])
+
+    serialized = workflows_payload_for(job).fetch(:workflows).find { |entry| entry[:id] == workflow.id }
+
+    expect(serialized.dig(:artifacts, "coworker_review_iterations").sole).to include(
+      "repair_response" => "Clarified rollout ownership."
+    )
+  end
+
   it "separates effective repository coworker-review configuration from participant routing" do
     job = Factories.job_record(user: user, repository: repo)
     plan = RepoCoworkerReviewPlan::Result.new(enabled: true, rounds: 2, source: ".syrus.yml", note: nil,

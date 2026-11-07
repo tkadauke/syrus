@@ -638,6 +638,7 @@ function RuleEditorModal({
               <p className="mt-1 text-xs text-text-secondary">{t("provider_routing.provider_candidates_help")}</p>
               {["step:adversarial_review", "step:security_review", "step:coworker_review"].includes(currentDraft.triggerKey) ? (
                 <p className="mt-1 text-xs text-text-secondary">
+                  <span className="sr-only">{t("provider_routing.review_identity_accessibility")}</span>
                   {t(currentDraft.triggerKey === "step:coworker_review" ? "provider_routing.dedicated_coworker_help" : "provider_routing.named_reviewer_help")}
                 </p>
               ) : null}

@@ -48,6 +48,34 @@ RSpec.describe "API: coworker review contexts", type: :request do
     expect(AdminAction.last).to have_attributes(action: "coworker_review_journal_read")
   end
 
+  it "lets an admin inspect another owner's durable journal and audits the access" do
+    stub_repository_content(workspace_repository, ref: "coworkers/#{coworker.handle}",
+      files: { "reviews/journal/evidence-#{evidence.id}.md" => "Verdict: approved\n" })
+    sign_in_as(Factories.user(admin: true, email_address: "review-admin@example.com"))
+
+    get "/api/v1/app/coworkers/#{coworker.id}/review_journal/#{run.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(AdminAction.last).to have_attributes(action: "coworker_review_journal_read")
+  end
+
+  it "denies an unrelated user journal access before resolving the Run" do
+    sign_in_as(Factories.user(email_address: "unrelated-journal-reader@example.com"))
+
+    get "/api/v1/app/coworkers/#{coworker.id}/review_journal/999999"
+
+    expect(response).to have_http_status(:forbidden)
+  end
+
+  it "returns not found when the coworker has no readable workspace repository" do
+    coworker.update!(workspace_repo: "https://example.test/unavailable.git")
+    sign_in_as(owner)
+
+    get "/api/v1/app/coworkers/#{coworker.id}/review_journal/#{run.id}"
+
+    expect(response).to have_http_status(:not_found)
+  end
+
   it "denies an unrelated user without exposing restricted context" do
     sign_in_as(Factories.user(email_address: "unrelated-reviewer@example.com"))
     get "/api/v1/app/coworkers/#{coworker.id}/review_contexts/#{run.id}"
