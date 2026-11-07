@@ -55,6 +55,7 @@
   "history": "Historia",
   "history_title": "Historia memoriae",
   "history_loading": "Historia oneratur...",
+  "history_load_more": "Eventus antiquiores onerare",
   "history_previous": "Prius",
   "history_new": "Postea",
   "history_event_created": "Creatum",

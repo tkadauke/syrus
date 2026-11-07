@@ -14,23 +14,28 @@ that trail and soft-deleted memories to operators and admins.
 
 ## Backend
 
-- `GET /api/v1/app/memories/:id/audit_events` — returns a memory's full audit
-  trail, oldest first, including memories that have since been soft-deleted.
+- `GET /api/v1/app/memories/:id/audit_events` — returns up to 50 audit events,
+  oldest first within the page, including memories that have since been
+  soft-deleted. When older events remain, `next_cursor` can be sent back as
+  the `before` parameter to retrieve the next page.
   Admin-or-owner scoped, same permission model as the rest of
   `Api::V1::App::MemoriesController` (`find_memory_for_owner_or_admin`).
 - `GET /api/v1/app/memories?deleted=true` — lists soft-deleted memories instead
   of active ones. Same admin-or-own visibility scoping as the normal listing;
   the response's top-level `deleted` boolean reflects which view was served.
-- The memory index payload includes a `changed` boolean per row — true when a
-  memory has any audit event beyond its initial `created` one (an `updated` or
-  `deleted` event).
+- `GET /api/v1/app/memories/metadata` returns the reusable kinds, scopes,
+  repositories, and filter schema separately so page and filter requests only
+  transfer changing row data.
+- The memory index payload includes a `changed` boolean per row — true when the
+  memory's update timestamp differs from its creation timestamp.
 
 ## Frontend
 
 The **Memories** settings panel (`plugins/agent_memory/app/frontend/routes/Memories.tsx`) shows a
 "Changed" badge on rows with audit history beyond creation; clicking it (or
 the row's "History" action) opens a modal listing each audit event's
-before/after content, kind, confidence, actor, and timestamp. A "View
+before/after content, kind, confidence, actor, and timestamp, with older events
+loaded on demand. A "View
 deleted" / "View active" toggle switches the table between the normal
 listing and the soft-deleted-memories view (which shows who deleted each
 memory and when, and hides edit/publish/delete actions).

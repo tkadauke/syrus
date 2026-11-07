@@ -11,6 +11,10 @@ module Api
           render json: memories_payload
         end
 
+        def metadata
+          render json: memories_metadata
+        end
+
         def create
           attrs = create_memory_params.to_h.symbolize_keys
           memory = AgentMemory::Entry.new(attrs)
@@ -112,14 +116,8 @@ module Api
 
           {
             memories: memories.map { |memory| memory_json(memory, changed: memory.updated_at != memory.created_at) },
-            kinds: ::AgentMemory::Entry::KIND,
-            scopes: ::AgentMemory::Entry::SCOPE,
-            repositories: Current.user.repositories.active.order(:owner, :name).map { |repository| repository_json(repository) },
             filter: memory_filter.to_h,
             deleted: deleted_filter?,
-            controls: {
-              filter_schema: ::Filters::Schema.for(subject: :memory, user: Current.user)
-            },
             current_user: {
               id: Current.user.id,
               admin: Current.user.admin?
@@ -130,6 +128,15 @@ module Api
               total: total,
               total_pages: total_pages
             }
+          }
+        end
+
+        def memories_metadata
+          {
+            kinds: ::AgentMemory::Entry::KIND,
+            scopes: ::AgentMemory::Entry::SCOPE,
+            repositories: Current.user.repositories.active.order(:owner, :name).map { |repository| repository_json(repository) },
+            controls: { filter_schema: ::Filters::Schema.for(subject: :memory, user: Current.user) }
           }
         end
 

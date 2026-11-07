@@ -55,6 +55,7 @@
   "history": "Verlauf",
   "history_title": "Verlauf der Erinnerung",
   "history_loading": "Verlauf wird geladen...",
+  "history_load_more": "Ältere Ereignisse laden",
   "history_previous": "Vorher",
   "history_new": "Nachher",
   "history_event_created": "Erstellt",

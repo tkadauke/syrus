@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { SectionHeading } from "@app/components/Heading"
 import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
 import type { FormEvent } from "react"
@@ -11,6 +11,7 @@ import {
   createMemory,
   deleteMemory,
   fetchMemories,
+  fetchMemoriesMetadata,
   fetchMemoryAuditEvents,
   publishMemory,
   unpublishMemory,
@@ -49,6 +50,10 @@ const kindClasses: Record<string, string> = {
   decision: "bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200 dark:bg-fuchsia-950 dark:text-fuchsia-200 dark:ring-fuchsia-800"
 }
 
+function invalidateMemoryPages(queryClient: ReturnType<typeof useQueryClient>) {
+  return queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === "memories" && query.queryKey[1] !== "metadata" })
+}
+
 export function MemoriesRoute() {
   const { t } = useT("agent_memory")
   usePageTitle(t("heading"))
@@ -59,6 +64,7 @@ export function MemoriesRoute() {
     queryKey: ["memories", search],
     queryFn: () => fetchMemories(search)
   })
+  const metadata = useQuery({ queryKey: ["memories", "metadata"], queryFn: fetchMemoriesMetadata, staleTime: Infinity })
 
   return (
     <Page.Root aria-label={t("aria_memories")} gutter="responsive" size="wide">
@@ -68,9 +74,21 @@ export function MemoriesRoute() {
       </Page.Header>
 
       <NoticeToast message={notice} onDismiss={() => setNotice(null)} />
-      {memories.isPending ? <Notice>{t("loading")}</Notice> : null}
+      {memories.isPending || metadata.isPending ? <Notice>{t("loading")}</Notice> : null}
       {memories.isError ? <MemoriesError error={memories.error} /> : null}
-      {memories.isSuccess ? <MemoriesView onNotice={setNotice} payload={memories.data} /> : null}
+      {metadata.isError ? <MemoriesError error={metadata.error} /> : null}
+      {memories.isSuccess && metadata.isSuccess ? (
+        <MemoriesView
+          onNotice={setNotice}
+          payload={{
+            ...memories.data,
+            kinds: metadata.data.kinds,
+            scopes: metadata.data.scopes,
+            repositories: metadata.data.repositories,
+            controls: metadata.data.controls
+          }}
+        />
+      ) : null}
     </Page.Root>
   )
 }
@@ -294,14 +312,14 @@ function MemoryActions({
   const publish = useMutation({
     mutationFn: () => (memory.published ? unpublishMemory(memory.id) : publishMemory(memory.id)),
     onSuccess: (payload) => {
-      queryClient.invalidateQueries({ queryKey: ["memories"] })
+      invalidateMemoryPages(queryClient)
       onNotice(payload.message || (memory.published ? t("unpublished_notice") : t("published_notice")))
     }
   })
   const destroy = useMutation({
     mutationFn: () => deleteMemory(memory.id),
     onSuccess: (payload) => {
-      queryClient.invalidateQueries({ queryKey: ["memories"] })
+      invalidateMemoryPages(queryClient)
       onNotice(payload.message || t("deleted"))
     }
   })
@@ -397,9 +415,11 @@ function MemoryContentModal({ memory, onClose }: { memory: MemoryRow; onClose: (
 
 function MemoryHistoryModal({ memory, onClose }: { memory: MemoryRow; onClose: () => void }) {
   const { t } = useT("agent_memory")
-  const query = useQuery({
+  const query = useInfiniteQuery({
     queryKey: ["memory-audit-events", memory.id],
-    queryFn: () => fetchMemoryAuditEvents(memory.id)
+    queryFn: ({ pageParam }) => fetchMemoryAuditEvents(memory.id, pageParam),
+    initialPageParam: undefined as number | undefined,
+    getNextPageParam: (lastPage) => lastPage.next_cursor || undefined
   })
 
   useEffect(() => {
@@ -439,10 +459,17 @@ function MemoryHistoryModal({ memory, onClose }: { memory: MemoryRow; onClose: (
           ) : null}
           {query.isSuccess ? (
             <ol className="space-y-3">
-              {query.data.audit_events.map((event) => (
-                <AuditEventRow key={event.id} event={event} />
-              ))}
+              {query.data.pages
+                .flatMap((page) => page.audit_events)
+                .map((event) => (
+                  <AuditEventRow key={event.id} event={event} />
+                ))}
             </ol>
+          ) : null}
+          {query.hasNextPage ? (
+            <Button disabled={query.isFetchingNextPage} onClick={() => query.fetchNextPage()} variant="secondary">
+              {query.isFetchingNextPage ? t("history_loading") : t("history_load_more")}
+            </Button>
           ) : null}
         </div>
       </section>
@@ -542,7 +569,7 @@ function MemoryModal({
         content
       }),
     onSuccess: (nextPayload) => {
-      queryClient.invalidateQueries({ queryKey: ["memories"] })
+      invalidateMemoryPages(queryClient)
       onNotice(nextPayload.message || t("created"))
       onClose()
     }
@@ -556,7 +583,7 @@ function MemoryModal({
         scope_id: scope === "repository" ? Number(scopeId) : null
       }),
     onSuccess: (nextPayload) => {
-      queryClient.invalidateQueries({ queryKey: ["memories"] })
+      invalidateMemoryPages(queryClient)
       onNotice(nextPayload.message || t("updated"))
       onClose()
     }
