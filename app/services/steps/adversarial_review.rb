@@ -14,6 +14,10 @@ module Steps
       problem_code :review_evidence_verification_failed
     end
 
+    class MemoryPersistenceFailed < StepFailed
+      problem_code :coworker_memory_persistence_failed
+    end
+
     EVIDENCE_FAILURES = {
       "review_evidence_mismatch" => EvidenceMismatch,
       "review_evidence_stale" => EvidenceStale,
@@ -95,8 +99,31 @@ module Steps
 
     private
 
-    def materialize_reviewer_prompt = reviewer_prompt
-    def verify_reviewer_side_effects! = nil
+    def materialize_reviewer_prompt
+      prompt = reviewer_prompt
+      reviewer = run.review_evidence&.reviewer
+      return prompt unless reviewer&.respond_to?(:prepare_review_context!)
+
+      context = reviewer.prepare_review_context!(run:, evidence: run.review_evidence, criteria: review_criteria)
+      "#{prompt}\n\n#{reviewer.review_context_prompt(context)}"
+    end
+
+    def verify_reviewer_side_effects!
+      reviewer = run.review_evidence&.reviewer
+      return unless reviewer&.respond_to?(:finalize_review_memory!)
+
+      context = reviewer.review_context_for(run)
+      return if context&.persistence_state == "persisted"
+
+      raise MemoryPersistenceFailed.new(
+        "coworker review memory was not persisted",
+        evidence: {
+          review_evidence_id: run.review_evidence.id,
+          persistence_state: context&.persistence_state || "missing",
+          persistence_error: context&.persistence_error_details
+        }
+      )
+    end
 
     def parent_session_id
       return nil if agent_resume_disabled?

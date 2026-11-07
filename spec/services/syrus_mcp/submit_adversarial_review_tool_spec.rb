@@ -103,6 +103,42 @@ RSpec.describe Mcp::Tools::SubmitAdversarialReviewTool do
     expect(evidence.reload).to have_attributes(state: "submitted", submitted_at: be_present)
   end
 
+  it "persists and records independent coworker reviewer provenance" do
+    owner = run.job.owner_user || run.job.user
+    coworker = Coworkers::Coworker.create!(owner_user: owner, name: "Monica", handle: "monica-review",
+      state: "active", workspace_repo: "https://github.com/example/reviewer-home.git")
+    run.update!(agent_provider: "codex", model: "gpt-test")
+    run.step.update!(details: { "reviewer_target" => {
+      "type" => "coworker", "reference" => coworker.id.to_s, "display" => { "name" => "Monica" }
+    } })
+    evidence = ReviewEvidence.create!(
+      run: run, workflow: run.workflow, step: run.step, reviewer: coworker, review_kind: "adversarial",
+      provider: "codex", model: "gpt-test", reviewed_base_sha: "a" * 40,
+      reviewed_head_sha: "b" * 40, canonical_diff_sha256: "c" * 64,
+      prompt_version: "1", checklist_version: "d" * 64, tool_policy_version: "1"
+    )
+    context = Coworkers::ReviewContext.create!(run:, review_evidence: evidence, coworker:,
+      manifest: { "protected_prompt" => { "sha256" => "safe" } },
+      exact_context: { "protected_prompt" => "protected" }, workspace_path: "/tmp/reviewer-home")
+    allow(ReviewEvidence::CanonicalDiff).to receive(:snapshot).and_return(head_sha: "b" * 40, sha256: "c" * 64)
+    allow_any_instance_of(Coworkers::Coworker).to receive(:finalize_review_memory!) do
+      context.update!(persistence_state: "persisted", persisted_commit_sha: "e" * 40, persisted_at: Time.current)
+    end
+
+    response = nil
+    expect { response = call(critique: "The authorization boundary is sound.", verdict: "approved") }
+      .not_to change(JobApproval, :count)
+
+    expect(response).not_to be_error
+    entry = run.workflow.reload.artifact("adversarial_review_iterations").last
+    expect(entry).to include(
+      "review_evidence_id" => evidence.id,
+      "reviewer" => include("label" => "Monica · Codex", "provider" => "codex", "model" => "gpt-test"),
+      "memory_persistence" => include("state" => "persisted", "persisted_commit_sha" => "e" * 40),
+      "verdict" => "approved"
+    )
+  end
+
   it "rejects a verdict for a changed head and permanently stales its evidence" do
     evidence = ReviewEvidence.create!(
       run: run, workflow: run.workflow, step: run.step, review_kind: "adversarial",
