@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_05_130253) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_07_013053) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -501,6 +501,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_05_130253) do
     t.index ["chat_session_id", "compacted_through_message_id"], name: "idx_chat_context_checkpoints_session_message", unique: true
     t.index ["chat_session_id", "created_at"], name: "idx_chat_context_checkpoints_session_created"
     t.index ["chat_session_id"], name: "index_chat_context_checkpoints_on_chat_session_id"
+  end
+
+  create_table "chat_file_attachments", force: :cascade do |t|
+    t.integer "chat_session_id", null: false
+    t.string "attachable_type"
+    t.integer "attachable_id"
+    t.string "name", null: false
+    t.string "mime_type", null: false
+    t.bigint "byte_size", null: false
+    t.string "checksum", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["attachable_type", "attachable_id"], name: "index_chat_file_attachments_on_attachable"
+    t.index ["chat_session_id", "attachable_type", "attachable_id"], name: "idx_chat_file_attachments_owner"
+    t.index ["chat_session_id"], name: "index_chat_file_attachments_on_chat_session_id"
   end
 
   create_table "chat_goals", force: :cascade do |t|
