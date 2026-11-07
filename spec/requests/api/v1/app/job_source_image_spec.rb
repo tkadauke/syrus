@@ -20,6 +20,23 @@ RSpec.describe "App API job source image", type: :request do
     expect(response.headers["X-Content-Type-Options"]).to eq("nosniff")
     expect(response.headers["Content-Security-Policy"]).to eq("sandbox")
     expect(response.body.b).to eq(png_bytes)
+    etag = response.headers.fetch("ETag")
+
+    get "/api/v1/app/jobs/#{job.id}/source_image",
+      params: { path: "app/assets/images/logo.png", ref: "syrus/issue-42" },
+      headers: { "If-None-Match" => etag }
+
+    expect(response).to have_http_status(:not_modified)
+  end
+
+  it "caches content addressed revisions as immutable" do
+    sha = "a" * 40
+    stub_repository_content(repo, ref: sha, files: { "logo.png" => png_bytes })
+
+    get "/api/v1/app/jobs/#{job.id}/source_image", params: { path: "logo.png", ref: sha }
+
+    expect(response).to have_http_status(:ok)
+    expect(response.headers["Cache-Control"]).to include("private", "max-age=31536000", "immutable")
   end
 
   it "downloads repository HTML instead of serving it inline" do
