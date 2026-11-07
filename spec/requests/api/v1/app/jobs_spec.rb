@@ -1427,13 +1427,13 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     run = job.initial_run
     JobLog.append!(
       run: run,
-      chunk: "tool call",
+      chunk: "run_command api_token=top-secret-value deploy",
       kind: "tool_call",
       tool_name: "run_command",
       tool_input: { "command" => "deploy", "api_token" => "top-secret-value" },
       tool_use_id: "call_1"
     )
-    JobLog.append!(run: run, chunk: "tool result", kind: "tool_result",
+    JobLog.append!(run: run, chunk: "authorization=top-secret-value", kind: "tool_result",
                    tool_result_content: [
                      "authorization=top-secret-value",
                      "Authorization: Bearer abcdefghijklmnop",
@@ -1448,11 +1448,13 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     tool_call, tool_result, legacy = parse_body.fetch("logs")
     expect(tool_call).to include(
+      "chunk" => "run_command api_token=[redacted] deploy",
       "tool_name" => "run_command",
       "tool_input" => { "command" => "deploy", "api_token" => "[redacted]" },
       "tool_use_id" => "call_1"
     )
     expect(tool_result).to include(
+      "chunk" => "authorization=[redacted]",
       "tool_result_content" => [
         "authorization=[redacted]",
         "Authorization: Bearer [redacted]",
