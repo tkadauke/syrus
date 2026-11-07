@@ -147,6 +147,25 @@ describe("PermissionInboxDrawer", () => {
     expect(screen.queryByTestId("approval-waiting-halo")).not.toBeInTheDocument()
   })
 
+  it("falls back to the request summary while the count response is unavailable", async () => {
+    vi.mocked(api.fetchPermissionRequestCount).mockResolvedValue({} as Awaited<ReturnType<typeof api.fetchPermissionRequestCount>>)
+    vi.mocked(api.fetchPermissionRequests).mockResolvedValue({
+      requests: [],
+      summary: { pending_count: 2, blocked_agent_count: 1 },
+      pagination: { page: 1, per_page: 5, total: 0, total_pages: 0 }
+    })
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <PermissionInboxDrawer />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByRole("button", { name: "Approvals, 2 pending; 1 blocked agent waiting for your decision" })).toBeInTheDocument()
+  })
+
   it("stops the newly-blocked ping after one pulse and immediately on resolution", async () => {
     const empty: PermissionRequestsPayload = {
       requests: [],
