@@ -713,6 +713,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
                   startingChat={startingChat}
                   user={user}
                   unreadNotificationsCount={data?.unread_notifications_count ?? 0}
+                  providerAvailability={data?.provider_availability}
                   onHoverStart={openSidebarPeekSoon}
                   onHoverEnd={closeSidebarPeekSoon}
                 />
@@ -743,6 +744,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
                       startingChat={startingChat}
                       user={user}
                       unreadNotificationsCount={data?.unread_notifications_count ?? 0}
+                      providerAvailability={data?.provider_availability}
                     />
                   </div>
                 ) : null}
@@ -779,6 +781,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
                     startingChat={startingChat}
                     user={user}
                     unreadNotificationsCount={data?.unread_notifications_count ?? 0}
+                    providerAvailability={data?.provider_availability}
                   />
                 </div>
               ) : null}
@@ -1402,6 +1405,7 @@ function SidebarContent({
   startingChat,
   user,
   unreadNotificationsCount,
+  providerAvailability,
   onHoverStart,
   onHoverEnd
 }: {
@@ -1421,6 +1425,7 @@ function SidebarContent({
   startingChat: boolean
   user: BootstrapPayload["current_user"] | undefined
   unreadNotificationsCount: number
+  providerAvailability?: BootstrapPayload["provider_availability"]
   onHoverStart?: () => void
   onHoverEnd?: () => void
 }) {
@@ -1633,6 +1638,7 @@ function SidebarContent({
             prefix={prefix}
             startingChat={startingChat}
             userPresent={Boolean(user)}
+            providerAvailability={providerAvailability}
           />
         )}
       </div>

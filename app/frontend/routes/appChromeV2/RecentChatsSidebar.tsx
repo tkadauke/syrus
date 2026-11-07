@@ -40,6 +40,7 @@ import { Input } from "../../components/Input"
 import { Avatar } from "../../components/Avatar"
 import { PinIcon } from "../../components/PinIcon"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
+import type { ProviderAvailability } from "../../api/providerAvailability"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { Surface, surfaceClasses } from "../../components/ui"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
@@ -179,7 +180,8 @@ export function RecentChatsSidebar({
   onStartChat,
   prefix,
   startingChat = false,
-  userPresent
+  userPresent,
+  providerAvailability
 }: {
   featureFlags: Record<string, boolean>
   onCloseDrawer: () => void
@@ -188,6 +190,7 @@ export function RecentChatsSidebar({
   prefix: string
   startingChat?: boolean
   userPresent: boolean
+  providerAvailability?: Record<string, ProviderAvailability>
 }) {
   const location = useLocation()
   const navigate = useNavigate()
@@ -587,7 +590,7 @@ export function RecentChatsSidebar({
                           </span>
                         ) : null}
                         {chat.pinned ? <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" /> : null}
-                        <ProviderAvailabilityWarning availability={chat.provider_availability} className="mt-0.5" />
+                        <ProviderAvailabilityWarning availability={chat.effective_chat_provider ? providerAvailability?.[chat.effective_chat_provider] : undefined} className="mt-0.5" />
                         <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold text-text-primary" : "font-medium text-text-muted"}`}>{title}</span>
                         <span
                           className={`${RECENT_CHAT_MARKER_SLOT_CLASS} group-hover/recent-chat:invisible ${openActionChatId === chat.id ? "invisible" : ""}`}
@@ -605,7 +608,7 @@ export function RecentChatsSidebar({
                                   <TargetIcon className="h-3.5 w-3.5" />
                                 </span>
                               ) : null}
-                              {chat.pending_proposal_count > 0 && (
+                              {(chat.pending_proposal_count ?? 0) > 0 && (
                                 <span className={RECENT_CHAT_MARKER_CELL_CLASS}>
                                   <span className="h-2 w-2 rounded-full bg-amber-400 dark:bg-amber-500" />
                                 </span>
@@ -615,7 +618,7 @@ export function RecentChatsSidebar({
                                   <span className="h-2 w-2 rounded-full bg-amber-500 dark:bg-amber-400" />
                                 </span>
                               )}
-                              {chat.scratchpad_items_count > 0 && (
+                              {(chat.scratchpad_items_count ?? 0) > 0 && (
                                 <span className={RECENT_CHAT_MARKER_CELL_CLASS}>
                                   <span className="h-2 w-2 rounded-full bg-teal-500 dark:bg-teal-400" />
                                 </span>
@@ -1117,9 +1120,9 @@ function IndicatorPopover({ chat, children, prefix, rowHovered }: { chat: ChatNa
     replying ||
     jobs.length > 0 ||
     Boolean(goal) ||
-    chat.pending_proposal_count > 0 ||
+    (chat.pending_proposal_count ?? 0) > 0 ||
     Boolean(chat.coding_checkout_uncommitted) ||
-    chat.scratchpad_items_count > 0
+    (chat.scratchpad_items_count ?? 0) > 0
   if (!hasIndicator) return <>{children}</>
   const groups = ["running", "failed", "ready"] as const
   const sections: ReactNode[] = []
@@ -1151,7 +1154,7 @@ function IndicatorPopover({ chat, children, prefix, rowHovered }: { chat: ChatNa
       <div key="goal">
         <span className="font-semibold">{t("popover_goal")}</span>
         <div>
-          {t(goal.status === "paused" ? "popover_goal_paused" : "popover_goal_active")} · {goal.prompt}
+          {t(goal.status === "paused" ? "popover_goal_paused" : "popover_goal_active")}
         </div>
       </div>
     )
