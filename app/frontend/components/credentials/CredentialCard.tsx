@@ -7,10 +7,12 @@ import { addAppEventListener } from "../../lib/appEvents"
 import {
   clearCredential,
   exchangeCodexOauth,
+  fetchCredentialOptions,
   savePartialCredentials,
   startCodexOauth,
   testCredential,
   type CredentialTestResult,
+  type CredentialsMutationPayload,
   type CredentialsPayload
 } from "../../api/credentials"
 import { openInNewTab } from "../../lib/desktopShell"
@@ -42,17 +44,31 @@ type CardProps = {
   onNotice: (message: string | null) => void
 }
 
-// Write a mutation's payload snapshot into the credentials cache.
+// Patch a mutation's changed slice into the credentials cache.
 // - Strips the server's generic `message` ("Credentials updated.") so the
 //   page-level payload-message effect cannot overwrite the card's specific
 //   notice with it.
-// - Follows up with an invalidation so concurrent partial PATCHes (e.g. a
-//   mode change racing a key save) reconcile against a fresh GET instead of
-//   whichever full snapshot happened to land last.
-export function cacheCredentials(queryClient: QueryClient, updated: CredentialsPayload) {
-  const { message: _ignored, ...snapshot } = updated
-  queryClient.setQueryData(queryKey, snapshot)
-  void queryClient.invalidateQueries({ queryKey })
+// - Refreshes only the conditionally cached options resource; credential
+//   changes can make another chat provider selectable without re-fetching the
+//   dynamic credentials/rate-limit/availability payload.
+export function cacheCredentials(queryClient: QueryClient, updated: CredentialsMutationPayload) {
+  const { message: _ignored, provider, availability, ...changed } = updated
+  queryClient.setQueryData<CredentialsPayload>(queryKey, (current) => {
+    if (!current) return current
+    return {
+      ...current,
+      ...changed,
+      provider_availability: provider && availability
+        ? { ...current.provider_availability, [provider]: availability }
+        : current.provider_availability
+    }
+  })
+  void fetchCredentialOptions().then(({ options }) => {
+    queryClient.setQueryData<CredentialsPayload>(queryKey, (current) => current ? {
+      ...current,
+      options: { ...options, provider_routing_options: current.options.provider_routing_options }
+    } : current)
+  }).catch(() => undefined)
 }
 
 // ---------- shared shell ----------

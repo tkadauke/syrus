@@ -104,7 +104,9 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
   const upload = useMutation({
     mutationFn: () => addCredentialDocuments(files, googleDocUrl),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      queryClient.setQueryData<PersonalDocumentsPayload>(queryKey, (current) => ({
+        documents: [...(current?.documents || []), ...updated.documents]
+      }))
       setFiles([])
       setGoogleDocUrl("")
       onNotice(updated.message || t('personal_documents.added'))
@@ -113,7 +115,9 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
   const destroy = useMutation({
     mutationFn: (document: PersonalDocument) => deleteCredentialDocument(document.id),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      queryClient.setQueryData<PersonalDocumentsPayload>(queryKey, (current) => ({
+        documents: (current?.documents || []).filter((document) => document.id !== updated.removed_document_id)
+      }))
       onNotice(updated.message || t('personal_documents.removed'))
     }
   })

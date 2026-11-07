@@ -61,7 +61,7 @@ function credentialsPayload(overrides: Record<string, unknown> = {}) {
 }
 
 function renderRoute(payload = credentialsPayload(), route: ReactElement = <CredentialsRoute />) {
-  const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
+  const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(payload)))
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>

@@ -30,12 +30,12 @@ module Api
           end
 
           if created.any? && errors.empty?
-            render json: documents_payload(Current.user.reload).merge(message: "Document added."), status: :created
+            render json: { documents: created.map { |document| document_json(document) }, message: I18n.t("api.credentials.documents.added") }, status: :created
           elsif created.any?
-            render json: documents_payload(Current.user.reload).merge(message: "Some documents could not be added: #{errors.to_sentence}"),
+            render json: { documents: created.map { |document| document_json(document) }, message: I18n.t("api.credentials.documents.partially_added", errors: errors.to_sentence) },
                    status: :multi_status
           else
-            render_error("validation_failed", errors.presence&.to_sentence || "Choose a file or enter a Google Doc URL.",
+            render_error("validation_failed", errors.presence&.to_sentence || I18n.t("api.credentials.documents.selection_required"),
                          status: :unprocessable_content)
           end
         end
@@ -44,7 +44,7 @@ module Api
           document = Current.user.documents.find(params[:id])
           document.destroy!
 
-          render json: documents_payload(Current.user.reload).merge(message: "Document removed.")
+          render json: { removed_document_id: document.id, message: I18n.t("api.credentials.documents.removed") }
         end
 
         def file

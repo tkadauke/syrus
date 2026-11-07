@@ -155,7 +155,7 @@ describe("PersonalDocumentsRoute delete", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
       if (url === "/api/v1/app/credentials/documents/30" && init?.method === "DELETE") {
-        return Promise.resolve(jsonResponse(documentsPayload({ documents: [], message: "Document removed." })))
+        return Promise.resolve(jsonResponse({ removed_document_id: 30, message: "Document removed." }))
       }
       return Promise.resolve(jsonResponse(documentsPayload()))
     })
@@ -170,6 +170,7 @@ describe("PersonalDocumentsRoute delete", () => {
         "/api/v1/app/credentials/documents/30",
         expect.objectContaining({ method: "DELETE" })
       )
+      expect(screen.queryByText("notes.txt")).not.toBeInTheDocument()
     })
   })
 

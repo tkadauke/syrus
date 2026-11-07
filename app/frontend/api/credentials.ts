@@ -92,6 +92,8 @@ export type CredentialsOptions = {
   provider_routing_options: ProviderRoutingOptions
 }
 
+export type CredentialsStaticOptions = Omit<CredentialsOptions, "provider_routing_options">
+
 export type CredentialsPayload = {
   user: CredentialsUser
   credential_status: CredentialStatus
@@ -101,6 +103,11 @@ export type CredentialsPayload = {
   provider_routing_rules: ProviderRoutingRule[]
   message?: string
   new_api_token?: string
+}
+
+export type CredentialsMutationPayload = Partial<Omit<CredentialsPayload, "options" | "provider_routing_rules" | "provider_availability">> & {
+  provider?: string
+  availability?: ProviderAvailability
 }
 
 export type CredentialTestResult = {
@@ -165,33 +172,48 @@ export type CredentialsInput = {
   locale: string
 }
 
-export function fetchCredentials() {
-  return getJson<CredentialsPayload>("/api/v1/app/credentials")
+export async function fetchCredentials() {
+  const [credentials, options, routing] = await Promise.all([
+    getJson<Omit<CredentialsPayload, "options" | "provider_routing_rules">>("/api/v1/app/credentials"),
+    getJson<{ options: CredentialsStaticOptions }>("/api/v1/app/credentials/options"),
+    getJson<{ provider_routing_rules: ProviderRoutingRule[]; provider_routing_options: ProviderRoutingOptions }>(
+      "/api/v1/app/credentials/provider_routing_rules"
+    )
+  ])
+  return {
+    ...credentials,
+    options: { ...options.options, provider_routing_options: routing.provider_routing_options },
+    provider_routing_rules: routing.provider_routing_rules
+  }
 }
 
 export function fetchCredentialDocuments() {
   return getJson<PersonalDocumentsPayload>("/api/v1/app/credentials/documents")
 }
 
+export function fetchCredentialOptions() {
+  return getJson<{ options: CredentialsStaticOptions }>("/api/v1/app/credentials/options")
+}
+
 export function updateCredentials(values: CredentialsInput) {
-  return patchJson<CredentialsPayload>("/api/v1/app/credentials", {
+  return patchJson<CredentialsMutationPayload>("/api/v1/app/credentials", {
     user: values
   })
 }
 
 export function recheckProviderAvailability(provider: string) {
-  return postJson<CredentialsPayload>("/api/v1/app/credentials/recheck_provider_availability", { provider })
+  return postJson<CredentialsMutationPayload>("/api/v1/app/credentials/recheck_provider_availability", { provider })
 }
 
 export function overrideProviderAvailability(provider: string) {
-  return postJson<CredentialsPayload>("/api/v1/app/credentials/override_provider_availability", { provider })
+  return postJson<CredentialsMutationPayload>("/api/v1/app/credentials/override_provider_availability", { provider })
 }
 
 // Onboarding-only: enables the exact plugin backing this agent provider,
 // after the Configure Agent modal's connect panel reports success. 403s once
 // the operator has finished first-run setup.
 export function connectOnboardingProvider(provider: string) {
-  return postJson<CredentialsPayload>("/api/v1/app/credentials/connect_onboarding_provider", { provider })
+  return postJson<CredentialsMutationPayload>("/api/v1/app/credentials/connect_onboarding_provider", { provider })
 }
 
 // Saves only the GitHub token. The credentials controller updates just the
@@ -206,13 +228,13 @@ export function saveGithubToken(githubToken: string) {
 // A per-card save therefore can never clear another credential — clearing
 // stays the explicit clear_credential endpoint.
 export function savePartialCredentials(values: Partial<CredentialsInput>) {
-  return patchJson<CredentialsPayload>("/api/v1/app/credentials", {
+  return patchJson<CredentialsMutationPayload>("/api/v1/app/credentials", {
     user: values
   })
 }
 
 export function clearCredential(credential: string) {
-  return postJson<CredentialsPayload>("/api/v1/app/credentials/clear_credential", {
+  return postJson<CredentialsMutationPayload>("/api/v1/app/credentials/clear_credential", {
     credential
   })
 }
@@ -273,11 +295,11 @@ export function exchangeCodexOauth(code: string) {
 }
 
 export function rotateApiToken() {
-  return postJson<CredentialsPayload>("/api/v1/app/credentials/rotate_api_token")
+  return postJson<CredentialsMutationPayload>("/api/v1/app/credentials/rotate_api_token")
 }
 
 export function revokeApiToken() {
-  return deleteJson<CredentialsPayload>("/api/v1/app/credentials/revoke_api_token")
+  return deleteJson<CredentialsMutationPayload>("/api/v1/app/credentials/revoke_api_token")
 }
 
 export function addCredentialDocuments(files: File[], googleDocUrl: string) {
@@ -290,5 +312,5 @@ export function addCredentialDocuments(files: File[], googleDocUrl: string) {
 }
 
 export function deleteCredentialDocument(id: number) {
-  return deleteJson<PersonalDocumentsPayload>(`/api/v1/app/credentials/documents/${id}`)
+  return deleteJson<{ removed_document_id: number; message?: string }>(`/api/v1/app/credentials/documents/${id}`)
 }

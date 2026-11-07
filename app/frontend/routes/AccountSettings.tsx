@@ -253,7 +253,7 @@ function CredentialsForm({
       // CredentialsAccountPanel cannot overwrite the section-specific notice.
       cacheCredentials(queryClient, updated)
       if (section === "preferences") void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
-      setValues(inputFromPayload(updated))
+      setValues(inputFromPayload({ ...payload, ...updated }))
       const key = sectionNoticeKey[section]
       onNotice(key ? t(key) : (updated.message ?? ""))
     }

@@ -611,6 +611,11 @@ de:
       removed: "Mitglied entfernt."
 
     credentials:
+      documents:
+        added: "Dokument hinzugefügt."
+        partially_added: "Einige Dokumente konnten nicht hinzugefügt werden: %{errors}"
+        removed: "Dokument entfernt."
+        selection_required: "Wähle eine Datei aus oder gib eine Google-Doc-URL ein."
       labels:
         github_token: "GitHub-Token"
         claude_oauth_token: "Claude-OAuth-Token"
