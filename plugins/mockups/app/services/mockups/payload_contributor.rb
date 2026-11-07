@@ -11,7 +11,7 @@ module Mockups
     end
 
     def self.panels_json(chat_session, scheme:)
-      chat_session.preview_panels.where(state: "open").includes(preview_panel_versions: { files_attachments: :blob }).order(:created_at, :id).map do |panel|
+      chat_session.preview_panels.where(state: "open").includes(:latest_version).order(:created_at, :id).map do |panel|
         base = "/api/v1/app/chats/#{chat_session.id}/preview_panels/#{panel.id}"
         # Core owns the shape; chat adds the close mutation only it offers.
         PreviewPanel::Payload.new(panel, base_path: base, scheme: scheme).as_json.merge(

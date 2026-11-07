@@ -9,7 +9,7 @@ import { Notice, Page, PageHeading, Section, Text } from "@app/components/ui"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { withRoutePrefix } from "@app/lib/routing"
-import { fetchMockup, fetchMockups, type MockupDetailPayload, type MockupPanel, type MockupSummary } from "../api/mockups"
+import { fetchMockup, fetchMockups, fetchMockupsFilterSchema, type MockupDetailPayload, type MockupPanel, type MockupSummary } from "../api/mockups"
 import { MockupPreviewPanel } from "./MockupPreviewPanel"
 
 // The list and the quick preview are one page: selecting a mockup opens it in
@@ -31,17 +31,21 @@ export default function MockupsPage() {
     queryFn: () => fetchMockups(location.search)
   })
 
+  const filterSchemaQuery = useQuery({
+    queryKey: ["mockups", "filter_schema"],
+    queryFn: fetchMockupsFilterSchema,
+    staleTime: Infinity
+  })
+
   const detailQuery = useQuery({
     queryKey: detailQueryKey,
     queryFn: () => fetchMockup(selectedRef!),
     enabled: !!selectedRef
   })
 
-  const select = (mockup: MockupSummary) =>
-    navigate({ pathname: withRoutePrefix(`/mockups/${mockup.slug}`, ""), search: location.search })
+  const select = (mockup: MockupSummary) => navigate({ pathname: withRoutePrefix(`/mockups/${mockup.slug}`, ""), search: location.search })
 
-  const closePreview = () =>
-    navigate({ pathname: withRoutePrefix("/mockups", ""), search: location.search })
+  const closePreview = () => navigate({ pathname: withRoutePrefix("/mockups", ""), search: location.search })
 
   return (
     <Page.Root aria-label={t("title")} className="flex h-full min-h-0 flex-col gap-3 p-4" size="full">
@@ -49,7 +53,7 @@ export default function MockupsPage() {
 
       <FilterBar
         filter={listQuery.data?.filter}
-        filterSchema={listQuery.data?.filter_schema ?? []}
+        filterSchema={listQuery.data?.filter_schema ?? filterSchemaQuery.data?.filter_schema ?? []}
         pathname="/mockups"
         search={location.search}
       />
@@ -59,7 +63,9 @@ export default function MockupsPage() {
           {listQuery.isPending ? (
             <Notice className="m-3">{t("loading")}</Notice>
           ) : listQuery.isError ? (
-            <Notice className="m-3" tone="danger">{t("load_failed")}</Notice>
+            <Notice className="m-3" tone="danger">
+              {t("load_failed")}
+            </Notice>
           ) : listQuery.data.mockups.length === 0 ? (
             <Notice className="m-3">{t("empty")}</Notice>
           ) : (
@@ -74,12 +80,16 @@ export default function MockupsPage() {
                       onClick={() => select(mockup)}
                       type="button"
                     >
-                      <Text as="span" className="font-mono" variant="caption" tone="muted">{mockup.slug}</Text>
-                      <Text as="span" className="min-w-0 flex-1 truncate font-medium" tone="default">{mockup.title}</Text>
-                      <Text as="span" className="shrink-0" variant="caption" tone="muted">{t("file_count", { count: mockup.file_count })}</Text>
-                      {mockup.updated_at ? (
-                        <RelativeTimestamp className="shrink-0 text-xs text-text-muted" value={mockup.updated_at} />
-                      ) : null}
+                      <Text as="span" className="font-mono" variant="caption" tone="muted">
+                        {mockup.slug}
+                      </Text>
+                      <Text as="span" className="min-w-0 flex-1 truncate font-medium" tone="default">
+                        {mockup.title}
+                      </Text>
+                      <Text as="span" className="shrink-0" variant="caption" tone="muted">
+                        {t("file_count", { count: mockup.file_count })}
+                      </Text>
+                      {mockup.updated_at ? <RelativeTimestamp className="shrink-0 text-xs text-text-muted" value={mockup.updated_at} /> : null}
                     </button>
                   </li>
                 )
@@ -89,10 +99,7 @@ export default function MockupsPage() {
         </Section.Root>
 
         {selectedRef ? (
-          <aside
-            aria-label={t("preview_aria")}
-            className="flex min-h-[28rem] flex-col rounded border border-border bg-surface lg:min-h-0 lg:w-1/2"
-          >
+          <aside aria-label={t("preview_aria")} className="flex min-h-[28rem] flex-col rounded border border-border bg-surface lg:min-h-0 lg:w-1/2">
             <div className="flex items-center gap-2 border-b border-border px-3 py-2">
               <Text as="span" className="min-w-0 flex-1 truncate font-medium" tone="default">
                 {detailQuery.data?.mockup.title ?? selectedRef}
@@ -122,12 +129,14 @@ export default function MockupsPage() {
             {detailQuery.isPending ? (
               <Notice className="m-3">{t("loading")}</Notice>
             ) : detailQuery.isError ? (
-              <Notice className="m-3" tone="danger">{t("preview_unavailable")}</Notice>
+              <Notice className="m-3" tone="danger">
+                {t("preview_unavailable")}
+              </Notice>
             ) : (
               <MockupPreviewPanel
                 onNotice={setNotice}
                 onPanelUpdated={(panel: MockupPanel) => {
-                  queryClient.setQueryData<MockupDetailPayload>(detailQueryKey, (current) => current ? { ...current, panel } : current)
+                  queryClient.setQueryData<MockupDetailPayload>(detailQueryKey, (current) => (current ? { ...current, panel } : current))
                 }}
                 panel={detailQuery.data.panel}
                 queryKey={detailQueryKey}

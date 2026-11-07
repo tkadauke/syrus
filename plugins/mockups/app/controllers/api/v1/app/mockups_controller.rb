@@ -5,10 +5,14 @@ module Api
         PER_PAGE = 30
 
         def index
+          if params[:schema] == "1"
+            render json: { filter_schema: filter_schema }
+            return
+          end
+
           filter = Mockups::Filter.from_params(params, user: Current.user)
           scope = filter.apply(base_scope).recent_first
 
-          total = scope.count
           page = [ params[:page].to_i, 1 ].max
           rows = scope.offset((page - 1) * PER_PAGE).limit(PER_PAGE + 1).to_a
           has_next = rows.size > PER_PAGE
@@ -17,8 +21,8 @@ module Api
           render json: {
             mockups: rows.map { |mockup| summary_json(mockup) },
             filter: filter.as_tree,
-            filter_schema: ::Filters::Schema.for(subject: :mockup, user: Current.user),
-            pagination: { page: page, per_page: PER_PAGE, total: total, has_next_page: has_next, has_previous_page: page > 1 }
+            filter_schema: page == 1 ? filter_schema : nil,
+            pagination: { page: page, per_page: PER_PAGE, has_next_page: has_next, has_previous_page: page > 1 }
           }
         end
 
@@ -31,7 +35,11 @@ module Api
             mockup: summary_json(mockup),
             # The panel is core's; this is the same payload the chat sidebar
             # renders, pointed at the chat-independent panel routes.
-            panel: PreviewPanel::Payload.new(mockup.preview_panel, scheme: request.ssl? ? "https" : "http").as_json
+            panel: PreviewPanel::Payload.new(
+              mockup.preview_panel,
+              scheme: request.ssl? ? "https" : "http",
+              include_versions: params[:versions] == "all"
+            ).as_json
           }
         end
 
@@ -42,7 +50,11 @@ module Api
         def base_scope
           Mockups::Mockup
             .where(preview_panel_id: PreviewPanel.accessible_to(Current.user).select(:id))
-            .includes(preview_panel: { preview_panel_versions: { files_attachments: :blob } })
+            .includes(preview_panel: :latest_version)
+        end
+
+        def filter_schema
+          ::Filters::Schema.for(subject: :mockup, user: Current.user)
         end
 
         def summary_json(mockup)
@@ -55,7 +67,7 @@ module Api
             chat_session_id: mockup.chat_session_id,
             chat_path: mockup.chat_session_id ? "/chats/#{mockup.chat_session_id}" : nil,
             entry_viewer_kind: version&.entry_viewer_kind || "html",
-            file_count: version&.files&.size || 0,
+            file_count: version&.file_count || 0,
             published_at: mockup.published_at&.iso8601,
             updated_at: mockup.updated_at&.iso8601,
             app_path: "/mockups/#{mockup.slug}"

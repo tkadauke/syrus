@@ -15,6 +15,7 @@ import {
   fetchChatMedia,
   fetchChatPreviewPanelAccessToken,
   fetchChatPreviewPanelFile,
+  fetchPreviewPanelHistory,
   fetchChatWhiteboard,
   fetchWhiteboardSnapshot,
   fetchWhiteboardSnapshots,
@@ -616,6 +617,12 @@ export function PreviewPanelFrame({
   const { t } = useT("chat")
   const [selectedVersionId, setSelectedVersionId] = useState(panel.current_version_id)
   const lastCurrentVersionId = useRef(panel.current_version_id)
+  const historyQuery = useQuery({
+    queryKey: ["preview_panel_versions", panel.id, panel.current_version_id],
+    queryFn: async () => (await fetchPreviewPanelHistory(panel.id)) ?? panel,
+    staleTime: Infinity
+  })
+  const panelWithHistory = historyQuery.data?.versions ? historyQuery.data : panel
 
   useEffect(() => {
     if (panel.current_version_id !== lastCurrentVersionId.current) {
@@ -624,7 +631,7 @@ export function PreviewPanelFrame({
     }
   }, [panel.current_version_id])
 
-  const selectedVersion = selectedPreviewVersion(panel, selectedVersionId)
+  const selectedVersion = selectedPreviewVersion(panelWithHistory, selectedVersionId)
   const entryPath = selectedVersion?.entry_path ?? panel.entry_path
   const viewerKind = selectedVersion?.entry_viewer_kind ?? panel.entry_viewer_kind
   const rawEntryUrl = chatPreviewPanelFileUrl(panel.app_file_base_path, entryPath, selectedVersionId, true)
@@ -641,7 +648,7 @@ export function PreviewPanelFrame({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-2 border-b border-gray-200 px-2 py-1.5 dark:border-gray-700">
-        <PreviewVersionSelector onChange={setSelectedVersionId} panel={panel} selectedVersionId={selectedVersionId} />
+        <PreviewVersionSelector onChange={setSelectedVersionId} panel={panelWithHistory} selectedVersionId={selectedVersionId} />
         <PreviewShareControl
           onNotice={onNotice}
           onVisibilityChange={onVisibilityChange}
