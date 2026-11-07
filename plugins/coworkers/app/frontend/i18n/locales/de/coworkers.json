@@ -221,6 +221,29 @@
     "migration_errors": "Blockierende Migrationsfehler",
     "none": "Keine"
   },
+  "review_target_editor": {
+    "label": "Coworker-Prüfer",
+    "description": "Wähle einen autorisierten Coworker-Prüfer.",
+    "aria_label": "Coworker-Prüfziel",
+    "none": "Kein benannter Prüfer"
+  },
+  "review_evidence": {
+    "label": "Coworker-Prüfnachweis",
+    "description": "Sicherer Snapshot des Coworker-Prüfnachweises.",
+    "aria_label": "Coworker-Prüfnachweis",
+    "summary": "{{reviewer}} · {{verdict}}"
+  },
+  "review_audit": {
+    "label": "Coworker-Prüfprotokoll",
+    "description": "Undurchsichtige Persistenzquittung.",
+    "aria_label": "Coworker-Prüfquittung",
+    "summary": "Quittung {{key}} · Version {{version}}"
+  },
+  "review_settings": {
+    "label": "Coworker-Prüfrouting",
+    "description": "Benannte Coworker-Prüfer verwenden Repository-Berechtigungen und geschützten Speicher.",
+    "aria_label": "Zusammenfassung des Coworker-Prüfroutings"
+  },
   "detail": {
     "soul_heading": "SOUL.md",
     "new_side_chat": "Neuer Nebenchat",

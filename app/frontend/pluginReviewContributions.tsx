@@ -1,7 +1,7 @@
 import { lazy, Suspense, type ComponentType, type ReactNode } from "react"
 
 export type ReviewContributionKind = "target_editor" | "evidence" | "audit" | "settings_summary"
-export type ReviewContributionProps = { payload: unknown; contribution: ReviewContribution }
+export type ReviewContributionProps = { payload: unknown; contribution: ReviewContribution; onChange?: (value: unknown) => void }
 export type ReviewContribution = {
   key: string
   component: string
@@ -39,12 +39,12 @@ export function reviewContributionComponentFor(key: string | null | undefined) {
   return Component
 }
 
-export function renderReviewContribution(contribution: ReviewContribution, payload: unknown, fallback: ReactNode = null) {
+export function renderReviewContribution(contribution: ReviewContribution, payload: unknown, fallback: ReactNode = null, onChange?: (value: unknown) => void) {
   const Component = reviewContributionComponentFor(contribution.component)
   if (!Component) return fallback
   return (
     <Suspense fallback={fallback}>
-      <Component contribution={contribution} payload={payload} />
+      <Component contribution={contribution} onChange={onChange} payload={payload} />
     </Suspense>
   )
 }

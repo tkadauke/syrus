@@ -6,7 +6,7 @@ RSpec.describe Coworkers::ReviewContextContributor do
   let(:job) { Factories.job_with_run(user:, owner_user: user, repository:) }
   let(:run) { job.runs.first }
   let(:context) { double("review context", id: 19, manifest: { "protected_prompt" => { "sha256" => "abc" } }) }
-  let(:persisted) { double("persisted context", id: 19, updated_at: Time.zone.parse("2026-11-07 12:00:00")) }
+  let(:persisted) { double("persisted context", id: 19, updated_at: Time.zone.parse("2026-11-07 12:00:00"), persisted_commit_sha: nil) }
   let(:coworker) do
     double(
       "reviewer",
@@ -30,5 +30,11 @@ RSpec.describe Coworkers::ReviewContextContributor do
       target: { type: "coworker", reference: "7" }, run:, context: {}, verdict: "approved",
       update: { key_learning: "Keep the boundary narrow." }
     )).to include(owner: "coworkers", type: "review_memory", key: "19", persisted_at: "2026-11-07T12:00:00Z")
+  end
+
+  it "rejects a post-verdict update without a key learning" do
+    expect {
+      described_class.persist(target: { type: "coworker", reference: "7" }, run:, context: {}, verdict: "approved", update: {})
+    }.to raise_error(KeyError, /key_learning/)
   end
 end

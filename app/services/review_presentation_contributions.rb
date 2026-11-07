@@ -1,5 +1,5 @@
 module ReviewPresentationContributions
-  COLLECTIONS = %i[target_editors evidence_renderers audit_renderers settings_summaries translations].freeze
+  COLLECTIONS = %i[target_editors evidence_renderers audit_renderers settings_summaries].freeze
   FRONTEND_KINDS = {
     target_editors: "target_editor", evidence_renderers: "evidence", audit_renderers: "audit",
     settings_summaries: "settings_summary"
@@ -8,12 +8,13 @@ module ReviewPresentationContributions
   module_function
 
   def payload
-    providers.each_with_object(COLLECTIONS.to_h { |collection| [ collection, [] ] }) do |provider, result|
+    result = providers.each_with_object(COLLECTIONS.to_h { |collection| [ collection, [] ] }) do |provider, collections|
       COLLECTIONS.each do |collection|
-        result[collection] ||= []
-        result[collection].concat(normalize(provider.public_send(collection), collection:))
+        collections[collection].concat(normalize(provider.public_send(collection), collection:))
       end
     end
+    result[:translation_namespaces] = providers.flat_map { |provider| Array(provider.translation_namespaces) }.map(&:to_s).uniq
+    result
   end
 
   def render_audit(snapshot)
@@ -35,6 +36,7 @@ module ReviewPresentationContributions
     Array(entries).map do |entry|
       value = entry.to_h.deep_stringify_keys
       %w[key component].each { |key| raise ArgumentError, "#{collection} contribution #{key} is required" if value[key].blank? }
+      raise ArgumentError, "#{collection} contribution aria_label_key is required" if value["aria_label_key"].blank?
       value.slice("key", "component", "target_type", "artifact_type", "label_key", "description_key", "aria_label_key")
     end
   end

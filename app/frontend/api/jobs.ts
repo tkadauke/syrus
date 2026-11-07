@@ -629,6 +629,7 @@ export type JobCoworkerReviewIteration = Omit<JobAdversarialReviewIteration, "ve
   reviewer?: { label?: string | null; type?: string | null; reference?: string | null; provider?: string | null; model?: string | null } | null
   review_context_manifest?: Record<string, unknown> | null
   memory_persistence?: { state: string; persisted_commit_sha?: string | null; error_code?: string | null } | null
+  persistence_receipt?: Record<string, unknown> | null
   cost_usd?: number | null
   repair_response?: string | null
   operator_links?: { journal?: string | null; restricted_context?: string | null } | null
@@ -1277,6 +1278,7 @@ export type JobDetailPayload = {
   attachments: JobAttachment[]
   pr_links: JobPrLink[]
   typed_artifacts: TypedArtifact[]
+  review_contributions?: import("../pluginReviewContributions").ReviewContribution[]
   visual_evidence?: JobVisualEvidenceGallery
   coverage: { workflow_id: number; coverage: CoverageArtifact } | null
   summary: JobSummary | null

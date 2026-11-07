@@ -101,26 +101,43 @@ module Steps
 
     def materialize_reviewer_prompt
       prompt = reviewer_prompt
-      reviewer = run.review_evidence&.reviewer
-      return prompt unless reviewer&.respond_to?(:prepare_review_context!)
+      target = run.step.details.to_h["reviewer_target"]
+      if target.blank?
+        reviewer = run.review_evidence&.reviewer
+        return prompt unless reviewer&.respond_to?(:prepare_review_context!)
 
-      context = reviewer.prepare_review_context!(run:, evidence: run.review_evidence, criteria: review_criteria)
-      "#{prompt}\n\n#{reviewer.review_context_prompt(context)}"
+        context = reviewer.prepare_review_context!(run:, evidence: run.review_evidence, criteria: review_criteria)
+        return "#{prompt}\n\n#{reviewer.review_context_prompt(context)}"
+      end
+
+      context = ReviewContextContributions.prepare(target:, run:, evidence: run.review_evidence, criteria: review_criteria)
+      run.step.update!(details: run.step.details.to_h.merge("review_context_manifest" => context.fetch("manifest")))
+      "#{prompt}\n\n#{ReviewContextContributions.prompt(context)}"
+    rescue ReviewContextContributions::Unavailable
+      prompt
     end
 
     def verify_reviewer_side_effects!
-      reviewer = run.review_evidence&.reviewer
-      return unless reviewer&.respond_to?(:finalize_review_memory!)
+      target = run.step.details.to_h["reviewer_target"]
+      if target.blank?
+        reviewer = run.review_evidence&.reviewer
+        return unless reviewer&.respond_to?(:finalize_review_memory!)
 
-      context = reviewer.review_context_for(run)
-      return if context&.persistence_state == "persisted"
+        context = reviewer.review_context_for(run)
+        return if context&.persistence_state == "persisted"
+        raise MemoryPersistenceFailed.new(
+          "coworker review memory was not persisted",
+          evidence: { review_evidence_id: run.review_evidence.id, persistence_state: context&.persistence_state || "missing",
+                      persistence_error: context&.persistence_error_details }
+        )
+      end
+      return if run.step.details.to_h["review_persistence_receipt"].present?
 
       raise MemoryPersistenceFailed.new(
-        "coworker review memory was not persisted",
+        "reviewer post-verdict update was not persisted",
         evidence: {
           review_evidence_id: run.review_evidence.id,
-          persistence_state: context&.persistence_state || "missing",
-          persistence_error: context&.persistence_error_details
+          persistence_state: "missing"
         }
       )
     end

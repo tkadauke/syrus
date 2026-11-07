@@ -1,5 +1,6 @@
+import { render, screen } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
-import { matchingReviewContribution, reviewContributionComponentFor, type ReviewContribution } from "./pluginReviewContributions"
+import { matchingReviewContribution, renderReviewContribution, reviewContributionComponentFor, type ReviewContribution } from "./pluginReviewContributions"
 
 describe("plugin review contributions", () => {
   const entries: ReviewContribution[] = [
@@ -13,5 +14,17 @@ describe("plugin review contributions", () => {
 
   it("falls back safely for a component from an absent or history-only plugin", () => {
     expect(reviewContributionComponentFor("removed/HistoryRenderer")).toBeNull()
+  })
+
+  it("loads and renders an installed plugin contribution through Suspense", async () => {
+    const contribution: ReviewContribution = {
+      key: "synthetic.evidence",
+      component: "syrus_dev/SyntheticReview",
+      kind: "evidence",
+      target_type: "synthetic",
+      aria_label_key: "Synthetic review evidence"
+    }
+    render(renderReviewContribution(contribution, { label: "Synthetic evidence rendered" }))
+    expect(await screen.findByLabelText("Synthetic review evidence")).toHaveTextContent("Synthetic evidence rendered")
   })
 })

@@ -117,6 +117,7 @@ export type ProviderRoutingOptions = {
   agent_providers: AgentProviderOption[]
   effort_levels: EffortLevelOption[]
   reviewer_targets?: ProviderRoutingReviewerTarget[]
+  review_contributions?: import("../pluginReviewContributions").ReviewContribution[]
 } & ProviderRoutingRegistryOptions
 
 export type ProviderRoutingInheritedContext = {

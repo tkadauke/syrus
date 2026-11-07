@@ -1,5 +1,21 @@
 # Plugins
 
+## Review extension contracts
+
+Review plugins may register `reviewer_target_provider`,
+`review_context_contributor`, `review_presentation_contributor`, and
+`problem_provider` contributions. Reviewer targets are opaque core envelopes:
+the provider owns authorization, availability, uniqueness, resolution, and the
+safe display snapshot. Review-context contributors receive the pinned target,
+provide a bounded restricted prompt plus a safe manifest, and return an opaque
+post-verdict persistence receipt. Presentation contributors declare component
+keys for provider-rule target editors, Job/Workflow evidence, audit payloads,
+and settings summaries; their copy lives in the plugin's English, German, and
+Latin i18n bundles and every contribution declares an accessibility label key.
+Problem codes must use the provider's namespace (for example
+`example.target_unavailable`). Disabled or unhealthy plugins contribute no live
+providers, while stored safe snapshots remain readable without plugin code.
+
 Syrus plugins are Rails Engine gems that register extension point providers at
 boot through `Syrus::PluginRegistry`. The registry currently supports:
 

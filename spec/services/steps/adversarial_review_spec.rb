@@ -68,6 +68,19 @@ RSpec.describe Steps::AdversarialReview do
     end
   end
 
+  it "materializes opaque reviewer context through the plugin contributor" do
+    review_step.update!(details: { "reviewer_target" => { "type" => "synthetic", "reference" => "7" } })
+    context = { "manifest" => { "source" => "safe" }, "restricted_text" => "protected plugin context" }.freeze
+    allow(ReviewContextContributions).to receive(:prepare).with(
+      target: hash_including("type" => "synthetic"), run:, evidence: nil, criteria: anything
+    ).and_return(context)
+    allow(ReviewContextContributions).to receive(:prompt).with(context).and_return("protected plugin context")
+    handler.singleton_class.send(:public, :materialize_reviewer_prompt)
+
+    expect(handler.materialize_reviewer_prompt).to include("protected plugin context")
+    expect(review_step.reload.details["review_context_manifest"]).to eq("source" => "safe")
+  end
+
   it "calls run_agent without using the change-step commit path" do
     expect(handler).not_to receive(:perform_agentic_change_step)
     expect(handler).to receive(:run_agent) do |prompt: nil, max_turns: nil, required_mcp_tools: nil, disallowed_tools: nil, **|
