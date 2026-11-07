@@ -26,6 +26,10 @@ Both file tools are jailed to the selected panel's scratch directory. Preview
 panel tools are available only in planning-mode chats; Coding Mode and Local
 Mode use their writable checkout tools instead.
 
+Panel payloads include only the current version summary by default. The
+standalone panel endpoint accepts `?include=versions` when a version picker
+needs the complete history.
+
 `show_preview` returns a `version_id`. Pass
 `preview_panel_version:<version_id>` in `propose_job`'s `media` array to attach
 that exact version to an implementation Job. The implementing agent receives
