@@ -68,9 +68,9 @@ function makePayload(
   }
 }
 
-function renderCard(ui: ReactElement, { bootstrap }: { bootstrap?: unknown } = {}) {
+function renderCard(ui: ReactElement, { setup }: { setup?: unknown } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  if (bootstrap) client.setQueryData(["bootstrap"], bootstrap)
+  if (setup) client.setQueryData(["setup"], setup)
   return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
 }
 
@@ -168,8 +168,8 @@ describe("GithubCredentialCard", () => {
     })
     renderCard(<GithubCredentialCard onNotice={() => {}} payload={makePayload({ credential_status: { github_token: true } })} />)
 
-    // No probe on mount — saved-credential tests are explicit.
-    expect(fetchSpy).not.toHaveBeenCalled()
+    // Loading setup status is expected; probing the saved credential is not.
+    expect(fetchSpy.mock.calls.some(([url]) => String(url).endsWith("/test_credential"))).toBe(false)
 
     fireEvent.click(screen.getByRole("button", { name: "Test" }))
     await waitFor(() => expect(screen.getByText(/Token is valid/)).toBeInTheDocument())
@@ -181,13 +181,11 @@ describe("GithubCredentialCard", () => {
 
   it("shows GitHub App status from setup_status, with the admin-only setup action", () => {
     mockRoutes()
-    const bootstrap = {
-      setup_status: {
-        first_successful_job_completed: true,
-        credential_status: { github: true, github_pat: true, github_app: false, agent: true, active_agent_provider: "claude" }
-      }
+    const setup = {
+      first_successful_job_completed: true,
+      credential_status: { github: true, github_pat: true, github_app: false, agent: true, active_agent_provider: "claude" }
     }
-    renderCard(<GithubCredentialCard onNotice={() => {}} payload={makePayload({ credential_status: { github_token: true }, admin: true })} />, { bootstrap })
+    renderCard(<GithubCredentialCard onNotice={() => {}} payload={makePayload({ credential_status: { github_token: true }, admin: true })} />, { setup })
 
     expect(screen.getByText("GitHub App not registered")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Set up GitHub App" })).toBeInTheDocument()
@@ -213,13 +211,11 @@ describe("GithubCredentialCard", () => {
           }
         })
     })
-    const bootstrap = {
-      setup_status: {
-        first_successful_job_completed: true,
-        credential_status: { github: true, github_pat: true, github_app: false, agent: true, active_agent_provider: "claude" }
-      }
+    const setup = {
+      first_successful_job_completed: true,
+      credential_status: { github: true, github_pat: true, github_app: false, agent: true, active_agent_provider: "claude" }
     }
-    renderCard(<GithubCredentialCard onNotice={() => {}} payload={makePayload({ credential_status: { github_token: true }, admin: true })} />, { bootstrap })
+    renderCard(<GithubCredentialCard onNotice={() => {}} payload={makePayload({ credential_status: { github_token: true }, admin: true })} />, { setup })
 
     expect(screen.getByText("GitHub App not registered")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Set up GitHub App" }))
@@ -232,12 +228,10 @@ describe("GithubCredentialCard", () => {
   it("hides the GitHub App action from non-admins and shows registered state", () => {
     mockRoutes()
     const registered = {
-      setup_status: {
-        first_successful_job_completed: true,
-        credential_status: { github: true, github_pat: true, github_app: true, agent: true, active_agent_provider: "claude" }
-      }
+      first_successful_job_completed: true,
+      credential_status: { github: true, github_pat: true, github_app: true, agent: true, active_agent_provider: "claude" }
     }
-    renderCard(<GithubCredentialCard onNotice={() => {}} payload={makePayload({ credential_status: { github_token: true } })} />, { bootstrap: registered })
+    renderCard(<GithubCredentialCard onNotice={() => {}} payload={makePayload({ credential_status: { github_token: true } })} />, { setup: registered })
 
     expect(screen.getByText("GitHub App registered")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Set up GitHub App" })).not.toBeInTheDocument()
