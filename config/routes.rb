@@ -106,11 +106,13 @@ Rails.application.routes.draw do
         patch "credentials/provider_routing_rules/:id", to: "provider_routing_rules#update", constraints: { id: /\d+/ }
         delete "credentials/provider_routing_rules/:id", to: "provider_routing_rules#destroy", constraints: { id: /\d+/ }
         get "jobs/new", to: "direct_jobs#new"
+        get "jobs/new/prompt_templates/:template_id", to: "direct_jobs#prompt_template", constraints: { template_id: /[a-z0-9-]+/ }
         get "jobs/graph", to: "jobs#graph"
         get "jobs", to: "jobs#index"
         post "jobs", to: "direct_jobs#create"
         get "jobs/:id/source", to: "jobs#source", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id/source_diff", to: "jobs#source_diff", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        get "jobs/:id/source_file", to: "jobs#source_file", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id/source_file_diff", to: "jobs#source_file_diff", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id/source_file_diff_download", to: "jobs#source_file_diff_download", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id/source_image", to: "jobs#source_image", constraints: { id: /[a-zA-Z0-9_-]+/ }
@@ -130,7 +132,7 @@ Rails.application.routes.draw do
         get "jobs/:id/diff", to: "jobs#diff", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id/agent_conversation", to: "jobs#agent_conversation", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id/visual_evidence/:evidence_id", to: "jobs#visual_evidence", constraints: { id: /[a-zA-Z0-9_-]+/, evidence_id: /[a-f0-9-]+/i }
-        get "jobs/:job_id/runs/:run_id/artifacts", to: "jobs#run_artifacts", constraints: { job_id: /[a-zA-Z0-9_-]+/, run_id: /\d+/ }
+        get "jobs/:job_id/runs/:run_id/artifacts", to: "jobs#run_artifacts", constraints: { job_id: /[a-zA-Z0-9_-]+/, run_id: /(?:\d+|latest)/ }
         get "jobs/:job_id/runs/:run_id/grade_log", to: "jobs#grade_log", constraints: { job_id: /[a-zA-Z0-9_-]+/, run_id: /\d+/ }
         get "jobs/:job_id/diff_review_comments", to: "diff_review_comments#index", constraints: { job_id: /[a-zA-Z0-9_-]+/ }
         post "jobs/:job_id/diff_review_comments", to: "diff_review_comments#create", constraints: { job_id: /[a-zA-Z0-9_-]+/ }

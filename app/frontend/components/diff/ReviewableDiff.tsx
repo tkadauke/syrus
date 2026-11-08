@@ -51,7 +51,7 @@ import {
 export type ReviewableDiffFile = {
   path: string
   previous_path?: string | null
-  patch: string | null
+  patch?: string | null
   status?: string
   additions?: number
   deletions?: number
@@ -281,12 +281,12 @@ type ChangedFileTreeNode = {
   path: string
 }
 
-function createFileCacheEntry(patch: string | null): FileCacheEntry {
+function createFileCacheEntry(patch: string | null | undefined): FileCacheEntry {
   return {
     collapsed: false,
     contextState: { fullyExpanded: false, gaps: [], lines: null, status: "idle" },
     forceLoaded: false,
-    patch,
+    patch: patch ?? null,
     renderMode: null,
     tokensByHunk: new Map()
   }
@@ -296,8 +296,12 @@ function createFileCacheEntry(patch: string | null): FileCacheEntry {
 // than mirroring it into component state -- so the entry (and thus its
 // contents) has one persistent identity per file path regardless of how
 // many times its DiffFileSection mounts and unmounts.
-function useFileCacheEntry(cache: Map<string, FileCacheEntry>, path: string, patch: string | null): [FileCacheEntry, (patch: Partial<FileCacheEntry>) => void] {
-  if (cache.get(path)?.patch !== patch) cache.set(path, createFileCacheEntry(patch))
+function useFileCacheEntry(
+  cache: Map<string, FileCacheEntry>,
+  path: string,
+  patch: string | null | undefined
+): [FileCacheEntry, (patch: Partial<FileCacheEntry>) => void] {
+  if (cache.get(path)?.patch !== (patch ?? null)) cache.set(path, createFileCacheEntry(patch))
   const entry = cache.get(path)!
   const [, forceUpdate] = useReducer((count: number) => count + 1, 0)
   function update(entryPatch: Partial<FileCacheEntry>) {
@@ -334,7 +338,7 @@ function estimateFileSectionHeight(
   const header = showHeader ? fileHeaderHeightEstimate(density, mobile && headerActions) : 0
   if (collapsed) return header
   if (file.generated && !forceLoaded) return header + DEFAULT_FILE_PLACEHOLDER_HEIGHT_PX
-  if (file.patch === null) return header + DEFAULT_FILE_UNAVAILABLE_HEIGHT_PX
+  if (file.patch == null) return header + DEFAULT_FILE_UNAVAILABLE_HEIGHT_PX
   const rowCount = countDiffRows(file.patch)
   if (rowCount > largeFileRowThreshold && !forceLoaded) return header + DEFAULT_FILE_PLACEHOLDER_HEIGHT_PX
   return header + rowCount * estimates.row
@@ -742,7 +746,7 @@ function fileHasHeaderActions(
   if (file.generated && !cacheEntry?.forceLoaded) return false
   if (file.patch && countDiffRows(file.patch) > largeFileRowThreshold && !cacheEntry?.forceLoaded) return false
 
-  const contextExpansionEnabled = file.patch !== null && Boolean(onLoadFileContext) && file.status !== "removed"
+  const contextExpansionEnabled = file.patch != null && Boolean(onLoadFileContext) && file.status !== "removed"
   const renderKind = renderedFileKind(file)
   const renderModeControls = renderKind === "markdown" || renderKind === "svg"
   return contextExpansionEnabled || renderModeControls
@@ -1220,10 +1224,12 @@ function DiffFileSection({
   showHeader: boolean
   unavailableState: ReactNode
 }) {
+  const { t } = useT("common")
   const [loadedPatch, setLoadedPatch] = useState<string | null>(null)
   const [loadedPatchSource, setLoadedPatchSource] = useState<string | null>(null)
   const [patchLoadState, setPatchLoadState] = useState<"idle" | "loading" | "error" | "limited">("idle")
   const [patchLimitMessage, setPatchLimitMessage] = useState<string | null>(null)
+  const autoLoadedPatchSource = useRef<string | null>(null)
   const patchSource = `${file.patch ?? ""}:${file.patch_status ?? ""}:${file.patch_bytes ?? ""}`
   const effectiveFile = loadedPatch === null || loadedPatchSource !== patchSource ? file : { ...file, patch: loadedPatch }
   const lines = useMemo(() => {
@@ -1234,11 +1240,13 @@ function DiffFileSection({
   }, [effectiveFile.patch, effectiveFile.path])
   const hunks = useMemo(() => hunksFromLines(lines), [lines])
   const rowCount = lines.length
-  const [cacheEntry, updateCacheEntry] = useFileCacheEntry(cache, file.path, effectiveFile.patch)
+  const [cacheEntry, updateCacheEntry] = useFileCacheEntry(cache, file.path, file.patch)
   const renderKind = renderedFileKind(file)
   const supportsCode = renderKind === "markdown" || renderKind === "svg"
   const renderMode = file.is_image && !supportsCode ? "preview" : (cacheEntry.renderMode ?? reviewSettings.renderable_files)
   const forceLoaded = cacheEntry.forceLoaded
+  const shouldAutoLoadPatch =
+    file.patch == null && file.patch_bytes != null && file.patch_status == null && (!file.generated || forceLoaded) && !file.is_image && Boolean(onLoadFileDiff)
   const collapsed = cacheEntry.collapsed
   const contextState = cacheEntry.contextState
   function setForceLoaded(value: boolean) {
@@ -1315,7 +1323,7 @@ function DiffFileSection({
   // Removed files have no content at the diff's head ref to fetch context
   // from (the file is gone there), so `onLoadFileContext` would only ever
   // resolve null — never show controls that can't do anything.
-  const contextExpansionEnabled = effectiveFile.patch !== null && Boolean(onLoadFileContext) && file.status !== "removed"
+  const contextExpansionEnabled = effectiveFile.patch != null && Boolean(onLoadFileContext) && file.status !== "removed"
 
   async function loadFullDiff() {
     if (!onLoadFileDiff || patchLoadState === "loading") return
@@ -1335,6 +1343,13 @@ function DiffFileSection({
       setPatchLoadState("error")
     }
   }
+
+  useEffect(() => {
+    if (!shouldAutoLoadPatch || autoLoadedPatchSource.current === patchSource) return
+
+    autoLoadedPatchSource.current = patchSource
+    void loadFullDiff()
+  }, [patchSource, shouldAutoLoadPatch])
 
   useEffect(() => {
     if (
@@ -1402,7 +1417,7 @@ function DiffFileSection({
     ) : null
   }
 
-  if (file.generated && !forceLoaded) {
+  if (file.generated && !forceLoaded && loadedPatch === null) {
     return (
       <>
         {showHeader ? (
@@ -1458,7 +1473,7 @@ function DiffFileSection({
       ) : null}
       {renderKind && renderMode === "preview" && renderImageDiff ? (
         renderImageDiff(file)
-      ) : effectiveFile.patch !== null ? (
+      ) : effectiveFile.patch != null ? (
         <UnifiedDiffTable
           annotations={annotations}
           comments={comments}
@@ -1493,8 +1508,19 @@ function DiffFileSection({
           highlightedReviewAnnotationId={highlightedReviewAnnotationId}
           tokenCache={cacheEntry.tokensByHunk}
         />
-      ) : renderKind && renderImageDiff ? (
+      ) : renderKind && !supportsCode && renderImageDiff ? (
         renderImageDiff(file)
+      ) : shouldAutoLoadPatch ? (
+        patchLoadState === "idle" || patchLoadState === "loading" ? (
+          <div className="px-4 py-8 text-center font-sans text-sm text-gray-400 dark:text-gray-500">{t("diff_review.loading_full_diff")}</div>
+        ) : (
+          <OmittedPatchPlaceholder
+            downloadUrl={fileDiffDownloadUrl?.(file)}
+            limitMessage={patchLimitMessage}
+            loadState={patchLoadState}
+            onLoad={loadFullDiff}
+          />
+        )
       ) : file.patch_status === "oversized" && onLoadFileDiff ? (
         <OmittedPatchPlaceholder downloadUrl={fileDiffDownloadUrl?.(file)} limitMessage={patchLimitMessage} loadState={patchLoadState} onLoad={loadFullDiff} />
       ) : (
@@ -1791,8 +1817,8 @@ export function UnifiedDiffTable({
   const isMobileViewport = useIsMobileViewport()
   const lineWrapping = reviewSettings.line_wrapping
   const lang = reviewSettings.syntax_highlighting ? detectHighlighterLanguage(file.path) : null
-  const localTokenCache = useRef<{ patch: string | null; tokens: Map<number, ThemedToken[][]> }>({ patch: file.patch, tokens: new Map() })
-  if (localTokenCache.current.patch !== file.patch) localTokenCache.current = { patch: file.patch, tokens: new Map() }
+  const localTokenCache = useRef<{ patch: string | null; tokens: Map<number, ThemedToken[][]> }>({ patch: file.patch ?? null, tokens: new Map() })
+  if (localTokenCache.current.patch !== (file.patch ?? null)) localTokenCache.current = { patch: file.patch ?? null, tokens: new Map() }
   const tokenCache = tokenCacheProp ?? localTokenCache.current.tokens
   const tokensByLine = useHighlightedDiffLines(lines, lang, tokenCache)
   // An exhausted gap removes its hunk divider from the normalized row model.
@@ -2178,7 +2204,7 @@ export function UnifiedDiffTable({
                         />
                       ) : null}
                       {annotation === "covered" ? (
-                        <span className="text-emerald-600 dark:text-emerald-400">✓</span>
+                        <span className="text-success">✓</span>
                       ) : annotation === "uncovered" ? (
                         <span className="text-danger">✗</span>
                       ) : null}

@@ -499,6 +499,28 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(ids).to contain_exactly(idle.id, active.id)
   end
 
+  it "returns a slim picker projection and only counts when requested" do
+    picker_job = Factories.job_record(repository: repo, issue_number: 104, issue_title: "Pick me", state: "implemented")
+
+    get "/api/v1/app/jobs", params: { fields: "picker", include_active_work: "true", limit: 10 }
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body).not_to have_key("count")
+    expect(body.fetch("jobs").find { |item| item["id"] == picker_job.id }).to eq(
+      "id" => picker_job.id,
+      "slug" => picker_job.slug,
+      "title" => "Pick me",
+      "issue_title" => "Pick me",
+      "state" => "implemented",
+      "repository_slug" => repo.slug,
+      "pr_url" => nil
+    )
+
+    get "/api/v1/app/jobs", params: { fields: "picker", include_count: "true", include_active_work: "true", limit: 10 }
+    expect(parse_body.fetch("count")).to be >= 1
+  end
+
   it "filters compact job results to jobs with pull requests before applying the limit" do
     user.update!(api_token: "syrus_cli_token")
     without_pr = Factories.job_record(repository: repo, issue_number: 101, issue_title: "Newest without PR", state: "implemented")
@@ -553,6 +575,45 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       "state" => "succeeded",
       "complete" => true
     )
+  end
+
+  it "caps the legacy transcript at the newest 200 lines" do
+    user.update!(api_token: "syrus_cli_token")
+    run = job.initial_run
+    run.job_logs.delete_all
+    205.times { |sequence| run.job_logs.create!(sequence: sequence, kind: "stdout", chunk: "line #{sequence}") }
+
+    get "/api/v1/app/jobs/#{job.id}/transcript", headers: { "Authorization" => "Bearer syrus_cli_token" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("lines")).to eq((5..204).map { |sequence| "line #{sequence}" })
+    expect(parse_body.fetch("lines_truncated")).to be(true)
+  end
+
+  it "supports a bounded head of the legacy transcript" do
+    user.update!(api_token: "syrus_cli_token")
+    run = job.initial_run
+    run.job_logs.delete_all
+    4.times { |sequence| run.job_logs.create!(sequence: sequence, kind: "stdout", chunk: "line #{sequence}") }
+
+    get "/api/v1/app/jobs/#{job.id}/transcript", params: { tail: false, limit: 2 }, headers: { "Authorization" => "Bearer syrus_cli_token" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("lines" => [ "line 0", "line 1" ], "lines_truncated" => true)
+  end
+
+  it "preserves the earliest complete lines when byte-capping a legacy transcript head" do
+    user.update!(api_token: "syrus_cli_token")
+    run = job.initial_run
+    run.job_logs.delete_all
+    run.job_logs.create!(sequence: 0, kind: "stdout", chunk: "a" * 600.kilobytes)
+    run.job_logs.create!(sequence: 1, kind: "stdout", chunk: "b" * 600.kilobytes)
+
+    get "/api/v1/app/jobs/#{job.id}/transcript", params: { tail: false }, headers: { "Authorization" => "Bearer syrus_cli_token" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("lines")).to eq([ "a" * 600.kilobytes ])
+    expect(parse_body.fetch("lines_truncated")).to be(true)
   end
 
   it "creates a chat feedback workflow for an implemented job" do
@@ -1355,19 +1416,46 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       { "sequence" => 0, "kind" => "stdout", "chunk" => "first line" },
       { "sequence" => 1, "kind" => "stderr", "chunk" => "second line" }
     ])
+    expect(response.headers["ETag"]).to be_present
+  end
+
+  it "returns transcript deltas and resolves the latest run for CLI consumers" do
+    run = job.initial_run
+    run.job_logs.create!(sequence: 0, kind: "stdout", chunk: "already seen")
+    run.job_logs.create!(sequence: 1, kind: "stdout", chunk: "new line")
+
+    get "/api/v1/app/jobs/#{job.id}/runs/latest/artifacts", params: { after_sequence: 0 }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("run_id" => run.id, "run_state" => run.state, "complete" => false, "logs_max_sequence" => 1)
+    expect(parse_body.fetch("logs").map { |log| log.fetch("chunk") }).to eq([ "new line" ])
+  end
+
+  it "invalidates transcript ETags when run state changes without another log" do
+    run = job.initial_run
+    run.job_logs.create!(sequence: 0, kind: "stdout", chunk: "only line")
+
+    get "/api/v1/app/jobs/#{job.id}/runs/#{run.id}/artifacts"
+    etag = response.headers.fetch("ETag")
+    run.update_columns(state: "succeeded", updated_at: 1.second.from_now)
+
+    get "/api/v1/app/jobs/#{job.id}/runs/#{run.id}/artifacts", headers: { "If-None-Match" => etag }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("run_state")).to eq("succeeded")
   end
 
   it "returns redacted structured tool metadata and handles legacy rows" do
     run = job.initial_run
     JobLog.append!(
       run: run,
-      chunk: "tool call",
+      chunk: "run_command api_token=top-secret-value deploy",
       kind: "tool_call",
       tool_name: "run_command",
       tool_input: { "command" => "deploy", "api_token" => "top-secret-value" },
       tool_use_id: "call_1"
     )
-    JobLog.append!(run: run, chunk: "tool result", kind: "tool_result",
+    JobLog.append!(run: run, chunk: "authorization=top-secret-value", kind: "tool_result",
                    tool_result_content: [
                      "authorization=top-secret-value",
                      "Authorization: Bearer abcdefghijklmnop",
@@ -1382,11 +1470,13 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     tool_call, tool_result, legacy = parse_body.fetch("logs")
     expect(tool_call).to include(
+      "chunk" => "run_command api_token=[redacted] deploy",
       "tool_name" => "run_command",
       "tool_input" => { "command" => "deploy", "api_token" => "[redacted]" },
       "tool_use_id" => "call_1"
     )
     expect(tool_result).to include(
+      "chunk" => "authorization=[redacted]",
       "tool_result_content" => [
         "authorization=[redacted]",
         "Authorization: Bearer [redacted]",
@@ -1968,7 +2058,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       expect(node_ids).to contain_exactly("job_#{job_a.id}")
     end
 
-    it "includes kind, state, label, url, epic_id, and is_focal fields on each node" do
+    it "includes derivable navigation fields without duplicating labels and URLs" do
       job_a
 
       get "/api/v1/app/jobs/graph"
@@ -1978,11 +2068,12 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
         "id" => "job_#{job_a.id}",
         "kind" => "job",
         "state" => "open",
-        "label" => "#{job_a.slug} Alpha",
-        "url" => "/jobs/#{job_a.slug}",
+        "slug" => job_a.slug,
+        "title" => "Alpha",
         "epic_id" => nil,
         "is_focal" => false
       )
+      expect(node).not_to include("label", "url")
     end
 
     it "filters graph nodes by smart_folder_id" do

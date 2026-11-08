@@ -285,6 +285,20 @@ curl -X POST https://syrus.example.com/api/v1/app/jobs/123/chat_feedback \
 
 Blank feedback or a non-actionable Job returns `422` with a JSON error.
 
+## Run Artifacts
+
+`GET /api/v1/app/jobs/:job_id/runs/:run_id/artifacts` returns one bounded Run
+artifact. Use `artifact=transcript` for paginated logs and `after_sequence=N`
+to poll only newer rows. Transcript responses include an ETag that changes for
+new logs and Run or Job state transitions. `artifact=agent_diff` and
+`artifact=step_agent_diff` are loaded separately; diffs over 2 MB return a
+bounded preview with a `*_truncated` marker, and `full=true` retrieves the
+complete diff on explicit request. `run_id=latest` selects the newest Run.
+
+The legacy `GET /api/v1/app/jobs/:id/transcript` endpoint accepts `limit`
+(capped at 200) and `tail=true|false`, applies a 1 MB response cap, and reports
+`lines_truncated`. New clients should use the artifacts endpoint.
+
 ## Target Graph Inspection
 
 User-scoped app API clients can inspect compiled project and target graph data
@@ -333,6 +347,15 @@ not the whole repository graph. Page through the target list to inspect more
 health rows without asking the server to serialize an unbounded graph.
 
 ## Diff Review Comments
+
+Diff and source browsing use compact, cacheable reads. `GET
+/api/v1/app/jobs/:id/source_diff` returns changed-file metadata including
+`patch_bytes`; fetch an individual text patch with `source_file_diff` using the
+returned exact base/head SHAs. Historical version lists come from
+`diff_review_versions`, and a selected version likewise returns file metadata
+without embedding every patch. Source trees come from `source`; selected file
+content comes from `source_file?ref=<sha>&path=<path>`. Exact-revision file and
+patch responses use private immutable caching.
 
 User-scoped app API clients can persist Syrus-owned diff review comments
 without coupling the review UI to GitHub PR comments. `GET

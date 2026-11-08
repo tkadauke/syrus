@@ -1812,8 +1812,25 @@ describe("ReviewableDiff", () => {
     expect(screen.queryByRole("button", { name: "Load whole file" })).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Download raw .diff" })).toHaveAttribute("href", "/download.diff")
     fireEvent.click(screen.getByRole("button", { name: "Load full diff" }))
-    expect(await screen.findByText("new")).toBeInTheDocument()
+    await waitFor(() => expect(getCodeCellText("new")).toBeInTheDocument())
     expect(onLoadFileDiff).toHaveBeenCalledWith(expect.objectContaining({ path: "large.txt" }))
+  })
+
+  it("automatically loads an omitted ordinary text patch", async () => {
+    const onLoadFileDiff = vi.fn().mockResolvedValue({ patch: "@@ -1 +1 @@\n-old\n+new" })
+
+    render(
+      <ReviewableDiff
+        files={[{ path: "app/models/job.rb", patch: null, patch_bytes: 24, additions: 1, deletions: 1 }]}
+        mode="single-file"
+        onLoadFileDiff={onLoadFileDiff}
+        selectedPath="app/models/job.rb"
+      />
+    )
+
+    await waitFor(() => expect(getCodeCellText("new")).toBeInTheDocument())
+    expect(onLoadFileDiff).toHaveBeenCalledOnce()
+    expect(onLoadFileDiff).toHaveBeenCalledWith(expect.objectContaining({ path: "app/models/job.rb" }))
   })
 
   it("delegates to renderImageDiff for a patch-less image file instead of the plain placeholder", () => {
@@ -1862,6 +1879,18 @@ describe("ReviewableDiff", () => {
     fireEvent.click(previewButtons[0])
     expect(screen.getByTestId("preview-README.md")).toBeInTheDocument()
     expect(screen.queryByTestId("preview-logo.svg")).not.toBeInTheDocument()
+  })
+
+  it("shows the omitted-patch placeholder for an oversized Markdown file in Code mode and the preview in Preview mode", () => {
+    const file = { path: "docs/big.md", status: "modified", additions: 1, deletions: 1, patch: null, patch_status: "oversized" as const }
+    const renderImageDiff = vi.fn(() => <div data-testid="markdown-preview" />)
+    const props = { files: [file], mode: "single-file" as const, onLoadFileDiff: vi.fn(), selectedPath: "docs/big.md", showFileHeaders: true, renderImageDiff }
+    const { unmount } = render(<ReviewableDiff {...props} reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, renderable_files: "code" }} />)
+    expect(screen.queryByTestId("markdown-preview")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Load full diff" })).toBeInTheDocument()
+    unmount()
+    render(<ReviewableDiff {...props} reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, renderable_files: "preview" }} />)
+    expect(screen.getByTestId("markdown-preview")).toBeInTheDocument()
   })
 
   it("uses the persisted preview default for SVG and Markdown", () => {
@@ -1954,6 +1983,19 @@ describe("generated-file gating", () => {
     expect(screen.getByTitle("package-lock.json")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Show diff for this file" })).toBeInTheDocument()
     expect(screen.queryByText("new")).not.toBeInTheDocument()
+  })
+
+  it("loads an omitted generated patch only after the reviewer reveals it", async () => {
+    const onLoadFileDiff = vi.fn().mockResolvedValue({ patch: '@@ -1 +1 @@\n-{"lockfileVersion": 2}\n+{"lockfileVersion": 3}' })
+    const file = { ...generatedPackageLockFile(), patch: undefined, patch_bytes: 64 }
+
+    render(<ReviewableDiff files={[file]} mode="continuous" onLoadFileDiff={onLoadFileDiff} showFileHeaders />)
+
+    expect(onLoadFileDiff).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Show diff for this file" }))
+
+    await waitFor(() => expect(onLoadFileDiff).toHaveBeenCalledOnce())
+    await waitFor(() => expect(screen.getAllByText("lockfileVersion").length).toBeGreaterThan(0))
   })
 
   it("keeps a package-lock diff hidden by default in the mobile changed-files flow", () => {

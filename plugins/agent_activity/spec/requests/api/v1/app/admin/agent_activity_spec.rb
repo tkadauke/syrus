@@ -278,6 +278,21 @@ RSpec.describe "API: /api/v1/app/admin/agent_activity", type: :request do
       expect(parse_body.fetch("logs").map { |l| l["chunk"] }).to eq([ "Looked at the aqueducts." ])
     end
 
+    it "invalidates the transcript ETag for state-only changes" do
+      sign_in_as(admin)
+      run = agent_activity_job_with_run(repository: repository, run_attrs: { state: "running" }).runs.last
+      run.job_logs.create!(sequence: 0, kind: "assistant_text", chunk: "Still working.")
+
+      get "/api/v1/app/admin/agent_activity/sessions/#{run.id}/artifacts"
+      etag = response.headers.fetch("ETag")
+      run.update_columns(state: "succeeded", updated_at: 1.second.from_now)
+
+      get "/api/v1/app/admin/agent_activity/sessions/#{run.id}/artifacts", headers: { "If-None-Match" => etag }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("run_state")).to eq("succeeded")
+    end
+
     it "404s for an unknown run" do
       sign_in_as(admin)
 

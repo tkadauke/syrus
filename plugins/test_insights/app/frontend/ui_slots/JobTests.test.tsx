@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import i18n from "@app/i18n"
 import { jsonResponse } from "@app/testSupport"
@@ -13,7 +13,7 @@ afterEach(async () => {
 describe("JobTests", () => {
   it("renders localized plural test result counts", async () => {
     await i18n.changeLanguage("de")
-    vi.spyOn(window, "fetch").mockResolvedValue(
+    vi.spyOn(window, "fetch").mockImplementation(async () =>
       jsonResponse({
         job_id: 42,
         workflow_id: 7,
@@ -51,10 +51,15 @@ describe("JobTests", () => {
       </QueryClientProvider>
     )
 
-    expect(await screen.findAllByText("1 fehlgeschlagen")).toHaveLength(2)
-    expect(screen.getAllByText("2 Fehler")).toHaveLength(2)
-    expect(screen.getAllByText("2 bestanden")).toHaveLength(2)
-    expect(screen.getAllByText("1 übersprungen")).toHaveLength(2)
+    expect(await screen.findAllByText("1 fehlgeschlagen")).toHaveLength(1)
+    expect(screen.getAllByText("2 Fehler")).toHaveLength(1)
+    expect(screen.getAllByText("2 bestanden")).toHaveLength(1)
+    expect(screen.getAllByText("1 übersprungen")).toHaveLength(1)
     expect(screen.getByText("6 gesamt")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Details" }))
+
+    await waitFor(() => expect(window.fetch).toHaveBeenCalledWith("/api/v1/app/jobs/42/test_results?grader_name=rspec&include_suites=true", expect.anything()))
+    expect(await screen.findByText("spec/models/job_spec.rb")).toBeInTheDocument()
   })
 })

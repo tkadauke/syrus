@@ -339,8 +339,8 @@ func TestJobShowPrintsJSON(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/app/jobs/42":
 			w.Write([]byte(`{"job":{"id":42,"title":"Add avatar upload","state":"implemented"},"repository":{"slug":"acme/widgets"}}`))
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/app/jobs/42/transcript":
-			w.Write([]byte(`{"job_id":42,"run_id":1,"state":"succeeded","complete":true,"lines":["line one","line two"]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/app/jobs/42/runs/latest/artifacts":
+			w.Write([]byte(`{"job_id":42,"run_id":1,"run_state":"succeeded","complete":true,"logs":[{"chunk":"line one"},{"chunk":"line two"}]}`))
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
@@ -380,8 +380,8 @@ func TestJobShowTextOutputUnchangedWithoutJSON(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/app/jobs/42":
 			w.Write([]byte(`{"job":{"id":42,"title":"Add avatar upload","state":"implemented","created_at":"2026-01-01","updated_at":"2026-01-02"},"repository":{"slug":"acme/widgets"}}`))
-		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/app/jobs/42/transcript":
-			w.Write([]byte(`{"job_id":42,"run_id":1,"state":"succeeded","complete":true,"lines":[]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/app/jobs/42/runs/latest/artifacts":
+			w.Write([]byte(`{"job_id":42,"run_id":1,"run_state":"succeeded","complete":true,"logs":[]}`))
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
@@ -407,10 +407,10 @@ func TestJobShowTextOutputUnchangedWithoutJSON(t *testing.T) {
 func TestJobLogPrintsJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if r.URL.Path != "/api/v1/app/jobs/42/transcript" {
+		if r.URL.Path != "/api/v1/app/jobs/42/runs/latest/artifacts" {
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
-		w.Write([]byte(`{"job_id":42,"run_id":7,"state":"running","complete":false,"lines":["hello"]}`))
+		w.Write([]byte(`{"job_id":42,"run_id":7,"run_state":"running","complete":false,"logs":[{"kind":"tool_call","chunk":"Read config.yml","tool_input":{"file_path":"config.yml"}}]}`))
 	}))
 	defer server.Close()
 	withCredentials(t, server.URL, "secret-token")
@@ -434,6 +434,9 @@ func TestJobLogPrintsJSON(t *testing.T) {
 	if decoded.JobID != 42 || decoded.Complete || len(decoded.Lines) != 1 {
 		t.Fatalf("decoded = %+v", decoded)
 	}
+	if decoded.Lines[0] != "Read config.yml" {
+		t.Fatalf("tool log line = %q", decoded.Lines[0])
+	}
 }
 
 func TestJobLogFollowsAcrossRunsWithoutRepeatingLines(t *testing.T) {
@@ -443,15 +446,15 @@ func TestJobLogFollowsAcrossRunsWithoutRepeatingLines(t *testing.T) {
 	t.Setenv("PAGER", "")
 
 	responses := []string{
-		`{"job_id":42,"run_id":7,"state":"running","complete":false,"lines":["first","second","third"]}`,
-		`{"job_id":42,"run_id":8,"state":"running","complete":false,"lines":["new run"]}`,
-		`{"job_id":42,"run_id":8,"state":"succeeded","complete":false,"lines":["new run","finished step"]}`,
-		`{"job_id":42,"run_id":9,"state":"succeeded","complete":true,"lines":["final step"]}`,
+		`{"job_id":42,"run_id":7,"run_state":"running","complete":false,"logs":[{"chunk":"first"},{"chunk":"second"},{"chunk":"third"}]}`,
+		`{"job_id":42,"run_id":8,"run_state":"running","complete":false,"logs":[{"chunk":"new run"}]}`,
+		`{"job_id":42,"run_id":8,"run_state":"succeeded","complete":false,"logs":[{"chunk":"new run"},{"chunk":"finished step"}]}`,
+		`{"job_id":42,"run_id":9,"run_state":"succeeded","complete":true,"logs":[{"chunk":"final step"}]}`,
 	}
 	request := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if r.URL.Path != "/api/v1/app/jobs/42/transcript" {
+		if r.URL.Path != "/api/v1/app/jobs/42/runs/latest/artifacts" {
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
 		}
 		if request >= len(responses) {

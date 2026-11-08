@@ -41,13 +41,24 @@ RSpec.describe "App API job test results", type: :request do
     it "returns empty test_runs when no test runs exist for the job" do
       job = Factories.job(user: user, repository: repo)
 
-      get "/api/v1/app/jobs/#{job.id}/test_results"
+      get "/api/v1/app/jobs/#{job.id}/test_results", params: { include_suites: true }
 
       expect(response).to have_http_status(:ok)
       body = parse_body
       expect(body["job_id"]).to eq(job.id)
       expect(body["workflow_id"]).to be_nil
       expect(body["test_runs"]).to eq([])
+    end
+
+    it "returns grader summaries without suites by default" do
+      job = Factories.job(user: user, repository: repo)
+      test_run = build_test_run(run: job.initial_run)
+      build_test_case(test_run: test_run, status: "failed", failure_message: "large detail")
+
+      get "/api/v1/app/jobs/#{job.id}/test_results"
+
+      expect(parse_body.dig("test_runs", 0)).not_to have_key("suites")
+      expect(parse_body.dig("truncation", "suites_included")).to be(false)
     end
 
     it "returns test runs from the latest workflow that has them" do
@@ -58,7 +69,7 @@ RSpec.describe "App API job test results", type: :request do
       build_test_case(test_run: test_run, name: "fails", suite_name: "FooSpec", status: "failed",
                       failure_message: "expected true, got false", failure_backtrace: "spec/foo_spec.rb:10")
 
-      get "/api/v1/app/jobs/#{job.id}/test_results"
+      get "/api/v1/app/jobs/#{job.id}/test_results", params: { include_suites: true }
 
       expect(response).to have_http_status(:ok)
       body = parse_body
@@ -89,7 +100,7 @@ RSpec.describe "App API job test results", type: :request do
       build_test_case(test_run: test_run, name: "b", suite_name: "BetaSpec", status: "passed")
       build_test_case(test_run: test_run, name: "c", suite_name: "AlphaSpec", status: "passed")
 
-      get "/api/v1/app/jobs/#{job.id}/test_results"
+      get "/api/v1/app/jobs/#{job.id}/test_results", params: { include_suites: true }
 
       suites = parse_body.dig("test_runs", 0, "suites")
       suite_names = suites.map { |s| s["suite_name"] }
@@ -106,7 +117,7 @@ RSpec.describe "App API job test results", type: :request do
       build_test_run(run: run, grader_name: "rspec", total_count: 1, passed_count: 1, failed_count: 0)
       build_test_run(run: run, grader_name: "jest", total_count: 1, passed_count: 1, failed_count: 0)
 
-      get "/api/v1/app/jobs/#{job.id}/test_results"
+      get "/api/v1/app/jobs/#{job.id}/test_results", params: { include_suites: true }
 
       grader_names = parse_body["test_runs"].map { |tr| tr["grader_name"] }
       expect(grader_names).to eq([ "jest", "rspec" ])
@@ -122,7 +133,7 @@ RSpec.describe "App API job test results", type: :request do
       build_test_case(test_run: test_run, name: "flaky spec", suite_name: "S", status: "failed")
       build_test_case(test_run: test_run, name: "flaky spec", suite_name: "S", status: "passed")
 
-      get "/api/v1/app/jobs/#{job.id}/test_results"
+      get "/api/v1/app/jobs/#{job.id}/test_results", params: { include_suites: true }
 
       tc = parse_body.dig("test_runs", 0, "suites", 0, "test_cases", 0)
       expect(tc["flakiness_score"]).to be_a(Float).and(be > 0).and(be < 1)
@@ -138,7 +149,7 @@ RSpec.describe "App API job test results", type: :request do
       build_test_case(test_run: test_run, name: "new test", suite_name: "S", status: "passed")
 
       # Only one record exists — score will be 0.0 (not flaky), but fields should still be present
-      get "/api/v1/app/jobs/#{job.id}/test_results"
+      get "/api/v1/app/jobs/#{job.id}/test_results", params: { include_suites: true }
 
       tc = parse_body.dig("test_runs", 0, "suites", 0, "test_cases", 0)
       expect(tc).to have_key("flakiness_score")
@@ -149,7 +160,7 @@ RSpec.describe "App API job test results", type: :request do
       other_user = Factories.user
       job = Factories.job(user: other_user, repository: Factories.repository(user: other_user))
 
-      get "/api/v1/app/jobs/#{job.id}/test_results"
+      get "/api/v1/app/jobs/#{job.id}/test_results", params: { include_suites: true }
 
       expect(response).to have_http_status(:not_found)
     end
@@ -179,7 +190,7 @@ RSpec.describe "App API job test results", type: :request do
       )
       sign_in_as(collaborator)
 
-      get "/api/v1/app/jobs/#{job.id}/test_results"
+      get "/api/v1/app/jobs/#{job.id}/test_results", params: { include_suites: true }
 
       expect(response).to have_http_status(:ok)
       body = parse_body
@@ -207,7 +218,7 @@ RSpec.describe "App API job test results", type: :request do
       )
       sign_in_as(teammate)
 
-      get "/api/v1/app/jobs/#{job.id}/test_results"
+      get "/api/v1/app/jobs/#{job.id}/test_results", params: { include_suites: true }
 
       expect(response).to have_http_status(:ok)
       expect(parse_body["job_id"]).to eq(job.id)
@@ -223,7 +234,7 @@ RSpec.describe "App API job test results", type: :request do
         failure_message: "oops", failure_backtrace: "line 1", output: "stdout output"
       )
 
-      get "/api/v1/app/jobs/#{job.id}/test_results"
+      get "/api/v1/app/jobs/#{job.id}/test_results", params: { include_suites: true }
 
       tc = parse_body.dig("test_runs", 0, "suites", 0, "test_cases", 0)
       expect(tc["name"]).to eq("does it")
@@ -246,7 +257,7 @@ RSpec.describe "App API job test results", type: :request do
       build_test_case(test_run: test_run, name: "pass one", status: "passed")
       build_test_case(test_run: test_run, name: "pass two", status: "passed")
 
-      get "/api/v1/app/jobs/#{job.id}/test_results", params: { case_limit: 1 }
+      get "/api/v1/app/jobs/#{job.id}/test_results", params: { case_limit: 1, include_suites: true }
 
       body = parse_body
       cases = body.dig("test_runs", 0, "suites").flat_map { |suite| suite.fetch("test_cases") }

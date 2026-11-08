@@ -1432,6 +1432,7 @@ export type JobSourcePayload = {
   branch_name: string | null
   default_ref: string
   selected_ref: string
+  resolved_sha?: string | null
   selected_path: string | null
   tree_path: string
   merge_base_sha: string | null
@@ -1461,7 +1462,7 @@ export type DiffReviewVersion = {
   truncated: boolean
   files_count: number
   comments_count: number
-  metadata: Record<string, unknown>
+  metadata?: Record<string, unknown>
   created_at: string | null
 }
 
@@ -1540,7 +1541,7 @@ export type JobSourceDiffPayload = {
     status: string
     additions: number
     deletions: number
-    patch: string | null
+    patch?: string | null
     is_image?: boolean
     patch_status?: "binary" | "oversized" | null
     patch_bytes?: number | null
@@ -1548,7 +1549,8 @@ export type JobSourceDiffPayload = {
   truncated: boolean
   diff_error: string | null
   version: DiffReviewVersion | null
-  versions: DiffReviewVersion[]
+  /** @deprecated Accepted by older fixtures/responses; versions are loaded from diff_review_versions. */
+  versions?: DiffReviewVersion[]
   review_annotations: DiffReviewAnnotationsPayload
   coverage_annotations?: CoverageDiffAnnotationsPayload
 }
@@ -1575,7 +1577,7 @@ export type DiffReviewComment = {
   id: number
   job_id: number
   diff_review_version_id: number
-  diff_review_version: {
+  diff_review_version?: {
     id: number
     version_index: number
     base_sha: string
@@ -1613,11 +1615,13 @@ export type DiffReviewComment = {
 }
 
 export type DiffReviewCommentsPayload = {
-  job_id: number
-  diff_review_version_id: number | null
-  latest_version_id: number | null
+  job_id?: number
+  diff_review_version_id?: number | null
+  latest_version_id?: number | null
+  diff_review_version?: DiffReviewVersion | null
+  users?: Record<string, NonNullable<DiffReviewComment["user"]>>
+  workflows?: Record<string, NonNullable<DiffReviewComment["workflow"]>>
   comments: DiffReviewComment[]
-  by_path: Record<string, Record<string, DiffReviewComment[]>>
 }
 
 export type DiffReviewCommentInput = {
@@ -1671,6 +1675,8 @@ export type JobRunArtifactsPayload = {
   job_id: number
   workflow_id: number | null
   run_id: number
+  run_state: string
+  complete: boolean
   diff_review_version_id: number | null
   base_ref: string | null
   head_ref: string | null
@@ -1679,11 +1685,15 @@ export type JobRunArtifactsPayload = {
   agent_diff_bytes?: number
   step_agent_diff?: string | null
   step_agent_diff_bytes?: number
+  agent_diff_truncated?: boolean
+  step_agent_diff_truncated?: boolean
   logs_count?: number
   logs_page?: number
   logs_per_page?: number
   logs_total_pages?: number
   logs_has_older?: boolean
+  logs_has_newer?: boolean
+  logs_max_sequence?: number | null
   logs?: Array<{
     id: number
     sequence: number
@@ -1714,8 +1724,11 @@ export function fetchJobWorkflows(id: string, search = "") {
   return getJson<JobWorkflowsPayload>(`/api/v1/app/jobs/${id}/workflows${search}`)
 }
 
-export function fetchJobDependencyOptions(path: string) {
-  return getJson<JobDependencyOptionsPayload>(path)
+export function fetchJobDependencyOptions(path: string, query = "", limit = 25) {
+  const url = new URL(path, window.location.origin)
+  if (query.trim()) url.searchParams.set("q", query.trim())
+  url.searchParams.set("limit", String(limit))
+  return getJson<JobDependencyOptionsPayload>(`${url.pathname}${url.search}`)
 }
 
 export function fetchJobTimeline(id: string) {
@@ -1790,8 +1803,12 @@ export function fetchJobAgentConversation(id: string | number, workflowId?: stri
 // endpoint rather than a dedicated one, so it's fetched only when a reviewer
 // actually asks for more context on one specific file.
 export function fetchJobSourceFileContent(id: string | number, ref: string, path: string) {
+  return fetchJobSourceFile(id, ref, path).then((payload) => payload.file?.content ?? null)
+}
+
+export function fetchJobSourceFile(id: string | number, ref: string, path: string) {
   const params = new URLSearchParams({ ref, path })
-  return getJson<JobSourcePayload>(`/api/v1/app/jobs/${id}/source?${params.toString()}`).then((payload) => payload.file?.content ?? null)
+  return getJson<Pick<JobSourcePayload, "file" | "file_error">>(`/api/v1/app/jobs/${id}/source_file?${params.toString()}`)
 }
 
 export function fetchJobSourceDiff(id: string, search = "") {
@@ -1832,8 +1849,17 @@ export function fetchDiffReviewVersion(jobId: string | number, versionId: number
   return getJson<DiffReviewVersionPayload>(`/api/v1/app/jobs/${jobId}/diff_review_versions/${versionId}`)
 }
 
-export function fetchDiffReviewComments(jobId: string | number, search = "") {
-  return getJson<DiffReviewCommentsPayload>(`/api/v1/app/jobs/${jobId}/diff_review_comments${search}`)
+export function fetchDiffReviewComments(jobId: string | number, search = ""): Promise<DiffReviewCommentsPayload> {
+  return getJson<DiffReviewCommentsPayload>(`/api/v1/app/jobs/${jobId}/diff_review_comments${search}`).then((payload) => ({
+    ...payload,
+    comments: payload.comments.map((comment) => ({
+      ...comment,
+      diff_review_version:
+        comment.diff_review_version_id === payload.diff_review_version?.id ? payload.diff_review_version : (comment.diff_review_version ?? null),
+      user: payload.users?.[String(comment.user_id)] ?? comment.user ?? null,
+      workflow: comment.workflow_id == null ? null : (payload.workflows?.[String(comment.workflow_id)] ?? comment.workflow ?? null)
+    }))
+  }))
 }
 
 export function createDiffReviewComment(jobId: string | number, input: DiffReviewCommentInput) {
@@ -1881,9 +1907,17 @@ export function fetchJobGradeLog(path: string) {
   return getJson<JobGradeLogPayload>(path)
 }
 
-export function fetchJobRunArtifacts(path: string, artifact: JobRunArtifactsPayload["artifact"] = "transcript", page = 1) {
+export function fetchJobRunArtifacts(
+  path: string,
+  artifact: JobRunArtifactsPayload["artifact"] = "transcript",
+  page = 1,
+  afterSequence?: number,
+  full = false
+) {
   const separator = path.includes("?") ? "&" : "?"
-  return getJson<JobRunArtifactsPayload>(`${path}${separator}artifact=${artifact}&page=${page}`)
+  const after = afterSequence == null ? "" : `&after_sequence=${encodeURIComponent(String(afterSequence))}`
+  const fullQuery = full ? "&full=true" : ""
+  return getJson<JobRunArtifactsPayload>(`${path}${separator}artifact=${artifact}&page=${page}${after}${fullQuery}`)
 }
 
 // ── Typed artifacts ───────────────────────────────────────────────────────────
@@ -1993,6 +2027,7 @@ export function createJobAttachments(path: string, values: { files: File[]; goog
 
 export type PickerJobRecord = {
   id: number
+  slug?: string
   title: string
   issue_title: string
   state: string
@@ -2001,7 +2036,7 @@ export type PickerJobRecord = {
 }
 
 export type PickerJobsPayload = {
-  count: number
+  count?: number
   jobs: PickerJobRecord[]
 }
 
@@ -2011,6 +2046,7 @@ export function fetchPickerJobs(params: { state?: string; repo?: string; q?: str
   if (params.repo) searchParams.set("repo", params.repo)
   if (params.q) searchParams.set("q", params.q)
   if (params.withPr) searchParams.set("with_pr", "true")
+  searchParams.set("fields", "picker")
   searchParams.set("include_active_work", "true")
   searchParams.set("limit", String(params.limit ?? 50))
   return getJson<PickerJobsPayload>(`/api/v1/app/jobs?${searchParams}`)

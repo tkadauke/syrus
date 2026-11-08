@@ -5,7 +5,19 @@ module Api
         include AgentProviderCatalogOptions
 
         def new
-          render json: form_payload
+          payload = form_payload
+          return unless stale?(etag: [ "direct-job-form", Digest::SHA256.hexdigest(payload.to_json) ], public: false)
+
+          render json: payload
+        end
+
+        def prompt_template
+          template = PromptTemplate.find(params[:template_id])
+          raise ActiveRecord::RecordNotFound unless template
+
+          return unless stale?(etag: [ "prompt-template", template.id, template.prompt ], public: false)
+
+          render json: { id: template.id, prompt: template.prompt }
         end
 
         def create
@@ -267,8 +279,7 @@ module Api
           {
             id: template.id,
             name: template.name,
-            description: template.description,
-            prompt: template.prompt
+            description: template.description
           }
         end
 

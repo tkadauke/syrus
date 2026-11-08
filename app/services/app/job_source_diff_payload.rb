@@ -34,9 +34,13 @@ module App
         return stored_review_version_payload(branch_commits: branch_commits, merge_base_sha: merge_base_sha)
       end
 
-      base = @params[:base].presence || merge_base_sha || job_base_branch
-      head = @params[:head].presence || branch_commits.first&.fetch(:sha) || merge_base_sha || @repository.default_branch
-      files, truncated = diff_files(base, head)
+      base_ref = @params[:base].presence || merge_base_sha || job_base_branch
+      head_ref = @params[:head].presence || branch_commits.first&.fetch(:sha) || merge_base_sha || @repository.default_branch
+      base_revision = content.resolve(base_ref)
+      head_revision = content.resolve(head_ref)
+      base = base_revision.id
+      head = head_revision.id
+      files, truncated = diff_files(base_revision, head_revision)
       version = resolve_diff_review_version(
         base_sha: base,
         head_sha: head,
@@ -44,13 +48,12 @@ module App
         truncated: truncated
       )
 
-      base_payload(base_ref: base, head_ref: head, base_sha: base, head_sha: head, branch_commits: branch_commits, merge_base_sha: merge_base_sha)
+      base_payload(base_ref: base_ref, head_ref: head_ref, base_sha: base, head_sha: head, branch_commits: branch_commits, merge_base_sha: merge_base_sha)
         .merge(
           files: files.map { |file| file_json(file) },
           truncated: truncated,
           diff_error: nil,
           version: version_json(version),
-          versions: diff_versions_json,
           review_annotations: review_annotations_json(version: version, base_sha: base, head_sha: head, files: files),
           coverage_annotations: coverage_annotations_json(version: version, files: files)
         )
@@ -61,7 +64,7 @@ module App
       end
 
       base_payload(base_ref: nil, head_ref: nil)
-        .merge(files: [], truncated: false, diff_error: e.message, version: nil, versions: diff_versions_json, review_annotations: empty_review_annotations_json, coverage_annotations: {})
+        .merge(files: [], truncated: false, diff_error: e.message, version: nil, review_annotations: empty_review_annotations_json, coverage_annotations: {})
     end
 
     private
@@ -74,8 +77,7 @@ module App
     # mirror when it can, GitHub otherwise. A truncated answer (GitHub's
     # 300-file cap) is still shown, flagged, as it always was.
     def diff_files(base, head)
-      content = RepositoryContent.for(@repository, user: @user)
-      changes = content.changes(base: content.resolve(base), head: content.resolve(head), patch: true)
+      changes = content.changes(base: base, head: head, patch: true)
       [ changes.map { |change| file_hash(change) }, false ]
     rescue RepositoryContent::Truncated => e
       [ e.partial.map { |change| file_hash(change) }, true ]
@@ -88,10 +90,13 @@ module App
     def branch_history
       return RepositoryContent::CommitHistory.new(commits: [], merge_base_id: nil) unless @job.branch_name.present?
 
-      content = RepositoryContent.for(@repository, user: @user)
       content.history(base: content.resolve(job_base_branch), head: content.resolve(@job.branch_name))
     rescue RepositoryContent::Truncated => e
       e.partial
+    end
+
+    def content
+      @content ||= RepositoryContent.for(@repository, user: @user)
     end
 
     def commit_hash(commit)
@@ -154,7 +159,6 @@ module App
         truncated: false,
         diff_error: nil,
         version: version_json(version),
-        versions: diff_versions_json,
         review_annotations: review_annotations_json(version: version, base_sha: base_sha, head_sha: head_sha, files: Array(fixture[:files])),
         coverage_annotations: coverage_annotations_json(version: version, files: Array(fixture[:files]))
       )
@@ -167,7 +171,6 @@ module App
           truncated: false,
           diff_error: "GitHub token not configured. Add one in Settings to browse source.",
           version: nil,
-          versions: diff_versions_json,
           review_annotations: empty_review_annotations_json,
           coverage_annotations: {}
         )
@@ -189,7 +192,6 @@ module App
         truncated: version.truncated,
         diff_error: nil,
         version: version_json(version),
-        versions: diff_versions_json,
         review_annotations: review_annotations_json(version: version, base_sha: version.base_sha, head_sha: version.head_sha, files: Array(version.files_snapshot)),
         coverage_annotations: coverage_annotations_json(version: version, files: Array(version.files_snapshot))
       )
@@ -209,7 +211,6 @@ module App
           truncated: false,
           diff_error: nil,
           version: nil,
-          versions: diff_versions_json,
           review_annotations: empty_review_annotations_json,
           coverage_annotations: {}
         )
@@ -243,9 +244,8 @@ module App
         status: file[:status].to_s,
         additions: file[:additions].to_i,
         deletions: file[:deletions].to_i,
-        patch: file[:patch],
         is_image: image_file?(file[:path]) && file[:patch].nil?
-      }.merge(patch_metadata(file[:previous_path], file[:patch_status], file[:patch_bytes]))
+      }.merge(patch_metadata(file[:previous_path], file[:patch_status], patch_bytes(file[:patch], file[:patch_bytes])))
         .merge(generated_hash(file[:generated], file[:generated_reason], file[:generated_source]))
     end
 
@@ -255,14 +255,17 @@ module App
         status: file["status"].to_s,
         additions: file["additions"].to_i,
         deletions: file["deletions"].to_i,
-        patch: file["patch"],
         is_image: image_file?(file["path"]) && file["patch"].nil?
-      }.merge(patch_metadata(file["previous_path"], file["patch_status"], file["patch_bytes"]))
+      }.merge(patch_metadata(file["previous_path"], file["patch_status"], patch_bytes(file["patch"], file["patch_bytes"])))
         .merge(generated_hash(file["generated"], file["generated_reason"], file["generated_source"]))
     end
 
     def patch_metadata(previous_path, patch_status, patch_bytes)
       { previous_path: previous_path, patch_status: patch_status, patch_bytes: patch_bytes }.compact
+    end
+
+    def patch_bytes(patch, recorded_bytes)
+      recorded_bytes || patch&.bytesize
     end
 
     # Binary/large-file detection isn't a real flag from GitHub's compare API

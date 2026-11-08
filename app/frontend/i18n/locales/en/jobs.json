@@ -593,6 +593,8 @@
   "artifact_header_security_review": "Security review",
   "artifact_header_visual_review": "Visual review",
   "artifact_no_diff": "No diff captured for this run.",
+  "artifact_diff_truncated": "This diff is larger than 2 MB. Showing the first 2 MB.",
+  "artifact_diff_load_full": "Load full diff",
   "artifact_no_transcript": "No transcript rows captured for this run.",
   "transcript_older_rows_hidden": "Older transcript rows are not shown.",
   "transcript_page": "Page {{page}} of {{total}}",

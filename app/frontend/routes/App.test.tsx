@@ -11139,6 +11139,9 @@ describe("App", () => {
         )
       }
       if (path.startsWith("/api/v1/app/jobs/42/source?")) {
+        return Promise.resolve(new Response(JSON.stringify(jobSourcePayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      }
+      if (path.startsWith("/api/v1/app/jobs/42/source_file?")) {
         return Promise.resolve(
           new Response(JSON.stringify(jobSourcePayload({ withFile: true })), { status: 200, headers: { "Content-Type": "application/json" } })
         )
@@ -11172,7 +11175,7 @@ describe("App", () => {
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/42/source?ref=deadbeef12345678&path=app%2Fmodels%2Fuser.rb",
+        "/api/v1/app/jobs/42/source_file?ref=deadbeef12345678&path=app%2Fmodels%2Fuser.rb",
         expect.objectContaining({ credentials: "same-origin" })
       )
     })
@@ -11241,14 +11244,10 @@ describe("App", () => {
         return Promise.resolve(new Response(JSON.stringify(jobSourceDiffPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path.startsWith("/api/v1/app/jobs/42/diff_review_comments") && init?.method === "POST") {
-        return Promise.resolve(
-          new Response(JSON.stringify({ job_id: 42, comments: [], by_path: {} }), { status: 201, headers: { "Content-Type": "application/json" } })
-        )
+        return Promise.resolve(new Response(JSON.stringify({ job_id: 42, comments: [] }), { status: 201, headers: { "Content-Type": "application/json" } }))
       }
       if (path.startsWith("/api/v1/app/jobs/42/diff_review_comments")) {
-        return Promise.resolve(
-          new Response(JSON.stringify({ job_id: 42, comments: [], by_path: {} }), { status: 200, headers: { "Content-Type": "application/json" } })
-        )
+        return Promise.resolve(new Response(JSON.stringify({ job_id: 42, comments: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       if (path.startsWith("/api/v1/app/jobs/42/source_diff?")) {
         return Promise.resolve(

@@ -85,6 +85,19 @@ type JobTranscript struct {
 	Lines    []string `json:"lines"`
 }
 
+type runArtifactLog struct {
+	Sequence int64  `json:"sequence"`
+	Chunk    string `json:"chunk"`
+}
+
+type runArtifacts struct {
+	JobID    int64            `json:"job_id"`
+	RunID    int64            `json:"run_id"`
+	RunState string           `json:"run_state"`
+	Complete bool             `json:"complete"`
+	Logs     []runArtifactLog `json:"logs"`
+}
+
 type JobDiff struct {
 	JobID         int64  `json:"job_id"`
 	PRURL         string `json:"pr_url"`
@@ -93,11 +106,10 @@ type JobDiff struct {
 }
 
 type DiffReviewComments struct {
-	JobID               int64                                     `json:"job_id"`
-	DiffReviewVersionID *int64                                    `json:"diff_review_version_id"`
-	LatestVersionID     *int64                                    `json:"latest_version_id"`
-	Comments            []DiffReviewComment                       `json:"comments"`
-	ByPath              map[string]map[string][]DiffReviewComment `json:"by_path,omitempty"`
+	JobID               int64               `json:"job_id"`
+	DiffReviewVersionID *int64              `json:"diff_review_version_id"`
+	LatestVersionID     *int64              `json:"latest_version_id"`
+	Comments            []DiffReviewComment `json:"comments"`
 }
 
 type DiffReviewComment struct {
@@ -217,9 +229,17 @@ func (c *Client) GetJobDetail(ctx context.Context, id string) (JobDetail, error)
 }
 
 func (c *Client) GetJobTranscript(ctx context.Context, id string) (JobTranscript, error) {
-	var out JobTranscript
-	err := c.do(ctx, http.MethodGet, "/api/v1/app/jobs/"+url.PathEscape(id)+"/transcript", nil, &out)
-	return out, err
+	var artifacts runArtifacts
+	path := "/api/v1/app/jobs/" + url.PathEscape(id) + "/runs/latest/artifacts?artifact=transcript&per=200"
+	if err := c.do(ctx, http.MethodGet, path, nil, &artifacts); err != nil {
+		return JobTranscript{}, err
+	}
+	out := JobTranscript{JobID: artifacts.JobID, RunID: artifacts.RunID, State: artifacts.RunState, Complete: artifacts.Complete}
+	out.Lines = make([]string, 0, len(artifacts.Logs))
+	for _, log := range artifacts.Logs {
+		out.Lines = append(out.Lines, log.Chunk)
+	}
+	return out, nil
 }
 
 func (c *Client) GetJobDiff(ctx context.Context, id string) (JobDiff, error) {

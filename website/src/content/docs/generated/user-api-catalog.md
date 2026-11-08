@@ -196,6 +196,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | GET | `/api/v1/app/jobs/:id/diff` | `api/v1/app/jobs#diff` |
 | core | GET | `/api/v1/app/jobs/:id/source` | `api/v1/app/jobs#source` |
 | core | GET | `/api/v1/app/jobs/:id/source_diff` | `api/v1/app/jobs#source_diff` |
+| core | GET | `/api/v1/app/jobs/:id/source_file` | `api/v1/app/jobs#source_file` |
 | core | GET | `/api/v1/app/jobs/:id/source_file_diff` | `api/v1/app/jobs#source_file_diff` |
 | core | GET | `/api/v1/app/jobs/:id/source_file_diff_download` | `api/v1/app/jobs#source_file_diff_download` |
 | core | GET | `/api/v1/app/jobs/:id/source_image` | `api/v1/app/jobs#source_image` |
@@ -299,6 +300,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/jobs/:job_id/workflows/:workflow_id/retry_step` | `api/v1/app/job_run_commands#retry_step` |
 | core | GET | `/api/v1/app/jobs/graph` | `api/v1/app/jobs#graph` |
 | core | GET | `/api/v1/app/jobs/new` | `api/v1/app/direct_jobs#new` |
+| core | GET | `/api/v1/app/jobs/new/prompt_templates/:template_id` | `api/v1/app/direct_jobs#prompt_template` |
 | core | GET | `/api/v1/app/maintenance_tasks/sidebar` | `api/v1/app/maintenance_tasks#sidebar` |
 | core | GET | `/api/v1/app/notification_preferences` | `api/v1/app/notification_preferences#show` |
 | core | PATCH | `/api/v1/app/notification_preferences` | `api/v1/app/notification_preferences#update` |
