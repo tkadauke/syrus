@@ -164,9 +164,7 @@ export function SmartPermissionActions({
                 spellCheck={false}
                 value={prefix ?? ""}
               />
-              <p className="text-xs text-text-secondary">
-                {t("permission_smart.prefix_hint", { command: activeOption.prefix.full })}
-              </p>
+              <p className="text-xs text-text-secondary">{t("permission_smart.prefix_hint", { command: activeOption.prefix.full })}</p>
               {prefixError ? (
                 <p className="text-xs text-danger" role="alert">
                   {prefixError}
