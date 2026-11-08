@@ -14,7 +14,9 @@ module Syrus
       EXAMPLE_ENABLED_PLUGIN_PATHS = {
         "coworkers" => %r{
           \A\./(?:
-            spec/services/(?:syrus_mcp/submit_adversarial_review_tool|syrus_yml|steps/coworker_review|app/job_detail_payload_artifacts|workflows/review_gate_registry)_spec\.rb\z |
+            spec/services/(?:syrus_mcp/submit_adversarial_review_tool|syrus_yml|app/job_detail_payload_artifacts|workflows/review_gate_registry|mcp/tools/submit_coworker_review_tool|mcp/tools/provider_routing_tools|provider_routing/resolver|steps/review_panel)_spec\.rb\z |
+            spec/models/provider_routing_rule_spec\.rb\z |
+            spec/requests/api/v1/app/provider_routing_rules_spec\.rb\z |
             plugins/coworkers/spec/
           )
         }x,

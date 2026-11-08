@@ -80,7 +80,7 @@ class Coworkers::Coworker < ApplicationRecord
   def finalize_review_memory!(run:, key_learning:, verdict:)
     Coworkers::ReviewMemoryLifecycle.persist!(coworker: self, run:, key_learning:, verdict:)
   rescue Coworkers::ReviewMemoryLifecycle::PersistenceError
-    raise Steps::CoworkerReview::MemoryPersistenceFailed.new("coworker review memory was not persisted",
+    raise Steps::AdversarialReview::MemoryPersistenceFailed.new("coworker review memory was not persisted",
       evidence: { review_evidence_id: run.review_evidence&.id, persistence_state: "failed" })
   end
 
