@@ -17,12 +17,18 @@ module CredentialStore
         nil
       end
 
+      # A scope names a prefix of credential -> host -> user -> port, so an
+      # absent field has to be absent from the normalized hash rather than
+      # present and empty. `.compact` only drops nils, and both `.to_s` and
+      # `normalize_identifier(nil)` answer `""`, so writing the blank through
+      # would leave `{}` -- the scope meaning "any destination" -- as three
+      # empty strings that compare disjoint from every real destination.
       def normalize_scope(scope, context:)
         source = scope.to_h.with_indifferent_access
         {
-          credential: normalize_identifier(source[:credential]),
-          host: source[:host].to_s.downcase,
-          user: source[:user].to_s,
+          credential: normalize_identifier(source[:credential]).presence,
+          host: source[:host].to_s.downcase.presence,
+          user: source[:user].to_s.presence,
           port: normalized_port(source[:port])
         }.compact
       end
@@ -31,18 +37,42 @@ module CredentialStore
         arguments.to_h.with_indifferent_access.slice(:credential, :host, :user, :port).to_h
       end
 
+      # What makes a scope invalid is a gap in the hierarchy, not an early
+      # stop. `scope_path` compacts, so a scope naming a host without its
+      # credential would collapse into a path that compares against an
+      # unrelated prefix; that one has to fail closed. Stopping early is the
+      # whole point of a hierarchy: `{}` is every destination, a credential
+      # alone is every destination reachable with it.
+      #
+      # Requiring every field here is what made a broad rule unrepresentable:
+      # the rule's scope failed normalization, the comparison failed closed,
+      # and the evaluator turned that into a decisive deny for the operation
+      # rather than an ask. Completeness belongs to execution, and `SshExec`
+      # already enforces it -- a call missing a host or user raises
+      # `InvalidTarget` whatever the policy said.
+      #
+      # `port` is validated after `user` because the declared hierarchy orders
+      # it last, so a port without a user would put a port where `compare`
+      # expects a user.
       def validate_scope(scope, context:)
         errors = []
-        errors << "credential is required" if scope["credential"].blank?
-        errors << "host is required" if scope["host"].blank?
-        errors << "user is required" if scope["user"].blank?
+        errors << "host requires credential" if scope["host"].present? && scope["credential"].blank?
+        errors << "user requires host" if scope["user"].present? && scope["host"].blank?
+        errors << "port requires user" if scope["port"].present? && scope["user"].blank?
         if scope["port"] && (!scope["port"].is_a?(Integer) || !scope["port"].between?(1, 65_535))
           errors << "port must be between 1 and 65535"
         end
         errors
       end
 
+      # The label has to read correctly wherever the prefix stops, because an
+      # operator decides from it. A fully qualified destination keeps the
+      # familiar `SSH user@host` form.
       def scope_label(scope, context:)
+        return "Any SSH destination" if scope["credential"].blank?
+        return "Any SSH destination via credential #{scope['credential']}" if scope["host"].blank?
+        return "SSH #{scope['host']} (any user)" if scope["user"].blank?
+
         destination = [ scope["user"], scope["host"] ].join("@")
         destination = "#{destination}:#{scope['port']}" if scope["port"]
         "SSH #{destination}"

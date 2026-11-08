@@ -343,6 +343,16 @@ Chat and permanent authority remain bound to the operation classification,
 credential handle, host, user, port, command fingerprint, and authorization
 flags; changing any of them asks again.
 
+A rule's destination may stop short of a full address. The destination scope is
+a prefix of credential, host, user, port, so one rule can name every
+destination, every destination reachable with a single credential, every user
+on one host, or one exact address. A rule that skips a level - a host without
+its credential, a port without its user - is refused, because such a scope
+cannot be compared against a real destination. Stopping early widens where a
+rule applies and nothing else: the command fingerprint or prefix, the
+read-versus-risky classification, and every broker ceiling still apply, and an
+execution still has to name a host and a user whatever the rule says.
+
 A permanent grant may instead be widened to a command prefix, which the card
 offers as an editable field: "allow commands starting with `git commit`". The
 prefix replaces the command fingerprint rather than joining it, since a rule
