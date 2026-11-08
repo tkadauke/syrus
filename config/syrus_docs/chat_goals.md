@@ -1,6 +1,6 @@
 # Chat goals
 
-Chat goals are chat-scoped continuation loops. A non-terminal `ChatGoal`
+Chat goals are chat-scoped continuation loops. A non-terminal goal
 records the operator's objective, optional completion condition, mode snapshot,
 approval/submission policy, loop iteration count, and durable safeguards for
 repeated no-op or blocked iterations.
