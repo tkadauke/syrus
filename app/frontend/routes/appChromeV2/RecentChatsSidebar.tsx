@@ -218,7 +218,10 @@ export function RecentChatsSidebar({
   // refetch, or reset loaded sections. Fetches read the latest id from a ref.
   const activeChatIdRef = useRef(activeChatId)
   activeChatIdRef.current = activeChatId
-  setOpenRecentChatId(activeChatId)
+  useEffect(() => {
+    setOpenRecentChatId(activeChatId)
+    return () => setOpenRecentChatId(null)
+  }, [activeChatId])
   const sidebarQueryKey = useMemo(() => recentChatsQueryKey(sidebarSettings), [sidebarSettings])
   const chats = useQuery({
     queryKey: sidebarQueryKey,
