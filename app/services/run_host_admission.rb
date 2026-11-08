@@ -657,7 +657,9 @@ class RunHostAdmission
   def active_run_liveness_evidence
     @active_run_liveness_evidence ||= begin
       cutoff = LIVENESS_WINDOW.ago
-      active_run_scope.includes(:step).map do |active_run|
+      runs = active_run_scope.preload(:step, :spawned_processes).to_a
+      session_run_ids = RuntimeSession.active.where(run_id: runs.map(&:id)).where("updated_at >= ?", cutoff).distinct.pluck(:run_id)
+      runs.map do |active_run|
         heartbeat = active_run.last_heartbeat_at
         live_process = active_run.spawned_processes.any? { |sp| sp.hostname == hostname && sp.finished_at.nil? }
         {
@@ -667,7 +669,7 @@ class RunHostAdmission
           "fresh_heartbeat" => heartbeat.present? && heartbeat >= cutoff,
           "last_heartbeat_at" => heartbeat&.iso8601,
           "started_at" => active_run.started_at&.iso8601,
-          "active_runtime_session" => RuntimeSession.active.where(run_id: active_run.id).where("updated_at >= ?", cutoff).exists?
+          "active_runtime_session" => session_run_ids.include?(active_run.id)
         }
       end.sort_by { |e| e["run_id"] }
     end
