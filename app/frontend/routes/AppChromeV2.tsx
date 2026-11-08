@@ -64,7 +64,7 @@ import {
 import { useTranslation } from "react-i18next"
 import { Link, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { fetchBootstrap, type BootstrapPayload, type SystemAlertAction } from "../api/bootstrap"
-import { createEmptyChat, createGroupChat, fetchNewChat, type ChatProviderOption, type NewChatPayload } from "../api/chats"
+import { createEmptyChat, createGroupChat, fetchNewChat, NEW_CHAT_PICKER_STALE_TIME } from "../api/chats"
 import { getJson, postJson } from "../api/client"
 import { signOut } from "../api/auth"
 import {
@@ -304,6 +304,15 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   })
   const data = bootstrap.data ?? initialBootstrap
   const user = data?.current_user
+  useEffect(() => {
+    if (!user) return
+
+    void queryClient.prefetchQuery({
+      queryKey: ["chats", "new"],
+      queryFn: fetchNewChat,
+      staleTime: NEW_CHAT_PICKER_STALE_TIME
+    })
+  }, [queryClient, user])
   const showAdminSubnav = Boolean(user?.admin && isAdminPath(normalizedPath))
   const quote = useMemo(randomPubliliusSyrusQuote, [])
   const showQuote = !normalizedPath.startsWith("/chats") && !normalizedPath.startsWith("/terminal") && !normalizedPath.startsWith("/db_browser")
@@ -570,15 +579,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
         return
       }
 
-      const newChat = await queryClient.fetchQuery({
-        queryKey: ["chats", "new"],
-        queryFn: fetchNewChat,
-        staleTime: 30_000
-      })
-      const configuredProviders = configuredChatProviderOptions(newChat.chat_provider_options)
-      const defaultProvider = defaultNewChatProvider(newChat, configuredProviders)
-      const selectedRepositoryId = useDefaultRepository ? newChat.default_repository_id : repositoryId
-      const created = defaultProvider ? await createEmptyChat(selectedRepositoryId, defaultProvider) : await createEmptyChat(selectedRepositoryId)
+      const created = await createEmptyChat(useDefaultRepository ? undefined : repositoryId)
       updateRecentChatCache(queryClient, created.chat, { prepend: true })
       navigate(withRoutePrefix(created.redirect_to, prefix))
     } catch (_error) {
@@ -598,7 +599,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     setGroupChatCreating(true)
     setGroupChatError(null)
     try {
-      const created = await createGroupChat(userIds)
+      const created = await createGroupChat(userIds, null)
       updateRecentChatCache(queryClient, created.chat, { prepend: true })
       setGroupChatPickerOpen(false)
       navigate(withRoutePrefix(created.redirect_to, prefix))
@@ -1158,15 +1159,6 @@ function ProviderReauthorizationModal({
       </div>
     </Modal>
   )
-}
-
-function configuredChatProviderOptions(options?: ChatProviderOption[]) {
-  return (options || []).filter((option) => option.configured)
-}
-
-function defaultNewChatProvider(payload: NewChatPayload, options: ChatProviderOption[]) {
-  const effectiveProvider = payload.effective_chat_provider
-  return options.find((option) => option.value === effectiveProvider)?.value || options[0]?.value || ""
 }
 
 function readDismissedSystemAlerts(): Set<string> {

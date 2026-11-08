@@ -776,10 +776,8 @@ export type WhiteboardSnapshotsPayload = {
 }
 
 export type CreateChatInput = {
-  // Optional: a chat created from a repository-agnostic context (e.g. the
-  // Tool Card Catalog's "Discuss this card" flow) omits this entirely, the
-  // same way createEmptyChat already treats a missing repository as valid
-  // -- the backend's repository_from_params returns nil when absent.
+  // Omit this to let the backend choose the default repository. Pass null or
+  // an empty picker value to create an explicitly repositoryless chat.
   repositoryId?: string | number | null
   text: string
   attachments?: ChatMessageAttachmentInput[]
@@ -806,6 +804,8 @@ export type ChatCreatedPayload = {
   chat: ChatNavRecord
   agent_appearances?: Record<string, ChatAgentAppearance>
 }
+
+export const NEW_CHAT_PICKER_STALE_TIME = 10 * 60 * 1000
 
 export type ChatBranchPayload = {
   id: number
@@ -1377,7 +1377,7 @@ export async function patchChatWhiteboard(path: string, input: ChatWhiteboardSce
 
 export function createChat(values: CreateChatInput) {
   return postJson<ChatCreatedPayload>("/api/v1/app/chats", {
-    ...(values.repositoryId == null || values.repositoryId === "" ? {} : { repository_id: values.repositoryId }),
+    ...(values.repositoryId === undefined ? {} : { repository_id: values.repositoryId === "" ? null : values.repositoryId }),
     ...(values.chatProvider ? { chat_provider: values.chatProvider } : {}),
     ...chatMessagePayload(values.text, values.attachments || [])
   })
@@ -1385,7 +1385,7 @@ export function createChat(values: CreateChatInput) {
 
 export function createEmptyChat(repositoryId?: number | string | null, chatProvider?: string | null) {
   const payload = {
-    ...(repositoryId == null || repositoryId === "" ? {} : { repository_id: repositoryId }),
+    ...(repositoryId === undefined || repositoryId === "" ? {} : { repository_id: repositoryId }),
     ...(chatProvider ? { chat_provider: chatProvider } : {})
   }
   return postJson<ChatCreatedPayload>("/api/v1/app/chats", Object.keys(payload).length === 0 ? undefined : payload)
@@ -1405,10 +1405,10 @@ export function fetchInvitableUsers(excludeChatId?: number | string | null) {
 }
 
 export function createGroupChat(participantUserIds: number[], repositoryId?: number | string | null) {
-  const payload: { participant_user_ids: number[]; repository_id?: number | string } = {
-    participant_user_ids: participantUserIds
+  const payload: { participant_user_ids: number[]; repository_id?: number | string | null } = {
+    participant_user_ids: participantUserIds,
+    ...(repositoryId === undefined ? {} : { repository_id: repositoryId === "" ? null : repositoryId })
   }
-  if (repositoryId != null && repositoryId !== "") payload.repository_id = repositoryId
   return postJson<ChatCreatedPayload>("/api/v1/app/chats", payload)
 }
 

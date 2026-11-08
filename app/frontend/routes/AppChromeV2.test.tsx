@@ -1026,7 +1026,7 @@ describe("AppChromeV2", () => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/12")
     })
     expect(createEmptyChat).not.toHaveBeenCalled()
-    expect(fetchNewChat).not.toHaveBeenCalled()
+    expect(fetchNewChat).toHaveBeenCalledTimes(1)
   })
 
   it("reuses an existing unstarted chat from a non-default active recent-chat cache", async () => {
@@ -1065,7 +1065,7 @@ describe("AppChromeV2", () => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/12")
     })
     expect(createEmptyChat).not.toHaveBeenCalled()
-    expect(fetchNewChat).not.toHaveBeenCalled()
+    expect(fetchNewChat).toHaveBeenCalledTimes(1)
   })
 
   it("does not reuse an unstarted chat from a filtered recent-chat cache", async () => {
@@ -1108,7 +1108,7 @@ describe("AppChromeV2", () => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/14")
     })
     expect(chatsApi.fetchNewChat).toHaveBeenCalledTimes(1)
-    expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(7)
+    expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(undefined)
   })
 
   it("creates an empty chat with the default repository and navigates to the returned chat path", async () => {
@@ -1142,7 +1142,7 @@ describe("AppChromeV2", () => {
     expect(screen.queryByRole("button", { name: "Remove repository from new chat" })).not.toBeInTheDocument()
     expect(chatsApi.fetchNewChat).toHaveBeenCalledTimes(1)
     expect(chatsApi.createEmptyChat).toHaveBeenCalledTimes(1)
-    expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(7)
+    expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(undefined)
     expect(queryClient.getQueryData<ChatsIndexPayload>(["chats", "recent"])?.groups[0].chats[0].id).toBe(14)
   })
 
@@ -1203,7 +1203,7 @@ describe("AppChromeV2", () => {
     expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(null)
   })
 
-  it("creates an empty chat directly when only one chat provider is configured", async () => {
+  it("lets the server choose defaults when only one chat provider is configured", async () => {
     vi.spyOn(chatsApi, "fetchNewChat").mockResolvedValue({
       default_repository_id: 7,
       repositories: [],
@@ -1232,10 +1232,10 @@ describe("AppChromeV2", () => {
 
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/14"))
     expect(screen.queryByRole("combobox", { name: "Chat provider" })).not.toBeInTheDocument()
-    expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(7, "claude")
+    expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(undefined)
   })
 
-  it("creates an empty chat with the effective provider directly when multiple configured providers are available, without showing a provider modal", async () => {
+  it("lets the server choose the effective provider when multiple providers are configured, without showing a provider modal", async () => {
     vi.spyOn(chatsApi, "fetchNewChat").mockResolvedValue({
       default_repository_id: 7,
       repositories: [],
@@ -1265,7 +1265,7 @@ describe("AppChromeV2", () => {
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/14"))
     expect(screen.queryByRole("combobox", { name: "Chat provider" })).not.toBeInTheDocument()
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
-    expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(7, "codex")
+    expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(undefined)
   })
 
   it("shows a notice when creating an empty chat fails", async () => {
@@ -1358,7 +1358,7 @@ describe("AppChromeV2", () => {
     await waitFor(() => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/21")
     })
-    expect(createGroupChat).toHaveBeenCalledWith([5])
+    expect(createGroupChat).toHaveBeenCalledWith([5], null)
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 

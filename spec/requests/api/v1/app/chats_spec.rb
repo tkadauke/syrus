@@ -217,6 +217,19 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
         include("value" => "codex", "label" => "Codex", "configured" => true)
       )
     end
+
+    it "supports conditional requests for unchanged picker data" do
+      sign_in_as(user)
+      repository
+
+      get "/api/v1/app/chats/new"
+      etag = response.headers.fetch("ETag")
+
+      get "/api/v1/app/chats/new", headers: { "If-None-Match" => etag }
+
+      expect(response).to have_http_status(:not_modified)
+      expect(response.body).to be_empty
+    end
   end
 
   describe "GET /api/v1/app/chats/:id/preview" do
@@ -1824,6 +1837,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   it "creates an empty chat session without a first message" do
     sign_in_as(user)
     user.update!(chat_provider: "claude")
+    repository
     jobs_before_request = enqueued_jobs.count
 
     expect {
@@ -1835,7 +1849,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(chat.user).to eq(user)
     expect(chat.chat_provider).to eq("claude")
     expect(chat.effective_chat_provider).to eq("claude")
-    expect(chat.repository).to be_nil
+    expect(chat.repository).to eq(repository)
     expect(chat.last_message_at).to be_nil
     expect(chat.messages).to be_empty
     expect(ChatMessage.count).to eq(0)
@@ -2138,6 +2152,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       sign_in_as(user)
       other_user = Factories.user
       third_user = Factories.user
+      repository
 
       expect {
         post "/api/v1/app/chats", params: { participant_user_ids: [ other_user.id, third_user.id ] }
@@ -2146,10 +2161,22 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:created)
       chat = ChatSession.last
       expect(chat.conversation_kind).to eq("group")
+      expect(chat.repository).to eq(repository)
       expect(chat.participants).to contain_exactly(user, other_user, third_user)
       expect(chat.chat_participants.find_by(user: user).role).to eq("owner")
       expect(chat.chat_participants.find_by(user: other_user).role).to eq("member")
       expect(chat.chat_participants.find_by(user: third_user).role).to eq("member")
+    end
+
+    it "creates an explicitly repositoryless group chat" do
+      sign_in_as(user)
+      other_user = Factories.user
+      repository
+
+      post "/api/v1/app/chats", params: { participant_user_ids: [ other_user.id ], repository_id: nil }
+
+      expect(response).to have_http_status(:created)
+      expect(ChatSession.last.repository).to be_nil
     end
 
     it "rejects an unknown participant user id" do
@@ -2441,9 +2468,10 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
   it "creates a chat without a repository attachment" do
     sign_in_as(user)
+    repository
 
     expect {
-      post "/api/v1/app/chats", params: { chat_message: { text: "Map tkadauke/syrus" } }
+      post "/api/v1/app/chats", params: { repository_id: nil, chat_message: { text: "Map tkadauke/syrus" } }
     }.to change(ChatSession, :count).by(1)
       .and change(ChatMessage, :count).by(1)
       .and have_enqueued_job(ChatTurnJob)
