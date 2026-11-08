@@ -43,6 +43,7 @@ module Steps
       end
 
       integration_sha = push_integration_branch(train, client)
+      enforce_validation_parity!(train, integration_sha)
       train.update!(integration_sha: integration_sha, state: "landing")
 
       pr = find_or_create_integration_pr(train, client)
@@ -63,6 +64,22 @@ module Steps
     end
 
     private
+
+    # The exact integration SHA about to be merged must carry SHA-bound,
+    # conclusive validation evidence (LandingValidationManifest). Missing,
+    # inconclusive, infrastructure-exhausted, or other-SHA evidence blocks the
+    # land with the reason, instead of landing on an unproven tree.
+    def enforce_validation_parity!(train, integration_sha)
+      tree_sha = streaming_git.run("rev-parse", "#{integration_sha}^{tree}", chdir: workspace.path.to_s).to_s.strip.presence
+      verdict = LandingValidationManifest.gate(job: job, sha: integration_sha, tree_sha: tree_sha, workflow: workflow)
+      return if verdict.ok?
+
+      fail_with!(
+        :landing_validation_unproven,
+        "merge_train: refusing to land #{integration_sha.to_s.first(9)}: #{verdict.reason}",
+        evidence: { blockers: verdict.blockers.map(&:to_h), train_id: train.id }
+      )
+    end
 
     def ensure_base_unchanged!(train, client)
       built_base_sha = workflow.artifact(BASE_SHA_ARTIFACT).to_s.presence

@@ -1047,6 +1047,28 @@ RSpec.describe Steps::GraderCollect do
     )
   end
 
+  it "records a SHA-bound validation manifest with typed outcomes when landing graders pass" do
+    job.update!(state: "landing", mergeability_base_sha: "base123", mergeability_base_ref: "main")
+    workflow.update!(trigger_kind: "auto_merge")
+    workflow.set_artifact!(LandingValidationManifest::CI_TARGET_SET_ARTIFACT_KEY, "targets" => [ { "target_label" => "//:grade/ci_only", "affected" => true } ])
+
+    handler.call
+
+    manifest = workflow.reload.artifact(LandingValidationManifest::ARTIFACT_KEY)
+    expect(manifest).to include("head_sha" => "abc123", "base_sha" => "base123", "base_ref" => "main", "trigger_kind" => "auto_merge")
+    expect(manifest["targets"]).to all(include("outcome" => "passed", "source" => "ran"))
+    expect(manifest["targets"]).not_to be_empty
+    expect(manifest.dig("ci_phase_target_set", "targets", 0, "target_label")).to eq("//:grade/ci_only")
+  end
+
+  it "does not record a landing manifest for main grader workflows" do
+    workflow.update!(trigger_kind: "main_grader")
+
+    handler.call
+
+    expect(workflow.reload.artifact(LandingValidationManifest::ARTIFACT_KEY)).to be_nil
+  end
+
   it "notifies the landing validation prefetcher after auto_merge graders pass" do
     job.update!(state: "landing", mergeability_base_sha: "base123", mergeability_base_ref: "main")
     workflow.update!(trigger_kind: "auto_merge")

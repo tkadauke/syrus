@@ -1458,6 +1458,24 @@ RSpec.describe "Steps::MergeTrain*", :ci_only do
       expect(train.members.pluck(:state).uniq).to eq([ "merged" ])
     end
 
+    it "refuses to merge an integration SHA without SHA-bound validation evidence", :real_landing_validation_gate do
+      a = member_job(issue_number: 1)
+      b = member_job(issue_number: 2)
+      train = build_train([ a, b ])
+      handler = step_handler(described_class, "merge_train_land", train, b)
+      allow(handler).to receive(:repository).and_return(repository)
+      stub_git(handler)
+      allow(client).to receive(:merge_pull_request)
+
+      expect { handler.call }.to raise_error(Steps::Base::StepFailed, /refusing to land.*no landing validation manifest/m) { |error|
+        expect(error.problem.code).to eq("landing_validation_unproven")
+      }
+
+      expect(client).not_to have_received(:merge_pull_request)
+      expect(train.reload.state).not_to eq("landing")
+      expect(handler.workflow.artifact("landing_parity_gate")).to include("ok" => false)
+    end
+
     it "lands a bundle-backed train without requiring an Epic" do
       a = Factories.job_record(
         user: user,

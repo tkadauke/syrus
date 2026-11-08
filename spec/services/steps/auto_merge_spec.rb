@@ -70,6 +70,23 @@ RSpec.describe Steps::AutoMerge, :ci_only do
     expect(job.closure_reason).to eq("pr_merged")
   end
 
+  it "refuses to merge a head SHA whose validation is inconclusive and names the reason", :real_landing_validation_gate do
+    job.approve!(via: "github_review")
+    job.start_landing!
+    job.save!
+    stale = Workflow.create!(job: job, trigger_kind: "initial")
+    stale.set_artifact!(
+      LandingValidationManifest::ARTIFACT_KEY,
+      "head_sha" => "abc",
+      "targets" => [ { "name" => "rspec", "required" => true, "outcome" => "inconclusive", "reason" => "missing_exit_status" } ]
+    )
+    allow(client).to receive(:merge_pull_request)
+
+    expect { described_class.new(run).call }.to raise_error(Steps::Base::StepFailed, /rspec was inconclusive \(missing_exit_status\)/)
+
+    expect(client).not_to have_received(:merge_pull_request)
+  end
+
   it "stores the merge commit SHA as landed_sha when GitHub returns one" do
     job.approve!(via: "github_review")
     job.start_landing!

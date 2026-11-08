@@ -19,6 +19,7 @@ module Api
           workflow = Workflow.includes(:workflow_artifact_values, :steps).find(params[:id])
           job = workflow.job
           render json: ::Admin::JobStateSerializer.workflow(workflow, verbose: truthy?(params[:verbose])).merge(
+            validation_parity: LandingValidationManifest.diagnostics(workflow),
             job: {
               id: job.id,
               state: job.state,
