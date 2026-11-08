@@ -453,5 +453,36 @@ describe("RepositoryPipelineRoute", () => {
       expect(screen.queryByTestId("pipeline-time-rail")).not.toBeInTheDocument()
       expect(screen.getAllByLabelText(/History window/)).toHaveLength(1)
     })
+
+    it("fills the modal height and renders a scrollable, labelled, time-scaled rail when embedded", async () => {
+      const body = historyBody(["2026-10-31T10:00:00Z", "2026-10-31T10:00:30Z", "2026-10-31T11:00:00Z"])
+      body.history.from = "2026-10-24T12:00:00Z"
+      body.history.deltas = [
+        { at: "2026-10-31T10:00:00Z", job_id: 1, from_stage: "review", to_stage: "failed", item: null },
+        { at: "2026-10-31T11:00:00Z", job_id: 2, from_stage: "review", to_stage: "deployment:prod", item: null }
+      ] as never
+      mockFetch(() => Promise.resolve(jsonResponse(body)))
+      renderRoute("?syrus_presentation=embedded&at=2026-10-31T10:00:00Z")
+      await screen.findByRole("region", { name: "Pipeline stages" })
+
+      expect(screen.getByTestId("embedded-pipeline-view").className).toContain("h-[100dvh]")
+      expect(screen.getByTestId("pipeline-with-time-rail").className).toContain("flex-1")
+      expect(document.querySelector('[data-stage="review"]')?.className).toContain("h-full")
+      expect(document.querySelector('[data-stage="review"]')?.className).not.toContain("h-[31rem]")
+
+      const scroll = screen.getByTestId("history-rail-scroll")
+      expect(scroll.className).toContain("overflow-y-auto")
+      const content = screen.getByTestId("history-rail-content")
+      expect(parseInt(content.style.height, 10)).toBeGreaterThan(1500)
+      expect(screen.getAllByTestId("history-rail-label").length).toBeGreaterThan(6)
+
+      const ticks = Array.from(scroll.querySelectorAll<HTMLElement>("button[data-event-kind]"))
+      expect(ticks.map((tick) => tick.dataset.eventKind)).toEqual(["attention", "movement", "deployment"])
+      const tops = ticks.map((tick) => parseFloat(tick.style.top))
+      expect(tops[0] - tops[1]).toBeGreaterThanOrEqual(13) // 30s apart, still separated
+      expect(ticks[0]).toHaveAttribute("aria-pressed", "true")
+      expect(screen.getByTestId("history-rail-cursor")).toBeInTheDocument()
+      expect(screen.getByRole("slider", { name: /Historical time/ })).toBeInTheDocument()
+    })
   })
 })

@@ -216,7 +216,12 @@ to choose a repository; live tool calls may present the view once, while saved
 tool cards retain explicit open and copy-link actions without reopening on
 transcript replay. The popup is a focused presentation of the editable
 FilterBar, pipeline canvas, and compact history rail; saved views, summaries,
-diagnostics, and repository navigation remain on the full Pipeline page.
+diagnostics, and repository navigation remain on the full Pipeline page. In the
+popup the canvas and the history rail fill the full modal height; stage columns
+scroll internally. The rail is its own vertical scroll container with
+time-proportional spacing (a minimum gap keeps dense events apart), small
+event ticks with non-color cues, and adaptive time landmarks, and it keeps the
+selected time in view without moving the pipeline canvas.
 The dedicated history rail reconstructs the filtered cohort at meaningful
 lifecycle and delivery ticks from a bounded checkpoint-plus-delta response, so
 scrubbing does not fetch a full board repeatedly. Historical mode is clearly
