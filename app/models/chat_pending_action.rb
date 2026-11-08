@@ -506,9 +506,10 @@ class ChatPendingAction < ApplicationRecord
 
     if authorization_request?
       with_lock do
+        return true if state == "dismissed"
         return false unless state.in?(%w[pending non_actionable failed])
 
-        update!(state: "dismissed")
+        update!(state: "dismissed", dismissed_at: dismissed_at || Time.current)
       end
       return true
     end
@@ -558,7 +559,7 @@ class ChatPendingAction < ApplicationRecord
   end
 
   def visible_in_chat_payload?
-    return false if dismissed_at?
+    return false if dismissed_at? || dismissed?
     return pending_action_group.visible_in_chat_payload? if pending_action_group
     return true if failed?
     return true unless terminal?
