@@ -6,6 +6,7 @@ import type { ChatBookmark, ChatGoal, ChatGroupRecord, ChatNavRecord, ChatPayloa
 import type { ProviderAvailability } from "../../api/providerAvailability"
 import { jsonResponse } from "../../testSupport"
 import { applyAppEvent } from "../../lib/appEvents"
+import { updateChatUnread } from "../../lib/chatCache"
 import { RecentChatsSidebar } from "./RecentChatsSidebar"
 
 const SIDEBAR_SETTINGS_KEY = "syrus.recent_chats_sidebar.settings"
@@ -1464,3 +1465,67 @@ function chatsIndexPayload(overrides: Partial<ChatsIndexPayload> = {}): ChatsInd
     ...overrides
   }
 }
+
+describe("RecentChatsSidebar unread-only navigation", () => {
+  const unreadChats = Array.from({ length: 12 }, (_, index) => chatNav({ id: index + 1, title: `Unread ${index + 1}`, unread: true }))
+
+  function renderUnreadOnly(initialPath: string) {
+    window.localStorage.setItem(SIDEBAR_SETTINGS_KEY, JSON.stringify({ unread_only: true }))
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path.startsWith("/api/v1/app/chats?"))
+        return Promise.resolve(jsonResponse(chatsIndexPayload({ groups: [chatGroup({ chats: unreadChats, has_more: true })] })))
+      return Promise.reject(new Error(`Unexpected fetch: ${path}`))
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={[initialPath]}>
+          <div data-testid="scroller" style={{ overflowY: "auto", height: 200 }}>
+            <RecentChatsSidebar featureFlags={{}} onCloseDrawer={() => {}} onNotice={() => {}} prefix="" userPresent />
+          </div>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    return { fetchSpy, queryClient }
+  }
+
+  const listRequests = (fetchSpy: ReturnType<typeof vi.spyOn>) =>
+    fetchSpy.mock.calls.filter(([input]: [RequestInfo | URL, ...unknown[]]) => String(input).startsWith("/api/v1/app/chats?"))
+
+  afterEach(() => {
+    window.localStorage.clear()
+    vi.restoreAllMocks()
+  })
+
+  it("loads an initially open chat with its id in the request", async () => {
+    const { fetchSpy } = renderUnreadOnly("/chats/3")
+
+    await screen.findByRole("link", { name: "Unread 3" })
+    expect(listRequests(fetchSpy)).toHaveLength(1)
+    expect(String(listRequests(fetchSpy)[0][0])).toContain("unread_only=1&active_chat_id=3")
+  })
+
+  it("patches rows locally and keeps scroll and pagination when switching chats", async () => {
+    const { fetchSpy, queryClient } = renderUnreadOnly("/chats/1")
+    await screen.findByRole("link", { name: "Unread 1" })
+    const scroller = screen.getByTestId("scroller")
+    scroller.scrollTop = 120
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+
+    // Chat.tsx marks the opened chat read through the shared cache helper.
+    act(() => updateChatUnread(queryClient, 1, false))
+    expect(screen.getByRole("link", { name: "Unread 1" })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("link", { name: "Unread 2" }))
+    await waitFor(() => expect(screen.queryByRole("link", { name: "Unread 1" })).not.toBeInTheDocument())
+    act(() => updateChatUnread(queryClient, 2, false))
+
+    expect(screen.getByRole("link", { name: "Unread 2" })).toHaveClass("bg-brand/10", "text-brand")
+    expect(screen.getByRole("link", { name: "Unread 3" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Show more" })).toBeInTheDocument()
+    expect(screen.getByTestId("scroller")).toBe(scroller)
+    expect(scroller.scrollTop).toBe(120)
+    expect(listRequests(fetchSpy)).toHaveLength(1)
+  })
+})
