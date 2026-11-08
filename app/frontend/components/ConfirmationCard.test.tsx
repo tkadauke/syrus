@@ -24,3 +24,12 @@ describe("ConfirmationCard", () => {
     expect(screen.getByRole("heading", { name: "Confirm JOB-12" }).parentElement).toHaveClass("w-full")
   })
 })
+
+describe("ConfirmationCard compact", () => {
+  it("hides the body and marks the card compact", () => {
+    render(<ConfirmationCard compact header={<h3>Title</h3>} body={<p>Long body</p>} footer={<span>Working...</span>} />)
+    expect(screen.queryByText("Long body")).toBeNull()
+    expect(screen.getByText("Working...")).toBeTruthy()
+    expect(document.querySelector("[data-compact='true']")).toBeTruthy()
+  })
+})
