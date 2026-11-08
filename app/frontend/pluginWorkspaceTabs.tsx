@@ -1,5 +1,6 @@
 import { lazy, type ComponentType } from "react"
 import type { ChatPayload, ChatWorkspaceTab } from "./api/chats"
+import { loadPluginModule } from "./i18n"
 
 // Discovers plugin-supplied chat workspace tab components, the same
 // import.meta.glob-based convention pluginAdminPages.tsx uses for admin
@@ -20,15 +21,20 @@ type PluginModule = {
   default?: ComponentType<PluginWorkspaceTabProps>
 }
 
-const workspaceTabModules = import.meta.glob<PluginModule>([ "../../plugins/*/app/frontend/workspaceTabs/*.tsx", "!../../plugins/*/app/frontend/workspaceTabs/*.test.tsx" ])
+const workspaceTabModules = import.meta.glob<PluginModule>([
+  "../../plugins/*/app/frontend/workspaceTabs/*.tsx",
+  "!../../plugins/*/app/frontend/workspaceTabs/*.test.tsx"
+])
 
 const componentLoaders = Object.fromEntries(
-  Object.entries(workspaceTabModules).map(([path, loader]) => {
-    const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/workspaceTabs\/([^/.]+)\.tsx$/)
-    if (!match) return []
+  Object.entries(workspaceTabModules)
+    .map(([path, loader]) => {
+      const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/workspaceTabs\/([^/.]+)\.tsx$/)
+      if (!match) return []
 
-    return [ `${match[1]}/${match[2]}`, loader ]
-  }).filter((entry): entry is [ string, () => Promise<PluginModule> ] => entry.length === 2)
+      return [`${match[1]}/${match[2]}`, loader]
+    })
+    .filter((entry): entry is [string, () => Promise<PluginModule>] => entry.length === 2)
 )
 
 const componentCache = new Map<string, ComponentType<PluginWorkspaceTabProps>>()
@@ -46,7 +52,7 @@ export function pluginWorkspaceTabComponentFor(key: string | null | undefined) {
   if (!loader) return null
 
   const Component = lazy(async () => {
-    const mod = await loader()
+    const mod = await loadPluginModule(key.split("/", 1)[0], loader)
     if (!mod.default) throw new Error(`Plugin workspace tab component ${key} has no default export`)
     return { default: mod.default }
   })

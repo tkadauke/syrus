@@ -25,6 +25,7 @@ RSpec.describe "assets:precompile" do
     Rake::Task["assets:precompress"].reenable
     allow(Rails.env).to receive(:development?).and_return(false)
     allow(Syrus::ViteEntrypoint).to receive(:current).and_return("spa-entry-AbC_12-x.digested.js")
+    stub_const("Syrus::ViteEntrypoint::MANIFEST_PATH", output_path.join("manifest.json").to_s)
   end
 
   # Stands in for Propshaft writing the compiled build into public/assets.
@@ -33,7 +34,11 @@ RSpec.describe "assets:precompile" do
     allow(Rails.application.assets).to receive(:processor).and_return(processor)
     allow(processor).to receive(:process) do
       output_path.mkpath
-      files.each { |name, content| output_path.join(name).write(content) }
+      locale_chunk = "spa-common-AbC123.digested.js"
+      files.merge(locale_chunk => %(export default {loading: "Loading"};)).each { |name, content| output_path.join(name).write(content) }
+      output_path.join("manifest.json").write(JSON.generate(@locale_manifest || {
+        "app/frontend/i18n/locales/en/common.json" => { "file" => locale_chunk, "isDynamicEntry" => true }
+      }))
     end
   end
 
@@ -47,6 +52,18 @@ RSpec.describe "assets:precompile" do
 
     expect(output_path.join("spa-entry-AbC_12-x.digested.js.gz")).to exist
     expect(output_path.join("spa-entry-AbC_12-x.digested.js.br")).to exist
+    expect(output_path.join("spa-common-AbC123.digested.js.gz")).to exist
+    expect(output_path.join("spa-common-AbC123.digested.js.br")).to exist
+  end
+
+  it "fails when Vite does not emit locale resources as dynamic hashed chunks" do
+    @locale_manifest = {
+      "app/frontend/i18n/locales/en/common.json" => { "file" => "spa-common.js" }
+    }
+    publish("spa-entry-AbC_12-x.digested.js" => %(console.log("entry");))
+
+    expect { Rake::Task["assets:precompile"].invoke }
+      .to raise_error(Syrus::SpaBuildVerifier::BrokenReferences, /separate hashed locale chunks/)
   end
 
   # Regression: Vite named the entry `spa.digested.js`, which Propshaft does

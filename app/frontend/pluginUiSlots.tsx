@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react"
 import { ChevronIcon } from "./components/ChevronIcon"
+import { loadPluginModule } from "./i18n"
 
 type PluginModule = {
   default?: ComponentType<Record<string, unknown>>
@@ -16,8 +17,8 @@ export type UiSlotPanel = {
   label_key?: string
 }
 
-const corePanelModules = import.meta.glob<PluginModule>([ "./ui_slots/*.tsx", "!./ui_slots/*.test.tsx" ])
-const pluginPanelModules = import.meta.glob<PluginModule>([ "../../plugins/*/app/frontend/ui_slots/*.tsx", "!../../plugins/*/app/frontend/ui_slots/*.test.tsx" ])
+const corePanelModules = import.meta.glob<PluginModule>(["./ui_slots/*.tsx", "!./ui_slots/*.test.tsx"])
+const pluginPanelModules = import.meta.glob<PluginModule>(["../../plugins/*/app/frontend/ui_slots/*.tsx", "!../../plugins/*/app/frontend/ui_slots/*.test.tsx"])
 
 const componentLoaders = Object.fromEntries(
   [
@@ -25,15 +26,15 @@ const componentLoaders = Object.fromEntries(
       const match = path.match(/^\.\/ui_slots\/([^/.]+)\.tsx$/)
       if (!match) return []
 
-      return [ `core/${match[1]}`, loader ]
+      return [`core/${match[1]}`, loader]
     }),
     ...Object.entries(pluginPanelModules).map(([path, loader]) => {
       const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/ui_slots\/([^/.]+)\.tsx$/)
       if (!match) return []
 
-      return [ `${match[1]}/${match[2]}`, loader ]
+      return [`${match[1]}/${match[2]}`, loader]
     })
-  ].filter((entry): entry is [ string, () => Promise<PluginModule> ] => entry.length === 2)
+  ].filter((entry): entry is [string, () => Promise<PluginModule>] => entry.length === 2)
 )
 
 const componentCache = new Map<string, ComponentType<Record<string, unknown>>>()
@@ -51,7 +52,8 @@ export function pluginUiSlotComponentFor(key: string | null | undefined) {
   if (!loader) return null
 
   const Component = lazy(async () => {
-    const mod = await loader()
+    const plugin = key.split("/", 1)[0]
+    const mod = plugin === "core" ? await loader() : await loadPluginModule(plugin, loader)
     if (!mod.default) throw new Error(`Plugin UI slot component ${key} has no default export`)
     return { default: mod.default }
   })
@@ -88,18 +90,24 @@ type UiSlotCarouselLabels = {
   next: string
 }
 
-export function PluginUiSlotCarousel({ labels, panels, props }: { labels: UiSlotCarouselLabels; panels: UiSlotPanel[] | undefined; props?: Record<string, unknown> }) {
+export function PluginUiSlotCarousel({
+  labels,
+  panels,
+  props
+}: {
+  labels: UiSlotCarouselLabels
+  panels: UiSlotPanel[] | undefined
+  props?: Record<string, unknown>
+}) {
   const orderedPanels = useMemo(
-    () => (panels || [])
-      .map((panel, index) => ({ panel, index }))
-      .sort((left, right) => left.panel.order - right.panel.order || left.index - right.index)
-      .map(({ panel }) => panel),
+    () =>
+      (panels || [])
+        .map((panel, index) => ({ panel, index }))
+        .sort((left, right) => left.panel.order - right.panel.order || left.index - right.index)
+        .map(({ panel }) => panel),
     [panels]
   )
-  const renderablePanels = useMemo(
-    () => orderedPanels.filter((panel) => pluginUiSlotComponentFor(panel.component)),
-    [orderedPanels]
-  )
+  const renderablePanels = useMemo(() => orderedPanels.filter((panel) => pluginUiSlotComponentFor(panel.component)), [orderedPanels])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [visibleIds, setVisibleIds] = useState<string[]>([])
 
@@ -118,17 +126,20 @@ export function PluginUiSlotCarousel({ labels, panels, props }: { labels: UiSlot
     if (!activeId || !visibleIds.includes(activeId)) setActiveId(visibleIds[0])
   }, [activeId, visibleIds])
 
-  const setPanelVisible = useCallback((id: string, visible: boolean) => {
-    setVisibleIds((current) => {
-      const hasId = current.includes(id)
-      if (visible && !hasId) {
-        const next = renderablePanels.filter((panel) => panel.id === id || current.includes(panel.id)).map((panel) => panel.id)
-        return stringArraysEqual(current, next) ? current : next
-      }
-      if (!visible && hasId) return current.filter((currentId) => currentId !== id)
-      return current
-    })
-  }, [renderablePanels])
+  const setPanelVisible = useCallback(
+    (id: string, visible: boolean) => {
+      setVisibleIds((current) => {
+        const hasId = current.includes(id)
+        if (visible && !hasId) {
+          const next = renderablePanels.filter((panel) => panel.id === id || current.includes(panel.id)).map((panel) => panel.id)
+          return stringArraysEqual(current, next) ? current : next
+        }
+        if (!visible && hasId) return current.filter((currentId) => currentId !== id)
+        return current
+      })
+    },
+    [renderablePanels]
+  )
 
   if (renderablePanels.length === 0) return null
 
@@ -139,7 +150,9 @@ export function PluginUiSlotCarousel({ labels, panels, props }: { labels: UiSlot
     <section aria-label={labels.region} className="space-y-2">
       {showControls ? (
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-text-secondary">
-          <span className="font-medium" role="status">{labels.position(activeIndex + 1, visibleIds.length)}</span>
+          <span className="font-medium" role="status">
+            {labels.position(activeIndex + 1, visibleIds.length)}
+          </span>
           <div className="flex items-center gap-1">
             <button
               aria-label={labels.previous}
@@ -185,7 +198,17 @@ function stringArraysEqual(left: string[], right: string[]) {
   return left.length === right.length && left.every((value, index) => value === right[index])
 }
 
-function UiSlotCarouselPanel({ active, children, id, onVisibleChange }: { active: boolean; children: ReactNode; id: string; onVisibleChange: (id: string, visible: boolean) => void }) {
+function UiSlotCarouselPanel({
+  active,
+  children,
+  id,
+  onVisibleChange
+}: {
+  active: boolean
+  children: ReactNode
+  id: string
+  onVisibleChange: (id: string, visible: boolean) => void
+}) {
   const ref = useRef<HTMLDivElement | null>(null)
 
   useLayoutEffect(() => {

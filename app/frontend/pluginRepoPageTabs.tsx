@@ -4,20 +4,23 @@ import { useLocation, useParams } from "react-router-dom"
 import { fetchRepoPluginTabs } from "./api/repoPluginTabs"
 import { Notice, Page, PageHeading, Text } from "./components/ui"
 import { useT } from "./hooks/useT"
+import { loadPluginModule } from "./i18n"
 
 type PluginModule = {
   default?: ComponentType
 }
 
-const routeModules = import.meta.glob<PluginModule>([ "../../plugins/*/app/frontend/repo_tabs/*.tsx", "!../../plugins/*/app/frontend/repo_tabs/*.test.tsx" ])
+const routeModules = import.meta.glob<PluginModule>(["../../plugins/*/app/frontend/repo_tabs/*.tsx", "!../../plugins/*/app/frontend/repo_tabs/*.test.tsx"])
 
 const componentLoaders = Object.fromEntries(
-  Object.entries(routeModules).map(([path, loader]) => {
-    const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/repo_tabs\/([^/.]+)\.tsx$/)
-    if (!match) return []
+  Object.entries(routeModules)
+    .map(([path, loader]) => {
+      const match = path.match(/^\.\.\/\.\.\/plugins\/([^/]+)\/app\/frontend\/repo_tabs\/([^/.]+)\.tsx$/)
+      if (!match) return []
 
-    return [ `${match[1]}/${match[2]}`, loader ]
-  }).filter((entry): entry is [ string, () => Promise<PluginModule> ] => entry.length === 2)
+      return [`${match[1]}/${match[2]}`, loader]
+    })
+    .filter((entry): entry is [string, () => Promise<PluginModule>] => entry.length === 2)
 )
 
 const componentCache = new Map<string, ComponentType>()
@@ -35,7 +38,7 @@ export function pluginRepoComponentFor(key: string | null | undefined) {
   if (!loader) return null
 
   const Component = lazy(async () => {
-    const mod = await loader()
+    const mod = await loadPluginModule(key.split("/", 1)[0], loader)
     if (!mod.default) throw new Error(`Plugin repo tab component ${key} has no default export`)
     return { default: mod.default }
   })
@@ -79,7 +82,13 @@ export function PluginRepoPageTabRoute() {
   }
 
   return (
-    <Suspense fallback={<Page.Root size="narrow"><Notice>{t("common:loading")}</Notice></Page.Root>}>
+    <Suspense
+      fallback={
+        <Page.Root size="narrow">
+          <Notice>{t("common:loading")}</Notice>
+        </Page.Root>
+      }
+    >
       <Component />
     </Suspense>
   )

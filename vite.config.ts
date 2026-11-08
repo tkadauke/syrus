@@ -1,5 +1,5 @@
-import { loadEnv } from "vite"
-import { defineConfig } from "vitest/config"
+import { loadEnv, type ConfigEnv } from "vite"
+import type { ViteUserConfigFnPromise } from "vitest/config"
 import react from "@vitejs/plugin-react"
 import { excalidrawFonts } from "./config/vite/excalidrawFonts.mjs"
 
@@ -11,30 +11,59 @@ const rootDir = decodeURIComponent(new URL(".", import.meta.url).pathname)
 const vendorChunkPackages = {
   "vendor-react": ["/react/", "/react-dom/", "/react-router/", "/react-router-dom/"],
   "vendor-query": ["/@tanstack/"],
-  "vendor-visualization": ["/d3", "/mermaid/", "/cytoscape"]
+  "vendor-i18n": ["/i18next/", "/react-i18next/"],
+  "vendor-rails": ["/@rails/"],
+  "vendor-ui": ["/@floating-ui/", "/react-joyride/"]
 } as const
+
+const lazyVendorPackagePaths = ["/@excalidraw/", "/mermaid/", "/cytoscape", "/d3", "/@shikijs/", "/katex/", "/@xterm/", "/xterm/"] as const
+
+function packageChunkName(normalizedId: string) {
+  const modulePath = normalizedId.split("/node_modules/").at(-1)
+  if (!modulePath) return undefined
+
+  const segments = modulePath.split("/")
+  const packageName = segments[0]?.startsWith("@") ? `${segments[0]}-${segments[1]}` : segments[0]
+  return packageName ? `vendor-${packageName.replaceAll(/[^a-zA-Z0-9_-]/g, "-")}` : undefined
+}
 
 function manualVendorChunk(id: string) {
   const normalizedId = id.replaceAll("\\", "/")
   if (!normalizedId.includes("/node_modules/")) return undefined
+  // Leave route-only packages to Rollup's dynamic-import graph. Assigning a
+  // manual chunk here can make a lazy package eager through a shared module
+  // (for example Excalidraw's i18n dependency).
+  if (lazyVendorPackagePaths.some((packagePath) => normalizedId.includes(packagePath))) return undefined
 
   for (const [chunkName, packagePaths] of Object.entries(vendorChunkPackages)) {
     if (packagePaths.some((packagePath) => normalizedId.includes(packagePath))) return chunkName
   }
 
-  return "vendor"
+  // Keep unrelated dependencies independently cacheable. A single fallback
+  // vendor chunk made a route-only dependency part of every page whenever it
+  // shared that chunk with startup code.
+  return packageChunkName(normalizedId)
 }
 
-export default defineConfig(({ mode }) => {
+const config: ViteUserConfigFnPromise = async ({ mode }: ConfigEnv) => {
   const env = loadEnv(mode, rootDir, "")
-  const buildSourcemap = env.VITE_BUILD_SOURCEMAP !== "false"
+  const buildSourcemap = env.VITE_BUILD_SOURCEMAP === "true"
+  const analyzeBundle = env.VITE_BUNDLE_ANALYZE === "true"
+  const analysisPlugin = analyzeBundle
+    ? (await import("rollup-plugin-visualizer")).visualizer({
+        filename: "docs/bundle-analysis.html",
+        gzipSize: true,
+        brotliSize: true,
+        template: "treemap"
+      })
+    : false
 
   return {
     // Rails serves the production bundle through Propshaft's /assets mount.
     // Vite uses this base for CSS and module dependencies preloaded by lazy
     // imports, while static chunk imports remain relative to their importer.
     base: "/assets/",
-    plugins: [react(), excalidrawFonts({ rootDir })],
+    plugins: [react(), excalidrawFonts({ rootDir }), analysisPlugin],
     resolve: {
       alias: {
         "@app": `${rootDir}app/frontend`,
@@ -104,4 +133,6 @@ export default defineConfig(({ mode }) => {
       }
     }
   }
-})
+}
+
+export default config

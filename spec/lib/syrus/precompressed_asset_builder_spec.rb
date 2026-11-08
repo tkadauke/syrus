@@ -75,4 +75,22 @@ RSpec.describe Syrus::PrecompressedAssetBuilder do
 
     expect { builder.call }.to raise_error("brotli failed for #{asset}: compression broke")
   end
+
+  it "does not precompress sourcemaps unless the production build explicitly enables them" do
+    map = output_path.join("app.js.map")
+    map.write("source map")
+
+    expect(builder.call).to be_empty
+    expect(Pathname.new("#{map}.gz")).not_to exist
+    expect(Pathname.new("#{map}.br")).not_to exist
+  end
+
+  it "precompresses explicitly enabled production sourcemaps" do
+    map = output_path.join("app.js.map")
+    map.write("source map")
+    allow(ENV).to receive(:[]).and_call_original
+    allow(ENV).to receive(:[]).with("VITE_BUILD_SOURCEMAP").and_return("true")
+
+    expect(builder.call).to include(Pathname.new("#{map}.gz"), Pathname.new("#{map}.br"))
+  end
 end
