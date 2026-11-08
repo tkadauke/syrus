@@ -2740,3 +2740,38 @@ describe("truncatedToolResultMarker", () => {
     expect(truncatedToolResultMarker("text")).toBeNull()
   })
 })
+
+describe("truncated tool result rendering", () => {
+  const marker = { truncated: true, original_bytes: 5 * 1024 * 1024, preview: "clipped-preview-text" }
+
+  for (const error of [false, true]) {
+    it(`shows the truncation notice in expanded details (error=${error}) and keeps the collapsed row`, () => {
+      const call: ChatToolGroupItem["calls"][number] = {
+        message_id: 1,
+        tool_name: "Read",
+        raw_name: "Read",
+        detail: "README.md",
+        display_label: "Read",
+        progress_label: "Reading",
+        raw_payload: {},
+        result_body: JSON.stringify(marker),
+        result_json: marker,
+        result_error: error,
+        result_kind: error ? ("error" as const) : ("record" as const),
+        result_settled: true
+      }
+      render(<ToolGroup item={{ type: "tool_group", tool: "Read", calls: [call] }} />)
+
+      const details = screen.getByText("README.md").closest("details")
+      expect(details).not.toBeNull()
+      if (!details) return
+      expect(screen.queryByTestId("tool-result-truncated")).toBeNull()
+      details.open = true
+      fireEvent(details, new Event("toggle"))
+
+      const notice = screen.getByTestId("tool-result-truncated")
+      expect(notice).toHaveTextContent("5120")
+      expect(notice).toHaveTextContent("clipped-preview-text")
+    })
+  }
+})
