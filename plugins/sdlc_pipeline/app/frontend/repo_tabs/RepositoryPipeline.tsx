@@ -389,8 +389,6 @@ function HistoryRail({
   setPlaying: (value: boolean | ((current: boolean) => boolean)) => void
 }) {
   const { t } = useT("sdlc_pipeline")
-  const selectedIndex = historical ? Math.max(0, currentTick) : history.ticks.length
-  const markerSteps = Math.max(1, history.ticks.length - 1)
   return (
     <Section.Root
       aria-label={t("history_aria")}
