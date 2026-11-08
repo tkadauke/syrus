@@ -1640,5 +1640,6 @@ admit a repair Job. `infrastructure_failed` and `inconclusive` results settle
 main health as `inconclusive` (or leave it `unknown` and enqueue a
 replacement check for worker interruptions) and never spawn repair. A missing
 or invalid exit status can never mark `ci_health` or `grader_health` broken.
-The per-repository `treat_grader_timeouts_as_failures` setting remains an
-explicit operator opt-in that counts timeouts as failures.
+Timeouts are always `inconclusive`: the per-repository
+`treat_grader_timeouts_as_failures` setting no longer promotes them to a main
+health failure or repair admission.
