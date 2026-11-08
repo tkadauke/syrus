@@ -30,8 +30,9 @@ module Steps
   #   graders plus a replacement collector and finishes; only the retried
   #   grader is affected, never the whole Workflow. Genuine assertion failures
   #   (`test_failed`) are never retried as infrastructure.
-  # - Only reproducible `test_failed` results are sent to the repair agent.
-  # - If no required grader reproducibly failed but evidence is missing
+  # - Only reproducible `test_failed` results are sent to the repair agent, and
+  #   only when every nonpassing required grader is one.
+  # - If any required grader lacks a conclusive result
   #   (exhausted infrastructure retries, inconclusive, cancelled), the
   #   `preflight_inconclusive` artifact is set and downstream steps are skipped:
   #   Workflows::MainBranchRepair#after_success keeps main health inconclusive
@@ -74,19 +75,18 @@ module Steps
 
       reproducible, unproven = nonpassing_required.partition { |grader_step| outcome_for(grader_step).test_failed? }
 
-      if reproducible.empty?
-        record_inconclusive!(unproven)
+      # Any required grader without a conclusive result (exhausted
+      # infrastructure retries, inconclusive, cancelled, ...) makes the whole
+      # preflight inconclusive, even when another grader reproducibly failed:
+      # the repair would otherwise proceed on partial evidence.
+      if unproven.any?
+        record_inconclusive!(nonpassing_required, unproven)
         return
       end
 
       workflow.set_artifact!("preflight_failures", preflight_failure_entries(reproducible))
-      workflow.set_artifact!("preflight_unproven", preflight_failure_entries(unproven)) if unproven.any?
       names = reproducible.map { |grader_step| "#{grader_step.details["name"]} (#{grader_step.state})" }.join(", ")
       log("[preflight_grader_collect] required preflight graders did not pass: #{names} — proceeding to implement")
-      unless unproven.empty?
-        log("[preflight_grader_collect] not sent to the repair agent (no reproducible failure): " \
-            "#{unproven.map { |grader_step| "#{grader_step.details["name"]} (#{outcome_for(grader_step).outcome})" }.join(", ")}")
-      end
     end
 
     private
@@ -170,8 +170,8 @@ module Steps
 
     # No reproducible source failure, but required evidence is missing. Main
     # health stays inconclusive and an operator is told; no coding repair runs.
-    def record_inconclusive!(unproven)
-      workflow.set_artifact!("preflight_inconclusive", preflight_failure_entries(unproven))
+    def record_inconclusive!(nonpassing, unproven)
+      workflow.set_artifact!("preflight_inconclusive", preflight_failure_entries(nonpassing))
       names = unproven.map { |grader_step| "#{grader_step.details["name"]} (#{outcome_for(grader_step).outcome}: #{outcome_for(grader_step).reason})" }.join(", ")
       log("[preflight_grader_collect] required preflight graders have no conclusive result: #{names} — " \
           "main health stays inconclusive, not spawning a coding repair")

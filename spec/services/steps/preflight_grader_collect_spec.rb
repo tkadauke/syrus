@@ -228,17 +228,19 @@ RSpec.describe Steps::PreflightGraderCollect do
       ])
     end
 
-    it "sends only reproducible failures to the agent when another required grader is infrastructure-failed" do
+    it "stays inconclusive and skips the repair when another required grader exhausted its infrastructure retries" do
       create_preflight_grader(
         name: "lint", required: true, state: "failed",
         details: { "command" => "bin/lint", "exit_code" => nil, "outcome" => "infrastructure_failed", "outcome_reason" => "worker_died",
                    "infrastructure_retry_attempt" => PreflightGraderPolicy.retry_budget }
       )
+      downstream = create_downstream_steps
 
       handler.call
 
-      expect(workflow.reload.artifact("preflight_failures").map { |entry| entry["name"] }).to eq([ "rspec" ])
-      expect(workflow.artifact("preflight_unproven").map { |entry| entry["name"] }).to eq([ "lint" ])
+      expect(workflow.reload.artifact("preflight_failures")).to be_nil
+      expect(workflow.artifact("preflight_inconclusive").map { |entry| entry["name"] }).to contain_exactly("rspec", "lint")
+      expect(downstream.map { |candidate| candidate.reload.state }).to all(eq("skipped"))
     end
   end
 
