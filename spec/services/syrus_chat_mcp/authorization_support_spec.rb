@@ -319,6 +319,9 @@ RSpec.describe Mcp::Tools::AuthorizationSupport do
       entry = Struct.new(:tool, :descriptor, :ungated).new(actor_tool, descriptor, false)
       allow(McpToolRegistry).to receive(:entry_for).with(actor_tool).and_return(entry)
       allow(McpToolRegistry).to receive(:entries).with(surface: :chat).and_return([ entry ])
+      # Approval rebuilds the actor's current tool surface instead of trusting
+      # the request, so the fake tool has to be offered by it.
+      allow(Mcp::Sidecar).to receive(:chat_tools).and_return([ actor_tool ])
       allow(Permissions::Catalog).to receive(:find!).and_return(descriptor)
 
       response = described_class.pending_actor_approval(
