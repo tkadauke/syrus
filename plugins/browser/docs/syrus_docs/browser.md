@@ -130,10 +130,13 @@ the tree, not just logically disabled.
 
 Browser tools declare separate permission capabilities for observation,
 loopback navigation, interaction, JavaScript evaluation, file/data upload,
-and closing an owned session. Evaluation and upload default to an
-exact-invocation request. Ordinary interaction retains a conservative
-high-risk classification because the semantic consequence of a page target
-cannot be inferred safely.
+and closing an owned session. None of them asks the operator: every one acts
+only through a browser the agent already drives, and page-affecting input is
+held back by the input lease rather than by a policy prompt. Evaluation and
+upload retain a conservative high-risk classification, as does ordinary
+interaction, because the semantic consequence of a page target cannot be
+inferred safely - but risk describes what they reach, not how often an
+operator is interrupted.
 
 These descriptors do not replace the hard boundaries: navigation remains
 loopback-only, upload authority fingerprints exact paths without exposing

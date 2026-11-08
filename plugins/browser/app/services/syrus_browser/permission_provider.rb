@@ -112,12 +112,24 @@ module SyrusBrowser
       effects: %i[network_read isolated_execution], risk: :medium
     register operation: "browser.interact/action@v1", capability: "browser.interact@v1",
       effects: %i[local_read isolated_execution], risk: :high, classifier: method(:interaction_classifier)
+    # Evaluate and upload carry the same authority as interact, and the same
+    # control: every tool behind all three declares `requires_input_lease!`, so
+    # the operator already holds a say over page-affecting input through the
+    # lease. Asking a second time through policy bought nothing -- hover and
+    # fill raise the identical input-simulation concern and have always been
+    # `allow` -- while an invocation ceiling meant the two could never be
+    # granted standing authority at all.
+    #
+    # The consequences bound it: browser_navigate's top-level target is
+    # LoopbackGuard-confined, and arbitrary in-page JS adds no egress a
+    # workflow agent lacks, since the same step already has shell on the same
+    # workspace (see EvaluateTool's own note). Effects and risk stay as
+    # declared -- they describe what the tools reach, and the classifier and
+    # the approval UI still read them.
     register operation: "browser.execute/evaluate@v1", capability: "browser.execute@v1",
-      effects: %i[network_read confidential_read isolated_execution], risk: :high,
-      defaults: ROLES.index_with { :ask }, maximum_autonomy: :invocation, authority_durations: %i[invocation]
+      effects: %i[network_read confidential_read isolated_execution], risk: :high
     register operation: "browser.upload/file@v1", capability: "browser.upload@v1",
-      effects: %i[local_read isolated_execution], risk: :high,
-      defaults: ROLES.index_with { :ask }, maximum_autonomy: :invocation, authority_durations: %i[invocation]
+      effects: %i[local_read isolated_execution], risk: :high
     register operation: "browser.close/session@v1", capability: "browser.close@v1",
       effects: %i[isolated_execution], risk: :low
   end

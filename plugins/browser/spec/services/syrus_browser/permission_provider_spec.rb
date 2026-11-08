@@ -1,6 +1,7 @@
 require "rails_helper"
 
 RSpec.describe SyrusBrowser::PermissionProvider do
+  ROLES_SAMPLE = AgentRole::WORKFLOW_VISUAL_REVIEWER
   it "declares separate observe, navigation, interaction, execution, upload, and close boundaries" do
     descriptors = described_class.permission_capability_descriptors.index_by(&:capability)
 
@@ -9,10 +10,17 @@ RSpec.describe SyrusBrowser::PermissionProvider do
       "browser.execute@v1", "browser.upload@v1", "browser.close@v1"
     )
     expect(descriptors.fetch("browser.observe@v1").defaults.values.uniq).to eq([ :allow ])
-    expect(descriptors.fetch("browser.execute@v1")).to have_attributes(
-      risk: :high, maximum_autonomy: :invocation, authority_durations: [ :invocation ]
-    )
-    expect(descriptors.fetch("browser.upload@v1").defaults.values.uniq).to eq([ :ask ])
+    # Every browser operation acts only through a browser this agent already
+    # drives, so none of them asks. Page-affecting input is held back by
+    # `requires_input_lease!` instead, which is the control the operator
+    # actually shares; a policy prompt on top of it gated evaluate and upload
+    # twice and still left them ungrantable beyond a single invocation.
+    %w[browser.execute@v1 browser.upload@v1 browser.interact@v1].each do |capability|
+      expect(descriptors.fetch(capability)).to have_attributes(
+        defaults: include(ROLES_SAMPLE => :allow), maximum_autonomy: :job
+      )
+    end
+    expect(descriptors.fetch("browser.execute@v1").risk).to eq(:high)
   end
 
   it "keeps navigation authority scoped to normalized loopback origins" do
