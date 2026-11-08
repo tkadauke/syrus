@@ -1305,6 +1305,7 @@
     "loading": "Loading transcript...",
     "error_load": "Unable to load transcript.",
     "download_jsonl": "Download JSONL",
+    "title": "Run #{{runId}} · transcript",
     "new_messages": "New Messages",
     "turns": "Turns",
     "tool_calls": "Tool calls",

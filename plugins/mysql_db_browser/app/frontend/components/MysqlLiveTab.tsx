@@ -12,7 +12,11 @@ import { MysqlQueryResultPanel } from "./MysqlQueryResultPanel"
 // statement and 10s auto-refresh, not bespoke controller/service code.
 const CANNED_QUERIES = [
   { id: "process_list", labelKey: "live_process_list", sql: "SELECT * FROM information_schema.PROCESSLIST ORDER BY TIME DESC" },
-  { id: "global_status", labelKey: "live_global_status", sql: "SELECT VARIABLE_NAME, VARIABLE_VALUE FROM performance_schema.global_status ORDER BY VARIABLE_NAME" },
+  {
+    id: "global_status",
+    labelKey: "live_global_status",
+    sql: "SELECT VARIABLE_NAME, VARIABLE_VALUE FROM performance_schema.global_status ORDER BY VARIABLE_NAME"
+  },
   { id: "slow_log", labelKey: "live_slow_log", sql: "SELECT * FROM mysql.slow_log ORDER BY start_time DESC LIMIT 50" }
 ] as const
 
@@ -23,6 +27,7 @@ export function MysqlLiveTab({ connectionId }: { connectionId: number }) {
   const live = useQuery({
     queryKey: ["mysql_db_browser", "live", connectionId, selectedId],
     queryFn: () => executeMysqlQuery(connectionId, canned.sql),
+    staleTime: 0,
     refetchInterval: 10_000
   })
 
@@ -51,7 +56,11 @@ export function MysqlLiveTab({ connectionId }: { connectionId: number }) {
       </div>
 
       {live.isPending ? <p className="text-sm text-gray-500 dark:text-gray-400">{t("query_running")}</p> : null}
-      {live.isError ? <p className="text-sm text-red-700 dark:text-red-300" role="alert">{errorMessage(live.error, t("query_error_fallback"))}</p> : null}
+      {live.isError ? (
+        <p className="text-sm text-red-700 dark:text-red-300" role="alert">
+          {errorMessage(live.error, t("query_error_fallback"))}
+        </p>
+      ) : null}
       {live.data ? <MysqlQueryResultPanel result={live.data} /> : null}
     </section>
   )

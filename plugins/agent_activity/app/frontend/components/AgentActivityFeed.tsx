@@ -65,6 +65,7 @@ export function AgentActivityFeed({ scope }: { scope: "mine" | "admin" }) {
     queryKey: ["agent_activity", scope, "rows", location.search],
     queryFn: () => fetchAgentActivitySessions(scope, location.search, "rows"),
     placeholderData: keepPreviousData,
+    staleTime: 0,
     refetchInterval: (query) => (document.hidden || (query.state.data?.running_count ?? 0) === 0 ? 60_000 : 15_000)
   })
 

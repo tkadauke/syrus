@@ -14,6 +14,8 @@ module Syrus
       @root = Pathname.new(root)
       @prefix = prefix.to_s.end_with?("/") ? prefix.to_s : "#{prefix}/"
       @headers = headers.to_h
+      @asset_cache = {}
+      @asset_cache_mutex = Mutex.new
     end
 
     def call(env)
@@ -28,10 +30,11 @@ module Syrus
       response_asset = response_asset_for(plain_path, env["HTTP_ACCEPT_ENCODING"].to_s)
       return @app.call(env) unless response_asset
 
-      headers = response_headers(plain_path, response_asset)
+      cached_asset = cached_asset(response_asset.fetch(:path))
+      headers = response_headers(plain_path, response_asset, cached_asset)
       return not_modified(headers) if fresh?(env, headers.fetch(Rack::ETAG))
 
-      body = request.head? ? [] : [ response_asset.fetch(:path).binread ]
+      body = request.head? ? [] : [ cached_asset.fetch(:body) ]
 
       [ 200, headers, body ]
     end
@@ -71,12 +74,29 @@ module Syrus
         (explicit || wildcard)&.fetch(:q)
       end
 
-      def response_headers(plain_path, variant)
-        encoded_path = variant.fetch(:path)
+      def cached_asset(path)
+        stat = path.stat
+        cache_key = path.to_s
+
+        @asset_cache_mutex.synchronize do
+          cached = @asset_cache[cache_key]
+          return cached if cached && cached.fetch(:mtime) == stat.mtime && cached.fetch(:size) == stat.size
+
+          body = path.binread.freeze
+          @asset_cache[cache_key] = {
+            mtime: stat.mtime,
+            size: body.bytesize,
+            digest: Digest::SHA256.hexdigest(body),
+            body: body
+          }.freeze
+        end
+      end
+
+      def response_headers(plain_path, variant, cached_asset)
         @headers.merge(
           Rack::CONTENT_TYPE => Rack::Mime.mime_type(plain_path.extname, "application/octet-stream"),
-          Rack::CONTENT_LENGTH => encoded_path.size.to_s,
-          Rack::ETAG => %("#{Digest::SHA256.file(encoded_path).hexdigest}"),
+          Rack::CONTENT_LENGTH => cached_asset.fetch(:size).to_s,
+          Rack::ETAG => %("#{cached_asset.fetch(:digest)}"),
           "Vary" => "Accept-Encoding"
         ).tap do |headers|
           headers["Content-Encoding"] = variant.fetch(:encoding) if variant.fetch(:encoding)

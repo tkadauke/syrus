@@ -2074,6 +2074,7 @@ function RunRow({
       return payload
     },
     enabled: isRunArtifactView,
+    staleTime: 0,
     refetchInterval: artifactView === "transcript" && transcriptPage === 1 && isActiveState(run.state) ? 2000 : false
   })
   const artifactsLoading = isRunArtifactView && artifacts.isFetching && !artifacts.data

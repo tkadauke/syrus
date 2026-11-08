@@ -50,11 +50,7 @@ module Api
           document = Document.find_by(id: @runtime_session.metadata["latest_frame_document_id"])
           raise ActiveRecord::RecordNotFound, "No captured frame for this Runtime Session" unless document&.file&.attached?
 
-          send_secure_file(
-            document.file.download,
-            filename: document.filename || "frame.png",
-            type: document.content_type || "image/png"
-          )
+          send_secure_blob(document.file.blob, immutable: params[:latest_frame_at].present?)
         end
 
         # POST /api/v1/app/chats/:chat_id/runtime_sessions/:id/take_control
