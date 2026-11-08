@@ -36,7 +36,13 @@ RSpec.describe Metrics::FleetSampler do
     Syrus::Metrics.instance_variable_set(:@registry, original)
   end
 
-  before { allow(Rails).to receive(:cache).and_return(cache) }
+  before do
+    allow(Rails).to receive(:cache).and_return(cache)
+    # SpawnedProcess rows recorded by real subprocesses (git, graders) outside
+    # an example's transaction can linger in a shared test database; the
+    # fleet assertions below must only see the rows each example creates.
+    SpawnedProcess.delete_all
+  end
 
   def instance_version(hostname:, role:, version:, heartbeat: Time.current)
     InstanceVersion.create!(
