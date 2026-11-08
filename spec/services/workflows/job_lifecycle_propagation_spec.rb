@@ -91,8 +91,29 @@ RSpec.describe Workflows::JobLifecyclePropagation, "ci_failure no-diff follow-up
     expect(job.reload).to be_implemented
     expect(job.closure_reason).to be_nil
     outcome = workflow.artifact("ci_failure_outcome")
-    expect(outcome).to include("outcome" => "failure_not_reproduced", "head_sha" => "abc123", "check_names" => [ "rspec" ])
+    expect(outcome).to include("outcome" => "inconclusive", "head_sha" => "abc123", "check_names" => [ "rspec" ])
     expect(PollPullRequestJob).to have_received(:perform_later).with(job.id)
+  end
+
+  it "keeps an approved Job approved and records passing reproduction evidence" do
+    job = Factories.job
+    job.update_columns(state: "approved", pr_number: 42, last_ci_handled_sha: "abc123", pr_checks_checked_at: Time.current)
+    workflow = failing_ci_workflow(job)
+    workflow.steps.create!(
+      kind: "grader", state: "succeeded", position: 99,
+      details: { "command" => "bin/rspec spec/a_spec.rb", "source_sha" => "abc123", "exit_code" => 0 }
+    )
+    allow(PollPullRequestJob).to receive(:perform_later)
+
+    described_class.fail!(workflow)
+
+    expect(job.reload).to be_approved
+    expect(job.pr_checks_checked_at).to be_nil
+    expect(workflow.artifact("ci_failure_outcome")).to include(
+      "outcome" => "failure_not_reproduced",
+      "reproduction_command" => "bin/rspec spec/a_spec.rb",
+      "reproduction_sha" => "abc123"
+    )
   end
 
   it "escalates after repeated non-reproductions on the same SHA without closing" do
