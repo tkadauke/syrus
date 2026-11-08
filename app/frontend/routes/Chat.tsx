@@ -327,7 +327,9 @@ export function ChatRoute() {
     const markRead = async (retry: boolean) => {
       try {
         await markChatRead(id)
-        if (!cancelled) updateChatUnread(queryClient, Number(id), false)
+        // Apply the successful response even if the route already moved on: the
+        // server marked it read, and the sidebar no longer refetches on navigation.
+        updateChatUnread(queryClient, Number(id), false)
       } catch {
         if (cancelled) return
         await queryClient.refetchQueries({ queryKey, exact: true })

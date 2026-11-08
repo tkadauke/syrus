@@ -1529,3 +1529,34 @@ describe("RecentChatsSidebar unread-only navigation", () => {
     expect(listRequests(fetchSpy)).toHaveLength(1)
   })
 })
+
+describe("RecentChatsSidebar unread-only in-flight mark-read", () => {
+  afterEach(() => {
+    window.localStorage.clear()
+    vi.restoreAllMocks()
+  })
+
+  it("removes the previous chat when its read response arrives after navigation", async () => {
+    window.localStorage.setItem(SIDEBAR_SETTINGS_KEY, JSON.stringify({ unread_only: true }))
+    const chats = [chatNav({ id: 1, title: "First", unread: true }), chatNav({ id: 2, title: "Second", unread: true })]
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(chatsIndexPayload({ groups: [chatGroup({ chats })] })))
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/chats/1"]}>
+          <RecentChatsSidebar featureFlags={{}} onCloseDrawer={() => {}} onNotice={() => {}} prefix="" userPresent />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    await screen.findByRole("link", { name: "First" })
+
+    // Navigate before chat 1's mark-read response lands (still unread in cache).
+    fireEvent.click(screen.getByRole("link", { name: "Second" }))
+    expect(screen.getByRole("link", { name: "First" })).toBeInTheDocument()
+
+    act(() => updateChatUnread(queryClient, 1, false))
+    await waitFor(() => expect(screen.queryByRole("link", { name: "First" })).not.toBeInTheDocument())
+    expect(screen.getByRole("link", { name: "Second" })).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+})
