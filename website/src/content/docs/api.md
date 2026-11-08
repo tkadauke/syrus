@@ -25,6 +25,14 @@ The generated [user API catalog](/docs/generated/user-api-catalog) lists every
 registered `/api/v1/app/*` endpoint. Operator/admin endpoint inventory lives
 with the operator docs in `config/syrus_docs/admin_api_catalog.md`.
 
+Dashboard clients can fetch `section=chrome` and `section=rows` separately.
+Stable controls are available from
+`GET /api/v1/app/dashboard/controls?subject=job|epic|workflow` with private
+one-hour caching and ETag revalidation. Omitting `section` retains the merged
+response for compatibility; bulk responses expose affected and skipped IDs.
+Chrome omits each saved folder's filter tree; when a folder is selected,
+`active_smart_folder_filter` carries only that folder's definition.
+
 Repeated invalid bearer tokens from the same source IP are rate-limited (20
 per 5 minutes); once tripped, further bad-token attempts from that IP get a
 `429 Too Many Requests` with `error.code` `rate_limited` until the window
@@ -448,6 +456,14 @@ curl -X POST https://syrus.example.com/api/v1/app/epics \
 }'
 ```
 
+`GET /api/v1/app/epics?compact=picker` returns the small Epic shape used by
+selection controls. `GET /api/v1/app/epics/:id/preview` returns the bounded
+hover-card payload with aggregate Job state counts, while
+`GET /api/v1/app/epics/:id/history` loads the version history separately from
+the main detail response. The Dependencies and Jobs tabs similarly load
+`GET /api/v1/app/epics/:id/dependencies` and
+`GET /api/v1/app/epics/:id/provider_availability` only when needed.
+
 ## Manage Design Docs
 
 When the `design_docs` plugin is enabled, admin tokens can manage design
@@ -748,9 +764,10 @@ curl -X POST https://syrus.example.com/api/v1/app/epics/456/dependencies \
   -d '{ "depends_on_epic_id": 123 }'
 ```
 
-`POST /api/v1/app/epics/:id/dependencies` returns the refreshed Epic detail
-payload, including `dependencies` and `dependents`. It rejects cycles and
-requires write access to both Epics' repositories.
+`POST /api/v1/app/epics/:id/dependencies` returns a message and the updated
+Epic header fields. It rejects cycles and requires write access to both Epics'
+repositories. The client refreshes the independently loaded dependency data
+afterward.
 `DELETE /api/v1/app/epics/:id/dependencies/:depends_on_epic_id` removes that
 edge and is idempotent.
 

@@ -20,6 +20,9 @@ import {
   archiveEpic,
   claimEpic,
   fetchEpicDetail,
+  fetchEpicDependencies,
+  fetchEpicHistory,
+  fetchEpicProviderAvailability,
   fetchEpicUnlandPlan,
   removeEpicDependency,
   searchEpicOptions,
@@ -31,6 +34,7 @@ import {
   type EpicDeploymentStage,
   type EpicDetailJob,
   type EpicDetailPayload,
+  type EpicMutationPayload,
   type MergeTrainStatus,
   type EpicOwnerUser,
   type EpicVersionRecord,
@@ -97,6 +101,29 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
   const queryKey = ["epics", String(payload.epic.id)] as const
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const [activeTab, setActiveTab] = useState<EpicDetailTab>("overview")
+  const history = useQuery({
+    queryKey: ["epics", String(payload.epic.id), "history"],
+    queryFn: ({ signal }) => fetchEpicHistory(payload.epic.id, { signal }),
+    enabled: activeTab === "history"
+  })
+  const dependencyInitialData =
+    payload.graph && payload.dependencies && payload.dependents
+      ? { graph: payload.graph, dependencies: payload.dependencies, dependents: payload.dependents }
+      : undefined
+  const dependencyDetail = useQuery({
+    queryKey: ["epics", String(payload.epic.id), "dependencies"],
+    queryFn: ({ signal }) => fetchEpicDependencies(payload.epic.id, { signal }),
+    enabled: activeTab === "dependencies",
+    initialData: dependencyInitialData,
+    staleTime: dependencyInitialData ? Infinity : 0
+  })
+  const providerAvailability = useQuery({
+    queryKey: ["epics", String(payload.epic.id), "provider_availability"],
+    queryFn: ({ signal }) => fetchEpicProviderAvailability(payload.epic.id, { signal }),
+    enabled: activeTab === "jobs" && !payload.provider_availability,
+    initialData: payload.provider_availability ? { provider_availability: payload.provider_availability } : undefined,
+    staleTime: payload.provider_availability ? Infinity : 0
+  })
   const { confirm, dialog } = useConfirm()
   const command = useMutation({
     mutationFn: (action: EpicCommand) => {
@@ -107,7 +134,8 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
       return updateEpicState(payload.paths.app_state_path, action.transition.target_state)
     },
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      queryClient.setQueryData<EpicDetailPayload>(queryKey, (current) => (current ? { ...current, epic: { ...current.epic, ...updated.epic } } : current))
+      queryClient.invalidateQueries({ queryKey })
       setNotice(updated.message || null)
     }
   })
@@ -118,8 +146,8 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
       return removeEpicDependency(payload.paths.app_dependencies_path, action.dependsOnEpicId)
     },
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
       queryClient.invalidateQueries({ queryKey })
+      queryClient.invalidateQueries({ queryKey: ["epics", String(payload.epic.id), "dependencies"] })
       setNotice(updated.message || null)
     }
   })
@@ -311,6 +339,7 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
             jobs={payload.jobs}
             newJobPath={`/jobs/new?repository_id=${payload.epic.repository.id}&epic_id=${payload.epic.id}`}
             prefix={prefix}
+            providerAvailability={providerAvailability.data?.provider_availability}
           />
         </div>
       ) : null}
@@ -318,21 +347,21 @@ export function EpicDetail({ payload, prefix }: { payload: EpicDetailPayload; pr
       {activeTab === "dependencies" ? (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,31fr)_minmax(0,19fr)]">
           <div className="min-w-0">
-            <DependencyGraph graph={payload.graph} />
+            {dependencyDetail.data ? <DependencyGraph graph={dependencyDetail.data.graph} /> : <PanelMessage>{t("loading")}</PanelMessage>}
           </div>
           <div className="min-w-0">
             <DependenciesSection
               command={dependencyCommand}
               currentEpicId={payload.epic.id}
-              dependencies={payload.dependencies}
-              dependents={payload.dependents}
+              dependencies={dependencyDetail.data?.dependencies || []}
+              dependents={dependencyDetail.data?.dependents || []}
               prefix={prefix}
             />
           </div>
         </div>
       ) : null}
 
-      {activeTab === "history" ? <HistorySection versions={payload.versions || []} /> : null}
+      {activeTab === "history" ? <HistorySection versions={history.data?.versions || []} /> : null}
     </>
   )
 }
@@ -394,7 +423,7 @@ function DependenciesSection({
   dependents,
   prefix
 }: {
-  command: UseMutationResult<EpicDetailPayload, Error, { kind: "add"; dependsOnEpicId: number } | { kind: "remove"; dependsOnEpicId: number }>
+  command: UseMutationResult<EpicMutationPayload, Error, { kind: "add"; dependsOnEpicId: number } | { kind: "remove"; dependsOnEpicId: number }>
   currentEpicId: number
   dependencies: EpicDependencyRecord[]
   dependents: EpicDependencyRecord[]
@@ -669,12 +698,14 @@ export function JobsSection({
   epicRepositorySlug,
   jobs,
   newJobPath,
-  prefix
+  prefix,
+  providerAvailability
 }: {
   epicRepositorySlug?: string
   jobs: EpicDetailJob[]
   newJobPath: string
   prefix: string
+  providerAvailability?: EpicDetailPayload["provider_availability"]
 }) {
   const { t } = useT("epics")
   return (
@@ -689,7 +720,7 @@ export function JobsSection({
         <ul className="divide-y divide-gray-100 text-sm dark:divide-gray-700">
           {jobs.map((job) => (
             <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3" key={job.id}>
-              <JobIdentity epicRepositorySlug={epicRepositorySlug} job={job} jobs={jobs} prefix={prefix} />
+              <JobIdentity epicRepositorySlug={epicRepositorySlug} job={job} jobs={jobs} prefix={prefix} providerAvailability={providerAvailability} />
               <StatePill state={job.state} />
             </li>
           ))}
@@ -701,14 +732,26 @@ export function JobsSection({
   )
 }
 
-function JobIdentity({ epicRepositorySlug, job, jobs, prefix }: { epicRepositorySlug?: string; job: EpicDetailJob; jobs: EpicDetailJob[]; prefix: string }) {
+function JobIdentity({
+  epicRepositorySlug,
+  job,
+  jobs,
+  prefix,
+  providerAvailability
+}: {
+  epicRepositorySlug?: string
+  job: EpicDetailJob
+  jobs: EpicDetailJob[]
+  prefix: string
+  providerAvailability?: EpicDetailPayload["provider_availability"]
+}) {
   return (
     <div className="min-w-0 space-y-0.5">
       <div className="flex flex-wrap items-center gap-2">
         <SlugHoverCard kind="job" id={job.id}>
           <CopyableSlug slug={job.slug} className="text-xs" />
         </SlugHoverCard>
-        <ProviderAvailabilityWarning availability={job.provider_availability} />
+        <ProviderAvailabilityWarning availability={job.agent_provider ? providerAvailability?.[job.agent_provider] : undefined} />
         {job.title ? (
           <EpicJobNavigationLink className="break-words text-gray-700 hover:underline dark:text-gray-200" currentJob={job} jobs={jobs} prefix={prefix}>
             {job.title}

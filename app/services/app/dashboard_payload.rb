@@ -15,7 +15,7 @@ module App
     OWNERSHIP_SCOPES = %w[mine team claimable user].freeze
     DEFAULT_OWNERSHIP_SCOPE = "mine"
     TEAM_FOCUSED_SUBJECTS = %w[epic job workflow].freeze
-    SECTIONS = %w[full chrome rows].freeze
+    SECTIONS = %w[full chrome controls rows].freeze
     DEFAULT_SUBJECT = "epic"
     DEFAULT_VIEW = "list"
     FILTER_CLASSES = { "job" => Jobs::Filter, "epic" => Epics::Filter, "workflow" => Workflows::Filter }.freeze
@@ -27,7 +27,7 @@ module App
     }.freeze
     PER_PAGE = 25
     KANBAN_LIMIT_OPTIONS = [ 10, 25, 50, 100 ].freeze
-    KANBAN_PER_PAGE = 100
+    KANBAN_PER_PAGE = 25
     JOB_KANBAN_LANES = %w[backlog blocked queued running succeeded landing failed].freeze
     WORKFLOW_DONE_STATES = %w[succeeded failed cancelled blocked].freeze
     class InvalidScope < StandardError; end
@@ -50,10 +50,12 @@ module App
           PerformanceLogging.phase("dashboard_payload.chrome", subject: subject, view: view, ownership_scope: ownership_scope) { chrome_payload }
         when "rows"
           PerformanceLogging.phase("dashboard_payload.rows", subject: subject, view: view, ownership_scope: ownership_scope) { rows_payload }
+        when "controls"
+          PerformanceLogging.phase("dashboard_payload.controls", subject: subject, view: view, ownership_scope: ownership_scope) { controls_payload }
         else
           chrome = PerformanceLogging.phase("dashboard_payload.chrome", subject: subject, view: view, ownership_scope: ownership_scope) { chrome_payload }
           rows = PerformanceLogging.phase("dashboard_payload.rows", subject: subject, view: view, ownership_scope: ownership_scope) { rows_payload }
-          merge_chrome_and_rows_payload(chrome, rows)
+          merge_chrome_and_rows_payload(chrome, rows, controls_payload)
         end
       end
     end
@@ -69,23 +71,31 @@ module App
         counts: PerformanceLogging.phase("dashboard_chrome.counts", subject: subject) { counts },
         ownership_scope: PerformanceLogging.phase("dashboard_chrome.ownership_scope", subject: subject) { ownership_scope_json },
         preferences: PerformanceLogging.phase("dashboard_chrome.preferences", subject: subject) { preferences_json },
-        controls: PerformanceLogging.phase("dashboard_chrome.controls", subject: subject) { controls_json },
         ownership: PerformanceLogging.phase("dashboard_chrome.ownership", subject: subject) { ownership_json },
         filter: smart_folder_resolution.filter.to_h,
-        landing_queue: PerformanceLogging.phase("dashboard_chrome.landing_queue", subject: subject) { landing_queue_chrome_json },
+        landing_queue: PerformanceLogging.phase("dashboard_chrome.landing_queue", subject: subject) { landing_queue_json },
         provider_availability: PerformanceLogging.phase("dashboard_chrome.provider_availability", subject: subject) { provider_availability_by_provider },
-        broken_repositories: health_blocked_repositories,
         health_blocked_repositories: health_blocked_repositories,
         ui_panels: PerformanceLogging.phase("dashboard_chrome.ui_panels", subject: subject) { ui_panels_json },
         smart_folders: PerformanceLogging.phase("dashboard_chrome.smart_folders", subject: subject) { smart_folders_json },
         active_smart_folder_id: smart_folder_resolution.active_smart_folder_id,
+        active_smart_folder_filter: active_smart_folder&.filter,
         setup: PerformanceLogging.phase("dashboard_chrome.setup", subject: subject) { ::App::SetupStatus.call(user: user) },
         paths: paths_json
       }
     end
 
+    def controls_payload
+      { subject: subject, controls: PerformanceLogging.phase("dashboard_controls", subject: subject) { controls_json } }
+    end
+
     def rows_payload
-      result = PerformanceLogging.phase("dashboard_rows.current_result", subject: subject, view: view, ownership_scope: ownership_scope) { current_result }
+      lanes = PerformanceLogging.phase("dashboard_rows.lanes", subject: subject, view: view) { lanes_json }
+      result = if view == "kanban"
+        { total: lanes.sum { |lane| lane.fetch(:total_count) }, items: [] }
+      else
+        PerformanceLogging.phase("dashboard_rows.current_result", subject: subject, view: view, ownership_scope: ownership_scope) { current_result }
+      end
       {
         subject: subject,
         view: view,
@@ -94,14 +104,8 @@ module App
         total: result.fetch(:total),
         total_pages: total_pages(result.fetch(:total)),
         total_estimated: result.fetch(:total_estimated, false),
-        active_smart_folder_id: smart_folder_resolution.active_smart_folder_id,
-        filter: smart_folder_resolution.filter.to_h,
-        preferences: PerformanceLogging.phase("dashboard_rows.preferences", subject: subject) { preferences_json },
-        controls: PerformanceLogging.phase("dashboard_rows.controls", subject: subject) { rows_controls_json },
-        landing_queue: PerformanceLogging.phase("dashboard_rows.landing_queue", subject: subject, view: view) { landing_queue_json },
-        ui_panels: PerformanceLogging.phase("dashboard_rows.ui_panels", subject: subject, view: view) { ui_panels_json },
         items: result.fetch(:items),
-        lanes: PerformanceLogging.phase("dashboard_rows.lanes", subject: subject, view: view) { lanes_json },
+        lanes: lanes,
         kanban_limit: view == "kanban" ? kanban_limit : nil
       }
     end
@@ -351,7 +355,7 @@ module App
           :tags,
           :pr_links,
           :deployment_stage_statuses,
-          { dependencies: [ :depends_on_epic, { depends_on_job: [ :repository, :deployment_stage_statuses ] } ] },
+          { dependencies: [ :depends_on_epic, { depends_on_job: :deployment_stage_statuses } ] },
           { chat_proposals: [ :chat_session, :message_anchors ] },
           { epic: { chat_proposals: [ :chat_session, :message_anchors ] } }
         )
@@ -454,19 +458,9 @@ module App
       end
     end
 
-    def rows_controls_json
-      {
-        columns: column_options_json
-      }
-    end
-
-    def merge_chrome_and_rows_payload(chrome, rows)
-      controls = chrome.fetch(:controls).merge(rows[:controls].to_h) do |key, chrome_value, rows_value|
-        key == :columns ? rows_value : chrome_value
-      end
-
+    def merge_chrome_and_rows_payload(chrome, rows, controls_payload)
       chrome.merge(rows).merge(
-        controls: controls,
+        controls: controls_payload.fetch(:controls),
         smart_folders: chrome[:smart_folders]
       )
     end
@@ -525,12 +519,8 @@ module App
       when [ "workflow", "finished_at" ]
         scope.reorder(Workflow.arel_table[:finished_at].public_send(direction), Workflow.arel_table[:id].public_send(direction))
       when [ "workflow", "trigger_kind" ], [ "workflow", "agent_provider" ], [ "workflow", "failure_reason" ],
-           [ "workflow", "worker_hostname" ], [ "workflow", "worker_storage_key" ],
-           [ "workflow", "created_at" ], [ "workflow", "updated_at" ], [ "workflow", "started_at" ],
-           [ "workflow", "cleaned_up_at" ]
+           [ "workflow", "created_at" ], [ "workflow", "updated_at" ], [ "workflow", "started_at" ]
         scope.reorder(Workflow.arel_table[column].public_send(direction), Workflow.arel_table[:id].public_send(direction))
-      when [ "workflow", "run_count" ]
-        scope.reorder(Arel.sql("#{workflow_run_count_sql} #{direction.to_s.upcase}"), Workflow.arel_table[:id].public_send(direction))
       else
         default_sort(scope, subject_name, direction)
       end
@@ -562,17 +552,6 @@ module App
 
     def workflow_count_sql
       "(SELECT COUNT(*) FROM workflows WHERE workflows.job_id = jobs.id)"
-    end
-
-    def workflow_run_count_sql
-      <<~SQL.squish
-        (
-          SELECT COUNT(*)
-          FROM runs
-          INNER JOIN steps ON steps.id = runs.step_id
-          WHERE steps.workflow_id = workflows.id
-        )
-      SQL
     end
 
     def epic_child_progress_percent_sql
@@ -1198,11 +1177,9 @@ module App
     def preload_workflow_step_counts(workflows)
       workflow_ids = workflows.map(&:id)
       @workflow_step_counts_by_workflow_id = {}
-      @workflow_run_counts_by_workflow_id = {}
       return if workflow_ids.empty?
 
       @workflow_step_counts_by_workflow_id = Step.where(workflow_id: workflow_ids).group(:workflow_id).count
-      @workflow_run_counts_by_workflow_id = Run.joins(:step).where(steps: { workflow_id: workflow_ids }).group("steps.workflow_id").count
     end
 
     def blocked_epic_child_counts(epic_ids)

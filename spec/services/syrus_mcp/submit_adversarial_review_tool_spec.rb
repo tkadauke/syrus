@@ -159,9 +159,16 @@ RSpec.describe Mcp::Tools::SubmitAdversarialReviewTool do
     allow_any_instance_of(Coworkers::Coworker).to receive(:finalize_review_memory!)
       .and_raise(Steps::AdversarialReview::MemoryPersistenceFailed, "memory failed")
 
-    expect {
-      call(critique: "A finding that must be remembered.", verdict: "needs_work")
-    }.to raise_error(Steps::AdversarialReview::MemoryPersistenceFailed, /memory failed/)
+    # Building an MCP sidecar elsewhere in the suite prepends StdioToolDispatch
+    # onto every tool class for the rest of the process, converting raised
+    # exceptions into error responses. Accept either surface: the failure must
+    # never be reported as a recorded verdict.
+    begin
+      response = call(critique: "A finding that must be remembered.", verdict: "needs_work")
+      expect(response.error?).to be(true)
+    rescue Steps::AdversarialReview::MemoryPersistenceFailed => error
+      expect(error.message).to match(/memory failed/)
+    end
     expect(run.workflow.reload.artifact("adversarial_review_iterations")).to be_nil
   end
 

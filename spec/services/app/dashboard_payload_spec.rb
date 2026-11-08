@@ -111,23 +111,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       result = call(subject: "job", section: "rows")
       item = result[:items].find { |row| row[:id] == job.id }
 
-      expect(item[:provider_failover]).to include(
-        mode: "automatic",
-        automatic: true,
-        original_provider: "claude",
-        original_provider_label: "Claude Code",
-        selected_provider: "codex",
-        selected_provider_label: "Codex",
-        reason: "provider_unavailable",
-        decided_at: "2026-08-01T12:01:00Z"
-      )
-      expect(item.dig(:provider_failover, :unavailable)).to include(
-        provider: "claude",
-        state: "open",
-        retry_after: "2026-08-01T12:10:00Z",
-        evidence_source: "provider_circuit",
-        observed_at: "2026-08-01T12:00:00Z"
-      )
+      expect(item).not_to have_key(:provider_failover)
     end
   end
 
@@ -200,7 +184,6 @@ RSpec.describe App::DashboardPayload, :ci_only do
       result = call(subject: "job", section: "rows", state: "implemented")
       item = result.fetch(:items).find { |row| row.fetch(:id) == job.id }
 
-      expect(item).to include(can_approve: true)
       expect(item.fetch(:bulk_actions)).to include(approve: true)
     end
 
@@ -213,7 +196,6 @@ RSpec.describe App::DashboardPayload, :ci_only do
       result = call(subject: "job", section: "rows", state: "implemented")
       item = result.fetch(:items).find { |row| row.fetch(:id) == job.id }
 
-      expect(item).to include(can_approve: false)
       expect(item.fetch(:bulk_actions)).to include(approve: false)
     end
 
@@ -225,7 +207,6 @@ RSpec.describe App::DashboardPayload, :ci_only do
       result = call(subject: "job", section: "rows", state: "implemented")
       item = result.fetch(:items).find { |row| row.fetch(:id) == job.id }
 
-      expect(item).to include(can_approve: false)
       expect(item.fetch(:bulk_actions)).to include(approve: false)
     end
   end
@@ -416,16 +397,43 @@ RSpec.describe App::DashboardPayload, :ci_only do
   describe "backlogged job dashboard surfaces" do
     before { SmartFolder.ensure_builtins_for_subject!("job") }
 
+    it "paginates each kanban lane with the default limit and next offset" do
+      stub_const("App::DashboardPayload::KANBAN_PER_PAGE", 2)
+      user.update_dashboard_kanban_lanes!(subject: :jobs, lanes: %w[backlog])
+      jobs = 3.times.map do |index|
+        Factories.job_record(
+          user: user,
+          repository: repo,
+          kind: "direct",
+          state: "backlog",
+          issue_number: nil,
+          issue_title: "Backlog #{index}",
+          owner_user: user
+        )
+      end
+
+      first_page = call(subject: "job", view: "kanban", scope: "mine")
+      first_lane = first_page.fetch(:lanes).sole
+      second_page = call(subject: "job", view: "kanban", scope: "mine", kanban_lane: "backlog", kanban_offset: first_lane.fetch(:next_offset))
+      second_lane = second_page.fetch(:lanes).sole
+
+      expect(first_lane).to include(total_count: 3, loaded_count: 2, has_more: true, next_offset: 2)
+      expect(first_lane.fetch(:items).map { |item| item.fetch(:id) }).to eq(jobs.reverse.first(2).map(&:id))
+      expect(second_lane).to include(total_count: 3, loaded_count: 3, has_more: false, next_offset: 3)
+      expect(second_lane.fetch(:items).map { |item| item.fetch(:id) }).to eq([ jobs.first.id ])
+    end
+
     it "places user-facing backlogged jobs in the backlog lane with dependencies and actions" do
       blocker = Factories.job_record(user: user, repository: repo, kind: "direct", state: "queued", issue_number: nil, issue_title: "Prepare schema")
       backlogged = Factories.job_record(user: user, repository: repo, kind: "direct", state: "backlog", issue_number: nil, issue_title: "Build dashboard lane", priority: "high", owner_user: user)
       infrastructure = Factories.job_record(user: user, repository: repo, kind: "main_grader", state: "backlog", issue_number: nil, issue_title: "Main grader backlog")
-      JobDependency.create!(job: backlogged, depends_on_job: blocker, source: "manual", created_by_user: user)
+      dependency = JobDependency.create!(job: backlogged, depends_on_job: blocker, source: "manual", created_by_user: user)
 
       result = call(subject: "job", view: "kanban", scope: "mine")
       lane = result.fetch(:lanes).find { |candidate| candidate.fetch(:key) == "backlog" }
       item = lane.fetch(:items).find { |candidate| candidate.fetch(:id) == backlogged.id }
 
+      expect(result.fetch(:items)).to be_empty
       expect(lane.fetch(:count)).to eq(1)
       expect(lane.fetch(:items).map { |candidate| candidate.fetch(:id) }).not_to include(infrastructure.id)
       expect(item).to include(
@@ -435,8 +443,6 @@ RSpec.describe App::DashboardPayload, :ci_only do
         priority: "high",
         owner_user: include(id: user.id),
         repository: include(slug: repo.slug),
-        can_release_from_backlog: true,
-        can_move_to_backlog: false,
         bulk_actions: include(
           retry: false,
           release_from_backlog: true,
@@ -451,12 +457,10 @@ RSpec.describe App::DashboardPayload, :ci_only do
           close: true
         )
       )
-      expect(item.fetch(:dependencies)).to contain_exactly(include(depends_on_job: include(id: blocker.id, slug: blocker.slug)))
-      expect(item.fetch(:unsatisfied_dependencies)).to contain_exactly(include(depends_on_job: include(id: blocker.id, slug: blocker.slug)))
-      expect(item.fetch(:paths)).to include(
-        app_release_from_backlog_path: "/api/v1/app/jobs/#{backlogged.id}/release_from_backlog",
-        app_move_to_backlog_path: "/api/v1/app/jobs/#{backlogged.id}/move_to_backlog"
-      )
+      expect(item.fetch(:dependencies)).to contain_exactly(include(id: dependency.id, slug: blocker.slug, pending: false, succeeded: false))
+      expect(item.fetch(:unsatisfied_dependency_count)).to eq(1)
+      expect(item).not_to have_key(:unsatisfied_dependencies)
+      expect(item.fetch(:paths)).to eq(job_path: "/jobs/#{backlogged.id}")
     end
 
     it "keeps the backlogged jobs SmartFolder user-facing and owner scoped" do
@@ -534,6 +538,41 @@ RSpec.describe App::DashboardPayload, :ci_only do
 
       expect(queued_lane.fetch(:items).map { |item| item.fetch(:id) }).to include(job.id)
       expect(blocked_lane.fetch(:items).map { |item| item.fetch(:id) }).not_to include(job.id)
+      expect(queued_lane.fetch(:items).find { |item| item.fetch(:id) == job.id }).to include(unsatisfied_dependency_count: 0)
+    end
+
+    it "counts an unreleased epic gate without adding a fake dependency row" do
+      user.update_dashboard_kanban_lanes!(subject: :jobs, lanes: %w[queued blocked])
+      epic = Factories.epic(user: user, repository: repo, state: "ready")
+      job = Factories.job_record(user: user, repository: repo, epic: epic, state: "queued")
+
+      result = call(subject: "job", view: "kanban", scope: "mine")
+      blocked_lane = result.fetch(:lanes).find { |candidate| candidate.fetch(:key) == "blocked" }
+      item = blocked_lane.fetch(:items).find { |candidate| candidate.fetch(:id) == job.id }
+
+      expect(item.fetch(:dependencies)).to be_empty
+      expect(item.fetch(:unsatisfied_dependency_count)).to eq(1)
+    end
+
+    it "batches dependency queries used to classify all candidate jobs" do
+      user.update_dashboard_kanban_lanes!(subject: :jobs, lanes: %w[queued blocked])
+      blocker = Factories.job_record(user: user, repository: repo, state: "running")
+      4.times do
+        job = Factories.job_record(user: user, repository: repo, state: "queued")
+        JobDependency.create!(job: job, depends_on_job: blocker, source: "manual", created_by_user: user)
+      end
+
+      dependency_queries = 0
+      subscriber = lambda do |_name, _started, _finished, _id, payload|
+        sql = payload[:sql].to_s
+        dependency_queries += 1 if sql.match?(/\ASELECT/i) && sql.include?("job_dependencies")
+      end
+
+      ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+        call(subject: "job", view: "kanban", scope: "mine")
+      end
+
+      expect(dependency_queries).to be <= 2
     end
   end
 
@@ -678,7 +717,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(result[:active_smart_folder_id]).to be_nil
     end
 
-    it "includes folder-specific chrome fields in rows payloads" do
+    it "keeps folder-specific chrome fields out of rows payloads" do
       user.update_dashboard_folder_preferences!(
         subject: "job",
         smart_folder_id: inbox_folder.id,
@@ -688,10 +727,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
 
       result = call(subject: "job", view: "list", section: "rows")
 
-      expect(result[:active_smart_folder_id]).to eq(inbox_folder.id)
-      expect(result[:filter]).to be_present
-      expect(result[:preferences][:sort]).to include(column: "started_at", direction: "asc")
-      expect(result.dig(:controls, :columns, :required)).to be_present
+      expect(result).not_to include(:active_smart_folder_id, :active_smart_folder_filter, :filter, :preferences, :controls)
       expect(result).not_to have_key(:smart_folders)
     end
   end
@@ -782,7 +818,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
 
   describe "dashboard parity columns" do
     it "exposes requested job fields as column options and sortable columns alongside matching filters" do
-      result = call(subject: "job", section: "chrome")
+      result = call(subject: "job", section: "controls")
 
       optional_columns = result.dig(:controls, :columns, :optional).map { |column| column.fetch(:key) }
       filter_fields = result.dig(:controls, :filter_schema).map { |field| field[:field] || field.fetch("field") }
@@ -813,13 +849,13 @@ RSpec.describe App::DashboardPayload, :ci_only do
       Factories.job_record(user: user, repository: repo, epic: slow_epic, state: "running")
       Factories.job_record(user: user, repository: repo, epic: fast_epic, state: "closed", closure_reason: "pr_merged")
 
-      rows = call(subject: "epic", section: "rows", sort_column: "child_progress_percent", sort_direction: "desc")
+      rows = call(subject: "epic", view: "list", section: "rows", sort_column: "child_progress_percent", sort_direction: "desc")
       fast_item = rows[:items].find { |item| item[:id] == fast_epic.id }
       slow_item = rows[:items].find { |item| item[:id] == slow_epic.id }
 
       expect(rows[:items].map { |item| item[:id] }.first).to eq(fast_epic.id)
-      expect(fast_item).to include(child_progress_percent: 100, open_child_count: 0, blocked_child_count: 0, dependency_count: 0)
-      expect(slow_item).to include(child_progress_percent: 0, open_child_count: 2, blocked_child_count: 2, dependency_count: 1, has_epic_dependency: true)
+      expect(fast_item).to include(open_child_count: 0, blocked_child_count: 0, dependency_count: 0)
+      expect(slow_item).to include(open_child_count: 2, blocked_child_count: 2, dependency_count: 1)
     end
 
     it "counts blocked epic children with the same semantics as unsatisfied dependencies" do
@@ -905,7 +941,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       held_epic = Factories.epic(user: user, repository: repo, title: "Not released yet", state: "ready")
       Factories.job_record(user: user, repository: repo, epic: held_epic, state: "queued")
 
-      rows = call(subject: "epic", section: "rows", sort_column: "blocked_child_count", sort_direction: "desc")
+      rows = call(subject: "epic", view: "list", section: "rows", sort_column: "blocked_child_count", sort_direction: "desc")
       semantic_item = rows[:items].find { |item| item[:id] == epic.id }
       held_item = rows[:items].find { |item| item[:id] == held_epic.id }
 
@@ -913,7 +949,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(held_item[:blocked_child_count]).to eq(1)
     end
 
-    it "serializes and sorts workflow run and worker fields" do
+    it "omits workflow runtime cleanup and worker details from compact rows" do
       low_job = Factories.job_record(user: user, repository: repo, issue_title: "Few runs")
       high_job = Factories.job_record(user: user, repository: repo, issue_title: "Many runs")
       low = Workflow.create!(job: low_job, trigger_kind: "initial", state: "failed", failure_reason: "one failed", worker_hostname: "worker-a", worker_storage_key: "store-a")
@@ -923,16 +959,11 @@ RSpec.describe App::DashboardPayload, :ci_only do
       Run.create!(job: low_job, user: user, step: low_step, trigger_kind: "initial", state: "failed")
       2.times { Run.create!(job: high_job, user: user, step: high_step, trigger_kind: "retry", state: "failed") }
 
-      rows = call(subject: "workflow", section: "rows", sort_column: "run_count", sort_direction: "desc")
+      rows = call(subject: "workflow", section: "rows")
       high_item = rows[:items].find { |item| item[:id] == high.id }
 
-      expect(rows[:items].map { |item| item[:id] }.first).to eq(high.id)
-      expect(high_item).to include(
-        run_count: 2,
-        failure_reason: "two failed",
-        worker_hostname: "worker-b",
-        worker_storage_key: "store-b"
-      )
+      expect(high_item).to include(failure_reason: "two failed")
+      expect(high_item).not_to include(:run_count, :worker_hostname, :worker_storage_key, :cleaned_up_at)
     end
   end
 
@@ -1462,7 +1493,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       blocker = Factories.job_record(user: user, repository: repo, state: "closed", landed_sha: "abc123")
       blocker.deployment_stage_statuses.create!(stage_name: "staging", reached_at: Time.zone.parse("2026-07-30T12:00:00Z"))
       blocked_job = Factories.job_record(user: user, repository: repo, state: "implemented")
-      JobDependency.create!(
+      dependency = JobDependency.create!(
         job: blocked_job,
         depends_on_job: blocker,
         source: "manual",
@@ -1478,21 +1509,16 @@ RSpec.describe App::DashboardPayload, :ci_only do
         key: "waiting_for_deployment_stage",
         params: { slug: blocker.slug, stage: "production", latest_stage: "On Staging" }
       )
-      dependency = item[:dependencies].first
-      expect(dependency).to include(
-        satisfaction_mode: "deployment_stage",
-        required_deployment_stage_name: "production",
-        latest_deployment_stage: include(name: "staging", label: "On Staging")
-      )
+      expect(item[:dependencies].first).to include(id: dependency.id, slug: blocker.slug, pending: false, succeeded: false)
     end
 
-    it "preloads dependency deployment statuses when serializing dashboard dependencies" do
+    it "batches deployment status queries when serializing dashboard dependencies" do
       staging = SyrusYml::DeploymentStage.new(name: "staging", label: "On Staging", tag: "staging", tag_pattern: nil)
       production = SyrusYml::DeploymentStage.new(name: "production", label: "Production", tag: "production", tag_pattern: nil)
       allow(RepoDeploymentStagesReader).to receive(:for_repository).and_return(
         RepoDeploymentStagesReader::Result.new(stages: [ staging, production ], source: ".syrus.yml", note: nil)
       )
-      3.times do |index|
+      6.times do |index|
         blocker = Factories.job_record(user: user, repository: repo, state: "closed", landed_sha: "abc123")
         blocker.deployment_stage_statuses.create!(stage_name: "staging", reached_at: Time.zone.parse("2026-07-30T12:00:00Z"))
         blocked_job = Factories.job_record(user: user, repository: repo, state: "implemented", issue_number: 100 + index)
@@ -1564,13 +1590,8 @@ RSpec.describe App::DashboardPayload, :ci_only do
       result = call(subject: "job")
       item = result[:items].find { |i| i[:id] == job.id }
 
-      expect(item).to include(
-        start_blocked_reason: "stack_fan_in_base_unavailable",
-        start_blocked_details: include(
-          "kind" => "fan_in_base_unavailable",
-          "dependencies" => [ { "slug" => "JOB-874" } ]
-        )
-      )
+      expect(item).to include(start_blocked_reason: "stack_fan_in_base_unavailable")
+      expect(item).not_to include(:start_blocked_details, :start_blocked_next_check_at, :start_blocked_count)
     end
 
     it "prefers the current WorkUnit blocker over historical main-health evidence" do
@@ -1652,7 +1673,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(item).to include(start_blocked_reason: nil)
     end
 
-    it "includes start_blocked_next_check_at from the WorkUnit block" do
+    it "keeps start-blocked detail off compact rows" do
       job = Factories.job_record(user: user, repository: repo, state: "queued")
       next_check = 5.minutes.from_now.iso8601
       workflow = Workflow.create!(
@@ -1671,13 +1692,10 @@ RSpec.describe App::DashboardPayload, :ci_only do
       result = call(subject: "job")
       item = result[:items].find { |i| i[:id] == job.id }
 
-      expect(item).to include(
-        start_blocked_next_check_at: next_check,
-        start_blocked_count: nil
-      )
+      expect(item).not_to include(:start_blocked_next_check_at, :start_blocked_count, :start_blocked_details)
     end
 
-    it "includes nil for start_blocked_next_check_at and start_blocked_count when absent from artifacts" do
+    it "omits empty start-blocked detail fields" do
       job = Factories.job_record(user: user, repository: repo, state: "queued")
       workflow = Workflow.create!(
         job: job,
@@ -1690,10 +1708,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       result = call(subject: "job")
       item = result[:items].find { |i| i[:id] == job.id }
 
-      expect(item).to include(
-        start_blocked_next_check_at: nil,
-        start_blocked_count: nil
-      )
+      expect(item).not_to include(:start_blocked_next_check_at, :start_blocked_count, :start_blocked_details)
     end
 
     it "shows running workflows with deferred progress as paused instead of in progress" do
@@ -1745,8 +1760,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       item = rows[:items].find { |i| i[:id] == job.id }
       expect(item[:summary_state]).to eq("paused")
       expect(item[:start_blocked_reason]).to eq("provider_availability")
-      expect(item[:start_blocked_next_check_at]).to eq(next_check.iso8601)
-      expect(item[:start_blocked_details]).to include("reason" => "worker_host_pressure_high")
+      expect(item).not_to include(:start_blocked_next_check_at, :start_blocked_details)
 
       paused_folder = SmartFolder.find_builtin_by_attention("paused")
       in_progress_folder = SmartFolder.find_builtin_by_attention("in_progress")
@@ -2192,6 +2206,16 @@ RSpec.describe App::DashboardPayload, :ci_only do
   end
 
   describe "epic row job aggregates" do
+    it "bounds descriptions on compact epic rows" do
+      epic = Factories.epic(user: user, repository: repo, description: "x" * 300)
+
+      result = call(subject: "epic", view: "list", section: "rows")
+      item = result[:items].find { |row| row[:id] == epic.id }
+
+      expect(item[:description].length).to eq(200)
+      expect(item[:description]).to end_with("...")
+    end
+
     it "serializes epic job state without loading full child job rows" do
       epic = Factories.epic(user: user, repository: repo, state: "in_progress")
       Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 201, state: "approved", commits_behind_base: 4)
@@ -2209,7 +2233,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
 
       result = nil
       ActiveSupport::Notifications.subscribed(callback, "sql.active_record") do
-        result = call(subject: "epic", section: "rows")
+        result = call(subject: "epic", view: "list", section: "rows")
       end
 
       item = result[:items].find { |row| row[:id] == epic.id }
@@ -2229,7 +2253,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       epic = Factories.epic(user: user, repository: repo, state: "in_progress")
       Factories.job_record(user: user, repository: repo, epic: epic, issue_number: 201, state: "approved")
 
-      result = call(subject: "epic", section: "rows")
+      result = call(subject: "epic", view: "list", section: "rows")
 
       item = result[:items].find { |row| row[:id] == epic.id }
       expect(item[:landing]).to eq(false)
@@ -2307,13 +2331,15 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(result[:ui_panels]).to be_empty
     end
 
-    it "includes resolved plugin panels in rows payloads too" do
+    it "keeps resolved plugin panels in chrome rather than rows" do
       panel = { id: "test.notice", component: "test/Notice", order: 10 }
       allow(App::UiSlotsPayload).to receive(:panels_for).and_return([ panel ])
 
-      result = call(subject: "job", section: "rows", smart_folder_id: inbox_folder.id)
+      rows = call(subject: "job", section: "rows", smart_folder_id: inbox_folder.id)
+      chrome = call(subject: "job", section: "chrome", smart_folder_id: inbox_folder.id)
 
-      expect(result[:ui_panels]).to eq([ panel ])
+      expect(rows).not_to have_key(:ui_panels)
+      expect(chrome[:ui_panels]).to eq([ panel ])
     end
 
     it "does not expose the old core-owned untagged issues payload" do
@@ -2395,14 +2421,14 @@ RSpec.describe App::DashboardPayload, :ci_only do
       RepositoryMembership.create!(repository: repo, user: teammate, role: "write")
       epic = Factories.epic(user: user, repository: repo, state: "ready", owner: nil, owner_user: nil)
 
-      chrome = I18n.with_locale(:de) { call(subject: "job", section: "chrome") }
+      controls = I18n.with_locale(:de) { call(subject: "job", section: "controls") }
       rows = I18n.with_locale(:de) { call(subject: "job", section: "rows") }
-      epic_rows = I18n.with_locale(:de) { call(subject: "epic", section: "rows", ownership_scope: "team") }
+      epic_rows = I18n.with_locale(:de) { call(subject: "epic", view: "list", section: "rows", ownership_scope: "team") }
 
-      expect(chrome.dig(:controls, :priorities)).to include(value: "urgent", label: "Dringend")
-      expect(chrome.dig(:controls, :ownership_scopes)).to include(value: "claimable", label: "Übernehmbar")
-      expect(chrome.dig(:controls, :columns, :required)).to include(key: "issue", title: "Issue")
-      expect(chrome.dig(:controls, :kanban_lanes)).to include(key: "running", title: "Läuft")
+      expect(controls.dig(:controls, :priorities)).to include(value: "urgent", label: "Dringend")
+      expect(controls.dig(:controls, :ownership_scopes)).to include(value: "claimable", label: "Übernehmbar")
+      expect(controls.dig(:controls, :columns, :required)).to include(key: "issue", title: "Issue")
+      expect(controls.dig(:controls, :kanban_lanes)).to include(key: "running", title: "Läuft")
 
       direct_row = rows.fetch(:items).find { |row| row.fetch(:id) == direct_job.id }
       expect(direct_row).to include(kind: "direct", title: "Direkt")
@@ -2413,12 +2439,14 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
 
     it "localizes Latin presentation labels while preserving domain nouns and raw keys" do
-      result = I18n.with_locale(:la) { call(subject: "workflow", section: "chrome") }
+      result = I18n.with_locale(:la) { call(subject: "workflow", section: "controls") }
 
       expect(result.dig(:controls, :priorities)).to include(value: "medium", label: "Media")
       expect(result.dig(:controls, :ownership_scopes)).to include(value: "mine", label: "Mea")
       expect(result.dig(:controls, :columns, :required)).to include(key: "workflow", title: "Workflow")
-      expect(result.dig(:controls, :columns, :optional)).to include(key: "run_count", title: "Run")
+      expect(result.dig(:controls, :columns, :optional).map { |column| column.fetch(:key) }).not_to include(
+        "run_count", "worker_hostname", "worker_storage_key", "cleaned_up_at"
+      )
       expect(result.dig(:controls, :kanban_lanes)).to include(key: "done", title: "Perfectum")
     end
   end

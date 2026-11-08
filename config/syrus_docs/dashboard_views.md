@@ -2,6 +2,17 @@
 
 The Jobs and Epics dashboards support three view modes toggled from the toolbar:
 
+Dashboard responses are split by volatility: `section=chrome` contains folder,
+preference, ownership, filter, and landing-queue state; `section=rows` contains
+only items or lanes and pagination. Stable controls come from
+`GET /api/v1/app/dashboard/controls?subject=job|epic|workflow` with private
+one-hour caching and ETag revalidation. Bulk responses patch affected cached
+rows while chrome refreshes separately. Omitting `section` retains the merged
+response for compatibility.
+Chrome omits every folder's full filter tree and includes only
+`active_smart_folder_filter`, when a folder is selected, so clients can compare
+edited filters without downloading every saved definition.
+
 ## list
 
 Default tabular view. Supports column visibility, sorting, and pagination. Columns are configurable per-user per-subject. The Jobs dashboard includes an optional `deployment` column, hidden by default, that shows the furthest configured deployment stage a Job has reached.
@@ -21,8 +32,8 @@ Kanban payloads are paginated per lane. Each lane includes `total_count`, `loade
 
 ## Inbox
 
-The Inbox smart folder scopes to jobs where the current user is an *eligible
-approver* under the job's repository `review_policy`
+The Inbox smart folder scopes to jobs where the current user is an _eligible
+approver_ under the job's repository `review_policy`
 (`Filters::Chips::Jobs::EligibleApprover`), not raw ownership. Under the
 default `self` policy that's still just the effective owner, but under
 `two_person` it also includes jobs owned by anyone else (any non-creator
@@ -138,7 +149,7 @@ shows a direct Unpause control on paused rows.
 A Job can read `running` while nothing executes: the Workflow is mid-chain,
 but its WorkUnit is blocked (main-branch health, admission control, a lock,
 retry backoff). Those Jobs appear in the **Blocked** smart folder alongside
-dependency-blocked and unmergeable Jobs. They are deliberately *not* in "In
+dependency-blocked and unmergeable Jobs. They are deliberately _not_ in "In
 progress" -- nothing is progressing -- and not in "Paused", which is reserved
 for a human pause or a provider-availability pause.
 
@@ -206,11 +217,12 @@ unavailable candidates before the first Run starts. A hold action leaves the
 Workflow queued without creating a Run and is reported as a non-failure held
 decision rather than provider exhaustion.
 If an unstarted workflow automatically moves from one candidate to another, it
-also records `provider_failover_decision`. Dashboard rows, Job detail,
-repository Job rows, and Workflow cards show the original unavailable provider
-and the provider selected for the workflow. Operator-selected alternate retry
-providers render distinct operator copy. Explicit Job provider settings still
-win over routing rules, and chat provider switching remains explicit.
+also records `provider_failover_decision`. Job detail, repository Job rows, and
+Workflow cards show the original unavailable provider and the provider selected
+for the workflow; compact Dashboard rows omit that diagnostic detail.
+Operator-selected alternate retry providers render distinct operator copy.
+Explicit Job provider settings still win over routing rules, and chat provider
+switching remains explicit.
 
 The routing rules editor (user, repository, and Job scopes) has a Test button
 that dry-runs the effective rules against any Job the operator can see, for a
@@ -248,10 +260,11 @@ The explicit Job detail `Retry implementation` action remains available for
 operators who intentionally want a full implementation retry.
 
 **Empty states:**
+
 - If the active filter matches no jobs/epics, the view shows "No [subject] match this view."
 - If nodes are present but none have dependency edges between them (all at Layer 0), the view shows "No dependency relationships in the current view."
 
-**Data source:** `GET /api/v1/app/jobs/graph` and `GET /api/v1/app/epics/graph`. Both endpoints accept the same filter params as the corresponding index endpoints (`repo`, `state`, `q`, `smart_folder_id`) and return `{ nodes, edges }` scoped to `accessible_to(Current.user)`.
+**Data source:** `GET /api/v1/app/jobs/graph` and `GET /api/v1/app/epics/graph`. Both endpoints accept the same filter params as the corresponding index endpoints (`repo`, `state`, `q`, `smart_folder_id`) and return graph nodes and edges scoped to `accessible_to(Current.user)`. Epic graphs are fetched in bounded pages using `limit`/`offset`; their node labels and URLs are derived by the client from the returned number and title.
 
 ## Shared FilterBar primitives
 

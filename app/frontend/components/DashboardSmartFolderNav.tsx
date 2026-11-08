@@ -5,7 +5,14 @@ import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { useT } from "../hooks/useT"
 import { useConfirm } from "../hooks/useConfirm"
-import { createDashboardSmartFolder, toggleDashboardLandingPause, updateDashboardPreferences, type DashboardPayload, type DashboardSmartFolder, type DashboardSubject } from "../api/dashboard"
+import {
+  createDashboardSmartFolder,
+  toggleDashboardLandingPause,
+  updateDashboardPreferences,
+  type DashboardPayload,
+  type DashboardSmartFolder,
+  type DashboardSubject
+} from "../api/dashboard"
 import { updateSmartFolder } from "../api/smartFolders"
 import { Button } from "./Button"
 import { Input } from "./Input"
@@ -16,7 +23,19 @@ import { SmartFolderNavigation } from "./SmartFolderNavigation"
 
 const dashboardFilterOverrideKeys = ["q", "state", "repository_id", "kind", "trigger_kind", "job_id", "attention", "start_blocked", "tag_ids", "pr", "age"]
 
-type DashboardSmartFolderPayload = Pick<DashboardPayload, "active_smart_folder_id" | "broken_repositories" | "filter" | "health_blocked_repositories" | "landing_queue" | "ownership" | "rows_current_for_search" | "smart_folders" | "subject" | "view">
+type DashboardSmartFolderPayload = Pick<
+  DashboardPayload,
+  | "active_smart_folder_id"
+  | "active_smart_folder_filter"
+  | "filter"
+  | "health_blocked_repositories"
+  | "landing_queue"
+  | "ownership"
+  | "rows_current_for_search"
+  | "smart_folders"
+  | "subject"
+  | "view"
+>
 
 export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: DashboardSmartFolderPayload; prefix: string; search: string }) {
   const { t } = useT("nav")
@@ -30,7 +49,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
   const updatePreferences = useMutation({
     mutationFn: updateDashboardPreferences,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "chrome"] })
     }
   })
   const allPath = dashboardLink(subjectPath(payload.subject), { view: payload.view })
@@ -38,24 +57,29 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
   const hasAppliedFilter = topFilterChildren(appliedTree).length > 0
   const selectedFolder = payload.smart_folders.find((folder) => folder.id === activeSmartFolderId)
   const rowsCurrentForSearch = payload.rows_current_for_search ?? true
-  const filterChangedFromSelectedFolder = rowsCurrentForSearch && selectedFolder?.filter != null && !filterTreesEqual(appliedTree, filterTreeFromPayload(selectedFolder.filter))
+  const filterChangedFromSelectedFolder =
+    rowsCurrentForSearch &&
+    selectedFolder != null &&
+    payload.active_smart_folder_filter != null &&
+    !filterTreesEqual(appliedTree, filterTreeFromPayload(payload.active_smart_folder_filter))
   const canUpdateFilter = activeFolder != null && filterChangedFromSelectedFolder
   const canSaveFilter = hasAppliedFilter && (selectedFolder == null || filterChangedFromSelectedFolder)
   const landingPause = useMutation({
     mutationFn: (options: { confirmed?: boolean } = {}) => toggleDashboardLandingPause(payload.landing_queue.toggle_path, options),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "chrome"] })
     }
   })
   const createFolder = useMutation({
-    mutationFn: () => createDashboardSmartFolder({
-      subject: payload.subject,
-      name: folderName,
-      filters: smartFolderFiltersFromTree(appliedTree)
-    }),
+    mutationFn: () =>
+      createDashboardSmartFolder({
+        subject: payload.subject,
+        name: folderName,
+        filters: smartFolderFiltersFromTree(appliedTree)
+      }),
     onSuccess: (created) => {
       setFolderName("")
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "chrome"] })
       navigate(withRoutePrefix(created.redirect_to, prefix))
     }
   })
@@ -71,7 +95,7 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
     },
     onSuccess: () => {
       navigate(clearDashboardFilterOverrides(`${prefix}${subjectPath(payload.subject)}`, search), { replace: true })
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+      void queryClient.invalidateQueries({ queryKey: ["dashboard", "chrome"] })
     }
   })
 
@@ -100,25 +124,33 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
       {dialog}
       <SmartFolderNavigation
         actionLabel={(folder) => `Actions for ${folder.name}`}
-        allLink={allSubjectLinkVisible(payload) ? {
-          active: activeSmartFolderId == null,
-          label: allSubjectLabel(payload.subject, t),
-          onSelect: () => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: null }),
-          path: allPath
-        } : null}
+        allLink={
+          allSubjectLinkVisible(payload)
+            ? {
+                active: activeSmartFolderId == null,
+                label: allSubjectLabel(payload.subject, t),
+                onSelect: () => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: null }),
+                path: allPath
+              }
+            : null
+        }
         ariaLabel={t("smart_folders_aria")}
         emptySavedMessage={t("smart_folder.no_saved_folders")}
         folders={payload.smart_folders.map((folder) => folderWithActive(folder, activeSmartFolderId))}
-        getDisplayName={(folder) => (folder.kind !== "user_defined" && folder.key)
-          ? t(`smart_folder.names.${folder.key}`, { defaultValue: folder.name })
-          : folder.name}
+        getDisplayName={(folder) =>
+          folder.kind !== "user_defined" && folder.key ? t(`smart_folder.names.${folder.key}`, { defaultValue: folder.name }) : folder.name
+        }
         moreLabel={t("smart_folder.more")}
         onMutationSuccess={() => {
-          void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
+          void queryClient.invalidateQueries({ queryKey: ["dashboard", "chrome"] })
         }}
         onSelect={(folder) => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: folder.id })}
         prefix={prefix}
-        renderCountPrefix={(folder) => (folder.blocked_count ?? 0) > 0 ? <BlockedCount folder={folder} onSelect={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: folder.id })} prefix={prefix} /> : null}
+        renderCountPrefix={(folder) =>
+          (folder.blocked_count ?? 0) > 0 ? (
+            <BlockedCount folder={folder} onSelect={() => updatePreferences.mutate({ subject: payload.subject, smart_folder_id: folder.id })} prefix={prefix} />
+          ) : null
+        }
         savedAriaLabel={t("saved_folders_aria")}
         savedHeading={t("smart_folder.saved")}
       />
@@ -132,7 +164,11 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
           >
             {t("smart_folder.update_named_folder", { name: activeFolder.name })}
           </button>
-          {updateFolder.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(updateFolder.error, t("smart_folder.unable_to_update"))}</p> : null}
+          {updateFolder.isError ? (
+            <p className="text-xs text-red-700 dark:text-red-300" role="alert">
+              {errorMessage(updateFolder.error, t("smart_folder.unable_to_update"))}
+            </p>
+          ) : null}
         </div>
       ) : null}
       {canSaveFilter ? (
@@ -153,7 +189,11 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
           <Button className="w-full" disabled={createFolder.isPending} type="submit">
             {t("smart_folder.save_folder")}
           </Button>
-          {createFolder.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(createFolder.error, t("smart_folder.unable_to_save"))}</p> : null}
+          {createFolder.isError ? (
+            <p className="text-xs text-red-700 dark:text-red-300" role="alert">
+              {errorMessage(createFolder.error, t("smart_folder.unable_to_save"))}
+            </p>
+          ) : null}
         </form>
       ) : null}
       {payload.landing_queue.visible ? (
@@ -161,11 +201,15 @@ export function DashboardSmartFolderNav({ payload, prefix, search }: { payload: 
           <Button className="w-full" disabled={landingPause.isPending} onClick={toggleLandingPause} size="sm" variant="secondary">
             {payload.landing_queue.paused ? t("smart_folder.resume_landing") : t("smart_folder.pause_landing")}
           </Button>
-          {payload.landing_queue.paused && (payload.health_blocked_repositories ?? payload.broken_repositories)?.some((repo) => repo.main_branch_repair_blocks_work) ? (
+          {payload.landing_queue.paused && payload.health_blocked_repositories?.some((repo) => repo.main_branch_repair_blocks_work) ? (
             <p className="text-xs text-amber-700 dark:text-amber-300">{t("smart_folder.landing_paused_main_health")}</p>
           ) : null}
           <NoticeToast message={landingPause.isSuccess ? landingPause.data.message : null} onDismiss={() => landingPause.reset()} />
-          {landingPause.isError ? <p className="text-xs text-red-700 dark:text-red-300" role="alert">{errorMessage(landingPause.error, t("smart_folder.unable_to_update_landing"))}</p> : null}
+          {landingPause.isError ? (
+            <p className="text-xs text-red-700 dark:text-red-300" role="alert">
+              {errorMessage(landingPause.error, t("smart_folder.unable_to_update_landing"))}
+            </p>
+          ) : null}
         </div>
       ) : null}
     </aside>

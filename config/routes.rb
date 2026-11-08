@@ -222,6 +222,10 @@ Rails.application.routes.draw do
         get "epics", to: "epics#index"
         get "epics/graph", to: "epics#graph"
         get "epics/new", to: "epics#new"
+        get "epics/:id/preview", to: "epics#preview", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        get "epics/:id/history", to: "epics#history", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        get "epics/:id/dependencies", to: "epics#dependency_detail", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        get "epics/:id/provider_availability", to: "epics#provider_availability", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "epics/:id", to: "epics#show", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "epics/:id/edit", to: "epics#edit", constraints: { id: /[a-zA-Z0-9_-]+/ }
         post "epics", to: "epics#create"
@@ -239,6 +243,7 @@ Rails.application.routes.draw do
         get "filters/suggestions", to: "filters#suggestions"
         get "users/invitable", to: "users#invitable"
         get "dashboard", to: "dashboard#show"
+        get "dashboard/controls", to: "dashboard#controls"
         get "permission_requests", to: "permission_requests#index"
         post "permission_requests/batch_decide", to: "permission_requests#batch_decide"
         post "permission_requests/:id/decide", to: "permission_requests#decide", constraints: { id: /\d+/ }

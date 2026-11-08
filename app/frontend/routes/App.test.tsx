@@ -1593,7 +1593,7 @@ describe("App", () => {
         return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       const url = new URL(path, "http://example.test")
-      if (url.pathname === "/api/v1/app/dashboard") {
+      if (dashboardPayloadPath(url)) {
         return Promise.resolve(
           dashboardResponse(
             dashboardPayload({
@@ -3441,8 +3441,7 @@ describe("App", () => {
                 preferences: {
                   sort: { column: sortColumn, direction: sortDirection },
                   visible_columns: ["checkbox", "issue", "state", "repository", "owner", "latest", "workflows_count", "started"],
-                  kanban_lanes: ["queued", "running", "succeeded"],
-                  raw: {}
+                  kanban_lanes: ["queued", "running", "succeeded"]
                 },
                 items: [
                   dashboardJobItem({
@@ -3946,7 +3945,7 @@ describe("App", () => {
     expect(within(bulkToolbar()).queryByRole("button", { name: "Accept" })).not.toBeInTheDocument()
   }, 30000)
 
-  it("uses conservative bulk job action fallback when row payloads omit bulk_actions", async () => {
+  it("fails closed when row payloads omit bulk_actions", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (dashboardPathMatches(path, "/api/v1/app/dashboard?view=list&subject=job")) {
@@ -3967,9 +3966,6 @@ describe("App", () => {
                     title: "Implemented fixture",
                     state: "implemented",
                     issue_number: 46,
-                    can_approve: true,
-                    can_release_from_backlog: false,
-                    can_move_to_backlog: false,
                     claimed_by_user: null
                   }),
                   dashboardJobItem({
@@ -3977,9 +3973,6 @@ describe("App", () => {
                     title: "Failed fixture",
                     state: "failed",
                     issue_number: 47,
-                    can_approve: false,
-                    can_release_from_backlog: false,
-                    can_move_to_backlog: false,
                     claimed_by_user: null,
                     retry_state: {
                       classification: "git_failure",
@@ -4014,7 +4007,7 @@ describe("App", () => {
 
     fireEvent.click(screen.getByLabelText("Select Implemented fixture"))
     expect(await screen.findByText("1 selected")).toBeInTheDocument()
-    expect(within(bulkToolbar()).getByRole("button", { name: "Approve" })).toBeInTheDocument()
+    expect(within(bulkToolbar()).queryByRole("button", { name: "Approve" })).not.toBeInTheDocument()
     expect(within(bulkToolbar()).queryByRole("button", { name: "Start" })).not.toBeInTheDocument()
     expect(within(bulkToolbar()).queryByRole("button", { name: "Backlog" })).not.toBeInTheDocument()
     expect(within(bulkToolbar()).queryByRole("button", { name: "Unpause" })).not.toBeInTheDocument()
@@ -4127,8 +4120,7 @@ describe("App", () => {
         preferences: {
           sort: { column: "created_at", direction: "desc" },
           visible_columns: ["issue", "state", "latest"],
-          kanban_lanes: ["queued", "running", "succeeded"],
-          raw: {}
+          kanban_lanes: ["queued", "running", "succeeded"]
         },
         items: [
           dashboardJobItem({
@@ -4165,8 +4157,7 @@ describe("App", () => {
         preferences: {
           sort: { column: "created_at", direction: "desc" },
           visible_columns: ["issue", "state", "latest"],
-          kanban_lanes: ["queued", "running", "succeeded"],
-          raw: {}
+          kanban_lanes: ["queued", "running", "succeeded"]
         },
         items: [
           dashboardJobItem({
@@ -4208,8 +4199,7 @@ describe("App", () => {
                 preferences: {
                   sort: { column: "created_at", direction: "desc" },
                   visible_columns: ["checkbox", "issue", "state", "latest"],
-                  kanban_lanes: ["queued", "running", "succeeded"],
-                  raw: {}
+                  kanban_lanes: ["queued", "running", "succeeded"]
                 },
                 items: [
                   dashboardJobItem({
@@ -4354,7 +4344,7 @@ describe("App", () => {
             pr_url: null,
             manual_paused: true,
             manual_paused_at: "2026-05-30T11:00:00Z",
-            manual_paused_by_user: { id: 1, name: "Operator", email_address: "operator@example.com" },
+            bulk_actions: { unpause: true },
             tags: [],
             source_chat: null
           })
@@ -4535,8 +4525,7 @@ describe("App", () => {
                   kanban_lanes: ["queued", "running", "succeeded"],
                   ownership_scope: "team",
                   owner_user_id: 1,
-                  owner_id: 1,
-                  raw: {}
+                  owner_id: 1
                 },
                 items: [
                   dashboardJobItem({ title: "Mine", owner_badge: null }),
@@ -4688,8 +4677,7 @@ describe("App", () => {
         preferences: {
           sort: { column: "updated_at", direction: "desc" },
           visible_columns: ["epic", "state", "repository", "updated"],
-          kanban_lanes: ["backlog", "ready", "in_progress", "done"],
-          raw: {}
+          kanban_lanes: ["backlog", "ready", "in_progress", "done"]
         },
         controls: {
           ...dashboardPayload().controls,
@@ -4737,8 +4725,7 @@ describe("App", () => {
         preferences: {
           sort: { column: "started_at", direction: "desc" },
           visible_columns: ["workflow", "job", "trigger", "state", "started", "finished", "agent"],
-          kanban_lanes: ["queued", "running", "done"],
-          raw: {}
+          kanban_lanes: ["queued", "running", "done"]
         },
         controls: {
           ...dashboardPayload().controls,
@@ -4800,8 +4787,7 @@ describe("App", () => {
         preferences: {
           sort: { column: "started_at", direction: "desc" },
           visible_columns: ["workflow", "job", "state", "started"],
-          kanban_lanes: ["queued", "running", "done"],
-          raw: {}
+          kanban_lanes: ["queued", "running", "done"]
         },
         controls: {
           ...dashboardPayload().controls,
@@ -5448,7 +5434,7 @@ describe("App", () => {
         return Promise.resolve(new Response(JSON.stringify({ groups: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       const url = new URL(path, "http://example.test")
-      if (url.pathname === "/api/v1/app/dashboard") {
+      if (dashboardPayloadPath(url)) {
         return Promise.resolve(
           dashboardResponse(
             dashboardPayload({
@@ -5618,7 +5604,7 @@ describe("App", () => {
         )
       }
       const url = new URL(path, "http://example.test")
-      if (url.pathname === "/api/v1/app/dashboard") {
+      if (dashboardPayloadPath(url)) {
         const activeSmartFolder = url.searchParams.get("smart_folder_id") === "7" || url.searchParams.get("section") === "chrome"
         return Promise.resolve(
           dashboardResponse(
@@ -5689,7 +5675,7 @@ describe("App", () => {
         return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       const url = new URL(path, "http://example.test")
-      if (url.pathname === "/api/v1/app/dashboard") {
+      if (dashboardPayloadPath(url)) {
         const hasSmartFolder = url.searchParams.get("smart_folder_id") === "7"
         return Promise.resolve(
           dashboardResponse(
@@ -5757,7 +5743,7 @@ describe("App", () => {
         return Promise.resolve(new Response(JSON.stringify({ chats: [], repositories: [] }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       const url = new URL(path, "http://example.test")
-      if (url.pathname === "/api/v1/app/dashboard") {
+      if (dashboardPayloadPath(url)) {
         const hasSmartFolder = url.searchParams.get("smart_folder_id") === "7"
         return Promise.resolve(
           dashboardResponse(
@@ -5829,7 +5815,10 @@ describe("App", () => {
       }
 
       const url = new URL(path, "http://example.test")
-      if (url.pathname === "/api/v1/app/dashboard" && (url.searchParams.get("smart_folder_id") === "7" || url.searchParams.get("section") === "chrome")) {
+      if (
+        dashboardPayloadPath(url) &&
+        (url.pathname.endsWith("/controls") || url.searchParams.get("smart_folder_id") === "7" || url.searchParams.get("section") === "chrome")
+      ) {
         if (url.searchParams.get("section") !== "chrome") dashboardRequests.push(path)
         const q = url.searchParams.get("q")
         const filter = q ? decodeFilterQueryParam(q) : storedFilter
@@ -5927,7 +5916,7 @@ describe("App", () => {
         return Promise.resolve(new Response(JSON.stringify({ message: "Recorded." }), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
       const url = new URL(path, "http://example.test")
-      if (url.pathname === "/api/v1/app/dashboard") {
+      if (dashboardPayloadPath(url)) {
         if (url.searchParams.get("section") !== "chrome") dashboardRequests.push(path)
         const hasSmartFolder = url.searchParams.get("smart_folder_id") === "1"
         return Promise.resolve(
@@ -6049,7 +6038,10 @@ describe("App", () => {
         )
       }
       const url = new URL(path, "http://example.test")
-      if (url.pathname === "/api/v1/app/dashboard" && (url.searchParams.get("smart_folder_id") === "7" || url.searchParams.get("section") === "chrome")) {
+      if (
+        dashboardPayloadPath(url) &&
+        (url.pathname.endsWith("/controls") || url.searchParams.get("smart_folder_id") === "7" || url.searchParams.get("section") === "chrome")
+      ) {
         const hasSmartFolder = url.searchParams.get("smart_folder_id") === "7"
         return Promise.resolve(
           dashboardResponse(
@@ -6311,8 +6303,7 @@ describe("App", () => {
         preferences: {
           sort: { column: "updated_at", direction: "desc" },
           visible_columns: ["epic", "state", "repository", "updated"],
-          kanban_lanes: ["in_progress"],
-          raw: {}
+          kanban_lanes: ["in_progress"]
         },
         controls: {
           ...dashboardPayload().controls,
@@ -6357,8 +6348,7 @@ describe("App", () => {
         preferences: {
           sort: { column: "updated_at", direction: "desc" },
           visible_columns: ["epic", "state", "repository", "updated"],
-          kanban_lanes: ["in_progress"],
-          raw: {}
+          kanban_lanes: ["in_progress"]
         },
         controls: {
           ...dashboardPayload().controls,
@@ -6409,28 +6399,16 @@ describe("App", () => {
       dependencies: [
         {
           id: 4,
+          slug: "JOB-41",
+          state: "queued",
           pending: false,
-          succeeded: false,
-          unresolved_slug: null,
-          depends_on_job: { id: 41, slug: "JOB-41", title: "Prepare schema", state: "queued", repository_slug: "acme/widgets", job_path: "/jobs/41" },
-          depends_on_epic: null
+          succeeded: false
         }
       ],
-      unsatisfied_dependencies: [
-        {
-          id: 4,
-          pending: false,
-          succeeded: false,
-          unresolved_slug: null,
-          depends_on_job: { id: 41, slug: "JOB-41", title: "Prepare schema", state: "queued", repository_slug: "acme/widgets", job_path: "/jobs/41" },
-          depends_on_epic: null
-        }
-      ],
-      can_release_from_backlog: true,
+      unsatisfied_dependency_count: 1,
+      bulk_actions: { release_from_backlog: true },
       paths: {
-        job_path: "/jobs/88",
-        source_path: "/jobs/88/source",
-        app_release_from_backlog_path: "/api/v1/app/jobs/88/release_from_backlog"
+        job_path: "/jobs/88"
       }
     })
     mockDashboardFetch(
@@ -6447,7 +6425,7 @@ describe("App", () => {
           kanban_lanes: [{ key: "backlog", title: "Backlog" }]
         },
         lanes: [{ key: "backlog", title: "Backlog", count: 1, items: [backloggedJob] }],
-        kanban_limit: 100
+        kanban_limit: 25
       })
     )
 
@@ -6492,8 +6470,7 @@ describe("App", () => {
               preferences: {
                 sort: { column: "updated_at", direction: "desc" },
                 visible_columns: ["epic", "state", "repository", "updated"],
-                kanban_lanes: ["backlog", "ready", "in_progress"],
-                raw: {}
+                kanban_lanes: ["backlog", "ready", "in_progress"]
               },
               controls: {
                 ...dashboardPayload().controls,
@@ -6572,8 +6549,7 @@ describe("App", () => {
               preferences: {
                 sort: { column: "updated_at", direction: "desc" },
                 visible_columns: ["epic", "state", "repository", "updated"],
-                kanban_lanes: ["in_progress", "done"],
-                raw: {}
+                kanban_lanes: ["in_progress", "done"]
               },
               controls: {
                 ...dashboardPayload().controls,
@@ -6657,8 +6633,7 @@ describe("App", () => {
               preferences: {
                 sort: { column: "updated_at", direction: "desc" },
                 visible_columns: ["epic", "state", "repository", "updated"],
-                kanban_lanes: ["ready", "in_progress"],
-                raw: {}
+                kanban_lanes: ["ready", "in_progress"]
               },
               controls: {
                 ...dashboardPayload().controls,
@@ -6766,8 +6741,7 @@ describe("App", () => {
               preferences: {
                 sort: { column: "updated_at", direction: "desc" },
                 visible_columns: ["epic", "state", "repository", "updated"],
-                kanban_lanes: ["ready", "in_progress"],
-                raw: {}
+                kanban_lanes: ["ready", "in_progress"]
               },
               controls: {
                 ...dashboardPayload().controls,
@@ -6827,8 +6801,7 @@ describe("App", () => {
       preferences: {
         sort: { column: "updated_at", direction: "desc" },
         visible_columns: ["epic", "state", "repository", "updated"],
-        kanban_lanes: ["ready"],
-        raw: {}
+        kanban_lanes: ["ready"]
       },
       controls: {
         ...dashboardPayload().controls,
@@ -10229,34 +10202,34 @@ describe("App", () => {
   })
 
   it("renders an Epic detail page and updates state through the app API", async () => {
+    let currentPayload = epicDetailPayload()
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/epics/7/state" && init?.method === "PATCH") {
+        currentPayload = epicDetailPayload({
+          message: "Epic updated.",
+          state: "in_progress",
+          epic: {
+            owner_user_id: 1,
+            owner_status: "mine",
+            owner_user: { id: 1, email_address: "operator@example.com" },
+            owned_by_current_user: true,
+            claimable: false
+          },
+          stateTransitions: [
+            { label: "Move back to ready", target_state: "ready", confirm: null },
+            { label: "Archive", target_state: "archived", confirm: "Archive this Epic?" }
+          ]
+        })
         return Promise.resolve(
-          new Response(
-            JSON.stringify(
-              epicDetailPayload({
-                message: "Epic updated.",
-                state: "in_progress",
-                epic: {
-                  owner_user_id: 1,
-                  owner_status: "mine",
-                  owner_user: { id: 1, email_address: "operator@example.com" },
-                  owned_by_current_user: true,
-                  claimable: false
-                },
-                stateTransitions: [
-                  { label: "Move back to ready", target_state: "ready", confirm: null },
-                  { label: "Archive", target_state: "archived", confirm: "Archive this Epic?" }
-                ]
-              })
-            ),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
+          new Response(JSON.stringify({ message: "Epic updated.", epic: currentPayload.epic }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          })
         )
       }
 
-      return Promise.resolve(new Response(JSON.stringify(epicDetailPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      return Promise.resolve(new Response(JSON.stringify(currentPayload), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
 
     render(
@@ -10416,52 +10389,31 @@ describe("App", () => {
   })
 
   it("claims and unclaims an Epic from the detail controls", async () => {
+    let currentPayload = epicDetailPayload()
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/epics/7/claim" && init?.method === "PATCH") {
+        currentPayload = epicDetailPayload({
+          epic: { owner_user_id: 1, owner_status: "mine", owner_user: { id: 1, email_address: "operator@example.com" }, owned_by_current_user: true }
+        })
         return Promise.resolve(
-          new Response(
-            JSON.stringify(
-              epicDetailPayload({
-                message: "Epic claimed.",
-                epic: {
-                  owner_user_id: 1,
-                  owner_status: "mine",
-                  owner_user: { id: 1, email_address: "operator@example.com" },
-                  owned_by_current_user: true
-                },
-                jobs: [
-                  {
-                    id: 42,
-                    label: "#12",
-                    title: "Survey forum",
-                    path: "/jobs/42",
-                    state: "closed",
-                    owner_user_id: 1,
-                    owner_user: { id: 1, email_address: "operator@example.com" },
-                    repository_slug: "acme/widgets"
-                  }
-                ]
-              })
-            ),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
+          new Response(JSON.stringify({ message: "Epic claimed.", epic: currentPayload.epic }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          })
         )
       }
       if (path === "/api/v1/app/epics/7/unclaim" && init?.method === "PATCH") {
+        currentPayload = epicDetailPayload()
         return Promise.resolve(
-          new Response(
-            JSON.stringify(
-              epicDetailPayload({
-                message: "Epic unclaimed."
-              })
-            ),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
+          new Response(JSON.stringify({ message: "Epic unclaimed.", epic: currentPayload.epic }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" }
+          })
         )
       }
 
-      return Promise.resolve(new Response(JSON.stringify(epicDetailPayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
+      return Promise.resolve(new Response(JSON.stringify(currentPayload), { status: 200, headers: { "Content-Type": "application/json" } }))
     })
 
     render(
@@ -18398,8 +18350,7 @@ function dashboardPayload(overrides: Record<string, unknown> = {}) {
       kanban_lanes: ["queued", "running", "succeeded"],
       ownership_scope: "team",
       owner_user_id: null,
-      owner_id: null,
-      raw: {}
+      owner_id: null
     },
     controls: {
       views: ["list", "kanban"],
@@ -18542,15 +18493,30 @@ function dashboardPayload(overrides: Record<string, unknown> = {}) {
     }
   }
 
-  return {
+  const merged = {
     ...payload,
     ...overrides
   }
+  const activeFolder = (merged.smart_folders as Array<{ id: number; filter?: Record<string, unknown> }>).find(
+    (folder) => folder.id === merged.active_smart_folder_id
+  )
+
+  return {
+    ...merged,
+    active_smart_folder_filter: activeFolder?.filter ?? null
+  }
+}
+
+function dashboardPayloadPath(url: URL) {
+  return url.pathname === "/api/v1/app/dashboard" || url.pathname === "/api/v1/app/dashboard/controls"
 }
 
 function dashboardPathMatches(input: unknown, expectedPath: string) {
   const actual = new URL(String(input), "http://example.test")
   const expected = new URL(expectedPath, "http://example.test")
+  if (actual.pathname === "/api/v1/app/dashboard/controls" && expected.pathname === "/api/v1/app/dashboard") {
+    return actual.searchParams.get("subject") === expected.searchParams.get("subject")
+  }
   const actualSection = actual.searchParams.get("section")
   actual.searchParams.delete("section")
   if (actualSection === "chrome" && !actual.searchParams.has("smart_folder_id")) {
@@ -18568,7 +18534,7 @@ function dashboardPathStartsWith(input: unknown, expectedPrefix: string) {
 }
 
 function expectDashboardFetch(fetchSpy: { mock: { calls: Array<[unknown, unknown?]> } }, expectedPath: string, expectedOptions?: unknown) {
-  const matchingCall = fetchSpy.mock.calls.find(([input]) => dashboardPathMatches(input, expectedPath))
+  const matchingCall = fetchSpy.mock.calls.find(([input]) => !String(input).includes("/dashboard/controls") && dashboardPathMatches(input, expectedPath))
   expect(matchingCall).toBeTruthy()
   if (expectedOptions) expect(matchingCall?.[1]).toEqual(expectedOptions)
 }
@@ -18576,6 +18542,10 @@ function expectDashboardFetch(fetchSpy: { mock: { calls: Array<[unknown, unknown
 function dashboardSectionPayload(payload: ReturnType<typeof dashboardPayload>, input: unknown) {
   const url = new URL(String(input), "http://example.test")
   const section = url.searchParams.get("section")
+
+  if (url.pathname === "/api/v1/app/dashboard/controls") {
+    return { subject: payload.subject, controls: payload.controls }
+  }
 
   if (section === "chrome") {
     const { total: _total, total_pages: _totalPages, items: _items, lanes: _lanes, kanban_limit: _kanbanLimit, ...chrome } = payload

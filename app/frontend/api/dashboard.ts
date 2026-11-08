@@ -2,9 +2,8 @@ import { getJson, getJsonWithMeta, patchJson, postJson } from "./client"
 import type { JsonResponseMeta } from "./client"
 import type { JobDeliveryStatus, JobRetryState, LandingQueueBlockerJob, LandingQueueDependencyEdge } from "./jobs"
 import type { BlockedReason } from "../lib/translateBlockedReason"
-import type { ProviderAvailability, ProviderFailover, ProviderMismatch } from "./providerAvailability"
+import type { ProviderAvailability, ProviderMismatch } from "./providerAvailability"
 import type { GoalProvenance } from "./chats"
-import type { StartBlockedDetails } from "../types/startBlocked"
 
 import type { SetupStatusPayload } from "./setup"
 import type { UiSlotPanel } from "../pluginUiSlots"
@@ -114,27 +113,12 @@ export type ActiveRepairWork = {
   blocked_reason: string | null
 }
 
-export type DashboardDependencyTarget = {
+export type DashboardJobDependency = {
   id: number
   slug: string
-  title: string | null
-  state: string
-  repository_slug?: string
-  job_path?: string
-  epic_path?: string
-  latest_deployment_stage?: DashboardDeploymentStage | null
-}
-
-export type DashboardJobDependency = {
-  id: number | string
+  state: string | null
   pending: boolean
   succeeded: boolean
-  satisfaction_mode?: "success" | "landed" | "closed" | "deployment_stage"
-  required_deployment_stage_name?: string | null
-  latest_deployment_stage?: DashboardDeploymentStage | null
-  unresolved_slug: string | null
-  depends_on_job: DashboardDependencyTarget | null
-  depends_on_epic: DashboardDependencyTarget | null
 }
 
 export type DashboardLandingQueueEntry = {
@@ -166,7 +150,6 @@ export type DashboardJobItem = {
   priority: string
   agent_provider: string | null
   provider_availability?: ProviderAvailability
-  provider_failover?: ProviderFailover
   provider_mismatch?: ProviderMismatch | null
   total_cost_usd: number | null
   issue_number: number | null
@@ -202,7 +185,7 @@ export type DashboardJobItem = {
   claimed_by_current_user: boolean
   dependencies_overridden_at: string | null
   dependencies?: DashboardJobDependency[]
-  unsatisfied_dependencies?: DashboardJobDependency[]
+  unsatisfied_dependency_count?: number
   last_feedback_addressed_at: string | null
   last_seen_comment_at: string | null
   pr_mergeable_checked_at: string | null
@@ -219,27 +202,12 @@ export type DashboardJobItem = {
   delivery_status?: JobDeliveryStatus
   start_blocked_reason: string | null
   start_blocked_at: string | null
-  start_blocked_next_check_at: string | null
-  start_blocked_count: number | null
-  start_blocked_details: StartBlockedDetails | null
   manual_paused?: boolean
   manual_paused_at?: string | null
-  manual_paused_by_user?: DashboardOwnerUser | null
   active_repair_work?: ActiveRepairWork | null
   bulk_actions?: Partial<Record<DashboardBulkJobAction, boolean>>
-  can_approve?: boolean
-  can_release_from_backlog?: boolean
-  can_move_to_backlog?: boolean
   paths: {
     job_path: string
-    source_path: string
-    app_pause_path?: string
-    app_unpause_path?: string
-    app_release_from_backlog_path?: string
-    app_move_to_backlog_path?: string
-    app_approve_path?: string
-    app_preview_path?: string
-    app_preview_logs_path?: string
   }
 }
 
@@ -254,7 +222,6 @@ export type DashboardEpicItem = {
   landing: boolean
   stuck: boolean
   all_jobs_closed: boolean
-  owner: DashboardOwner | null
   owned_by_current_user: boolean
   claimable: boolean
   owner_badge: DashboardOwnerBadge | null
@@ -266,7 +233,6 @@ export type DashboardEpicItem = {
   landed_jobs_count: number
   open_child_count?: number
   blocked_child_count?: number
-  child_progress_percent?: number
   dependency_count?: number
   has_epic_dependency?: boolean
   execution_blocked_on: string[]
@@ -299,12 +265,8 @@ export type DashboardWorkflowItem = {
   updated_at: string | null
   started_at: string | null
   finished_at: string | null
-  cleaned_up_at: string | null
   steps_count: number
-  run_count?: number
   failure_reason?: string | null
-  worker_hostname?: string | null
-  worker_storage_key?: string | null
   job: {
     id: number
     title: string
@@ -352,7 +314,6 @@ export type DashboardSmartFolder = {
   count_capped?: boolean
   blocked_count?: number | null
   active: boolean
-  filter?: Record<string, unknown>
   attention_preset: string | null
   path: string
 }
@@ -406,9 +367,9 @@ export type DashboardPayload = {
     ownership_scope: string
     owner_user_id: number | null
     owner_id: number | null
-    raw: Record<string, unknown>
   }
   filter?: Record<string, unknown> | null
+  active_smart_folder_filter?: Record<string, unknown> | null
   controls: {
     views: string[]
     ownership_scopes: Array<{ value: string; label: string }>
@@ -432,7 +393,6 @@ export type DashboardPayload = {
     status?: DashboardLandingQueueStatus | null
   }
   provider_availability?: Record<string, ProviderAvailability>
-  broken_repositories?: DashboardHealthBlockedRepository[]
   health_blocked_repositories?: DashboardHealthBlockedRepository[]
   ui_panels?: UiSlotPanel[]
   ownership: {
@@ -459,7 +419,7 @@ export type DashboardPayload = {
   }
 }
 
-export type DashboardChromePayload = Omit<DashboardPayload, "total" | "total_pages" | "total_estimated" | "items" | "lanes" | "kanban_limit"> & {
+export type DashboardChromePayload = Omit<DashboardPayload, "controls" | "total" | "total_pages" | "total_estimated" | "items" | "lanes" | "kanban_limit"> & {
   total?: number
   total_pages?: number
   total_estimated?: boolean
@@ -468,13 +428,12 @@ export type DashboardChromePayload = Omit<DashboardPayload, "total" | "total_pag
   kanban_limit?: number | null
 }
 
+export type DashboardControlsPayload = Pick<DashboardPayload, "subject" | "controls">
+
 export type DashboardRowsPayload = Pick<
   DashboardPayload,
-  "subject" | "view" | "page" | "per_page" | "total" | "total_pages" | "total_estimated" | "landing_queue" | "items" | "lanes" | "kanban_limit"
-> &
-  Partial<Pick<DashboardPayload, "active_smart_folder_id" | "filter" | "preferences" | "ui_panels">> & {
-    controls?: Partial<DashboardPayload["controls"]>
-  }
+  "subject" | "view" | "page" | "per_page" | "total" | "total_pages" | "total_estimated" | "items" | "lanes" | "kanban_limit"
+>
 
 export type DashboardPreferencesInput = {
   subject: DashboardSubject
@@ -489,7 +448,6 @@ export type DashboardPreferencesInput = {
 
 export type DashboardPreferencesPayload = {
   message: string
-  dashboard_preferences: Record<string, unknown>
 }
 
 export type DashboardBulkJobAction =
@@ -590,12 +548,32 @@ export type DashboardGraphPayload = {
   edges: DashboardGraphEdge[]
 }
 
+type EpicGraphPage = {
+  nodes: Array<Omit<DashboardGraphNode, "label" | "url"> & { number: number; title: string }>
+  edges: DashboardGraphEdge[]
+  pagination: { limit: number; offset: number; total_count: number; has_more: boolean }
+}
+
 export function fetchJobsGraph(search = "", options: { signal?: AbortSignal } = {}) {
   return getJson<DashboardGraphPayload>(`/api/v1/app/jobs/graph${search}`, options)
 }
 
-export function fetchEpicsGraph(search = "", options: { signal?: AbortSignal } = {}) {
-  return getJson<DashboardGraphPayload>(`/api/v1/app/epics/graph${search}`, options)
+export async function fetchEpicsGraph(search = "", options: { signal?: AbortSignal } = {}): Promise<DashboardGraphPayload> {
+  const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search)
+  const nodes: DashboardGraphNode[] = []
+  const edges = new Map<string, DashboardGraphEdge>()
+  let offset = 0
+
+  do {
+    params.set("offset", String(offset))
+    const page = await getJson<EpicGraphPage>(`/api/v1/app/epics/graph?${params}`, options)
+    nodes.push(...page.nodes.map((node) => ({ ...node, label: `EPIC-${node.number} ${node.title}`, url: `/epics/EPIC-${node.number}` })))
+    page.edges.forEach((edge) => edges.set(`${edge.from_id}:${edge.to_id}`, edge))
+    if (!page.pagination.has_more) break
+    offset += page.pagination.limit
+  } while (true)
+
+  return { nodes, edges: [...edges.values()] }
 }
 
 export function fetchDashboardChrome(search = "", options: { signal?: AbortSignal } = {}) {
@@ -604,6 +582,10 @@ export function fetchDashboardChrome(search = "", options: { signal?: AbortSigna
 
 export function fetchDashboardChromeWithMeta(search = "", options: { signal?: AbortSignal } = {}) {
   return getJsonWithMeta<DashboardChromePayload>(`/api/v1/app/dashboard${dashboardSectionSearch(search, "chrome")}`, options)
+}
+
+export function fetchDashboardControls(subject: DashboardSubject, options: { signal?: AbortSignal } = {}) {
+  return getJson<DashboardControlsPayload>(`/api/v1/app/dashboard/controls?subject=${encodeURIComponent(subject)}`, options)
 }
 
 export function fetchDashboardRows(search = "", options: { signal?: AbortSignal } = {}) {
@@ -622,34 +604,25 @@ export type DashboardTimedPayload<T> = {
 export function mergeDashboardPayload(
   chrome: DashboardChromePayload,
   rows: DashboardRowsPayload,
+  controls: DashboardControlsPayload,
   options: { rowsCurrentForSearch?: boolean } = {}
 ): DashboardPayload {
-  const activeSmartFolderId = rows.active_smart_folder_id ?? chrome.active_smart_folder_id
-  const rowControls = rows.controls ?? {}
-
   return {
     ...chrome,
     ...rows,
     counts: chrome.counts,
-    controls: {
-      ...chrome.controls,
-      ...rowControls,
-      columns: rowControls.columns ?? chrome.controls.columns
-    },
+    controls: controls.controls,
     ownership_scope: chrome.ownership_scope,
-    preferences: rows.preferences ?? chrome.preferences,
+    preferences: chrome.preferences,
     ownership: chrome.ownership,
-    filter: rows.filter ?? chrome.filter,
-    landing_queue: {
-      ...chrome.landing_queue,
-      ...rows.landing_queue
-    },
+    filter: chrome.filter,
+    landing_queue: chrome.landing_queue,
     provider_availability: chrome.provider_availability,
-    broken_repositories: chrome.broken_repositories,
     health_blocked_repositories: chrome.health_blocked_repositories,
-    ui_panels: rows.ui_panels ?? chrome.ui_panels,
-    smart_folders: chrome.smart_folders.map((folder) => ({ ...folder, active: folder.id === activeSmartFolderId })),
-    active_smart_folder_id: activeSmartFolderId,
+    ui_panels: chrome.ui_panels,
+    smart_folders: chrome.smart_folders,
+    active_smart_folder_id: chrome.active_smart_folder_id,
+    active_smart_folder_filter: chrome.active_smart_folder_filter,
     setup: chrome.setup,
     rows_current_for_search: options.rowsCurrentForSearch ?? true,
     paths: chrome.paths
@@ -667,7 +640,6 @@ export function dashboardApiSearch(pathname: string, search: string) {
 
 export function dashboardChromeSearch(pathname: string, search: string) {
   const params = new URLSearchParams(dashboardApiSearch(pathname, search))
-  params.delete("smart_folder_id")
   params.delete("page")
 
   const next = params.toString()

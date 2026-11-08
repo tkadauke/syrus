@@ -12,7 +12,7 @@ module App
       def lanes_json
         return [] unless view == "kanban"
 
-        PerformanceLogging.phase("dashboard_kanban_lanes", subject: subject, limit: kanban_limit) do
+        @lanes_json ||= PerformanceLogging.phase("dashboard_kanban_lanes", subject: subject, limit: kanban_limit) do
           case subject
           when "job"
             job_lanes_json
@@ -32,23 +32,10 @@ module App
         records_by_lane = lane_defs.to_h { |lane| [ lane.fetch(:key), [] ] }
         records = PerformanceLogging.phase("dashboard_kanban_jobs.query", lanes: visible_lanes.join(","), limit: kanban_limit) do
           job_kanban_candidate_scope(visible_lanes)
-            .preload(
-              :repository,
-              :user,
-              :owner_user,
-              :claimed_by_user,
-              :tags,
-              :pr_links,
-              :deployment_stage_statuses,
-              { dependencies: [ :depends_on_epic, { depends_on_job: [ :repository, :deployment_stage_statuses ] } ] },
-              { chat_proposals: [ :chat_session, :message_anchors ] },
-              { epic: { chat_proposals: [ :chat_session, :message_anchors ] } }
-            )
+            .preload(:epic, dependencies: [ :depends_on_epic, { depends_on_job: :deployment_stage_statuses } ])
             .order(created_at: :desc, id: :desc)
             .to_a
         end
-
-        preload_epic_job_counts(records)
 
         records.each do |job|
           lane = job_kanban_lane_for(job, visible_lanes)
@@ -56,11 +43,31 @@ module App
         end
 
         PerformanceLogging.phase("dashboard_kanban_jobs.serialize", count: records.size) do
+          selected_records = lane_defs.flat_map do |lane|
+            paginated_kanban_records(lane.fetch(:key), records_by_lane.fetch(lane.fetch(:key)))
+          end
+          ActiveRecord::Associations::Preloader.new(
+            records: selected_records,
+            associations: [
+              :repository,
+              :user,
+              :owner_user,
+              :claimed_by_user,
+              :tags,
+              :pr_links,
+              :deployment_stage_statuses,
+              { dependencies: [ :depends_on_epic, { depends_on_job: :deployment_stage_statuses } ] },
+              { chat_proposals: [ :chat_session, :message_anchors ] },
+              { epic: { chat_proposals: [ :chat_session, :message_anchors ] } }
+            ]
+          ).call
+          preload_epic_job_counts(selected_records)
+          preload_job_runtime_state(selected_records)
+
           lane_defs.map do |lane|
             lane_key = lane.fetch(:key)
             lane_records = records_by_lane.fetch(lane_key)
             paginated_records = paginated_kanban_records(lane_key, lane_records)
-            PerformanceLogging.phase("dashboard_kanban_jobs.preload_runtime_state", lane: lane_key, count: paginated_records.size) { preload_job_runtime_state(paginated_records) }
             lane_json(
               lane_key,
               lane.fetch(:title),

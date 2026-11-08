@@ -60,10 +60,7 @@ function jobItem(overrides: Partial<DashboardJobItem> = {}): DashboardJobItem {
     needs_attention_reason: null,
     start_blocked_reason: null,
     start_blocked_at: null,
-    start_blocked_next_check_at: null,
-    start_blocked_count: null,
-    start_blocked_details: null,
-    paths: { job_path: `/jobs/${id}`, source_path: `/jobs/${id}/source` },
+    paths: { job_path: `/jobs/${id}` },
     ...overrides
   }
 }
@@ -84,8 +81,7 @@ function buildPayload(items: DashboardJobItem[], overrides: Partial<DashboardPay
       kanban_lanes: [],
       ownership_scope: "mine",
       owner_user_id: null,
-      owner_id: null,
-      raw: {}
+      owner_id: null
     },
     filter: null,
     controls: {
@@ -109,9 +105,22 @@ function buildPayload(items: DashboardJobItem[], overrides: Partial<DashboardPay
     landing_queue: { visible: true, paused: false, toggle_path: "", entries: [] },
     ownership: { scope: "mine", owner_id: null, team_user_count: 1, badges_visible: false },
     smart_folders: [
-      { id: 7, name: "Landing queue", key: "landing_queue", kind: "builtin", position: 1, subject_type: "job", visibility: "when_present", count: items.length, active: true, filter: {}, attention_preset: "landing_queue", path: "/dashboard/jobs?smart_folder_id=7" }
+      {
+        id: 7,
+        name: "Landing queue",
+        key: "landing_queue",
+        kind: "builtin",
+        position: 1,
+        subject_type: "job",
+        visibility: "when_present",
+        count: items.length,
+        active: true,
+        attention_preset: "landing_queue",
+        path: "/dashboard/jobs?smart_folder_id=7"
+      }
     ],
     active_smart_folder_id: 7,
+    active_smart_folder_filter: {},
     items,
     lanes: [],
     kanban_limit: null,
@@ -150,8 +159,8 @@ function mockDesktopMediaQuery(matches: boolean) {
       removeEventListener: vi.fn(),
       addListener: vi.fn(),
       removeListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    })),
+      dispatchEvent: vi.fn()
+    }))
   })
 }
 
@@ -357,8 +366,21 @@ describe("landing queue status column", () => {
           sort: { column: "created_at", direction: "desc" }
         },
         smart_folders: [
-          { id: 8, name: "Blocked", key: "blocked", kind: "builtin", position: 1, subject_type: "job", visibility: "when_present", count: 1, active: true, filter: {}, attention_preset: "blocked", path: "/dashboard/jobs?smart_folder_id=8" }
-        ]
+          {
+            id: 8,
+            name: "Blocked",
+            key: "blocked",
+            kind: "builtin",
+            position: 1,
+            subject_type: "job",
+            visibility: "when_present",
+            count: 1,
+            active: true,
+            attention_preset: "blocked",
+            path: "/dashboard/jobs?smart_folder_id=8"
+          }
+        ],
+        active_smart_folder_filter: {}
       }
     )
 
@@ -410,55 +432,49 @@ describe("landing queue status column", () => {
   })
 
   it("does not show an override badge when no override was ever requested", () => {
-    renderTable([ jobItem({ id: 5 }) ])
+    renderTable([jobItem({ id: 5 })])
 
     expect(screen.queryByText("Override granted")).not.toBeInTheDocument()
     expect(screen.queryByText("Override used")).not.toBeInTheDocument()
   })
 
   it("renders the landing queue summary when the backend reports a stuck queue", () => {
-    renderTable(
-      [ jobItem({ id: 6 }) ],
-      {
-        landing_queue: {
-          visible: true,
-          paused: false,
-          toggle_path: "",
-          entries: [],
-          status: {
-            tone: "danger",
-            title: "Landing queue is stopped on JOB-6.",
-            summary: "WF-10 failed: Prepare workspace failed. Retry the failed step after reviewing the workflow output.",
-            links: [
-              { label: "JOB-6", path: "/jobs/6" },
-              { label: "WF-10", path: "/jobs/6?tab=workflows#workflow-10" }
-            ]
-          }
+    renderTable([jobItem({ id: 6 })], {
+      landing_queue: {
+        visible: true,
+        paused: false,
+        toggle_path: "",
+        entries: [],
+        status: {
+          tone: "danger",
+          title: "Landing queue is stopped on JOB-6.",
+          summary: "WF-10 failed: Prepare workspace failed. Retry the failed step after reviewing the workflow output.",
+          links: [
+            { label: "JOB-6", path: "/jobs/6" },
+            { label: "WF-10", path: "/jobs/6?tab=workflows#workflow-10" }
+          ]
         }
       }
-    )
+    })
 
     expect(screen.getByRole("status")).toHaveTextContent("Landing queue is stopped on JOB-6.")
     expect(screen.getByRole("link", { name: "WF-10" })).toHaveAttribute("href", "/jobs/6?tab=workflows#workflow-10")
   })
 
   it("uses semantic info tokens for neutral landing queue summaries", () => {
-    renderTable(
-      [ jobItem({ id: 8 }) ],
-      {
-        landing_queue: {
-          visible: true,
-          paused: false,
-          toggle_path: "",
-          entries: [],
-          status: {
-            tone: "info",
-            title: "Landing queue is waiting.",
-            summary: "Approved jobs will land once current work finishes."
-          }
+    renderTable([jobItem({ id: 8 })], {
+      landing_queue: {
+        visible: true,
+        paused: false,
+        toggle_path: "",
+        entries: [],
+        status: {
+          tone: "info",
+          title: "Landing queue is waiting.",
+          summary: "Approved jobs will land once current work finishes."
         }
       }
-    )
+    })
 
     const status = screen.getByRole("status")
     expect(status.className).toContain("border-info/30")
@@ -468,7 +484,7 @@ describe("landing queue status column", () => {
   })
 
   it("does not render a landing queue summary when none is provided", () => {
-    renderTable([ jobItem({ id: 7 }) ])
+    renderTable([jobItem({ id: 7 })])
 
     expect(screen.queryByRole("status")).not.toBeInTheDocument()
   })

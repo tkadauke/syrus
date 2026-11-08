@@ -498,7 +498,7 @@ describe("AppChromeV2", () => {
 
       const url = new URL(path, "http://example.test")
       if (url.pathname === "/api/v1/app/dashboard" && url.searchParams.get("section") === "chrome") {
-        expect(url.searchParams.has("smart_folder_id")).toBe(false)
+        expect(url.searchParams.get("smart_folder_id")).toBe("7")
         return Promise.resolve(
           jsonResponse({
             subject: "job",
@@ -512,8 +512,7 @@ describe("AppChromeV2", () => {
               kanban_lanes: [],
               ownership_scope: "team",
               owner_user_id: null,
-              owner_id: null,
-              raw: {}
+              owner_id: null
             },
             controls: {
               views: ["list"],
@@ -555,6 +554,25 @@ describe("AppChromeV2", () => {
               new_epic_path: "/epics/new",
               new_job_path: "/jobs/new",
               app_dashboard_path: "/api/v1/app/dashboard"
+            }
+          })
+        )
+      }
+
+      if (url.pathname === "/api/v1/app/dashboard/controls") {
+        return Promise.resolve(
+          jsonResponse({
+            subject: "job",
+            controls: {
+              views: ["list"],
+              ownership_scopes: [],
+              owners: [],
+              sort_columns: [],
+              sort_directions: [],
+              columns: { required: [], optional: [] },
+              kanban_lanes: [],
+              filter_schema: [],
+              filter_suggestions: []
             }
           })
         )
@@ -3564,8 +3582,7 @@ function dashboardChromePayload(overrides: { subject: "job" | "epic" | "workflow
       kanban_lanes: [],
       ownership_scope: "team",
       owner_user_id: null,
-      owner_id: null,
-      raw: {}
+      owner_id: null
     },
     controls: {
       views: ["list"],
