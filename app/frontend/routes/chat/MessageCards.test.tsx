@@ -2825,7 +2825,7 @@ describe("truncated tool result rendering", () => {
       }
       render(<ToolGroup item={{ type: "tool_group", tool: "Read", calls: [call] }} />)
 
-      const details = screen.getByText("README.md").closest("details")
+      const details = screen.getByTestId("collapsed-tool-group-header").closest("details")
       expect(details).not.toBeNull()
       if (!details) return
       expect(screen.queryByTestId("tool-result-truncated")).toBeNull()
