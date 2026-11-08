@@ -54,7 +54,7 @@ describe("VisualEvidenceGallery", () => {
     expect(thumbnail).toHaveAttribute("src", captured.image_url)
     expect(thumbnail).toHaveClass("max-h-72", "max-w-full")
     expect(thumbnail.closest("figure")).toHaveClass("max-w-lg")
-    expect(thumbnail.closest("a")).toHaveAttribute("href", captured.image_url)
+    expect(thumbnail.closest("button")).not.toBeNull()
     expect(screen.getByText("Submission failed; capture retained")).toBeInTheDocument()
     expect(screen.getByText(/#2 · 390×844/)).toBeInTheDocument()
 
