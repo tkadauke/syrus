@@ -55,14 +55,15 @@ module Admin
     }.freeze
 
     class << self
-      def call(usages:, advertised_tools:, single_tool_name: nil, chat_session: nil, workflow_transcript_logs: nil)
+      def call(usages:, advertised_tools:, single_tool_name: nil, chat_session: nil, workflow_transcript_logs: nil, workflow_advertised_tools: nil)
         new(usages: usages, advertised_tools: advertised_tools, single_tool_name: single_tool_name, chat_session: chat_session,
-            workflow_transcript_logs: workflow_transcript_logs).as_json
+            workflow_transcript_logs: workflow_transcript_logs, workflow_advertised_tools: workflow_advertised_tools).as_json
       end
     end
 
-    def initialize(usages:, advertised_tools:, single_tool_name: nil, chat_session: nil, workflow_transcript_logs: nil)
+    def initialize(usages:, advertised_tools:, single_tool_name: nil, chat_session: nil, workflow_transcript_logs: nil, workflow_advertised_tools: nil)
       @workflow_transcript_logs = workflow_transcript_logs
+      @workflow_advertised_tools = workflow_advertised_tools&.map(&:to_s)&.uniq&.sort
       @usages = usages
       @advertised_tools = advertised_tools.map(&:to_s).uniq.sort
       @single_tool_name = single_tool_name.to_s.presence
@@ -71,7 +72,7 @@ module Admin
 
     def as_json
       payload = base_json
-      payload[:workflow_transcript_tools] = workflow_transcript_tool_rows if @workflow_transcript_logs
+      payload[:workflow_transcript_tools] = workflow_transcript_tool_rows if @workflow_transcript_logs || @workflow_advertised_tools
       payload
     end
 
@@ -110,8 +111,11 @@ module Admin
     def workflow_transcript_tool_rows
       by_tool = Hash.new { |h, k| h[k] = { calls: 0, results: 0, unrenderable: 0 } }
       unrenderable_total = 0
+      # Workflow-advertised tools are included even before they show up in a
+      # transcript, so unused tools without a card are not silently excluded.
+      Array(@workflow_advertised_tools).each { |name| by_tool[name] }
 
-      @workflow_transcript_logs.where(kind: %w[tool_call tool_result]).order(id: :desc)
+      (@workflow_transcript_logs || JobLog.none).where(kind: %w[tool_call tool_result]).order(id: :desc)
         .limit(WORKFLOW_TRANSCRIPT_ROW_LIMIT).pluck(:kind, :tool_metadata).each do |kind, metadata|
         metadata = {} unless metadata.is_a?(Hash)
         name = metadata["tool_name"].to_s
@@ -131,6 +135,7 @@ module Admin
         owner = owners[tool_name]
         counts.merge(
           tool_name: tool_name,
+          advertised: Array(@workflow_advertised_tools).include?(tool_name),
           card_status: counts[:unrenderable].positive? ? "metadata_unrenderable" : card_status_for(tool_name),
           owner_type: owner&.owner_type,
           owner_name: owner&.owner_name

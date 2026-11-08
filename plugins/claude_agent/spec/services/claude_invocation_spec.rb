@@ -1262,4 +1262,30 @@ RSpec.describe ClaudeInvocation do
       expect(File.read(expected)).to eq("{\"v\":1}\n")
     end
   end
+
+  describe "persisted workflow tool metadata" do
+    it "persists paired call/result metadata through a JobLog sink and returns it in the run artifact" do
+      run = Factories.job_with_run.runs.last
+      run.job_logs.delete_all
+      sink = lambda do |chunk, kind: nil, tool_name: nil, tool_input: nil, tool_result_content: nil, tool_result_error: nil, tool_use_id: nil, **|
+        JobLog.append!(run: run, chunk: chunk, kind: kind, tool_name: tool_name, tool_input: tool_input,
+                       tool_result_content: tool_result_content, tool_result_error: tool_result_error, tool_use_id: tool_use_id)
+      end
+      invocation = described_class.new("/tmp", prompt: "x", oauth_token: "x")
+
+      invocation.send(:process_event, {
+        type: "assistant",
+        message: { content: [ { type: "tool_use", id: "toolu_9", name: "mcp__syrus-mcp-sidecar__submit_adversarial_review", input: { "verdict" => "ok" } } ] }
+      }.to_json, sink)
+      invocation.send(:process_event, {
+        type: "user",
+        message: { content: [ { type: "tool_result", tool_use_id: "toolu_9", content: "recorded", is_error: false } ] }
+      }.to_json, sink)
+
+      logs = App::RunArtifactsPayload.build(run: run, artifact: "transcript")[:logs]
+      expect(logs.map { |l| l[:kind] }).to eq(%w[tool_call tool_result])
+      expect(logs[0]).to include(tool_name: "mcp__syrus-mcp-sidecar__submit_adversarial_review", tool_use_id: "toolu_9", tool_input: { "verdict" => "ok" })
+      expect(logs[1]).to include(tool_use_id: "toolu_9", tool_result_content: "recorded", tool_result_error: false)
+    end
+  end
 end
