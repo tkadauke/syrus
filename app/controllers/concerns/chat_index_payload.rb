@@ -152,7 +152,8 @@ module ChatIndexPayload
         groups: sort_chat_index_groups(groups),
         has_more: @chat_index_groups_has_more == true,
         next_offset: @chat_index_groups_has_more == true ? chat_index_group_offset + CHAT_INDEX_GROUP_PAGE_SIZE : nil,
-        agent_appearances: chat_nav_agent_appearances(group_specs.flat_map { |group| group.fetch(:chats) })
+        agent_appearances: chat_nav_agent_appearances(group_specs.flat_map { |group| group.fetch(:chats) }),
+        provider_availability: chat_nav_provider_availability(group_specs.flat_map { |group| group.fetch(:chats) })
       }
     end
   end
@@ -220,6 +221,16 @@ module ChatIndexPayload
       chat: chat_nav_json(chat_session, context: context),
       agent_appearances: chat_nav_agent_appearances([ chat_session ])
     }
+  end
+
+  # Availability keyed by provider for the providers the listed chats use, so
+  # slim nav rows do not repeat it per row and bootstrap stays slim.
+  def chat_nav_provider_availability(chat_sessions)
+    providers = Array(chat_sessions).filter_map(&:effective_chat_provider).uniq
+    return {} if providers.empty?
+
+    # One evidence batch for every provider, not one scan per provider.
+    ::App::ProviderAvailability.all_for_user(Current.user).slice(*providers)
   end
 
   def chat_nav_agent_appearances(chat_sessions)

@@ -586,7 +586,7 @@ export function RecentChatsSidebar({
                         ) : null}
                         {chat.pinned ? <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" /> : null}
                         <ProviderAvailabilityWarning
-                          availability={chat.effective_chat_provider ? providerAvailability?.[chat.effective_chat_provider] : undefined}
+                          availability={chat.provider_availability ?? (chat.effective_chat_provider ? providerAvailability?.[chat.effective_chat_provider] : undefined)}
                           className="mt-0.5"
                         />
                         <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold text-text-primary" : "font-medium text-text-muted"}`}>{title}</span>

@@ -149,6 +149,7 @@ export type ChatNavRecord = {
   title_pending: boolean
   pinned: boolean
   effective_chat_provider?: string
+  provider_availability?: ProviderAvailability
   conversation_kind?: ChatConversationKind
   mode?: ChatMode | null
   chat_path: string
@@ -868,12 +869,14 @@ export type ChatsIndexPayload = {
   available_agents?: ChatSidebarAgentOption[]
   repositories?: ChatRepository[]
   agent_appearances?: Record<string, ChatAgentAppearance>
+  provider_availability?: Record<string, ProviderAvailability>
 }
 
 export type MoreChatsPayload = {
   chats: ChatNavRecord[]
   has_more: boolean
   agent_appearances?: Record<string, ChatAgentAppearance>
+  provider_availability?: Record<string, ProviderAvailability>
 }
 
 export type HiddenChatsPayload = {
@@ -1320,10 +1323,15 @@ export function fetchMoreChatsForGroup(
 }
 
 function withChatNavAppearances<
-  T extends { agent_appearances?: Record<string, ChatAgentAppearance> } & ({ groups: ChatGroupRecord[] } | { chats: ChatNavRecord[] })
+  T extends { agent_appearances?: Record<string, ChatAgentAppearance>; provider_availability?: Record<string, ProviderAvailability> } & ({ groups: ChatGroupRecord[] } | { chats: ChatNavRecord[] })
 >(payload: T): T {
   const appearances = payload.agent_appearances || {}
-  const attach = (chat: ChatNavRecord) => ({ ...chat, agent_appearance: appearances[String(chat.id)] })
+  const availability = payload.provider_availability || {}
+  const attach = (chat: ChatNavRecord) => ({
+    ...chat,
+    agent_appearance: appearances[String(chat.id)],
+    provider_availability: chat.effective_chat_provider ? availability[chat.effective_chat_provider] : undefined
+  })
   if ("groups" in payload) return { ...payload, groups: payload.groups.map((group) => ({ ...group, chats: group.chats.map(attach) })) }
   return { ...payload, chats: payload.chats.map(attach) }
 }
