@@ -1446,25 +1446,36 @@ function isChatJobStatusPendingProposal(value: unknown): value is ChatJobStatusP
 // proposal's materialized Job/Epic shows up without waiting on a separate
 // job_status_changed broadcast.
 export function patchChatJobStatusPendingProposal(queryClient: QueryClient, chatSessionId: string | number, proposal: ChatJobStatusPendingProposal) {
-  const queryKey = ["chats", String(chatSessionId), "job_status"]
-  queryClient.setQueriesData<ChatJobStatusPayload>({ queryKey }, (current) => {
+  if (proposal.state !== "proposed") {
+    resolveChatJobStatusProposal(queryClient, chatSessionId, proposal.id)
+    return
+  }
+
+  queryClient.setQueriesData<ChatJobStatusPayload>({ queryKey: chatJobStatusQueryKey(chatSessionId) }, (current) => {
     if (!current) return current
 
     const withoutExisting = current.pending_proposals.filter((entry) => entry.id !== proposal.id)
-    const pendingProposals = proposal.state === "proposed" ? [proposal, ...withoutExisting] : withoutExisting
-
-    return { ...current, pending_proposals: pendingProposals }
+    return { ...current, pending_proposals: [proposal, ...withoutExisting] }
   })
-  if (proposal.state !== "proposed") {
-    invalidateAppQuery(queryClient, { queryKey, exact: true })
-  }
 }
 
-// Local counterpart used when this browser itself resolved a proposal over
-// HTTP (confirm/reject): the successful response is authoritative, so the
-// Jobs tab must not depend on receiving its own AppEvent echo.
+// Shared by the AppEvent path above and by local HTTP confirm/reject
+// handlers: this browser's successful response is authoritative, so the Jobs
+// tab must not depend on receiving its own AppEvent echo. Drops the proposal
+// from this chat's cache and refetches the exact query so a confirmed
+// proposal's materialized Job/Epic appears.
 export function resolveChatJobStatusProposal(queryClient: QueryClient, chatSessionId: string | number, proposalId: number) {
-  patchChatJobStatusPendingProposal(queryClient, chatSessionId, { id: proposalId, state: "resolved" } as ChatJobStatusPendingProposal)
+  const queryKey = chatJobStatusQueryKey(chatSessionId)
+  queryClient.setQueriesData<ChatJobStatusPayload>({ queryKey }, (current) => {
+    if (!current) return current
+
+    return { ...current, pending_proposals: current.pending_proposals.filter((entry) => entry.id !== proposalId) }
+  })
+  invalidateAppQuery(queryClient, { queryKey, exact: true })
+}
+
+function chatJobStatusQueryKey(chatSessionId: string | number) {
+  return ["chats", String(chatSessionId), "job_status"]
 }
 
 function chatJobStatusChangedPayload(payload: unknown): ChatJobStatusChangedPayload | null {
