@@ -144,9 +144,13 @@ RSpec.describe Steps::PreflightGraderCollect do
     end
   end
 
-  context "when a required preflight grader failed" do
+  context "when a required preflight grader reproducibly failed" do
+    let(:failure_details) do
+      { "command" => "bin/rspec", "exit_code" => 1, "output" => "expected: true\n     got: false\n" }
+    end
+
     before do
-      create_preflight_grader(name: "rspec", required: true, state: "failed")
+      create_preflight_grader(name: "rspec", required: true, state: "failed", details: failure_details)
       create_downstream_steps
     end
 
@@ -177,9 +181,9 @@ RSpec.describe Steps::PreflightGraderCollect do
       expect(log_text).to include("proceeding to implement")
     end
 
-    it "records failed preflight command context for the implement prompt" do
+    it "records exact command, exit metadata, outcome and durable references for the implement prompt" do
       workflow.steps.where(kind: "preflight_grader").delete_all
-      create_preflight_grader(
+      grader = create_preflight_grader(
         name: "rspec-ci",
         required: true,
         state: "failed",
@@ -191,9 +195,13 @@ RSpec.describe Steps::PreflightGraderCollect do
           "timed_out" => false,
           "log_path" => ".syrus/grade-output/preflight/rspec-ci.log",
           "log_bytes" => 2048,
+          "junit_output" => "tmp/junit.xml",
           "output" => "expected: true\n     got: false\n"
         }
       )
+      grader_run = grader.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "failed", iteration: 1)
+      allow(TestEvidenceLookup).to receive(:failed_test_cases_for).with(grader_run, "rspec-ci")
+        .and_return([ { "identity" => "spec/models/foo_spec.rb[1:1]", "name" => "foo" } ])
 
       handler.call
 
@@ -204,14 +212,46 @@ RSpec.describe Steps::PreflightGraderCollect do
           "capabilities" => { "os" => [ "linux" ] },
           "required" => true,
           "status" => "failed",
+          "outcome" => "test_failed",
+          "outcome_reason" => "nonzero_exit_with_evidence",
           "exit_code" => 1,
           "duration_s" => 12.3,
           "timed_out" => false,
           "log_path" => ".syrus/grade-output/preflight/rspec-ci.log",
           "log_bytes" => 2048,
+          "junit_output" => "tmp/junit.xml",
+          "failed_tests" => [ "spec/models/foo_spec.rb[1:1]" ],
+          "step_id" => grader.id,
+          "run_id" => grader_run.id,
           "output" => "expected: true\n     got: false\n"
         }
       ])
+    end
+
+    it "sends only reproducible failures to the agent when another required grader is infrastructure-failed" do
+      create_preflight_grader(
+        name: "lint", required: true, state: "failed",
+        details: { "command" => "bin/lint", "exit_code" => nil, "outcome" => "infrastructure_failed", "outcome_reason" => "worker_died",
+                   "infrastructure_retry_attempt" => PreflightGraderPolicy.retry_budget }
+      )
+
+      handler.call
+
+      expect(workflow.reload.artifact("preflight_failures").map { |entry| entry["name"] }).to eq([ "rspec" ])
+      expect(workflow.artifact("preflight_unproven").map { |entry| entry["name"] }).to eq([ "lint" ])
+    end
+  end
+
+  context "when a passing-looking grader failed without transport metadata" do
+    it "never enters the agent prompt as a code failure" do
+      create_preflight_grader(name: "rspec", required: true, state: "failed", details: { "command" => "bin/rspec", "output" => "0 failures" })
+      downstream = create_downstream_steps
+
+      handler.call
+
+      expect(workflow.reload.artifact("preflight_failures")).to be_nil
+      expect(workflow.artifact("preflight_inconclusive").map { |entry| entry["outcome"] }).to eq([ "inconclusive" ])
+      expect(downstream.map { |candidate| candidate.reload.state }).to all(eq("skipped"))
     end
   end
 
@@ -221,18 +261,102 @@ RSpec.describe Steps::PreflightGraderCollect do
         create_preflight_grader(name: "rspec", required: true, state: terminal_state)
       end
 
-      it "continues to implement because main was not proven healthy" do
+      it "stays inconclusive without spawning a coding repair because main was not proven broken" do
         downstream = create_downstream_steps
 
         expect { handler.call }.not_to raise_error
 
         expect(workflow.reload.artifact("preflight_passed")).to be_nil
-        expect(workflow.artifact("preflight_failures")).to contain_exactly(
+        expect(workflow.artifact("preflight_failures")).to be_nil
+        expect(workflow.artifact("preflight_inconclusive")).to contain_exactly(
           include("name" => "rspec", "required" => true, "status" => terminal_state)
         )
-        expect(downstream.map { |candidate| candidate.reload.state }).to all(eq("queued"))
-        expect(run.reload.job_logs.pluck(:chunk).join).to include("rspec (#{terminal_state})", "proceeding to implement")
+        expect(downstream.map { |candidate| candidate.reload.state }).to all(eq("skipped"))
+        expect(run.reload.job_logs.pluck(:chunk).join).to include("rspec", "not spawning a coding repair")
       end
+    end
+  end
+
+  context "when a required preflight grader hit an infrastructure failure" do
+    let!(:failed_grader) do
+      create_preflight_grader(
+        name: "rspec", required: true, state: "failed",
+        details: { "command" => "bin/rspec", "exit_code" => nil, "outcome" => "infrastructure_failed", "outcome_reason" => "worker_died",
+                   "output" => "boom", "worker" => "worker-1", "infrastructure_retry_attempt" => 0 }
+      )
+    end
+    let!(:downstream) { create_downstream_steps }
+
+    it "re-runs only that grader on a fresh Step with a replacement collector, without failing the workflow" do
+      expect { handler.call }.not_to raise_error
+
+      retry_step = workflow.steps.where(kind: "preflight_grader").where.not(id: failed_grader.id).sole
+      expect(retry_step.details).to include(
+        "name" => "rspec", "command" => "bin/rspec", "infrastructure_retry_attempt" => 1,
+        "retry_of_step_id" => failed_grader.id, "previous_worker" => "worker-1"
+      )
+      expect(retry_step.details.keys).not_to include("exit_code", "outcome", "output")
+      expect(retry_step).to be_queued
+
+      replacement = workflow.steps.where(kind: "preflight_grader_collect").where.not(id: step.id).sole
+      expect(step.reload.next_step_id).to eq(retry_step.id)
+      expect(retry_step.next_step_id).to eq(replacement.id)
+      expect(replacement.next_step_id).to eq(downstream.first.id)
+      expect(replacement.depends_on_step_ids).to eq([ retry_step.id ])
+      expect(replacement.position).to be < downstream.first.reload.position
+      expect(downstream.map { |candidate| candidate.reload.state }).to all(eq("queued"))
+      expect(workflow.artifact("preflight_failures")).to be_nil
+      expect(workflow.artifact("preflight_inconclusive")).to be_nil
+    end
+
+    it "judges the retried grader, not the superseded one, once the replacement collector runs" do
+      handler.call
+      retry_step = workflow.steps.where(kind: "preflight_grader").where.not(id: failed_grader.id).sole
+      retry_step.update!(state: "succeeded")
+
+      replacement = workflow.steps.where(kind: "preflight_grader_collect").where.not(id: step.id).sole
+      replacement_run = replacement.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "running", iteration: 1)
+      replacement_handler = described_class.new(replacement_run)
+      allow(replacement_handler).to receive(:workspace).and_return(instance_double(WorkflowWorkspace, path: @ws_path))
+      replacement_handler.call
+
+      expect(workflow.reload.artifact("preflight_passed")).to be true
+    end
+
+    it "does not retry past the budget; exhausted retries are inconclusive and never reach the agent" do
+      failed_grader.update!(details: failed_grader.details.merge("infrastructure_retry_attempt" => PreflightGraderPolicy.retry_budget))
+
+      handler.call
+
+      expect(workflow.steps.where(kind: "preflight_grader").count).to eq(1)
+      expect(workflow.reload.artifact("preflight_failures")).to be_nil
+      expect(workflow.artifact("preflight_inconclusive")).to contain_exactly(
+        include("name" => "rspec", "outcome" => "infrastructure_failed", "outcome_reason" => "worker_died")
+      )
+      expect(downstream.map { |candidate| candidate.reload.state }).to all(eq("skipped"))
+    end
+
+    it "retries one lock timeout among 100+ graders without touching the other graders" do
+      120.times { |index| create_preflight_grader(name: "g#{index}", required: true, state: "succeeded") }
+
+      handler.call
+
+      expect(workflow.steps.where(kind: "preflight_grader").where(state: "queued").count).to eq(1)
+      expect(workflow.reload.artifact("preflight_passed")).to be_nil
+      expect(workflow.artifact("preflight_inconclusive")).to be_nil
+    end
+  end
+
+  context "when a genuine assertion failure exists" do
+    it "is never retried as infrastructure" do
+      create_preflight_grader(name: "rspec", required: true, state: "failed",
+                              details: { "command" => "bin/rspec", "exit_code" => 1, "output" => "1 failure" })
+      create_downstream_steps
+
+      handler.call
+
+      expect(workflow.steps.where(kind: "preflight_grader").count).to eq(1)
+      expect(workflow.steps.where(kind: "preflight_grader_collect").count).to eq(1)
     end
   end
 

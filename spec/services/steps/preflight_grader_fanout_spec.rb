@@ -320,6 +320,38 @@ RSpec.describe Steps::PreflightGraderFanout do
     expect(collect_step.reload.depends_on_step_ids).to eq(grader_steps.map(&:id))
   end
 
+  describe "admission waves" do
+    before do
+      write_grade_config("grade:\n" + (1..13).map { |i| "  - name: g#{i}\n    run: bin/g#{i}\n" }.join)
+    end
+
+    it "releases a 100+ style batch in bounded waves, each behind the previous one" do
+      stub_const("ENV", ENV.to_h.merge(PreflightGraderPolicy::WAVE_SIZE_ENV => "5"))
+
+      handler.call
+
+      graders = workflow.steps.where(kind: "preflight_grader").order(:position).to_a
+      expect(graders.map { |g| g.details["preflight_wave"] }).to eq([ 0 ] * 5 + [ 1 ] * 5 + [ 2 ] * 3)
+      expect(graders.first(5).map(&:depends_on_step_ids).uniq).to eq([ [ step.id ] ])
+      expect(graders[5, 5].map(&:depends_on_step_ids).uniq).to eq([ graders.first(5).map(&:id) ])
+      expect(graders.last(3).map(&:depends_on_step_ids).uniq).to eq([ graders[5, 5].map(&:id) ])
+      expect(graders.map { |g| g.details["infrastructure_retry_attempt"] }.uniq).to eq([ 0 ])
+      expect(collect_step.reload.depends_on_step_ids).to eq(graders.map(&:id))
+    end
+
+    it "never lets more than the wave size be ready while a wave is still running (saturation)" do
+      handler.call
+
+      graders = workflow.steps.where(kind: "preflight_grader").order(:position).to_a
+      size = PreflightGraderPolicy.wave_size
+      graders.first(size).each { |g| g.update_columns(state: "running") }
+
+      ready = graders.select { |g| g.state == "queued" && g.reload.dependencies_settled? }
+      expect(ready).to be_empty
+      expect(graders.count { |g| g.details["preflight_wave"].zero? }).to be <= size
+    end
+  end
+
   # The property that actually matters: every grader is ready at once, so the
   # dispatcher's ready set contains the whole batch rather than one step.
   # Temporarily disabled: this is flaky in CI and is blocking unrelated landing.

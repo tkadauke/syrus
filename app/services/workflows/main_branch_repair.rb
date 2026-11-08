@@ -49,6 +49,8 @@ module Workflows
     # ci_health to healthy, notify MainHealthChangedService of the transition
     # so landing can resume, and close the anchor job.
     def self.after_success(workflow)
+      return mark_inconclusive!(workflow) if workflow.class.find(workflow.id).artifact("preflight_inconclusive").present?
+
       # Read through the artifact abstraction so this remains correct now that
       # workflow artifacts live in the side table rather than the JSON column.
       return unless workflow.class.find(workflow.id).artifact("preflight_passed")
@@ -78,10 +80,28 @@ module Workflows
       close_anchor_job!(workflow)
     end
 
-    private_class_method def self.close_anchor_job!(workflow)
+    # Preflight could not prove main broken or healthy (infrastructure retries
+    # exhausted, missing/cancelled results). Never spawn a coding repair from
+    # missing evidence: keep main health inconclusive, tell the operator, and
+    # close the anchor job.
+    private_class_method def self.mark_inconclusive!(workflow)
+      repository = workflow.job.repository.reload
+      sha = repository.last_health_checked_sha.to_s.presence
+      names = Array(workflow.class.find(workflow.id).artifact("preflight_inconclusive")).filter_map { |entry| entry["name"] }
+
+      repository.update!(grader_health: "inconclusive", ci_health: "inconclusive")
+      MainBranchHealthCheck.record_grader_workflow(
+        repository: repository, workflow: workflow, sha: sha || "unknown",
+        grader_health: "inconclusive", grader_failed_names: names
+      )
+      MainHealthChangedService.on_health_change!(repository.reload)
+      close_anchor_job!(workflow, reason: "preflight_inconclusive")
+    end
+
+    private_class_method def self.close_anchor_job!(workflow, reason: "preflight_passed")
       StateTransition.with_source("system") do
         job = workflow.job.reload
-        job.close_with_reason!("preflight_passed") if job.may_close?
+        job.close_with_reason!(reason) if job.may_close?
       end
     end
   end

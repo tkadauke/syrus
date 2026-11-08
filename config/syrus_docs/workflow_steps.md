@@ -1536,24 +1536,26 @@ Resolves its grader plan via `LandingGraderPlan`'s `:ci` phase (`main_branch_rep
 
 Non-agentic. Identical to `grader` but writes logs to `.syrus/grade-output/preflight/<name>.log` to avoid collisions with the main grade loop's per-iteration log files.
 
-Preflight graders use the same command-span instrumentation as normal graders.
+Preflight graders use the same command-span instrumentation as normal graders. Each one runs with its own test database namespace (`TEST_ENV_NUMBER=pf<step id>` and a matching `SEARCH_DATABASE_PATH`) so concurrent database-using graders never share mutable state; the files of that namespace are removed when the grader ends, pass or fail.
+
+`preflight_grader_fanout` does not release the whole CI plan at once. Graders are released in bounded waves (`PreflightGraderPolicy.wave_size`, default 6, override with `SYRUS_PREFLIGHT_GRADER_WAVE_SIZE`, hard maximum 16); each wave waits for the previous one to settle, whatever its outcome, on top of normal run-host admission.
 
 ### preflight_grader_collect
 
-Non-agentic. Aggregates preflight grader results. Two outcomes:
+Non-agentic. Aggregates preflight grader results using the `GraderOutcome` taxonomy (the latest attempt per grader wins). Outcomes:
 
 - **All required graders passed:** Sets the `preflight_passed` workflow artifact, cancels all downstream steps (`prepare`, `implement`, the grade loop, `summarize`, `test_plan`, `pr_open`), and returns. The dispatcher advances past the cancelled steps and marks the workflow succeeded. `Workflows::MainBranchRepair#after_success` detects the artifact and marks the repository's `grader_health` **and** `ci_health` healthy (a preflight pass is conclusive for both, since it re-ran the same `:ci`-phase graders that mark `ci_health` broken) without the agent ever running.
-- **Any required grader failed:** Stores `preflight_failures` with each failing
-  grader's name, exact command, exit metadata, log path, and captured output
-  tail, then logs the failure and returns normally so the chain continues to
-  `implement`.
+- **A required grader is `infrastructure_failed`** (worker death, lost result, database lock timeout, ...): the collector inserts a fresh `preflight_grader` Step for just that grader (new Step and Run, new checkout and database namespace; `infrastructure_retry_attempt`, `retry_of_step_id`, `previous_worker` recorded) plus a replacement collector, and finishes. The budget is `PreflightGraderPolicy.retry_budget` (2) per grader. Only that grader is affected; the Workflow does not fail. Genuine `test_failed` results are never retried as infrastructure.
+- **A required grader reproducibly failed (`test_failed`):** Stores `preflight_failures` with only the reproducible failures: exact command, outcome, exit metadata, named failing examples (from Test Insights evidence when available), source SHA, Step/Run ids, and the log/JUnit/JSON references. Other non-passing graders go to `preflight_unproven` and are not sent to the agent. The chain continues to `implement`.
+- **No reproducible failure, but required evidence is missing** (infrastructure retries exhausted, inconclusive, cancelled, blocked, skipped): sets `preflight_inconclusive` and skips downstream steps. `Workflows::MainBranchRepair#after_success` then marks `grader_health` and `ci_health` inconclusive, notifies the operator through the main-inconclusive notification, and closes the anchor Job with `preflight_inconclusive`. No coding repair is spawned from missing execution evidence.
 
-Unlike `grader_collect`, this step never raises `StepFailed` — a grader failure here means "proceed to implement", not "fail the workflow."
+Unlike `grader_collect`, this step never raises `StepFailed`.
 
 The next `main_branch_repair` `implement` prompt includes `preflight_failures`
 and tells the agent to reproduce the exact failed command(s), run focused
 examples against the failure tail first, and commit once the focused checks pass
-before any optional full-suite verification.
+before any optional full-suite verification. The grade loop that follows is the
+broader required gate.
 
 ## Coding handoff steps
 
