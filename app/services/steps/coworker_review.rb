@@ -20,13 +20,13 @@ module Steps
 
     def review_criteria = coworker_review_projects.criteria
     def coworker_review_projects
-      @coworker_review_projects ||= App::CoworkerReviewProjects.call(
+      @coworker_review_projects ||= Coworkers::ReviewProjects.call(
         workspace_path: workspace.path,
         changed_files: latest_agentic_changed_files
       )
     end
     def coworker_review_config
-      SyrusYml.load_repo(workspace.path).coworker_review
+      SyrusYml.load_repo(workspace.path).plugin_configurations[Coworkers::ReviewPlan::KEY]
     rescue SyrusYml::ParseError, Errno::ENOENT
       nil
     end

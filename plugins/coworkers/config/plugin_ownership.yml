@@ -109,7 +109,6 @@ compatibility_quarantine:
   app/services/agent_role.rb: 9
   app/services/app/agent_conversation_payload.rb: 2
   app/services/app/chat_message_payload.rb: 1
-  app/services/app/coworker_review_projects.rb: 2
   app/services/app/job_detail_payload.rb: 4
   app/services/app/job_detail_payload/workflow_serializers.rb: 3
   app/services/app/target_graph_payload.rb: 2
@@ -176,7 +175,6 @@ compatibility_quarantine:
   app/services/prompts/coworker_review.rb: 5
   app/services/provider_routing/resolver.rb: 4
   app/services/plugin_repository_configuration.rb: 2
-  app/services/repo_coworker_review_plan.rb: 5
   app/services/steps/adversarial_review.rb: 2
   app/services/steps/base.rb: 2
   app/services/steps/coworker_review.rb: 17
@@ -196,7 +194,6 @@ compatibility_quarantine:
   config/locales/en.yml: 12
   config/locales/la.yml: 5
   config/syrus_docs/chat.md: 8
-  config/syrus_docs/coworker_review.md: 19
   config/syrus_docs/mcp_tool_catalog.md: 100
   config/syrus_docs/observability.md: 2
   config/syrus_docs/permission_authority.md: 24

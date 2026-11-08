@@ -2,10 +2,10 @@ class TargetGraph
   # An operator-facing workflow boundary (preview, hooks, review policy,
   # coverage policy) as distinct from the
   # lower-level Target execution nodes it groups. See DOC-20 "Projects".
-  Project = Data.define(:id, :label, :kind, :path, :owner_config_path, :preview, :visual_review, :adversarial_review, :security_review, :coworker_review, :review_notes, :coverage, :capabilities, :plugin_configurations) do
+  Project = Data.define(:id, :label, :kind, :path, :owner_config_path, :preview, :visual_review, :adversarial_review, :security_review, :review_notes, :coverage, :capabilities, :plugin_configurations) do
     ID_PATTERN = /\A[A-Za-z0-9_-]+\z/
 
-    def initialize(id:, label: nil, kind: nil, path: "", owner_config_path: nil, preview: nil, visual_review: nil, adversarial_review: nil, security_review: nil, coworker_review: nil, review_notes: nil, coverage: nil, capabilities: nil, plugin_configurations: PluginRepositoryConfiguration::Set.new)
+    def initialize(id:, label: nil, kind: nil, path: "", owner_config_path: nil, preview: nil, visual_review: nil, adversarial_review: nil, security_review: nil, review_notes: nil, coverage: nil, capabilities: nil, plugin_configurations: PluginRepositoryConfiguration::Set.new)
       id = id.to_s.strip
       raise ArgumentError, "project id must not be blank" if id.empty?
       raise ArgumentError, "project id #{id.inspect} must match #{ID_PATTERN.inspect}" unless id.match?(ID_PATTERN)
@@ -28,7 +28,6 @@ class TargetGraph
         visual_review: visual_review,
         adversarial_review: adversarial_review,
         security_review: security_review,
-        coworker_review: coworker_review,
         review_notes: review_notes,
         coverage: coverage,
         capabilities: capabilities,

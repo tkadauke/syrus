@@ -17,8 +17,6 @@ class SyrusYml
   MAX_ADVERSARIAL_REVIEW_ROUNDS = 10
   MIN_SECURITY_REVIEW_ROUNDS = 0
   MAX_SECURITY_REVIEW_ROUNDS = 10
-  MIN_COWORKER_REVIEW_ROUNDS = 1
-  MAX_COWORKER_REVIEW_ROUNDS = 10
   MIN_VISUAL_REVIEW_ROUNDS = 0
   MAX_VISUAL_REVIEW_ROUNDS = 10
   DEFAULT_VISUAL_REVIEW_ROUNDS = 1
@@ -81,9 +79,9 @@ class SyrusYml
   TARGET_KINDS = %w[default library binary application formatter builder grader prepare generator repo_check].freeze
   TARGET_GRAPH_IMPORT_FAILURE_POLICIES = %w[strict warn].freeze
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :security_review, :coworker_review, :review_notes, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :merge_train, :project, :targets, :target_graph, :scripts, :plugin_configurations) do
-    def initialize(security_review: nil, coworker_review: nil, plugin_configurations: PluginRepositoryConfiguration::Set.new, **rest)
-      super(security_review: security_review, coworker_review: coworker_review, plugin_configurations: plugin_configurations, **rest)
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :security_review, :review_notes, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :merge_train, :project, :targets, :target_graph, :scripts, :plugin_configurations) do
+    def initialize(security_review: nil, plugin_configurations: PluginRepositoryConfiguration::Set.new, **rest)
+      super(security_review: security_review, plugin_configurations: plugin_configurations, **rest)
     end
   end
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern) do
@@ -261,7 +259,6 @@ class SyrusYml
   end
   AdversarialReviewConfig = Data.define(:rounds, :criteria, :required)
   SecurityReviewConfig = Data.define(:rounds, :criteria, :required)
-  CoworkerReviewConfig = Data.define(:enabled, :rounds, :criteria, :required)
   ReviewNotesConfig = Data.define(:criteria, :low_signal)
   VisualReviewEnvironmentCommand = Data.define(:argv, :inputs, :allow_output)
   VisualReviewEnvironment = Data.define(:static, :command)
@@ -289,12 +286,6 @@ class SyrusYml
     load_file(Pathname.new(workspace_path).join(CONFIG_FILE), project_path: project_path)
   end
 
-  # Temporary bridge for the Coworkers-owned legacy-key adapter. The parser
-  # remains here until the plugin extraction moves the schema itself.
-  def self.parse_coworker_review_contribution(raw)
-    new("").send(:parse_coworker_review, raw)
-  end
-
   def initialize(contents, project_path: nil)
     @contents = contents
     @project_path = project_path.to_s.strip.presence
@@ -319,7 +310,6 @@ class SyrusYml
       hooks: parse_hooks(raw["hooks"]),
       adversarial_review: parse_adversarial_review(raw["adversarial_review"]),
       security_review: parse_security_review(raw["security_review"]),
-      coworker_review: plugin_configurations["coworkers.review"],
       review_notes: parse_review_notes(raw["review_notes"]),
       agent_insight: parse_agent_insight(raw["agent_insight"]),
       coverage: parse_coverage(raw["coverage"]),
@@ -450,27 +440,6 @@ class SyrusYml
     )
   rescue ArgumentError, TypeError
     raise ParseError, "security_review.rounds: must be an integer"
-  end
-
-  def parse_coworker_review(raw)
-    return nil if raw.nil?
-    raise ParseError, "coworker_review: must be a mapping" unless raw.is_a?(Hash)
-
-    enabled = ActiveModel::Type::Boolean.new.cast(raw.fetch("enabled", false)) || false
-    rounds = Integer(raw.fetch("rounds", 1))
-    valid_rounds = enabled ? rounds.between?(MIN_COWORKER_REVIEW_ROUNDS, MAX_COWORKER_REVIEW_ROUNDS) : rounds.between?(0, MAX_COWORKER_REVIEW_ROUNDS)
-    unless valid_rounds
-      raise ParseError, "coworker_review.rounds: must be between #{MIN_COWORKER_REVIEW_ROUNDS} and #{MAX_COWORKER_REVIEW_ROUNDS}"
-    end
-
-    CoworkerReviewConfig.new(
-      enabled: enabled,
-      rounds: rounds,
-      criteria: parse_string_array(raw["criteria"], "coworker_review.criteria"),
-      required: ActiveModel::Type::Boolean.new.cast(raw["required"]) || false
-    )
-  rescue ArgumentError, TypeError
-    raise ParseError, "coworker_review.rounds: must be an integer"
   end
 
   def parse_review_notes(raw)

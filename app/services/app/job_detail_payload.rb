@@ -381,7 +381,11 @@ module App
     end
 
     def coworker_review_configuration_json
-      plan = RepoCoworkerReviewPlan.for_job(@job)
+      # The plan is owned by the Coworkers plugin; a deployment without it has
+      # no coworker review configuration to show.
+      return nil unless Object.const_defined?("Coworkers::ReviewPlan")
+
+      plan = Coworkers::ReviewPlan.for_job(@job)
       {
         enabled: plan.enabled?,
         rounds: plan.rounds,
