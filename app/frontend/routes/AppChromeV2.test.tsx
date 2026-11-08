@@ -1022,7 +1022,7 @@ describe("AppChromeV2", () => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/12")
     })
     expect(createEmptyChat).not.toHaveBeenCalled()
-    expect(fetchNewChat).not.toHaveBeenCalled()
+    expect(fetchNewChat).toHaveBeenCalledTimes(1)
   })
 
   it("reuses an existing unstarted chat from a non-default active recent-chat cache", async () => {
@@ -1061,7 +1061,7 @@ describe("AppChromeV2", () => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/12")
     })
     expect(createEmptyChat).not.toHaveBeenCalled()
-    expect(fetchNewChat).not.toHaveBeenCalled()
+    expect(fetchNewChat).toHaveBeenCalledTimes(1)
   })
 
   it("does not reuse an unstarted chat from a filtered recent-chat cache", async () => {
@@ -1104,7 +1104,7 @@ describe("AppChromeV2", () => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/14")
     })
     expect(chatsApi.fetchNewChat).toHaveBeenCalledTimes(1)
-    expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(7)
+    expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(undefined)
   })
 
   it("creates an empty chat with the default repository and navigates to the returned chat path", async () => {
@@ -1138,7 +1138,7 @@ describe("AppChromeV2", () => {
     expect(screen.queryByRole("button", { name: "Remove repository from new chat" })).not.toBeInTheDocument()
     expect(chatsApi.fetchNewChat).toHaveBeenCalledTimes(1)
     expect(chatsApi.createEmptyChat).toHaveBeenCalledTimes(1)
-    expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(7)
+    expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(undefined)
     expect(queryClient.getQueryData<ChatsIndexPayload>(["chats", "recent"])?.groups[0].chats[0].id).toBe(14)
   })
 
@@ -1199,7 +1199,7 @@ describe("AppChromeV2", () => {
     expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(null)
   })
 
-  it("creates an empty chat directly when only one chat provider is configured", async () => {
+  it("lets the server choose defaults when only one chat provider is configured", async () => {
     vi.spyOn(chatsApi, "fetchNewChat").mockResolvedValue({
       default_repository_id: 7,
       repositories: [],
@@ -1228,10 +1228,10 @@ describe("AppChromeV2", () => {
 
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/14"))
     expect(screen.queryByRole("combobox", { name: "Chat provider" })).not.toBeInTheDocument()
-    expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(7, "claude")
+    expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(undefined)
   })
 
-  it("creates an empty chat with the effective provider directly when multiple configured providers are available, without showing a provider modal", async () => {
+  it("lets the server choose the effective provider when multiple providers are configured, without showing a provider modal", async () => {
     vi.spyOn(chatsApi, "fetchNewChat").mockResolvedValue({
       default_repository_id: 7,
       repositories: [],
@@ -1245,7 +1245,7 @@ describe("AppChromeV2", () => {
     vi.spyOn(chatsApi, "createEmptyChat").mockResolvedValue({
       message: "Chat created.",
       redirect_to: "/chats/14",
-      chat: chatNav({ id: 14, title: null, title_pending: false, chat_path: "/chats/14", last_message_at: null, chat_provider: "codex" }) as chatsApi.ChatRecord
+      chat: chatNav({ id: 14, title: null, title_pending: false, chat_path: "/chats/14", last_message_at: null, effective_chat_provider: "codex" })
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     queryClient.setQueryData(["chats", "recent"], chatsIndexPayload())
@@ -1261,7 +1261,7 @@ describe("AppChromeV2", () => {
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/14"))
     expect(screen.queryByRole("combobox", { name: "Chat provider" })).not.toBeInTheDocument()
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
-    expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(7, "codex")
+    expect(chatsApi.createEmptyChat).toHaveBeenCalledWith(undefined)
   })
 
   it("shows a notice when creating an empty chat fails", async () => {
@@ -1354,7 +1354,7 @@ describe("AppChromeV2", () => {
     await waitFor(() => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/chats/21")
     })
-    expect(createGroupChat).toHaveBeenCalledWith([5])
+    expect(createGroupChat).toHaveBeenCalledWith([5], null)
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
   })
 
@@ -2362,7 +2362,7 @@ describe("AppChromeV2 recent chats", () => {
     expect(await screen.findByRole("button", { name: "Unpin chat" })).toBeInTheDocument()
   })
 
-  it("pins a chat from the context menu and invalidates recent chats", async () => {
+  it("pins a chat from the context menu and patches recent chats", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/1" && init?.method === "PATCH") {
@@ -2380,7 +2380,6 @@ describe("AppChromeV2 recent chats", () => {
       return Promise.resolve(jsonResponse({}))
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries")
     queryClient.setQueryData(
       ["chats", "recent"],
       chatsIndexPayload({
@@ -2405,7 +2404,8 @@ describe("AppChromeV2 recent chats", () => {
           body: JSON.stringify({ chat: { pinned: true } })
         })
       )
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
+      const cacheData = queryClient.getQueryData<chatsApi.ChatsIndexPayload>(["chats", "recent"])
+      expect(cacheData?.groups[0].chats[0].pinned).toBe(true)
     })
   })
 
@@ -2443,7 +2443,7 @@ describe("AppChromeV2 recent chats", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/1/mark_read" && init?.method === "PATCH") {
-        return Promise.resolve(new Response(null, { status: 204 }))
+        return Promise.resolve(jsonResponse({ chat: chatNav({ id: 1, title: "Unread chat", unread: false }) }))
       }
 
       if (path === "/api/v1/app/chats/1") {
@@ -2480,7 +2480,7 @@ describe("AppChromeV2 recent chats", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/1/mark_unread" && init?.method === "PATCH") {
-        return Promise.resolve(new Response(null, { status: 204 }))
+        return Promise.resolve(jsonResponse({ chat: chatNav({ id: 1, title: "Read chat", unread: true }) }))
       }
 
       if (path === "/api/v1/app/chats/1") {
@@ -2560,7 +2560,6 @@ describe("AppChromeV2 recent chats", () => {
       return Promise.resolve(jsonResponse({}))
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries")
     queryClient.setQueryData(
       ["chats", "recent"],
       chatsIndexPayload({
@@ -2597,7 +2596,8 @@ describe("AppChromeV2 recent chats", () => {
           body: JSON.stringify({ chat: { title: "New name" } })
         })
       )
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
+      const cacheData = queryClient.getQueryData<chatsApi.ChatsIndexPayload>(["chats", "recent"])
+      expect(cacheData?.groups[0].chats[0].title).toBe("New name")
     })
   })
 
@@ -3480,14 +3480,8 @@ function chatNav(overrides: Partial<ChatNavRecord> = {}): ChatNavRecord {
     title: "Chat",
     title_pending: false,
     pinned: false,
-    pinned_context: null,
-    chat_provider: "claude",
     chat_path: `/chats/${overrides.id ?? 1}`,
     repository: null,
-    stop_requested_at: null,
-    cumulative_input_tokens: 0,
-    cumulative_output_tokens: 0,
-    cumulative_cost_usd: 0,
     pending_proposal_count: 0,
     scratchpad_items_count: 0,
     current: false,

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "../testSupport"
-import { createChat, createEmptyChat, fetchChats, searchChatJobs, sendChatMessage, uploadChatAttachment } from "./chats"
+import { createChat, createEmptyChat, createGroupChat, fetchChats, searchChatJobs, sendChatMessage, uploadChatAttachment } from "./chats"
 
 describe("chat API", () => {
   afterEach(() => {
@@ -61,7 +61,7 @@ describe("chat API", () => {
     )
   })
 
-  it("omits the repository when creating an explicitly repositoryless empty chat", async () => {
+  it("posts null when creating an explicitly repositoryless empty chat", async () => {
     const fetchMock = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(createdChatPayload()))
 
     await createEmptyChat(null, "claude")
@@ -71,7 +71,42 @@ describe("chat API", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
+          repository_id: null,
           chat_provider: "claude"
+        })
+      })
+    )
+  })
+
+  it.each([null, ""])("posts null when creating an explicitly repositoryless message chat from %j", async (repositoryId) => {
+    const fetchMock = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(createdChatPayload()))
+
+    await createChat({ repositoryId, text: "Plan this" })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/app/chats",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          repository_id: null,
+          chat_message: { text: "Plan this" }
+        })
+      })
+    )
+  })
+
+  it.each([null, ""])("posts null when creating an explicitly repositoryless group chat from %j", async (repositoryId) => {
+    const fetchMock = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(createdChatPayload()))
+
+    await createGroupChat([5], repositoryId)
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/app/chats",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          participant_user_ids: [5],
+          repository_id: null
         })
       })
     )

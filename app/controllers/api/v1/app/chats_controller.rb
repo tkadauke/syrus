@@ -31,7 +31,7 @@ module Api
         def index
           return unless validate_chat_index_settings
 
-          render json: PerformanceLogging.phase("chats_index_payload") {
+          payload = PerformanceLogging.phase("chats_index_payload") {
             groups_payload = PerformanceLogging.phase("chats_index.groups") { recent_chats_index_json }
             {
               groups: groups_payload.fetch(:groups),
@@ -39,9 +39,14 @@ module Api
               groups_next_offset: groups_payload.fetch(:next_offset),
               available_chat_types: chat_index_available_chat_types,
               available_agents: chat_index_available_agents,
-              repositories: PerformanceLogging.phase("chats_index.repositories") { chat_repository_scope.map { |repository| repository_json(repository) } }
+              agent_appearances: groups_payload.fetch(:agent_appearances),
+              provider_availability: groups_payload.fetch(:provider_availability)
             }
           }
+          expires_in 30.seconds, public: false
+          return unless stale?(etag: payload, public: false)
+
+          render json: payload
         end
 
         def more
@@ -74,14 +79,20 @@ module Api
             return
           end
 
-          render json: PerformanceLogging.phase("chats_more_payload", before_id: before_id, group_by: group_by, group_key: group_key) {
+          payload = PerformanceLogging.phase("chats_more_payload", before_id: before_id, group_by: group_by, group_key: group_key) {
             chats, has_more = paginated_chat_index_group(scope, before_chat: cursor)
             context = PerformanceLogging.phase("chats_more.context", count: chats.size) { chat_index_context_for(chats) }
             {
-              chats: PerformanceLogging.phase("chats_more.serialize", count: chats.size) { chats.map { |chat_session| chat_index_json(chat_session, context: context) } },
-              has_more: has_more
+              chats: PerformanceLogging.phase("chats_more.serialize", count: chats.size) { chats.map { |chat_session| chat_nav_json(chat_session, context: context) } },
+              has_more: has_more,
+              agent_appearances: chat_nav_agent_appearances(chats),
+              provider_availability: chat_nav_provider_availability(chats)
             }
           }
+          expires_in 30.seconds, public: false
+          return unless stale?(etag: payload, public: false)
+
+          render json: payload
         end
 
         def show
@@ -99,7 +110,11 @@ module Api
         # card fetch.
         def preview
           chat_session = find_chat_session
-          render json: PerformanceLogging.phase("chat_preview_payload", chat_id: chat_session.id) { chat_preview_json(chat_session) }
+          payload = PerformanceLogging.phase("chat_preview_payload", chat_id: chat_session.id) { chat_preview_json(chat_session) }
+          expires_in 30.seconds, public: false
+          return unless stale?(etag: payload, public: false)
+
+          render json: payload
         end
 
         def update
@@ -214,8 +229,10 @@ module Api
           end
 
           chat_session = visible_chat_scope.find(params[:chat_session_id])
+          matches = chat_search_rows(query, chat_session_id: chat_session.id, limit: SEARCH_MESSAGE_PAGE_SIZE + 1)
           render json: {
-            matches: chat_search_rows(query, chat_session_id: chat_session.id).map { |row| chat_search_match_json(row) }
+            matches: matches.first(SEARCH_MESSAGE_PAGE_SIZE).map { |row| chat_search_match_json(row) },
+            has_more: matches.size > SEARCH_MESSAGE_PAGE_SIZE
           }
         end
 
@@ -232,6 +249,7 @@ module Api
 
           render json: {
             chats: chats.map { |chat_session| hidden_chat_json(chat_session, context: context) },
+            agent_appearances: chat_nav_agent_appearances(chats),
             total: total,
             page: page,
             per_page: HIDDEN_CHATS_PAGE_SIZE,
@@ -253,16 +271,18 @@ module Api
         end
 
         def new
-          repository = most_recent_chat_repository
-          repository ||= chat_repository_scope.first
-
-          render json: {
+          repository = default_chat_repository
+          payload = {
             default_repository_id: repository&.id,
             repositories: chat_repository_scope.map { |repo| repository_json(repo) },
             effective_chat_provider: Current.user.effective_chat_provider,
             effective_chat_provider_label: chat_provider_label(Current.user.effective_chat_provider),
             chat_provider_options: chat_provider_options(nil)
           }
+          expires_in 30.seconds, public: false
+          return unless stale?(etag: payload, public: false)
+
+          render json: payload
         end
 
         # Create the first-run onboarding chat: attached to the operator's
@@ -274,7 +294,7 @@ module Api
           # should always land on the one onboarding chat, not spawn new ones.
           existing = Current.user.onboarding_chat
           if existing
-            render json: { message: "Chat opened.", redirect_to: chat_path(existing), chat: chat_json(existing) }, status: :ok
+            render json: chat_created_payload(existing, message: "Chat opened."), status: :ok
             return
           end
 
@@ -300,11 +320,7 @@ module Api
           enqueue_chat_title(chat_session, user_message)
           enqueue_chat_turn(chat_session, user_message)
 
-          render json: {
-            message: "Chat created.",
-            redirect_to: chat_path(chat_session),
-            chat: chat_json(chat_session)
-          }, status: :created
+          render json: chat_created_payload(chat_session, message: "Chat created."), status: :created
         rescue ActiveRecord::LockWaitTimeout, ActiveRecord::Deadlocked, ActiveRecord::StatementTimeout, SolidQueue::Job::EnqueueError => e
           raise unless transient_chat_lock_error?(e)
 
@@ -316,11 +332,7 @@ module Api
           return if performed?
 
           ActiveRecord.after_all_transactions_commit { Metrics::ProductUsage.record(:chat_created) }
-          render json: {
-            message: chat_session.messages.exists? ? "Message sent." : "Chat created.",
-            redirect_to: chat_path(chat_session),
-            chat: chat_json(chat_session)
-          }, status: :created
+          render json: chat_created_payload(chat_session, message: chat_session.messages.exists? ? "Message sent." : "Chat created."), status: :created
         rescue ActiveRecord::LockWaitTimeout, ActiveRecord::Deadlocked, ActiveRecord::StatementTimeout, SolidQueue::Job::EnqueueError => e
           raise unless transient_chat_lock_error?(e)
 
@@ -472,7 +484,7 @@ module Api
           end
           chat_session.rename!(name)
 
-          render json: chat_payload(chat_session.reload, message: "Chat renamed.")
+          render json: chat_metadata_payload(chat_session.reload, message: "Chat renamed.")
         end
 
         def branch
@@ -532,15 +544,17 @@ module Api
         end
 
         def mark_read
-          update_chat_read_at(find_chat_session, Time.current)
+          chat_session = find_chat_session
+          update_chat_read_at(chat_session, Time.current)
 
-          head :no_content
+          render json: { chat: chat_nav_json(chat_session.reload) }
         end
 
         def mark_unread
-          update_chat_read_at(find_chat_session, nil)
+          chat_session = find_chat_session
+          update_chat_read_at(chat_session, nil)
 
-          head :no_content
+          render json: { chat: chat_nav_json(chat_session.reload) }
         end
 
         def update_chat_read_at(chat_session, timestamp)
@@ -555,14 +569,14 @@ module Api
           chat_session = find_chat_session
           current_participant_for(chat_session).update!(hidden_at: Time.current)
 
-          render json: { message: "Chat hidden.", chat: chat_index_json(chat_session.reload) }
+          render json: { message: "Chat hidden.", chat: chat_nav_json(chat_session.reload) }
         end
 
         def unhide
           chat_session = find_chat_session
           current_participant_for(chat_session).update!(hidden_at: nil)
 
-          render json: { message: "Chat restored.", chat: chat_index_json(chat_session.reload) }
+          render json: { message: "Chat restored.", chat: chat_nav_json(chat_session.reload) }
         end
 
         def enqueue_message

@@ -18,7 +18,8 @@ module ChatIndexPayload
     "group" => "Group chats",
     "external" => "External chats"
   }.freeze
-  CHAT_INDEX_GROUP_PAGE_SIZE = 24
+  CHAT_INDEX_GROUP_PAGE_SIZE = 8
+  CHAT_INDEX_INITIAL_GROUP_SIZE = 5
   CHAT_INDEX_MODE_LABELS = {
     "planning" => "Planning",
     "coding" => "Coding",
@@ -79,11 +80,14 @@ module ChatIndexPayload
   end
 
   def chat_index_group_size
-    chat_index_settings.fetch(:per_group)
+    requested_size = chat_index_settings.fetch(:per_group)
+    return requested_size unless action_name == "index" && chat_index_group_offset.zero?
+
+    [ requested_size, CHAT_INDEX_INITIAL_GROUP_SIZE ].min
   end
 
   def chat_index_available_chat_types
-    @chat_index_available_chat_types ||= begin
+    @chat_index_available_chat_types ||= Rails.cache.fetch(chat_index_option_cache_key("chat_types"), expires_in: 3.minutes) do
       options = [ "agent" ]
       options << "group" if User.count > 1
       options << "external" if chat_index_external_chat_type_available?
@@ -96,14 +100,20 @@ module ChatIndexPayload
   end
 
   def chat_index_available_agents
-    @chat_index_available_agents ||= User.chat_providers.filter_map do |provider|
-      next unless Current.user.chat_provider_configured?(provider)
+    @chat_index_available_agents ||= Rails.cache.fetch(chat_index_option_cache_key("agents"), expires_in: 3.minutes) do
+      User.chat_providers.filter_map do |provider|
+        next unless Current.user.chat_provider_configured?(provider)
 
-      {
-        value: provider,
-        label: chat_provider_label(provider)
-      }
+        {
+          value: provider,
+          label: chat_provider_label(provider)
+        }
+      end
     end
+  end
+
+  def chat_index_option_cache_key(option)
+    [ "chat-index-options", option, Current.user.cache_key_with_version ]
   end
 
   def chat_agent_feature_visible?
@@ -141,7 +151,9 @@ module ChatIndexPayload
       {
         groups: sort_chat_index_groups(groups),
         has_more: @chat_index_groups_has_more == true,
-        next_offset: @chat_index_groups_has_more == true ? chat_index_group_offset + CHAT_INDEX_GROUP_PAGE_SIZE : nil
+        next_offset: @chat_index_groups_has_more == true ? chat_index_group_offset + CHAT_INDEX_GROUP_PAGE_SIZE : nil,
+        agent_appearances: chat_nav_agent_appearances(group_specs.flat_map { |group| group.fetch(:chats) }),
+        provider_availability: chat_nav_provider_availability(group_specs.flat_map { |group| group.fetch(:chats) })
       }
     end
   end
@@ -156,7 +168,7 @@ module ChatIndexPayload
         group_by: group_by || chat_index_settings.fetch(:group_by),
         group_value: group_value,
         chats: PerformanceLogging.phase("chat_index.group.chats", repository_id: repository_id, count: chats.size) do
-          chats.map { |chat_session| chat_index_json(chat_session, context: context) }
+          chats.map { |chat_session| chat_nav_json(chat_session, context: context) }
         end,
         has_more: has_more,
         active_at: PerformanceLogging.phase("chat_index.group.active_at", repository_id: repository_id, count: chats.size) do
@@ -166,59 +178,66 @@ module ChatIndexPayload
     end
   end
 
-  def chat_index_json(chat_session, context: nil)
+  def chat_nav_json(chat_session, context: nil)
     PerformanceLogging.phase("chat_index.chat.serialize", chat_id: chat_session.id) do
       context ||= chat_index_context_for([ chat_session ])
-      effective_provider = chat_session.effective_chat_provider
       repository = context.fetch(:repositories).fetch(chat_session.id, nil)
 
       {
         id: chat_session.id,
         current_user_id: Current.user.id,
         user_id: chat_session.user_id,
-        read_only: chat_session.user_id != Current.user.id && !chat_session.chat_participants.any? { |participant| participant.user_id == Current.user.id },
         title: chat_session.title.presence || ChatSession.fallback_title_for(repository),
         title_pending: chat_session.title.blank? && context.fetch(:title_pending_ids).include?(chat_session.id),
-        system_kind: chat_session.system_kind,
         pinned: chat_session.pinned?,
-        pinned_context: chat_session.pinned_context,
-        chat_provider: chat_session.chat_provider,
-        effective_chat_provider: effective_provider,
-        effective_chat_provider_label: chat_provider_label(effective_provider),
-        provider_availability: context.fetch(:provider_availability).fetch(effective_provider, nil),
-        chat_provider_options: context.fetch(:chat_provider_options),
-        chat_model: chat_session.chat_model,
-        available_chat_models: context.fetch(:available_chat_models).fetch(effective_provider, []),
+        effective_chat_provider: chat_session.effective_chat_provider,
         conversation_kind: chat_session.conversation_kind,
-        origin_platform: chat_session.origin_platform,
-        opened_by_coworker: chat_session.artifacts.to_h["opened_by_coworker"],
-        chat_type: chat_index_chat_type_for(chat_session),
         mode: chat_session.mode,
-        local_daemon_state: chat_session.local_daemon_state,
-        local_daemon_repo: chat_session.local_daemon_repo,
-        local_daemon_branch: chat_session.local_daemon_branch,
         chat_path: chat_path(chat_session),
         repository: repository ? repository_json(repository).merge(repository_path: repository_path(repository)) : nil,
         turn_in_flight: chat_session.turn_in_flight?,
         agent_busy: context.fetch(:agent_busy_ids).include?(chat_session.id),
-        stop_requested_at: chat_session.stop_requested_at&.iso8601,
-        active_goal: chat_goal_json(context.fetch(:active_goals).fetch(chat_session.id, nil)),
-        suggested_next_step: chat_session.suggested_next_step,
-        cumulative_input_tokens: chat_session.cumulative_input_tokens.to_i,
-        cumulative_output_tokens: chat_session.cumulative_output_tokens.to_i,
-        cumulative_cost_usd: chat_session.cumulative_cost.to_f,
+        active_goal: chat_nav_goal_json(context.fetch(:active_goals).fetch(chat_session.id, nil)),
         pending_proposal_count: context.fetch(:pending_proposal_counts).fetch(chat_session.id, 0),
         scratchpad_items_count: context.fetch(:scratchpad_counts).fetch(chat_session.id, 0),
-        job_summary: context.fetch(:job_summaries).fetch(chat_session.id, { active_count: 0, outcome: nil, jobs: [] }),
+        job_summary: context.fetch(:job_summaries).fetch(chat_session.id, { active_count: 0, outcome: nil, jobs: [], epics: {} }),
         coding_checkout_uncommitted: chat_session.coding_checkout_uncommitted?,
-        coding_checkout_branch: chat_session.coding_checkout_branch,
-        chat_effort: chat_session.chat_effort,
         last_message_at: chat_session.last_message_at&.iso8601,
-        unread: PerformanceLogging.phase("chat_index.chat.unread", chat_id: chat_session.id) { chat_unread?(chat_session) },
         created_at: chat_session.created_at.iso8601,
-        updated_at: chat_session.updated_at.iso8601
-      }.merge(plugin_chat_metadata.fetch(chat_session.id, {}))
+        unread: PerformanceLogging.phase("chat_index.chat.unread", chat_id: chat_session.id) { chat_unread?(chat_session) }
+      }
     end
+  end
+
+  def chat_nav_goal_json(goal)
+    goal && { id: goal.id, status: goal.status }
+  end
+
+  def chat_created_payload(chat_session, message:)
+    context = chat_index_context_for([ chat_session ])
+    {
+      message: message,
+      redirect_to: chat_path(chat_session),
+      chat: chat_nav_json(chat_session, context: context),
+      agent_appearances: chat_nav_agent_appearances([ chat_session ])
+    }
+  end
+
+  # Availability keyed by provider for the providers the listed chats use, so
+  # slim nav rows do not repeat it per row and bootstrap stays slim.
+  def chat_nav_provider_availability(chat_sessions)
+    providers = Array(chat_sessions).filter_map(&:effective_chat_provider).uniq
+    return {} if providers.empty?
+
+    # One evidence batch for every provider, not one scan per provider.
+    ::App::ProviderAvailability.all_for_user(Current.user).slice(*providers)
+  end
+
+  def chat_nav_agent_appearances(chat_sessions)
+    Array(chat_sessions).filter_map do |chat_session|
+      appearance = plugin_chat_metadata.dig(chat_session.id, :agent_appearance)
+      [ chat_session.id, appearance ] if appearance
+    end.to_h
   end
 
   def chat_index_context_for(chat_sessions)
@@ -237,16 +256,6 @@ module ChatIndexPayload
     end
     busy_ids = busy_agent_rows.filter_map { |chat_id, _workdir| chat_id }.to_set
     busy_workdirs = busy_agent_rows.filter_map { |_chat_id, workdir| workdir }.to_set
-    providers = chat_sessions.map(&:effective_chat_provider).compact.uniq
-    # Warm the per-request availability cache in one batched pass. Asking
-    # ProviderAvailability.for_user provider-by-provider builds a fresh
-    # evidence Batch each time, so a chat list spanning four providers paid
-    # four full evidence scans -- measured at ~500ms apiece, which was the
-    # bulk of this method's time. all_for_user shares one Batch across every
-    # provider and populates the same Current cache the per-provider lookups
-    # below read, so they become hits.
-    ::App::ProviderAvailability.all_for_user(Current.user) if providers.any?
-
     {
       repositories: chat_sessions.to_h { |chat_session| [ chat_session.id, chat_session.repository ] },
       title_pending_ids: blank_title_ids.empty? ? [] : ChatMessage.where(chat_session_id: blank_title_ids, role: "user").distinct.pluck(:chat_session_id),
@@ -254,13 +263,7 @@ module ChatIndexPayload
       pending_proposal_counts: chat_index_pending_proposal_counts(ids),
       scratchpad_counts: ids.empty? ? {} : ChatScratchpadItem.where(chat_session_id: ids).group(:chat_session_id).count,
       job_summaries: ChatJobSummary.for(chat_sessions: chat_sessions, user: Current.user),
-      provider_availability: providers.to_h { |provider| [ provider, ::App::ProviderAvailability.for_user(Current.user, provider) ] },
-      active_goals: visible_chat_goals_for(ids),
-      chat_provider_options: chat_provider_options(nil),
-      available_chat_models: providers.to_h do |provider|
-        representative = chat_sessions.find { |chat_session| chat_session.effective_chat_provider == provider }
-        [ provider, representative ? available_chat_models_for(representative) : [] ]
-      end
+      active_goals: visible_chat_goals_for(ids)
     }
   end
 

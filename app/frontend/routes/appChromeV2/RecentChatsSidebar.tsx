@@ -40,10 +40,11 @@ import { Input } from "../../components/Input"
 import { Avatar } from "../../components/Avatar"
 import { PinIcon } from "../../components/PinIcon"
 import { ProviderAvailabilityWarning } from "../../components/ProviderAvailabilityWarning"
+import type { ProviderAvailability } from "../../api/providerAvailability"
 import { SlugHoverCard } from "../../components/SlugHoverCard"
 import { Surface, surfaceClasses } from "../../components/ui"
 import { useDismissiblePopup } from "../../lib/useDismissiblePopup"
-import { recentChatsQueryKey, updateChatUnread, updateRecentChatCache } from "../../lib/chatCache"
+import { recentChatsQueryKey, removeRecentChatFromCache, updateChatUnread, updateRecentChatCache } from "../../lib/chatCache"
 import { useChatBookmarks } from "../chat/bookmarks"
 import { EpicProgressSegments } from "../dashboard/components"
 
@@ -179,7 +180,8 @@ export function RecentChatsSidebar({
   onStartChat,
   prefix,
   startingChat = false,
-  userPresent
+  userPresent,
+  providerAvailability
 }: {
   featureFlags: Record<string, boolean>
   onCloseDrawer: () => void
@@ -188,6 +190,7 @@ export function RecentChatsSidebar({
   prefix: string
   startingChat?: boolean
   userPresent: boolean
+  providerAvailability?: Record<string, ProviderAvailability>
 }) {
   const location = useLocation()
   const navigate = useNavigate()
@@ -359,15 +362,15 @@ export function RecentChatsSidebar({
     if (hidingChatIds.has(chat.id)) return
 
     setHidingChatIds((current) => new Set(current).add(chat.id))
-    removeChatFromRecentLists(chat.id)
     void hideChat(chat.id)
-      .then(() => {
-        void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
+      .then(({ chat: updatedChat }) => {
+        removeRecentChatFromCache(queryClient, updatedChat.id)
+        removeChatFromLoadedSections(updatedChat.id)
         void queryClient.invalidateQueries({ queryKey: ["hidden-chats"] })
         if (chat.id === activeChatId) navigate(`${prefix}/dashboard/jobs`)
       })
       .catch(() => {
-        void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
+        onNotice(t("chat:unable_to_hide"))
       })
       .finally(() => {
         setHidingChatIds((current) => {
@@ -386,14 +389,12 @@ export function RecentChatsSidebar({
       .then(() => {
         removeChatFromRecentLists(chat.id)
         queryClient.removeQueries({ queryKey: ["chats", String(chat.id)] })
-        void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
         void queryClient.invalidateQueries({ queryKey: ["hidden-chats"] })
         onNotice(t("chat:chat_deleted"))
         if (chat.id === activeChatId) navigate(`${prefix}/dashboard/jobs`)
       })
       .catch((error) => {
         onNotice(error instanceof ApiError && error.message ? error.message : t("chat:unable_to_delete"))
-        void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
       })
       .finally(() => {
         setDeletingChatIds((current) => {
@@ -406,9 +407,9 @@ export function RecentChatsSidebar({
 
   function togglePin(chat: ChatNavRecord) {
     void updateChatPinned(chat.id, !chat.pinned)
-      .then(() => {
+      .then((payload) => {
         onNotice(null)
-        void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
+        updateRecentChatCache(queryClient, payload.chat)
       })
       .catch(() => {
         onNotice(t("chat:unable_to_update_pin"))
@@ -416,14 +417,11 @@ export function RecentChatsSidebar({
   }
 
   function removeChatFromRecentLists(chatId: number) {
-    queryClient.setQueryData<ChatsIndexPayload>(sidebarQueryKey, (current) => {
-      if (!current) return current
+    removeRecentChatFromCache(queryClient, chatId)
+    removeChatFromLoadedSections(chatId)
+  }
 
-      return {
-        ...current,
-        groups: current.groups.map((group) => ({ ...group, chats: group.chats.filter((chat) => chat.id !== chatId) })).filter((group) => group.chats.length > 0)
-      }
-    })
+  function removeChatFromLoadedSections(chatId: number) {
     setLoadedSections((current) => {
       const next: Record<string, { chats: ChatNavRecord[]; has_more: boolean }> = {}
       Object.entries(current).forEach(([key, value]) => {
@@ -587,7 +585,10 @@ export function RecentChatsSidebar({
                           </span>
                         ) : null}
                         {chat.pinned ? <PinIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand" /> : null}
-                        <ProviderAvailabilityWarning availability={chat.provider_availability} className="mt-0.5" />
+                        <ProviderAvailabilityWarning
+                          availability={chat.provider_availability ?? (chat.effective_chat_provider ? providerAvailability?.[chat.effective_chat_provider] : undefined)}
+                          className="mt-0.5"
+                        />
                         <span className={`min-w-0 flex-1 truncate ${unread ? "font-semibold text-text-primary" : "font-medium text-text-muted"}`}>{title}</span>
                         <span
                           className={`${RECENT_CHAT_MARKER_SLOT_CLASS} group-hover/recent-chat:invisible ${openActionChatId === chat.id ? "invisible" : ""}`}
@@ -605,7 +606,7 @@ export function RecentChatsSidebar({
                                   <TargetIcon className="h-3.5 w-3.5" />
                                 </span>
                               ) : null}
-                              {chat.pending_proposal_count > 0 && (
+                              {(chat.pending_proposal_count ?? 0) > 0 && (
                                 <span className={RECENT_CHAT_MARKER_CELL_CLASS}>
                                   <span className="h-2 w-2 rounded-full bg-amber-400 dark:bg-amber-500" />
                                 </span>
@@ -615,7 +616,7 @@ export function RecentChatsSidebar({
                                   <span className="h-2 w-2 rounded-full bg-amber-500 dark:bg-amber-400" />
                                 </span>
                               )}
-                              {chat.scratchpad_items_count > 0 && (
+                              {(chat.scratchpad_items_count ?? 0) > 0 && (
                                 <span className={RECENT_CHAT_MARKER_CELL_CLASS}>
                                   <span className="h-2 w-2 rounded-full bg-teal-500 dark:bg-teal-400" />
                                 </span>
@@ -1064,8 +1065,12 @@ function JobStateMarkers({ summary }: { summary?: ChatJobSummary }) {
 
 function rollupJobSummaries(chats: ChatNavRecord[]): ChatJobSummary {
   const jobsById = new Map<number, ChatJobSummary["jobs"][number]>()
+  const epics: ChatJobSummary["epics"] = {}
   chats
-    .flatMap((chat) => chat.job_summary?.jobs || [])
+    .flatMap((chat) => {
+      Object.assign(epics, chat.job_summary?.epics)
+      return chat.job_summary?.jobs || []
+    })
     .forEach((job) => {
       const existing = jobsById.get(job.id)
       if (!existing || (!existing.group && job.group)) jobsById.set(job.id, job)
@@ -1073,7 +1078,7 @@ function rollupJobSummaries(chats: ChatNavRecord[]): ChatJobSummary {
   const jobs = Array.from(jobsById.values())
   const active_count = jobs.filter((job) => job.group === "running").length
   const outcome = jobs.some((job) => job.group === "failed") ? "failed" : jobs.some((job) => job.group === "ready") ? "ready" : null
-  return { active_count, outcome, jobs }
+  return { active_count, outcome, jobs, epics }
 }
 
 function IndicatorPopover({ chat, children, prefix, rowHovered }: { chat: ChatNavRecord; children: ReactNode; prefix: string; rowHovered: boolean }) {
@@ -1117,9 +1122,9 @@ function IndicatorPopover({ chat, children, prefix, rowHovered }: { chat: ChatNa
     replying ||
     jobs.length > 0 ||
     Boolean(goal) ||
-    chat.pending_proposal_count > 0 ||
+    (chat.pending_proposal_count ?? 0) > 0 ||
     Boolean(chat.coding_checkout_uncommitted) ||
-    chat.scratchpad_items_count > 0
+    (chat.scratchpad_items_count ?? 0) > 0
   if (!hasIndicator) return <>{children}</>
   const groups = ["running", "failed", "ready"] as const
   const sections: ReactNode[] = []
@@ -1135,6 +1140,7 @@ function IndicatorPopover({ chat, children, prefix, rowHovered }: { chat: ChatNa
             <div key={group}>
               <div className="text-xs font-medium text-text-secondary">{t(`popover_job_${group}`)}</div>
               <JobActivityRows
+                epics={chat.job_summary?.epics || {}}
                 group={group}
                 onNestedOpenChange={(nestedOpen) => (nestedOpen ? cancelClose() : scheduleClose())}
                 prefix={prefix}
@@ -1150,9 +1156,7 @@ function IndicatorPopover({ chat, children, prefix, rowHovered }: { chat: ChatNa
     sections.push(
       <div key="goal">
         <span className="font-semibold">{t("popover_goal")}</span>
-        <div>
-          {t(goal.status === "paused" ? "popover_goal_paused" : "popover_goal_active")} · {goal.prompt}
-        </div>
+        <div>{t(goal.status === "paused" ? "popover_goal_paused" : "popover_goal_active")}</div>
       </div>
     )
   const hasPendingActions = Boolean(chat.pending_proposal_count || chat.coding_checkout_uncommitted)
@@ -1220,12 +1224,14 @@ function IndicatorPopover({ chat, children, prefix, rowHovered }: { chat: ChatNa
 }
 
 function JobActivityRows({
+  epics,
   group,
   onNestedOpenChange,
   prefix,
   rows,
   t
 }: {
+  epics: ChatJobSummary["epics"]
   group: "running" | "failed" | "ready"
   onNestedOpenChange: (open: boolean) => void
   prefix: string
@@ -1233,17 +1239,18 @@ function JobActivityRows({
   t: TFunction<"nav">
 }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
-  const epicRows = new Map<number, { epic: NonNullable<ChatJobSummary["jobs"][number]["epic"]>; jobs: ChatJobSummary["jobs"] }>()
+  const epicRows = new Map<number, { epic: ChatJobSummary["epics"][string]; jobs: ChatJobSummary["jobs"] }>()
   const standalone: ChatJobSummary["jobs"] = []
 
   rows.forEach((job) => {
-    if (!job.epic) {
+    const epic = job.epic_id == null ? undefined : epics[String(job.epic_id)]
+    if (!epic) {
       standalone.push(job)
       return
     }
-    const entry = epicRows.get(job.epic.id)
+    const entry = epicRows.get(epic.id)
     if (entry) entry.jobs.push(job)
-    else epicRows.set(job.epic.id, { epic: job.epic, jobs: [job] })
+    else epicRows.set(epic.id, { epic, jobs: [job] })
   })
 
   return (
@@ -1434,7 +1441,8 @@ function RecentChatActionsMenu({
 
   const markRead = useMutation({
     mutationFn: () => markChatRead(chat.id),
-    onSuccess: () => {
+    onSuccess: (payload) => {
+      updateRecentChatCache(queryClient, payload.chat)
       updateChatUnread(queryClient, chat.id, false)
       setOpen(false)
     }
@@ -1442,7 +1450,8 @@ function RecentChatActionsMenu({
 
   const markUnread = useMutation({
     mutationFn: () => markChatUnread(chat.id),
-    onSuccess: () => {
+    onSuccess: (payload) => {
+      updateRecentChatCache(queryClient, payload.chat)
       updateChatUnread(queryClient, chat.id, true)
       setOpen(false)
     }
@@ -1452,8 +1461,9 @@ function RecentChatActionsMenu({
     mutationFn: (title: string) => renameChat(`/api/v1/app/chats/${chat.id}/rename`, title),
     onSuccess: (payload) => {
       updateRecentChatCache(queryClient, payload.chat)
-      void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
-      void queryClient.invalidateQueries({ queryKey: ["chats", String(chat.id)] })
+      queryClient.setQueriesData({ queryKey: ["chats", String(chat.id)] }, (current: unknown) =>
+        current && typeof current === "object" ? { ...current, chat: { ...(current as { chat?: object }).chat, ...payload.chat } } : current
+      )
       setRenameOpen(false)
       onNotice(null)
     },
@@ -1464,9 +1474,9 @@ function RecentChatActionsMenu({
 
   const discardCodingChanges = useMutation({
     mutationFn: () => cancelCodingCheckout(`/api/v1/app/chats/${chat.id}/coding_checkout`),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
-      void queryClient.invalidateQueries({ queryKey: ["chats", String(chat.id)] })
+    onSuccess: (payload) => {
+      updateRecentChatCache(queryClient, payload.chat)
+      queryClient.setQueriesData({ queryKey: ["chats", String(chat.id)] }, payload)
       setOpen(false)
       onNotice(t("chat:coding_checkout_cancelled_notice"))
     },

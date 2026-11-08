@@ -5,6 +5,17 @@ RSpec.describe "API: /api/v1/app/filters", type: :request do
     JSON.parse(response.body)
   end
 
+  it "serves filter schemas with a private five-minute validator" do
+    sign_in_as(Factories.user)
+
+    get "/api/v1/app/filters/schema", params: { subject: "job" }
+    etag = response.headers.fetch("ETag")
+    expect(response.headers.fetch("Cache-Control")).to include("private", "max-age=300")
+
+    get "/api/v1/app/filters/schema", params: { subject: "job" }, headers: { "If-None-Match" => etag }
+    expect(response).to have_http_status(:not_modified)
+  end
+
   it "401s with a JSON error when signed out" do
     get "/api/v1/app/filters/fk_options", params: { field: "job_id" }
 

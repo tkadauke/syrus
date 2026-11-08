@@ -773,8 +773,9 @@ curl "https://syrus.example.com/api/v1/app/chats/search?q=deploy&epic_id=456" \
   -H "Authorization: Bearer $SYRUS_API_TOKEN"
 ```
 
-`GET /api/v1/app/chats/search/messages` expands all matching messages for
-one chat and query:
+`GET /api/v1/app/chats/search/messages` expands up to 50 matching messages
+for one chat and query. The response's `has_more` field reports whether the
+result was truncated:
 
 ```bash
 curl "https://syrus.example.com/api/v1/app/chats/search/messages?chat_session_id=123&q=deploy" \

@@ -5,7 +5,7 @@ RSpec.describe "API: coworkers", type: :request do
 
   before { PluginRecord.find_by!(name: "coworkers").update!(enabled: true) }
 
-  it "shows coworker provenance on an ordinary spawned chat" do
+  it "keeps coworker provenance out of slim navigation rows" do
     chat = ChatSession.create!(
       user: owner,
       title: "Engineering plan",
@@ -17,9 +17,7 @@ RSpec.describe "API: coworkers", type: :request do
     get "/api/v1/app/chats"
 
     chats = response.parsed_body.fetch("groups").flat_map { |group| group.fetch("chats") }
-    expect(chats.find { |entry| entry.fetch("id") == chat.id }).to include(
-      "opened_by_coworker" => { "id" => 7, "handle" => "maya", "name" => "Maya" }
-    )
+    expect(chats.find { |entry| entry.fetch("id") == chat.id }).not_to have_key("opened_by_coworker")
   end
 
   it "hides coworker workspace repositories from the repository list" do
@@ -338,7 +336,8 @@ RSpec.describe "API: coworkers", type: :request do
     get "/api/v1/app/chats"
 
     group = JSON.parse(response.body).fetch("groups").find { |candidate| candidate["key"] == "coworkers" }
-    expect(group.fetch("chats")).to contain_exactly(include("id" => chat.id, "agent_appearance" => include("name" => "Maya", "avatar_key" => "comet")))
+    expect(group.fetch("chats")).to contain_exactly(include("id" => chat.id))
+    expect(JSON.parse(response.body).dig("agent_appearances", chat.id.to_s)).to include("name" => "Maya", "avatar_key" => "comet")
   end
 
   it "scopes mention autocomplete without leaking the user or coworker directory" do
