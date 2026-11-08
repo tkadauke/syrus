@@ -297,6 +297,39 @@ RSpec.describe AutoRetryAttempt, type: :model do
       }.to change { attempt.reload.skipped_reason }.from(nil).to("source workflow was already superseded by a successful workflow")
     end
 
+    context "when the job branch head moved" do
+      before do
+        run.update_columns(head_sha: "a" * 40, finished_at: 10.minutes.ago)
+      end
+
+      it "skips the attempt and routes the job to re-evaluation" do
+        attempt = described_class.create!(valid_attrs)
+        job.update_columns(mergeability_head_sha: "b" * 40, mergeability_checked_at: 1.minute.ago)
+        allow(WorkEngine::Reconciler).to receive(:request)
+
+        expect(described_class.prune_stale_pending!).to eq(1)
+
+        expect(attempt.reload.skipped_reason).to eq(described_class::BRANCH_REWRITTEN_SKIP_REASON)
+        expect(WorkEngine::Reconciler).to have_received(:request).with(hash_including(job: job))
+        expect(described_class.budget_scope_for(job: job, agent_provider: "claude", failure_classification: "worker_died")).not_to include(attempt)
+      end
+
+      it "leaves the attempt pending when the head is unchanged" do
+        attempt = described_class.create!(valid_attrs)
+        job.update_columns(mergeability_head_sha: "a" * 40, mergeability_checked_at: 1.minute.ago)
+
+        expect(described_class.prune_stale_pending!).to eq(0)
+        expect(attempt.reload.skipped_reason).to be_nil
+      end
+
+      it "ignores a head recorded before the source run finished" do
+        attempt = described_class.create!(valid_attrs)
+        job.update_columns(mergeability_head_sha: "b" * 40, mergeability_checked_at: 20.minutes.ago)
+
+        expect(attempt.stale_pending_reason).to be_nil
+      end
+    end
+
     it "leaves still-actionable pending attempts alone" do
       attempt = described_class.create!(valid_attrs)
 
