@@ -1165,7 +1165,11 @@ describe("ReviewWorkspace", () => {
         {
           type: "visual_review_dashboard_run_5_1",
           title: "Submitted dashboard screenshot",
-          payload: { image_url: "/api/v1/app/workflows/9/visual_artifact?type=visual_review_dashboard_run_5_1", run_id: 5, page: { path: "/dashboard", title: "Dashboard" } },
+          payload: {
+            image_url: "/api/v1/app/workflows/9/visual_artifact?type=visual_review_dashboard_run_5_1",
+            run_id: 5,
+            page: { path: "/dashboard", title: "Dashboard" }
+          },
           created_at: "2026-01-01T00:00:00Z",
           renderer_type: "image_diff",
           run_id: 5
