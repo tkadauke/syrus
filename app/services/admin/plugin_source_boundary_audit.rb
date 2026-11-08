@@ -252,14 +252,19 @@ module Admin
     def core_source_files
       CORE_ROOTS.flat_map do |dir|
         source_files_under(dir)
-      end.reject { |path| path.to_s.include?("/spec/") || path.basename.to_s.end_with?(".test.ts", ".test.tsx") }
+      end.reject { |path| test_source?(relative(path), path) }
     end
 
     def plugin_source_files_under(path)
       source_files_under(path).reject do |candidate|
-        rel = relative(candidate)
-        rel.include?("/spec/") || candidate.basename.to_s.end_with?(".test.ts", ".test.tsx")
+        test_source?(relative(candidate), candidate)
       end
+    end
+
+    # Specs, *.test.ts(x) files, and shared frontend test-support modules
+    # (app/frontend/test/**) may name plugin fixtures without being core code.
+    def test_source?(rel, path)
+      rel.include?("/spec/") || rel.include?("app/frontend/test/") || path.basename.to_s.end_with?(".test.ts", ".test.tsx")
     end
 
     def source_files_under(path)
