@@ -201,6 +201,7 @@ export function PendingActionCarousel({
   const previousIndex = Math.max(0, previousKeysRef.current.indexOf(selectedKey || ""))
   const selectedIndex = matchingIndex >= 0 ? matchingIndex : Math.min(previousIndex, Math.max(0, items.length - 1))
   const selectedItem = items[selectedIndex]
+  const single = items.length === 1
 
   useEffect(() => {
     const keys = items.map((item) => item.key)
@@ -223,7 +224,7 @@ export function PendingActionCarousel({
   return (
     <section
       aria-label={t("pending_action_carousel_label")}
-      className="rounded-lg border border-border bg-surface p-2 shadow-lg motion-safe:transition-opacity"
+      className={single ? "motion-safe:transition-opacity" : "rounded-lg border border-border bg-surface p-2 shadow-lg motion-safe:transition-opacity"}
       data-testid="pending-action-carousel"
       onBlurCapture={(event) => {
         focusWithinRef.current = event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)
@@ -259,31 +260,33 @@ export function PendingActionCarousel({
       tabIndex={0}
       ref={carouselRef}
     >
-      <div className="mb-2 flex items-center justify-between gap-2 px-1">
-        <span aria-live="polite" className="text-xs font-medium text-text-muted">
-          {t("pending_action_carousel_position", { current: selectedIndex + 1, total: items.length })}
-        </span>
-        {items.length > 1 ? (
-          <div className="flex shrink-0 gap-1">
-            <button
-              aria-label={t("pending_action_carousel_previous")}
-              className="flex h-9 w-9 items-center justify-center rounded border border-border bg-surface hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-              onClick={() => navigate(-1)}
-              type="button"
-            >
-              <span aria-hidden="true">←</span>
-            </button>
-            <button
-              aria-label={t("pending_action_carousel_next")}
-              className="flex h-9 w-9 items-center justify-center rounded border border-border bg-surface hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-              onClick={() => navigate(1)}
-              type="button"
-            >
-              <span aria-hidden="true">→</span>
-            </button>
-          </div>
-        ) : null}
-      </div>
+      {single ? null : (
+        <div className="mb-2 flex items-center justify-between gap-2 px-1">
+          <span aria-live="polite" className="text-xs font-medium text-text-muted">
+            {t("pending_action_carousel_position", { current: selectedIndex + 1, total: items.length })}
+          </span>
+          {items.length > 1 ? (
+            <div className="flex shrink-0 gap-1">
+              <button
+                aria-label={t("pending_action_carousel_previous")}
+                className="flex h-9 w-9 items-center justify-center rounded border border-border bg-surface hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                onClick={() => navigate(-1)}
+                type="button"
+              >
+                <span aria-hidden="true">←</span>
+              </button>
+              <button
+                aria-label={t("pending_action_carousel_next")}
+                className="flex h-9 w-9 items-center justify-center rounded border border-border bg-surface hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                onClick={() => navigate(1)}
+                type="button"
+              >
+                <span aria-hidden="true">→</span>
+              </button>
+            </div>
+          ) : null}
+        </div>
+      )}
       <div key={selectedItem.key} className="motion-safe:animate-chat-message-in">
         {selectedItem.type === "action" ? (
           <PendingActionCard pendingAction={selectedItem.action} queryKey={queryKey} onNotice={onNotice} />
