@@ -52,7 +52,7 @@ function formPayload(overrides: Partial<DirectJobFormPayload> = {}): DirectJobFo
 
 function renderRoute(payload = formPayload(), fetchTemplate?: (id: string) => Promise<Response>) {
   vi.spyOn(window, "fetch").mockImplementation((input) => {
-    const path = typeof input === "string" ? input : input.url
+    const path = typeof input === "string" ? input : input instanceof URL ? input.href : input.url
     if (path.endsWith(`/prompt_templates/${template1.id}`)) {
       if (fetchTemplate) return fetchTemplate(template1.id)
       return Promise.resolve(jsonResponse({ id: template1.id, prompt: template1Prompt }))

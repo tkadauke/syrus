@@ -116,7 +116,10 @@ function pushNeighbor(map: Map<string, string[]>, key: string, neighborKey: stri
 // adjacent, already-settled column. Nodes with no such neighbor (e.g. a
 // dummy lane that hasn't been linked from this side yet) keep their current
 // position instead of being pulled to one edge of the column.
-function reorderLayer(column: LayoutNode[], neighborPositions: Map<string, number>, neighborsOf: Map<string, string[]>): LayoutNode[] {
+type PositionMap = Map<string, number>
+type NeighborMap = Map<string, string[]>
+
+function reorderLayer(column: LayoutNode[], neighborPositions: PositionMap, neighborsOf: NeighborMap): LayoutNode[] {
   const scored = column.map((layoutNode, index) => {
     const neighborKeys = neighborsOf.get(layoutNode.key) ?? []
     const positions = neighborKeys.map((key) => neighborPositions.get(key)).filter((position): position is number => position !== undefined)

@@ -22,7 +22,7 @@ RSpec.describe "per-origin Job visibility", type: :request do
   end
 
   it "omits restricted Jobs from the Jobs API and its count" do
-    get "/api/v1/app/jobs", params: { include_active_work: true }
+    get "/api/v1/app/jobs", params: { include_active_work: true, include_count: true }
 
     expect(response).to have_http_status(:ok)
     payload = JSON.parse(response.body)
