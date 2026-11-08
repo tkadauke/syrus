@@ -119,8 +119,12 @@ class AgentEnvironmentSnapshot
     now = Time.current
     server_zone = Rails.configuration.x.server_time_zone.name
     user_zone = chat_session&.user&.time_zone.presence || server_zone
-    zones = [ [ "UTC", "UTC" ], [ "server", server_zone ], [ "user", user_zone ] ].uniq { |(_, zone)| zone }
-    rendered = zones.map { |label, zone| "#{label}=#{now.in_time_zone(zone).iso8601} (#{zone})" }.join("; ")
+    # Dedupe on the rendered instant so aliases of the same offset (UTC vs
+    # Etc/UTC) are not repeated.
+    zones = [ [ "UTC", "UTC" ], [ "server", server_zone ], [ "user", user_zone ] ]
+      .map { |label, zone| [ label, zone, now.in_time_zone(zone).iso8601 ] }
+      .uniq { |(_, _, instant)| instant }
+    rendered = zones.map { |label, zone, instant| "#{label}=#{instant} (#{zone})" }.join("; ")
 
     [
       "- Time context: #{rendered}.",
