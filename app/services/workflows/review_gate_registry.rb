@@ -63,7 +63,7 @@ module Workflows
         failure_policy: { "deterministic" => "fail", "transient" => "retry" }, panel_capable: true
       },
       {
-        key: "security", step_kind: "security_review", after: %w[adversarial], before: %w[coworker],
+        key: "security", step_kind: "security_review", after: %w[adversarial],
         enabled_resolver: ->(job:, syrus_yml:, **) { Base.security_review_rounds(job, syrus_yml: syrus_yml).positive? },
         loop_budget: ->(job:, syrus_yml:, **) { Base.security_review_rounds(job, syrus_yml: syrus_yml) },
         handler_provider: "Steps::SecurityReview", prompt_provider: "Prompts::SecurityReview",
@@ -71,15 +71,7 @@ module Workflows
         failure_policy: { "deterministic" => "fail", "transient" => "retry" }, panel_capable: true
       },
       {
-        key: "coworker", step_kind: "coworker_review", after: %w[security], before: %w[visual],
-        enabled_resolver: ->(job:, syrus_yml:, **) { Base.resolve_plan(RepoCoworkerReviewPlan, job, syrus_yml).enabled? },
-        loop_budget: ->(job:, syrus_yml:, **) { Base.resolve_plan(RepoCoworkerReviewPlan, job, syrus_yml).rounds },
-        handler_provider: "Steps::CoworkerReview", prompt_provider: "Prompts::CoworkerReview",
-        tool_provider: %w[submit_coworker_review], verdict_artifact: "coworker_review_iterations",
-        failure_policy: { "deterministic" => "fail", "transient" => "retry" }, panel_capable: true
-      },
-      {
-        key: "visual", step_kind: "visual_review", after: %w[coworker],
+        key: "visual", step_kind: "visual_review", after: %w[security],
         excluded_trigger_kinds: %w[external_pr_feedback],
         enabled_resolver: lambda { |job:, syrus_yml:, **|
           plan = syrus_yml ? RepoVisualReviewPlan.for_job(job, loaded: syrus_yml) : RepoVisualReviewPlan.for_job(job)

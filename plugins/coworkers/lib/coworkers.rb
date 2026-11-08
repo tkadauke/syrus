@@ -38,6 +38,7 @@ module Coworkers
              review_context_contributor: "Coworkers::ReviewContextContributor",
              review_presentation_contributor: "Coworkers::ReviewPresentationContributor",
              repository_configuration: "Coworkers::RepositoryConfiguration",
+             review_gate: "Coworkers::ReviewGate",
              mcp_tool_set: "Coworkers::ReviewToolSet",
              retention_policy: "Coworkers::ReviewContextRetentionPolicy",
              "calendar:event_source" => "Coworkers::CalendarEventSource"
