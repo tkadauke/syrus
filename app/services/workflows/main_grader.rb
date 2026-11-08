@@ -41,10 +41,7 @@ module Workflows
       # evidence) may mark main broken. Everything else -- missing exit status,
       # setup/dependency failures, lock contention, blank results -- settles as
       # inconclusive so no repair Job is spawned from missing execution evidence.
-      test_failures, unproven_failures = actual_failures.partition do |step|
-        GraderOutcome.for_step(step).test_failed? ||
-          (workflow.job.repository.treat_grader_timeouts_as_failures? && GraderFailureSignal.timeout_like_step?(step))
-      end
+      test_failures, unproven_failures = actual_failures.partition { |step| GraderOutcome.for_step(step).test_failed? }
       unproven_failures = unproven_failures.reject { |step| GraderOutcome.for_step(step).outcome == GraderOutcome::CANCELLED }
       inconclusive_steps += unproven_failures
       failed_names = failed_required_grader_names(test_failures)
@@ -199,8 +196,6 @@ module Workflows
     end
 
     private_class_method def self.inconclusive_grader?(workflow, step)
-      return false if workflow.job.repository.treat_grader_timeouts_as_failures?
-
       GraderFailureSignal.timeout_like_step?(step)
     end
 
