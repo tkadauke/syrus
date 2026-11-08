@@ -5,6 +5,7 @@ module ReviewerTargets
   PluginUnavailable = Class.new(ResolutionError)
   TargetUnavailable = Class.new(ResolutionError)
   DuplicateTarget = Class.new(ResolutionError)
+  TargetRequired = Class.new(ResolutionError)
 
   module_function
 

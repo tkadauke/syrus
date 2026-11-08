@@ -38,7 +38,7 @@ RSpec.describe Coworkers::ReviewStep do
   it "hard-fails before invocation without a pinned reviewer" do
     review_step.update!(details: {})
 
-    expect { handler.call }.to raise_error(ProviderRouting::Resolver::CoworkerReviewTargetRequired)
+    expect { handler.call }.to raise_error(ReviewerTargets::TargetRequired)
   end
 
   it "uses dedicated criteria, submission tool, and iteration artifact" do

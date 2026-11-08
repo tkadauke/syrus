@@ -477,7 +477,7 @@ RSpec.describe ProviderRouting::Resolver, "dedicated coworker review" do
 
     expect {
       described_class.resolve(job: job, task_key: "coworker_review", trigger: { type: "step", kind: "coworker_review" })
-    }.to raise_error(ProviderRouting::Resolver::CoworkerReviewTargetRequired)
+    }.to raise_error(ReviewerTargets::TargetRequired)
   end
 end
 
