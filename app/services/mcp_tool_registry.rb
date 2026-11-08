@@ -543,7 +543,6 @@ class McpToolRegistry
           AgentRole::WORKFLOW_SECURITY_REVIEWER,
           AgentRole::WORKFLOW_MANUAL
         ], mutation: true),
-        legacy_workflow(Mcp::Tools::SubmitCoworkerReviewTool, capability: :submit_coworker_review, required_roles: [ AgentRole::WORKFLOW_COWORKER_REVIEWER, AgentRole::WORKFLOW_MANUAL ], mutation: true),
         legacy_workflow(Mcp::Tools::SubmitVisualReviewTool, capability: :submit_visual_review, required_roles: [
           AgentRole::WORKFLOW_VISUAL_REVIEWER,
           AgentRole::WORKFLOW_MANUAL
