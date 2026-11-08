@@ -1,5 +1,11 @@
 class ChatJobSummary
   READY_STATES = %w[implemented approved landing].freeze
+  VISUAL_STATE_BY_JOB_STATE = {
+    "landing" => "approved",
+    "no_change_needed" => "implemented"
+  }.freeze
+  VISUAL_STATE_BY_CLOSURE_REASON = Epic::MERGED_JOB_CLOSURE_REASONS.index_with { "merged" }
+    .merge("no_changes" => "implemented").freeze
   # A chat owns Job visibility through either confirmed proposal lineage or the
   # Job attachment selected by Job#discussion_chat. Ordinary Job attachments
   # after the earliest one are context only and deliberately do not associate

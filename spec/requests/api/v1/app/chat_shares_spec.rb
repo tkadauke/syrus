@@ -31,7 +31,8 @@ RSpec.describe "API: chat shares", type: :request do
     get "/api/v1/app/chats"
     shared_group = response.parsed_body.fetch("groups").find { |group| group.fetch("key") == "shared-with-me" }
     expect(shared_group.fetch("label")).to eq("Shared with me")
-    expect(shared_group.fetch("chats").first).to include("id" => chat.id, "read_only" => true)
+    expect(shared_group.fetch("chats").first).to include("id" => chat.id)
+    expect(shared_group.fetch("chats").first).not_to have_key("read_only")
 
     get "/api/v1/app/chats/search"
     expect(response.parsed_body.fetch("results").pluck("chat_session_id")).to include(chat.id)

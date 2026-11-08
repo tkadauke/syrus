@@ -39,7 +39,8 @@ module Api
               groups_next_offset: groups_payload.fetch(:next_offset),
               available_chat_types: chat_index_available_chat_types,
               available_agents: chat_index_available_agents,
-              agent_appearances: groups_payload.fetch(:agent_appearances)
+              agent_appearances: groups_payload.fetch(:agent_appearances),
+              provider_availability: groups_payload.fetch(:provider_availability)
             }
           }
           expires_in 30.seconds, public: false
@@ -84,7 +85,8 @@ module Api
             {
               chats: PerformanceLogging.phase("chats_more.serialize", count: chats.size) { chats.map { |chat_session| chat_nav_json(chat_session, context: context) } },
               has_more: has_more,
-              agent_appearances: chat_nav_agent_appearances(chats)
+              agent_appearances: chat_nav_agent_appearances(chats),
+              provider_availability: chat_nav_provider_availability(chats)
             }
           }
           expires_in 30.seconds, public: false

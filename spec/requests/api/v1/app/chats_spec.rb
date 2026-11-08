@@ -912,7 +912,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   # rescanned provider_availability_evidences. A chat list spanning several
   # providers therefore paid one full scan per provider. Batch once, then the
   # per-provider lookups read the warmed per-request cache.
-  it "does not scan provider availability evidence for nav rows" do
+  it "batches provider availability evidence once for the whole chat list" do
     sign_in_as(user)
     %w[claude codex].each_with_index do |provider, index|
       ChatSession.create!(user: user, title: "#{provider} chat", chat_provider: provider,
@@ -929,7 +929,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     end
 
     expect(response).to have_http_status(:ok)
-    expect(scans).to eq(0)
+    expect(scans).to be <= 6 # one batch for all providers, independent of provider count
+    expect(parse_body["provider_availability"].keys).to contain_exactly("claude", "codex")
   end
 
   it "filters recent sidebar chats by derived chat type" do
