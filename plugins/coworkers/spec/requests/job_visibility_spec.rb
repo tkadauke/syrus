@@ -37,7 +37,9 @@ RSpec.describe "Coworker Job visibility across user-facing paths", type: :reques
 
   shared_examples "coworker Job path visibility" do
     it "applies the owner-only rule to the Jobs API, global search, MCP scopes, and dashboard queries" do
-      get "/api/v1/app/jobs", params: { include_active_work: true }
+      # The total is opt-in; the index stopped sending it unconditionally when
+      # duplicate payload data was removed.
+      get "/api/v1/app/jobs", params: { include_active_work: true, include_count: true }
       expect(response).to have_http_status(:ok)
       jobs_api = JSON.parse(response.body)
       expect(jobs_api.fetch("count")).to eq(expected_visible ? 1 : 0)
