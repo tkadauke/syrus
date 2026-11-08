@@ -1,9 +1,9 @@
 class CreateReviewEvidence < ActiveRecord::Migration[8.1]
   def change
     create_table :review_evidences, if_not_exists: true do |t|
-      t.references :run, null: false, index: { unique: true }
-      t.references :workflow, null: false
-      t.references :step, null: false
+      t.references :run, null: false, index: { unique: true }, foreign_key: false
+      t.references :workflow, null: false, foreign_key: false
+      t.references :step, null: false, foreign_key: false
       t.string :review_kind, null: false
       t.string :provider, null: false
       t.string :model, null: false
