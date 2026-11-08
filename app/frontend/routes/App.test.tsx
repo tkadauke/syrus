@@ -12931,9 +12931,9 @@ describe("App", () => {
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/chats/8/mark_read", expect.objectContaining({ method: "PATCH" }))
     })
-    await waitFor(() => {
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
-    })
+    // Marking read patches the recent-chat caches locally; it must not refetch the whole sidebar.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(invalidateSpy).not.toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
   })
 
   it("renders a chat attachment add button in the composer", async () => {
