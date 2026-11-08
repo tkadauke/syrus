@@ -106,6 +106,7 @@ function renderRoute(responsePayload: TargetGraphPayload = payload(), initialEnt
         <Routes>
           <Route element={<RepositoryTargetGraphRoute />} path="/app-shell/repositories/:repositoryId/target_graph" />
         </Routes>
+        <LocationProbe />
       </MemoryRouter>
     </QueryClientProvider>
   )
@@ -125,11 +126,25 @@ function LocationProbe() {
 describe("RepositoryTargetGraphRoute", () => {
   afterEach(() => vi.restoreAllMocks())
 
+  it("bounds the relationship lists in the detail drawer for high fan-in targets", async () => {
+    const deps = Array.from({ length: 120 }, (_, i) => `//:dep${i}`)
+    renderRoute(
+      payload({ targets: [target("//:hub", deps), ...deps.map((d) => target(d))], edges: [], page: { offset: 0, limit: 100, total: 121, next_offset: null } })
+    )
+    fireEvent.click(await screen.findByRole("button", { name: "Open details for //:hub" }))
+    const dialog = screen.getByRole("dialog", { name: "Target details" })
+    expect(dialog.querySelectorAll("button.font-mono").length).toBe(50)
+    fireEvent.click(screen.getByRole("button", { name: "Show 50 more (70 remaining)" }))
+    expect(dialog.querySelectorAll("button.font-mono").length).toBe(100)
+    fireEvent.click(screen.getByRole("button", { name: "Show 20 more (20 remaining)" }))
+    expect(dialog.querySelectorAll("button.font-mono").length).toBe(120)
+  })
+
   it("renders a focused graph neighborhood with dependency expansion controls", async () => {
     const fetchSpy = renderRoute()
 
     expect((await screen.findAllByText("//:grade/tests")).length).toBeGreaterThan(0)
-    expect(screen.getByText("npm run build")).toBeInTheDocument()
+    expect(screen.getByText(/npm run build/)).toBeInTheDocument()
     expect(screen.getAllByText("changed files matched").length).toBeGreaterThan(0)
     expect(screen.queryByText("Selection Explanations")).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Show explanations" }))
@@ -140,7 +155,19 @@ describe("RepositoryTargetGraphRoute", () => {
     expect(screen.getAllByText("THR-123").length).toBeGreaterThan(0)
     expect(screen.getByText("Visual review preview project")).toBeInTheDocument()
     expect(screen.getByText("Web")).toBeInTheDocument()
-    expect(screen.getAllByRole("button", { name: "//:app" }).length).toBeGreaterThan(0)
+    const row = screen.getByRole("button", { name: "Open details for //:grade/tests" })
+    row.focus()
+    fireEvent.click(row)
+    expect(screen.getByRole("dialog", { name: "Target details" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Close target details" })).toHaveFocus()
+    expect(screen.getByText("Depends on")).toBeInTheDocument()
+    expect(screen.getByText("Used by / dependents")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "//:app" })).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true })
+    expect(screen.getByRole("button", { name: "//:assets" })).toHaveFocus()
+    fireEvent.keyDown(document, { key: "Escape" })
+    expect(screen.queryByRole("dialog", { name: "Target details" })).not.toBeInTheDocument()
+    expect(row).toHaveFocus()
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repositories/1/target_graph?mode=neighborhood&direction=both&depth=1&limit=100", expect.any(Object))
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/v1/app/repositories/1/target_graph?mode=neighborhood&direction=both&depth=1&limit=100&include=explanations",
@@ -210,6 +237,51 @@ describe("RepositoryTargetGraphRoute", () => {
     })
   })
 
+  it("keeps the compact controls and target rows operable in a representative narrow viewport", async () => {
+    const originalInnerWidth = Object.getOwnPropertyDescriptor(window, "innerWidth")
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 })
+    const fetchSpy = renderRoute()
+
+    try {
+      await screen.findAllByText("//:grade/tests")
+      fireEvent.change(screen.getByRole("combobox", { name: "Projects" }), { target: { value: "repo" } })
+
+      await waitFor(() => {
+        expect(fetchSpy).toHaveBeenLastCalledWith(
+          "/api/v1/app/repositories/1/target_graph?mode=neighborhood&project_id=repo&direction=both&depth=1&limit=100",
+          expect.any(Object)
+        )
+      })
+      const row = await screen.findByRole("button", { name: "Open details for //:grade/tests" })
+      row.focus()
+      fireEvent.click(row)
+      expect(screen.getByRole("dialog", { name: "Target details" })).toHaveClass("w-full", "max-w-md")
+      expect(screen.getByRole("button", { name: "Close target details" })).toHaveFocus()
+      expect(screen.getByText(/Each row is one target/)).toBeInTheDocument()
+    } finally {
+      if (originalInnerWidth) Object.defineProperty(window, "innerWidth", originalInnerWidth)
+      else Reflect.deleteProperty(window, "innerWidth")
+    }
+  })
+
+  it("focuses a relationship from the detail drawer while preserving URL-backed neighborhood navigation", async () => {
+    const fetchSpy = renderRoute()
+
+    const row = await screen.findByRole("button", { name: "Open details for //:grade/tests" })
+    row.focus()
+    fireEvent.click(row)
+    fireEvent.click(screen.getByRole("button", { name: "//:app" }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/repositories/1/target_graph?focus_label=%2F%2F%3Aapp")
+      expect(fetchSpy).toHaveBeenLastCalledWith(
+        "/api/v1/app/repositories/1/target_graph?mode=neighborhood&focus_label=%2F%2F%3Aapp&direction=both&depth=1&limit=100",
+        expect.any(Object)
+      )
+    })
+    expect(screen.queryByRole("dialog", { name: "Target details" })).not.toBeInTheDocument()
+  })
+
   it("pages browse rows without eagerly requesting diagnostic labels", async () => {
     const fetchSpy = renderRoute(
       payload({
@@ -235,13 +307,20 @@ describe("RepositoryTargetGraphRoute", () => {
   })
 
   it("disables workflow overlay focus controls for repository graphs", async () => {
-    renderRoute()
+    const fetchSpy = renderRoute()
 
     await screen.findAllByText("//:grade/tests")
-    expect(screen.getByRole("button", { name: "Selected" })).toBeDisabled()
-    expect(screen.getByRole("button", { name: "Skipped" })).toBeDisabled()
-    expect(screen.getByRole("button", { name: "Cached" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: /^Selected/ })).toBeDisabled()
+    expect(screen.getByRole("button", { name: /^Skipped/ })).toBeDisabled()
+    expect(screen.getByRole("button", { name: /^Cached/ })).toBeDisabled()
     expect(screen.getByRole("button", { name: "Failing" })).not.toBeDisabled()
+    fireEvent.click(screen.getByRole("button", { name: "Failing" }))
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenLastCalledWith(
+        "/api/v1/app/repositories/1/target_graph?mode=neighborhood&focus_state=failing&direction=both&depth=1&limit=100",
+        expect.any(Object)
+      )
+    })
   })
 
   it("fetches job-scoped graph data so workflow overlay focus controls are available", async () => {
@@ -265,15 +344,24 @@ describe("RepositoryTargetGraphRoute", () => {
     )
 
     expect(await screen.findByText("Workflow WF-42")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Selected" })).not.toBeDisabled()
+    expect(screen.getByRole("button", { name: /^Selected/ })).not.toBeDisabled()
     expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/jobs/1/target_graph?mode=neighborhood&direction=both&depth=1&limit=100", expect.any(Object))
 
-    fireEvent.click(screen.getByRole("button", { name: "Selected" }))
+    fireEvent.click(screen.getByRole("button", { name: /^Selected/ }))
 
     await waitFor(() => {
       expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/jobs/1?tab=target_graph&focus_state=selected")
       expect(fetchSpy).toHaveBeenLastCalledWith(
         "/api/v1/app/jobs/1/target_graph?mode=neighborhood&focus_state=selected&direction=both&depth=1&limit=100",
+        expect.any(Object)
+      )
+    })
+
+    fireEvent.click(await screen.findByRole("button", { name: /^Cached/ }))
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent("/app-shell/jobs/1?tab=target_graph&focus_state=cached")
+      expect(fetchSpy).toHaveBeenLastCalledWith(
+        "/api/v1/app/jobs/1/target_graph?mode=neighborhood&focus_state=cached&direction=both&depth=1&limit=100",
         expect.any(Object)
       )
     })

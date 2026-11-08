@@ -16,6 +16,7 @@ module Workflows
     def start!
       return if workflow.landing_workflow?
       return if workflow.infrastructure_workflow?
+      return if job.implemented? && Workflow::TriggerKind.non_approval_blocking?(workflow.trigger_kind)
       return unless job.may_start_running?
 
       StateTransition.with_source("propagate") do

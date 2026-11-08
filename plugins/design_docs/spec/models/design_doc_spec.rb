@@ -15,6 +15,17 @@ RSpec.describe DesignDocs::DesignDoc, type: :model do
     expect(doc.display_name).to eq("DOC-#{doc.id} Checkout design")
   end
 
+  it "rejects canonical markdown whose visible body contains only hidden anchor markers" do
+    doc = described_class.new(
+      owner_user: owner,
+      title: "Marker only",
+      markdown: DesignDocs::AnchorMarkers.range_start_marker("range-1") + DesignDocs::AnchorMarkers.range_end_marker("range-1")
+    )
+
+    expect(doc).not_to be_valid
+    expect(doc.errors[:markdown]).to include("visible body can't be blank")
+  end
+
   it "normalizes HTML entities in titles" do
     doc = described_class.create!(owner_user: owner, title: " Codebase Bug &amp; Inconsistency Sweep ", markdown: "# Sweep")
 

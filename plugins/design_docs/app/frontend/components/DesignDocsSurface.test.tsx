@@ -940,6 +940,27 @@ describe("DesignDocsSurface", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/design_docs/1")
   })
 
+  it.each([
+    ["compact chat", "/chats/237", false, "Accept"],
+    ["compact chat", "/chats/237", false, "Reject"],
+    ["narrow detail", "/design_docs/1", true, "Accept"],
+    ["narrow detail", "/design_docs/1", true, "Reject"]
+  ])("reviews from the persisted draft without autosaving when the Rich Text editor is absent in %s", async (_surface, path, narrow, decision) => {
+    if (narrow) mockMobileViewport()
+    const fetchSpy = mockFetch()
+    renderSurface(path)
+
+    expect(await screen.findByRole("region", { name: "Design doc content" })).toHaveTextContent("Alpha beta gamma")
+    expect(screen.queryByRole("textbox", { name: "Rich Text editor" })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "2 comments" }))
+    fireEvent.click(screen.getByRole("button", { name: decision }))
+
+    const endpoint = `/api/v1/app/design_docs/1/suggestions/9/${decision.toLowerCase()}`
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(endpoint, expect.objectContaining({ method: "POST" })))
+    expect(fetchSpy.mock.calls.some((call) => String(call[0]) === "/api/v1/app/design_docs/1" && call[1]?.method === "PATCH")).toBe(false)
+    expect(screen.getByRole("region", { name: "Design doc content" })).toHaveTextContent(decision === "Accept" ? "Alpha beta delta" : "Alpha beta gamma")
+  })
+
   it("removes the full-page gutter from the mobile detail route while keeping document body padding", async () => {
     mockMobileViewport()
     mockFetch()

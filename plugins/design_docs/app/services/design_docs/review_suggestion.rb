@@ -1,5 +1,7 @@
 module DesignDocs
   class ReviewSuggestion
+    class BlankCanonicalBody < StandardError; end
+
     Result = Data.define(:design_doc, :suggestion, :version, :applied)
 
     def self.accept(suggestion:, user:)
@@ -23,6 +25,9 @@ module DesignDocs
         design_doc.lock!
         suggestion.lock!
         raise ActiveRecord::RecordInvalid.new(suggestion) unless suggestion.state == "pending"
+        if AnchorMarkers.strip(design_doc.markdown).blank?
+          raise BlankCanonicalBody, "The design doc body is blank after removing hidden anchors. Restore nonblank content before reviewing suggestions."
+        end
 
         next reject if decision == "reject"
 
@@ -67,7 +72,8 @@ module DesignDocs
         marker_id: anchor.marker_id,
         proposed_markdown: suggestion.proposed_markdown_value
       )
-      return mark_conflict!("Anchor markers could not be re-applied.") if next_markdown.blank?
+      return mark_conflict!("Anchor markers could not be re-applied.") if next_markdown.nil?
+      ensure_visible_body!(next_markdown)
 
       design_doc.update!(markdown: next_markdown)
       version = design_doc.versions.create!(
@@ -100,7 +106,9 @@ module DesignDocs
       current_text = markdown[start_offset...end_offset].to_s
       return mark_stale!(current_text) unless current_text == suggestion.original_markdown.to_s
 
-      design_doc.update!(markdown: markdown[0...start_offset].to_s + suggestion.proposed_markdown_value + markdown[end_offset..].to_s)
+      next_markdown = markdown[0...start_offset].to_s + suggestion.proposed_markdown_value + markdown[end_offset..].to_s
+      ensure_visible_body!(next_markdown)
+      design_doc.update!(markdown: next_markdown)
       version = design_doc.versions.create!(
         markdown: design_doc.markdown,
         version_number: next_version_number,
@@ -222,6 +230,12 @@ module DesignDocs
 
     def autosave_suggestion?
       ActiveModel::Type::Boolean.new.cast(suggestion.provenance&.fetch("autosave", false))
+    end
+
+    def ensure_visible_body!(markdown)
+      return if AnchorMarkers.strip(markdown).present?
+
+      raise BlankCanonicalBody, "The suggestion would leave the design doc body blank. Restore nonblank content and retry the review."
     end
 
     def mark_conflict!(reason)

@@ -155,6 +155,17 @@ suggestions and applies consecutive reviews in order. On conflict, reload the
 current document, reconcile the local draft, and retry from its new revision.
 Successful autosaves still create no version checkpoint.
 
+Canonical Markdown must have a nonblank visible body after hidden anchor
+markers are stripped. Canonical updates and suggestion reviews reject an empty
+or marker-only body atomically, without moving anchors, creating a version, or
+changing suggestion state. The client serializes Rich Text before review only
+when the editable Rich Text element is mounted; compact, narrow, and other
+read-only presentations review from the persisted draft and do not manufacture
+a canonical autosave from an absent editor. This protects the failure mode in
+which a compact review serialized a null editor as an empty string, projected
+two pending range anchors onto that empty body, and then checkpointed the
+marker-only result while attempting to review a suggestion.
+
 Pending suggestions are classified before rendering. Inline-safe suggestions
 appear inline at their anchored range in both editor modes where practical: the
 original Markdown range is struck through in the active theme warning color and

@@ -38,6 +38,11 @@ RSpec.describe Metrics::FleetSampler do
 
   before { allow(Rails).to receive(:cache).and_return(cache) }
 
+  # Rows committed by non-transactional specs in the same parallel shard can
+  # outlive their example; these examples assert exact gauge contents, so start
+  # from an empty spawned-process table rather than trusting shard hygiene.
+  before { SpawnedProcess.delete_all }
+
   def instance_version(hostname:, role:, version:, heartbeat: Time.current)
     InstanceVersion.create!(
       hostname: hostname, role: role, version: version,

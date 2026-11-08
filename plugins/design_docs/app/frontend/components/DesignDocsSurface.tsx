@@ -938,7 +938,7 @@ function DesignDocEditor({
   })
 
   function reviewSuggestion(id: number, decision: "accept" | "reject") {
-    const markdown = editorMode === "rich_text" ? wysiwygHtmlToMarkdown(wysiwygRef.current) : draft
+    const markdown = editorMode === "rich_text" && wysiwygRef.current ? wysiwygHtmlToMarkdown(wysiwygRef.current) : draft
     const snapshot = {
       title,
       markdown,

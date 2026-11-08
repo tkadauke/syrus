@@ -608,7 +608,10 @@ grade:
       - "docs/metrics-catalog.md"
     timeout_minutes: 60
     focused_timeout_minutes: 10
-    ci_timeout_minutes: 90
+    # The CI variant runs the main suite in parallel, then 4,900+ ci_only
+    # examples, including schema-mutating cases, in an isolated serial pass.
+    # Healthy four-process runs now exceed 90 minutes under worker contention.
+    ci_timeout_minutes: 120
 
   - type: vitest
     name: react-tests

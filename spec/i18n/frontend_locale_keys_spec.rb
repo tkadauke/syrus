@@ -78,6 +78,8 @@ RSpec.describe "Frontend locale keys", type: :unit do
       "provider_routing.test.job" => "approved domain noun",
       "provider_routing.repository.pill" => "approved domain noun with placeholder",
       "provider_routing.action_strategies.panel" => "shared German technical term",
+      "provider_routing.compact_fallback" => "shared German technical term with placeholder",
+      "provider_routing.compact_panel" => "shared German technical term with placeholder",
       "connected_platforms.platforms.telegram" => "product name",
       "connected_platforms.platforms.slack" => "product name",
       "linear_source.section_heading" => "product name",

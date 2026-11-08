@@ -10,7 +10,7 @@ class SyrusYml
   # that back down to 60 and produced spurious exit-124 timeouts with 0
   # actual failures. Keep this above the largest legitimate timeout_minutes
   # in use.
-  MAX_GRADE_TIMEOUT_MINUTES = 90
+  MAX_GRADE_TIMEOUT_MINUTES = 120
   MIN_GRADE_MAX_ITERATIONS = 1
   MAX_GRADE_MAX_ITERATIONS = 10
   MIN_ADVERSARIAL_REVIEW_ROUNDS = 0

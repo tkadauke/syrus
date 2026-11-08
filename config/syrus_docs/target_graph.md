@@ -732,12 +732,21 @@ choose a project, and `unavailable` with a reason when no affected preview
 project can be used.
 
 The app UI exposes a repository Target Graph tab for default-branch graph
-inspection and a Job Target Graph tab that uses the Job endpoint so operators
-can expand from selected, skipped, and cached workflow targets when fanout has
-recorded those artifacts. The Job/Workflow Target Graph tab renders the
-`explanations` envelope above the graph so operators can read selection,
-skip/cache, target-health, and ambiguous preview/project decisions without
-inspecting raw workflow artifacts.
+inspection and a Job Target Graph tab that uses the Job endpoint. Both use a
+compact, virtualized **Targets & dependencies** table: each row identifies the
+target, its execution or selection outcome, decision or health summary,
+project, and directional relationship counts. **Depends on** names inputs the
+target needs; **used by** names dependents that need this target. Opening a row
+shows its command, complete decision and target-health evidence, dependencies,
+and dependents in a keyboard-accessible detail drawer.
+
+The compact decision summary filters the graph to selected, skipped, cached,
+or failing targets. Runtime selection filters are available only on Job and
+Workflow snapshots that recorded the corresponding artifacts; repository-only
+snapshots retain project, text, and failing-health filters. Ambiguous or
+unavailable preview/project choices remain prominent, while routine explanation
+groups and compiler diagnostics are available on demand so the target rows stay
+within the initial viewport.
 
 Health detail is intentionally page-scoped so large graphs remain bounded.
 `health.targets` contains latest `TargetHealthRecord` details only for targets

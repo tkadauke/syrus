@@ -37,6 +37,7 @@ module Api
           dependency_rows = EpicDependency
             .where(epic_id: all_epic_ids, depends_on_epic_id: all_epic_ids)
             .where.not(depends_on_epic_id: nil)
+            .distinct
             .pluck(:epic_id, :depends_on_epic_id)
 
           nodes = epic_attrs.map do |id, title, state, number|
@@ -90,8 +91,12 @@ module Api
           graph = EpicDependencyGraphRenderer.new(epic).render
           render json: {
             graph: graph_json(graph),
-            dependencies: epic.dependencies.where.not(depends_on_epic_id: nil).includes(depends_on_epic: :repository).order(:depends_on_epic_id).map { |dependency| dependency_epic_json(dependency.depends_on_epic) },
-            dependents: epic.dependent_links.includes(epic: :repository).order(:epic_id).map { |dependency| dependency_epic_json(dependency.epic) }
+            dependencies: EpicDependency.effective(
+              epic.dependencies.where.not(depends_on_epic_id: nil).includes(depends_on_epic: :repository).to_a
+            ).sort_by(&:depends_on_epic_id).map { |dependency| dependency_epic_json(dependency.depends_on_epic) },
+            dependents: EpicDependency.effective(
+              epic.dependent_links.includes(epic: :repository).to_a
+            ).sort_by(&:epic_id).map { |dependency| dependency_epic_json(dependency.epic) }
           }
         end
 
@@ -293,7 +298,7 @@ module Api
           depends_on_epic = policy_scope(Epic).find(params.require(:depends_on_epic_id))
           return unless authorize_epic_repository_write!(depends_on_epic.repository)
 
-          dependency = epic.dependencies.build(depends_on_epic: depends_on_epic)
+          dependency = epic.dependencies.build(depends_on_epic: depends_on_epic, derived: false)
 
           if dependency.save
             render json: mutation_payload(epic.reload, message: I18n.t("api.epics.dependency_added"))
@@ -304,7 +309,7 @@ module Api
 
         def remove_dependency
           epic = find_epic
-          epic.dependencies.where(depends_on_epic_id: params[:depends_on_epic_id]).destroy_all
+          epic.dependencies.where(depends_on_epic_id: params[:depends_on_epic_id], derived: false).destroy_all
 
           render json: mutation_payload(epic.reload, message: I18n.t("api.epics.dependency_removed"))
         end
@@ -397,8 +402,14 @@ module Api
           deployment_stages_plan = PerformanceLogging.phase("epic_detail.deployment_stages_plan", epic_id: epic.id) do
             RepoDeploymentStagesReader.for_repository(epic.repository)
           end
+          dependency_records = EpicDependency.effective(
+            epic.dependencies.includes(:depends_on_epic, :depends_on_job).to_a
+          )
+          dependent_records = EpicDependency.effective(
+            epic.dependent_links.includes(epic: :repository).to_a
+          )
           blocked_dependency = PerformanceLogging.phase("epic_detail.blocked_dependency", epic_id: epic.id) do
-            epic.dependencies.includes(:depends_on_epic, :depends_on_job).find { |dependency| !dependency.dependency_succeeded? }
+            dependency_records.find { |dependency| !dependency.dependency_succeeded? }
           end
           active_train = PerformanceLogging.phase("epic_detail.active_merge_train", epic_id: epic.id) do
             MergeTrain.active.where(epic_id: epic.id).where.not(integration_branch: nil).order(:id).last
@@ -414,7 +425,7 @@ module Api
             summary: {
               done_jobs_count: done_jobs_count(jobs),
               total_jobs_count: jobs.size,
-              dependency_edge_count: epic.dependencies.size + epic.dependent_links.size,
+              dependency_edge_count: dependency_records.size + dependent_records.size,
               blocked: blocked_dependency.present?,
               blocked_reason: epic_blocked_reason(blocked_dependency)
             },

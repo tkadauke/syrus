@@ -858,6 +858,23 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(slow_item).to include(open_child_count: 2, blocked_child_count: 2, dependency_count: 1)
     end
 
+    it "counts overlapping historical explicit and derived Epic dependencies once" do
+      upstream = Factories.epic(user: user, repository: repo, title: "Marble delivery")
+      dependent = Factories.epic(user: user, repository: repo, title: "Forum restoration", state: "in_progress")
+      job_blocker = Factories.job_record(user: user, repository: repo, state: "running")
+      now = Time.current
+      EpicDependency.insert_all!([
+        { epic_id: dependent.id, depends_on_epic_id: upstream.id, depends_on_job_id: nil, derived: false, created_at: now, updated_at: now },
+        { epic_id: dependent.id, depends_on_epic_id: upstream.id, depends_on_job_id: nil, derived: true, created_at: now, updated_at: now },
+        { epic_id: dependent.id, depends_on_epic_id: nil, depends_on_job_id: job_blocker.id, derived: false, created_at: now, updated_at: now }
+      ])
+
+      rows = call(subject: "epic", section: "rows")
+      item = rows[:items].find { |row| row[:id] == dependent.id }
+
+      expect(item).to include(dependency_count: 2, has_epic_dependency: true)
+    end
+
     it "counts blocked epic children with the same semantics as unsatisfied dependencies" do
       epic = Factories.epic(user: user, repository: repo, title: "Dependency semantics", state: "in_progress")
       external_blocker = Factories.job_record(user: user, repository: repo, state: "queued")
@@ -1198,30 +1215,30 @@ RSpec.describe App::DashboardPayload, :ci_only do
       expect(result.dig(:landing_queue, :status, :summary)).not_to include("should pick it up shortly")
     end
 
-    it "sorts landing queue rows by queue entry position when Queue is ascending" do
+    it "shows waiting Epic units in queue entry order before eligible standalone Jobs" do
       repo.update!(auto_merge_enabled: true)
 
-      older = Factories.job_record(user: user, repository: repo, state: "implemented", pr_number: 101)
-      older.approve!(via: "github_review")
-      older.update!(approved_at: 30.minutes.ago)
-
       epic = Factories.epic(user: user, repository: repo, state: "in_progress")
-      epic_child = Factories.job_record(user: user, repository: repo, epic: epic, state: "implemented", pr_number: 102)
-      epic_child.approve!(via: "github_review")
-      epic_child.update!(approved_at: 20.minutes.ago)
+      first_child = Factories.job_record(user: user, repository: repo, epic: epic, state: "implemented", pr_number: 101)
+      first_child.approve!(via: "github_review")
+      first_child.update!(approved_at: 30.minutes.ago)
+      second_child = Factories.job_record(user: user, repository: repo, epic: epic, parent_job: first_child, state: "implemented", pr_number: 102)
+      second_child.approve!(via: "github_review")
+      second_child.update!(approved_at: 20.minutes.ago)
 
-      newer = Factories.job_record(user: user, repository: repo, state: "implemented", pr_number: 103)
-      newer.approve!(via: "github_review")
-      newer.update!(approved_at: 10.minutes.ago)
+      standalone = Factories.job_record(user: user, repository: repo, state: "implemented", pr_number: 103)
+      standalone.approve!(via: "github_review")
+      standalone.update!(approved_at: 10.minutes.ago)
       LandingQueueProcessor.refresh_snapshot!(user.jobs)
 
       result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
 
-      expect(result[:items].map { |item| item[:id] }).to eq([ older.id, epic_child.id, newer.id ])
-      expect(result[:items].map { |item| item[:landing_queue_position] }).to eq([ 1, nil, 2 ])
-      expect(result[:items].map { |item| item[:landing_queue_entry_key] }).to eq([ "job:#{older.id}", "epic:#{epic.id}", "job:#{newer.id}" ])
-      expect(epic_child.reload.landing_queue_position).to be_nil
-      expect(epic_child.landing_queue_entry_position).to eq(2)
+      expect(result[:items].map { |item| item[:id] }).to eq([ first_child.id, second_child.id, standalone.id ])
+      expect(result[:items].map { |item| item[:landing_queue_position] }).to eq([ 1, 1, 2 ])
+      expect(result[:items].map { |item| item[:landing_queue_entry_key] }).to eq([ "epic:#{epic.id}", "epic:#{epic.id}", "job:#{standalone.id}" ])
+      expect(first_child.reload.landing_queue_position).to be_nil
+      expect(second_child.reload.landing_queue_position).to be_nil
+      expect(standalone.reload.landing_queue_position).to eq(1)
     end
 
     it "reverses queue entry position when Queue is descending" do
@@ -1244,8 +1261,41 @@ RSpec.describe App::DashboardPayload, :ci_only do
       result = call(subject: "job", smart_folder_id: landing_queue_folder.id, sort_column: "landing_queue_position", sort_direction: "desc")
 
       expect(result[:items].map { |item| item[:id] }).to eq([ newer.id, epic_child.id, older.id ])
-      expect(result[:items].map { |item| item[:landing_queue_position] }).to eq([ 2, nil, 1 ])
+      expect(result[:items].map { |item| item[:landing_queue_position] }).to eq([ 3, 2, 1 ])
       expect(result[:items].map { |item| item[:landing_queue_entry_key] }).to eq([ "job:#{newer.id}", "epic:#{epic.id}", "job:#{older.id}" ])
+    end
+
+    it "shows the backend priority order in the Queue column" do
+      repo.update!(auto_merge_enabled: true)
+      low = Factories.job_record(user: user, repository: repo, state: "implemented", priority: "low", pr_number: 101)
+      high = Factories.job_record(user: user, repository: repo, state: "implemented", priority: "high", pr_number: 102)
+      low.approve!(via: "github_review")
+      high.approve!(via: "github_review")
+      low.update!(approved_at: 30.minutes.ago)
+      high.update!(approved_at: 10.minutes.ago)
+      LandingQueueProcessor.refresh_snapshot!(user.jobs)
+
+      result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
+
+      expect(result[:items].map { |item| item[:id] }).to eq([ high.id, low.id ])
+      expect(result[:items].map { |item| item[:landing_queue_position] }).to eq([ 1, 2 ])
+    end
+
+    it "shows dependency prerequisites before higher-priority dependents in the Queue column" do
+      repo.update!(auto_merge_enabled: true)
+      dependent = Factories.job_record(user: user, repository: repo, state: "implemented", priority: "high", pr_number: 102)
+      prerequisite = Factories.job_record(user: user, repository: repo, state: "implemented", priority: "medium", pr_number: 101)
+      dependent.approve!(via: "github_review")
+      prerequisite.approve!(via: "github_review")
+      dependent.update!(approved_at: 10.minutes.ago)
+      prerequisite.update!(approved_at: 30.minutes.ago)
+      JobDependency.create!(job: dependent, depends_on_job: prerequisite, source: "manual")
+      LandingQueueProcessor.refresh_snapshot!(user.jobs)
+
+      result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
+
+      expect(result[:items].map { |item| item[:id] }).to eq([ prerequisite.id, dependent.id ])
+      expect(result[:items].map { |item| item[:landing_queue_position] }).to eq([ 1, 2 ])
     end
 
     it "applies queue entry sorting before paginating" do

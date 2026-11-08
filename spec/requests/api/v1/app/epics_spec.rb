@@ -382,6 +382,29 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     )
   end
 
+  it "deduplicates overlapping historical Epic dependency rows in the detail payload" do
+    sign_in_as(user)
+    epic = Factories.epic(user: user, repository: repository, title: "Build forum", state: "in_progress")
+    blocker = Factories.epic(user: user, repository: repository, title: "Deliver marble")
+    now = Time.current
+    EpicDependency.insert_all!([
+      { epic_id: epic.id, depends_on_epic_id: blocker.id, derived: false, created_at: now, updated_at: now },
+      { epic_id: epic.id, depends_on_epic_id: blocker.id, derived: true, created_at: now, updated_at: now }
+    ])
+
+    get "/api/v1/app/epics/#{epic.id}"
+
+    expect(response).to have_http_status(:ok)
+    body = parse_body
+    expect(body.dig("summary", "dependency_edge_count")).to eq(1)
+    expect(body["dependencies"]).to contain_exactly(include("epic_id" => blocker.id, "title" => "Deliver marble"))
+    expect(body.dig("epic", "execution_blocked_on")).to eq([ "Deliver marble" ])
+    expect(body.dig("graph", "epic_dependency_count")).to eq(1)
+    expect(body.dig("graph", "edges")).to contain_exactly(
+      include("from_id" => "epic_#{blocker.id}", "to_id" => "epic_#{epic.id}")
+    )
+  end
+
   it "does not preload every child Job workflow on the Epic detail payload" do
     sign_in_as(user)
     epic = Factories.epic(user: user, repository: repository, title: "Raise the forum", state: "ready")
@@ -1921,6 +1944,21 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
       node_ids = body["nodes"].map { |n| n["id"] }
       expect(node_ids).to include("epic_#{epic_a.id}", "epic_#{epic_b.id}")
       expect(body["edges"]).to contain_exactly(
+        { "from_id" => "epic_#{epic_a.id}", "to_id" => "epic_#{epic_b.id}" }
+      )
+    end
+
+    it "returns one edge for overlapping historical explicit and derived rows" do
+      now = Time.current
+      EpicDependency.insert_all!([
+        { epic_id: epic_b.id, depends_on_epic_id: epic_a.id, derived: false, created_at: now, updated_at: now },
+        { epic_id: epic_b.id, depends_on_epic_id: epic_a.id, derived: true, created_at: now, updated_at: now }
+      ])
+
+      get "/api/v1/app/epics/graph"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["edges"]).to contain_exactly(
         { "from_id" => "epic_#{epic_a.id}", "to_id" => "epic_#{epic_b.id}" }
       )
     end

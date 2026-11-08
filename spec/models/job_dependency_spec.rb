@@ -637,6 +637,63 @@ RSpec.describe JobDependency do
       )
     end
 
+    it "collapses an explicit edge with a derived edge and restores the derived gate when needed" do
+      upstream_epic = Factories.epic(user: user, repository: repository, title: "Stone quarry")
+      dependent_epic = Factories.epic(user: user, repository: repository, title: "Forum restoration")
+      alternate_epic = Factories.epic(user: user, repository: repository, title: "Timber yard")
+      upstream = Job.create!(user: user, repository: repository, issue_number: 102, epic: upstream_epic)
+      alternate = Job.create!(user: user, repository: repository, issue_number: 103, epic: alternate_epic)
+      dependent = Job.create!(user: user, repository: repository, issue_number: 104, epic: dependent_epic)
+      job_dependency = described_class.create!(job: dependent, depends_on_job: upstream, source: "manual")
+
+      expect(dependent_epic.dependencies.reload.sole).to be_derived
+
+      explicit = dependent_epic.dependencies.create!(depends_on_epic: upstream_epic, derived: false)
+
+      expect(dependent_epic.dependencies.reload.sole).to eq(explicit)
+
+      job_dependency.update!(depends_on_job: alternate)
+
+      expect(dependent_epic.dependencies.reload).to contain_exactly(
+        explicit,
+        have_attributes(depends_on_epic: alternate_epic, derived: true)
+      )
+
+      explicit.destroy!
+
+      expect(dependent_epic.dependencies.reload).to contain_exactly(
+        have_attributes(depends_on_epic: alternate_epic, derived: true)
+      )
+    end
+
+    it "preserves a derived gate when its overlapping explicit edge is removed" do
+      upstream_epic = Factories.epic(user: user, repository: repository)
+      dependent_epic = Factories.epic(user: user, repository: repository)
+      upstream = Job.create!(user: user, repository: repository, issue_number: 105, epic: upstream_epic)
+      dependent = Job.create!(user: user, repository: repository, issue_number: 106, epic: dependent_epic)
+      described_class.create!(job: dependent, depends_on_job: upstream, source: "manual")
+      explicit = dependent_epic.dependencies.create!(depends_on_epic: upstream_epic, derived: false)
+
+      explicit.destroy!
+
+      expect(dependent_epic.dependencies.reload.sole).to have_attributes(
+        depends_on_epic: upstream_epic,
+        derived: true
+      )
+    end
+
+    it "removes the derived edge when its last child Job dependency is removed" do
+      upstream_epic = Factories.epic(user: user, repository: repository)
+      dependent_epic = Factories.epic(user: user, repository: repository)
+      upstream = Job.create!(user: user, repository: repository, issue_number: 107, epic: upstream_epic)
+      dependent = Job.create!(user: user, repository: repository, issue_number: 108, epic: dependent_epic)
+      dependency = described_class.create!(job: dependent, depends_on_job: upstream, source: "manual")
+
+      expect {
+        dependency.destroy!
+      }.to change { dependent_epic.dependencies.reload.count }.from(1).to(0)
+    end
+
     it "does not derive an EpicDependency inside the same Epic" do
       epic = Factories.epic(user: user, repository: repository)
       upstream = Job.create!(user: user, repository: repository, issue_number: 110, epic: epic)

@@ -127,6 +127,35 @@ describe("ReviewWorkspace", () => {
     })
   })
 
+  it("creates an anchored comment with Cmd+Enter while plain Enter remains multiline", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+    vi.mocked(createDiffReviewComment).mockResolvedValue(commentsPayload([comment()]))
+
+    renderWorkspace()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Comment on app/models/user.rb:new:1" }))
+
+    const textarea = within(screen.getByTestId("diff-review-composer")).getByLabelText("Comment")
+    fireEvent.change(textarea, { target: { value: "Please add a regression spec." } })
+    expect(fireEvent.keyDown(textarea, { key: "Enter" })).toBe(true)
+    expect(createDiffReviewComment).not.toHaveBeenCalled()
+
+    expect(fireEvent.keyDown(textarea, { key: "Enter", metaKey: true })).toBe(false)
+
+    await waitFor(() => {
+      expect(createDiffReviewComment).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          body: "Please add a regression spec.",
+          path: "app/models/user.rb",
+          side: "right",
+          new_line: 1
+        })
+      )
+    })
+  })
+
   it("keeps an unsaved line-comment draft when whole-review feedback is submitted", async () => {
     const globalComment = comment({
       id: 2,
@@ -1191,6 +1220,41 @@ describe("ReviewWorkspace", () => {
     )
     expect(screen.queryByText("Submitted dashboard screenshot")).not.toBeInTheDocument()
     expect(screen.getAllByRole("img", { name: "Dashboard" })).toHaveLength(1)
+  })
+
+  it("shows before/after comparisons in Visual evidence instead of Review artifacts", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace({
+      ...jobPayload(),
+      typed_artifacts: [
+        {
+          type: "visual_diff_comparison",
+          title: "Before/after visual comparison",
+          payload: {
+            pairs: [
+              {
+                title: "Dashboard",
+                before: { image_url: "/before.png", title: "Dashboard before" },
+                after: { image_url: "/after.png", title: "Dashboard after" }
+              }
+            ]
+          },
+          created_at: "2026-01-01T00:00:00Z",
+          renderer_type: "before_after_visual_diff"
+        }
+      ],
+      visual_evidence: { captured_count: 0, submitted_count: 0, screenshots: [] }
+    })
+
+    await screen.findByText("Visual evidence")
+    expect(screen.getByText("Before/after visual comparison")).toBeInTheDocument()
+    expect(screen.getByRole("img", { name: "Before: Dashboard before" })).toHaveAttribute("src", "/before.png")
+    expect(screen.getByRole("img", { name: "After: Dashboard after" })).toHaveAttribute("src", "/after.png")
+
+    fireEvent.click(screen.getByRole("button", { name: "Show" }))
+    expect(screen.getAllByText("Before/after visual comparison")).toHaveLength(1)
   })
 
   it("defaults multiple matching review artifacts to the latest artifact instead of expanding every body", async () => {
