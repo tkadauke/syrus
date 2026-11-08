@@ -192,7 +192,7 @@ scratch integration branch on top of the predicted post-merge tree from the
 current landing workflow, mechanically rebases each member branch into that
 scratch integration branch, and runs fast landing graders so the later real
 `merge_train` may skip duplicate grader work. It never creates a real
-`MergeTrain`, pushes, repairs, or merges, and failed/cancelled workflows do not
+a merge train, pushes, repairs, or merges, and failed/cancelled workflows do not
 fail the Job.
 
 ## external_pr_merge

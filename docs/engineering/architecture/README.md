@@ -6,6 +6,8 @@ system-wide overview and routes here for detail.
 
 - [Domain model and work engine](domain-model-and-work-engine.md) — durable
   records, state machines, access control, and launch ownership.
+- [Legacy Epic fan-in execution](epic_dependency_policy.md) — how older
+  multi-parent Epic graphs choose or synthesize an execution base.
 - [WorkUnit path ownership](work-unit-path-ownership.md) — current scheduler,
   landing, and reconciler launch ownership contract.
 - [Workflow execution](workflow-execution.md) — triggers, step chains,
