@@ -1192,7 +1192,7 @@ fail. Criteria follow the same root and affected-project scoping as the other
 review gates. The gate runs after adversarial/security review and before visual
 review and graders. A matching routing outcome must contain one or more valid
 coworker targets; Syrus never falls back to an ordinary provider reviewer.
-See [`coworker_review.md`](coworker_review.md).
+See the Coworkers plugin doc (`plugins/coworkers/docs/syrus_docs/coworker_review.md`).
 
 ## visual_review
 
