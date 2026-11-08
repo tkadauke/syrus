@@ -67,6 +67,35 @@ RSpec.describe App::RunArtifactsPayload do
     expect(older_page[:logs].map { |log| log[:chunk] }).to eq(%w[before call result])
   end
 
+  it "returns paired structured call/result metadata for Claude-style and Codex-style workflow MCP events" do
+    job = Factories.job_with_run
+    run = job.runs.last
+    run.job_logs.delete_all
+    # Claude: namespaced tool name on the call, result keyed only by tool_use_id.
+    JobLog.append!(run: run, chunk: "call", kind: "tool_call", tool_name: "mcp__syrus-mcp-sidecar__submit_adversarial_review",
+                   tool_input: { "verdict" => "ok" }, tool_use_id: "toolu_1")
+    JobLog.append!(run: run, chunk: "result", kind: "tool_result", tool_use_id: "toolu_1", tool_result_content: "done", tool_result_error: false)
+    # Codex: dotted server.tool name, result repeats the name.
+    JobLog.append!(run: run, chunk: "[codex mcp] call", kind: "tool_call", tool_name: "syrus-mcp-sidecar.submit_adversarial_review",
+                   tool_input: { "verdict" => "ok" }, tool_use_id: "item_2")
+    JobLog.append!(run: run, chunk: "[codex mcp] done", kind: "tool_result", tool_name: "syrus-mcp-sidecar.submit_adversarial_review",
+                   tool_use_id: "item_2", tool_result_content: { "ok" => true }, tool_result_error: false)
+
+    logs = described_class.build(run: run, artifact: "transcript")[:logs]
+
+    expect(logs.map { |l| [ l[:kind], l[:tool_name], l[:tool_use_id] ] }).to eq(
+      [
+        [ "tool_call", "mcp__syrus-mcp-sidecar__submit_adversarial_review", "toolu_1" ],
+        [ "tool_result", nil, "toolu_1" ],
+        [ "tool_call", "syrus-mcp-sidecar.submit_adversarial_review", "item_2" ],
+        [ "tool_result", "syrus-mcp-sidecar.submit_adversarial_review", "item_2" ]
+      ]
+    )
+    expect(logs[0][:tool_input]).to eq("verdict" => "ok")
+    expect(logs[1]).to include(tool_result_content: "done", tool_result_error: false)
+    expect(logs[3][:tool_result_content]).to eq("ok" => true)
+  end
+
   it "reads only the requested diff artifact" do
     job = Factories.job_with_run(run_attrs: { agent_diff: "agent diff", step_agent_diff: "step diff" })
     run = job.runs.last
