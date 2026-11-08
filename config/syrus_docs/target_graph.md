@@ -703,7 +703,7 @@ dependency edges for the returned targets, the active `filter` tree,
 any compile error. Pass `include=explanations` to add workflow selection and
 project-choice explanations, and `include=diagnostics` to add the compiler's
 complete `diagnostics.target_labels` collection. The target-graph UI requests
-those collections only when their panels are expanded.
+those collections only when their panels are opened from the toolbar's **More** menu.
 
 Each target entry includes `label`, `kind`, `project_id`, `source_scope`,
 dependency labels, owning config path, an `executable` boolean, and
@@ -745,8 +745,11 @@ or failing targets. Runtime selection filters are available only on Job and
 Workflow snapshots that recorded the corresponding artifacts; repository-only
 snapshots retain project, text, and failing-health filters. Ambiguous or
 unavailable preview/project choices remain prominent, while routine explanation
-groups and compiler diagnostics are available on demand so the target rows stay
-within the initial viewport.
+groups and compiler diagnostics open on demand in a side panel from the
+**More** menu. The page keeps at most two compact bands above the table: one
+row with search, the Browse/Neighborhood switch, project, depth, and direction
+controls plus the snapshot summary, and one row with the outcome chips and
+exceptional notices, so several target rows stay within the initial viewport.
 
 Health detail is intentionally page-scoped so large graphs remain bounded.
 `health.targets` contains latest `TargetHealthRecord` details only for targets

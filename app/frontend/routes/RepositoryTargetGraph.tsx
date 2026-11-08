@@ -1,6 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual"
 import { useQuery } from "@tanstack/react-query"
-import { useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from "react"
+import { useCallback, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import {
   fetchJobTargetGraph,
@@ -24,14 +24,19 @@ import { TonePill, type PillTone } from "../components/StatusPill"
 import { Surface } from "../components/ui"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { errorMessage } from "../lib/errorMessage"
+import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import { useT } from "../hooks/useT"
 
 const DEFAULT_LIMIT = 100
 const FOCUS_STATES = ["selected", "failing", "skipped", "cached"] as const
 const DIRECTIONS = ["both", "dependencies", "dependents"] as const
-const TARGET_TABLE_GRID = "grid min-w-[52rem] grid-cols-[minmax(14rem,1.25fr)_7rem_minmax(13rem,1fr)_10rem_10rem] gap-3"
+const MODE_BUTTON_CLASS = "h-8 px-2.5 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand"
+const MENU_ITEM_CLASS = "block w-full px-3 py-1.5 text-left text-xs hover:bg-surface-raised focus-visible:bg-surface-raised focus-visible:outline-none"
+const AMBIGUITY_NOTICE_CLASS =
+  "min-w-0 max-w-full truncate rounded bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+const TARGET_TABLE_GRID = "grid min-w-[56rem] grid-cols-[minmax(14rem,1.25fr)_7rem_minmax(13rem,1fr)_9rem_13rem] gap-3"
 const TARGET_TABLE_HEADER_CLASS = `${TARGET_TABLE_GRID} border-b border-border bg-surface-raised px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-text-secondary`
-const TARGET_TABLE_ROW_CLASS = `${TARGET_TABLE_GRID} min-h-14 w-full items-center border-b border-border px-3 py-1.5 text-left text-xs hover:bg-brand-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand`
+const TARGET_TABLE_ROW_CLASS = `${TARGET_TABLE_GRID} min-h-[3.25rem] w-full items-center border-b border-border px-3 py-1.5 text-left text-xs hover:bg-brand-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand`
 
 export function RepositoryTargetGraphRoute() {
   const { t } = useT("settings")
@@ -156,8 +161,9 @@ export function TargetGraphExplorer({
   const rows = useMemo(() => buildGraphRows(payload.targets, payload.edges), [payload.targets, payload.edges])
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null)
   const selectedRow = rows.find((row) => row.target.label === selectedLabel) ?? null
-  const [showExplanations, setShowExplanations] = useState(false)
-  const [showDiagnostics, setShowDiagnostics] = useState(false)
+  const [detailsPanel, setDetailsPanel] = useState<"explanations" | "diagnostics" | null>(null)
+  const showExplanations = detailsPanel === "explanations"
+  const showDiagnostics = detailsPanel === "diagnostics"
   const detailsQuery = useQuery({
     queryKey: ["target_graph_details", payload.source, query, showExplanations, showDiagnostics],
     queryFn: () =>
@@ -192,49 +198,42 @@ export function TargetGraphExplorer({
   }
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-2">
       {payload.error ? <PanelMessage tone="error">{payload.error}</PanelMessage> : null}
-      <TargetGraphSummary payload={payload} />
-      <FilterBar
-        buildLink={targetGraphFilterLink}
-        filter={payload.filter}
-        filterSchema={payload.filter_schema ?? []}
-        legacyFilterKeys={["project_id", "kind"]}
-        pathname={location.pathname}
-        search={location.search}
-      />
-      <TargetGraphToolbar
+      <TargetGraphControlBar
         draft={draft}
-        overlaysAvailable={Boolean(payload.workflow)}
-        projects={payload.projects}
+        payload={payload}
         query={query}
         onDraftChange={setDraft}
+        onOpenPanel={setDetailsPanel}
         onSubmit={submitSearch}
         onUpdate={updateQuery}
       />
-      <TargetGraphDecisionSummary payload={detailPayload ?? payload} query={query} overlaysAvailable={Boolean(payload.workflow)} onUpdate={updateQuery} />
-      <section className="flex flex-wrap gap-2" aria-label={t("target_graph.additional_details")}>
-        <Button onClick={() => setShowExplanations((value) => !value)} size="sm" type="button" variant="secondary">
-          {showExplanations ? t("target_graph.hide_explanations") : t("target_graph.show_explanations")}
-        </Button>
-        <Button onClick={() => setShowDiagnostics((value) => !value)} size="sm" type="button" variant="secondary">
-          {showDiagnostics ? t("target_graph.hide_diagnostics") : t("target_graph.show_diagnostics")}
-        </Button>
-      </section>
-      {detailsQuery.isError ? <PanelMessage tone="error">{errorMessage(detailsQuery.error, t("target_graph.error_load_details"))}</PanelMessage> : null}
-      {showExplanations && detailsQuery.isPending ? <PanelMessage>{t("target_graph.loading_explanations")}</PanelMessage> : null}
-      {showExplanations && detailPayload ? <TargetGraphExplanations payload={detailPayload} /> : null}
-      {showDiagnostics && detailPayload?.diagnostics ? <TargetGraphDiagnostics diagnostics={detailPayload.diagnostics} /> : null}
+      <TargetGraphDecisionRow overlaysAvailable={Boolean(payload.workflow)} payload={detailPayload ?? payload} query={query} onUpdate={updateQuery}>
+        <FilterBar
+          buildLink={targetGraphFilterLink}
+          className="min-w-0"
+          filter={payload.filter}
+          filterSchema={payload.filter_schema ?? []}
+          legacyFilterKeys={["project_id", "kind"]}
+          pathname={location.pathname}
+          search={location.search}
+        />
+      </TargetGraphDecisionRow>
       {payload.targets.length === 0 ? (
         <PanelMessage>{t("target_graph.empty")}</PanelMessage>
       ) : (
         <section className="overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-3 py-2 dark:border-gray-700">
-            <div>
-              <SectionHeading>{t("target_graph.targets_and_dependencies")}</SectionHeading>
-              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{t("target_graph.row_help")}</p>
+          <div className="flex min-w-0 items-center justify-between gap-3 border-b border-gray-200 px-3 py-1.5 dark:border-gray-700">
+            <div className="flex min-w-0 items-baseline gap-3">
+              <div className="shrink-0 whitespace-nowrap">
+                <SectionHeading>{t("target_graph.targets_and_dependencies")}</SectionHeading>
+              </div>
+              <p className="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400" title={t("target_graph.row_help")}>
+                {t("target_graph.row_help")}
+              </p>
             </div>
-            <span className="text-xs text-gray-500 dark:text-gray-400">
+            <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">
               {t("target_graph.rendered_count", { count: payload.targets.length.toLocaleString(), total: payload.page.total.toLocaleString() })}
             </span>
           </div>
@@ -273,6 +272,15 @@ export function TargetGraphExplorer({
           </Link>
         ) : null}
       </div>
+      {detailsPanel ? (
+        <TargetGraphInsightsPanel
+          error={detailsQuery.isError ? errorMessage(detailsQuery.error, t("target_graph.error_load_details")) : null}
+          kind={detailsPanel}
+          loading={detailsQuery.isPending}
+          payload={detailPayload}
+          onClose={() => setDetailsPanel(null)}
+        />
+      ) : null}
       {selectedRow ? (
         <TargetDetailPanel
           row={selectedRow}
@@ -429,133 +437,202 @@ function TargetHealthRefs({ entry }: { entry: TargetGraphTargetExplanation }) {
   )
 }
 
-function TargetGraphToolbar({
+function TargetGraphControlBar({
   draft,
-  overlaysAvailable,
-  projects,
+  payload,
   query,
   onDraftChange,
+  onOpenPanel,
   onSubmit,
   onUpdate
 }: {
   draft: string
-  overlaysAvailable: boolean
-  projects: TargetGraphPayload["projects"]
+  payload: TargetGraphPayload
   query: TargetGraphQuery
   onDraftChange: (value: string) => void
+  onOpenPanel: (panel: "explanations" | "diagnostics") => void
   onSubmit: (event: FormEvent) => void
   onUpdate: (query: TargetGraphQuery) => void
 }) {
   const { t } = useT("settings")
+  const healthSummary = Object.entries(payload.health.summary).filter(([, count]) => count > 0)
   return (
-    <section className="rounded border border-gray-200 bg-white p-2.5 dark:border-gray-700 dark:bg-gray-900">
-      <div className="grid gap-2 lg:grid-cols-[minmax(16rem,1fr)_minmax(9rem,13rem)_7rem_minmax(9rem,12rem)]">
-        <form className="flex min-w-0 gap-2" onSubmit={onSubmit}>
-          <Input
-            aria-label={t("target_graph.search_aria")}
-            onChange={(event) => onDraftChange(event.target.value)}
-            placeholder={t("target_graph.search_placeholder")}
-            value={draft}
-          />
-          <Button type="submit">{query.mode === "window" ? t("target_graph.search") : t("target_graph.focus")}</Button>
-        </form>
-        <SelectControl
-          label={t("target_graph.projects")}
+    <section aria-label={t("target_graph.summary")} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded border border-border bg-surface px-2.5 py-2">
+      <form className="flex min-w-0 flex-1 basis-60 gap-1.5" onSubmit={onSubmit}>
+        <Input
+          aria-label={t("target_graph.search_aria")}
+          className="!h-8 !text-xs"
+          onChange={(event) => onDraftChange(event.target.value)}
+          placeholder={t("target_graph.search_placeholder")}
+          value={draft}
+        />
+        <Button size="sm" type="submit">
+          {query.mode === "window" ? t("target_graph.search") : t("target_graph.focus")}
+        </Button>
+      </form>
+      <div aria-label={t("target_graph.mode")} className="inline-flex overflow-hidden rounded-[var(--radius-control)] border border-border" role="group">
+        <ModeButton active={query.mode === "window"} onClick={() => onUpdate({ mode: "window", focusLabel: undefined, focusState: undefined, offset: 0 })}>
+          {t("target_graph.browse")}
+        </ModeButton>
+        <ModeButton
+          active={query.mode === "neighborhood" && !query.focusState}
+          onClick={() => onUpdate({ mode: "neighborhood", focusLabel: draft || undefined, focusState: undefined, offset: 0 })}
+        >
+          {t("target_graph.neighborhood")}
+        </ModeButton>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Select
+          aria-label={t("target_graph.projects")}
+          className="!h-8 !text-xs"
+          fullWidth={false}
+          onChange={(event) => onUpdate({ projectId: event.target.value || undefined, offset: 0 })}
           value={query.projectId || ""}
-          onChange={(value) => onUpdate({ projectId: value || undefined, offset: 0 })}
         >
           <option value="">{t("target_graph.all_projects")}</option>
-          {projects.map((project) => (
+          {payload.projects.map((project) => (
             <option key={project.id} value={project.id}>
               {project.label || project.id}
             </option>
           ))}
-        </SelectControl>
-        <SelectControl label={t("target_graph.depth")} value={String(query.depth ?? 1)} onChange={(value) => onUpdate({ depth: Number(value), offset: 0 })}>
+        </Select>
+        <Select
+          aria-label={t("target_graph.depth")}
+          className="!h-8 !text-xs"
+          fullWidth={false}
+          onChange={(event) => onUpdate({ depth: Number(event.target.value), offset: 0 })}
+          title={t("target_graph.depth")}
+          value={String(query.depth ?? 1)}
+        >
           {[0, 1, 2, 3, 4].map((depth) => (
             <option key={depth} value={depth}>
-              {depth}
+              {t("target_graph.depth_option", { count: depth })}
             </option>
           ))}
-        </SelectControl>
-        <SelectControl
-          label={t("target_graph.direction")}
+        </Select>
+        <Select
+          aria-label={t("target_graph.direction")}
+          className="!h-8 !text-xs"
+          fullWidth={false}
+          onChange={(event) => onUpdate({ direction: event.target.value as TargetGraphQuery["direction"], offset: 0 })}
+          title={t("target_graph.direction")}
           value={query.direction || "both"}
-          onChange={(value) => onUpdate({ direction: value as TargetGraphQuery["direction"], offset: 0 })}
         >
-          <option value="both">{t("target_graph.both")}</option>
-          <option value="dependencies">{t("target_graph.dependencies")}</option>
-          <option value="dependents">{t("target_graph.dependents")}</option>
-        </SelectControl>
+          <option value="both">{t("target_graph.direction_both")}</option>
+          <option value="dependencies">{t("target_graph.direction_dependencies")}</option>
+          <option value="dependents">{t("target_graph.direction_dependents")}</option>
+        </Select>
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Button
-          onClick={() => onUpdate({ mode: "window", focusLabel: undefined, focusState: undefined, offset: 0 })}
-          size="sm"
-          type="button"
-          variant={query.mode === "window" ? "primary" : "secondary"}
-        >
-          {t("target_graph.browse")}
-        </Button>
-        <Button
-          onClick={() => onUpdate({ mode: "neighborhood", focusLabel: draft || undefined, focusState: undefined, offset: 0 })}
-          size="sm"
-          type="button"
-          variant={query.mode === "neighborhood" && !query.focusState ? "primary" : "secondary"}
-        >
-          {t("target_graph.neighborhood")}
-        </Button>
-        {!overlaysAvailable ? <span className="text-xs text-text-secondary">{t("target_graph.repository_overlay_note")}</span> : null}
-      </div>
-    </section>
-  )
-}
-
-function SelectControl({ children, label, value, onChange }: { children: ReactNode; label: string; value: string; onChange: (value: string) => void }) {
-  return (
-    <label className="block min-w-0 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-      <span>{label}</span>
-      <Select className="mt-1 normal-case" onChange={(event) => onChange(event.target.value)} value={value}>
-        {children}
-      </Select>
-    </label>
-  )
-}
-
-function TargetGraphSummary({ payload }: { payload: TargetGraphPayload }) {
-  const { t } = useT("settings")
-  const healthSummary = Object.entries(payload.health.summary).filter(([, count]) => count > 0)
-  return (
-    <section
-      className="flex min-h-11 flex-wrap items-center gap-x-5 gap-y-2 rounded border border-border bg-surface px-3 py-2"
-      aria-label={t("target_graph.summary")}
-    >
-      <CompactMetric label={t("target_graph.targets")} value={payload.page.total.toLocaleString()} />
-      <CompactMetric label={t("target_graph.projects")} value={payload.projects.length.toLocaleString()} />
-      <div className="flex items-center gap-1.5">
-        <span className="text-xs text-gray-500 dark:text-gray-400">{t("target_graph.page_health")}</span>
-        <div className="flex flex-wrap gap-1">
-          {healthSummary.length === 0 ? <span className="text-sm text-gray-500 dark:text-gray-400">{t("target_graph.no_records_in_view")}</span> : null}
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 border-l border-border pl-3">
+        <CompactMetric label={t("target_graph.targets")} value={payload.page.total.toLocaleString()} />
+        <CompactMetric label={t("target_graph.projects")} value={payload.projects.length.toLocaleString()} />
+        <div aria-label={t("target_graph.page_health")} className="flex flex-wrap items-center gap-1" role="group">
+          {healthSummary.length === 0 ? <span className="text-xs text-gray-500 dark:text-gray-400">{t("target_graph.no_records_in_view")}</span> : null}
           {healthSummary.map(([status, count]) => (
             <TonePill key={status} tone={healthTone(status)}>
               {status} {count}
             </TonePill>
           ))}
         </div>
+        <span className="text-xs text-gray-500 dark:text-gray-400">
+          {payload.workflow ? t("target_graph.workflow_snapshot", { slug: payload.workflow.slug }) : t("target_graph.repository_snapshot")}
+        </span>
       </div>
-      <span className="ml-auto text-xs text-gray-500 dark:text-gray-400">
-        {payload.workflow ? t("target_graph.workflow_snapshot", { slug: payload.workflow.slug }) : t("target_graph.repository_snapshot")}
-      </span>
+      <TargetGraphOverflowMenu onOpenPanel={onOpenPanel} />
     </section>
+  )
+}
+
+function ModeButton({ active, children, onClick }: { active: boolean; children: ReactNode; onClick: () => void }) {
+  return (
+    <button
+      aria-pressed={active}
+      className={`${MODE_BUTTON_CLASS} ${active ? "bg-brand text-white" : "bg-surface text-text-secondary hover:bg-surface-raised"}`}
+      onClick={onClick}
+      type="button"
+    >
+      {children}
+    </button>
   )
 }
 
 function CompactMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-baseline gap-1.5">
-      <strong className="text-base text-gray-950 dark:text-gray-100">{value}</strong>
+    <div className="flex items-baseline gap-1">
+      <strong className="text-sm text-gray-950 dark:text-gray-100">{value}</strong>
       <span className="text-xs text-gray-500 dark:text-gray-400">{label}</span>
     </div>
+  )
+}
+
+function TargetGraphOverflowMenu({ onOpenPanel }: { onOpenPanel: (panel: "explanations" | "diagnostics") => void }) {
+  const { t } = useT("settings")
+  const [open, setOpen] = useState(false)
+  const close = useCallback(() => setOpen(false), [])
+  const ref = useDismissiblePopup<HTMLDivElement>(open, close)
+  return (
+    <div className="relative ml-auto" ref={ref}>
+      <Button aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen((value) => !value)} size="sm" type="button" variant="secondary">
+        {t("target_graph.more_actions")}
+      </Button>
+      {open ? (
+        <div className="absolute right-0 top-full z-20 mt-1 w-48 rounded border border-border bg-surface py-1 shadow-lg" role="menu">
+          {(["explanations", "diagnostics"] as const).map((panel) => (
+            <button
+              className={MENU_ITEM_CLASS}
+              key={panel}
+              onClick={() => {
+                setOpen(false)
+                onOpenPanel(panel)
+              }}
+              role="menuitem"
+              type="button"
+            >
+              {panel === "explanations" ? t("target_graph.show_explanations") : t("target_graph.show_diagnostics")}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function TargetGraphInsightsPanel({
+  error,
+  kind,
+  loading,
+  payload,
+  onClose
+}: {
+  error: string | null
+  kind: "explanations" | "diagnostics"
+  loading: boolean
+  payload: TargetGraphPayload | undefined
+  onClose: () => void
+}) {
+  const { t } = useT("settings")
+  const title = kind === "explanations" ? t("target_graph.selection_explanations") : t("target_graph.diagnostics")
+  return (
+    <Modal
+      backdropClassName="fixed inset-0 z-50 flex justify-end bg-black/20"
+      className="flex h-full w-full max-w-xl flex-col bg-surface shadow-2xl"
+      label={title}
+      onClose={onClose}
+      open
+    >
+      <div className="flex items-start justify-between gap-3 border-b border-border p-4">
+        <h2 className="text-sm font-semibold">{title}</h2>
+        <Button aria-label={t("target_graph.close_details")} onClick={onClose} size="sm" type="button" variant="secondary">
+          <CloseIcon />
+        </Button>
+      </div>
+      <div className="flex-1 space-y-3 overflow-auto p-4">
+        {error ? <PanelMessage tone="error">{error}</PanelMessage> : null}
+        {loading && !error ? <PanelMessage>{t("target_graph.loading_explanations")}</PanelMessage> : null}
+        {kind === "explanations" && payload ? <TargetGraphExplanations payload={payload} /> : null}
+        {kind === "diagnostics" && payload?.diagnostics ? <TargetGraphDiagnostics diagnostics={payload.diagnostics} /> : null}
+      </div>
+    </Modal>
   )
 }
 
@@ -583,15 +660,17 @@ export function buildGraphRows(targets: TargetGraphTarget[], edges: TargetGraphE
   }))
 }
 
-function TargetGraphDecisionSummary({
+function TargetGraphDecisionRow({
+  children,
+  overlaysAvailable,
   payload,
   query,
-  overlaysAvailable,
   onUpdate
 }: {
+  children?: ReactNode
+  overlaysAvailable: boolean
   payload: TargetGraphPayload
   query: TargetGraphQuery
-  overlaysAvailable: boolean
   onUpdate: (query: TargetGraphQuery) => void
 }) {
   const { t } = useT("settings")
@@ -602,10 +681,14 @@ function TargetGraphDecisionSummary({
     failing: payload.health.summary.failed
   }
   const ambiguity = payload.explanations?.ambiguous?.find((entry) => entry.status !== "available")
+  const chipClass = "!h-7 !rounded-full"
   return (
-    <section className="flex flex-wrap items-center gap-1.5 rounded border border-border bg-surface px-3 py-2" aria-label={t("target_graph.decision_summary")}>
-      <span className="mr-1 text-xs font-semibold text-gray-700 dark:text-gray-200">{t("target_graph.decision_summary")}</span>
+    <section
+      aria-label={t("target_graph.decision_summary")}
+      className="flex flex-wrap items-center gap-1.5 rounded border border-border bg-surface px-2.5 py-1.5"
+    >
       <Button
+        className={chipClass}
         onClick={() => onUpdate({ mode: "window", focusLabel: undefined, focusState: undefined, offset: 0 })}
         size="sm"
         type="button"
@@ -617,6 +700,7 @@ function TargetGraphDecisionSummary({
         const disabled = state !== "failing" && !overlaysAvailable
         return (
           <Button
+            className={chipClass}
             disabled={disabled}
             key={state}
             onClick={() => onUpdate({ mode: "neighborhood", focusLabel: undefined, focusState: state, search: undefined, q: undefined, offset: 0 })}
@@ -630,11 +714,17 @@ function TargetGraphDecisionSummary({
           </Button>
         )
       })}
+      {!overlaysAvailable ? (
+        <span className="min-w-0 truncate text-xs text-text-secondary" title={t("target_graph.repository_overlay_note")}>
+          {t("target_graph.repository_overlay_note")}
+        </span>
+      ) : null}
       {ambiguity ? (
-        <span className="ml-auto rounded bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+        <span className={AMBIGUITY_NOTICE_CLASS} role="status" title={`${ambiguityLabel(ambiguity.kind, t)}: ${ambiguity.reason || ambiguity.status}`}>
           {ambiguityLabel(ambiguity.kind, t)}: {ambiguity.reason || ambiguity.status}
         </span>
       ) : null}
+      <div className="ml-auto min-w-0">{children}</div>
     </section>
   )
 }
@@ -644,7 +734,7 @@ function TargetGraphTable({ rows, selectedLabel, onSelect }: { rows: TargetGraph
   const parentRef = useRef<HTMLDivElement | null>(null)
   const virtualizer = useVirtualizer({
     count: rows.length,
-    estimateSize: () => 57,
+    estimateSize: () => 53,
     getScrollElement: () => parentRef.current,
     overscan: 8
   })
@@ -659,7 +749,7 @@ function TargetGraphTable({ rows, selectedLabel, onSelect }: { rows: TargetGraph
         <span>{t("target_graph.project")}</span>
         <span>{t("target_graph.relationships")}</span>
       </div>
-      <div className="h-[30rem] min-w-[52rem] overflow-auto" ref={parentRef} role="list">
+      <div className="h-[clamp(14rem,calc(100vh-17rem),44rem)] min-w-[56rem] overflow-auto" ref={parentRef} role="list">
         <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
           {virtualRows.map((virtualRow) => {
             const row = rows[virtualRow.index]
@@ -717,8 +807,10 @@ function TargetGraphRowButton({ row, selected, onSelect }: { row: TargetGraphRow
       </span>
       <span className="truncate text-text-secondary">{target.project?.label || target.project_id}</span>
       <span className="flex gap-1">
-        <span className="rounded border border-border px-1.5 py-1">{t("target_graph.depends_on_count", { count: row.dependencies.length })}</span>
-        <span className="rounded border border-border px-1.5 py-1">{t("target_graph.used_by_count", { count: row.dependents.length })}</span>
+        <span className="whitespace-nowrap rounded border border-border px-1.5 py-1">
+          {t("target_graph.depends_on_count", { count: row.dependencies.length })}
+        </span>
+        <span className="whitespace-nowrap rounded border border-border px-1.5 py-1">{t("target_graph.used_by_count", { count: row.dependents.length })}</span>
       </span>
     </button>
   )

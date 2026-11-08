@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "../testSupport"
@@ -133,21 +133,24 @@ describe("RepositoryTargetGraphRoute", () => {
     expect(screen.getByText(/npm run build/)).toBeInTheDocument()
     expect(screen.getAllByText("changed files matched").length).toBeGreaterThan(0)
     expect(screen.queryByText("Selection Explanations")).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Show explanations" }))
-    expect(await screen.findByText("Selection Explanations")).toBeInTheDocument()
-    expect(screen.getByText("Executable Targets Selected")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "More" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Show explanations" }))
+    expect(await screen.findByRole("dialog", { name: "Selection Explanations" })).toBeInTheDocument()
+    expect(await screen.findByText("Executable Targets Selected")).toBeInTheDocument()
     expect(screen.getByText("Skipped Targets")).toBeInTheDocument()
     expect(screen.getByText("Cached Targets")).toBeInTheDocument()
     expect(screen.getAllByText("THR-123").length).toBeGreaterThan(0)
     expect(screen.getByText("Visual review preview project")).toBeInTheDocument()
     expect(screen.getByText("Web")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Close target details" }))
+    expect(screen.queryByRole("dialog", { name: "Selection Explanations" })).not.toBeInTheDocument()
     const row = screen.getByRole("button", { name: "Open details for //:grade/tests" })
     row.focus()
     fireEvent.click(row)
     expect(screen.getByRole("dialog", { name: "Target details" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Close target details" })).toHaveFocus()
-    expect(screen.getByText("Depends on")).toBeInTheDocument()
-    expect(screen.getByText("Used by / dependents")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Depends on" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Used by / dependents" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "//:app" })).toBeInTheDocument()
     fireEvent.keyDown(document, { key: "Tab", shiftKey: true })
     expect(screen.getByRole("button", { name: "//:assets" })).toHaveFocus()
@@ -159,6 +162,41 @@ describe("RepositoryTargetGraphRoute", () => {
       "/api/v1/app/repositories/1/target_graph?mode=neighborhood&direction=both&depth=1&limit=100&include=explanations",
       expect.any(Object)
     )
+  })
+
+  it("keeps at most two bands above the table and no persistent explanation controls", async () => {
+    renderRoute()
+
+    await screen.findAllByText("//:grade/tests")
+    const controls = screen.getByRole("region", { name: "Target graph summary" })
+    const decisions = screen.getByRole("region", { name: "Decision summary" })
+    const heading = screen.getByText("Targets & dependencies")
+    expect(controls.compareDocumentPosition(decisions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(decisions.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // Search, mode switch, depth/direction, and snapshot context share the first band.
+    expect(controls).toContainElement(screen.getByLabelText("Target label or path search"))
+    expect(controls).toContainElement(screen.getByRole("group", { name: "Mode" }))
+    expect(controls).toContainElement(screen.getByRole("combobox", { name: "Depth" }))
+    expect(controls).toContainElement(screen.getByRole("combobox", { name: "Direction" }))
+    expect(controls).toHaveTextContent("Repository snapshot")
+    // Outcome chips live in the second band; explanations/diagnostics are behind the overflow menu.
+    expect(decisions).toContainElement(screen.getByRole("button", { name: "Failing" }))
+    expect(screen.queryByRole("region", { name: "Additional target graph details" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Show explanations" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "More" })).toHaveAttribute("aria-haspopup", "menu")
+  })
+
+  it("switches between browse and neighborhood from the segmented mode control", async () => {
+    const fetchSpy = renderRoute()
+
+    await screen.findAllByText("//:grade/tests")
+    const mode = screen.getByRole("group", { name: "Mode" })
+    expect(within(mode).getByRole("button", { name: "Neighborhood" })).toHaveAttribute("aria-pressed", "true")
+    fireEvent.click(within(mode).getByRole("button", { name: "Browse" }))
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenLastCalledWith("/api/v1/app/repositories/1/target_graph?direction=both&depth=1&limit=100&offset=0", expect.any(Object))
+    })
+    expect(within(await screen.findByRole("group", { name: "Mode" })).getByRole("button", { name: "Browse" })).toHaveAttribute("aria-pressed", "true")
   })
 
   it("keeps large graph rendering bounded to the virtualized window", async () => {
@@ -284,7 +322,8 @@ describe("RepositoryTargetGraphRoute", () => {
       expect(fetchSpy).toHaveBeenLastCalledWith("/api/v1/app/repositories/1/target_graph?direction=both&depth=1&limit=100&offset=100", expect.any(Object))
     })
 
-    fireEvent.click(await screen.findByRole("button", { name: "Show diagnostics" }))
+    fireEvent.click(await screen.findByRole("button", { name: "More" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Show diagnostics" }))
     expect(await screen.findByText("2 target labels")).toBeInTheDocument()
     expect(fetchSpy).toHaveBeenLastCalledWith(
       "/api/v1/app/repositories/1/target_graph?direction=both&depth=1&limit=100&offset=100&include=diagnostics",
