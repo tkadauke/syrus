@@ -216,10 +216,8 @@ graph structure.
 ### iOS projects and Xcode targets
 
 iOS work is modeled as a macOS project plus executable targets that run Xcode
-and simulator commands. Use only `os: macos` for placement, then express
-scheme, workspace/project, destination, signing, and output details in the
-target command, target name, wrapper script, and worker readiness checks.
-
+and simulator commands. Use only `os: macos` for placement; express scheme,
+workspace/project, destination, and output details in the target command.
 A monorepo should put an iOS `.syrus.yml` next to the app project:
 
 ```yaml
@@ -230,27 +228,14 @@ project:
   kind: ios_app
   capabilities:
     os: macos
-    arch: arm64
-    toolchain: xcode
-    runtime: ios_simulator
 
 targets:
   - name: app-sources
     kind: application
     sources:
       - "App/**/*.swift"
-      - "Packages/**/*.swift"
       - "MobileApp.xcodeproj/**"
-      - "MobileApp.xcworkspace/**"
 
-  # With the bundled iOS plugin enabled, the common command can be declared as:
-  # - type: xcodebuild
-  #   workspace: MobileApp.xcworkspace
-  #   scheme: MobileApp
-  #   destination: "platform=iOS Simulator,name=iPhone 16,OS=latest"
-  #   derived_data_path: .syrus/DerivedData/mobile
-  #   result_bundle_path: build/syrus/MobileApp.xcresult
-  #   junit_output: build/syrus/junit/mobile.xml
   - name: test
     kind: grader
     run: >
@@ -267,115 +252,21 @@ targets:
     timeout_minutes: 45
     capabilities:
       os: macos
-      arch: arm64
-      toolchain: xcode
-      runtime: ios_simulator
 ```
 
-If the repository still relies on root workflow validation, keep the executable
-root grader and use the nested file as project/target metadata until nested
-grader execution is enabled for that workflow path:
+Name the `-scheme` explicitly, keep DerivedData and result bundles under the
+workspace (for example `.syrus/DerivedData` and `build/syrus/`), and never put
+signing secrets in `.syrus.yml`. If the repository still relies on root
+workflow validation, keep an executable root `grade:` entry with
+`capabilities: {os: macos}` and use the nested file as project/target metadata.
 
-```yaml
-# /.syrus.yml
-grade:
-  - name: ios-tests
-    run: >
-      xcodebuild test
-      -workspace apps/ios/MobileApp.xcworkspace
-      -scheme MobileApp
-      -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest'
-      -derivedDataPath "$PWD/.syrus/DerivedData/ios"
-      -resultBundlePath "$PWD/build/syrus/ios/MobileApp.xcresult"
-      CODE_SIGNING_ALLOWED=NO
-      CODE_SIGNING_REQUIRED=NO
-    when_files_changed:
-      - "apps/ios/**"
-      - "packages/api-client/**"
-    phases: [landing, ci]
-    timeout_minutes: 45
-    capabilities:
-      os: macos
-      arch: arm64
-      toolchain: xcode
-      runtime: ios_simulator
-```
-
-With the bundled iOS plugin enabled, prefer typed graders for common commands
-so artifact paths, timeouts, and capability metadata stay consistent:
-
-```yaml
-grade:
-  - type: xcodebuild
-    workspace: apps/ios/MobileApp.xcworkspace
-    scheme: MobileApp
-    destination: "platform=iOS Simulator,name=iPhone 16,OS=latest"
-    derived_data_path: .syrus/DerivedData/ios
-    result_bundle_path: build/syrus/ios/MobileApp.xcresult
-    junit_output: build/syrus/junit/ios-tests.xml
-    when_files_changed:
-      - "apps/ios/**"
-    phases: [landing, ci]
-    timeout_minutes: 45
-
-  - type: swiftpm
-    package_path: apps/ios/Packages/Shared
-    build_path: .syrus/DerivedData/swiftpm-shared
-    when_files_changed:
-      - "apps/ios/Packages/Shared/**"
-    timeout_minutes: 20
-```
-
-For a repository-root Swift package, auto-detected prepare can run
-`swift package resolve`; otherwise add the same command explicitly in the
-owning root or nested `prepare:` block. Xcode package resolution should stay
-explicit because `xcodebuild -resolvePackageDependencies` needs the same
-workspace/project and scheme choices as the grader.
-
-Use `-workspace` when the app has a workspace, especially with CocoaPods or
-Swift packages that generate one. Use `-project` only for project-only apps.
-Always name the `-scheme` explicitly and choose a simulator `-destination`
-available on the Mac worker pool. Keep `OS=latest` only when the fleet is
-intentionally kept current; otherwise pin the runtime version operators have
-installed.
-
-Keep Xcode build products isolated from the source tree and from other Runs.
-Set `-derivedDataPath` under the workspace, usually below `.syrus/DerivedData`,
-and write machine-readable outputs under a stable build artifact directory such
-as `build/syrus/`. `-resultBundlePath` produces the `.xcresult` bundle that can
-be archived or inspected. If the repository uses a formatter that emits JUnit
-XML, write it to a stable path such as `build/syrus/junit/ios-tests.xml` and
-declare that path on the grader's JUnit settings when the workflow consumes
-JUnit artifacts.
-
-For ordinary simulator tests, make no-signing intent explicit with
-`CODE_SIGNING_ALLOWED=NO` and `CODE_SIGNING_REQUIRED=NO`. Signing, notarization,
-Keychain unlock, provisioning profiles, and private Apple credentials are host
-and repository policy concerns; do not put secrets in `.syrus.yml`. If a target
-really needs signing, document the required Keychain/profile access in the
-worker runbook and make sure the launchd worker user can access it.
-
-For proposal placement examples and typed Xcode/Swift grader guidance, see the
-[iOS plugin guide](../../plugins/ios/docs/syrus_docs/ios.md).
-
-```yaml
-# apps/api/.syrus.yml
-project:
-  id: api
-  label: Backend API
-
-grade:
-  - name: api-tests
-    run: bin/rspec
-    when_files_changed:
-      - "app/**"
-      - "spec/**"
-    capabilities:
-      os: linux
-```
-
-For worker, Xcode, simulator, signing, and Keychain diagnosis, see
+With the bundled iOS plugin enabled, prefer the typed `xcodebuild` and `swiftpm`
+graders. For typed grader fields, SwiftPM and Xcode package resolution, and
+proposal placement examples, see the
+[iOS plugin guide](../../plugins/ios/docs/syrus_docs/ios.md). For worker, Xcode,
+simulator, signing, and Keychain diagnosis, see
 [iOS and macOS compute](../../docs/engineering/operations/ios-compute.md).
+
 
 ### scripts
 

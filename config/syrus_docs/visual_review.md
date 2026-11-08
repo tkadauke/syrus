@@ -135,7 +135,7 @@ implementation, or to cover a pass that was skipped or never configured —
 without waiting for a new implementation. The Job detail page exposes a
 "Run visual review" action (and chat exposes the equivalent
 `run_visual_review` pending action) on implemented or approved Jobs with no
-active run, gated by the same `RepoVisualReviewPlan` resolution the
+active run, gated by the same visual-review plan resolution the
 automatic loop uses — the action is unavailable if visual review isn't
 configured/enabled for the repository. This dispatches a standalone
 `manual_visual_review` workflow and does not create before/after comparison
