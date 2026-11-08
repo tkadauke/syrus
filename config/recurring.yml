@@ -101,6 +101,10 @@ default: &default
     class: ReapStaleRunsJob
     queue: control_plane
     schedule: every minute
+  reap_stalled_pending_actions:
+    class: ReapStalledPendingActionsJob
+    queue: control_plane
+    schedule: every 5 minutes
   refresh_data_root_disk_usage:
     class: DataRootDiskUsageRefreshJob
     queue: cleanup

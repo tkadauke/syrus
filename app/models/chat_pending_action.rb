@@ -151,6 +151,16 @@ class ChatPendingAction < ApplicationRecord
   REQUEST_KINDS = %w[ legacy_action authorization_request ].freeze
   REQUESTED_BY = %w[ agent operator ].freeze
 
+  # A confirmation writes progress as it works, so an action sitting in
+  # `confirming` without a touch for this long is one whose worker stopped
+  # without recording an outcome -- killed mid-perform by a deploy, or failed
+  # so early that the failure could not be written. Nothing else moves it, and
+  # the card renders from the anchored message, so without a sweep it spins
+  # forever and cannot be dismissed.
+  CONFIRMATION_STALL_GRACE = 15.minutes
+
+  class ConfirmationStalled < StandardError; end
+
   attribute :payload, :json, default: -> { {} }
   attribute :before_snapshot, :json, default: -> { {} }
   attribute :after_snapshot, :json, default: -> { {} }
@@ -204,6 +214,7 @@ class ChatPendingAction < ApplicationRecord
 
   scope :actionable, -> { where(deduplication_active: true, non_actionable_at: nil) }
   scope :waiting_for_permission, -> { where(request_kind: "authorization_request", checkpoint_state: "waiting") }
+  scope :stalled_confirming, -> { where(state: "confirming").where(updated_at: ..CONFIRMATION_STALL_GRACE.ago) }
 
   def self.find_equivalent(deduplication_key)
     return if deduplication_key.blank?
@@ -469,8 +480,17 @@ class ChatPendingAction < ApplicationRecord
     )
   end
 
+  # The one path that must never raise. A command that writes progress from
+  # inside another record's transaction -- `progress!` within a `job.with_lock`
+  # block, say -- leaves this record dirty when that transaction rolls back,
+  # because the rollback restores the attributes it had going in. `with_lock`
+  # refuses to lock a record with unpersisted changes, so the handler would
+  # raise over the failure it was called to record, the action would stay in
+  # `confirming` forever behind a spinner, and the real error would be replaced
+  # by one about locking. Discard the attributes and record what happened.
   def fail_confirmation!(error)
     rejected = error.is_a?(RepairEligibility::Ineligible)
+    reload if changed?
     with_lock do
       return false unless confirming?
 
@@ -482,6 +502,8 @@ class ChatPendingAction < ApplicationRecord
         execution_finished_at: Time.current
       )
     end
+  rescue ActiveRecord::RecordNotFound
+    false
   end
 
   def reject!(user: nil)
@@ -523,6 +545,21 @@ class ChatPendingAction < ApplicationRecord
 
   def terminal?
     confirmed? || rejected? || cancelled? || failed?
+  end
+
+  def stalled_confirmation?
+    confirming? && updated_at.present? && updated_at <= CONFIRMATION_STALL_GRACE.ago
+  end
+
+  # Moves a stalled confirmation to `failed` so it stops presenting itself as
+  # live work. Safe to call on anything: it answers false unless the action is
+  # genuinely stuck.
+  def fail_stalled_confirmation!
+    return false unless stalled_confirmation?
+
+    fail_confirmation!(ConfirmationStalled.new(
+      "confirmation stopped without recording an outcome; last progress was #{execution_step.presence || 'none'}"
+    ))
   end
 
   def ensure_outcome_notification!

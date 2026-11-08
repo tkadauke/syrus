@@ -16,11 +16,15 @@ module PendingActions
     def perform
       job = repair_action_job
       mode = payload.fetch("mode").to_s
+      # Announced before the lock, not inside it: a progress write is a write
+      # to the pending action, and one made inside the job's transaction is
+      # undone if that transaction rolls back. The target state is only known
+      # once the lock is held, so it stays out of the message.
+      progress!("Reconciling #{job.slug} with mode #{mode}...")
       job.with_lock do
         job.reload
         eligibility = RepairPreflight.reconcile_job_state(job: job, mode: mode)
         eligibility.ensure_eligible!
-        progress!("Reconciling #{job.slug} with mode #{mode} to #{eligibility.target_state}...")
         JobStateRepair.reconcile!(job: job, mode: mode, reason: reason).job
       end
     end

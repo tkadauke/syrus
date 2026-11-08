@@ -56,8 +56,11 @@ module PendingActions
     def close_job_and_pull_request(job, reason)
       github_result = github_closure_result(job)
 
+      # Announced before the transaction: a progress write is a write to the
+      # pending action, and one made inside this transaction is undone if it
+      # rolls back.
+      progress!("Cancelling active workflows and runs...")
       ApplicationRecord.transaction do
-        progress!("Cancelling active workflows and runs...")
         cancel_active_execution!(job)
         job.update!(grace_period_expires_at: nil)
         job.close_with_reason!(reason)

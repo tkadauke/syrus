@@ -6903,6 +6903,26 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(response).to have_http_status(:unprocessable_content)
   end
 
+  it "lets the operator dismiss a confirmation whose worker stopped without recording an outcome" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    job = Factories.job_record(repository: repository)
+    action = chat.pending_actions.create!(action: "cancel_job", payload: { "job_id" => job.id })
+    action.update!(state: "confirming", execution_status: "running", execution_step: "Starting CI repair rerun...")
+    # Stalled: nothing has touched it since well before the grace period, so
+    # the card would otherwise keep a spinner with no way to clear it --
+    # `confirming` is neither rejectable nor terminal.
+    action.update_columns(updated_at: (ChatPendingAction::CONFIRMATION_STALL_GRACE + 1.minute).ago)
+
+    delete "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Pending action hidden.")
+    expect(action.reload.dismissed_at).to be_present
+    expect(action).to be_failed
+    expect(action.execution_error).to include("ConfirmationStalled")
+  end
+
   it "lets the operator dismiss a failed pending action through the app API" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)

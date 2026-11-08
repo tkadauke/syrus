@@ -944,6 +944,12 @@ module Api
         def destroy_pending_action
           chat_session = find_chat_session
           pending_action = find_pending_action(chat_session)
+          # A confirmation whose worker stopped leaves the action in
+          # `confirming`, which is neither rejectable nor terminal -- so this
+          # endpoint had no branch that could clear it and the card's own
+          # dismiss control answered false. Record the stall first; that makes
+          # it terminal and the dismissal below applies normally.
+          pending_action.fail_stalled_confirmation!
           rejection = pending_action.pending? && pending_action.action_type != "schedule_recurring"
           dismissal = pending_action.terminal? || pending_action.dismissed?
           result = if rejection
