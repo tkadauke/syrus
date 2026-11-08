@@ -381,9 +381,13 @@ module App
     end
 
     def coworker_review_configuration_json
+      # The plan is owned by the Coworkers plugin; a deployment without it has
+      # no coworker review configuration to show.
+      return nil unless Object.const_defined?("Coworkers::ReviewPlan")
+
       # From the payload's own single read, not a second one of the same file:
       # every other `.syrus.yml` gate here comes off that memo.
-      plan = RepoCoworkerReviewPlan.from_syrus_yml(local_syrus_yml(@job.user))
+      plan = Coworkers::ReviewPlan.from_syrus_yml(local_syrus_yml(@job.user))
       {
         enabled: plan.enabled?,
         rounds: plan.rounds,

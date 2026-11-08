@@ -339,7 +339,6 @@ module App
           visual_review: project.visual_review,
           adversarial_review: project.adversarial_review,
           security_review: project.security_review,
-          coworker_review: project.coworker_review,
           coverage: project.coverage,
           plugin_configurations: project.plugin_configurations.to_h,
           plugin_configuration_diagnostics: project.plugin_configurations.diagnostics.map(&:to_h),

@@ -55,9 +55,6 @@ RSpec.describe Step::Kind do
       expect(described_class.fetch("security_review").required_mcp_tools).to eq(%w[submit_security_review])
       expect(described_class.agentic_values).to include("security_review")
     end
-    it "registers named-only coworker review" do
-      expect(described_class.fetch("coworker_review")).to have_attributes(reviewer_target_required: true, panel_capable: true)
-    end
 
     it "returns submit_visual_review for visual_review" do
       expect(described_class.fetch("visual_review").required_mcp_tools).to eq(%w[submit_visual_review])

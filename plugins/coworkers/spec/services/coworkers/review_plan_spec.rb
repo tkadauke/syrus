@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe RepoCoworkerReviewPlan do
+RSpec.describe Coworkers::ReviewPlan do
   around do |example|
     plugin_record = PluginRecord.find_by!(name: "coworkers")
     originally_enabled = plugin_record.enabled?
