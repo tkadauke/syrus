@@ -50,9 +50,8 @@ RSpec.describe BugReports::ChatStarter do
     )
 
     expect(result).to be_success
-    expect(result.chat_session.messages.last.content.fetch("attachments")).to contain_exactly(
-      include("name" => "notes.txt", "mime_type" => "text/plain", "data" => Base64.strict_encode64("safe text"))
-    )
+    ref = ChatAttachmentRef.for(result.chat_session.messages.last).sole
+    expect([ ref.name, ref.mime_type, ref.bytes ]).to eq([ "notes.txt", "text/plain", "safe text" ])
   end
 
   it "rejects invalid recognized text instead of inlining it into the prompt" do

@@ -57,14 +57,20 @@ RSpec.describe "Chat ingress idempotency", type: :request do
 
   it "rejects changed text or attachment identity for the same key" do
     key = SecureRandom.uuid
+    stored = %w[one two].map do |name|
+      record = chat.chat_file_attachments.build(name: "#{name}.txt", mime_type: "text/plain", byte_size: 1, checksum: "pending")
+      record.file.attach(io: StringIO.new("1"), filename: "#{name}.txt", content_type: "text/plain")
+      record.save!
+      record
+    end
     post "/api/v1/app/chats/#{chat.id}/message", params: {
       client_idempotency_key: key,
-      chat_message: { text: "Original", attachments: [ { name: "one.txt", mime_type: "text/plain", data: "MQ==" } ] }
+      chat_message: { text: "Original", attachments: [ { id: stored[0].id } ] }
     }
 
     post "/api/v1/app/chats/#{chat.id}/message", params: {
       client_idempotency_key: key,
-      chat_message: { text: "Original", attachments: [ { name: "two.txt", mime_type: "text/plain", data: "MQ==" } ] }
+      chat_message: { text: "Original", attachments: [ { id: stored[1].id } ] }
     }
 
     expect(response).to have_http_status(:conflict)

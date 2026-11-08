@@ -186,10 +186,12 @@ RSpec.describe "API: /api/v1/app/bug_reports", type: :request do
       expect(message.content["text"]).to include("Cards overlap.")
       expect(message.content["text"]).to include("URL: https://example.com/jobs")
       expect(message.content["text"]).to include("`TypeError: x is null` (app.js)")
-      expect(message.content["attachments"]).to contain_exactly(
-        hash_including("name" => "capture.png", "mime_type" => "image/png", "data" => Base64.strict_encode64("\x89PNG\r\n\x1A\nscreenshot".b)),
-        hash_including("name" => "log.txt", "mime_type" => "text/plain", "data" => Base64.strict_encode64("log content")),
-        hash_including("name" => "report.pdf", "mime_type" => "application/pdf", "data" => Base64.strict_encode64("%PDF-1.4 dummy"))
+      refs = ChatAttachmentRef.for(message)
+      expect(message.content["attachments"]).to all(satisfy { |attachment| attachment.keys == [ "id" ] })
+      expect(refs.map { |ref| [ ref.name, ref.mime_type, ref.bytes.b ] }).to contain_exactly(
+        [ "capture.png", "image/png", "\x89PNG\r\n\x1A\nscreenshot".b ],
+        [ "log.txt", "text/plain", "log content".b ],
+        [ "report.pdf", "application/pdf", "%PDF-1.4 dummy".b ]
       )
     end
 

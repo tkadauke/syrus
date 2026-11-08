@@ -106,7 +106,7 @@ module MaintenanceTasks
 
         if records.empty?
           task.checkpoint[CURSORS_KEY][source.key] = upper_bound
-          return result_for(task, processed: 0, message: "Finished scanning #{source.key.humanize.downcase}.")
+          return result_for(task, processed: 0, message: I18n.t("server.maintenance_tasks.chat_attachment_backfill.finished_scanning", source: source.key.humanize.downcase))
         end
 
         processed = 0
@@ -121,7 +121,7 @@ module MaintenanceTasks
         end
         task.checkpoint[CURSORS_KEY][source.key] = records.last.id
 
-        result_for(task, processed: processed, message: "Processed #{processed} #{source.key.humanize.downcase} record(s).")
+        result_for(task, processed: processed, message: I18n.t("server.maintenance_tasks.chat_attachment_backfill.processed", count: processed, source: source.key.humanize.downcase))
       end
 
       def retry_failures(task)
@@ -135,7 +135,7 @@ module MaintenanceTasks
             processed: 0,
             failed: unresolved.size,
             clear_failed_units: true,
-            message: unresolved.empty? ? "Chat attachment backfill is complete." : "#{unresolved.size} chat record(s) still contain invalid or unverified inline attachments.",
+            message: unresolved.empty? ? I18n.t("server.maintenance_tasks.chat_attachment_backfill.complete") : I18n.t("server.maintenance_tasks.chat_attachment_backfill.unresolved", count: unresolved.size),
             level: unresolved.empty? ? "info" : "warning",
             metadata: { unresolved: unresolved }
           )
@@ -154,7 +154,7 @@ module MaintenanceTasks
           record_failure(task, source.key, failure.fetch("id"), e)
         end
 
-        result_for(task, processed: 0, message: "Retried legacy chat attachment records.")
+        result_for(task, processed: 0, message: I18n.t("server.maintenance_tasks.chat_attachment_backfill.retried"))
       end
 
       def start_retry_cycle(task)

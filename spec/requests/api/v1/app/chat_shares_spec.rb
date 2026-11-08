@@ -16,7 +16,10 @@ RSpec.describe "API: chat shares", type: :request do
 
   it "lets a recipient read the full chat API but never post" do
     prepare_chat_search
-    chat.messages.create!(role: "assistant", content: { "text" => "live history", "attachments" => [ { "name" => "notes.txt" } ] })
+    stored = chat.chat_file_attachments.build(name: "notes.txt", mime_type: "text/plain", byte_size: 2, checksum: "pending")
+    stored.file.attach(io: StringIO.new("hi"), filename: "notes.txt", content_type: "text/plain")
+    stored.save!
+    chat.messages.create!(role: "assistant", content: { "text" => "live history", "attachments" => [ { "id" => stored.id } ] })
     share = ChatShare.create!(chat_session: chat, target: recipient, shared_by_user: owner)
     sign_in_as(recipient)
 

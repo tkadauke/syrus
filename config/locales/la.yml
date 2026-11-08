@@ -31,6 +31,12 @@ la:
         missing_descriptor_detail: "capability_descriptor explicitum non habet"
         registration_finding: "%{source} instrumentum %{surface} %{tool_name} %{detail}"
     maintenance_tasks:
+      chat_attachment_backfill:
+        finished_scanning: "Perlustratio %{source} peracta est."
+        processed: "%{count} acta (%{source}) tractata sunt."
+        complete: "Translatio adiunctorum colloquii perfecta est."
+        unresolved: "%{count} acta colloquii adhuc adiuncta inlineata invalida vel non comprobata continent."
+        retried: "Acta adiunctorum colloquii veterum iterum temptata sunt."
       search_database_rebuild:
         complete: "Reconstructiones selectae datorum quaestionis perfectae sunt."
     errors:

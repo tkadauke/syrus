@@ -132,6 +132,8 @@ per-user/private:
   - app/controllers/api/v1/app/chat_shares_controller.rb
   - app/controllers/api/v1/app/chat_shell_commands_controller.rb
   - app/controllers/api/v1/app/chats_controller.rb
+  - app/controllers/api/v1/app/chat_attachments_controller.rb
+  - app/controllers/concerns/chat_message_params.rb
   - app/controllers/concerns/chat_goal_actions.rb
   - app/controllers/concerns/chat_ingress_idempotency.rb
   - app/controllers/concerns/chat_index_payload.rb
@@ -374,6 +376,8 @@ instead of broader model scopes.
 | `plugins/mockups/app/controllers/api/v1/app/mockups_controller.rb` | per-user/private | Mockups are scoped to the preview panels the current user can reach, which is the panel's own access rule rather than a second one. |
 | `app/controllers/api/v1/app/preview_panels_controller.rb` | per-user/private | Panels are scoped by `PreviewPanel.accessible_to(Current.user)` — you can see a panel if you can see its chat. |
 | `app/controllers/concerns/chat_attachable_resolution.rb` | per-user/private | Attachable-resolution helpers (extracted from `ChatsController`) resolve a specific repository/job/document/epic through `Current.user`'s associations. |
+| `app/controllers/api/v1/app/chat_attachments_controller.rb` | per-user/private | Upload and file reads resolve the chat through `Current.user.accessible_chat_sessions`, so attachments are only reachable by users who can access the chat. |
+| `app/controllers/concerns/chat_message_params.rb` | per-user/private | Attachment-reference validation resolves the target chat through `Current.user.accessible_chat_sessions`. |
 | `app/controllers/concerns/chat_attachment_search.rb` | per-user/private | Attachment-search helpers (extracted from `ChatsController`) scope candidate repositories/jobs/documents/epics through `Current.user`'s associations. |
 | `app/controllers/concerns/chat_ingress_idempotency.rb` | per-user/private | Chat submission receipts are claimed and replayed within the authenticated sender's `Current.user` scope, so one user's idempotency key cannot collide with another user's submission. |
 | `app/controllers/concerns/chat_index_payload.rb` | per-user/private | Chat index / recent-chats payload builders (extracted from `ChatsController`) list and group the current user's chat sessions through `Current.user.chat_sessions`. |

@@ -31,6 +31,12 @@ de:
         missing_descriptor_detail: "hat keinen expliziten capability_descriptor"
         registration_finding: "%{source} %{surface}-Tool %{tool_name} %{detail}"
     maintenance_tasks:
+      chat_attachment_backfill:
+        finished_scanning: "Scan von %{source} abgeschlossen."
+        processed: "%{count} Datensätze (%{source}) verarbeitet."
+        complete: "Die Migration der Chat-Anhänge ist abgeschlossen."
+        unresolved: "%{count} Chat-Datensätze enthalten weiterhin ungültige oder nicht verifizierte Inline-Anhänge."
+        retried: "Veraltete Chat-Anhang-Datensätze erneut versucht."
       search_database_rebuild:
         complete: "Die ausgewählten Neuerstellungen der Suchdatenbank sind abgeschlossen."
     errors:
