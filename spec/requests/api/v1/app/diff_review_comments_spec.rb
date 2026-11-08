@@ -514,6 +514,20 @@ RSpec.describe "App API diff review comments", type: :request do
       expect(latest_comment.reload).to have_attributes(state: "draft", workflow: nil)
     end
 
+    it "submits comments from every version when all_versions is set" do
+      job.update_columns(state: "implemented")
+      old_version = version
+      latest_version = create_version(job: job, base_sha: "base-sha-2", head_sha: "head-sha-2", index: 2)
+      old_comment = create_comment(diff_review_version: old_version, base_ref: old_version.base_sha, head_ref: old_version.head_sha)
+      latest_comment = create_comment(diff_review_version: latest_version, base_ref: latest_version.base_sha, head_ref: latest_version.head_sha)
+
+      post "#{comments_path}/submit", params: { all_versions: true, comment_ids: [ old_comment.id, latest_comment.id ] }, as: :json
+
+      expect(response).to have_http_status(:created)
+      expect(old_comment.reload.state).to eq("submitted")
+      expect(latest_comment.reload.state).to eq("submitted")
+    end
+
     it "rejects a blank selection" do
       job.update_columns(state: "implemented")
 

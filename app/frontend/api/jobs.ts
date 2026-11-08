@@ -1854,10 +1854,10 @@ export function deleteDiffReviewComment(jobId: string | number, commentId: numbe
   return deleteJson<DiffReviewCommentDeletePayload>(diffReviewCommentPath(jobId, commentId, diffReviewVersionId))
 }
 
-export function submitDiffReviewComments(jobId: string | number, commentIds: number[], diffReviewVersionId?: number | null) {
+export function submitDiffReviewComments(jobId: string | number, commentIds: number[], diffReviewVersionId?: number | null, allVersions = false) {
   return postJson<DiffReviewCommentsSubmitPayload>(`/api/v1/app/jobs/${jobId}/diff_review_comments/submit`, {
     comment_ids: commentIds,
-    diff_review_version_id: diffReviewVersionId
+    ...(allVersions ? { all_versions: true } : { diff_review_version_id: diffReviewVersionId })
   })
 }
 

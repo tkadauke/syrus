@@ -86,7 +86,7 @@ module Api
           result = DiffReviewCommentFeedbackSubmission.call(
             job: job,
             comment_ids: params[:comment_ids],
-            diff_review_version: selected_version(job),
+            diff_review_version: ActiveModel::Type::Boolean.new.cast(params[:all_versions]) ? nil : selected_version(job),
             actor: Current.user
           )
 

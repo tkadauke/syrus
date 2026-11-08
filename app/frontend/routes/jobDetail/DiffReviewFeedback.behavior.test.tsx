@@ -62,9 +62,10 @@ const payload: DiffReviewCommentsPayload = {
   by_path: { [file.path]: { [comment.anchor_key]: [comment] } }
 }
 
-function FeedbackHarness() {
+function FeedbackHarness({ includeAllVersions = false, viewedVersionId = 2 }: { includeAllVersions?: boolean; viewedVersionId?: number }) {
   const feedback = useDiffReviewFeedback({
-    diffReviewVersionId: 2,
+    diffReviewVersionId: viewedVersionId,
+    includeAllVersions,
     enabled: true,
     jobId: 1,
     surface: "job_review"
@@ -89,11 +90,11 @@ function FeedbackHarness() {
   )
 }
 
-function renderFeedback() {
+function renderFeedback(props: { includeAllVersions?: boolean; viewedVersionId?: number } = {}) {
   const client = new QueryClient({ defaultOptions: { mutations: { retry: false }, queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <FeedbackHarness />
+      <FeedbackHarness {...props} />
     </QueryClientProvider>
   )
 }
@@ -125,5 +126,19 @@ describe("diff review mutation failures", () => {
 
     await waitFor(() => expect(screen.getByText("Unable to resolve diff comment.")).toBeInTheDocument())
     expect(screen.getByText("Original draft").closest("[data-diff-review-comment-id]")).toHaveTextContent("Unable to resolve diff comment.")
+  })
+
+  it("enables Submit Feedback for a draft belonging to another version when all versions are loaded", async () => {
+    renderFeedback({ includeAllVersions: true, viewedVersionId: 3 })
+
+    await screen.findByText("Original draft")
+    expect(screen.getByRole("button", { name: "Submit Feedback" })).toBeEnabled()
+  })
+
+  it("keeps Submit Feedback disabled for another version's draft when not loading all versions", async () => {
+    renderFeedback({ viewedVersionId: 3 })
+
+    await waitFor(() => expect(apiMocks.fetchComments).toHaveBeenCalled())
+    expect(screen.getByRole("button", { name: "Submit Feedback" })).toBeDisabled()
   })
 })

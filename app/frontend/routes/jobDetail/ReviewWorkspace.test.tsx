@@ -162,7 +162,7 @@ describe("ReviewWorkspace", () => {
           diff_review_version_id: 100
         })
       )
-      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [2], 100)
+      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [2], 100, true)
     })
     expect(within(screen.getByTestId("diff-review-composer")).getByLabelText("Comment")).toHaveValue("Please keep this draft.")
   })
@@ -1628,7 +1628,7 @@ describe("ReviewWorkspace", () => {
       )
     })
     await waitFor(() => {
-      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [1, 2], 100)
+      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [1, 2], 100, true)
     })
   })
 
@@ -2055,7 +2055,7 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Submit Feedback" }))
 
     await waitFor(() => {
-      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [1], 100)
+      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [1], 100, true)
     })
   })
 
@@ -2086,7 +2086,7 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Submit Feedback" }))
 
     await waitFor(() => {
-      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [2], 100)
+      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [2], 100, true)
     })
   })
 
@@ -3115,7 +3115,7 @@ describe("ReviewWorkspace", () => {
 
     await waitFor(() => {
       expect(fetchDiffReviewComments).toHaveBeenCalledWith(42, "?surface=job_review_workspace%2Cjob_source_diff&all_versions=1")
-      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [2], 100)
+      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [2], 100, true)
     })
   })
 
