@@ -1148,6 +1148,7 @@
     "loading": "Transcriptum onerans...",
     "error_load": "Transcriptum onerari non potuit.",
     "download_jsonl": "JSONL deponere",
+    "title": "Cursus #{{runId}} · transcriptum",
     "new_messages": "Nuntii Novi",
     "turns": "Vices",
     "tool_calls": "Vocationes instrumenti",

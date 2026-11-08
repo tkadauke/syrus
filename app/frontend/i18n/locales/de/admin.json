@@ -1148,6 +1148,7 @@
     "loading": "Transkript wird geladen...",
     "error_load": "Transkript konnte nicht geladen werden.",
     "download_jsonl": "JSONL herunterladen",
+    "title": "Run #{{runId}} · Transkript",
     "new_messages": "Neue Nachrichten",
     "turns": "Züge",
     "tool_calls": "Tool-Aufrufe",

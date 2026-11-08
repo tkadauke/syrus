@@ -58,7 +58,7 @@ function TranscriptView({ payload, prefix }: { payload: TranscriptPayload; prefi
               back to {payload.job_slug || `JOB-${payload.job_id}`}
             </Link>
           </div>
-          <Page.Title className="mt-1">Run #{payload.run_id} · transcript</Page.Title>
+          <Page.Title className="mt-1">{t("transcript.title", { runId: payload.run_id })}</Page.Title>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Session <span className="font-mono">{payload.session_id}</span>
             {payload.summary.model ? <> · {payload.summary.model}</> : null}
