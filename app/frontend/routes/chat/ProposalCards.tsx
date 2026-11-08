@@ -35,7 +35,7 @@ import {
   type ChatProposalSearchResult
 } from "../../api/chats"
 import { fetchBootstrap } from "../../api/bootstrap"
-import { dispatchProposalUpdated } from "../../lib/appEvents"
+import { dispatchProposalUpdated, resolveChatJobStatusProposal } from "../../lib/appEvents"
 import { mergeChatPayloadUpdate } from "../../lib/chatCache"
 import { replaceProposalInMessages } from "./messageStreamItems"
 import { CloseIcon } from "../../components/CloseIcon"
@@ -567,6 +567,7 @@ export function ProposalCard({
         if (!next || !shouldRevealJobsTab || (next.chat.confirmed_proposal_count ?? 0) > 0 || (next.chat.linked_direct_job_count ?? 0) > 0) return next
         return { ...next, chat: { ...next.chat, confirmed_proposal_count: (next.chat.confirmed_proposal_count ?? 0) + 1 } }
       })
+      resolveChatJobStatusProposal(queryClient, queryKey[1], (isChatPayload(updated) ? proposal : updated.proposal || proposal).id)
       onNotice(updated.message || null)
 
       if (shouldSelectJobsTab) onSelectWorkspaceTab?.()

@@ -1516,7 +1516,7 @@ function isChatJobStatusPendingProposal(value: unknown): value is ChatJobStatusP
 // refetch. A non-"proposed" state also invalidates the query so a confirmed
 // proposal's materialized Job/Epic shows up without waiting on a separate
 // job_status_changed broadcast.
-function patchChatJobStatusPendingProposal(queryClient: QueryClient, chatSessionId: string | number, proposal: ChatJobStatusPendingProposal) {
+export function patchChatJobStatusPendingProposal(queryClient: QueryClient, chatSessionId: string | number, proposal: ChatJobStatusPendingProposal) {
   const queryKey = ["chats", String(chatSessionId), "job_status"]
   queryClient.setQueriesData<ChatJobStatusPayload>({ queryKey }, (current) => {
     if (!current) return current
@@ -1529,6 +1529,13 @@ function patchChatJobStatusPendingProposal(queryClient: QueryClient, chatSession
   if (proposal.state !== "proposed") {
     invalidateAppQuery(queryClient, { queryKey, exact: true })
   }
+}
+
+// Local counterpart used when this browser itself resolved a proposal over
+// HTTP (confirm/reject): the successful response is authoritative, so the
+// Jobs tab must not depend on receiving its own AppEvent echo.
+export function resolveChatJobStatusProposal(queryClient: QueryClient, chatSessionId: string | number, proposalId: number) {
+  patchChatJobStatusPendingProposal(queryClient, chatSessionId, { id: proposalId, state: "resolved" } as ChatJobStatusPendingProposal)
 }
 
 function chatJobStatusChangedPayload(payload: unknown): ChatJobStatusChangedPayload | null {
