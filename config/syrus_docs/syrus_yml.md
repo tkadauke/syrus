@@ -267,7 +267,6 @@ proposal placement examples, see the
 simulator, signing, and Keychain diagnosis, see
 [iOS and macOS compute](../../docs/engineering/operations/ios-compute.md).
 
-
 ### scripts
 
 `scripts:` is optional metadata for repository-owned commands that humans or
@@ -857,30 +856,15 @@ grade:
       run: npm run typecheck
 ```
 
-Boolean, **defaults to `true`**. Both forms of `grade:` get that default; only
-the mapping form can override it with `grade.rerun_only_failed: false`.
-
-Infrastructure-only retries are narrower regardless of this setting. Because
-no repair step changed the checkout, Syrus carries forward successful required
-graders whose target fingerprints are unchanged and reruns only graders with
-failed or inconclusive infrastructure outcomes. This avoids turning one lost
-worker or database interruption into another full grader burst.
-
-When `true`, the first grading iteration runs every active grader. Later repair
-iterations may carry forward a required grader only while its relevant inputs,
-dependencies, command, environment, and policy still prove the pass. Otherwise
-Syrus reruns it and records the reason.
-
-Optional graders are never carried forward by this setting; they run again when active. A grader whose `when_files_changed` glob starts matching only on a later iteration is also still run then, regardless of this setting — `rerun_only_failed` only narrows within graders that were already active, it never overrides file-glob activation.
-
-The reuse window ends whenever a repair changes code. Carry-forward always
-traces to a real successful grader run and never chains from another
-carry-forward. Optional graders run whenever active, and later file-glob
-activation still causes a run.
-
-This is useful for repositories with slow or expensive graders when a repair
-iteration makes no code change. Infrastructure-only retries carry forward
-unchanged successful required graders regardless of this setting.
+Boolean, **defaults to `true`**; only the mapping form can set
+`grade.rerun_only_failed: false`. When `true`, the first grading iteration runs
+every active grader. Later repair iterations carry forward a required grader's
+earlier pass only while its inputs, dependencies, command, environment, and
+policy still prove it, and only when no repair changed code. Optional graders and
+graders whose `when_files_changed` glob newly matches always run. After an
+infrastructure-only failure (lost worker, database interruption), unchanged
+successful required graders are carried forward regardless of this setting and
+only failed or inconclusive graders rerun.
 
 ## merge_train
 
