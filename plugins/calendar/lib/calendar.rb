@@ -8,6 +8,7 @@ module Calendar
     homepage "https://github.com/tkadauke/syrus"
     author "Thomas Kadauke"
     category "observability"
+    icon_url "/plugin-icons/calendar.svg"
     default_enabled true
     disableable true
     hosts :event_source
