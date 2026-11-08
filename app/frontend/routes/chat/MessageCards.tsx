@@ -1495,10 +1495,12 @@ function ToolResultBody({
   // prior live-call behavior instead of rendering an empty generic result.
   if (!toolCallSettled(call)) return null
 
-  if (call.result_error) return <ToolErrorCard call={call} />
-
+  // Checked before the error path: the write-time cap applies to errored
+  // results too, and the stored shape is a marker, not an error payload.
   const truncation = truncatedToolResultMarker(call.result_json)
   if (truncation) return <TruncatedToolResult marker={truncation} />
+
+  if (call.result_error) return <ToolErrorCard call={call} />
 
   return <HighlightedToolResult code={redactToolCardText(call.result_body)} detail={redactToolCardText(call.detail)} error={call.result_error} />
 }
