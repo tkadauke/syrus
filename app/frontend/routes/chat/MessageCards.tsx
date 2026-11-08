@@ -1497,7 +1497,30 @@ function ToolResultBody({
 
   if (call.result_error) return <ToolErrorCard call={call} />
 
+  const truncation = truncatedToolResultMarker(call.result_json)
+  if (truncation) return <TruncatedToolResult marker={truncation} />
+
   return <HighlightedToolResult code={redactToolCardText(call.result_body)} detail={redactToolCardText(call.detail)} error={call.result_error} />
+}
+
+type TruncatedResultMarker = { originalBytes: number; preview: string }
+
+// The server caps stored tool results (ChatMessage.bounded_tool_result_payload)
+// and replaces an oversized one with {truncated, original_bytes, preview}.
+export function truncatedToolResultMarker(value: unknown): TruncatedResultMarker | null {
+  if (!isPlainObject(value) || value.truncated !== true || typeof value.original_bytes !== "number") return null
+  return { originalBytes: value.original_bytes, preview: typeof value.preview === "string" ? value.preview : "" }
+}
+
+// Lives in the expanded details only; the collapsed header is untouched.
+function TruncatedToolResult({ marker }: { marker: TruncatedResultMarker }) {
+  const { t } = useT("chat")
+  return (
+    <div className="mt-1" data-testid="tool-result-truncated">
+      <div className="text-xs text-gray-500">{t("tool_result_truncated", { kb: Math.round(marker.originalBytes / 1024) })}</div>
+      <HighlightedToolResult code={redactToolCardText(marker.preview)} detail="" error={false} />
+    </div>
+  )
 }
 
 function toolCardName(call: ChatToolGroupItem["calls"][number]) {

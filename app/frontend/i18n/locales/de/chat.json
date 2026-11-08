@@ -735,6 +735,7 @@
   "tool_card_diff_more_available": "weitere verfügbar",
   "tool_card_diff_bytes_per_page": "Bytes pro Seite",
   "tool_card_diff_next_page": "Nächste Seite",
+  "tool_result_truncated": "Das Ergebnis war zu groß zum Speichern ({{kb}} KB); nur der Anfang wird angezeigt.",
   "tool_card_diff_preview_truncated": "Die Vorschau zeigt die ersten {{shown}} von {{total}} Zeilen. Diff kopieren enthält alle Zeilen.",
   "tool_card_tags_loading_summary": "Tags werden geladen",
   "tool_card_tags_error_summary": "Tags konnten nicht aufgelistet werden",

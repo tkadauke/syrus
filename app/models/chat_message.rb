@@ -6,6 +6,10 @@ class ChatMessage < ApplicationRecord
   SPA_EVENT_TAIL_SIZE = 24
   SPA_EVENT_MAX_INLINE_BYTES = 128.kilobytes
   PREVIEW_TEXT_MAX_BYTES = 500
+  # Write-time cap on a stored tool result's payload. Above it the payload is
+  # replaced by {truncated, original_bytes, preview} (same shape as
+  # JobLog.bounded_tool_result) so no tool can store megabytes in a chat row.
+  MAX_TOOL_RESULT_BYTES = 256.kilobytes
 
   belongs_to :chat_session
   belongs_to :proposal, class_name: "ChatProposal", optional: true
@@ -32,6 +36,7 @@ class ChatMessage < ApplicationRecord
   attr_accessor :invalidate_realtime_tail
 
   before_validation :resolve_mentions_once, on: :create
+  before_validation :bound_tool_result_content, if: -> { role == "tool_result" }
   after_create :record_chat_turn_state
   after_create_commit :broadcast_app_event
   after_create_commit :enqueue_search_index
@@ -146,7 +151,28 @@ class ChatMessage < ApplicationRecord
     [ rendered_parts.join, rendered_mentions ]
   end
 
+  # Returns the value unchanged when it fits MAX_TOOL_RESULT_BYTES, otherwise
+  # the structured truncated shape.
+  def self.bounded_tool_result_payload(value, max_bytes: MAX_TOOL_RESULT_BYTES)
+    return value if value.nil?
+
+    encoded = value.is_a?(String) ? value : JSON.generate(value)
+    return value if encoded.bytesize <= max_bytes
+
+    preview = encoded.byteslice(0, max_bytes).to_s.dup.force_encoding(Encoding::UTF_8).scrub("")
+    { "truncated" => true, "original_bytes" => encoded.bytesize, "preview" => preview }
+  rescue JSON::GeneratorError, Encoding::UndefinedConversionError
+    bounded_tool_result_payload(value.to_s.dup.force_encoding(Encoding::UTF_8).scrub(""), max_bytes: max_bytes)
+  end
+
   private
+
+  def bound_tool_result_content
+    return unless content.is_a?(Hash) && content.key?("content")
+
+    bounded = self.class.bounded_tool_result_payload(content["content"])
+    self.content = content.merge("content" => bounded) unless bounded.equal?(content["content"])
+  end
 
   def content_is_present
     errors.add(:content, "can't be blank") if content.nil?
