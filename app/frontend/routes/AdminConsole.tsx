@@ -74,6 +74,14 @@ function ConsoleView({ payload }: { payload: AdminConsolePayload }) {
           value={payload.settings.runs_paused ? t("console.state_paused") : t("console.state_running")}
           warning={payload.settings.runs_paused}
         />
+        <TogglePanel
+          command={payload.settings.permissions_enforced ? "disable_permission_enforcement" : "enable_permission_enforcement"}
+          description={t("console.permissions_description")}
+          label={payload.settings.permissions_enforced ? t("console.permissions_disable") : t("console.permissions_enable")}
+          title={t("console.permissions_title")}
+          value={payload.settings.permissions_enforced ? t("console.state_enforced") : t("console.state_not_enforced")}
+          warning={!payload.settings.permissions_enforced}
+        />
       </section>
 
       <section className="grid gap-4 md:grid-cols-2">

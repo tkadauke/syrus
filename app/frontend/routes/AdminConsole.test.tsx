@@ -12,6 +12,7 @@ function consolePayload(overrides: Record<string, unknown> = {}) {
     settings: {
       polling_paused: false,
       runs_paused: false,
+      permissions_enforced: true,
       signups_open: true,
       max_job_failures: 5,
       grade_max_iterations: 3

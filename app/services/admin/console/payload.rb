@@ -34,6 +34,16 @@ module Admin
         update_flag!(runs_paused: false, action: :unpause_runs, source: source)
       end
 
+      def enable_permission_enforcement(source:)
+        require_admin!
+        update_flag!(permissions_enforced: true, action: :enable_permission_enforcement, source: source)
+      end
+
+      def disable_permission_enforcement(source:)
+        require_admin!
+        update_flag!(permissions_enforced: false, action: :disable_permission_enforcement, source: source)
+      end
+
       def clear_github_cache(user_id:, source:)
         require_admin!
         pattern, summary = github_cache_scope(user_id)

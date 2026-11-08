@@ -298,6 +298,19 @@ class AppSettingRegistry
       surface: :admin_console
     ),
     Definition.new(
+      key: :permissions_enforced,
+      type: :boolean,
+      default: true,
+      min: nil,
+      max: nil,
+      category: "Instance operations",
+      operational_meaning: "Master switch for the whole permission system. Turned off, every capability is allowed: nothing is asked and nothing is denied by policy, for every surface and role at once. It exists because a permission system that misclassifies a single tool can make the product unusable while that misclassification is diagnosed, and an operator needs one lever for that rather than a profile change per surface. Authentication, repository access, and each tool's own argument validation are unaffected.",
+      zero_means: nil,
+      admin_editable: false,
+      secret: false,
+      surface: :admin_console
+    ),
+    Definition.new(
       key: :report_issue_repo_slug,
       type: :string,
       default: "tkadauke/syrus",

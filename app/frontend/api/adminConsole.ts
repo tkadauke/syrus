@@ -4,6 +4,7 @@ import { reapStaleRuns } from "./adminQueue"
 export type ConsoleSettings = {
   polling_paused: boolean
   runs_paused: boolean
+  permissions_enforced: boolean
 }
 
 export type ConsoleUser = {
@@ -29,7 +30,13 @@ export type AdminConsolePayload = {
   message?: string
 }
 
-export type ConsoleCommand = "pause_polling" | "unpause_polling" | "pause_runs" | "unpause_runs"
+export type ConsoleCommand =
+  | "pause_polling"
+  | "unpause_polling"
+  | "pause_runs"
+  | "unpause_runs"
+  | "enable_permission_enforcement"
+  | "disable_permission_enforcement"
 
 export function fetchAdminConsole() {
   return getJson<AdminConsolePayload>("/api/v1/app/admin/console")

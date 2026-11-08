@@ -30,6 +30,7 @@ follow-up shape rather than an implicit split across unrelated pages.
 | `telegram_update_offset` | instance | Rails console | internal state | instance | Correct hidden state: platform polling cursor, not operator policy. |
 | `discord_bot_token` | instance | Admin Settings | setting | instance | Correct: encrypted deployment credential. |
 | `runs_paused` | instance | Admin Console | setting | instance | Correct: emergency instance kill switch. |
+| `permissions_enforced` | instance | Admin Console | setting | instance | Correct: instance-wide master switch for policy enforcement. Deliberately not per-user or per-repository -- it exists for the case where the classification itself is wrong, which is not a property of one actor. |
 | `report_issue_repo_slug` | instance | Admin Settings | setting | instance | Correct: deployment support route. |
 | `max_concurrent_agent_runs` | instance | Admin Settings | setting | instance | Correct: cluster-wide resource budget. |
 | `max_in_flight_workflows` | instance | Admin Settings | setting | instance | Correct: cluster-wide work-in-progress budget. |

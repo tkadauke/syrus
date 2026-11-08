@@ -84,7 +84,8 @@ RSpec.describe AppSettingRegistry do
     expect(described_class.admin_settings_keys).to match_array(described_class.admin_editable_keys)
     expect(described_class.admin_console_keys).to contain_exactly(
       :polling_paused,
-      :runs_paused
+      :runs_paused,
+      :permissions_enforced
     )
     expect(described_class.admin_settings_keys & described_class.admin_console_keys).to be_empty
   end

@@ -174,6 +174,53 @@ reconcile in bounded chunks instead of spending one oversized GitHub burst.
 
 Emergency kill switch: pause workflow execution. `RunJob` checks this flag and re-enqueues itself if true, so active Runs stay queued without losing state.
 
+### permissions_enforced
+
+**Type:** boolean · **Default:** true
+
+Master switch for the permission system. Turned off, every capability is
+allowed: nothing is asked and nothing is denied by policy, on every surface
+and for every role at once. Turned on, policy applies exactly as before --
+this flag adds no third mode.
+
+Toggle it from the operator console, or over the API:
+
+```
+POST /api/v1/admin/console/disable_permission_enforcement
+POST /api/v1/admin/console/enable_permission_enforcement
+```
+
+Both are admin-only and recorded as `AdminAction`s, and the console shows the
+switch in its warning state for as long as enforcement is off, because an
+instance that is not enforcing should never look like one that is.
+
+**Why this exists.** A permission system is a classification of every tool it
+covers, and a single tool classified wrong is enough to make the product
+unusable: a draft proposal that an operator has to confirm anyway asks for
+permission before it may be drafted, or a confirmation cannot be granted at
+all. Reclassifying one capability is a code change and a deploy; switching
+one surface to a more permissive profile is neither targeted nor quick.
+Diagnosing a misclassification is ordinary work and should not have to be
+done on an instance its operator cannot use, so there is one lever for it.
+
+**What it does not cover.** Authentication and session freshness for signing
+in, repository access (`RepositoryPolicy` and the GitHub credential scopes),
+each tool's own argument validation, and the confirmation cards that make a
+proposal a proposal. Permissions decide whether a capability may be exercised
+at all; none of those decide that, so none of them are switched off here. A
+pending action still waits for the operator to confirm it.
+
+**Implementation.** `Permissions::Enforcement` is the gate, consulted at
+`PolicyEvaluator#call` -- the one choke point every decision passes through,
+including the lease, authority-grant, and execution paths. Two downgrades
+apply after the evaluator has spoken and are gated separately:
+`FreshAuthentication` and the sensitive-effect downgrade in
+`ExecutionAuthorization#effective_policy`. A bypassed decision is still
+recorded, with `detail: :enforcement_disabled` in its chain, so an audit of a
+permitted call says why it was permitted. When the setting cannot be read at
+all -- boot, migrations, an unreachable database -- the gate enforces; the
+switch is only ever a deliberate operator action.
+
 ### report_issue_repo_slug
 
 **Type:** string · **Default:** "tkadauke/syrus"

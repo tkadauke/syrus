@@ -317,6 +317,12 @@ class AppSetting < ApplicationRecord
     current.runs_paused
   end
 
+  # Master switch for the permission system; see Permissions::Enforcement.
+  # Off means every capability is allowed, for every surface at once.
+  def self.permissions_enforced?
+    current.permissions_enforced
+  end
+
   def self.auto_merge_paused?
     ActiveModel::Type::Boolean.new.cast(ENV["SYRUS_AUTO_MERGE_DISABLED"])
   end

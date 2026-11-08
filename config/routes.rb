@@ -516,6 +516,8 @@ Rails.application.routes.draw do
           post "console/unpause_polling", to: "console#unpause_polling"
           post "console/pause_runs", to: "console#pause_runs"
           post "console/unpause_runs", to: "console#unpause_runs"
+          post "console/enable_permission_enforcement", to: "console#enable_permission_enforcement"
+          post "console/disable_permission_enforcement", to: "console#disable_permission_enforcement"
           post "console/clear_github_cache", to: "console#clear_github_cache"
           post "restart", to: "restart#create"
           get "installations", to: "installations#index"
@@ -609,6 +611,8 @@ Rails.application.routes.draw do
         post "console/unpause_polling", to: "console#unpause_polling"
         post "console/pause_runs",      to: "console#pause_runs"
         post "console/unpause_runs",    to: "console#unpause_runs"
+        post "console/enable_permission_enforcement",  to: "console#enable_permission_enforcement"
+        post "console/disable_permission_enforcement", to: "console#disable_permission_enforcement"
 
         # Read-only AppSetting values (non-secret) with registry metadata.
         get "settings", to: "settings#show"

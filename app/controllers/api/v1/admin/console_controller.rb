@@ -8,6 +8,8 @@ module Api
       # POST /api/v1/admin/console/unpause_polling
       # POST /api/v1/admin/console/pause_runs
       # POST /api/v1/admin/console/unpause_runs
+      # POST /api/v1/admin/console/enable_permission_enforcement
+      # POST /api/v1/admin/console/disable_permission_enforcement
       class ConsoleController < BaseController
         def show
           render json: console_payload.show
@@ -27,6 +29,14 @@ module Api
 
         def unpause_runs
           render json: console_payload.unpause_runs(source: "api")
+        end
+
+        def enable_permission_enforcement
+          render json: console_payload.enable_permission_enforcement(source: "api")
+        end
+
+        def disable_permission_enforcement
+          render json: console_payload.disable_permission_enforcement(source: "api")
         end
 
         private

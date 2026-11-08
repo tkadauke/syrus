@@ -1,3 +1,5 @@
+require_dependency "permissions/enforcement"
+
 module Permissions
   # Capability-specific fresh-authentication requirement.
   #
@@ -24,6 +26,7 @@ module Permissions
 
     # Returns [final_policy, Applied or nil].
     def self.apply(policy, descriptor:, authenticated_at:, now: Time.current)
+      return [ policy, nil ] if Enforcement.disabled?
       return [ policy, nil ] if satisfied?(descriptor, authenticated_at:, now:)
       return [ policy, nil ] if RANK.fetch(policy) <= RANK.fetch(:ask)
 

@@ -74,6 +74,11 @@ module Permissions
     def effective_policy(descriptor, decision)
       effects = decision.invocation.effects
       policy = decision.policy
+      # Enforcement is off: the decision stands as the evaluator made it. The
+      # sensitive-effect branch below keys on an allow with no decisive rule,
+      # which is the exact shape of a bypassed decision, so skipping these is
+      # what makes the master switch reach execution capabilities too.
+      return [ policy, nil, [] ] if Enforcement.disabled?
 
       if policy == :allow && decision.decisive_rule.nil? && (effects & ExecutionActions::SENSITIVE_EFFECTS).any?
         policy = :ask

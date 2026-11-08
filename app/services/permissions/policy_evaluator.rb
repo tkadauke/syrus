@@ -1,5 +1,6 @@
 require_dependency "permissions/invocation_classifier"
 require_dependency "permissions/policy_rule"
+require_dependency "permissions/enforcement"
 
 module Permissions
   class PolicyEvaluator
@@ -32,6 +33,8 @@ module Permissions
 
     def call
       classification = InvocationClassifier.call(descriptor: @descriptor, arguments: @arguments)
+      return enforcement_disabled_decision(classification) if Enforcement.disabled?
+
       normalized = @descriptor.resource_scope.normalize(@resource_scope, context: @context)
       return normalization_failure(classification, normalized) if normalized.fail_closed?
 
@@ -111,6 +114,19 @@ module Permissions
       return chain.map { |item| item.rule == ceiling ? explanation : item } if chain.any? { |item| item.rule == ceiling }
 
       chain.flat_map { |item| item.layer == ceiling.layer ? [ item, explanation ] : item }
+    end
+
+    # Enforcement is off, so this is an allow and the chain says why -- audits
+    # and the decision explainer read the same record for a bypassed call as
+    # for any other. The resource scope is reported unnormalized: normalizing
+    # it exists to decide which rules match, and no rule is being consulted.
+    def enforcement_disabled_decision(classification)
+      invocation = Invocation.new(capability: @descriptor.capability, operation: classification.operation,
+        effects: classification.effects, risk: classification.risk, resource_scope: @resource_scope,
+        classification: classification)
+      explanation = Explanation.new(layer: :core, status: :decisive_default, rule: nil,
+        policy: :allow, detail: :enforcement_disabled)
+      decision(:allow, nil, [ explanation ], invocation)
     end
 
     def normalization_failure(classification, normalized)

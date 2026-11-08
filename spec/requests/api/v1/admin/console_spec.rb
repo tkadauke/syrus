@@ -61,6 +61,22 @@ RSpec.describe "API: /api/v1/admin/console", type: :request do
         .and change { AdminAction.where(action: "unpause_polling").count }.by(1)
     end
 
+    # The one lever an operator has when the permission system itself is what
+    # is in the way, so it has to be reachable without a deploy or a console.
+    it "turns permission enforcement off and back on" do
+      expect {
+        post "/api/v1/admin/console/disable_permission_enforcement", headers: auth
+      }.to change { AppSetting.current.tap(&:reload).permissions_enforced }.from(true).to(false)
+        .and change { AdminAction.where(action: "disable_permission_enforcement").count }.by(1)
+
+      expect(parse_body.dig("settings", "permissions_enforced")).to be false
+
+      expect {
+        post "/api/v1/admin/console/enable_permission_enforcement", headers: auth
+      }.to change { AppSetting.current.tap(&:reload).permissions_enforced }.from(false).to(true)
+        .and change { AdminAction.where(action: "enable_permission_enforcement").count }.by(1)
+    end
+
     it "pauses and resumes runs" do
       expect {
         post "/api/v1/admin/console/pause_runs", headers: auth

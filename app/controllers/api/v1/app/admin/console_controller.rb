@@ -23,6 +23,14 @@ module Api
             render json: console_payload.unpause_runs(source: "app")
           end
 
+          def enable_permission_enforcement
+            render json: console_payload.enable_permission_enforcement(source: "app")
+          end
+
+          def disable_permission_enforcement
+            render json: console_payload.disable_permission_enforcement(source: "app")
+          end
+
           def clear_github_cache
             render json: console_payload.clear_github_cache(user_id: params[:user_id], source: "app")
           end
