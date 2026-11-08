@@ -17,7 +17,8 @@ module Api
           request = ChatPendingAction.where(user: Current.user).find(params.require(:request_id))
           item = request.authorization_items.find(params.require(:item_id))
           draft = Permissions::RuleDraft.from_request_item(user: Current.user, request:, item:,
-            duration: params.require(:duration), policy: params[:policy].presence || "allow")
+            duration: params.require(:duration), policy: params[:policy].presence || "allow",
+            constraints: prefix_constraints(item))
           render_preview(draft)
         rescue ActionController::ParameterMissing, ArgumentError => error
           render_error("invalid_permission_draft", error.message, status: :unprocessable_entity)
@@ -25,6 +26,18 @@ module Api
 
         def preview
           render_preview(build_draft)
+        end
+
+        # An operator previewing a widened prefix needs the digest for *that*
+        # draft, so the preview has to be built with the prefix they typed.
+        def prefix_constraints(item)
+          prefix = params[:prefix].presence
+          return nil unless prefix
+
+          field = Permissions::SmartDecision.new(request: item.chat_pending_action, item:, user: Current.user).prefix_field
+          raise ArgumentError, I18n.t("api.permission_requests.smart_decision.prefix_unavailable") unless field
+
+          { field => prefix.to_s.strip }
         end
 
         def apply

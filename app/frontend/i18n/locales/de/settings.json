@@ -55,9 +55,26 @@
     "consequence": "Was passieren könnte",
     "requested_duration": "Angefordert für",
     "why_required": "Warum ist eine Genehmigung nötig?",
-    "filters": { "state": "Status", "subject": "Agent", "action": "Angeforderte Aktion", "effect": "Folge", "origin_type": "Herkunft" },
-    "states": { "pending": "Ausstehend", "confirmed": "Genehmigt", "rejected": "Abgelehnt", "dismissed": "Ausgeblendet", "non_actionable": "Nicht verfügbar" },
-    "durations": { "invocation": "Dieser Aufruf", "chat_session": "Dieser Chat", "job": "Dieser Job", "permanent": "Dauerhaft" }
+    "filters": {
+      "state": "Status",
+      "subject": "Agent",
+      "action": "Angeforderte Aktion",
+      "effect": "Folge",
+      "origin_type": "Herkunft"
+    },
+    "states": {
+      "pending": "Ausstehend",
+      "confirmed": "Genehmigt",
+      "rejected": "Abgelehnt",
+      "dismissed": "Ausgeblendet",
+      "non_actionable": "Nicht verfügbar"
+    },
+    "durations": {
+      "invocation": "Dieser Aufruf",
+      "chat_session": "Dieser Chat",
+      "job": "Dieser Job",
+      "permanent": "Dauerhaft"
+    }
   },
   "permissions": {
     "title": "Berechtigungen",
@@ -68,7 +85,11 @@
     "profile_active": "Aktiv",
     "profile_select": "Auswählen",
     "profile_selected": "Ausgewählt",
-    "profile_names": { "full_access": "Vollzugriff", "ask_on_first_use": "Bei erster Nutzung fragen", "restricted": "Eingeschränkt" },
+    "profile_names": {
+      "full_access": "Vollzugriff",
+      "ask_on_first_use": "Bei erster Nutzung fragen",
+      "restricted": "Eingeschränkt"
+    },
     "profile_descriptions": {
       "full_access": "Erlaube jede zulässige Capability, die du delegieren darfst.",
       "ask_on_first_use": "Erlaube sichere lokale Arbeit und frage vor folgenreichen Capabilities.",
@@ -158,7 +179,12 @@
     "loading_history": "Autorisierungsverlauf wird geladen…",
     "matrix_title": "Agent-Berechtigungsmatrix",
     "matrix_help": "Vergleiche den effektiven Zustand für jede Agent-Oberfläche und Fähigkeit.",
-    "states": { "allow": "Erlauben", "ask": "Nachfragen", "deny": "Verweigern", "scoped": "Je nach Ressource" },
+    "states": {
+      "allow": "Erlauben",
+      "ask": "Nachfragen",
+      "deny": "Verweigern",
+      "scoped": "Je nach Ressource"
+    },
     "select_capability": "{{capability}} {{operation}} auswählen",
     "bulk_allow": "Ausgewählte erlauben ({{count}})",
     "bulk_deny": "Ausgewählte verweigern ({{count}})",
@@ -198,7 +224,11 @@
     "inherited_help": "Kern-, Anbieter-, Instanz-, Team- und Repository-Richtlinien sind schreibgeschützt.",
     "read_only": "Schreibgeschützt",
     "decisive_explanation": "Rollenstandards von {{owner}} entscheiden, sofern keine spezifischere zulässige Regel gilt.",
-    "subjects": { "interactive_chat": "Interaktiver Chat", "coding_chat": "Coding-Chat", "local_chat": "Lokaler Chat" }
+    "subjects": {
+      "interactive_chat": "Interaktiver Chat",
+      "coding_chat": "Coding-Chat",
+      "local_chat": "Lokaler Chat"
+    }
   },
   "nav_groups": {
     "account": "Konto",
@@ -1795,36 +1825,39 @@
   "page_title_schedules": "Zeitpläne",
   "page_title_repo_schedules": "Zeitpläne — {{slug}}",
   "permission_smart": {
-    "group": "Berechtigungsentscheidung",
-    "allow_once": "Einmal erlauben",
-    "deny": "Ablehnen",
-    "always_allow_similar": "Ähnliches immer erlauben",
-    "always_allow_command": "Diesen Befehl immer erlauben",
-    "allow_job": "Für diesen Job erlauben",
     "allow_chat": "Für diesen Chat erlauben",
-    "preview_title": "Diese Berechtigung prüfen",
-    "coworker": "Coworker",
-    "operation": "Operation",
-    "repository": "Repository",
-    "scope": "Umfang",
-    "duration": "Dauer",
-    "any_scope": "Jede Ressource dieser Operation",
-    "no_repository": "Keines",
+    "allow_job": "Für diesen Job erlauben",
+    "allow_once": "Einmal erlauben",
     "allows": "Erlaubt",
-    "excludes": "Erlaubt nicht",
+    "always_allow_command": "Diesen Befehl immer erlauben",
+    "always_allow_similar": "Ähnliches immer erlauben",
+    "any_scope": "Jede Ressource dieser Operation",
+    "applying": "Wird angewendet…",
+    "back": "Zurück",
+    "confirm": "Bestätigen",
+    "coworker": "Coworker",
+    "customize": "Anpassen",
+    "deny": "Ablehnen",
+    "duration": "Dauer",
     "durations": {
       "permanent": "Dauerhaft, bis du sie widerrufst",
       "job": "Nur dieser Job",
       "chat_session": "Nur dieser Chat"
     },
-    "confirm": "Bestätigen",
-    "back": "Zurück",
-    "customize": "Anpassen",
-    "applying": "Wird angewendet…",
-    "stale": "Diese Anfrage hat sich seit der Vorschau geändert. Die aktuellen Optionen wurden geladen; prüfe sie und versuche es erneut.",
     "error": "Die Berechtigung konnte nicht angewendet werden. Es wurde nichts geändert.",
-    "status_preview": "Die Regel „{{action}}“ wird geprüft.",
-    "linked_rule": "Erteilt durch Regel #{{id}}"
+    "excludes": "Erlaubt nicht",
+    "group": "Berechtigungsentscheidung",
+    "linked_rule": "Erteilt durch Regel #{{id}}",
+    "no_repository": "Keines",
+    "operation": "Operation",
+    "prefix_hint": "Gilt für jeden Befehl auf diesem Ziel, der mit diesen Wörtern beginnt. Der genehmigte Aufruf ist: {{command}}",
+    "prefix_invalid": "Dieses Präfix kann nicht erteilt werden. Kürze es oder genehmige diesen Aufruf einzeln.",
+    "prefix_label": "Befehle erlauben, die beginnen mit",
+    "preview_title": "Diese Berechtigung prüfen",
+    "repository": "Repository",
+    "scope": "Umfang",
+    "stale": "Diese Anfrage hat sich seit der Vorschau geändert. Die aktuellen Optionen wurden geladen; prüfe sie und versuche es erneut.",
+    "status_preview": "Die Regel „{{action}}“ wird geprüft."
   },
   "permission_editor": {
     "title": "Berechtigungsregel anpassen",

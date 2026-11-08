@@ -38,7 +38,8 @@ module Api
           request = scope.find(params[:id])
           item = request.authorization_items.find(params[:item_id])
           Permissions::AuthorizationDecision.new(request:, item:, user: Current.user)
-            .call(decision: "approved", smart: { duration: params.require(:duration).to_s, digest: params[:digest].to_s })
+            .call(decision: "approved", smart: { duration: params.require(:duration).to_s, digest: params[:digest].to_s,
+                                               prefix: params[:prefix].presence })
           render json: { request: present(request.reload) }
         rescue Permissions::SmartDecision::AlreadyDecided, Permissions::RuleDraft::Stale => error
           render_error("stale_permission_decision", error.message, status: :conflict)

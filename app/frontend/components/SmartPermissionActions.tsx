@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import { ApiError } from "../api/client"
 import type { SmartPermissionOption } from "../api/permissionRequests"
+import { previewRuleDraftFromRequest } from "../api/permissionRuleDrafts"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import { Modal } from "./Modal"
@@ -52,6 +53,11 @@ export function SmartPermissionActions({
   const [selectedOption, setSelectedOption] = useState<SmartPermissionOption | null>(null)
   const [previewing, setPreviewing] = useState(false)
   const [customizing, setCustomizing] = useState(false)
+  // The prefix an operator is editing, and whatever went wrong re-previewing it.
+  const [prefix, setPrefix] = useState<string | null>(null)
+  const [prefixError, setPrefixError] = useState<string | null>(null)
+  const [resolvingPrefix, setResolvingPrefix] = useState(false)
+  const prefixId = useId()
   const customizeRef = useRef<HTMLButtonElement>(null)
   const stale = error instanceof ApiError && error.status === 409
   const staleHandled = useRef(false)
@@ -70,6 +76,10 @@ export function SmartPermissionActions({
     if (previewing) headingRef.current?.focus()
   }, [previewing])
   useEffect(() => {
+    setPrefixError(null)
+    setPrefix(previewing ? (selectedOption?.prefix?.value ?? null) : null)
+  }, [previewing, selectedOption])
+  useEffect(() => {
     if (!(options?.length || option)) setPreviewing(false)
   }, [option, options])
 
@@ -79,6 +89,32 @@ export function SmartPermissionActions({
     const duration = selectedOption?.duration
     requestAnimationFrame(() => duration && adaptiveRefs.current[duration]?.focus())
   }
+  // Confirming an edited prefix writes a different rule than the one previewed,
+  // so its digest is fetched for that exact prefix rather than reused. Leaving
+  // the suggestion untouched keeps the digest already in hand.
+  const confirm = async (candidate: SmartPermissionOption) => {
+    const edited = prefix?.trim()
+    if (!candidate.prefix || !edited || edited === candidate.prefix.value) {
+      onConfirm(candidate.prefix && edited ? { ...candidate, prefix: { ...candidate.prefix, value: edited } } : candidate)
+      return
+    }
+    if (!request) return
+    setPrefixError(null)
+    setResolvingPrefix(true)
+    try {
+      const { preview } = await previewRuleDraftFromRequest(request.requestId, request.itemId, candidate.duration, "allow", edited)
+      if (!preview.valid || !preview.digest) {
+        setPrefixError(preview.errors?.[0]?.message || t("permission_smart.prefix_invalid"))
+        return
+      }
+      onConfirm({ ...candidate, digest: preview.digest, prefix: { ...candidate.prefix, value: edited } })
+    } catch (caught) {
+      setPrefixError(errorMessage(caught, t("permission_smart.prefix_invalid")))
+    } finally {
+      setResolvingPrefix(false)
+    }
+  }
+
   const failure = error ? (stale ? t("permission_smart.stale") : errorMessage(error, t("permission_smart.error"))) : null
   const availableOptions = options?.length ? options : option ? [option] : []
   const activeOption = selectedOption || availableOptions[0] || null
@@ -111,9 +147,40 @@ export function SmartPermissionActions({
           </dl>
           <SummaryList items={activeOption.summary.allows} title={t("permission_smart.allows")} />
           <SummaryList items={activeOption.summary.excludes} title={t("permission_smart.excludes")} />
+          {activeOption.prefix && request ? (
+            <div className="space-y-1 pt-1" data-testid="smart-permission-prefix">
+              <label className="block text-xs font-semibold text-text-primary" htmlFor={prefixId}>
+                {t("permission_smart.prefix_label")}
+              </label>
+              <input
+                className="w-full rounded-md border border-border bg-surface px-2 py-1 font-mono text-xs text-text-primary"
+                disabled={busy || resolvingPrefix}
+                id={prefixId}
+                onChange={(event) => {
+                  setPrefix(event.target.value)
+                  setPrefixError(null)
+                }}
+                spellCheck={false}
+                value={prefix ?? ""}
+              />
+              <p className="text-xs text-text-secondary">
+                {t("permission_smart.prefix_hint", { command: activeOption.prefix.full })}
+              </p>
+              {prefixError ? (
+                <p className="text-xs text-danger" role="alert">
+                  {prefixError}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2 pt-1">
-            <button className={`${BUTTON} bg-brand text-on-brand`} disabled={busy} onClick={() => onConfirm(activeOption)} type="button">
-              {busy ? t("permission_smart.applying") : t("permission_smart.confirm")}
+            <button
+              className={`${BUTTON} bg-brand text-on-brand`}
+              disabled={busy || resolvingPrefix || (!!activeOption.prefix && !prefix?.trim())}
+              onClick={() => void confirm(activeOption)}
+              type="button"
+            >
+              {busy || resolvingPrefix ? t("permission_smart.applying") : t("permission_smart.confirm")}
             </button>
             <button className="text-sm font-medium text-text-secondary underline-offset-2 hover:underline" disabled={busy} onClick={leavePreview} type="button">
               {t("permission_smart.back")}

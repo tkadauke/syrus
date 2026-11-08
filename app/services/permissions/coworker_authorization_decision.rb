@@ -48,7 +48,7 @@ module Permissions
 
         # The rule (or lease) and the approval share this transaction: a stale
         # preview, ceiling or failed invocation rolls back both.
-        rule = SmartDecision.new(request:, item:, user:).apply_rule!(duration: smart.fetch(:duration), digest: smart[:digest]) if smart
+        rule = SmartDecision.new(request:, item:, user:).apply_rule!(duration: smart.fetch(:duration), digest: smart[:digest], prefix: smart[:prefix]) if smart
         item.decide!(decision, principal: user, duration: smart ? smart.fetch(:duration) : "invocation", resulting_authority: rule)
         if permission_request
           # Nothing is waiting to run: the approval is the rule or lease itself.

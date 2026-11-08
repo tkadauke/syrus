@@ -331,6 +331,7 @@ en:
         stale: "This permission request was already decided or changed. Review the current request."
         unavailable: "This permission option is not available for this request."
         duration_required: "Choose how long this coworker permission should last before approving it."
+        prefix_unavailable: "This command cannot be allowed by prefix. Approve it on its own instead."
 
     job_source_diff:
       preview_fixture: "Preview fixture"

@@ -298,6 +298,7 @@ de:
         unavailable: "Diese Berechtigungsoption ist für diese Anfrage nicht verfügbar."
         duration_required: "Wähle aus, wie lange diese Berechtigung des Coworkers gelten soll, bevor du sie genehmigst."
 
+        prefix_unavailable: "Dieser Befehl kann nicht per Präfix erlaubt werden. Genehmige ihn stattdessen einzeln."
     job_source_diff:
       preview_fixture: "Vorschau-Testdaten"
 

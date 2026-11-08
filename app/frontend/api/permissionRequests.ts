@@ -15,6 +15,13 @@ export type SmartPermissionOption = {
     resource_scope_label: string | null
     duration: string
   }
+  /**
+   * Present when this grant may stand for a family of invocations rather than
+   * one exact call. `value` is a suggestion the operator edits; `full` is the
+   * whole projected command, so the editor can check an edit is really a
+   * prefix of it. Absent when the call cannot be widened safely.
+   */
+  prefix?: { field: string; value: string; full: string } | null
 }
 export type PermissionAuthorityReference = { kind: string; id: number }
 
@@ -89,8 +96,9 @@ export const dismissPermissionRequest = (id: number) => {
 }
 export const batchDecidePermissionRequests = (requestIds: number[], decision: "approved" | "denied", duration?: string) =>
   postJson<{ requests: PermissionRequest[] }>("/api/v1/app/permission_requests/batch_decide", { request_ids: requestIds, decision, duration })
-export const smartDecidePermissionRequest = (id: number, itemId: number, option: Pick<SmartPermissionOption, "duration" | "digest">) =>
+export const smartDecidePermissionRequest = (id: number, itemId: number, option: Pick<SmartPermissionOption, "duration" | "digest" | "prefix">) =>
   postJson<{ request: PermissionRequest }>(`/api/v1/app/permission_requests/${id}/items/${itemId}/smart_decision`, {
     duration: option.duration,
-    digest: option.digest
+    digest: option.digest,
+    ...(option.prefix ? { prefix: option.prefix.value } : {})
   })

@@ -57,11 +57,57 @@ module Permissions
 
     # Returns the applied rule or lease. Must run inside the request lock so the
     # rule and the invocation approval commit or roll back together.
-    def apply_rule!(duration:, digest:)
+    def apply_rule!(duration:, digest:, prefix: nil)
       raise AlreadyDecided, I18n.t("api.permission_requests.smart_decision.stale") unless supported?
       raise ArgumentError, I18n.t("api.permission_requests.smart_decision.unavailable") unless eligible.key?(duration.to_s)
 
-      draft_for(duration.to_s).apply!(digest:, actor: user)
+      draft = prefix.present? ? prefix_draft_for(duration.to_s, prefix) : draft_for(duration.to_s)
+      draft.apply!(digest:, actor: user)
+    end
+
+    # The draft an operator gets when they shorten the proposed prefix. It is
+    # built here rather than taken from the client so the digest still guards a
+    # stale preview: the same prefix has to produce the same draft.
+    def prefix_draft_for(duration, prefix)
+      field = prefix_field
+      raise ArgumentError, I18n.t("api.permission_requests.smart_decision.prefix_unavailable") unless field
+
+      RuleDraft.from_request_item(user:, request:, item:, duration:,
+        constraints: { field => prefix.to_s.strip })
+    end
+
+    # The constraint an operator may widen, and only when this invocation was
+    # actually projected into a prefix-matchable form. A command carrying shell
+    # syntax is not projected, so there is nothing to offer and the card falls
+    # back to the exact grant.
+    def prefix_field
+      return @prefix_field if defined?(@prefix_field)
+
+      fields = item_descriptor&.constraint_fields&.select { |_name, type| type == :string_prefix }&.keys
+      field = fields&.first
+      @prefix_field = field if field && projected_value(field).present?
+    end
+
+    def projected_value(field)
+      item.normalized_arguments.to_h.stringify_keys[field]
+    end
+
+    def item_descriptor
+      return @item_descriptor if defined?(@item_descriptor)
+
+      @item_descriptor = Catalog.find!(
+        capability: "#{item.capability}@v#{item.capability_version}",
+        operation: ("#{item.operation}@v#{item.operation_version}" if item.operation)
+      )
+    rescue Catalog::UnknownCapability
+      @item_descriptor = nil
+    end
+
+    # A starting point, not a decision: the operator edits it. Two tokens is
+    # the smallest prefix that still names a subcommand ("git commit") rather
+    # than a whole executable ("git"), which is the narrower default of the two.
+    def suggested_prefix(field)
+      projected_value(field).to_s.split.first(2).join(" ")
     end
 
     private
@@ -112,6 +158,7 @@ module Permissions
       {
         kind: kind_for(duration), duration:, digest: preview.digest, summary: preview.summary,
         draft: preview.draft, ceiling: preview.ceiling,
+        prefix: prefix_payload(duration),
         context: {
           coworker: RequestPresenter.reference(request.subject)&.fetch(:label),
           operation: item.operation,
@@ -120,6 +167,17 @@ module Permissions
           duration:
         }
       }
+    end
+
+    # Present only where widening is on offer: a durable grant for an
+    # invocation that was projected into a prefix-matchable form.
+    def prefix_payload(duration)
+      return unless duration == "permanent"
+
+      field = prefix_field
+      return unless field
+
+      { field:, value: suggested_prefix(field), full: projected_value(field) }
     end
 
     def kind_for(duration)

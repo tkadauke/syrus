@@ -298,6 +298,7 @@ la:
         unavailable: "Haec optio licentiae huic petitioni non praesto est."
         duration_required: "Elige quam diu haec permissio sociae operis duret antequam eam approbes."
 
+        prefix_unavailable: "Hoc mandatum per praepositionem permitti non potest. Id potius singulatim approba."
     job_source_diff:
       preview_fixture: "Exemplar praevium"
 

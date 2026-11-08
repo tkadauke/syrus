@@ -55,9 +55,26 @@
     "consequence": "What could happen",
     "requested_duration": "Requested for",
     "why_required": "Why is approval required?",
-    "filters": { "state": "State", "subject": "Agent", "action": "Requested action", "effect": "Consequence", "origin_type": "Origin" },
-    "states": { "pending": "Pending", "confirmed": "Approved", "rejected": "Denied", "dismissed": "Dismissed", "non_actionable": "Unavailable" },
-    "durations": { "invocation": "This invocation", "chat_session": "This chat", "job": "This Job", "permanent": "Permanent" }
+    "filters": {
+      "state": "State",
+      "subject": "Agent",
+      "action": "Requested action",
+      "effect": "Consequence",
+      "origin_type": "Origin"
+    },
+    "states": {
+      "pending": "Pending",
+      "confirmed": "Approved",
+      "rejected": "Denied",
+      "dismissed": "Dismissed",
+      "non_actionable": "Unavailable"
+    },
+    "durations": {
+      "invocation": "This invocation",
+      "chat_session": "This chat",
+      "job": "This Job",
+      "permanent": "Permanent"
+    }
   },
   "permissions": {
     "title": "Permissions",
@@ -68,7 +85,11 @@
     "profile_active": "Active",
     "profile_select": "Select",
     "profile_selected": "Selected",
-    "profile_names": { "full_access": "Full access", "ask_on_first_use": "Ask on first use", "restricted": "Restricted" },
+    "profile_names": {
+      "full_access": "Full access",
+      "ask_on_first_use": "Ask on first use",
+      "restricted": "Restricted"
+    },
     "profile_descriptions": {
       "full_access": "Allow every eligible capability you can delegate.",
       "ask_on_first_use": "Allow safe local work and ask before consequential capabilities.",
@@ -158,7 +179,12 @@
     "loading_history": "Loading authorization history…",
     "matrix_title": "Agent permissions matrix",
     "matrix_help": "Compare the effective state for every agent surface and capability.",
-    "states": { "allow": "Allow", "ask": "Ask", "deny": "Deny", "scoped": "Varies by resource" },
+    "states": {
+      "allow": "Allow",
+      "ask": "Ask",
+      "deny": "Deny",
+      "scoped": "Varies by resource"
+    },
     "select_capability": "Select {{capability}} {{operation}}",
     "bulk_allow": "Allow selected ({{count}})",
     "bulk_deny": "Deny selected ({{count}})",
@@ -198,7 +224,11 @@
     "inherited_help": "Core, provider, instance, team, and repository policy is shown read-only.",
     "read_only": "Read only",
     "decisive_explanation": "Role defaults owned by {{owner}} are decisive unless a more specific permitted rule applies.",
-    "subjects": { "interactive_chat": "Interactive chat", "coding_chat": "Coding chat", "local_chat": "Local chat" }
+    "subjects": {
+      "interactive_chat": "Interactive chat",
+      "coding_chat": "Coding chat",
+      "local_chat": "Local chat"
+    }
   },
   "nav_groups": {
     "account": "Account",
@@ -1795,36 +1825,39 @@
   "page_title_schedules": "Schedules",
   "page_title_repo_schedules": "Schedules — {{slug}}",
   "permission_smart": {
-    "group": "Permission decision",
-    "allow_once": "Allow once",
-    "deny": "Deny",
-    "always_allow_similar": "Always allow similar",
-    "always_allow_command": "Always allow this command",
-    "allow_job": "Allow for this job",
     "allow_chat": "Allow for this chat",
-    "preview_title": "Review this permission",
-    "coworker": "Coworker",
-    "operation": "Operation",
-    "repository": "Repository",
-    "scope": "Scope",
-    "duration": "Duration",
-    "any_scope": "Any resource of this operation",
-    "no_repository": "None",
+    "allow_job": "Allow for this job",
+    "allow_once": "Allow once",
     "allows": "Allows",
-    "excludes": "Does not allow",
+    "always_allow_command": "Always allow this command",
+    "always_allow_similar": "Always allow similar",
+    "any_scope": "Any resource of this operation",
+    "applying": "Applying…",
+    "back": "Back",
+    "confirm": "Confirm",
+    "coworker": "Coworker",
+    "customize": "Customize",
+    "deny": "Deny",
+    "duration": "Duration",
     "durations": {
       "permanent": "Permanent until you revoke it",
       "job": "This job only",
       "chat_session": "This chat only"
     },
-    "confirm": "Confirm",
-    "back": "Back",
-    "customize": "Customize",
-    "applying": "Applying…",
-    "stale": "This request changed since the preview was shown. The latest options are loaded; review them and try again.",
     "error": "The permission could not be applied. Nothing was changed.",
-    "status_preview": "Reviewing the {{action}} rule.",
-    "linked_rule": "Granted by rule #{{id}}"
+    "excludes": "Does not allow",
+    "group": "Permission decision",
+    "linked_rule": "Granted by rule #{{id}}",
+    "no_repository": "None",
+    "operation": "Operation",
+    "prefix_hint": "Applies to any command beginning with these words on this destination. The call being approved is: {{command}}",
+    "prefix_invalid": "That prefix cannot be granted. Shorten it or approve this call on its own.",
+    "prefix_label": "Allow commands starting with",
+    "preview_title": "Review this permission",
+    "repository": "Repository",
+    "scope": "Scope",
+    "stale": "This request changed since the preview was shown. The latest options are loaded; review them and try again.",
+    "status_preview": "Reviewing the {{action}} rule."
   },
   "permission_editor": {
     "title": "Customize permission rule",

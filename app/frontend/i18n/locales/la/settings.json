@@ -55,9 +55,26 @@
     "consequence": "Quid accidere possit",
     "requested_duration": "Petitum ad",
     "why_required": "Cur approbatio requiritur?",
-    "filters": { "state": "Status", "subject": "Agens", "action": "Actio petita", "effect": "Consecutio", "origin_type": "Origo" },
-    "states": { "pending": "Pendens", "confirmed": "Approbata", "rejected": "Negata", "dismissed": "Dimissa", "non_actionable": "Non praesto" },
-    "durations": { "invocation": "Haec invocatio", "chat_session": "Hic sermo", "job": "Hoc Opus", "permanent": "Perpetua" }
+    "filters": {
+      "state": "Status",
+      "subject": "Agens",
+      "action": "Actio petita",
+      "effect": "Consecutio",
+      "origin_type": "Origo"
+    },
+    "states": {
+      "pending": "Pendens",
+      "confirmed": "Approbata",
+      "rejected": "Negata",
+      "dismissed": "Dimissa",
+      "non_actionable": "Non praesto"
+    },
+    "durations": {
+      "invocation": "Haec invocatio",
+      "chat_session": "Hic sermo",
+      "job": "Hoc Opus",
+      "permanent": "Perpetua"
+    }
   },
   "permissions": {
     "title": "Permissiones",
@@ -68,7 +85,11 @@
     "profile_active": "Activa",
     "profile_select": "Elige",
     "profile_selected": "Electa",
-    "profile_names": { "full_access": "Accessus plenus", "ask_on_first_use": "Primo usu roga", "restricted": "Restricta" },
+    "profile_names": {
+      "full_access": "Accessus plenus",
+      "ask_on_first_use": "Primo usu roga",
+      "restricted": "Restricta"
+    },
     "profile_descriptions": {
       "full_access": "Omnem facultatem idoneam quam delegare potes permitte.",
       "ask_on_first_use": "Opus locale tutum permitte et ante facultates graves roga.",
@@ -158,7 +179,12 @@
     "loading_history": "Historia auctoritatis oneratur…",
     "matrix_title": "Tabula permissionum agentium",
     "matrix_help": "Statum effectivum cuiusque agentis et facultatis compara.",
-    "states": { "allow": "Permitte", "ask": "Interroga", "deny": "Nega", "scoped": "Secundum rem variat" },
+    "states": {
+      "allow": "Permitte",
+      "ask": "Interroga",
+      "deny": "Nega",
+      "scoped": "Secundum rem variat"
+    },
     "select_capability": "Elige {{capability}} {{operation}}",
     "bulk_allow": "Electa permitte ({{count}})",
     "bulk_deny": "Electa nega ({{count}})",
@@ -198,7 +224,11 @@
     "inherited_help": "Consilia nuclei, praebitoris, instantiae, gregis, et repositorii tantum leguntur.",
     "read_only": "Tantum legendum",
     "decisive_explanation": "Praedefinitiones muneris a {{owner}} decernunt nisi regula specialior licita valet.",
-    "subjects": { "interactive_chat": "Colloquium interactum", "coding_chat": "Colloquium codicis", "local_chat": "Colloquium locale" }
+    "subjects": {
+      "interactive_chat": "Colloquium interactum",
+      "coding_chat": "Colloquium codicis",
+      "local_chat": "Colloquium locale"
+    }
   },
   "nav_groups": {
     "account": "Ratio",
@@ -1795,36 +1825,39 @@
   "page_title_schedules": "Agenda",
   "page_title_repo_schedules": "Agenda — {{slug}}",
   "permission_smart": {
-    "group": "Decisio licentiae",
-    "allow_once": "Semel permitte",
-    "deny": "Nega",
-    "always_allow_similar": "Similia semper permitte",
-    "always_allow_command": "Hoc mandatum semper permitte",
-    "allow_job": "Huic job permitte",
     "allow_chat": "Huic colloquio permitte",
-    "preview_title": "Hanc licentiam inspice",
-    "coworker": "Coworker",
-    "operation": "Operatio",
-    "repository": "Repositorium",
-    "scope": "Ambitus",
-    "duration": "Duratio",
-    "any_scope": "Quaelibet res huius operationis",
-    "no_repository": "Nullum",
+    "allow_job": "Huic job permitte",
+    "allow_once": "Semel permitte",
     "allows": "Permittit",
-    "excludes": "Non permittit",
+    "always_allow_command": "Hoc mandatum semper permitte",
+    "always_allow_similar": "Similia semper permitte",
+    "any_scope": "Quaelibet res huius operationis",
+    "applying": "Applicatur…",
+    "back": "Retro",
+    "confirm": "Confirma",
+    "coworker": "Coworker",
+    "customize": "Accommoda",
+    "deny": "Nega",
+    "duration": "Duratio",
     "durations": {
       "permanent": "Perpetua, donec revocaveris",
       "job": "Hoc job tantum",
       "chat_session": "Hoc colloquium tantum"
     },
-    "confirm": "Confirma",
-    "back": "Retro",
-    "customize": "Accommoda",
-    "applying": "Applicatur…",
-    "stale": "Haec petitio post praevisionem mutata est. Optiones novissimae oneratae sunt; eas inspice et iterum conare.",
     "error": "Licentia applicari non potuit. Nihil mutatum est.",
-    "status_preview": "Regula «{{action}}» inspicitur.",
-    "linked_rule": "Concessum regula #{{id}}"
+    "excludes": "Non permittit",
+    "group": "Decisio licentiae",
+    "linked_rule": "Concessum regula #{{id}}",
+    "no_repository": "Nullum",
+    "operation": "Operatio",
+    "prefix_hint": "Valet ad omne mandatum in hoc destinato quod his verbis incipit. Invocatio approbata est: {{command}}",
+    "prefix_invalid": "Haec praepositio concedi non potest. Eam breviorem fac aut hanc invocationem singulatim approba.",
+    "prefix_label": "Permitte mandata incipientia a",
+    "preview_title": "Hanc licentiam inspice",
+    "repository": "Repositorium",
+    "scope": "Ambitus",
+    "stale": "Haec petitio post praevisionem mutata est. Optiones novissimae oneratae sunt; eas inspice et iterum conare.",
+    "status_preview": "Regula «{{action}}» inspicitur."
   },
   "permission_editor": {
     "title": "Regulam permissionis accommodare",

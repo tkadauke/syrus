@@ -219,3 +219,82 @@ describe("SmartPermissionActions", () => {
     })
   })
 })
+
+// An operator who does not want to approve every `git commit ...` separately
+// edits the proposed prefix in the card. Confirming an edited prefix has to
+// fetch the digest for *that* prefix: the rule being written is not the one
+// the card previewed, and the server rejects a digest that does not match.
+describe("SmartPermissionActions prefix editing", () => {
+  const prefixOption: SmartPermissionOption = {
+    ...option,
+    kind: "always_allow_command",
+    prefix: { field: "command_prefix", value: "git commit", full: "git commit -m hello" }
+  }
+  const request = { requestId: 7, itemId: 9 }
+
+  afterEach(() => vi.restoreAllMocks())
+
+  function openPreview(props: Partial<React.ComponentProps<typeof SmartPermissionActions>> = {}) {
+    const handlers = { onAllowOnce: vi.fn(), onDeny: vi.fn(), onConfirm: vi.fn(), onStale: vi.fn() }
+    render(
+      <MemoryRouter>
+        <QueryClientProvider client={new QueryClient()}>
+          <SmartPermissionActions busy={false} error={null} option={prefixOption} request={request} {...handlers} {...props} />
+        </QueryClientProvider>
+      </MemoryRouter>
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Always allow this command" }))
+    return handlers
+  }
+
+  it("offers the suggested prefix for editing and shows the call it came from", () => {
+    openPreview()
+    expect(screen.getByLabelText("Allow commands starting with")).toHaveValue("git commit")
+    expect(screen.getByTestId("smart-permission-prefix").textContent).toContain("git commit -m hello")
+  })
+
+  it("confirms an untouched suggestion with the digest already in hand", () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch")
+    const handlers = openPreview()
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
+    expect(handlers.onConfirm).toHaveBeenCalledWith(expect.objectContaining({ digest: "digest-1" }))
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it("re-previews an edited prefix so the digest matches the rule being written", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse({ preview: { valid: true, errors: [], warnings: [], digest: "digest-widened", draft: {}, summary: {}, ceiling: {} } })
+    )
+    const handlers = openPreview()
+
+    fireEvent.change(screen.getByLabelText("Allow commands starting with"), { target: { value: "git" } })
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
+    await waitFor(() =>
+      expect(handlers.onConfirm).toHaveBeenCalledWith(
+        expect.objectContaining({ digest: "digest-widened", prefix: expect.objectContaining({ value: "git" }) })
+      )
+    )
+  })
+
+  it("refuses a prefix the server will not grant rather than sending it anyway", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse({ preview: { valid: false, errors: [{ code: "constraint_invalid_value", message: "That prefix is not allowed." }], warnings: [], digest: null, draft: {}, summary: {}, ceiling: {} } })
+    )
+    const handlers = openPreview()
+
+    fireEvent.change(screen.getByLabelText("Allow commands starting with"), { target: { value: "x" } })
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }))
+
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("That prefix is not allowed."))
+    expect(handlers.onConfirm).not.toHaveBeenCalled()
+  })
+
+  it("will not confirm an empty prefix, which would widen without limit", () => {
+    openPreview()
+    fireEvent.change(screen.getByLabelText("Allow commands starting with"), { target: { value: "   " } })
+    expect(screen.getByRole("button", { name: "Confirm" })).toBeDisabled()
+  })
+})

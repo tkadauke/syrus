@@ -111,8 +111,20 @@ export const previewRuleDraft = (fields: RuleDraftFields, request?: { requestId:
     ...(request ? { request_id: request.requestId, item_id: request.itemId } : {})
   })
 
-export const previewRuleDraftFromRequest = (requestId: number, itemId: number, duration: DraftDuration, policy: DraftPolicy = "allow") =>
-  postJson<{ preview: RuleDraftPreview }>(`${BASE}/from_request`, { request_id: requestId, item_id: itemId, duration, policy })
+export const previewRuleDraftFromRequest = (
+  requestId: number,
+  itemId: number,
+  duration: DraftDuration,
+  policy: DraftPolicy = "allow",
+  prefix?: string
+) =>
+  postJson<{ preview: RuleDraftPreview }>(`${BASE}/from_request`, {
+    request_id: requestId,
+    item_id: itemId,
+    duration,
+    policy,
+    ...(prefix ? { prefix } : {})
+  })
 
 export const applyRuleDraft = (fields: RuleDraftFields, digest: string, options: { replaceRuleId?: number | null } = {}) =>
   postJson<{ authority: { kind: string; id: number; capability: string; operation: string | null } }>(`${BASE}/apply`, {
