@@ -991,6 +991,33 @@ RSpec.describe ChatPendingAction, :ci_only do
       expect(action.outcome_message).to eq(original_message)
     end
 
+    it "retires a dismissed authorization request idempotently" do
+      request = chat_session.pending_actions.create!(
+        request_kind: "authorization_request", action: "coworker_tool_call", requested_by: "agent",
+        origin: chat_session, subject: user, payload: { "tool_name" => "execute_query", "arguments" => {} }
+      )
+      request.update_columns(state: "failed")
+
+      expect {
+        expect(request.dismiss!(user: user)).to be(true)
+        expect(request.dismiss!(user: user)).to be(true)
+      }.not_to change { chat_session.messages.count }
+
+      expect(request.reload).to be_dismissed
+      expect(request.dismissed_at).to be_present
+      expect(request.visible_in_chat_payload?).to be(false)
+    end
+
+    it "hides legacy dismissed records that lack dismissed_at" do
+      request = chat_session.pending_actions.create!(
+        request_kind: "authorization_request", action: "coworker_tool_call", requested_by: "agent",
+        origin: chat_session, subject: user, payload: {}
+      )
+      request.update_columns(state: "dismissed", dismissed_at: nil)
+
+      expect(request.visible_in_chat_payload?).to be(false)
+    end
+
     it "backfills a legacy terminal outcome once" do
       allow(AppEvents).to receive(:broadcast)
       action = chat_session.pending_actions.create!(action: "pause_landing_queue", payload: {})

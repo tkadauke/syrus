@@ -947,7 +947,7 @@ module Api
           chat_session = find_chat_session
           pending_action = find_pending_action(chat_session)
           rejection = pending_action.pending? && pending_action.action_type != "schedule_recurring"
-          dismissal = pending_action.terminal?
+          dismissal = pending_action.terminal? || pending_action.dismissed?
           result = if rejection
             pending_action.reject!(user: Current.user)
           elsif dismissal
