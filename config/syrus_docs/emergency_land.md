@@ -13,7 +13,7 @@ Simple mode forces the flag off in the same way it disables Coding Mode and Loca
 The confirming user must be either:
 
 - a global admin user, or
-- an admin-tier `RepositoryMembership` for the target repository.
+- an admin-tier repository membership for the target repository.
 
 The repository owner gets that membership through the existing owner-membership seeding path. Emergency land does not introduce a new role.
 
