@@ -181,6 +181,11 @@ RSpec.describe ChatPendingActionConfirmationJob, "query budget" do
     self.use_transactional_tests = false
 
     after do
+      # Approving the request issues a lease, and a lease is not destroyed with
+      # its owner, so it has to be cleaned before the user row goes. These
+      # examples run without a surrounding transaction, so anything missed here
+      # is committed, and unrelated specs assert an empty lease table.
+      PermissionLease.where(owner_user_id: [ owner.id, participant.id, share_recipient.id ]).delete_all
       ChatSession.where(id: chat.id).destroy_all
       Coworkers::Coworker.where(id: coworker.id).destroy_all
       Repository.where(id: repository.id).destroy_all

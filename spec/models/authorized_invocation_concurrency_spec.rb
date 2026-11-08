@@ -4,13 +4,19 @@ RSpec.describe AuthorizedInvocation, :ci_only do
   self.use_transactional_tests = false
 
   after do
-    User.where(email_address: %w[
-      authorization-decision-race@example.com
-      authorized-invocation-race@example.com
-    ]).destroy_all
     # The claim/revocation example uses a randomized address; leaving its
     # authorization request behind skews counts in unrelated specs.
-    User.where("email_address LIKE ?", "authorized-invocation-claim-revocation-race-%@example.com").destroy_all
+    users = User.where(email_address: %w[
+      authorization-decision-race@example.com
+      authorized-invocation-race@example.com
+    ]).or(User.where("email_address LIKE ?", "authorized-invocation-claim-revocation-race-%@example.com"))
+    # Approving an item issues a lease, and a lease is not destroyed with its
+    # owner, so it has to be cleaned before the user row goes -- afterwards
+    # there is nothing left to find it by. These examples run without a
+    # surrounding transaction, so anything missed here is committed, and
+    # unrelated specs assert an empty lease table.
+    PermissionLease.where(owner_user_id: users.select(:id)).delete_all
+    users.destroy_all
     ActiveRecord::Base.connection_handler.clear_all_connections!
   end
 
