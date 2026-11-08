@@ -109,6 +109,30 @@ module MysqlDbBrowser
       )
     end
 
+    # QueryClassification already separates a read from a write with certainty,
+    # and it is the *classified* operation a permission rule matches on. Until
+    # this was registered the read classification had no descriptor of its own,
+    # so every query -- a plain SELECT included -- was judged against the
+    # critical execute ceiling and could only ever be approved one invocation
+    # at a time.
+    #
+    # Registering it gives an operator somewhere to grant: read-only SQL
+    # against one connection can be allowed standing, scoped through the same
+    # mysql_connection_id hierarchy as the metadata reads. The grant cannot be
+    # widened by sending different SQL, because different SQL classifies as a
+    # different operation -- a write, a schema change, an administrative
+    # statement, or the ambiguous forms the classifier refuses to read
+    # (multi-statement, executable comments, CTEs, EXPLAIN ANALYZE) all land on
+    # execute@v1 below and still ask.
+    register_capability(
+      capability: "mysql.query@v1", operation: "mysql.query/read@v1",
+      effects: %i[network_read confidential_read credential_use],
+      risk: :medium, requestable_roles: ROLES, defaults: READ_DEFAULTS,
+      maximum_autonomy: :permanent, authority_durations: READ_DURATIONS, resource_scope: :query,
+      classifier: MysqlDbBrowser::QueryClassification,
+      fingerprint_normalizer: method(:normalize_arguments), redactor: method(:redact_arguments)
+    )
+
     register_capability(
       capability: "mysql.query@v1", operation: "mysql.query/execute@v1",
       effects: %i[network_read confidential_read credential_use external_write privilege_change operational destructive irreversible],

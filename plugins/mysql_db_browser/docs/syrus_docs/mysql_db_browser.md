@@ -235,10 +235,15 @@ The plugin also publishes canonical permission metadata for operator-managed
 rules. It distinguishes connection, database, table, query, schema, and
 administrative resource scopes. Metadata reads are medium-risk and may be
 delegated for an invocation, chat session, Job, or permanently, since they only
-read; query execution has an invocation-only ceiling.
+read. Query execution splits on what the SQL is: SQL
+that classifies as read-only may be granted permanently, per connection, while
+every other form keeps an invocation-only ceiling.
 SQL classification separates reads, data writes, schema changes, and
 administrative effects. Unknown, compound, executable-comment, and CTE forms
-fall back to the query descriptor's critical maximum risk. Permission
+fall back to the query descriptor's critical maximum risk, so they are never
+covered by a read grant. Because a rule is matched against the *classified*
+operation, a standing read grant cannot be widened by sending different SQL -
+a write simply classifies as a different operation and asks again. Permission
 fingerprints normalize SQL whitespace, while displayed authorization arguments
 replace the SQL text entirely. The `mysql_read_only` and
 `mysql_query_operator` presets are recommendations only and create no authority
