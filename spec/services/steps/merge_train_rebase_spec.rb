@@ -13,9 +13,9 @@ RSpec.describe Steps::MergeTrainRebase do
   # root .syrus.yml.
   describe "#current_landing_grader_fingerprint" do
     let(:path) { Rails.root }
-    let(:repository) { instance_double(Repository) }
+    let(:repository) { instance_double(Repository, default_branch: "main") }
     let(:job) { instance_double(Job) }
-    let(:policy) { instance_double(DeliveryPolicy, landing_grade_phase: "landing") }
+    let(:policy) { instance_double(DeliveryPolicy, landing_grade_phase: "landing", branch_health_grade_phase: "ci") }
 
     before do
       allow(DeliveryPolicy).to receive(:for).with(repository: repository, job: job).and_return(policy)

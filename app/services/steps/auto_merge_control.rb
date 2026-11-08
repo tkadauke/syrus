@@ -190,6 +190,10 @@ module Steps
         changed_files_fingerprint: validation["changed_files_fingerprint"],
         validation_source: "final_clean_rebase"
       )
+      LandingValidationManifest.carry_forward_from!(
+        workflow: workflow, source_workflow: workflow, head_sha: post_sha,
+        tree_sha: commit_tree_sha_for_current_landing_validation(post_sha), base_sha: base_sha, base_ref: base_ref
+      )
     rescue StandardError => e
       log("auto_merge: could not carry landing validation across final clean rebase: #{e.class}: #{e.message}", kind: "system")
     end
