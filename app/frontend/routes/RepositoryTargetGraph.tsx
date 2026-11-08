@@ -777,14 +777,20 @@ function DetailSection({ title, children }: { title: string; children: ReactNode
   )
 }
 
+const RELATIONSHIP_PAGE_SIZE = 50
+
 function RelationshipList({ title, empty, labels, onFocus }: { title: string; empty: string; labels: string[]; onFocus: (label: string) => void }) {
+  const { t } = useT("settings")
+  const [visible, setVisible] = useState(RELATIONSHIP_PAGE_SIZE)
+  const shown = labels.slice(0, visible)
+  const remaining = labels.length - shown.length
   return (
     <DetailSection title={title}>
       <div className="divide-y divide-border">
         {labels.length === 0 ? (
           <p className="text-xs text-text-secondary">{empty}</p>
         ) : (
-          labels.map((label) => (
+          shown.map((label) => (
             <button
               className="block w-full py-2 text-left font-mono text-xs text-brand hover:underline"
               key={label}
@@ -796,6 +802,11 @@ function RelationshipList({ title, empty, labels, onFocus }: { title: string; em
           ))
         )}
       </div>
+      {remaining > 0 ? (
+        <button className="mt-2 text-xs font-medium text-brand hover:underline" onClick={() => setVisible((n) => n + RELATIONSHIP_PAGE_SIZE)} type="button">
+          {t("target_graph.show_more_relationships", { batch: Math.min(remaining, RELATIONSHIP_PAGE_SIZE), remaining })}
+        </button>
+      ) : null}
     </DetailSection>
   )
 }

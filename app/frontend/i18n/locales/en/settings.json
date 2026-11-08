@@ -624,6 +624,7 @@
     "expand": "Expand",
     "no_dependencies": "No dependencies",
     "no_dependents": "No dependents",
+    "show_more_relationships": "Show {{batch}} more ({{remaining}} remaining)",
     "state_selected": "Selected",
     "state_failing": "Failing",
     "state_skipped": "Skipped",

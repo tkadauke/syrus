@@ -624,6 +624,7 @@
     "expand": "Expande",
     "no_dependencies": "Nullae dependentiae",
     "no_dependents": "Nulla dependentia",
+    "show_more_relationships": "Ostende {{batch}} plura ({{remaining}} reliqua)",
     "state_selected": "Selecta",
     "state_failing": "Deficiens",
     "state_skipped": "Omissa",
