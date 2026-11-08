@@ -9,10 +9,12 @@ class Job
   # pass validation. Plugins now contribute kinds through :workflow_kinds
   # alongside the trigger/step kinds of the workflow those Jobs run.
   module Kind
-    Entry = Data.define(:kind, :infrastructure, :issueless, :investigable) do
-      # Both flags default off, so a plugin contributing an ordinary
-      # operator-facing kind only has to name it.
-      def initialize(kind:, infrastructure: false, issueless: false, investigable: false)
+    Entry = Data.define(:kind, :infrastructure, :issueless, :investigable, :classifiable) do
+      # All flags default off, so a plugin contributing an ordinary
+      # operator-facing kind only has to name it. `classifiable` marks kinds
+      # that are newly ingested issues and therefore enter ingestion
+      # classification; infrastructure anchors must never set it.
+      def initialize(kind:, infrastructure: false, issueless: false, investigable: false, classifiable: false)
         super
       end
     end
@@ -22,7 +24,7 @@ class Job
       # Workflows::INVESTIGATION_LABEL can be filed as an investigation. The
       # investigation chain expects no PR, which is orthogonal to where the
       # Job came from.
-      Entry.new(kind: "issue",       investigable: true),
+      Entry.new(kind: "issue",       investigable: true, classifiable: true),
       Entry.new(kind: "cron",        issueless: true, investigable: true),
       Entry.new(kind: "direct",      issueless: true, investigable: true),
       Entry.new(kind: "main_grader", issueless: true, infrastructure: true),
@@ -57,6 +59,16 @@ class Job
 
     def issueless?(kind)
       issueless_values.include?(kind.to_s)
+    end
+
+    # Kinds eligible for ingestion classification and Epic placement by the
+    # classifier. Never includes infrastructure kinds.
+    def classifiable_values
+      entries.select { |e| e.classifiable && !e.infrastructure }.map(&:kind).freeze
+    end
+
+    def classifiable?(kind)
+      classifiable_values.include?(kind.to_s)
     end
 
     def investigable_values

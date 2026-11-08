@@ -160,6 +160,41 @@ RSpec.describe "Stalled intake reconciliation" do
     end
   end
 
+  describe "a main_grader infrastructure Job" do
+    let(:grader) do
+      Job.create!(user: job.user, repository: job.repository, kind: "main_grader", issue_title: "main_grader: abc123")
+    end
+
+    def stall_grader!
+      grader.update_columns(
+        state: "triaging", triaging_reason: "classifier_pending",
+        created_at: 30.minutes.ago, updated_at: 30.minutes.ago
+      )
+    end
+
+    it "is never reported as stalled intake, planned, or classified, even past the stale threshold" do
+      stall_grader!
+
+      result = WorkEngine::Reconciler.call(source: "stalled_intake_spec", job_id: grader.id)
+
+      expect(result.issues.map(&:kind)).not_to include("stalled_classifier_pending_job")
+      expect(result.repair_plans.map(&:action)).not_to include("reclassify_stalled_intake")
+      expect(ClassifyIssueJob).not_to have_been_enqueued
+      expect(JobClassificationAttempt.where(job_id: grader.id)).to be_empty
+      expect(grader.reload.epic_id).to be_nil
+    end
+
+    it "is skipped by the repair executor even when named in a plan" do
+      stall_grader!
+      plan = repair_plan_for(grader)
+
+      expect {
+        WorkEngine::RepairExecutor::Policies::Base.for(plan.action).new(plan: plan, now: Time.current).execute
+      }.not_to have_enqueued_job(ClassifyIssueJob)
+      expect(grader.reload.triaging_reason).to eq("classifier_pending")
+    end
+  end
+
   describe "the repair" do
     it "re-enqueues classification" do
       stall!

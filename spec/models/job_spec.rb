@@ -9,6 +9,36 @@ RSpec.describe Job, :ci_only do
     clear_enqueued_jobs
   end
 
+  describe "main_grader Epic invariant" do
+    let(:owner) { Factories.user }
+    let(:repo) { Factories.repository(user: owner) }
+    let(:epic) { Factories.epic(user: owner, repository: repo) }
+
+    it "rejects creating a main_grader Job with an Epic" do
+      job = repo.jobs.new(user: owner, kind: "main_grader", epic: epic)
+
+      expect(job).not_to be_valid
+      expect(job.errors[:base]).to include(Job::MAIN_GRADER_EPIC_ERROR)
+    end
+
+    it "rejects assigning an Epic to an existing main_grader Job" do
+      job = repo.jobs.create!(user: owner, kind: "main_grader")
+
+      expect { job.update!(epic_id: epic.id) }.to raise_error(ActiveRecord::RecordInvalid, /Main grader Jobs cannot belong to Epics/)
+      expect(job.reload.epic_id).to be_nil
+    end
+
+    it "only treats issue-kind Jobs as ingestion-classifiable" do
+      issue = Job.create!(user: owner, repository: repo, issue_number: 5)
+      grader = repo.jobs.create!(user: owner, kind: "main_grader")
+      grader.update_columns(state: "triaging", triaging_reason: "classifier_pending")
+
+      expect(issue.ingestion_classifiable?).to be(true)
+      expect(grader.ingestion_classifiable?).to be(false)
+      expect(Job::Kind.classifiable_values).to eq([ "issue" ])
+    end
+  end
+
   describe "branch name validation" do
     let(:user) { Factories.user }
     let(:repository) { Factories.repository(user: user) }

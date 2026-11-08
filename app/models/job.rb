@@ -57,6 +57,7 @@ class Job < ApplicationRecord
   ].freeze
   INVESTIGATION_ESCALATED_ATTENTION_REASON = "investigation_escalated".freeze
   INVESTIGATION_EPIC_ERROR = "Investigation Jobs cannot belong to Epics".freeze
+  MAIN_GRADER_EPIC_ERROR = "Main grader Jobs cannot belong to Epics".freeze
   WITHDRAWN_APPROVAL_DEPENDENCY_BLOCK_REASON = "dependency_approval_withdrawn".freeze
 
   PRIORITIES = %w[ urgent high medium low ].freeze
@@ -180,6 +181,7 @@ class Job < ApplicationRecord
   validate  :investigation_requires_investigable_kind, if: :investigation?
   validate  :investigation_excludes_skill_name, if: -> { investigation? && skill_name.present? }
   validate  :investigation_excludes_epic, if: -> { investigation? && (epic_id.present? || epic.present?) }
+  validate  :main_grader_excludes_epic, if: -> { main_grader? && (epic_id.present? || epic.present?) }
   validate  :definition_is_editable
   validates :issue_number,
             presence: true,
@@ -463,6 +465,14 @@ class Job < ApplicationRecord
 
   def main_grader?
     kind == "main_grader"
+  end
+
+  # The single eligibility contract for ingestion classification: only a
+  # newly ingested, classifiable-kind Job still waiting in
+  # `triaging / classifier_pending`. Infrastructure anchors never qualify,
+  # whatever lifecycle metadata they carry.
+  def ingestion_classifiable?
+    Job::Kind.classifiable?(kind) && triaging? && triaging_reason_classifier_pending?
   end
 
   # Synthetic anchor Job for a continuous-deploy auto-trigger (see
@@ -2385,6 +2395,10 @@ class Job < ApplicationRecord
 
   def investigation_excludes_epic
     errors.add(:base, INVESTIGATION_EPIC_ERROR)
+  end
+
+  def main_grader_excludes_epic
+    errors.add(:base, MAIN_GRADER_EPIC_ERROR)
   end
 
   def external_pr_starts_implemented
