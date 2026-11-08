@@ -528,6 +528,19 @@ describe("applyAppEvent", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
   })
 
+  it("upserts changed chat messages without discarding adjacent cached messages", () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "old"), message(2, "assistant", "partial")]))
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: { action: "upsert_messages", messages: [message(2, "assistant", "complete"), message(3, "tool_use", "next")] }
+    })
+
+    const updated = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
+    expect(updated?.messages.map(({ id, text }) => [id, text])).toEqual([[1, "old"], [2, "complete"], [3, "next"]])
+  })
+
   it("invalidates chat details for oversized chat message payloads while updating turn state", () => {
     vi.useFakeTimers()
     const queryClient = new QueryClient()
@@ -1409,6 +1422,18 @@ describe("applyAppEvent", () => {
     expect(dispatched).toHaveLength(1)
     expect(dispatched[0].detail).toEqual({ job_id: 77, chat_session_id: 9 })
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
+  })
+
+  it("invalidates job status when a changed job is absent from the broadcast payload", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: { action: "job_status_changed", job_id: 77 }
+    })
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "9", "job_status"] })
   })
 
   it("dispatches a syrus:theme-preview DOM event for open_theme_preview payloads", () => {

@@ -3,6 +3,7 @@ module PendingActions
     DEFERRED_CONFIRMATION = Object.new.freeze
 
     def self.preload_tool_card_outcomes(_actions) = {}
+    def self.include_terminal_tool_card_outcome? = false
 
     def self.admin_only!
       @admin_only = true
