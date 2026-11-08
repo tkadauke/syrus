@@ -2371,7 +2371,7 @@ describe("AppChromeV2 recent chats", () => {
     expect(await screen.findByRole("button", { name: "Unpin chat" })).toBeInTheDocument()
   })
 
-  it("pins a chat from the context menu and invalidates recent chats", async () => {
+  it("pins a chat from the context menu and patches recent chats", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/1" && init?.method === "PATCH") {
@@ -2389,7 +2389,6 @@ describe("AppChromeV2 recent chats", () => {
       return Promise.resolve(jsonResponse({}))
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries")
     queryClient.setQueryData(
       ["chats", "recent"],
       chatsIndexPayload({
@@ -2414,7 +2413,8 @@ describe("AppChromeV2 recent chats", () => {
           body: JSON.stringify({ chat: { pinned: true } })
         })
       )
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
+      const cacheData = queryClient.getQueryData<chatsApi.ChatsIndexPayload>(["chats", "recent"])
+      expect(cacheData?.groups[0].chats[0].pinned).toBe(true)
     })
   })
 
@@ -2452,7 +2452,7 @@ describe("AppChromeV2 recent chats", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/1/mark_read" && init?.method === "PATCH") {
-        return Promise.resolve(new Response(null, { status: 204 }))
+        return Promise.resolve(jsonResponse({ chat: chatNav({ id: 1, title: "Unread chat", unread: false }) }))
       }
 
       if (path === "/api/v1/app/chats/1") {
@@ -2489,7 +2489,7 @@ describe("AppChromeV2 recent chats", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/chats/1/mark_unread" && init?.method === "PATCH") {
-        return Promise.resolve(new Response(null, { status: 204 }))
+        return Promise.resolve(jsonResponse({ chat: chatNav({ id: 1, title: "Read chat", unread: true }) }))
       }
 
       if (path === "/api/v1/app/chats/1") {
@@ -2569,7 +2569,6 @@ describe("AppChromeV2 recent chats", () => {
       return Promise.resolve(jsonResponse({}))
     })
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries")
     queryClient.setQueryData(
       ["chats", "recent"],
       chatsIndexPayload({
@@ -2606,7 +2605,8 @@ describe("AppChromeV2 recent chats", () => {
           body: JSON.stringify({ chat: { title: "New name" } })
         })
       )
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
+      const cacheData = queryClient.getQueryData<chatsApi.ChatsIndexPayload>(["chats", "recent"])
+      expect(cacheData?.groups[0].chats[0].title).toBe("New name")
     })
   })
 

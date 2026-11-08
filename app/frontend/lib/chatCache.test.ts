@@ -1,6 +1,6 @@
 import { QueryClient, QueryObserver } from "@tanstack/react-query"
 import { describe, expect, it, vi } from "vitest"
-import { mergeChatPayloadUpdate, recentChatsQueryKey, updateChatUnread, updateRecentChatCache } from "./chatCache"
+import { mergeChatPayloadUpdate, recentChatsQueryKey, removeRecentChatFromCache, updateChatUnread, updateRecentChatCache } from "./chatCache"
 import { updateRecentChatMessageStateCache } from "./chatRecentCache"
 import type { ChatNavRecord, ChatPayload, ChatsIndexPayload } from "../api/chats"
 
@@ -113,7 +113,7 @@ describe("updateRecentChatCache", () => {
     })
 
     const updated = queryClient.getQueryData<ChatsIndexPayload>(["chats", "recent"])
-    expect(updated?.groups[0]?.chats.map((chat) => chat.title)).toEqual(["Launch review", "Newer"])
+    expect(updated?.groups[0]?.chats.map((chat) => chat.title)).toEqual(["Newer", "Launch review"])
   })
 
   it("keeps plugin-owned chats in their server-assigned group", () => {
@@ -175,7 +175,7 @@ describe("updateRecentChatCache", () => {
     })
 
     const updated = queryClient.getQueryData<ChatsIndexPayload>(sidebarKey)
-    expect(updated?.groups[0]?.chats.map((chat) => chat.title)).toEqual(["Launch review", "Newer"])
+    expect(updated?.groups[0]?.chats.map((chat) => chat.title)).toEqual(["Newer", "Launch review"])
   })
 
   it("only prepends absent chats into recent-chat caches whose filters match", () => {
@@ -213,6 +213,79 @@ describe("updateRecentChatCache", () => {
     expect(queryClient.getQueryData<ChatsIndexPayload>(agentKey)?.groups[0]?.chats.map((chat) => chat.id)).toEqual([2])
     expect(queryClient.getQueryData<ChatsIndexPayload>(hiddenKey)?.groups[0]?.chats).toEqual([])
     expect(queryClient.getQueryData<ChatsIndexPayload>(groupKey)?.groups[0]?.chats).toEqual([])
+  })
+
+  it("keeps patched chats in their server-assigned non-repository group", () => {
+    const queryClient = new QueryClient()
+    const key = recentChatsQueryKey({ group_by: "date" })
+    queryClient.setQueryData(key, {
+      repositories: [],
+      groups: [
+        {
+          key: "date-today",
+          label: "Today",
+          repository_id: null,
+          group_by: "date",
+          group_value: "today",
+          chats: [chatRecord({ id: 1, title: "Before", lastMessageAt: "2026-06-25T11:00:00Z" })],
+          has_more: false
+        }
+      ]
+    })
+
+    updateRecentChatCache(queryClient, { id: 1, title: "After" })
+
+    expect(queryClient.getQueryData<ChatsIndexPayload>(key)?.groups).toEqual([
+      expect.objectContaining({ key: "date-today", chats: [expect.objectContaining({ id: 1, title: "After" })] })
+    ])
+  })
+
+  it("reorders patched chats for pin and name changes", () => {
+    const queryClient = new QueryClient()
+    const key = recentChatsQueryKey({ sort_by: "name" })
+    queryClient.setQueryData(key, {
+      repositories: [],
+      groups: [
+        {
+          key: "general",
+          label: "General",
+          repository_id: null,
+          chats: [chatRecord({ id: 1, title: "Alpha", lastMessageAt: null }), chatRecord({ id: 2, title: "Bravo", lastMessageAt: null })],
+          has_more: false
+        }
+      ]
+    })
+
+    updateRecentChatCache(queryClient, { id: 2, title: "Aardvark" })
+    expect(queryClient.getQueryData<ChatsIndexPayload>(key)?.groups[0].chats.map((chat) => chat.id)).toEqual([2, 1])
+
+    updateRecentChatCache(queryClient, { id: 1, pinned: true })
+    expect(queryClient.getQueryData<ChatsIndexPayload>(key)?.groups[0].chats.map((chat) => chat.id)).toEqual([1, 2])
+  })
+
+  it("removes a hidden chat from every cached sidebar variant", () => {
+    const queryClient = new QueryClient()
+    const defaultKey = recentChatsQueryKey()
+    const dateKey = recentChatsQueryKey({ group_by: "date" })
+    for (const key of [defaultKey, dateKey]) {
+      queryClient.setQueryData(key, {
+        repositories: [],
+        groups: [
+          {
+            key: "general",
+            label: "General",
+            repository_id: null,
+            chats: [chatRecord({ id: 1, title: "Hidden", lastMessageAt: null })],
+            has_more: false
+          }
+        ]
+      })
+    }
+
+    removeRecentChatFromCache(queryClient, 1)
+
+    expect(queryClient.getQueryData<ChatsIndexPayload>(defaultKey)?.groups).toEqual([])
+    expect(queryClient.getQueryData<ChatsIndexPayload>(dateKey)?.groups).toEqual([])
   })
 })
 
