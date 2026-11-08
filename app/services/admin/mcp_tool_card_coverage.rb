@@ -55,12 +55,14 @@ module Admin
     }.freeze
 
     class << self
-      def call(usages:, advertised_tools:, single_tool_name: nil, chat_session: nil)
-        new(usages: usages, advertised_tools: advertised_tools, single_tool_name: single_tool_name, chat_session: chat_session).as_json
+      def call(usages:, advertised_tools:, single_tool_name: nil, chat_session: nil, workflow_transcript_logs: nil)
+        new(usages: usages, advertised_tools: advertised_tools, single_tool_name: single_tool_name, chat_session: chat_session,
+            workflow_transcript_logs: workflow_transcript_logs).as_json
       end
     end
 
-    def initialize(usages:, advertised_tools:, single_tool_name: nil, chat_session: nil)
+    def initialize(usages:, advertised_tools:, single_tool_name: nil, chat_session: nil, workflow_transcript_logs: nil)
+      @workflow_transcript_logs = workflow_transcript_logs
       @usages = usages
       @advertised_tools = advertised_tools.map(&:to_s).uniq.sort
       @single_tool_name = single_tool_name.to_s.presence
@@ -68,6 +70,12 @@ module Admin
     end
 
     def as_json
+      payload = base_json
+      payload[:workflow_transcript_tools] = workflow_transcript_tool_rows if @workflow_transcript_logs
+      payload
+    end
+
+    def base_json
       {
         ranked_gaps: ranked_gap_rows,
         high_volume_without_custom_card: missing_card_rows(used_tool_rows),
@@ -77,9 +85,60 @@ module Admin
       }
     end
 
+    # Workflow run transcript rows (JobLog kind tool_call/tool_result) carry
+    # tool names in provider-native or sidecar-namespaced forms. Classify each
+    # canonical tool as registered / weak / generic / hidden / deferred /
+    # missing, and count rows whose structured metadata is too incomplete to
+    # pair into a card (metadata_unrenderable) so they are not silently
+    # excluded from gap analysis.
+    WORKFLOW_SIDECAR_PREFIX = "syrus-mcp-sidecar."
+    WORKFLOW_TRANSCRIPT_ROW_LIMIT = 5_000
+
+    def self.canonical_tool_name(name)
+      name = name.to_s
+      if name.start_with?("mcp__")
+        parts = name.split("__")
+        return parts.length >= 3 ? parts.drop(2).join("__") : name
+      end
+      name.delete_prefix(WORKFLOW_SIDECAR_PREFIX).delete_prefix("syrus-chat-sidecar.").delete_prefix("syrus-chat-deferred-sidecar.")
+    end
+
     private
 
     attr_reader :usages, :advertised_tools, :single_tool_name, :chat_session
+
+    def workflow_transcript_tool_rows
+      by_tool = Hash.new { |h, k| h[k] = { calls: 0, results: 0, unrenderable: 0 } }
+      unrenderable_total = 0
+
+      @workflow_transcript_logs.where(kind: %w[tool_call tool_result]).order(id: :desc)
+        .limit(WORKFLOW_TRANSCRIPT_ROW_LIMIT).pluck(:kind, :tool_metadata).each do |kind, metadata|
+        metadata = {} unless metadata.is_a?(Hash)
+        name = metadata["tool_name"].to_s
+        use_id = metadata["tool_use_id"].to_s
+        # A call needs a name; a result needs the id that pairs it with a call.
+        broken = kind == "tool_call" ? name.blank? : use_id.blank?
+        unrenderable_total += 1 if broken
+        # Claude tool_result rows carry only the pairing id; they render with
+        # their call, so there is no per-tool bucket for them.
+        next if name.blank?
+        entry = by_tool[self.class.canonical_tool_name(name)]
+        kind == "tool_call" ? entry[:calls] += 1 : entry[:results] += 1
+        entry[:unrenderable] += 1 if broken
+      end
+
+      rows = by_tool.map do |tool_name, counts|
+        owner = owners[tool_name]
+        counts.merge(
+          tool_name: tool_name,
+          card_status: counts[:unrenderable].positive? ? "metadata_unrenderable" : card_status_for(tool_name),
+          owner_type: owner&.owner_type,
+          owner_name: owner&.owner_name
+        )
+      end
+      rows << { tool_name: nil, calls: 0, results: 0, unrenderable: unrenderable_total, card_status: "metadata_unrenderable" } if unrenderable_total.positive? && rows.none? { |r| r[:unrenderable].positive? }
+      rows.sort_by { |row| [ -(row[:calls] + row[:results]), row[:tool_name].to_s ] }
+    end
 
     def used_tool_rows
       @used_tool_rows ||= used_rank_rows.map do |row|

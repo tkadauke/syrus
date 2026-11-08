@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import i18n from "../../i18n"
 import {
   NO_ARGUMENTS_SENTINEL,
+  normalizedToolName,
   fullResultBody,
   normalizedToolCardContentBlocks,
   normalizedToolCardParsedResult,
@@ -460,5 +461,19 @@ describe("shortenWorkspacePaths", () => {
 
   it("keeps exact workspace references readable", () => {
     expect(shortenWorkspacePaths("/syrus-home/.syrus/workflows/123")).toBe(".")
+  })
+})
+
+describe("normalizedToolName workflow sidecar forms", () => {
+  it("resolves dotted and mcp__ workflow sidecar names to the same canonical name", () => {
+    expect(normalizedToolName("syrus-mcp-sidecar.submit_adversarial_review")).toBe("submit_adversarial_review")
+    expect(normalizedToolName("mcp__syrus-mcp-sidecar__submit_adversarial_review")).toBe("submit_adversarial_review")
+  })
+
+  it("leaves chat-sidecar handling and provider-native names unchanged", () => {
+    expect(normalizedToolName("syrus-chat-sidecar.list_jobs")).toBe("list_jobs")
+    expect(normalizedToolName("mcp__syrus-chat-sidecar__list_jobs")).toBe("list_jobs")
+    expect(normalizedToolName("bash")).toBe("bash")
+    expect(normalizedToolName("Read")).toBe("Read")
   })
 })
