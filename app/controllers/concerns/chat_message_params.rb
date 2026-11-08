@@ -37,7 +37,6 @@ module ChatMessageParams
       return
     end
 
-    total_bytes = 0
     sanitized = attachments.map do |attachment|
       attributes = attachment.respond_to?(:to_unsafe_h) ? attachment.to_unsafe_h : attachment
       unless attributes.respond_to?(:[])
@@ -45,41 +44,15 @@ module ChatMessageParams
         return
       end
 
-      name = attributes["name"] || attributes[:name]
-      mime_type = (attributes["mime_type"] || attributes[:mime_type]).to_s
-      data = (attributes["data"] || attributes[:data]).to_s
-
-      policy = ChatAttachmentPolicy.check(filename: name, mime_type: mime_type)
-      display_name = name.to_s.presence || I18n.t("server.errors.chat_attachments.default_name")
-      unless policy.accepted?
-        render_error("validation_failed", I18n.t("server.errors.chat_attachments.unsupported_type", name: display_name), status: :unprocessable_content)
-        return
-      end
-
-      begin
-        decoded = Base64.strict_decode64(data)
-      rescue ArgumentError
-        render_error("validation_failed", I18n.t("server.errors.chat_attachments.malformed_base64", name: display_name), status: :unprocessable_content)
-        return
-      end
-
-      if decoded.bytesize > CHAT_ATTACHMENT_MAX_BYTES
-        render_error("validation_failed", I18n.t("server.errors.chat_attachments.file_too_large"), status: :unprocessable_content)
-        return
-      end
-
-      if policy.text? && !ChatAttachmentPolicy.valid_text?(decoded)
-        render_error("validation_failed", I18n.t("server.errors.chat_attachments.invalid_utf8", name: display_name), status: :unprocessable_content)
-        return
-      end
-
-      total_bytes += decoded.bytesize
-
-      { "name" => ChatAttachmentPolicy.sanitize_filename(name), "mime_type" => policy.mime_type, "data" => Base64.strict_encode64(decoded) }
+      chat = Current.user.accessible_chat_sessions.find(params[:id] || params[:chat_id])
+      stored = chat.chat_file_attachments.where(attachable_id: nil).find(attributes["id"] || attributes[:id])
+      { "id" => stored.id, "name" => stored.name, "mime_type" => stored.mime_type, "size" => stored.byte_size }
+    rescue ActiveRecord::RecordNotFound
+      render_error("validation_failed", I18n.t("server.errors.chat_attachments.must_be_objects"), status: :unprocessable_content)
+      return
     end
 
-
-    if total_bytes > CHAT_ATTACHMENT_TOTAL_MAX_BYTES
+    if sanitized.sum { |attachment| attachment.fetch("size") } > CHAT_ATTACHMENT_TOTAL_MAX_BYTES
       render_error("validation_failed", I18n.t("server.errors.chat_attachments.total_too_large"), status: :unprocessable_content)
       return
     end

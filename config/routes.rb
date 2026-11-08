@@ -262,6 +262,7 @@ Rails.application.routes.draw do
         get "chats/search", to: "chats#search"
         get "chats/search/messages", to: "chats#search_messages"
         get "shared_chats/:token", to: "shared_chats#show"
+        get "shared_chats/:token/messages/:message_id/attachments/:index", to: "shared_chats#attachment", constraints: { message_id: /\d+/, index: /\d+/ }
         get "settings/hidden_chats", to: "chats#hidden"
         post "chats", to: "chats#create"
         # Panels outside the chat they were opened in: a plugin listing them on
@@ -279,6 +280,8 @@ Rails.application.routes.draw do
         get "chats/:id/preview", to: "chats#preview", constraints: { id: /\d+/ }
         get "chats/:id/messages", to: "chats#messages", constraints: { id: /\d+/ }
         post "chats/:chat_id/participants", to: "chat_participants#create", constraints: { chat_id: /\d+/ }
+        post "chats/:chat_id/attachments", to: "chat_attachments#create", constraints: { chat_id: /\d+/ }
+        get "chats/:chat_id/attachments/:id/file", to: "chat_attachments#show", constraints: { chat_id: /\d+/, id: /\d+/ }
         delete "chats/:chat_id/participants/:user_id", to: "chat_participants#destroy", constraints: { chat_id: /\d+/, user_id: /\d+/ }
         get "chats/:chat_id/shares", to: "chat_shares#index", constraints: { chat_id: /\d+/ }
         post "chats/:chat_id/shares", to: "chat_shares#create", constraints: { chat_id: /\d+/ }

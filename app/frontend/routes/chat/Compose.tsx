@@ -66,6 +66,7 @@ import {
   updateChatPinned,
   updateChatRepository,
   updateQueuedChatMessage,
+  uploadChatAttachment,
   upsertChatGoal,
   type ChatBranchPayload,
   type ChatCreatedPayload,
@@ -136,7 +137,7 @@ import {
   withRoutePrefix
 } from "./utils"
 import { ScratchpadPanel } from "./ScratchpadPanel"
-import { getDraftAttachments, readAttachmentFile, setDraftAttachments } from "./attachmentDraftStore"
+import { getDraftAttachments, setDraftAttachments } from "./attachmentDraftStore"
 import { clearInFlightComposerDraft, getInFlightComposerDraft, setInFlightComposerDraft } from "./inFlightComposerDraftStore"
 import { lastAssistantRenderedMessage } from "./streamBuilders"
 import { AcceptSuggestionIcon, PencilIcon, UploadIcon } from "./icons"
@@ -1605,10 +1606,11 @@ export function Compose({
 
     const nextAttachments = [
       ...attachments,
-      ...selectedFiles.map((file) => ({
+      ...selectedFiles.map((file, index) => ({
+        id: -(index + 1),
         name: file.name,
         mimeType: file.type || "application/octet-stream",
-        dataUrl: "",
+        url: "",
         size: file.size
       }))
     ]
@@ -1618,8 +1620,15 @@ export function Compose({
       return
     }
 
-    void Promise.all(selectedFiles.map(readAttachmentFile))
-      .then((newAttachments) => {
+    void Promise.all(selectedFiles.map((file) => uploadChatAttachment(chatId, file)))
+      .then((uploaded) => {
+        const newAttachments = uploaded.map((attachment) => ({
+          id: attachment.id,
+          name: attachment.name,
+          mimeType: attachment.mime_type,
+          size: attachment.size,
+          url: attachment.url
+        }))
         setAttachments((current) => [...current, ...newAttachments])
         setAttachmentError(null)
       })
@@ -2296,7 +2305,7 @@ export function Compose({
                         onClick={() => setAnnotatingIndex(index)}
                         type="button"
                       >
-                        <img alt="" className="h-8 w-8 rounded object-cover" src={attachment.dataUrl} />
+                        <img alt="" className="h-8 w-8 rounded object-cover" src={attachment.url} />
                         <span
                           aria-hidden="true"
                           className="absolute inset-0 flex items-center justify-center rounded bg-black/55 text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
@@ -2306,20 +2315,26 @@ export function Compose({
                       </button>
                       {annotatingIndex === index ? (
                         <ImageAnnotationModal
-                          dataUrl={attachment.dataUrl}
+                          dataUrl={attachment.url}
                           initialShapes={attachment.shapes}
                           name={attachment.name}
-                          originalDataUrl={attachment.originalDataUrl}
+                          originalDataUrl={attachment.url}
                           onClose={() => setAnnotatingIndex(null)}
                           onDone={(annotatedDataUrl, shapes) => {
-                            setAttachments((current) =>
-                              current.map((item, attachmentIndex) =>
-                                attachmentIndex === index
-                                  ? { ...item, dataUrl: annotatedDataUrl, mimeType: "image/png", shapes, originalDataUrl: item.originalDataUrl ?? item.dataUrl }
-                                  : item
-                              )
-                            )
-                            setAnnotatingIndex(null)
+                            void fetch(annotatedDataUrl)
+                              .then((response) => response.blob())
+                              .then((blob) => uploadChatAttachment(chatId, new File([blob], attachment.name, { type: "image/png" })))
+                              .then((uploaded) => {
+                                setAttachments((current) =>
+                                  current.map((item, attachmentIndex) =>
+                                    attachmentIndex === index
+                                      ? { id: uploaded.id, name: uploaded.name, mimeType: uploaded.mime_type, size: uploaded.size, url: uploaded.url, shapes }
+                                      : item
+                                  )
+                                )
+                                setAnnotatingIndex(null)
+                              })
+                              .catch(() => setAttachmentError(t("attachment_read_error")))
                           }}
                         />
                       ) : null}
@@ -3982,10 +3997,11 @@ function DraftAttachmentIndicator({ attachments }: { attachments: ChatDraftMessa
 
 function composeAttachmentsFromDraft(draft: ChatDraftMessage): ChatComposeAttachment[] {
   return (draft.attachments || []).map((attachment) => ({
+    id: attachment.id,
     name: attachment.name,
     mimeType: attachment.mime_type,
-    dataUrl: attachment.data.startsWith("data:") ? attachment.data : `data:${attachment.mime_type};base64,${attachment.data}`,
-    size: approximateBase64Bytes(attachment.data)
+    url: attachment.url,
+    size: attachment.size
   }))
 }
 

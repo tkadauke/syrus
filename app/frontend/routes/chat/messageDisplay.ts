@@ -11,10 +11,10 @@ import { batchedNoticeContents, contentRecord } from "./utils"
 import { renderMessage } from "./streamBuilders"
 import { formatRelativeDate, intlLocale } from "../../lib/relativeTime"
 
-export type ChatMessageImageAttachment = { name: string; mime_type: string; data: string }
+export type ChatMessageImageAttachment = { name: string; mime_type: string; url: string }
 
 export function attachmentDataUrl(attachment: ChatMessageImageAttachment) {
-  return `data:${attachment.mime_type};base64,${attachment.data}`
+  return attachment.url
 }
 
 export function isLowPrioritySystemMessage(item: ChatRenderItem) {

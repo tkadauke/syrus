@@ -1,4 +1,3 @@
-require "base64"
 
 module BugReports
   class ChatStarter
@@ -52,7 +51,13 @@ module BugReports
           last_message_at: Time.current
         )
         content = { "text" => prompt_text }
-        content["attachments"] = chat_attachments if chat_attachments.any?
+        stored = chat_attachments.map do |pending|
+          record = chat_session.chat_file_attachments.build(name: pending["name"], mime_type: pending["mime_type"], byte_size: pending["body"].bytesize, checksum: "pending")
+          record.file.attach(io: StringIO.new(pending["body"]), filename: pending["name"], content_type: pending["mime_type"])
+          record.save!
+          { "id" => record.id }
+        end
+        content["attachments"] = stored if stored.any?
         mentions = chat_session.resolve_mentions(prompt_text)
         turn_triggered = chat_session.should_trigger_agent?(mentions)
         user_message = chat_session.messages.create!(
@@ -105,7 +110,7 @@ module BugReports
       chat_attachments << {
         "name" => ChatAttachmentPolicy.sanitize_filename(filename),
         "mime_type" => policy.mime_type,
-        "data" => Base64.strict_encode64(body)
+        "body" => body
       }
     end
   end

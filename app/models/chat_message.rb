@@ -16,6 +16,7 @@ class ChatMessage < ApplicationRecord
   has_many :bookmarks, class_name: "ChatBookmark", dependent: :destroy, inverse_of: :chat_message
   has_many :pins, class_name: "ChatMessagePin", dependent: :destroy, inverse_of: :chat_message
   has_many :scoped_events, class_name: "ChatScopedEvent", dependent: :nullify
+  has_many :chat_file_attachments, as: :attachable, dependent: :nullify
 
   scope :active, -> { where(deleted_at: nil) }
   scope :deleted, -> { where.not(deleted_at: nil) }
@@ -34,6 +35,7 @@ class ChatMessage < ApplicationRecord
   after_create :record_chat_turn_state
   after_create_commit :broadcast_app_event
   after_create_commit :enqueue_search_index
+  after_create_commit -> { ChatFileAttachment.claim_for(self) }
   after_create_commit :clear_suggested_next_step, if: -> { role == "user" }
   after_create_commit :deliver_to_platform, if: :platform_delivery_needed?
   after_create_commit :notify_human_mentions, if: -> { role == "user" }
@@ -42,6 +44,7 @@ class ChatMessage < ApplicationRecord
   validates :role, presence: true, inclusion: { in: ROLES }
   validate :mentions_are_structured
   validate :content_is_present
+  validate :attachments_are_storage_references
 
   def bookmarkable?
     role.in?(%w[user assistant])
@@ -53,6 +56,13 @@ class ChatMessage < ApplicationRecord
 
   def sender
     role == "user" ? sender_user : nil
+  end
+
+  def attachments_are_storage_references
+    attachments = content["attachments"] if content.is_a?(Hash)
+    return unless Array(attachments).any? { |attachment| attachment.respond_to?(:key?) && (attachment.key?("data") || attachment.key?(:data)) }
+
+    errors.add(:content, I18n.t("server.errors.chat_attachments.embedded_data_not_allowed"))
   end
 
   def soft_delete_by!(actor)

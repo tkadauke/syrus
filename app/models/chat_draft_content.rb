@@ -11,6 +11,12 @@ class ChatDraftContent
     new(text: content.to_s)
   end
 
+  def self.from_record(record)
+    draft = from_content(record.content)
+    refs = ChatAttachmentRef.for(record)
+    new(text: draft.text, attachments: refs.map(&:payload), metadata: draft.metadata)
+  end
+
   def self.from_hash(content)
     hash = content.respond_to?(:to_unsafe_h) ? content.to_unsafe_h : content
     text = (hash["text"].presence || hash[:text].presence || hash["content"].presence || hash[:content].presence).to_s.strip
@@ -50,7 +56,7 @@ class ChatDraftContent
 
   def to_message_content
     { "text" => text }.tap do |content|
-      content["attachments"] = attachments if attachments.present?
+      content["attachments"] = attachments.map { |attachment| attachment.except("url") } if attachments.present?
       metadata.each { |key, value| content[key] = value if value.present? }
     end
   end
@@ -69,10 +75,13 @@ class ChatDraftContent
     attributes = attachment.respond_to?(:to_unsafe_h) ? attachment.to_unsafe_h : attachment
     attributes = {} unless attributes.respond_to?(:stringify_keys)
     attributes = attributes.stringify_keys
-    {
+    normalized = {
+      "id" => attributes["id"],
       "name" => attributes["name"].to_s,
       "mime_type" => (attributes["mime_type"] || attributes["mimeType"]).to_s,
-      "data" => attributes["data"].to_s
-    }
+      "size" => attributes["size"],
+      "url" => attributes["url"]
+    }.compact
+    normalized
   end
 end

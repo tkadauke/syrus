@@ -201,7 +201,10 @@ RSpec.describe ChatQueuedMessagePromoter do
     end
 
     it "preserves attachments when promoting a queued message" do
-      attachment = { "name" => "shot.png", "mime_type" => "image/png", "data" => "abc123" }
+      stored = chat.chat_file_attachments.build(name: "shot.png", mime_type: "image/png", byte_size: 6, checksum: "pending")
+      stored.file.attach(io: StringIO.new("abc123"), filename: "shot.png", content_type: "image/png")
+      stored.save!
+      attachment = { "id" => stored.id }
       chat.chat_queued_messages.create!(content: { "text" => "", "attachments" => [ attachment ] })
 
       result = described_class.deliver_one_if_idle!(chat)

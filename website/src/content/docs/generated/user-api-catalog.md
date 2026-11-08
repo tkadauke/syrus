@@ -27,6 +27,8 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/bug_reports/chat` | `api/v1/app/bug_reports#chat` |
 | core | GET | `/api/v1/app/chats` | `api/v1/app/chats#index` |
 | core | POST | `/api/v1/app/chats` | `api/v1/app/chats#create` |
+| core | POST | `/api/v1/app/chats/:chat_id/attachments` | `api/v1/app/chat_attachments#create` |
+| core | GET | `/api/v1/app/chats/:chat_id/attachments/:id/file` | `api/v1/app/chat_attachments#show` |
 | core | GET | `/api/v1/app/chats/:chat_id/job_status` | `api/v1/app/chat_job_status#show` |
 | core | DELETE | `/api/v1/app/chats/:chat_id/local_daemon_session` | `api/v1/app/local_daemon_sessions#destroy` |
 | core | GET | `/api/v1/app/chats/:chat_id/local_daemon_session` | `api/v1/app/local_daemon_sessions#show` |
@@ -411,6 +413,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | GET | `/api/v1/app/settings/hidden_chats` | `api/v1/app/chats#hidden` |
 | core | GET | `/api/v1/app/setup` | `api/v1/app/setup#show` |
 | core | GET | `/api/v1/app/shared_chats/:token` | `api/v1/app/shared_chats#show` |
+| core | GET | `/api/v1/app/shared_chats/:token/messages/:message_id/attachments/:index` | `api/v1/app/shared_chats#attachment` |
 | core | PATCH | `/api/v1/app/sidebar_nav_order` | `api/v1/app/sidebar_nav_order#update` |
 | core | GET | `/api/v1/app/sidebar_pages` | `api/v1/app/sidebar_pages#index` |
 | core | GET | `/api/v1/app/slug_refs/:slug` | `api/v1/app/slug_refs#show` |

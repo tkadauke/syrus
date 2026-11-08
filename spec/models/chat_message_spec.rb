@@ -23,6 +23,17 @@ RSpec.describe ChatMessage do
     expect(message.content).to eq("name" => "inspect_repo")
   end
 
+  it "rejects inline attachment data in content hashes" do
+    message = described_class.new(
+      chat_session: session,
+      role: "user",
+      content: { "text" => "Inspect", "attachments" => [ { "id" => 1, "data" => "aGVsbG8=" } ] }
+    )
+
+    expect(message).not_to be_valid
+    expect(message.errors[:content]).to include("Attachments must reference stored files.")
+  end
+
   it "allows each transcript role" do
     described_class::ROLES.each do |role|
       message = described_class.new(chat_session: session, role: role, content: {})
@@ -148,7 +159,7 @@ RSpec.describe ChatMessage do
         expect(payload[:messages].last).to include(
           type: "message",
           role: "assistant",
-          content: { "text" => "Hello from React." },
+          content: {},
           text: "Hello from React."
         )
         expect(payload.to_s).not_to include("html")

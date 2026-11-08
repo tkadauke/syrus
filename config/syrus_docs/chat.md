@@ -329,6 +329,11 @@ untouched in the DB for audit. The chat workspace directory, per-chat agent
 homes, and FTS search-index rows are still purged post-commit by
 `ChatSessionCleanupJob`, since those are local checkout state rather than
 audit history. `ChatSession.active`/`.deleted` scopes mirror `ChatMessage`'s.
+Chat message files are Active Storage attachments referenced by message JSON;
+message content never embeds their bytes. Soft deletion retains those files
+with the audit history. A later hard destroy of the chat destroys its
+`ChatFileAttachment` rows and purges the corresponding blobs through
+`dependent: :purge`.
 Every operator-facing lookup (chat index, show, search, participants, local
 daemon sessions, the SPA `/chats/:id` gate) and every chat-reading MCP tool
 (`list_chats`, `search_chats`, `read_chat_messages`) scope through
@@ -890,8 +895,10 @@ configuration, diagnostic, changeset, and source-code files. The shared
 extensionless build filenames with compatible MIME types; this permits the
 `text/plain` and `application/octet-stream` values browsers commonly assign to
 source files without permitting arbitrary binary uploads. Text payloads must
-be strictly Base64 encoded, NUL-free valid UTF-8. Each attachment is limited to
-5 MB and a message's attachments to 20 MB total.
+be NUL-free valid UTF-8. Files upload before message submission; messages,
+queued messages, and scratchpad items persist only attachment references, and
+chat payloads expose metadata plus secure file URLs rather than inline bytes.
+Each attachment is limited to 5 MB and a message's attachments to 20 MB total.
 
 Every accepted file is materialized under the chat workspace's `attachments/`
 directory with a collision-safe prefix and a sanitized recognizable basename.

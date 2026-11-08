@@ -62,6 +62,12 @@ en:
         missing_descriptor_detail: "has no explicit capability_descriptor"
         registration_finding: "%{source} %{surface} tool %{tool_name} %{detail}"
     maintenance_tasks:
+      chat_attachment_backfill:
+        finished_scanning: "Finished scanning %{source}."
+        processed: "Processed %{count} %{source} record(s)."
+        complete: "Chat attachment backfill is complete."
+        unresolved: "%{count} chat record(s) still contain invalid or unverified inline attachments."
+        retried: "Retried legacy chat attachment records."
       search_database_rebuild:
         complete: "Selected search database rebuilds are complete."
     errors:
@@ -72,7 +78,7 @@ en:
         must_be_array: "Attachments must be an array."
         must_be_objects: "Attachments must be objects."
         unsupported_type: "%{name} is not a supported attachment type."
-        malformed_base64: "%{name} contains malformed Base64 data."
+        embedded_data_not_allowed: "Attachments must reference stored files."
         file_too_large: "Each attachment must be 5 MB or smaller."
         invalid_utf8: "%{name} is not valid UTF-8 text."
         total_too_large: "Attachments must total 20 MB or less."

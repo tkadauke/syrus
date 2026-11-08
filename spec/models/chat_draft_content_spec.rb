@@ -7,5 +7,35 @@ RSpec.describe ChatDraftContent, type: :model do
 
       expect(draft.text).to eq("actual body")
     end
+
+    it "drops retired inline attachment data from draft serialization" do
+      draft = described_class.from_content(
+        "text" => "Inspect this",
+        "attachments" => [ { "id" => 7, "name" => "notes.txt", "mime_type" => "text/plain", "data" => "aGVsbG8=" } ]
+      )
+
+      expect(draft.to_message_content.fetch("attachments").sole).to eq(
+        "id" => 7,
+        "name" => "notes.txt",
+        "mime_type" => "text/plain"
+      )
+      expect(JSON.parse(draft.to_scratchpad_content).fetch("attachments").sole).not_to have_key("data")
+    end
+  end
+
+  describe ".from_record" do
+    it "returns a stored attachment reference without inline data" do
+      user = Factories.user
+      chat = ChatSession.create!(user: user)
+      attachment = chat.chat_file_attachments.build(name: "notes.txt", mime_type: "text/plain", byte_size: 5, checksum: "pending")
+      attachment.file.attach(io: StringIO.new("hello"), filename: "notes.txt", content_type: "text/plain")
+      attachment.save!
+      queued_message = chat.queued_messages.create!(content: { "text" => "", "attachments" => [ { "id" => attachment.id } ] })
+
+      payload = described_class.from_record(queued_message).attachments.sole
+
+      expect(payload).to include("id" => attachment.id, "url" => "/api/v1/app/chats/#{chat.id}/attachments/#{attachment.id}/file")
+      expect(payload).not_to have_key("data")
+    end
   end
 end

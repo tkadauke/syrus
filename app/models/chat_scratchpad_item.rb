@@ -1,7 +1,9 @@
 class ChatScratchpadItem < ApplicationRecord
   belongs_to :chat_session
+  has_many :chat_file_attachments, as: :attachable, dependent: :nullify
 
   after_commit :broadcast_chat_controls
+  after_commit -> { ChatFileAttachment.claim_for(self) }, on: %i[create update], if: :saved_change_to_content?
 
   validates :content, presence: true
   validate :draft_content_is_present
@@ -9,7 +11,7 @@ class ChatScratchpadItem < ApplicationRecord
   scope :ordered, -> { order(:position, :id) }
 
   def draft_content
-    ChatDraftContent.from_content(content)
+    ChatDraftContent.from_record(self)
   end
 
   def text

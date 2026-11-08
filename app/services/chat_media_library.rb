@@ -1,5 +1,3 @@
-require "base64"
-
 class ChatMediaLibrary
   INLINE_IMAGE_SOURCE_PREFIX = "chat-message-image".freeze
   CAPTURED_IMAGE_SOURCE_PREFIX = "chat-captured-image".freeze
@@ -111,17 +109,9 @@ class ChatMediaLibrary
   end
 
   def image_attachments_in(message)
-    return [] unless message.content.is_a?(Hash)
-
-    Array(message.content["attachments"]).each_with_index.filter_map do |attachment, index|
-      next unless image_attachment?(attachment)
-
-      [ attachment, index ]
+    ChatAttachmentRef.for(message).each_with_index.filter_map do |attachment, index|
+      [ attachment, index ] if attachment.mime_type.start_with?("image/") && attachment.bytes_present?
     end
-  end
-
-  def image_attachment?(attachment)
-    attachment["mime_type"].to_s.start_with?("image/") && attachment["data"].present?
   end
 
   def materialize_inline_image!(message, attachment, index)
@@ -135,12 +125,12 @@ class ChatMediaLibrary
         user: user,
         title: attachment_name(attachment, index),
         filename: attachment_name(attachment, index),
-        content_type: attachment["mime_type"].to_s,
-        byte_size: decoded_attachment_data(attachment).bytesize,
+        content_type: attachment.mime_type,
+        byte_size: attachment.bytes.bytesize,
         source_url: source_url
       )
       document.file.attach(
-        io: StringIO.new(decoded_attachment_data(attachment)),
+        io: StringIO.new(attachment.bytes),
         filename: document.filename,
         content_type: document.content_type
       )
@@ -161,7 +151,7 @@ class ChatMediaLibrary
   end
 
   def attachment_name(attachment, index)
-    attachment["name"].to_s.presence || "chat-image-#{index + 1}#{extension_for(attachment["mime_type"])}"
+    attachment.name.presence || "chat-image-#{index + 1}#{extension_for(attachment.mime_type)}"
   end
 
   def extension_for(mime_type)
@@ -172,10 +162,5 @@ class ChatMediaLibrary
     when "image/webp" then ".webp"
     else ""
     end
-  end
-
-  def decoded_attachment_data(attachment)
-    @decoded_attachment_data ||= {}
-    @decoded_attachment_data[attachment.object_id] ||= Base64.decode64(attachment["data"].to_s)
   end
 end

@@ -73,6 +73,7 @@ module App
 
     def messages(messages)
       records = messages.to_a
+      ChatAttachmentRef.preload(records)
       preload_message_associations(records)
       preload_pending_action_outcomes(records)
       preload_mentionables(records)
@@ -181,7 +182,7 @@ module App
         entity_revision: message.entity_revision,
         role: message.role,
         tool_name: message.tool_name,
-        content: message.content,
+        content: payload_content(message.content),
         text: text,
         mentions: mentions,
         bookmarkable: message.bookmarkable?,
@@ -191,7 +192,9 @@ module App
       }
       payload[:client_idempotency_key] = message.client_idempotency_key if message.client_idempotency_key.present?
 
-      payload[:attachments] = message.content["attachments"] if message.content.is_a?(Hash) && message.content["attachments"].is_a?(Array)
+      if message.content.is_a?(Hash) && message.content["attachments"].is_a?(Array)
+        payload[:attachments] = ChatAttachmentRef.for(message).map(&:payload)
+      end
       payload[:video_walkthrough_id] = message.content["video_walkthrough_id"] if message.content.is_a?(Hash) && message.content["video_walkthrough_id"].present?
       if message.content.is_a?(Hash) && message.content["chat_shell_command_id"].present?
         shell_command_payload = chat_shell_command_json(message)
@@ -208,6 +211,12 @@ module App
       payload[:cross_chat_bridge] = bridge if bridge
 
       payload
+    end
+
+    def payload_content(content)
+      return content unless content.is_a?(Hash)
+
+      content.except("text", "attachments")
     end
 
     def sender_user_json(message)

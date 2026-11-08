@@ -14,6 +14,20 @@ vi.mock("../../components/WalkthroughRecorder", async (importOriginal) => {
   }
 })
 
+vi.mock("../../api/chats", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../api/chats")>()
+  return {
+    ...actual,
+    uploadChatAttachment: vi.fn(async (_chatId: string | number, file: File) => ({
+      id: 991,
+      name: file.name,
+      mime_type: file.type || "application/octet-stream",
+      size: file.size,
+      url: `/api/v1/app/chats/1/attachments/991/file`
+    }))
+  }
+})
+
 function makePayload(): ChatPayload {
   return {
     chat: {
