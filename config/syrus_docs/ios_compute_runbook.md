@@ -1,24 +1,22 @@
 # iOS compute readiness
 
 Declare iOS project requirements in the owning `.syrus.yml` and give Xcode
-graders the same capability requirements. Only `os` is an admission dimension
-for the mutable implementation workspace; `arch`, `toolchain`, and `runtime`
-describe the toolchain and simulator the project's commands and dependencies
-need (preparation and grader targets), not where planned execution is placed:
+graders the same OS requirement. `os` is the only capability dimension Syrus
+validates and uses to admit workers, for both the mutable implementation
+workspace and grader targets. Architecture, Xcode version, and simulator
+runtime are not capability keys; express them through the project's
+preparation, commands, and dependencies instead.
 
 ```yaml
 project:
   capabilities:
     os: macos            # the only placement/admission dimension
-    arch: arm64          # preparation, commands, dependencies
-    toolchain:
-      xcode: ">= 16.0"
-    runtime:
-      ios_simulator: "18.0"
 
 grade:
   - name: ios-tests
     command: xcodebuild test -scheme App -destination 'platform=iOS Simulator,name=iPhone 16'
+    capabilities:
+      os: macos
 ```
 
 When filing direct work, provide the mutable implementation-workspace
@@ -29,7 +27,8 @@ placement explicitly, for example:
 ```
 
 Mutable primary-workspace placement is OS-only and is separate from immutable
-grader target capabilities such as architecture, Xcode, and simulator runtime.
+grader target capabilities. Architecture, Xcode, and simulator runtime are
+handled by preparation and commands, not admission.
 Syrus never infers placement from proposal prose. If implementation discovers
 that the declared placement is inadequate, the workflow records an
 `implementation_capability_escalation` warning for operator review rather than
