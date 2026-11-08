@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router-dom"
 import { App } from "./App"
 import { bootstrapPayload } from "../test/app/bootstrap"
 import { chatPayload, chatSearchMatch, chatSearchPayload, sidebarChat, sidebarGroups } from "../test/app/chatPayloads"
+import { stubScrollIntoView } from "../test/app/domGlobals"
 import { installAppTestLifecycle } from "../test/app/lifecycle"
 
 vi.mock("@rails/actioncable", async () => (await import("../test/app/appMocks")).actionCableModule())
@@ -163,8 +164,7 @@ describe("App chat search and bookmarks", () => {
   })
 
   it("renders active chat bookmarks from the v2 sidebar cache", async () => {
-    const scrollIntoView = vi.fn()
-    Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView })
+    const scrollIntoView = stubScrollIntoView()
     const script = document.createElement("script")
     script.id = "syrus-bootstrap-data"
     script.type = "application/json"

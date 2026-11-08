@@ -6,6 +6,7 @@ import { App } from "./App"
 import { bootstrapPayload } from "../test/app/bootstrap"
 import { chatPayload } from "../test/app/chatPayloads"
 import { setScrollMetrics, stubChatStreamSize } from "../test/app/viewport"
+import { stubClipboardWriteText, stubScrollIntoView } from "../test/app/domGlobals"
 import { installAppTestLifecycle } from "../test/app/lifecycle"
 
 vi.mock("@rails/actioncable", async () => (await import("../test/app/appMocks")).actionCableModule())
@@ -764,7 +765,7 @@ describe("App chat messages", () => {
 
   it("shows Copy button on chat messages and copies text to clipboard", async () => {
     const writeTextSpy = vi.fn().mockImplementation(async () => undefined)
-    Object.defineProperty(navigator, "clipboard", { value: { writeText: writeTextSpy }, configurable: true })
+    stubClipboardWriteText(writeTextSpy)
 
     vi.spyOn(window, "fetch").mockImplementation(
       async () => new Response(JSON.stringify(chatPayload()), { status: 200, headers: { "Content-Type": "application/json" } })
@@ -1070,8 +1071,7 @@ describe("App chat messages", () => {
   })
 
   it("ignores a message_id query param and opens the chat at the latest messages without scrolling", async () => {
-    const scrollIntoView = vi.fn()
-    Object.defineProperty(window.HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView })
+    const scrollIntoView = stubScrollIntoView()
     const initialPayload = chatPayload()
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)

@@ -21,7 +21,15 @@ export function resetAppTestState() {
   __resetDraftAttachmentsForTests()
 }
 
+const cleanups: Array<() => void> = []
+
+// Register a callback that undoes a global mutation after the current test.
+export function registerAppTestCleanup(cleanup: () => void) {
+  cleanups.push(cleanup)
+}
+
 export function restoreAppTestGlobals() {
+  while (cleanups.length > 0) cleanups.pop()?.()
   clipboardMockState.restore?.()
   clipboardMockState.restore = null
 }
