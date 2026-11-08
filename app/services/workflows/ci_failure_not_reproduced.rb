@@ -10,17 +10,19 @@ module Workflows
     ARTIFACT = "ci_failure_outcome".freeze
     ESCALATION_THRESHOLD = 2
 
+    # A genuine reproducible test failure (a grader reported `test_failed`)
+    # is not handled here; it continues through the normal repair policy.
     def self.applies?(workflow)
       workflow.trigger_kind == "ci_failure" &&
-        (workflow.job.pr_number.presence || workflow.job.external_pr_number.presence).present?
+        (workflow.job.pr_number.presence || workflow.job.external_pr_number.presence).present? &&
+        new(workflow).grader_results.none?(&:test_failed?)
     end
 
-    def self.call(workflow, grader_outcome: nil) = new(workflow, grader_outcome).call
+    def self.call(workflow) = new(workflow).call
 
-    def initialize(workflow, grader_outcome)
+    def initialize(workflow)
       @workflow = workflow
       @job = workflow.job
-      @grader_outcome = grader_outcome
     end
 
     def call
@@ -29,29 +31,59 @@ module Workflows
       escalated = prior + 1 >= ESCALATION_THRESHOLD
       workflow.set_artifact!(ARTIFACT, record(head_sha, escalated))
 
-      job.mark_implemented! if job.may_mark_implemented?
-      attrs = { last_ci_handled_sha: head_sha }.compact
+      # A Job already back in review (implemented/approved) keeps its state, and
+      # therefore its approval; only a Job left :running is returned to review.
+      job.mark_implemented! if job.running? && job.may_mark_implemented?
+      attrs = {}
+      attrs[:last_ci_handled_sha] = head_sha if head_sha.present?
       attrs[:landing_failure_reason] = escalation_reason(head_sha, prior + 1) if escalated
+      # Expire the cached check state so the next poll re-reads this SHA's
+      # checks. The handled-SHA watermark stays, so no new repair workflow (or
+      # speculative commit) is started for it.
+      attrs[:pr_checks_checked_at] = nil unless escalated
       job.update!(attrs) if attrs.any?
       PollPullRequestJob.perform_later(job.id) unless escalated
     end
 
+    def grader_results
+      @grader_results ||= workflow.steps.where(kind: "grader").map { |step| GraderOutcome.for_step(step) }
+    end
+
     private
 
-    attr_reader :workflow, :job, :grader_outcome
+    attr_reader :workflow, :job
+
+    def outcome_name
+      results = grader_results
+      return OUTCOME if results.any? && results.all?(&:passed?)
+      return GraderOutcome::INFRASTRUCTURE_FAILED if results.any? { |r| r.outcome == GraderOutcome::INFRASTRUCTURE_FAILED }
+
+      GraderOutcome::INCONCLUSIVE
+    end
+
+    def reproduction_evidence
+      grader_results.map(&:evidence).find { |e| e["command"].present? } || {}
+    end
+
+    def agent_summary
+      run = workflow.runs.where(state: "failed").reorder(created_at: :desc, id: :desc).first
+      run&.agent_summary.presence || run&.run_diagnostic&.error_message
+    end
 
     def failed_checks
       Array(workflow.artifact("failed_checks")).map { |check| check.to_h.stringify_keys }
     end
 
     def record(head_sha, escalated)
-      outcome = grader_outcome.to_h.stringify_keys
+      evidence = reproduction_evidence
       {
-        "outcome" => OUTCOME,
+        "outcome" => outcome_name,
+        "grader_outcomes" => grader_results.map(&:to_h),
         "check_names" => failed_checks.filter_map { |check| check["name"] },
         "head_sha" => head_sha,
-        "reproduction_command" => outcome["command"],
-        "evidence" => outcome["evidence"] || outcome["reason"] || "agent found no source change to make for the failed check",
+        "reproduction_command" => evidence["command"],
+        "reproduction_sha" => evidence["source_sha"],
+        "evidence" => agent_summary || "agent found no source change to make for the failed check",
         "recorded_at" => Time.current.iso8601,
         "pr_preserved" => true,
         "approval_restored" => false,

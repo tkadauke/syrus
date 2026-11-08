@@ -70,13 +70,20 @@ module Workflows
     def fail!
       return if Workflow::TriggerKind.owns_job_lifecycle?(workflow.trigger_kind)
       return if newer_active_workflow?
+
+      # Diagnostic no-diff follow-up on a PR: record evidence and keep the PR,
+      # even for Jobs already back in review (implemented/approved), whose
+      # state -- and approval -- stay untouched.
+      if no_changes_produced_failure? && Workflows::CiFailureNotReproduced.applies?(workflow)
+        unless job.landing? || job.closed?
+          StateTransition.with_source("propagate") { Workflows::CiFailureNotReproduced.call(workflow) }
+        end
+        return
+      end
+
       return if job.implemented? || job.approved? || job.landing? || job.closed?
 
-      if no_changes_produced_failure? && Workflows::CiFailureNotReproduced.applies?(workflow)
-        StateTransition.with_source("propagate") do
-          Workflows::CiFailureNotReproduced.call(workflow)
-        end
-      elsif no_changes_produced_failure?
+      if no_changes_produced_failure?
         return unless job.may_close?
 
         StateTransition.with_source("propagate") do
