@@ -66,7 +66,9 @@ RSpec.describe Admin::SpawnedProcesses::Filter do
     recent = process(started_at: 5.minutes.ago, finished_at: 1.minute.ago, outcome: "succeeded")
     process(started_at: 5.hours.ago, finished_at: 4.hours.ago, outcome: "succeeded")
 
-    result = described_class.from_params({}).apply(SpawnedProcess.all)
+    # Scope to this example's rows: git subprocesses spawned by architecture
+    # audits register SpawnedProcess rows outside the example transaction.
+    result = described_class.from_params({}).apply(SpawnedProcess.where(hostname: "syrus-worker-test"))
 
     expect(result).to contain_exactly(running, recent)
   end
