@@ -42,10 +42,12 @@ const RAIL_OPTIONS_CLASSES =
   "cursor-pointer list-none rounded border border-border px-1.5 py-1 text-center text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
 const RAIL_POPOVER_CLASSES =
   "fixed inset-x-2 bottom-2 z-40 rounded border border-border bg-surface p-3 text-left shadow-lg sm:absolute sm:inset-x-auto sm:bottom-8 sm:left-0 sm:w-72"
-const RAIL_LABEL_CLASSES = "pointer-events-none absolute left-0 w-14 -translate-y-1/2 whitespace-nowrap pr-1.5 text-right text-[10px] leading-none"
+const RAIL_LABEL_CLASSES =
+  "pointer-events-none absolute left-0 w-11 -translate-y-1/2 whitespace-nowrap pr-1 sm:w-14 sm:pr-1.5 text-right text-[10px] leading-none"
 const RAIL_TICK_CLASSES =
-  "absolute left-[4rem] z-20 flex h-3.5 w-8 -translate-y-1/2 items-center justify-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+  "absolute left-[3rem] z-20 flex h-3.5 w-6 sm:left-[4rem] sm:w-8 -translate-y-1/2 items-center justify-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
 const TICK_TONE = { attention: "text-danger-text", deployment: "text-info", movement: "text-text-muted" } as const
+const SELECTED_CHIP_CLASSES = "mb-1 shrink-0 break-words rounded bg-surface-raised px-1 py-0.5 text-center text-2xs font-semibold leading-tight text-brand"
 type Translate = (key: string, options?: Record<string, unknown>) => string
 
 type HistoryEventKind = "attention" | "deployment" | "movement"
@@ -304,10 +306,7 @@ function HistoryTrack({
 
   return (
     <div className="relative flex min-h-0 w-full flex-1 flex-col" data-testid="compact-pipeline-time-rail">
-      <div
-        className="mb-1 shrink-0 truncate rounded bg-surface-raised px-1 py-0.5 text-center text-2xs font-semibold text-brand"
-        data-testid="selected-history-time"
-      >
+      <div className={SELECTED_CHIP_CLASSES} data-testid="selected-history-time">
         {historical && historicalAt
           ? new Date(historicalAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
           : t("now")}
@@ -331,7 +330,7 @@ function HistoryTrack({
           role="group"
         >
           <div className="relative w-full" data-testid="history-rail-content" style={{ height: layout.height }}>
-            <div aria-hidden className="absolute bottom-2 left-[3.75rem] top-2 w-px bg-border" />
+            <div aria-hidden className="absolute bottom-2 left-[2.75rem] top-2 w-px bg-border sm:left-[3.75rem]" />
             {labels.map((label) => (
               <span
                 aria-hidden
@@ -347,7 +346,7 @@ function HistoryTrack({
             ))}
             <div
               aria-hidden
-              className="pointer-events-none absolute left-[3.25rem] z-10 h-0.5 w-2 -translate-y-1/2 bg-brand"
+              className="pointer-events-none absolute left-[2.25rem] z-10 h-0.5 w-2 -translate-y-1/2 bg-brand sm:left-[3.25rem]"
               data-testid="history-rail-cursor"
               style={{ top: selectedY }}
             />
@@ -406,8 +405,10 @@ function HistoryRail({
     >
       <div>
         <Section.Title>{t("history_short")}</Section.Title>
-        <Text className="mt-1 truncate" variant="caption" tone="muted">
-          {historical && historicalAt ? new Date(historicalAt).toLocaleString() : t("live_mode")}
+        <Text className="mt-1 break-words leading-tight" variant="caption" tone="muted">
+          {historical && historicalAt
+            ? new Date(historicalAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+            : t("live_mode")}
         </Text>
       </div>
       <div className="grid w-full grid-cols-2 gap-1">
@@ -468,7 +469,7 @@ function HistoryRail({
           <span className="sr-only sm:not-sr-only">{t("history_short")} </span>
           {t("history_window")}
           <Select
-            className="mt-1 px-1 py-1 text-2xs sm:px-2"
+            className="px-1 py-1 text-2xs sm:mt-1 sm:px-2"
             fullWidth
             onChange={(event) => onRangeChange(Number(event.target.value))}
             value={Math.max(1, Math.round((new Date(history.to).getTime() - new Date(history.from).getTime()) / 86_400_000))}
