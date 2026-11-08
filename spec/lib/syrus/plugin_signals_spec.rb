@@ -56,6 +56,10 @@ RSpec.describe Syrus::PluginSignals do
   end
 
   describe "#worker_hostnames" do
+    # Rows recorded for the machine running the suite (or leaked by other
+    # examples) must not count as fleet hosts here.
+    before { SpawnedProcess.delete_all }
+
     it "counts distinct recent hosts" do
       spawned_process("worker-a")
       spawned_process("worker-a")
