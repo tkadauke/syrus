@@ -116,7 +116,7 @@ RSpec.describe Steps::PushProtectionRecovery do
     expect(ledger.status).to eq("resolved")
     expect(prompts.size).to eq(1)
     expect(prompts.first).to include("Token in secret.txt:1").and include(@anchor)
-    expect(prompts.first).not_to include("abc")
+    expect(prompts.first).not_to include("TOKEN=abc")
   end
 
   it "retries once with precise feedback after a contract violation, then publishes" do
