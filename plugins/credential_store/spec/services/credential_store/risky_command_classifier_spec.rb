@@ -13,20 +13,20 @@ RSpec.describe CredentialStore::SshExec::RiskyCommandClassifier do
   describe ".unsafe_shell_syntax?" do
     it "ignores metacharacters the shell would never interpret" do
       expect(described_class).not_to be_unsafe_shell_syntax(%q{sqlite3 -readonly /config/db "select count(*) from states"})
-      expect(described_class).not_to be_unsafe_shell_syntax(%q{grep "a*b" /var/log/syslog})
-      expect(described_class).not_to be_unsafe_shell_syntax(%q{cat "/etc/os-release"})
-      expect(described_class).not_to be_unsafe_shell_syntax(%q{psql -c "select a, b from t where x > 1"})
+      expect(described_class).not_to be_unsafe_shell_syntax(%q(grep "a*b" /var/log/syslog))
+      expect(described_class).not_to be_unsafe_shell_syntax(%q(cat "/etc/os-release"))
+      expect(described_class).not_to be_unsafe_shell_syntax(%q(psql -c "select a, b from t where x > 1"))
     end
 
     it "treats a single-quoted string as entirely literal" do
-      expect(described_class).not_to be_unsafe_shell_syntax(%q{cat 'a;b'})
-      expect(described_class).not_to be_unsafe_shell_syntax(%q{echo 'rm -rf / | tee $HOME'})
+      expect(described_class).not_to be_unsafe_shell_syntax(%q(cat 'a;b'))
+      expect(described_class).not_to be_unsafe_shell_syntax(%q(echo 'rm -rf / | tee $HOME'))
     end
 
     it "still catches what a shell expands inside double quotes" do
       expect(described_class).to be_unsafe_shell_syntax(%q{cat "$(cat ~/.ssh/id_rsa)"})
-      expect(described_class).to be_unsafe_shell_syntax(%q{echo "`whoami`"})
-      expect(described_class).to be_unsafe_shell_syntax(%q{echo "$HOME"})
+      expect(described_class).to be_unsafe_shell_syntax(%q(echo "`whoami`"))
+      expect(described_class).to be_unsafe_shell_syntax(%q(echo "$HOME"))
       expect(described_class).to be_unsafe_shell_syntax('echo "a\\"b"')
     end
 
@@ -40,26 +40,26 @@ RSpec.describe CredentialStore::SshExec::RiskyCommandClassifier do
     it "refuses a command whose quoting never closes" do
       # What the shell would make of the rest of the line is precisely what
       # cannot be established, so it is not treated as literal text.
-      expect(described_class).to be_unsafe_shell_syntax(%q{cat "unterminated})
-      expect(described_class).to be_unsafe_shell_syntax(%q{cat 'unterminated})
+      expect(described_class).to be_unsafe_shell_syntax(%q(cat "unterminated))
+      expect(described_class).to be_unsafe_shell_syntax(%q(cat 'unterminated))
     end
   end
 
   describe ".risky?" do
     it "reads an allowlisted command with a quoted metacharacter as read-only" do
-      expect(described_class).not_to be_risky(%q{grep "a*b" /var/log/syslog})
-      expect(described_class).not_to be_risky(%q{cat 'a;b'})
+      expect(described_class).not_to be_risky(%q(grep "a*b" /var/log/syslog))
+      expect(described_class).not_to be_risky(%q(cat 'a;b'))
     end
 
     it "does not promote a command that was never allowlisted" do
       # Quoting fixes how the command is screened, not what it is allowed to
       # do: sqlite3 can still write, so it stays risky and still asks.
       expect(described_class).to be_risky(%q{sqlite3 -readonly /config/db "select count(*) from states"})
-      expect(described_class).to be_risky(%q{sqlite3 /config/db "drop table states"})
+      expect(described_class).to be_risky(%q(sqlite3 /config/db "drop table states"))
     end
 
     it "keeps catching a command smuggled inside a quoted argument" do
-      expect(described_class).to be_risky(%q{sh -c "rm -rf /"})
+      expect(described_class).to be_risky(%q(sh -c "rm -rf /"))
     end
   end
 end

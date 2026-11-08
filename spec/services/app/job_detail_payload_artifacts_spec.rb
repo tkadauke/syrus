@@ -95,9 +95,9 @@ RSpec.describe App::JobDetailPayload do
 
   it "separates effective repository coworker-review configuration from participant routing" do
     job = Factories.job_record(user: user, repository: repo)
-    plan = RepoCoworkerReviewPlan::Result.new(enabled: true, rounds: 2, source: ".syrus.yml", note: nil,
+    plan = Coworkers::ReviewPlan::Result.new(enabled: true, rounds: 2, source: ".syrus.yml", note: nil,
       criteria: [ "Check maintainability" ], required: true)
-    allow(RepoCoworkerReviewPlan).to receive(:for_job).with(job).and_return(plan)
+    allow(Coworkers::ReviewPlan).to receive(:for_job).with(job).and_return(plan)
 
     result = payload_for(job).fetch(:job).fetch(:coworker_review_configuration)
 

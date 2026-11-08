@@ -12,7 +12,14 @@ module Syrus
         sdlc_pipeline spending_insights team_directory
       ].freeze
       EXAMPLE_ENABLED_PLUGIN_PATHS = {
-        "coworkers" => %r{\A\./spec/services/(?:app/coworker_review_projects|syrus_mcp/submit_adversarial_review_tool|syrus_yml)_spec\.rb\z},
+        "coworkers" => %r{
+          \A\./(?:
+            spec/services/(?:syrus_mcp/submit_adversarial_review_tool|syrus_yml|app/job_detail_payload_artifacts|workflows/review_gate_registry|mcp/tools/submit_coworker_review_tool|mcp/tools/provider_routing_tools|provider_routing/resolver|steps/review_panel)_spec\.rb\z |
+            spec/models/provider_routing_rule_spec\.rb\z |
+            spec/requests/api/v1/app/provider_routing_rules_spec\.rb\z |
+            plugins/coworkers/spec/
+          )
+        }x,
         "git_history" => %r{\A\./plugins/git_history/spec/},
         "operator_briefing" => %r{\A\./plugins/operator_briefing/spec/}
       }.freeze

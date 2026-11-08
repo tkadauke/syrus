@@ -148,8 +148,7 @@ RSpec.describe PluginRepositoryConfiguration do
 
     config = SyrusYml.new("coworker_review:\n  enabled: true\n  rounds: 2\n  criteria: [be exact]\n").parse
 
-    expect(config.coworker_review.rounds).to eq(2)
-    expect(config.plugin_configurations["coworkers.review"]).to eq(config.coworker_review)
+    expect(config.plugin_configurations["coworkers.review"].rounds).to eq(2)
     expect(config.plugin_configurations.to_h.dig("coworkers.review", "config", "criteria")).to eq([ "be exact" ])
   end
 
@@ -160,7 +159,6 @@ RSpec.describe PluginRepositoryConfiguration do
 
     config = SyrusYml.new("coworker_review:\n  enabled: true\n  rounds: 2\n").parse
 
-    expect(config.coworker_review).to be_nil
     expect(config.plugin_configurations).to be_empty
     expect(config.plugin_configurations.diagnostics.map(&:status)).to include("disabled")
   end

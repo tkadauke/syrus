@@ -185,10 +185,6 @@ class Step
                   exit_verdicts: %w[approved skipped],
                   cancellation_reason: "security_review_approved"
                 }),
-      Entry.new(kind: "coworker_review", handler: "CoworkerReview", label: "Coworker review", style: "bg-violet-100 text-violet-700", agentic: true,
-                agent_role: AgentRole::WORKFLOW_COWORKER_REVIEWER, panel_capable: true, reviewer_target_required: true,
-                required_mcp_tools: %w[submit_coworker_review], resource_profile_fallback_step_kinds: %w[implement],
-                review_gate: { artifact_key: "coworker_review_iterations", exit_verdicts: %w[approved skipped], cancellation_reason: "coworker_review_approved" }),
       Entry.new(kind: "review_panel_collect", handler: "ReviewPanelCollect", label: "Aggregate review panel", style: "bg-rose-100 text-rose-700", agentic: false,
                 repair_semantics: :deterministic_idempotent,
                 runtime_inserted: true,

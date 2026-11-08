@@ -261,7 +261,6 @@ module App
         ),
         provider_routing_resolution: provider_routing_resolution_json,
         active_provider_routing_holds: active_provider_routing_holds_json,
-        coworker_review_configuration: coworker_review_configuration_json,
         provider_availability: provider_availability,
         provider_failover: App::ProviderFailoverPayload.for_workflow(@job.latest_workflow, configured_provider: workflow_agent_provider),
         stack_base: @job.stack_base,
@@ -349,7 +348,7 @@ module App
         start_blocked_count: start_blocked.fetch(:count),
         start_blocked_details: start_blocked.fetch(:details),
         start_blocked_breakdown: start_blocked.fetch(:breakdown)
-      }.merge(deployment_stages_json)
+      }.merge(deployment_stages_json).merge(review_gate_fields_json)
     end
 
     def rollback_reference_json(job)
@@ -380,16 +379,12 @@ module App
         end
     end
 
-    def coworker_review_configuration_json
-      plan = RepoCoworkerReviewPlan.for_job(@job)
-      {
-        enabled: plan.enabled?,
-        rounds: plan.rounds,
-        required: plan.required,
-        criteria: plan.criteria,
-        source: plan.source,
-        note: plan.note
-      }
+    # Fields contributed by plugin-owned review gates (e.g. effective review
+    # configuration). A deployment without the owning plugin contributes none.
+    def review_gate_fields_json
+      Syrus::PluginRegistry.providers_for(:review_gate).each_with_object({}) do |provider, fields|
+        fields.merge!(provider.job_detail_fields(@job)) if provider.respond_to?(:job_detail_fields)
+      end
     end
 
     def provider_routing_resolution_json

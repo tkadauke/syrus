@@ -2,7 +2,7 @@ require "rails_helper"
 require "tmpdir"
 require "fileutils"
 
-RSpec.describe App::CoworkerReviewProjects do
+RSpec.describe Coworkers::ReviewProjects do
   it "collects criteria only from affected project configurations" do
     Dir.mktmpdir do |dir|
       File.write(File.join(dir, ".syrus.yml"), <<~YAML)

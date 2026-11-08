@@ -11,7 +11,7 @@ RSpec.describe "security review workflow loop" do
     allow(RepoAdversarialReviewPlan).to receive(:from_syrus_yml).and_return(
       RepoAdversarialReviewPlan::Result.new(rounds: 0, source: "none", note: "disabled", criteria: [])
     )
-    allow(RepoCoworkerReviewPlan).to receive(:from_syrus_yml).and_return(double(enabled?: false))
+    allow(Coworkers::ReviewPlan).to receive(:from_syrus_yml).and_return(double(enabled?: false))
     allow(RepoVisualReviewPlan).to receive(:for_job).and_return(double(enabled?: false, rounds: 0))
 
     loop_node = Workflows::Initial.review_gate_loops(job, agent_step: :implement, syrus_yml: loaded)

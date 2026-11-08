@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Steps::CoworkerReview do
+RSpec.describe Coworkers::ReviewStep do
   let(:job) { Factories.job(issue_title: "Review the rollout", issue_body: "Check organizational fit.") }
   let(:workflow) { job.latest_workflow }
   let(:implement_step) { workflow.steps.find_by!(kind: "implement") }
@@ -11,7 +11,7 @@ RSpec.describe Steps::CoworkerReview do
   let(:run) { review_step.runs.create!(job: job, trigger_kind: "initial") }
   let(:handler) { described_class.new(run) }
   let(:review_config) do
-    SyrusYml::CoworkerReviewConfig.new(enabled: true, rounds: 2, criteria: [ "Check rollout ownership" ], required: false)
+    Coworkers::RepositoryConfiguration::Config.new(enabled: true, rounds: 2, criteria: [ "Check rollout ownership" ], required: false)
   end
 
   before do
@@ -22,9 +22,12 @@ RSpec.describe Steps::CoworkerReview do
     allow(handler).to receive(:workspace).and_return(workspace)
     allow(handler).to receive(:review_config).and_return(review_config)
     allow(ReviewEvidence::Capture).to receive(:call)
-    allow(App::CoworkerReviewProjects).to receive(:call).and_return(
-      App::CoworkerReviewProjects::Result.new(projects: [
-        App::CoworkerReviewProjects::Project.new(
+    # The Coworkers context contributor needs real coworker records; this spec
+    # covers the step's own behavior.
+    allow(ReviewContextContributions).to receive(:prepare).and_raise(ReviewContextContributions::Unavailable)
+    allow(Coworkers::ReviewProjects).to receive(:call).and_return(
+      Coworkers::ReviewProjects::Result.new(projects: [
+        Coworkers::ReviewProjects::Project.new(
           id: "repo", label: "Repository", path: "", owner_config_path: ".syrus.yml",
           criteria: [ "Check rollout ownership" ]
         )
@@ -103,6 +106,6 @@ RSpec.describe Steps::CoworkerReview do
       ])
     end
 
-    expect { handler.call }.to raise_error(Steps::CoworkerReview::MemoryPersistenceFailed, /post-verdict update was not persisted/)
+    expect { handler.call }.to raise_error(Coworkers::ReviewStep::MemoryPersistenceFailed, /post-verdict update was not persisted/)
   end
 end

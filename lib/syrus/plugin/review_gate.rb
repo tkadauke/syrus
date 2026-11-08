@@ -11,6 +11,10 @@ module Syrus
 
       module ClassMethods
         def review_gates = []
+
+        # Extra Job-detail payload fields (Symbol keys) this gate's owner
+        # exposes about its effective configuration for `job`.
+        def job_detail_fields(job) = {}
       end
     end
   end

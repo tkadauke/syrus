@@ -22,6 +22,17 @@ module Coworkers
           kind: "post_to_chat", handler: "Coworkers::PostToChat",
           label: "Post to chat", style: "bg-violet-100 text-violet-700",
           agentic: false
+        },
+        {
+          kind: "coworker_review", handler: "Coworkers::ReviewStep",
+          label: "Coworker review", style: "bg-violet-100 text-violet-700", agentic: true,
+          agent_role: AgentRole::WORKFLOW_COWORKER_REVIEWER, panel_capable: true,
+          reviewer_target_required: true, required_mcp_tools: %w[submit_coworker_review],
+          resource_profile_fallback_step_kinds: %w[implement],
+          review_gate: {
+            artifact_key: "coworker_review_iterations", exit_verdicts: %w[approved skipped],
+            cancellation_reason: "coworker_review_approved"
+          }
         }
       ]
     end
