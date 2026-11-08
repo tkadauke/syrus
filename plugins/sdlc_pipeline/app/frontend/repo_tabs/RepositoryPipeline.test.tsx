@@ -482,6 +482,9 @@ describe("RepositoryPipelineRoute", () => {
       expect(tops[0] - tops[1]).toBeGreaterThanOrEqual(13) // 30s apart, still separated
       expect(ticks[0]).toHaveAttribute("aria-pressed", "true")
       expect(screen.getByTestId("history-rail-cursor")).toBeInTheDocument()
+      expect(within(screen.getByTestId("compact-pipeline-time-rail")).getByTestId("selected-history-time")).toHaveTextContent(/Oct 31/)
+      expect(screen.getAllByTestId("history-rail-label")[0].className).not.toContain("truncate")
+      expect(screen.getByTestId("history-rail-cursor").className).not.toContain("right-")
       expect(screen.getByRole("slider", { name: /Historical time/ })).toBeInTheDocument()
     })
   })
