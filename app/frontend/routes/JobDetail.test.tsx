@@ -39,15 +39,33 @@ describe("VisualEvidenceGallery", () => {
     image_url: "/api/v1/app/jobs/1/visual_evidence/evidence-1"
   }
 
-  it("defaults to curated evidence and links directly to retained captures when none was submitted", () => {
-    render(<VisualEvidenceGallery approved gallery={{ captured_count: 1, submitted_count: 0, screenshots: [captured] }} />)
+  it("defaults to curated evidence and previews retained captures in a modal", () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <VisualEvidenceGallery approved gallery={{ captured_count: 1, submitted_count: 0, screenshots: [captured] }} />
+      </QueryClientProvider>
+    )
 
     expect(screen.getByText("Approved without curated evidence.")).toBeInTheDocument()
     expect(screen.queryByRole("img", { name: "Dashboard" })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "View captured screenshots" }))
-    expect(screen.getByRole("img", { name: "Dashboard" })).toHaveAttribute("src", captured.image_url)
+    const thumbnail = screen.getByRole("img", { name: "Dashboard" })
+    expect(thumbnail).toHaveAttribute("src", captured.image_url)
+    expect(thumbnail).toHaveClass("max-h-72", "max-w-full")
+    expect(thumbnail.closest("figure")).toHaveClass("max-w-lg")
+    expect(thumbnail.closest("button")).not.toBeNull()
     expect(screen.getByText("Submission failed; capture retained")).toBeInTheDocument()
     expect(screen.getByText(/#2 · 390×844/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Dashboard" }))
+    const preview = screen.getByRole("dialog", { name: "Preview of Dashboard" })
+    expect(within(preview).getByRole("img", { name: "Dashboard" })).toHaveAttribute("src", captured.image_url)
+    expect(within(preview).getByRole("link", { name: "Open raw" })).toHaveAttribute("href", captured.image_url)
+    expect(within(preview).getByRole("link", { name: "Open raw" })).toHaveAttribute("target", "_blank")
+
+    fireEvent.click(within(preview).getByRole("button", { name: "Close preview" }))
+    expect(screen.queryByRole("dialog", { name: "Preview of Dashboard" })).not.toBeInTheDocument()
   })
 
   it("distinguishes an approved review with no captured screenshots", () => {

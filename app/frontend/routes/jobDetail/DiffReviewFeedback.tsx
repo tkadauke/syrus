@@ -127,7 +127,8 @@ export function useDiffReviewFeedback({
       versionId: group.versionId
     }))
   }, [commentList, t, versions])
-  const actionableComments = selectedVersionComments.filter(isSubmittableDiffComment)
+  // With all versions loaded, a draft (e.g. a reply to a reviewer note) may belong to a version other than the one being viewed; it must still be submittable.
+  const actionableComments = (includeAllVersions ? commentList : selectedVersionComments).filter(isSubmittableDiffComment)
   const submittedComments = selectedVersionComments.filter((comment) => comment.state === "submitted")
   const handledComments = selectedVersionComments.filter((comment) => comment.state === "resolved" || comment.workflow?.state === "succeeded")
   const workflowActive = submittedComments.some((comment) => comment.workflow && !terminalWorkflowStates.has(comment.workflow.state))
@@ -184,7 +185,7 @@ export function useDiffReviewFeedback({
     }
   })
   const submitComments = useMutation({
-    mutationFn: (ids: number[]) => submitDiffReviewComments(jobId, ids, diffReviewVersionId),
+    mutationFn: (ids: number[]) => submitDiffReviewComments(jobId, ids, diffReviewVersionId, includeAllVersions),
     onSuccess: () => {
       setSubmitError(null)
       void queryClient.invalidateQueries({ queryKey: commentQueryKey })
@@ -775,7 +776,7 @@ function CommentCard({
             {t("review_reply_comment")}
           </Button>
         ) : null}
-        {comment.state === "draft" && isGlobal ? (
+        {comment.state === "draft" ? (
           <Button disabled={deletePending} onClick={() => onDelete(comment)} size="sm" variant="danger">
             {t("review_delete_comment")}
           </Button>

@@ -23,6 +23,47 @@ RSpec.describe StackRebaseCoordinator do
     clear_enqueued_jobs
   end
 
+  describe "pending auto-retry on a child" do
+    let(:workflow) { child.workflows.create!(trigger_kind: "initial", state: "failed") }
+
+    def pending_attempt(classification)
+      step = Step.create!(workflow: workflow, kind: "pr_open", position: 0, state: "failed")
+      run = Run.create!(job: child, step: step, trigger_kind: "initial", agent_provider: "claude", state: "failed")
+      AutoRetryAttempt.create!(
+        job: child, workflow: workflow, run: run, agent_provider: "claude",
+        failure_classification: classification, retry_kind: "failed_step",
+        attempt_number: 1, scheduled_at: 3.hours.from_now
+      )
+    end
+
+    it "skips the automatic cascade and leaves the attempt pending" do
+      attempt = pending_attempt("content_conflict")
+
+      expect {
+        described_class.parent_amended(parent)
+      }.not_to change { child.reload.workflows.where(trigger_kind: "stack_rebase").count }
+      expect(attempt.reload.skipped_reason).to be_nil
+    end
+
+    it "supersedes a pending awaiting_stable_base attempt and rebases" do
+      attempt = pending_attempt("awaiting_stable_base")
+
+      expect {
+        described_class.parent_amended(parent)
+      }.to change { child.reload.workflows.where(trigger_kind: "stack_rebase").count }.by(1)
+      expect(attempt.reload.skipped_reason).to be_present
+    end
+
+    it "still lets an operator-initiated rebase run in both cases" do
+      pending_attempt("content_conflict")
+      pending_attempt("awaiting_stable_base")
+
+      expect {
+        RebaseWorkflowSelector.instantiate(job: child, base_branch: parent.branch_name)
+      }.to change { child.reload.workflows.where(trigger_kind: "stack_rebase").count }.by(1)
+    end
+  end
+
   it "enqueues a stack_rebase workflow for leaf children when the parent is amended" do
     expect {
       described_class.parent_amended(parent)

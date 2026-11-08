@@ -33,6 +33,7 @@ RSpec.describe "Untranslated source strings", type: :unit do
     app/frontend/routes/chat/tool_cards/resume_landing_queue.tsx
     app/frontend/routes/chat/tool_cards/retry_from_current_pr_branch.tsx
     app/frontend/routes/chat/tool_cards/retry_job.tsx
+    app/frontend/routes/chat/tool_cards/run_visual_diff.tsx
     app/frontend/routes/chat/tool_cards/run_visual_review.tsx
     app/frontend/routes/chat/tool_cards/schedule_wakeup.tsx
     app/frontend/routes/chat/tool_cards/search_chats.tsx

@@ -194,7 +194,7 @@ describe("ReviewWorkspace", () => {
           diff_review_version_id: 100
         })
       )
-      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [2], 100)
+      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [2], 100, true)
     })
     expect(within(screen.getByTestId("diff-review-composer")).getByLabelText("Comment")).toHaveValue("Please keep this draft.")
   })
@@ -1699,7 +1699,7 @@ describe("ReviewWorkspace", () => {
       )
     })
     await waitFor(() => {
-      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [1, 2], 100)
+      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [1, 2], 100, true)
     })
   })
 
@@ -2093,7 +2093,7 @@ describe("ReviewWorkspace", () => {
     expect(deleteDiffReviewComment).not.toHaveBeenCalled()
   })
 
-  it("deletes a draft code-anchored comment inline from the diff after confirming", async () => {
+  it("deletes a draft code-anchored comment from the review conversation after confirming", async () => {
     vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
     vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([comment({ new_line: 1, anchor_key: "right::1" })]))
     vi.mocked(deleteDiffReviewComment).mockResolvedValue({ job_id: 42, deleted_id: 1 })
@@ -2101,7 +2101,8 @@ describe("ReviewWorkspace", () => {
     renderWorkspace()
 
     await screen.findAllByText("Please add a regression spec.")
-    fireEvent.click(screen.getByRole("button", { name: "Delete" }))
+    const sidebar = within(screen.getByText("Review conversation").closest("section") as HTMLElement)
+    fireEvent.click(sidebar.getByRole("button", { name: "Delete" }))
 
     const dialog = await screen.findByRole("dialog")
     fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }))
@@ -2126,7 +2127,7 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Submit Feedback" }))
 
     await waitFor(() => {
-      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [1], 100)
+      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [1], 100, true)
     })
   })
 
@@ -2157,7 +2158,7 @@ describe("ReviewWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Submit Feedback" }))
 
     await waitFor(() => {
-      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [2], 100)
+      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [2], 100, true)
     })
   })
 
@@ -3186,7 +3187,7 @@ describe("ReviewWorkspace", () => {
 
     await waitFor(() => {
       expect(fetchDiffReviewComments).toHaveBeenCalledWith(42, "?surface=job_review_workspace%2Cjob_source_diff&all_versions=1")
-      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [2], 100)
+      expect(submitDiffReviewComments).toHaveBeenCalledWith(42, [2], 100, true)
     })
   })
 

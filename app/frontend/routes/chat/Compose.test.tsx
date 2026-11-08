@@ -212,10 +212,12 @@ describe("pending action carousel", () => {
     expect(screen.getByText("Third action")).toBeInTheDocument()
   })
 
-  it("hides navigation controls for a single item", () => {
+  it("omits the position header and outer box for a single item", () => {
     renderPendingActionCarousel([{ key: "action:1", type: "action", action: pendingAction(1, "Only action") }])
 
-    expect(screen.getByText("1 of 1")).toBeInTheDocument()
+    expect(screen.getByText("Only action")).toBeInTheDocument()
+    expect(screen.queryByText("1 of 1")).not.toBeInTheDocument()
+    expect(screen.getByTestId("pending-action-carousel").className).not.toContain("border")
     expect(screen.queryByRole("button", { name: "Previous pending action" })).not.toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Next pending action" })).not.toBeInTheDocument()
   })

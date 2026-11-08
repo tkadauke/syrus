@@ -1209,6 +1209,11 @@
     "preview_unavailable": "Praevisio non praesto",
     "open_image": "Imaginem aperire"
   },
+  "run_visual_diff": {
+    "job": "Job",
+    "missing_target": "Non datum",
+    "comparison": "Comparatio ante et post"
+  },
   "image_preview_controls": "Instrumenta praevisionis imaginis",
   "image_carousel_position": "Locus in serie imaginum",
   "copy": "Exscribe",

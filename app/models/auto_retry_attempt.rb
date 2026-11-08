@@ -37,8 +37,15 @@ class AutoRetryAttempt < ApplicationRecord
     "source workflow was already superseded",
     "failure classification changed",
     "default provider changed",
-    "branch divergence recovered"
+    "branch divergence recovered",
+    "job branch was rewritten"
   ].freeze
+
+  # The job's branch head moved after the source run recorded its workspace
+  # head (e.g. a stack rebase force-pushed it). The workspace is stale, but the
+  # pushed branch may already be correct, so the skip hands the job to the
+  # reconciler for re-evaluation rather than dropping the work.
+  BRANCH_REWRITTEN_SKIP_REASON = "job branch was rewritten since the source run recorded its workspace".freeze
 
   # A failure that is simply not retryable. Counts against the budget, so a
   # planner that keeps proposing retries runs out instead of spinning.
@@ -127,6 +134,7 @@ class AutoRetryAttempt < ApplicationRecord
     return "job is terminal" if job&.state.in?(Job::TERMINAL_STATES)
     return "source workflow was already superseded by a successful workflow" if superseded_by_successful_workflow?
     return "source step already recovered" if run&.step&.state.in?(%w[succeeded skipped])
+    return BRANCH_REWRITTEN_SKIP_REASON if branch_head_moved?
 
     nil
   end
@@ -134,9 +142,33 @@ class AutoRetryAttempt < ApplicationRecord
   def skip_stale_pending!(reason)
     update!(skipped_reason: reason)
     WorkUnits::AutoRetryBackoff.clear!(self)
+    request_reconciliation if reason == BRANCH_REWRITTEN_SKIP_REASON
   end
 
   private
+
+  # Compares the head the source run recorded for its workspace against the PR
+  # head GitHub reported at the latest mergeability check. Only trusted when
+  # that check happened after the source run finished; otherwise the two SHAs
+  # are simply from different moments and a difference proves nothing.
+  def branch_head_moved?
+    return false unless job && run
+    return false if run.finished_at.blank? || job.mergeability_checked_at.blank?
+    return false if job.mergeability_checked_at <= run.finished_at
+
+    sha_moved?(run.head_sha, job.mergeability_head_sha) ||
+      sha_moved?(run.base_sha, job.mergeability_base_sha)
+  end
+
+  def sha_moved?(recorded, current)
+    recorded.present? && current.present? && recorded != current
+  end
+
+  def request_reconciliation
+    WorkEngine::Reconciler.request(source: self.class.name, job: job, workflow: workflow)
+  rescue StandardError => e
+    Rails.logger.error("[AutoRetryAttempt] reconciliation request failed for #{job&.slug}: #{e.class}: #{e.message}")
+  end
 
   def assign_retry_workflow_uniqueness_key
     self.retry_workflow_uniqueness_key = retry_kind == "retry_workflow" && skipped_reason.blank? ? "retry_workflow" : nil

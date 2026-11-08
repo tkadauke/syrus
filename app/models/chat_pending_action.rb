@@ -29,6 +29,7 @@ class ChatPendingAction < ApplicationRecord
     delete_design_doc
     poll_job_feedback
     run_visual_review
+    run_visual_diff
     check_job_mergeability
     delegate_issue
     pause_landing_queue
@@ -110,6 +111,7 @@ class ChatPendingAction < ApplicationRecord
     reopen_job
     poll_job_feedback
     run_visual_review
+    run_visual_diff
     check_job_mergeability
     submit_chat_feedback
     force_landing_recheck
