@@ -106,11 +106,10 @@ type JobDiff struct {
 }
 
 type DiffReviewComments struct {
-	JobID               int64                                     `json:"job_id"`
-	DiffReviewVersionID *int64                                    `json:"diff_review_version_id"`
-	LatestVersionID     *int64                                    `json:"latest_version_id"`
-	Comments            []DiffReviewComment                       `json:"comments"`
-	ByPath              map[string]map[string][]DiffReviewComment `json:"by_path,omitempty"`
+	JobID               int64               `json:"job_id"`
+	DiffReviewVersionID *int64              `json:"diff_review_version_id"`
+	LatestVersionID     *int64              `json:"latest_version_id"`
+	Comments            []DiffReviewComment `json:"comments"`
 }
 
 type DiffReviewComment struct {
