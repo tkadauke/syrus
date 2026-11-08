@@ -72,7 +72,11 @@ module Workflows
       return if newer_active_workflow?
       return if job.implemented? || job.approved? || job.landing? || job.closed?
 
-      if no_changes_produced_failure?
+      if no_changes_produced_failure? && Workflows::CiFailureNotReproduced.applies?(workflow)
+        StateTransition.with_source("propagate") do
+          Workflows::CiFailureNotReproduced.call(workflow)
+        end
+      elsif no_changes_produced_failure?
         return unless job.may_close?
 
         StateTransition.with_source("propagate") do
