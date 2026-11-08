@@ -755,12 +755,7 @@ function MessageStream({
     () => (showSystemMessages ? displayedItems : displayedItems.filter((item) => !isLowPrioritySystemMessage(item))),
     [displayedItems, showSystemMessages]
   )
-  const pendingActionIds = useMemo(() => new Set(payload.pending_actions.map((action) => action.id)), [payload.pending_actions])
-  const pendingActionGroups = payload.pending_action_groups || []
-  const streamItems = useMemo(
-    () => injectTemporalMarkers(buildMessageStreamItems(visibleItems, payload.pending_actions, pendingActionGroups), userTimeZone),
-    [visibleItems, payload.pending_actions, pendingActionGroups, userTimeZone]
-  )
+  const streamItems = useMemo(() => injectTemporalMarkers(visibleItems, userTimeZone), [visibleItems, userTimeZone])
   const toolCardMedia = useQuery({
     queryKey: ["chat_media", String(payload.chat.id)],
     queryFn: () => fetchChatMedia(payload.chat.id),

@@ -40,7 +40,7 @@ RSpec.describe "API: /api/v1/app/cron_templates", type: :request do
     expect(parse_body).to include(
       "valid" => true,
       "schedule_expression" => "FREQ=YEARLY;BYMONTH=8;BYMONTHDAY=14;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
-        "schedule_explanation" => "Every August 14 at 9:00 AM America/New_York"
+      "schedule_explanation" => "Every August 14 at 9:00 AM Etc/UTC"
     )
   end
 
@@ -50,7 +50,7 @@ RSpec.describe "API: /api/v1/app/cron_templates", type: :request do
     post "/api/v1/app/cron_templates/preview_schedule", params: { schedule_input: "Every Monday at 9:00 AM" }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body).to include("valid" => true, "schedule_explanation" => "Every Monday at 9:00 AM America/New_York")
+    expect(parse_body).to include("valid" => true, "schedule_explanation" => "Every Monday at 9:00 AM Etc/UTC")
   end
 
   it "resolves typo-heavy natural text through the LLM fallback, then validates deterministically" do
@@ -64,7 +64,7 @@ RSpec.describe "API: /api/v1/app/cron_templates", type: :request do
     post "/api/v1/app/cron_templates/preview_schedule", params: { schedule_input: "moday at 9am in tjhe mornin" }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body).to include("valid" => true, "schedule_explanation" => "Every Monday at 9:00 AM America/New_York")
+    expect(parse_body).to include("valid" => true, "schedule_explanation" => "Every Monday at 9:00 AM Etc/UTC")
   end
 
   it "does not leak raw Ruby exception text in invalid preview responses" do

@@ -548,6 +548,8 @@ en:
         worker_hostname: "Worker host"
         worker_storage_key: "Worker storage"
         cleaned_up_at: "Cleaned up at"
+    user_time_zones:
+      invalid_mode: "mode must be automatic or manual"
     chat_shell_commands:
       unsupported_chat_mode: "Shell commands are only available in Coding Mode or Local Mode chat sessions."
       feature_disabled: "%{mode} is not enabled on this instance."

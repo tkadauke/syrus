@@ -8,7 +8,7 @@ module Api
 
           if mode
             unless mode.in?(User::TIME_ZONE_MODES)
-              render_error("validation_failed", "mode must be automatic or manual", status: :unprocessable_content)
+              render_error("validation_failed", t("api.user_time_zones.invalid_mode"), status: :unprocessable_content)
               return
             end
 

@@ -488,6 +488,8 @@ de:
         worker_hostname: "Worker-Host"
         worker_storage_key: "Worker-Speicher"
         cleaned_up_at: "Bereinigt am"
+    user_time_zones:
+      invalid_mode: "Der Modus muss automatic oder manual sein"
     chat_shell_commands:
       unsupported_chat_mode: "Shell-Befehle sind nur in Chats im Coding Mode oder Local Mode verfügbar."
       feature_disabled: "%{mode} ist auf dieser Instanz nicht aktiviert."

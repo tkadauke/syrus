@@ -35,7 +35,7 @@ RSpec.describe ScheduledTasks::Schedules::CadencePreview do
     result = described_class.call(input: "moday at 9am in tjhe mornin", user: user)
 
     expect(result).to be_valid
-    expect(result.explanation).to eq("Every Monday at 9:00 AM UTC")
+    expect(result.explanation).to eq("Every Monday at 9:00 AM Etc/UTC")
     expect(result.source).to eq("structured_intent")
     expect(result.structured_intent).to eq(fallback_intent)
   end
