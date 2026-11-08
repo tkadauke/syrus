@@ -291,10 +291,7 @@ describe("RunTranscriptLogs", () => {
   it("keeps the generic system fallback for legacy rows without structured metadata", () => {
     render(
       <MemoryRouter>
-        <RunTranscriptLogs
-          agentic
-          logs={[{ id: 1, sequence: 1, kind: "tool_call", chunk: "[codex mcp] cancel_wakeup started", created_at: null }]}
-        />
+        <RunTranscriptLogs agentic logs={[{ id: 1, sequence: 1, kind: "tool_call", chunk: "[codex mcp] cancel_wakeup started", created_at: null }]} />
       </MemoryRouter>
     )
 
