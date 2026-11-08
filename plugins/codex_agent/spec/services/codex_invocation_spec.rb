@@ -1335,4 +1335,26 @@ RSpec.describe CodexInvocation do
       expect(events).to be_empty
     end
   end
+
+  describe "persisted workflow tool metadata" do
+    it "persists paired MCP call/result metadata through a JobLog sink and returns it in the run artifact" do
+      run = Factories.job_with_run.runs.last
+      run.job_logs.delete_all
+      sink = lambda do |chunk, kind: nil, tool_name: nil, tool_input: nil, tool_result_content: nil, tool_result_error: nil, tool_use_id: nil, **|
+        JobLog.append!(run: run, chunk: chunk, kind: kind, tool_name: tool_name, tool_input: tool_input,
+                       tool_result_content: tool_result_content, tool_result_error: tool_result_error, tool_use_id: tool_use_id)
+      end
+      inv = described_class.new("/tmp/wkt", prompt: "P", api_key: "sk-test")
+      item = { "type" => "mcp_tool_call", "server" => "syrus-mcp-sidecar", "tool" => "submit_adversarial_review" }
+
+      inv.send(:process_item_event, { "type" => "item.started", "id" => "call-7", "item" => item.merge("arguments" => { "verdict" => "ok" }) }, sink)
+      inv.send(:process_item_event, { "type" => "item.completed", "id" => "call-7", "item" => item.merge("result" => [ { "type" => "text", "text" => "recorded" } ]) }, sink)
+
+      logs = App::RunArtifactsPayload.build(run: run, artifact: "transcript")[:logs]
+      expect(logs.map { |l| l[:kind] }).to eq(%w[tool_call tool_result])
+      expect(logs[0]).to include(tool_name: "syrus-mcp-sidecar.submit_adversarial_review", tool_use_id: "call-7", tool_input: { "verdict" => "ok" })
+      expect(logs[1]).to include(tool_name: "syrus-mcp-sidecar.submit_adversarial_review", tool_use_id: "call-7", tool_result_error: false)
+      expect(logs[1][:tool_result_content]).to eq([ { "type" => "text", "text" => "recorded" } ])
+    end
+  end
 end

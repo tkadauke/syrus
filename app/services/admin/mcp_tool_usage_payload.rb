@@ -330,7 +330,8 @@ module Admin
         advertised_tools: advertised,
         single_tool_name: tool_name,
         chat_session: chat_session,
-        workflow_transcript_logs: JobLog.all
+        workflow_transcript_logs: JobLog.all,
+        workflow_advertised_tools: McpToolUsageRecorder.advertised_tools(surface: "workflow")
       )
     end
 
