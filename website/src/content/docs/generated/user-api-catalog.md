@@ -155,6 +155,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/credentials/test_gemini_key` | `api/v1/app/credentials#test_gemini_key` |
 | core | POST | `/api/v1/app/credentials/test_github_token` | `api/v1/app/credentials#test_github_token` |
 | core | GET | `/api/v1/app/dashboard` | `api/v1/app/dashboard#show` |
+| core | GET | `/api/v1/app/dashboard/controls` | `api/v1/app/dashboard#controls` |
 | core | PATCH | `/api/v1/app/dashboard/epics/:id/auto_approval` | `api/v1/app/dashboard#epic_auto_approval` |
 | core | POST | `/api/v1/app/dashboard/epics/bulk` | `api/v1/app/dashboard#bulk_epics` |
 | core | POST | `/api/v1/app/dashboard/jobs/bulk` | `api/v1/app/dashboard#bulk_jobs` |
