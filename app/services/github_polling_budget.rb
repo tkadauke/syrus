@@ -85,7 +85,7 @@ class GithubPollingBudget
         eligible.first(limit)
       end
 
-      Job.where(id: selected.map(&:id)).update_all(pr_feedback_poll_selected_at: now) if kind.to_sym == :pr_feedback
+      record_pr_feedback_selection(selected, now) if kind.to_sym == :pr_feedback
       selected
     end
 
@@ -98,6 +98,15 @@ class GithubPollingBudget
     end
 
     private
+
+    # The selection timestamp only feeds fairness ordering. A lock timeout
+    # against concurrent Job writers must not fail the whole polling tick, so
+    # skip the bookkeeping and let the next tick record it.
+    def record_pr_feedback_selection(selected, now)
+      Job.where(id: selected.map(&:id)).update_all(pr_feedback_poll_selected_at: now)
+    rescue ActiveRecord::LockWaitTimeout, ActiveRecord::Deadlocked => e
+      Rails.logger.warn("GithubPollingBudget: skipped poll-selection bookkeeping (#{e.class})")
+    end
 
     def select_pr_feedback_jobs(urgent, non_urgent, limit)
       urgent_limit = [ limit - NON_URGENT_RESERVE, 0 ].max
