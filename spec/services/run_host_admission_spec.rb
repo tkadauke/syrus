@@ -440,6 +440,18 @@ RSpec.describe RunHostAdmission do
       expect(admission.send(:details, "x")).to include("active_run_ids" => [live.id])
     end
 
+    it "gathers liveness evidence without per-Run queries" do
+      runs = Array.new(4) { |i| running_run_on_worker_a(20 + i, heartbeat: 1.minute.ago) }
+      runs.each { |r| r.spawned_processes.create!(workflow: r.workflow, kind: "grader", command: "x", hostname: "worker-a", started_at: 1.minute.ago) }
+      admission = described_class.new(run: run)
+      count = 0
+      sub = ActiveSupport::Notifications.subscribe("sql.active_record") { |*, p| count += 1 unless p[:name] == "SCHEMA" }
+      admission.send(:active_run_liveness_evidence)
+      ActiveSupport::Notifications.unsubscribe(sub)
+
+      expect(count).to be <= 4
+    end
+
     it "counts a recently started provider-bound Run before its first heartbeat" do
       live = running_run_on_worker_a(1, started_at: 2.minutes.ago)
 
