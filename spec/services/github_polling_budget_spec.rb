@@ -115,5 +115,19 @@ RSpec.describe GithubPollingBudget do
 
       expect(selected).to contain_exactly(landing)
     end
+
+    it "still returns the selection when recording pr_feedback bookkeeping hits a lock timeout" do
+      job = job_in_state("landing")
+      relation = instance_double(ActiveRecord::Relation)
+      allow(Job).to receive(:where).and_call_original
+      allow(Job).to receive(:where).with(id: [ job.id ]).and_return(relation)
+      allow(relation).to receive(:update_all).and_raise(ActiveRecord::LockWaitTimeout)
+
+      selected = described_class.take_pollable_jobs(
+        Job.where(id: job.id), kind: :pr_feedback, limit: 10, now: Time.current
+      )
+
+      expect(selected).to eq([ job ])
+    end
   end
 end
