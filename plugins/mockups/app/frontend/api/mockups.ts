@@ -26,8 +26,8 @@ export type MockupPanel = PreviewPanelPayload & {
 export type MockupsIndexPayload = {
   mockups: MockupSummary[]
   filter: Record<string, unknown> | null
-  filter_schema: FilterSchemaField[]
-  pagination: { page: number; per_page: number; total: number; has_next_page: boolean; has_previous_page: boolean }
+  filter_schema: FilterSchemaField[] | null
+  pagination: { page: number; per_page: number; has_next_page: boolean; has_previous_page: boolean }
 }
 
 export type MockupDetailPayload = {
@@ -35,9 +35,17 @@ export type MockupDetailPayload = {
   panel: MockupPanel
 }
 
+export type MockupsFilterSchemaPayload = {
+  filter_schema: FilterSchemaField[]
+}
+
 export function fetchMockups(search: string): Promise<MockupsIndexPayload> {
   const query = search && search !== "?" ? search : ""
   return getJson<MockupsIndexPayload>(`/api/v1/app/mockups${query}`)
+}
+
+export function fetchMockupsFilterSchema(): Promise<MockupsFilterSchemaPayload> {
+  return getJson<MockupsFilterSchemaPayload>("/api/v1/app/mockups?schema=1")
 }
 
 export function fetchMockup(ref: string): Promise<MockupDetailPayload> {

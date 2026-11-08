@@ -65,6 +65,41 @@ RSpec.describe "API: /api/v1/app/mockups", type: :request do
     expect(panel["app_visibility_path"]).to eq("/api/v1/app/preview_panels/#{mockup.preview_panel_id}")
     expect(body.dig("mockup", "chat_path")).to eq("/chats/#{mockup.chat_session_id}")
     expect(panel["entry_viewer_kind"]).to eq("html")
+    expect(panel["versions"].size).to eq(1)
+  end
+
+  it "returns full panel history only when requested" do
+    mockup = mockup_for(user)
+    first_version_id = mockup.preview_panel.current_version.id
+    PreviewPanel::Service.new(mockup.preview_panel).update!(files: { "index.html" => "new" })
+    sign_in_as(user)
+
+    get "/api/v1/app/mockups/#{mockup.slug}?versions=all"
+
+    expect(JSON.parse(response.body).dig("panel", "versions").map { |version| version["id"] }).to eq(
+      [ mockup.preview_panel.reload.current_version.id, first_version_id ]
+    )
+  end
+
+  it "omits the filter schema after the first page and does not return an exact total" do
+    mockup_for(user)
+    sign_in_as(user)
+
+    get "/api/v1/app/mockups?page=2"
+
+    body = JSON.parse(response.body)
+    expect(body["filter_schema"]).to be_nil
+    expect(body["pagination"]).not_to have_key("total")
+  end
+
+  it "serves the filter schema independently for clients that cache it" do
+    sign_in_as(user)
+
+    get "/api/v1/app/mockups?schema=1"
+
+    body = JSON.parse(response.body)
+    expect(body.keys).to eq([ "filter_schema" ])
+    expect(body["filter_schema"].map { |field| field["field"] }).to include("title")
   end
 
   it "keeps a mockup viewable after its chat panel is closed" do

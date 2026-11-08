@@ -1,6 +1,32 @@
 require "rails_helper"
 
 RSpec.describe PreviewPanel::ZipExporter do
+  it "caches the immutable archive by version id" do
+    user = Factories.user
+    chat = ChatSession.create!(user: user)
+    panel = PreviewPanel::Service.open!(chat_session: chat, title: "Cached", files: { "index.html" => "first" })
+    exporter = described_class.new(panel.current_version)
+    cache = ActiveSupport::Cache::MemoryStore.new
+    allow(Rails).to receive(:cache).and_return(cache)
+
+    expect(exporter).to receive(:build_zip).once.and_call_original
+
+    expect(exporter.call).to eq(exporter.call)
+  end
+
+  it "does not retain oversized archives in the shared cache" do
+    version = instance_double(PreviewPanelVersion, id: 123)
+    exporter = described_class.new(version)
+    cache = ActiveSupport::Cache::MemoryStore.new
+    allow(Rails).to receive(:cache).and_return(cache)
+    stub_const("PreviewPanel::ZipExporter::MAX_CACHE_BYTES", 3)
+    allow(exporter).to receive(:build_zip).and_return("large")
+
+    2.times { exporter.call }
+
+    expect(exporter).to have_received(:build_zip).twice
+  end
+
   let(:user) { Factories.user }
   let(:repository) { Factories.repository(user: user) }
   let(:chat_session) { ChatSession.create!(user: user, repository: repository) }
