@@ -1613,3 +1613,32 @@ handle them through the normal retryable-failure path.
 Retry scheduling for agentic steps is handled by `WorkEngine::RepairExecutor`, which creates `AutoRetryAttempt` rows and enqueues `AutoRetryJob` so retry classification and remediation stay under unified work-engine authority.
 
 The replacement retry count is per-step per-workflow, not per-job. Each step failure classification is persisted as a `RunFailureClassification` row so the reaper and `RunJob` can accurately count prior retries.
+
+## Grader outcome taxonomy
+
+Every grader Step records one persisted `outcome` (and `outcome_reason`) in its
+details, and `grader_collect` copies both into each iteration entry:
+
+| Outcome | Meaning |
+| --- | --- |
+| `passed` | The grader succeeded. |
+| `test_failed` | A valid exit status (integer 0..255, non-zero) **and** captured failure evidence (log output, log artifact, or JUnit/JSON reference). |
+| `infrastructure_failed` | Worker death, disk full, setup/dependency-install failure, database lock or resource contention. |
+| `inconclusive` | Missing or invalid exit status, timeout, lost result transport, or a non-zero exit with no captured evidence. |
+| `cancelled` | Stopped or killed by an operator or the system. |
+
+Classification evidence (raw command, source SHA, worker identity, exit status,
+timeout/cancellation metadata, log/JUnit/JSON references) is kept alongside the
+outcome. `GraderOutcome` (`app/services/grader_outcome.rb`) is the single
+classifier.
+
+### Effect on main health and repair admission
+
+Only `test_failed` graders can set `grader_health` to `broken`, record failed
+grader names, change main-health state, or let `MainHealthChangedService`
+admit a repair Job. `infrastructure_failed` and `inconclusive` results settle
+main health as `inconclusive` (or leave it `unknown` and enqueue a
+replacement check for worker interruptions) and never spawn repair. A missing
+or invalid exit status can never mark `ci_health` or `grader_health` broken.
+The per-repository `treat_grader_timeouts_as_failures` setting remains an
+explicit operator opt-in that counts timeouts as failures.

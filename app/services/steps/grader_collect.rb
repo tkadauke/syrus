@@ -503,6 +503,8 @@ module Steps
             "status" => g.state == "succeeded" ? "passed" : "failed",
             "command" => details["command"],
             "exit_code" => details["exit_code"],
+            "outcome" => grader_outcome_for(g).outcome,
+            "outcome_reason" => grader_outcome_for(g).reason,
             "duration_s" => details["duration_s"],
             "timed_out" => details["timed_out"],
             "log_path" => details["log_path"],
@@ -542,6 +544,11 @@ module Steps
       mark_repeated_grader_result!(iterations, index, iteration)
       iterations[index] = iteration
       workflow.set_artifact!("iterations", iterations)
+    end
+
+    def grader_outcome_for(grader_step)
+      @grader_outcomes ||= {}
+      @grader_outcomes[grader_step.id] ||= GraderOutcome.for_step(grader_step)
     end
 
     def mark_repeated_grader_result!(iterations, index, iteration)
