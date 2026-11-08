@@ -97,6 +97,27 @@ RSpec.describe "Plugin source boundaries" do
     end
   end
 
+  it "treats shared frontend test-support modules as test code", :requires_git_checkout do
+    Dir.mktmpdir do |dir|
+      root = Pathname.new(dir)
+      support = root.join("app/frontend/test/app")
+      support.mkpath
+      support.join("fixture.ts").write("const c = { component: \"whiteboard/WhiteboardTab\" }\n")
+      File.symlink(Rails.root.join("plugins").to_s, root.join("plugins").to_s)
+      Open3.capture2("git", "-C", dir, "init", "-q")
+      Open3.capture2("git", "-C", dir, "add", "app/frontend/test/app/fixture.ts")
+
+      expect(Admin::PluginSourceBoundaryAudit.new(root: root).core_violations).to eq([])
+
+      # Outside app/frontend/test the same line is still a core violation.
+      other = root.join("app/frontend/lib")
+      other.mkpath
+      other.join("fixture.ts").write("const c = { component: \"whiteboard/WhiteboardTab\" }\n")
+      Open3.capture2("git", "-C", dir, "add", "app/frontend/lib/fixture.ts")
+      expect(Admin::PluginSourceBoundaryAudit.new(root: root).core_violations.map(&:message)).to include(/lib\/fixture\.ts/)
+    end
+  end
+
   # Same reasoning as core_violations above: the dedicated plugin-boundaries
   # grader is the gate, and this scan is O(manifests squared x files).
   it "allows plugin-to-plugin references only through declared dependencies", :ci_only do
