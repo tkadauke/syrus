@@ -4001,12 +4001,14 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository)
       ref = "a" * 40
-      stub_repository_content(repository, ref:, files: { "SOUL.md" => "
+      stub_repository_content(repository, ref:, files: { "SOUL.md" => "<<<<<<< background\n=======\nforeground\n>>>>>>> home\n" })
+
       get "/api/v1/app/chats/#{chat.id}/source_file/raw",
         params: { path: "SOUL.md", repository_id: repository.id, ref: ref }
 
       expect(response).to have_http_status(:ok)
-      expect(response.body).to include("    end
+      expect(response.body).to include("<<<<<<< background", ">>>>>>> home")
+    end
 
     it "streams text content from the relay as a raw response" do
       sign_in_as(user)
