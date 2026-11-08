@@ -75,7 +75,10 @@ RSpec.describe MysqlDbBrowser::PermissionProvider do
     read = described_class.capability_descriptor("mysql.table/list@v1")
     query = described_class.capability_descriptor("mysql.query/execute@v1")
 
-    expect(read).to have_attributes(maximum_autonomy: :job, risk: :medium)
+    # Metadata reads may be granted standing authority; arbitrary query
+    # execution next door stays per-invocation.
+    expect(read).to have_attributes(maximum_autonomy: :permanent, risk: :medium,
+      authority_durations: %i[invocation chat_session job permanent])
     expect(query).to have_attributes(maximum_autonomy: :invocation, authority_durations: [ :invocation ], risk: :critical)
   end
 

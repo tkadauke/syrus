@@ -423,8 +423,10 @@ the describe GET - no editing, no apply.
 
 The plugin publishes canonical permission descriptors for every agentic tool.
 `k8s.observe@v1` covers ordinary cluster observation and may be authorized for
-an invocation, chat session, or Job. Secret metadata is separated into
-`k8s.secret_access@v1` and is capped at a chat session. Workload mutations,
+an invocation, chat session, Job, or permanently: observation only reads, so a
+standing grant is available to an operator who wants one. Secret metadata is
+separated into `k8s.secret_access@v1` and is capped at a chat session, because
+what it returns is credential material rather than a description of it. Workload mutations,
 node administration, and raw kubectl calls use distinct capabilities and are
 always authorized for one exact invocation only. Their resource scopes form a
 cluster / namespace / kind / object hierarchy; raw kubectl scope uses its

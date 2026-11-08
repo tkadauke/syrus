@@ -4,7 +4,12 @@ module K8sCluster
 
     ROLES = [ AgentRole::CHAT_PLANNER, AgentRole::WORKFLOW_IMPLEMENT ].freeze
     ASK_DEFAULTS = ROLES.index_with { :ask }.freeze
-    OBSERVE_DURATIONS = %i[invocation chat_session job].freeze
+    # Observing a cluster reads and nothing else: the only effect beside the
+    # reads is the credential the read travels on. An operator who is willing
+    # to let an agent list pods is willing to let it list pods tomorrow, so the
+    # ceiling admits a standing grant. The default stays ask -- this widens what
+    # may be granted, not what is assumed.
+    OBSERVE_DURATIONS = %i[invocation chat_session job permanent].freeze
     SECRET_DURATIONS = %i[invocation chat_session].freeze
     NAMESPACED_KINDS = %w[
       pod pod_logs deployment statefulset daemonset job service ingress configmap
@@ -144,7 +149,7 @@ module K8sCluster
       register_capability(
         capability: "k8s.observe@v1", operation:, effects: OBSERVE_EFFECTS,
         risk: :medium, requestable_roles: ROLES, defaults: ASK_DEFAULTS,
-        maximum_autonomy: :job, authority_durations: OBSERVE_DURATIONS, resource_scope: scope,
+        maximum_autonomy: :permanent, authority_durations: OBSERVE_DURATIONS, resource_scope: scope,
         classifier: fixed_classifier(operation, OBSERVE_EFFECTS, :medium),
         fingerprint_normalizer: method(:normalize_arguments), redactor: method(:redact_arguments)
       )

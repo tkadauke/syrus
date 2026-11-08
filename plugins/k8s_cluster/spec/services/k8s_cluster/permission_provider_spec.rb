@@ -21,7 +21,11 @@ RSpec.describe K8sCluster::PermissionProvider do
     node = described_class.capability_descriptor("k8s.node/cordon@v1")
     raw = described_class.capability_descriptor("k8s.raw/execute@v1")
 
-    expect(observe).to have_attributes(maximum_autonomy: :job, authority_durations: %i[invocation chat_session job])
+    # Reads may be granted standing authority: their only non-read effect is
+    # the credential the read travels on.
+    expect(observe).to have_attributes(maximum_autonomy: :permanent, authority_durations: %i[invocation chat_session job permanent])
+    # Secret material is the deliberate exception. It reads too, but what it
+    # returns is the credential itself, so it stays short-lived.
     expect(secrets).to have_attributes(maximum_autonomy: :chat_session, authority_durations: %i[invocation chat_session])
     expect([ workload, node, raw ]).to all(have_attributes(maximum_autonomy: :invocation, authority_durations: [ :invocation ]))
     expect(described_class.permission_capability_descriptors).to all(satisfy { |descriptor| descriptor.defaults.values.uniq == [ :ask ] })

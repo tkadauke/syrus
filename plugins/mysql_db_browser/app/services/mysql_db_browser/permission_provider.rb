@@ -9,7 +9,12 @@ module MysqlDbBrowser
     READ_ROLES = (ROLES + [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]).freeze
     READ_DEFAULTS = ROLES.index_with { :ask }.freeze
     COWORKER_READ_DEFAULTS = READ_ROLES.index_with { :ask }.freeze
-    READ_DURATIONS = %i[invocation chat_session job].freeze
+    # Listing connections, databases and tables, and describing a table, read
+    # and nothing else; the credential is how the read reaches the server, not
+    # a second effect. The ceiling therefore admits a standing grant while the
+    # default stays ask. Arbitrary query execution is a separate capability and
+    # keeps its per-invocation ceiling.
+    READ_DURATIONS = %i[invocation chat_session job permanent].freeze
 
     class << self
       def connection_scope(kind)
@@ -98,7 +103,7 @@ module MysqlDbBrowser
       register_capability(
         capability: "mysql.read@v1", operation:, effects: %i[network_read confidential_read credential_use],
         risk: :medium, requestable_roles: READ_ROLES, defaults: COWORKER_READ_DEFAULTS,
-        maximum_autonomy: :job, authority_durations: READ_DURATIONS, resource_scope: scope,
+        maximum_autonomy: :permanent, authority_durations: READ_DURATIONS, resource_scope: scope,
         classifier: ->(_arguments) { { operation:, effects: %i[network_read confidential_read credential_use], risk: :medium, confidence: :certain } },
         fingerprint_normalizer: method(:normalize_arguments), redactor: method(:redact_arguments)
       )

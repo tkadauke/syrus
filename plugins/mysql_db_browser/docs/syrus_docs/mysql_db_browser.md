@@ -234,7 +234,8 @@ docs' Agentic write-access gating section for the parallel shape.
 The plugin also publishes canonical permission metadata for operator-managed
 rules. It distinguishes connection, database, table, query, schema, and
 administrative resource scopes. Metadata reads are medium-risk and may be
-delegated only through a Job; query execution has an invocation-only ceiling.
+delegated for an invocation, chat session, Job, or permanently, since they only
+read; query execution has an invocation-only ceiling.
 SQL classification separates reads, data writes, schema changes, and
 administrative effects. Unknown, compound, executable-comment, and CTE forms
 fall back to the query descriptor's critical maximum risk. Permission
