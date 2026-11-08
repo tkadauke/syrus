@@ -38,8 +38,11 @@ type ChatList struct {
 }
 
 type chatListResponse struct {
-	Chats        []ChatSession    `json:"chats"`
-	Groups       []ChatListGroup  `json:"groups"`
+	Chats  []ChatSession   `json:"chats"`
+	Groups []ChatListGroup `json:"groups"`
+}
+
+type newChatResponse struct {
 	Repositories []ChatRepository `json:"repositories"`
 }
 
@@ -117,6 +120,10 @@ func (c *Client) ListChats(ctx context.Context) (ChatList, error) {
 	if err != nil {
 		return ChatList{}, err
 	}
+	var newChat newChatResponse
+	if err := c.do(ctx, http.MethodGet, "/api/v1/app/chats/new", nil, &newChat); err != nil {
+		return ChatList{}, err
+	}
 
 	chats := response.Chats
 	if len(response.Groups) > 0 {
@@ -133,7 +140,7 @@ func (c *Client) ListChats(ctx context.Context) (ChatList, error) {
 		}
 	}
 
-	return ChatList{Chats: chats, Repositories: response.Repositories}, nil
+	return ChatList{Chats: chats, Repositories: newChat.Repositories}, nil
 }
 
 func (c *Client) GetChat(ctx context.Context, chatID string) (ChatPayload, error) {

@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { MemoryRouter, useLocation } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { ChatBookmark, ChatGoal, ChatGroupRecord, ChatNavRecord, ChatPayload, ChatsIndexPayload } from "../../api/chats"
+import type { ProviderAvailability } from "../../api/providerAvailability"
 import { jsonResponse } from "../../testSupport"
 import { applyAppEvent } from "../../lib/appEvents"
 import { RecentChatsSidebar } from "./RecentChatsSidebar"
@@ -24,6 +25,7 @@ function renderSidebar(
     onCloseDrawer?: () => void
     onStartChat?: (repositoryId?: number | null) => void
     prefix?: string
+    providerAvailability?: Record<string, ProviderAvailability>
     renderOptions?: Parameters<typeof render>[1]
   } = {}
 ) {
@@ -46,6 +48,7 @@ function renderSidebar(
           onNotice={() => {}}
           onStartChat={options.onStartChat}
           prefix={options.prefix ?? ""}
+          providerAvailability={options.providerAvailability}
           userPresent
         />
         <LocationProbe />
@@ -79,56 +82,70 @@ function withMatchMedia(matches: boolean) {
 
 describe("RecentChatsSidebar active chat highlighting", () => {
   it("shows a red usage-limit warning for affected chats", () => {
-    renderSidebar([
-      chatNav({
-        id: 1,
-        title: "Codex chat",
-        provider_availability: {
-          provider: "codex",
-          label: "Codex",
-          model: null,
-          state: "exhausted",
-          open: true,
-          usage_exhausted: true,
-          retry_after: null,
-          reason: "Provider usage limit exhausted.",
-          message: "Codex usage limit reached. This item uses Codex until usage resets."
+    renderSidebar(
+      [
+        chatNav({
+          id: 1,
+          title: "Codex chat",
+          effective_chat_provider: "codex"
+        })
+      ],
+      {
+        providerAvailability: {
+          codex: {
+            provider: "codex",
+            label: "Codex",
+            model: null,
+            state: "exhausted",
+            open: true,
+            usage_exhausted: true,
+            retry_after: null,
+            reason: "Provider usage limit exhausted.",
+            message: "Codex usage limit reached. This item uses Codex until usage resets."
+          }
         }
-      })
-    ])
+      }
+    )
 
     expect(screen.getByRole("img", { name: /Codex usage limit reached/ })).toBeInTheDocument()
   })
 
   it("includes provider evidence details in usage warning labels", () => {
-    renderSidebar([
-      chatNav({
-        id: 1,
-        title: "Codex chat",
-        provider_availability: {
-          provider: "codex",
-          label: "Codex",
-          model: "gpt-5.5",
-          state: "exhausted",
-          open: true,
-          usage_exhausted: true,
-          retry_after: null,
-          reason: "Provider usage limit exhausted.",
-          message: "Codex usage limit reached for gpt-5.5.",
-          evidence: {
-            current: {
-              status: "exhausted",
-              source: "usage_probe",
-              observed_at: "2026-08-04T16:00:00Z",
-              provider: "codex",
-              account_id: "account-123",
-              model: "gpt-5.5",
-              http_status: 200
+    renderSidebar(
+      [
+        chatNav({
+          id: 1,
+          title: "Codex chat",
+          effective_chat_provider: "codex"
+        })
+      ],
+      {
+        providerAvailability: {
+          codex: {
+            provider: "codex",
+            label: "Codex",
+            model: "gpt-5.5",
+            state: "exhausted",
+            open: true,
+            usage_exhausted: true,
+            retry_after: null,
+            reason: "Provider usage limit exhausted.",
+            message: "Codex usage limit reached for gpt-5.5.",
+            evidence: {
+              current: {
+                status: "exhausted",
+                source: "usage_probe",
+                observed_at: "2026-08-04T16:00:00Z",
+                provider: "codex",
+                account_id: "account-123",
+                model: "gpt-5.5",
+                http_status: 200
+              }
             }
           }
         }
-      })
-    ])
+      }
+    )
 
     const warning = screen.getByRole("img", { name: /Evidence: exhausted from usage_probe/ })
     expect(warning).toHaveAttribute("title", expect.stringContaining("scope codex / account account-123 / model gpt-5.5"))
@@ -803,23 +820,26 @@ describe("RecentChatsSidebar action and marker slot", () => {
         job_summary: {
           active_count: 2,
           outcome: "failed",
+          epics: {
+            "9": {
+              id: 9,
+              slug: "EPIC-9",
+              title: "Sidebar polish",
+              total: 5,
+              state_counts: { implemented: 1, approved: 1, running: 3 },
+              needs_attention: false
+            }
+          },
           jobs: [
             {
               id: 41,
+              epic_id: 9,
               slug: "JOB-41",
               state: "running",
               step: "implement",
               group: "running",
               started_at: new Date(Date.now() - 120_000).toISOString(),
-              app_path: "/jobs/41",
-              epic: {
-                id: 9,
-                slug: "EPIC-9",
-                title: "Sidebar polish",
-                total: 5,
-                state_counts: { implemented: 1, approved: 1, running: 3 },
-                needs_attention: false
-              }
+              app_path: "/jobs/41"
             },
             { id: 42, slug: "JOB-42", state: "failed", step: "implement", group: "failed", app_path: "/jobs/42" }
           ]
@@ -840,7 +860,8 @@ describe("RecentChatsSidebar action and marker slot", () => {
     expect(within(popover).queryByRole("link", { name: "JOB-41" })).not.toBeInTheDocument()
     fireEvent.click(within(popover).getByRole("button", { name: "Expand Jobs in EPIC-9" }))
     expect(within(popover).getByRole("link", { name: "JOB-41" })).toBeInTheDocument()
-    expect(within(popover).getByText(/Ship the sidebar/)).toBeInTheDocument()
+    expect(within(popover).getByText("Active")).toBeInTheDocument()
+    expect(within(popover).queryByText(/Ship the sidebar/)).not.toBeInTheDocument()
     expect(within(popover).getByText("2 pending actions")).toBeInTheDocument()
     expect(within(popover).getByText("3 entries")).toBeInTheDocument()
   })
@@ -853,6 +874,7 @@ describe("RecentChatsSidebar action and marker slot", () => {
           job_summary: {
             active_count: 1,
             outcome: null,
+            epics: {},
             jobs: [{ id: 41, slug: "JOB-41", state: "running", step: "implement", group: "running", app_path: "/jobs/41" }]
           }
         })
@@ -889,7 +911,7 @@ describe("RecentChatsSidebar action and marker slot", () => {
       group: "running" as const,
       app_path: `/jobs/${index + 1}`
     }))
-    renderSidebar([chatNav({ job_summary: { active_count: jobs.length, outcome: null, jobs } })])
+    renderSidebar([chatNav({ job_summary: { active_count: jobs.length, outcome: null, jobs, epics: {} } })])
 
     fireEvent.mouseEnter(screen.getByTestId("job-running-marker").parentElement!)
 
@@ -916,13 +938,19 @@ describe("RecentChatsSidebar action and marker slot", () => {
         job_summary: {
           active_count: 4,
           outcome: "failed",
+          epics: {
+            "10": healthy,
+            "11": attention,
+            "12": ready,
+            "13": actionableRunning
+          },
           jobs: [
-            { id: 1, slug: "JOB-1", state: "running", step: "prepare", group: "running", app_path: "/jobs/1", epic: healthy },
-            { id: 2, slug: "JOB-2", state: "running", step: "grader", group: "running", app_path: "/jobs/2", epic: healthy },
+            { id: 1, epic_id: 10, slug: "JOB-1", state: "running", step: "prepare", group: "running", app_path: "/jobs/1" },
+            { id: 2, epic_id: 10, slug: "JOB-2", state: "running", step: "grader", group: "running", app_path: "/jobs/2" },
             { id: 3, slug: "JOB-3", state: "running", step: "implement", group: "running", app_path: "/jobs/3" },
-            { id: 7, slug: "JOB-7", state: "running", step: "review", group: "running", app_path: "/jobs/7", epic: actionableRunning },
-            { id: 4, slug: "JOB-4", state: "failed", step: "grader", group: "failed", app_path: "/jobs/4", epic: attention },
-            { id: 5, slug: "JOB-5", state: "implemented", group: "ready", app_path: "/jobs/5", epic: ready },
+            { id: 7, epic_id: 13, slug: "JOB-7", state: "running", step: "review", group: "running", app_path: "/jobs/7" },
+            { id: 4, epic_id: 11, slug: "JOB-4", state: "failed", step: "grader", group: "failed", app_path: "/jobs/4" },
+            { id: 5, epic_id: 12, slug: "JOB-5", state: "implemented", group: "ready", app_path: "/jobs/5" },
             { id: 6, slug: "JOB-6", state: "implemented", group: "ready", app_path: "/jobs/6" }
           ]
         }
@@ -955,13 +983,19 @@ describe("RecentChatsSidebar action and marker slot", () => {
           chats: [
             chatNav({
               id: 1,
-              job_summary: { active_count: 1, outcome: "ready", jobs: [{ id: 1, slug: "JOB-1", state: "running", group: "running", app_path: "/jobs/1" }] }
+              job_summary: {
+                active_count: 1,
+                outcome: "ready",
+                jobs: [{ id: 1, slug: "JOB-1", state: "running", group: "running", app_path: "/jobs/1" }],
+                epics: {}
+              }
             }),
             chatNav({
               id: 2,
               job_summary: {
                 active_count: 2,
                 outcome: "failed",
+                epics: {},
                 jobs: [
                   { id: 1, slug: "JOB-1", state: "running", group: "running", app_path: "/jobs/1" },
                   { id: 2, slug: "JOB-2", state: "running", group: "running", app_path: "/jobs/2" },
@@ -1376,14 +1410,8 @@ function chatNav(overrides: Partial<ChatNavRecord> = {}): ChatNavRecord {
     title: "Chat",
     title_pending: false,
     pinned: false,
-    pinned_context: null,
-    chat_provider: "claude",
     chat_path: `/chats/${overrides.id ?? 1}`,
     repository: null,
-    stop_requested_at: null,
-    cumulative_input_tokens: 0,
-    cumulative_output_tokens: 0,
-    cumulative_cost_usd: 0,
     pending_proposal_count: 0,
     scratchpad_items_count: 0,
     current: false,
