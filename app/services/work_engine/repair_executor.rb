@@ -721,6 +721,7 @@ module WorkEngine
           blocked = 0
           Job.where(id: job_ids).find_each do |job|
             next unless job.state == "triaging"
+            next unless Job::Kind.classifiable?(job.kind)
 
             reclassified += 1 if prepare_for_reclassification!(job)
           rescue ClassifyIssueJob::EnqueueBlockedError => e
@@ -742,6 +743,7 @@ module WorkEngine
           job.with_lock do
             job.reload
             return false unless job.triaging?
+            return false unless Job::Kind.classifiable?(job.kind)
             return false unless job.classifier_attempts < Job::MAX_CLASSIFIER_ATTEMPTS
 
             if original_reason == "classifier_pending"

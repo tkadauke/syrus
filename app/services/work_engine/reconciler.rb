@@ -2740,7 +2740,7 @@ module WorkEngine
     CLASSIFIER_PENDING_STUCK_AFTER = 10.minutes
 
     def classify_stalled_classifier_pending_jobs
-      candidates = jobs.select { |job| job.state == "triaging" }
+      candidates = jobs.select { |job| job.state == "triaging" && Job::Kind.classifiable?(job.kind) }
       return [] if candidates.empty?
 
       latest_attempt_at_by_job_id = JobClassificationAttempt

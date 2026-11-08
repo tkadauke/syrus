@@ -64,8 +64,15 @@ class ClassifyIssueJob < ApplicationJob
       "#{name}/#{concurrency_key_for(job_id)}"
     end
 
+    # Returns nil (and enqueues nothing) when the Job is not eligible for
+    # ingestion classification, e.g. a main_grader infrastructure anchor.
     def enqueue_for_job!(job_or_id)
+      job = job_or_id.respond_to?(:id) ? job_or_id : Job.find_by(id: job_or_id)
       job_id = job_or_id.respond_to?(:id) ? job_or_id.id : job_or_id
+      unless job && Job::Kind.classifiable?(job.kind)
+        Rails.logger.info("[ClassifyIssueJob] skipping enqueue for Job ##{job_id}: kind not eligible for classification")
+        return nil
+      end
       key = solid_queue_concurrency_key_for(job_id)
       recovered_ids = recover_pruned_failed_execution!(key)
       active_job = perform_later(job_id)
@@ -189,7 +196,7 @@ class ClassifyIssueJob < ApplicationJob
     # SolidQueue job is the single owner of "should the classifier
     # run". The reaper enqueues without re-checking; the job
     # short-circuits cleanly if conditions changed since enqueue.
-    return unless job.triaging? && job.triaging_reason_classifier_pending?
+    return unless job.ingestion_classifiable?
     provider = job.workflow_agent_provider
     unless job.user.agent_provider_configured?(provider)
       Rails.logger.warn("[ClassifyIssueJob] #{job.slug}: agent provider " \
@@ -208,7 +215,7 @@ class ClassifyIssueJob < ApplicationJob
     return unless result.respond_to?(:success?) && !result.success?
 
     job.reload
-    return unless job.triaging? && job.triaging_reason_classifier_pending?
+    return unless job.ingestion_classifiable?
     return unless job.classifier_attempts < Job::MAX_CLASSIFIER_ATTEMPTS
 
     self.class.enqueue_for_job!(job)
