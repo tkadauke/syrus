@@ -9843,6 +9843,7 @@ describe("App", () => {
             JSON.stringify({
               repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
               memberships: [],
+              membership_pagination: { page: 1, per_page: 50, total: 0, total_pages: 0 },
               team_grants: [],
               github_collaborator_discrepancies: []
             }),
@@ -9928,6 +9929,7 @@ describe("App", () => {
             JSON.stringify({
               repository: { id: 3, slug: "acme/widgets", repository_path: "/repositories/3" },
               memberships: [],
+              membership_pagination: { page: 1, per_page: 50, total: 0, total_pages: 0 },
               team_grants: [],
               github_collaborator_discrepancies: []
             }),
@@ -17743,7 +17745,6 @@ function profilePayload(overrides: Record<string, unknown> = {}) {
           }
         }
       ],
-      recent_activity: [],
       ...overrides
     }
   }

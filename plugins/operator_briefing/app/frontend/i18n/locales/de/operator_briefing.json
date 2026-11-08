@@ -58,5 +58,6 @@
   "topic_latest": "Neueste Revision",
   "topic_empty": "Es wurde noch kein Detailbericht eingereicht.",
   "topic_history": "Revisionsverlauf",
-  "topic_revision": "Revision {{number}}"
+  "topic_revision": "Revision {{number}}",
+  "load_more": "Mehr laden"
 }

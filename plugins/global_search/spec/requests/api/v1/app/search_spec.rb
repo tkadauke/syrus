@@ -65,6 +65,7 @@ RSpec.describe "App API unified search", type: :request do
     expect(response).to have_http_status(:ok)
     by_type_and_id = results.index_by { |row| [ row.fetch("type"), row.fetch("id") ] }
     expect(results.map { |row| row["type"] }).to contain_exactly("job", "job", "epic", "chat")
+    expect(parse_body).not_to have_key("controls")
     expect(by_type_and_id.fetch([ "job", stronger_job.id ])).to include(
       "type" => "job",
       "id" => stronger_job.id,
@@ -114,14 +115,20 @@ RSpec.describe "App API unified search", type: :request do
     expect(results).to contain_exactly(include("type" => "job", "id" => job.id))
   end
 
-  it "uses query as the canonical full text search parameter" do
-    job = Factories.job_record(user: user, repository: repository, issue_title: "Canonical deploy job")
-    GlobalSearch::JobIndex.upsert(job)
+  it "returns controls without running result queries when only controls are requested" do
+    provider = Class.new do
+      def self.search_type = "controls_test"
+      def self.filter_subject = :job
+      def self.row_id_key = :job_id
+      def self.search_rows(query:, user:, limit:) = raise("controls-only requests must not search")
+      def self.result_json(row:, user:) = raise("controls-only requests must not serialize")
+    end
+    Syrus::PluginRegistry.register(name: "controls_only_search_plugin", version: "1.0.0", provides: { "global_search:source" => provider })
 
-    get "/api/v1/app/search", params: { query: "deploy" }
+    get "/api/v1/app/search", params: { query: "deploy", types: [ "controls_test" ], controls: "only" }
 
     expect(response).to have_http_status(:ok)
-    expect(results).to include(include("type" => "job", "id" => job.id))
+    expect(results).to be_empty
     expect(parse_body.dig("controls", "filter_schema").map { |field| field.fetch("field") }).to include("repository_id", "created_at", "updated_at")
   end
 
@@ -377,6 +384,36 @@ RSpec.describe "App API unified search", type: :request do
     expect(results).to be_empty
   end
 
+  it "caps candidate batches when chat matches are not accessible" do
+    inaccessible_batch = Array.new(Api::V1::App::SearchController::FTS_BATCH_SIZE) do |index|
+      { chat_message_id: 10_000 + index, rank: index.to_f, snippet: "needle" }
+    end
+    search_index = double("ChatMessageSearchIndex", search_candidates: inaccessible_batch)
+    stub_const("ChatMessageSearchIndex", search_index)
+
+    get "/api/v1/app/search", params: { query: "needle", types: [ "chat" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to be_empty
+    expect(search_index).to have_received(:search_candidates)
+      .exactly(Api::V1::App::SearchController::MAX_FTS_BATCHES).times
+  end
+
+  it "caps candidate batches when indexed jobs are not accessible" do
+    inaccessible_batch = Array.new(Api::V1::App::SearchController::FTS_BATCH_SIZE) do |index|
+      { job_id: 10_000 + index, rank: index.to_f, snippet: "needle" }
+    end
+    search_index = double("GlobalSearch::JobIndex", search: inaccessible_batch)
+    stub_const("GlobalSearch::JobIndex", search_index)
+
+    get "/api/v1/app/search", params: { query: "needle", types: [ "job" ] }
+
+    expect(response).to have_http_status(:ok)
+    expect(results).to be_empty
+    expect(search_index).to have_received(:search)
+      .exactly(Api::V1::App::SearchController::MAX_FTS_BATCHES).times
+  end
+
   it "excludes soft-deleted chat messages from chat results" do
     chat_session = ChatSession.create!(user: user, repository: repository, title: "Launch chat")
     kept_message = ChatMessage.create!(chat_session: chat_session, role: "user", content: { "text" => "deploy kept" })
@@ -477,7 +514,7 @@ RSpec.describe "App API unified search", type: :request do
     [ queued_job, closed_job ].each { |job| GlobalSearch::JobIndex.upsert(job) }
     tree = { "and" => [ { "field" => "state", "op" => "is", "value" => "closed" } ] }
 
-    get "/api/v1/app/search", params: { query: "deploy", q: filter_q(tree), types: [ "job" ] }
+    get "/api/v1/app/search", params: { query: "deploy", q: filter_q(tree), types: [ "job" ], controls: 1 }
 
     expect(response).to have_http_status(:ok)
     expect(results).to contain_exactly(include("type" => "job", "id" => closed_job.id))
@@ -490,7 +527,7 @@ RSpec.describe "App API unified search", type: :request do
     [ queued_job, running_job ].each { |job| GlobalSearch::JobIndex.upsert(job) }
     tree = { "and" => [ { "field" => "state", "op" => "is", "value" => "running" } ] }
 
-    get "/api/v1/app/search", params: { query: "deploy", q: filter_q(tree), types: [ "job" ] }
+    get "/api/v1/app/search", params: { query: "deploy", q: filter_q(tree), types: [ "job" ], controls: 1 }
 
     expect(response).to have_http_status(:ok)
     expect(results).to contain_exactly(include("type" => "job", "id" => running_job.id))
@@ -503,7 +540,7 @@ RSpec.describe "App API unified search", type: :request do
     [ backlog_epic, active_epic ].each { |epic| GlobalSearch::EpicIndex.upsert(epic) }
     tree = { "and" => [ { "field" => "state", "op" => "is", "value" => "in_progress" } ] }
 
-    get "/api/v1/app/search", params: { query: "deploy", q: filter_q(tree), types: [ "epic" ] }
+    get "/api/v1/app/search", params: { query: "deploy", q: filter_q(tree), types: [ "epic" ], controls: 1 }
 
     expect(response).to have_http_status(:ok)
     expect(results).to contain_exactly(include("type" => "epic", "id" => active_epic.id))
@@ -519,7 +556,7 @@ RSpec.describe "App API unified search", type: :request do
     [ matching_message, other_message ].each { |message| ChatMessageSearchIndex.insert(message) }
     tree = { "and" => [ { "field" => "repository_id", "op" => "is", "value" => repository.id } ] }
 
-    get "/api/v1/app/search", params: { query: "deploy", q: filter_q(tree), types: [ "chat" ] }
+    get "/api/v1/app/search", params: { query: "deploy", q: filter_q(tree), types: [ "chat" ], controls: 1 }
 
     expect(response).to have_http_status(:ok)
     expect(results).to contain_exactly(include("type" => "chat", "id" => matching_message.id, "repository_slug" => "acme/widgets"))
@@ -555,13 +592,13 @@ RSpec.describe "App API unified search", type: :request do
     stub_const("TestCoworkerFilterChip", chip_class)
     teardown = Filters.register_chips(subject: :chat_message, chips: { "coworker_id" => "TestCoworkerFilterChip" })
 
-    get "/api/v1/app/search", params: { query: "deploy", types: [ "chat" ] }
+    get "/api/v1/app/search", params: { query: "deploy", types: [ "chat" ], controls: 1 }
     expect(parse_body.dig("controls", "filter_schema").pluck("field")).to include("coworker_id")
 
-    get "/api/v1/app/search", params: { query: "deploy", types: [ "job" ] }
+    get "/api/v1/app/search", params: { query: "deploy", types: [ "job" ], controls: 1 }
     expect(parse_body.dig("controls", "filter_schema").pluck("field")).not_to include("coworker_id")
 
-    get "/api/v1/app/search", params: { query: "deploy" }
+    get "/api/v1/app/search", params: { query: "deploy", controls: 1 }
     expect(parse_body.dig("controls", "filter_schema").pluck("field")).not_to include("coworker_id")
 
     teardown.call
@@ -586,7 +623,7 @@ RSpec.describe "App API unified search", type: :request do
       ]
     }
 
-    get "/api/v1/app/search", params: { query: "deploy", q: filter_q(tree), types: [ "chat" ] }
+    get "/api/v1/app/search", params: { query: "deploy", q: filter_q(tree), types: [ "chat" ], controls: 1 }
 
     expect(response).to have_http_status(:ok)
     expect(results).to contain_exactly(include("type" => "chat", "id" => matching_message.id))

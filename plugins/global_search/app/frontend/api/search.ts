@@ -102,8 +102,9 @@ export type ChatGroupedMatch = {
   created_at: string | null
 }
 
-export async function fetchSearch(search: string, signal?: AbortSignal) {
+export async function fetchSearch(search: string, signal?: AbortSignal, controls = false) {
   const params = new URLSearchParams(search)
+  if (controls) params.set("controls", "only")
 
   const payload = await getJson<SearchPayload | SearchResult[] | unknown>(`/api/v1/app/search?${params.toString()}`, { signal })
   return normalizeSearchPayload(payload)

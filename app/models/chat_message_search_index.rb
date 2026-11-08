@@ -102,6 +102,40 @@ class ChatMessageSearchIndex < SearchRecord
       rows.map(&:symbolize_keys)
     end
 
+    # Global search authorizes these candidates against the primary database
+    # before returning them. Paging candidates avoids materializing every chat
+    # session id, which cannot be expressed as a cross-database subquery because
+    # the FTS index intentionally uses the separate search database.
+    def search_candidates(query, limit:, offset: 0)
+      rows = connection.exec_query(
+        <<~SQL.squish,
+          SELECT
+            chat_message_id,
+            chat_session_id,
+            user_id,
+            role,
+            created_at,
+            snippet(chat_message_fts, 0, ?, ?, '...', ?) AS snippet,
+            bm25(chat_message_fts) AS rank
+          FROM chat_message_fts
+          WHERE chat_message_fts MATCH ?
+          ORDER BY rank ASC, created_at DESC, chat_message_id DESC
+          LIMIT ? OFFSET ?
+        SQL
+        "ChatMessageSearchIndex Candidate Search",
+        [
+          bind("<mark>"),
+          bind("</mark>"),
+          bind(24),
+          bind(parse_fts_query(query)),
+          bind(limit.to_i),
+          bind(offset.to_i)
+        ]
+      )
+
+      rows.map(&:symbolize_keys)
+    end
+
     def matching_chat_session_page(query, chat_session_ids:, limit:, offset:)
       scoped_chat_session_ids = Array(chat_session_ids).compact_blank.uniq
       return { chat_session_ids: [], total: 0 } if scoped_chat_session_ids.empty?

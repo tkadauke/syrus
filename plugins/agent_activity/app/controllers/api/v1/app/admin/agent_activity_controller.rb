@@ -14,6 +14,10 @@ module Api
         class AgentActivityController < BaseController
           def sessions
             filter = current_filter
+            if params[:section] == "chrome"
+              render json: chrome_payload(filter)
+              return
+            end
             result = ::AgentActivity::SessionsQuery.call(
               scope: :admin,
               user: Current.user,
@@ -22,17 +26,19 @@ module Api
               per: params[:per]
             )
 
-            render json: {
-              sessions: result[:rows].map { |agent| serialize(agent) },
+            sessions = result[:rows].map { |agent| serialize(agent) }
+            payload = {
+              sessions: sessions.map { |row| row.merge(job: row[:job]&.slice(:id), repository: row[:repository]&.slice(:id)) },
+              jobs: sessions.filter_map { |row| row[:job] }.uniq { |job| job[:id] }.index_by { |job| job[:id] },
+              repositories: sessions.filter_map { |row| row[:repository] }.uniq { |repository| repository[:id] }.index_by { |repository| repository[:id] },
               total: result[:total],
               page: result[:page],
               per: result[:per],
-              running_count: result[:running_count],
-              filter: filter.to_h,
-              filter_schema: ::AgentActivity::Filter.schema,
-              active_smart_folder_id: active_smart_folder&.id,
-              smart_folders: smart_folders(:admin)
+              running_count: result[:running_count]
             }
+            payload.merge!(chrome_payload(filter)) unless params[:section] == "rows"
+            fresh_when(etag: payload, public: false)
+            render json: payload unless performed?
           end
 
           def artifacts
@@ -51,6 +57,15 @@ module Api
           end
 
           private
+
+          def chrome_payload(filter)
+            {
+              filter: filter.to_h,
+              filter_schema: ::AgentActivity::Filter.schema,
+              active_smart_folder_id: active_smart_folder&.id,
+              smart_folders: smart_folders(:admin)
+            }
+          end
 
           def current_filter
             @current_filter ||= ::Filters::SmartFolderResolution.call(

@@ -12,24 +12,30 @@ const originalMatchMedia = Object.getOwnPropertyDescriptor(window, "matchMedia")
 
 function filterSchema() {
   return [
-    { field: "repository_id", label: "Repository", bucket: "fk", operators: [ "is" ], typeahead: true },
-    { field: "job_id", label: "Job", bucket: "fk", operators: [ "is" ], typeahead: true },
+    { field: "repository_id", label: "Repository", bucket: "fk", operators: ["is"], typeahead: true },
+    { field: "job_id", label: "Job", bucket: "fk", operators: ["is"], typeahead: true },
     {
       field: "step_kind",
       label: "Role",
       bucket: "enum",
-      operators: [ "is_one_of" ],
+      operators: ["is_one_of"],
       values: [
         { value: "implement", label: "Implement" },
         { value: "adversarial_review", label: "Adversarial review" }
       ]
     },
-    { field: "agent_provider", label: "Agent", bucket: "enum", operators: [ "is", "is_not", "is_one_of", "is_none_of", "is_set", "is_unset" ], values: [ "claude", "codex" ] },
+    {
+      field: "agent_provider",
+      label: "Agent",
+      bucket: "enum",
+      operators: ["is", "is_not", "is_one_of", "is_none_of", "is_set", "is_unset"],
+      values: ["claude", "codex"]
+    },
     {
       field: "status",
       label: "Status",
       bucket: "enum",
-      operators: [ "is", "is_one_of" ],
+      operators: ["is", "is_one_of"],
       values: [
         { value: "queued", label: "Queued" },
         { value: "running", label: "Running" },
@@ -37,39 +43,31 @@ function filterSchema() {
         { value: "failed", label: "Failed" }
       ]
     },
-    { field: "window", label: "Time window", bucket: "date", operators: [ "within_last", "between" ] }
+    { field: "window", label: "Time window", bucket: "date", operators: ["within_last", "between"] }
   ]
 }
 
 function session(overrides: Partial<AgentActivitySession> = {}): AgentActivitySession {
   return {
     id: 501,
-    slug: "RUN-501",
     state: "running",
-    step_kind: "implement",
-    role: "workflow:implement",
     role_label: "Implement",
     agent_provider: "claude",
-    agent_outcome: null,
     outcome_summary: null,
     outcome_verdict: null,
     started_at: "2026-01-01T00:10:00Z",
-    finished_at: null,
-    created_at: "2026-01-01T00:09:00Z",
     duration_seconds: 120,
     transcript_path: "/api/v1/app/jobs/42/runs/501/artifacts",
     chat_path: null,
     job: { id: 42, slug: "JOB-42", title: "Fix the aqueducts", state: "running" },
     repository: { id: 1, slug: "acme/widgets" },
-    workflow_id: 900,
-    trigger_kind: "initial",
     ...overrides
   }
 }
 
 function sessionsPayload(overrides: Record<string, unknown> = {}) {
   return {
-    sessions: [ session() ],
+    sessions: [session()],
     total: 1,
     page: 1,
     per: 20,
@@ -101,7 +99,7 @@ function sessionsPayload(overrides: Record<string, unknown> = {}) {
         visibility: "always",
         count: 1,
         active: false,
-        filter: { and: [ { field: "status", op: "is", value: "running" } ] },
+        filter: { and: [{ field: "status", op: "is", value: "running" }] },
         path: "/agent_activity?smart_folder_id=11"
       }
     ],
@@ -122,38 +120,47 @@ function decodeQ(url: string) {
 function setupFetchMock(sessionsOverrides: Record<string, unknown> = {}) {
   const calls: string[] = []
 
-  vi.spyOn(window, "fetch").mockImplementation(((input: RequestInfo | URL) => {
+  vi.spyOn(window, "fetch").mockImplementation(((input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     calls.push(url)
 
-    if (url.startsWith("/api/v1/app/agent_activity/sessions") || url.startsWith("/api/v1/app/admin/agent_activity/sessions") && !url.includes("/artifacts")) {
+    if (url === "/api/v1/app/smart_folders" && init?.method === "POST") {
+      return Promise.resolve(jsonResponse({ message: "Smart folder created.", redirect_to: null }))
+    }
+
+    if (url.startsWith("/api/v1/app/agent_activity/sessions") || (url.startsWith("/api/v1/app/admin/agent_activity/sessions") && !url.includes("/artifacts"))) {
       return Promise.resolve(jsonResponse(sessionsPayload({ filter: decodeQ(url) || { and: [] }, ...sessionsOverrides })))
     }
     if (url.includes("/artifacts")) {
       const page = new URL(url, "http://example.test").searchParams.get("page") || "1"
-      return Promise.resolve(jsonResponse({
-        job_id: 42,
-        workflow_id: 900,
-        run_id: 501,
-        base_ref: "abc",
-        head_ref: "def",
-        artifact: "transcript",
-        logs_count: 201,
-        logs_page: Number(page),
-        logs_per_page: 100,
-        logs_total_pages: 3,
-        logs_has_older: page !== "3",
-        logs: page === "1" ? [
-          { id: 1, sequence: 1, kind: "assistant_text", chunk: "Looked at the aqueducts.", created_at: "2026-01-01T00:10:00Z" },
-          {
-            id: 2,
-            sequence: 2,
-            kind: "tool_call",
-            chunk: "\u001b[32mpassed\u001b[0m /tmp/workspaces/aqueducts/some/really/long/mobile/path/that/needs/to/wrap",
-            created_at: "2026-01-01T00:10:01Z"
-          }
-        ] : [{ id: 3, sequence: 3, kind: "assistant_text", chunk: "Earlier aqueduct work.", created_at: "2026-01-01T00:00:00Z" }]
-      }))
+      return Promise.resolve(
+        jsonResponse({
+          job_id: 42,
+          workflow_id: 900,
+          run_id: 501,
+          base_ref: "abc",
+          head_ref: "def",
+          artifact: "transcript",
+          logs_count: 201,
+          logs_page: Number(page),
+          logs_per_page: 100,
+          logs_total_pages: 3,
+          logs_has_older: page !== "3",
+          logs:
+            page === "1"
+              ? [
+                  { id: 1, sequence: 1, kind: "assistant_text", chunk: "Looked at the aqueducts.", created_at: "2026-01-01T00:10:00Z" },
+                  {
+                    id: 2,
+                    sequence: 2,
+                    kind: "tool_call",
+                    chunk: "\u001b[32mpassed\u001b[0m /tmp/workspaces/aqueducts/some/really/long/mobile/path/that/needs/to/wrap",
+                    created_at: "2026-01-01T00:10:01Z"
+                  }
+                ]
+              : [{ id: 3, sequence: 3, kind: "assistant_text", chunk: "Earlier aqueduct work.", created_at: "2026-01-01T00:00:00Z" }]
+        })
+      )
     }
     if (url === "/api/v1/app/filters/usage") {
       return Promise.resolve(jsonResponse({ recorded: true }))
@@ -173,7 +180,7 @@ function renderFeed(scope: "mine" | "admin" = "mine", initialPath = "/agent_acti
   return render(
     <I18nextProvider i18n={i18n}>
       <QueryClientProvider client={client}>
-        <MemoryRouter initialEntries={[ initialPath ]}>
+        <MemoryRouter initialEntries={[initialPath]}>
           <AgentActivityFeed scope={scope} />
         </MemoryRouter>
       </QueryClientProvider>
@@ -204,7 +211,7 @@ describe("AgentActivityFeed", () => {
   })
 
   it("renders a session card headlined by its submitted outcome summary", async () => {
-    setupFetchMock({ sessions: [ session({ outcome_summary: "Added the greeting helper.", role_label: "Implement" }) ] })
+    setupFetchMock({ sessions: [session({ outcome_summary: "Added the greeting helper.", role_label: "Implement" })] })
     renderFeed()
 
     expect(await screen.findByText("Added the greeting helper.")).toBeInTheDocument()
@@ -214,7 +221,7 @@ describe("AgentActivityFeed", () => {
   })
 
   it("falls back to a 'no summary submitted' placeholder when the session submitted nothing", async () => {
-    setupFetchMock({ sessions: [ session({ outcome_summary: null }) ] })
+    setupFetchMock({ sessions: [session({ outcome_summary: null })] })
     renderFeed()
 
     expect(await screen.findByText("No summary submitted for this session.")).toBeInTheDocument()
@@ -291,7 +298,7 @@ describe("AgentActivityFeed", () => {
           visibility: "always",
           count: 1,
           active: true,
-          filter: { and: [ { field: "status", op: "is", value: "running" } ] },
+          filter: { and: [{ field: "status", op: "is", value: "running" }] },
           path: "/admin/agent_activity?smart_folder_id=11"
         }
       ]
@@ -323,7 +330,7 @@ describe("AgentActivityFeed", () => {
           visibility: "always",
           count: 1,
           active: true,
-          filter: { and: [ { field: "status", op: "is", value: "running" } ] },
+          filter: { and: [{ field: "status", op: "is", value: "running" }] },
           path: "/admin/agent_activity?smart_folder_id=11"
         }
       ]
@@ -332,6 +339,27 @@ describe("AgentActivityFeed", () => {
 
     expect(await screen.findByLabelText("Folder name")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Save as new folder" })).toBeInTheDocument()
+  })
+
+  it("refetches chrome and rows after a SmartFolder mutation", async () => {
+    const calls = setupFetchMock({
+      active_smart_folder_id: 11,
+      filter: {
+        and: [
+          { field: "status", op: "is", value: "running" },
+          { field: "agent_provider", op: "is", value: "codex" }
+        ]
+      }
+    })
+    renderFeed("admin", "/admin/agent_activity")
+
+    fireEvent.change(await screen.findByLabelText("Folder name"), { target: { value: "Codex sessions" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save as new folder" }))
+
+    await waitFor(() => {
+      expect(calls.filter((url) => url.includes("section=chrome"))).toHaveLength(2)
+      expect(calls.filter((url) => url.includes("section=rows"))).toHaveLength(2)
+    })
   })
 
   it("opens a transcript drawer reusing the shared transcript log renderer when a card is expanded", async () => {
@@ -357,9 +385,6 @@ describe("AgentActivityFeed", () => {
       sessions: [
         session({
           id: 700,
-          slug: "AGENT-700",
-          step_kind: "coding",
-          role: "chat:coding",
           role_label: "Coding",
           outcome_summary: "Refined the handoff plan.",
           transcript_path: null,
@@ -383,7 +408,7 @@ describe("AgentActivityFeed", () => {
 
   it("shows an adversarial_review session's verdict pill alongside its critique", async () => {
     setupFetchMock({
-      sessions: [ session({ step_kind: "adversarial_review", role_label: "Adversarial review", outcome_summary: "Missing a test.", outcome_verdict: "needs_work" }) ]
+      sessions: [session({ role_label: "Adversarial review", outcome_summary: "Missing a test.", outcome_verdict: "needs_work" })]
     })
     renderFeed()
 
@@ -401,17 +426,20 @@ describe("AgentActivityFeed", () => {
   })
 
   it("requests and renders paginated sessions at 20 per page", async () => {
-    const pageSessions = Array.from({ length: 20 }, (_, index) => session({
-      id: 501 + index,
-      job: { id: 42 + index, slug: `JOB-${42 + index}`, title: `Session ${index + 1}`, state: "running" }
-    }))
+    const pageSessions = Array.from({ length: 20 }, (_, index) =>
+      session({
+        id: 501 + index,
+        job: { id: 42 + index, slug: `JOB-${42 + index}`, title: `Session ${index + 1}`, state: "running" }
+      })
+    )
     const calls = setupFetchMock({ total: 21, per: 20, sessions: pageSessions })
     renderFeed()
 
     expect(await screen.findByText("Showing 1-20 of 21")).toBeInTheDocument()
     expect(screen.getByText("Page 1 of 2")).toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute("href", "/agent_activity?page=2&per=20")
-    expect(calls[0]).toBe("/api/v1/app/agent_activity/sessions?per=20")
+    expect(calls).toContain("/api/v1/app/agent_activity/sessions?per=20&section=chrome")
+    expect(calls).toContain("/api/v1/app/agent_activity/sessions?per=20&section=rows")
   })
 
   it("preserves the filter query when paging", async () => {

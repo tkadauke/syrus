@@ -58,5 +58,6 @@
   "topic_latest": "Novissima recensio",
   "topic_empty": "Nulla relatio perscrutationis adhuc relata est.",
   "topic_history": "Historia recensionum",
-  "topic_revision": "Recensio {{number}}"
+  "topic_revision": "Recensio {{number}}",
+  "load_more": "Plura onerare"
 }

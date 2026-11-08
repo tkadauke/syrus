@@ -40,10 +40,14 @@ export type AdminTeamsPayload = {
   message?: string
 }
 
+export type AdminTeamMutationPayload = { team?: AdminTeamRow; message?: string }
+export type TeamMembershipMutationPayload = { membership?: TeamMembership; message?: string }
+
 export type AdminTeamDetailPayload = {
   team: AdminTeamRow
   can_manage: boolean
   memberships: TeamMembership[]
+  membership_pagination: { page: number; per_page: number; total: number; total_pages: number }
   repository_grants: TeamRepositoryGrant[]
   message?: string
 }
@@ -52,12 +56,12 @@ export function fetchAdminTeams() {
   return getJson<AdminTeamsPayload>("/api/v1/app/teams")
 }
 
-export function fetchAdminTeam(id: string) {
-  return getJson<AdminTeamDetailPayload>(`/api/v1/app/teams/${id}`)
+export function fetchAdminTeam(id: string, search = "") {
+  return getJson<AdminTeamDetailPayload>(`/api/v1/app/teams/${id}${search}`)
 }
 
 export function createAdminTeam(name: string) {
-  return postJson<AdminTeamsPayload>("/api/v1/app/teams", { team: { name } })
+  return postJson<AdminTeamMutationPayload>("/api/v1/app/teams", { team: { name } })
 }
 
 export function renameAdminTeam(id: number, name: string) {
@@ -65,17 +69,17 @@ export function renameAdminTeam(id: number, name: string) {
 }
 
 export function deleteAdminTeam(id: number) {
-  return deleteJson<AdminTeamsPayload>(`/api/v1/app/teams/${id}`)
+  return deleteJson<AdminTeamMutationPayload>(`/api/v1/app/teams/${id}`)
 }
 
 export function addTeamMember(teamId: number, values: { email: string; role: TeamMembershipRole }) {
-  return postJson<AdminTeamDetailPayload>(`/api/v1/app/teams/${teamId}/memberships`, values)
+  return postJson<TeamMembershipMutationPayload>(`/api/v1/app/teams/${teamId}/memberships`, values)
 }
 
 export function updateTeamMemberRole(teamId: number, membershipId: number, role: TeamMembershipRole) {
-  return patchJson<AdminTeamDetailPayload>(`/api/v1/app/teams/${teamId}/memberships/${membershipId}`, { role })
+  return patchJson<TeamMembershipMutationPayload>(`/api/v1/app/teams/${teamId}/memberships/${membershipId}`, { role })
 }
 
 export function removeTeamMember(teamId: number, membershipId: number) {
-  return deleteJson<AdminTeamDetailPayload>(`/api/v1/app/teams/${teamId}/memberships/${membershipId}`)
+  return deleteJson<TeamMembershipMutationPayload>(`/api/v1/app/teams/${teamId}/memberships/${membershipId}`)
 }

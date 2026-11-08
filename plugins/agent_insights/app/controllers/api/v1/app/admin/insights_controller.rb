@@ -27,14 +27,12 @@ module Api
           }.freeze
 
           def index
-            AgentInsights::Suggestion.resolve_obsolete_remove_memory!
-
             page     = page_param
             per_page = per_page_param
 
             base_relation = AgentInsights::Suggestion
               .left_outer_joins(:repository, job: :user)
-              .includes(:repository, :created_job, job: :user)
+              .includes(:repository, :created_job, :superseded_by_job, job: :user)
 
             filter      = current_filter
             relation    = order_relation(filter.apply(base_relation))
@@ -185,18 +183,14 @@ module Api
               confidence: suggestion.confidence,
               state: suggestion.state,
               proposal_type: suggestion.effective_proposal_type,
-              suggested_prompt: suggestion.redacted_suggested_prompt,
-              memory_suggestion: suggestion.redacted_memory_suggestion,
+              has_suggested_prompt: suggestion.suggested_prompt.present?,
               has_memory_suggestion: suggestion.memory_suggestion.present?,
               target_memory_id: suggestion.target_memory_id,
-              stale_memory_text: suggestion.redacted_stale_memory_text,
-              stale_memory_evidence: suggestion.redacted_stale_memory_evidence,
               target_insight_id: suggestion.target_insight_id,
-              retired_reason: suggestion.redacted_retired_reason,
               superseded_by_insight_id: suggestion.superseded_by_insight_id,
               superseded_by_job_id: suggestion.superseded_by_job_id,
               superseded_by_job_slug: suggestion.superseded_by_job&.slug,
-              evidence: evidence_json(suggestion.redacted_evidence),
+              evidence_count: suggestion.evidence.is_a?(Array) ? suggestion.evidence.length : 0,
               repository: {
                 id: suggestion.repository.id,
                 slug: suggestion.repository.slug,

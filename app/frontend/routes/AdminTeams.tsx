@@ -34,6 +34,7 @@ import {
   updateTeamMemberRole,
   TEAM_MEMBERSHIP_ROLES,
   type AdminTeamDetailPayload,
+  type AdminTeamsPayload,
   type AdminTeamRow,
   type TeamMembership,
   type TeamMembershipRole
@@ -55,7 +56,11 @@ export function AdminTeamsIndex() {
   const create = useMutation({
     mutationFn: (name: string) => createAdminTeam(name),
     onSuccess: (payload) => {
-      queryClient.setQueryData(["admin", "teams"], payload)
+      if (payload.team) {
+        queryClient.setQueryData<AdminTeamsPayload>(["admin", "teams"], (current) =>
+          current ? { ...current, teams: [...current.teams, payload.team!] } : current
+        )
+      }
       setNotice(payload.message || null)
     }
   })
@@ -141,7 +146,7 @@ function TeamsTable({ teams }: { teams: AdminTeamRow[] }) {
   function sortTo(nextColumn: string) {
     const column = nextColumn as TeamsSortColumn
     if (sortColumn === column) {
-      setSortDirection((current) => current === "ascending" ? "descending" : "ascending")
+      setSortDirection((current) => (current === "ascending" ? "descending" : "ascending"))
       return
     }
     setSortColumn(column)
@@ -233,8 +238,8 @@ export function AdminTeamDetailRoute() {
   const id = params.id || ""
   const prefix = routePrefix(location.pathname)
   const team = useQuery({
-    queryKey: ["admin", "teams", id],
-    queryFn: () => fetchAdminTeam(id),
+    queryKey: ["admin", "teams", id, location.search],
+    queryFn: () => fetchAdminTeam(id, location.search),
     enabled: id.length > 0
   })
 
@@ -266,7 +271,7 @@ function TeamDetail({ payload, prefix }: { payload: AdminTeamDetailPayload; pref
   const rename = useMutation({
     mutationFn: (name: string) => renameAdminTeam(teamId, name),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      void queryClient.invalidateQueries({ queryKey })
       setNotice(updated.message || null)
     }
   })
@@ -307,7 +312,7 @@ function TeamDetail({ payload, prefix }: { payload: AdminTeamDetailPayload; pref
         </section>
       ) : null}
 
-      <TeamMembers canManage={payload.can_manage} memberships={payload.memberships} teamId={teamId} />
+      <TeamMembers canManage={payload.can_manage} memberships={payload.memberships} pagination={payload.membership_pagination} teamId={teamId} />
       <TeamRepositoryGrants payload={payload} />
       {dialog}
     </>
@@ -339,20 +344,57 @@ function RenameTeamForm({ initialName, onSubmit, disabled }: { initialName: stri
   )
 }
 
-function TeamMembers({ teamId, memberships, canManage }: { teamId: number; memberships: TeamMembership[]; canManage: boolean }) {
+function TeamMembers({
+  teamId,
+  memberships,
+  pagination,
+  canManage
+}: {
+  teamId: number
+  memberships: TeamMembership[]
+  pagination: AdminTeamDetailPayload["membership_pagination"]
+  canManage: boolean
+}) {
   const { t } = useT("admin")
   const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
-  const queryKey = ["admin", "teams", String(teamId)] as const
+  const location = useLocation()
+  const navigate = useNavigate()
+  const queryKey = ["admin", "teams", String(teamId), location.search] as const
+
+  function goToPage(page: number) {
+    const params = new URLSearchParams(location.search)
+    params.set("membership_page", String(page))
+    navigate({ pathname: location.pathname, search: `?${params}` })
+  }
 
   const updateRole = useMutation({
     mutationFn: ({ membershipId, role }: { membershipId: number; role: TeamMembershipRole }) => updateTeamMemberRole(teamId, membershipId, role),
-    onSuccess: (updated) => queryClient.setQueryData(queryKey, updated)
+    onSuccess: (updated) => {
+      if (!updated.membership) return
+      queryClient.setQueryData<AdminTeamDetailPayload>(queryKey, (current) =>
+        current
+          ? {
+              ...current,
+              memberships: current.memberships.map((membership) => (membership.id === updated.membership!.id ? updated.membership! : membership))
+            }
+          : current
+      )
+    }
   })
 
   const destroy = useMutation({
     mutationFn: (membership: TeamMembership) => removeTeamMember(teamId, membership.id),
-    onSuccess: (updated) => queryClient.setQueryData(queryKey, updated)
+    onSuccess: (_updated, removed) =>
+      queryClient.setQueryData<AdminTeamDetailPayload>(queryKey, (current) =>
+        current
+          ? {
+              ...current,
+              memberships: current.memberships.filter((membership) => membership.id !== removed.id),
+              membership_pagination: { ...current.membership_pagination, total: Math.max(0, current.membership_pagination.total - 1) }
+            }
+          : current
+      )
   })
 
   return (
@@ -415,6 +457,18 @@ function TeamMembers({ teamId, memberships, canManage }: { teamId: number; membe
         </ul>
       )}
 
+      {pagination.total_pages > 1 ? (
+        <nav aria-label={t("teams.member_pagination")} className="flex items-center justify-between border-t border-gray-100 px-4 py-3 dark:border-gray-800">
+          <Button disabled={pagination.page <= 1} onClick={() => goToPage(pagination.page - 1)} size="sm" variant="secondary">
+            {t("teams.previous")}
+          </Button>
+          <span className="text-xs text-gray-500 dark:text-gray-400">{t("teams.page", { page: pagination.page, total: pagination.total_pages })}</span>
+          <Button disabled={pagination.page >= pagination.total_pages} onClick={() => goToPage(pagination.page + 1)} size="sm" variant="secondary">
+            {t("teams.next")}
+          </Button>
+        </nav>
+      ) : null}
+
       {canManage ? <AddMemberForm teamId={teamId} /> : null}
       {dialog}
     </section>
@@ -437,14 +491,24 @@ function TeamRoleSelect({ value, onChange, disabled }: { value: TeamMembershipRo
 function AddMemberForm({ teamId }: { teamId: number }) {
   const { t } = useT("admin")
   const queryClient = useQueryClient()
-  const queryKey = ["admin", "teams", String(teamId)] as const
   const [email, setEmail] = useState("")
   const [role, setRole] = useState<TeamMembershipRole>("member")
 
   const create = useMutation({
     mutationFn: () => addTeamMember(teamId, { email, role }),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      if (updated.membership) {
+        queryClient.setQueriesData<AdminTeamDetailPayload>({ queryKey: ["admin", "teams", String(teamId)] }, (current) =>
+          current
+            ? {
+                ...current,
+                memberships:
+                  current.memberships.length < current.membership_pagination.per_page ? [...current.memberships, updated.membership!] : current.memberships,
+                membership_pagination: { ...current.membership_pagination, total: current.membership_pagination.total + 1 }
+              }
+            : current
+        )
+      }
       setEmail("")
       setRole("member")
     }

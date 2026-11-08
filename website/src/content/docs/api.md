@@ -901,15 +901,18 @@ curl -X PATCH https://syrus.example.com/api/v1/app/notification_preferences \
 ## Manage Memories
 
 User-scoped clients can manage agent memories through the app API with any
-user API token. `GET /api/v1/app/memories` returns paginated memories visible
-to that user, including their own memories and repository-published memories
-from repositories attached to them. It accepts `scope`, `kind`, `q`, and
-`page` query parameters.
+user API token. `GET /api/v1/app/memories` returns paginated memory rows
+visible to that user. It accepts `scope`, `kind`, `q`, `page`, and `per_page`
+query parameters. Reusable kinds, scopes, repositories, and filter controls
+are available from `GET /api/v1/app/memories/metadata`.
 
 Write endpoints are owner-only unless the authenticated user is an admin:
 `POST /api/v1/app/memories`, `PATCH /api/v1/app/memories/:id`,
 `DELETE /api/v1/app/memories/:id`, `POST /api/v1/app/memories/:id/publish`,
 and `DELETE /api/v1/app/memories/:id/publish`.
+
+`GET /api/v1/app/memories/:id/audit_events` returns up to 50 audit events and
+provides `next_cursor` when another page can be requested with `before`.
 
 ## Worker Timeline
 

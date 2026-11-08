@@ -19,6 +19,48 @@ module OperatorBriefing
       }
     end
 
+    def briefing_payload(briefing)
+      return nil unless briefing
+
+      revision = latest_revisions_for([ briefing.id ])[briefing.id]
+      (@additional_revisions ||= []) << revision if revision
+      serialize_briefing(briefing, revision)
+    end
+
+    private
+
+    def serialize_briefing(briefing, revision)
+      briefing_stub_payload(briefing).merge(
+        live: briefing.live?,
+        latest_revision: revision && revision_payload(revision)
+      )
+    end
+
+    public
+
+    def subscription_payload(subscription)
+      {
+        id: subscription.id,
+        enabled: subscription.enabled?,
+        repository: repository_payload(subscription.repository)
+      }
+    end
+
+    def source_preference_payload(preference)
+      source = preference.source_definition || {}
+      {
+        id: preference.id,
+        source_key: preference.source_key,
+        label: source[:label] || preference.source_key.humanize,
+        description: source[:description],
+        enabled: preference.enabled?,
+        weight: preference.weight,
+        suggested_by: preference.suggested_by,
+        confirmed_at: preference.confirmed_at&.iso8601,
+        pending: preference.confirmed_at.blank?
+      }
+    end
+
     private
 
     attr_reader :user
@@ -47,14 +89,7 @@ module OperatorBriefing
     end
 
     def subscriptions_payload
-      subscriptions.map do |subscription|
-        repository = subscription.repository
-        {
-          id: subscription.id,
-          enabled: subscription.enabled?,
-          repository: repository_payload(repository)
-        }
-      end
+      subscriptions.map { |subscription| subscription_payload(subscription) }
     end
 
     def source_preferences_payload
@@ -69,28 +104,13 @@ module OperatorBriefing
       end
     end
 
-    def source_preference_payload(preference)
-      source = preference.source_definition || {}
-      {
-        id: preference.id,
-        source_key: preference.source_key,
-        label: source[:label] || preference.source_key.humanize,
-        description: source[:description],
-        enabled: preference.enabled?,
-        weight: preference.weight,
-        suggested_by: preference.suggested_by,
-        confirmed_at: preference.confirmed_at&.iso8601,
-        pending: preference.confirmed_at.blank?
-      }
-    end
-
     def repository_payloads
       enabled_subscriptions.map do |subscription|
         repository = subscription.repository
         current = current_briefings[repository.id]
         {
           repository: repository_payload(repository),
-          current: briefing_payload(current),
+          current: current && serialize_briefing(current, latest_revisions[current.id]),
           history: history_payload(repository),
           status: status_payload(repository, current)
         }
@@ -137,43 +157,36 @@ module OperatorBriefing
       end
     end
 
-    def all_serialized_briefings
-      @all_serialized_briefings ||= current_briefings.values + history_briefings.values.flatten
+    def latest_revisions
+      @latest_revisions ||= latest_revisions_for(current_briefings.values.map(&:id))
     end
 
-    def latest_revisions
-      @latest_revisions ||= begin
-        briefing_ids = all_serialized_briefings.map(&:id)
-        if briefing_ids.empty?
-          {}
-        else
-          BriefingRevision
-            .where(briefing_id: briefing_ids)
-            .order(revision_number: :desc, id: :desc)
-            .each_with_object({}) do |revision, index|
-              index[revision.briefing_id] ||= revision
-            end
-        end
-      end
+    def latest_revisions_for(briefing_ids)
+      return {} if briefing_ids.empty?
+
+      maximums = BriefingRevision
+        .where(briefing_id: briefing_ids)
+        .select(:briefing_id, "MAX(revision_number) AS revision_number")
+        .group(:briefing_id)
+      BriefingRevision
+        .joins("INNER JOIN (#{maximums.to_sql}) latest_operator_briefing_revisions " \
+          "ON latest_operator_briefing_revisions.briefing_id = operator_briefing_revisions.briefing_id " \
+          "AND latest_operator_briefing_revisions.revision_number = operator_briefing_revisions.revision_number")
+        .index_by(&:briefing_id)
     end
 
     def history_payload(repository)
       history_briefings.fetch(repository.id, [])
-        .map { |briefing| briefing_payload(briefing) }
+        .map { |briefing| briefing_stub_payload(briefing) }
     end
 
-    def briefing_payload(briefing)
-      return nil unless briefing
-
-      revision = latest_revisions[briefing.id]
+    def briefing_stub_payload(briefing)
       {
         id: briefing.id,
         slug: briefing.slug,
-        live: briefing.live?,
         window_start: briefing.window_start&.iso8601,
         window_end: briefing.window_end&.iso8601,
-        job: job_payload(briefing.job),
-        latest_revision: revision && revision_payload(revision)
+        job: job_payload(briefing.job)
       }
     end
 
@@ -204,8 +217,8 @@ module OperatorBriefing
 
     def artifacts_by_workflow
       @artifacts_by_workflow ||= begin
-        workflow_ids = all_serialized_briefings.flat_map do |briefing|
-          Array(latest_revisions[briefing.id]&.content_blocks).filter_map do |block|
+        workflow_ids = (latest_revisions.values + Array(@additional_revisions)).uniq.flat_map do |revision|
+          Array(revision&.content_blocks).filter_map do |block|
             payload = block.is_a?(Hash) ? (block["payload"] || block[:payload]) : nil
             payload = payload.is_a?(Hash) ? payload.stringify_keys : {}
             payload["workflow_id"] if %w[image artifact].include?((block["kind"] || block[:kind]).to_s)

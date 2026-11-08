@@ -33,10 +33,7 @@ RSpec.describe AgentActivity::SessionSerializer do
 
     expect(payload).to include(
       id: agent.id,
-      slug: "AGENT-#{agent.id}",
       state: "running",
-      step_kind: "adversarial_review",
-      role: AgentRole::WORKFLOW_ADVERSARIAL_REVIEWER,
       role_label: Step::Kind.label_for("adversarial_review"),
       agent_provider: "claude",
       transcript_path: "/api/v1/app/jobs/#{job.id}/runs/#{run.id}/artifacts"
@@ -74,14 +71,19 @@ RSpec.describe AgentActivity::SessionSerializer do
 
     expect(payload).to include(
       state: "running",
-      step_kind: "coding",
-      role: AgentRole::CHAT_CODING,
       role_label: "Coding",
       agent_provider: "codex",
       transcript_path: nil,
       chat_path: "/chats/#{chat.id}"
     )
     expect(payload[:repository]).to eq(id: repository.id, slug: "acme/widgets")
+  end
+
+  it "omits row fields that have no feed consumer" do
+    job = Factories.job_with_run(repository: repository, run_attrs: { state: "succeeded" })
+    payload = described_class.call(agent_for_run(job.runs.last))
+
+    expect(payload).not_to include(:slug, :step_kind, :role, :agent_outcome, :finished_at, :created_at, :workflow_id, :trigger_kind)
   end
 
   it "computes duration from started_at to finished_at, or to now while still running" do

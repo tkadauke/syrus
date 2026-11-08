@@ -2614,7 +2614,9 @@ reporting window. Chat cost recorded before this ledger existed is not assigned
 to a guessed historical date. The
 dashboard shows week, month, lifetime, average Job, and average merged-PR
 totals, plus breakdowns by Epic, user, repository, trigger kind, a daily trend
-chart, and the most expensive individual Runs. When spending exists across
+chart, and the most expensive individual Runs. Epic, user, and repository
+breakdowns show the 25 highest-cost entries and combine the rest into an Other
+row. When spending exists across
 multiple agent providers, the dashboard can filter those views by model
 provider such as Claude Code or Codex.
 
@@ -2664,7 +2666,8 @@ only starts a new briefing when repository activity changed since the previous
 closed briefing; manual regeneration always runs without enabling future
 scheduled generation by itself. Starting a new briefing supersedes the previous
 live briefing for that repository and keeps older revisions browsable as
-read-only history.
+read-only history. History content is loaded only when an archived briefing is
+selected, and wiki-style topic pages load older revisions in bounded pages.
 
 Briefing revisions render typed content blocks: narrative, small fixed-shape
 charts, image and artifact references to existing typed artifacts, and link

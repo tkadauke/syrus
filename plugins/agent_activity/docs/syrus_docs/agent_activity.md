@@ -74,6 +74,13 @@ design-doc linked repository), `job_id` (workflow-backed rows only),
 provider), `status` (running/latest process outcome), `window` (latest
 spawned agent process start time).
 
+Clients load static filter/Smart Folder chrome with `section=chrome` and poll
+only `section=rows`. Row responses contain `running_count`, pagination, and
+deduplicated `jobs`/`repositories` maps referenced by IDs from each session;
+they also support conditional requests with `ETag`. The web client polls every
+15 seconds while work is running and backs off to 60 seconds when idle or when
+the page is hidden.
+
 ## Transcript reuse
 
 Clicking a workflow-backed session card opens a transcript drawer that reuses
@@ -96,6 +103,8 @@ their own `transcript_path`:
   only the authorization/lookup path differs. Transcript requests pass
   `artifact=transcript` and receive the newest bounded page of log chunks,
   `logs_count`, and page metadata without loading either Run diff blob. The
+  transcript serializer caps each log row's `chunk`, `tool_input`, and
+  `tool_result_content` at 64 KiB and returns a matching `*_truncated` flag.
   drawer exposes Older/Newer controls while additional transcript pages exist.
 
 Chat-backed session cards do not open an inline transcript drawer. They carry

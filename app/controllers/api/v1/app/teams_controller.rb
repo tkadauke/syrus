@@ -30,7 +30,7 @@ module Api
             team.team_memberships.create!(user: Current.user, role: "owner")
           end
 
-          render json: teams_payload(message: I18n.t("api.teams.created", name: team.name)), status: :created
+          render json: { team: team_json(team), message: I18n.t("api.teams.created", name: team.name) }, status: :created
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         end
@@ -58,7 +58,7 @@ module Api
 
           name = team.name
           team.destroy!
-          render json: teams_payload(message: I18n.t("api.teams.deleted", name: name))
+          render json: { message: I18n.t("api.teams.deleted", name: name) }
         end
 
         private

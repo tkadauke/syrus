@@ -71,7 +71,6 @@ function payload(
   return {
     repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1", insights_path: "/repositories/1/plugin/insights", can_write: canWrite },
     tabs: [],
-    counts,
     suggestions,
     meta,
     filter: { and: [] },
@@ -190,7 +189,12 @@ function payload(
 
 function renderRoute(suggestions?: unknown[], meta?: Record<string, unknown>) {
   if (!vi.isMockFunction(window.fetch)) {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload(suggestions, meta ? makeMeta(meta) : undefined)))
+    vi.spyOn(window, "fetch").mockImplementation((input) => {
+      if (String(input) === "/api/v1/app/insight_suggestions/1") {
+        return Promise.resolve(jsonResponse({ suggestion: (suggestions?.[0] as object | undefined) ?? makeSuggestion() }))
+      }
+      return Promise.resolve(jsonResponse(payload(suggestions, meta ? makeMeta(meta) : undefined)))
+    })
   }
   renderRepositoryInsightsRoute()
 }
@@ -333,14 +337,21 @@ describe("RepositoryInsightsRoute", () => {
       vi.spyOn(useConfirmModule, "useConfirm").mockReturnValue({ confirm: vi.fn() as any, dialog: <></> })
     })
 
-    it("opens a dialog named Accept suggestion with the full prompt visible immediately", async () => {
-      renderRoute([makeSuggestion({ suggested_prompt: "Fix the prepare step" })])
+    it("loads the omitted prompt before opening the accept dialog", async () => {
+      const summary = makeSuggestion({ suggested_prompt: undefined, has_suggested_prompt: true })
+      const detail = makeSuggestion({ suggested_prompt: "Fix the prepare step", has_suggested_prompt: true })
+      const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+        if (String(input) === "/api/v1/app/insight_suggestions/1") return Promise.resolve(jsonResponse({ suggestion: detail }))
+        return Promise.resolve(jsonResponse(payload([summary])))
+      })
+      renderRoute([summary])
 
       const acceptBtn = await screen.findByRole("button", { name: "Accept" })
       fireEvent.click(acceptBtn)
 
       const dialog = await screen.findByRole("dialog", { name: "Accept suggestion" })
       expect(within(dialog).getByRole("textbox", { name: "Prompt" })).toHaveValue("Fix the prepare step")
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/insight_suggestions/1", expect.anything())
     })
 
     it("shows the prompt textarea expanded by default when no suggested_prompt", async () => {
@@ -403,6 +414,9 @@ describe("RepositoryInsightsRoute", () => {
         const url = String(input)
         if (url.includes("/insight_suggestions/1") && init?.method === "PATCH") {
           return Promise.resolve(jsonResponse({ message: "Suggestion accepted.", suggestion: makeSuggestion({ state: "accepted" }) }))
+        }
+        if (String(input) === "/api/v1/app/insight_suggestions/1") {
+          return Promise.resolve(jsonResponse({ suggestion: makeSuggestion({ suggested_prompt: "Fix the prepare step" }) }))
         }
         return Promise.resolve(jsonResponse(payload([makeSuggestion({ suggested_prompt: "Fix the prepare step" })])))
       })

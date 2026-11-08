@@ -39,7 +39,7 @@ function searchPayload(results: unknown[]) {
 }
 
 function renderRoute(results: unknown[], initialEntry = "/search?query=preview+environment") {
-  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(searchPayload(results)))
+  vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(searchPayload(results))))
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
@@ -232,6 +232,13 @@ function renderWithPayload(payload: unknown, initialEntry = "/search?query=needl
 }
 
 describe("SearchRoute results", () => {
+  it("loads controls through the controls-only search path", async () => {
+    const fetchSpy = renderWithPayload(searchPayload([]))
+
+    await screen.findByRole("link", { name: "Jobs" })
+    expect(fetchSpy.mock.calls.some((call) => new URL(String(call[0]), "http://example.test").searchParams.get("controls") === "only")).toBe(true)
+  })
+
   it("localizes plugin-owned search copy and preserves dynamic values", async () => {
     await i18n.changeLanguage("de")
     renderWithPayload(

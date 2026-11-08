@@ -4,6 +4,8 @@ class InsightSweepJob < ApplicationJob
   def perform
     return unless AgentInsights.enabled?
 
+    AgentInsights::Suggestion.resolve_obsolete_remove_memory!
+
     AgentInsights::ScheduleConfig.where(enabled: true).includes(:repository).find_each do |config|
       repository = config.repository
       next if repository.archived?

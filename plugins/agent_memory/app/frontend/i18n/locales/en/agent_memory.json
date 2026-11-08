@@ -55,6 +55,7 @@
   "history": "History",
   "history_title": "Memory history",
   "history_loading": "Loading history...",
+  "history_load_more": "Load older events",
   "history_previous": "Before",
   "history_new": "After",
   "history_event_created": "Created",

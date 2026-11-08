@@ -6,7 +6,7 @@ module Api
           def update
             preference = ::OperatorBriefing::SourcePreference.where(user: Current.user).find(params[:id])
 
-            ::OperatorBriefing::SourcePreference.create!(
+            changed_preference = ::OperatorBriefing::SourcePreference.create!(
               user: Current.user,
               source_key: preference.source_key,
               enabled: ActiveModel::Type::Boolean.new.cast(source_preference_params.fetch(:enabled)),
@@ -15,14 +15,14 @@ module Api
               confirmed_at: Time.current
             )
 
-            render json: ::OperatorBriefing::Payload.new(user: Current.user).as_json
+            render json: { source_preference: ::OperatorBriefing::Payload.new(user: Current.user).source_preference_payload(changed_preference) }
           end
 
           def confirm
             preference = ::OperatorBriefing::SourcePreference.pending_for_user(Current.user).find(params[:id])
             preference.confirm!
 
-            render json: ::OperatorBriefing::Payload.new(user: Current.user).as_json
+            render json: { source_preference: ::OperatorBriefing::Payload.new(user: Current.user).source_preference_payload(preference) }
           end
 
           private

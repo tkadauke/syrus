@@ -34,6 +34,7 @@ module AgentMemory
     route :delete, "/api/v1/app/memories/:id", to: "api/v1/app/memories#destroy"
     route :post, "/api/v1/app/memories/:id/publish", to: "api/v1/app/memories#publish"
     route :delete, "/api/v1/app/memories/:id/publish", to: "api/v1/app/memories#unpublish"
+    route :get, "/api/v1/app/memories/metadata", to: "api/v1/app/memories#metadata"
     route :get, "/api/v1/app/memories/:id/audit_events", to: "api/v1/app/memories#audit_events"
     frontend routes: { "agent_memory/Memories" => "app/frontend/routes/Memories.tsx" },
         i18n: [ "app/frontend/i18n/locales/*/agent_memory.json" ]

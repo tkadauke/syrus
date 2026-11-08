@@ -14,6 +14,7 @@ import {
   discussInsightSuggestion,
   undismissInsightSuggestion,
   fetchInsightSuggestions,
+  fetchInsightSuggestion,
   saveInsightMemory,
   type InsightSuggestion,
   type InsightSuggestionsPayload,
@@ -217,11 +218,32 @@ function SuggestionCard({ canWrite, repositoryId, suggestion }: { canWrite: bool
   const [expanded, setExpanded] = useState(false)
   const [showEvidence, setShowEvidence] = useState(false)
   const [showAcceptForm, setShowAcceptForm] = useState(false)
+  const [acceptSuggestion, setAcceptSuggestion] = useState<InsightSuggestion | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const detailQuery = useQuery({
+    queryKey: ["insight_suggestion", suggestion.id],
+    queryFn: () => fetchInsightSuggestion(suggestion.id),
+    enabled: expanded
+  })
+  const detail = detailQuery.data?.suggestion ?? suggestion
   const canCreateJob = suggestion.proposal_type === "create_job"
 
   const queryKey = ["repositories", repositoryId, "insight_suggestions"]
+
+  async function openAcceptForm() {
+    try {
+      const payload = await queryClient.fetchQuery({
+        queryKey: ["insight_suggestion", suggestion.id],
+        queryFn: () => fetchInsightSuggestion(suggestion.id)
+      })
+      setAcceptSuggestion(payload.suggestion)
+      setShowAcceptForm(true)
+      setError(null)
+    } catch (fetchError) {
+      setError(errorMessage(fetchError, t("load_error")))
+    }
+  }
 
   const dismissMutation = useMutation({
     mutationFn: () => dismissInsightSuggestion(suggestion.id),
@@ -339,35 +361,35 @@ function SuggestionCard({ canWrite, repositoryId, suggestion }: { canWrite: bool
 
         {expanded && (
           <div className="mt-3 space-y-3 border-t border-gray-100 pt-3 dark:border-gray-800">
-            {suggestion.suggested_prompt && (
+            {detail.suggested_prompt && (
               <div>
                 <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("suggested_prompt_label")}</p>
-                <pre className={WRAPPING_PRE_CLASSES}>{suggestion.suggested_prompt}</pre>
+                <pre className={WRAPPING_PRE_CLASSES}>{detail.suggested_prompt}</pre>
               </div>
             )}
-            {suggestion.memory_suggestion && (
+            {detail.memory_suggestion && (
               <div>
                 <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("memory_suggestion_label")}</p>
-                <pre className={WRAPPING_PRE_CLASSES}>{suggestion.memory_suggestion}</pre>
+                <pre className={WRAPPING_PRE_CLASSES}>{detail.memory_suggestion}</pre>
               </div>
             )}
             {suggestion.proposal_type === "remove_memory" && (
               <div className="rounded border border-red-200 bg-red-50 p-3 dark:border-red-900/50 dark:bg-red-950/20">
                 <p className="text-xs font-medium uppercase text-red-700 dark:text-red-300">{t("remove_memory_label", { id: suggestion.target_memory_id })}</p>
-                {suggestion.stale_memory_text && (
+                {detail.stale_memory_text && (
                   <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-words rounded bg-white p-3 text-xs text-red-900 ring-1 ring-red-100 dark:bg-gray-950 dark:text-red-200 dark:ring-red-900/60">
-                    {suggestion.stale_memory_text}
+                    {detail.stale_memory_text}
                   </pre>
                 )}
-                {suggestion.stale_memory_evidence && (
-                  <p className="mt-2 whitespace-pre-wrap break-words text-xs text-red-800 dark:text-red-200">{suggestion.stale_memory_evidence}</p>
+                {detail.stale_memory_evidence && (
+                  <p className="mt-2 whitespace-pre-wrap break-words text-xs text-red-800 dark:text-red-200">{detail.stale_memory_evidence}</p>
                 )}
               </div>
             )}
             {suggestion.state === "retired" && (
               <div className="rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
                 <p className="font-medium text-gray-700 dark:text-gray-200">{t("retired_heading")}</p>
-                {suggestion.retired_reason && <p className="mt-1 whitespace-pre-wrap break-words">{suggestion.retired_reason}</p>}
+                {detail.retired_reason && <p className="mt-1 whitespace-pre-wrap break-words">{detail.retired_reason}</p>}
                 {suggestion.superseded_by_insight_id && <p className="mt-1">{t("superseded_by_insight_label", { id: suggestion.superseded_by_insight_id })}</p>}
                 {suggestion.superseded_by_job_slug && <p className="mt-1">{t("superseded_by_job_label", { slug: suggestion.superseded_by_job_slug })}</p>}
               </div>
@@ -386,7 +408,7 @@ function SuggestionCard({ canWrite, repositoryId, suggestion }: { canWrite: bool
                 </Link>
               </div>
             )}
-            {suggestion.evidence.length > 0 && (
+            {(detail.evidence?.length ?? detail.evidence_count ?? 0) > 0 && (
               <div>
                 <button
                   className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
@@ -396,7 +418,7 @@ function SuggestionCard({ canWrite, repositoryId, suggestion }: { canWrite: bool
                   <svg className={`h-3 w-3 transition-transform ${showEvidence ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path d="M9 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} />
                   </svg>
-                  {t("evidence_heading", { count: suggestion.evidence.length })}
+                  {t("evidence_heading", { count: detail.evidence?.length ?? detail.evidence_count ?? 0 })}
                 </button>
                 {showEvidence && (
                   <div className="mt-2 overflow-x-auto">
@@ -409,7 +431,7 @@ function SuggestionCard({ canWrite, repositoryId, suggestion }: { canWrite: bool
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                        {suggestion.evidence.map((ev, idx) => (
+                        {(detail.evidence ?? []).map((ev, idx) => (
                           <tr key={idx}>
                             <td className="py-1 pr-4 align-top">
                               {ev.job_path ? (
@@ -451,7 +473,7 @@ function SuggestionCard({ canWrite, repositoryId, suggestion }: { canWrite: bool
                 {acceptRemoveMemoryMutation.isPending ? t("removing_memory") : t("accept_remove_memory")}
               </Button>
             ) : canWrite && canCreateJob ? (
-              <Button disabled={showAcceptForm} onClick={() => setShowAcceptForm(true)} size="sm" variant="primary">
+              <Button disabled={showAcceptForm} onClick={() => void openAcceptForm()} size="sm" variant="primary">
                 {t("accept")}
               </Button>
             ) : null}
@@ -498,16 +520,20 @@ function SuggestionCard({ canWrite, repositoryId, suggestion }: { canWrite: bool
         )}
       </div>
 
-      {canWrite && showAcceptForm && suggestion.state === "pending" && (
+      {canWrite && showAcceptForm && acceptSuggestion && suggestion.state === "pending" && (
         <AcceptSuggestionModal
-          onClose={() => setShowAcceptForm(false)}
+          onClose={() => {
+            setShowAcceptForm(false)
+            setAcceptSuggestion(null)
+          }}
           onError={(msg) => setError(msg)}
           onSuccess={(msg) => {
             setShowAcceptForm(false)
+            setAcceptSuggestion(null)
             setNotice(msg)
             queryClient.invalidateQueries({ queryKey })
           }}
-          suggestion={suggestion}
+          suggestion={acceptSuggestion}
         />
       )}
     </article>
@@ -527,7 +553,7 @@ function updateCachedSuggestion(queryClient: ReturnType<typeof useQueryClient>, 
       ? current.suggestions.map((candidate) => (candidate.id === updated.id ? updated : candidate))
       : current.suggestions.filter((candidate) => candidate.id !== updated.id)
     const total = current.meta.total + (belongsInCurrentList ? 0 : -1)
-    const counts = { ...current.counts }
+    const counts = { ...current.meta.counts }
 
     if (previous.state !== updated.state) {
       counts[previous.state] = Math.max(0, counts[previous.state] - 1)
@@ -537,7 +563,6 @@ function updateCachedSuggestion(queryClient: ReturnType<typeof useQueryClient>, 
     return {
       ...current,
       suggestions,
-      counts,
       meta: {
         ...current.meta,
         total: Math.max(0, total),

@@ -12,7 +12,14 @@ import { routePrefix, withRoutePrefix } from "@app/lib/routing"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { acceptRemoveMemoryInsight, fetchAdminInsights, promoteInsightMemory, type AdminInsightSuggestion, type PaginationMeta } from "../api/insights"
+import {
+  acceptRemoveMemoryInsight,
+  fetchAdminInsights,
+  fetchInsightSuggestion,
+  promoteInsightMemory,
+  type AdminInsightSuggestion,
+  type PaginationMeta
+} from "../api/insights"
 import { InsightSlug } from "../components/InsightSlug"
 
 const QUERY_KEY = ["admin", "insights"]
@@ -357,7 +364,7 @@ function supersededIds(suggestion: AdminInsightSuggestion) {
 }
 
 function insightFlags(t: (key: string, options?: Record<string, unknown>) => string, suggestion: AdminInsightSuggestion) {
-  const flags = [suggestion.has_memory_suggestion ? t("flag_memory") : null, suggestion.suggested_prompt ? t("flag_proposal") : null].filter(Boolean)
+  const flags = [suggestion.has_memory_suggestion ? t("flag_memory") : null, suggestion.has_suggested_prompt ? t("flag_proposal") : null].filter(Boolean)
   return flags.length ? flags.join(", ") : "—"
 }
 
@@ -439,13 +446,15 @@ function SuggestionActions({ suggestion, prefix }: { suggestion: AdminInsightSug
 
 function ExpandedSuggestion({ suggestion }: { suggestion: AdminInsightSuggestion }) {
   const { t } = useT("agent_insights")
+  const detailQuery = useQuery({ queryKey: ["insight_suggestion", suggestion.id], queryFn: () => fetchInsightSuggestion(suggestion.id) })
+  const detail = { ...suggestion, ...detailQuery.data?.suggestion }
 
   return (
     <div className="space-y-3">
-      {suggestion.suggested_prompt ? <DetailPre label={t("suggested_prompt_label")} value={suggestion.suggested_prompt} /> : null}
-      {suggestion.memory_suggestion ? <DetailPre label={t("memory_suggestion_label")} value={suggestion.memory_suggestion} /> : null}
-      {suggestion.proposal_type === "remove_memory" ? <RemoveMemoryDetails suggestion={suggestion} /> : null}
-      {suggestion.state === "retired" ? <RetiredDetails suggestion={suggestion} /> : null}
+      {detail.suggested_prompt ? <DetailPre label={t("suggested_prompt_label")} value={detail.suggested_prompt} /> : null}
+      {detail.memory_suggestion ? <DetailPre label={t("memory_suggestion_label")} value={detail.memory_suggestion} /> : null}
+      {detail.proposal_type === "remove_memory" ? <RemoveMemoryDetails suggestion={detail} /> : null}
+      {detail.state === "retired" ? <RetiredDetails suggestion={detail} /> : null}
     </div>
   )
 }
