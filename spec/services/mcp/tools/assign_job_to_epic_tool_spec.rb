@@ -14,6 +14,17 @@ RSpec.describe Mcp::Tools::AssignJobToEpicTool, :full_chat_access do
     response.content.first[:text]
   end
 
+  it "rejects assigning a main_grader job with a clear error" do
+    epic = Factories.epic(user: user, repository: repository)
+    job = repository.jobs.create!(user: user, kind: "main_grader")
+
+    response = call(job: job, epic: epic)
+
+    expect(response.error?).to be(true)
+    expect(response_text(response)).to include("Main grader Jobs cannot belong to Epics")
+    expect(job.reload.epic_id).to be_nil
+  end
+
   it "assigns the job when the epic has no existing open children" do
     epic = Factories.epic(user: user, repository: repository)
     job = Factories.job_record(user: user, repository: repository, owner_user: other_user)

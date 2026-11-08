@@ -65,7 +65,7 @@ class IngestionClassifier
   attr_reader :job, :repository, :user, :agent, :timeout, :max_turns, :now
 
   def classifier_pending_job?
-    job.triaging? && job.triaging_reason_classifier_pending?
+    job.ingestion_classifiable?
   end
 
   # Every attempt counts, successful or not: the cap exists to stop a Job
@@ -204,6 +204,11 @@ class IngestionClassifier
   def assign_epic(epic_id)
     epic = user.epics.find_by(id: epic_id, repository_id: repository.id)
     raise ActiveRecord::RecordInvalid.new(job), "classifier returned unknown Epic ##{epic_id}" unless epic
+
+    if job.main_grader?
+      job.errors.add(:base, Job::MAIN_GRADER_EPIC_ERROR)
+      raise ActiveRecord::RecordInvalid.new(job)
+    end
 
     if job.investigation?
       job.errors.add(:base, Job::INVESTIGATION_EPIC_ERROR)

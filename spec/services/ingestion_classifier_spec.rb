@@ -382,6 +382,30 @@ RSpec.describe IngestionClassifier do
     expect(job.triaging_uncertainty_reason).to include("classifier returned unknown Epic")
   end
 
+  it "refuses a main_grader Job without calling the model or creating an attempt" do
+    grader = Job.create!(user: user, repository: repository, kind: "main_grader")
+    grader.update_columns(state: "triaging", triaging_reason: "classifier_pending")
+    classifier = described_class.new(job: grader, github_client: github_client)
+    expect(classifier).not_to receive(:invoke_classifier)
+
+    result = nil
+    expect { result = classifier.call }.not_to change(JobClassificationAttempt, :count)
+
+    expect(result.success?).to be(false)
+    expect(grader.reload.epic_id).to be_nil
+    expect(grader.classifier_attempts).to eq(0)
+  end
+
+  it "rejects assigning an Epic to a main_grader Job" do
+    grader = Job.create!(user: user, repository: repository, kind: "main_grader")
+    epic = Factories.epic(user: user, repository: repository)
+    classifier = described_class.new(job: grader, github_client: github_client)
+
+    expect { classifier.send(:assign_epic, epic.id) }
+      .to raise_error(ActiveRecord::RecordInvalid, /Main grader Jobs cannot belong to Epics/)
+    expect(grader.reload.epic_id).to be_nil
+  end
+
   it "leaves infrastructure-shaped exceptions eligible for another classification pass" do
     job = Job.create!(user: user, repository: repository, issue_number: 120)
     stub_agent_text(JSON.generate(
