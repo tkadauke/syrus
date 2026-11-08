@@ -153,6 +153,35 @@ RSpec.describe Workflows::MainGrader do
       expect(repository.reload.grader_health).to eq("broken")
     end
 
+    it "does not mark main broken when output showed passing tests but exit_code was null" do
+      repository.update!(grader_health: "healthy", ci_health: "healthy")
+      create_failed_required_grader!(workflow, details: { "exit_code" => nil, "output" => "120 examples, 0 failures" })
+
+      expect(MainHealthChangedService).not_to receive(:ensure_repair_job!)
+      described_class.after_fail(workflow)
+
+      expect(repository.reload.grader_health).to eq("inconclusive")
+      expect(MainBranchHealthCheck.last.grader_health).to eq("inconclusive")
+    end
+
+    it "does not mark main broken for blank results from several graders" do
+      repository.update!(grader_health: "healthy", ci_health: "healthy")
+      %w[a b c].each { |n| create_failed_required_grader!(workflow, name: n, details: { "exit_code" => nil, "output" => "" }) }
+
+      described_class.after_fail(workflow)
+
+      expect(repository.reload.grader_health).to eq("inconclusive")
+    end
+
+    it "does not mark main broken for database lock contention" do
+      repository.update!(grader_health: "healthy", ci_health: "healthy")
+      create_failed_required_grader!(workflow, details: { "output" => "SQLite3::BusyException: database is locked" })
+
+      described_class.after_fail(workflow)
+
+      expect(repository.reload.grader_health).to eq("inconclusive")
+    end
+
     it "records last_graded_sha when the workflow settles broken" do
       create_failed_required_grader!(workflow)
 
@@ -403,7 +432,8 @@ RSpec.describe Workflows::MainGrader do
       details: {
         "name" => name,
         "required" => true,
-        "exit_code" => 1
+        "exit_code" => 1,
+        "output" => "1 example, 1 failure"
       }.merge(details)
     )
   end

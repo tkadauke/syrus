@@ -37,7 +37,17 @@ module Workflows
       failed_steps = failed_required_grader_steps(workflow)
       interrupted_steps, remaining_failures = failed_steps.partition { |step| infrastructure_interrupted_grader?(step) }
       inconclusive_steps, actual_failures = remaining_failures.partition { |step| inconclusive_grader?(workflow, step) }
-      failed_names = failed_required_grader_names(actual_failures)
+      # Only a reproducible test failure (valid exit status plus captured
+      # evidence) may mark main broken. Everything else -- missing exit status,
+      # setup/dependency failures, lock contention, blank results -- settles as
+      # inconclusive so no repair Job is spawned from missing execution evidence.
+      test_failures, unproven_failures = actual_failures.partition do |step|
+        GraderOutcome.for_step(step).test_failed? ||
+          (workflow.job.repository.treat_grader_timeouts_as_failures? && GraderFailureSignal.timeout_like_step?(step))
+      end
+      unproven_failures = unproven_failures.reject { |step| GraderOutcome.for_step(step).outcome == GraderOutcome::CANCELLED }
+      inconclusive_steps += unproven_failures
+      failed_names = failed_required_grader_names(test_failures)
 
       if failed_names.any?
         update_grader_health!(workflow, "broken", failed_names)
@@ -67,6 +77,10 @@ module Workflows
     end
 
     private_class_method def self.update_grader_health!(workflow, health, failed_names = nil)
+      if health == "broken" && failed_names.blank?
+        Rails.logger.warn("[Workflows::MainGrader] Workflow ##{workflow.id} refused broken health without test_failed evidence")
+        health = "inconclusive"
+      end
       repository = workflow.job.repository
       branch = workflow.artifact("health_branch").presence || repository.default_branch
       default_branch = branch == repository.default_branch
