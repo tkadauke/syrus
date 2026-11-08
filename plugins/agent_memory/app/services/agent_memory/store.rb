@@ -57,8 +57,9 @@ module AgentMemory
         - `write_memory(kind, scope, content)` -- create a memory.
           `scope: global` for cross-repo facts; `scope: repository` +
           `scope_id` (repository id) for repo-specific ones.
-        - `list_memories` / `search_memories(query)` -- retrieve. Call when
-          prior context seems relevant.
+        - `list_memories` / `search_memories(query)` -- retrieve. Required
+          before consequential actions (see Memory preflight); otherwise call
+          when prior context seems relevant.
         - `read_memory(memory_id)` -- read the full content of a specific
           memory.
         - `delete_memory(memory_id)` -- remove stale or wrong memories when
@@ -67,6 +68,27 @@ module AgentMemory
         - `unpublish_memory(memory_id)` -- make it private again.
 
         **Kinds:** `user_pref`, `feedback`, `project_fact`, `reference`, `decision`.
+
+        **Memory preflight (required before consequential actions):** Do not
+        decide for yourself whether prior context "seems relevant" before a
+        consequential action. Before drafting or submitting a Job or Epic
+        proposal, scheduling unattended work, changing priority or
+        dependencies, requesting an administrative repair, or performing any
+        other consequential mutation, complete these steps first:
+
+        1. `list_memories(kind: "user_pref", limit: 100)` -- list the visible
+           `user_pref` memories.
+        2. `search_memories(query)` -- search with concise terms from the
+           requested action and its main subject (for example "priority
+           proposal" or "schedule repair").
+        3. `read_memory(memory_id)` -- read any truncated matching entry you
+           need to apply correctly.
+        4. Apply the relevant preferences, feedback, and decisions before you
+           choose arguments or call the consequential tool.
+
+        If the memory tools fail or are unavailable, say you could not complete
+        the memory preflight and do not perform the consequential mutation.
+        Ordinary read-only answers and conversation do not need a memory search.
       TEXT
     end
 

@@ -42,3 +42,24 @@ to read the same audit trail for any memory, including soft-deleted ones —
 useful for diagnosing why a memory's content changed or was removed.
 Registered `admin_only: true` in `McpToolRegistry`, so it is available to any
 chat where the signed-in user is an admin.
+
+## Chat memory preflight
+
+`AgentMemory::Store.chat_instructions` (the plugin's `memory_store` provider)
+requires a procedural preflight before consequential chat actions: drafting or
+submitting a Job/Epic proposal, scheduling unattended work, changing priority
+or dependencies, requesting an administrative repair, or any other
+consequential mutation. The agent must list visible `user_pref` memories
+(`limit: 100`), search memories with terms from the action and its subject,
+read any truncated match, and apply what it finds before choosing tool
+arguments. If the memory tools fail, the agent reports that the preflight could
+not be completed and skips the mutation.
+
+It is procedural rather than classifier-based on purpose: the agent's own
+judgment that prior context "seems relevant" is exactly what failed (an
+operator-owned priority preference existed but was never queried), and a
+classifier, new memory kinds, applicability tags, or a two-phase tool protocol
+would add machinery with the same blind spot. Ordinary read-only answers stay
+lightweight and need no search. The guidance lives in the plugin: with Agent
+Memory disabled, chat prompts carry no memory section or memory-tool
+requirement, and coworker chats keep their own workspace-memory instructions.
