@@ -24,7 +24,7 @@ module Coworkers
           agentic: false
         },
         {
-          kind: "coworker_review", handler: "CoworkerReview",
+          kind: "coworker_review", handler: "Coworkers::ReviewStep",
           label: "Coworker review", style: "bg-violet-100 text-violet-700", agentic: true,
           agent_role: AgentRole::WORKFLOW_COWORKER_REVIEWER, panel_capable: true,
           reviewer_target_required: true, required_mcp_tools: %w[submit_coworker_review],
