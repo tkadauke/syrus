@@ -6,3 +6,5 @@ export type MePayload = Pick<BootstrapPayload, "current_user" | "team_user_count
 export function fetchMe() {
   return getJson<MePayload>("/api/v1/app/me")
 }
+
+export type SeenToursPayload = { seen_tours: string[] }

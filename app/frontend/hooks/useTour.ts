@@ -1,3 +1,4 @@
+import type { SeenToursPayload } from "../api/me"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { STATUS } from "react-joyride"
 import type { EventData } from "react-joyride"
@@ -17,7 +18,7 @@ export function useTour(tourId: string): {
   const run = Array.isArray(seenTours) && !seenTours.includes(tourId)
 
   const dismiss = useMutation({
-    mutationFn: () => postJson<{ seen_tours: string[] }>("/api/v1/app/tours/dismiss", { tour_id: tourId }),
+    mutationFn: (): Promise<SeenToursPayload> => postJson("/api/v1/app/tours/dismiss", { tour_id: tourId }),
     onSuccess: (payload) => {
       queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) =>
         current?.current_user ? { ...current, current_user: { ...current.current_user, seen_tours: payload.seen_tours } } : current

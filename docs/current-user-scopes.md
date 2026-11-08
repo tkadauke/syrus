@@ -123,6 +123,7 @@ per-user/private:
   - app/controllers/api/v1/app/auth_controller.rb
   - app/controllers/api/v1/app/bootstrap_controller.rb
   - app/controllers/api/v1/app/bug_reports_controller.rb
+  - app/controllers/api/v1/app/me_controller.rb
   - app/controllers/api/v1/app/browser_errors_controller.rb
   - app/controllers/api/v1/app/ui_engagement_samples_controller.rb
   - app/controllers/api/v1/app/user_time_zones_controller.rb
@@ -449,6 +450,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/tags_controller.rb` | per-user/private | Tags are created, updated, deleted, and listed through `Current.user.tags`. |
 | `app/controllers/api/v1/app/target_graphs_controller.rb` | per-user/private | Target graph views resolve repositories, Jobs, and Workflows through `Current.user`-scoped accessors before returning graph data. |
 | `plugins/terminal/app/controllers/api/v1/app/terminal_sessions_controller.rb` | per-user/private | Terminal sessions are listed, created, shown, and killed through `Terminal::Session.where(user: Current.user)`; recent Workflow workspace choices and workflow defaults are scoped through `Current.user.workflows`. |
+| `app/controllers/api/v1/app/me_controller.rb` | per-user/private | Serializes only the signed-in user's own profile, team user count, and unread notification count via `AppApi::MeSerializer.new(user: Current.user)`. |
 | `app/controllers/api/v1/app/theme_controller.rb` | per-user/private | Updates only `Current.user.theme` for the signed-in operator. |
 | `app/controllers/api/v1/app/themes_controller.rb` | per-user/private | Lists and shows themes through `Theme.selectable_by(Current.user)` (built-ins plus the current user's own custom themes), so a user can't fetch another user's custom theme by guessing its id. |
 | `app/controllers/api/v1/app/tours_controller.rb` | per-user/private | Marks individual tours seen and resets all seen tours through `Current.user.mark_tour_seen` / `Current.user.reset_tours!`. |

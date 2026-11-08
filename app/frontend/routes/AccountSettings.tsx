@@ -1,3 +1,4 @@
+import type { SeenToursPayload } from "../api/me"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { routePrefix, withRoutePrefix } from "../lib/routing"
 import { Button } from "../components/Button"
@@ -234,7 +235,7 @@ function CredentialsForm({
   const [values, setValues] = useState<CredentialsInput>(inputFromPayload(payload))
 
   const resetTours = useMutation({
-    mutationFn: () => deleteJson<{ seen_tours: string[] }>("/api/v1/app/tours/reset"),
+    mutationFn: (): Promise<SeenToursPayload> => deleteJson("/api/v1/app/tours/reset"),
     onSuccess: (result) => {
       queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) =>
         current?.current_user ? { ...current, current_user: { ...current.current_user, seen_tours: result.seen_tours } } : current
