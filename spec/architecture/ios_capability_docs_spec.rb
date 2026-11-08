@@ -2,7 +2,8 @@ require "rails_helper"
 
 RSpec.describe "iOS capability documentation" do
   OPERATOR_DOC = Rails.root.join("config/syrus_docs/syrus_yml.md")
-  RUNBOOK_DOC = Rails.root.join("config/syrus_docs/ios_compute_runbook.md")
+  RUNBOOK_DOC = Rails.root.join("docs/engineering/operations/ios-compute.md")
+  SEARCHABLE_RUNBOOK_DOC = Rails.root.join("config/syrus_docs/ios_compute_runbook.md")
   PUBLIC_DOCS = [
     Rails.root.join("website/src/content/docs/configuration.md"),
     Rails.root.join("website/src/content/docs/monorepo-adoption.md"),
@@ -49,6 +50,17 @@ RSpec.describe "iOS capability documentation" do
     expect(body).to include("Linux")
     expect(body).to include("Xcode")
     expect(body).to include("iOS simulator")
+  end
+
+  it "keeps the searchable runbook focused on capability declaration and diagnosis" do
+    body = SEARCHABLE_RUNBOOK_DOC.read
+
+    expect(body).to include("project:")
+    expect(body).to include("xcodebuild")
+    expect(body).to include("\"planned_execution\"")
+    expect(body).to include("implementation_capability_escalation")
+    expect(body).to include("no_capable_worker")
+    expect(body).to include("operations/ios-compute.md")
   end
 
   it "keeps public docs aligned with the iOS capability contract" do
