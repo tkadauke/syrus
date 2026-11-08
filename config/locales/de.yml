@@ -75,6 +75,7 @@ de:
   errors:
     messages:
       inclusion: "ist kein gültiger Wert"
+      design_doc_visible_body_blank: "sichtbarer Text darf nicht leer sein"
       review_evidence_run_lineage: "muss zur Herkunft des Laufs passen"
       review_evidence_provenance_immutable: "Die Herkunft des Review-Nachweises ist unveränderlich: %{attributes}"
       review_evidence_stale_monotonic: "darf den veralteten Zustand nicht verlassen"

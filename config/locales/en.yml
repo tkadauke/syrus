@@ -105,6 +105,7 @@ en:
   errors:
     messages:
       inclusion: "is not included in the list"
+      design_doc_visible_body_blank: "visible body can't be blank"
       review_evidence_run_lineage: "must match the Run lineage"
       review_evidence_provenance_immutable: "review evidence provenance is immutable: %{attributes}"
       review_evidence_stale_monotonic: "cannot leave stale"

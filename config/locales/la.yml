@@ -75,6 +75,7 @@ la:
   errors:
     messages:
       inclusion: "non est in indice valorum permissorum"
+      design_doc_visible_body_blank: "corpus visibile vacuum esse non potest"
       review_evidence_run_lineage: "cum origine cursus congruere debet"
       review_evidence_provenance_immutable: "origo testimonii recensionis immutabilis est: %{attributes}"
       review_evidence_stale_monotonic: "statum obsoletum relinquere non potest"
