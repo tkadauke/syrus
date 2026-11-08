@@ -394,6 +394,14 @@ For `list_chats`, `list_repositories`, `read_chat_messages`, and
 offset calculation. A normal page beyond the result set still returns an empty
 page; callers should not use the cap as a deep-pagination discovery mechanism.
 
+`read_run_transcript` returns transcript chunks plus an `agent_diff_bytes` size
+hint; it does not include the diff itself (use `get_job_diff`). `read_workflow`
+omits each Step's `details` excerpt by default and reports `details_bytes`; pass
+`step_id` for one Step's excerpt or `include_details: true` for all of them.
+Stored `tool_result` chat messages are capped at 256 KB: a larger result is
+saved as `{truncated, original_bytes, preview}` and the tool card shows a
+truncation notice in its expanded details.
+
 Sidebar pinning is exposed separately from pinned context. `pin_chat` and
 `unpin_chat` mutate `ChatSession#pinned`, the same state the recent-chats
 sidebar uses for its pin control; `update_pinned_context` and

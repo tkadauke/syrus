@@ -7,7 +7,7 @@ module Mcp::Tools
 
     tool_name "read_run_transcript"
 
-    description "Read paginated transcript chunks and full agent diff for a Run visible to this chat session's user."
+    description "Read paginated transcript chunks for a Run visible to this chat session's user. The agent diff is not included (only its size as agent_diff_bytes); read it with get_job_diff."
 
     input_schema(
       properties: {
@@ -34,7 +34,7 @@ module Mcp::Tools
           run_state: run.state,
           agent_outcome: run.agent_outcome,
           agent_summary: run.agent_summary,
-          agent_diff: run.agent_diff,
+          agent_diff_bytes: run.agent_diff&.bytesize || 0,
           total_chunks: total_chunks,
           page: page,
           per: per,

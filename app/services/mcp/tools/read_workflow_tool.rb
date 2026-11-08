@@ -11,7 +11,9 @@ module Mcp::Tools
 
     input_schema(
       properties: {
-        workflow_id: { type: "integer", description: "Syrus Workflow id to inspect." }
+        workflow_id: { type: "integer", description: "Syrus Workflow id to inspect." },
+        step_id: { type: "integer", description: "Include the details excerpt (e.g. grader output) for this one Step. Omitted by default." },
+        include_details: { type: "boolean", description: "Include the details excerpt for every Step. Can be large; prefer step_id." }
       },
       required: %w[workflow_id]
     )
@@ -19,15 +21,15 @@ module Mcp::Tools
     class << self
       include McpToolPayloads::WorkflowPayload
 
-      def call(workflow_id:, server_context:)
+      def call(workflow_id:, server_context:, step_id: nil, include_details: false)
         workflow = find_workflow!(workflow_id, includes: { steps: :runs })
 
-        Mcp::Tools.success(workflow: workflow_detail_payload(workflow))
+        Mcp::Tools.success(workflow: workflow_detail_payload(workflow, step_id: step_id, include_details: include_details))
       end
 
       private
 
-      def workflow_detail_payload(workflow)
+      def workflow_detail_payload(workflow, step_id: nil, include_details: false)
         runs = workflow_step_runs(workflow)
         latest_run = latest_run_for(runs)
 
@@ -45,17 +47,18 @@ module Mcp::Tools
           started_at: workflow.started_at&.iso8601,
           finished_at: workflow.finished_at&.iso8601,
           cancellation: Workflows::CancellationAttribution.payload_for(workflow),
-          steps: workflow.steps.map { |step| step_payload(step) }
+          steps: workflow.steps.map { |step| step_payload(step, with_details: include_details || step.id == step_id) }
         }.then { |h| without_blank_cancellation(h) }
       end
 
-      def step_payload(step)
+      def step_payload(step, with_details: false)
         {
           id: step.id,
           kind: step.kind,
           state: step.state,
           position: step.position,
-          details: step.details.presence,
+          details: (step.details.presence if with_details),
+          details_bytes: step.details.present? ? step.details.to_json.bytesize : 0,
           run_count: step.runs.size,
           started_at: step.started_at&.iso8601,
           finished_at: step.finished_at&.iso8601,
