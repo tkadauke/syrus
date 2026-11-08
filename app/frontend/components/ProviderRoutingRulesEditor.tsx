@@ -10,6 +10,7 @@ import { Select } from "./Select"
 import { Checkbox, Form, Pill, Surface } from "./ui"
 import { errorMessage } from "../lib/errorMessage"
 import { useT } from "../hooks/useT"
+import { matchingReviewContribution, renderReviewContribution } from "../pluginReviewContributions"
 import {
   activeConditionTypes,
   availableConditionTypes,
@@ -195,6 +196,7 @@ export function RoutingRulesPanel({
   const [draft, setDraft] = useState<DraftRule | null>(null)
   const [draftErrors, setDraftErrors] = useState<DraftErrors>({})
   const [testing, setTesting] = useState(false)
+  const settingsSummaries = (routingOptions.review_contributions || []).filter((entry) => entry.kind === "settings_summary")
 
   function openNewRule() {
     setDraft(emptyDraft(routingOptions))
@@ -278,6 +280,9 @@ export function RoutingRulesPanel({
           </Button>
         </div>
       </div>
+      {settingsSummaries.map((contribution) => (
+        <div key={contribution.key}>{renderReviewContribution(contribution, { options: routingOptions })}</div>
+      ))}
 
       {testing && onExplain ? <RoutingTestPanel onClose={() => setTesting(false)} onExplain={onExplain} options={routingOptions} /> : null}
 
@@ -728,6 +733,26 @@ function RoutingCandidateRow({
   t: (key: string, options?: Record<string, unknown>) => string
 }) {
   const provider = providerOption(options, candidate.provider)
+  const targetType = candidate.reviewer_target?.type || options.reviewer_targets?.[0]?.type
+  const targetEditor = matchingReviewContribution(options.review_contributions || [], "target_editor", { targetType })
+  const targetSelect = (
+    <Select
+      aria-label={t("provider_routing.reviewer_target")}
+      onChange={(event) => {
+        const target = options.reviewer_targets?.find((item) => `${item.type}:${item.reference}` === event.target.value)
+        onChange({ ...candidate, reviewer_target: target || null })
+      }}
+      value={candidate.reviewer_target ? `${candidate.reviewer_target.type}:${candidate.reviewer_target.reference}` : ""}
+    >
+      <option value="">{t("provider_routing.unnamed_reviewer")}</option>
+      {(options.reviewer_targets || []).map((target) => (
+        <option key={`${target.type}:${target.reference}`} value={`${target.type}:${target.reference}`}>
+          {target.display.name}
+          {target.display.handle ? ` (@${target.display.handle})` : ""}
+        </option>
+      ))}
+    </Select>
+  )
   return (
     <div className="grid gap-2 rounded border border-border p-2 sm:grid-cols-[repeat(2,minmax(0,1fr))_9rem_auto]">
       <Select
@@ -766,24 +791,13 @@ function RoutingCandidateRow({
           </option>
         ))}
       </Select>
-      {reviewerTargetEnabled ? (
-        <Select
-          aria-label={t("provider_routing.reviewer_target")}
-          onChange={(event) => {
-            const target = options.reviewer_targets?.find((item) => `${item.type}:${item.reference}` === event.target.value)
-            onChange({ ...candidate, reviewer_target: target || null })
-          }}
-          value={candidate.reviewer_target ? `${candidate.reviewer_target.type}:${candidate.reviewer_target.reference}` : ""}
-        >
-          <option value="">{t("provider_routing.unnamed_reviewer")}</option>
-          {(options.reviewer_targets || []).map((target) => (
-            <option key={`${target.type}:${target.reference}`} value={`${target.type}:${target.reference}`}>
-              {target.display.name}
-              {target.display.handle ? ` (@${target.display.handle})` : ""}
-            </option>
-          ))}
-        </Select>
-      ) : null}
+      {reviewerTargetEnabled
+        ? targetEditor
+          ? renderReviewContribution(targetEditor, { candidate, targets: options.reviewer_targets || [] }, targetSelect, (value) =>
+              onChange({ ...candidate, reviewer_target: value as ProviderRoutingCandidate["reviewer_target"] })
+            )
+          : targetSelect
+        : null}
       <Button disabled={!removable} onClick={onRemove} size="sm" variant="secondary">
         {t("provider_routing.remove")}
       </Button>

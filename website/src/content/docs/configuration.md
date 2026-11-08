@@ -850,3 +850,19 @@ that round count with `rounds`, require reviewer availability with
 shows the configured rounds and criteria alongside the other `.syrus.yml`
 review settings. Routing rules can select a provider for the
 `security_review` step kind.
+## Plugin configuration
+
+Plugins can extend `.syrus.yml` without adding plugin-specific fields to the
+core configuration model. Their settings use a versioned namespace:
+
+```yaml
+plugins:
+  example.rules:
+    version: 1
+    config:
+      enabled: true
+```
+
+Each plugin validates its own configuration and controls root-to-project
+overlays. Configuration owned by a disabled or missing plugin is diagnosed and
+does not activate that plugin's behavior.

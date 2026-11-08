@@ -81,9 +81,9 @@ class SyrusYml
   TARGET_KINDS = %w[default library binary application formatter builder grader prepare generator repo_check].freeze
   TARGET_GRAPH_IMPORT_FAILURE_POLICIES = %w[strict warn].freeze
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :security_review, :coworker_review, :review_notes, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :merge_train, :project, :targets, :target_graph, :scripts) do
-    def initialize(security_review: nil, coworker_review: nil, **rest)
-      super(security_review: security_review, coworker_review: coworker_review, **rest)
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :security_review, :coworker_review, :review_notes, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :merge_train, :project, :targets, :target_graph, :scripts, :plugin_configurations) do
+    def initialize(security_review: nil, coworker_review: nil, plugin_configurations: PluginRepositoryConfiguration::Set.new, **rest)
+      super(security_review: security_review, coworker_review: coworker_review, plugin_configurations: plugin_configurations, **rest)
     end
   end
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern) do
@@ -289,6 +289,12 @@ class SyrusYml
     load_file(Pathname.new(workspace_path).join(CONFIG_FILE), project_path: project_path)
   end
 
+  # Temporary bridge for the Coworkers-owned legacy-key adapter. The parser
+  # remains here until the plugin extraction moves the schema itself.
+  def self.parse_coworker_review_contribution(raw)
+    new("").send(:parse_coworker_review, raw)
+  end
+
   def initialize(contents, project_path: nil)
     @contents = contents
     @project_path = project_path.to_s.strip.presence
@@ -304,6 +310,7 @@ class SyrusYml
 
     grade = parse_grade(raw["grade"])
     raw_delivery = parse_delivery(raw["delivery"])
+    plugin_configurations = PluginRepositoryConfiguration.parse(raw, scope: @project_path ? "project" : "root")
     validate_delivery_grade_phases!(raw["delivery"], raw_delivery, grade)
 
     Config.new(
@@ -312,7 +319,7 @@ class SyrusYml
       hooks: parse_hooks(raw["hooks"]),
       adversarial_review: parse_adversarial_review(raw["adversarial_review"]),
       security_review: parse_security_review(raw["security_review"]),
-      coworker_review: parse_coworker_review(raw["coworker_review"]),
+      coworker_review: plugin_configurations["coworkers.review"],
       review_notes: parse_review_notes(raw["review_notes"]),
       agent_insight: parse_agent_insight(raw["agent_insight"]),
       coverage: parse_coverage(raw["coverage"]),
@@ -331,7 +338,8 @@ class SyrusYml
       project: parse_project(raw["project"]),
       targets: parse_targets(raw["targets"]),
       target_graph: parse_target_graph(raw["target_graph"]),
-      scripts: parse_scripts(raw["scripts"])
+      scripts: parse_scripts(raw["scripts"]),
+      plugin_configurations: plugin_configurations
     )
   rescue Psych::Exception => e
     raise ParseError, "YAML parse error: #{e.message}"

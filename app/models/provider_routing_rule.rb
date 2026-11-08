@@ -136,10 +136,12 @@ class ProviderRoutingRule < ApplicationRecord
   def validate_step_trigger
     kind = trigger["kind"].to_s
     errors.add(:trigger, :step_kind_required) if kind.blank?
-    errors.add(:trigger, :step_kind_not_agentic) if kind.present? && !Step::Kind.agentic_values.include?(kind)
+    errors.add(:trigger, :step_kind_not_agentic) if kind.present? && !Step::Kind.agentic_values.include?(kind) && kind != "coworker_review"
   end
 
   def panel_capable_trigger?
+    return true if trigger["type"] == "step" && trigger["kind"] == "coworker_review"
+
     trigger["type"] == "step" && Step::Kind.fetch(trigger["kind"]).panel_capable
   rescue KeyError
     false
@@ -305,6 +307,12 @@ class ProviderRoutingRule < ApplicationRecord
     rescue ReviewerTargets::ResolutionError
       candidate
     end
+    return unless panel_action?
+
+    targets = action["candidates"].filter_map { |candidate| candidate.to_h.deep_stringify_keys["reviewer_target"] }
+    ReviewerTargets.validate_panel!(targets, owner: user, repository: repository || job&.repository) if targets.any?
+  rescue ReviewerTargets::DuplicateTarget => e
+    errors.add(:candidates, :reviewer_target_invalid, index: 0, message: e.message)
   end
 
   def action_definition

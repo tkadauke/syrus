@@ -48,6 +48,7 @@ RSpec.describe ReviewEvidence::Capture do
     allow(ReviewEvidence::CanonicalDiff).to receive(:resolve).and_return("a" * 40)
     allow(ReviewEvidence::CanonicalDiff).to receive(:snapshot).and_return(head_sha: "b" * 40, sha256: "c" * 64)
     target_provider = class_double("ReviewerTargetProvider", target_type: "coworker")
+    allow(target_provider).to receive(:available?).and_return(true)
     allow(target_provider).to receive(:resolve).and_return(
       type: "coworker", reference: "opaque", display: { "name" => "Maya" }, record: reviewer
     )

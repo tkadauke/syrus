@@ -1,5 +1,25 @@
 # Plugins
 
+## Review extension contracts
+
+Review plugins may register `reviewer_target_provider`,
+`review_context_contributor`, `review_presentation_contributor`, and
+`problem_provider` contributions. Reviewer targets are opaque core envelopes:
+the provider owns authorization, availability, uniqueness, resolution, and the
+safe display snapshot. Review-context contributors receive the pinned target,
+provide a bounded restricted prompt plus a safe manifest, and return an opaque
+post-verdict persistence receipt. Restricted text is enclosed in core's
+untrusted-data prompt boundary. A contributor that supplies workflow tools must
+also declare the existing workflow capability authorizing that tool set; core
+does not advertise it when the current role and step lack that capability.
+Presentation contributors declare component
+keys for provider-rule target editors, Job/Workflow evidence, audit payloads,
+and settings summaries; their copy lives in the plugin's English, German, and
+Latin i18n bundles and every contribution declares an accessibility label key.
+Problem codes must use the provider's namespace (for example
+`example.target_unavailable`). Disabled or unhealthy plugins contribute no live
+providers, while stored safe snapshots remain readable without plugin code.
+
 Syrus plugins are Rails Engine gems that register extension point providers at
 boot through `Syrus::PluginRegistry`. The registry currently supports:
 
@@ -32,6 +52,8 @@ boot through `Syrus::PluginRegistry`. The registry currently supports:
 - `workspace_tab`
 - `retention_policy`
 - `repository_content_provider`
+- `repository_configuration`
+- `review_gate`
 - `execution_backend`
 - `workspace_git_transport`
 - `purge_contributor`
@@ -584,6 +606,25 @@ plugins through explicit extension boundaries or documented legacy exceptions,
 and that plugin-to-plugin source references follow a declared dependency edge
 directly or transitively.
 
+A plugin may also declare `config/plugin_ownership.yml`. The manifest records
+its configuration keys, step kinds, target types, routes, tables, problem
+codes, tools, frontend contributions, documentation, and owned vocabulary.
+`compatibility_quarantine` is a per-core-file baseline of occurrences of that
+vocabulary. New files, increased counts, and decreases after extraction are
+reported as trends in shadow mode. They do not affect
+`bin/check-plugin-boundaries`' exit status, and developers do not need to edit
+the baseline to make CI green. Raw case-insensitive string counts are useful
+inventory, but are not reliable proof of a boundary: copy, documentation,
+compatibility rendering, and diagnostics can produce false positives, while a
+neutral rename can hide a reimplementation.
+
+All ownership signals introduced with this manifest remain nonblocking until
+an operator explicitly decides otherwise, including future AST identifiers,
+import edges, registry provenance, disablement, and physical-subtraction
+signals. A future enforcement trial can opt in locally with
+`PLUGIN_OWNERSHIP_ENFORCE=1 bin/check-plugin-boundaries`; this mode is disabled
+by default and is not configured in required graders.
+
 The audit reads git-tracked source only. Untracked and gitignored files are
 skipped, because the working tree can contain build output — Vite entry bundles
 under `app/assets/builds/` are gitignored but present after any frontend build,
@@ -592,12 +633,21 @@ violation that does not exist in the source. When no git index is available (the
 `git archive` copy the physical-removal script builds), everything is scanned
 instead.
 
-The stronger physical-absence check is manual for now:
+The stronger subtraction check is manual for now:
 
 ```bash
 bin/plugin-boundary-audit ruby
 bin/plugin-boundary-audit ruby --command "bundle exec rspec spec/models/job_spec.rb"
 ```
+
+For a plugin with an ownership manifest, the command reports two independent
+results: the nonblocking vocabulary inventory shows changes from the recorded
+baseline, while physical removal tests whether core remains bootable after the
+plugin and its dependent plugins are removed. The inventory cannot prove that
+core did or did not reimplement plugin behavior. Its optional
+`--enforce-ownership` mode is reserved for a later explicit operator decision
+and is disabled by default; the pre-existing physical-removal command still
+fails when its requested smoke/test command fails.
 
 Two things make it usable in practice. The temporary copy has no
 `config/master.key` (it is gitignored, so `git archive` does not carry it), so
@@ -4102,3 +4152,39 @@ Bundled plugins:
   both workflow transcript routes share `App::RunArtifactsPayload.build(run:)`
   for the JSON shape so they can't drift apart — see
   `plugins/agent_activity/docs/syrus_docs/agent_activity.md`.
+
+### Repository configuration contributions
+
+Plugins may register `repository_configuration` providers for versioned,
+namespaced `.syrus.yml` sections. Repository configuration uses this envelope:
+
+```yaml
+plugins:
+  example.rules:
+    version: 1
+    config:
+      enabled: true
+```
+
+The provider parses and validates `config`, returns an audit-safe serialized
+form, defines how a root value overlays a nested project value, and can decide
+whether a project is affected by changed files. Parsed values remain opaque to
+core and are available from `SyrusYml::Config#plugin_configurations` and
+`TargetGraph::Project#plugin_configurations`. Disabled, unavailable, and absent
+providers produce explicit diagnostics and do not materialize live behavior.
+
+### Review gate contributions
+
+Plugins may register `review_gate` providers to insert review loops at the
+stable `after_agent` workflow slot. Each definition supplies stable gate and
+step-kind keys, `before`/`after` ordering constraints, an enablement resolver,
+a loop budget and repair-step relationship, handler/prompt/tool providers, a
+verdict artifact contract, failure policy, evidence metadata, and optional
+panel capability. Ordering cycles and duplicate keys are rejected.
+
+Initial, retry, PR/chat feedback, external-PR feedback, and coding-handoff
+builders all resolve this registry instead of naming feature-specific gates.
+Resolved definitions are snapshotted in the Workflow's
+`review_gate_contributions` artifact. Providers are resolved again before a
+later loop iteration, so disabling or reloading a plugin prevents another
+plugin-owned review invocation while preserving the already-recorded repair.

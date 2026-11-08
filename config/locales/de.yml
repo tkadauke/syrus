@@ -935,6 +935,11 @@ de:
       owner_assigned: "Job-Besitzer zugewiesen."
       choose_owner: "Wähle einen Besitzer."
       owner_not_found: "Besitzer nicht gefunden."
+  plugin_repository_configuration:
+    absent_legacy_owner: "%{key} gehört zum fehlenden Plugin %{owner}"
+    provider_not_installed: "Konfigurationsanbieter %{owner} ist nicht installiert"
+    provider_status: "Konfigurationsanbieter %{owner} ist %{status}"
+    legacy_key_status: "%{key} gehört zum Plugin %{owner} (Status: %{status})"
   permission_presentation:
     fallback_statement: "Ein Agent bittet um deine Erlaubnis."
     agent_fallback: "Ein Agent"

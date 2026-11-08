@@ -12,11 +12,13 @@ module Syrus
   # `Syrus::Installer.sync!` on read is what makes that safe across processes
   # -- see Installer for why a one-shot install is not enough here.
   class KindRegistry
-    def initialize(built_in:, entry_class:, provider_method:, key: :kind)
+    def initialize(built_in:, entry_class:, provider_method:, key: :kind, extension_point: :workflow_kinds, validate_plugin_entry: nil)
       @built_in = built_in.freeze
       @entry_class = entry_class
       @provider_method = provider_method
       @key = key
+      @extension_point = extension_point
+      @validate_plugin_entry = validate_plugin_entry
       @mutex = Mutex.new
       @installed = []
 
@@ -50,12 +52,17 @@ module Syrus
       built_in_keys = @built_in.map { |entry| entry.public_send(@key).to_s }.to_set
       seen = Set.new
 
-      Syrus::PluginRegistry.providers_for(:workflow_kinds).flat_map do |provider|
+      Syrus::PluginRegistry.providers_for(@extension_point).flat_map do |provider|
         next [] unless provider.respond_to?(@provider_method)
 
         Array(provider.public_send(@provider_method)).filter_map do |attrs|
           attrs = attrs.to_h.symbolize_keys
           name = attrs[@key].to_s
+
+          if @validate_plugin_entry && !@validate_plugin_entry.call(provider, attrs)
+            Rails.logger.error("[KindRegistry] #{provider} declares invalid #{@provider_method} entry #{name.inspect}; ignoring")
+            next
+          end
 
           # Core keeps its own. Letting a plugin shadow a built-in kind would
           # make workflow behavior depend on plugin load order.

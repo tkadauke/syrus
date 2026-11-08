@@ -2,7 +2,7 @@ module ReviewEvidence::VerdictSubmission
   module_function
 
   def call!(run:, artifact_key:, review_kind:, critique:, verdict:, key_learning: nil)
-    evidence = run.review_evidence
+    evidence = ReviewEvidence.find_by(run_id: run.id)
     if evidence
       ReviewEvidence::VerifySubmission.call!(
         evidence: evidence,
@@ -16,8 +16,10 @@ module ReviewEvidence::VerdictSubmission
       return existing
     end
 
+    target = run.step.details.to_h["reviewer_target"]
+    receipt = persist_review_update(target:, run:, verdict:, key_learning: key_learning.presence || critique)
     reviewer = evidence&.reviewer
-    if reviewer&.respond_to?(:finalize_review_memory!)
+    if target.blank? && reviewer&.respond_to?(:finalize_review_memory!)
       reviewer.finalize_review_memory!(run:, key_learning: key_learning.presence || critique, verdict:)
     end
 
@@ -37,19 +39,29 @@ module ReviewEvidence::VerdictSubmission
           "critique" => critique,
           "verdict" => verdict
         }
-        if reviewer&.respond_to?(:review_context_manifest)
+        if target.present?
+          entry["review_context_manifest"] = run.step.details.to_h["review_context_manifest"]
+          entry["reviewer"] = {
+            "label" => [ target.dig("display", "name"), App::Presentation.agent_provider_label(run.agent_provider) ].compact.join(" · "),
+            "type" => target["type"],
+            "reference" => target["reference"],
+            "provider" => run.agent_provider,
+            "model" => run.model
+          }.compact
+          entry["persistence_receipt"] = receipt
+          entry["memory_persistence"] = {
+            "state" => receipt.present? ? "persisted" : "missing",
+            "persisted_commit_sha" => receipt&.dig("details", "persisted_commit_sha")
+          }.compact
+        elsif reviewer&.respond_to?(:review_context_manifest)
           entry["review_context_manifest"] = reviewer.review_context_manifest(run)
           context = reviewer.review_context_for(run)
           entry["reviewer"] = {
             "label" => "#{reviewer.display_name} · #{App::Presentation.agent_provider_label(run.agent_provider)}",
-            "type" => run.step.details.dig("reviewer_target", "type"),
-            "reference" => run.step.details.dig("reviewer_target", "reference"),
-            "provider" => run.agent_provider,
-            "model" => run.model
-          }.compact
+            "provider" => run.agent_provider, "model" => run.model
+          }
           entry["memory_persistence"] = {
-            "state" => context&.persistence_state || "missing",
-            "persisted_commit_sha" => context&.persisted_commit_sha,
+            "state" => context&.persistence_state || "missing", "persisted_commit_sha" => context&.persisted_commit_sha,
             "error_code" => context&.persistence_error_code
           }.compact
         end
@@ -58,6 +70,7 @@ module ReviewEvidence::VerdictSubmission
                        "panel_id" => run.step.details["panel_id"])
         end
         iterations << entry.compact
+        run.step.update!(details: run.step.details.to_h.merge("review_persistence_receipt" => receipt)) if receipt
         run.workflow.set_artifact!(artifact_key, iterations)
         ReviewFindingEvents.record(
           workflow: run.workflow, step: run.step, run: run,
@@ -71,5 +84,16 @@ module ReviewEvidence::VerdictSubmission
 
   def existing_submission(workflow, artifact_key, run_id)
     Array(workflow.reload.artifact(artifact_key)).find { |candidate| candidate["run_id"] == run_id }
+  end
+
+  def persist_review_update(target:, run:, verdict:, key_learning:)
+    return if target.blank?
+
+    ReviewContextContributions.persist(
+      target:, run:, context: run.step.details.to_h.slice("review_context_manifest"),
+      verdict:, update: { "key_learning" => key_learning }
+    )
+  rescue ReviewContextContributions::Unavailable
+    nil
   end
 end

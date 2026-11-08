@@ -299,10 +299,29 @@ Keep plugin boundaries crisp:
 - keep the core test suite free of plugin specifics, so removing a plugin
   entirely leaves a passing suite rather than a red one.
 
+Review features can contribute a generic review gate instead of changing core
+workflow builders. A gate chooses the stable post-agent slot, declares
+before/after ordering, enablement and loop budget, its repair relationship,
+step/prompt/tool providers, verdict evidence, failure policy, and optional
+panel support. Syrus validates the graph, preserves contribution metadata with
+the Workflow, and stops scheduling later plugin-owned review iterations if the
+plugin is disabled.
+
 Syrus checks the last two by actually removing a plugin: `bin/plugin-boundary-audit
 <plugin>` copies the checkout, deletes that plugin plus everything that depends
 on it, and runs a command of your choosing — a boot check by default, or the
 full test suite — against what is left.
+
+Bundled plugins can also declare `config/plugin_ownership.yml`, covering their
+configuration keys, workflow vocabulary, routes, data, tools, frontend
+contributions, documentation, and domain terms. A checked-in compatibility
+quarantine records existing core vocabulary as per-file baseline counts.
+Boundary checks report new files, increases, and decreases as nonblocking
+shadow-mode trends; developers do not update counts merely to make CI pass.
+String counts are inventory rather than proof of architectural ownership, so
+the subtraction command reports them separately from physical removability.
+Enforcement is disabled by default and requires a later explicit operator
+decision.
 
 ## Execution Backend Contract
 

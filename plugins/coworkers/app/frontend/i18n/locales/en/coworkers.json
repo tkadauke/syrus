@@ -213,6 +213,29 @@
     "migration_errors": "Blocking migration errors",
     "none": "None"
   },
+  "review_target_editor": {
+    "label": "Coworker reviewer",
+    "description": "Select an authorized coworker reviewer.",
+    "aria_label": "Coworker reviewer target",
+    "none": "No named reviewer"
+  },
+  "review_evidence": {
+    "label": "Coworker review evidence",
+    "description": "Safe coworker review evidence snapshot.",
+    "aria_label": "Coworker review evidence",
+    "summary": "{{reviewer}} · {{verdict}}"
+  },
+  "review_audit": {
+    "label": "Coworker review audit",
+    "description": "Opaque persistence receipt.",
+    "aria_label": "Coworker review audit receipt",
+    "summary": "Receipt {{key}} · version {{version}}"
+  },
+  "review_settings": {
+    "label": "Coworker review routing",
+    "description": "Named coworker reviewers use repository grants and protected memory.",
+    "aria_label": "Coworker review routing summary"
+  },
   "detail": {
     "soul_heading": "SOUL.md",
     "new_side_chat": "New side chat",

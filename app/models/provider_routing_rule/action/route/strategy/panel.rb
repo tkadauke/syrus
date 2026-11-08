@@ -17,7 +17,11 @@ class ProviderRoutingRule::Action::Route::Strategy::Panel < ProviderRoutingRule:
   private
 
   def member_keys(members)
-    members.map { |member| member.to_h.stringify_keys.values_at("provider", "model", "effort_level", "reviewer_target") }
+    members.map do |member|
+      candidate = member.to_h.stringify_keys
+      target_key = candidate.dig("reviewer_target", "uniqueness_key") || candidate["reviewer_target"]
+      candidate.values_at("provider", "model", "effort_level") + [ target_key ]
+    end
   end
 
   def validate_consensus(record, member_count)

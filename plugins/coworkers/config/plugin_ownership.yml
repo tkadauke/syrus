@@ -1,0 +1,213 @@
+plugin: coworkers
+
+# This ownership declaration inventories terms whose semantics disappear when
+# the plugin is absent. Compatibility entries below are a shadow-mode baseline:
+# differences are reported for visibility but do not fail required checks or
+# require count updates. Enforcement requires a later explicit operator choice.
+ownership:
+  configuration_keys:
+    - coworker_review
+  step_kinds:
+    - coworker_review
+    - coworker_run
+  target_types:
+    - coworker
+  route_prefixes:
+    - /api/v1/app/coworkers
+  tables:
+    - coworker_chats
+    - coworker_grants
+    - coworker_provisioning_attempts
+    - coworker_review_contexts
+    - coworker_workspace_conflicts
+    - coworker_workspace_repositories
+    - coworkers
+    - coworkers_chat_agents
+  problem_codes:
+    - coworker_memory_persistence_failed
+    - coworker_review_target_required
+  tools:
+    - delete_coworker_file
+    - discover_coworker_capabilities
+    - edit_coworker_file
+    - list_coworker_grants
+    - list_coworkers
+    - manage_coworker_schedule
+    - message_coworker
+    - move_coworker_file
+    - propose_coworker
+    - propose_coworker_grants
+    - read_coworker
+    - spawn_coworker_chat
+    - submit_coworker_review
+    - update_coworker_review_memory
+    - write_coworker_file
+  frontend_contributions:
+    - coworkers/Coworkers
+    - coworkers tool cards
+  documentation_paths:
+    - plugins/coworkers/docs
+  vocabulary:
+    - coworker
+    - coworkers
+
+compatibility_quarantine:
+  app/controllers/api/v1/app/chat_shares_controller.rb: 4
+  app/controllers/api/v1/app/chats_controller.rb: 2
+  app/controllers/api/v1/app/permission_requests_controller.rb: 5
+  app/controllers/concerns/chat_index_payload.rb: 5
+  app/controllers/concerns/chat_search.rb: 1
+  app/controllers/concerns/chat_serialization.rb: 1
+  app/frontend/api/chats.ts: 13
+  app/frontend/api/jobs.ts: 2
+  app/frontend/api/permissionRequests.ts: 1
+  app/frontend/components/AppearancePickers.test.tsx: 2
+  app/frontend/components/PermissionRequestCard.test.tsx: 4
+  app/frontend/components/PermissionRuleEditor.tsx: 1
+  app/frontend/components/ProviderRoutingRulesEditor.test.tsx: 13
+  app/frontend/components/ProviderRoutingRulesEditor.tsx: 6
+  app/frontend/components/SmartPermissionActions.test.tsx: 7
+  app/frontend/components/SmartPermissionActions.tsx: 2
+  app/frontend/components/StartBlockedReasonPill.tsx: 2
+  app/frontend/components/ToolApprovalDetails.test.tsx: 3
+  app/frontend/components/ToolApprovalDetails.tsx: 2
+  app/frontend/lib/appEvents.test.ts: 5
+  app/frontend/lib/chatCache.test.ts: 8
+  app/frontend/pluginSidebarPages.test.tsx: 11
+  app/frontend/routes/App.test.tsx: 1
+  app/frontend/routes/Chat.tsx: 7
+  app/frontend/routes/ChatSearch.test.ts: 4
+  app/frontend/routes/ChatSearch.tsx: 25
+  app/frontend/routes/JobDetail.tsx: 10
+  app/frontend/routes/appChromeV2/RecentChatsSidebar.test.tsx: 4
+  app/frontend/routes/chat/Compose.test.tsx: 6
+  app/frontend/routes/chat/Compose.tsx: 3
+  app/frontend/routes/chat/MessageCards.test.tsx: 26
+  app/frontend/routes/chat/MessageCards.tsx: 32
+  app/frontend/routes/chat/ProposalCards.test.tsx: 9
+  app/frontend/routes/chat/ProposalCards.tsx: 7
+  app/frontend/routes/chat/systemMessages.test.ts: 2
+  app/frontend/routes/chat/tool_cards/propose_epic_with_jobs.test.tsx: 2
+  app/frontend/routes/chat/tool_cards/propose_job.test.tsx: 2
+  app/frontend/routes/jobDetail/WorkflowGraph.test.tsx: 8
+  app/frontend/routes/jobDetail/WorkflowGraph.tsx: 40
+  app/frontend/routes/jobDetail/stepArtifacts.test.ts: 4
+  app/frontend/routes/jobDetail/stepArtifacts.ts: 7
+  app/jobs/chat_turn_job.rb: 20
+  app/models/app_setting_registry.rb: 1
+  app/models/chat_pending_action.rb: 5
+  app/models/chat_session.rb: 2
+  app/models/concerns/mentionable.rb: 1
+  app/models/problem/kind.rb: 2
+  app/models/provider_routing_rule.rb: 2
+  app/models/review_evidence.rb: 1
+  app/models/step/kind.rb: 7
+  app/models/work_unit.rb: 1
+  app/services/admin/capability_surface_registry.rb: 12
+  app/services/admin/mcp_tool_card_coverage.rb: 1
+  app/services/agent_environment_snapshot.rb: 5
+  app/services/agent_role.rb: 9
+  app/services/app/agent_conversation_payload.rb: 2
+  app/services/app/chat_message_payload.rb: 1
+  app/services/app/coworker_review_projects.rb: 2
+  app/services/app/job_detail_payload.rb: 4
+  app/services/app/job_detail_payload/workflow_serializers.rb: 3
+  app/services/app/target_graph_payload.rb: 2
+  app/services/chat_pending_action_outcome_notification.rb: 2
+  app/services/chat_providers/base.rb: 5
+  app/services/chat_session/cross_chat_turn_orientation.rb: 12
+  app/services/chat_workspace.rb: 20
+  app/services/execution/chat_workload_policy.rb: 5
+  app/services/mcp/coworker_tool_catalog.rb: 11
+  app/services/mcp/sidecar.rb: 13
+  app/services/mcp/tools.rb: 4
+  app/services/mcp/tools/admin_read_operational_logs_tool.rb: 1
+  app/services/mcp/tools/attach_repository_tool.rb: 5
+  app/services/mcp/tools/authorization_support.rb: 33
+  app/services/mcp/tools/coworker_observability_authorization.rb: 5
+  app/services/mcp/tools/coworker_repository_access.rb: 3
+  app/services/mcp/tools/discover_coworker_capabilities_tool.rb: 6
+  app/services/mcp/tools/get_job_diff_tool.rb: 3
+  app/services/mcp/tools/list_repository_files_tool.rb: 1
+  app/services/mcp/tools/operational_diagnostics_tools.rb: 10
+  app/services/mcp/tools/propose_epic_with_jobs_tool.rb: 2
+  app/services/mcp/tools/propose_job_tool.rb: 2
+  app/services/mcp/tools/read_backend_exception_events_tool.rb: 1
+  app/services/mcp/tools/read_browser_error_events_tool.rb: 1
+  app/services/mcp/tools/read_performance_log_events_tool.rb: 1
+  app/services/mcp/tools/read_pr_tool.rb: 4
+  app/services/mcp/tools/read_repository_file_tool.rb: 1
+  app/services/mcp/tools/read_worker_health_tool.rb: 1
+  app/services/mcp/tools/request_permission_revocation_tool.rb: 3
+  app/services/mcp/tools/request_permission_tool.rb: 5
+  app/services/mcp/tools/search_chats_tool.rb: 13
+  app/services/mcp/tools/search_repository_code_tool.rb: 1
+  app/services/mcp/tools/submit_coworker_review_tool.rb: 7
+  app/services/mcp/tools/surrender_permission_lease_tool.rb: 3
+  app/services/mcp_tool_context.rb: 24
+  app/services/mcp_tool_policy.rb: 3
+  app/services/mcp_tool_registry.rb: 71
+  app/services/pending_actions/authorized_tool_call.rb: 2
+  app/services/pending_actions/coworker_permission_request.rb: 6
+  app/services/pending_actions/coworker_permission_revocation.rb: 15
+  app/services/pending_actions/coworker_tool_call.rb: 17
+  app/services/permissions/authorization_decision.rb: 1
+  app/services/permissions/capability_descriptor_adapter.rb: 6
+  app/services/permissions/coworker_actions.rb: 11
+  app/services/permissions/coworker_audit.rb: 21
+  app/services/permissions/coworker_authorization_decision.rb: 16
+  app/services/permissions/coworker_authorization_request.rb: 1
+  app/services/permissions/coworker_capability_discovery.rb: 18
+  app/services/permissions/coworker_default_policy.rb: 8
+  app/services/permissions/coworker_lease_surrender.rb: 17
+  app/services/permissions/coworker_permission_request.rb: 29
+  app/services/permissions/coworker_permission_revocation_request.rb: 29
+  app/services/permissions/execution_actions.rb: 1
+  app/services/permissions/ingestion_actions.rb: 1
+  app/services/permissions/permission_profile.rb: 2
+  app/services/permissions/permission_request.rb: 2
+  app/services/permissions/policy_evaluator.rb: 4
+  app/services/permissions/rule_draft.rb: 1
+  app/services/permissions/smart_decision.rb: 10
+  app/services/persistent_mcp_daemon.rb: 6
+  app/services/persistent_mcp_daemon/chat_context_resolver.rb: 1
+  app/services/persistent_mcp_daemon/workflow_context_resolver.rb: 3
+  app/services/prompts/chat_system.rb: 42
+  app/services/prompts/coworker_review.rb: 5
+  app/services/provider_routing/resolver.rb: 4
+  app/services/plugin_repository_configuration.rb: 2
+  app/services/repo_coworker_review_plan.rb: 5
+  app/services/steps/adversarial_review.rb: 2
+  app/services/steps/base.rb: 2
+  app/services/steps/coworker_review.rb: 17
+  app/services/syrus_mcp/core_tool_set.rb: 1
+  app/services/syrus_yml.rb: 23
+  app/services/target_graph/compiler.rb: 12
+  app/services/target_graph/project.rb: 4
+  app/services/workflow_workspace.rb: 1
+  app/services/workflows/base.rb: 3
+  app/services/workflows/chat_feedback.rb: 1
+  app/services/workflows/coding_handoff.rb: 1
+  app/services/workflows/external_pr_feedback.rb: 1
+  app/services/workflows/initial.rb: 3
+  app/services/workflows/pr_feedback.rb: 3
+  app/services/workflows/retry.rb: 1
+  config/locales/de.yml: 12
+  config/locales/en.yml: 12
+  config/locales/la.yml: 5
+  config/syrus_docs/chat.md: 8
+  config/syrus_docs/coworker_review.md: 19
+  config/syrus_docs/mcp_tool_catalog.md: 100
+  config/syrus_docs/observability.md: 2
+  config/syrus_docs/permission_authority.md: 24
+  config/syrus_docs/plugins.md: 7
+  config/syrus_docs/security_review.md: 3
+  config/syrus_docs/syrus_yml.md: 7
+  config/syrus_docs/workflow_steps.md: 6
+  lib/deploy/verifications.rb: 9
+  lib/syrus/plugin/chat_list_group.rb: 2
+  lib/syrus/plugin/chat_mcp_tool_set.rb: 7
+  lib/syrus/plugin/gated_tool_set.rb: 12
+  website/src/content/docs/features.md: 126
+  website/src/content/docs/getting-started.md: 4
+  website/src/content/docs/workflows.md: 6

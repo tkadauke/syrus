@@ -72,6 +72,7 @@ module App
           attachments: PerformanceLogging.phase("job_detail.attachments", job_id: @job.id) { @job.job_attachments.includes(file_attachment: :blob).map { |attachment| attachment_json(attachment) } },
           pr_links: PerformanceLogging.phase("job_detail.pr_links", job_id: @job.id) { pr_links_json },
           typed_artifacts: PerformanceLogging.phase("job_detail.typed_artifacts", job_id: @job.id) { typed_artifacts_json },
+          review_contributions: ReviewPresentationContributions.frontend_payload,
           visual_evidence: PerformanceLogging.phase("job_detail.visual_evidence", job_id: @job.id) { visual_evidence_json },
           coverage: PerformanceLogging.phase("job_detail.coverage", job_id: @job.id) { latest_coverage_json },
           summary: PerformanceLogging.phase("job_detail.summary", job_id: @job.id) { summary_json },

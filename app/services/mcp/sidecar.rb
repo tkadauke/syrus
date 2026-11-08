@@ -238,6 +238,15 @@ module Mcp
       tool_sets = PerformanceLogging.phase("workflow_mcp_sidecar.plugin_tool_sets", repository_id: context.repository&.id) do
         Syrus::PluginRegistry.providers_for(:mcp_tool_set)
       end
+      step_details = context.run&.step&.respond_to?(:details) ? context.run.step.details : nil
+      target = step_details.to_h.dig("reviewer_target")
+      if target.present?
+        capability = ReviewContextContributions.tool_capability(target)
+        if capability && McpToolPolicy.capability_permitted?(context, capability)
+          contributed = ReviewContextContributions.tool_set(target)
+          tool_sets = (tool_sets + [ contributed ]).compact.uniq
+        end
+      end
 
       tool_sets
         .select do |tool_set|
@@ -249,6 +258,10 @@ module Mcp
             end
           end
         end
+        .flat_map { |tool_set| workflow_mcp_tools_for(tool_set, context: context) }
+    rescue ReviewContextContributions::Unavailable
+      tool_sets
+        .select { |tool_set| tool_set.respond_to?(:available_for_context?) ? tool_set.available_for_context?(context) : tool_set.available_for?(context.repository) }
         .flat_map { |tool_set| workflow_mcp_tools_for(tool_set, context: context) }
     end
 
@@ -262,6 +275,9 @@ module Mcp
       end
       policy_managed_names = defined?(SyrusMcp::CoreToolSet::POLICY_MANAGED_NAMES) ? SyrusMcp::CoreToolSet::POLICY_MANAGED_NAMES : []
       definitions = definitions.map { |definition| Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition).then { |descriptor| definition.merge(capability_descriptor: descriptor) } }
+      # Only definitions that explicitly declare requestable roles are narrowed;
+      # legacy definitions rely on their tool set's own context gating.
+      definitions.select! { |definition| definition[:requestable_roles].blank? || definition.fetch(:capability_descriptor).requestable_roles.include?(context.role) }
 
       definitions.reject { |defn| policy_managed_names.include?(defn[:name]) }.map do |defn|
         tool = MCP::Tool.define(
@@ -274,7 +290,7 @@ module Mcp
           end
         end
         tool.define_singleton_method(:capability_descriptor) { defn.fetch(:capability_descriptor) }
-        tool
+        authorize_tool(tool)
       end
     end
 
