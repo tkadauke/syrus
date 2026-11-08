@@ -2,7 +2,7 @@ module Coworkers
   class ReviewStep < Steps::AdversarialReview
     MemoryPersistenceFailed = Steps::AdversarialReview::MemoryPersistenceFailed
     def call
-      raise ProviderRouting::Resolver::CoworkerReviewTargetRequired, "coworker_review requires a pinned reviewer target" if step.details.to_h["reviewer_target"].blank?
+      raise ReviewerTargets::TargetRequired, "coworker_review requires a pinned reviewer target" if step.details.to_h["reviewer_target"].blank?
       super
     end
     private
@@ -13,7 +13,7 @@ module Coworkers
     def review_skip_label = "Coworker review"
     def review_iterations = Array(workflow.artifact("coworker_review_iterations"))
     def reviewer_prompt
-      ::Prompts::CoworkerReview.new(issue: review_issue, diff: latest_agentic_diff, prior_findings: review_iterations,
+      Coworkers::ReviewPrompt.new(issue: review_issue, diff: latest_agentic_diff, prior_findings: review_iterations,
         base_ref: review_base_ref, workflow_kind: workflow.trigger_kind, feedback_context: feedback_context_text,
         criteria: review_criteria, affected_projects: coworker_review_projects.to_a).to_s
     end

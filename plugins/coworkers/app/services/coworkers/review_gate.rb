@@ -11,7 +11,7 @@ module Coworkers
           key: "coworker", step_kind: "coworker_review", after: %w[security], before: %w[visual],
           enabled_resolver: ->(job:, syrus_yml:, **) { plan(job, syrus_yml).enabled? },
           loop_budget: ->(job:, syrus_yml:, **) { plan(job, syrus_yml).rounds },
-          handler_provider: "Coworkers::ReviewStep", prompt_provider: "Prompts::CoworkerReview",
+          handler_provider: "Coworkers::ReviewStep", prompt_provider: "Coworkers::ReviewPrompt",
           tool_provider: %w[submit_coworker_review], verdict_artifact: "coworker_review_iterations",
           failure_policy: { "deterministic" => "fail", "transient" => "retry" }, panel_capable: true
         }
