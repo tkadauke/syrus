@@ -5,6 +5,7 @@ import type { SmartPermissionOption } from "../api/permissionRequests"
 import { previewRuleDraftFromRequest } from "../api/permissionRuleDrafts"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
+import { Input } from "./Input"
 import { Modal } from "./Modal"
 import { hubRuleLink, PermissionRuleEditor } from "./PermissionRuleEditor"
 
@@ -152,8 +153,8 @@ export function SmartPermissionActions({
               <label className="block text-xs font-semibold text-text-primary" htmlFor={prefixId}>
                 {t("permission_smart.prefix_label")}
               </label>
-              <input
-                className="w-full rounded-md border border-border bg-surface px-2 py-1 font-mono text-xs text-text-primary"
+              <Input
+                className="font-mono text-xs"
                 disabled={busy || resolvingPrefix}
                 id={prefixId}
                 onChange={(event) => {
