@@ -126,6 +126,18 @@ function LocationProbe() {
 describe("RepositoryTargetGraphRoute", () => {
   afterEach(() => vi.restoreAllMocks())
 
+  it("bounds the relationship lists in the detail drawer for high fan-in targets", async () => {
+    const deps = Array.from({ length: 120 }, (_, i) => `//:dep${i}`)
+    renderRoute(payload({ targets: [target("//:hub", deps), ...deps.map((d) => target(d))], edges: [], page: { offset: 0, limit: 100, total: 121, next_offset: null } }))
+    fireEvent.click(await screen.findByRole("button", { name: "Open details for //:hub" }))
+    const dialog = screen.getByRole("dialog", { name: "Target details" })
+    expect(dialog.querySelectorAll("button.font-mono").length).toBe(50)
+    fireEvent.click(screen.getByRole("button", { name: "Show 50 more (70 remaining)" }))
+    expect(dialog.querySelectorAll("button.font-mono").length).toBe(100)
+    fireEvent.click(screen.getByRole("button", { name: "Show 20 more (20 remaining)" }))
+    expect(dialog.querySelectorAll("button.font-mono").length).toBe(120)
+  })
+
   it("renders a focused graph neighborhood with dependency expansion controls", async () => {
     const fetchSpy = renderRoute()
 
