@@ -16,10 +16,10 @@ RSpec.describe "API: chat shares", type: :request do
 
   it "lets a recipient read the full chat API but never post" do
     prepare_chat_search
-    stored = chat.chat_file_attachments.build(name: "notes.txt", mime_type: "text/plain", byte_size: 2, checksum: "pending")
-    stored.file.attach(io: StringIO.new("hi"), filename: "notes.txt", content_type: "text/plain")
-    stored.save!
-    chat.messages.create!(role: "assistant", content: { "text" => "live history", "attachments" => [ { "id" => stored.id } ] })
+    attachment = chat.chat_file_attachments.build(name: "notes.txt", mime_type: "text/plain", byte_size: 5, checksum: "pending")
+    attachment.file.attach(io: StringIO.new("notes"), filename: "notes.txt", content_type: "text/plain")
+    attachment.save!
+    chat.messages.create!(role: "assistant", content: { "text" => "live history", "attachments" => [ { "id" => attachment.id } ] })
     share = ChatShare.create!(chat_session: chat, target: recipient, shared_by_user: owner)
     sign_in_as(recipient)
 
@@ -71,6 +71,20 @@ RSpec.describe "API: chat shares", type: :request do
     delete "/api/v1/app/chats/#{chat.id}/shares/#{share_id}"
     expect(response).to have_http_status(:ok)
     expect(chat.chat_shares).to be_empty
+  end
+
+  it "returns one capped targets list with repository access warnings" do
+    repository = Factories.repository(user: owner)
+    chat.chat_attachments.create!(attachable: repository)
+    RepositoryMembership.create!(repository: repository, user: recipient, role: "read")
+    sign_in_as(owner)
+
+    get "/api/v1/app/chats/#{chat.id}/share_candidates"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body).not_to have_key("people")
+    recipient_target = response.parsed_body.fetch("targets").find { |target| target["target_id"] == recipient.id }
+    expect(recipient_target).to include("repository_access_warning" => false)
   end
 
   it "paginates the Shared with me group with the ordinary cursor endpoint" do
