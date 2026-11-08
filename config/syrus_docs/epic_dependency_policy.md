@@ -54,7 +54,7 @@ upstream Epic completes successfully, the recorded boundary is collapsed and
 the downstream root is retargeted to the repository landing branch without
 replaying the upstream Epic's obsolete commits.
 
-A handful of older Epics still carry a dependency graph with more than one parent per child (predating the unconditional linear-chain enforcement described below). For those, eager execution first looks for an unambiguous stack base. If a child has multiple approved same-Epic parents and no single downstream parent branch contains every dependency change, Syrus tries to prepare a synthetic execution base branch by merging those dependency PR branches in deterministic dependency order. If that merge is clean, the child starts from the prepared base. If it conflicts or a dependency branch/head SHA is missing, the child stays queued with `stack_fan_in_base_unavailable` and includes the blocking dependency branches plus the operator action: land the siblings, linearize the stack, or resolve the merge conflict. This execution path is driven entirely by the shape of the actual dependency graph, not by the `epic_dependency_policy` field.
+Older Epics may still carry a multi-parent dependency graph that predates linear-chain enforcement. Eager execution only starts such a child when an unambiguous stack base exists; otherwise the child stays queued with `stack_fan_in_base_unavailable` and the operator should land the siblings, linearize the stack, or resolve the merge conflict. See the [architecture note](../../docs/engineering/architecture/epic_dependency_policy.md).
 
 ## Proposal validation
 
