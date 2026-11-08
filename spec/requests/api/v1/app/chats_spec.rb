@@ -3226,10 +3226,11 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
         }
       )
       # Enough newer text messages to push the image attachment outside the
-      # payload's paginated message window (ChatSession::MESSAGE_PAGE_SIZE)
-      # -- the regression this guards against is the sidebar Media tab
-      # hiding old media that scrolled out of the loaded tail.
-      (ChatSession::MESSAGE_PAGE_SIZE + 5).times { |n| chat.messages.create!(role: "user", content: { "text" => "note #{n}" }) }
+      # payload's paginated message window -- the regression this guards
+      # against is the sidebar Media tab hiding old media that scrolled out of
+      # the loaded tail. Each one is its own row, so the row target is the
+      # bound to clear.
+      (ChatMessageWindow::ROW_TARGET + 5).times { |n| chat.messages.create!(role: "user", content: { "text" => "note #{n}" }) }
 
       get "/api/v1/app/chats/#{chat.id}"
 
@@ -8271,6 +8272,42 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     queries
   ensure
     ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+  end
+
+  describe "GET /api/v1/app/chats/:id/messages" do
+    # The stream collapses a run of consecutive tool calls into one card, so a
+    # window counted in messages can serve a surface the reader cannot scroll.
+    # These cover the wiring: that the endpoint and the initial payload both
+    # reach past such a run.
+    it "serves a window that reaches past a collapsed run of tool calls" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository)
+      chat.messages.create!(role: "user", content: { "text" => "where did the run fail?" })
+      40.times do
+        chat.messages.create!(role: "tool_use", tool_name: "read_run_transcript", content: { "text" => "call" })
+        chat.messages.create!(role: "tool_result", tool_name: "read_run_transcript", content: { "text" => "ok" })
+      end
+      chat.messages.create!(role: "assistant", content: { "text" => "here is what I found" })
+
+      get "/api/v1/app/chats/#{chat.id}/messages"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("messages").size).to eq(82)
+      expect(parse_body.fetch("has_more_older")).to be(false)
+    end
+
+    it "pages older messages before a cursor" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository)
+      oldest = chat.messages.create!(role: "user", content: { "text" => "oldest" })
+      newest = chat.messages.create!(role: "assistant", content: { "text" => "newest" })
+
+      get "/api/v1/app/chats/#{chat.id}/messages", params: { before: newest.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("messages").map { |message| message.fetch("id") }).to eq([ oldest.id ])
+      expect(parse_body.fetch("has_more_older")).to be(false)
+    end
   end
 
   def prepare_search_tables
