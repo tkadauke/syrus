@@ -81,6 +81,11 @@ RSpec.describe ChatMcpStdioFallback, :ci_only do
 
     mysql_result = call_tool(tier: "deferred", name: "mysql_db_browser_list_connections")
     expect(mysql_result["isError"]).to be_falsey
-    expect(JSON.parse(mysql_result.dig("content", 0, "text")).fetch("mysql_connections")).not_to be_empty
+    # Credential-using plugin tools are reachable through the fallback but sit
+    # behind the permission gate until the chat owner decides the request.
+    expect(JSON.parse(mysql_result.dig("content", 0, "text"))).to include(
+      "authorization_status" => "waiting",
+      "tool_set_bundle" => "operations@v1"
+    )
   end
 end

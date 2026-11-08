@@ -397,10 +397,16 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body.dig("summary", "dependency_edge_count")).to eq(1)
-    expect(body["dependencies"]).to contain_exactly(include("epic_id" => blocker.id, "title" => "Deliver marble"))
     expect(body.dig("epic", "execution_blocked_on")).to eq([ "Deliver marble" ])
-    expect(body.dig("graph", "epic_dependency_count")).to eq(1)
-    expect(body.dig("graph", "edges")).to contain_exactly(
+
+    # Dependency rows and the graph load lazily from the dependency detail endpoint.
+    get "/api/v1/app/epics/#{epic.id}/dependencies"
+
+    expect(response).to have_http_status(:ok)
+    detail = parse_body
+    expect(detail["dependencies"]).to contain_exactly(include("epic_id" => blocker.id, "title" => "Deliver marble"))
+    expect(detail.dig("graph", "epic_dependency_count")).to eq(1)
+    expect(detail.dig("graph", "edges")).to contain_exactly(
       include("from_id" => "epic_#{blocker.id}", "to_id" => "epic_#{epic.id}")
     )
   end
