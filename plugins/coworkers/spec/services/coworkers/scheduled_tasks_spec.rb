@@ -218,11 +218,11 @@ RSpec.describe "Coworker scheduled tasks" do
       consecutive_failure_count: 1,
       last_system_result: "failed",
       last_system_result_on: Date.new(2026, 11, 3),
-      last_system_result_reason: "RuntimeError: workspace locked"
+      last_system_result_reason: a_string_starting_with("RuntimeError: workspace locked (at ")
     )
     expect(journaling.system_result_history).to include(
       a_hash_including(
-        "date" => "2026-11-03", "result" => "failed", "reason" => "RuntimeError: workspace locked"
+        "date" => "2026-11-03", "result" => "failed", "reason" => a_string_starting_with("RuntimeError: workspace locked")
       )
     )
   end
