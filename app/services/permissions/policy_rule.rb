@@ -32,13 +32,35 @@ module Permissions
       return :no_match if capability && capability != invocation.capability
       return :no_match if operation && operation != invocation.operation
       return :no_match unless selectors.all? { |key, expected| context.fetch(key, nil) == expected }
-      return :no_match unless constraints.all? { |key, expected| arguments[key] == expected }
+      return :no_match unless constraints.all? { |key, expected| constraint_satisfied?(key, expected, descriptor, arguments) }
       return :match unless resource_scope
 
       comparison = descriptor.resource_scope.compare(invocation.resource_scope, resource_scope, context: context)
       return :failure if comparison.fail_closed?
 
       %i[equal narrower].include?(comparison.value) ? :match : :no_match
+    end
+
+    # A `string_prefix` constraint stands for a family of invocations, matched a
+    # token at a time rather than as raw text. Both halves of that matter:
+    # comparing raw text would let `git commitfoo` satisfy a `git commit` rule,
+    # and a descriptor only ever offers a prefix field for an argument it has
+    # already established is safe to widen -- a command carrying shell syntax is
+    # not projected at all, so there is nothing here for a rule to match and the
+    # operator is asked again.
+    def constraint_satisfied?(key, expected, descriptor, arguments)
+      actual = arguments[key]
+      return token_prefix?(actual, expected) if descriptor.constraint_fields[key.to_s] == :string_prefix
+
+      actual == expected
+    end
+
+    def token_prefix?(actual, expected)
+      expected_tokens = expected.to_s.split
+      actual_tokens = actual.to_s.split
+      return false if expected_tokens.empty? || actual_tokens.empty?
+
+      actual_tokens.first(expected_tokens.length) == expected_tokens
     end
 
     # Explicit fields make a rule narrower. The stable id is intentionally not

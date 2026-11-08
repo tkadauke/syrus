@@ -43,7 +43,11 @@ module Permissions
 
     Resolved = Data.define(:descriptor, :attributes, :scope, :repository, :chat_session, :job, :role, :expires_at, :decision)
 
-    def self.from_request_item(user:, request:, item:, duration:, policy: "allow")
+    # `constraints:` replaces what the request would pin by itself. The only
+    # caller that passes it is an operator widening an exact command into a
+    # prefix, which has to *replace* the exact pin rather than sit beside it:
+    # a rule carrying both would still match one command only.
+    def self.from_request_item(user:, request:, item:, duration:, policy: "allow", constraints: nil)
       raise ActiveRecord::RecordNotFound, "authorization request belongs to another user" unless request.user_id == user.id
       raise ArgumentError, "authorization item belongs to another request" unless item.chat_pending_action_id == request.id
 
@@ -53,7 +57,7 @@ module Permissions
         "policy" => policy, "duration" => duration.to_s,
         "role" => request.runtime_role, "capability" => "#{item.capability}@v#{item.capability_version}",
         "operation" => ("#{item.operation}@v#{item.operation_version}" if item.operation),
-        "resource_scope" => item.resource_scope, "constraints" => request_constraints(item)
+        "resource_scope" => item.resource_scope, "constraints" => constraints || request_constraints(item)
       }.merge(request_subject(request)).merge(lifecycle), request_scope: item.resource_scope)
     end
 
@@ -108,7 +112,14 @@ module Permissions
         operation: ("#{item.operation}@v#{item.operation_version}" if item.operation))
       item.normalized_arguments.to_h.stringify_keys.select do |key, value|
         type = descriptor.constraint_fields[key]
-        type && !key.match?(ToolPayloadRedactor::SENSITIVE_KEY) && constraint_value_valid?(type, value)
+        # A prefix field is never pinned automatically. Carrying it here would
+        # record the whole command as its own prefix, which says nothing the
+        # exact constraint beside it does not already say -- and would then sit
+        # alongside that exact constraint, so widening the prefix could never
+        # widen anything. Offering a prefix is an operator's deliberate choice
+        # to replace the exact pin, not a default.
+        type && type != :string_prefix &&
+          !key.match?(ToolPayloadRedactor::SENSITIVE_KEY) && constraint_value_valid?(type, value)
       end.sort.to_h
     rescue Catalog::UnknownCapability
       {}
@@ -116,7 +127,7 @@ module Permissions
 
     def self.constraint_value_valid?(type, value)
       case type
-      when :string
+      when :string, :string_prefix
         value.is_a?(String) && value.present? && !value.match?(/\A\[redacted\]\z/i) && ToolPayloadRedactor.redact(value) == value
       when :integer then value.is_a?(Integer)
       when :boolean then [ true, false ].include?(value)

@@ -25,7 +25,13 @@ module Permissions
     BENIGN_INTERNAL_KINDS = %i[context_binding owner_interaction authority_reduction draft_proposal].freeze
 
     # Argument types a descriptor may expose as durable-authority constraints.
-    CONSTRAINT_TYPES = %i[string integer boolean].freeze
+    # `string_prefix` is matched as a token prefix rather than for equality, so
+    # one rule can stand for a family of invocations ("every `git commit ...`")
+    # instead of a single exact one. A descriptor that declares such a field is
+    # promising that the argument it projects is safe to widen this way: see
+    # PolicyRule#constraint_satisfied? for the matching rule, and note that a
+    # prefix field is deliberately excluded from an invocation's identity.
+    CONSTRAINT_TYPES = %i[string integer boolean string_prefix].freeze
 
     ResourceScope = ResourceScopeSchema
 
