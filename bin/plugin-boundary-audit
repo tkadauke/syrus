@@ -46,7 +46,6 @@ end
 
 root = Pathname.new(ENV.fetch("PLUGIN_BOUNDARY_AUDIT_ROOT", Rails.root.to_s))
 audit = Admin::PluginSourceBoundaryAudit.new(root: root)
-ownership_audit = Admin::PluginOwnershipAudit.new(root: root)
 removed = audit.removed_plugin_names_for(plugin_name)
 
 if removed.empty?
@@ -59,21 +58,30 @@ gem_paths = audit.bundled_gem_paths.slice(*removed)
 kept = audit.bundled_manifest_names - removed
 temp_root = Pathname.new(Dir.mktmpdir([ "syrus-plugin-boundary-", "-#{plugin_name}" ]))
 
-ownership = ownership_audit.ownerships.find { |candidate| candidate.plugin == plugin_name }
-if ownership
-  puts "Plugin boundary vocabulary-ownership inventory (#{options[:enforce_ownership] ? 'enforcement' : 'shadow'} mode)"
-  ownership_findings = ownership_audit.findings.select { |finding| finding.plugin == plugin_name }
-  if ownership_findings.any?
-    ownership_findings.each { |finding| warn finding.message }
-    puts "Result: #{options[:enforce_ownership] ? 'FAIL' : 'WARN'} (baseline differences reported)"
-  else
-    puts "Result: PASS (inventory matches the recorded baseline)"
-  end
+begin
+  ownership_audit = Admin::PluginOwnershipAudit.new(root: root)
+  ownership = ownership_audit.ownerships.find { |candidate| candidate.plugin == plugin_name }
+  if ownership
+    puts "Plugin boundary vocabulary-ownership inventory (#{options[:enforce_ownership] ? 'enforcement' : 'shadow'} mode)"
+    ownership_findings = ownership_audit.findings.select { |finding| finding.plugin == plugin_name }
+    if ownership_findings.any?
+      ownership_findings.each { |finding| warn "WARNING (ownership): #{finding.message}" }
+      puts "Result: #{options[:enforce_ownership] ? 'FAIL' : 'WARN'} (baseline differences reported)"
+    else
+      puts "Result: PASS (inventory matches the recorded baseline)"
+    end
 
-  if options[:enforce_ownership] && ownership_findings.any?
+    exit 1 if options[:enforce_ownership] && ownership_findings.any?
+    puts "Ownership findings are informational and do not affect the command exit status." unless options[:enforce_ownership]
+    puts
+  end
+rescue StandardError, ScriptError => e
+  warn "WARNING (ownership): ownership audit could not complete: #{e.class}: #{e.message}"
+  if options[:enforce_ownership]
+    puts "Result: FAIL (ownership audit error)"
     exit 1
   end
-  puts "Ownership findings are informational and do not affect the command exit status." unless options[:enforce_ownership]
+  puts "Result: WARN (ownership audit error; informational in shadow mode)"
   puts
 end
 
