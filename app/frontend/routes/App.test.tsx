@@ -1387,7 +1387,8 @@ describe("App", () => {
                 chatSearchMatch({ message_id: 12, role: "user", snippet: "Second <b>needle</b>" }),
                 chatSearchMatch({ message_id: 13, role: "assistant", snippet: "Third <b>needle</b>" }),
                 chatSearchMatch({ message_id: 14, role: "tool_result", snippet: "Fourth <b>needle</b>" })
-              ]
+              ],
+              has_more: true
             }),
             { status: 200, headers: { "Content-Type": "application/json" } }
           )
@@ -1416,6 +1417,7 @@ describe("App", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "Show 1 more match" }))
       const secondMatch = await screen.findByText((_content, element) => element?.textContent === "Second needle")
+      expect(screen.getByText("Showing the first 4 matches.")).toBeInTheDocument()
       fireEvent.click(secondMatch.closest("button") as HTMLButtonElement)
 
       await waitFor(() => {
@@ -19899,9 +19901,7 @@ function chatSearchPayload() {
       {
         chat_session_id: 77,
         chat_title: "Forum planning",
-        best_snippet: "Best <b>needle</b> <i>ignored</i>",
         badges: [{ kind: "coworker", id: 7, name: "Ada" }],
-        best_match_message_id: 11,
         top_matches: [
           chatSearchMatch({ message_id: 11, role: "assistant", snippet: "Best <b>needle</b> <i>ignored</i>", created_at: threeDaysAgo }),
           chatSearchMatch({ message_id: 13, role: "assistant", snippet: "Third <b>needle</b>", created_at: threeDaysAgo }),
