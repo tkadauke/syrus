@@ -23,6 +23,7 @@ import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useBackendOutage } from "../hooks/useBackendUpdate"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
+import { fetchSetup, type FullSetupStatusPayload } from "../api/setup"
 import { ApiError } from "../api/client"
 import { Button, buttonClasses } from "../components/Button"
 import { Checkbox } from "../components/Checkbox"
@@ -242,15 +243,8 @@ function sanitizedDashboardSearchParams(rawSearch: string): URLSearchParams {
 function DashboardView({ payload, pathname, search }: { payload: DashboardPayload; pathname: string; search: string }) {
   const prefix = pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const isDesktop = useMediaQuery("(min-width: 1024px)", true)
-  const initialBootstrap = readInitialBootstrap()
-  const bootstrap = useQuery({
-    queryKey: ["bootstrap"],
-    queryFn: fetchBootstrap,
-    enabled: initialBootstrap != null,
-    initialData: initialBootstrap ?? undefined,
-    staleTime: initialBootstrap ? Number.POSITIVE_INFINITY : 0
-  })
-  const readiness = bootstrap.data?.setup_status?.readiness
+  const setup = useQuery({ queryKey: ["setup"], queryFn: fetchSetup })
+  const readiness = setup.data?.readiness
   const { t } = useT("dashboard")
   const marginGutterRestore = usePageGutterRestoreClassName("margin")
 
@@ -315,15 +309,7 @@ export function DashboardTour() {
   return <SyrusTour run={run} steps={steps} onEvent={(data) => handleJoyrideCallback(data)} />
 }
 
-export function ReadinessPanel({
-  className = "",
-  prefix,
-  readiness
-}: {
-  className?: string
-  prefix: string
-  readiness?: NonNullable<NonNullable<BootstrapPayload["setup_status"]>["readiness"]>
-}) {
+export function ReadinessPanel({ className = "", prefix, readiness }: { className?: string; prefix: string; readiness?: FullSetupStatusPayload["readiness"] }) {
   const { t } = useT("dashboard")
   // While the desktop shell's backend update has the containers down,
   // readiness checks fail because the backend is deliberately unreachable —

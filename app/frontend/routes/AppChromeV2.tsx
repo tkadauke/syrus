@@ -83,7 +83,7 @@ import { fetchAdminMaintenanceTask, fetchMaintenanceSidebar, runMaintenanceTaskA
 import { updateSidebarNavOrder } from "../api/sidebarNavOrder"
 import { fetchSidebarPluginPages, type SidebarPluginPage } from "../api/sidebarPages"
 import { fetchSmartFolderNavigation } from "../api/smartFolders"
-import { fetchThemes } from "../api/themes"
+import { fetchTheme, fetchThemePickerThemes } from "../api/themes"
 import { useT } from "../hooks/useT"
 import { BugIcon, BugReportButton, type BugReportButtonHandle } from "../components/BugReportButton"
 import { Input } from "../components/Input"
@@ -358,7 +358,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
   const sidebarPluginPages = useQuery({
     queryKey: ["sidebar", "plugin_pages"],
     queryFn: fetchSidebarPluginPages,
-    staleTime: 30_000,
+    staleTime: Infinity,
     enabled: Boolean(user)
   })
   const sidebarNavContext = useMemo(
@@ -368,7 +368,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     }),
     [data?.feature_flags, data?.team_user_count]
   )
-  const navBadges = useSidebarNavBadges(sidebarPluginPages.data?.pages ?? [], Boolean(user))
+  const navBadges = useSidebarNavBadges(sidebarPluginPages.data?.pages ?? [], Boolean(user) && !sidebarSplitter.collapsed)
   const sidebarNavOrder = data?.current_user?.sidebar_nav_order ?? EMPTY_SIDEBAR_NAV_ORDER
   const mergedSidebarNavItems = useMemo(
     () => applySidebarNavOrder(buildSidebarNavItems(sidebarNavContext, sidebarPluginPages.data?.pages ?? [], t), sidebarNavOrder),
@@ -388,7 +388,6 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
           }
         }
       })
-      void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
     }
   })
   const primaryNavItems = useMemo(
@@ -713,6 +712,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
                   showTeamProfile={(data?.team_user_count || 0) > 1}
                   startingChat={startingChat}
                   user={user}
+                  unreadNotificationsCount={data?.unread_notifications_count ?? 0}
                   onHoverStart={openSidebarPeekSoon}
                   onHoverEnd={closeSidebarPeekSoon}
                 />
@@ -742,6 +742,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
                       showTeamProfile={(data?.team_user_count || 0) > 1}
                       startingChat={startingChat}
                       user={user}
+                      unreadNotificationsCount={data?.unread_notifications_count ?? 0}
                     />
                   </div>
                 ) : null}
@@ -777,6 +778,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
                     showTeamProfile={(data?.team_user_count || 0) > 1}
                     startingChat={startingChat}
                     user={user}
+                    unreadNotificationsCount={data?.unread_notifications_count ?? 0}
                   />
                 </div>
               ) : null}
@@ -836,7 +838,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
                     <BugReportTriggerButton onClick={() => openBugReport()} />
                     {user ? <ConnectionStatusButton prefix={prefix} /> : null}
                     {user ? <PermissionInboxDrawer prefix={prefix} /> : null}
-                    {user ? <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} prefix={prefix} /> : null}
+                    {user ? <NotificationsBell initialUnreadCount={data?.unread_notifications_count ?? 0} prefix={prefix} /> : null}
                   </div>
                 </div>
                 {isMobileChatPage ? (
@@ -1019,7 +1021,9 @@ function SystemAlertItem({
   const action = useMutation<{ redirect_to?: string } | null, Error, Extract<SystemAlertAction, { path: string }>>({
     mutationFn: (payload: Extract<SystemAlertAction, { path: string }>) => postJson(payload.path, payload.params || {}),
     onSuccess: (payload) => {
-      void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
+      queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) =>
+        current ? { ...current, system_alerts: current.system_alerts?.filter((candidate) => candidate.id !== alert.id) } : current
+      )
       void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
       void queryClient.invalidateQueries({ queryKey: ["chats"] })
       if (payload?.redirect_to) navigate(withRoutePrefix(payload.redirect_to, prefix))
@@ -1092,7 +1096,10 @@ function SystemAlertItem({
           onClose={() => setReauthorizingProvider(null)}
           onSaved={() => {
             setReauthorizingProvider(null)
-            void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
+            queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) =>
+              current ? { ...current, system_alerts: current.system_alerts?.filter((candidate) => candidate.id !== alert.id) } : current
+            )
+            void queryClient.invalidateQueries({ queryKey: ["me"] })
             void queryClient.invalidateQueries({ queryKey: ["dashboard"] })
             void queryClient.invalidateQueries({ queryKey: ["chats"] })
           }}
@@ -1394,6 +1401,7 @@ function SidebarContent({
   showTeamProfile,
   startingChat,
   user,
+  unreadNotificationsCount,
   onHoverStart,
   onHoverEnd
 }: {
@@ -1412,6 +1420,7 @@ function SidebarContent({
   showTeamProfile: boolean
   startingChat: boolean
   user: BootstrapPayload["current_user"] | undefined
+  unreadNotificationsCount: number
   onHoverStart?: () => void
   onHoverEnd?: () => void
 }) {
@@ -1530,7 +1539,7 @@ function SidebarContent({
             {user ? <BugReportTriggerButton onClick={onOpenBugReport} /> : null}
             {user ? <ConnectionStatusButton onNavigate={onCloseDrawer} prefix={prefix} /> : null}
             {user ? <PermissionInboxDrawer onNavigate={onCloseDrawer} prefix={prefix} /> : null}
-            {user ? <NotificationsBell initialUnreadCount={user.notification_unread_count ?? 0} onNavigate={onCloseDrawer} prefix={prefix} /> : null}
+            {user ? <NotificationsBell initialUnreadCount={unreadNotificationsCount} onNavigate={onCloseDrawer} prefix={prefix} /> : null}
             <button
               aria-label={t("nav:close_sidebar")}
               className="inline-flex h-11 w-11 items-center justify-center rounded text-gray-700 hover:bg-gray-100 hover:text-brand dark:text-gray-300 dark:hover:bg-gray-800 lg:hidden"
@@ -1560,7 +1569,7 @@ function SidebarContent({
             </Button>
           ) : null}
           <SidebarSearchForm collapsed={collapsed} onCloseDrawer={onCloseDrawer} prefix={prefix} searchShortcutsEnabled={searchShortcutsEnabled} />
-          {collapsed ? null : <SidebarMaintenanceTasks prefix={prefix} signedIn={Boolean(user)} />}
+          {collapsed ? null : <SidebarMaintenanceTasks admin={Boolean(user?.admin)} prefix={prefix} />}
         </div>
         <div className={`${collapsed ? "px-0" : "px-3"} pb-4`}>
           <nav aria-label={t("nav:primary_nav_aria")} className={`flex flex-col gap-1 text-sm ${collapsed ? "items-center" : ""}`}>
@@ -1799,7 +1808,7 @@ function SidebarSearchForm({
   )
 }
 
-function SidebarMaintenanceTasks({ prefix, signedIn }: { prefix: string; signedIn: boolean }) {
+function SidebarMaintenanceTasks({ prefix, admin }: { prefix: string; admin: boolean }) {
   const { t } = useT("admin")
   const queryClient = useQueryClient()
   const [collapsed, setCollapsed] = useState(() => readMaintenanceSidebarState().collapsed)
@@ -1813,7 +1822,7 @@ function SidebarMaintenanceTasks({ prefix, signedIn }: { prefix: string; signedI
     refetchInterval: 15_000,
     // The chrome renders on the sign-in page too, where this endpoint 401s.
     // Every sibling query here is gated the same way.
-    enabled: signedIn
+    enabled: admin
   })
   const action = useMutation({
     mutationFn: ({ task, name }: { task: MaintenanceTask; name: "start" | "pause" | "resume" | "cancel" | "dismiss" }) =>
@@ -1853,7 +1862,7 @@ function SidebarMaintenanceTasks({ prefix, signedIn }: { prefix: string; signedI
     try {
       const fullTask = await queryClient.fetchQuery({
         queryKey: ["admin", "maintenance_tasks", String(task.id)],
-        queryFn: ({ signal }) => fetchAdminMaintenanceTask(task.id, signal),
+        queryFn: ({ signal }) => fetchAdminMaintenanceTask(task.id, "?include_documentation=1", signal),
         staleTime: 0
       })
       setDocsTask(fullTask)
@@ -2211,14 +2220,14 @@ const TERRACOTTA_SLUG = "terracotta"
 
 function ColorThemePicker() {
   const { t } = useTranslation("nav")
+  const queryClient = useQueryClient()
   const { colorTheme, setColorTheme } = useTheme()
-  const themesQuery = useQuery({ queryKey: ["themes"], queryFn: fetchThemes })
-  const themes = themesQuery.data?.themes ?? []
   const [expanded, setExpanded] = useState(false)
-
-  if (themes.length === 0) return null
+  const themesQuery = useQuery({ queryKey: ["themes", "picker"], queryFn: fetchThemePickerThemes, enabled: expanded, staleTime: Infinity })
+  const themes = themesQuery.data?.themes ?? []
 
   const current = colorTheme ?? themes.find((option) => option.slug === TERRACOTTA_SLUG) ?? themes[0]
+  if (!current) return null
   const inertAttributes = expanded ? {} : { inert: "" }
 
   return (
@@ -2233,7 +2242,7 @@ function ColorThemePicker() {
         <span
           aria-hidden="true"
           className="h-3.5 w-3.5 shrink-0 rounded-full border border-black/10 dark:border-white/20"
-          style={{ backgroundColor: current.tokens.light.brand }}
+          style={{ backgroundColor: "swatch" in current ? current.swatch : current.tokens.light.brand }}
         />
         <span className="min-w-0 flex-1 truncate text-xs font-medium text-text-primary">{current.name}</span>
         <ChevronDownIcon className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${expanded ? "rotate-180" : ""}`} />
@@ -2252,13 +2261,17 @@ function ColorThemePicker() {
                   aria-pressed={active}
                   className={`flex flex-col items-center gap-1 rounded px-1 py-1.5 text-2xs font-medium ${active ? "bg-brand/10 text-brand" : "text-text-secondary hover:bg-surface-raised"}`}
                   key={option.id}
-                  onClick={() => setColorTheme(option)}
+                  onClick={() =>
+                    void queryClient
+                      .fetchQuery({ queryKey: ["themes", option.id], queryFn: () => fetchTheme(option.id), staleTime: Infinity })
+                      .then(({ theme }) => setColorTheme(theme))
+                  }
                   type="button"
                 >
                   <span
                     aria-hidden="true"
                     className="h-4 w-4 rounded-full border border-black/10 dark:border-white/20"
-                    style={{ backgroundColor: option.tokens.light.brand }}
+                    style={{ backgroundColor: option.swatch }}
                   />
                   <span className="w-full truncate text-center">{option.name}</span>
                 </button>

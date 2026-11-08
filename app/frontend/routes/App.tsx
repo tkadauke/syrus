@@ -1,8 +1,9 @@
 import { routePrefix, withRoutePrefix } from "../lib/routing"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { type ReactNode } from "react"
 import { Link, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom"
 import { fetchBootstrap, readInitialBootstrap, type BootstrapPayload } from "../api/bootstrap"
+import { fetchMe, type MePayload } from "../api/me"
 import { authPrimaryButtonClass } from "../lib/buttonStyles"
 import { isDesktopShell } from "../lib/desktopShell"
 import { useT } from "../hooks/useT"
@@ -278,6 +279,7 @@ export function App() {
 }
 
 function AppShell({ initialBootstrap }: { initialBootstrap: BootstrapPayload | null }) {
+  const queryClient = useQueryClient()
   const bootstrap = useQuery({
     queryKey: ["bootstrap"],
     queryFn: fetchBootstrap,
@@ -285,6 +287,17 @@ function AppShell({ initialBootstrap }: { initialBootstrap: BootstrapPayload | n
     staleTime: initialBootstrap ? Number.POSITIVE_INFINITY : 0
   })
   useBrowserTimeZone(bootstrap.data)
+  useQuery({
+    queryKey: ["me"],
+    queryFn: async () => {
+      const me = await fetchMe()
+      queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) => (current ? { ...current, ...me } : current))
+      return me
+    },
+    enabled: Boolean(bootstrap.data?.current_user),
+    initialData: bootstrap.data?.current_user ? meFromBootstrap(bootstrap.data) : undefined,
+    staleTime: Number.POSITIVE_INFINITY
+  })
   const routes = (
     <Routes>
       <Route path="/" element={<RootRoute initialBootstrap={initialBootstrap} />} />
@@ -311,6 +324,14 @@ function AppShell({ initialBootstrap }: { initialBootstrap: BootstrapPayload | n
       </AppChromeV2>
     </TimeZoneProvider>
   )
+}
+
+function meFromBootstrap(bootstrap: BootstrapPayload): MePayload {
+  return {
+    current_user: bootstrap.current_user,
+    team_user_count: bootstrap.team_user_count,
+    unread_notifications_count: bootstrap.unread_notifications_count
+  }
 }
 
 function RootRoute({ initialBootstrap }: { initialBootstrap: BootstrapPayload | null }) {
@@ -341,7 +362,7 @@ function RootRoute({ initialBootstrap }: { initialBootstrap: BootstrapPayload | 
   if (bootstrap.data.current_user) {
     // Lock the root to onboarding only until the onboarding chat begins; after
     // that the operator can roam even before the first Epic lands.
-    const setup = bootstrap.data.setup_status
+    const setup = bootstrap.data.setup
     if (setup && !setup.first_epic_landed && !setup.onboarding_chat_started) {
       return <Navigate replace to="/onboarding" />
     }
@@ -357,12 +378,13 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
   const location = useLocation()
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const invitationToken = new URLSearchParams(location.search).get("token")?.trim()
-  const cta = publicCta(payload.public, prefix, invitationToken, t)
+  const publicState = payload.public!
+  const cta = publicCta(publicState, prefix, invitationToken, t)
   // No "Sign in" when sign-ups are locked, or when no users exist yet (the
   // first account is created via "Set up this Syrus instance" — there is
   // nobody to sign in as).
   const showSignIn = cta.kind !== "locked" && cta.kind !== "first"
-  const signInPath = withRoutePrefix(payload.public.sign_in_path, prefix)
+  const signInPath = withRoutePrefix(publicState.sign_in_path, prefix)
   const accessPageClass = "flex min-h-[100dvh] items-center justify-center bg-gray-50 px-5 py-10 text-gray-950 dark:bg-gray-950 dark:text-white"
   const accessCardClass =
     "w-full max-w-md rounded-lg border border-gray-200 bg-white px-6 py-8 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900 sm:px-10 sm:py-10"
@@ -399,7 +421,7 @@ function PublicLanding({ payload }: { payload: BootstrapPayload }) {
   )
 }
 
-function publicCta(publicState: BootstrapPayload["public"], prefix: string, invitationToken: string | undefined, t: (key: string) => string) {
+function publicCta(publicState: NonNullable<BootstrapPayload["public"]>, prefix: string, invitationToken: string | undefined, t: (key: string) => string) {
   if (publicState.first_signup) {
     return {
       kind: "first" as const,
@@ -530,7 +552,7 @@ function SettingsSectionRoute({ children }: { children: ReactNode }) {
   const pluginPages = useQuery({
     queryKey: ["sidebar", "plugin_pages"],
     queryFn: fetchSidebarPluginPages,
-    staleTime: 30_000
+    staleTime: Infinity
   })
   const pluginSettingsItems = (pluginPages.data?.pages ?? [])
     .filter((page) => page.section === "settings")

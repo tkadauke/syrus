@@ -42,6 +42,14 @@ export function AdminMaintenanceTasks() {
   const navigate = useNavigate()
   const prefix = routePrefix(location.pathname)
   const queryClient = useQueryClient()
+  const maintenanceTaskFilterSchema = [
+    ["state", t("maintenance_tasks.filter_state")],
+    ["recurrence", t("maintenance_tasks.filter_type")],
+    ["category", t("maintenance_tasks.filter_category")],
+    ["definition_key", t("maintenance_tasks.filter_definition")],
+    ["trigger_kind", t("maintenance_tasks.filter_trigger")],
+    ["query", t("maintenance_tasks.filter_search")]
+  ].map(([field, label]) => ({ bucket: "text" as const, field, label, operators: ["is"] }))
   const tasks = useQuery({
     queryKey: ["admin", "maintenance_tasks", location.search],
     queryFn: ({ signal }) => fetchAdminMaintenanceTasks(location.search, signal),
@@ -78,7 +86,7 @@ export function AdminMaintenanceTasks() {
           filterBar={
             <FilterBar
               filter={tasks.data.filter}
-              filterSchema={tasks.data.filter_schema}
+              filterSchema={maintenanceTaskFilterSchema}
               legacyFilterKeys={maintenanceTaskLegacyFilterKeys}
               pathname={location.pathname}
               search={location.search}
@@ -106,9 +114,16 @@ export function AdminMaintenanceTaskDetail() {
   const prefix = routePrefix(location.pathname)
   const queryClient = useQueryClient()
   const [documentationOpen, setDocumentationOpen] = useState(false)
+  const [documentationTask, setDocumentationTask] = useState<MaintenanceTask | null>(null)
+  const detailQueryKey = ["admin", "maintenance_tasks", id, location.search] as const
   const detail = useQuery({
-    queryKey: ["admin", "maintenance_tasks", id, location.search],
-    queryFn: ({ signal }) => fetchAdminMaintenanceTask(id || "", location.search, signal),
+    queryKey: detailQueryKey,
+    queryFn: async ({ signal }) => {
+      const previous = queryClient.getQueryData<AdminMaintenanceTaskDetailPayload>(detailQueryKey)
+      const search = maintenanceTaskPollSearch(location.search, previous)
+      const update = await fetchAdminMaintenanceTask(id || "", search, signal)
+      return search === location.search ? update : mergeMaintenanceTaskPoll(previous, update)
+    },
     enabled: Boolean(id),
     staleTime: 0,
     refetchInterval: POLL_INTERVAL_MS
@@ -121,6 +136,16 @@ export function AdminMaintenanceTaskDetail() {
         queryClient.invalidateQueries({ queryKey: ["maintenance_tasks", "sidebar"] })
       ])
   })
+
+  async function openDocumentation() {
+    const payload = await queryClient.fetchQuery({
+      queryKey: ["admin", "maintenance_tasks", id, "documentation"],
+      queryFn: ({ signal }) => fetchAdminMaintenanceTask(id || "", "?include_documentation=1", signal),
+      staleTime: Infinity
+    })
+    setDocumentationTask(payload)
+    setDocumentationOpen(true)
+  }
 
   if (detail.isPending) {
     return (
@@ -140,7 +165,7 @@ export function AdminMaintenanceTaskDetail() {
   const task = detail.data
   return (
     <AdminEventPageShell
-      actions={<TaskActions task={task} busy={action.isPending} onAction={(name) => action.mutate(name)} onDocs={() => setDocumentationOpen(true)} />}
+      actions={<TaskActions task={task} busy={action.isPending} onAction={(name) => action.mutate(name)} onDocs={() => void openDocumentation()} />}
       ariaLabel={t("maintenance_tasks.detail_aria_with_id", { id: task.id })}
       eyebrow={t("section_label")}
       title={task.title}
@@ -158,9 +183,47 @@ export function AdminMaintenanceTaskDetail() {
         <TaskEventLog task={task} />
       </section>
 
-      {documentationOpen ? <TaskDocumentationModal task={task} onClose={() => setDocumentationOpen(false)} /> : null}
+      {documentationOpen && documentationTask ? <TaskDocumentationModal task={documentationTask} onClose={() => setDocumentationOpen(false)} /> : null}
     </AdminEventPageShell>
   )
+}
+
+export function maintenanceTaskPollSearch(search: string, previous?: AdminMaintenanceTaskDetailPayload) {
+  const params = new URLSearchParams(search)
+  if (!previous?.events.length || params.has("log_page")) return search
+
+  params.set("since_event_id", String(Math.max(...previous.events.map((event) => event.id))))
+  const query = params.toString()
+  return query ? `?${query}` : ""
+}
+
+export function mergeMaintenanceTaskPoll(previous: AdminMaintenanceTaskDetailPayload | undefined, update: AdminMaintenanceTaskDetailPayload) {
+  if (!previous) return update
+
+  const events = [...update.events, ...previous.events]
+    .filter((event, index, all) => all.findIndex((candidate) => candidate.id === event.id) === index)
+    .sort((left, right) => right.id - left.id)
+    .slice(0, 100)
+  const totalEvents = previous.events_pagination.total_events + update.events_pagination.total_events
+  const totalPages = Math.max(Math.ceil(totalEvents / 100), 1)
+
+  return {
+    ...update,
+    events,
+    events_pagination: {
+      ...update.events_pagination,
+      page: 1,
+      per_page: 100,
+      total_events: totalEvents,
+      total_pages: totalPages,
+      first_item: totalEvents === 0 ? 0 : 1,
+      last_item: Math.min(events.length, totalEvents),
+      previous_page: null,
+      next_page: totalPages > 1 ? 2 : null,
+      has_previous_page: false,
+      has_next_page: totalPages > 1
+    }
+  }
 }
 
 function LandedCommitBackfillFailures({ task }: { task: AdminMaintenanceTaskDetailPayload }) {

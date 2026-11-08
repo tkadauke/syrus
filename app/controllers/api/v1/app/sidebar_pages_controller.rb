@@ -3,7 +3,9 @@ module Api
     module App
       class SidebarPagesController < BaseController
         def index
-          render json: ::App::SidebarPagesPayload.new.as_json
+          payload = ::App::SidebarPagesPayload.new.as_json
+          fresh_when(etag: payload, public: false)
+          render json: payload unless performed?
         end
       end
     end

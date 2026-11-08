@@ -26,12 +26,21 @@ module App
 
     def self.sidebar
       {
-        tasks: MaintenanceTask.visible_in_sidebar.limit(5).map { |task| serialize_task(task, include_documentation: false) }
+        tasks: MaintenanceTask.visible_in_sidebar.limit(5).map { |task| serialize_sidebar_task(task) }
       }
     end
 
+    def self.serialize_sidebar_task(task)
+      serialize_task(task, include_documentation: false).slice(
+        :id, :state, :recurrence, :title, :current_step_title, :total_units,
+        :completed_units, :failed_units, :progress_percent, :eta_seconds,
+        :started_at, :finished_at, :paused_at, :cancelled_at, :dismissed_at,
+        :pending_reason, :paths
+      ).tap { |payload| payload[:paths] = payload.fetch(:paths).slice(:admin) }
+    end
+
     def self.index(params:)
-      scope = MaintenanceTask.includes(:requested_by_user)
+      scope = MaintenanceTask.all
       filter_tree = self.filter_tree(params)
       filters = flat_filters(filter_tree)
       states = Array(filters["state"])
@@ -50,10 +59,8 @@ module App
       offset = (page - 1) * per_page
 
       {
-        tasks: apply_index_sort(scope, params).offset(offset).limit(per_page).map { |task| serialize_task(task, include_documentation: false) },
-        definitions: MaintenanceTasks::Registry.all.map { |definition| serialize_definition(definition) },
+        tasks: apply_index_sort(scope, params).offset(offset).limit(per_page).map { |task| serialize_index_task(task) },
         filter: filter_tree,
-        filter_schema: FILTER_FIELDS.map { |field| filter_schema_field(field) },
         filters: filters,
         total: total,
         pagination: pagination_payload(total, page, per_page),
@@ -64,12 +71,13 @@ module App
     def self.show(task, params: {})
       page = normalized_event_log_page(params)
       events_scope = task.events.order(created_at: :desc, id: :desc)
+      events_scope = events_scope.where("id > ?", params[:since_event_id]) if params[:since_event_id].present?
       total_events = events_scope.count
       total_pages = [ (total_events.to_f / EVENT_LOG_PER_PAGE).ceil, 1 ].max
       page = total_pages if page > total_pages
       offset = (page - 1) * EVENT_LOG_PER_PAGE
 
-      serialize_task(task, include_documentation: true).merge(
+      serialize_task(task, include_documentation: ActiveModel::Type::Boolean.new.cast(params[:include_documentation])).merge(
         events: events_scope.offset(offset).limit(EVENT_LOG_PER_PAGE).map { |event| serialize_event(event) },
         events_pagination: {
           page: page,
@@ -114,19 +122,16 @@ module App
         dismissed_at: task.dismissed_at,
         last_error: task.last_error,
         pending_reason: task.metadata["pending_reason"],
-        rebuild_plan: task.metadata["rebuild_plan"],
-        checkpoint: include_documentation ? task.checkpoint : nil,
+        checkpoint: task.checkpoint,
         documentation: include_documentation ? definition.documentation : nil,
-        steps: definition.steps.map { |step| { key: step.key, title: step.title, description: step.description } },
-        requested_by: task.requested_by_user && {
-          id: task.requested_by_user.id,
-          display_name: task.requested_by_user.display_name
-        },
         paths: {
-          admin: "/admin/maintenance_tasks/#{task.id}",
-          api: "/api/v1/app/admin/maintenance_tasks/#{task.id}"
+          admin: "/admin/maintenance_tasks/#{task.id}"
         }
       }
+    end
+
+    def self.serialize_index_task(task)
+      serialize_task(task, include_documentation: false).except(:checkpoint, :documentation)
     end
 
     def self.serialize_definition(definition)
@@ -149,7 +154,6 @@ module App
         message: event.message,
         units_done: event.units_done,
         units_total: event.units_total,
-        metadata: event.metadata,
         created_at: event.created_at
       }
     end
@@ -187,15 +191,6 @@ module App
         collect_chips(node.child, chips)
       end
       chips
-    end
-
-    def self.filter_schema_field(field)
-      {
-        bucket: "text",
-        field: field.fetch(:name),
-        label: field.fetch(:label),
-        operators: [ "is" ]
-      }
     end
 
     def self.normalized_page(params)

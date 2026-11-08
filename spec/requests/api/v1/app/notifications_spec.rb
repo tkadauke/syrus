@@ -87,6 +87,27 @@ RSpec.describe "API: /api/v1/app/notifications", type: :request do
     expect(parse_body["notifications"].map { |notification| notification["id"] }).not_to include(read.id)
   end
 
+  it "omits pagination and its total count when the caller does not need it" do
+    sign_in_as(user)
+    notification_for(user)
+
+    get "/api/v1/app/notifications", params: { pagination: "false" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).not_to have_key("pagination")
+  end
+
+  it "returns not modified for a matching notification ETag" do
+    sign_in_as(user)
+    notification_for(user)
+    get "/api/v1/app/notifications", params: { pagination: "false" }
+    etag = response.headers.fetch("ETag")
+
+    get "/api/v1/app/notifications", params: { pagination: "false" }, headers: { "If-None-Match" => etag }
+
+    expect(response).to have_http_status(:not_modified)
+  end
+
   it "eager-loads notification jobs for job_title serialization" do
     sign_in_as(user)
     job = Factories.job_record(user: user)
@@ -112,6 +133,7 @@ RSpec.describe "API: /api/v1/app/notifications", type: :request do
     expect(already_read.reload.read_at).to be_present
     expect(foreign.reload.read_at).to be_nil
     expect(parse_body["unread_count"]).to eq(0)
+    expect(parse_body.keys).to eq([ "unread_count" ])
     expect(AppUserChannel).to have_received(:broadcast_to).with(
       user,
       hash_including(

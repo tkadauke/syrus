@@ -989,9 +989,9 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
       expect(parse_body.dig("user", "agent_provider")).to eq("muse")
       expect(parse_body["message"]).to include("enabled")
 
-      get api_v1_app_bootstrap_path
+      get "/api/v1/app/setup"
 
-      expect(parse_body.dig("setup_status", "credential_status")).to include(
+      expect(parse_body["credential_status"]).to include(
         "agent" => true,
         "active_agent_provider" => "muse",
         "active_agent_provider_label" => "Muse Code"

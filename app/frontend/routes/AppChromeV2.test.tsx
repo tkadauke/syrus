@@ -324,6 +324,7 @@ describe("AppChromeV2", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/themes") return Promise.resolve(jsonResponse({ themes: [oceanColorTheme(), forestColorTheme()] }))
+      if (path === `/api/v1/app/themes/${forestColorTheme().id}`) return Promise.resolve(jsonResponse({ theme: forestColorTheme() }))
       if (path === "/api/v1/app/theme")
         return Promise.resolve(jsonResponse({ theme: "light", color_theme_id: forestColorTheme().id, color_theme: forestColorTheme() }))
 
@@ -353,14 +354,11 @@ describe("AppChromeV2", () => {
     expect(document.documentElement.getAttribute("data-theme")).toBe("forest")
   })
 
-  it("refreshes bootstrap after a system alert action so resolved alerts disappear on non-dashboard pages", async () => {
+  it("removes a resolved system alert without refetching bootstrap", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path === "/api/v1/app/credentials/recheck_provider_availability") {
         return Promise.resolve(jsonResponse({}))
-      }
-      if (path === "/api/v1/app/bootstrap") {
-        return Promise.resolve(jsonResponse(bootstrapPayload({ system_alerts: [] })))
       }
       if (path === "/api/v1/app/chats") return Promise.resolve(jsonResponse(chatsIndexPayload()))
 
@@ -399,11 +397,9 @@ describe("AppChromeV2", () => {
       )
     })
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/bootstrap", expect.anything())
-    })
-    await waitFor(() => {
       expect(screen.queryByText("Claude sign-in expired.")).not.toBeInTheDocument()
     })
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/bootstrap", expect.anything())
   })
 
   it("opens a provider-scoped reauthorization modal from an auth system alert", async () => {
@@ -1923,14 +1919,11 @@ describe("AppChromeV2 primary nav reordering", () => {
     expect(labels).toEqual(["Dashboard", "Repositories"])
   })
 
-  it("persists a new order after dragging a nav item and refetches bootstrap", async () => {
+  it("persists and caches a new order without refetching bootstrap", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
       if (path === "/api/v1/app/sidebar_nav_order") {
         return Promise.resolve(jsonResponse({ sidebar_nav_order: ["repositories", "dashboard"] }))
-      }
-      if (path === "/api/v1/app/bootstrap") {
-        return Promise.resolve(jsonResponse(bootstrapPayload({ team_user_count: 2 })))
       }
       return Promise.reject(new Error(`Unexpected fetch: ${path}`))
     })
@@ -1959,9 +1952,7 @@ describe("AppChromeV2 primary nav reordering", () => {
         })
       )
     })
-    await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/bootstrap", expect.anything())
-    })
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/bootstrap", expect.anything())
   })
 
   it("keeps the live reorder intact when an unrelated query update re-renders the sidebar mid-drag", async () => {

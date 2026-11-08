@@ -333,7 +333,7 @@ describe("AccountSettings form primitives", () => {
         })
       )
     })
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["bootstrap"] })
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["me"] })
   })
 
   it("shows and resets the saved shake-to-report motion permission", async () => {

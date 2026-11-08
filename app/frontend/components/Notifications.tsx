@@ -164,7 +164,18 @@ function NotificationsPanel({
   const markAll = useMutation({
     mutationFn: markAllNotificationsRead,
     onSuccess(payload) {
-      queryClient.setQueryData(notificationsQueryKey, payload)
+      queryClient.setQueryData<NotificationsPayload>(notificationsQueryKey, (current) =>
+        current
+          ? {
+              ...current,
+              unread_count: payload.unread_count,
+              notifications: current.notifications.map((notification) => ({
+                ...notification,
+                read_at: notification.read_at ?? new Date().toISOString()
+              }))
+            }
+          : current
+      )
     }
   })
 
@@ -310,7 +321,7 @@ function NotificationRow({
 export function useNotificationsQuery({ enabled }: { enabled: boolean }) {
   return useQuery({
     queryKey: notificationsQueryKey,
-    queryFn: () => fetchNotifications(),
+    queryFn: () => fetchNotifications({ pagination: false }),
     enabled,
     staleTime: 30_000
   })

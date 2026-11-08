@@ -21,8 +21,14 @@ export type ColorTheme = {
   }
 }
 
+export type ThemePickerItem = Pick<ColorTheme, "id" | "slug" | "name" | "built_in" | "position"> & { swatch: string }
+
 export type ThemesPayload = {
   themes: ColorTheme[]
+}
+
+export type ThemePickerPayload = {
+  themes: ThemePickerItem[]
 }
 
 export type ThemePayload = {
@@ -41,7 +47,11 @@ export type DeleteThemePayload = {
 }
 
 export function fetchThemes() {
-  return getJson<ThemesPayload>("/api/v1/app/themes")
+  return getJson<ThemesPayload>("/api/v1/app/themes?full=1")
+}
+
+export function fetchThemePickerThemes() {
+  return getJson<ThemePickerPayload>("/api/v1/app/themes")
 }
 
 export function fetchTheme(id: number) {
