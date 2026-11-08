@@ -640,9 +640,13 @@ The manifest records:
 
 `Steps::AutoMerge` and `Steps::MergeTrainLand` refuse to merge unless the
 manifest for that exact SHA shows a conclusive pass for every required
-target. Evidence is accepted for the exact head, for an identical tree after
-a rebase, or for an explicit clean-rebase carry-forward (which records
-`carried_from_sha`). Landing fails with problem `landing_validation_unproven`
+target. Evidence for another SHA is never promoted to exact-SHA evidence,
+even when the tree is identical; the only exception is an explicit,
+operator-trusted clean-rebase carry-forward (`trust_clean_rebase_grade`),
+which re-binds the manifest to the rebased SHA and records `carried_from_sha`.
+A pass counts as evidence only with recorded command and environment
+fingerprints; `source_binding` states whether the SHA came from an immutable
+source snapshot or from the grading workspace HEAD. Landing fails with problem `landing_validation_unproven`
 and a reason that names the target when a required result is:
 
 | Blocker code | Meaning |
@@ -655,6 +659,13 @@ and a reason that names the target when a required result is:
 | `required_result_failed` / `required_result_cancelled` | Not a green result. |
 | `required_evidence_missing` | A pass without command/environment evidence. |
 | `source_snapshot_mismatch` | Graders ran against a different snapshot SHA. |
+| `ci_phase_target_set_unavailable` | The target set main grading will run could not be resolved (fail closed). |
+| `ci_phase_target_not_validated` | An affected required CI-phase target has no passing landing result. |
+
+Landing grading runs under the main-grading contract: for ordinary landing,
+`LandingGraderPlan` adds every required CI-phase grader that is not already
+part of the landing phase, filtered by the same target selection, so the
+additional targets run on the exact SHA before merge.
 
 The gate result is stored in the `landing_parity_gate` artifact, including
 the `post_merge_delta`: CI-phase targets that main will run but landing did

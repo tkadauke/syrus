@@ -54,16 +54,16 @@ class LandingGraderPlan
 
   def effective
     phase = self.phase
-    plan.with(
-      graders: plan.graders.select { |grader| grader.phases.include?(phase.to_s) }.map do |grader|
-        metadata = {
-          "phase" => phase.to_s,
-          "configured_phases" => grader.phases
-        }.compact
+    selected = plan.graders.select { |grader| grader.phases.include?(phase.to_s) }.map do |grader|
+      metadata = {
+        "phase" => phase.to_s,
+        "configured_phases" => grader.phases
+      }.compact
 
-        grader.with(metadata: grader.metadata.merge(metadata))
-      end
-    )
+      grader.with(metadata: grader.metadata.merge(metadata))
+    end
+
+    plan.with(graders: selected + main_grading_parity_graders(phase, selected))
   end
 
   def phase
@@ -85,6 +85,25 @@ class LandingGraderPlan
   end
 
   private
+
+  # Landing validates under the contract main grading will apply: a required
+  # CI-phase grader that is not already part of the landing phase is added, so
+  # the exact SHA is proven against it before merge instead of being left to a
+  # post-merge delta. Which of them actually run is still decided by the same
+  # target selection (when_files_changed / affected targets). Only ordinary
+  # landing (not unland or an explicit phase) is widened.
+  def main_grading_parity_graders(phase, selected)
+    return [] unless phase_override.nil? && repository && phase == :landing
+    return [] unless LANDING_TRIGGER_KINDS.include?(trigger_kind)
+
+    ci_phase = DeliveryPolicy.for(repository: repository, job: job).branch_health_grade_phase(repository.default_branch).to_s
+    return [] if ci_phase == phase.to_s
+
+    names = selected.map(&:name)
+    plan.graders.select { |grader| grader.required && grader.phases.include?(ci_phase) && names.exclude?(grader.name) }.map do |grader|
+      grader.with(metadata: grader.metadata.merge("phase" => ci_phase, "configured_phases" => grader.phases, "main_grading_parity" => true))
+    end
+  end
 
   attr_reader :plan, :trigger_kind, :iteration, :phase_override, :repository, :job
 end

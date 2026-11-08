@@ -87,6 +87,24 @@ RSpec.describe Steps::AutoMerge, :ci_only do
     expect(client).not_to have_received(:merge_pull_request)
   end
 
+  it "merges when SHA-bound validation for the head is conclusive", :real_landing_validation_gate do
+    job.approve!(via: "github_review")
+    job.start_landing!
+    job.save!
+    Workflow.create!(job: job, trigger_kind: "auto_merge").set_artifact!(
+      LandingValidationManifest::ARTIFACT_KEY,
+      "head_sha" => "abc",
+      "targets" => [ { "name" => "rspec", "required" => true, "outcome" => "passed", "has_evidence" => true } ]
+    )
+    allow(client).to receive(:merge_pull_request).and_return(OpenStruct.new(merged: true))
+    allow(client).to receive(:add_issue_comment)
+
+    described_class.new(run).call
+
+    expect(client).to have_received(:merge_pull_request)
+    expect(job.reload).to be_closed
+  end
+
   it "stores the merge commit SHA as landed_sha when GitHub returns one" do
     job.approve!(via: "github_review")
     job.start_landing!

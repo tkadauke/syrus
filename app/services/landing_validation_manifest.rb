@@ -33,6 +33,8 @@ class LandingValidationManifest
     required_result_cancelled
     required_evidence_missing
     source_snapshot_mismatch
+    ci_phase_target_set_unavailable
+    ci_phase_target_not_validated
   ].freeze
 
   Blocker = Data.define(:code, :message, :target) do
@@ -97,6 +99,17 @@ class LandingValidationManifest
       carried
     end
 
+    # Carry the manifest of the workflow whose green grade the clean-rebase
+    # carry-forward trusted (LandingValidationCache.carry_forward_source_for)
+    # onto the rebased SHA. No-op when that grade predates manifests, in which
+    # case landing blocks with `manifest_missing` and the SHA is re-graded.
+    def carry_forward_from!(workflow:, source_workflow:, head_sha:, tree_sha:, base_sha:, base_ref:)
+      manifest = source_workflow&.artifact(ARTIFACT_KEY)
+      return nil unless manifest.is_a?(Hash)
+
+      carry_forward!(workflow: workflow, manifest: manifest, head_sha: head_sha, tree_sha: tree_sha, base_sha: base_sha, base_ref: base_ref)
+    end
+
     # --- verification -------------------------------------------------
 
     def verify(manifest, expected_sha:, expected_snapshot_sha: nil)
@@ -115,32 +128,29 @@ class LandingValidationManifest
       required = Array(manifest["targets"]).select { |target| target["required"] }
       blockers << Blocker.new("required_result_missing", "manifest records no required grader results", nil) if required.empty?
       required.each { |target| blockers.concat(target_blockers(target, expected_sha, binding)) }
+      blockers.concat(ci_phase_blockers(manifest))
 
       Verdict.new(blockers.empty?, binding, manifest, blockers)
     end
 
-    # Finds the manifest that justifies landing `sha` for this Job, trying
-    # the exact head, then an identical tree, then (only when the repository
-    # opted in) a clean-rebase carry-forward recorded against `sha`.
+    # Finds the manifest that justifies landing `sha` for this Job: the one
+    # recorded for exactly that SHA, which includes an explicit, operator-
+    # trusted clean-rebase carry-forward re-bound to it (`carry_forward!`).
+    # Evidence for any other SHA -- even one with an identical tree -- is never
+    # promoted to exact-SHA evidence; the tree may be reused only by re-grading.
     def evidence_for(job:, sha:, tree_sha: nil)
-      manifests = job.workflows.reorder(id: :desc).filter_map do |workflow|
-        manifest = workflow.artifact(ARTIFACT_KEY)
-        [ workflow, manifest ] if manifest.is_a?(Hash)
-      end
+      manifests = manifests_for(job.workflows)
       return verify(nil, expected_sha: sha) if manifests.empty?
 
-      exact = manifests.find { |_, manifest| manifest["head_sha"] == sha.to_s }
-      return verify(exact.last, expected_sha: sha) if exact
+      exact = manifests.find { |manifest| manifest["head_sha"] == sha.to_s }
+      return verify(exact, expected_sha: sha) if exact
 
-      if tree_sha.present?
-        same_tree = manifests.find { |_, manifest| manifest["tree_sha"].present? && manifest["tree_sha"] == tree_sha.to_s }
-        return verify(same_tree.last.merge("binding" => "same_tree"), expected_sha: sha) if same_tree
-      end
-
-      stale = manifests.first.last
+      stale = manifests.first
+      same_tree = tree_sha.present? && stale["tree_sha"] == tree_sha.to_s
       blocked(
         "sha_mismatch",
-        "validation evidence is for #{short(stale["head_sha"])}, not the landing SHA #{short(sha)}; the branch moved after grading",
+        "validation evidence is for #{short(stale["head_sha"])}, not the landing SHA #{short(sha)}; " \
+        "#{same_tree ? "the tree is identical but SHA-bound evidence is required, so re-run landing validation" : "the branch moved after grading"}",
         manifest: stale
       )
     end
@@ -194,16 +204,18 @@ class LandingValidationManifest
       return nil if sha.blank?
 
       job = repository.jobs.where(landed_sha: sha).order(id: :desc).first
-      return manifest_from_workflows(job.workflows) if job && manifest_from_workflows(job.workflows)
+      if job
+        manifest = manifests_for(job.workflows).first
+        return manifest if manifest
+      end
 
       landable = LandedCommit.where(sha: sha).order(id: :desc).first&.landable
       return nil unless landable.is_a?(MergeTrain)
 
-      train_job_ids = landable.members.pluck(:job_id)
-      workflows = Workflow.where(job_id: train_job_ids).reorder(id: :desc).select do |workflow|
+      workflows = Workflow.where(job_id: landable.members.pluck(:job_id)).includes(:workflow_artifact_values).reorder(id: :desc).select do |workflow|
         workflow.artifact("merge_train_id").to_s == landable.id.to_s
       end
-      manifest_from_workflows(workflows)
+      manifests_for(workflows).first
     end
 
     # Targets the CI phase will select for main that the landing-phase
@@ -234,12 +246,34 @@ class LandingValidationManifest
 
     private
 
-    def manifest_from_workflows(workflows)
-      Array(workflows).each do |workflow|
+    # Newest-first manifests. Relations preload artifact values so reading
+    # one artifact per workflow is not one query per workflow.
+    def manifests_for(workflows)
+      workflows = workflows.includes(:workflow_artifact_values).reorder(id: :desc) if workflows.respond_to?(:includes)
+      Array(workflows).filter_map do |workflow|
         manifest = workflow.artifact(ARTIFACT_KEY)
-        return manifest if manifest.is_a?(Hash)
+        manifest if manifest.is_a?(Hash)
       end
-      nil
+    end
+
+    # Fail closed on the main-grading contract: an unresolvable CI-phase target
+    # set, or an affected required CI target with no passing landing evidence,
+    # blocks landing. (Landing fan-out runs required CI-phase targets itself --
+    # see LandingGraderPlan -- so this normally only fires on a failure.)
+    def ci_phase_blockers(manifest)
+      ci_set = manifest["ci_phase_target_set"]
+      return [] unless ci_set.is_a?(Hash)
+
+      if ci_set["unavailable"].present?
+        return [ Blocker.new("ci_phase_target_set_unavailable", "could not resolve the target set main grading will run (#{ci_set["unavailable"]}); fix the grader configuration and re-run landing validation", nil) ]
+      end
+
+      ci_delta(manifest).filter_map do |entry|
+        target = Array(ci_set["targets"]).find { |t| t["target_label"] == entry["target_label"] }
+        next unless target && target["required"]
+
+        Blocker.new("ci_phase_target_not_validated", "#{entry["name"]} is required by main grading for this change but has no passing landing result", entry["name"])
+      end
     end
 
     def summarize(manifest)
@@ -306,7 +340,8 @@ class LandingValidationManifest
         "outcome" => result.outcome,
         "reason" => result.reason,
         "source" => "ran",
-        "source_sha" => details.dig("source_snapshot", "source_sha").presence || head_sha.to_s,
+        "source_sha" => details.dig("source_snapshot", "source_sha").presence,
+        "source_binding" => details.dig("source_snapshot", "source_sha").present? ? "source_snapshot" : "workspace_head",
         "command_fingerprint" => fingerprints["command_fingerprint"],
         "environment_fingerprint" => fingerprints["environment_fingerprint"],
         "input_fingerprint" => fingerprints["input_fingerprint"],
@@ -314,7 +349,7 @@ class LandingValidationManifest
       }.compact
     end
 
-    def reused_entry(entry, source, head_sha)
+    def reused_entry(entry, source, _head_sha)
       entry = entry.to_h.stringify_keys
       fingerprints = entry["target_fingerprints"].to_h
       {
@@ -324,7 +359,7 @@ class LandingValidationManifest
         "outcome" => GraderOutcome::PASSED,
         "reason" => source,
         "source" => source,
-        "source_sha" => head_sha.to_s,
+        "source_binding" => source,
         "command_fingerprint" => fingerprints["command_fingerprint"],
         "environment_fingerprint" => fingerprints["environment_fingerprint"],
         "input_fingerprint" => fingerprints["input_fingerprint"],
@@ -332,9 +367,8 @@ class LandingValidationManifest
       }.compact
     end
 
-    def evidence?(details, fingerprints)
-      (fingerprints["command_fingerprint"].present? && fingerprints["environment_fingerprint"].present?) ||
-        (details["command"].present? && details["exit_code"].present?)
+    def evidence?(_details, fingerprints)
+      fingerprints["command_fingerprint"].present? && fingerprints["environment_fingerprint"].present?
     end
 
     def source_snapshot_for(grader_steps)

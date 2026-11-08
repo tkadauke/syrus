@@ -15,6 +15,32 @@ RSpec.describe LandingGraderPlan do
     expect(effective.graders.first.metadata).to include("phase" => "development_health")
   end
 
+  describe "main-grading parity" do
+    let(:repository) { Factories.repository(user: Factories.user) }
+    let(:parity_plan) do
+      plan.with(graders: [ grader("landing-check", phases: %w[landing]), grader("ci-only", phases: %w[ci]), grader("both", phases: %w[landing ci]) ])
+    end
+
+    it "adds required CI-phase graders to ordinary landing so the exact SHA is proven against them" do
+      effective = described_class.effective(parity_plan, trigger_kind: "auto_merge", iteration: 1, repository: repository)
+
+      expect(effective.graders.map(&:name)).to eq(%w[landing-check both ci-only])
+      expect(effective.graders.last.metadata).to include("phase" => "ci", "main_grading_parity" => true)
+    end
+
+    it "does not widen merge-train landing twice or non-required graders" do
+      optional = parity_plan.graders.map { |g| g.name == "ci-only" ? g.with(required: false) : g }
+      effective = described_class.effective(parity_plan.with(graders: optional), trigger_kind: "merge_train", iteration: 1, repository: repository)
+
+      expect(effective.graders.map(&:name)).to eq(%w[landing-check both])
+    end
+
+    it "leaves CI, promotion and explicit-phase plans untouched" do
+      expect(described_class.effective(parity_plan, trigger_kind: "main_grader", iteration: 1, repository: repository).graders.map(&:name)).to eq(%w[ci-only both])
+      expect(described_class.effective(parity_plan, trigger_kind: "auto_merge", iteration: 1, phase: :landing, repository: repository).graders.map(&:name)).to eq(%w[landing-check both])
+    end
+  end
+
   def grader(name, phases:)
     RepoGradePlan::Grader.new(
       name: name,
