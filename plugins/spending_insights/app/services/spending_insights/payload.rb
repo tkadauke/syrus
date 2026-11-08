@@ -337,7 +337,7 @@ module SpendingInsights
       )
       return rows if total_jobs.to_i.zero?
 
-      rows + [ breakdown_row(id: "other", label: "Other", path: nil, jobs_count: total_jobs, total: total_cost, extra: extra) ]
+      rows + [ breakdown_row(id: "other", label: I18n.t("api.spending_insights.other_label"), path: nil, jobs_count: total_jobs, total: total_cost, extra: extra) ]
     end
 
     def top_runs

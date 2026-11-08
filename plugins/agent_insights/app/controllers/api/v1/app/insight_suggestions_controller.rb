@@ -87,7 +87,7 @@ module Api
         def show
           suggestion = accessible_suggestions.includes(:job, :created_job, :superseded_by_job).find_by(id: params[:id])
           unless suggestion
-            render_error("not_found", "Insight suggestion not found.", status: :not_found)
+            render_error("not_found", I18n.t("api.agent_insights.suggestion_not_found"), status: :not_found)
             return
           end
 
@@ -215,7 +215,7 @@ module Api
           suggestion = accessible_suggestions.find_by(id: params[:id])
 
           unless suggestion
-            render_error("not_found", "Insight suggestion not found.", status: :not_found)
+            render_error("not_found", I18n.t("api.agent_insights.suggestion_not_found"), status: :not_found)
             return nil
           end
           suggestion

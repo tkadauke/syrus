@@ -1,0 +1,4 @@
+la:
+  api:
+    agent_insights:
+      suggestion_not_found: "Suggestio perspectionis non inventa."

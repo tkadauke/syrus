@@ -1,0 +1,4 @@
+en:
+  api:
+    agent_insights:
+      suggestion_not_found: "Insight suggestion not found."
