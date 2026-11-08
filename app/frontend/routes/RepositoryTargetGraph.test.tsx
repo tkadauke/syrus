@@ -128,7 +128,9 @@ describe("RepositoryTargetGraphRoute", () => {
 
   it("bounds the relationship lists in the detail drawer for high fan-in targets", async () => {
     const deps = Array.from({ length: 120 }, (_, i) => `//:dep${i}`)
-    renderRoute(payload({ targets: [target("//:hub", deps), ...deps.map((d) => target(d))], edges: [], page: { offset: 0, limit: 100, total: 121, next_offset: null } }))
+    renderRoute(
+      payload({ targets: [target("//:hub", deps), ...deps.map((d) => target(d))], edges: [], page: { offset: 0, limit: 100, total: 121, next_offset: null } })
+    )
     fireEvent.click(await screen.findByRole("button", { name: "Open details for //:hub" }))
     const dialog = screen.getByRole("dialog", { name: "Target details" })
     expect(dialog.querySelectorAll("button.font-mono").length).toBe(50)
