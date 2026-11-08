@@ -125,6 +125,35 @@ RSpec.describe "bin/plugin-boundary-audit" do
     end
   end
 
+  {
+    "malformed manifest" => ->(root) { root.join("plugins/weather/config/plugin_ownership.yml").write("plugin: [unterminated\n  : {") },
+    "invalid quarantine value" => ->(root) {
+      path = root.join("plugins/weather/config/plugin_ownership.yml")
+      path.write(path.read.sub(/app\/services\/dashboard.rb: 1/, "app/services/dashboard.rb: not-a-number"))
+    },
+    "non-UTF-8 manifest" => ->(root) { root.join("plugins/weather/config/plugin_ownership.yml").binwrite("\xFF\xFE\x00bad".b) }
+  }.each do |label, break_fixture|
+    it "stays successful in default shadow mode with a #{label}", :requires_git_checkout do
+      Dir.mktmpdir("plugin-boundary-audit-failure") do |directory|
+        synthetic_root = build_synthetic_repository(directory)
+        break_fixture.call(synthetic_root)
+        environment = {
+          "BUNDLE_PATH" => "#{root}/vendor/bundle",
+          "BUNDLE_APP_CONFIG" => "#{root}/.bundle",
+          "PLUGIN_BOUNDARY_AUDIT_ROOT" => synthetic_root.to_s
+        }
+
+        check_stdout, check_stderr, check_status = Open3.capture3(environment, "bin/check-plugin-boundaries", chdir: root)
+        audit_stdout, audit_stderr, audit_status = Open3.capture3(
+          environment, "bin/plugin-boundary-audit", "weather", "--command", "true", chdir: root
+        )
+
+        expect(check_status).to be_success, "stdout=#{check_stdout}\nstderr=#{check_stderr}"
+        expect(audit_status).to be_success, "stdout=#{audit_stdout}\nstderr=#{audit_stderr}"
+      end
+    end
+  end
+
   it "keeps ownership enforcement explicit and opt-in", :requires_git_checkout do
     Dir.mktmpdir("plugin-boundary-enforcement") do |directory|
       synthetic_root = build_synthetic_repository(directory, source: "forecast_widget forecast_widget\n")
