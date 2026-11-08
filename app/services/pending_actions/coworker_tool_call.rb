@@ -27,14 +27,15 @@ module PendingActions
       context = McpToolContext.from_server_context(server_context)
       descriptor = tool_descriptor(context)
       tool_name = payload.fetch("tool_name")
-      callable = if descriptor.respond_to?(:provider) && descriptor.provider
-        ->(server_context:, **arguments) { descriptor.provider.new.handle(descriptor.tool_name, arguments, server_context) }
-      elsif coworker_context?(context)
-        Mcp::Sidecar.chat_tools(chat_session, tier: descriptor.tier, agent_actor: action.subject)
-          .find { |candidate| McpToolRegistry.tool_name_for(candidate) == tool_name }
+      callable = if coworker_context?(context)
+        if descriptor.respond_to?(:provider) && descriptor.provider
+          ->(server_context:, **arguments) { descriptor.provider.new.handle(descriptor.tool_name, arguments, server_context) }
+        else
+          Mcp::Sidecar.chat_tools(chat_session, tier: descriptor.tier, agent_actor: action.subject)
+            .find { |candidate| McpToolRegistry.tool_name_for(candidate) == tool_name }
+        end
       else
-        actor_tools(context)
-          .find { |candidate| McpToolRegistry.tool_name_for(candidate) == tool_name }
+        descriptor&.tool
       end
       raise ArgumentError, "tool is no longer available to this actor" unless callable
 
@@ -104,10 +105,7 @@ module PendingActions
 
     def permission_descriptor
       unless action.runtime_role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
-        surface = action.chat_session_id? ? :chat : :workflow
-        return McpToolRegistry.entries(surface:).find do |entry|
-          McpToolRegistry.tool_name_for(entry.tool) == payload.fetch("tool_name")
-        end&.descriptor || raise(ArgumentError, "tool has no permission descriptor")
+        return actor_resolution&.descriptor || raise(ArgumentError, "tool is no longer available to this actor")
       end
 
       catalog_entry = Mcp::CoworkerToolCatalog.resolve(payload.fetch("tool_name"), chat_session: chat_session)
@@ -128,14 +126,14 @@ module PendingActions
     def tool_descriptor(context)
       return Mcp::CoworkerToolCatalog.resolve(payload.fetch("tool_name"), chat_session:) if coworker_context?(context)
 
-      surface = context.chat? ? :chat : :workflow
-      McpToolRegistry.entries(surface:).find { |entry| McpToolRegistry.tool_name_for(entry.tool) == payload.fetch("tool_name") }
+      actor_resolution
     end
 
-    def actor_tools(context)
-      return Mcp::Sidecar.chat_tools(chat_session, tier: :all) if context.chat?
-
-      McpToolPolicy.for(context) + Mcp::Sidecar.plugin_workflow_tools_for(context)
+    def actor_resolution
+      run = (Run.find_by(id: payload["run_id"]) if payload["run_id"].present?)
+      Mcp::ActorToolResolver.resolve(
+        tool_name: payload.fetch("tool_name"), chat_session: (chat_session unless run), run:
+      )
     end
 
     def replay_server_context
@@ -151,7 +149,20 @@ module PendingActions
       action.confirming? && action.origin.present? && action.subject.present?
     end
 
+    # Must name the same subject selector the grant was issued under
+    # (CoworkerAuthorizationDecision#subject_selector); an operator chat is an
+    # "interactive_chat" subject, not a "workflow_role".
+    def subject_selector(context)
+      return [ "agent", context.agent_actor.id.to_s ] if context.agent_actor
+
+      matching = PermissionRule::SUBJECT_SELECTORS.find { |_type, metadata| metadata[:role] == context.role }
+      return [ matching.first, nil ] if matching
+
+      [ "workflow_role", context.role ]
+    end
+
     def revalidate_authority(context)
+      selector_type, selector_id = subject_selector(context)
       authorization = Permissions::Management.new(context.user).authorize(
         descriptor: permission_descriptor,
         role: context.role,
@@ -160,8 +171,8 @@ module PendingActions
         context: {
           role: context.role,
           agent_id: context.agent_actor&.id,
-          subject_selector_type: context.agent_actor ? "agent" : "workflow_role",
-          subject_selector_id: context.agent_actor&.id&.to_s || context.role,
+          subject_selector_type: selector_type,
+          subject_selector_id: selector_id,
           subject_repository_id: context.repository&.id,
           chat_session_id: context.chat_session&.id,
           job_id: context.job&.id
