@@ -93,14 +93,31 @@ module CredentialStore
       def prefix_matchable_command(command)
         source = command.to_s
         return nil if source.blank?
-        return nil if source.match?(SshExec::RiskyCommandClassifier::UNSAFE_SHELL_SYNTAX_PATTERN)
+        return nil if SshExec::RiskyCommandClassifier.unsafe_shell_syntax?(source)
 
         tokens = Shellwords.split(source)
         return nil if tokens.empty?
+        return nil if tokens.any? { |token| dot_command?(token) }
 
         tokens.join(" ")
       rescue ArgumentError
         nil
+      end
+
+      # A prefix grant covers whatever arguments follow it, so it is only ever
+      # as narrow as the argument surface of the command named. Several
+      # REPL-style tools read a leading-dot word as an instruction to
+      # themselves rather than as data, and some of those escape to a shell:
+      # `sqlite3 -readonly db ".shell rm -rf /"` runs that command, because
+      # -readonly constrains the database and not the interpreter. An operator
+      # granting `sqlite3 -readonly <db>` is thinking about queries, so a dot
+      # word is not projected and keeps asking.
+      #
+      # A path is not a dot word: `./deploy.sh` and `../bin/x` stay
+      # projectable, because what distinguishes an instruction is a letter
+      # directly after the dot.
+      def dot_command?(token)
+        token.to_s.match?(/\A\.[A-Za-z]/)
       end
 
       def redact_arguments(arguments)

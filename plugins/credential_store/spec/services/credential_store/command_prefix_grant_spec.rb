@@ -48,6 +48,37 @@ RSpec.describe "command prefix grants for SSH" do
     end
   end
 
+  it "does not project an escape the granted command would run for itself" do
+    # The hazard a prefix grant carries: it covers whatever arguments follow,
+    # so it is only as narrow as the argument surface of the command named.
+    # `-readonly` constrains sqlite3's database, not its interpreter, so a
+    # `.shell` word runs a command. An operator granting
+    # `sqlite3 -readonly <db>` is thinking about queries, and would not expect
+    # to have handed over a shell.
+    [ %q{sqlite3 -readonly /config/db ".shell rm -rf /tmp/x"},
+      %q{sqlite3 -readonly /config/db ".system id"},
+      %q{sqlite3 -readonly /config/db ".once /tmp/out"} ].each do |command|
+      expect(projected(command)).to be_nil, "expected #{command.inspect} not to be projected"
+      expect(match?("sqlite3 -readonly /config/db", command)).to be(false)
+    end
+  end
+
+  it "still projects a query, and a path that merely begins with a dot" do
+    expect(projected(%q{sqlite3 -readonly /config/db "select count(*) from states"})).not_to be_nil
+    expect(projected("./deploy.sh --dry-run")).not_to be_nil
+    expect(projected("cat ../etc/hosts")).not_to be_nil
+  end
+
+  it "covers ad-hoc read queries once the operator names the database" do
+    prefix = "sqlite3 -readonly /config/home-assistant_v2.db"
+
+    expect(match?(prefix, %Q{#{prefix} "select count(*) from states"})).to be(true)
+    expect(match?(prefix, %Q{#{prefix} "select entity_id, state from states limit 5"})).to be(true)
+    # A different database, and a write to the same one, are both outside it.
+    expect(match?(prefix, %q{sqlite3 -readonly /config/other.db "select 1"})).to be(false)
+    expect(match?(prefix, %q{sqlite3 /config/home-assistant_v2.db "drop table states"})).to be(false)
+  end
+
   it "does not let a longer token pass as the prefix" do
     expect(match?("git commit", "git commitfoo --bare")).to be(false)
   end

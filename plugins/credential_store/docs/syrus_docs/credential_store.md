@@ -330,7 +330,10 @@ explicit **Allowed credential wrappers** grant.
 The plugin publishes a unified permission descriptor that is evaluated from
 the invocation arguments before the credential broker resolves or materializes
 a key. Permission requests are scoped to the credential handle, host, user,
-and port. The review card shows a redacted command while durable permission
+and port. Read-only classification reads quoting the way a shell does, so an
+allowlisted command is not demoted by a metacharacter that is quoted -
+`grep "a*b" file` globs nothing and classifies as a read - while anything the
+shell would act on outside quotes still classifies as risky. The review card shows a redacted command while durable permission
 material stores only its SHA-256 fingerprint. Read-only
 diagnostics classify as `ssh.execute/read@v1`; every other command and any
 explicit risky-command bypass classifies as `ssh.execute/risky@v1`. Both
@@ -346,7 +349,23 @@ prefix replaces the command fingerprint rather than joining it, since a rule
 carrying both would still match one command only. Prefixes are compared a
 whole token at a time, so `git commit` does not cover `git commitfoo`, and a
 command carrying shell syntax - a pipe, a semicolon, a substitution, a
-redirect - is never projected into prefix-matchable form at all. That last
+redirect - is never projected into prefix-matchable form at all. Shell syntax
+is judged by where a character sits rather than whether it appears: a
+metacharacter inside quotes is text the shell passes through, so
+`sqlite3 -readonly db "select count(*) from states"` projects normally, while
+`"$(cat ~/.ssh/id_rsa)"` does not, because a shell still expands `$`, a
+backtick and a backslash inside double quotes. Single quotes are literal
+throughout, and quoting that never closes is treated as unsafe.
+
+A prefix covers whatever arguments follow it, so it is only ever as narrow as
+the argument surface of the command it names. Tools that read a leading-dot
+word as an instruction to themselves are the sharp edge here: `sqlite3
+-readonly db ".shell rm -rf /"` runs that command, because `-readonly`
+constrains the database and not the interpreter. A command carrying such a
+word is therefore not projected and keeps asking, while a path that merely
+begins with a dot - `./deploy.sh` - is unaffected. Choose a prefix for what
+the named command can be made to do with further arguments, not only for what
+this invocation did. That last
 point is the one that matters: `git commit -m x; rm -rf /` begins with the
 same two tokens as any other commit, and it is excluded because there is
 nothing for a prefix rule to match, not because the comparison rejects it.

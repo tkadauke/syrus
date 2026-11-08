@@ -308,7 +308,15 @@ module CredentialStore
 
     class RiskyCommandClassifier
       ASSIGNMENT_PATTERN = /\A[A-Za-z_][A-Za-z0-9_]*=/.freeze
+      # Outside quotes every one of these hands work to the shell: globbing,
+      # brace and tilde expansion, redirection, chaining, substitution.
       UNSAFE_SHELL_SYNTAX_PATTERN = /[$`{}*?\[\],~<>\\;&|\r\n]/.freeze
+      # Inside double quotes the shell still expands these three and nothing
+      # else. Inside single quotes it expands nothing at all. This is why the
+      # screen cannot simply ignore quoted text: `"$(cat ~/.ssh/id_rsa)"` is
+      # quoted and still runs a command, while `"select count(*)"` is quoted
+      # and is just words.
+      DOUBLE_QUOTED_UNSAFE_PATTERN = /[$`\\]/.freeze
       READ_ONLY_COMMANDS = %w[
         arch basename cat cut df dirname du file free grep head id jq ls
         lsb_release nproc pgrep ps pwd readlink realpath stat tail test true
@@ -324,7 +332,7 @@ module CredentialStore
       class << self
         def risky?(command)
           source = command.to_s
-          return true if source.match?(UNSAFE_SHELL_SYNTAX_PATTERN)
+          return true if unsafe_shell_syntax?(source)
 
           tokens = Shellwords.split(source)
           return true if tokens.empty?
@@ -333,6 +341,38 @@ module CredentialStore
           !read_only_segment?(tokens)
         rescue ArgumentError
           true
+        end
+
+        # True when the command hands work to the shell, judged the way a shell
+        # would: by where the character sits, not merely whether it appears.
+        #
+        # Testing the raw string treated `grep "a*b" file` as though it globbed
+        # and `sqlite3 db "select count(*) from states"` as though it did too,
+        # when in both the metacharacter is inside quotes and the shell passes
+        # it through untouched. Reading a database was classified by a `*` the
+        # shell would never have seen.
+        #
+        # An unterminated quote is unsafe: what the shell would do with the
+        # rest of the line is exactly what cannot be established here.
+        def unsafe_shell_syntax?(command)
+          state = :bare
+          command.to_s.each_char do |char|
+            case state
+            when :bare
+              case char
+              when "'" then state = :single
+              when '"' then state = :double
+              else return true if char.match?(UNSAFE_SHELL_SYNTAX_PATTERN)
+              end
+            when :single
+              state = :bare if char == "'"
+            when :double
+              return true if char.match?(DOUBLE_QUOTED_UNSAFE_PATTERN)
+
+              state = :bare if char == '"'
+            end
+          end
+          state != :bare
         end
 
         private
