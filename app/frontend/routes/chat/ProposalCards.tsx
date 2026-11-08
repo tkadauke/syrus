@@ -1054,6 +1054,7 @@ export function PendingActionCard({
   return (
     <ConfirmationCard
       id={`pending-action-${pendingAction.id}`}
+      compact={isConfirming}
       muted={Boolean(terminalLabel)}
       tone={isEmergencyLand ? "warning" : "default"}
       header={
@@ -1095,7 +1096,7 @@ export function PendingActionCard({
               </a>
             </h3>
           ) : (
-            <h3 className="mt-2 text-base font-semibold text-gray-900 dark:text-gray-100">
+            <h3 className={`mt-2 text-base ${isConfirming ? "truncate !text-sm" : ""}  font-semibold text-gray-900 dark:text-gray-100`}>
               {terminalLabel ? pendingAction.label : linkifySlugs(pendingAction.label)}
             </h3>
           )}
