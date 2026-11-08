@@ -397,6 +397,21 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
       expect(rows.fetch(nil)).to include(card_status: "metadata_unrenderable", unrenderable: 1)
     end
 
+    it "reports workflow-advertised tools that never appeared in a transcript" do
+      add_card("wf_card.tsx", 'export default { toolName: "wf_advertised_carded", renderExpanded() {}, collapsedSummary() {} }')
+
+      report = described_class.call(
+        usages: McpToolUsage.none, advertised_tools: [],
+        workflow_transcript_logs: JobLog.none,
+        workflow_advertised_tools: %w[wf_advertised_carded wf_advertised_bare]
+      )
+      rows = report.fetch(:workflow_transcript_tools).index_by { |row| row[:tool_name] }
+
+      expect(rows.fetch("wf_advertised_carded")).to include(card_status: "registered", advertised: true, calls: 0)
+      expect(rows.fetch("wf_advertised_bare")).to include(card_status: "missing", advertised: true, calls: 0)
+      expect(report.fetch(:unused_advertised_tools)).to eq([])
+    end
+
     it "omits the section when no transcript logs are supplied" do
       report = described_class.call(usages: McpToolUsage.none, advertised_tools: [])
       expect(report).not_to have_key(:workflow_transcript_tools)
