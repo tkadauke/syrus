@@ -217,7 +217,7 @@ class ReconcileJobStatesJob < ApplicationJob
       return false if latest_wf.steps.where(kind: "pr_open", state: "succeeded").exists?
       return false if job.pr_number.present? || job.external_pr_number.present? || job.fork_review_pr_number.present?
       return false if job.infrastructure_job?
-      return false if latest_wf.trigger_kind == "main_branch_repair" && latest_wf.artifact("preflight_passed")
+      return false if latest_wf.trigger_kind == "main_branch_repair" && (latest_wf.artifact("preflight_passed") || latest_wf.artifact("preflight_inconclusive"))
 
       true
     end

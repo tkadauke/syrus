@@ -90,6 +90,7 @@ module Steps
           )
           heartbeat!
 
+          wave_by_index = wave_indexes(graders.size)
           new_steps = graders.each_with_index.map do |grader, index|
             heartbeat! if (index % 5).zero?
             prepare_targets = prepare_targets_for(grader)
@@ -103,7 +104,11 @@ module Steps
               placement_policy: grader_placement_policy,
               details: grader_details(grader, prepare_targets: prepare_targets, target_fingerprints: target_fingerprints)
                 .merge(distributed_grader_details(grader, source_snapshot: source_snapshot, target_fingerprints: target_fingerprints))
-                .merge("fanout_grader_count" => graders.size)
+                .merge(
+                  "fanout_grader_count" => graders.size,
+                  "preflight_wave" => wave_by_index.fetch(index),
+                  "infrastructure_retry_attempt" => 0
+                )
             )
           end
 
@@ -116,7 +121,13 @@ module Steps
           # batch runs single-file no matter what the placement policy or the
           # Solid Queue concurrency key allow (a production workflow ran 14 of
           # them one at a time, ~1s apart, with the distributed gate fully on).
-          new_steps.each { |grader| grader.update!(depends_on_ids: [ step.id ]) }
+          #
+          # Admission: the batch is released in bounded waves
+          # (PreflightGraderPolicy.wave_size). Each wave waits for every grader
+          # of the previous wave to settle -- whatever its outcome, a failed
+          # dependency is still a settled one -- so a 100+ grader plan never
+          # dogpiles shared worker and database resources.
+          chain_waves!(new_steps, wave_by_index)
           continuation&.update!(depends_on_ids: new_steps.map(&:id))
           materialized = true
         end
@@ -131,6 +142,22 @@ module Steps
       end
 
       materialized
+    end
+
+    def wave_indexes(count)
+      PreflightGraderPolicy.waves((0...count).to_a).each_with_index.flat_map do |indexes, wave|
+        indexes.map { |index| [ index, wave ] }
+      end.to_h
+    end
+
+    def chain_waves!(new_steps, wave_by_index)
+      previous_ids = [ step.id ]
+      new_steps.each_with_index.group_by { |_grader, index| wave_by_index.fetch(index) }
+        .sort.each do |_wave, entries|
+        wave_steps = entries.map(&:first)
+        wave_steps.each { |grader| grader.update!(depends_on_ids: previous_ids) }
+        previous_ids = wave_steps.map(&:id)
+      end
     end
 
     def link_materialized_grader_steps!(new_steps, continuation)

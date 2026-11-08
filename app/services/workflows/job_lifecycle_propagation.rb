@@ -163,7 +163,7 @@ module Workflows
       return false if workflow.steps.where(kind: publication_step_kinds, state: "succeeded").exists?
       return false if job.pr_number.present? || job.external_pr_number.present? || job.fork_review_pr_number.present?
       return false if job.infrastructure_job?
-      return false if workflow.trigger_kind == "main_branch_repair" && workflow.artifact("preflight_passed")
+      return false if workflow.trigger_kind == "main_branch_repair" && (workflow.artifact("preflight_passed") || workflow.artifact("preflight_inconclusive"))
 
       true
     end
