@@ -1294,6 +1294,37 @@ describe("ProposalCard live sync", () => {
     expect(cached?.messages[0].proposal?.state).toBe("confirmed")
   })
 
+  function jobStatusSeed(ids: number[]) {
+    return { jobs: [], epics: [], pending_proposals: ids.map((id) => ({ id, kind: "job", state: "proposed", title: `P${id}` })) }
+  }
+
+  it.each([
+    ["confirming", "Confirm proposal and implement", "confirmed"],
+    ["rejecting", "Reject proposal", "rejected"]
+  ])("removes the resolved proposal from this chat's job_status cache after %s, without any AppEvent", async (_label, buttonName, state) => {
+    const resolved = proposal({ state, proposed: false, resolved: true })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      if (url.endsWith("/media")) return Promise.resolve(jsonResponse(mediaPayload))
+      if (init?.method === "POST") return Promise.resolve(jsonResponse({ message: "ok", proposal: resolved }))
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    const { client } = renderProposalCard(proposal())
+    const otherChat = jobStatusSeed([resolved.id])
+    client.setQueryData(["chats", "122", "job_status"], jobStatusSeed([resolved.id, 999]))
+    client.setQueryData(["chats", "555", "job_status"], otherChat)
+    fireEvent.click(screen.getByRole("button", { name: buttonName }))
+
+    await waitFor(() => {
+      const mine = client.getQueryData<{ pending_proposals: { id: number }[] }>(["chats", "122", "job_status"])
+      expect(mine?.pending_proposals.map((entry) => entry.id)).toEqual([999])
+    })
+    expect(client.getQueryData(["chats", "555", "job_status"])).toBe(otherChat)
+    expect(client.getQueryState(["chats", "122", "job_status"])?.isInvalidated).toBe(true)
+    expect(client.getQueryState(["chats", "555", "job_status"])?.isInvalidated).toBe(false)
+  })
+
   it("dispatches syrus:proposal-updated after rejecting", async () => {
     const rejected = proposal({ state: "rejected", state_label: "Rejected", proposed: false, resolved: true })
     vi.spyOn(window, "fetch").mockImplementation((input, init) => {
