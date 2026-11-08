@@ -1083,8 +1083,6 @@
   "visual_evidence_counts": "{{submitted}} summissa · {{captured}} capta",
   "visual_evidence_approved_with_evidence": "Cum testimoniis approbatum",
   "visual_evidence_approved_without_curated": "Sine testimoniis selectis approbatum.",
-  "visual_evidence_approved_none_captured": "Approbatum, sed nullae imagines captae sunt.",
-  "visual_evidence_none_captured": "Nullae imagines captae sunt.",
   "visual_evidence_none_submitted": "Nulla testimonia selecta summissa sunt.",
   "visual_evidence_view_captured": "Imagines captas vide",
   "visual_evidence_show_captured": "Omnes captas ostende",
