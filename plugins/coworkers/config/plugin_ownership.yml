@@ -177,7 +177,6 @@ compatibility_quarantine:
   app/services/plugin_repository_configuration.rb: 2
   app/services/steps/adversarial_review.rb: 2
   app/services/steps/base.rb: 2
-  app/services/steps/coworker_review.rb: 17
   app/services/syrus_mcp/core_tool_set.rb: 1
   app/services/syrus_yml.rb: 23
   app/services/target_graph/compiler.rb: 12

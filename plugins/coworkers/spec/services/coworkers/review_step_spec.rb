@@ -1,6 +1,6 @@
 require "rails_helper"
 
-RSpec.describe Steps::CoworkerReview do
+RSpec.describe Coworkers::ReviewStep do
   let(:job) { Factories.job(issue_title: "Review the rollout", issue_body: "Check organizational fit.") }
   let(:workflow) { job.latest_workflow }
   let(:implement_step) { workflow.steps.find_by!(kind: "implement") }
@@ -106,6 +106,6 @@ RSpec.describe Steps::CoworkerReview do
       ])
     end
 
-    expect { handler.call }.to raise_error(Steps::CoworkerReview::MemoryPersistenceFailed, /post-verdict update was not persisted/)
+    expect { handler.call }.to raise_error(Coworkers::ReviewStep::MemoryPersistenceFailed, /post-verdict update was not persisted/)
   end
 end
