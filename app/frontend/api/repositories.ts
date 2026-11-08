@@ -20,7 +20,7 @@ export type RepositoryRow = {
   slug: string
   owner: string
   name: string
-  owner_user: RepositoryOwnerUser
+  owner_email: string
   default_branch: string
   upstream_owner: string | null
   upstream_name: string | null
@@ -29,7 +29,6 @@ export type RepositoryRow = {
   trigger_label: string
   polling_enabled: boolean
   archived: boolean
-  archived_at: string | null
   main_health: string
   open_jobs_count: number
   last_job_activity_at: string | null
@@ -39,8 +38,6 @@ export type RepositoryRow = {
   last_poll_error: string | null
   poll_issue_errors?: RepositoryPollIssueError[]
   can_edit: boolean
-  repository_path: string
-  edit_repository_path: string
 }
 
 export type RepositoriesPayload = {
@@ -184,9 +181,9 @@ export type RepositoryCredentialStatus = {
 }
 
 export type RepositorySavedPayload = {
+  id: number
   message: string
   redirect_to: string
-  repository: RepositoryRow
   credential_status: RepositoryCredentialStatus
 }
 
@@ -235,12 +232,22 @@ export function fetchRepositoryReadiness(id: number | string) {
   return getJson<RepositoryReadinessPayload>(`/api/v1/app/repositories/${id}/readiness`)
 }
 
+export function fetchRepositoryReadinessSummary(id: number | string) {
+  return getJson<{ readiness: Pick<RepositoryReadinessPayload["readiness"], "status" | "summary" | "revision"> }>(
+    `/api/v1/app/repositories/${id}/readiness?view=summary`
+  )
+}
+
+export function fetchRepositoryReadinessProbe(id: number | string) {
+  return getJson<{ execution_probe: RepositoryExecutionProbe | null }>(`/api/v1/app/repositories/${id}/readiness_probe`)
+}
+
 export function startRepositoryReadinessProbe(id: number | string) {
-  return postJson<{ execution_probe: RepositoryExecutionProbe }>(`/api/v1/app/repositories/${id}/readiness_probe`, {})
+  return postJson<{ id: number; status: RepositoryExecutionProbe["status"] }>(`/api/v1/app/repositories/${id}/readiness_probe`, {})
 }
 
 export function overrideRepositoryReadinessProbe(id: number | string, probeId: number) {
-  return postJson<{ execution_probe: RepositoryExecutionProbe }>(`/api/v1/app/repositories/${id}/override_readiness_probe`, { probe_id: probeId })
+  return postJson<{ id: number; status: RepositoryExecutionProbe["status"] }>(`/api/v1/app/repositories/${id}/override_readiness_probe`, { probe_id: probeId })
 }
 
 export type GitHubOwnersPayload = {
@@ -448,6 +455,12 @@ export type RepositoryRecommendationJobPayload = {
   }
 }
 
+export type RepositoryRecommendationTogglePayload = {
+  message: string
+  repository: Partial<RepositoryDetailRecord>
+  recommended_actions: RepositoryFeatureRecommendation[]
+}
+
 export type RepositoryDetailRecord = {
   id: number
   slug: string
@@ -636,6 +649,7 @@ export type RepositoryTab = {
 
 export type RepositoryDetailJob = {
   id: number
+  repository_slug: string
   state: string
   priority: string
   issue_number: number | null
@@ -697,39 +711,79 @@ export function fetchRepositories(search = "") {
   return getJson<RepositoriesPayload>(`/api/v1/app/repositories${search}`)
 }
 
+function hydrateRepositoryJobs<T extends { jobs?: RepositoryDetailJob[]; provider_availability?: Record<string, ProviderAvailability> }>(payload: T): T {
+  if (!payload.jobs) return payload
+
+  return {
+    ...payload,
+    jobs: payload.jobs.map((job) => ({
+      ...job,
+      provider_availability: job.agent_provider ? payload.provider_availability?.[job.agent_provider] : undefined,
+      job_path: `/jobs/${job.id}`,
+      pr_url: job.pr_number ? `https://github.com/${job.repository_slug}/pull/${job.pr_number}` : null,
+      external_pr_url: job.external_pr_number ? `https://github.com/${job.repository_slug}/pull/${job.external_pr_number}` : null
+    }))
+  } as T
+}
+
 export function fetchRepositoryDetail(id: string, search = "") {
-  return getJson<RepositoryDetailPayload>(`/api/v1/app/repositories/${id}${search}`)
+  return getJson<RepositoryDetailPayload & { provider_availability?: Record<string, ProviderAvailability> }>(`/api/v1/app/repositories/${id}${search}`).then(
+    hydrateRepositoryJobs
+  )
+}
+
+export function fetchRepositoryJobs(id: string, search = "") {
+  return getJson<Pick<RepositoryDetailPayload, "jobs" | "pagination"> & { provider_availability?: Record<string, ProviderAvailability> }>(
+    `/api/v1/app/repositories/${id}/jobs${search}`
+  )
+    .then(hydrateRepositoryJobs)
+    .then(({ jobs, pagination }) => ({ jobs, pagination }))
+}
+
+export function fetchRepositoryHealthHistory(id: string) {
+  return getJson<Pick<RepositoryDetailPayload, "health_history">>(`/api/v1/app/repositories/${id}/health_history`).then(({ health_history }) => ({
+    health_history
+  }))
+}
+
+export function fetchRepositoryDelivery(id: string) {
+  return getJson<Pick<RepositoryDetailPayload, "delivery">>(`/api/v1/app/repositories/${id}/delivery`).then(({ delivery }) => ({ delivery }))
+}
+
+export function fetchRepositorySyrusYml(id: string) {
+  return getJson<Pick<RepositoryDetailPayload, "syrus_yml">>(`/api/v1/app/repositories/${id}/syrus_yml`).then(({ syrus_yml }) => ({ syrus_yml }))
 }
 
 // Fetched on its own rather than inside the detail payload: the rollup walks
 // every diff review version in the repository, so inlining it delayed the
 // whole page. See Api::V1::App::RepositoriesController#cognitive_debt.
-export function fetchRepositoryCognitiveDebt(id: string) {
-  return getJson<{ cognitive_debt?: RepositoryCognitiveDebtPayload }>(`/api/v1/app/repositories/${id}/cognitive_debt`)
+export function fetchRepositoryCognitiveDebt(id: string, view?: "summary") {
+  const suffix = view ? `?view=${view}` : ""
+  return getJson<{ cognitive_debt?: RepositoryCognitiveDebtPayload }>(`/api/v1/app/repositories/${id}/cognitive_debt${suffix}`)
 }
 
 export function pollRepositoryDetail(path: string, page: number) {
-  return postJson<RepositoryDetailPayload>(path, { return_to: "detail", page })
+  return postJson<{ message: string }>(path, { return_to: "detail", page })
 }
 
 export function releaseNeedsTriageRepositoryJob(path: string, jobId: number, page: number) {
-  return postJson<RepositoryDetailPayload>(path, { job_id: jobId, page })
+  return postJson<{ message: string; needs_triage_count: number; released_job_id: number }>(path, { job_id: jobId, page })
 }
 
 export function resumeRepositoryLanding(path: string, page: number) {
-  return postJson<RepositoryDetailPayload>(path, { page })
+  return postJson<{ message: string; landing_paused: false }>(path, { page })
 }
 
 export function runMainBranchGraders(path: string, page: number) {
-  return postJson<RepositoryDetailPayload>(path, { return_to: "detail", page })
+  return postJson<{ message: string }>(path, { return_to: "detail", page })
 }
 
 export function repairMainBranch(path: string, page: number) {
-  return postJson<RepositoryDetailPayload>(path, { return_to: "detail", page })
+  return postJson<{ message: string }>(path, { return_to: "detail", page })
 }
 
 export function checkCiNow(path: string, page: number) {
-  return postJson<RepositoryDetailPayload>(path, { return_to: "detail", page })
+  return postJson<{ message: string }>(path, { return_to: "detail", page })
 }
 
 export function dispatchRepositoryRefMovementAction(path: string, actionName: string) {
@@ -737,15 +791,15 @@ export function dispatchRepositoryRefMovementAction(path: string, actionName: st
 }
 
 export function runRepositoryRecommendation(path: string, page: number) {
-  return postJson<RepositoryDetailPayload | RepositoryRecommendationJobPayload>(path, { return_to: "detail", page })
+  return postJson<RepositoryRecommendationTogglePayload | RepositoryRecommendationJobPayload>(path, { return_to: "detail", page })
 }
 
 export function archiveRepositoryFromPath(path: string) {
-  return postJson<RepositoriesPayload>(path)
+  return postJson<{ message: string }>(path)
 }
 
 export function unarchiveRepositoryFromPath(path: string) {
-  return postJson<RepositoriesPayload>(path)
+  return postJson<{ message: string }>(path)
 }
 
 export function fetchNewRepositoryForm() {
@@ -756,21 +810,26 @@ export function fetchEditRepositoryForm(id: string) {
   return getJson<RepositoryFormPayload>(`/api/v1/app/repositories/${id}/edit`)
 }
 
-export function fetchRepositoryOwners() {
-  return getJson<GitHubOwnersPayload>("/api/v1/app/repositories/owners").catch((error) =>
+export function fetchRepositoryOwners(query = "") {
+  const params = new URLSearchParams()
+  if (query) params.set("q", query)
+  const suffix = params.size > 0 ? `?${params}` : ""
+  return getJson<GitHubOwnersPayload>(`/api/v1/app/repositories/owners${suffix}`).catch((error) =>
     githubSelectorFallback<GitHubOwnersPayload>(error, ["no_token", "unauthorized"])
   )
 }
 
-export function fetchRepositoryOptions(owner: string, ownerType: string) {
+export function fetchRepositoryOptions(owner: string, ownerType: string, query = "") {
   const params = new URLSearchParams({ owner, owner_type: ownerType })
+  if (query) params.set("q", query)
   return getJson<GitHubRepositoriesPayload>(`/api/v1/app/repositories/repos?${params}`).catch((error) =>
     githubSelectorFallback<GitHubRepositoriesPayload>(error, ["no_token", "not_found", "missing_params"])
   )
 }
 
-export function fetchRepositoryBranches(owner: string, name: string) {
+export function fetchRepositoryBranches(owner: string, name: string, query = "") {
   const params = new URLSearchParams({ owner, name })
+  if (query) params.set("q", query)
   return getJson<GitHubBranchesPayload>(`/api/v1/app/repositories/branches?${params}`).catch((error) =>
     githubSelectorFallback<GitHubBranchesPayload>(error, ["not_found", "missing_params"])
   )
@@ -877,7 +936,7 @@ export function syncFork(id: number) {
 }
 
 export function unarchiveRepository(id: number) {
-  return postJson<RepositoriesPayload>(`/api/v1/app/repositories/${id}/unarchive`)
+  return postJson<{ message: string }>(`/api/v1/app/repositories/${id}/unarchive`)
 }
 
 export function runInsightAnalysis(path: string) {

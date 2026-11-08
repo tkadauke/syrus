@@ -46,8 +46,8 @@ RSpec.describe "per-origin Job visibility", type: :request do
     expect(payload.fetch("items").map { |job| job.fetch("id") }).to eq([ ordinary_job.id ])
   end
 
-  it "omits restricted Jobs and counts from repository detail" do
-    get "/api/v1/app/repositories/#{repository.id}"
+  it "omits restricted Jobs and counts from the repository jobs payload" do
+    get "/api/v1/app/repositories/#{repository.id}/jobs"
 
     expect(response).to have_http_status(:ok)
     payload = JSON.parse(response.body)

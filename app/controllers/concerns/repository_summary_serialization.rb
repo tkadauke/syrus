@@ -5,8 +5,8 @@
 module RepositorySummarySerialization
   extend ActiveSupport::Concern
 
-  def repository_detail_json(repository)
-    effective_provider = ProviderRouting::Resolver.preview_provider(repository: repository)
+  def repository_detail_json(repository, effective_provider: nil)
+    effective_provider ||= ProviderRouting::Resolver.preview_provider(repository: repository)
     {
       id: repository.id,
       slug: repository.slug,

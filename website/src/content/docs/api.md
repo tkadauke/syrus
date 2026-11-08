@@ -100,6 +100,35 @@ engagement telemetry is enabled. Every percentile includes its cleaned sample
 count, and small samples return `not_enough_data` instead of a number. The
 window defaults to 7 days and is limited to 1–90 days.
 
+## Repository API payloads
+
+`GET /api/v1/app/repositories` returns the active and archived rows used by
+the web application. CLI clients request `?shape=cli` to additionally receive
+the compact `repositories` list with active-job and latest-job summaries.
+Create and update responses are intentionally compact: they contain the saved
+repository `id`, localized `message`, `redirect_to`, and `credential_status`.
+
+The repository owner, repository, and branch selector endpoints accept an
+optional `q` substring filter. Their responses are cached briefly per user and
+include ETags. Repository coverage trends also include ETags, and their `days`
+window is limited to 1–365 days.
+
+Repository detail data is split by the section that consumes it. The base
+`GET /api/v1/app/repositories/:id` response carries shared repository metadata,
+tabs, actions, and paths. Paginated jobs, health history, delivery tracks, and
+the parsed `.syrus.yml` summary are available from `/jobs`, `/health_history`,
+`/delivery`, and `/syrus_yml` respectively. Callers that need a combined
+response may pass a comma-separated `include` list to the base endpoint.
+`GET /api/v1/app/repositories/:id/cognitive_debt?view=summary` returns the
+overview-sized rollups and top items; omit `view` for the complete tab payload.
+
+Repository command endpoints return a localized confirmation message instead
+of re-rendering repository lists or detail payloads. Membership, team-access,
+final-approver, and document mutations return only the changed row or deleted
+ID so clients can patch their caches. Repository documents are paginated, and
+readiness clients can fetch a compact summary and poll an active execution
+probe separately with conditional requests.
+
 ## Throughput Metrics
 
 Authenticated app clients can read the versioned repository snapshot at

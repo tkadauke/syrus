@@ -12,11 +12,6 @@ module Api
       class RepositoryTeamGrantsController < BaseController
         include RepositoryMembersSerialization
 
-        def index
-          repository = find_repository
-          render json: repository_members_payload(repository)
-        end
-
         def create
           repository = find_repository
 
@@ -37,8 +32,8 @@ module Api
             return
           end
 
-          repository.team_repositories.create!(team: team, role: role)
-          render json: repository_members_payload(repository.reload).merge(message: I18n.t("api.repository_team_grants.added", team: team.name, role: role)), status: :created
+          grant = repository.team_repositories.create!(team: team, role: role)
+          render json: { team_grant: repository_team_grant_json(grant), message: I18n.t("api.repository_team_grants.added", team: team.name, role: role) }, status: :created
         end
 
         def update
@@ -52,7 +47,7 @@ module Api
           end
 
           grant.update!(role: role)
-          render json: repository_members_payload(repository.reload).merge(message: I18n.t("api.repository_team_grants.role_updated", role: role))
+          render json: { team_grant: repository_team_grant_json(grant), message: I18n.t("api.repository_team_grants.role_updated", role: role) }
         end
 
         def destroy
@@ -60,7 +55,7 @@ module Api
           grant = repository.team_repositories.find(params[:id])
           grant.destroy!
 
-          render json: repository_members_payload(repository.reload).merge(message: I18n.t("api.repository_team_grants.removed", team: grant.team.name))
+          render json: { id: grant.id, message: I18n.t("api.repository_team_grants.removed", team: grant.team.name) }
         end
 
         private

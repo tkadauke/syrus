@@ -21,13 +21,13 @@ export function appendSearch(path: string, search: string) {
   return search ? `${path}${search}` : path
 }
 
-export type RepositoryDetailQueryKey = readonly ["repositories", string, "detail", string]
+export type RepositoryDetailQueryKey = readonly ["repositories", string, "detail"]
 
 // Shared with RepositoryDetail (overview) and RepositoryHealth (health tab):
 // both render sections of the same underlying repository detail payload, so
 // they read/write the same TanStack Query cache entry.
-export function repositoryDetailQueryKey(id: string | number, search: string): RepositoryDetailQueryKey {
-  return ["repositories", String(id), "detail", search] as const
+export function repositoryDetailQueryKey(id: string | number): RepositoryDetailQueryKey {
+  return ["repositories", String(id), "detail"] as const
 }
 
 export function repositoryDetailPageSearch(search: string) {

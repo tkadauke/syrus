@@ -54,7 +54,7 @@ const REPOSITORY_SORT_ACCESSORS: Record<SortColumn, (repository: RepositoryRow) 
   last_poll_started_at: (repository) => repository.last_poll_started_at,
   trigger_label: (repository) => repository.trigger_label,
   default_branch: (repository) => repository.default_branch,
-  owner_user_email: (repository) => repository.owner_user.email_address,
+  owner_user_email: (repository) => repository.owner_email,
   upstream_slug: (repository) => repository.upstream_slug
 }
 
@@ -125,7 +125,10 @@ function buildRepositoryColumns({
       sortKey: "slug",
       renderCell: (repository) => (
         <div className="flex items-center gap-2">
-          <Link className="font-mono text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(repository.repository_path, prefix)}>
+          <Link
+            className="font-mono text-brand underline hover:no-underline dark:text-brand-emphasis"
+            to={withRoutePrefix(`/repositories/${repository.id}`, prefix)}
+          >
             {repository.slug}
           </Link>
           {repository.archived ? <TonePill tone="gray">{t("repositories.archived_badge")}</TonePill> : null}
@@ -192,7 +195,7 @@ function buildRepositoryColumns({
       defaultVisible: false,
       sortKey: "owner_user_email",
       cellClassName: "text-xs text-text-secondary",
-      renderCell: (repository) => repository.owner_user.email_address
+      renderCell: (repository) => repository.owner_email
     },
     {
       key: "upstream_slug",
@@ -247,7 +250,8 @@ export function RepositoriesIndex() {
     // picker/select DOM nodes) on screen while a new filter's query is in
     // flight, instead of tearing the whole view down to "Loading
     // repositories..." and remounting it fresh on every filter change.
-    placeholderData: keepPreviousData
+    placeholderData: keepPreviousData,
+    staleTime: 30_000
   })
   const prefix = routePrefix(location.pathname)
 
@@ -485,7 +489,7 @@ function RepositoryDataTable({
   const colSpan = visibleDataTableColumns({ columns, order }).length
 
   function openRepository(repository: RepositoryRow) {
-    navigate(withRoutePrefix(repository.repository_path, prefix))
+    navigate(withRoutePrefix(`/repositories/${repository.id}`, prefix))
   }
 
   function handleRowClick(event: MouseEvent<HTMLTableRowElement>, repository: RepositoryRow) {
@@ -556,7 +560,7 @@ function RepositoryMobileList({
   const navigate = useNavigate()
 
   function openRepository(repository: RepositoryRow) {
-    navigate(withRoutePrefix(repository.repository_path, prefix))
+    navigate(withRoutePrefix(`/repositories/${repository.id}`, prefix))
   }
 
   function handleRowKeyDown(event: KeyboardEvent<HTMLDivElement>, repository: RepositoryRow) {

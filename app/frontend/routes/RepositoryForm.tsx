@@ -59,7 +59,8 @@ export function RepositoryFormRoute({ mode }: { mode: "new" | "edit" }) {
   const form = useQuery({
     queryKey: ["repositories", mode, id],
     queryFn: () => (mode === "new" ? fetchNewRepositoryForm() : fetchEditRepositoryForm(id)),
-    enabled: mode === "new" || id.length > 0
+    enabled: mode === "new" || id.length > 0,
+    staleTime: 60_000
   })
 
   return (
@@ -121,7 +122,7 @@ function RepositoryForm({ mode, payload, prefix }: { mode: "new" | "edit"; paylo
 
   const owners = useQuery({
     queryKey: ["repositories", "owners"],
-    queryFn: fetchRepositoryOwners,
+    queryFn: () => fetchRepositoryOwners(),
     staleTime: 60_000
   })
 
@@ -746,7 +747,9 @@ function FinalApproversSection({ repositoryId }: { repositoryId: number }) {
   const create = useMutation({
     mutationFn: () => createRepositoryFinalApprover(repositoryId, email),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      queryClient.setQueryData(queryKey, (current: Awaited<ReturnType<typeof fetchRepositoryFinalApprovers>> | undefined) =>
+        current ? { ...current, final_approvers: [...current.final_approvers, updated.final_approver] } : current
+      )
       setEmail("")
       setNotice(updated.message || null)
     }
@@ -754,9 +757,11 @@ function FinalApproversSection({ repositoryId }: { repositoryId: number }) {
 
   const destroy = useMutation({
     mutationFn: (finalApproverId: number) => deleteRepositoryFinalApprover(repositoryId, finalApproverId),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
-      setNotice(updated.message || null)
+    onSuccess: (_updated, finalApproverId) => {
+      queryClient.setQueryData(queryKey, (current: Awaited<ReturnType<typeof fetchRepositoryFinalApprovers>> | undefined) =>
+        current ? { ...current, final_approvers: current.final_approvers.filter((row) => row.id !== finalApproverId) } : current
+      )
+      setNotice(null)
     }
   })
 
@@ -1046,7 +1051,9 @@ function InputSourceSection({ sourceType }: { sourceType: InputSourceType }) {
   const sourceQuery = useQuery({
     queryKey: ["input_source", sourceType.path],
     queryFn: () => fetchInputSource(sourceType.path || ""),
-    enabled: !!sourceType.path
+    enabled: !!sourceType.path,
+    initialData: initialSource ? { input_source: initialSource } : undefined,
+    staleTime: 60_000
   })
 
   const currentSource = sourceQuery.data?.input_source ?? initialSource

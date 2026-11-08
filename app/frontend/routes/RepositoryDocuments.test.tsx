@@ -24,7 +24,7 @@ function documentsPayload(overrides: Record<string, unknown> = {}) {
         created_at: "2026-01-01T00:00:00Z"
       }
     ],
-    accepted_file_content_types: ["image/*", "application/pdf"],
+    pagination: { page: 1, per_page: 25, total: 1, total_pages: 1 },
     ...overrides
   }
 }
@@ -89,7 +89,15 @@ describe("RepositoryDocumentsRoute delete", () => {
 
   it("hides document mutations from read-tier members", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(documentsPayload({ can_write: false })))
-    render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter initialEntries={["/app-shell/repositories/1/documents"]}><Routes><Route element={<RepositoryDocumentsRoute />} path="/app-shell/repositories/:repositoryId/documents" /></Routes></MemoryRouter></QueryClientProvider>)
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/repositories/1/documents"]}>
+          <Routes>
+            <Route element={<RepositoryDocumentsRoute />} path="/app-shell/repositories/:repositoryId/documents" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
 
     expect(await screen.findByText("Architecture notes")).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument()
@@ -100,7 +108,7 @@ describe("RepositoryDocumentsRoute delete", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
       if (url === "/api/v1/app/repository_documents/20" && init?.method === "DELETE") {
-        return Promise.resolve(jsonResponse(documentsPayload({ documents: [], message: "Document removed." })))
+        return Promise.resolve(jsonResponse({ id: 20, message: "Document removed." }))
       }
       return Promise.resolve(jsonResponse(documentsPayload()))
     })
@@ -111,10 +119,7 @@ describe("RepositoryDocumentsRoute delete", () => {
     fireEvent.click(deleteButton)
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/repository_documents/20",
-        expect.objectContaining({ method: "DELETE" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/repository_documents/20", expect.objectContaining({ method: "DELETE" }))
     })
   })
 
@@ -125,13 +130,74 @@ describe("RepositoryDocumentsRoute delete", () => {
     renderRoute()
 
     const deleteButton = await screen.findByRole("button", { name: "Delete" })
-    await act(async () => { fireEvent.click(deleteButton) })
+    await act(async () => {
+      fireEvent.click(deleteButton)
+    })
 
-    await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
-    expect(fetchSpy).not.toHaveBeenCalledWith(
-      "/api/v1/app/repository_documents/20",
-      expect.objectContaining({ method: "DELETE" })
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalled()
+    })
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/repository_documents/20", expect.objectContaining({ method: "DELETE" }))
+  })
+})
+
+describe("RepositoryDocumentsRoute create", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it("refetches the paginated document list after creating a Google Doc", async () => {
+    const createdDocument = {
+      id: 21,
+      kind: "google_doc",
+      title: "Launch plan",
+      google_doc_url: "https://docs.google.com/document/d/launch/edit",
+      filename: null,
+      content_type: null,
+      byte_size: null,
+      uploaded_by: "Ada Lovelace",
+      created_at: "2026-01-02T00:00:00Z",
+      file_path: null
+    }
+    let listRequests = 0
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      if (url === "/api/v1/app/repositories/1/documents" && init?.method === "POST") {
+        return Promise.resolve(jsonResponse({ document: createdDocument, message: "Document added." }, 201))
+      }
+      if (url === "/api/v1/app/repositories/1/documents?page=1") {
+        listRequests += 1
+        return Promise.resolve(
+          jsonResponse(
+            documentsPayload(
+              listRequests > 1
+                ? {
+                    documents: [createdDocument, ...documentsPayload().documents],
+                    pagination: { page: 1, per_page: 25, total: 2, total_pages: 1 }
+                  }
+                : {}
+            )
+          )
+        )
+      }
+      return Promise.reject(new Error(`Unexpected request: ${url}`))
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/app-shell/repositories/1/documents"]}>
+          <Routes>
+            <Route element={<RepositoryDocumentsRoute />} path="/app-shell/repositories/:repositoryId/documents" />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
     )
+
+    await screen.findByText("Architecture notes")
+    fireEvent.change(screen.getByLabelText("URL"), { target: { value: createdDocument.google_doc_url } })
+    fireEvent.change(screen.getByLabelText("Document title"), { target: { value: createdDocument.title } })
+    fireEvent.click(screen.getByRole("button", { name: "Add Google Doc" }))
+
+    expect(await screen.findByText("Launch plan")).toBeInTheDocument()
+    expect(listRequests).toBe(2)
   })
 })
 
@@ -139,20 +205,23 @@ describe("RepositoryDocumentsRoute preview", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("opens a preview modal with rendered markdown for a markdown document", async () => {
-    renderRouteWithDocuments([
-      {
-        id: 21,
-        kind: "file",
-        title: "Notes",
-        google_doc_url: null,
-        filename: "notes.md",
-        content_type: "text/markdown",
-        byte_size: 12,
-        uploaded_by: "Ada Lovelace",
-        created_at: "2026-01-01T00:00:00Z",
-        file_path: "/api/v1/app/repository_documents/21/file"
-      }
-    ], { "21": "# Hello there" })
+    renderRouteWithDocuments(
+      [
+        {
+          id: 21,
+          kind: "file",
+          title: "Notes",
+          google_doc_url: null,
+          filename: "notes.md",
+          content_type: "text/markdown",
+          byte_size: 12,
+          uploaded_by: "Ada Lovelace",
+          created_at: "2026-01-01T00:00:00Z",
+          file_path: "/api/v1/app/repository_documents/21/file"
+        }
+      ],
+      { "21": "# Hello there" }
+    )
 
     fireEvent.click(await screen.findByRole("button", { name: /Notes/ }))
 

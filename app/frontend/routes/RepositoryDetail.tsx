@@ -34,7 +34,10 @@ import { PreviewPanel } from "../components/PreviewPanel"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import {
   fetchRepositoryCognitiveDebt,
+  fetchRepositoryDelivery,
   fetchRepositoryDetail,
+  fetchRepositoryJobs,
+  fetchRepositorySyrusYml,
   pollRepositoryDetail,
   releaseNeedsTriageRepositoryJob,
   runInsightAnalysis,
@@ -46,7 +49,7 @@ import {
   type RepositoryFeatureRecommendation
 } from "../api/repositories"
 import { errorMessage } from "../lib/errorMessage"
-import { fetchRepositoryReadiness } from "../api/repositories"
+import { fetchRepositoryReadiness, fetchRepositoryReadinessProbe, fetchRepositoryReadinessSummary } from "../api/repositories"
 import { RepositoryReadinessModal, readinessTone } from "../components/RepositoryReadinessModal"
 
 const MERGE_TRAIN_FAILURE_RUNGS = [
@@ -62,15 +65,26 @@ export function RepositoryDetailRoute() {
   const tab = "overview" as const
   const search = repositoryDetailPageSearch(location.search)
   const prefix = routePrefix(location.pathname)
-  const detailQueryKey = repositoryDetailQueryKey(id, search)
+  const detailQueryKey = repositoryDetailQueryKey(id)
   const detail = useQuery({
     queryKey: detailQueryKey,
-    queryFn: () => fetchRepositoryDetail(id, search),
+    queryFn: () => fetchRepositoryDetail(id),
     enabled: id.length > 0
   })
-  usePageTitle(detail.data?.repository.slug)
+  const jobs = useQuery({ queryKey: ["repositories", id, "jobs", search], queryFn: () => fetchRepositoryJobs(id, search), enabled: id.length > 0 })
+  const delivery = useQuery({ queryKey: ["repositories", id, "delivery"], queryFn: () => fetchRepositoryDelivery(id), enabled: id.length > 0 })
+  const syrusYml = useQuery({ queryKey: ["repositories", id, "syrus_yml"], queryFn: () => fetchRepositorySyrusYml(id), enabled: id.length > 0 })
+  const payload = detail.data && jobs.data && delivery.data && syrusYml.data ? { ...detail.data, ...jobs.data, ...delivery.data, ...syrusYml.data } : undefined
+  const composedDetail = {
+    ...detail,
+    data: payload,
+    error: detail.error || jobs.error || delivery.error || syrusYml.error,
+    isError: detail.isError || jobs.isError || delivery.isError || syrusYml.isError,
+    isPending: detail.isPending || jobs.isPending || delivery.isPending || syrusYml.isPending
+  }
+  usePageTitle(payload?.repository.slug)
 
-  return <RepositoryDetail activeTab={tab} detail={detail} prefix={prefix} queryKey={detailQueryKey} />
+  return <RepositoryDetail activeTab={tab} detail={composedDetail} prefix={prefix} queryKey={detailQueryKey} />
 }
 
 function RepositoryDetail({
@@ -155,15 +169,24 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
   const { t } = useT("settings")
   const { t: commonT } = useT("common")
   const [readinessOpen, setReadinessOpen] = useState(false)
+  const readinessSummary = useQuery({
+    queryKey: ["repository-readiness-summary", payload.repository.id],
+    queryFn: () => fetchRepositoryReadinessSummary(payload.repository.id),
+    staleTime: 60_000
+  })
   const readiness = useQuery({
     queryKey: ["repository-readiness", payload.repository.id],
     queryFn: () => fetchRepositoryReadiness(payload.repository.id),
-    staleTime: 60_000,
+    enabled: readinessOpen,
+    staleTime: 60_000
+  })
+  const readinessProbe = useQuery({
+    queryKey: ["repository-readiness-probe", payload.repository.id],
+    queryFn: () => fetchRepositoryReadinessProbe(payload.repository.id),
+    enabled: readiness.data?.readiness?.execution_probe?.status === "queued" || readiness.data?.readiness?.execution_probe?.status === "running",
     refetchInterval: (query) => {
-      const data = query.state.data
-      if (!data || !("readiness" in data) || !data.readiness) return false
-      const status = data.readiness.execution_probe?.status
-      return status === "queued" || status === "running" ? 1_000 : false
+      const status = query.state.data?.execution_probe?.status
+      return status === "queued" || status === "running" ? Math.min(1_000 * 2 ** query.state.dataUpdateCount, 8_000) : false
     }
   })
   const repository = payload.repository
@@ -179,21 +202,23 @@ function RepositorySummary({ payload }: { payload: RepositoryDetailPayload }) {
       <TonePill tone={repository.polling_enabled ? "green" : "gray"}>
         {repository.polling_enabled ? t("repository.polling_enabled") : t("repository.polling_paused")}
       </TonePill>
-      {readiness.data?.readiness ? (
+      {readinessSummary.data?.readiness ? (
         <>
           <button
-            className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${repositoryReadinessTriggerClass(readinessTone(readiness.data.readiness.status))}`}
+            className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${repositoryReadinessTriggerClass(readinessTone(readinessSummary.data.readiness.status))}`}
             onClick={() => setReadinessOpen(true)}
             type="button"
           >
-            {commonT("onboarding.readiness_status", { status: readiness.data.readiness.summary })}
+            {commonT("onboarding.readiness_status", { status: readinessSummary.data.readiness.summary })}
           </button>
-          <RepositoryReadinessModal
-            onClose={() => setReadinessOpen(false)}
-            open={readinessOpen}
-            repositoryId={payload.repository.id}
-            report={readiness.data.readiness}
-          />
+          {readiness.data?.readiness ? (
+            <RepositoryReadinessModal
+              onClose={() => setReadinessOpen(false)}
+              open={readinessOpen}
+              repositoryId={payload.repository.id}
+              report={{ ...readiness.data.readiness, execution_probe: readinessProbe.data?.execution_probe ?? readiness.data.readiness.execution_probe }}
+            />
+          ) : null}
         </>
       ) : null}
       {pollIssueErrors.length > 0 ? <TonePill tone="amber">{t("repository.poll_quarantined", { count: pollIssueErrors.length })}</TonePill> : null}
@@ -223,12 +248,13 @@ export function CognitiveDebtSection({ payload, prefix }: { payload: RepositoryD
   // rollup walks every diff review version in the repository, which used to
   // put seconds onto every repository page load.
   const debtQuery = useQuery({
-    queryFn: () => fetchRepositoryCognitiveDebt(String(payload.repository.id)),
+    queryFn: () => fetchRepositoryCognitiveDebt(String(payload.repository.id), "summary"),
     queryKey: ["repository", payload.repository.id, "cognitive_debt"],
+    enabled: !payload.cognitive_debt,
     staleTime: 5 * 60 * 1000
   })
-  const debt = debtQuery.data?.cognitive_debt
-  if (debtQuery.isPending) {
+  const debt = payload.cognitive_debt || debtQuery.data?.cognitive_debt
+  if (!debt && debtQuery.isPending) {
     return <PanelMessage>{t("repository.cognitive_debt_loading")}</PanelMessage>
   }
   if (debtQuery.isError) {
@@ -410,7 +436,7 @@ export function RecommendedActions({
   const { t } = useT("settings")
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const search = queryKey[3]
+  const search = ""
   const [dismissed, setDismissed] = useState<Set<string>>(() => readDismissedRecommendations(payload.repository.id))
   const [currentIndex, setCurrentIndex] = useState(0)
   const recommendationAction = useMutation({
@@ -418,8 +444,10 @@ export function RecommendedActions({
       runRepositoryRecommendation(appendSearch(recommendation.cta.path, search), payload.pagination.page),
     onSuccess: (updated, recommendation) => {
       dismiss(recommendation)
-      if ("repository" in updated && "tabs" in updated) {
-        queryClient.setQueryData(queryKey, updated)
+      if ("repository" in updated) {
+        queryClient.setQueryData(queryKey, (current: RepositoryDetailPayload | undefined) =>
+          current ? { ...current, repository: { ...current.repository, ...updated.repository }, recommended_actions: updated.recommended_actions } : current
+        )
         onNotice(updated.message || null)
       } else {
         onNotice(updated.message || t("repository.recommendation_job_created"))
@@ -786,14 +814,14 @@ function Actions({
 }) {
   const { t } = useT("settings")
   const queryClient = useQueryClient()
-  const search = queryKey[3]
+  const search = ""
   const [moreOpen, setMoreOpen] = useState(false)
   const moreMenuRef = useDismissiblePopup<HTMLDivElement>(moreOpen, () => setMoreOpen(false))
   const retryStatus = payload.provider_retry_status
   const poll = useMutation({
     mutationFn: () => pollRepositoryDetail(appendSearch(payload.paths.app_poll_repository_path, search), payload.pagination.page),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      void queryClient.invalidateQueries({ queryKey })
       onNotice(updated.message || null)
     }
   })
@@ -962,13 +990,23 @@ function NeedsTriageJobs({
 }) {
   const { t } = useT("settings")
   const queryClient = useQueryClient()
-  const search = queryKey[3]
+  const search = ""
   const contentGutter = useRepositoryContentGutterClassName()
   const release = useMutation({
     mutationFn: (jobId: number) =>
       releaseNeedsTriageRepositoryJob(appendSearch(payload.paths.app_release_needs_triage_job_repository_path, search), jobId, payload.pagination.page),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      queryClient.setQueryData(queryKey, (current: RepositoryDetailPayload | undefined) =>
+        current
+          ? {
+              ...current,
+              needs_triage_count: updated.needs_triage_count,
+              needs_triage_jobs: current.needs_triage_jobs.filter((job) => job.id !== updated.released_job_id)
+            }
+          : current
+      )
+      void queryClient.invalidateQueries({ queryKey: ["repositories", String(payload.repository.id), "jobs"] })
+      void queryClient.invalidateQueries({ queryKey: ["repositories", String(payload.repository.id), "delivery"] })
       onNotice(updated.message || null)
     }
   })

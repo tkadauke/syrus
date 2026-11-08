@@ -109,6 +109,35 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(parse_body.dig("readiness", "prepare_commands")).to eq([])
   end
 
+  it "returns an ETag-backed readiness summary without the full report" do
+    repository = Factories.repository(user: user)
+    allow(RepositoryReadiness).to receive(:call).and_return(
+      double(to_h: { status: "ready", summary: "Ready", revision: "abc", checks: [ { key: "large" } ] })
+    )
+    sign_in_as(user)
+
+    get "/api/v1/app/repositories/#{repository.id}/readiness", params: { view: "summary" }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["readiness"]).to eq("status" => "ready", "summary" => "Ready", "revision" => "abc")
+    etag = response.headers.fetch("ETag")
+
+    get "/api/v1/app/repositories/#{repository.id}/readiness", params: { view: "summary" }, headers: { "If-None-Match" => etag }
+    expect(response).to have_http_status(:not_modified)
+  end
+
+  it "returns the latest execution probe independently from readiness" do
+    repository = Factories.repository(user: user)
+    probe = RepositoryExecutionProbe.create!(repository:, requested_by: user, status: "running", result: { "commands" => [ { "output_tail" => "bounded" } ] })
+    sign_in_as(user)
+
+    get "/api/v1/app/repositories/#{repository.id}/readiness_probe"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("execution_probe", "id")).to eq(probe.id)
+    expect(response.headers["ETag"]).to be_present
+  end
+
   it "starts one disposable probe and reuses it while it is active" do
     repository = Factories.repository(user: user)
     sign_in_as(user)
@@ -116,12 +145,12 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect do
       post "/api/v1/app/repositories/#{repository.id}/readiness_probe"
     end.to have_enqueued_job(RepositoryExecutionProbeJob).and change(RepositoryExecutionProbe, :count).by(1)
-    probe_id = parse_body.dig("execution_probe", "id")
+    probe_id = parse_body["id"]
 
     expect do
       post "/api/v1/app/repositories/#{repository.id}/readiness_probe"
     end.not_to change(RepositoryExecutionProbe, :count)
-    expect(parse_body.dig("execution_probe", "id")).to eq(probe_id)
+    expect(parse_body["id"]).to eq(probe_id)
 
     RepositoryExecutionProbe.find(probe_id).update!(status: "succeeded")
     expect do
@@ -260,7 +289,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       include(
         "id" => active.id,
         "slug" => "acme/widgets",
-        "owner_user" => include("id" => user.id, "email_address" => user.email_address),
+        "owner_email" => user.email_address,
         "default_branch" => "main",
         "trigger_label" => "syrus",
         "polling_enabled" => true,
@@ -268,9 +297,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
         "open_jobs_count" => 1,
         "last_job_activity_at" => job_activity_at.iso8601,
         "last_poll_status" => "ok",
-        "can_edit" => true,
-        "repository_path" => repository_path(active),
-        "edit_repository_path" => edit_repository_path(active)
+        "can_edit" => true
       )
     )
     expect(body["archived_repositories"]).to contain_exactly(
@@ -278,7 +305,11 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     )
     expect(body.to_s).not_to include("other/private")
     expect(body["new_repository_path"]).to eq(new_repository_path)
-    expect(body["repositories"]).to include(
+    expect(body).not_to have_key("repositories")
+
+    get "/api/v1/app/repositories", params: { shape: "cli" }
+
+    expect(parse_body["repositories"]).to include(
       include("slug" => "acme/widgets", "active_jobs_count" => 1),
       include("slug" => "old/repo", "archived" => true)
     )
@@ -311,7 +342,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body["active_repositories"]).to contain_exactly(include("id" => match.id, "slug" => "acme/widgets"))
-    expect(body["repositories"]).to contain_exactly(include("id" => match.id, "slug" => "acme/widgets"))
+    expect(body).not_to have_key("repositories")
   end
 
   it "filters repository index activity by job activity instead of polling activity, via the Recent smart folder's fixed 30-day cutoff" do
@@ -393,7 +424,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     body = parse_body
     expect(body["active_repositories"]).to be_empty
     expect(body["archived_repositories"]).to contain_exactly(include("id" => archived.id, "slug" => "acme/archived", "archived" => true))
-    expect(body["repositories"]).to contain_exactly(include("id" => archived.id, "slug" => "acme/archived"))
+    expect(body).not_to have_key("repositories")
   end
 
   it "rejects self-enrollment when the same GitHub slug is already registered by another user" do
@@ -443,10 +474,8 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(response).to have_http_status(:created)
     repo = Repository.find_by(owner: "acme", name: "brandnew")
     expect(repo.repository_memberships.find_by(user: user).role).to eq("admin")
-    expect(parse_body.dig("repository", "owner_user")).to include(
-      "id" => user.id,
-      "email_address" => user.email_address
-    )
+    expect(parse_body).to include("id" => repo.id, "redirect_to" => repositories_path)
+    expect(parse_body).not_to have_key("repository")
   end
 
   it "rejects a second connect attempt for the same user on the same repository" do
@@ -696,7 +725,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       "main_branch_repair_blocks_work" => false
     )
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}?include=health_history"
 
     expect(response).to have_http_status(:ok)
     body = parse_body
@@ -754,7 +783,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     other_repository = Factories.repository(user: user, owner: "acme", name: "other")
     Factories.job_record(repository: other_repository, issue_number: 99, issue_title: "Private")
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}?include=jobs,health_history,syrus_yml"
 
     expect(response).to have_http_status(:ok)
     body = parse_body
@@ -917,7 +946,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     loaded = RepoDefaultBranchSyrusYml::Result.new(config: config, source: ".syrus.yml", note: nil)
     allow(RepoDefaultBranchSyrusYml).to receive(:new).and_return(instance_double(RepoDefaultBranchSyrusYml, resolve: loaded))
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}?include=syrus_yml"
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["syrus_yml"]).to include(
@@ -948,7 +977,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     )
     cron_job = Factories.job_record(user: user, repository: repository, kind: "cron", issue_number: nil, scheduled_task_id: task.id)
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}?include=jobs"
 
     expect(response).to have_http_status(:ok)
     body = parse_body
@@ -997,7 +1026,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     2.times { |index| Factories.job_with_run(repository: repository, issue_number: index + 2) }
 
     queries = capture_sql do
-      get "/api/v1/app/repositories/#{repository.id}"
+      get "/api/v1/app/repositories/#{repository.id}?include=jobs"
     end
 
     expect(response).to have_http_status(:ok)
@@ -1059,7 +1088,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     owner = Factories.job_with_run(repository: repository, issue_number: 2, issue_title: "Owner work")
     attach_active_work_unit(owner_job: owner, member_job: member)
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}?include=jobs"
 
     expect(response).to have_http_status(:ok)
     member_payload = parse_body.fetch("jobs").find { |job| job.fetch("id") == member.id }
@@ -1073,7 +1102,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     Run.create!(job: job, user: user, trigger_kind: "retry", agent_provider: "claude", state: "queued")
 
     queries = capture_sql do
-      get "/api/v1/app/repositories/#{repository.id}"
+      get "/api/v1/app/repositories/#{repository.id}?include=jobs"
     end
 
     expect(response).to have_http_status(:ok)
@@ -1172,7 +1201,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       repository: repository, sha: "def456", ci_health: "healthy"
     )
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}?include=health_history"
 
     expect(response).to have_http_status(:ok)
     records = parse_body.dig("health_history", "records")
@@ -1202,7 +1231,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       landing_paused: true
     )
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}?include=health_history"
 
     expect(response).to have_http_status(:ok)
     health = parse_body.fetch("health_history")
@@ -1247,7 +1276,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       landing_paused: true
     )
 
-    get "/api/v1/app/repositories/#{repository.id}"
+    get "/api/v1/app/repositories/#{repository.id}?include=health_history"
 
     expect(response).to have_http_status(:ok)
     health = parse_body.fetch("health_history")
@@ -1331,7 +1360,8 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(repository.epic_dependency_policy).to eq("linear")
     expect(repository.github_owner_id).to eq(123)
     expect(repository.github_repository_id).to eq(456)
-    expect(parse_body).to include("message" => "Repository acme/widgets added.", "redirect_to" => repositories_path)
+    expect(parse_body).to include("id" => repository.id, "message" => "Repository acme/widgets added.", "redirect_to" => repositories_path)
+    expect(parse_body).not_to have_key("repository")
   end
 
   it "rejects an unknown Epic dependency policy on repository create" do
@@ -1473,7 +1503,8 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(repository.epic_dependency_policy).to eq("linear")
     expect(repository.github_owner_id).to eq(123)
     expect(repository.github_repository_id).to eq(456)
-    expect(parse_body).to include("message" => "Repository acme/widgets updated.", "redirect_to" => repositories_path)
+    expect(parse_body).to include("id" => repository.id, "message" => "Repository acme/widgets updated.", "redirect_to" => repositories_path)
+    expect(parse_body).not_to have_key("repository")
   end
 
   it "rejects an unknown Epic dependency policy on repository update" do
@@ -1500,12 +1531,11 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(repository.reload.landing_paused).to eq(false)
-    expect(parse_body.dig("repository", "landing_paused")).to eq(false)
-    expect(parse_body.dig("repository", "main_health")).to eq("broken")
+    expect(parse_body["landing_paused"]).to eq(false)
     expect(parse_body["message"]).to eq("Work resumed for acme/widgets.")
   end
 
-  it "enqueues a forced poll and returns the refreshed index payload" do
+  it "enqueues a forced poll and returns only its message" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets")
 
@@ -1515,10 +1545,10 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Polling acme/widgets now.")
-    expect(parse_body.dig("active_repositories", 0, "slug")).to eq("acme/widgets")
+    expect(parse_body.keys).to eq([ "message" ])
   end
 
-  it "enqueues a forced poll and returns the refreshed detail payload when requested" do
+  it "does not render the detail payload when a poll requests a detail return" do
     sign_in_as(user)
     repository = Factories.repository(user: user, owner: "acme", name: "widgets")
 
@@ -1528,8 +1558,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Polling acme/widgets now.")
-    expect(parse_body.dig("repository", "slug")).to eq("acme/widgets")
-    expect(parse_body).not_to have_key("active_repositories")
+    expect(parse_body.keys).to eq([ "message" ])
   end
 
   it "rejects polling an archived repository" do
@@ -1556,14 +1585,14 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(repository.reload).to be_archived
     expect(repository.polling_enabled).to eq(false)
     expect(parse_body["message"]).to eq("acme/widgets archived.")
-    expect(parse_body.dig("archived_repositories", 0, "slug")).to eq("acme/widgets")
+    expect(parse_body.keys).to eq([ "message" ])
 
     post "/api/v1/app/repositories/#{repository.id}/unarchive"
 
     expect(response).to have_http_status(:ok)
     expect(repository.reload).not_to be_archived
     expect(parse_body["message"]).to include("unarchived")
-    expect(parse_body.dig("active_repositories", 0, "slug")).to eq("acme/widgets")
+    expect(parse_body.keys).to eq([ "message" ])
   end
 
   it "lists and releases needs-triage jobs for developers" do
@@ -1735,6 +1764,26 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       { "name" => "alpha", "github_repository_id" => 456, "github_owner_id" => 123 },
       { "name" => "beta", "github_repository_id" => 789, "github_owner_id" => 123 }
     )
+  end
+
+  it "filters and caches repository selector results and returns an ETag" do
+    sign_in_as(user)
+    allow(Rails).to receive(:cache).and_return(ActiveSupport::Cache::MemoryStore.new)
+    client = instance_double(
+      GithubClient,
+      owner_repos: [
+        { name: "alpha", github_repository_id: 456, github_owner_id: 123 },
+        { name: "beta", github_repository_id: 789, github_owner_id: 123 }
+      ]
+    )
+    allow(GithubClient).to receive(:for_user).and_return(client)
+
+    2.times { get "/api/v1/app/repositories/repos", params: { owner: "john", owner_type: "user", q: "alp" } }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["repos"]).to contain_exactly(include("name" => "alpha"))
+    expect(response.headers["ETag"]).to be_present
+    expect(client).to have_received(:owner_repos).once
   end
 
   it "passes through fork metadata for a selected owner" do
@@ -1961,7 +2010,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Graders enqueued for abc1234 on acme/widgets.")
-    expect(parse_body.dig("repository", "slug")).to eq("acme/widgets")
+    expect(parse_body.keys).to eq([ "message" ])
   end
 
   it "rejects run_main_branch_graders for an archived repository" do
@@ -2027,6 +2076,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     fix_job = repository.jobs.where(system_kind: Job::SYSTEM_KIND_MAIN_BRANCH_REPAIR).last
     expect(parse_body["message"]).to eq("Repair job #{fix_job.slug} started.")
+    get "/api/v1/app/repositories/#{repository.id}/health_history"
     expect(parse_body.dig("health_history", "main_branch_repair")).to include(
       "blocked_reason" => "active",
       "blocking_job" => include("slug" => fix_job.slug, "job_path" => job_path(fix_job))
@@ -2066,7 +2116,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("CI check enqueued for acme/widgets.")
-    expect(parse_body.dig("repository", "slug")).to eq("acme/widgets")
+    expect(parse_body.keys).to eq([ "message" ])
   end
 
   it "rejects check_ci_now for an archived repository" do
@@ -2285,6 +2335,19 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       expect(parse_body).to have_key("cognitive_debt")
     end
 
+    it "bounds summary collections and honors the ETag" do
+      sign_in_as(user)
+      payload = { summary: { score: 1 }, subsystems: Array.new(6) { |i| { name: "s#{i}" } }, files: Array.new(6) { |i| { path: "f#{i}" } }, review_queue: Array.new(10) { |i| { id: i } } }
+      allow(App::CognitiveDebtPayload).to receive(:cached).and_return(payload)
+
+      get "/api/v1/app/repositories/#{repository.id}/cognitive_debt", params: { view: "summary" }
+      expect(parse_body.dig("cognitive_debt", "subsystems").size).to eq(4)
+      etag = response.headers.fetch("ETag")
+
+      get "/api/v1/app/repositories/#{repository.id}/cognitive_debt", params: { view: "summary" }, headers: { "If-None-Match" => etag }
+      expect(response).to have_http_status(:not_modified)
+    end
+
     # The rollup walks every DiffReviewVersion in the repository and expands
     # every line of every file into a LineFact. Inlining that in the detail
     # payload put seconds onto every repository page load, so the page must
@@ -2296,6 +2359,95 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body).not_to have_key("cognitive_debt")
+    end
+  end
+
+  describe "repository detail sections" do
+    let(:repository) { Factories.repository(user: user, default_branch: "main") }
+
+    it "keeps section payloads out of the base response" do
+      sign_in_as(user)
+
+      get "/api/v1/app/repositories/#{repository.id}"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.keys).not_to include("jobs", "pagination", "health_history", "delivery", "syrus_yml")
+    end
+
+    it "paginates jobs independently" do
+      sign_in_as(user)
+      Factories.job_record(repository: repository, issue_number: 1)
+
+      get "/api/v1/app/repositories/#{repository.id}/jobs", params: { page: 1 }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to include("jobs" => include(include("issue_number" => 1)), "pagination" => include("page" => 1, "total_jobs" => 1))
+      expect(parse_body.keys).to contain_exactly("jobs", "pagination", "provider_availability")
+      expect(parse_body.fetch("jobs").first).not_to have_key("provider_availability")
+    end
+
+    it "serves health history without the overview payload" do
+      sign_in_as(user)
+
+      get "/api/v1/app/repositories/#{repository.id}/health_history"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.keys).to contain_exactly("health_history")
+    end
+
+    it "serves delivery independently" do
+      sign_in_as(user)
+      get "/api/v1/app/repositories/#{repository.id}/delivery"
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.keys).to contain_exactly("delivery")
+    end
+
+    it "serves and caches the syrus config summary in the viewer's credential context" do
+      sign_in_as(user)
+      cache_fetches = []
+      allow(Rails.cache).to receive(:fetch) do |key, **options, &block|
+        cache_fetches << [ key, options ]
+        block.call
+      end
+
+      get "/api/v1/app/repositories/#{repository.id}/syrus_yml"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.keys).to contain_exactly("syrus_yml")
+      expect(cache_fetches).to include(
+        satisfy("a revision-keyed syrus_yml cache entry") do |key, options|
+          key.first(2) == [ "repository_syrus_yml_summary", repository.id ] && key.length == 3 && options == { expires_in: 5.minutes }
+        end
+      )
+    end
+
+    it "isolates cached job counts by viewer" do
+      sign_in_as(user)
+      allow(Rails.cache).to receive(:fetch).and_call_original
+
+      get "/api/v1/app/repositories/#{repository.id}"
+
+      expect(response).to have_http_status(:ok)
+      expect(Rails.cache).to have_received(:fetch).with(
+        [ "repository_detail_counts", repository.id, user.id ],
+        expires_in: 30.seconds
+      )
+    end
+
+    it "combines explicitly included sections and memoizes provider availability" do
+      sign_in_as(user)
+      2.times { |index| Factories.job_record(repository: repository, issue_number: index + 1) }
+      provider_calls = []
+      original_for_user = App::ProviderAvailability.method(:for_user)
+      allow(App::ProviderAvailability).to receive(:for_user) do |*args|
+        provider_calls << args
+        original_for_user.call(*args)
+      end
+
+      get "/api/v1/app/repositories/#{repository.id}", params: { include: "jobs,delivery,health_history" }
+
+      expect(parse_body.keys).to include("jobs", "pagination", "provider_availability", "delivery", "health_history")
+      expect(provider_calls.group_by(&:last).transform_values(&:size).values).to all(eq(1))
     end
   end
 
@@ -2378,6 +2530,16 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       expect(body["days"]).to eq(10)
       trend_dates = body["trend"].map { |row| row["date"] }
       expect(trend_dates).not_to include(old_snap.created_at.to_date.to_s)
+    end
+
+    it "caps the days param and returns an ETag" do
+      sign_in_as(user)
+
+      get "/api/v1/app/repositories/#{repository.id}/coverage_trend", params: { days: 10_000 }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["days"]).to eq(365)
+      expect(response.headers["ETag"]).to be_present
     end
 
     it "returns 401 when not signed in" do

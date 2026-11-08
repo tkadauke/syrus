@@ -895,7 +895,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     get "/api/v1/app/repositories", headers: { "Authorization" => "Bearer #{token}" }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body.fetch("repositories").map { |repo| repo["id"] }).to include(repository.id)
+    expect(parse_body.fetch("active_repositories").map { |repo| repo["id"] }).to include(repository.id)
 
     delete "/api/v1/app/credentials/revoke_api_token"
 
