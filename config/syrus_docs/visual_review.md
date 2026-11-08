@@ -22,15 +22,11 @@ attributed to its target and semantic screen generation in the Review UI.
 
 ## On by default
 
-Visual review is on by default instance-wide — there is no `visual_review`
-Feature flag to toggle (the September 2026 Labs graduation removed the
-instance-wide gate outright, not just flipped its default: visual review was
-already independently gated per-repository via `.syrus.yml`'s
-`visual_review.enabled`, so the instance-wide flag was redundant once it
-became unconditionally available). A repository opts out (or overrides
-rounds/files/seed notes) per repo via `.syrus.yml`'s `visual_review` block
-(see [`syrus_yml.md`](syrus_yml.md)); omitting the block (or the `enabled`
-key within it) defers to the always-on default.
+Visual review is on by default instance-wide; there is no feature flag to
+toggle. A repository opts out (or overrides rounds/files/seed notes) per repo via
+`.syrus.yml`'s `visual_review` block (see [`syrus_yml.md`](syrus_yml.md));
+omitting the block (or the `enabled` key within it) defers to the always-on
+default.
 
 ## How it works
 

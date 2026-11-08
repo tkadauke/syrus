@@ -34,8 +34,8 @@ change each chat surface independently later in the Permissions Hub.
 
 ## Permission authority lifetimes
 
-Syrus represents permanent agent authority as an audited `PermissionRule` and
-temporary authority as a `PermissionLease`. Temporary leases support one exact
+Syrus represents permanent agent authority as an audited permission rule and
+temporary authority as a permission lease. Temporary leases support one exact
 invocation, the current chat session, or the current Job. Workflow and Run ids
 may identify where a request originated, but they are not authority lifetimes.
 
@@ -169,13 +169,9 @@ delivery never hides the global Approvals badge, the blocked-agent indicator,
 the central inbox entry, or the request at its origin.
 
 The global Approvals shield sits beside notifications and always shows the
-pending total. When an agent is stopped at an authorization checkpoint, the
-shield uses an amber waiting halo until the request is resolved and announces
-newly blocked agents to assistive technology. Reduced-motion preferences replace
-the animated halo with a static ring. On mobile widths the shield opens the
-shared full-screen Activity shell (`ActivityProvider`) on its Approvals tab
-instead of the side drawer; notifications and approvals stay separate data
-models and every decision keeps the same audit path. Infrastructure and security banners remain
+pending total, with a visible waiting indicator while an agent is stopped at an
+authorization checkpoint. Notifications and approvals stay separate, and every
+decision keeps the same audit path. Infrastructure and security banners remain
 the higher-priority alert surface.
 
 ## Plugin-provided AI approval
@@ -267,7 +263,7 @@ and the rest of the permission store stay chat-only).
 - `request_permission` asks the owner for authority for the coworker itself:
   exact capability and operation, normalized resource scope, descriptor-supported
   constraints, a purpose and the narrowest suitable duration. The request is
-  validated through the same `RuleDraft` preview the Permissions Hub applies, so
+  validated through the same preview the Permissions Hub applies, so
   only durations the descriptor autonomy ceiling and the owner's policy accept
   are offered. Creating it grants nothing: it creates (or reuses) the same
   durable authorization request shown in chats and the approval inbox. The
@@ -293,7 +289,7 @@ revocations are retained in the permission audit history.
 ## Coworker enforcement
 
 A gated coworker invocation runs through the common evaluator. Descriptor
-defaults are active authority; legacy coworker grants neither advertise a tool
+defaults are active authority; older coworker grants neither advertise a tool
 nor bypass its decision. An `allow` decision dispatches immediately, `deny`
 fails closed, and `ask` creates one exact-operation request containing a
 redacted argument snapshot and stable invocation fingerprint. Equivalent active

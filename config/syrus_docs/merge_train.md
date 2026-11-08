@@ -16,11 +16,9 @@ failure policy, but there is no global enable/disable switch.
 While waiting for siblings, Jobs show a blocked reason: "waiting for Epic merge-train."
 An Epic released by the experimental early dependency-execution feature may
 implement and collect approval while its upstream Epic is unfinished, but it
-remains outside the merge train. The dispatcher checks strict Epic dependency
-completion both before dispatch and again while holding the Epic lock; the
-assemble step rechecks it once more before building. This keeps landing and
-Epic completion in dependency order even across scheduler restarts or stale
-queue snapshots.
+remains outside the merge train. Strict Epic dependency completion is rechecked
+immediately before the train is built, so landing and Epic completion stay in
+dependency order.
 
 Merge trains are Epic-wide workflows. Only one Epic-wide workflow may be active
 for an Epic at a time, and an active Epic-wide workflow blocks ordinary Job
