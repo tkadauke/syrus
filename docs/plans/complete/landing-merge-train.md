@@ -5,7 +5,9 @@ implementation plan. Current operator-facing behavior lives in
 `config/syrus_docs/merge_train.md`, `config/syrus_docs/landing_queue.md`, and
 `config/syrus_docs/app_settings.md`; this file is retained as design history._
 
-Status: **implemented (v1)** — controlled by `AppSetting.merge_train_enabled`.
+Status: **implemented (v1)**. The feature toggle described by this historical
+plan was removed; eligible Epic landing now uses the merge train unconditionally.
+Current behavior is owned by the operator documents linked above.
 
 ## Implementation status (v1)
 
@@ -173,7 +175,7 @@ The rest of this doc designs Option B.
 A merge-train attempt is dispatched for an **Epic** (not a loose set of
 PRs) when, for that Epic's children on one repository/base:
 
-- `AppSetting.merge_train_enabled?` and the repo opts in, and
+- the merge-train rollout toggle is enabled and the repository opts in, and
 - the **readiness policy** is met (see below).
 
 Non-Epic Jobs keep today's single-Job `AutoMerge` path unchanged — the
@@ -315,7 +317,7 @@ landing — not by isolating a culprit.
 
 ### Rollout
 
-- `AppSetting.merge_train_enabled` (default **off**),
+- a rollout-only merge-train feature toggle (default **off**),
   `merge_train_max_size` (cap members per attempt; very large Epics land
   in capped chunks, each still a consistent dependency-closed prefix).
 - Ship dark; enable for `tkadauke/raytracer` first (the Epic-batch repo).

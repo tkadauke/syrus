@@ -25,4 +25,8 @@ RSpec.describe "CLAUDE.md startup context size" do
       File.exist?(File.expand_path(path, root))
     end)
   end
+
+  it "routes engineering knowledge through the agent-neutral index" do
+    expect(File.read(claude_md_path)).to include("(docs/engineering/README.md)")
+  end
 end
