@@ -1,4 +1,6 @@
 class StackRebaseCoordinator
+  SUPERSEDABLE_RETRY_CLASSIFICATION = "awaiting_stable_base".freeze
+
   def self.parent_amended(parent)
     new(parent).parent_amended
   end
@@ -52,9 +54,30 @@ class StackRebaseCoordinator
     return if WorkUnits::Ownership.active_for_job?(child)
     return if RebaseWorkflowSelector.active_merge_train_for_stack?(child)
     return if automatic_rebase_deferred_until_epic_materialized?(child)
+    return if automatic_rebase_deferred_to_pending_retry?(child)
 
     workflow = RebaseWorkflowSelector.instantiate(job: child, base_branch: child.effective_base_branch)
     WorkUnits::Launcher.start!(workflow)
+  end
+
+  # A failed workflow with a pending auto-retry is neither running nor finished,
+  # so the ownership guard does not see it. Rebasing under it would force-push
+  # the branch out from beneath a workspace the retry is about to replay.
+  # `awaiting_stable_base` is the exception: the step is failing *on* the
+  # rebase, so retrying cannot help and the rebase supersedes the attempt.
+  # Operator-initiated rebases do not pass through this coordinator.
+  def automatic_rebase_deferred_to_pending_retry?(child)
+    pending = child.auto_retry_attempts.pending.to_a
+    return false if pending.empty?
+
+    blocking, superseded = pending.partition { |a| a.failure_classification != SUPERSEDABLE_RETRY_CLASSIFICATION }
+    if blocking.any?
+      Rails.logger.info("[StackRebaseCoordinator] #{child.slug} has a pending auto-retry; skipping automatic cascade")
+      return true
+    end
+
+    superseded.each { |a| a.skip_stale_pending!("superseded by stack rebase") }
+    false
   end
 
   def automatic_rebase_deferred_until_epic_materialized?(child)
