@@ -2730,3 +2730,13 @@ describe("pin control", () => {
     })
   })
 })
+
+describe("truncatedToolResultMarker", () => {
+  it("recognizes the server's truncated tool-result shape only", async () => {
+    const { truncatedToolResultMarker } = await import("./MessageCards")
+    expect(truncatedToolResultMarker({ truncated: true, original_bytes: 2048, preview: "abc" })).toEqual({ originalBytes: 2048, preview: "abc" })
+    expect(truncatedToolResultMarker({ truncated: true })).toBeNull()
+    expect(truncatedToolResultMarker({ ok: true })).toBeNull()
+    expect(truncatedToolResultMarker("text")).toBeNull()
+  })
+})
