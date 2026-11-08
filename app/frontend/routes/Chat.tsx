@@ -44,7 +44,7 @@ import {
   uploadVideoWalkthrough,
   type VideoWalkthrough
 } from "../api/videoWalkthroughs"
-import { mergeChatPayloadUpdate, refreshRecentChats, updateRecentChatCache } from "../lib/chatCache"
+import { mergeChatPayloadUpdate, refreshRecentChats, updateChatUnread, updateRecentChatCache } from "../lib/chatCache"
 import { useDismissiblePopup } from "../lib/useDismissiblePopup"
 import {
   branchChat,
@@ -329,7 +329,7 @@ export function ChatRoute() {
     const markRead = async (retry: boolean) => {
       try {
         await markChatRead(id)
-        if (!cancelled) refreshRecentChats(queryClient)
+        if (!cancelled) updateChatUnread(queryClient, Number(id), false)
       } catch {
         if (cancelled) return
         await queryClient.refetchQueries({ queryKey, exact: true })

@@ -1,6 +1,13 @@
 import { QueryClient, QueryObserver } from "@tanstack/react-query"
 import { describe, expect, it, vi } from "vitest"
-import { mergeChatPayloadUpdate, recentChatsQueryKey, removeRecentChatFromCache, updateChatUnread, updateRecentChatCache } from "./chatCache"
+import {
+  mergeChatPayloadUpdate,
+  recentChatsQueryKey,
+  removeRecentChatFromCache,
+  setOpenRecentChatId,
+  updateChatUnread,
+  updateRecentChatCache
+} from "./chatCache"
 import { updateRecentChatMessageStateCache } from "./chatRecentCache"
 import type { ChatNavRecord, ChatPayload, ChatsIndexPayload } from "../api/chats"
 
@@ -319,6 +326,33 @@ describe("updateChatUnread", () => {
       [1, false],
       [2, true]
     ])
+  })
+
+  it("keeps the open chat in unread-only caches after it is marked read", () => {
+    const queryClient = new QueryClient()
+    const key = recentChatsQueryKey({ unread_only: true })
+    queryClient.setQueryData(key, {
+      repositories: [],
+      groups: [
+        {
+          key: "general",
+          label: "General",
+          repository_id: null,
+          chats: [chatRecord({ id: 1, title: "Open", lastMessageAt: "2026-06-25T11:00:00Z", unread: true })],
+          has_more: false
+        }
+      ]
+    })
+
+    setOpenRecentChatId(1)
+    try {
+      updateChatUnread(queryClient, 1, false)
+      expect(queryClient.getQueryData<ChatsIndexPayload>(key)?.groups[0].chats.map((chat) => [chat.id, chat.unread])).toEqual([[1, false]])
+    } finally {
+      setOpenRecentChatId(null)
+    }
+    updateChatUnread(queryClient, 1, false)
+    expect(queryClient.getQueryData<ChatsIndexPayload>(key)?.groups[0].chats).toEqual([])
   })
 
   it("moves read chats out of the unread status group", () => {
