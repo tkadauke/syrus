@@ -32,6 +32,13 @@ tests. If a repository needs signing, keep Keychain/provisioning setup in the
 macOS worker runbook and repository-owned scripts; do not put secrets in
 `.syrus.yml`.
 
+Use `-workspace` when the app has a workspace (especially with CocoaPods or
+Swift packages that generate one) and `-project` only for project-only apps.
+Always name the scheme explicitly and choose a simulator destination available
+on the Mac worker pool; keep `OS=latest` only when the fleet is kept current.
+If a formatter emits JUnit XML, write it to a stable path such as
+`build/syrus/junit/ios-tests.xml` and declare it as the grader's `junit_output`.
+
 ## Swift Package Manager
 
 Use `type: swiftpm` for Swift Package Manager validation on the same macOS

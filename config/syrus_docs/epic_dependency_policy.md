@@ -41,7 +41,7 @@ upstream Epic qualifies only when it is in the same repository, both Epics use
 the linear policy, each side has a unique root and tail, and every upstream
 work Job has both a PR branch and captured head SHA. Syrus connects the
 downstream root to the upstream tail using `parent_job` plus a concrete
-`JobDependency`; Workflow base artifacts retain the selected parent branch,
+Job dependencies; Workflow base artifacts retain the selected parent branch,
 Job ID, and head SHA. Epic dependency completion remains the strict landing
 gate. Cross-repository, unresolved, multi-upstream, incomplete, and nonlinear
 graphs stay blocked.
@@ -54,7 +54,7 @@ upstream Epic completes successfully, the recorded boundary is collapsed and
 the downstream root is retargeted to the repository landing branch without
 replaying the upstream Epic's obsolete commits.
 
-A handful of older Epics still carry a `JobDependency` graph with more than one parent per child (predating the unconditional linear-chain enforcement described below). For those, eager execution first looks for an unambiguous stack base. If a child has multiple approved same-Epic parents and no single downstream parent branch contains every dependency change, Syrus tries to prepare a synthetic execution base branch by merging those dependency PR branches in deterministic dependency order. If that merge is clean, the child starts from the prepared base. If it conflicts or a dependency branch/head SHA is missing, the child stays queued with `stack_fan_in_base_unavailable` and includes the blocking dependency branches plus the operator action: land the siblings, linearize the stack, or resolve the merge conflict. This execution path is driven entirely by the shape of the actual `JobDependency` graph, not by the `epic_dependency_policy` field.
+A handful of older Epics still carry a dependency graph with more than one parent per child (predating the unconditional linear-chain enforcement described below). For those, eager execution first looks for an unambiguous stack base. If a child has multiple approved same-Epic parents and no single downstream parent branch contains every dependency change, Syrus tries to prepare a synthetic execution base branch by merging those dependency PR branches in deterministic dependency order. If that merge is clean, the child starts from the prepared base. If it conflicts or a dependency branch/head SHA is missing, the child stays queued with `stack_fan_in_base_unavailable` and includes the blocking dependency branches plus the operator action: land the siblings, linearize the stack, or resolve the merge conflict. This execution path is driven entirely by the shape of the actual dependency graph, not by the `epic_dependency_policy` field.
 
 ## Proposal validation
 
