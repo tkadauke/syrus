@@ -334,7 +334,7 @@ describe("ProviderRoutingRulesEditor", () => {
     }
     renderPanel({ onUpdateRule, rules: [coworkerRule] })
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    fireEvent.click(screen.getByRole("button", { name: "Edit Maya review" }))
     const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
     expect(within(dialog).getByLabelText("Coworker reviewer")).toHaveValue("coworker:opaque-maya")
     expect(within(dialog).getByText(/Dedicated coworker review requires a named coworker/)).toBeInTheDocument()
