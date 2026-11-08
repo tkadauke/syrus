@@ -130,6 +130,7 @@ module Steps
         changed_files_fingerprint: changed_files_fingerprint,
         validation_source: "clean_rebase"
       )
+      LandingValidationManifest.carry_forward_from!(workflow: workflow, source_workflow: source.workflow, head_sha: head_sha, tree_sha: tree_sha, base_sha: base_sha, base_ref: base_ref)
       log("force_push: carried green grade across clean rebase (#{repository.slug}: trust_clean_rebase_grade, #{source.reason}); next landing will skip re-grading head #{head_sha.first(7)}")
     rescue StandardError => e
       Rails.logger.warn("[ForcePush] carry-forward landing validation failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")

@@ -270,7 +270,9 @@ RSpec.describe Steps::GraderFanout, :ci_only do
       include("name" => "unit", "target_label" => "//:grade/unit", "affected" => true, "target_fingerprints" => include("command_fingerprint")),
       include("name" => "e2e", "target_label" => "//:grade/e2e", "affected" => true)
     )
-    expect(workflow.artifact(Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY).map { |e| e["name"] }).to eq([ "unit" ])
+    # Landing also runs the required CI-phase target (LandingGraderPlan), so the
+    # exact SHA is proven against it before merge.
+    expect(workflow.artifact(Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY).map { |e| e["name"] }).to contain_exactly("unit", "e2e")
   end
 
   it "does not record a CI-phase target set for non-landing workflows" do

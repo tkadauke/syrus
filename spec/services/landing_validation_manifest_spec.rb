@@ -93,15 +93,24 @@ RSpec.describe LandingValidationManifest, :real_landing_validation_gate do
       expect(verdict.blockers.first.code).to eq("sha_mismatch")
     end
 
-    it "accepts a rebased SHA only when the tree is identical" do
+    it "never promotes another SHA's evidence to exact-SHA evidence, even with an identical tree" do
       store(manifest)
       verdict = described_class.evidence_for(job: job, sha: "d" * 40, tree_sha: "tree1")
-      expect(verdict).to be_ok
-      expect(verdict.binding).to eq("same_tree")
+      expect(verdict).not_to be_ok
+      expect(verdict.blockers.first.code).to eq("sha_mismatch")
+      expect(verdict.reason).to include("identical").and include("re-run landing validation")
     end
 
     it "blocks when the job has no manifest at all" do
       expect(described_class.evidence_for(job: job, sha: sha).blockers.first.code).to eq("manifest_missing")
+    end
+
+    it "carries the trusted source workflow's manifest onto a rebased SHA" do
+      source = store(manifest)
+      target_workflow = Workflow.create!(job: job, trigger_kind: "auto_merge")
+      described_class.carry_forward_from!(workflow: target_workflow, source_workflow: source, head_sha: "e" * 40, tree_sha: "t2", base_sha: "f" * 40, base_ref: "main")
+      expect(described_class.evidence_for(job: job, sha: "e" * 40)).to be_ok
+      expect(described_class.carry_forward_from!(workflow: target_workflow, source_workflow: Workflow.create!(job: job, trigger_kind: "initial"), head_sha: "x", tree_sha: nil, base_sha: nil, base_ref: nil)).to be_nil
     end
 
     it "accepts an explicit clean-rebase carry-forward bound to the new SHA" do
@@ -112,6 +121,41 @@ RSpec.describe LandingValidationManifest, :real_landing_validation_gate do
       expect(verdict).to be_ok
       expect(verdict.binding).to eq("clean_rebase_carry_forward")
       expect(verdict.manifest["carried_from_sha"]).to eq(sha)
+    end
+  end
+
+  describe "main-grading contract (CI-phase target set)" do
+    def ci_target(name, required: true, affected: true)
+      { "name" => name, "target_label" => "//:grade/#{name}", "required" => required, "affected" => affected }
+    end
+
+    it "blocks when an affected required CI target has no passing landing result" do
+      verdict = described_class.verify(manifest("ci_phase_target_set" => { "targets" => [ ci_target("e2e") ] }), expected_sha: sha)
+      expect(verdict.blockers.map(&:code)).to eq([ "ci_phase_target_not_validated" ])
+      expect(verdict.reason).to include("e2e")
+    end
+
+    it "does not block on unaffected or non-required CI targets (delta stays diagnostic)" do
+      set = { "targets" => [ ci_target("a", affected: false), ci_target("b", required: false) ] }
+      expect(described_class.verify(manifest("ci_phase_target_set" => set), expected_sha: sha)).to be_ok
+    end
+
+    it "accepts a CI target covered by a passing landing result" do
+      set = { "targets" => [ ci_target("rspec") ] }
+      expect(described_class.verify(manifest("ci_phase_target_set" => set), expected_sha: sha)).to be_ok
+    end
+
+    it "fails closed when the CI-phase target set could not be resolved" do
+      verdict = described_class.verify(manifest("ci_phase_target_set" => { "unavailable" => "boom", "targets" => [] }), expected_sha: sha)
+      expect(verdict.blockers.map(&:code)).to eq([ "ci_phase_target_set_unavailable" ])
+    end
+
+    it "requires command and environment fingerprints as evidence, not just an exit code" do
+      allow(GraderOutcome).to receive(:for_step).and_return(GraderOutcome::Result.new("passed", "grader_passed", {}))
+      built = described_class.send(:step_entry, instance_double(Step, details: { "name" => "x", "command" => "bin/x", "exit_code" => 0, "required" => true }, state: "succeeded"), sha)
+      expect(built["has_evidence"]).to be(false)
+      expect(built["source_sha"]).to be_nil
+      expect(built["source_binding"]).to eq("workspace_head")
     end
   end
 
