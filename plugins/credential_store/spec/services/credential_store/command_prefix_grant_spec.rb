@@ -33,8 +33,8 @@ RSpec.describe "command prefix grants for SSH" do
 
   it "covers the family the operator named" do
     expect(match?("git commit", "git commit -m hello")).to be(true)
-    expect(match?("git commit", %q{git commit -m "hello world"})).to be(true)
-    expect(match?("sqlite3 -readonly /config/db", %q{sqlite3 -readonly /config/db "select 1"})).to be(true)
+    expect(match?("git commit", %q(git commit -m "hello world"))).to be(true)
+    expect(match?("sqlite3 -readonly /config/db", %q(sqlite3 -readonly /config/db "select 1"))).to be(true)
   end
 
   it "refuses to project a command carrying shell syntax, so no prefix rule can reach it" do
@@ -55,9 +55,9 @@ RSpec.describe "command prefix grants for SSH" do
     # `.shell` word runs a command. An operator granting
     # `sqlite3 -readonly <db>` is thinking about queries, and would not expect
     # to have handed over a shell.
-    [ %q{sqlite3 -readonly /config/db ".shell rm -rf /tmp/x"},
-      %q{sqlite3 -readonly /config/db ".system id"},
-      %q{sqlite3 -readonly /config/db ".once /tmp/out"} ].each do |command|
+    [ %q(sqlite3 -readonly /config/db ".shell rm -rf /tmp/x"),
+      %q(sqlite3 -readonly /config/db ".system id"),
+      %q(sqlite3 -readonly /config/db ".once /tmp/out") ].each do |command|
       expect(projected(command)).to be_nil, "expected #{command.inspect} not to be projected"
       expect(match?("sqlite3 -readonly /config/db", command)).to be(false)
     end
@@ -73,10 +73,10 @@ RSpec.describe "command prefix grants for SSH" do
     prefix = "sqlite3 -readonly /config/home-assistant_v2.db"
 
     expect(match?(prefix, %Q{#{prefix} "select count(*) from states"})).to be(true)
-    expect(match?(prefix, %Q{#{prefix} "select entity_id, state from states limit 5"})).to be(true)
+    expect(match?(prefix, %Q(#{prefix} "select entity_id, state from states limit 5"))).to be(true)
     # A different database, and a write to the same one, are both outside it.
-    expect(match?(prefix, %q{sqlite3 -readonly /config/other.db "select 1"})).to be(false)
-    expect(match?(prefix, %q{sqlite3 /config/home-assistant_v2.db "drop table states"})).to be(false)
+    expect(match?(prefix, %q(sqlite3 -readonly /config/other.db "select 1"))).to be(false)
+    expect(match?(prefix, %q(sqlite3 /config/home-assistant_v2.db "drop table states"))).to be(false)
   end
 
   it "does not let a longer token pass as the prefix" do
