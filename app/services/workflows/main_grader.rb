@@ -89,6 +89,7 @@ module Workflows
         updates[:last_graded_sha] = sha if sha
         repository.update!(updates)
       end
+      record_landing_parity!(workflow, repository, sha)
       MainBranchHealthCheck.record_grader_workflow(
         repository: repository,
         branch: branch,
@@ -106,6 +107,20 @@ module Workflows
       end
 
       close_anchor_job!(workflow)
+    end
+
+    # Attributes every target this main check selected to the pre-merge
+    # manifest for the landed commit, or to an explicit post-merge delta.
+    # Diagnostic only: it never changes health, and failing to compute it must
+    # not fail the health update.
+    private_class_method def self.record_landing_parity!(workflow, repository, sha)
+      return if sha.blank?
+
+      manifest = LandingValidationManifest.manifest_for_landed_sha(repository: repository, sha: sha)
+      selections = Array(workflow.artifact(Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY))
+      LandingValidationManifest.record_main_parity!(workflow: workflow, manifest: manifest, selections: selections, main_sha: sha)
+    rescue StandardError => e
+      Rails.logger.warn("[Workflows::MainGrader] landing parity comparison failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
     end
 
     private_class_method def self.aggregate_target_health_after_success(workflow)

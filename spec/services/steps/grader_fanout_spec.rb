@@ -249,6 +249,43 @@ RSpec.describe Steps::GraderFanout, :ci_only do
     )
   end
 
+  it "records the CI-phase target set for landing workflows so main-only targets surface as a pre-merge delta" do
+    write_config(<<~YAML)
+      grade:
+        - name: unit
+          run: bin/rspec
+          phases: [landing, ci]
+        - name: e2e
+          run: bin/e2e
+          phases: [ci]
+    YAML
+    workflow.update!(trigger_kind: "auto_merge")
+    stub_changed_files("app/models/user.rb")
+
+    handler.call
+
+    ci_set = workflow.reload.artifact(LandingValidationManifest::CI_TARGET_SET_ARTIFACT_KEY)
+    expect(ci_set["phase"]).to eq("ci")
+    expect(ci_set["targets"]).to contain_exactly(
+      include("name" => "unit", "target_label" => "//:grade/unit", "affected" => true, "target_fingerprints" => include("command_fingerprint")),
+      include("name" => "e2e", "target_label" => "//:grade/e2e", "affected" => true)
+    )
+    expect(workflow.artifact(Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY).map { |e| e["name"] }).to eq([ "unit" ])
+  end
+
+  it "does not record a CI-phase target set for non-landing workflows" do
+    write_config(<<~YAML)
+      grade:
+        - name: unit
+          run: bin/rspec
+    YAML
+    stub_changed_files("app/models/user.rb")
+
+    handler.call
+
+    expect(workflow.reload.artifact(LandingValidationManifest::CI_TARGET_SET_ARTIFACT_KEY)).to be_nil
+  end
+
   it "records target capabilities in selection artifacts, materialized Step details, and fanout logs" do
     write_config(<<~YAML)
       grade:

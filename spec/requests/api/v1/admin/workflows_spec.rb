@@ -114,6 +114,17 @@ RSpec.describe "API: /api/v1/admin/workflows/:id/*", type: :request do
   end
 
   describe "GET /workflows/:id" do
+    it "surfaces validation parity diagnostics (manifest, landing gate, main parity) without raw logs" do
+      workflow.set_artifact!(LandingValidationManifest::ARTIFACT_KEY, "head_sha" => "abc", "targets" => [ { "name" => "rspec", "required" => true, "outcome" => "inconclusive", "reason" => "timed_out" } ])
+      workflow.set_artifact!("landing_parity_gate", "ok" => false, "blockers" => [ { "code" => "required_result_inconclusive" } ])
+
+      get "/api/v1/admin/workflows/#{workflow.id}", headers: auth
+
+      body = response.parsed_body
+      expect(body.dig("validation_parity", "landing_gate", "blockers", 0, "code")).to eq("required_result_inconclusive")
+      expect(body.dig("validation_parity", "manifest", "targets", 0)).to include("name" => "rspec", "outcome" => "inconclusive")
+    end
+
     it "returns the workflow's nested state without sibling workflows from the same Job" do
       original = workflow  # materialize before adding the sibling
       sibling = Workflow.create!(job: job, trigger_kind: "rebase", state: "succeeded",

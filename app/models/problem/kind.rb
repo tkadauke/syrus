@@ -174,6 +174,9 @@ class Problem
                 default_remediation: :restart_workflow),
       Entry.new(code: "merge_train_rebase_conflict", scope: :unit, retryable: false,
                 default_remediation: :escalate),
+      Entry.new(code: "landing_validation_unproven", scope: :unit, retryable: true,
+                default_remediation: :restart_workflow,
+                label: "Landing validation unproven"),
       Entry.new(code: "merge_train_rebuild_required", scope: :unit, retryable: false,
                 default_remediation: :rebuild_unit,
                 failure_codes: %w[merge_train_base_moved])

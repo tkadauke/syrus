@@ -71,6 +71,8 @@ module Steps
 
       mirror_durable_approval_to_github!(client, gate.pr)
 
+      enforce_validation_parity!(gate.pr)
+
       previous_base_sha = capture_previous_base_sha(client, gate)
 
       merge = merge_pull_request(client, gate)
@@ -92,6 +94,20 @@ module Steps
     end
 
     private
+
+    # The PR head about to be merged must be backed by a SHA-bound validation
+    # manifest with conclusive required results (LandingValidationManifest).
+    def enforce_validation_parity!(pr)
+      sha = MergeabilityRecorder.head_sha(pr)
+      verdict = LandingValidationManifest.gate(job: job, sha: sha, workflow: workflow)
+      return if verdict.ok?
+
+      raise StepFailed.new(
+        "auto_merge: refusing to merge #{sha.to_s.first(9)}: #{verdict.reason}",
+        problem_code: :landing_validation_unproven,
+        evidence: { blockers: verdict.blockers.map(&:to_h) }
+      )
+    end
 
     # Evaluate the merge gate, but if GitHub reports a transient
     # mergeable_state (it's still recomputing after our push), poll a

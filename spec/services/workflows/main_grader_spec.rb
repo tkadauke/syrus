@@ -59,6 +59,48 @@ RSpec.describe Workflows::MainGrader do
       expect(repository.reload.grader_health).to eq("healthy")
     end
 
+    context "landing parity" do
+      let(:selection) do
+        { "name" => "rspec", "target_label" => "//:grade/rspec", "required" => true, "affected" => true,
+          "target_fingerprints" => { "command_fingerprint" => "c", "environment_fingerprint" => "e" } }
+      end
+
+      def land_with_manifest(targets)
+        landing = Workflow.create!(job: job, trigger_kind: "auto_merge")
+        landing.set_artifact!(LandingValidationManifest::ARTIFACT_KEY, "head_sha" => "pre-merge", "targets" => targets)
+        job.update_column(:landed_sha, sha)
+      end
+
+      it "attributes selected targets to matching pre-merge evidence without changing health" do
+        land_with_manifest([ { "name" => "rspec", "target_label" => "//:grade/rspec", "required" => true, "outcome" => "passed", "source" => "ran", "command_fingerprint" => "c", "environment_fingerprint" => "e" } ])
+        workflow.set_artifact!(Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY, [ selection ])
+
+        described_class.after_success(workflow)
+
+        expect(workflow.reload.artifact(LandingValidationManifest::PARITY_ARTIFACT_KEY)).to include("status" => "matched", "manifest_sha" => "pre-merge")
+        expect(repository.reload.grader_health).to eq("healthy")
+      end
+
+      it "records an explicit post-merge delta when the environment fingerprint differs" do
+        land_with_manifest([ { "name" => "rspec", "target_label" => "//:grade/rspec", "required" => true, "outcome" => "passed", "command_fingerprint" => "c", "environment_fingerprint" => "other" } ])
+        workflow.set_artifact!(Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY, [ selection ])
+
+        described_class.after_success(workflow)
+
+        parity = workflow.reload.artifact(LandingValidationManifest::PARITY_ARTIFACT_KEY)
+        expect(parity["status"]).to eq("delta")
+        expect(parity["deltas"].first).to include("reason" => "environment_fingerprint_changed")
+      end
+
+      it "records no_manifest when the commit was not landed by Syrus" do
+        workflow.set_artifact!(Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY, [ selection ])
+
+        described_class.after_success(workflow)
+
+        expect(workflow.reload.artifact(LandingValidationManifest::PARITY_ARTIFACT_KEY)).to include("status" => "no_manifest")
+      end
+    end
+
     it "records last_graded_sha when the workflow settles healthy" do
       described_class.after_success(workflow)
 
