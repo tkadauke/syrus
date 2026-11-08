@@ -1013,9 +1013,14 @@ advance-after-triage ordering. Proposal payloads and the chat proposal card
 surface the override for confirmation display; dependency and linear-chain
 validation are unchanged.
 
-`propose_job` accepts `priority`, and `propose_epic_with_jobs` accepts a
-`jobs[].priority` for each child. Valid values are `urgent`, `high`, `medium`,
-and `low`; omission defaults to `medium`. The proposal card displays the
+Priority is an operator-only scheduling decision. `propose_job` accepts an
+optional `priority`, and `propose_epic_with_jobs` an optional `jobs[].priority`
+for each child, but the assistant passes them only when the operator explicitly
+specifies `urgent`, `high`, `medium`, or `low`. Severity, impact, recency, or
+the assistant's recommendation never authorize an override, and relative
+priorities among Epic children are never inferred. Without an explicit
+operator choice the field is omitted and the default (`medium`) applies. The
+operator can still choose any priority. The proposal card displays the
 selected priority, and confirmation copies it onto the Job before the initial
 state transition, so admission and the first queued Run use that priority.
 
