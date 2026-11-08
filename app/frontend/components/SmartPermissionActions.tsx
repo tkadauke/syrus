@@ -154,7 +154,7 @@ export function SmartPermissionActions({
                 {t("permission_smart.prefix_label")}
               </label>
               <Input
-                className="font-mono"
+                className="font-mono text-xs"
                 disabled={busy || resolvingPrefix}
                 id={prefixId}
                 onChange={(event) => {
