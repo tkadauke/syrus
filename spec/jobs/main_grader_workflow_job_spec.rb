@@ -62,6 +62,44 @@ RSpec.describe MainGraderWorkflowJob do
     described_class.perform_now(repository.id, sha)
   end
 
+  describe "past the stale-intake threshold" do
+    it "never reaches classification or an Epic and leaves the infrastructure Workflow and WorkUnit untouched" do
+      described_class.perform_now(repository.id, sha)
+      job = Job.find_by!(repository: repository, kind: "main_grader")
+      workflow = job.workflows.first
+      job.update_columns(
+        state: "triaging", triaging_reason: "classifier_pending",
+        created_at: 30.minutes.ago, updated_at: 30.minutes.ago
+      )
+      epic = Factories.epic(user: user, repository: repository, title: "Main grading")
+      work_units = WorkUnit.where(id: WorkUnitMember.where(job_id: job.id).select(:work_unit_id))
+      snapshot = lambda do
+        [
+          workflow.reload.attributes,
+          workflow.steps.order(:id).map(&:attributes),
+          work_units.order(:id).map(&:attributes)
+        ]
+      end
+      before_state = snapshot.call
+      expect(work_units).to be_present
+
+      result = WorkEngine::Reconciler.call(source: "main_grader_spec", job_id: job.id)
+      result.repair_plans.select(&:auto_executable).each do |plan|
+        next unless plan.action == "reclassify_stalled_intake"
+
+        WorkEngine::RepairExecutor::Policies::Base.for(plan.action).new(plan: plan, now: Time.current).execute
+      end
+
+      expect(result.issues.map(&:kind)).not_to include("stalled_classifier_pending_job")
+      expect(result.repair_plans.map(&:action)).not_to include("reclassify_stalled_intake")
+      expect(ClassifyIssueJob).not_to have_been_enqueued
+      expect(JobClassificationAttempt.where(job_id: job.id)).to be_empty
+      expect(job.reload.epic_id).to be_nil
+      expect(snapshot.call).to eq(before_state)
+      expect { job.update!(epic: epic) }.to raise_error(ActiveRecord::RecordInvalid)
+    end
+  end
+
   it "does not record last_graded_sha before the grader workflow settles" do
     described_class.perform_now(repository.id, sha)
     expect(repository.reload.last_graded_sha).to be_nil
