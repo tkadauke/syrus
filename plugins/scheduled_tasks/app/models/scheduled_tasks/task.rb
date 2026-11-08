@@ -255,11 +255,24 @@ module ScheduledTasks
       date = system_schedule_definition.failure_date(task: self, now: at)
       return unless date
 
-      reason = "#{error.class}: #{CommandRedactor.redact(error.message)}".truncate(1_000)
+      reason = fire_failure_reason(error)
       record_system_result!(date: date, result: "failed", reason: reason)
     end
 
     private
+
+    # Class, message and the first backtrace frame (file:line), so the failing
+    # line is visible durably after the operational logs have rotated.
+    def fire_failure_reason(error)
+      message = error.message.to_s.encode(Encoding::UTF_8, invalid: :replace, undef: :replace, replace: "\uFFFD").scrub("\uFFFD")
+      reason = "#{error.class}: #{CommandRedactor.redact(message)}".truncate(800)
+      frame = error.backtrace&.first
+      return reason unless frame
+
+      frame = frame.to_s.dup.force_encoding(Encoding::UTF_8).scrub("\uFFFD")
+      frame = frame.delete_prefix("#{Rails.root}/")
+      "#{reason} (at #{CommandRedactor.redact(frame)})".truncate(1_000)
+    end
 
     def prevent_system_schedule_destruction
       throw(:abort) if !system_destruction && system_schedule_error!(:base, "System schedules cannot be deleted.")
