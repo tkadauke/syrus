@@ -1554,7 +1554,7 @@
       "workflow_trigger_kind": "Workflow-Trigger",
       "search_workflow": "Trigger suchen",
       "no_matches": "Keine Treffer.",
-      "other": "+{{batch}} weitere",
+      "other": "+{{count}} weitere",
       "usage": "Anbieter-Nutzung",
       "day_time": "Tag und Uhrzeit",
       "job_metadata": "Job-Typ",

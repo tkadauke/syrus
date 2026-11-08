@@ -1,0 +1,4 @@
+en:
+  design_docs:
+    errors:
+      visible_body_blank: "visible body can't be blank"

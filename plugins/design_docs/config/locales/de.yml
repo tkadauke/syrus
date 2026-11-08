@@ -1,0 +1,4 @@
+de:
+  design_docs:
+    errors:
+      visible_body_blank: "sichtbarer Text darf nicht leer sein"

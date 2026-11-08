@@ -166,7 +166,7 @@ module DesignDocs
     def visible_markdown_present
       return if DesignDocs::AnchorMarkers.strip(markdown).present?
 
-      errors.add(:markdown, "visible body can't be blank")
+      errors.add(:markdown, I18n.t("design_docs.errors.visible_body_blank"))
     end
 
     def clear_current_version_reference
