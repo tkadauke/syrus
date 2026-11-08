@@ -260,6 +260,48 @@ describe("RunTranscriptLogs", () => {
     expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith(expect.stringContaining("12 examples, 0 failures"))
   })
 
+  it.each([
+    ["dotted workflow sidecar name", "syrus-mcp-sidecar.cancel_wakeup"],
+    ["mcp__ workflow sidecar name", "mcp__syrus-mcp-sidecar__cancel_wakeup"]
+  ])("renders the registered card for a %s", (_label, toolName) => {
+    render(
+      <MemoryRouter>
+        <RunTranscriptLogs
+          agentic
+          logs={[
+            { id: 1, sequence: 1, kind: "tool_call", chunk: "call", tool_name: toolName, tool_input: { wakeup_id: 7 }, tool_use_id: "w-1", created_at: null },
+            {
+              id: 2,
+              sequence: 2,
+              kind: "tool_result",
+              chunk: "result",
+              tool_use_id: "w-1",
+              tool_result_content: JSON.stringify({ cancelled: true, wakeup_id: 7 }),
+              tool_result_error: false,
+              created_at: null
+            }
+          ]}
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByTestId("tool-group-preview")).toHaveTextContent("Cancelled wakeup #7")
+  })
+
+  it("keeps the generic system fallback for legacy rows without structured metadata", () => {
+    render(
+      <MemoryRouter>
+        <RunTranscriptLogs
+          agentic
+          logs={[{ id: 1, sequence: 1, kind: "tool_call", chunk: "[codex mcp] cancel_wakeup started", created_at: null }]}
+        />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByText("[codex mcp] cancel_wakeup started")).toBeInTheDocument()
+    expect(screen.queryByTestId("run-transcript-tool-group")).not.toBeInTheDocument()
+  })
+
   it("renders assistant, system, and structured tools with the chat surfaces", () => {
     render(
       <MemoryRouter>

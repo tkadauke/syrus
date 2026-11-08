@@ -17,7 +17,7 @@ export { normalizedToolCardParsedResult, parseJsonText } from "../../toolCardPar
 const WORKSPACE_MARKER = "/.syrus/"
 const WORKSPACE_TOKEN_DELIMITERS = new Set([" ", "\n", "\r", "\t", "'", '"', "`", ",", ":", ";", "]", ")", "}"])
 const COUNTED_RESULT_TOOLS = new Set(["Read", "Glob", "Grep"])
-const CHAT_MCP_SERVER_PREFIXES = ["syrus-chat-sidecar", "syrus-chat-deferred-sidecar"]
+const CHAT_MCP_SERVER_PREFIXES = ["syrus-chat-sidecar", "syrus-chat-deferred-sidecar", "syrus-mcp-sidecar"]
 const RESULT_SUMMARY_LINE_THRESHOLD = 8
 const TOOL_RESULT_PREVIEW_CHARS = 20_000
 const TOOL_RESULT_PREVIEW_LINES = 400
