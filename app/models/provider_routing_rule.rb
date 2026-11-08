@@ -136,12 +136,10 @@ class ProviderRoutingRule < ApplicationRecord
   def validate_step_trigger
     kind = trigger["kind"].to_s
     errors.add(:trigger, :step_kind_required) if kind.blank?
-    errors.add(:trigger, :step_kind_not_agentic) if kind.present? && !Step::Kind.agentic_values.include?(kind) && kind != "coworker_review"
+    errors.add(:trigger, :step_kind_not_agentic) if kind.present? && !Step::Kind.agentic_values.include?(kind)
   end
 
   def panel_capable_trigger?
-    return true if trigger["type"] == "step" && trigger["kind"] == "coworker_review"
-
     trigger["type"] == "step" && Step::Kind.fetch(trigger["kind"]).panel_capable
   rescue KeyError
     false
@@ -289,7 +287,7 @@ class ProviderRoutingRule < ApplicationRecord
       validate_candidate(candidate, index, valid_providers)
     end
     if reviewer_target_required? && candidate_list.any? { |candidate| candidate.to_h["reviewer_target"].blank? }
-      errors.add(:candidates, :coworker_review_requires_reviewer_targets)
+      errors.add(:candidates, :reviewer_targets_required)
     end
   end
 
@@ -355,7 +353,10 @@ class ProviderRoutingRule < ApplicationRecord
   end
 
   def reviewer_target_trigger?
-    trigger["type"] == "step" && trigger["kind"].in?(%w[adversarial_review security_review coworker_review])
+    return false unless trigger["type"] == "step"
+
+    kind = Step::Kind.by_kind[trigger["kind"]]
+    kind.present? && (kind.panel_capable || kind.reviewer_target_required)
   end
 
   def reviewer_target_required?
