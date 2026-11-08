@@ -935,6 +935,11 @@ la:
       owner_assigned: "Possessor Job attributus est."
       choose_owner: "Elige possessorem."
       owner_not_found: "Usor possessor non inventus est."
+  plugin_repository_configuration:
+    absent_legacy_owner: "%{key} ad additamentum absens %{owner} pertinet"
+    provider_not_installed: "provisor configurationis %{owner} non installatus est"
+    provider_status: "provisor configurationis %{owner} est %{status}"
+    legacy_key_status: "%{key} ad additamentum %{owner} (%{status}) pertinet"
   permission_presentation:
     fallback_statement: "Agens veniam tuam petit."
     agent_fallback: "Agens"

@@ -275,7 +275,9 @@ module Mcp
       end
       policy_managed_names = defined?(SyrusMcp::CoreToolSet::POLICY_MANAGED_NAMES) ? SyrusMcp::CoreToolSet::POLICY_MANAGED_NAMES : []
       definitions = definitions.map { |definition| Permissions::CapabilityDescriptorAdapter.for_plugin_definition(definition).then { |descriptor| definition.merge(capability_descriptor: descriptor) } }
-      definitions.select! { |definition| definition.fetch(:capability_descriptor).requestable_roles.include?(context.role) }
+      # Only definitions that explicitly declare requestable roles are narrowed;
+      # legacy definitions rely on their tool set's own context gating.
+      definitions.select! { |definition| definition[:requestable_roles].blank? || definition.fetch(:capability_descriptor).requestable_roles.include?(context.role) }
 
       definitions.reject { |defn| policy_managed_names.include?(defn[:name]) }.map do |defn|
         tool = MCP::Tool.define(

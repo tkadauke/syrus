@@ -73,7 +73,7 @@ class PluginRepositoryConfiguration
         next unless raw.key?(key) && !declared_legacy_keys.include?(key)
 
         diagnostics << Diagnostic.new(
-          key:, owner:, status: "absent", message: "#{key} belongs to absent plugin #{owner.inspect}"
+          key:, owner:, status: "absent", message: I18n.t("plugin_repository_configuration.absent_legacy_owner", key:, owner: owner.inspect)
         )
       end
       Set.new(contributions:, diagnostics:)
@@ -153,11 +153,11 @@ class PluginRepositoryConfiguration
         registration = registrations[key]
         unless registration
           owner = key.split(".", 2).first
-          diagnostics << Diagnostic.new(key:, owner:, status: "absent", message: "configuration provider #{owner.inspect} is not installed")
+          diagnostics << Diagnostic.new(key:, owner:, status: "absent", message: I18n.t("plugin_repository_configuration.provider_not_installed", owner: owner.inspect))
           next
         end
         unless registration.status == "enabled"
-          diagnostics << Diagnostic.new(key:, owner: registration.owner, status: registration.status, message: "configuration provider #{registration.owner.inspect} is #{registration.status}")
+          diagnostics << Diagnostic.new(key:, owner: registration.owner, status: registration.status, message: I18n.t("plugin_repository_configuration.provider_status", owner: registration.owner.inspect, status: registration.status))
           next
         end
         raise SyrusYml::ParseError, "plugins.#{key}: must be a mapping" unless envelope.is_a?(Hash)
@@ -184,7 +184,7 @@ class PluginRepositoryConfiguration
           else
             diagnostics << Diagnostic.new(
               key: legacy_key, owner: registration.owner, status: registration.status,
-              message: "#{legacy_key} belongs to #{registration.status} plugin #{registration.owner.inspect}"
+              message: I18n.t("plugin_repository_configuration.legacy_key_status", key: legacy_key, status: registration.status, owner: registration.owner.inspect)
             )
           end
         rescue ArgumentError => e

@@ -995,6 +995,11 @@ en:
       owner_assigned: "Job owner assigned."
       choose_owner: "Choose an owner."
       owner_not_found: "Owner user not found."
+  plugin_repository_configuration:
+    absent_legacy_owner: "%{key} belongs to absent plugin %{owner}"
+    provider_not_installed: "configuration provider %{owner} is not installed"
+    provider_status: "configuration provider %{owner} is %{status}"
+    legacy_key_status: "%{key} belongs to %{status} plugin %{owner}"
   permission_presentation:
     fallback_statement: "An agent wants your permission to act."
     agent_fallback: "An agent"
