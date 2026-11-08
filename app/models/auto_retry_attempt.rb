@@ -153,13 +153,15 @@ class AutoRetryAttempt < ApplicationRecord
   # are simply from different moments and a difference proves nothing.
   def branch_head_moved?
     return false unless job && run
-    recorded = run.head_sha.presence
-    current = job.mergeability_head_sha.presence
-    return false if recorded.blank? || current.blank?
     return false if run.finished_at.blank? || job.mergeability_checked_at.blank?
     return false if job.mergeability_checked_at <= run.finished_at
 
-    recorded != current
+    sha_moved?(run.head_sha, job.mergeability_head_sha) ||
+      sha_moved?(run.base_sha, job.mergeability_base_sha)
+  end
+
+  def sha_moved?(recorded, current)
+    recorded.present? && current.present? && recorded != current
   end
 
   def request_reconciliation

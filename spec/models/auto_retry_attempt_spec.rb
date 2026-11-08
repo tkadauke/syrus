@@ -322,6 +322,25 @@ RSpec.describe AutoRetryAttempt, type: :model do
         expect(attempt.reload.skipped_reason).to be_nil
       end
 
+      it "skips the attempt when only the effective base moved" do
+        run.update_columns(base_sha: "c" * 40)
+        attempt = described_class.create!(valid_attrs)
+        job.update_columns(mergeability_head_sha: "a" * 40, mergeability_base_sha: "d" * 40, mergeability_checked_at: 1.minute.ago)
+        allow(WorkEngine::Reconciler).to receive(:request)
+
+        expect(attempt.stale_pending_reason).to eq(described_class::BRANCH_REWRITTEN_SKIP_REASON)
+        attempt.skip_stale_pending!(attempt.stale_pending_reason)
+        expect(WorkEngine::Reconciler).to have_received(:request).with(hash_including(job: job))
+      end
+
+      it "leaves the attempt pending when head and base are both unchanged" do
+        run.update_columns(base_sha: "c" * 40)
+        attempt = described_class.create!(valid_attrs)
+        job.update_columns(mergeability_head_sha: "a" * 40, mergeability_base_sha: "c" * 40, mergeability_checked_at: 1.minute.ago)
+
+        expect(attempt.stale_pending_reason).to be_nil
+      end
+
       it "ignores a head recorded before the source run finished" do
         attempt = described_class.create!(valid_attrs)
         job.update_columns(mergeability_head_sha: "b" * 40, mergeability_checked_at: 20.minutes.ago)
