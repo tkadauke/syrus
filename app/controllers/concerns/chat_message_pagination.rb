@@ -3,7 +3,10 @@
 #
 # These build the keyset-paginated message window (latest page, or the page
 # before a cursor id) and serialize messages through the shared payload
-# builder. On MySQL they force the (session_id, id) cursor index so keyset
+# builder. `ChatMessageWindow` decides how far a window reaches -- it is sized
+# by rendered rows rather than message count, so see it before assuming a
+# window holds a fixed number of messages. On MySQL they force the
+# (session_id, id) cursor index so keyset
 # pagination stays on the intended plan. Active payload reads force the
 # (session_id, deleted_at, id) index so soft-deleted rows don't pollute large
 # chat scans. They read only the chat session's messages, so they mix straight
@@ -11,21 +14,12 @@
 module ChatMessagePagination
   private
 
-  PAGE_SIZE = ChatSession::MESSAGE_PAGE_SIZE
-
   def paginated_tail(chat_session)
-    scope = message_scope(chat_session)
-    fetched = scope.order(id: :desc).limit(PAGE_SIZE + 1).to_a
-    has_more = fetched.size > PAGE_SIZE
-    [ fetched.first(PAGE_SIZE).reverse, has_more ]
+    ChatMessageWindow.new(message_scope(chat_session)).call
   end
 
   def paginated_before(chat_session, before_id)
-    scope = message_scope(chat_session)
-    scope = scope.where("id < ?", before_id) if before_id&.positive?
-    fetched = scope.order(id: :desc).limit(PAGE_SIZE + 1).to_a
-    has_more = fetched.size > PAGE_SIZE
-    [ fetched.first(PAGE_SIZE).reverse, has_more ]
+    ChatMessageWindow.new(message_scope(chat_session)).call(before: before_id&.positive? ? before_id : nil)
   end
 
   def message_scope(chat_session)

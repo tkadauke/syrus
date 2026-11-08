@@ -3,6 +3,9 @@ class ChatSession < ApplicationRecord
   include PluginDataCleanup
   include AuthorizationCheckpointOrigin
 
+  # Paging for agents reading a transcript through the MCP tools. The chat UI
+  # does not use this -- its window is sized by rendered rows in
+  # ChatMessageWindow, because a message count does not predict a height.
   MESSAGE_PAGE_SIZE = 30
   TITLE_MAX_LENGTH = 120
   SUGGESTED_NEXT_STEP_MAX_BYTES = 200

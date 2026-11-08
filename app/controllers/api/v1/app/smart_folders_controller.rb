@@ -22,11 +22,11 @@ module Api
           )
 
           if folder.save
-            render json: smart_folders_payload(subject_type: subject_type).merge(
+            render json: {
               message: "Smart folder saved.",
               redirect_to: dashboard_path_for(subject_type, smart_folder_id: folder.id),
               smart_folder: smart_folder_json(folder)
-            ), status: :created
+            }, status: :created
           else
             render_error("validation_failed", folder.errors.full_messages.to_sentence, status: :unprocessable_content)
           end
@@ -50,7 +50,7 @@ module Api
           end
 
           if smart_folder.update(attributes)
-            render json: smart_folders_payload(subject_type: smart_folder.subject_type).merge(message: "Smart folder updated.")
+            render json: { message: "Smart folder updated.", smart_folder: smart_folder_json(smart_folder) }
           else
             render_error("validation_failed", smart_folder.errors.full_messages.to_sentence,
                          status: :unprocessable_content)
@@ -61,24 +61,12 @@ module Api
 
         def destroy
           smart_folder = Current.user.smart_folders.find(params[:id])
-          subject_type = smart_folder.subject_type
           smart_folder.destroy!
 
-          render json: smart_folders_payload(subject_type: subject_type).merge(message: "Smart folder deleted.")
+          render json: { message: "Smart folder deleted.", deleted_id: smart_folder.id }
         end
 
         private
-
-        def smart_folders_payload(subject_type: smart_folder_subject)
-          folders = SmartFolder.for_user(Current.user, subject: subject_type)
-
-          {
-            subject_type: subject_type,
-            subject_label: SmartFolder.label_for_subject(subject_type),
-            dashboard_path: dashboard_path_for(subject_type),
-            smart_folders: folders.map { |folder| smart_folder_json(folder) }
-          }
-        end
 
         def smart_folder_json(folder)
           {

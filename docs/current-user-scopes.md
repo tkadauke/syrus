@@ -123,6 +123,7 @@ per-user/private:
   - app/controllers/api/v1/app/auth_controller.rb
   - app/controllers/api/v1/app/bootstrap_controller.rb
   - app/controllers/api/v1/app/bug_reports_controller.rb
+  - app/controllers/api/v1/app/me_controller.rb
   - app/controllers/api/v1/app/browser_errors_controller.rb
   - app/controllers/api/v1/app/ui_engagement_samples_controller.rb
   - app/controllers/api/v1/app/user_time_zones_controller.rb
@@ -217,6 +218,7 @@ per-user/private:
   - app/views/spa/show.html.erb
   - plugins/agent_activity/app/controllers/api/v1/app/agent_activity_controller.rb
   - plugins/agent_memory/app/controllers/api/v1/app/memories_controller.rb
+  - plugins/calendar/app/controllers/api/v1/app/calendar/events_controller.rb
   - plugins/agent_insights/app/controllers/api/v1/app/insight_schedule_configs_controller.rb
   - plugins/agent_insights/app/controllers/api/v1/app/insight_suggestions_controller.rb
   - plugins/attention_report/app/controllers/api/v1/app/insights/attention_controller.rb
@@ -413,6 +415,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/jobs_controller.rb` | per-user/private and admin gate | Job detail/source and chat feedback submission are scoped through `JobPolicy` (`policy_scope(Job)`, exactly `Current.user.jobs` — see [Policy layer](#policy-layer-repositoryjobepic)); timeline is separately admin-only because it exposes run history. |
 | `app/controllers/api/v1/app/local_daemon_sessions_controller.rb` | per-user/private | Creates and manages local daemon sessions through `Current.user.chat_sessions`; daemon session creation sets `user: Current.user`. |
 | `plugins/agent_memory/app/controllers/api/v1/app/memories_controller.rb` | per-user/private and admin gate | Memory listing includes the current user's own memories plus repository-published memories for that user's repositories; writes are owner-only unless the viewer is an admin. |
+| `plugins/calendar/app/controllers/api/v1/app/calendar/events_controller.rb` | per-user/private | Calendar events are built by `Calendar::EventQuery.call(user: Current.user, ...)`, so each event source only returns data the signed-in user is authorized to see. |
 | `app/controllers/api/v1/app/approval_delegations_controller.rb` | per-user/private | Lists, creates, and revokes only `Current.user.approval_provider_delegations`. |
 | `app/controllers/api/v1/app/notification_preferences_controller.rb` | per-user/private | Reads and updates only `Current.user.notification_preferences`. |
 | `app/controllers/api/v1/app/pending_feedback_controller.rb` | per-user/private | Pending feedback actions (apply/ignore/replace) find the parent job through `Current.user.jobs` and serialize a full `App::JobDetailPayload` for that user. |
@@ -449,6 +452,7 @@ instead of broader model scopes.
 | `app/controllers/api/v1/app/tags_controller.rb` | per-user/private | Tags are created, updated, deleted, and listed through `Current.user.tags`. |
 | `app/controllers/api/v1/app/target_graphs_controller.rb` | per-user/private | Target graph views resolve repositories, Jobs, and Workflows through `Current.user`-scoped accessors before returning graph data. |
 | `plugins/terminal/app/controllers/api/v1/app/terminal_sessions_controller.rb` | per-user/private | Terminal sessions are listed, created, shown, and killed through `Terminal::Session.where(user: Current.user)`; recent Workflow workspace choices and workflow defaults are scoped through `Current.user.workflows`. |
+| `app/controllers/api/v1/app/me_controller.rb` | per-user/private | Serializes only the signed-in user's own profile, team user count, and unread notification count via `AppApi::MeSerializer.new(user: Current.user)`. |
 | `app/controllers/api/v1/app/theme_controller.rb` | per-user/private | Updates only `Current.user.theme` for the signed-in operator. |
 | `app/controllers/api/v1/app/themes_controller.rb` | per-user/private | Lists and shows themes through `Theme.selectable_by(Current.user)` (built-ins plus the current user's own custom themes), so a user can't fetch another user's custom theme by guessing its id. |
 | `app/controllers/api/v1/app/tours_controller.rb` | per-user/private | Marks individual tours seen and resets all seen tours through `Current.user.mark_tour_seen` / `Current.user.reset_tours!`. |

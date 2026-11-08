@@ -5,10 +5,13 @@ module PendingActions
     def perform
       job = repair_action_job
       result = nil
+      # Announced before the lock, not inside it: a progress write is a write
+      # to the pending action, and a write made inside another record's
+      # transaction is undone if that transaction rolls back.
+      progress!("Creating CI repair rerun...")
       job.with_lock do
         job.reload
         RepairPreflight.ci_repair(job: job).ensure_eligible!
-        progress!("Creating CI repair rerun...")
         result = CiRepair::ManualRerun.call(
           job: job,
           reason: reason,

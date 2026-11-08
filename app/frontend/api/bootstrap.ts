@@ -1,8 +1,5 @@
 import { getJson } from "./client"
-import type { ProviderAvailability } from "./providerAvailability"
-import type { SetupStatusPayload } from "./setup"
 import type { ColorTheme } from "./themes"
-import type { ReviewDiffSettings } from "./reviewDiffSettings"
 
 export type SystemAlertAction =
   | {
@@ -25,34 +22,24 @@ export type BootstrapPayload = {
   current_user: {
     id: number
     email_address: string
-    name: string | null
-    first_name: string | null
-    last_name: string | null
     display_name: string
     admin: boolean
     role: string
-    scheduling_paused: boolean
-    landing_paused: boolean
     agent_provider: string
     chat_provider: string | null
-    agent_max_turns: number
-    gemini_configured: boolean
     theme: "light" | "dark" | "system"
     color_theme_id?: number | null
     color_theme?: ColorTheme | null
     locale: "en" | "de" | "la"
-    notification_unread_count?: number
     seen_tours?: string[]
     sidebar_nav_order?: string[]
     mobile_chat_auto_hide_header?: boolean
-    review_diff_settings?: ReviewDiffSettings
   } | null
   time_zones?: {
     server: { name: string; source: "SYRUS_TIME_ZONE" | "TZ" | "default" }
     user: { name: string; mode: "automatic" | "manual" } | null
   }
   team_user_count: number
-  provider_availability?: Record<string, ProviderAvailability>
   app: {
     revision: string
     revision_url: string | null
@@ -69,46 +56,13 @@ export type BootstrapPayload = {
     report_issue_repo_slug: string
     ui_engagement_telemetry_enabled?: boolean
   }
-  setup_status: {
-    state: "not_started" | "first_admin" | "credentials_only" | "repository_only" | "ready_for_first_chat" | "first_chat_started" | "first_successful_job"
-    next_step: "configure_credentials" | "add_repository" | "start_first_chat" | null
-    next_step_path: string | null
-    first_admin: boolean
-    credentials_configured: boolean
-    repository_configured: boolean
-    onboarding_repository_id?: number | null
-    first_job_started: boolean
-    first_successful_job_completed: boolean
-    first_epic_created: boolean
-    first_epic_started: boolean
+  setup: {
+    complete: boolean
+    chat_started: boolean
     first_epic_landed: boolean
     onboarding_chat_started: boolean
-    credential_status: {
-      github: boolean
-      github_pat: boolean
-      github_app: boolean
-      agent: boolean
-      active_agent_provider: string
-      active_agent_provider_label?: string
-    }
-    readiness: {
-      status: "ok" | "warning" | "error"
-      checks: Array<{
-        key: string
-        label: string
-        status: "ok" | "warning" | "error"
-        message: string
-        remediation: string | null
-        optional: boolean
-      }>
-    }
-    counts: {
-      repositories: number
-      jobs: number
-      successful_jobs: number
-    }
   } | null
-  public: {
+  public?: {
     first_signup: boolean
     signups_open: boolean
     signup_path: string
@@ -116,10 +70,6 @@ export type BootstrapPayload = {
     docs_url: string
     evaluation_url: string
   }
-  navigation?: {
-    default_chat_path: string
-  }
-  setup?: SetupStatusPayload | null
   flash?: {
     alert?: string | null
     notice?: string | null

@@ -11,18 +11,11 @@ function buildBootstrap(seenTours: string[] = []): BootstrapPayload {
     current_user: {
       id: 1,
       email_address: "test@example.com",
-      name: "Test User",
-      first_name: null,
-      last_name: null,
       display_name: "Test User",
       admin: false,
       role: "developer",
-      scheduling_paused: false,
-      landing_paused: false,
       agent_provider: "claude",
       chat_provider: null,
-      agent_max_turns: 200,
-      gemini_configured: false,
       theme: "light",
       locale: "en",
       seen_tours: seenTours
@@ -34,9 +27,9 @@ function buildBootstrap(seenTours: string[] = []): BootstrapPayload {
       version: null,
       built_at: null,
       bug_report_mode: null,
-      report_issue_repo_slug: "owner/repo",
+      report_issue_repo_slug: "owner/repo"
     },
-    setup_status: null,
+    setup: null,
     public: {
       first_signup: false,
       signups_open: false,
@@ -56,25 +49,13 @@ function Probe({ tourId }: { tourId: string }) {
   return (
     <div>
       <span data-testid="run">{String(run)}</span>
-      <button
-        data-testid="finish"
-        onClick={() => handleJoyrideCallback({ status: STATUS.FINISHED })}
-        type="button"
-      >
+      <button data-testid="finish" onClick={() => handleJoyrideCallback({ status: STATUS.FINISHED })} type="button">
         finish
       </button>
-      <button
-        data-testid="skip"
-        onClick={() => handleJoyrideCallback({ status: STATUS.SKIPPED })}
-        type="button"
-      >
+      <button data-testid="skip" onClick={() => handleJoyrideCallback({ status: STATUS.SKIPPED })} type="button">
         skip
       </button>
-      <button
-        data-testid="running"
-        onClick={() => handleJoyrideCallback({ status: STATUS.RUNNING })}
-        type="button"
-      >
+      <button data-testid="running" onClick={() => handleJoyrideCallback({ status: STATUS.RUNNING })} type="button">
         running
       </button>
     </div>
@@ -117,8 +98,10 @@ describe("useTour", () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const bootstrapWithoutSeenTours = buildBootstrap([])
     // Simulate a bootstrap response that omits the seen_tours field entirely
-     
-    const { seen_tours: _omit, ...currentUserWithoutSeenTours } = bootstrapWithoutSeenTours.current_user as NonNullable<typeof bootstrapWithoutSeenTours.current_user> & { seen_tours: string[] }
+
+    const { seen_tours: _omit, ...currentUserWithoutSeenTours } = bootstrapWithoutSeenTours.current_user as NonNullable<
+      typeof bootstrapWithoutSeenTours.current_user
+    > & { seen_tours: string[] }
     queryClient.setQueryData(["bootstrap"], {
       ...bootstrapWithoutSeenTours,
       current_user: currentUserWithoutSeenTours
@@ -179,28 +162,23 @@ describe("useTour", () => {
     expect(dismissCall).toBeUndefined()
   })
 
-  it("triggers a bootstrap refetch after dismissing so seen_tours stays in sync", async () => {
+  it("patches seen_tours after dismissing without refetching bootstrap", async () => {
     let bootstrapCallCount = 0
     vi.spyOn(globalThis, "fetch").mockImplementation((url) => {
       if (String(url).includes("/api/v1/app/bootstrap")) {
         bootstrapCallCount++
-        // Refetch after dismiss returns the tour as seen
         return Promise.resolve(jsonResponse(buildBootstrap(["dashboard"])))
       }
-      return Promise.resolve(jsonResponse({}))
+      return Promise.resolve(jsonResponse({ seen_tours: ["dashboard"] }))
     })
 
-    // Cache is pre-populated; staleTime: Infinity means no automatic refetch on mount.
-    // After dismiss, invalidateQueries explicitly marks it stale and triggers a fetch.
     renderProbe("dashboard", [])
 
-    // Data is already in cache (seeded by renderProbe), so no initial fetch fires.
-    // After dismissal, invalidateQueries forces a refetch regardless of staleTime.
     act(() => screen.getByTestId("finish").click())
 
-    // onSuccess from dismiss mutation calls invalidateQueries → triggers a fetch
     await waitFor(() => {
-      expect(bootstrapCallCount).toBeGreaterThanOrEqual(1)
+      expect(screen.getByTestId("run")).toHaveTextContent("false")
     })
+    expect(bootstrapCallCount).toBe(0)
   })
 })

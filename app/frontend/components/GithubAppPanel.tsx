@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { fetchAdminGithubAppConfirm, fetchAdminGithubAppRegister, syncAdminGithubAppInstallations } from "../api/adminGithubApp"
-import type { BootstrapPayload } from "../api/bootstrap"
+import type { FullSetupStatusPayload } from "../api/setup"
 import { ApiError } from "../api/client"
 import { openInNewTab } from "../lib/desktopShell"
 import { useT } from "../hooks/useT"
@@ -71,20 +71,17 @@ export function GithubAppPanel({
       setAwaitingInstall(true)
     }
     setAwaiting(false)
-    queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) => {
-      if (!current?.setup_status) return current
+    queryClient.setQueryData<FullSetupStatusPayload>(["setup"], (current) => {
+      if (!current) return current
       return {
         ...current,
-        setup_status: {
-          ...current.setup_status,
-          credential_status: {
-            ...current.setup_status.credential_status,
-            github_app: true
-          }
+        credential_status: {
+          ...current.credential_status,
+          github_app: true
         }
       }
     })
-    void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
+    void queryClient.invalidateQueries({ queryKey: ["setup"] })
     onSavedRef.current?.()
   }, [awaiting, installationDiscoveryPolls, queryClient, registered])
 

@@ -217,6 +217,20 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
         include("value" => "codex", "label" => "Codex", "configured" => true)
       )
     end
+
+    it "supports conditional requests for unchanged picker data" do
+      sign_in_as(user)
+      repository
+
+      get "/api/v1/app/chats/new"
+      etag = response.headers.fetch("ETag")
+      expect(response.headers.fetch("Cache-Control")).to include("private", "max-age=30")
+
+      get "/api/v1/app/chats/new", headers: { "If-None-Match" => etag }
+
+      expect(response).to have_http_status(:not_modified)
+      expect(response.body).to be_empty
+    end
   end
 
   describe "GET /api/v1/app/chats/:id/preview" do
@@ -244,6 +258,11 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
         "pending_proposal_count" => 1,
         "pending_actions_count" => 1
       )
+      etag = response.headers.fetch("ETag")
+      expect(response.headers.fetch("Cache-Control")).to include("private", "max-age=30")
+
+      get "/api/v1/app/chats/#{chat.id}/preview", headers: { "If-None-Match" => etag }
+      expect(response).to have_http_status(:not_modified)
     end
 
     it "404s for a chat the current user does not participate in" do
@@ -445,7 +464,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body.dig("error", "code")).to eq("forbidden")
   end
 
-  it "lists recent chat groups and active repositories for CLI session picking" do
+  it "lists slim recent chat groups without repeating the new-chat repository picker" do
     sign_in_as(user)
     repository
     other_repo = Factories.repository(user: user, owner: "acme", name: "api")
@@ -475,10 +494,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body["repositories"]).to contain_exactly(
-      include("id" => repository.id, "slug" => "acme/widgets"),
-      include("id" => other_repo.id, "slug" => "acme/api")
-    )
+    expect(body).not_to have_key("repositories")
     expect(body["groups"].map { |group| group["key"] }).to eq([ "repository-#{repository.id}", "repository-#{other_repo.id}" ])
     expect(body["groups"].first).to include(
       "key" => "repository-#{repository.id}",
@@ -498,13 +514,14 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body.to_s).not_to include("Foreign chat")
   end
 
-  it "uses a lightweight chat index serializer while preserving chat settings fields" do
+  it "uses the slim chat nav serializer without per-row provider settings" do
     sign_in_as(user)
     first = ChatSession.create!(user: user, repository: repository, title: "Fast sidebar", last_message_at: Time.current)
     ChatSession.create!(user: user, repository: repository, title: "Another sidebar chat", last_message_at: 1.minute.ago)
+    goal = ChatGoal.create!(chat_session: first, user: user, repository: repository, prompt: "Do not repeat this in navigation")
 
-    expect_any_instance_of(Api::V1::App::ChatsController).to receive(:available_chat_models_for).once.and_call_original
-    expect_any_instance_of(Api::V1::App::ChatsController).to receive(:chat_provider_options).once.and_call_original
+    expect_any_instance_of(Api::V1::App::ChatsController).not_to receive(:available_chat_models_for)
+    expect_any_instance_of(Api::V1::App::ChatsController).not_to receive(:chat_provider_options)
 
     get "/api/v1/app/chats"
 
@@ -514,10 +531,12 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       "title" => "Fast sidebar",
       "effective_chat_provider" => "claude",
       "pending_proposal_count" => 0,
-      "scratchpad_items_count" => 0,
-      "available_chat_models" => include(include("value" => "claude-opus-4-7")),
-      "chat_provider_options" => include(include("value" => "claude"))
+      "scratchpad_items_count" => 0
     )
+    expect(chat).not_to have_key("available_chat_models")
+    expect(chat).not_to have_key("chat_provider_options")
+    expect(chat).not_to have_key("provider_availability")
+    expect(chat.fetch("active_goal")).to eq("id" => goal.id, "status" => "active")
   end
 
   it "omits hidden chats from recent chat groups" do
@@ -528,6 +547,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     get "/api/v1/app/chats"
 
     expect(response).to have_http_status(:ok)
+    expect(response.headers.fetch("Cache-Control")).to include("private", "max-age=30")
     group = parse_body["groups"].find { |candidate| candidate["repository_id"] == repository.id }
     expect(group["chats"].map { |chat| chat["id"] }).to eq([ visible_chat.id ])
     expect(parse_body.to_s).not_to include(hidden_chat.title)
@@ -560,6 +580,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     get "/api/v1/app/chats"
 
     expect(response).to have_http_status(:ok)
+    expect(response.headers.fetch("Cache-Control")).to include("private", "max-age=30")
     body = parse_body
     old_group = body["groups"].find { |group| group["repository_id"] == old_repo.id }
     expect(old_group).to include("key" => "repository-#{old_repo.id}", "label" => "acme/old")
@@ -583,20 +604,20 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body["groups"].size).to eq(24)
+    expect(body["groups"].size).to eq(8)
     expect(body["groups_has_more"]).to eq(true)
-    expect(body["groups_next_offset"]).to eq(24)
+    expect(body["groups_next_offset"]).to eq(8)
     expect(body["groups"].first["chats"].map { |chat| chat["id"] }).to eq([ chats.first.id ])
-    expect(body["groups"].last["chats"].map { |chat| chat["id"] }).to eq([ chats[23].id ])
+    expect(body["groups"].last["chats"].map { |chat| chat["id"] }).to eq([ chats[7].id ])
 
-    get "/api/v1/app/chats", params: { group_by: "date", group_offset: "24" }
+    get "/api/v1/app/chats", params: { group_by: "date", group_offset: "8" }
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body["groups"].size).to eq(2)
-    expect(body["groups_has_more"]).to eq(false)
-    expect(body["groups_next_offset"]).to be_nil
-    expect(body["groups"].flat_map { |group| group["chats"].map { |chat| chat["id"] } }).to eq(chats.last(2).map(&:id))
+    expect(body["groups"].size).to eq(8)
+    expect(body["groups_has_more"]).to eq(true)
+    expect(body["groups_next_offset"]).to eq(16)
+    expect(body["groups"].flat_map { |group| group["chats"].map { |chat| chat["id"] } }).to eq(chats.slice(8, 8).map(&:id))
   end
 
   it "groups and labels chat dates in the current user's timezone" do
@@ -614,6 +635,24 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     end
   end
 
+  it "caps initial groups at five chats while preserving the requested size for group expansion" do
+    sign_in_as(user)
+    user.update!(recent_chats_group_size: 20)
+    chats = 7.times.map do |index|
+      ChatSession.create!(user: user, title: "Chat #{index}", last_message_at: index.minutes.ago)
+    end
+
+    get "/api/v1/app/chats"
+
+    group = parse_body.fetch("groups").find { |item| item.fetch("key") == "general" }
+    expect(group.fetch("chats").map { |chat| chat.fetch("id") }).to eq(chats.first(5).map(&:id))
+    expect(group.fetch("has_more")).to eq(true)
+
+    get "/api/v1/app/chats/more", params: { group_by: "repository", group_key: "general", before_id: group.fetch("chats").last.fetch("id"), per_group: 20 }
+
+    expect(parse_body.fetch("chats").map { |chat| chat.fetch("id") }).to eq(chats.last(2).map(&:id))
+  end
+
   it "loads initial sidebar chat groups without one chat query per repository" do
     sign_in_as(user)
     8.times do |index|
@@ -625,9 +664,12 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     queries = capture_sql { get "/api/v1/app/chats" }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body["groups"].size).to eq(9)
+    expect(parse_body["groups"].size).to eq(8)
     chat_group_selects = queries.grep(/FROM ["`]?chat_sessions["`]?.*chat_attachments/im)
     expect(chat_group_selects.size).to be <= 2
+    expect(queries.grep(/FROM ["`]?repositories["`]?/i).size).to be <= 3
+    expect(queries.grep(/FROM ["`]?chat_messages["`]?/i).size).to be <= 1
+    expect(queries.grep(/FROM ["`]?workflows["`]?/i).size).to be <= 1
   end
 
   it "groups plugin chats in one batched lookup without exposing inaccessible or shared chats" do
@@ -725,6 +767,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     get "/api/v1/app/chats"
 
     expect(response).to have_http_status(:ok)
+    index_etag = response.headers.fetch("ETag")
+    expect(response.headers.fetch("Cache-Control")).to include("private", "max-age=30")
     group = parse_body["groups"].find { |candidate| candidate["repository_id"] == repository.id }
     expect(group["chats"].map { |chat| chat["id"] }).to eq(chats.first(5).map(&:id))
     expect(group["has_more"]).to eq(true)
@@ -734,11 +778,21 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     end
 
     expect(response).to have_http_status(:ok)
+    more_etag = response.headers.fetch("ETag")
+    expect(response.headers.fetch("Cache-Control")).to include("private", "max-age=30")
     body = parse_body
     expect(body["chats"].map { |chat| chat["id"] }).to eq(chats.last(2).map(&:id))
     expect(body["has_more"]).to eq(false)
     busy_agent_queries = queries.grep(/FROM ["`]?spawned_processes["`]?.*["`]?workdir["`]?/im)
     expect(busy_agent_queries.size).to eq(1)
+
+    get "/api/v1/app/chats", headers: { "If-None-Match" => index_etag }
+    expect(response).to have_http_status(:not_modified)
+
+    get "/api/v1/app/chats/more",
+      params: { repository_id: repository.id, before_id: group["chats"].last["id"] },
+      headers: { "If-None-Match" => more_etag }
+    expect(response).to have_http_status(:not_modified)
   end
 
   it "defaults the sidebar chat group size to 10 and honors a smaller configured value" do
@@ -858,7 +912,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
   # rescanned provider_availability_evidences. A chat list spanning several
   # providers therefore paid one full scan per provider. Batch once, then the
   # per-provider lookups read the warmed per-request cache.
-  it "scans provider availability evidence once regardless of how many providers the chats span" do
+  it "batches provider availability evidence once for the whole chat list" do
     sign_in_as(user)
     %w[claude codex].each_with_index do |provider, index|
       ChatSession.create!(user: user, title: "#{provider} chat", chat_provider: provider,
@@ -875,10 +929,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     end
 
     expect(response).to have_http_status(:ok)
-    # Batched: 6 scans. Per-provider (the bug): 14, and climbing with each
-    # additional provider in the list. The bound is deliberately loose -- it
-    # guards the batching, not an exact query count.
-    expect(scans).to be <= 8
+    expect(scans).to be <= 6 # one batch for all providers, independent of provider count
+    expect(parse_body["provider_availability"].keys).to contain_exactly("claude", "codex")
   end
 
   it "filters recent sidebar chats by derived chat type" do
@@ -1214,13 +1266,11 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
         .to eq([ stronger_chat.id, weaker_chat.id ])
       expect(body["results"].first).to include(
         "chat_title" => "Stronger",
-        "best_match_message_id" => stronger.id,
         "total_match_count" => 1,
         "has_more_matches" => false
       )
-      expect(body["results"].first["best_snippet"]).to include("<b>needle</b>")
       expect(body["results"].first["top_matches"]).to contain_exactly(
-        include("message_id" => stronger.id, "role" => "assistant")
+        include("message_id" => stronger.id, "role" => "assistant", "snippet" => a_string_including("<b>needle</b>"))
       )
     end
 
@@ -1240,7 +1290,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
       get "/api/v1/app/chats/search", params: { q: "needle" }
 
-      snippet = parse_body.dig("results", 0, "best_snippet")
+      snippet = parse_body.dig("results", 0, "top_matches", 0, "snippet")
       expect(snippet).to include("First <b>needle</b> line.\nSecond visible block.")
       expect(snippet).not_to include("[{", '"type"', "thinking", "needlereasoning", "\\n")
     end
@@ -1275,7 +1325,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body["results"]).to contain_exactly(
-        include("chat_session_id" => visible_chat.id, "best_match_message_id" => visible_message.id)
+        include("chat_session_id" => visible_chat.id, "top_matches" => include(include("message_id" => visible_message.id)))
       )
       expect(parse_body.to_s).not_to include("Hidden")
     end
@@ -1301,7 +1351,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       expect(parse_body["total"]).to eq(1)
       expect(parse_body["results"]).to contain_exactly(
-        include("chat_session_id" => matching.id, "chat_title" => "Matching", "top_matches" => [])
+        { "chat_session_id" => matching.id, "chat_title" => "Matching", "badges" => [] }
       )
       expect(parse_body.to_s).not_to include(nonmatching.title)
     end
@@ -1321,7 +1371,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       expect(parse_body["total"]).to eq(1)
       expect(parse_body["results"]).to contain_exactly(
-        include("chat_session_id" => matching.id, "best_match_message_id" => message.id)
+        include("chat_session_id" => matching.id, "top_matches" => include(include("message_id" => message.id)))
       )
       expect(parse_body.to_s).not_to include(text_only.title)
       expect(parse_body.to_s).not_to include(epic_only.title)
@@ -1334,16 +1384,15 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(parse_body).to include("results" => [], "total" => 0)
     end
 
-    it "returns all matching messages for a chat and query" do
+    it "limits matching messages and reports whether more are available" do
       chat = ChatSession.create!(user: user, repository: repository, title: "Memory")
-      first = create_indexed_message(chat, text: "needle first", role: "user")
-      second = create_indexed_message(chat, text: "needle second", role: "assistant")
+      51.times { |index| create_indexed_message(chat, text: "needle #{index}", role: index.even? ? "user" : "assistant") }
 
       get "/api/v1/app/chats/search/messages", params: { chat_session_id: chat.id, q: "needle" }
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body["matches"].map { |match| match["message_id"] })
-        .to contain_exactly(first.id, second.id)
+      expect(parse_body["matches"].size).to eq(50)
+      expect(parse_body["has_more"]).to eq(true)
       expect(parse_body["matches"]).to all(include("snippet", "role", "created_at"))
     end
 
@@ -1388,7 +1437,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body["results"]).to contain_exactly(
-        include("chat_session_id" => shared_chat.id, "best_match_message_id" => message.id)
+        include("chat_session_id" => shared_chat.id, "top_matches" => include(include("message_id" => message.id)))
       )
 
       get "/api/v1/app/chats/search/messages", params: { chat_session_id: shared_chat.id, q: "participantneedle" }
@@ -1430,7 +1479,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(parse_body["total"]).to eq(2)
       expect(parse_body["results"]).to contain_exactly(
         include("chat_session_id" => dense_chat.id, "total_match_count" => 1_001, "has_more_matches" => true),
-        include("chat_session_id" => other_chat.id, "best_match_message_id" => other_message.id)
+        include("chat_session_id" => other_chat.id, "top_matches" => include(include("message_id" => other_message.id)))
       )
     end
   end
@@ -1457,7 +1506,9 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     patch "/api/v1/app/chats/#{chat.id}/mark_read"
 
-    expect(response).to have_http_status(:no_content)
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.dig("chat", "id")).to eq(chat.id)
+    expect(parse_body.dig("chat", "unread")).to be(false)
     expect(chat.reload.chat_participants.find_by(user: user).last_read_at).to be_present
     expect(chat.updated_at.to_i).to eq(original_updated_at.to_i)
     expect(foreign_chat.reload.chat_participants.first.last_read_at).to be_nil
@@ -1615,6 +1666,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(chat.reload.title).to eq("Release planning")
     expect(parse_body["message"]).to eq("Chat renamed.")
     expect(parse_body.dig("chat", "title")).to eq("Release planning")
+    expect(parse_body).not_to have_key("messages")
   end
 
   it "clears a failed-generation fallback flag on rename so ChatTitleJob will not later overwrite it" do
@@ -1838,13 +1890,14 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body.dig("chat", "title")).to eq("widgets")
     expect(parse_body.dig("chat", "title_pending")).to eq(false)
     expect(parse_body.dig("chat", "repository", "slug")).to eq("acme/widgets")
-    expect(parse_body.dig("chat", "chat_provider")).to eq("claude")
+    expect(parse_body.fetch("chat")).not_to have_key("chat_provider")
     expect(parse_body.dig("chat", "effective_chat_provider")).to eq("claude")
   end
 
   it "creates an empty chat session without a first message" do
     sign_in_as(user)
     user.update!(chat_provider: "claude")
+    repository
     jobs_before_request = enqueued_jobs.count
 
     expect {
@@ -1856,7 +1909,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(chat.user).to eq(user)
     expect(chat.chat_provider).to eq("claude")
     expect(chat.effective_chat_provider).to eq("claude")
-    expect(chat.repository).to be_nil
+    expect(chat.repository).to eq(repository)
     expect(chat.last_message_at).to be_nil
     expect(chat.messages).to be_empty
     expect(ChatMessage.count).to eq(0)
@@ -2159,6 +2212,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       sign_in_as(user)
       other_user = Factories.user
       third_user = Factories.user
+      repository
 
       expect {
         post "/api/v1/app/chats", params: { participant_user_ids: [ other_user.id, third_user.id ] }
@@ -2167,10 +2221,22 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:created)
       chat = ChatSession.last
       expect(chat.conversation_kind).to eq("group")
+      expect(chat.repository).to eq(repository)
       expect(chat.participants).to contain_exactly(user, other_user, third_user)
       expect(chat.chat_participants.find_by(user: user).role).to eq("owner")
       expect(chat.chat_participants.find_by(user: other_user).role).to eq("member")
       expect(chat.chat_participants.find_by(user: third_user).role).to eq("member")
+    end
+
+    it "creates an explicitly repositoryless group chat" do
+      sign_in_as(user)
+      other_user = Factories.user
+      repository
+
+      post "/api/v1/app/chats", params: { participant_user_ids: [ other_user.id ], repository_id: nil }
+
+      expect(response).to have_http_status(:created)
+      expect(ChatSession.last.repository).to be_nil
     end
 
     it "rejects an unknown participant user id" do
@@ -2453,9 +2519,10 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
   it "creates a chat without a repository attachment" do
     sign_in_as(user)
+    repository
 
     expect {
-      post "/api/v1/app/chats", params: { chat_message: { text: "Map tkadauke/syrus" } }
+      post "/api/v1/app/chats", params: { repository_id: nil, chat_message: { text: "Map tkadauke/syrus" } }
     }.to change(ChatSession, :count).by(1)
       .and change(ChatMessage, :count).by(1)
       .and have_enqueued_job(ChatTurnJob)
@@ -3226,10 +3293,11 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
         }
       )
       # Enough newer text messages to push the image attachment outside the
-      # payload's paginated message window (ChatSession::MESSAGE_PAGE_SIZE)
-      # -- the regression this guards against is the sidebar Media tab
-      # hiding old media that scrolled out of the loaded tail.
-      (ChatSession::MESSAGE_PAGE_SIZE + 5).times { |n| chat.messages.create!(role: "user", content: { "text" => "note #{n}" }) }
+      # payload's paginated message window -- the regression this guards
+      # against is the sidebar Media tab hiding old media that scrolled out of
+      # the loaded tail. Each one is its own row, so the row target is the
+      # bound to clear.
+      (ChatMessageWindow::ROW_TARGET + 5).times { |n| chat.messages.create!(role: "user", content: { "text" => "note #{n}" }) }
 
       get "/api/v1/app/chats/#{chat.id}"
 
@@ -5939,6 +6007,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(chat.reload.title).to eq("Canal review")
     expect(parse_body["message"]).to eq("Chat renamed.")
     expect(parse_body.dig("chat", "title")).to eq("Canal review")
+    expect(parse_body).not_to have_key("messages")
   end
 
   it "requests a kill for a running agent process when stopping a chat" do
@@ -6900,6 +6969,26 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     post "/api/v1/app/chats/#{chat.id}/pending_action_groups/#{group.id}/reject"
     expect(response).to have_http_status(:unprocessable_content)
+  end
+
+  it "lets the operator dismiss a confirmation whose worker stopped without recording an outcome" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    job = Factories.job_record(repository: repository)
+    action = chat.pending_actions.create!(action: "cancel_job", payload: { "job_id" => job.id })
+    action.update!(state: "confirming", execution_status: "running", execution_step: "Starting CI repair rerun...")
+    # Stalled: nothing has touched it since well before the grace period, so
+    # the card would otherwise keep a spinner with no way to clear it --
+    # `confirming` is neither rejectable nor terminal.
+    action.update_columns(updated_at: (ChatPendingAction::CONFIRMATION_STALL_GRACE + 1.minute).ago)
+
+    delete "/api/v1/app/chats/#{chat.id}/pending_actions/#{action.id}"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["message"]).to eq("Pending action hidden.")
+    expect(action.reload.dismissed_at).to be_present
+    expect(action).to be_failed
+    expect(action.execution_error).to include("ConfirmationStalled")
   end
 
   it "lets the operator dismiss a failed pending action through the app API" do
@@ -8271,6 +8360,42 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     queries
   ensure
     ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+  end
+
+  describe "GET /api/v1/app/chats/:id/messages" do
+    # The stream collapses a run of consecutive tool calls into one card, so a
+    # window counted in messages can serve a surface the reader cannot scroll.
+    # These cover the wiring: that the endpoint and the initial payload both
+    # reach past such a run.
+    it "serves a window that reaches past a collapsed run of tool calls" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository)
+      chat.messages.create!(role: "user", content: { "text" => "where did the run fail?" })
+      40.times do
+        chat.messages.create!(role: "tool_use", tool_name: "read_run_transcript", content: { "text" => "call" })
+        chat.messages.create!(role: "tool_result", tool_name: "read_run_transcript", content: { "text" => "ok" })
+      end
+      chat.messages.create!(role: "assistant", content: { "text" => "here is what I found" })
+
+      get "/api/v1/app/chats/#{chat.id}/messages"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("messages").size).to eq(82)
+      expect(parse_body.fetch("has_more_older")).to be(false)
+    end
+
+    it "pages older messages before a cursor" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository)
+      oldest = chat.messages.create!(role: "user", content: { "text" => "oldest" })
+      newest = chat.messages.create!(role: "assistant", content: { "text" => "newest" })
+
+      get "/api/v1/app/chats/#{chat.id}/messages", params: { before: newest.id }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body.fetch("messages").map { |message| message.fetch("id") }).to eq([ oldest.id ])
+      expect(parse_body.fetch("has_more_older")).to be(false)
+    end
   end
 
   def prepare_search_tables

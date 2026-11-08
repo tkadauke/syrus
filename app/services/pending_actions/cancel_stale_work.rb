@@ -5,11 +5,14 @@ module PendingActions
     def perform
       job = repair_action_job
       cancelled = nil
+      # Announced before the transaction: a progress write is a write to the
+      # pending action, and one made inside this transaction is undone if it
+      # rolls back.
+      progress!("Cancelling stale active work for #{job.slug}...")
       ApplicationRecord.transaction do
         job.lock!
         eligibility = RepairPreflight.cancel_stale_work(job: job, workflow_ids: workflow_ids, run_ids: run_ids)
         eligibility.ensure_eligible!
-        progress!("Cancelling stale active work for #{job.slug}...")
         cancelled = cancel_work!(job)
       end
       if payload.fetch("reconcile", true)

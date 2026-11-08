@@ -28,7 +28,9 @@ RSpec.describe ChatJobSummary do
     discussion_job = Factories.job_record(user: user, repository: repository)
     later_chat = ChatSession.create!(user: user, repository: repository)
     proposal_for(proposed_job)
+    Workflow.create!(job: proposed_job, trigger_kind: "initial", state: "running")
     ChatAttachment.create!(chat_session: chat, attachable: discussion_job, attached_at: 2.minutes.ago)
+    Workflow.create!(job: discussion_job, trigger_kind: "initial", state: "running")
     ChatAttachment.create!(chat_session: later_chat, attachable: discussion_job, attached_at: 1.minute.ago)
 
     expect(summary[:jobs].pluck(:id)).to contain_exactly(proposed_job.id, discussion_job.id)
@@ -77,7 +79,8 @@ RSpec.describe ChatJobSummary do
 
     expect(summary[:active_count]).to eq(1)
     expect(summary[:jobs].index_by { |row| row[:id] }.fetch(active.id)[:group]).to eq("running")
-    expect(summary[:jobs].index_by { |row| row[:id] }.values_at(landing.id, repair.id).pluck(:group)).to eq([ "ready", nil ])
+    expect(summary[:jobs].index_by { |row| row[:id] }.fetch(landing.id)[:group]).to eq("ready")
+    expect(summary[:jobs].pluck(:id)).not_to include(repair.id)
   end
 
   it "keeps a terminal failure running while an automatic retry is pending" do
@@ -103,7 +106,7 @@ RSpec.describe ChatJobSummary do
     expect(summary[:outcome]).to be_nil
   end
 
-  it "includes the Epic title and exact mixed-state progress on each Job row" do
+  it "references shared Epic progress from compact Job rows" do
     epic = Factories.epic(user: user, repository: repository, title: "Compact activity")
     job = Factories.job_record(user: user, repository: repository, epic: epic, state: "running")
     Factories.job_record(user: user, repository: repository, epic: epic, state: "implemented", issue_number: 43)
@@ -112,16 +115,21 @@ RSpec.describe ChatJobSummary do
     proposal_for(job)
     Workflow.create!(job: job, trigger_kind: "initial", state: "queued")
 
-    expect(summary[:jobs].first[:epic]).to include(
-      slug: epic.slug,
-      title: "Compact activity",
-      total: 4,
-      state_counts: { "running" => 1, "implemented" => 1, "approved" => 1, "blocked_by_epic" => 1 },
-      needs_attention: false
+    expect(summary[:jobs].first).to include(epic_id: epic.id)
+    expect(summary[:jobs].first).not_to have_key(:epic)
+    expect(summary[:epics]).to eq(
+      epic.id => {
+        id: epic.id,
+        slug: epic.slug,
+        title: "Compact activity",
+        total: 4,
+        state_counts: { "running" => 1, "implemented" => 1, "approved" => 1, "blocked_by_epic" => 1 },
+        needs_attention: false
+      }
     )
   end
 
-  it "normalizes landed and no-change outcomes into visible Epic progress segments" do
+  it "normalizes landed and no-change outcomes in shared Epic progress" do
     epic = Factories.epic(user: user, repository: repository)
     active = Factories.job_record(user: user, repository: repository, epic: epic, state: "running")
     Factories.job_record(user: user, repository: repository, epic: epic, state: "closed", closure_reason: "pr_merged", issue_number: 43)
@@ -133,18 +141,18 @@ RSpec.describe ChatJobSummary do
     proposal_for(active)
     Workflow.create!(job: active, trigger_kind: "initial", state: "queued")
 
-    expect(summary[:jobs].first[:epic]).to include(
+    expect(summary.dig(:epics, epic.id)).to include(
       total: 7,
       state_counts: { "running" => 1, "merged" => 2, "implemented" => 2, "approved" => 1 }
     )
   end
 
-  it "marks an Epic for expansion when a non-failed child needs attention" do
+  it "marks shared Epic progress when a non-failed child needs attention" do
     epic = Factories.epic(user: user, repository: repository)
     job = Factories.job_record(user: user, repository: repository, epic: epic, state: "running", needs_attention: true)
     proposal_for(job)
     Workflow.create!(job: job, trigger_kind: "initial", state: "queued")
 
-    expect(summary[:jobs].first.dig(:epic, :needs_attention)).to be(true)
+    expect(summary.dig(:epics, epic.id, :needs_attention)).to be(true)
   end
 end

@@ -1,11 +1,11 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import type { BootstrapPayload } from "../api/bootstrap"
+import type { FullSetupStatusPayload } from "../api/setup"
 import { resetBackendUpdateStoreForTests } from "../hooks/useBackendUpdate"
 import { OnboardingEmptyState } from "./OnboardingEmptyState"
 
-type SetupStatus = NonNullable<BootstrapPayload["setup_status"]>
+type SetupStatus = FullSetupStatusPayload
 
 function makeSetupStatus(overrides: Pick<SetupStatus, "next_step" | "next_step_path">): SetupStatus {
   return {
@@ -35,12 +35,7 @@ function makeSetupStatus(overrides: Pick<SetupStatus, "next_step" | "next_step_p
 function renderState(setupStatus: SetupStatus | null = null) {
   return render(
     <MemoryRouter>
-      <OnboardingEmptyState
-        fallbackTitle="Nothing here"
-        fallbackDescription="Nothing to show."
-        prefix="/app-shell"
-        setupStatus={setupStatus}
-      />
+      <OnboardingEmptyState fallbackTitle="Nothing here" fallbackDescription="Nothing to show." prefix="/app-shell" setupStatus={setupStatus} />
     </MemoryRouter>
   )
 }

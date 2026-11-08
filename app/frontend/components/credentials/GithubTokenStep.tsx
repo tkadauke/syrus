@@ -44,7 +44,8 @@ export function GithubTokenStep({ onSaved, saveLabel, autoFocus = true }: { onSa
   const save = useMutation({
     mutationFn: () => saveGithubToken(token.trim()),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
+      await queryClient.invalidateQueries({ queryKey: ["me"] })
+      await queryClient.invalidateQueries({ queryKey: ["setup"] })
       await queryClient.invalidateQueries({ queryKey: ["credentials"] })
       onSaved()
     },

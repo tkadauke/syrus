@@ -25,6 +25,7 @@ Rails.application.routes.draw do
     namespace :v1 do
       namespace :app do
         get "bootstrap", to: "bootstrap#show"
+        get "me", to: "me#show"
         get "setup", to: "setup#show"
         patch "theme", to: "theme#update"
         get "themes", to: "themes#index"

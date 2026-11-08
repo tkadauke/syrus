@@ -141,25 +141,55 @@ export type ChatModelOption = {
   label: string
 }
 
-export type ChatNavRecord = ChatRecord & {
+export type ChatNavRecord = {
+  id: number
+  current_user_id?: number
+  user_id?: number
+  title: string | null
+  title_pending: boolean
+  pinned: boolean
+  effective_chat_provider?: string
+  provider_availability?: ProviderAvailability
+  conversation_kind?: ChatConversationKind
+  mode?: ChatMode | null
+  chat_path: string
+  repository: ChatRepository | null
+  turn_in_flight?: boolean
+  agent_busy?: boolean
+  active_goal?: Pick<ChatGoal, "id" | "status"> | null
+  coding_checkout_uncommitted?: boolean
   current?: boolean
-  last_message_at: string | null
-  unread: boolean
-  pending_proposal_count: number
-  scratchpad_items_count: number
+  unread?: boolean
+  pending_proposal_count?: number
+  scratchpad_items_count?: number
   job_summary?: ChatJobSummary
+  agent_appearance?: ChatAgentAppearance
+  last_message_at?: string | null
   created_at?: string
   updated_at?: string
+  chat_type?: ChatType
+  origin_platform?: string | null
 }
 
 export type ChatJobSummary = {
   active_count: number
   outcome: "failed" | "ready" | null
   jobs: ChatJobSummaryRow[]
+  epics: Record<string, ChatJobSummaryEpic>
+}
+
+export type ChatJobSummaryEpic = {
+  id: number
+  slug: string
+  title?: string | null
+  total: number
+  state_counts: Record<string, number>
+  needs_attention: boolean
 }
 
 export type ChatJobSummaryRow = {
   id: number
+  epic_id?: number
   slug: string
   state: string
   step?: string
@@ -167,7 +197,6 @@ export type ChatJobSummaryRow = {
   started_at?: string
   finished_at?: string
   app_path: string
-  epic?: { id: number; slug: string; title?: string | null; total: number; state_counts: Record<string, number>; needs_attention: boolean }
 }
 
 export type HiddenChatRecord = ChatNavRecord & {
@@ -752,10 +781,8 @@ export type WhiteboardSnapshotsPayload = {
 }
 
 export type CreateChatInput = {
-  // Optional: a chat created from a repository-agnostic context (e.g. the
-  // Tool Card Catalog's "Discuss this card" flow) omits this entirely, the
-  // same way createEmptyChat already treats a missing repository as valid
-  // -- the backend's repository_from_params returns nil when absent.
+  // Omit this to let the backend choose the default repository. Pass null or
+  // an empty picker value to create an explicitly repositoryless chat.
   repositoryId?: string | number | null
   text: string
   attachments?: ChatMessageAttachmentInput[]
@@ -783,8 +810,11 @@ export type ChatAttachmentRef = { id?: number; name: string; mime_type: string; 
 export type ChatCreatedPayload = {
   message: string
   redirect_to: string
-  chat: ChatRecord
+  chat: ChatNavRecord
+  agent_appearances?: Record<string, ChatAgentAppearance>
 }
+
+export const NEW_CHAT_PICKER_STALE_TIME = 10 * 60 * 1000
 
 export type ChatBranchPayload = {
   id: number
@@ -837,12 +867,16 @@ export type ChatsIndexPayload = {
   groups_next_offset?: number | null
   available_chat_types?: ChatType[]
   available_agents?: ChatSidebarAgentOption[]
-  repositories: ChatRepository[]
+  repositories?: ChatRepository[]
+  agent_appearances?: Record<string, ChatAgentAppearance>
+  provider_availability?: Record<string, ProviderAvailability>
 }
 
 export type MoreChatsPayload = {
   chats: ChatNavRecord[]
   has_more: boolean
+  agent_appearances?: Record<string, ChatAgentAppearance>
+  provider_availability?: Record<string, ProviderAvailability>
 }
 
 export type HiddenChatsPayload = {
@@ -851,6 +885,7 @@ export type HiddenChatsPayload = {
   page: number
   per_page: number
   total_pages: number
+  agent_appearances?: Record<string, ChatAgentAppearance>
 }
 
 export type ChatShellCommandOutcome = "succeeded" | "failed" | "killed" | "error"
@@ -1168,11 +1203,9 @@ export type ChatSearchResult = {
   chat_session_id: number
   chat_title: string
   badges: ChatResultBadge[]
-  best_snippet: string | null
-  best_match_message_id: number | null
-  top_matches: ChatSearchMatch[]
-  total_match_count: number
-  has_more_matches: boolean
+  top_matches?: ChatSearchMatch[]
+  total_match_count?: number
+  has_more_matches?: boolean
 }
 
 export type ChatResultBadge = {
@@ -1190,6 +1223,7 @@ export type ChatSearchPayload = {
 
 export type ChatSearchMessagesPayload = {
   matches: ChatSearchMatch[]
+  has_more: boolean
 }
 
 export function fetchChat(id: string, search = "") {
@@ -1222,11 +1256,11 @@ export function fetchSharedChat(token: string) {
 }
 
 export function markChatRead(id: string | number) {
-  return patchJson<void>(`/api/v1/app/chats/${id}/mark_read`)
+  return patchJson<{ chat: ChatNavRecord }>(`/api/v1/app/chats/${id}/mark_read`)
 }
 
 export function markChatUnread(id: string | number) {
-  return patchJson<void>(`/api/v1/app/chats/${id}/mark_unread`)
+  return patchJson<{ chat: ChatNavRecord }>(`/api/v1/app/chats/${id}/mark_unread`)
 }
 
 export function hideChat(id: string | number) {
@@ -1257,12 +1291,12 @@ function chatSidebarSearchParams(settings?: Partial<ChatSidebarSettings>, groupO
 
 export function fetchChats(settings?: Partial<ChatSidebarSettings>, activeChatId?: number | null) {
   const search = chatSidebarSearchParams(settings, null, activeChatId).toString()
-  return getJson<ChatsIndexPayload>(`/api/v1/app/chats${search ? `?${search}` : ""}`)
+  return getJson<ChatsIndexPayload>(`/api/v1/app/chats${search ? `?${search}` : ""}`).then(withChatNavAppearances)
 }
 
 export function fetchChatGroupsPage(settings: Partial<ChatSidebarSettings>, groupOffset: number, activeChatId?: number | null) {
   const search = chatSidebarSearchParams(settings, groupOffset, activeChatId).toString()
-  return getJson<ChatsIndexPayload>(`/api/v1/app/chats${search ? `?${search}` : ""}`)
+  return getJson<ChatsIndexPayload>(`/api/v1/app/chats${search ? `?${search}` : ""}`).then(withChatNavAppearances)
 }
 
 export function fetchNewChat() {
@@ -1270,7 +1304,7 @@ export function fetchNewChat() {
 }
 
 export function fetchHiddenChats(page = 1) {
-  return getJson<HiddenChatsPayload>(`/api/v1/app/settings/hidden_chats?page=${encodeURIComponent(String(page))}`)
+  return getJson<HiddenChatsPayload>(`/api/v1/app/settings/hidden_chats?page=${encodeURIComponent(String(page))}`).then(withChatNavAppearances)
 }
 
 export function fetchMoreChatsForGroup(
@@ -1285,7 +1319,21 @@ export function fetchMoreChatsForGroup(
   search.set("group_by", groupBy)
   search.set("group_key", groupValue)
   search.set("before_id", String(beforeChatId))
-  return getJson<MoreChatsPayload>(`/api/v1/app/chats/more?${search.toString()}`)
+  return getJson<MoreChatsPayload>(`/api/v1/app/chats/more?${search.toString()}`).then(withChatNavAppearances)
+}
+
+function withChatNavAppearances<
+  T extends { agent_appearances?: Record<string, ChatAgentAppearance>; provider_availability?: Record<string, ProviderAvailability> } & ({ groups: ChatGroupRecord[] } | { chats: ChatNavRecord[] })
+>(payload: T): T {
+  const appearances = payload.agent_appearances || {}
+  const availability = payload.provider_availability || {}
+  const attach = (chat: ChatNavRecord) => ({
+    ...chat,
+    agent_appearance: appearances[String(chat.id)],
+    provider_availability: chat.effective_chat_provider ? availability[chat.effective_chat_provider] : undefined
+  })
+  if ("groups" in payload) return { ...payload, groups: payload.groups.map((group) => ({ ...group, chats: group.chats.map(attach) })) }
+  return { ...payload, chats: payload.chats.map(attach) }
 }
 
 export function fetchChatSearch(search = "", options: { signal?: AbortSignal } = {}) {
@@ -1351,7 +1399,7 @@ export async function patchChatWhiteboard(path: string, input: ChatWhiteboardSce
 
 export function createChat(values: CreateChatInput) {
   return postJson<ChatCreatedPayload>("/api/v1/app/chats", {
-    ...(values.repositoryId == null || values.repositoryId === "" ? {} : { repository_id: values.repositoryId }),
+    ...(values.repositoryId === undefined ? {} : { repository_id: values.repositoryId === "" ? null : values.repositoryId }),
     ...(values.chatProvider ? { chat_provider: values.chatProvider } : {}),
     ...chatMessagePayload(values.text, values.attachments || [])
   })
@@ -1359,7 +1407,7 @@ export function createChat(values: CreateChatInput) {
 
 export function createEmptyChat(repositoryId?: number | string | null, chatProvider?: string | null) {
   const payload = {
-    ...(repositoryId == null || repositoryId === "" ? {} : { repository_id: repositoryId }),
+    ...(repositoryId === undefined || repositoryId === "" ? {} : { repository_id: repositoryId }),
     ...(chatProvider ? { chat_provider: chatProvider } : {})
   }
   return postJson<ChatCreatedPayload>("/api/v1/app/chats", Object.keys(payload).length === 0 ? undefined : payload)
@@ -1371,18 +1419,20 @@ export type InvitableUser = {
   avatar_url: string | null
 }
 
-export function fetchInvitableUsers(excludeChatId?: number | string | null) {
+export function fetchInvitableUsers(excludeChatId?: number | string | null, query?: string, limit = 20) {
   const params = new URLSearchParams()
   if (excludeChatId != null) params.set("exclude_chat_id", String(excludeChatId))
-  const query = params.toString()
-  return getJson<InvitableUser[]>(`/api/v1/app/users/invitable${query ? `?${query}` : ""}`)
+  if (query?.trim()) params.set("q", query.trim())
+  params.set("limit", String(limit))
+  const search = params.toString()
+  return getJson<InvitableUser[]>(`/api/v1/app/users/invitable?${search}`)
 }
 
 export function createGroupChat(participantUserIds: number[], repositoryId?: number | string | null) {
-  const payload: { participant_user_ids: number[]; repository_id?: number | string } = {
-    participant_user_ids: participantUserIds
+  const payload: { participant_user_ids: number[]; repository_id?: number | string | null } = {
+    participant_user_ids: participantUserIds,
+    ...(repositoryId === undefined ? {} : { repository_id: repositoryId === "" ? null : repositoryId })
   }
-  if (repositoryId != null && repositoryId !== "") payload.repository_id = repositoryId
   return postJson<ChatCreatedPayload>("/api/v1/app/chats", payload)
 }
 
@@ -1415,7 +1465,7 @@ export function sendChatMessage(
 }
 
 export function renameChat(path: string, title: string) {
-  return patchJson<ChatPayload>(path, { chat: { title } })
+  return patchJson<ChatPayloadUpdate>(path, { chat: { title } })
 }
 
 export function updateChatPinned(id: number | string, pinned: boolean) {

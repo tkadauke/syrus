@@ -773,8 +773,9 @@ curl "https://syrus.example.com/api/v1/app/chats/search?q=deploy&epic_id=456" \
   -H "Authorization: Bearer $SYRUS_API_TOKEN"
 ```
 
-`GET /api/v1/app/chats/search/messages` expands all matching messages for
-one chat and query:
+`GET /api/v1/app/chats/search/messages` expands up to 50 matching messages
+for one chat and query. The response's `has_more` field reports whether the
+result was truncated:
 
 ```bash
 curl "https://syrus.example.com/api/v1/app/chats/search/messages?chat_session_id=123&q=deploy" \
@@ -821,11 +822,13 @@ curl -X PATCH https://syrus.example.com/api/v1/app/theme \
 ## Manage Color Themes
 
 `GET /api/v1/app/themes` lists built-in color themes plus custom,
-non-built-in themes owned by the authenticated user. `GET
+non-built-in themes owned by the authenticated user using picker-sized
+identity, position, and swatch fields. Pass `full=1` when a client needs full
+token payloads for the complete list. `GET
 /api/v1/app/themes/:id` returns one selectable theme, plus a top-level
 `contrast_warnings` array (empty when the theme has no WCAG AA issues) so a
 draft theme's preview can show the same non-blocking contrast warnings the
-`preview_theme` chat tool returns, without gating the fetch on it. Theme
+`preview_theme` chat tool returns, without gating the fetch on it. Full theme
 payloads include:
 
 Token hashes are abbreviated below; real create requests must include every

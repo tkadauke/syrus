@@ -41,23 +41,27 @@ describe("AdminFeatures", () => {
         return Promise.resolve(jsonResponse(featuresPayload()))
       }
 
-      return Promise.resolve(jsonResponse(featuresPayload({
-        categories: [
-          {
-            category: "Navigation",
-            features: [
+      return Promise.resolve(
+        jsonResponse(
+          featuresPayload({
+            categories: [
               {
-                slug: "new_dashboard",
                 category: "Navigation",
-                name: "New dashboard",
-                description: "Use the redesigned dashboard.",
-                experimental: false,
-                enabled: true
+                features: [
+                  {
+                    slug: "new_dashboard",
+                    category: "Navigation",
+                    name: "New dashboard",
+                    description: "Use the redesigned dashboard.",
+                    experimental: false,
+                    enabled: true
+                  }
+                ]
               }
             ]
-          }
-        ]
-      })))
+          })
+        )
+      )
     })
 
     renderRoute(<AdminFeatures />)
@@ -66,21 +70,26 @@ describe("AdminFeatures", () => {
     fireEvent.click(toggle)
     await waitFor(() => expect(toggle).toHaveAttribute("aria-checked", "true"))
 
-    resolvePatch(jsonResponse({
-      feature: {
-        slug: "new_dashboard",
-        category: "Navigation",
-        name: "New dashboard",
-        description: "Use the redesigned dashboard.",
-        enabled: true
-      }
-    }))
+    resolvePatch(
+      jsonResponse({
+        feature: {
+          slug: "new_dashboard",
+          category: "Navigation",
+          name: "New dashboard",
+          description: "Use the redesigned dashboard.",
+          enabled: true
+        }
+      })
+    )
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/features/new_dashboard", expect.objectContaining({
-        method: "PATCH",
-        body: JSON.stringify({ feature: { enabled: true } })
-      }))
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/admin/features/new_dashboard",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ feature: { enabled: true } })
+        })
+      )
     })
     expect(await screen.findByRole("switch", { name: "Enabled" })).toHaveAttribute("aria-checked", "true")
   })
@@ -116,24 +125,28 @@ describe("AdminFeatures", () => {
         return Promise.resolve(jsonResponse({ settings: {}, message: "Settings updated." }))
       }
 
-      return Promise.resolve(jsonResponse(featuresPayload({
-        beta_mode_enabled: false,
-        categories: [
-          {
-            category: "Labs",
-            features: [
+      return Promise.resolve(
+        jsonResponse(
+          featuresPayload({
+            beta_mode_enabled: false,
+            categories: [
               {
-                slug: "new_runtime",
                 category: "Labs",
-                name: "New runtime",
-                description: "Runs beta workloads.",
-                experimental: true,
-                enabled: false
+                features: [
+                  {
+                    slug: "new_runtime",
+                    category: "Labs",
+                    name: "New runtime",
+                    description: "Runs beta workloads.",
+                    experimental: true,
+                    enabled: false
+                  }
+                ]
               }
             ]
-          }
-        ]
-      })))
+          })
+        )
+      )
     })
 
     renderRoute(<AdminFeatures />)
@@ -167,14 +180,14 @@ describe("AdminFeatures", () => {
 function renderRoute(children: ReactNode, path = "/app-shell/admin/features") {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter initialEntries={[path]}>
-        {children}
-      </MemoryRouter>
+      <MemoryRouter initialEntries={[path]}>{children}</MemoryRouter>
     </QueryClientProvider>
   )
 }
 
-function featuresPayload(overrides: Partial<{ beta_mode_enabled: boolean; categories: Array<{ category: string; features: Array<Record<string, unknown>> }> }> = {}) {
+function featuresPayload(
+  overrides: Partial<{ beta_mode_enabled: boolean; categories: Array<{ category: string; features: Array<Record<string, unknown>> }> }> = {}
+) {
   return {
     beta_mode_enabled: true,
     categories: [
@@ -214,20 +227,13 @@ function bootstrapPayload(overrides: Partial<BootstrapPayload> = {}): BootstrapP
     current_user: {
       id: 1,
       email_address: "operator@example.com",
-      name: "Operator",
-      first_name: null,
-      last_name: null,
       display_name: "Operator",
       admin: true,
       role: "developer",
-      scheduling_paused: false,
-      landing_paused: false,
       agent_provider: "claude",
       chat_provider: null,
-      agent_max_turns: 200,
       theme: "light",
-      locale: "en",
-    gemini_configured: false,
+      locale: "en"
     },
     team_user_count: 1,
     app: {
@@ -236,9 +242,9 @@ function bootstrapPayload(overrides: Partial<BootstrapPayload> = {}): BootstrapP
       version: null,
       built_at: null,
       bug_report_mode: null,
-      report_issue_repo_slug: "tkadauke/syrus",
+      report_issue_repo_slug: "tkadauke/syrus"
     },
-    setup_status: null,
+    setup: null,
     public: {
       first_signup: false,
       signups_open: false,
@@ -247,10 +253,6 @@ function bootstrapPayload(overrides: Partial<BootstrapPayload> = {}): BootstrapP
       docs_url: "https://syrus.dev/docs/getting-started",
       evaluation_url: "https://syrus.dev/docs/deployment/docker-compose"
     },
-    navigation: {
-      default_chat_path: "/dashboard"
-    },
-    setup: null,
     csrf_token: "csrf-token",
     unread_notifications_count: 0,
     feature_flags: { new_dashboard: false },

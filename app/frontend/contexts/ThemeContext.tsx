@@ -26,8 +26,7 @@ type ThemeContextValue = {
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
 function prefersDarkColorScheme() {
-  return typeof window !== "undefined" && typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-color-scheme: dark)").matches
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-color-scheme: dark)").matches
 }
 
 function resolveTheme(theme: Theme): ResolvedTheme {
@@ -51,11 +50,17 @@ function applyResolvedTheme(resolvedTheme: ResolvedTheme) {
 function applyColorTheme(colorTheme: ColorTheme | null, resolvedTheme: ResolvedTheme, appliedCustomPropertyNames: Set<string>) {
   const root = document.documentElement
   const isCustom = colorTheme != null && !colorTheme.built_in
-  const nextColorTokens = isCustom ? semanticColorProperties(colorTheme.tokens[resolvedTheme] ?? {}) : {}
-  const nextExtendedTokens = isCustom ? extendedTokenProperties(colorTheme.tokens) : {}
+  const embeddedTokens = document.getElementById("syrus-custom-color-theme-data")?.textContent
+  const tokens = colorTheme?.tokens ?? (isCustom && embeddedTokens ? (JSON.parse(embeddedTokens) as ColorTheme["tokens"]) : undefined)
+  const nextColorTokens = isCustom && tokens ? semanticColorProperties(tokens[resolvedTheme] ?? {}) : {}
+  const nextExtendedTokens = isCustom && tokens ? extendedTokenProperties(tokens) : {}
   const nextProperties: Record<string, string> = {}
-  Object.entries(nextColorTokens).forEach(([key, value]) => { nextProperties[`--color-${key}`] = value })
-  Object.entries(nextExtendedTokens).forEach(([key, value]) => { nextProperties[`--${key}`] = value })
+  Object.entries(nextColorTokens).forEach(([key, value]) => {
+    nextProperties[`--color-${key}`] = value
+  })
+  Object.entries(nextExtendedTokens).forEach(([key, value]) => {
+    nextProperties[`--${key}`] = value
+  })
   const nextNames = new Set(Object.keys(nextProperties))
 
   appliedCustomPropertyNames.forEach((name) => {
@@ -136,8 +141,11 @@ export function ThemeProvider({ children, theme, colorTheme = null }: { children
     queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) => updateBootstrapColorTheme(current, nextColorTheme))
 
     try {
-      const payload = await patchJson<{ color_theme: ColorTheme | null }>("/api/v1/app/theme", { color_theme_id: nextColorTheme.id })
-      queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) => updateBootstrapColorTheme(current, payload.color_theme))
+      await patchJson<{ color_theme: Pick<ColorTheme, "id" | "slug" | "name" | "built_in"> | null }>("/api/v1/app/theme", { color_theme_id: nextColorTheme.id })
+      // The preference endpoint deliberately returns identity only. Keep the
+      // full theme fetched by the picker so custom tokens remain available to
+      // the effect that applies them after the bootstrap cache changes.
+      queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) => updateBootstrapColorTheme(current, nextColorTheme))
     } catch {
       applyColorTheme(previousColorTheme, resolvedTheme, appliedCustomPropertyNames.current)
       queryClient.setQueryData<BootstrapPayload>(["bootstrap"], (current) => updateBootstrapColorTheme(current, previousColorTheme))

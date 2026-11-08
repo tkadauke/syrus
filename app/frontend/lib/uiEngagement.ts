@@ -95,7 +95,7 @@ export function UiEngagementTelemetry({ enabled }: { enabled: boolean }) {
   const route = engagementRoute(location.pathname, location.search)
 
   useEffect(() => {
-    if (!enabled || !route) return
+    if (!enabled || !route || Math.random() >= 0.1) return
     return startUiEngagementVisit(route)
   }, [enabled, route?.route_id, JSON.stringify(route?.route_params)])
 

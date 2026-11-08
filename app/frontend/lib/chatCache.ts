@@ -74,7 +74,9 @@ export function recentChatsQueryKey(settings: Partial<ChatSidebarSettings> = {})
   ]
 }
 
-export function updateRecentChatCache(queryClient: QueryClient, chat: ChatRecord, options: { prepend?: boolean; occurredAt?: string } = {}) {
+type RecentChatUpdate = ChatRecord | ChatNavRecord | (Partial<ChatRecord> & Pick<ChatRecord, "id">)
+
+export function updateRecentChatCache(queryClient: QueryClient, chat: RecentChatUpdate, options: { prepend?: boolean; occurredAt?: string } = {}) {
   queryClient
     .getQueryCache()
     .findAll({ queryKey: ["chats", "recent"] })
@@ -90,12 +92,29 @@ export function updateRecentChatCache(queryClient: QueryClient, chat: ChatRecord
         const groups = withoutChat(current.groups, chat.id)
         const targetIndex = groups.findIndex((group) => group.key === targetKey)
         const targetGroup = targetIndex >= 0 ? groups[targetIndex] : chatGroupFor(updated)
-        const nextChats = options.prepend || !existing ? [updated, ...targetGroup.chats] : replaceOrPrependChat(targetGroup.chats, updated)
+        const patchedChats = options.prepend || !existing ? [updated, ...targetGroup.chats] : replaceOrPrependChat(targetGroup.chats, updated)
+        const nextChats = options.prepend ? patchedChats : sortRecentChats(patchedChats, query.queryKey)
         const nextGroup = { ...targetGroup, chats: nextChats }
         const nextGroups = targetIndex >= 0 ? [...groups.slice(0, targetIndex), nextGroup, ...groups.slice(targetIndex + 1)] : [nextGroup, ...groups]
 
         return { ...current, groups: nextGroups }
       })
+    })
+}
+
+export function removeRecentChatFromCache(queryClient: QueryClient, chatId: number) {
+  queryClient
+    .getQueryCache()
+    .findAll({ queryKey: ["chats", "recent"] })
+    .forEach((query) => {
+      queryClient.setQueryData<ChatsIndexPayload>(
+        query.queryKey,
+        (current) =>
+          current && {
+            ...current,
+            groups: withoutChat(current.groups, chatId).filter((group) => group.chats.length > 0 || query.queryKey[6] === true)
+          }
+      )
     })
 }
 
@@ -180,8 +199,8 @@ function sortStatusGroups(groups: ChatGroupRecord[]) {
   return [...groups].sort((left, right) => (order.get(left.key) ?? 9) - (order.get(right.key) ?? 9))
 }
 
-function recentChatRecord(chat: ChatRecord, existing?: ChatNavRecord, occurredAt = new Date().toISOString()): ChatNavRecord {
-  const candidate = chat as ChatNavRecord
+function recentChatRecord(chat: RecentChatUpdate, existing?: ChatNavRecord, occurredAt = new Date().toISOString()): ChatNavRecord {
+  const candidate = chat as unknown as ChatNavRecord
 
   return {
     ...existing,
@@ -193,10 +212,10 @@ function recentChatRecord(chat: ChatRecord, existing?: ChatNavRecord, occurredAt
     scratchpad_items_count: candidate.scratchpad_items_count ?? existing?.scratchpad_items_count ?? 0,
     created_at: candidate.created_at ?? existing?.created_at ?? occurredAt,
     updated_at: latestTimestamp(candidate.updated_at, existing?.updated_at, occurredAt)
-  }
+  } as ChatNavRecord
 }
 
-function recentChatBelongsInQuery(chat: ChatRecord, queryKey: QueryKey) {
+function recentChatBelongsInQuery(chat: RecentChatUpdate, queryKey: QueryKey) {
   if (queryKey.length < 3) return true
 
   const status = queryKey[2]
@@ -207,13 +226,14 @@ function recentChatBelongsInQuery(chat: ChatRecord, queryKey: QueryKey) {
   return chatTypes.length === 0 || chatTypes.includes(chatTypeFor(chat))
 }
 
-function chatIsHidden(chat: ChatRecord) {
+function chatIsHidden(chat: RecentChatUpdate) {
   return (chat as ChatRecord & { hidden_at?: string | null }).hidden_at != null
 }
 
-function chatTypeFor(chat: ChatRecord) {
-  if (chat.chat_type) return chat.chat_type
-  if (chat.origin_platform) return "external"
+function chatTypeFor(chat: RecentChatUpdate) {
+  const record = chat as ChatRecord
+  if (record.chat_type) return record.chat_type
+  if (record.origin_platform) return "external"
   if (chat.conversation_kind === "group") return "group"
 
   return "agent"
@@ -243,6 +263,24 @@ function replaceOrPrependChat(chats: ChatNavRecord[], chat: ChatNavRecord) {
   return [...chats.slice(0, index), chat, ...chats.slice(index + 1)]
 }
 
+function sortRecentChats(chats: ChatNavRecord[], queryKey: QueryKey) {
+  const sortBy = queryKey.length < 3 ? "last_activity" : queryKey[5]
+
+  return [...chats].sort((left, right) => {
+    const pinned = Number(Boolean(right.pinned)) - Number(Boolean(left.pinned))
+    if (pinned !== 0) return pinned
+
+    if (sortBy === "name") {
+      const title = (left.title || "").localeCompare(right.title || "", undefined, { sensitivity: "base" })
+      return title || right.id - left.id
+    }
+
+    const leftTimestamp = sortBy === "date_created" ? left.created_at : left.last_message_at || left.created_at
+    const rightTimestamp = sortBy === "date_created" ? right.created_at : right.last_message_at || right.created_at
+    return Date.parse(rightTimestamp || "") - Date.parse(leftTimestamp || "") || right.id - left.id
+  })
+}
+
 export function chatGroupFor(chat: ChatNavRecord): ChatGroupRecord {
   return {
     key: chatGroupKey(chat),
@@ -259,7 +297,7 @@ export function chatGroupKey(chat: ChatNavRecord) {
 
 export function chatGroupKeyForUpdate(chat: ChatNavRecord, groups: ChatGroupRecord[]) {
   const sourceGroup = groups.find((group) => group.chats.some((item) => item.id === chat.id))
-  return sourceGroup?.group_by === "plugin" ? sourceGroup.key : chatGroupKey(chat)
+  return sourceGroup?.key || chatGroupKey(chat)
 }
 
 function withoutChat(groups: ChatGroupRecord[], chatId: number) {

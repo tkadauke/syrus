@@ -4,16 +4,19 @@ import { markStartupMilestone } from "./startupDiagnostics"
 import { jsonResponse } from "../testSupport"
 
 const SPA_LAYOUT_PATH = "app/views/layouts/spa.html.erb"
+const STARTUP_DIAGNOSTICS_PATH = "app/assets/javascripts/startup_diagnostics.js"
 const startupListenerCleanups: Array<() => void> = []
 
 function inlineStartupScript(): string {
+  return readFileSync(STARTUP_DIAGNOSTICS_PATH, "utf-8")
+}
+
+function inlineStartupFallback(): string {
   const layout = readFileSync(SPA_LAYOUT_PATH, "utf-8")
-  const scriptLineStart = layout.indexOf('<script id="syrus-startup-diagnostics"')
-  if (scriptLineStart < 0) throw new Error("startup diagnostics script not found")
-  const bodyStart = layout.indexOf("\n", scriptLineStart)
-  const bodyEnd = layout.indexOf("</script>", bodyStart)
-  if (bodyStart < 0 || bodyEnd < 0) throw new Error("startup diagnostics script body not found")
-  return layout.slice(bodyStart + 1, bodyEnd)
+  const start = layout.indexOf('<script id="syrus-startup-diagnostics-fallback"')
+  const bodyStart = layout.indexOf("\n", start)
+  const end = layout.indexOf("</script>", bodyStart)
+  return layout.slice(bodyStart + 1, end)
 }
 
 function installStartupShell(
@@ -119,6 +122,31 @@ describe("startupDiagnostics", () => {
     markStartupMilestone("react_commit")
 
     expect(mark).toHaveBeenCalledWith("react_commit")
+  })
+
+  it("loads diagnostics and startup styles as digestible assets instead of shell-inline payloads", () => {
+    const layout = readFileSync(SPA_LAYOUT_PATH, "utf-8")
+
+    expect(layout).toContain('javascript_include_tag "startup_diagnostics"')
+    expect(readFileSync("app/assets/stylesheets/startup_diagnostics.css", "utf-8")).toContain(".syrus-startup-status__panel")
+    expect(layout).not.toContain("function startupTimings()")
+    expect(layout).not.toContain(".syrus-startup-status__panel {")
+  })
+
+  it("keeps a shell watchdog when the diagnostics asset itself fails", () => {
+    vi.useFakeTimers()
+    document.body.innerHTML = `
+      <div id="syrus-startup-status" hidden><span data-syrus-startup-spinner></span><p data-syrus-startup-title></p><p data-syrus-startup-message></p><a data-syrus-startup-retry hidden></a></div>
+    `
+    window.eval(inlineStartupFallback())
+    const failedAsset = document.createElement("script")
+    failedAsset.id = "syrus-startup-diagnostics"
+    document.head.appendChild(failedAsset)
+    failedAsset.dispatchEvent(new Event("error"))
+
+    expect(startupStatus()).not.toHaveAttribute("hidden")
+    expect(startupStatus()).toHaveTextContent("The app could not load")
+    expect(startupRetry()).not.toHaveAttribute("hidden")
   })
 
   it("does nothing when the shell hook is unavailable", () => {
