@@ -32,13 +32,13 @@ RSpec.describe Steps::SecurityReview do
   end
 
   it "augments the security prompt with only the selected reviewer's protected context" do
-    context = double("review context")
-    reviewer = double("coworker reviewer")
-    evidence = instance_double(ReviewEvidence, reviewer: reviewer)
+    target = { "type" => "fake", "reference" => "1" }
+    evidence = instance_double(ReviewEvidence, reviewer: nil)
     allow(run).to receive(:review_evidence).and_return(evidence)
-    allow(reviewer).to receive(:prepare_review_context!)
-      .with(run:, evidence:, criteria: []).and_return(context)
-    allow(reviewer).to receive(:review_context_prompt).with(context).and_return("protected reviewer memory")
+    allow(ReviewContextContributions).to receive(:target_for).and_return(target)
+    allow(ReviewContextContributions).to receive(:prepare)
+      .with(target:, run:, evidence:, criteria: [])
+      .and_return("manifest" => {}, "restricted_text" => "protected reviewer memory")
 
     prompt = handler.send(:materialize_reviewer_prompt)
 

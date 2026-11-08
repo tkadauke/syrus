@@ -16,12 +16,10 @@ module ReviewEvidence::VerdictSubmission
       return existing
     end
 
-    target = run.step.details.to_h["reviewer_target"]
+    target = ReviewContextContributions.target_for(
+      step_target: run.step.details.to_h["reviewer_target"], reviewer: evidence&.reviewer
+    )
     receipt = persist_review_update(target:, run:, verdict:, key_learning: key_learning.presence || critique)
-    reviewer = evidence&.reviewer
-    if target.blank? && reviewer&.respond_to?(:finalize_review_memory!)
-      reviewer.finalize_review_memory!(run:, key_learning: key_learning.presence || critique, verdict:)
-    end
 
     ApplicationRecord.transaction do
       run.workflow.with_lock do
@@ -52,17 +50,6 @@ module ReviewEvidence::VerdictSubmission
           entry["memory_persistence"] = {
             "state" => receipt.present? ? "persisted" : "missing",
             "persisted_commit_sha" => receipt&.dig("details", "persisted_commit_sha")
-          }.compact
-        elsif reviewer&.respond_to?(:review_context_manifest)
-          entry["review_context_manifest"] = reviewer.review_context_manifest(run)
-          context = reviewer.review_context_for(run)
-          entry["reviewer"] = {
-            "label" => "#{reviewer.display_name} · #{App::Presentation.agent_provider_label(run.agent_provider)}",
-            "provider" => run.agent_provider, "model" => run.model
-          }
-          entry["memory_persistence"] = {
-            "state" => context&.persistence_state || "missing", "persisted_commit_sha" => context&.persisted_commit_sha,
-            "error_code" => context&.persistence_error_code
           }.compact
         end
         if run.step.details.to_h["panel_id"].present?

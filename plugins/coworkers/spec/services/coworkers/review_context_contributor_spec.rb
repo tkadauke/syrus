@@ -42,3 +42,14 @@ RSpec.describe Coworkers::ReviewContextContributor do
     }.to raise_error(KeyError, /key_learning/)
   end
 end
+
+RSpec.describe Coworkers::ReviewContextContributor, ".legacy_target" do
+  it "maps a coworker reviewer to an opaque target and ignores other reviewers" do
+    coworker = Coworkers::Coworker.new(name: "Ada")
+    coworker.id = 7
+    expect(described_class.legacy_target(coworker)).to eq(
+      "type" => "coworker", "reference" => "7", "display" => { "name" => "Ada" }
+    )
+    expect(described_class.legacy_target(Object.new)).to be_nil
+  end
+end

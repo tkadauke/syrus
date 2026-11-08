@@ -31,6 +31,13 @@ class Coworkers::ReviewContextContributor
     }
   end
 
+  def self.legacy_target(reviewer)
+    return unless reviewer.is_a?(Coworkers::Coworker)
+
+    { "type" => target_type, "reference" => reviewer.id.to_s,
+      "display" => { "name" => reviewer.display_name } }
+  end
+
   def self.tool_set(_target) = Coworkers::ReviewToolSet
   def self.tool_capability(_target) = :submit_coworker_review
   def self.retention(_target) = { "policy" => "coworker_review_context", "tombstones" => true }

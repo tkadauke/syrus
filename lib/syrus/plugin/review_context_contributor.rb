@@ -10,6 +10,10 @@ module Syrus
         def tool_capability(_target) = nil
         def retention(_target) = {}
         def tombstone(_target, reason:) = nil
+        # Opaque target envelope for a reviewer recorded before targets were
+        # stored on the step (dual-read of historical evidence); nil when the
+        # provider does not own that reviewer.
+        def legacy_target(_reviewer) = nil
       end
     end
   end

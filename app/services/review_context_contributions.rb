@@ -30,6 +30,21 @@ module ReviewContextContributions
     provider_for(target).tool_capability(target.deep_stringify_keys)&.to_sym
   end
 
+  # Single-write/dual-read: the step's stored target wins; historical evidence
+  # that only recorded a polymorphic reviewer is mapped to an opaque target by
+  # whichever provider owns it. Returns nil when no provider claims it (plugin
+  # absent), which callers treat as "no restricted context".
+  def target_for(step_target:, reviewer:)
+    return step_target if step_target.present?
+    return if reviewer.blank?
+
+    Syrus::PluginRegistry.providers_for(:review_context_contributor).each do |provider|
+      legacy = provider.legacy_target(reviewer)
+      return legacy.to_h.deep_stringify_keys if legacy.present?
+    end
+    nil
+  end
+
   def provider_for(target)
     type = target.to_h.deep_stringify_keys.fetch("type")
     Syrus::PluginRegistry.providers_for(:review_context_contributor).find { |candidate| candidate.target_type == type } ||
