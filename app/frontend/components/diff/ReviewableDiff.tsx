@@ -1493,7 +1493,7 @@ function DiffFileSection({
           highlightedReviewAnnotationId={highlightedReviewAnnotationId}
           tokenCache={cacheEntry.tokensByHunk}
         />
-      ) : renderKind && renderImageDiff ? (
+      ) : renderKind && !supportsCode && renderImageDiff ? (
         renderImageDiff(file)
       ) : file.patch_status === "oversized" && onLoadFileDiff ? (
         <OmittedPatchPlaceholder downloadUrl={fileDiffDownloadUrl?.(file)} limitMessage={patchLimitMessage} loadState={patchLoadState} onLoad={loadFullDiff} />
