@@ -2820,6 +2820,7 @@ describe("truncated tool result rendering", () => {
         result_json: marker,
         result_error: error,
         result_kind: error ? ("error" as const) : ("record" as const),
+        result_summary: "truncated",
         result_settled: true
       }
       render(<ToolGroup item={{ type: "tool_group", tool: "Read", calls: [call] }} />)
