@@ -1508,7 +1508,7 @@ function DiffFileSection({
           highlightedReviewAnnotationId={highlightedReviewAnnotationId}
           tokenCache={cacheEntry.tokensByHunk}
         />
-      ) : renderKind && renderImageDiff ? (
+      ) : renderKind && !supportsCode && renderImageDiff ? (
         renderImageDiff(file)
       ) : shouldAutoLoadPatch ? (
         patchLoadState === "idle" || patchLoadState === "loading" ? (

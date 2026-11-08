@@ -1881,6 +1881,18 @@ describe("ReviewableDiff", () => {
     expect(screen.queryByTestId("preview-logo.svg")).not.toBeInTheDocument()
   })
 
+  it("shows the omitted-patch placeholder for an oversized Markdown file in Code mode and the preview in Preview mode", () => {
+    const file = { path: "docs/big.md", status: "modified", additions: 1, deletions: 1, patch: null, patch_status: "oversized" }
+    const renderImageDiff = vi.fn(() => <div data-testid="markdown-preview" />)
+    const props = { files: [file], mode: "single-file" as const, onLoadFileDiff: vi.fn(), selectedPath: "docs/big.md", showFileHeaders: true, renderImageDiff }
+    const { unmount } = render(<ReviewableDiff {...props} reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, renderable_files: "code" }} />)
+    expect(screen.queryByTestId("markdown-preview")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Load full diff" })).toBeInTheDocument()
+    unmount()
+    render(<ReviewableDiff {...props} reviewSettings={{ ...DEFAULT_REVIEW_DIFF_SETTINGS, renderable_files: "preview" }} />)
+    expect(screen.getByTestId("markdown-preview")).toBeInTheDocument()
+  })
+
   it("uses the persisted preview default for SVG and Markdown", () => {
     const file = { path: "README.md", status: "modified", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-old\n+new" }
     render(
