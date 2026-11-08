@@ -567,7 +567,7 @@ export function ProposalCard({
         if (!next || !shouldRevealJobsTab || (next.chat.confirmed_proposal_count ?? 0) > 0 || (next.chat.linked_direct_job_count ?? 0) > 0) return next
         return { ...next, chat: { ...next.chat, confirmed_proposal_count: (next.chat.confirmed_proposal_count ?? 0) + 1 } }
       })
-      resolveChatJobStatusProposal(queryClient, queryKey[1], (isChatPayload(updated) ? proposal : updated.proposal || proposal).id)
+      resolveChatJobStatusProposal(queryClient, queryKey[1], confirmedProposal.id)
       onNotice(updated.message || null)
 
       if (shouldSelectJobsTab) onSelectWorkspaceTab?.()

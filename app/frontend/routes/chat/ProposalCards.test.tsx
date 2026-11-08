@@ -1,8 +1,10 @@
 import { jsonResponse } from "../../testSupport"
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { ChatJobStatusPanel } from "../ChatJobStatusPanel"
+import { applyAppEvent } from "../../lib/appEvents"
 import { PendingActionCard, PendingActionGroupCard, ProposalCard, ProposalEditModal } from "./ProposalCards"
 import type { ChatMediaPayload, ChatPayload, ChatPendingAction, ChatPendingActionGroup, ChatProposal } from "../../api/chats"
 import type { ChatQueryKey } from "./constants"
@@ -1295,7 +1297,7 @@ describe("ProposalCard live sync", () => {
   })
 
   function jobStatusSeed(ids: number[]) {
-    return { jobs: [], epics: [], pending_proposals: ids.map((id) => ({ id, kind: "job", state: "proposed", title: `P${id}` })) }
+    return { items: [], pending_proposals: ids.map((id) => ({ id, kind: "job", state: "proposed", title: `P${id}` })) }
   }
 
   it.each([
@@ -1370,5 +1372,134 @@ describe("ProposalCard live sync", () => {
 
     await waitFor(() => expect(dispatched).toHaveLength(1))
     expect(dispatched[0].detail).toEqual({ chatSessionId: "122", proposal: updatedProposal })
+  })
+})
+
+describe("ProposalCard with a mounted Jobs tab", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  const jobItem = {
+    kind: "job",
+    job_id: 8882,
+    slug: "JOB-8882",
+    title: "Materialized job",
+    state: "open",
+    workflow_step: null,
+    active_workflow: null,
+    pr_number: null,
+    pr_url: null,
+    blocker: null,
+    updated_at: "2026-01-01T12:00:00Z"
+  }
+  const childJob = { ...jobItem, job_id: 8884, slug: "JOB-8884", title: "Epic child job" }
+  const epicItem = {
+    kind: "epic",
+    epic_id: 77,
+    slug: "EPIC-77",
+    title: "Materialized epic",
+    state: "in_progress",
+    progress: { done: 0, total: 1 },
+    children: [childJob],
+    latest_updated_at: "2026-01-01T12:00:00Z"
+  }
+  const pendingEntry = { id: 17, kind: "job", title: "Show media", state: "proposed", anchor_message_id: null, active_children_count: null }
+
+  // Renders the real conversation card and the real Jobs panel under ONE
+  // QueryClient. No AppEvent is ever delivered: only the HTTP response of the
+  // confirm/reject POST and the follow-up job_status GET can heal the panel.
+  function renderCardAndJobsTab(materialized: unknown[], resolvedState: string, cardOverrides: Partial<ChatProposal> = {}) {
+    let resolved = false
+    let jobStatusFetches = 0
+    const resolvedProposal = proposal({ ...cardOverrides, state: resolvedState, proposed: false, resolved: true })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input)
+      if (url.endsWith("/media")) return Promise.resolve(jsonResponse(mediaPayload))
+      if (init?.method === "POST") {
+        resolved = true
+        return Promise.resolve(jsonResponse({ message: "done", proposal: resolvedProposal }))
+      }
+      if (url.endsWith("/job_status")) {
+        jobStatusFetches += 1
+        return Promise.resolve(jsonResponse({ pending_proposals: resolved ? [] : [pendingEntry], items: resolved ? materialized : [] }))
+      }
+      return Promise.resolve(jsonResponse({}))
+    })
+
+    const queryKey: ChatQueryKey = ["chats", "122", ""]
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const card = proposal(cardOverrides)
+    client.setQueryData(queryKey, payloadFor(queryKey, card))
+    client.setQueryData(["bootstrap"], { current_user: { id: 1, role: "developer", admin: true } })
+    client.setQueryData(["chat_media", "122"], mediaPayload)
+    render(
+      <MemoryRouter>
+        <QueryClientProvider client={client}>
+          <ProposalCard onNotice={vi.fn()} prefix="" proposal={card} queryKey={queryKey} />
+          <ChatJobStatusPanel chatId="122" />
+        </QueryClientProvider>
+      </MemoryRouter>
+    )
+    return { client, jobStatusFetches: () => jobStatusFetches }
+  }
+
+  it("replaces the Proposed entry with the materialized Job without a remount", async () => {
+    const { jobStatusFetches } = renderCardAndJobsTab([jobItem], "confirmed")
+    const panel = await screen.findByLabelText("Proposed")
+    expect(within(panel).getByText("Show media")).toBeInTheDocument()
+    const before = jobStatusFetches()
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
+
+    expect(await screen.findByText("Materialized job")).toBeInTheDocument()
+    expect(screen.queryByLabelText("Proposed")).not.toBeInTheDocument()
+    expect(jobStatusFetches()).toBeGreaterThan(before)
+  })
+
+  it("shows a confirmed Epic bundle's materialized Epic and children", async () => {
+    renderCardAndJobsTab([epicItem], "confirmed", { kind: "epic", kind_label: "Epic", epic_bundle: true })
+    await screen.findByLabelText("Proposed")
+
+    fireEvent.click(screen.getByRole("button", { name: "Confirm proposal and implement" }))
+
+    expect(await screen.findByText("Materialized epic")).toBeInTheDocument()
+    expect(screen.queryByLabelText("Proposed")).not.toBeInTheDocument()
+    expect(await screen.findByText("Epic child job")).toBeInTheDocument()
+  })
+
+  it("drops a rejected proposal without creating anything in the Jobs tab", async () => {
+    renderCardAndJobsTab([], "rejected")
+    await screen.findByLabelText("Proposed")
+
+    fireEvent.click(screen.getByRole("button", { name: "Reject proposal" }))
+
+    await waitFor(() => expect(screen.queryByLabelText("Proposed")).not.toBeInTheDocument())
+    expect(screen.queryByText("Materialized job")).not.toBeInTheDocument()
+    expect(screen.getByText("No confirmed proposals yet.")).toBeInTheDocument()
+  })
+
+  it("still updates a secondary tab through the AppEvent path, including withdrawn proposals", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ pending_proposals: [pendingEntry], items: [] }))
+    render(
+      <MemoryRouter>
+        <QueryClientProvider client={client}>
+          <ChatJobStatusPanel chatId="122" />
+        </QueryClientProvider>
+      </MemoryRouter>
+    )
+    expect(await screen.findByText("Show media")).toBeInTheDocument()
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ pending_proposals: [], items: [] }))
+
+    act(() => {
+      applyAppEvent(client, {
+        type: "chat.updated",
+        resource: "chat",
+        id: 122,
+        changed: ["proposal"],
+        payload: { action: "update_proposal", proposal_id: 17, job_status_proposal: { ...pendingEntry, state: "withdrawn" } }
+      })
+    })
+
+    await waitFor(() => expect(screen.queryByText("Show media")).not.toBeInTheDocument())
   })
 })
