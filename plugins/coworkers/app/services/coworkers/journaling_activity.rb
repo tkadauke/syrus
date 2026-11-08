@@ -46,7 +46,7 @@ module Coworkers
     end
 
     def zone
-      ActiveSupport::TimeZone[@coworker.owner_user.approval_delivery_preferences["time_zone"].to_s] || ActiveSupport::TimeZone["UTC"]
+      ActiveSupport::TimeZone[@coworker.owner_user.time_zone]
     end
 
     def range = @date.in_time_zone(zone).all_day

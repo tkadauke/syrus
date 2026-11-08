@@ -322,6 +322,48 @@ RSpec.describe AgentEnvironmentSnapshot do
   end
 
   describe ".for_chat" do
+    it "renders one captured instant in UTC, server, and user zones" do
+      repo = repository(owner: "rome", name: "forums")
+      repo.user.update!(time_zone: "America/Los_Angeles")
+      chat = ChatSession.create!(user: repo.user, repository: repo)
+
+      travel_to(Time.utc(2026, 11, 7, 8, 30, 45)) do
+        snapshot = described_class.for_chat(repository: repo, chat_session: chat)
+
+        expect(snapshot).to include("UTC=2026-11-07T08:30:45Z (UTC)")
+        expect(snapshot).to include("user=2026-11-07T00:30:45-08:00 (America/Los_Angeles)")
+        expect(snapshot).to include("relative dates and times default to the user timezone (America/Los_Angeles)")
+        expect(snapshot).to include("recurring schedules use their stored timezone")
+      end
+    end
+
+    it "does not duplicate identical UTC, server, and user zone values" do
+      repo = repository(owner: "rome", name: "forums")
+      repo.user.update!(time_zone: "UTC")
+      chat = ChatSession.create!(user: repo.user, repository: repo)
+
+      travel_to(Time.utc(2026, 11, 7, 8, 30, 45)) do
+        time_line = described_class.for_chat(repository: repo, chat_session: chat).lines.grep(/Time context:/).sole
+
+        expect(time_line.scan("2026-11-07T08:30:45Z").size).to eq(1)
+      end
+    end
+
+    it "gives Ask, Coding, and Local Mode chats the same time semantics regardless of provider" do
+      repo = repository(owner: "rome", name: "forums")
+      repo.user.update!(time_zone: "Europe/Berlin")
+
+      snapshots = travel_to(Time.utc(2026, 11, 7, 8, 30, 45)) do
+        [ [ "planning", "claude" ], [ "coding", "codex" ], [ "local", "muse" ] ].map do |mode, provider|
+          chat = ChatSession.create!(user: repo.user, repository: repo, mode: mode)
+          chat.update_column(:chat_provider, provider)
+          described_class.for_chat(repository: repo, chat_session: chat).lines.grep(/Time context:|Calendar semantics:/)
+        end
+      end
+
+      expect(snapshots.uniq.one?).to be(true)
+    end
+
     it "renders attached repository paths and chat MCP tool groups" do
       repo = repository(owner: "rome", name: "forums", default_branch: "trunk")
       chat = ChatSession.create!(user: repo.user, repository: repo)
@@ -478,5 +520,17 @@ RSpec.describe AgentEnvironmentSnapshot do
 
       expect(snapshot.apply_to(prompt)).to eq(prompt)
     end
+  end
+
+  it "keeps workflow worker snapshots free of interactive user-timezone context" do
+    repo = repository(owner: "rome", name: "aqueduct")
+    repo.user.update!(time_zone: "America/Los_Angeles")
+    job = Factories.job(repository: repo)
+    step = job.workflows.last.steps.find_by!(kind: "implement")
+    run = step.runs.create!(job: job, trigger_kind: "initial", iteration: 1)
+
+    snapshot = described_class.for_run(run, workspace_path: @workspace_path)
+
+    expect(snapshot).not_to include("Time context:", "Calendar semantics:", "America/Los_Angeles")
   end
 end

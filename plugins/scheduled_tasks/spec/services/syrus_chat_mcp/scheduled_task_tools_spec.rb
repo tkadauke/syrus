@@ -61,6 +61,7 @@ RSpec.describe "Mcp::Tools scheduled task tools" do
       name: "Daily review",
       prompt: "Review the repository.",
       cron_expression: "0 9 * * *",
+      schedule_timezone: "UTC",
       pr_pileup_policy: "skip"
     }.merge(attrs))
   end
@@ -104,7 +105,7 @@ RSpec.describe "Mcp::Tools scheduled task tools" do
       cron_expression: "0 9 * * *",
       enabled: true,
       last_fired_at: "2026-06-20T09:00:00Z",
-      created_at: first_task.created_at.iso8601
+      created_at: first_task.created_at.utc.iso8601
     )
     expect(tasks.second).to include(label: "Paused", enabled: false)
     expect(tasks.third).to include(repository_slug: other_repository.slug, label: "Other repo")
@@ -252,7 +253,7 @@ RSpec.describe "Mcp::Tools scheduled task tools" do
       label: "Release reminder",
       schedule_explanation: nil,
       schedule_timezone: "UTC",
-      fire_at: fire_at.iso8601,
+      fire_at: fire_at.utc.iso8601,
       deleted: true
     )
     expect(task.reload.archived_at).to be_present
@@ -300,7 +301,7 @@ RSpec.describe "Mcp::Tools scheduled task tools" do
       enabled: true,
       last_fired_at: "2026-07-26T02:00:00Z",
       consecutive_failure_count: 1,
-      created_at: task.created_at.iso8601
+      created_at: task.created_at.utc.iso8601
     )
   end
 
@@ -423,6 +424,15 @@ RSpec.describe "Mcp::Tools scheduled task tools" do
     expect(response.dig(:result, :isError)).to be_falsey
     expect(payload(response).dig(:scheduled_task, :cron_expression)).to eq("0 18 * * *")
     expect(task.reload.cron_expression).to eq("0 18 * * *")
+  end
+
+  it "updates the wall-clock timezone on a cron task" do
+    task = create_scheduled_task(schedule_timezone: "UTC")
+
+    response = call_tool("update_scheduled_task", scheduled_task_id: task.id, schedule_timezone: "Europe/Berlin")
+
+    expect(response.dig(:result, :isError)).to be_falsey
+    expect(task.reload).to have_attributes(schedule_timezone: "Europe/Berlin", schedule_explanation: "Every day at 9:00 AM Europe/Berlin")
   end
 
   it "updates pr_pileup_policy on a scheduled task" do

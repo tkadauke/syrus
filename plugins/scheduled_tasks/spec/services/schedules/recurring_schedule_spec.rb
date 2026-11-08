@@ -240,4 +240,55 @@ RSpec.describe ScheduledTasks::Schedules::RecurringSchedule do
     expect(described_class.due_window_start(expression, now: Time.utc(2026, 8, 10, 9, 1))).to eq(Time.utc(2026, 8, 10, 9))
     expect(described_class.due_window_start(expression, now: Time.utc(2026, 8, 10, 10, 0))).to be_nil
   end
+
+  describe "IANA wall-clock scheduling" do
+    it "converts a wall-clock occurrence to UTC" do
+      result = described_class.preview(
+        input: "Every day at 9:00 AM",
+        timezone: "America/New_York",
+        from: Time.utc(2026, 7, 1, 12, 0)
+      )
+
+      expect(result).to be_valid
+      expect(result.timezone).to eq("America/New_York")
+      expect(result.next_fire_at).to eq("2026-07-01T13:00:00Z")
+    end
+
+    it "skips a nonexistent spring-forward wall time" do
+      expression = "FREQ=DAILY;BYHOUR=2;BYMINUTE=30;BYSECOND=0"
+
+      expect(described_class.next_fire_at(expression, timezone: "America/New_York", from: Time.utc(2026, 3, 8, 5)))
+        .to eq(Time.utc(2026, 3, 9, 6, 30))
+    end
+
+    it "fires a duplicated fall-back wall time only once" do
+      expression = "FREQ=DAILY;BYHOUR=1;BYMINUTE=30;BYSECOND=0"
+      first = described_class.next_fire_at(expression, timezone: "America/New_York", from: Time.utc(2026, 11, 1, 4))
+
+      expect(first.in_time_zone("America/New_York").strftime("%F %R")).to eq("2026-11-01 01:30")
+      expect(described_class.next_fire_at(expression, timezone: "America/New_York", from: first))
+        .to eq(Time.utc(2026, 11, 2, 6, 30))
+    end
+
+    it "keeps hourly schedules elapsed-time based across DST" do
+      expression = "FREQ=HOURLY;BYMINUTE=30;BYSECOND=0"
+
+      expect(described_class.next_fire_at(expression, timezone: "America/New_York", from: Time.utc(2026, 3, 8, 6, 31)))
+        .to eq(Time.utc(2026, 3, 8, 7, 30))
+    end
+
+    it "rejects unknown time zones" do
+      result = described_class.preview(input: "Every day at 9am", timezone: "Mars/Olympus")
+
+      expect(result).not_to be_valid
+      expect(result.errors).to include("timezone must be a valid IANA time zone identifier")
+    end
+
+    it "rejects Rails-friendly time zone aliases that are not IANA identifiers" do
+      result = described_class.preview(input: "Every day at 9am", timezone: "Eastern Time (US & Canada)")
+
+      expect(result).not_to be_valid
+      expect(result.errors).to include("timezone must be a valid IANA time zone identifier")
+    end
+  end
 end

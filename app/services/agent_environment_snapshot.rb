@@ -105,6 +105,7 @@ class AgentEnvironmentSnapshot
       "- Agent provider: #{chat_provider_label} chat turn with `syrus-chat-sidecar` MCP tools."
     ]
 
+    lines.concat(chat_time_lines)
     lines.concat(chat_workspace_rule_lines)
     lines.concat(chat_repository_lines)
     lines.concat(chat_coding_workspace_lines)
@@ -112,6 +113,23 @@ class AgentEnvironmentSnapshot
     lines.concat(chat_tool_lines)
     lines.concat(recent_proposal_activity_lines)
     lines
+  end
+
+  def chat_time_lines
+    now = Time.current
+    server_zone = Rails.configuration.x.server_time_zone.name
+    user_zone = chat_session&.user&.time_zone.presence || server_zone
+    # Dedupe on the rendered instant so aliases of the same offset (UTC vs
+    # Etc/UTC) are not repeated.
+    zones = [ [ "UTC", "UTC" ], [ "server", server_zone ], [ "user", user_zone ] ]
+      .map { |label, zone| [ label, zone, now.in_time_zone(zone).iso8601 ] }
+      .uniq { |(_, _, instant)| instant }
+    rendered = zones.map { |label, zone, instant| "#{label}=#{instant} (#{zone})" }.join("; ")
+
+    [
+      "- Time context: #{rendered}.",
+      "- Calendar semantics: relative dates and times default to the user timezone (#{user_zone}); recurring schedules use their stored timezone and new recurring schedules default to the server timezone (#{server_zone}) unless the operator specifies another zone."
+    ]
   end
 
   def job_target_suffix(job)

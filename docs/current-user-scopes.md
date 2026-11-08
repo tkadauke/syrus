@@ -125,6 +125,7 @@ per-user/private:
   - app/controllers/api/v1/app/bug_reports_controller.rb
   - app/controllers/api/v1/app/browser_errors_controller.rb
   - app/controllers/api/v1/app/ui_engagement_samples_controller.rb
+  - app/controllers/api/v1/app/user_time_zones_controller.rb
   - app/controllers/api/v1/app/event_actions_controller.rb
   - app/controllers/api/v1/app/report_issue_controller.rb
   - app/controllers/api/v1/app/chat_job_status_controller.rb

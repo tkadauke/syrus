@@ -35,7 +35,7 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(parse_body).to include(
       "valid" => true,
       "schedule_expression" => "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
-      "schedule_explanation" => "Every Monday at 9:00 AM UTC"
+      "schedule_explanation" => "Every Monday at 9:00 AM Etc/UTC"
     )
   end
 
@@ -55,7 +55,7 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     post "/api/v1/app/scheduled_tasks/preview_schedule", params: { schedule_input: "Every Monday at 9:00 AM" }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body).to include("valid" => true, "schedule_explanation" => "Every Monday at 9:00 AM UTC")
+    expect(parse_body).to include("valid" => true, "schedule_explanation" => "Every Monday at 9:00 AM Etc/UTC")
   end
 
   it "previews the previously-broken spaced meridiem cadence successfully" do
@@ -64,7 +64,7 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     post "/api/v1/app/scheduled_tasks/preview_schedule", params: { schedule_input: "Every day at 10 am" }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body).to include("valid" => true, "schedule_explanation" => "Every day at 10:00 AM UTC")
+    expect(parse_body).to include("valid" => true, "schedule_explanation" => "Every day at 10:00 AM Etc/UTC")
   end
 
   it "still previews pasted cron correctly" do
@@ -73,7 +73,7 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     post "/api/v1/app/scheduled_tasks/preview_schedule", params: { schedule_input: "0 9 * * 1" }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body).to include("valid" => true, "schedule_explanation" => "Every Monday at 9:00 AM UTC", "source" => "cron")
+    expect(parse_body).to include("valid" => true, "schedule_explanation" => "Every Monday at 9:00 AM Etc/UTC", "source" => "cron")
   end
 
   it "does not leak raw Ruby exception text in invalid preview responses" do
@@ -98,7 +98,7 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(response).to have_http_status(:ok)
     expect(parse_body).to include(
       "valid" => true,
-      "schedule_explanation" => "Every Monday at 9:00 AM UTC",
+      "schedule_explanation" => "Every Monday at 9:00 AM Etc/UTC",
       "source" => "structured_intent"
     )
     expect(parse_body["structured_intent"]).to eq(fallback_intent.stringify_keys)

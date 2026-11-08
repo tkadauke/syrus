@@ -11,6 +11,7 @@ module AppApi
       PerformanceLogging.phase("bootstrap_payload", authenticated: user.present?) do
         {
           current_user: PerformanceLogging.phase("bootstrap.current_user") { user_payload },
+          time_zones: time_zones_payload,
           team_user_count: PerformanceLogging.phase("bootstrap.team_user_count") { user ? User.count : 0 },
           app: PerformanceLogging.phase("bootstrap.app") { app_payload },
           setup_status: PerformanceLogging.phase("bootstrap.setup_status") { setup_status_payload },
@@ -61,6 +62,14 @@ module AppApi
         sidebar_nav_order: user.sidebar_nav_order,
         mobile_chat_auto_hide_header: user.mobile_chat_auto_hide_header?,
         review_diff_settings: user.review_diff_settings
+      }
+    end
+
+    def time_zones_payload
+      resolution = Rails.application.config.x.server_time_zone
+      {
+        server: { name: resolution.name, source: resolution.source },
+        user: user && { name: user.time_zone, mode: user.time_zone_mode }
       }
     end
 

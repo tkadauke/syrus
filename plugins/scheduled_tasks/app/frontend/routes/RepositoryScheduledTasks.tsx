@@ -1,4 +1,4 @@
-import { RelativeTimestamp } from "@app/components/RelativeTimestamp"
+import { AbsoluteTimestamp } from "@app/components/AbsoluteTimestamp"
 import { routePrefix } from "@app/lib/routing"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
@@ -13,7 +13,6 @@ import {
 } from "../api/scheduledTasks"
 import { RepositoryPageShell } from "@app/components/RepositoryPageShell"
 import { PageHeading, SectionHeading } from "@app/components/Heading"
-import { toRomanDate } from "@app/lib/romanCalendar"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { PanelMessage } from "@app/components/PanelMessage"
@@ -176,14 +175,7 @@ function repositoryTaskColumns({
       key: "next_window",
       header: t("scheduled_tasks.next_window"),
       className: "text-gray-700 dark:text-gray-300",
-      render: (task) =>
-        task.next_fire_at ? (
-          <span title={toRomanDate(task.next_fire_at)}>
-            <RelativeTimestamp value={task.next_fire_at} />
-          </span>
-        ) : (
-          t("scheduled_tasks.none")
-        ),
+      render: (task) => (task.next_fire_at ? <AbsoluteTimestamp value={task.next_fire_at} /> : t("scheduled_tasks.none")),
       sort: "next_window",
       sortValue: (task) => task.next_fire_at || ""
     },

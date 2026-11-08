@@ -242,6 +242,8 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
   end
 
   it "ranks missing and weak card gaps by usage impact, ownership, and recency" do
+    core_missing_last_used_at = Time.zone.parse("2026-09-08 12:00:00").utc.iso8601
+
     add_card("app/frontend/routes/chat/tool_cards/core_used_tool.tsx", <<~TS)
       export default { toolName: "core_used_tool", collapsedSummary: () => "ok", renderExpanded: () => null }
     TS
@@ -274,7 +276,7 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
         tool_name: "core_missing_tool",
         calls: 12,
         result_bytes: 12_288,
-        last_used_at: "2026-09-08T12:00:00Z",
+        last_used_at: core_missing_last_used_at,
         server_names: [ "syrus-chat-sidecar" ],
         owner_type: "core",
         card_status: "missing",

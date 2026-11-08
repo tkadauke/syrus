@@ -43,6 +43,9 @@ export type ToolCardContext = {
   // Owning chat when rendered in a chat surface. Admin transcripts and
   // catalog fixtures do not necessarily have one.
   chatSessionId?: number | string
+  // Viewer-selected presentation timezone. Catalog/admin callers may omit it;
+  // cards then fall back to the browser timezone.
+  timeZone?: string
   // Earlier settled calls, normalized and redacted like the current call.
   priorCalls?: ToolCardPriorCall[]
   // Current state of the ChatPendingAction this tool call created, read

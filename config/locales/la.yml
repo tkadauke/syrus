@@ -488,6 +488,8 @@ la:
         worker_hostname: "Hospes worker"
         worker_storage_key: "Repositorium worker"
         cleaned_up_at: "Purgatum"
+    user_time_zones:
+      invalid_mode: "modus automatic vel manual esse debet"
     chat_shell_commands:
       unsupported_chat_mode: "Praecepta shell solum in sessionibus chat Coding Mode vel Local Mode praesto sunt."
       feature_disabled: "%{mode} in hac instantia non activatus est."

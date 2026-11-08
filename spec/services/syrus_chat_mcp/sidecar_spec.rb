@@ -93,6 +93,12 @@ RSpec.describe Mcp::Sidecar do
       expect(response[:result][:protocolVersion]).to be_a(String)
     end
 
+    it "deduplicates protocol-visible tool names when all tiers are combined" do
+      tool_names = described_class.chat_tool_names(chat_session, tier: :all)
+
+      expect(tool_names).to eq(tool_names.uniq)
+    end
+
     it "advertises only essential tools via the essential tools/list" do
       server = server_for(chat_session, tier: :essential)
       _ = jsonrpc(server, "initialize", id: 0)

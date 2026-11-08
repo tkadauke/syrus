@@ -19,6 +19,7 @@ const proposal = {
   pending_confirmation_id: 501,
   schedule_explanation: "Runs every Monday at 9:00 AM UTC",
   cron_expression: "0 9 * * 1",
+  schedule_timezone: "America/New_York",
   next_fire_at: "2026-09-08T09:00:00Z"
 }
 
@@ -36,7 +37,7 @@ function live(state: "confirmed" | "rejected", overrides: Partial<ChatPendingAct
 }
 
 describe("schedule_recurring tool card", () => {
-  it("shows every proposed field with markdown, links, cron, and UTC interpretation", () => {
+  it("shows every proposed field with markdown, links, cron, and schedule timezone", () => {
     render(<>{scheduleRecurringToolCard.renderExpanded(context({ parsedResult: proposal }))}</>)
 
     expect(screen.getByText("Weekly review")).toBeInTheDocument()
@@ -44,7 +45,7 @@ describe("schedule_recurring tool card", () => {
     expect(screen.getByTestId("markdown-preview-content")).toHaveTextContent("JOB-42")
     expect(screen.getByText("Every Monday at 9:00 AM")).toBeInTheDocument()
     expect(screen.getByText("0 9 * * 1")).toBeInTheDocument()
-    expect(screen.getByText("Interpreted in UTC.")).toBeInTheDocument()
+    expect(screen.getByText("America/New_York")).toBeInTheDocument()
     expect(screen.getByText("ACTION-501")).toBeInTheDocument()
     expect(screen.getByText("Not created yet — awaiting operator confirmation.")).toBeInTheDocument()
   })
@@ -84,5 +85,13 @@ describe("schedule_recurring tool card", () => {
     expect(scheduleRecurringToolCard.renderExpanded(context({ parsedResult: {} }))).toBeNull()
     expect(scheduleRecurringToolCard.renderExpanded(context({ parsedResult: null }))).toBeNull()
     expect(examples.map((example) => example.id)).toEqual(["pending_markdown_prompt", "write_access_error"])
+  })
+
+  it("shows the stored timezone in the catalog example", () => {
+    const example = examples[0]
+    render(<>{scheduleRecurringToolCard.renderExpanded(context({ input: example.input, parsedResult: example.parsedResult }))}</>)
+
+    expect(screen.getByText("America/New_York")).toBeInTheDocument()
+    expect(screen.getByText("Runs every Monday at 9:00 AM America/New_York")).toBeInTheDocument()
   })
 })

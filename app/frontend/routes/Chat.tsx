@@ -16,6 +16,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { ApiError } from "../api/client"
 import { NoticeToast } from "../components/NoticeToast"
+import { useTimeZones } from "../contexts/TimeZoneContext"
 import { ProviderAvailabilityWarning } from "../components/ProviderAvailabilityWarning"
 import { GeminiSetupSheet } from "../components/GeminiSetupSheet"
 import { CopyableSlug } from "../components/CopyableSlug"
@@ -718,6 +719,7 @@ function MessageStream({
   onNotice: (message: string | null) => void
   onSelectWorkspaceTab?: () => void
 }) {
+  const { user: userTimeZone } = useTimeZones()
   const location = useLocation()
   const { t } = useT("chat")
   const queryClient = useQueryClient()
@@ -753,7 +755,7 @@ function MessageStream({
     () => (showSystemMessages ? displayedItems : displayedItems.filter((item) => !isLowPrioritySystemMessage(item))),
     [displayedItems, showSystemMessages]
   )
-  const streamItems = useMemo(() => injectTemporalMarkers(visibleItems), [visibleItems])
+  const streamItems = useMemo(() => injectTemporalMarkers(visibleItems, userTimeZone), [visibleItems, userTimeZone])
   const toolCardMedia = useQuery({
     queryKey: ["chat_media", String(payload.chat.id)],
     queryFn: () => fetchChatMedia(payload.chat.id),

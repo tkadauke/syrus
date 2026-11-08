@@ -95,6 +95,12 @@ RSpec.describe "Coworker scheduled tasks" do
       .to change { coworker.schedules.where(system_key: "journaling").count }.from(0).to(1)
   end
 
+  it "uses the owner's general time zone instead of approval delivery preferences" do
+    coworker.owner_user.update!(time_zone: "Europe/Berlin", approval_delivery_preferences: { "time_zone" => "America/Los_Angeles" })
+
+    expect(Coworkers::SystemSchedules.reconcile!(coworker).schedule_timezone).to eq("Europe/Berlin")
+  end
+
   it "rejects deletion and system-owned edits but permits pause and resume" do
     journaling = Coworkers::SystemSchedules.reconcile!(coworker)
 
@@ -410,6 +416,21 @@ RSpec.describe "Coworker scheduled tasks" do
       .to eq([ Date.new(2026, 10, 31) ])
     expect(Coworkers::SystemSchedules.target_dates(journaling, now: Time.utc(2026, 11, 2, 5, 15)))
       .to eq([ Date.new(2026, 11, 1) ])
+  end
+
+  it "selects journaling material in the owner's general timezone, not approval delivery preferences" do
+    owner.update!(
+      time_zone: "America/Los_Angeles",
+      approval_delivery_preferences: owner.approval_delivery_preferences.merge("time_zone" => "Europe/Berlin")
+    )
+    chat = ChatSession.create!(user: owner, repository: repository, title: "Maya")
+    Coworkers::Chat.create!(coworker:, chat_session: chat, role: "main")
+    included = chat.messages.create!(role: "user", content: { "text" => "local evening" })
+    included.update_column(:created_at, Time.utc(2026, 11, 4, 7, 30))
+
+    activity = Coworkers::JournalingActivity.new(coworker:, date: Date.new(2026, 11, 3))
+
+    expect(activity.material).to include("local evening")
   end
 
   it "retries a failed date after later dates finish" do

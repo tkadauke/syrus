@@ -60,10 +60,11 @@ import { pluginNamespacesFor } from "../../i18n"
 import { appendSearch, primaryButton, secondaryButton, withRoutePrefix } from "./utils"
 import { ProposalCard } from "./ProposalCards"
 import type { ChatMessageImageAttachment } from "./messageDisplay"
-import { attachmentDataUrl, formatMessageTimestamp } from "./messageDisplay"
+import { attachmentDataUrl, formatMessageTimestamp, formatMessageTimestampExact } from "./messageDisplay"
 import { ToolErrorCard } from "./toolErrorCard"
 import { Avatar } from "../../components/Avatar"
 import { accentRamp } from "../../lib/appearance"
+import { useTimeZones } from "../../contexts/TimeZoneContext"
 
 // Message rendering extracted from Chat.tsx: a single chat message bubble and its
 // image/file attachments, the image lightbox, the bookmark control, and the tool-
@@ -1025,6 +1026,7 @@ function MessageActions({
   menu: ReturnType<typeof useLongPressMenu>
 }) {
   const { t } = useT("chat")
+  const { user: timeZone } = useTimeZones()
   const [bookmarkFormOpen, setBookmarkFormOpen] = useState(false)
   const { copied, copy } = useCopyToClipboard()
 
@@ -1047,9 +1049,9 @@ function MessageActions({
         <time
           className="flex items-center rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-400 shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500"
           dateTime={item.created_at}
-          title={new Date(item.created_at).toLocaleString()}
+          title={formatMessageTimestampExact(item.created_at, timeZone)}
         >
-          {formatMessageTimestamp(item.created_at)}
+          {formatMessageTimestamp(item.created_at, timeZone)}
         </time>
       ) : null}
       <button
@@ -1258,6 +1260,7 @@ type ToolGroupProps = {
 
 const ToolGroupContent = memo(function ToolGroupContent({ chatSessionId, item, payload, chatMedia, presentation: suppliedPresentation }: ToolGroupProps) {
   const { t } = useT("chat")
+  const { user: timeZone } = useTimeZones()
   const [open, setOpen] = useState(false)
   const presentation = suppliedPresentation ?? (payload ? { chatId: payload.chat.id, chatMedia, previewPanels: payload.preview_panels } : undefined)
   const [sourcePreview, setSourcePreview] = useState<WorkspaceFileLink | null>(null)
@@ -1275,7 +1278,7 @@ const ToolGroupContent = memo(function ToolGroupContent({ chatSessionId, item, p
   }
 
   const details = item.calls
-    .map((call) => [toolCardAwareResultSummary(call, presentation), informativeDetail(call.detail)].filter(Boolean).join(" · "))
+    .map((call) => [toolCardAwareResultSummary(call, presentation, timeZone), informativeDetail(call.detail)].filter(Boolean).join(" · "))
     .filter(Boolean)
     .join(", ")
   const summary = item.summary_label || item.tool
@@ -1302,7 +1305,7 @@ const ToolGroupContent = memo(function ToolGroupContent({ chatSessionId, item, p
       <div className="mt-1 min-w-0 max-w-full space-y-2 border-l border-gray-200 pl-3 text-xs sm:ml-5 dark:border-gray-700">
         {item.calls.map((call) => {
           const detail = informativeDetail(call.detail)
-          const resultSummary = toolCardAwareResultSummary(call, presentation)
+          const resultSummary = toolCardAwareResultSummary(call, presentation, timeZone)
           return (
             <div className="min-w-0 max-w-full overflow-hidden" key={call.message_id}>
               <div className="break-words font-mono text-gray-700 dark:text-gray-300">
@@ -1311,9 +1314,15 @@ const ToolGroupContent = memo(function ToolGroupContent({ chatSessionId, item, p
               </div>
               {!callHasExpandedCard(call) && resultSummary ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{resultSummary}</div> : null}
               {expanded && (toolCallSettled(call) || callRendersWhilePending(call)) ? (
-                <ToolResultBody call={call} chatSessionId={chatSessionId} onLinkClick={payload ? handleMarkdownLink : undefined} presentation={presentation} />
+                <ToolResultBody
+                  call={call}
+                  chatSessionId={chatSessionId}
+                  onLinkClick={payload ? handleMarkdownLink : undefined}
+                  presentation={presentation}
+                  timeZone={timeZone}
+                />
               ) : expanded ? (
-                pluginToolCardPendingBody(toolCardContext(call, chatSessionId, presentation, payload ? handleMarkdownLink : undefined))
+                pluginToolCardPendingBody(toolCardContext(call, chatSessionId, presentation, payload ? handleMarkdownLink : undefined, timeZone))
               ) : null}
               {expanded ? (
                 <RawToolDetails
@@ -1456,12 +1465,14 @@ function ToolResultBody({
   call,
   chatSessionId,
   presentation,
-  onLinkClick
+  onLinkClick,
+  timeZone
 }: {
   call: ChatToolGroupItem["calls"][number]
   chatSessionId?: number | string
   presentation?: ToolCardContext["presentation"]
   onLinkClick?: ToolCardContext["onLinkClick"]
+  timeZone?: string
 }) {
   const typed = typedToolResult(call.tool_name, call.result_body, call.result_error)
   if (typed) return <TypedToolResultBody result={typed} />
@@ -1480,7 +1491,7 @@ function ToolResultBody({
   // section, not the raw-JSON fallback. A card can still return null for a
   // shape it doesn't recognize, which falls through to HighlightedToolResult
   // below exactly as an unregistered tool's error would.
-  const pluginBody = pluginToolCardExpandedBody(toolCardContext(call, chatSessionId, presentation, onLinkClick))
+  const pluginBody = pluginToolCardExpandedBody(toolCardContext(call, chatSessionId, presentation, onLinkClick, timeZone))
   if (pluginBody != null) return <>{pluginBody}</>
 
   // Registered cards may have a useful in-flight view derived entirely from
@@ -1497,19 +1508,19 @@ function toolCardName(call: ChatToolGroupItem["calls"][number]) {
   return normalizedToolName(call.raw_name || call.tool_name)
 }
 
-function toolCardAwareResultSummary(call: ChatToolGroupItem["calls"][number], presentation?: ToolCardContext["presentation"]) {
+function toolCardAwareResultSummary(call: ChatToolGroupItem["calls"][number], presentation?: ToolCardContext["presentation"], timeZone?: string) {
   // Pending-action state is refreshed from the owning tool-call message,
   // while result_summary is frozen when the original tool result arrives.
   // Give a registered card the live record before falling back to that
   // stored summary so confirmed/rejected outcomes do not keep saying pending.
   if (call.pending_action) {
-    const liveCardSummary = pluginToolCardCollapsedSummary(toolCardContext(call, undefined, presentation))
+    const liveCardSummary = pluginToolCardCollapsedSummary(toolCardContext(call, undefined, presentation, undefined, timeZone))
     if (liveCardSummary) return redactToolCardText(liveCardSummary)
   }
 
   if (call.result_summary) return redactToolCardText(call.result_summary)
 
-  const cardSummary = pluginToolCardCollapsedSummary(toolCardContext(call, undefined, presentation))
+  const cardSummary = pluginToolCardCollapsedSummary(toolCardContext(call, undefined, presentation, undefined, timeZone))
 
   return cardSummary ? redactToolCardText(cardSummary) : null
 }
@@ -1518,7 +1529,8 @@ export function toolCardContext(
   call: ChatToolGroupItem["calls"][number],
   chatSessionId?: number | string,
   presentation?: ToolCardContext["presentation"],
-  onLinkClick?: ToolCardContext["onLinkClick"]
+  onLinkClick?: ToolCardContext["onLinkClick"],
+  timeZone?: string
 ): ToolCardContext {
   const parsedResult = call.result_json !== undefined ? call.result_json : parseJsonText(call.result_body)
 
@@ -1531,6 +1543,7 @@ export function toolCardContext(
     resultSettled: toolCallSettled(call),
     parsedResult: redactToolCardValue(normalizedToolCardParsedResult(parsedResult)),
     chatSessionId,
+    timeZone,
     priorCalls: (call.context_calls || []).map((priorCall) => ({
       toolName: normalizedToolName(priorCall.tool_name),
       input: (isPlainObject(priorCall.input) ? redactToolCardValue(priorCall.input) : {}) as Record<string, unknown>,

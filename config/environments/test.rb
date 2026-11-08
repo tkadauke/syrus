@@ -8,6 +8,11 @@ require_relative "../retention_archive_storage"
 Rails.application.configure do
   # Settings specified here will take precedence over those in config/application.rb.
 
+  # The suite assumes a UTC deployment regardless of the host's TZ; only an
+  # explicit SYRUS_TIME_ZONE overrides it.
+  config.x.server_time_zone = Syrus::ServerTimeZone.resolve(ENV.to_h.except("TZ"))
+  config.time_zone = config.x.server_time_zone.name
+
   # While tests run files are not watched, reloading is not necessary.
   config.enable_reloading = false
 

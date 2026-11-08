@@ -245,3 +245,36 @@ Worker containers also check `db:abort_if_pending_migrations` before starting
 `bin/jobs`. In a normal deploy that check is already satisfied by the
 pre-rollout Job. If a worker is started against a database that is still behind
 the image, it exits loudly before it can claim Solid Queue work.
+
+# Server and user time zones
+
+`SYRUS_TIME_ZONE` selects the server's IANA time zone. Boot resolution is an
+explicit `SYRUS_TIME_ZONE`, then a valid process `TZ`, then `Etc/UTC`. An
+invalid explicit value aborts boot with a configuration error; an invalid
+ambient `TZ` is ignored. Set the variable consistently for local/macOS launch
+agents, Docker Compose, every k3s/Kubernetes process, and generic cloud process
+groups. Never infer it from a host, cluster, IP address, or cloud region.
+
+Rails calendar operations use the resolved server zone. Active Record and all
+MySQL sessions continue storing instants in UTC. Each user separately has an
+IANA zone and an `automatic` or `manual` mode. Authenticated browsers report
+`Intl.DateTimeFormat().resolvedOptions().timeZone`; reports update automatic
+users as they travel and never move manual overrides. This state is independent
+from approval-delivery quiet hours, whose existing zone and behavior are not
+changed. Admin Overview shows process `TZ`, the Rails zone, resolution source,
+and database UTC policy separately.
+
+Calendar-relative UI (including chat day dividers and date groups) uses the
+user zone; elapsed durations still compare UTC instants. Operational absolute
+times such as schedules and wakeups show one zoned value when the user and
+server zones match, or explicitly labeled user and server values when they
+differ. The underlying HTML `time` value remains an ISO-8601 instant.
+
+Interactive chat agents receive one captured instant rendered in UTC, the
+server zone, and the user's zone (with identical zones collapsed). Relative
+calendar language defaults to the user zone. Recurring schedules continue to
+use their stored zone, while newly created schedules default to the server
+zone unless the operator names another one. Ordinary workflow workers do not
+receive this interactive time context. User-facing spending date filters,
+daily buckets, coworker daily memory, and journaling boundaries use the user's
+zone; persisted instants and database sessions remain UTC.

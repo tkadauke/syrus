@@ -25,6 +25,7 @@ import { Button, DataTable, DescriptionList, Form, Page, buttonClasses } from "@
 import { Input } from "@app/components/Input"
 import { fetchRepositorySkills, type SkillSummary } from "@app/api/skills"
 import { initialArgs, SkillOption, SkillParameterInput } from "@app/routes/RepositorySkillNew"
+import { useTimeZones } from "@app/contexts/TimeZoneContext"
 
 const defaultPolicies = ["skip", "pile", "replace"]
 const emptyTemplate: CronTemplateInput = {
@@ -93,6 +94,7 @@ export function CronTemplateDetailRoute() {
 
 export function CronTemplateFormRoute({ mode }: { mode: "new" | "edit" }) {
   const { t } = useT("settings")
+  const { server: serverTimeZone } = useTimeZones()
   const location = useLocation()
   const params = useParams()
   const id = params.id || ""
@@ -111,7 +113,7 @@ export function CronTemplateFormRoute({ mode }: { mode: "new" | "edit" }) {
   const error = index.error || detail.error
   const policies = index.data?.pr_pileup_policies || detail.data?.pr_pileup_policies || defaultPolicies
   const repositories = index.data?.repositories || detail.data?.repositories || []
-  const initial = mode === "edit" && detail.data ? inputFromTemplate(detail.data.template) : emptyTemplate
+  const initial = mode === "edit" && detail.data ? inputFromTemplate(detail.data.template) : { ...emptyTemplate, schedule_timezone: serverTimeZone }
 
   return (
     <Page.Root aria-label={mode === "new" ? "New cron template" : "Edit cron template"} gutter="responsive" size="form">
@@ -285,6 +287,7 @@ function TemplateDetail({ payload, basePath, prefix }: { payload: Awaited<Return
           <DescriptionList.Item descriptionClassName="font-mono text-xs" label={t("cron_templates.semantics_label")}>
             {payload.template.schedule_expression}
           </DescriptionList.Item>
+          <DescriptionList.Item label={t("cron_templates.field_timezone")}>{payload.template.schedule_timezone}</DescriptionList.Item>
           <DescriptionList.Item label={t("cron_templates.pr_pileup_policy_label")}>{payload.template.pr_pileup_policy}</DescriptionList.Item>
         </DescriptionList.Root>
       </section>
@@ -357,7 +360,7 @@ function CronTemplateForm({
   })
   // See ScheduledTasks.tsx's identical guard: don't show a preview result
   // that no longer matches the currently-typed input.
-  const previewMatchesInput = preview.data?.schedule_input === values.schedule_input
+  const previewMatchesInput = preview.data?.schedule_input === values.schedule_input && preview.data?.schedule_timezone === values.schedule_timezone
   const previewErrors = previewMatchesInput ? preview.data?.errors || [] : []
   const previewExplanation = preview.data ? (previewMatchesInput ? preview.data.schedule_explanation : null) : values.schedule_explanation
   const previewSource = previewMatchesInput ? preview.data?.source : null
@@ -365,9 +368,9 @@ function CronTemplateForm({
   useEffect(() => {
     if (!values.schedule_input.trim()) return
 
-    const timer = window.setTimeout(() => preview.mutate(values.schedule_input), 300)
+    const timer = window.setTimeout(() => preview.mutate({ scheduleInput: values.schedule_input, scheduleTimezone: values.schedule_timezone }), 300)
     return () => window.clearTimeout(timer)
-  }, [values.schedule_input])
+  }, [values.schedule_input, values.schedule_timezone])
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -395,6 +398,10 @@ function CronTemplateForm({
         />
         <SchedulePreviewState errors={previewErrors} explanation={previewExplanation} loading={preview.isPending} source={previewSource} />
         <Form.HelpText>{t("cron_templates.schedule_help")}</Form.HelpText>
+      </Form.Field>
+      <Form.Field controlId="cron-template-timezone">
+        <Form.Label>{t("cron_templates.field_timezone")}</Form.Label>
+        <Form.Input onChange={(event) => setValues({ ...values, schedule_timezone: event.target.value })} type="text" value={values.schedule_timezone} />
       </Form.Field>
       <Form.Field controlId="cron-template-pileup">
         <Form.Label>{t("cron_templates.field_pileup")}</Form.Label>

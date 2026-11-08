@@ -247,7 +247,7 @@ class WorkerHostHealthSampler
     end
 
     def raw_metrics(data_root:, observed_at:)
-      raw = { sampler: "worker_host_health_sampler", observed_at: observed_at.iso8601 }
+      raw = { sampler: "worker_host_health_sampler", observed_at: observed_at.utc.iso8601 }
       raw[:pressure_sources] = pressure_sources if pressure_sources.present?
       raw[:data_root_path] = data_root.path if data_root&.path
       raw[:data_root_filesystem] = data_root.filesystem if data_root&.filesystem

@@ -38,6 +38,13 @@ denial. Ordinary chats can also ask for narrowly scoped authority for
 themselves; persistent coworkers retain additional request limits and safety
 boundaries.
 
+Interactive chat agents also receive a compact, internally consistent time
+snapshot: one instant in UTC and the relevant server and user zones. Relative
+calendar terms use the user's zone. Recurring schedules use their stored zone,
+and new recurring schedules default to the server zone unless the operator
+specifies another. Implementation workflow workers omit this context unless a
+specialized prompt actually needs calendar language.
+
 Being available to an ordinary Syrus Chat does not itself authorize a tool.
 Each call goes through the same permission evaluator. Safe defaults remain
 frictionless; an ask-on-first-use decision shows one compact approval for the
@@ -863,7 +870,7 @@ Supported schedule kinds:
 
 | Kind       | Meaning                                                                      |
 | ---------- | ---------------------------------------------------------------------------- |
-| `cron`     | Recurring schedule interpreted in UTC, limited to at most one fire per hour. |
+| `cron`     | Recurring wall-clock schedule in its stored IANA time zone, limited to at most one fire per hour. |
 | `one_shot` | A single future fire time.                                                   |
 
 Cron schedules can be entered as a five-field cron expression (`0 9 * * 1`)
@@ -877,6 +884,14 @@ model. Lists, ranges, and steps are supported in cron fields, including
 weekday schedules such as `0 9 * * 1-5`; both `0` and `7` mean Sunday. If
 day-of-month and day-of-week are both restricted, the schedule fires when
 either field matches, following standard cron semantics.
+
+New recurring tasks and templates default to the server time zone. Existing
+schedules retain their stored zone, so changing the server setting never
+reinterprets them. Calendar schedules keep the same local time across daylight
+saving changes: nonexistent spring-forward times are skipped and duplicated
+fall-back times fire once. Hourly schedules remain fixed elapsed intervals.
+Chat guidance follows the same rule and does not reinterpret an existing
+schedule in the user's current zone.
 
 The `pr_pileup_policy` controls what happens if the last scheduled PR is
 still open: `skip`, `pile`, or `replace`. Repeated failures can

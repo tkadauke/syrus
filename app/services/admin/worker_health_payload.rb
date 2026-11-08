@@ -158,7 +158,7 @@ module Admin
     end
 
     def minute_bucket_payload(minute, host_samples)
-      summarize(host_samples).merge(minute: minute.iso8601)
+      summarize(host_samples).merge(minute: minute.utc.iso8601)
     end
 
     def empty_summary
