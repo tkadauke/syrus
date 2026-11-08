@@ -392,6 +392,93 @@ RSpec.describe RunHostAdmission do
 
   # The per-host slot count is a lag backstop, not a capacity model, so a spec
   # that wants "the host is full" has to actually fill it.
+  # Stale ownership: a database-running Run assigned to this host by its
+  # workflow, with no recent heartbeat, live process or runtime session, must
+  # not reserve capacity.
+  describe "liveness of counted Runs" do
+    before do
+      allow(RunProcessParallelism).to receive(:host_capacity).and_return(4)
+      allow(RunProcessParallelism).to receive(:current_memory_bytes).and_return(3.gigabytes)
+      worker_sample(memory_used_percent: 25.0, cpu_pressure_some: 1.0)
+      workflow.update!(state: "running")
+      run.update!(step: workflow.steps.find_by!(kind: "implement"))
+    end
+
+    def running_run_on_worker_a(index, started_at: 2.hours.ago, heartbeat: nil)
+      other = Factories.job_record(user: user, repository: repository, state: "running", issue_number: 700 + index)
+      other_workflow = Workflows::Initial.instantiate(job: other, agent_provider: "codex")
+      other_workflow.update!(state: "running", worker_hostname: "worker-a")
+      other_step = other_workflow.steps.find_by!(kind: "implement")
+      other_step.update!(state: "running")
+      other_step.runs.create!(
+        job: other, trigger_kind: other_workflow.trigger_kind, agent_provider: other_workflow.agent_provider,
+        state: "running", started_at: started_at, last_heartbeat_at: heartbeat
+      )
+    end
+
+    it "does not count stale running Runs toward compute or memory" do
+      stale = Array.new(3) { |i| running_run_on_worker_a(i, heartbeat: 1.hour.ago) }
+      admission = described_class.new(run: run)
+
+      expect(admission.send(:active_compute_units)).to eq(0)
+      expect(admission.send(:active_reserved_memory_bytes)).to eq(0)
+      decision = admission.call
+      expect(decision).to be_admit
+      expect(decision.details["active_run_ids"]).to be_nil.or eq([])
+      expect(stale).to all(be_running)
+    end
+
+    it "counts Runs with a fresh heartbeat and reports their liveness evidence" do
+      live = running_run_on_worker_a(1, heartbeat: 1.minute.ago)
+      running_run_on_worker_a(2, heartbeat: 1.hour.ago)
+      admission = described_class.new(run: run)
+
+      expect(admission.send(:active_compute_units)).to eq(admission.send(:compute_units_for, live.step))
+      evidence = admission.send(:active_run_liveness_evidence)
+      expect(evidence.map { |e| e["run_id"] }).to eq([live.id])
+      expect(evidence.first).to include("fresh_heartbeat" => true, "unfinished_spawned_process" => false)
+      expect(admission.send(:details, "x")).to include("active_run_ids" => [live.id])
+    end
+
+    it "counts a recently started provider-bound Run before its first heartbeat" do
+      live = running_run_on_worker_a(1, started_at: 2.minutes.ago)
+
+      expect(described_class.new(run: run).send(:active_run_liveness_evidence).map { |e| e["run_id"] }).to eq([live.id])
+    end
+
+    it "counts a stale-heartbeat Run that has an unfinished process on this host" do
+      stale = running_run_on_worker_a(1, heartbeat: 1.hour.ago)
+      stale.spawned_processes.create!(
+        workflow: stale.workflow, kind: "grader", command: "bin/rspec", hostname: "worker-a", started_at: 1.minute.ago
+      )
+      evidence = described_class.new(run: run).send(:active_run_liveness_evidence)
+
+      expect(evidence.map { |e| e["run_id"] }).to eq([stale.id])
+      expect(evidence.first["unfinished_spawned_process"]).to be(true)
+    end
+
+    it "counts a Run with a recently touched active runtime session" do
+      stale = running_run_on_worker_a(1, heartbeat: 1.hour.ago)
+      RuntimeSession.create!(
+        repository: repository, run: stale, workspace_ref: "w", provider_key: "p", display_name: "d", state: "running"
+      )
+
+      expect(described_class.new(run: run).send(:active_run_liveness_evidence).map { |e| e["run_id"] }).to eq([stale.id])
+    end
+
+    %w[prediction usage].each do |policy|
+      it "uses the corrected scope under the #{policy} policy" do
+        AppSetting.current.update!(host_admission_policy: policy)
+        allow(WorkerHostHealthSampler).to receive(:memory_pressure_snapshot).and_return(memory_pressure_some: 0.0)
+        3.times { |i| running_run_on_worker_a(i, heartbeat: 1.hour.ago) }
+        expect(described_class.call(run: run)).to be_admit
+
+        3.times { |i| running_run_on_worker_a(10 + i, heartbeat: 30.seconds.ago) }
+        expect(described_class.call(run: run)).to be_defer
+      end
+    end
+  end
+
   def saturate_guarded_slots!(count: 3)
     count.times do |i|
       other = Factories.job_record(user: user, repository: repository, state: "running", issue_number: 500 + i)
