@@ -378,6 +378,51 @@ RSpec.describe Admin::McpToolCardCoverage, :reset_plugin_registry do
       )
     end
   end
+
+  describe "workflow transcript tools" do
+    it "classifies namespaced workflow tools and reports metadata-unrenderable rows" do
+      add_card("registered_tool.tsx", 'export default { toolName: "wf_registered", renderExpanded() {}, collapsedSummary() {} }')
+      run = Factories.job_with_run.runs.last
+      JobLog.append!(run: run, chunk: "c", kind: "tool_call", tool_name: "mcp__syrus-mcp-sidecar__wf_registered", tool_use_id: "a")
+      JobLog.append!(run: run, chunk: "r", kind: "tool_result", tool_use_id: "a", tool_result_content: "ok")
+      JobLog.append!(run: run, chunk: "c", kind: "tool_call", tool_name: "syrus-mcp-sidecar.wf_unknown", tool_use_id: "b")
+      JobLog.append!(run: run, chunk: "r", kind: "tool_result", tool_result_content: "no id")
+
+      report = described_class.call(usages: McpToolUsage.none, advertised_tools: [], workflow_transcript_logs: run.job_logs)
+      rows = report.fetch(:workflow_transcript_tools).index_by { |row| row[:tool_name] }
+
+      expect(rows.fetch("wf_registered")).to include(card_status: "registered", calls: 1, results: 0, unrenderable: 0)
+      expect(rows.fetch("wf_unknown")).to include(card_status: "missing")
+      # A result with no pairing id cannot be attached to any call.
+      expect(rows.fetch(nil)).to include(card_status: "metadata_unrenderable", unrenderable: 1)
+    end
+
+    it "reports workflow-advertised tools that never appeared in a transcript" do
+      add_card("wf_card.tsx", 'export default { toolName: "wf_advertised_carded", renderExpanded() {}, collapsedSummary() {} }')
+
+      report = described_class.call(
+        usages: McpToolUsage.none, advertised_tools: [],
+        workflow_transcript_logs: JobLog.none,
+        workflow_advertised_tools: %w[wf_advertised_carded wf_advertised_bare]
+      )
+      rows = report.fetch(:workflow_transcript_tools).index_by { |row| row[:tool_name] }
+
+      expect(rows.fetch("wf_advertised_carded")).to include(card_status: "registered", advertised: true, calls: 0)
+      expect(rows.fetch("wf_advertised_bare")).to include(card_status: "missing", advertised: true, calls: 0)
+      expect(report.fetch(:unused_advertised_tools)).to eq([])
+    end
+
+    it "omits the section when no transcript logs are supplied" do
+      report = described_class.call(usages: McpToolUsage.none, advertised_tools: [])
+      expect(report).not_to have_key(:workflow_transcript_tools)
+    end
+
+    it "canonicalizes dotted and mcp__ names identically" do
+      expect(described_class.canonical_tool_name("syrus-mcp-sidecar.x")).to eq("x")
+      expect(described_class.canonical_tool_name("mcp__syrus-mcp-sidecar__x")).to eq("x")
+      expect(described_class.canonical_tool_name("bash")).to eq("bash")
+    end
+  end
 end
 
 RSpec.describe "chat MCP custom-card coverage inventory" do

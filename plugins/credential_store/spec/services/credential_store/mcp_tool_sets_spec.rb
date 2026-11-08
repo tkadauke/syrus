@@ -10,7 +10,9 @@ RSpec.describe "CredentialStore MCP tool sets" do
     expect(ssh_tool.fetch(:capability_descriptor)).to have_attributes(
       capability: "ssh.execute@v1", operation: "ssh.execute/risky@v1"
     )
-    expect(tools.first).not_to include(:capability_descriptor)
+    expect(tools.first.fetch(:capability_descriptor)).to have_attributes(
+      capability: "credential.metadata@v1", operation: "credential.metadata/list@v1"
+    )
   end
 
   it "never advertises SSH exec to coworkers through any grant" do
@@ -38,6 +40,7 @@ RSpec.describe "CredentialStore MCP tool sets" do
     ssh_tool = CredentialStore::WorkflowToolSet.tool_definitions(context: context).last
     expect(ssh_tool.fetch(:capability_descriptor))
       .to have_attributes(capability: "ssh.execute@v1")
-    expect(CredentialStore::WorkflowToolSet.tool_definitions(context: context).first).not_to include(:capability_descriptor)
+    expect(CredentialStore::WorkflowToolSet.tool_definitions(context: context).first.fetch(:capability_descriptor))
+      .to have_attributes(capability: "credential.metadata@v1", operation: "credential.metadata/list@v1")
   end
 end

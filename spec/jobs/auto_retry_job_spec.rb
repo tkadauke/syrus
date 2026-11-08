@@ -173,6 +173,28 @@ RSpec.describe AutoRetryJob do
     expect(RetryFailedStepEnqueuer).not_to have_received(:call)
   end
 
+  it "starts a fresh workflow when a failed-step attempt requires workspace reconstruction" do
+    attempt = failed_attempt!(retry_kind: "failed_step")
+    workflow.set_artifact!("workspace_recovery_failure", {
+      "classification" => "workspace_recovery_failed",
+      "retryable" => true
+    })
+    result = RetryWorkflowEnqueuer::Result.new(workflow: instance_double(Workflow), error: nil, circuit: nil)
+    allow(RetryWorkflowEnqueuer).to receive(:call).and_return(result)
+    allow(RetryFailedStepEnqueuer).to receive(:call)
+
+    described_class.perform_now(attempt.id)
+
+    expect(RetryWorkflowEnqueuer).to have_received(:call).with(
+      job: job,
+      agent_provider: "claude",
+      artifacts: { "auto_retry_attempt_id" => attempt.id },
+      provider_validation: :none,
+      automatic: true
+    )
+    expect(RetryFailedStepEnqueuer).not_to have_received(:call)
+  end
+
   it "uses RetryWorkflowEnqueuer for retry-workflow attempts" do
     attempt = failed_attempt!(retry_kind: "retry_workflow")
     result = RetryWorkflowEnqueuer::Result.new(workflow: instance_double(Workflow), error: nil, circuit: nil)

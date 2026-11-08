@@ -67,6 +67,26 @@ RSpec.describe App::JobRetryActions do
     end
   end
 
+  describe "when workspace recovery fails before an unstarted grade loop" do
+    it "offers an executable fresh implementation retry and hides retry-in-place" do
+      job = Factories.job_record(user: user, repository: repo, state: "failed")
+      workflow, step = build_failed_workflow(job, failed_step_kind: "visual_review")
+      classify_failure(step, classification: "workspace_recovery_failed", retryable: true)
+      workflow.steps.create!(kind: "grader_fanout", position: 2, state: "cancelled", loop_id: "grade-loop")
+      workflow.steps.create!(kind: "grader_collect", position: 3, state: "cancelled", loop_id: "grade-loop")
+      workflow.steps.create!(kind: "summarize", position: 4, state: "cancelled")
+
+      actions = actions_for(job)
+
+      expect(RetryFailedStepEnqueuer.failed_step_for(workflow)).to eq(step)
+      expect(actions[:failed_step]).to be_nil
+      expect(actions[:implementation]).to include(
+        key: "retry_implementation",
+        path: "/api/v1/app/jobs/#{job.id}/retry_implementation"
+      )
+    end
+  end
+
   describe "when a post-implementation step fails with a retryable, non-git classification" do
     it "keeps today's behavior: no implementation retry, retry-in-place is offered" do
       job = Factories.job_record(user: user, repository: repo, state: "failed")

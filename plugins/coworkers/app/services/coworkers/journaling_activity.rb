@@ -14,21 +14,36 @@ module Coworkers
       sections << "### Daily memory\n\n#{daily_memory}" if daily_memory.present?
       if messages.exists?
         lines = messages.order(:created_at).limit(500).map do |message|
-          "- CHAT-#{message.chat_session_id} #{message.created_at.iso8601} #{message.role}: #{message.extract_text_from_content.to_s.truncate(1_000)}"
+          "- CHAT-#{message.chat_session_id} #{message.created_at.iso8601} #{message.role}: #{text(message.extract_text_from_content).truncate(1_000)}"
         end
         sections << "### Messages\n\n#{lines.join("\n")}"
       end
       if background_jobs.exists?
         lines = background_jobs.order(:created_at).limit(100).map do |job|
           summary = Run.where(job_id: job.id).where.not(agent_summary: [ nil, "" ]).order(:created_at).last&.agent_summary
-          "- JOB-#{job.id}: #{job.issue_title}#{": #{summary.to_s.truncate(1_000)}" if summary.present?}"
+          "- JOB-#{job.id}: #{text(job.issue_title)}#{": #{text(summary).truncate(1_000)}" if summary.present?}"
         end
         sections << "### Background runs\n\n#{lines.join("\n")}"
       end
-      sections.presence&.join("\n\n") || "No material was found."
+      return "No material was found." if sections.empty?
+
+      sections << UNDECODABLE_NOTE if @undecodable
+      sections.join("\n\n")
     end
 
     private
+
+    UNDECODABLE_NOTE = "_Note: some content above was not valid UTF-8 and had undecodable bytes replaced with \uFFFD._".freeze
+
+    # Normalizes an external string to UTF-8 and remembers when bytes were lost
+    # so the prompt can say so instead of hiding it.
+    def text(value, label: nil)
+      result = Coworkers::Utf8Text.normalize(value)
+      @undecodable = true if result.lossy?
+      return result.text unless result.binary?
+
+      "[binary content omitted#{": #{label}" if label}, #{value.to_s.bytesize} bytes]"
+    end
 
     def zone
       ActiveSupport::TimeZone[@coworker.owner_user.approval_delivery_preferences["time_zone"].to_s] || ActiveSupport::TimeZone["UTC"]
@@ -58,14 +73,16 @@ module Coworkers
       if (chat = @coworker.coworker_chats.find_by(role: "main")&.chat_session)
         root = ChatWorkspace.repo_path_for(chat, repository)
         pending = read_workspace_file(root, "memory/daily/#{@date.iso8601}.md")
-        return @daily_memory = pending if pending
+        return @daily_memory = text(pending, label: daily_memory_path) if pending
       end
       reader = RepositoryContent.for(repository, user: @coworker.owner_user)
       revision = reader.resolve("coworkers/#{@coworker.handle}")
-      @daily_memory = reader.read(revision, "memory/daily/#{@date.iso8601}.md", max_bytes: 64.kilobytes).text
+      @daily_memory = text(reader.read(revision, daily_memory_path, max_bytes: 64.kilobytes).text, label: daily_memory_path)
     rescue RepositoryContent::NotFound, RepositoryContent::Unavailable, RepositoryContent::Unsupported, RepositoryContent::UnknownRevision
       @daily_memory = nil
     end
+
+    def daily_memory_path = "memory/daily/#{@date.iso8601}.md"
 
     # Takes the workspace-relative path and resolves the root before joining,
     # so the component walk starts where the walk is measured from. Building

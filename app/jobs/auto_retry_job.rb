@@ -277,6 +277,10 @@ class AutoRetryJob < ApplicationJob
   end
 
   def perform_retry(attempt)
+    if fresh_workflow_required?(attempt)
+      return retry_workflow(attempt)
+    end
+
     # A provider-auth failure is retried as a whole workflow, never as a step
     # inside the failed one: the failed workflow has the expired provider
     # pinned to it, so resuming a step there would walk straight back into the
@@ -290,6 +294,13 @@ class AutoRetryJob < ApplicationJob
     end
 
     send(RETRY_DISPATCH.fetch(attempt.retry_kind, :retry_workflow), attempt)
+  end
+
+  def fresh_workflow_required?(attempt)
+    recovery = attempt.workflow&.artifact("workspace_recovery_failure").to_h
+    return true if recovery["classification"] == "workspace_recovery_failed"
+
+    RetryFailedStepEnqueuer.fresh_workflow_required_for?(attempt.run&.step)
   end
 
   def provider_auth_failure?(attempt)

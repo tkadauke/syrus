@@ -597,6 +597,18 @@ narrow high-IO grader guard.
   `SYRUS_IO_INTENSIVE_RUNS_PER_HOST` can state the storage system's real
   concurrency when CPU count is a poor proxy. Host-correlated profile values
   never classify a grader as IO-intensive.
+- A `running` Run consumes a host's capacity and memory reservation only with
+  credible current ownership on that host: an unfinished `SpawnedProcess` there,
+  or -- for Runs whose workflow is placed on the host
+  (`workflows.worker_hostname`) -- a fresh `last_heartbeat_at` (or a start within
+  `RunHostAdmission::LIVENESS_WINDOW`, 10 minutes, before the first heartbeat) or
+  a recently touched active `RuntimeSession`. Provider-bound agent turns have no
+  child command, so their heartbeat keeps them counted. Database-running Runs
+  whose worker or process has vanished stop reserving capacity immediately
+  rather than after stale-Run reconciliation. Admission details list the
+  counted Runs as `active_run_ids` and `active_run_liveness_evidence`
+  (heartbeat, process and runtime-session evidence per Run). Both the
+  `prediction` and `usage` host admission policies use this scope.
 - Non-critical hosts with no existing guarded Run admit the pickup normally.
   Missing host telemetry is reported as `unknown`; it is not treated as either
   healthy or critical by this host-local guard.

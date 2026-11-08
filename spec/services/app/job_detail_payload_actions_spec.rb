@@ -932,6 +932,30 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       )
     end
 
+    it "serializes workspace recovery failure as fresh retry only" do
+      job = Factories.job_record(user: user, repository: repo, state: "failed")
+      workflow = create_failed_workflow(job, trigger_kind: "initial", failed_step_kind: "visual_review")
+      step = workflow.steps.last
+      run = step.runs.create!(job: job, trigger_kind: "initial", state: "failed", agent_outcome: "workspace_recovery_failed")
+      run.create_run_failure_classification!(
+        classification: "workspace_recovery_failed",
+        retryable: true,
+        confidence: 1.0,
+        reason: "workspace could not be reconstructed",
+        classified_at: Time.current
+      )
+
+      actions = payload_for(job).fetch(:actions)
+      workflows_payload = workflows_payload_for(job)
+      serialized_workflow = workflows_payload.fetch(:workflows).find { |entry| entry[:id] == workflow.id }
+
+      expect(actions[:can_retry]).to be(true)
+      expect(actions[:retry_implementation_action]).to include(key: "retry_implementation")
+      expect(actions[:can_retry_from_failed_step]).to be(false)
+      expect(actions[:retry_failed_step_action]).to be_nil
+      expect(serialized_workflow[:retry_available]).to be(false)
+    end
+
     it "does not offer implementation retry for post-implementation workflow failures" do
       job = Factories.job_record(user: user, repository: repo, state: "failed")
       workflow = create_failed_workflow(job, trigger_kind: "initial", failed_step_kind: "pr_open")

@@ -12,6 +12,14 @@ class RetryFailedStepEnqueuer
   end
 
   def self.call(...) = new(...).call
+
+  def self.fresh_workflow_required_for?(step)
+    classification = step&.latest_run&.run_failure_classification&.classification
+    return false if classification.blank?
+
+    Problem::Kind.resolve(classification)&.default_remediation == :restart_workflow
+  end
+
   def self.failed_step_for(workflow)
     cancelled_loop = cancelled_grade_loop_restart_step_for(workflow)
     return cancelled_loop if cancelled_loop

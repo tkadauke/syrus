@@ -147,6 +147,31 @@ RSpec.describe WorkEngine::RepairExecutor do
       expect(work_unit.work_unit_locks.active).not_to exist
     end
 
+    it "keeps the interrupted step failed and cancels a never-started grade loop and publication tail" do
+      workflow.update_columns(state: "running", started_at: 5.minutes.ago)
+      causal_run = workflow.runs.last
+      causal_step = causal_run.step
+      causal_step.update_columns(kind: "visual_review", state: "running", started_at: 4.minutes.ago)
+      causal_run.update_columns(state: "running", started_at: 4.minutes.ago)
+      grade_fanout = workflow.steps.create!(kind: "grader_fanout", position: causal_step.position + 1, state: "queued", loop_id: "grade-loop")
+      grade_collect = workflow.steps.create!(kind: "grader_collect", position: causal_step.position + 2, state: "queued", loop_id: "grade-loop")
+      publication = workflow.steps.create!(kind: "summarize", position: causal_step.position + 3, state: "queued")
+      causal_step.update!(next_step: grade_fanout)
+      grade_fanout.update!(next_step: grade_collect)
+      grade_collect.update!(next_step: publication)
+      recovery_fails_with("durable head validation failed")
+
+      described_class.call(
+        result: RepairResult.new([ repair_plan(action: "recover_missing_workspace", target: workflow) ])
+      )
+
+      expect(causal_step.reload).to be_failed
+      expect(causal_run.reload).to have_attributes(state: "failed", agent_outcome: "workspace_recovery_failed")
+      expect([ grade_fanout.reload, grade_collect.reload, publication.reload ]).to all(be_cancelled)
+      expect([ grade_fanout, grade_collect, publication ]).to all(satisfy { |step| step.runs.none? })
+      expect(RetryFailedStepEnqueuer.failed_step_for(workflow.reload)).to eq(causal_step)
+    end
+
     # The half-step this spec used to stop before. Scheduling the retry is not
     # the same thing as the retry happening: AutoRetryJob re-derives the
     # failure classification before it will act, and these Runs carry no

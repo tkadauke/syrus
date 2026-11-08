@@ -6921,6 +6921,42 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body["pending_actions"]).to be_empty
   end
 
+  it "retires a failed authorization request dismissed through the app API from every payload" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+    request = chat.pending_actions.create!(
+      request_kind: "authorization_request", action: "coworker_tool_call", requested_by: "agent",
+      origin: chat, subject: user, payload: { "tool_name" => "execute_query", "arguments" => {} }
+    )
+    request.authorization_items.create!(
+      kind: "operation", capability: "database.read", capability_version: 1,
+      operation: "database.read/query", operation_version: 1, resource_type: "none",
+      invocation_fingerprint: "sha256:failed", normalized_arguments: {},
+      effects: [], policy_chain: [], decisive_rule: {}, requested_durations: [ "invocation" ]
+    )
+    request.update_columns(state: "failed")
+    anchor = chat.messages.create!(role: "assistant", content: { "text" => "needs permission" }, pending_action: request)
+    clear_enqueued_jobs
+
+    expect {
+      delete "/api/v1/app/chats/#{chat.id}/pending_actions/#{request.id}"
+      expect(response).to have_http_status(:ok)
+      delete "/api/v1/app/chats/#{chat.id}/pending_actions/#{request.id}"
+      expect(response).to have_http_status(:ok)
+    }.not_to have_enqueued_job(ChatTurnJob)
+
+    request.reload
+    expect(request).to be_dismissed
+    expect(request.dismissed_at).to be_present
+    expect(chat.messages.where(role: "system").count).to eq(0)
+
+    get "/api/v1/app/chats/#{chat.id}"
+    expect(parse_body["pending_actions"]).to be_empty
+    message = parse_body.fetch("messages").find { |m| m["id"] == anchor.id }
+    expect(message["pending_action"]).to be_nil
+    expect(message["pending_action_retired"]).to be(true)
+  end
+
   it "retires terminal pending actions after their durable outcome exists, including after reload" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)

@@ -42,10 +42,13 @@ test("renders Coding Mode handoff confirmations and moves one into the pending c
 
   await expect(existingJobHandoff).toContainText("Needs confirmation")
   await expect(existingJobHandoff).toContainText("E2E Coding Mode existing Job handoff")
+
+  await page.getByRole("button", { name: "Next pending action" }).click()
   await expect(submittedChangesHandoff).toContainText("Needs confirmation")
   await expect(submittedChangesHandoff).toContainText("demo/syrus-preview")
   await expect(submittedChangesHandoff).toContainText("Seeded chat-authored work waiting for operator handoff confirmation.")
 
+  await page.getByRole("button", { name: "Previous pending action" }).click()
   await existingJobHandoff.getByRole("button", { name: "Confirm", exact: true }).click()
 
   await expect(existingJobHandoff).toContainText("Working…")

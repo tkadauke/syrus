@@ -116,6 +116,43 @@ function command() {
 }
 
 describe("WorkflowsTab", () => {
+  it("shows the causal workspace-recovery step as failed, the unstarted tail as cancelled, and no in-place retry", () => {
+    const baseStep = {
+      position: 1,
+      iteration: null,
+      loop_id: null,
+      started_at: null,
+      finished_at: "2026-08-25T12:01:00Z",
+      created_at: "2026-08-25T12:00:00Z",
+      updated_at: "2026-08-25T12:01:00Z",
+      details: null,
+      warnings: [],
+      latest: false,
+      runs: []
+    }
+    const workflow = {
+      ...workflowWithStepDetails({} as never),
+      state: "failed",
+      retry_available: false,
+      steps_total: 2,
+      steps_displayed: 2,
+      steps: [
+        { ...baseStep, id: 20, kind: "visual_review", display_name: "Visual review", display_status: "failed", state: "failed" },
+        { ...baseStep, id: 21, kind: "summarize", display_name: "Publish summary", display_status: "cancelled", state: "cancelled", position: 2, latest: true }
+      ]
+    } as JobDetailPayload["workflows"][number]
+
+    render(
+      <MemoryRouter>
+        <WorkflowsTab command={command()} payload={payload({ workflows: [workflow] })} prefix="" />
+      </MemoryRouter>
+    )
+
+    expect(screen.getByRole("button", { name: /Visual reviewfailed/i })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Publish summarycancelled/i })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Retry failed step" })).not.toBeInTheDocument()
+  })
+
   describe("dismiss action", () => {
     function renderWith(overrides: Record<string, unknown>, cmd = command()) {
       const workflow = { ...workflowWithStepDetails({} as never), steps: [], ...overrides }

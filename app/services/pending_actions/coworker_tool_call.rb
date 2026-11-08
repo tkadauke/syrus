@@ -90,7 +90,7 @@ module PendingActions
     def tool_card_review
       {
         tool_name: payload["tool_name"],
-        arguments: operation_item.normalized_arguments,
+        arguments: action.authorization_request? ? operation_item.normalized_arguments : payload["arguments"],
         actor: payload["actor"]
       }.compact
     end

@@ -1550,10 +1550,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(job.reload.state).to eq("failed")
-    expect(parse_body).to include(
-      "message" => "Job force-failed.",
-      "job" => include("id" => job.id, "state" => "failed")
-    )
+    expect(parse_body).to eq("ok" => true, "message" => "Job force-failed.")
   end
 
   it "clears the admin stuck snapshot after app-admin force-fail" do

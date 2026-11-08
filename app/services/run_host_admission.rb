@@ -5,6 +5,9 @@ class RunHostAdmission
   end
 
   HOST_SAMPLE_WINDOW = WorkflowAdmissionBudget::HOST_SAMPLE_WINDOW
+  # How recently a running Run must have shown life to hold capacity by
+  # workflow placement alone. Heartbeats land every minute or 15s.
+  LIVENESS_WINDOW = 10.minutes
   RETRY_DELAY = 30.seconds
 
   # Host readings trail by a sample interval, so admission also budgets active
@@ -93,6 +96,8 @@ class RunHostAdmission
     basic_details(reason).merge(
       "active_guarded_run_count" => active_guarded_run_count,
       "active_compute_units" => active_compute_units,
+      "active_run_liveness_evidence" => active_run_liveness_evidence,
+      "active_run_ids" => active_run_liveness_evidence.map { |e| e["run_id"] },
       "candidate_compute_units" => candidate_compute_units,
       "guarded_runs_per_host" => guarded_runs_per_host,
       "host_compute_capacity" => host_compute_capacity,
@@ -614,7 +619,16 @@ class RunHostAdmission
     active_run_scope.where(steps: { kind: ALWAYS_GUARDED_STEP_KINDS })
   end
 
+  # A running Run consumes this host's capacity only with credible current
+  # ownership: an unfinished SpawnedProcess on this host, or -- for Runs the
+  # workflow places here -- a fresh heartbeat (or a recent start, before the
+  # first heartbeat) or a recently-touched active RuntimeSession. A database
+  # "running" row whose worker or process vanished has none of these and must
+  # not reserve compute or memory until stale-Run reconciliation catches up.
+  # Provider-bound agent turns have no child command, so their heartbeat is
+  # what keeps them counted.
   def active_run_scope
+    cutoff = LIVENESS_WINDOW.ago
     Run
       .where(state: "running")
       .where.not(id: run.id)
@@ -622,12 +636,43 @@ class RunHostAdmission
       .left_outer_joins(:spawned_processes)
       .where(
         [
-          "workflows.worker_hostname = :hostname",
-          "(spawned_processes.hostname = :hostname AND spawned_processes.finished_at IS NULL)"
+          "(spawned_processes.hostname = :hostname AND spawned_processes.finished_at IS NULL)",
+          "(workflows.worker_hostname = :hostname AND (#{fresh_heartbeat_sql} OR #{live_runtime_session_sql}))"
         ].join(" OR "),
-        hostname: hostname
+        hostname: hostname, cutoff: cutoff
       )
       .distinct
+  end
+
+  def fresh_heartbeat_sql
+    "runs.last_heartbeat_at >= :cutoff OR (runs.last_heartbeat_at IS NULL AND runs.started_at >= :cutoff)"
+  end
+
+  def live_runtime_session_sql
+    "EXISTS (SELECT 1 FROM runtime_sessions rs WHERE rs.run_id = runs.id " \
+      "AND rs.state NOT IN ('failed', 'stopped') AND rs.updated_at >= :cutoff)"
+  end
+
+  # Auditable evidence for every Run currently counted against this host.
+  def active_run_liveness_evidence
+    @active_run_liveness_evidence ||= begin
+      cutoff = LIVENESS_WINDOW.ago
+      runs = active_run_scope.preload(:step, :spawned_processes).to_a
+      session_run_ids = RuntimeSession.active.where(run_id: runs.map(&:id)).where("updated_at >= ?", cutoff).distinct.pluck(:run_id)
+      runs.map do |active_run|
+        heartbeat = active_run.last_heartbeat_at
+        live_process = active_run.spawned_processes.any? { |sp| sp.hostname == hostname && sp.finished_at.nil? }
+        {
+          "run_id" => active_run.id,
+          "step_kind" => active_run.step&.kind,
+          "unfinished_spawned_process" => live_process,
+          "fresh_heartbeat" => heartbeat.present? && heartbeat >= cutoff,
+          "last_heartbeat_at" => heartbeat&.iso8601,
+          "started_at" => active_run.started_at&.iso8601,
+          "active_runtime_session" => session_run_ids.include?(active_run.id)
+        }
+      end.sort_by { |e| e["run_id"] }
+    end
   end
 
   def hostname

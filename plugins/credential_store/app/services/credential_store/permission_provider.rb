@@ -167,6 +167,18 @@ module CredentialStore
     )
 
     register_capability(
+      capability: "credential.metadata@v1", operation: "credential.metadata/list@v1",
+      effects: %i[confidential_read], risk: :low,
+      requestable_roles: ROLES, defaults: ROLES.index_with { :allow },
+      maximum_autonomy: :permanent,
+      authority_durations: Permissions::CapabilityDescriptor::AUTHORITY_DURATIONS,
+      resource_scope: { type: :none },
+      classifier: ->(_arguments) { { operation: "credential.metadata/list@v1", effects: %i[confidential_read], risk: :low, confidence: :certain } },
+      fingerprint_normalizer: ->(arguments) { arguments.to_h.deep_stringify_keys },
+      redactor: ->(arguments) { arguments.to_h.deep_stringify_keys }
+    )
+
+    register_capability(
       capability: "ssh.execute@v1", operation: "ssh.execute/read@v1",
       effects: %i[network_read confidential_read credential_use operational],
       risk: :high, requestable_roles: ROLES, defaults: ASK_DEFAULTS,
