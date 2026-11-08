@@ -83,11 +83,21 @@ module Mcp::Tools
         # through their own enforcement and must not be judged by it.
         return unless context.chat?
 
+        # A plugin-provided chat tool has no core registry entry: the sidecar
+        # builds it from a tool-set definition and hangs the descriptor on the
+        # tool itself. Resolving only through the registry made this gate
+        # `return` for every one of those tools -- and return *open*, while the
+        # coworker gate beside it refused the same call outright for want of a
+        # descriptor. A coworker chat and an operator chat differ in whose
+        # rules apply, never in whether a tool is gated at all, so resolve a
+        # descriptor the same way for both and let its policy decide what to
+        # ask -- which for a number of read-only plugin tools is still `ask`,
+        # because that is what they registered, and a regular chat was simply
+        # never enforcing it.
         entry = McpToolRegistry.entry_for(tool)
-        return unless entry
-
-        descriptor = entry.descriptor
-        return if entry.ungated
+        descriptor = entry&.descriptor || declared_capability_descriptor(tool)
+        return unless descriptor
+        return if entry&.ungated
         # Local command/file effects have their own canonical evaluator and
         # resumable local_tool_call boundary inside the tool. Do not create a
         # second generic request in front of that same decision.
@@ -133,6 +143,15 @@ module Mcp::Tools
           tool_set_bundle: descriptor.tool_set_bundle,
           message: I18n.t("server.permissions.coworker_request_waiting")
         )
+      end
+
+      # The sidecar attaches this to every tool it builds from a plugin
+      # tool-set definition; core tools carry their descriptor on the registry
+      # entry instead. Either way the gate wants the same object.
+      def declared_capability_descriptor(tool)
+        return unless tool.respond_to?(:capability_descriptor)
+
+        tool.capability_descriptor
       end
 
       def protected_coworker_workspace_path?(context, descriptor, arguments)
