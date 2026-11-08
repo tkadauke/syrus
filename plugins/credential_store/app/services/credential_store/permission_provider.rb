@@ -67,9 +67,40 @@ module CredentialStore
           "user" => source[:user].to_s,
           "port" => normalized_port(source[:port]),
           "command_sha256" => source[:command_sha256].presence || Digest::SHA256.hexdigest(source[:command].to_s),
+          "command_prefix" => prefix_matchable_command(source[:command]),
           "allow_unconstrained_host" => source[:allow_unconstrained_host] == true,
           "allow_risky_command" => source[:allow_risky_command] == true
         }.compact
+      end
+
+      # The projection a `command_prefix` rule is matched against, and the guard
+      # that makes prefix matching safe to offer at all.
+      #
+      # A prefix rule stands for a family of commands, so it may only ever be
+      # matched against a single, plainly tokenized invocation. A command
+      # carrying shell syntax -- a semicolon, a pipe, a substitution, a
+      # redirect -- is not projected here at all, so no prefix rule can match
+      # it and the operator is asked again. That is what stops
+      # `git commit -m x; rm -rf /` from satisfying a `git commit` grant: it is
+      # not that the prefix fails to match, it is that there is nothing to
+      # match against.
+      #
+      # Tokens are rejoined on single spaces so an operator can read and edit
+      # the prefix. One consequence worth knowing: a quoted argument
+      # containing spaces flattens into several tokens, so `foo "bar baz"` and
+      # `foo bar baz` project alike. Both are the same executable with the
+      # same words; a prefix naming them cannot cross into a different command.
+      def prefix_matchable_command(command)
+        source = command.to_s
+        return nil if source.blank?
+        return nil if source.match?(SshExec::RiskyCommandClassifier::UNSAFE_SHELL_SYNTAX_PATTERN)
+
+        tokens = Shellwords.split(source)
+        return nil if tokens.empty?
+
+        tokens.join(" ")
+      rescue ArgumentError
+        nil
       end
 
       def redact_arguments(arguments)
@@ -77,7 +108,12 @@ module CredentialStore
         normalize_arguments(arguments).merge(
           "credential_name" => normalize_identifier(source[:credential]),
           "command" => safe_review_command(source[:command])
-        ).except("credential")
+        # `command_prefix` is a matching projection, and it is raw: it does not
+        # pass through safe_review_command, so leaving it here would print a
+        # command's secrets beside the copy that carefully masks them. The
+        # reviewable command is already present under "command"; anything an
+        # operator reads or edits is derived from that.
+        ).except("credential", "command_prefix")
       end
 
       def safe_review_command(command)
@@ -121,7 +157,8 @@ module CredentialStore
       resource_scope: :ssh_destination, classifier: SshCommandClassification,
       fingerprint_normalizer: method(:normalize_arguments), redactor: method(:redact_arguments),
       resource_scope_resolver: method(:scope_from_arguments),
-      constraint_fields: { command_sha256: :string, allow_unconstrained_host: :boolean, allow_risky_command: :boolean }
+      constraint_fields: { command_sha256: :string, command_prefix: :string_prefix,
+        allow_unconstrained_host: :boolean, allow_risky_command: :boolean }
     )
 
     register_capability(
@@ -132,7 +169,8 @@ module CredentialStore
       resource_scope: :ssh_destination, classifier: SshCommandClassification,
       fingerprint_normalizer: method(:normalize_arguments), redactor: method(:redact_arguments),
       resource_scope_resolver: method(:scope_from_arguments),
-      constraint_fields: { command_sha256: :string, allow_unconstrained_host: :boolean, allow_risky_command: :boolean }
+      constraint_fields: { command_sha256: :string, command_prefix: :string_prefix,
+        allow_unconstrained_host: :boolean, allow_risky_command: :boolean }
     )
 
     register_permission_preset(

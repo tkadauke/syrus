@@ -338,7 +338,21 @@ default to ask. An operator may allow the queued invocation once, allow future
 exact matches in the originating chat, or create a revocable permanent rule.
 Chat and permanent authority remain bound to the operation classification,
 credential handle, host, user, port, command fingerprint, and authorization
-flags; changing any of them asks again. A missing or invisible credential
+flags; changing any of them asks again.
+
+A permanent grant may instead be widened to a command prefix, which the card
+offers as an editable field: "allow commands starting with `git commit`". The
+prefix replaces the command fingerprint rather than joining it, since a rule
+carrying both would still match one command only. Prefixes are compared a
+whole token at a time, so `git commit` does not cover `git commitfoo`, and a
+command carrying shell syntax - a pipe, a semicolon, a substitution, a
+redirect - is never projected into prefix-matchable form at all. That last
+point is the one that matters: `git commit -m x; rm -rf /` begins with the
+same two tokens as any other commit, and it is excluded because there is
+nothing for a prefix rule to match, not because the comparison rejects it.
+The prefix an operator types is stored on the rule; the full command is not,
+and the fingerprint that identifies an exact invocation is unchanged by the
+projection, so approvals already granted keep matching. A missing or invisible credential
 produces the same not-found lookup result, so permission discovery does not
 disclose whether a hidden credential exists.
 
