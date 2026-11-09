@@ -4390,7 +4390,7 @@ RSpec.describe StepDispatcher, "linear Epic sibling implementation gate", :ci_on
     Factories.job_record(
       user: user,
       repository: repository,
-      epic: epic,
+      epic: (kind == "main_grader" ? nil : epic), # Main grader Jobs cannot belong to Epics.
       issue_number: kind == "main_grader" ? nil : issue_number,
       issue_title: kind == "main_grader" ? "main_grader:abc123" : "Epic child #{issue_number}",
       kind: kind,

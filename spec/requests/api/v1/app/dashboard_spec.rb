@@ -828,7 +828,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       body = parse_body
       expect(body.fetch("items").map { |item| item.fetch("id") }).to eq([ blocked.id, eligible.id ])
       positions = body.fetch("items").index_by { |item| item.fetch("id") }.transform_values { |item| item.fetch("landing_queue_position") }
-      expect(positions).to include(blocked.id => nil, eligible.id => 1)
+      expect(positions).to include(blocked.id => 1, eligible.id => 2)
       blocked_reasons = body.fetch("items").index_by { |item| item.fetch("id") }.transform_values { |item| item.fetch("landing_queue_blocked_reason") }
       expect(blocked_reasons).to include(eligible.id => nil, blocked.id => { "key" => "missing_pull_request" })
       wait_reasons = body.fetch("items").index_by { |item| item.fetch("id") }.transform_values { |item| item.fetch("landing_queue_wait_reason") }
@@ -900,7 +900,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       body = parse_body
       expect(body.fetch("items").find { |item| item.fetch("id") == approved.id }).to include(
-        "landing_queue_position" => nil,
+        "landing_queue_position" => 1,
         "landing_queue_entry_key" => "epic:#{epic.id}"
       )
       entry = body.fetch("landing_queue").fetch("entries").sole
@@ -1141,7 +1141,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
       body = parse_body
       expect(body.fetch("items").map { |item| item.fetch("id") }).to eq([ epic_parent.id, epic_child.id, loose.id ])
       positions = body.fetch("items").index_by { |item| item.fetch("id") }.transform_values { |item| item.fetch("landing_queue_position") }
-      expect(positions).to include(epic_parent.id => nil, epic_child.id => nil, loose.id => 1)
+      expect(positions).to include(epic_parent.id => 1, epic_child.id => 2, loose.id => 3)
     end
 
     it "sorts by landing queue position when the landing smart folder is active" do

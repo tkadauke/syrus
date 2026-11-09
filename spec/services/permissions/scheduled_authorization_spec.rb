@@ -32,8 +32,14 @@ RSpec.describe Permissions::ScheduledAuthorization, :ci_only do
 
   it "issues the exact invocation and queues execution when approved" do
     request = described_class.route(tool:, context:, arguments: { record_id: 7 }).request
-    entry = Struct.new(:tool, :descriptor).new(tool, descriptor)
+    entry = McpToolRegistry::Entry.new(
+      tool:, surface: :workflow, tier: :essential, admin_only: false, feature_flag: nil,
+      feature_flags_by_role: {}, required_roles: [ context.role ], step_kinds: [], capability: nil,
+      interactive_only: false, mutation: true, ungated: false, descriptor:, explicit_descriptor: true,
+      compatibility_descriptor: false
+    )
     allow(McpToolRegistry).to receive(:entries).with(surface: :workflow).and_return([ entry ])
+    allow(McpToolRegistry).to receive(:entries).with(no_args).and_return([ entry ])
     allow(ChatPendingActionConfirmationJob).to receive(:perform_later)
 
     result = Permissions::AuthorizationDecision.new(

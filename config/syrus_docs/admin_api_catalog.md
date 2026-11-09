@@ -12,6 +12,8 @@ Generated catalog of core token-only `/api/v1/admin/*` operator endpoints. Plugi
 | core | GET | `/api/v1/admin/chats` | `api/v1/admin/chats#index` |
 | core | GET | `/api/v1/admin/chats/:id` | `api/v1/admin/chats#show` |
 | core | GET | `/api/v1/admin/console` | `api/v1/admin/console#show` |
+| core | POST | `/api/v1/admin/console/disable_permission_enforcement` | `api/v1/admin/console#disable_permission_enforcement` |
+| core | POST | `/api/v1/admin/console/enable_permission_enforcement` | `api/v1/admin/console#enable_permission_enforcement` |
 | core | POST | `/api/v1/admin/console/pause_polling` | `api/v1/admin/console#pause_polling` |
 | core | POST | `/api/v1/admin/console/pause_runs` | `api/v1/admin/console#pause_runs` |
 | core | POST | `/api/v1/admin/console/unpause_polling` | `api/v1/admin/console#unpause_polling` |
