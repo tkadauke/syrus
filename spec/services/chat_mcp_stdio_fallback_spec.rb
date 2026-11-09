@@ -79,6 +79,9 @@ RSpec.describe ChatMcpStdioFallback, :ci_only do
     expect(scene_result["isError"]).to be_falsey
     expect(JSON.parse(scene_result.dig("content", 0, "text"))).to include("elements" => [])
 
+    # The connection listing defaults to `confirm`; this example exercises the
+    # stdio surface, not the approval flow, so turn the permission switch off.
+    AppSetting.current.update!(permissions_enforced: false)
     mysql_result = call_tool(tier: "deferred", name: "mysql_db_browser_list_connections")
     expect(mysql_result["isError"]).to be_falsey
     expect(JSON.parse(mysql_result.dig("content", 0, "text")).fetch("mysql_connections")).not_to be_empty
