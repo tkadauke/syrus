@@ -217,14 +217,6 @@ class PollRepositoryJob < ApplicationJob
       repository.untagged_open_issues_checked_at < UNTAGGED_OPEN_ISSUE_REFRESH_INTERVAL.ago
   end
 
-  def list_labeled_issues(client, repository, state: "open", since: nil)
-    if since.present?
-      client.issues_with_label(repository.slug, repository.trigger_label, state: state, since: since)
-    else
-      client.issues_with_label(repository.slug, repository.trigger_label, state: state)
-    end
-  end
-
   def retry_quarantined_issues(client, repository, listed_issues:, at:)
     listed_numbers = Array(listed_issues).map(&:number).compact.index_with(true)
     retry_numbers = repository.poll_issue_numbers_due_for_retry(at: at).reject { |number| listed_numbers[number] }
