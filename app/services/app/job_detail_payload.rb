@@ -381,7 +381,7 @@ module App
     end
 
     def coworker_review_configuration_json
-      plan = RepoCoworkerReviewPlan.for_job(@job)
+      plan = RepoCoworkerReviewPlan.from_syrus_yml(local_syrus_yml_loaded)
       {
         enabled: plan.enabled?,
         rounds: plan.rounds,
@@ -1737,9 +1737,13 @@ module App
     # never-configured default. Mirrors the fix RepositoryFeatureRecommendations
     # already applied for its own local-bare-clone reads.
     def local_syrus_yml_config
-      return @local_syrus_yml_config if defined?(@local_syrus_yml_config)
+      local_syrus_yml_loaded.config
+    end
 
-      @local_syrus_yml_config = RepoDefaultBranchSyrusYml.new(repository: @job.repository, user: @user || @job.user).resolve.config
+    # One resolved `.syrus.yml` shared by every config gate in this payload
+    # (deploy, preview, visual review, coworker review).
+    def local_syrus_yml_loaded
+      @local_syrus_yml_loaded ||= RepoDefaultBranchSyrusYml.new(repository: @job.repository, user: @user || @job.user).resolve
     end
   end
 end
