@@ -313,7 +313,7 @@ RSpec.describe App::ChatMessagePayload do
     expect(payload[:pending_action].keys).to contain_exactly(:id, :state, :label)
   end
 
-  it "serializes visual diff pending actions with their Job resource and comparison outcome" do
+  it "serializes resolved visual diff pending actions as slim terminal records" do
     job = Factories.job(user: user, repository: repository, issue_number: 44)
     workflow = job.latest_workflow
     workflow.update!(trigger_kind: "visual_diff")
@@ -332,8 +332,7 @@ RSpec.describe App::ChatMessagePayload do
 
     pending_payload = described_class.messages([ message ], repository: repository).sole.fetch(:pending_action)
 
-    expect(pending_payload).to include(resource_title: job.issue_title, resource_url: "/jobs/#{job.id}")
-    expect(pending_payload.fetch(:outcome)).to eq(workflow_id: workflow.id, job_id: job.id, comparison: comparison)
+    expect(pending_payload).to eq(id: action.id, state: "confirmed", label: "Run visual diff for JOB-#{job.id}")
   end
 
   it "serializes every force landing recheck group member's observed and refreshed state" do
