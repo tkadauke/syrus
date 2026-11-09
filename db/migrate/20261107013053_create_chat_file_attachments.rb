@@ -1,7 +1,7 @@
 class CreateChatFileAttachments < ActiveRecord::Migration[8.1]
   def up
     create_table :chat_file_attachments, if_not_exists: true do |t|
-      t.references :chat_session, null: false
+      t.references :chat_session, null: false, foreign_key: false
       t.references :attachable, polymorphic: true, null: true
       t.string :name, null: false
       t.string :mime_type, null: false
