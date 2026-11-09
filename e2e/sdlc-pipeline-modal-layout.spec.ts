@@ -82,7 +82,7 @@ test("moving the cursor keeps filters intact and scrolls only the rail", async (
   const stages = page.getByRole("region", { name: "Pipeline stages" })
   const before = await stages.evaluate((node) => node.scrollLeft)
   await page.getByRole("button", { name: "Previous event" }).click()
-  await expect(page.getByTestId("selected-history-time").or(page.getByText(/Oct 31|10\/31/).first())).toBeVisible()
+  await expect(page.getByTestId("selected-history-time").or(page.getByText(/Oct 31|10\/31/)).first()).toBeVisible()
   await expect(page.getByRole("button", { name: "Chat is 8" })).toBeVisible()
   expect(page.url()).toContain("at=")
   expect(await stages.evaluate((node) => node.scrollLeft)).toBe(before)
