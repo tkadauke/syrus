@@ -22,9 +22,6 @@ module ChatSerialization
       counts = PerformanceLogging.phase("chat_payload.counts", chat_id: chat_session.id) do
         chat_session_payload_counts(chat_session.id)
       end
-      speech_to_text = PerformanceLogging.phase("chat_payload.speech_to_text", chat_id: chat_session.id) do
-        ChatSpeechToText::Capability.for(user: Current.user).as_json
-      end
       turn_in_flight = chat_session.turn_in_flight?
       agent_busy = PerformanceLogging.phase("chat_payload.agent_busy", chat_id: chat_session.id) do
         chat_session.agent_busy?
@@ -48,10 +45,6 @@ module ChatSerialization
         end,
         chat_available: Current.user.chat_provider_configured?(chat_session.effective_chat_provider),
         chat_provider_display_name: chat_provider_label(chat_session.effective_chat_provider),
-        turn_in_flight: turn_in_flight,
-        agent_busy: agent_busy,
-        agent_activity: agent_activity,
-        turn_retry_state: turn_retry_state,
         # The composer's `!` command mode rehydrates its running/cancellable
         # state from this field on mount so a remount (e.g. crossing the
         # desktop/mobile layout breakpoint) doesn't silently drop an
@@ -71,44 +64,48 @@ module ChatSerialization
         scratchpad_items: PerformanceLogging.phase("chat_payload.scratchpad_items", chat_id: chat_session.id) { chat_session.scratchpad_items_payload },
         workspace_tabs: PerformanceLogging.phase("chat_payload.workspace_tabs", chat_id: chat_session.id) { workspace_tabs_json(chat_session) },
         documents_in_scope: PerformanceLogging.phase("chat_payload.documents_in_scope", chat_id: chat_session.id) { documents_in_scope_for_payload(chat_session).map { |document| document_json(document) } },
-        paths: {
-          credentials_path: "/credentials",
-          repositories_path: repositories_path,
-          app_messages_path: "/api/v1/app/chats/#{chat_session.id}/messages",
-          app_message_path: "/api/v1/app/chats/#{chat_session.id}/message",
-          app_rename_path: "/api/v1/app/chats/#{chat_session.id}/rename",
-          app_delete_path: "/api/v1/app/chats/#{chat_session.id}",
-          app_clear_path: "/api/v1/app/chats/#{chat_session.id}/messages",
-          app_branch_path: "/api/v1/app/chats/#{chat_session.id}/branch",
-          app_share_path: "/api/v1/app/chats/#{chat_session.id}/share",
-          app_enqueue_message_path: "/api/v1/app/chats/#{chat_session.id}/queued_messages",
-          app_scheduled_messages_path: "/api/v1/app/chats/#{chat_session.id}/scheduled_messages",
-          app_retry_turn_path: "/api/v1/app/chats/#{chat_session.id}/retry_turn",
-          app_stop_path: "/api/v1/app/chats/#{chat_session.id}/stop",
-          app_daemon_connection_path: "/api/v1/app/chats/#{chat_session.id}/daemon_connection",
-          app_switch_provider_path: "/api/v1/app/chats/#{chat_session.id}/switch_provider",
-          app_bookmarks_path: "/api/v1/app/chats/#{chat_session.id}/bookmarks",
-          app_bookmarks_index_path: "/api/v1/app/chats/#{chat_session.id}/bookmarks",
-          app_scratchpad_reorder_path: "/api/v1/app/chats/#{chat_session.id}/scratchpad_items/reorder",
-          app_speech_to_text_batch_path: "/api/v1/app/chats/#{chat_session.id}/speech_to_text",
-          app_speech_to_text_stream_path: "/api/v1/app/chats/#{chat_session.id}/speech_to_text/stream",
-          app_create_coding_handoff_path: "/api/v1/app/chats/#{chat_session.id}/coding_handoff",
-          app_cancel_coding_checkout_path: "/api/v1/app/chats/#{chat_session.id}/coding_checkout",
-          app_coding_files_path: "/api/v1/app/chats/#{chat_session.id}/coding_files",
-          app_coding_commits_path: "/api/v1/app/chats/#{chat_session.id}/coding_commits",
-          app_coding_file_path: "/api/v1/app/chats/#{chat_session.id}/coding_file",
-          app_coding_file_preview_path: "/api/v1/app/chats/#{chat_session.id}/coding_file_preview",
-          app_coding_diff_path: "/api/v1/app/chats/#{chat_session.id}/coding_diff",
-          app_source_file_path: "/api/v1/app/chats/#{chat_session.id}/source_file",
-          app_source_file_raw_path: "/api/v1/app/chats/#{chat_session.id}/source_file/raw"
-        },
-        speech_to_text: speech_to_text,
+        # Core paths are deterministic from the chat id and are reconstructed
+        # by the app client. Plugins may still contribute non-core paths.
+        paths: {},
         attached_coding_job: attached_coding_job_json(chat_session),
-        coding_mode_enabled: Feature.coding_mode_enabled?,
-        local_mode_enabled: Feature.local_mode_enabled?,
         local_tunnel_connected: Feature.local_mode_enabled? && LocalDaemonSession.connected.exists?(chat_session_id: chat_session.id)
       }.then { |payload| merge_chat_payload_contributions(payload, chat_session) }
     end
+  end
+
+  # Write actions return only the state their caller can have changed.  Keep
+  # this deliberately separate from chat_payload: serializing a mutation must
+  # never grow a transcript, provider catalogue, workspace tree, or plugin
+  # contribution by accident.
+  def chat_mutation_payload(chat_session, message: nil, include: [])
+    chat_session.reload
+    payload = {
+      message: message,
+      chat: {
+        id: chat_session.id,
+        entity_revision: chat_session.entity_revision,
+        turn_in_flight: chat_session.turn_in_flight?,
+        agent_busy: chat_session.agent_busy?,
+        stop_requested_at: chat_session.stop_requested_at&.iso8601
+      }
+    }
+
+    serializers = {
+      bookmarks: -> { bookmarks_json(chat_session) },
+      pending_actions: -> { pending_actions_json(chat_session) },
+      pending_action_groups: -> { pending_action_groups_json(chat_session) },
+      agent_questions: -> { chat_session.agent_questions_payload },
+      queued_messages: -> { chat_session.queued_messages_payload },
+      active_goal: -> { chat_goal_json(visible_chat_goal(chat_session)) },
+      scratchpad_items: -> { chat_session.scratchpad_items_payload },
+      workspace_tabs: -> { workspace_tabs_json(chat_session) },
+      attached_coding_job: -> { attached_coding_job_json(chat_session) }
+    }
+    Array(include).each do |slice|
+      serializer = serializers.fetch(slice) { raise ArgumentError, "Unknown chat mutation payload slice: #{slice.inspect}" }
+      payload[slice] = serializer.call
+    end
+    payload
   end
 
   # Plugin-owned slices of the payload -- `whiteboard` (whiteboard) and
@@ -214,45 +211,42 @@ module ChatSerialization
   end
 
   def bookmarks_json(chat_session)
-    message_rows = bookmark_message_rows(chat_session.id)
-    return [] if message_rows.empty?
-
-    message_positions = {}
-    message_roles = {}
-    message_ids = []
-    message_rows.each_with_index do |(id, role), index|
-      message_ids << id
-      message_roles[id] = role
-      message_positions[id] = index
-    end
-
+    messages = ChatMessage.quoted_table_name
+    anchor_sql = <<~SQL.squish
+      CASE WHEN #{messages}.role IN ('user', 'assistant') THEN #{messages}.id ELSE COALESCE(
+        (SELECT MIN(next_message.id) FROM #{messages} next_message
+          WHERE next_message.chat_session_id = #{messages}.chat_session_id
+            AND next_message.deleted_at IS NULL
+            AND next_message.role IN ('user', 'assistant')
+            AND next_message.id > #{messages}.id),
+        (SELECT MAX(previous_message.id) FROM #{messages} previous_message
+          WHERE previous_message.chat_session_id = #{messages}.chat_session_id
+            AND previous_message.deleted_at IS NULL
+            AND previous_message.role IN ('user', 'assistant')
+            AND previous_message.id < #{messages}.id),
+        #{messages}.id)
+      END
+    SQL
     rows = ChatBookmark
-      .where(chat_message_id: message_ids)
-      .order(:chat_message_id, :id)
+      .joins(:chat_message)
+      .where(chat_messages: { chat_session_id: chat_session.id, deleted_at: nil })
+      .order("chat_messages.created_at", "chat_messages.id", "chat_bookmarks.id")
       .pluck(
         "chat_bookmarks.id",
         "chat_bookmarks.label",
-        "chat_bookmarks.chat_message_id"
+        "chat_bookmarks.chat_message_id",
+        Arel.sql(anchor_sql)
       )
-      .sort_by { |id, _label, chat_message_id| [ message_positions.fetch(chat_message_id), id ] }
-    anchor_resolver = bookmark_anchor_resolver(chat_session.id, rows)
+    return [] if rows.empty?
 
-    rows.map do |id, label, chat_message_id|
+    rows.map do |id, label, chat_message_id, anchor_message_id|
       {
         id: id,
         label: label,
         chat_message_id: chat_message_id,
-        anchor_message_id: anchor_resolver.call(chat_message_id, message_roles[chat_message_id])
+        anchor_message_id: anchor_message_id
       }
     end
-  end
-
-  def bookmark_message_rows(chat_session_id)
-    ChatMessage
-      .active
-      .where(chat_session_id: chat_session_id)
-      .order(:created_at, :id)
-      .pluck(:id, :role)
   end
 
   def pin_json(pin)
@@ -272,37 +266,6 @@ module ChatSerialization
       .order("chat_message_pins.created_at", "chat_message_pins.id")
       .includes(:chat_message)
       .map { |pin| pin_json(pin) }
-  end
-
-  def bookmark_anchor_resolver(chat_session_id, rows)
-    return ->(chat_message_id, _role) { chat_message_id } if rows.empty?
-
-    renderable_ids = bookmark_anchor_message_scope(chat_session_id)
-      .where(role: %w[user assistant])
-      .order(:id)
-      .pluck(:id)
-
-    lambda do |chat_message_id, role|
-      next chat_message_id if role.in?(%w[user assistant])
-
-      next_id = renderable_ids.bsearch { |id| id > chat_message_id }
-      next_id || previous_renderable_id(renderable_ids, chat_message_id) || chat_message_id
-    end
-  end
-
-  def previous_renderable_id(renderable_ids, chat_message_id)
-    index = renderable_ids.bsearch_index { |id| id >= chat_message_id }
-    return renderable_ids.last unless index
-    return if index.zero?
-
-    renderable_ids[index - 1]
-  end
-
-  def bookmark_anchor_message_scope(chat_session_id)
-    scope = ChatMessage.active.where(chat_session_id: chat_session_id)
-    return scope unless ActiveRecord::Base.connection.adapter_name.downcase.include?("mysql")
-
-    scope.from(Arel.sql("#{ChatMessage.quoted_table_name} FORCE INDEX (idx_chat_messages_active_tail)"))
   end
 
   def hidden_chat_json(chat_session, context: nil)
@@ -327,6 +290,14 @@ module ChatSerialization
     ChatPendingAction.repair_tool_call_anchors_for!(chat_session)
 
     pending_actions_for_payload(chat_session).map do |action|
+      if ChatPendingAction::TERMINAL_REQUEST_STATES.include?(action.state)
+        next {
+          id: action.id,
+          label: pending_action_label(action),
+          state: action.state
+        }
+      end
+
       {
         id: action.id,
         label: pending_action_label(action),
@@ -345,38 +316,136 @@ module ChatSerialization
       }.tap do |payload|
         payload[:app_update_path] = "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}" if action.action == "create_coworker" && action.pending?
         payload[:reason] = action.reason if action.reason.present?
-        payload[:before_snapshot] = action.before_snapshot if action.before_snapshot.present?
-        payload[:after_snapshot] = action.after_snapshot if action.after_snapshot.present?
-        presenter = PendingActions.for(action.action.presence || action.action_type).new(action)
-        review = presenter.tool_card_review
-        payload[:review] = review if review.present?
-        rule_preview = permission_rule_preview_for(action)
-        payload[:permission_rule_preview] = rule_preview if rule_preview
-        if action.authorization_request?
-          presentation = Permissions::RequestPresentation.new(action, current_user: Current.user)
-          payload[:authorization_presentation] = presentation.as_json
-          payload[:authorization_items] = action.authorization_items.sort_by(&:id).map do |item|
-            smart_decision = Permissions::SmartDecision.new(request: action, item:, user: Current.user)
-            {
-              id: item.id,
-              presentation: presentation.item_json(item),
-              kind: item.kind,
-              state: item.state,
-              capability: item.capability,
-              operation: item.operation,
-              effects: item.effects,
-              prerequisite_ids: item.prerequisites.map(&:id),
-              resulting_authority: Permissions::SmartDecision.authority_reference(item),
-              smart_option: smart_decision.option,
-              smart_options: smart_decision.options,
-              app_decision_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/authorization_items/#{item.id}/decision",
-              app_smart_decision_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/authorization_items/#{item.id}/smart_decision"
-            }
-          end
-        end
+        payload.merge!(cached_pending_action_presentation(action, chat_session))
         resource = pending_action_resource(action)
         payload.merge!(resource) if resource
       end
+    end
+  end
+
+  def cached_pending_action_presentation(action, chat_session)
+    authorization_items = action.authorization_items.sort_by(&:id)
+    fingerprint = Digest::SHA256.hexdigest(
+      [
+        action.attributes.slice("action", "action_type", "payload", "before_snapshot", "after_snapshot"),
+        authorization_items.map(&:cache_key_with_version)
+      ].to_json
+    )
+    Rails.cache.fetch([ "chat-pending-action-top-level-presentation", action.cache_key_with_version, Current.user.id, fingerprint ]) do
+      presenter = PendingActions.for(action.action.presence || action.action_type).new(action)
+      payload = {
+        before_snapshot: action.before_snapshot.presence,
+        after_snapshot: action.after_snapshot.presence,
+        review: presenter.tool_card_review.presence,
+        permission_rule_preview: permission_rule_preview_for(action)
+      }.compact
+      if action.authorization_request?
+        presentation = Permissions::RequestPresentation.new(action, current_user: Current.user)
+        payload[:authorization_presentation] = presentation.as_json
+        payload[:authorization_items] = authorization_items.map do |item|
+          smart_decision = Permissions::SmartDecision.new(request: action, item:, user: Current.user)
+          {
+            id: item.id,
+            presentation: presentation.item_json(item),
+            kind: item.kind,
+            state: item.state,
+            capability: item.capability,
+            operation: item.operation,
+            effects: item.effects,
+            prerequisite_ids: item.prerequisites.map(&:id),
+            resulting_authority: Permissions::SmartDecision.authority_reference(item),
+            smart_option: smart_decision.option,
+            smart_options: smart_decision.options,
+            app_decision_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/authorization_items/#{item.id}/decision",
+            app_smart_decision_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/authorization_items/#{item.id}/smart_decision"
+          }
+        end
+      end
+      payload
+    end
+  end
+
+  def cached_pending_action_presentation(action, chat_session)
+    authorization_items = action.authorization_items.sort_by(&:id)
+    fingerprint = Digest::SHA256.hexdigest(
+      [
+        action.attributes.slice("action", "action_type", "payload", "before_snapshot", "after_snapshot"),
+        authorization_items.map(&:cache_key_with_version)
+      ].to_json
+    )
+    Rails.cache.fetch([ "chat-pending-action-top-level-presentation", action.cache_key_with_version, Current.user.id, fingerprint ]) do
+      presenter = PendingActions.for(action.action.presence || action.action_type).new(action)
+      payload = {
+        before_snapshot: action.before_snapshot.presence,
+        after_snapshot: action.after_snapshot.presence,
+        review: presenter.tool_card_review.presence,
+        permission_rule_preview: permission_rule_preview_for(action)
+      }.compact
+      if action.authorization_request?
+        presentation = Permissions::RequestPresentation.new(action, current_user: Current.user)
+        payload[:authorization_presentation] = presentation.as_json
+        payload[:authorization_items] = authorization_items.map do |item|
+          smart_decision = Permissions::SmartDecision.new(request: action, item:, user: Current.user)
+          {
+            id: item.id,
+            presentation: presentation.item_json(item),
+            kind: item.kind,
+            state: item.state,
+            capability: item.capability,
+            operation: item.operation,
+            effects: item.effects,
+            prerequisite_ids: item.prerequisites.map(&:id),
+            resulting_authority: Permissions::SmartDecision.authority_reference(item),
+            smart_option: smart_decision.option,
+            smart_options: smart_decision.options,
+            app_decision_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/authorization_items/#{item.id}/decision",
+            app_smart_decision_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/authorization_items/#{item.id}/smart_decision"
+          }
+        end
+      end
+      payload
+    end
+  end
+
+  def cached_pending_action_presentation(action, chat_session)
+    authorization_items = action.authorization_items.sort_by(&:id)
+    fingerprint = Digest::SHA256.hexdigest(
+      [
+        action.attributes.slice("action", "action_type", "payload", "before_snapshot", "after_snapshot"),
+        authorization_items.map(&:cache_key_with_version)
+      ].to_json
+    )
+    Rails.cache.fetch([ "chat-pending-action-top-level-presentation", action.cache_key_with_version, Current.user.id, fingerprint ]) do
+      presenter = PendingActions.for(action.action.presence || action.action_type).new(action)
+      payload = {
+        before_snapshot: action.before_snapshot.presence,
+        after_snapshot: action.after_snapshot.presence,
+        review: presenter.tool_card_review.presence,
+        permission_rule_preview: permission_rule_preview_for(action)
+      }.compact
+      if action.authorization_request?
+        presentation = Permissions::RequestPresentation.new(action, current_user: Current.user)
+        payload[:authorization_presentation] = presentation.as_json
+        payload[:authorization_items] = authorization_items.map do |item|
+          smart_decision = Permissions::SmartDecision.new(request: action, item:, user: Current.user)
+          {
+            id: item.id,
+            presentation: presentation.item_json(item),
+            kind: item.kind,
+            state: item.state,
+            capability: item.capability,
+            operation: item.operation,
+            effects: item.effects,
+            prerequisite_ids: item.prerequisites.map(&:id),
+            resulting_authority: Permissions::SmartDecision.authority_reference(item),
+            smart_option: smart_decision.option,
+            smart_options: smart_decision.options,
+            app_decision_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/authorization_items/#{item.id}/decision",
+            app_smart_decision_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/authorization_items/#{item.id}/smart_decision"
+          }
+        end
+      end
+      payload
     end
   end
 
@@ -393,7 +462,7 @@ module ChatSerialization
   def pending_actions_for_payload(chat_session)
     # Grouped members render only inside their PendingActionGroup card
     # (pending_action_groups_json below), never as their own standalone card.
-    base_scope = chat_session.pending_actions.where(pending_action_group_id: nil)
+    base_scope = chat_session.pending_actions.where(pending_action_group_id: nil, chat_message_id: nil)
       .includes(:tool_call_message, :message, authorization_items: [ :prerequisites, :resulting_authority ])
     base_scope.where(dismissed_at: nil).order(:created_at, :id).select(&:visible_in_chat_payload?)
   end

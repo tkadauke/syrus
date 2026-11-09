@@ -216,21 +216,6 @@ const NON_INTERACTIVE_CHAT_TAP_SELECTOR = [
 ].join(",")
 const USER_SCROLL_INTENT_WINDOW_MS = 700
 const MOBILE_CHAT_TOP_CHROME_FALLBACK_HEIGHT = 70
-const ACTIVE_CHAT_FAST_POLL_WINDOW_MS = 2 * 60_000
-const ACTIVE_CHAT_MEDIUM_POLL_WINDOW_MS = 10 * 60_000
-
-export function activeChatRefetchInterval(activeForMs: number) {
-  if (activeForMs < ACTIVE_CHAT_FAST_POLL_WINDOW_MS) return 3_000
-  if (activeForMs < ACTIVE_CHAT_MEDIUM_POLL_WINDOW_MS) return 10_000
-  return 30_000
-}
-
-export type ActiveChatPollingState = { chatId: string; startedAt: number }
-
-export function nextActiveChatPollingState(current: ActiveChatPollingState | null, chatId: string, now: number) {
-  const state = current?.chatId === chatId ? current : { chatId, startedAt: now }
-  return { state, interval: activeChatRefetchInterval(now - state.startedAt) }
-}
 
 function UsageOverlay({ payload, mobile = false }: { payload: ChatPayload; mobile?: boolean }) {
   return (
@@ -263,7 +248,6 @@ export function ChatRoute() {
   const navigate = useNavigate()
   const viewportStyle = useChatVisualViewportStyle()
   const { t } = useT("chat")
-  const activePollingStateRef = useRef<ActiveChatPollingState | null>(null)
   const chat = useQuery({
     queryKey,
     queryFn: async () => {
@@ -280,14 +264,9 @@ export function ChatRoute() {
     staleTime: 0,
     refetchInterval: (query) => {
       if (document.visibilityState !== "visible") return false
+      if (!isDisconnected) return false
       const data = query.state.data as ChatPayload | undefined
-      if (data && isAgentActive(data)) {
-        const polling = nextActiveChatPollingState(activePollingStateRef.current, id, Date.now())
-        activePollingStateRef.current = polling.state
-        return polling.interval
-      }
-      activePollingStateRef.current = null
-      return isDisconnected ? 30_000 : false
+      return data && isAgentActive(data) ? 3_000 : 30_000
     },
     placeholderData: (previousData, previousQuery) => (previousQuery?.queryKey[0] === "chats" && previousQuery.queryKey[1] === id ? previousData : undefined)
   })
@@ -389,12 +368,12 @@ export function SharedChatRoute() {
     >
       {chat.isPending ? <PanelMessage>{t("loading_shared_chat")}</PanelMessage> : null}
       {chat.isError ? <PanelMessage tone="error">{errorMessage(chat.error, t("error_load_shared_chat"))}</PanelMessage> : null}
-      {chat.isSuccess ? <SharedChatView payload={chat.data} /> : null}
+      {chat.isSuccess ? <SharedChatView payload={chat.data} token={token} /> : null}
     </main>
   )
 }
 
-function SharedChatView({ payload }: { payload: SharedChatPayload }) {
+function SharedChatView({ payload, token }: { payload: SharedChatPayload; token: string }) {
   const { t } = useT("chat")
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
@@ -405,17 +384,35 @@ function SharedChatView({ payload }: { payload: SharedChatPayload }) {
         <span className="rounded border border-brand/30 bg-brand/10 px-3 py-1 text-sm font-medium text-brand">{t("view_only")}</span>
       </header>
       <section className="min-h-0 flex-1 overflow-hidden rounded border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-950">
-        <ReadOnlyMessageStream payload={payload} />
+        <ReadOnlyMessageStream payload={payload} token={token} />
       </section>
     </div>
   )
 }
 
-function ReadOnlyMessageStream({ payload }: { payload: SharedChatPayload }) {
+function ReadOnlyMessageStream({ payload, token }: { payload: SharedChatPayload; token: string }) {
   const renderCache = useRef(createChatRenderCache())
-  const items = useMemo(() => renderChatMessages(payload.messages, renderCache.current), [payload.messages])
-  const placeholderPayload = useMemo(() => sharedChatRenderPayload(payload), [payload])
+  const [messages, setMessages] = useState(payload.messages)
+  const [beforeId, setBeforeId] = useState(payload.before_id)
+  const [hasMoreOlder, setHasMoreOlder] = useState(payload.has_more_older)
+  const pagePayload = useMemo(() => ({ ...payload, messages, before_id: beforeId, has_more_older: hasMoreOlder }), [beforeId, hasMoreOlder, messages, payload])
+  const items = useMemo(() => renderChatMessages(messages, renderCache.current), [messages])
+  const placeholderPayload = useMemo(() => sharedChatRenderPayload(pagePayload), [pagePayload])
   const { t } = useT("chat")
+  const loadOlder = useMutation({
+    mutationFn: () => fetchSharedChat(token, beforeId),
+    onSuccess: (page) => {
+      setMessages((current) => mergeChatMessages(page.messages, current))
+      setBeforeId(page.before_id)
+      setHasMoreOlder(page.has_more_older)
+    }
+  })
+
+  useEffect(() => {
+    setMessages(payload.messages)
+    setBeforeId(payload.before_id)
+    setHasMoreOlder(payload.has_more_older)
+  }, [payload])
 
   if (items.length === 0) {
     return (
@@ -430,6 +427,13 @@ function ReadOnlyMessageStream({ payload }: { payload: SharedChatPayload }) {
 
   return (
     <div className="h-full min-h-0 space-y-4 overflow-x-hidden overflow-y-auto p-3 sm:p-4" data-testid="chat-message-stream">
+      {hasMoreOlder ? (
+        <div className="flex justify-center">
+          <Button disabled={loadOlder.isPending} onClick={() => loadOlder.mutate()} size="sm" type="button" variant="secondary">
+            {t("load_earlier_messages")}
+          </Button>
+        </div>
+      ) : null}
       {items.map((item) =>
         item.type === "tool_group" ? (
           <SharedMessageRenderer compact key={renderItemKey(item)} readOnly>
@@ -469,10 +473,8 @@ function sharedChatRenderPayload(payload: SharedChatPayload): ChatPayload {
     },
     chat_available: false,
     chat_provider_display_name: "Claude",
-    turn_in_flight: false,
-    agent_busy: false,
     switching_provider: false,
-    has_more_older: false,
+    has_more_older: payload.has_more_older,
     active_goal: null,
     attached_coding_job: null,
     messages: payload.messages,
@@ -1293,11 +1295,22 @@ function ChatTurnIndicator({
   retryNowPending?: boolean
   onRetryNow?: () => void
 }) {
-  const retry = payload.turn_retry_state ?? payload.chat.turn_retry_state
+  const legacy = payload as ChatPayload & {
+    agent_activity?: ChatPayload["chat"]["agent_activity"]
+    agent_busy?: boolean
+    turn_retry_state?: ChatPayload["chat"]["turn_retry_state"]
+  }
+  const retry = payload.chat.turn_retry_state ?? legacy.turn_retry_state
   if (retry && agentActive) return <TurnRetryIndicator retry={retry} retryNowPending={retryNowPending} onRetryNow={onRetryNow} />
   if (payload.switching_provider)
     return <SwitchingProviderIndicator provider={payload.chat.chat_provider ?? ""} providerLabel={switchingProviderLabel(payload)} />
-  if (agentActive) return <AgentActivityIndicator activity={payload.agent_activity ?? payload.chat.agent_activity ?? null} running={payload.agent_busy} />
+  if (agentActive)
+    return (
+      <AgentActivityIndicator
+        activity={payload.chat.agent_activity ?? legacy.agent_activity ?? null}
+        running={Boolean(payload.chat.agent_busy ?? legacy.agent_busy)}
+      />
+    )
 
   return null
 }
@@ -1329,7 +1342,7 @@ function useMediaQuery(query: string, defaultMatches: boolean) {
 }
 
 function mobileWorkspaceTabsVisible(payload: ChatPayload) {
-  return payload.messages.length > 0 || payload.has_more_older || payload.turn_in_flight || payload.agent_busy
+  return payload.messages.length > 0 || payload.has_more_older || Boolean(payload.chat.turn_in_flight) || Boolean(payload.chat.agent_busy)
 }
 
 function initialWorkspacePanelState(payload: ChatPayload) {

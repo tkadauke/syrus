@@ -13,6 +13,7 @@ module AppApi
           time_zones: time_zones_payload,
           team_user_count: PerformanceLogging.phase("bootstrap.team_user_count") { user ? me_payload[:team_user_count] : 0 },
           app: PerformanceLogging.phase("bootstrap.app") { app_payload },
+          chat_capabilities: PerformanceLogging.phase("bootstrap.chat_capabilities") { chat_capabilities_payload },
           setup: PerformanceLogging.phase("bootstrap.setup") { setup_payload },
           system_alerts: PerformanceLogging.phase("bootstrap.system_alerts") { system_alerts_payload },
           unread_notifications_count: PerformanceLogging.phase("bootstrap.unread_notifications_count") { unread_notifications_count },
@@ -53,6 +54,26 @@ module AppApi
         bug_report_mode: user ? BugReports::Router.mode_for(user: user)&.to_s : nil,
         report_issue_repo_slug: AppSetting.report_issue_repo_slug,
         ui_engagement_telemetry_enabled: user.present? && AppSetting.ui_engagement_telemetry_enabled?
+      }
+    end
+
+    def chat_capabilities_payload
+      return {} unless user
+
+      {
+        speech_to_text: ChatSpeechToText::Capability.for(user: user).as_json,
+        coding_mode_enabled: Feature.coding_mode_enabled?,
+        local_mode_enabled: Feature.local_mode_enabled?,
+        chat_provider_options: User.chat_providers.map do |provider|
+          {
+            value: provider,
+            label: ChatProviders.display_name(provider),
+            configured: user.chat_provider_configured?(provider),
+            effective_provider: provider,
+            effective_label: ChatProviders.display_name(provider)
+          }
+        end,
+        available_chat_models: User.chat_providers.to_h { |provider| [ provider, ChatProviders.available_models(provider) ] }
       }
     end
 

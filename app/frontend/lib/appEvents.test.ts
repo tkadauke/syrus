@@ -505,8 +505,8 @@ describe("applyAppEvent", () => {
 
     expect(invalidate).not.toHaveBeenCalled()
     const updated = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
-    expect(updated?.turn_in_flight).toBe(false)
-    expect(updated?.agent_busy).toBe(true)
+    expect(updated?.chat.turn_in_flight).toBe(false)
+    expect(updated?.chat.agent_busy).toBe(true)
     expect(updated?.chat.stop_requested_at).toBe("2026-05-30T12:00:00Z")
     expect(updated?.chat.last_message_at).toBe("2026-05-30T12:01:00Z")
     expect(updated?.messages).toEqual([
@@ -540,6 +540,23 @@ describe("applyAppEvent", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
   })
 
+  it("upserts changed chat messages without discarding adjacent cached messages", () => {
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["chats", "9", ""], chatPayload([message(1, "user", "old"), message(2, "assistant", "partial")]))
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: { action: "upsert_messages", messages: [message(2, "assistant", "complete"), message(3, "tool_use", "next")] }
+    })
+
+    const updated = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
+    expect(updated?.messages.map(({ id, text }) => [id, text])).toEqual([
+      [1, "old"],
+      [2, "complete"],
+      [3, "next"]
+    ])
+  })
+
   it("invalidates chat details for oversized chat message payloads while updating turn state", () => {
     vi.useFakeTimers()
     const queryClient = new QueryClient()
@@ -558,8 +575,8 @@ describe("applyAppEvent", () => {
     })
 
     const updated = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
-    expect(updated?.turn_in_flight).toBe(false)
-    expect(updated?.agent_busy).toBe(true)
+    expect(updated?.chat.turn_in_flight).toBe(false)
+    expect(updated?.chat.agent_busy).toBe(true)
     expect(updated?.chat.stop_requested_at).toBe("2026-05-30T12:00:00Z")
     expect(invalidate).not.toHaveBeenCalledWith({ queryKey: ["chats", "9"] })
 
@@ -619,8 +636,6 @@ describe("applyAppEvent", () => {
     ).not.toThrow()
 
     const updated = queryClient.getQueryData<ChatPayload>(["chats", "9", ""])
-    expect(updated?.turn_in_flight).toBe(false)
-    expect(updated?.agent_busy).toBe(true)
     expect(updated?.chat).toBeUndefined()
 
     vi.runOnlyPendingTimers()
@@ -707,7 +722,7 @@ describe("applyAppEvent", () => {
     // actively viewing this chat) never carries message content or touches
     // the open chat-detail query -- that only comes from ChatChannel.
     const detail = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
-    expect(detail?.turn_in_flight).toBe(true)
+    expect(detail?.chat.turn_in_flight).toBe(true)
   })
 
   it("patches message activity and unread state while reordering recent chats without refetching", () => {
@@ -773,8 +788,8 @@ describe("applyAppEvent", () => {
 
     expect(invalidate).not.toHaveBeenCalled()
     const updated = queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])
-    expect(updated?.turn_in_flight).toBe(false)
-    expect(updated?.agent_busy).toBe(false)
+    expect(updated?.chat.turn_in_flight).toBe(false)
+    expect(updated?.chat.agent_busy).toBe(false)
     expect(updated?.chat.stop_requested_at).toBe("2026-05-30T12:00:00Z")
     const recent = queryClient.getQueryData<{ groups: Array<{ chats: Array<{ id: number; turn_in_flight?: boolean; agent_busy?: boolean }> }> }>([
       "chats",
@@ -813,7 +828,7 @@ describe("applyAppEvent", () => {
       }
     })
 
-    expect(queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])?.turn_retry_state).toEqual(state)
+    expect(queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])?.chat.turn_retry_state).toEqual(state)
 
     applyAppEvent(queryClient, {
       ...event("chat", 9),
@@ -826,7 +841,7 @@ describe("applyAppEvent", () => {
       }
     })
 
-    expect(queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])?.turn_retry_state).toBeNull()
+    expect(queryClient.getQueryData<ReturnType<typeof chatPayload>>(["chats", "9", ""])?.chat.turn_retry_state).toBeNull()
   })
 
   it("updates scratchpad_items_count in recent chats when update_controls includes scratchpad_items", () => {
@@ -1425,6 +1440,18 @@ describe("applyAppEvent", () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "recent"] })
   })
 
+  it("invalidates job status when a changed job is absent from the broadcast payload", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, {
+      ...event("chat", 9),
+      payload: { action: "job_status_changed", job_id: 77 }
+    })
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["chats", "9", "job_status"] })
+  })
+
   it("dispatches a syrus:theme-preview DOM event for open_theme_preview payloads", () => {
     const queryClient = new QueryClient()
     const invalidate = vi.spyOn(queryClient, "invalidateQueries")
@@ -1893,12 +1920,12 @@ function chatPayload(messages: Array<ReturnType<typeof message>>): ChatPayload {
       stop_requested_at: null,
       cumulative_input_tokens: 0,
       cumulative_output_tokens: 0,
-      cumulative_cost_usd: 0
+      cumulative_cost_usd: 0,
+      turn_in_flight: true,
+      agent_busy: false,
+      turn_retry_state: null
     },
     chat_available: true,
-    turn_in_flight: true,
-    agent_busy: false,
-    turn_retry_state: null,
     switching_provider: false,
     has_more_older: false,
     messages,

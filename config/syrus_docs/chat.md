@@ -1,5 +1,10 @@
 # Chat
 
+The browser bootstrap payload carries user-level chat capabilities such as
+speech-to-text availability and the Coding/Local Mode feature gates. Individual
+chat polling responses contain only session-specific state, so these static
+capabilities are not recomputed and retransmitted on every poll.
+
 Syrus Chat can run turns through Claude, Codex, or any enabled plugin-provided
 chat provider such as Muse or Antigravity. Each chat stores a concrete
 `chat_provider` when it is created. The seed value comes from the user's chat
@@ -853,7 +858,11 @@ Requirements enforced by the endpoint and `ChatShellCommandJob`:
   on a `ChatShellCommand` row, and a `role: "user"` `ChatMessage` carrying
   `content["chat_shell_command_id"]` is always posted and a normal
   `ChatTurnJob` is enqueued so the agent sees and responds to the command and
-  its output.
+  its output. Transcript payloads omit output while the command is running and
+  bound completed output to a preview; the complete stored output remains
+  available from the message content endpoint. Oversized tool-call and
+  tool-result content uses that same lazy endpoint instead of being repeated
+  in every transcript page or realtime event.
 
 Independently of bookmarks, user and assistant messages can be pinned via
 `ChatMessagePin` (`POST`/`GET`/`DELETE /api/v1/app/chats/:id/pins`), gated on

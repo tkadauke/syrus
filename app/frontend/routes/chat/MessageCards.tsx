@@ -9,6 +9,7 @@ import {
   createChatBookmark,
   createChatMessagePin,
   deleteChatMessagePin,
+  fetchFullChatMessageContent,
   fetchSourceFileContent,
   sourceFileUrl,
   type ChatMediaPayload,
@@ -1194,14 +1195,32 @@ const SHELL_COMMAND_OUTCOME_TONE: Record<string, string> = {
 
 function ShellCommandCard({ shellCommand }: { shellCommand: ChatShellCommandResult }) {
   const { t } = useT("chat")
+  const [showFullOutput, setShowFullOutput] = useState(false)
+  const fullContent = useQuery({
+    queryKey: ["chat_message_content", shellCommand.output_path],
+    queryFn: () => fetchFullChatMessageContent(shellCommand.output_path!),
+    enabled: showFullOutput && !!shellCommand.output_path
+  })
   return (
-    <ChatCommandOutputSurface
-      command={shellCommand.command}
-      emptyLabel={t("shell_command_no_output")}
-      exitStatus={shellCommand.exit_status}
-      outcome={shellCommand.outcome}
-      output={shellCommand.output}
-    />
+    <div>
+      <ChatCommandOutputSurface
+        command={shellCommand.command}
+        emptyLabel={t("shell_command_no_output")}
+        exitStatus={shellCommand.exit_status}
+        outcome={shellCommand.outcome}
+        output={fullContent.data?.chat_shell_command_output ?? shellCommand.output}
+      />
+      {shellCommand.output_truncated && shellCommand.output_path ? (
+        <button
+          className="mt-1 text-xs font-medium text-brand hover:underline"
+          disabled={fullContent.isFetching}
+          onClick={() => setShowFullOutput(true)}
+          type="button"
+        >
+          {fullContent.isFetching ? t("loading") : t("shell_command_show_full_output")}
+        </button>
+      ) : null}
+    </div>
   )
 }
 
@@ -1330,6 +1349,7 @@ const ToolGroupContent = memo(function ToolGroupContent({ chatSessionId, item, p
               ) : expanded ? (
                 pluginToolCardPendingBody(toolCardContext(call, chatSessionId, presentation, payload ? handleMarkdownLink : undefined, timeZone))
               ) : null}
+              {expanded && call.content_path ? <LazyToolContent path={call.content_path} /> : null}
               {expanded ? (
                 <RawToolDetails
                   payload={{
@@ -1379,6 +1399,25 @@ export const ToolGroup = memo(function ToolGroup(props: ToolGroupProps) {
     </Suspense>
   )
 }, sameToolGroupProps)
+
+
+
+
+function LazyToolContent({ path }: { path: string }) {
+  const { t } = useT("chat")
+  const [enabled, setEnabled] = useState(false)
+  const content = useQuery({ queryKey: ["chat_message_content", path], queryFn: () => fetchFullChatMessageContent(path), enabled })
+  if (!enabled) {
+    return (
+      <button className="mt-2 text-xs font-medium text-brand hover:underline" onClick={() => setEnabled(true)} type="button">
+        {t("tool_content_show_full")}
+      </button>
+    )
+  }
+  if (content.isPending) return <div className="mt-2 text-text-muted">{t("loading")}</div>
+  if (content.isError) return <div className="mt-2 text-danger">{t("tool_content_load_failed")}</div>
+  return <CodeSurface className="mt-2" code={JSON.stringify(content.data.content, null, 2)} maxHeightClassName="max-h-96" />
+}
 
 type CollapsedToolGroupHeaderProps = {
   count?: number

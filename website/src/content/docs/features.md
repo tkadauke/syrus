@@ -1151,6 +1151,8 @@ When chat speech-to-text is enabled, the composer microphone uses the best
 available dictation mode reported by the backend: an enabled and healthy
 speech-to-text provider such as the bundled `whisper_stt` plugin receives
 ordered chunks and revises the visible interim transcript while you speak.
+The app loads this user-level capability once with its bootstrap data rather
+than recomputing it on every chat refresh.
 Final text is committed once without disturbing text already in the composer.
 The browser retains the complete recording and automatically retries backend
 batch transcription if streaming fails; disabled or unavailable providers use

@@ -112,7 +112,7 @@ class ChatMessage < ApplicationRecord
     Mentionables::Resolver.resolve(text: extract_text_from_content, chat: chat_session)
   end
 
-  def rendered_text_and_mentions(&mentionable_lookup)
+  def rendered_text_and_mentions(addressable: nil, &mentionable_lookup)
     text = extract_text_from_content.to_s
     rendered_parts = []
     rendered_mentions = []
@@ -124,7 +124,8 @@ class ChatMessage < ApplicationRecord
       else
         Mentionables::Resolver.find(kind: mention["kind"], id: mention["id"])
       end
-      next unless mentionable&.addressable_in?(chat_session)
+      next unless mentionable
+      next unless addressable ? addressable.call(mentionable, chat_session) : mentionable.addressable_in?(chat_session)
 
       start_offset = mention.fetch("start")
       end_offset = mention.fetch("end")

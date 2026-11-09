@@ -3,6 +3,7 @@ import type { ProviderAvailability } from "./providerAvailability"
 import type { TypedArtifact } from "./artifacts"
 import type { RuleDraftPreview } from "./permissionRuleDrafts"
 import type { PermissionAuthorityReference, PermissionPresentation, SmartPermissionOption } from "./permissionRequests"
+import { readInitialBootstrap } from "./bootstrap"
 
 export type ChatRepository = {
   id: number
@@ -233,6 +234,7 @@ export type ChatProposal = {
   title: string
   slug: string
   body: string
+  body_path?: string
   proposed: boolean
   resolved: boolean
   epic_bundle: boolean
@@ -294,6 +296,7 @@ export type ChatProposalChild = {
   title: string
   slug: string
   body: string
+  body_path?: string
   state: string
   state_label: string
   proposed: boolean
@@ -488,6 +491,16 @@ export type ChatMessageItem = {
   coworker_receiver?: ChatCoworkerAppearance | null
 }
 
+export type TruncatedChatMessageContent = {
+  truncated: true
+  content_path: string
+}
+
+export type FullChatMessageContent = {
+  content: unknown
+  chat_shell_command_output: string | null
+}
+
 export type ChatCoworkerAppearance = {
   id: number
   name: string
@@ -540,6 +553,7 @@ export type ChatRenderMessageItem = ChatMessageItem & {
 
 export type ChatToolGroupCall = {
   message_id: number
+  content_path?: string
   tool_name: string
   raw_name: string
   detail: string
@@ -898,6 +912,8 @@ export type ChatShellCommandResult = {
   id: number
   command: string
   output: string | null
+  output_truncated?: boolean
+  output_path?: string
   outcome: ChatShellCommandOutcome | null
   exit_status: number | null
   started_at: string | null
@@ -1027,10 +1043,6 @@ export type ChatPayload = {
   chat: ChatRecord
   chat_available: boolean
   chat_provider_display_name?: string
-  turn_in_flight: boolean
-  agent_busy: boolean
-  agent_activity?: ChatAgentActivity | null
-  turn_retry_state?: ChatTurnRetryState | null
   // Coding Mode only (the chat shell-command cancellation feature): the chat session's currently-running `!`
   // command, if any, so the composer can rehydrate its command-mode stop
   // control across a remount (e.g. a desktop/mobile breakpoint crossing)
@@ -1106,7 +1118,7 @@ export type ChatPayload = {
 export type ChatMetadataUpdatePayload = {
   message?: string | null
   chat: Partial<ChatRecord> & Pick<ChatRecord, "id">
-}
+} & Partial<Omit<ChatPayload, "chat" | "message" | "messages">>
 
 export type ChatPayloadUpdate = ChatPayload | ChatMetadataUpdatePayload
 
@@ -1117,10 +1129,7 @@ export type ChatProposalMutationPayload = {
   pending_proposal_count?: number
 }
 
-// The update (edit) endpoint renders a full chat_payload merged with the
-// freshly serialized proposal, unlike confirm/reject's compact mutation
-// payload above.
-export type ChatProposalUpdatePayload = ChatPayload & { proposal?: ChatProposal | null }
+export type ChatProposalUpdatePayload = ChatPayloadUpdate & { proposal?: ChatProposal | null }
 
 export type ChatSpeechToTextCapability = {
   enabled: boolean
@@ -1146,6 +1155,8 @@ export type SharedChatPayload = {
     title: string | null
   }
   messages: ChatMessageItem[]
+  has_more_older: boolean
+  before_id: number | null
 }
 
 export type ShareChatPayload = {
@@ -1227,7 +1238,71 @@ export type ChatSearchMessagesPayload = {
 }
 
 export function fetchChat(id: string, search = "") {
-  return getJson<ChatPayload>(`/api/v1/app/chats/${id}${search}`)
+  return getJson<ChatPayload>(`/api/v1/app/chats/${id}${search}`).then((payload) => {
+    const capabilities = readInitialBootstrap()?.chat_capabilities
+    const legacy = payload as ChatPayload & {
+      turn_in_flight?: boolean
+      agent_busy?: boolean
+      agent_activity?: ChatAgentActivity | null
+      turn_retry_state?: ChatTurnRetryState | null
+    }
+    return {
+      ...payload,
+      chat: {
+        ...payload.chat,
+        chat_provider_options: capabilities?.chat_provider_options ?? payload.chat.chat_provider_options,
+        available_chat_models: capabilities?.available_chat_models?.[payload.chat.effective_chat_provider || ""] ?? payload.chat.available_chat_models,
+        turn_in_flight: payload.chat.turn_in_flight ?? legacy.turn_in_flight ?? false,
+        agent_busy: payload.chat.agent_busy ?? legacy.agent_busy ?? false,
+        agent_activity: payload.chat.agent_activity ?? legacy.agent_activity ?? null,
+        turn_retry_state: payload.chat.turn_retry_state ?? legacy.turn_retry_state ?? null
+      },
+      paths: payload.paths?.app_message_path ? payload.paths : { ...chatPaths(payload.chat.id), ...(payload.paths || {}) },
+      speech_to_text: capabilities?.speech_to_text ?? payload.speech_to_text,
+      coding_mode_enabled: capabilities?.coding_mode_enabled ?? payload.coding_mode_enabled ?? false,
+      local_mode_enabled: capabilities?.local_mode_enabled ?? payload.local_mode_enabled ?? false
+    }
+  })
+}
+
+export function fetchFullChatMessageContent(path: string) {
+  return getJson<FullChatMessageContent>(path)
+}
+
+export function chatPaths(chatId: string | number): ChatPayload["paths"] {
+  const base = `/api/v1/app/chats/${encodeURIComponent(String(chatId))}`
+  return {
+    credentials_path: "/credentials",
+    repositories_path: "/repositories",
+    app_messages_path: `${base}/messages`,
+    app_message_path: `${base}/message`,
+    app_rename_path: `${base}/rename`,
+    app_delete_path: base,
+    app_clear_path: `${base}/messages`,
+    app_branch_path: `${base}/branch`,
+    app_share_path: `${base}/share`,
+    app_enqueue_message_path: `${base}/queued_messages`,
+    app_scheduled_messages_path: `${base}/scheduled_messages`,
+    app_retry_turn_path: `${base}/retry_turn`,
+    app_stop_path: `${base}/stop`,
+    app_daemon_connection_path: `${base}/daemon_connection`,
+    app_switch_provider_path: `${base}/switch_provider`,
+    app_bookmarks_path: `${base}/bookmarks`,
+    app_bookmarks_index_path: `${base}/bookmarks`,
+    app_scratchpad_reorder_path: `${base}/scratchpad_items/reorder`,
+    app_speech_to_text_batch_path: `${base}/speech_to_text`,
+    app_speech_to_text_stream_path: `${base}/speech_to_text/stream`,
+    app_create_coding_handoff_path: `${base}/coding_handoff`,
+    app_whiteboard_path: `${base}/whiteboard`,
+    app_cancel_coding_checkout_path: `${base}/coding_checkout`,
+    app_coding_files_path: `${base}/coding_files`,
+    app_coding_commits_path: `${base}/coding_commits`,
+    app_coding_file_path: `${base}/coding_file`,
+    app_coding_file_preview_path: `${base}/coding_file_preview`,
+    app_coding_diff_path: `${base}/coding_diff`,
+    app_source_file_path: `${base}/source_file`,
+    app_source_file_raw_path: `${base}/source_file/raw`
+  }
 }
 
 // Slim payload for the CHAT-<id> hover preview card — mirrors fetchJobDetail
@@ -1251,8 +1326,9 @@ export function fetchChatBookmarks(path: string, options: { signal?: AbortSignal
   return getJson<{ bookmarks: ChatBookmark[] }>(path, options)
 }
 
-export function fetchSharedChat(token: string) {
-  return getJson<SharedChatPayload>(`/api/v1/app/shared_chats/${encodeURIComponent(token)}`)
+export function fetchSharedChat(token: string, beforeId?: number | null) {
+  const search = beforeId == null ? "" : `?before_id=${encodeURIComponent(String(beforeId))}`
+  return getJson<SharedChatPayload>(`/api/v1/app/shared_chats/${encodeURIComponent(token)}${search}`)
 }
 
 export function markChatRead(id: string | number) {
@@ -1473,7 +1549,7 @@ export function updateChatPinned(id: number | string, pinned: boolean) {
 }
 
 export function updateChatRepository(id: number | string, repositoryId: string | number | null) {
-  return patchJson<ChatPayload>(`/api/v1/app/chats/${id}`, { chat: { repository_id: repositoryId ?? "" } })
+  return patchJson<ChatPayloadUpdate>(`/api/v1/app/chats/${id}`, { chat: { repository_id: repositoryId ?? "" } })
 }
 
 export function switchChatProvider(path: string, chatProvider: string) {
@@ -1542,7 +1618,7 @@ export function createLocalDaemonSession(chatId: number | string) {
 }
 
 export function clearChatHistory(path: string) {
-  return deleteJson<ChatPayload>(path)
+  return deleteJson<ChatPayloadUpdate>(path)
 }
 
 // Soft-deletes the chat while retaining its durable conversation data for
@@ -1733,6 +1809,10 @@ export function searchChatProposals(chatId: string | number, query: string, excl
   return getJson<{ proposals: ChatProposalSearchResult[] }>(`/api/v1/app/chats/${chatId}/proposals/search?${params}`, options).then(
     (payload) => payload.proposals || []
   )
+}
+
+export function fetchChatProposal(path: string) {
+  return getJson<{ proposal: { id: number; body: string } }>(path)
 }
 
 export function searchChatJobs(query: string, options: { signal?: AbortSignal } = {}) {

@@ -83,8 +83,6 @@ function makePayload(overrides: Partial<ChatPayload["chat"]> = {}): ChatPayload 
       ...overrides
     },
     chat_available: true,
-    turn_in_flight: false,
-    agent_busy: false,
     switching_provider: false,
     has_more_older: false,
     messages: [],
@@ -140,7 +138,7 @@ function renderDialog(payload: ChatPayload, onClose = () => {}) {
   )
 }
 
-function makeCodingPayload(overrides: Partial<ChatPayload> = {}): ChatPayload {
+function makeCodingPayload(overrides: Partial<ChatPayload> = {}, agentBusy = false): ChatPayload {
   const payload = makePayload({
     mode: "coding",
     coding_checkout_branch: "syrus/chat-1"
@@ -148,6 +146,7 @@ function makeCodingPayload(overrides: Partial<ChatPayload> = {}): ChatPayload {
   return {
     ...payload,
     ...overrides,
+    chat: { ...payload.chat, ...overrides.chat, agent_busy: agentBusy },
     coding_mode_enabled: true,
     paths: {
       ...payload.paths,
@@ -339,7 +338,7 @@ describe("ChatWorkspacePanel coding files", () => {
 
     vi.useFakeTimers()
     try {
-      renderWorkspacePanel(makeCodingPayload({ agent_busy: true }))
+      renderWorkspacePanel(makeCodingPayload({}, true))
       await act(async () => vi.advanceTimersByTimeAsync(0))
       expect(fetchCodingFileTree).toHaveBeenCalledTimes(1)
 

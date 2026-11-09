@@ -5,6 +5,7 @@ import type {
   ChatBookmark,
   ChatConversationKind,
   ChatJobStatusPayload,
+  ChatJobStatusItem,
   ChatJobStatusPendingProposal,
   ChatMessageItem,
   ChatParticipant,
@@ -282,7 +283,10 @@ type NotificationReadPayload = {
   read_at?: string
 }
 
-function patchCachedChatRecord(chat: ChatPayload["chat"], patch: Partial<Pick<ChatRecord, "last_message_at" | "stop_requested_at" | "turn_retry_state">>) {
+function patchCachedChatRecord(
+  chat: ChatPayload["chat"],
+  patch: Partial<Pick<ChatRecord, "last_message_at" | "stop_requested_at" | "turn_retry_state" | "turn_in_flight" | "agent_busy">>
+) {
   if (!chat) return chat
 
   return { ...chat, ...patch }
@@ -923,15 +927,37 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
 
       return {
         ...current,
-        turn_in_flight: replaceTail.turn_in_flight ?? current.turn_in_flight,
-        agent_busy: replaceTail.agent_busy ?? current.agent_busy,
-        turn_retry_state: replaceTail.turn_retry_state !== undefined ? replaceTail.turn_retry_state : current.turn_retry_state,
         queued_messages: replaceTail.queued_messages ?? current.queued_messages,
         messages: replaceMessageTail(current.messages, replaceTail.replace_from_id, replaceTail.messages),
         chat: patchCachedChatRecord(current.chat, {
+          turn_in_flight: replaceTail.turn_in_flight ?? current.chat?.turn_in_flight,
+          agent_busy: replaceTail.agent_busy ?? current.chat?.agent_busy,
           turn_retry_state: replaceTail.turn_retry_state !== undefined ? replaceTail.turn_retry_state : current.chat?.turn_retry_state,
           stop_requested_at: replaceTail.stop_requested_at ?? current.chat?.stop_requested_at,
           last_message_at: replaceTail.last_message_at ?? current.chat?.last_message_at
+        })
+      }
+    })
+    return patched
+  }
+
+  const upsertMessages = chatUpsertMessagesPayload(event.payload)
+  if (upsertMessages) {
+    upsertMessages.messages.forEach((message) => normalizeChatMessage(message, "app_event"))
+    let patched = false
+    if (typeof upsertMessages.turn_in_flight === "boolean")
+      updateRecentChatTurnCache(queryClient, event.id, { turn_in_flight: upsertMessages.turn_in_flight, agent_busy: upsertMessages.agent_busy })
+    queryClient.setQueriesData<ChatPayload>({ queryKey: ["chats", String(event.id)] }, (current) => {
+      if (!current || !Array.isArray(current.messages)) return current
+      patched = true
+      return {
+        ...current,
+        messages: upsertMessagesIntoTail(current.messages, upsertMessages.messages),
+        chat: patchCachedChatRecord(current.chat, {
+          turn_in_flight: upsertMessages.turn_in_flight ?? current.chat?.turn_in_flight,
+          agent_busy: upsertMessages.agent_busy ?? current.chat?.agent_busy,
+          turn_retry_state: upsertMessages.turn_retry_state !== undefined ? upsertMessages.turn_retry_state : current.chat?.turn_retry_state,
+          stop_requested_at: upsertMessages.stop_requested_at ?? current.chat?.stop_requested_at
         })
       }
     })
@@ -945,11 +971,10 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
       current
         ? {
             ...current,
-            turn_in_flight: invalidateMessages.turn_in_flight ?? current.turn_in_flight,
-            agent_busy: invalidateMessages.agent_busy ?? current.agent_busy,
-            turn_retry_state: invalidateMessages.turn_retry_state !== undefined ? invalidateMessages.turn_retry_state : current.turn_retry_state,
             queued_messages: invalidateMessages.queued_messages ?? current.queued_messages,
             chat: patchCachedChatRecord(current.chat, {
+              turn_in_flight: invalidateMessages.turn_in_flight ?? current.chat?.turn_in_flight,
+              agent_busy: invalidateMessages.agent_busy ?? current.chat?.agent_busy,
               turn_retry_state: invalidateMessages.turn_retry_state !== undefined ? invalidateMessages.turn_retry_state : current.chat?.turn_retry_state,
               stop_requested_at: invalidateMessages.stop_requested_at ?? current.chat?.stop_requested_at
             })
@@ -973,12 +998,11 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
 
       return {
         ...current,
-        turn_in_flight: controls.turn_in_flight,
-        agent_busy: controls.agent_busy ?? current.agent_busy,
-        turn_retry_state: controls.turn_retry_state !== undefined ? controls.turn_retry_state : current.turn_retry_state,
         switching_provider: controls.switching_provider ?? current.switching_provider,
         queued_messages: controls.queued_messages ?? current.queued_messages,
         chat: patchCachedChatRecord(current.chat, {
+          turn_in_flight: controls.turn_in_flight,
+          agent_busy: controls.agent_busy ?? current.chat?.agent_busy,
           turn_retry_state: controls.turn_retry_state !== undefined ? controls.turn_retry_state : current.chat?.turn_retry_state,
           stop_requested_at: controls.stop_requested_at
         })
@@ -1102,6 +1126,35 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
   const jobStatusChanged = chatJobStatusChangedPayload(event.payload)
   if (jobStatusChanged) {
     invalidateAppQuery(queryClient, { queryKey: ["chats", "recent"] })
+    if (jobStatusChanged.item) {
+      queryClient.setQueriesData<ChatJobStatusPayload>({ queryKey: ["chats", String(event.id), "job_status"] }, (current) => {
+        if (!current) return current
+        const item = jobStatusChanged.item!
+        let found = false
+        const items = current.items.map((entry) => {
+          if (entry.kind === "epic" && item.kind === "epic" && entry.epic_id === item.epic_id) {
+            found = true
+            return item
+          }
+          if (entry.kind === "job" && entry.job_id === jobStatusChanged.job_id) {
+            found = true
+            return item
+          }
+          if (entry.kind !== "epic") return entry
+          return {
+            ...entry,
+            children: entry.children.map((child) => {
+              if (child.job_id !== jobStatusChanged.job_id || item.kind !== "job") return child
+              found = true
+              return item
+            })
+          }
+        })
+        return { ...current, items: found ? items : [item, ...items] }
+      })
+    } else {
+      invalidateAppQuery(queryClient, { queryKey: ["chats", String(event.id), "job_status"] })
+    }
     if (typeof window !== "undefined") {
       window.dispatchEvent(
         new CustomEvent("syrus:job-status-changed", {
@@ -1185,7 +1238,7 @@ type ChatReplaceTailPayload = {
   messages: ChatMessageItem[]
   turn_in_flight?: boolean
   agent_busy?: boolean
-  turn_retry_state?: ChatPayload["turn_retry_state"]
+  turn_retry_state?: ChatRecord["turn_retry_state"]
   stop_requested_at?: string | null
   last_message_at?: string | null
   queued_messages?: ChatQueuedMessage[]
@@ -1195,7 +1248,7 @@ type ChatControlsPayload = {
   action: "update_controls"
   turn_in_flight: boolean
   agent_busy?: boolean
-  turn_retry_state?: ChatPayload["turn_retry_state"]
+  turn_retry_state?: ChatRecord["turn_retry_state"]
   stop_requested_at: string | null
   switching_provider?: boolean
   queued_messages?: ChatQueuedMessage[]
@@ -1206,7 +1259,7 @@ type ChatInvalidateMessagesPayload = {
   action: "invalidate_messages"
   turn_in_flight?: boolean
   agent_busy?: boolean
-  turn_retry_state?: ChatPayload["turn_retry_state"]
+  turn_retry_state?: ChatRecord["turn_retry_state"]
   stop_requested_at?: string | null
   last_message_at?: string | null
   queued_messages?: ChatQueuedMessage[]
@@ -1276,6 +1329,11 @@ type ChatUpdateProposalPayload = {
 type ChatJobStatusChangedPayload = {
   action: "job_status_changed"
   job_id: number
+  item?: ChatJobStatusItem
+}
+
+type ChatUpsertMessagesPayload = Omit<ChatReplaceTailPayload, "action" | "replace_from_id"> & {
+  action: "upsert_messages"
 }
 
 type ChatThemePreviewPayload = {
@@ -1323,6 +1381,20 @@ function chatReplaceTailPayload(payload: unknown): ChatReplaceTailPayload | null
   }
 }
 
+function chatUpsertMessagesPayload(payload: unknown): ChatUpsertMessagesPayload | null {
+  if (!payload || typeof payload !== "object") return null
+  const candidate = payload as Partial<ChatUpsertMessagesPayload>
+  if (candidate.action !== "upsert_messages" || !isChatMessages(candidate.messages)) return null
+  return {
+    action: "upsert_messages",
+    messages: candidate.messages,
+    turn_in_flight: typeof candidate.turn_in_flight === "boolean" ? candidate.turn_in_flight : undefined,
+    agent_busy: typeof candidate.agent_busy === "boolean" ? candidate.agent_busy : undefined,
+    turn_retry_state: isChatTurnRetryState(candidate.turn_retry_state) ? candidate.turn_retry_state : candidate.turn_retry_state === null ? null : undefined,
+    stop_requested_at: typeof candidate.stop_requested_at === "string" || candidate.stop_requested_at === null ? candidate.stop_requested_at : undefined
+  }
+}
+
 function chatControlsPayload(payload: unknown): ChatControlsPayload | null {
   if (!payload || typeof payload !== "object") return null
 
@@ -1345,10 +1417,10 @@ function chatControlsPayload(payload: unknown): ChatControlsPayload | null {
   }
 }
 
-function isChatTurnRetryState(value: unknown): value is NonNullable<ChatPayload["turn_retry_state"]> {
+function isChatTurnRetryState(value: unknown): value is NonNullable<ChatRecord["turn_retry_state"]> {
   if (!value || typeof value !== "object") return false
 
-  const candidate = value as NonNullable<ChatPayload["turn_retry_state"]>
+  const candidate = value as NonNullable<ChatRecord["turn_retry_state"]>
   return (
     (typeof candidate.classification === "string" || candidate.classification === null) &&
     typeof candidate.classification_label === "string" &&
@@ -1565,7 +1637,8 @@ function chatJobStatusChangedPayload(payload: unknown): ChatJobStatusChangedPayl
   if (candidate.action !== "job_status_changed") return null
   if (typeof candidate.job_id !== "number") return null
 
-  return { action: "job_status_changed", job_id: candidate.job_id }
+  const item = candidate.item && typeof candidate.item === "object" ? (candidate.item as ChatJobStatusItem) : undefined
+  return { action: "job_status_changed", job_id: candidate.job_id, item }
 }
 
 function isChatMessages(value: unknown): value is ChatMessageItem[] {
@@ -1694,6 +1767,11 @@ function isChatAgentQuestions(value: unknown): value is ChatAgentQuestion[] {
 
 function replaceMessageTail(current: ChatMessageItem[], replaceFromId: number, nextMessages: ChatMessageItem[]) {
   return dedupeMessages([...current.filter((message) => message.id < replaceFromId), ...nextMessages])
+}
+
+function upsertMessagesIntoTail(current: ChatMessageItem[], nextMessages: ChatMessageItem[]) {
+  const nextIds = new Set(nextMessages.map((message) => message.id))
+  return [...current.filter((message) => !nextIds.has(message.id)), ...nextMessages].sort((a, b) => a.id - b.id)
 }
 
 function dedupeMessages(messages: ChatMessageItem[]) {

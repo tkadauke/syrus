@@ -1,9 +1,16 @@
 module App
   class ChatMessagePayload
+    MAX_TOOL_CONTENT_BYTES = 16.kilobytes
+    MAX_SHELL_OUTPUT_BYTES = 8.kilobytes
+    TRUNCATION_MARKER = "\n… truncated …".freeze
     include Rails.application.routes.url_helpers
 
     def self.messages(messages, repository:)
       new(repository: repository).messages(messages)
+    end
+
+    def self.full_content(content)
+      content.is_a?(Hash) ? content.except("text", "attachments") : content
     end
 
     def self.proposal(proposal, chat_session:, repository:)
@@ -75,6 +82,8 @@ module App
       records = messages.to_a
       ChatAttachmentRef.preload(records)
       preload_message_associations(records)
+      preload_legacy_mention_participants(records)
+      preload_participant_ids(records)
       preload_pending_action_outcomes(records)
       preload_mentionables(records)
       preload_chat_shell_commands(records)
@@ -88,11 +97,21 @@ module App
     def preload_message_associations(messages)
       return if messages.blank?
 
+      # Callers often hold messages created before a pending action completed.
+      # Reload the association graph so terminal payloads never serialize the
+      # stale in-memory action/group state from creation time.
+      messages.each do |message|
+        association = message.association(:pending_action)
+        next unless association.loaded?
+
+        association.target&.pending_action_group&.association(:chat_pending_actions)&.reset
+        association.reset
+      end
+
       ActiveRecord::Associations::Preloader.new(
         records: messages,
         associations: [
           :chat_session,
-          { chat_session: { chat_participants: :user } },
           { pending_action: { pending_action_group: :chat_pending_actions } },
           :sender_user
         ]
@@ -126,11 +145,33 @@ module App
       ).call
     end
 
+    def preload_participant_ids(messages)
+      chat_ids = messages.map(&:chat_session_id).uniq
+      @participant_ids_by_chat = ChatParticipant.where(chat_session_id: chat_ids).pluck(:chat_session_id, :user_id)
+        .group_by(&:first).transform_values { |pairs| pairs.map(&:last).to_set }
+    end
+
+    def preload_legacy_mention_participants(messages)
+      sessions = messages.select { |message| message.role == "user" && message.mentions.nil? }.map(&:chat_session).uniq
+      return if sessions.empty?
+
+      ActiveRecord::Associations::Preloader.new(
+        records: sessions,
+        associations: { chat_participants: { user: :handle_record } }
+      ).call
+    end
+
     def preload_mentionables(messages)
       human_ids = messages.flat_map(&:resolved_mentions).filter_map do |mention|
         mention["id"] if mention["kind"] == "human"
       end.map(&:to_i).uniq
-      @mentionables_by_key = User.where(id: human_ids).includes(:handle_record).index_by do |user|
+      loaded_users = messages.filter_map do |message|
+        association = message.chat_session.association(:chat_participants)
+        association.target.map(&:user) if association.loaded?
+      end.flatten.index_by(&:id)
+      remaining_ids = human_ids - loaded_users.keys
+      users = loaded_users.values + User.where(id: remaining_ids).includes(:handle_record).to_a
+      @mentionables_by_key = users.index_by do |user|
         [ "human", user.id.to_s ]
       end
       @mentionables_by_key[[ "syrus", "syrus" ]] = Mentionables::Syrus.new
@@ -170,7 +211,10 @@ module App
     end
 
     def message_json(message)
-      text, mentions = message.rendered_text_and_mentions do |kind, id|
+      addressable = lambda do |mentionable, chat_session|
+        mentionable.kind != "human" || @participant_ids_by_chat.fetch(chat_session.id, Set.new).include?(mentionable.id)
+      end
+      text, mentions = message.rendered_text_and_mentions(addressable: addressable) do |kind, id|
         key = [ kind.to_s, id.to_s ]
         @mentionables_by_key.fetch(key) do
           @mentionables_by_key[key] = Mentionables::Resolver.find(kind: kind, id: id)
@@ -182,7 +226,7 @@ module App
         entity_revision: message.entity_revision,
         role: message.role,
         tool_name: message.tool_name,
-        content: payload_content(message.content),
+        content: payload_content(message),
         text: text,
         mentions: mentions,
         bookmarkable: message.bookmarkable?,
@@ -213,10 +257,18 @@ module App
       payload
     end
 
-    def payload_content(content)
+    def payload_content(message)
+      content = message.content
       return content unless content.is_a?(Hash)
 
-      content.except("text", "attachments")
+      content = self.class.full_content(content)
+      return content unless %w[tool_use tool_result].include?(message.role)
+      return content if content.to_json.bytesize <= MAX_TOOL_CONTENT_BYTES
+
+      content.slice("type", "id", "name", "tool_use_id", "is_error", "benign_cleanup").merge(
+        "truncated" => true,
+        "content_path" => "/api/v1/app/chats/#{message.chat_session_id}/messages/#{message.id}/content"
+      )
     end
 
     def sender_user_json(message)
@@ -232,15 +284,26 @@ module App
       shell_command = @chat_shell_commands_by_id[message.content["chat_shell_command_id"].to_i]
       return nil unless shell_command
 
-      {
+      payload = {
         id: shell_command.id,
         command: shell_command.command,
-        output: shell_command.output,
+        output: shell_command.running? ? nil : truncated_shell_output(shell_command.output),
         outcome: shell_command.outcome,
         exit_status: shell_command.exit_status,
         started_at: shell_command.started_at&.iso8601,
         finished_at: shell_command.finished_at&.iso8601
       }
+      if !shell_command.running? && shell_command.output.to_s.bytesize > MAX_SHELL_OUTPUT_BYTES
+        payload[:output_truncated] = true
+        payload[:output_path] = "/api/v1/app/chats/#{message.chat_session_id}/messages/#{message.id}/content"
+      end
+      payload
+    end
+
+    def truncated_shell_output(output)
+      return output if output.to_s.bytesize <= MAX_SHELL_OUTPUT_BYTES
+
+      output.to_s.safe_byteslice(0, MAX_SHELL_OUTPUT_BYTES) + TRUNCATION_MARKER
     end
 
     def bridge_thread_id(message)
@@ -295,6 +358,21 @@ module App
     def pending_action_json(action, chat_session:)
       return nil unless action&.visible_in_chat_payload?
 
+      if ChatPendingAction::TERMINAL_REQUEST_STATES.include?(action.state)
+        terminal = {
+          id: action.id,
+          state: action.state,
+          label: pending_action_label(action)
+        }
+        presenter_class = PendingActions.for(action.action.presence || action.action_type)
+        terminal[:outcome] = @pending_action_outcomes[action.id] if presenter_class.include_terminal_tool_card_outcome? && @pending_action_outcomes[action.id].present?
+        return terminal
+      end
+
+      pending_action_detail_json(action, chat_session: chat_session)
+    end
+
+    def pending_action_detail_json(action, chat_session:)
       payload = action.payload || {}
       base = {
         id: action.id,
@@ -313,12 +391,8 @@ module App
         base[:app_update_path] = "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}"
       end
       base[:reason] = action.reason if action.reason.present?
-      base[:before_snapshot] = action.before_snapshot if action.before_snapshot.present?
-      base[:after_snapshot] = action.after_snapshot if action.after_snapshot.present?
       presenter = PendingActions.for(action.action.presence || action.action_type).new(action)
-      if (review = presenter.tool_card_review).present?
-        base[:review] = review
-      end
+      base.merge!(cached_pending_action_presentation(action, presenter))
       outcome = @pending_action_outcomes[action.id]
       outcome ||= presenter.tool_card_outcome if presenter.respond_to?(:tool_card_outcome)
       if outcome.present?
@@ -365,6 +439,17 @@ module App
         end
       else
         base
+      end
+    end
+
+    def cached_pending_action_presentation(action, presenter)
+      fingerprint = Digest::SHA256.hexdigest(action.attributes.slice("action", "action_type", "payload", "before_snapshot", "after_snapshot").to_json)
+      Rails.cache.fetch([ "chat-pending-action-message-presentation", action.cache_key_with_version, Current.user&.id, fingerprint ]) do
+        {
+          before_snapshot: action.before_snapshot.presence,
+          after_snapshot: action.after_snapshot.presence,
+          review: presenter.tool_card_review.presence
+        }.compact
       end
     end
 
@@ -427,6 +512,12 @@ module App
         materialized_epic_state_path: materialized_epic ? "/api/v1/app/epics/#{materialized_epic.id}/state" : nil,
         media_ids: proposal.media_ids || []
       }
+      base.except!(:kind_label, :state_label, :route_label, :app_update_path, :app_confirm_path, :app_reject_path, :materialized_label, :materialized_path)
+
+      if proposal.resolved?
+        base.delete(:body)
+        base[:body_path] = "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}"
+      end
 
       if proposal.epic_bundle?
         child_proposals = ordered_child_proposals(proposal)
@@ -588,7 +679,7 @@ module App
 
     def child_proposal_json(proposal, chat_session:)
       dependency_records = ordered_dependencies(proposal)
-      {
+      payload = {
         id: proposal.id,
         title: proposal.title,
         slug: proposal.slug,
@@ -611,6 +702,13 @@ module App
         app_update_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}",
         app_reject_path: "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}/reject"
       }
+      payload.except!(:state_label, :app_update_path, :app_reject_path)
+      if proposal.resolved?
+        payload.delete(:body)
+        payload[:body_path] = "/api/v1/app/chats/#{chat_session.id}/proposals/#{proposal.id}"
+        payload.except!(:provider_setting, :planned_execution, :goal_provenance, :dependency_details)
+      end
+      payload
     end
 
     def child_dependency_json(proposal, dependency)

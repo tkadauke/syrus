@@ -98,6 +98,8 @@ RSpec.describe App::ChatMessagePayload do
     queries = capture_sql { described_class.messages(messages, repository: repository) }
     mention_lookup_queries = queries.grep(/FROM ["`]?(?:users|handles|chat_participants)["`]?/i)
 
+    # Participant membership is fetched as ids rather than preloading every
+    # participant and User record into each paginated message's session.
     expect(mention_lookup_queries.size).to be <= 5
   end
   it "includes the message's revision so the frontend entity store can order/dedupe events against this snapshot" do
@@ -128,6 +130,46 @@ RSpec.describe App::ChatMessagePayload do
     payload = described_class.messages([ message ], repository: repository).first
 
     expect(payload.fetch(:text)).to eq("")
+  end
+
+  it "replaces oversized tool content with a lazy content reference" do
+    message = chat.messages.create!(role: "tool_result", tool_name: "Read",
+      content: { "type" => "tool_result", "content" => "x" * (described_class::MAX_TOOL_CONTENT_BYTES + 1) })
+
+    payload = described_class.messages([ message ], repository: repository).sole
+
+    expect(payload.fetch(:content)).to eq(
+      "type" => "tool_result",
+      "truncated" => true,
+      "content_path" => "/api/v1/app/chats/#{chat.id}/messages/#{message.id}/content"
+    )
+  end
+
+  it "keeps tool routing identifiers when oversized content is truncated" do
+    use = chat.messages.create!(role: "tool_use", tool_name: "Read",
+      content: { "type" => "tool_use", "id" => "tool-1", "name" => "Read", "input" => { "value" => "x" * described_class::MAX_TOOL_CONTENT_BYTES } })
+    result = chat.messages.create!(role: "tool_result", tool_name: "Read",
+      content: { "type" => "tool_result", "tool_use_id" => "tool-1", "content" => "x" * described_class::MAX_TOOL_CONTENT_BYTES })
+
+    payloads = described_class.messages([ use, result ], repository: repository)
+
+    expect(payloads.first.fetch(:content)).to include("id" => "tool-1", "name" => "Read", "truncated" => true)
+    expect(payloads.last.fetch(:content)).to include("tool_use_id" => "tool-1", "truncated" => true)
+  end
+
+  it "omits running shell output and bounds completed shell output" do
+    command = chat.chat_shell_commands.create!(user: user, command: "yes", started_at: Time.current,
+      output: "x" * (described_class::MAX_SHELL_OUTPUT_BYTES + 100))
+    message = chat.messages.create!(role: "user", content: { "text" => "!yes", "chat_shell_command_id" => command.id }, skip_turn_trigger: true)
+
+    running_payload = described_class.messages([ message ], repository: repository).sole.fetch(:chat_shell_command)
+    expect(running_payload).to include(output: nil)
+
+    command.update!(outcome: "succeeded", finished_at: Time.current, exit_status: 0)
+    completed_payload = described_class.messages([ message ], repository: repository).sole.fetch(:chat_shell_command)
+    expect(completed_payload.fetch(:output).bytesize).to be < command.output.bytesize
+    expect(completed_payload).to include(output_truncated: true,
+      output_path: "/api/v1/app/chats/#{chat.id}/messages/#{message.id}/content")
   end
 
   it "gives message-anchored pending actions the same dismissal path and retirement rule" do
@@ -219,7 +261,7 @@ RSpec.describe App::ChatMessagePayload do
     expect(payload.dig(:pending_action, :outcome)).to eq(chat_ids: [ 101, 102 ])
   end
 
-  it "serializes bulk retry Workflow outcomes with one Workflow query" do
+  it "omits bulk retry Workflow outcomes for resolved actions without querying Workflows" do
     jobs = [
       Factories.job(user: user, repository: repository, issue_number: 41),
       Factories.job(user: user, repository: repository, issue_number: 42)
@@ -238,15 +280,14 @@ RSpec.describe App::ChatMessagePayload do
 
     queries = capture_sql do
       payload = described_class.messages([ message ], repository: repository).sole
-      expect(payload.dig(:pending_action, :outcome, :workflows)).to eq(
-        workflows.map { |workflow| { workflow_id: workflow.id, job_id: workflow.job_id } }
-      )
+      expect(payload[:pending_action]).to include(id: members.first.id, state: "confirmed", label: be_present)
+      expect(payload[:pending_action].keys).to contain_exactly(:id, :state, :label)
     end
 
-    expect(queries.grep(/FROM ["`]?workflows["`]?/i).size).to eq(1)
+    expect(queries.grep(/FROM ["`]?workflows["`]?/i)).to be_empty
   end
 
-  it "serializes live visual review screenshots from the resulting Workflow" do
+  it "omits live visual review screenshots from resolved actions" do
     job = Factories.job(user: user, repository: repository, issue_number: 43)
     workflow = job.latest_workflow
     image_url = "/api/v1/app/workflows/#{workflow.id}/visual_artifact?type=visual_review_screenshot_run_1_1"
@@ -268,14 +309,11 @@ RSpec.describe App::ChatMessagePayload do
 
     payload = described_class.messages([ message ], repository: repository).sole
 
-    expect(payload.dig(:pending_action, :outcome)).to eq(
-      workflow_id: workflow.id,
-      job_id: job.id,
-      media: [ { type: "visual_review_screenshot_run_1_1", title: "Desktop result", image_url: image_url, content_type: "image/png" } ]
-    )
+    expect(payload[:pending_action]).to include(id: action.id, state: "confirmed", label: be_present)
+    expect(payload[:pending_action].keys).to contain_exactly(:id, :state, :label)
   end
 
-  it "serializes visual diff pending actions with their Job resource and comparison outcome" do
+  it "serializes resolved visual diff pending actions as slim terminal records" do
     job = Factories.job(user: user, repository: repository, issue_number: 44)
     workflow = job.latest_workflow
     workflow.update!(trigger_kind: "visual_diff")
@@ -294,8 +332,7 @@ RSpec.describe App::ChatMessagePayload do
 
     pending_payload = described_class.messages([ message ], repository: repository).sole.fetch(:pending_action)
 
-    expect(pending_payload).to include(resource_title: job.issue_title, resource_url: "/jobs/#{job.id}")
-    expect(pending_payload.fetch(:outcome)).to eq(workflow_id: workflow.id, job_id: job.id, comparison: comparison)
+    expect(pending_payload).to eq(id: action.id, state: "confirmed", label: "Run visual diff for JOB-#{job.id}")
   end
 
   it "serializes every force landing recheck group member's observed and refreshed state" do
@@ -337,7 +374,7 @@ RSpec.describe App::ChatMessagePayload do
     )
   end
 
-  it "includes the authoritative grouped outcome for bulk unapproval" do
+  it "omits authoritative grouped outcomes from resolved actions" do
     jobs = 2.times.map do |index|
       job = Factories.job_record(user: user, repository: repository, issue_number: 40 + index, state: "implemented")
       job.approve!(via: "operator", by_user: user)
@@ -355,12 +392,8 @@ RSpec.describe App::ChatMessagePayload do
 
     payload = described_class.messages([ message.reload ], repository: repository).sole
 
-    expect(payload.dig(:pending_action, :outcome)).to eq(
-      status: "partial_failure",
-      succeeded_job_ids: [ jobs.first.id ],
-      failed_job_ids: [ jobs.second.id ],
-      message: "Unapproved 1 of 2 Jobs; #{jobs.second.slug}: job must be in approved state"
-    )
+    expect(payload[:pending_action]).to include(id: anchor.id, state: "confirmed", label: be_present)
+    expect(payload[:pending_action].keys).to contain_exactly(:id, :state, :label)
   end
 
   it "retires a successful bulk unapproval after recording its durable outcome" do
@@ -586,6 +619,8 @@ RSpec.describe App::ChatMessagePayload do
       job_title: "Add inspection tools",
       job_state: "open"
     )
+    expect(payload).to include(body_path: "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}")
+    expect(payload).not_to include(:body, :kind_label, :state_label, :route_label, :app_update_path, :app_confirm_path, :app_reject_path, :materialized_label, :materialized_path)
   end
 
   it "returns materialized epic details and child jobs for a confirmed epic bundle" do
@@ -622,6 +657,8 @@ RSpec.describe App::ChatMessagePayload do
         { job_id: child_job.id, title: "Add trigger" }
       ]
     )
+    expect(payload.fetch(:children).sole).to include(body_path: "/api/v1/app/chats/#{chat.id}/proposals/#{parent.child_proposals.sole.id}")
+    expect(payload.fetch(:children).sole).not_to include(:body, :state_label, :provider_setting, :planned_execution, :goal_provenance, :dependency_details)
   end
 
   it "includes inline pending action details with a job resource" do
@@ -650,6 +687,28 @@ RSpec.describe App::ChatMessagePayload do
       resource_title: "Inject memories into chat system prompt",
       resource_url: "/jobs/#{job.id}"
     )
+  end
+
+  it "caches stable pending action presentation until the action changes" do
+    action = chat.pending_actions.create!(action: "cancel_job", payload: { "job_id" => 1 })
+    serializer = described_class.new(repository: repository)
+    cache = ActiveSupport::Cache::MemoryStore.new
+    review_calls = 0
+    presenter = Object.new
+    presenter.define_singleton_method(:tool_card_review) do
+      review_calls += 1
+      { "summary" => "Review #{review_calls}" }
+    end
+    allow(Rails).to receive(:cache).and_return(cache)
+
+    first = serializer.send(:cached_pending_action_presentation, action, presenter)
+    second = serializer.send(:cached_pending_action_presentation, action, presenter)
+    action.update!(payload: { "job_id" => 2 })
+    changed = serializer.send(:cached_pending_action_presentation, action, presenter)
+
+    expect(first).to eq(second)
+    expect(changed).not_to eq(first)
+    expect(review_calls).to eq(2)
   end
 
   it "includes the tracked pull request in a feedback poll pending action outcome" do
@@ -847,14 +906,15 @@ RSpec.describe App::ChatMessagePayload do
     chat.messages.create!(role: "assistant", proposal: dependency, content: { "text" => "x" * 50_000 })
     message = chat.messages.create!(role: "assistant", proposal: dependent, content: { "text" => "Dependent proposed." })
 
+    payload = nil
     queries = capture_sql do
-      described_class.messages([ message ], repository: repository).first.fetch(:proposal)
+      payload = described_class.messages([ message ], repository: repository).first.fetch(:proposal)
     end
 
     anchor_queries = queries.grep(/FROM ["`]?chat_messages["`]?.*["`]?proposal_id["`]?/i)
-    expect(anchor_queries).not_to be_empty
     expect(anchor_queries).to all(match(/\ASELECT ["`]?chat_messages["`]?\.["`]?id["`]?, ["`]?chat_messages["`]?\.["`]?proposal_id["`]?/i))
     expect(anchor_queries.join("\n")).not_to match(/content/i)
+    expect(payload.fetch(:dependencies).sole.fetch(:anchor_message_id)).to be_present
   end
 
   it "returns Epic proposal slug dependencies with unresolved and resolved labels" do
