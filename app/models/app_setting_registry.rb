@@ -695,10 +695,6 @@ class AppSettingRegistry
     definitions.select { |definition| definition.surface == :admin_settings && !definition.secret }.map(&:key)
   end
 
-  def self.boolean_key?(key)
-    definitions.index_by(&:key)[key.to_sym]&.boolean? || false
-  end
-
   def self.options_for(key)
     {
       workflow_admission_policy: AppSetting::WORKFLOW_ADMISSION_POLICIES,
