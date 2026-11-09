@@ -44,7 +44,7 @@ describe("fetchDashboardControls", () => {
   })
 
   it("scopes the request to the active smart folder so folder-specific required columns are returned", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ controls: {} }))
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse({ controls: {} })))
 
     await fetchDashboardControls("job", { smartFolderId: "20" })
     await fetchDashboardControls("job")
