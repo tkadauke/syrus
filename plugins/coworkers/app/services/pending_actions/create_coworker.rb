@@ -3,6 +3,8 @@ module PendingActions
     action_key "create_coworker"
     requires_chat_session!
 
+    def self.include_terminal_tool_card_outcome? = true
+
     def self.preload_tool_card_outcomes(actions)
       coworker_ids = actions.filter_map { |action| action.result_id if action.result_type == "Coworkers::Coworker" }
       return {} if coworker_ids.empty?

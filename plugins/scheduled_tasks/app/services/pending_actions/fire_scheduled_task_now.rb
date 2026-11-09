@@ -2,6 +2,8 @@ module PendingActions
   class FireScheduledTaskNow < Base
     action_key "fire_scheduled_task_now"
 
+    def self.include_terminal_tool_card_outcome? = true
+
     def authorize_execution!
       task = scheduled_task
       raise ArgumentError, "Repository write access is required to fire this scheduled task." unless RepositoryPolicy.new(user, task.repository).write?

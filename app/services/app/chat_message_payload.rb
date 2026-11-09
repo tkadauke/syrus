@@ -365,7 +365,13 @@ module App
           label: pending_action_label(action)
         }
         presenter_class = PendingActions.for(action.action.presence || action.action_type)
-        terminal[:outcome] = @pending_action_outcomes[action.id] if presenter_class.include_terminal_tool_card_outcome? && @pending_action_outcomes[action.id].present?
+        if presenter_class.include_terminal_tool_card_outcome?
+          outcome = @pending_action_outcomes[action.id]
+          presenter = presenter_class.new(action)
+          outcome ||= presenter.tool_card_outcome if presenter.respond_to?(:tool_card_outcome)
+          terminal[:outcome] = outcome if outcome.present?
+          terminal.merge!(::App::Presentation.pending_action_resource(action) || {})
+        end
         return terminal
       end
 
