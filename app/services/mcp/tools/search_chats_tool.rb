@@ -36,6 +36,7 @@ module Mcp::Tools
 
         Mcp::Tools.success(payload)
       rescue ActiveRecord::StatementInvalid => error
+        report_backend_failure(error)
         Rails.logger.error(
           "[search_chats] backend query failed: #{error.class}: #{error.message}; " \
           "cause=#{error.cause&.class}: #{error.cause&.message}"
@@ -90,6 +91,24 @@ module Mcp::Tools
         MCP::Tool::Response.new([ { type: "text", text: JSON.generate(payload) } ], error: true)
       end
 
+      # A search outage must be visible in backend exception diagnostics, not
+      # only in the tool response. Fingerprint on the tool plus the database
+      # message so repeated failures group together.
+      def report_backend_failure(error)
+        message = database_error_message(error)
+        BackendExceptionEvent.create!(
+          source: "mcp_tool",
+          role: OperationalLogging.process_role,
+          exception_class: error.class.name,
+          message: "search_chats full_text_backend: #{message}",
+          backtrace: Rails.backtrace_cleaner.clean(error.backtrace || []).first(50).join("\n"),
+          fingerprint: Digest::SHA256.hexdigest("search_chats:full_text_backend:#{error.cause&.class || error.class}:#{message}")[0, 64],
+          metadata: { tool: "search_chats", category: "full_text_backend" }
+        )
+      rescue StandardError => e
+        Rails.logger.error("[search_chats] failed to record backend exception event: #{e.class}: #{e.message}")
+      end
+
       def database_error_message(error)
         (error.cause&.message.presence || error.message).to_s.truncate(500)
       end
@@ -134,7 +153,14 @@ module Mcp::Tools
           scope = scope.where("LOWER(CAST(chat_messages.content AS CHAR)) LIKE ?", "%#{escaped}%")
         end
 
-        scope.order(created_at: :desc, id: :desc).limit(limit).map do |message|
+        # Sort and limit on a narrow id projection first. Sorting full rows
+        # drags the large `content` column through MySQL's filesort and fails
+        # with "Out of sort memory" on production-sized tables; the content is
+        # loaded only for the bounded page of winning ids.
+        ids = scope.order(created_at: :desc, id: :desc).limit(limit).pluck(:id)
+        return [] if ids.empty?
+
+        ChatMessage.where(id: ids).index_by(&:id).values_at(*ids).compact.map do |message|
           {
             chat_message_id: message.id,
             chat_session_id: message.chat_session_id,
