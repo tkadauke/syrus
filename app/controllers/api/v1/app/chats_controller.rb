@@ -271,7 +271,8 @@ module Api
         def messages
           chat_session = find_chat_session
           before_id = Integer(params[:before], exception: false)
-          limit = Integer(params[:limit], exception: false) || ChatSession::MESSAGE_PAGE_SIZE
+          # No explicit limit: ChatMessageWindow sizes the window by rendered rows.
+          limit = Integer(params[:limit], exception: false)&.clamp(1, ChatMessageWindow::MAX_MESSAGES)
           messages, has_more_older = paginated_before(chat_session, before_id, limit: limit)
           payload = PerformanceLogging.phase("chat_messages_payload", chat_id: chat_session.id, before_id: before_id) {
             {
@@ -643,7 +644,7 @@ module Api
             notice = "Message sent."
           end
 
-          render json: chat_mutation_payload(chat_session, message: notice)
+          render json: chat_mutation_payload(chat_session, message: notice, include: :queued_messages)
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         rescue ActiveRecord::LockWaitTimeout, ActiveRecord::Deadlocked, ActiveRecord::StatementTimeout, SolidQueue::Job::EnqueueError => e

@@ -2003,7 +2003,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     chat = ChatSession.last
     expect(chat.chat_provider).to eq("codex")
     expect(chat.messages.last.content["text"]).to eq("Use Codex for this")
-    expect(parse_body.dig("chat", "chat_provider")).to eq("codex")
+    expect(parse_body.dig("chat", "effective_chat_provider")).to eq("codex")
   end
 
   it "creates an empty chat pinned to a valid configured provider before the first turn" do
@@ -2209,8 +2209,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(chat.reload.title).to be_nil
     expect(chat).to be_title_pending
     expect(chat.chat_provider).to eq("claude")
-    expect(parse_body.dig("chat", "title")).to eq("widgets")
-    expect(parse_body.dig("chat", "title_pending")).to eq(true)
+    expect(parse_body.fetch("chat")).to include("id" => chat.id, "turn_in_flight" => true)
+    expect(parse_body.fetch("chat")).not_to have_key("title")
   end
 
   it "creates the onboarding chat attached to the first repository, seeded and flagged" do
@@ -2672,7 +2672,6 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       "id" => message.id,
       "role" => "assistant",
       "tool_name" => nil,
-      "content" => { "text" => "Discuss **aqueducts**." },
       "text" => "Discuss **aqueducts**."
     ))
     expect(body["messages"].first).not_to have_key("html")
@@ -4290,16 +4289,14 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "includes new paths in the standard chat payload" do
+    it "leaves core coding paths to the client in the standard chat payload" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user)
 
       get "/api/v1/app/chats/#{chat.id}"
 
-      expect(parse_body.dig("paths", "app_coding_files_path")).to eq("/api/v1/app/chats/#{chat.id}/coding_files")
-      expect(parse_body.dig("paths", "app_coding_commits_path")).to eq("/api/v1/app/chats/#{chat.id}/coding_commits")
-      expect(parse_body.dig("paths", "app_coding_file_path")).to eq("/api/v1/app/chats/#{chat.id}/coding_file")
-      expect(parse_body.dig("paths", "app_coding_diff_path")).to eq("/api/v1/app/chats/#{chat.id}/coding_diff")
+      # Core paths are deterministic from the chat id and rebuilt by the app client.
+      expect(parse_body.fetch("paths")).not_to include("app_coding_files_path", "app_coding_commits_path", "app_coding_file_path", "app_coding_diff_path")
     end
   end
 
@@ -4319,9 +4316,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     )
     expect(chat.messages.order(:created_at, :id).last.content["text"]).to include("A1: release")
     expect(parse_body["agent_questions"]).to eq([])
-    expect(parse_body["messages"]).to include(include(
-      "role" => "user"
-    ))
+    expect(parse_body).not_to have_key("messages")
     expect(ChatTurnJob).to have_been_enqueued.with(chat.id, chat.messages.last.id)
   end
 
@@ -4708,7 +4703,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     get "/api/v1/app/chats/#{other_chat.id}"
 
-    expect(response).to have_http_status(:bad_request)
+    expect(response).to have_http_status(:not_found)
     expect(response.body).not_to include("Private chat")
     expect(response.body).not_to include("Private message")
     expect(response.body).not_to include("private-box")
@@ -4811,7 +4806,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     body = parse_body
     expect(body["messages"].size).to eq(4)
     expect(body.dig("chat", "participants").size).to eq(4)
-    expect(body["pending_actions"]).to contain_exactly(include("action" => "pause_landing_queue"))
+    # Anchored pending actions render inside their tool-call message, not as standalone cards.
+    expect(body["pending_actions"]).to eq([])
     expect(body["scratchpad_items"]).to contain_exactly(include("content" => "Follow-up note"))
     expect(body["queued_messages"]).to contain_exactly(include("text" => "Queued follow-up"))
     expect(body["agent_questions"]).to contain_exactly(include("questions" => [ include("question" => "Ship it?") ]))
@@ -5033,7 +5029,6 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body["messages"].first).to include(
       "type" => "message",
       "role" => "user",
-      "content" => { "text" => "msg-0" },
       "text" => "msg-0"
     )
     expect(body["messages"].first).not_to have_key("html")
@@ -5071,8 +5066,12 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     get "/api/v1/app/chats/#{chat.id}/messages", params: { limit: 0 }
     expect(parse_body["messages"].size).to eq(1)
 
+    # Without a cap the row-sized window reaches every one of these 35 rows.
     get "/api/v1/app/chats/#{chat.id}/messages", params: { limit: 1000 }
-    expect(parse_body["messages"].size).to eq(ChatSession::MESSAGE_PAGE_SIZE)
+    expect(parse_body["messages"].size).to eq(35)
+
+    get "/api/v1/app/chats/#{chat.id}/messages", params: { limit: ChatMessageWindow::MAX_MESSAGES + 100 }
+    expect(parse_body["messages"].size).to eq(35)
   end
 
   it "serves full message and shell content lazily" do
@@ -7349,21 +7348,12 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     action.update_columns(outcome_message_id: nil)
     get "/api/v1/app/chats/#{chat.id}"
 
+    # A confirmed action is a slim terminal row; the created document is
+    # carried by its outcome message rather than the pending-action card.
     expect(parse_body["pending_actions"]).to contain_exactly(
-      include(
-        "id" => action.id,
-        "resource_title" => "Runbook",
-        "resource_url" => "/api/v1/app/repository_documents/#{document.id}/file",
-        "document" => include(
-          "id" => document.id,
-          "repository_id" => repository.id,
-          "repository_slug" => repository.slug,
-          "content_type" => "text/markdown",
-          "size_bytes" => 13,
-          "url" => "/api/v1/app/repository_documents/#{document.id}/file"
-        )
-      )
+      include("id" => action.id, "state" => "confirmed")
     )
+    expect(document).to be_present
   end
 
   it "includes title, submitted description, and repository resource for unanchored submit_coding_changes pending actions" do
@@ -7742,13 +7732,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     get "/api/v1/app/chats/#{chat.id}"
 
-    expect(parse_body["pending_actions"]).to contain_exactly(
-      include(
-        "id" => action.id,
-        "label" => "Check mergeability for #{job.slug}",
-        "chat_message_id" => tool_use.id
-      )
-    )
+    # Once repaired, the action is anchored to its tool-call message and renders there.
+    expect(parse_body["pending_actions"]).to eq([])
     expect(action.reload).to have_attributes(tool_call_message: tool_use, tool_use_id: "toolu_mergeability")
   end
 
@@ -7921,8 +7906,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       title_auto_fallback: false
     )
     expect(ChatTitleJob).not_to have_been_enqueued
-    expect(parse_body.dig("chat", "title")).to eq("Generated title")
-    expect(parse_body.dig("chat", "title_pending")).to eq(false)
+    expect(parse_body.fetch("chat")).to include("id" => chat.id)
+    expect(parse_body.fetch("chat")).not_to have_key("title")
   end
 
   it "pins the selected provider when sending the first message to an empty chat" do
@@ -7938,8 +7923,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     expect(chat.reload.chat_provider).to eq("codex")
     expect(chat.effective_chat_provider).to eq("codex")
-    expect(parse_body.dig("chat", "chat_provider")).to eq("codex")
-    expect(parse_body.dig("chat", "effective_chat_provider")).to eq("codex")
+    expect(parse_body.fetch("chat")).to include("id" => chat.id)
+    expect(parse_body.fetch("chat")).not_to have_key("chat_provider")
   end
 
   it "ignores chat_provider on the message endpoint after a chat has started" do
@@ -7952,7 +7937,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(chat.reload.chat_provider).to eq("claude")
-    expect(parse_body.dig("chat", "chat_provider")).to eq("claude")
+    expect(parse_body.fetch("chat")).to include("id" => chat.id)
   end
 
   it "enqueues title generation from a goal command sent to an unnamed chat" do
