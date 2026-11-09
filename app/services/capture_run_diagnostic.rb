@@ -59,8 +59,10 @@ class CaptureRunDiagnostic
 
     # Idempotency guard. RunJob can rescue the same failing Run from
     # competing workers/threads during shutdown; create_or_find_by keeps the
-    # first snapshot without a check-then-insert race on run_id.
-    RunDiagnostic.create_or_find_by!(run: @run) do |diagnostic|
+    # first snapshot without a check-then-insert race on run_id. Pass the id,
+    # not the record: assigning the loser candidate into Run's has_one
+    # inverse leaves it to be autosaved (and re-inserted) by the later run.save!.
+    RunDiagnostic.create_or_find_by!(run_id: @run.id) do |diagnostic|
       diagnostic.error_class = @exception.class.name
       diagnostic.error_message = truncate(@exception.message, 4_000)
       diagnostic.error_backtrace = format_backtrace

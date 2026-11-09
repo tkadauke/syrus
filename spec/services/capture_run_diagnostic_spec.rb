@@ -51,6 +51,17 @@ RSpec.describe CaptureRunDiagnostic, :ci_only do
     expect(existing.reload.error_class).to eq("FirstFailure")
   end
 
+  it "does not leave an unsaved candidate on the run's has_one that a later run.save! would re-insert" do
+    RunDiagnostic.create!(run_id: run.id, error_class: "FirstFailure", error_message: "first")
+    fresh_run = Run.find(run.id)
+
+    described_class.capture(fresh_run, exception)
+
+    expect { fresh_run.save! }.not_to raise_error
+    expect(RunDiagnostic.where(run_id: run.id).count).to eq(1)
+    expect(RunDiagnostic.find_by(run_id: run.id).error_class).to eq("FirstFailure")
+  end
+
   it "swallows its own errors instead of double-faulting the failing rescue path" do
     allow(RunDiagnostic).to receive(:create_or_find_by!).and_raise(StandardError, "oops")
     expect {
