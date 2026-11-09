@@ -205,7 +205,8 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
     user = Factories.user(email_address: "breakdowns@example.com")
     26.times do |index|
       repository = Factories.repository(user: user, owner: "acme", name: "repo-#{index}")
-      job = Factories.job(user: user, repository: repository, issue_number: 1_000 + index)
+      # Only the Run row's cost matters here; skip the full workflow launcher.
+      job = Factories.job_with_run(user: user, repository: repository, issue_number: 1_000 + index)
       set_run_cost(initial_run(job), index + 1, created_at: Time.zone.parse("2026-06-02 12:00:00"))
     end
 
@@ -224,11 +225,11 @@ RSpec.describe "API: /api/v1/app/insights/spending", type: :request do
   it "computes the user remainder from excluded users when jobs overlap" do
     admin = Factories.user(admin: true, email_address: "spending-admin@example.com")
     repository = Factories.repository(user: admin)
-    shared_job = Factories.job(user: admin, repository: repository, issue_number: 2_000)
+    shared_job = Factories.job_record(user: admin, repository: repository, issue_number: 2_000)
 
     26.times do |index|
       run_user = Factories.user(email_address: "spender-#{index}@example.com")
-      source_job = Factories.job(user: run_user, repository: repository, issue_number: 2_001 + index)
+      source_job = Factories.job_with_run(user: run_user, repository: repository, issue_number: 2_001 + index)
       run = initial_run(source_job)
       run.update_columns(job_id: shared_job.id, user_id: run_user.id)
       set_run_cost(run, index + 1, created_at: Time.zone.parse("2026-06-02 12:00:00"))
