@@ -5289,7 +5289,6 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     expect(proposal.reload.route_to_backlog).to be(true)
     expect(parse_body.dig("proposal", "route_to_backlog")).to be(true)
-
   end
 
   it "rejects backlog routing updates on Epic child proposals" do
@@ -5527,7 +5526,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     it "does not materialize legacy inline images while serving media" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
-      # A legacy row that predates the stored-attachment validation.
+    # A legacy row that predates the stored-attachment validation.
     chat.messages.build(
         role: "user",
         content: {
