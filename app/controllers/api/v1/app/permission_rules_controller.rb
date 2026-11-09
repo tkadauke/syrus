@@ -155,12 +155,18 @@ module Api
           )
         end
 
+        # One catalog snapshot per request; building it walks every MCP tool
+        # registry entry and plugin provider.
+        def catalog_descriptors
+          @catalog_descriptors ||= Permissions::Catalog.descriptors
+        end
+
         def serialize_rule(rule)
           serialized = rule.attributes.slice(*PermissionRule::AUDITED_ATTRIBUTES).merge(
             "id" => rule.id, "editable" => rule.policy_layer == "agent" && rule.owner_user_id == Current.user.id,
             "owner" => { "kind" => "user", "id" => rule.owner_user_id, "name" => rule.owner_user.name.presence || rule.owner_user.email_address }
           )
-          descriptor = Permissions::Catalog.find!(capability: rule.capability, operation: rule.operation)
+          descriptor = Permissions::Catalog.find!(capability: rule.capability, operation: rule.operation, from: catalog_descriptors)
           serialized.merge("resource_scope_label" => scope_label(descriptor, rule.resource_scope))
         rescue Permissions::Catalog::UnknownCapability
           serialized.merge("resource_scope_label" => rule.resource_scope.to_json)
