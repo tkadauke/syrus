@@ -111,6 +111,13 @@ module ChatSerialization
   # Plugin-owned slices of the payload -- `whiteboard` (whiteboard) and
   # `preview_panels` (mockups) were built inline here until core stopped
   # needing to know those models.
+  # The plugin-owned slices alone, for mutations whose result lives in one
+  # (a preview panel closing or changing visibility): the client cache merges
+  # the update and has no other way to learn the panel list changed.
+  def plugin_payload_contributions(chat_session)
+    ChatPayloadContributions.payload(chat_session: chat_session, context: { params: params, ssl: request.ssl? }, existing_keys: [])
+  end
+
   def merge_chat_payload_contributions(payload, chat_session)
     context = { params: params, ssl: request.ssl? }
 

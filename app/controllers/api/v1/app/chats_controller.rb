@@ -806,7 +806,7 @@ module Api
           title = panel.title
           PreviewPanel::Service.new(panel).close!
 
-          render json: chat_mutation_payload(chat_session, message: "#{title} closed.", include: :workspace_tabs)
+          render json: chat_mutation_payload(chat_session, message: "#{title} closed.", include: :workspace_tabs).merge(plugin_payload_contributions(chat_session))
         end
 
         def export_preview_panel
@@ -858,7 +858,7 @@ module Api
 
           PreviewPanel::Service.new(panel).update_visibility!(visibility)
 
-          render json: chat_mutation_payload(chat_session, message: panel.public? ? "#{panel.title} is now public." : "#{panel.title} is now private.", include: :workspace_tabs)
+          render json: chat_mutation_payload(chat_session, message: panel.public? ? "#{panel.title} is now public." : "#{panel.title} is now private.", include: :workspace_tabs).merge(plugin_payload_contributions(chat_session))
         end
 
         # Mints a short-lived PreviewPanel::AccessToken for the chat frontend
