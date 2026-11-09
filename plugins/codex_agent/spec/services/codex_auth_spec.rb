@@ -148,4 +148,14 @@ RSpec.describe CodexAuth do
       end
     end
   end
+  describe CodexAuth::Modes do
+    it "resolves each known mode to an object" do
+      expect(described_class.for("api_key").refreshes_login?).to be(false)
+      expect(described_class.for("chatgpt_login").refreshes_login?).to be(true)
+    end
+
+    it "rejects unknown modes" do
+      expect { described_class.for("bogus") }.to raise_error(CodexAuth::Error, /Unknown Codex auth mode/)
+    end
+  end
 end
