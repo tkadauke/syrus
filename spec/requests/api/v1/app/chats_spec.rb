@@ -4001,12 +4001,14 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository)
       ref = "a" * 40
-      stub_repository_content(repository, ref:, files: { "SOUL.md" => "
+      stub_repository_content(repository, ref:, files: { "SOUL.md" => "<<<<<<< background\n=======\nforeground\n>>>>>>> home\n" })
+
       get "/api/v1/app/chats/#{chat.id}/source_file/raw",
         params: { path: "SOUL.md", repository_id: repository.id, ref: ref }
 
       expect(response).to have_http_status(:ok)
-      expect(response.body).to include("    end
+      expect(response.body).to include("<<<<<<< background", ">>>>>>> home")
+    end
 
     it "streams text content from the relay as a raw response" do
       sign_in_as(user)
@@ -5020,8 +5022,6 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body["messages"].map { |message| message.fetch("id") }).to eq(messages.last(2).map(&:id))
   end
 
-<<<<<<< HEAD
-<<<<<<< HEAD
   it "bounds and briefly caches mentionable queries" do
     sign_in_as(user)
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
@@ -8006,7 +8006,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(response.media_type).to eq("text/event-stream")
-    expect(response.body).to include("event: message")
+    expect(response.body).to include("event: text_chunk")
     expect(response.body).to include("Built **aqueducts**.")
     expect(response.body).to include("event: turn_complete")
     expect(chat.reload.messages.where(role: "user").last.content).to eq("text" => "Now inspect proposals")
