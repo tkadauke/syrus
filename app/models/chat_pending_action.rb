@@ -873,15 +873,6 @@ class ChatPendingAction < ApplicationRecord
     true
   end
 
-  def repair_result_payload(record)
-    return nil unless record
-
-    {
-      type: record.class.name,
-      id: record.id
-    }
-  end
-
   def queued_actions_are_job_scoped
     errors.add(:payload, :job_id_required) if queued? && !payload.to_h["job_id"].present?
   end
