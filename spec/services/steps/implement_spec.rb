@@ -306,6 +306,26 @@ RSpec.describe Steps::Implement do
       expect(prompt).to include("commit the repair before optional full-suite")
     end
 
+    it "includes exact commands, named failing examples, exit metadata and durable references for preflight failures" do
+      workflow.update!(trigger_kind: "main_branch_repair")
+      workflow.set_artifact!("preflight_failures", [
+        {
+          "name" => "rspec-ci", "command" => "bin/rspec-ci", "status" => "failed", "required" => true,
+          "outcome" => "test_failed", "outcome_reason" => "nonzero_exit_with_evidence", "exit_code" => 1,
+          "log_path" => ".syrus/grade-output/preflight/rspec-ci.log", "junit_output" => "tmp/junit.xml",
+          "failed_tests" => [ "spec/models/foo_spec.rb[1:1]" ], "source_sha" => "abc123", "run_id" => 42,
+          "output" => "Failures:\n  boom\n"
+        }
+      ])
+
+      handler.call
+
+      prompt = run.reload.prompt
+      expect(prompt).to include("Reproducible preflight failure evidence:")
+      expect(prompt).to include("command: bin/rspec-ci", "outcome: test_failed (nonzero_exit_with_evidence)", "exit code: 1")
+      expect(prompt).to include("failing examples: spec/models/foo_spec.rb[1:1]", "junit: tmp/junit.xml", "run: RUN-42", "source sha: abc123")
+    end
+
     it "captures a clean committed diff when the agent times out after committing" do
       initialize_git_workspace
       fake_ws = instance_double(WorkflowWorkspace, setup: nil, path: @ws_path, base_ref: "origin/main")

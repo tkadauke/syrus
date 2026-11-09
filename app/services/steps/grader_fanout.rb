@@ -69,6 +69,7 @@ module Steps
       active_graders = selections.select { |(_g, selection)| selection.affected }.map(&:first)
       log_selections(selections)
       record_target_selection_inputs!(selections) if workflow.work_definition.record_grader_target_selection_inputs?
+      record_ci_phase_target_set!(graph_grade_plan, matching_files, changed_files_determined: changed_files_result.determined?)
       ensure_required_unland_grader_selected!(active_graders)
       active_graders = enforce_required_target_health_for_unaffected_graders(active_graders, selections) if enforce_required_target_health_for_unaffected_graders?
 
@@ -177,6 +178,37 @@ module Steps
       return graders.map { |grader| [ grader, baseline_selection_for(grader, baseline_reason) ] } if baseline_reason
 
       graders.map { |grader| [ grader, target_graph.affected(target_label_for(grader), changed_files: matching_files) ] }
+    end
+
+    # The target set main grading will resolve for this same diff. Landing
+    # validation runs the landing phase; main runs the CI phase. Persisting the
+    # CI-phase resolution here lets LandingValidationManifest name any target
+    # main will run that landing did not validate, before the merge.
+    def record_ci_phase_target_set!(plan, matching_files, changed_files_determined:)
+      return unless LandingGraderPlan::LANDING_TRIGGER_KINDS.include?(workflow.trigger_kind)
+
+      ci_phase = DeliveryPolicy.for(repository: repository).branch_health_grade_phase(repository.default_branch).to_sym
+      ci_plan = LandingGraderPlan.effective(plan, trigger_kind: "main_grader", iteration: run.iteration, phase: ci_phase, repository: repository, job: job)
+      ci_selections = selections_for(ci_plan.graders, matching_files, changed_files_determined: changed_files_determined)
+      workflow.set_artifact!(
+        LandingValidationManifest::CI_TARGET_SET_ARTIFACT_KEY,
+        {
+          "phase" => ci_phase.to_s,
+          "targets" => ci_selections.map do |grader, selection|
+            {
+              "name" => grader.name,
+              "target_label" => target_label_for(grader),
+              "required" => grader.required,
+              "affected" => selection.affected,
+              "reason" => selection.reason,
+              "target_fingerprints" => target_fingerprints_for(grader).to_h
+            }
+          end
+        }
+      )
+    rescue StandardError => e
+      workflow.set_artifact!(LandingValidationManifest::CI_TARGET_SET_ARTIFACT_KEY, { "unavailable" => "#{e.class}: #{e.message}".first(300), "targets" => [] })
+      log("[grader_fanout] could not resolve CI-phase target set for parity manifest: #{e.class}: #{e.message}")
     end
 
     def ensure_required_unland_grader_selected!(graders)

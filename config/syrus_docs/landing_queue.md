@@ -613,3 +613,84 @@ there. While the checks gate held those members out of the queue, that premise
 could not hold — repair waited for a train that the gate prevented from
 starting. On `none` the train starts and `landing_fix` is what repairs the
 members, which is what the deferral always assumed.
+
+## Validation manifest and main-grading parity
+
+Landing validation and main grading evaluate the same semantic grader
+contract. Every landing-phase grade that passes records a **validation
+manifest** (`landing_validation_manifest` workflow artifact, implemented by
+`LandingValidationManifest`) bound to the exact SHA that is about to be
+merged: the PR head for ordinary auto-merge, the integration SHA for a
+merge train.
+
+The manifest records:
+
+- `head_sha`, `tree_sha`, `base_sha`, `base_ref` and the grader/changed-file
+  fingerprints.
+- `source_snapshot`: the source SHA the graders actually ran against.
+- `targets`: one entry per grader target with its typed `GraderOutcome`
+  (`passed`, `test_failed`, `infrastructure_failed`, `inconclusive`,
+  `cancelled`), the reason, whether the result ran or was reused
+  (`ran`, `carried_forward`, `target_health`), the command, environment and
+  input fingerprints, and whether command/environment evidence exists.
+- `ci_phase_target_set`: the targets the CI phase (what main grading runs)
+  resolves for the same diff, with their fingerprints.
+
+### Landing gate
+
+`Steps::AutoMerge` and `Steps::MergeTrainLand` refuse to merge unless the
+manifest for that exact SHA shows a conclusive pass for every required
+target. Evidence for another SHA is never promoted to exact-SHA evidence,
+even when the tree is identical; the only exception is an explicit,
+operator-trusted clean-rebase carry-forward (`trust_clean_rebase_grade`),
+which re-binds the manifest to the rebased SHA and records `carried_from_sha`.
+A pass counts as evidence only with recorded command and environment
+fingerprints; `source_binding` states whether the SHA came from an immutable
+source snapshot or from the grading workspace HEAD. Landing fails with problem `landing_validation_unproven`
+and a reason that names the target when a required result is:
+
+| Blocker code | Meaning |
+| --- | --- |
+| `manifest_missing` | No manifest exists; re-run landing validation. |
+| `sha_mismatch` | Evidence is for another SHA (the branch moved after grading). |
+| `required_result_missing` | No required result was recorded. |
+| `required_result_inconclusive` | Missing exit status, timeout, etc. -- never a verdict. |
+| `required_result_infrastructure_failed` | The grader could not run; retry, do not repair code. |
+| `required_result_failed` / `required_result_cancelled` | Not a green result. |
+| `required_evidence_missing` | A pass without command/environment evidence. |
+| `source_snapshot_mismatch` | Graders ran against a different snapshot SHA. |
+| `ci_phase_target_set_unavailable` | The target set main grading will run could not be resolved (fail closed). |
+| `ci_phase_target_not_validated` | An affected required CI-phase target has no passing landing result. |
+
+Landing grading runs under the main-grading contract: for ordinary landing,
+`LandingGraderPlan` adds every required CI-phase grader that is not already
+part of the landing phase, filtered by the same target selection, so the
+additional targets run on the exact SHA before merge.
+
+The gate result is stored in the `landing_parity_gate` artifact, including
+the `post_merge_delta`: CI-phase targets that main will run but landing did
+not validate. Immutable prepare-layer reuse and target-graph caching are
+unchanged; the environment fingerprint stays part of the parity comparison.
+
+### Main grading
+
+When a main grader workflow settles, `main_grading_parity` attributes every
+selected target to matching pre-merge evidence or an explicit delta
+(`not_selected_pre_merge`, `command_fingerprint_changed`,
+`environment_fingerprint_changed`, `pre_merge_<outcome>`,
+`no_pre_merge_evidence`). A delta means main runs that target itself before
+the integration is declared healthy. It is diagnostic and never changes
+health on its own.
+
+Operators read both artifacts, plus the manifest summary, under
+`validation_parity` in `GET /api/v1/admin/workflows/:id`.
+
+### When main repair may still be spawned
+
+Main repair remains an exceptional fallback. It may be spawned only when a
+required target reaches `test_failed` (valid exit status plus captured
+failure evidence) on the main commit: a regression introduced by a commit
+that did not pass through Syrus landing (manual push, external merge), a
+genuine post-merge interaction with a base that moved after validation, or a
+post-merge delta target that fails. Inconclusive or infrastructure outcomes
+never spawn repair.

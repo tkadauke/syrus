@@ -43,6 +43,9 @@ module Steps
       carried_forward = carried_forward_grader_entries
       target_health_skipped = target_health_skipped_entries
       reject_unexplained_empty_iteration!(grader_steps, carried_forward, target_health_skipped)
+      @manifest_grader_steps = grader_steps
+      @manifest_carried_forward = carried_forward
+      @manifest_target_health_skipped = target_health_skipped
       append_iteration_results!(grader_steps, carried_forward, target_health_skipped)
       archive_grade_logs!(grader_steps)
 
@@ -503,6 +506,8 @@ module Steps
             "status" => g.state == "succeeded" ? "passed" : "failed",
             "command" => details["command"],
             "exit_code" => details["exit_code"],
+            "outcome" => grader_outcome_for(g).outcome,
+            "outcome_reason" => grader_outcome_for(g).reason,
             "duration_s" => details["duration_s"],
             "timed_out" => details["timed_out"],
             "log_path" => details["log_path"],
@@ -542,6 +547,11 @@ module Steps
       mark_repeated_grader_result!(iterations, index, iteration)
       iterations[index] = iteration
       workflow.set_artifact!("iterations", iterations)
+    end
+
+    def grader_outcome_for(grader_step)
+      @grader_outcomes ||= {}
+      @grader_outcomes[grader_step.id] ||= GraderOutcome.for_step(grader_step)
     end
 
     def mark_repeated_grader_result!(iterations, index, iteration)
@@ -728,10 +738,32 @@ module Steps
         changed_files_fingerprint: workflow.artifact("grade_plan_changed_files_fingerprint"),
         validation_source: landing_validation_source
       )
+      record_validation_manifest!(head_sha: head_sha, base_sha: base_sha, base_ref: base_ref)
       LandingValidationPrefetcher.after_landing_graders_passed(workflow: workflow) if landing_validation_prefetch_source?
     rescue StandardError => e
       Rails.logger.warn("[GraderCollect] landing validation capture failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
       nil
+    end
+
+    # The manifest is the SHA-bound, outcome-typed record the landing gate
+    # and main grading consume. Unlike the cache it is NOT best-effort: a
+    # missing manifest later blocks landing with an actionable reason.
+    def record_validation_manifest!(head_sha:, base_sha:, base_ref:)
+      # A pass that reused a cached conclusion ran nothing here; the manifest
+      # recorded by the workflow that actually ran the graders stays the
+      # evidence (found by head SHA), rather than an empty one shadowing it.
+      return if Array(@manifest_grader_steps).empty? && Array(@manifest_carried_forward).empty? && Array(@manifest_target_health_skipped).empty?
+
+      LandingValidationManifest.record!(
+        workflow: workflow,
+        head_sha: head_sha,
+        tree_sha: current_tree_sha,
+        base_sha: base_sha,
+        base_ref: base_ref,
+        grader_steps: @manifest_grader_steps || [],
+        carried_forward: @manifest_carried_forward || [],
+        target_health_skipped: @manifest_target_health_skipped || []
+      )
     end
 
     def landing_base_sha

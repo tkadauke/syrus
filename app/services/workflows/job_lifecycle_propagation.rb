@@ -71,6 +71,17 @@ module Workflows
     def fail!
       return if Workflow::TriggerKind.owns_job_lifecycle?(workflow.trigger_kind)
       return if newer_active_workflow?
+
+      # Diagnostic no-diff follow-up on a PR: record evidence and keep the PR,
+      # even for Jobs already back in review (implemented/approved), whose
+      # state -- and approval -- stay untouched.
+      if no_changes_produced_failure? && Workflows::CiFailureNotReproduced.applies?(workflow)
+        unless job.landing? || job.closed?
+          StateTransition.with_source("propagate") { Workflows::CiFailureNotReproduced.call(workflow) }
+        end
+        return
+      end
+
       return if job.implemented? || job.approved? || job.landing? || job.closed?
 
       if no_changes_produced_failure?
@@ -152,7 +163,7 @@ module Workflows
       return false if workflow.steps.where(kind: publication_step_kinds, state: "succeeded").exists?
       return false if job.pr_number.present? || job.external_pr_number.present? || job.fork_review_pr_number.present?
       return false if job.infrastructure_job?
-      return false if workflow.trigger_kind == "main_branch_repair" && workflow.artifact("preflight_passed")
+      return false if workflow.trigger_kind == "main_branch_repair" && (workflow.artifact("preflight_passed") || workflow.artifact("preflight_inconclusive"))
 
       true
     end

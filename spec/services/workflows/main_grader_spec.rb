@@ -59,6 +59,48 @@ RSpec.describe Workflows::MainGrader do
       expect(repository.reload.grader_health).to eq("healthy")
     end
 
+    context "landing parity" do
+      let(:selection) do
+        { "name" => "rspec", "target_label" => "//:grade/rspec", "required" => true, "affected" => true,
+          "target_fingerprints" => { "command_fingerprint" => "c", "environment_fingerprint" => "e" } }
+      end
+
+      def land_with_manifest(targets)
+        landing = Workflow.create!(job: job, trigger_kind: "auto_merge")
+        landing.set_artifact!(LandingValidationManifest::ARTIFACT_KEY, "head_sha" => "pre-merge", "targets" => targets)
+        job.update_column(:landed_sha, sha)
+      end
+
+      it "attributes selected targets to matching pre-merge evidence without changing health" do
+        land_with_manifest([ { "name" => "rspec", "target_label" => "//:grade/rspec", "required" => true, "outcome" => "passed", "source" => "ran", "command_fingerprint" => "c", "environment_fingerprint" => "e" } ])
+        workflow.set_artifact!(Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY, [ selection ])
+
+        described_class.after_success(workflow)
+
+        expect(workflow.reload.artifact(LandingValidationManifest::PARITY_ARTIFACT_KEY)).to include("status" => "matched", "manifest_sha" => "pre-merge")
+        expect(repository.reload.grader_health).to eq("healthy")
+      end
+
+      it "records an explicit post-merge delta when the environment fingerprint differs" do
+        land_with_manifest([ { "name" => "rspec", "target_label" => "//:grade/rspec", "required" => true, "outcome" => "passed", "command_fingerprint" => "c", "environment_fingerprint" => "other" } ])
+        workflow.set_artifact!(Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY, [ selection ])
+
+        described_class.after_success(workflow)
+
+        parity = workflow.reload.artifact(LandingValidationManifest::PARITY_ARTIFACT_KEY)
+        expect(parity["status"]).to eq("delta")
+        expect(parity["deltas"].first).to include("reason" => "environment_fingerprint_changed")
+      end
+
+      it "records no_manifest when the commit was not landed by Syrus" do
+        workflow.set_artifact!(Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY, [ selection ])
+
+        described_class.after_success(workflow)
+
+        expect(workflow.reload.artifact(LandingValidationManifest::PARITY_ARTIFACT_KEY)).to include("status" => "no_manifest")
+      end
+    end
+
     it "records last_graded_sha when the workflow settles healthy" do
       described_class.after_success(workflow)
 
@@ -151,6 +193,35 @@ RSpec.describe Workflows::MainGrader do
       described_class.after_fail(workflow)
 
       expect(repository.reload.grader_health).to eq("broken")
+    end
+
+    it "does not mark main broken when output showed passing tests but exit_code was null" do
+      repository.update!(grader_health: "healthy", ci_health: "healthy")
+      create_failed_required_grader!(workflow, details: { "exit_code" => nil, "output" => "120 examples, 0 failures" })
+
+      expect(MainHealthChangedService).not_to receive(:ensure_repair_job!)
+      described_class.after_fail(workflow)
+
+      expect(repository.reload.grader_health).to eq("inconclusive")
+      expect(MainBranchHealthCheck.last.grader_health).to eq("inconclusive")
+    end
+
+    it "does not mark main broken for blank results from several graders" do
+      repository.update!(grader_health: "healthy", ci_health: "healthy")
+      %w[a b c].each { |n| create_failed_required_grader!(workflow, name: n, details: { "exit_code" => nil, "output" => "" }) }
+
+      described_class.after_fail(workflow)
+
+      expect(repository.reload.grader_health).to eq("inconclusive")
+    end
+
+    it "does not mark main broken for database lock contention" do
+      repository.update!(grader_health: "healthy", ci_health: "healthy")
+      create_failed_required_grader!(workflow, details: { "output" => "SQLite3::BusyException: database is locked" })
+
+      described_class.after_fail(workflow)
+
+      expect(repository.reload.grader_health).to eq("inconclusive")
     end
 
     it "records last_graded_sha when the workflow settles broken" do
@@ -268,7 +339,7 @@ RSpec.describe Workflows::MainGrader do
       expect(check.grader_failed_names).to eq([ "coverage" ])
     end
 
-    it "marks timed-out required graders broken when the repository opts in" do
+    it "keeps timed-out required graders inconclusive even when the repository opts in" do
       repository.update!(
         grader_health: "unknown",
         ci_health: "not_configured",
@@ -277,21 +348,15 @@ RSpec.describe Workflows::MainGrader do
       create_failed_required_grader!(
         workflow,
         name: "coverage",
-        details: {
-          "exit_code" => Steps::Grader::TIMEOUT_EXIT_CODE,
-          "timed_out" => true
-        }
+        details: { "exit_code" => Steps::Grader::TIMEOUT_EXIT_CODE, "timed_out" => true }
       )
 
-      expect(MainHealthChangedService).to receive(:on_health_change!).with(kind_of(Repository))
+      expect(MainHealthChangedService).not_to receive(:ensure_repair_job!)
 
       described_class.after_fail(workflow)
 
-      expect(repository.reload.grader_health).to eq("broken")
-
-      check = MainBranchHealthCheck.last
-      expect(check.grader_health).to eq("broken")
-      expect(check.grader_failed_names).to eq([ "coverage" ])
+      expect(repository.reload.grader_health).to eq("inconclusive")
+      expect(MainBranchHealthCheck.last.grader_health).to eq("inconclusive")
     end
 
     it "marks test-runner timeout output inconclusive instead of broken" do
@@ -403,7 +468,8 @@ RSpec.describe Workflows::MainGrader do
       details: {
         "name" => name,
         "required" => true,
-        "exit_code" => 1
+        "exit_code" => 1,
+        "output" => "1 example, 1 failure"
       }.merge(details)
     )
   end

@@ -95,6 +95,7 @@ module Steps
         changed_files_fingerprint: changed_files_fingerprint,
         validation_source: "clean_rebase"
       )
+      LandingValidationManifest.carry_forward_from!(workflow: workflow, source_workflow: source.workflow, head_sha: head_sha, tree_sha: tree_sha, base_sha: base_sha, base_ref: train.base_branch)
       LandingThroughputMetrics.record_validation_decision!(
         workflow: workflow,
         decision: LandingValidationCache::Decision.new(

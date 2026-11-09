@@ -37,7 +37,14 @@ module Workflows
       failed_steps = failed_required_grader_steps(workflow)
       interrupted_steps, remaining_failures = failed_steps.partition { |step| infrastructure_interrupted_grader?(step) }
       inconclusive_steps, actual_failures = remaining_failures.partition { |step| inconclusive_grader?(workflow, step) }
-      failed_names = failed_required_grader_names(actual_failures)
+      # Only a reproducible test failure (valid exit status plus captured
+      # evidence) may mark main broken. Everything else -- missing exit status,
+      # setup/dependency failures, lock contention, blank results -- settles as
+      # inconclusive so no repair Job is spawned from missing execution evidence.
+      test_failures, unproven_failures = actual_failures.partition { |step| GraderOutcome.for_step(step).test_failed? }
+      unproven_failures = unproven_failures.reject { |step| GraderOutcome.for_step(step).outcome == GraderOutcome::CANCELLED }
+      inconclusive_steps += unproven_failures
+      failed_names = failed_required_grader_names(test_failures)
 
       if failed_names.any?
         update_grader_health!(workflow, "broken", failed_names)
@@ -67,6 +74,10 @@ module Workflows
     end
 
     private_class_method def self.update_grader_health!(workflow, health, failed_names = nil)
+      if health == "broken" && failed_names.blank?
+        Rails.logger.warn("[Workflows::MainGrader] Workflow ##{workflow.id} refused broken health without test_failed evidence")
+        health = "inconclusive"
+      end
       repository = workflow.job.repository
       branch = workflow.artifact("health_branch").presence || repository.default_branch
       default_branch = branch == repository.default_branch
@@ -78,6 +89,7 @@ module Workflows
         updates[:last_graded_sha] = sha if sha
         repository.update!(updates)
       end
+      record_landing_parity!(workflow, repository, sha)
       MainBranchHealthCheck.record_grader_workflow(
         repository: repository,
         branch: branch,
@@ -95,6 +107,20 @@ module Workflows
       end
 
       close_anchor_job!(workflow)
+    end
+
+    # Attributes every target this main check selected to the pre-merge
+    # manifest for the landed commit, or to an explicit post-merge delta.
+    # Diagnostic only: it never changes health, and failing to compute it must
+    # not fail the health update.
+    private_class_method def self.record_landing_parity!(workflow, repository, sha)
+      return if sha.blank?
+
+      manifest = LandingValidationManifest.manifest_for_landed_sha(repository: repository, sha: sha)
+      selections = Array(workflow.artifact(Steps::GraderFanout::TARGET_SELECTIONS_ARTIFACT_KEY))
+      LandingValidationManifest.record_main_parity!(workflow: workflow, manifest: manifest, selections: selections, main_sha: sha)
+    rescue StandardError => e
+      Rails.logger.warn("[Workflows::MainGrader] landing parity comparison failed for Workflow ##{workflow.id}: #{e.class}: #{e.message}")
     end
 
     private_class_method def self.aggregate_target_health_after_success(workflow)
@@ -185,8 +211,6 @@ module Workflows
     end
 
     private_class_method def self.inconclusive_grader?(workflow, step)
-      return false if workflow.job.repository.treat_grader_timeouts_as_failures?
-
       GraderFailureSignal.timeout_like_step?(step)
     end
 

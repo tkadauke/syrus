@@ -127,8 +127,35 @@ module Steps
           INTRO
           include_guidance: false,
           include_git_safety: false
-        ).to_s
-      ].join("\n\n")
+        ).to_s,
+        preflight_failure_evidence(failures)
+      ].compact.join("\n\n")
+    end
+
+    # Exact, durable evidence per reproducible failure: named examples, exit
+    # metadata and where the full log / artifacts live. Only graders whose
+    # outcome is test_failed reach this artifact.
+    def preflight_failure_evidence(failures)
+      lines = failures.filter_map do |entry|
+        entry = entry.to_h.stringify_keys
+        details = []
+        details << "command: #{entry["command"]}" if entry["command"].present?
+        details << "outcome: #{entry["outcome"]}#{" (#{entry["outcome_reason"]})" if entry["outcome_reason"].present?}" if entry["outcome"].present?
+        details << "exit code: #{entry["exit_code"]}" unless entry["exit_code"].nil?
+        details << "source sha: #{entry["source_sha"]}" if entry["source_sha"].present?
+        names = Array(entry["failed_tests"]).map { |test| test.is_a?(Hash) ? (test["identity"] || test["name"]) : test }.compact
+        details << "failing examples: #{names.first(25).join("; ")}" if names.any?
+        details << "log: #{entry["log_path"]}" if entry["log_path"].present?
+        details << "junit: #{entry["junit_output"]}" if entry["junit_output"].present?
+        details << "json: #{entry["json_output"]}" if entry["json_output"].present?
+        details << "run: RUN-#{entry["run_id"]}" if entry["run_id"].present?
+        next if details.empty?
+
+        "- #{entry["name"]}\n" + details.map { |line| "    #{line}" }.join("\n")
+      end
+      return nil if lines.empty?
+
+      "Reproducible preflight failure evidence:\n#{lines.join("\n")}"
     end
 
     # Computes commits and diff on the default branch since the Job was

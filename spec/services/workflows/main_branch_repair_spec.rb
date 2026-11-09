@@ -76,6 +76,30 @@ RSpec.describe Workflows::MainBranchRepair do
   describe ".after_success" do
     let(:workflow) { described_class.instantiate(job: job) }
 
+    context "when the preflight was inconclusive (infrastructure retries exhausted)" do
+      before do
+        repository.update!(ci_health: "broken", grader_health: "broken")
+        workflow.set_artifact!("preflight_inconclusive", [ { "name" => "rspec", "outcome" => "infrastructure_failed" } ])
+      end
+
+      it "keeps main health inconclusive instead of claiming healthy or broken" do
+        described_class.after_success(workflow)
+
+        expect(repository.reload.main_health).to eq("inconclusive")
+        expect(repository.grader_health).to eq("inconclusive")
+        expect(MainBranchHealthCheck.last.grader_failed_names).to include("rspec")
+      end
+
+      it "tells the operator and closes the anchor job without a coding repair" do
+        expect(MainHealthChangedService).to receive(:on_health_change!).with(repository)
+
+        described_class.after_success(workflow)
+
+        expect(job.reload.closure_reason).to eq("preflight_inconclusive")
+        expect(repository.reload.last_graded_sha).not_to eq("abc123def456")
+      end
+    end
+
     context "when preflight_passed artifact is set" do
       before { workflow.set_artifact!("preflight_passed", true) }
 

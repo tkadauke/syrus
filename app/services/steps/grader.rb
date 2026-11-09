@@ -185,6 +185,19 @@ module Steps
       # augmentation so fallback readers see the same actionable tail as
       # the workspace log file when the workspace has been pruned.
       output_excerpt = grader_output_excerpt(absolute_log_path)
+      unexplained_missing_exit = !passed && runner_result && exit_code.nil? &&
+        !runner_result.stopped? && !runner_result.operator_killed? && !runner_result.silent_timed_out?
+      outcome = GraderOutcome.call(
+        details: definition.merge(
+          "exit_code" => exit_code,
+          "timed_out" => timed_out,
+          "log_bytes" => absolute_log_path.size,
+          "output" => output_excerpt,
+          "cancelled" => (runner_result&.stopped? || runner_result&.operator_killed?) ? true : nil
+        ),
+        state: passed ? "succeeded" : "failed",
+        run_outcome: unexplained_missing_exit ? "worker_died" : nil
+      )
       # Merge onto the Step's current details, not `definition`. That was read
       # at the top of this method, before workspace.setup ran, and the setup
       # writes its own diagnostics onto the Step -- prepare_cache and
@@ -196,6 +209,8 @@ module Steps
       step.update!(details: step.reload.details.to_h.merge(
         "prepare_target_results" => prepare_target_results,
         "exit_code" => exit_code,
+        "outcome" => outcome.outcome,
+        "outcome_reason" => outcome.reason,
         "duration_s" => duration_s.round(1),
         "timed_out" => timed_out,
         "log_path" => log_path.to_s,
@@ -216,8 +231,6 @@ module Steps
       announce_test_output!(name, definition["junit_output"]) if definition["junit_output"].present?
 
       unless passed
-        unexplained_missing_exit = runner_result && exit_code.nil? &&
-          !runner_result.stopped? && !runner_result.operator_killed? && !runner_result.silent_timed_out?
         if unexplained_missing_exit
           fail_with!(
             :worker_died,

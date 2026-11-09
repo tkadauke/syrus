@@ -78,3 +78,67 @@ RSpec.describe Workflows::JobLifecyclePropagation do
       .not_to change { job.reload.attributes.slice("state", "closure_reason") }
   end
 end
+
+RSpec.describe Workflows::JobLifecyclePropagation, "ci_failure no-diff follow-up" do
+  def failing_ci_workflow(job, head_sha: "abc123")
+    workflow = job.workflows.create!(trigger_kind: "ci_failure", state: "failed")
+    workflow.set_artifact!("head_sha", head_sha)
+    workflow.set_artifact!("failed_checks", [ { "name" => "rspec" } ])
+    run = job.initial_run
+    run.update_columns(state: "failed")
+    allow(workflow).to receive_message_chain(:runs, :where, :reorder, :first).and_return(run)
+    run.create_run_diagnostic!(error_class: "Steps::Base::NoChangesProduced", error_message: "none")
+    workflow
+  end
+
+  it "preserves the PR and returns the Job to implemented instead of closing" do
+    job = Factories.job
+    job.update_columns(state: "running", pr_number: 42)
+    workflow = failing_ci_workflow(job)
+    allow(PollPullRequestJob).to receive(:perform_later)
+
+    described_class.fail!(workflow)
+
+    expect(job.reload).to be_implemented
+    expect(job.closure_reason).to be_nil
+    outcome = workflow.artifact("ci_failure_outcome")
+    expect(outcome).to include("outcome" => "inconclusive", "head_sha" => "abc123", "check_names" => [ "rspec" ])
+    expect(PollPullRequestJob).to have_received(:perform_later).with(job.id)
+  end
+
+  it "keeps an approved Job approved and records passing reproduction evidence" do
+    job = Factories.job
+    job.update_columns(state: "approved", pr_number: 42, last_ci_handled_sha: "abc123", pr_checks_checked_at: Time.current)
+    workflow = failing_ci_workflow(job)
+    workflow.steps.create!(
+      kind: "grader", state: "succeeded", position: 99,
+      details: { "command" => "bin/rspec spec/a_spec.rb", "source_sha" => "abc123", "exit_code" => 0 }
+    )
+    allow(PollPullRequestJob).to receive(:perform_later)
+
+    described_class.fail!(workflow)
+
+    expect(job.reload).to be_approved
+    expect(job.pr_checks_checked_at).to be_nil
+    expect(workflow.artifact("ci_failure_outcome")).to include(
+      "outcome" => "failure_not_reproduced",
+      "reproduction_command" => "bin/rspec spec/a_spec.rb",
+      "reproduction_sha" => "abc123"
+    )
+  end
+
+  it "escalates after repeated non-reproductions on the same SHA without closing" do
+    job = Factories.job
+    job.update_columns(state: "running", pr_number: 42)
+    prior = job.workflows.create!(trigger_kind: "ci_failure", state: "failed")
+    prior.set_artifact!("head_sha", "abc123")
+    prior.set_artifact!("ci_failure_outcome", { "head_sha" => "abc123" })
+    workflow = failing_ci_workflow(job)
+
+    described_class.fail!(workflow)
+
+    expect(job.reload).to be_implemented
+    expect(job.landing_failure_reason).to include("ci_failure_not_reproduced")
+    expect(workflow.artifact("ci_failure_outcome")["escalated"]).to be(true)
+  end
+end
