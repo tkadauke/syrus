@@ -81,7 +81,12 @@ export function workspaceTabClass(active: boolean) {
   return underlineTabClass(active, "max-w-[33vw] truncate px-3 py-2")
 }
 
-export function workspaceTabLabel(tab: WorkspaceTab, t: (key: string, options?: { defaultValue?: string }) => string, previewPanels: ChatPreviewPanel[] = [], pluginTabs: ChatWorkspaceTab[] = []) {
+export function workspaceTabLabel(
+  tab: WorkspaceTab,
+  t: (key: string, options?: { defaultValue?: string }) => string,
+  previewPanels: ChatPreviewPanel[] = [],
+  pluginTabs: ChatWorkspaceTab[] = []
+) {
   if (tab === "media") return t("tab_media")
   if (tab === "pinned") return t("tab_pinned")
   if (tab === "files") return t("tab_files")
