@@ -1,6 +1,6 @@
 # Syrus architecture
 
-_Last reviewed: 2026-11-07._
+_Last reviewed: 2026-11-08._
 
 This is the canonical system-wide overview and routing map. It explains how
 Syrus fits together; focused engineering documents own subsystem detail.
@@ -112,6 +112,11 @@ processes and workspace files live with their owning worker, so Rails routes
 access through it. External chat adapters link platform identities without
 changing the core ownership model.
 
+Tool exposure and approval flow through the shared permission policy
+(`PolicyEvaluator`); `Permissions::Enforcement` is the instance-wide master
+switch that disables policy asks and denials without affecting authentication,
+repository access, or proposal confirmation cards.
+
 Read [Chat and sidecars](docs/engineering/architecture/chat-and-sidecars.md).
 
 ## Plugins and frontend
@@ -147,6 +152,9 @@ and [Workflow recovery](docs/engineering/operations/workflow-recovery.md).
 ## Navigation and boundaries
 
 - [Architecture](docs/engineering/architecture/README.md): subsystem boundaries.
+- [Decisions](docs/engineering/decisions/README.md): accepted records explaining
+  why durable architectural choices were made (polling, placement, plugin
+  boundaries, permission authority, and others).
 - [Operations](docs/engineering/operations/README.md): deploy and recover.
 - [Maps](docs/engineering/maps/README.md): files, tests, queues, and databases.
 - [Pitfalls](docs/engineering/pitfalls/README.md): recurring failure modes.
