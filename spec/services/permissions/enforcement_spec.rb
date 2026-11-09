@@ -53,6 +53,45 @@ RSpec.describe Permissions::Enforcement do
       expect(described_class.enforced?).to be(false)
       expect(described_class.disabled?).to be(true)
     end
+
+    # Regression: the switch is read on the agent-launch path, so reading it
+    # unconditionally broke every new run on the workers, which had booted
+    # before the column landed and so had no method for it -- the failure
+    # rollout_compatibility.md calls rule 1. The answer when the column is
+    # absent is the behaviour from before the switch existed: enforced.
+    it "enforces on a process whose schema snapshot predates the column" do
+      setting = AppSetting.current
+      allow(setting).to receive(:has_attribute?).and_call_original
+      allow(setting).to receive(:has_attribute?).with(:permissions_enforced).and_return(false)
+      allow(setting).to receive(:permissions_enforced).and_raise(
+        NoMethodError, "undefined method 'permissions_enforced' for an instance of AppSetting"
+      )
+      allow(AppSetting).to receive(:current).and_return(setting)
+
+      expect(described_class.enforced?).to be(true)
+      expect(described_class.disabled?).to be(false)
+    end
+
+    it "evaluates a policy without raising on that schema snapshot" do
+      setting = AppSetting.current
+      allow(setting).to receive(:has_attribute?).and_call_original
+      allow(setting).to receive(:has_attribute?).with(:permissions_enforced).and_return(false)
+      allow(setting).to receive(:permissions_enforced).and_raise(
+        NoMethodError, "undefined method 'permissions_enforced' for an instance of AppSetting"
+      )
+      allow(AppSetting).to receive(:current).and_return(setting)
+
+      expect { evaluate }.not_to raise_error
+      expect(evaluate.policy).to eq(:ask)
+    end
+
+    it "enforces when the settings row was loaded without the column" do
+      partial = AppSetting.select(:id).find_by!(id: AppSetting.current.id)
+      expect(partial.has_attribute?(:permissions_enforced)).to be(false)
+      allow(AppSetting).to receive(:current).and_return(partial)
+
+      expect(described_class.enforced?).to be(true)
+    end
   end
 
   describe "with enforcement on" do

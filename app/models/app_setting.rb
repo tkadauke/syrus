@@ -319,8 +319,18 @@ class AppSetting < ApplicationRecord
 
   # Master switch for the permission system; see Permissions::Enforcement.
   # Off means every capability is allowed, for every surface at once.
+  #
+  # Read defensively, because this is read on the agent-launch path: a process
+  # that booted before the column landed has no method for it for the rest of
+  # its life, and an unguarded read there does not degrade a run, it fails the
+  # run before the agent starts. Absent column means enforced -- the behaviour
+  # before the switch existed, and the same answer an unreadable settings row
+  # gets. See `rollout_compatibility.md`.
   def self.permissions_enforced?
-    current.permissions_enforced
+    setting = current
+    return true unless setting.has_attribute?(:permissions_enforced)
+
+    setting.permissions_enforced
   end
 
   def self.auto_merge_paused?
