@@ -298,6 +298,20 @@ describe("AppChromeV2", () => {
     expect(screen.queryByRole("button", { name: "Forest" })).not.toBeInTheDocument()
   })
 
+  it("renders the color theme trigger when the current theme has no tokens payload", async () => {
+    vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse({})))
+    const { tokens: _tokens, ...tokenlessTheme } = oceanColorTheme()
+
+    renderAppChrome(undefined, {
+      bootstrap: bootstrapPayload({
+        current_user: { ...bootstrapPayload().current_user!, color_theme: tokenlessTheme as never, color_theme_id: tokenlessTheme.id }
+      })
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: /operator@example\.com/i }))
+    expect(await screen.findByRole("button", { name: "Color theme: Ocean" })).toBeInTheDocument()
+  })
+
   it("lists built-in and custom color themes as swatches and highlights the selected one when expanded", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
