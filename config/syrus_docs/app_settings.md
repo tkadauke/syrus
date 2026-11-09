@@ -218,8 +218,13 @@ apply after the evaluator has spoken and are gated separately:
 `ExecutionAuthorization#effective_policy`. A bypassed decision is still
 recorded, with `detail: :enforcement_disabled` in its chain, so an audit of a
 permitted call says why it was permitted. When the setting cannot be read at
-all -- boot, migrations, an unreachable database -- the gate enforces; the
-switch is only ever a deliberate operator action.
+all -- boot, migrations, an unreachable database, or a process whose schema
+snapshot predates the column -- the gate enforces; the switch is only ever a
+deliberate operator action. That last case is a real one and not only a
+rollout window: a worker that booted while the column was landing has no
+method for it until it restarts, so until then the switch reads as on for
+that worker however the console shows it. Restart the worker workloads if a
+run still asks after enforcement was turned off.
 
 ### report_issue_repo_slug
 

@@ -27,6 +27,13 @@ Both halves have cost this codebase a production incident.
   During the rollout, chat turns raised
   `NoMethodError: undefined method 'contained_chat_execution'` against a
   pre-migration schema snapshot.
+- Rule 1, again: `permissions_enforced` was added and read in the same
+  release, on the agent-launch path. The workers booted while the column was
+  landing, and every new run then failed before its agent started -- not a
+  degraded run, a dead one -- while the web pods, which had booted after,
+  served the same setting happily. A master switch is exactly the kind of
+  column this rule exists for: read on every path means read on the earliest
+  path.
 
 ## Expand, migrate, contract
 
