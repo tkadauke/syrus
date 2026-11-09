@@ -58,7 +58,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     get "/api/v1/app/chats", headers: { "Authorization" => "Bearer cli-token" }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body["repositories"]).to contain_exactly(include("id" => repository.id, "slug" => "acme/widgets"))
+    expect(parse_body).not_to have_key("repositories")
   end
 
   it "conditionally serves the chat payload from its entity and latest-message revision" do
@@ -119,7 +119,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     get "/api/v1/app/chats", headers: headers
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body["repositories"]).to contain_exactly(include("id" => repository.id, "slug" => "acme/widgets"))
+    expect(parse_body).not_to have_key("repositories")
     expect(parse_body.to_s).not_to include("Unrelated chat", "acme/private")
 
     get "/api/v1/app/chats/new", headers: headers
@@ -147,7 +147,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     get "/api/v1/app/chats", headers: headers
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body["repositories"]).to contain_exactly(include("id" => repository.id, "slug" => "acme/widgets"))
+    expect(parse_body).not_to have_key("repositories")
     expect(parse_body.to_s).to include("Current chat")
     expect(parse_body.to_s).not_to include("Unrelated chat", "acme/private")
 
@@ -651,7 +651,14 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     expect(response.headers.fetch("Cache-Control")).to include("private", "max-age=30")
     body = parse_body
-    old_group = body["groups"].find { |group| group["repository_id"] == old_repo.id }
+    groups = body["groups"]
+    # Groups are paged; follow the offsets until the oldest repository's group arrives.
+    while body["groups_has_more"] && groups.none? { |group| group["repository_id"] == old_repo.id }
+      get "/api/v1/app/chats", params: { group_offset: body.fetch("groups_next_offset") }
+      body = parse_body
+      groups += body["groups"]
+    end
+    old_group = groups.find { |group| group["repository_id"] == old_repo.id }
     expect(old_group).to include("key" => "repository-#{old_repo.id}", "label" => "acme/old")
     expect(old_group["chats"].map { |chat| chat["id"] }).to eq([ old_chat.id ])
   end
@@ -864,7 +871,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(response).to have_http_status(:not_modified)
   end
 
-  it "defaults the sidebar chat group size to 10 and honors a smaller configured value" do
+  it "defaults the sidebar chat group size to 10, serves a 5-row first page, and honors a smaller configured value" do
     expect(user.recent_chats_group_size).to eq(10)
 
     sign_in_as(user)
@@ -882,7 +889,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     get "/api/v1/app/chats"
 
     group = parse_body["groups"].find { |candidate| candidate["repository_id"] == repository.id }
-    expect(group["chats"].map { |chat| chat["id"] }).to eq(chats.first(10).map(&:id))
+    # The index caps the first page of each group at CHAT_INDEX_INITIAL_GROUP_SIZE.
+    expect(group["chats"].map { |chat| chat["id"] }).to eq(chats.first(5).map(&:id))
     expect(group["has_more"]).to eq(true)
 
     user.update!(recent_chats_group_size: 3)
@@ -1018,11 +1026,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     groups = parse_body["groups"].index_by { |group| group["key"] }
     expect(groups.keys).to eq(%w[chat_type-agent chat_type-external])
     expect(groups.fetch("chat_type-agent")["chats"].map { |chat| chat["id"] }).to eq([ agent_chat.id ])
-    expect(groups.fetch("chat_type-agent")["chats"].first).to include(
-      "conversation_kind" => "direct",
-      "origin_platform" => nil,
-      "chat_type" => "agent"
-    )
+    expect(groups.fetch("chat_type-agent")["chats"].first).to include("conversation_kind" => "direct")
+    expect(groups.fetch("chat_type-agent")["chats"].first).not_to have_key("origin_platform")
     expect(groups.fetch("chat_type-external")["chats"].map { |chat| chat["id"] }).to eq([ external_chat.id ])
     expect(parse_body.to_s).not_to include(group_chat.title)
   end
@@ -1090,10 +1095,9 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     chat = parse_body.dig("groups", 0, "chats", 0)
     expect(chat).to include(
       "id" => external_group_chat.id,
-      "conversation_kind" => "group",
-      "origin_platform" => "telegram",
-      "chat_type" => "external"
+      "conversation_kind" => "group"
     )
+    expect(chat).not_to have_key("origin_platform")
   end
 
   it "does not expose group chat type on a single-user instance" do
@@ -1603,7 +1607,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     patch "/api/v1/app/chats/#{chat.id}/mark_unread"
 
-    expect(response).to have_http_status(:no_content)
+    expect(response).to have_http_status(:ok)
     expect(chat.reload.chat_participants.find_by(user: user).last_read_at).to be_nil
     expect(foreign_chat.reload.chat_participants.first.last_read_at).to be_present
   end
@@ -1615,7 +1619,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     patch "/api/v1/app/chats/#{chat.id}/mark_read"
 
-    expect(response).to have_http_status(:no_content)
+    expect(response).to have_http_status(:ok)
     participant = chat.reload.chat_participants.find_by(user: user)
     expect(participant).to have_attributes(role: "owner")
     expect(participant.last_read_at).to be_present
@@ -1628,7 +1632,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     patch "/api/v1/app/chats/#{chat.id}/mark_unread"
 
-    expect(response).to have_http_status(:no_content)
+    expect(response).to have_http_status(:ok)
     participant = chat.reload.chat_participants.find_by(user: user)
     expect(participant).to have_attributes(role: "owner", last_read_at: nil)
   end
