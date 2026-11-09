@@ -35,10 +35,6 @@ class DiffReviewVersion < ApplicationRecord
       scope.detect { |version| version.reason != "source_diff" }
   end
 
-  def self.reusable_all_changes_for(job)
-    reviewable_for(job).all_changes
-  end
-
   def self.reviewable_for(job)
     scope = where(job: job)
     default_branch = job.repository&.default_branch.to_s.strip.presence

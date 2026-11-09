@@ -72,15 +72,6 @@ class ChatGoal < ApplicationRecord
     ChatProposal.goal_prompt_snapshot_for(self)
   end
 
-  def reset_loop_safeguards!
-    update!(
-      consecutive_no_op_iterations: 0,
-      consecutive_blocked_events: 0,
-      last_blocked_signature: nil,
-      last_iteration_signature: nil
-    )
-  end
-
   def record_progress!(signature:)
     update!(
       consecutive_no_op_iterations: 0,
