@@ -25,6 +25,7 @@ import {
   type DiffReviewComment,
   type DiffReviewVersion,
   type JobDetailPayload,
+  type JobVisualEvidence,
   type JobWorkflow
 } from "../../api/jobs"
 import { DEFAULT_REVIEW_DIFF_SETTINGS, fetchReviewDiffSettings, type ReviewDiffSettings } from "../../api/reviewDiffSettings"
@@ -447,7 +448,7 @@ export function ReviewWorkspace({ diffLineMetricProviders, payload }: { diffLine
 
           <VisualEvidenceGallery
             approved={Boolean(payload.job.approved_at)}
-            artifacts={payload.typed_artifacts.filter(isBeforeAfterVisualComparison)}
+            artifacts={payload.typed_artifacts.filter(isVisualEvidenceArtifact)}
             gallery={payload.visual_evidence}
             selectedRange={selectedRange}
             selectedVersion={selectedVersion}
@@ -621,24 +622,21 @@ export function VisualEvidenceGallery({
   const submitted = evidence.screenshots.filter((screenshot) => screenshot.status === "submitted")
   const screenshots = showAll ? evidence.screenshots : submitted
 
-  if (evidence.captured_count === 0 && artifacts.length === 0) {
-    return (
-      <Section.Root>
-        <SectionHeading>{t("visual_evidence_title")}</SectionHeading>
-        <p className="mt-3 text-sm text-text-muted">{t(approved ? "visual_evidence_approved_none_captured" : "visual_evidence_none_captured")}</p>
-      </Section.Root>
-    )
-  }
+  const typedArtifacts = artifacts.filter((artifact) => !isRepresentedByGalleryEvidence(artifact, submitted))
+
+  if (evidence.captured_count === 0 && typedArtifacts.length === 0) return null
 
   return (
     <Section.Root>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <SectionHeading>{t("visual_evidence_title")}</SectionHeading>
-          <p className="mt-1 text-sm text-text-muted">
-            {t("visual_evidence_counts", { submitted: evidence.submitted_count, captured: evidence.captured_count })}
-            {approved && evidence.submitted_count > 0 ? ` · ${t("visual_evidence_approved_with_evidence")}` : null}
-          </p>
+          {evidence.captured_count > 0 ? (
+            <p className="mt-1 text-sm text-text-muted">
+              {t("visual_evidence_counts", { submitted: evidence.submitted_count, captured: evidence.captured_count })}
+              {approved && evidence.submitted_count > 0 ? ` · ${t("visual_evidence_approved_with_evidence")}` : null}
+            </p>
+          ) : null}
         </div>
         {evidence.captured_count > evidence.submitted_count ? (
           <Button onClick={() => setShowAll((value) => !value)} size="sm" variant="secondary">
@@ -662,8 +660,17 @@ export function VisualEvidenceGallery({
             const viewport = screenshot.viewport?.width && screenshot.viewport?.height ? `${screenshot.viewport.width}×${screenshot.viewport.height}` : null
             return (
               <figure className={`${surfaceClasses("panel", "sm")} max-w-lg`} key={screenshot.id}>
-                <button className="flex w-full cursor-zoom-in justify-center" onClick={() => setPreview({ title: pageLabel, url: screenshot.image_url })} type="button">
-                  <img alt={pageLabel} className="max-h-72 max-w-full rounded-md border border-border object-contain" loading="lazy" src={screenshot.image_url} />
+                <button
+                  className="flex w-full cursor-zoom-in justify-center"
+                  onClick={() => setPreview({ title: pageLabel, url: screenshot.image_url })}
+                  type="button"
+                >
+                  <img
+                    alt={pageLabel}
+                    className="max-h-72 max-w-full rounded-md border border-border object-contain"
+                    loading="lazy"
+                    src={screenshot.image_url}
+                  />
                 </button>
                 <figcaption className="mt-2 space-y-1 text-xs text-text-muted">
                   <p className="font-medium text-text-primary">{pageLabel}</p>
@@ -681,9 +688,9 @@ export function VisualEvidenceGallery({
           })}
         </div>
       )}
-      {artifacts.length > 0 ? (
+      {typedArtifacts.length > 0 ? (
         <div className="mt-4">
-          <VersionedArtifactsList artifacts={artifacts} selectedRange={selectedRange} selectedVersion={selectedVersion} versions={versions} />
+          <VersionedArtifactsList artifacts={typedArtifacts} selectedRange={selectedRange} selectedVersion={selectedVersion} versions={versions} />
         </div>
       ) : null}
       {preview ? (
@@ -996,16 +1003,26 @@ function ReviewArtifactsPanel({
   )
 }
 
-function isVisualReviewScreenshot(artifact: TypedArtifact) {
-  return artifact.renderer_type === "image_diff" && artifact.type.startsWith("visual_review_")
-}
-
-function isBeforeAfterVisualComparison(artifact: TypedArtifact) {
-  return artifact.renderer_type === "before_after_visual_diff"
-}
-
+// Any typed artifact with a visual renderer is visual evidence, regardless of
+// its type name.
 function isVisualEvidenceArtifact(artifact: TypedArtifact) {
-  return isVisualReviewScreenshot(artifact) || isBeforeAfterVisualComparison(artifact)
+  return artifact.renderer_type === "image_diff" || artifact.renderer_type === "before_after_visual_diff"
+}
+
+// A submitted image artifact is also stored as a promoted gallery record. It
+// is the same capture when it came from the same run and describes the same page.
+function isRepresentedByGalleryEvidence(artifact: TypedArtifact, submitted: JobVisualEvidence[]) {
+  if (artifact.renderer_type !== "image_diff") return false
+  const payload = (artifact.payload || {}) as { run_id?: number; page?: { path?: string; title?: string } | null }
+  const runId = artifact.run_id ?? payload.run_id
+  if (runId == null) return false
+  return submitted.some((item) => {
+    if (item.run_id !== runId) return false
+    const page = payload.page
+    if (!page && !item.page) return true
+    if (!page || !item.page) return false
+    return (page.path || "") === (item.page.path || "") && (page.title || "") === (item.page.title || "")
+  })
 }
 
 // An artifact has usable provenance when it can be compared against the

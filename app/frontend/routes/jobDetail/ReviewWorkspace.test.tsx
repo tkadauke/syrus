@@ -1165,9 +1165,14 @@ describe("ReviewWorkspace", () => {
         {
           type: "visual_review_dashboard_run_5_1",
           title: "Submitted dashboard screenshot",
-          payload: { image_url: "/api/v1/app/workflows/9/visual_artifact?type=visual_review_dashboard_run_5_1" },
+          payload: {
+            image_url: "/api/v1/app/workflows/9/visual_artifact?type=visual_review_dashboard_run_5_1",
+            run_id: 5,
+            page: { path: "/dashboard", title: "Dashboard" }
+          },
           created_at: "2026-01-01T00:00:00Z",
-          renderer_type: "image_diff"
+          renderer_type: "image_diff",
+          run_id: 5
         },
         {
           type: "security_review_findings",
@@ -1207,19 +1212,91 @@ describe("ReviewWorkspace", () => {
     await screen.findByText("Review artifacts")
     expect(screen.getByRole("img", { name: "Dashboard" })).toHaveAttribute("src", "/api/v1/app/jobs/42/visual_evidence/evidence-1")
 
-    fireEvent.click(screen.getByRole("button", { name: "Show" }))
-    expect(screen.getByText("Security findings")).toBeInTheDocument()
-
-    const selector = screen.getByLabelText("Artifact") as HTMLSelectElement
-    const baselineOption = within(selector).getByRole("option", { name: /Visual diff baseline/ }) as HTMLOptionElement
-    fireEvent.change(selector, { target: { value: baselineOption.value } })
-
     expect(screen.getByRole("img", { name: "Visual diff baseline" })).toHaveAttribute(
       "src",
       "/api/v1/app/workflows/9/visual_artifact?type=visual_diff_baseline_screenshot_run_5_1"
     )
+
+    fireEvent.click(screen.getByRole("button", { name: "Show" }))
+    expect(screen.getByText("Security findings")).toBeInTheDocument()
+    expect(screen.queryByLabelText("Artifact")).not.toBeInTheDocument()
     expect(screen.queryByText("Submitted dashboard screenshot")).not.toBeInTheDocument()
     expect(screen.getAllByRole("img", { name: "Dashboard" })).toHaveLength(1)
+  })
+
+  it("omits Visual evidence entirely when there are no captures or visual artifacts", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace({
+      ...jobPayload(),
+      typed_artifacts: [
+        { type: "notes", title: "Table", payload: { headers: ["A"], rows: [["b"]] }, created_at: "2026-01-01T00:00:00Z", renderer_type: "data_table" }
+      ],
+      visual_evidence: { captured_count: 0, submitted_count: 0, screenshots: [] }
+    })
+
+    await screen.findByText("Review artifacts")
+    expect(screen.queryByText("Visual evidence")).not.toBeInTheDocument()
+    expect(screen.queryByText("No screenshots captured.")).not.toBeInTheDocument()
+  })
+
+  it("renders ordinary image_diff artifacts in Visual evidence and leaves Review artifacts without visual renderers", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+
+    renderWorkspace({
+      ...jobPayload(),
+      typed_artifacts: [
+        {
+          type: "repro_screenshot",
+          title: "Repro screenshot",
+          payload: { image_url: "/repro.png" },
+          created_at: "2026-01-01T00:00:00Z",
+          renderer_type: "image_diff"
+        },
+        { type: "notes", title: "Findings table", payload: { headers: ["A"], rows: [["b"]] }, created_at: "2026-01-02T00:00:00Z", renderer_type: "data_table" }
+      ],
+      visual_evidence: { captured_count: 0, submitted_count: 0, screenshots: [] }
+    })
+
+    await screen.findByText("Visual evidence")
+    expect(screen.getByRole("img", { name: "Repro screenshot" })).toHaveAttribute("src", "/repro.png")
+    expect(screen.queryByText("No screenshots captured.")).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Show" }))
+    expect(screen.getByText("Findings table")).toBeInTheDocument()
+    expect(screen.getAllByText("Repro screenshot")).toHaveLength(1)
+    expect(screen.queryByLabelText("Artifact")).not.toBeInTheDocument()
+  })
+
+  it("keeps curated and retained gallery captures behind the toggle", async () => {
+    vi.mocked(fetchJobSourceDiff).mockResolvedValue(sourceDiffPayload())
+    vi.mocked(fetchDiffReviewComments).mockResolvedValue(commentsPayload([]))
+    const shot = (id: string, status: "draft" | "submitted", title: string) => ({
+      id,
+      workflow_id: 9,
+      run_id: 5,
+      sequence: 1,
+      status,
+      captured_at: "2026-01-01T00:00:00Z",
+      page: { path: `/${id}`, title },
+      viewport: { width: 1440, height: 900 },
+      submission_failed: false,
+      image_url: `/api/v1/app/jobs/42/visual_evidence/${id}`
+    })
+
+    renderWorkspace({
+      ...jobPayload(),
+      typed_artifacts: [],
+      visual_evidence: { captured_count: 2, submitted_count: 1, screenshots: [shot("a", "submitted", "Curated"), shot("b", "draft", "Retained")] }
+    })
+
+    await screen.findByText("Visual evidence")
+    expect(screen.getByRole("img", { name: "Curated" })).toBeInTheDocument()
+    expect(screen.queryByRole("img", { name: "Retained" })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Show all captured" }))
+    expect(screen.getByRole("img", { name: "Retained" })).toBeInTheDocument()
   })
 
   it("shows before/after comparisons in Visual evidence instead of Review artifacts", async () => {

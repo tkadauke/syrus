@@ -68,9 +68,10 @@ describe("VisualEvidenceGallery", () => {
     expect(screen.queryByRole("dialog", { name: "Preview of Dashboard" })).not.toBeInTheDocument()
   })
 
-  it("distinguishes an approved review with no captured screenshots", () => {
-    render(<VisualEvidenceGallery approved gallery={{ captured_count: 0, submitted_count: 0, screenshots: [] }} />)
-    expect(screen.getByText("Approved, but no screenshots were captured.")).toBeInTheDocument()
+  it("renders nothing when approved with no captures and no visual artifacts", () => {
+    const { container } = render(<VisualEvidenceGallery approved gallery={{ captured_count: 0, submitted_count: 0, screenshots: [] }} />)
+    expect(container).toBeEmptyDOMElement()
+    expect(screen.queryByText("Visual evidence")).not.toBeInTheDocument()
   })
 })
 

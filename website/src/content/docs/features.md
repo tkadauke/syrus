@@ -216,7 +216,12 @@ to choose a repository; live tool calls may present the view once, while saved
 tool cards retain explicit open and copy-link actions without reopening on
 transcript replay. The popup is a focused presentation of the editable
 FilterBar, pipeline canvas, and compact history rail; saved views, summaries,
-diagnostics, and repository navigation remain on the full Pipeline page.
+diagnostics, and repository navigation remain on the full Pipeline page. In the
+popup the canvas and the history rail fill the full modal height; stage columns
+scroll internally. The rail is its own vertical scroll container with
+time-proportional spacing (a minimum gap keeps dense events apart), small
+event ticks with non-color cues, and adaptive time landmarks, and it keeps the
+selected time in view without moving the pipeline canvas.
 The dedicated history rail reconstructs the filtered cohort at meaningful
 lifecycle and delivery ticks from a bounded checkpoint-plus-delta response, so
 scrubbing does not fetch a full board repeatedly. Historical mode is clearly
@@ -1185,10 +1190,14 @@ Before confirmation, operators can edit a proposal card's title, body, and
 dependencies directly. Epic bundle cards let operators edit the top-level
 Epic proposal, and each proposed child Job in the bundle has its own editor.
 The proposal slug remains stable so dependency references do not break.
-Job proposal cards show the requested priority. A proposal can select urgent,
-high, medium, or low (medium by default), including a separate priority for
-each child in an Epic bundle. Confirmation applies it before work starts, so
-the first scheduling decision already observes the selected priority.
+Job proposal cards show the requested priority. Priority is an operator-only
+scheduling decision: the assistant sets urgent, high, medium, or low (including
+a separate priority for each child in an Epic bundle) only when you explicitly
+ask for it. Severity, impact, or its own recommendation never authorize an
+override, and it does not infer relative priorities among children. Without an
+explicit choice it omits priority and the default (medium) applies. Confirmation
+applies the priority before work starts, so the first scheduling decision
+already observes it.
 Standalone direct Job proposal cards also show a route before confirmation:
 **Start normally** by default, or **Backlog** when the card is explicitly
 routed there. Operators can change that route on the single direct Job card.

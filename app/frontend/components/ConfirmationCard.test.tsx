@@ -5,11 +5,7 @@ import { ConfirmationCard } from "./ConfirmationCard"
 describe("ConfirmationCard", () => {
   it("renders header, body, and footer slots", () => {
     render(
-      <ConfirmationCard
-        header={<h2>Confirm JOB-12</h2>}
-        body={<p>Review this action before it runs.</p>}
-        footer={<button type="button">Confirm</button>}
-      />
+      <ConfirmationCard header={<h2>Confirm JOB-12</h2>} body={<p>Review this action before it runs.</p>} footer={<button type="button">Confirm</button>} />
     )
 
     expect(screen.getByRole("article")).toHaveClass("border-brand/30")
@@ -22,5 +18,14 @@ describe("ConfirmationCard", () => {
     render(<ConfirmationCard header={<h2>Confirm JOB-12</h2>} />)
 
     expect(screen.getByRole("heading", { name: "Confirm JOB-12" }).parentElement).toHaveClass("w-full")
+  })
+})
+
+describe("ConfirmationCard compact", () => {
+  it("hides the body and marks the card compact", () => {
+    render(<ConfirmationCard compact header={<h3>Title</h3>} body={<p>Long body</p>} footer={<span>Working...</span>} />)
+    expect(screen.queryByText("Long body")).toBeNull()
+    expect(screen.getByText("Working...")).toBeTruthy()
+    expect(document.querySelector("[data-compact='true']")).toBeTruthy()
   })
 })

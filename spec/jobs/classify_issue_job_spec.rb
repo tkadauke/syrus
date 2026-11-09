@@ -48,6 +48,24 @@ RSpec.describe ClassifyIssueJob do
       described_class.perform_now(job.id)
     end
 
+    it "refuses a main_grader Job before any model call or attempt" do
+      grader = Job.create!(user: user, repository: repo, kind: "main_grader")
+      grader.update_columns(state: "triaging", triaging_reason: "classifier_pending")
+
+      expect(IngestionClassifier).not_to receive(:call)
+
+      expect { described_class.perform_now(grader.id) }.not_to change(JobClassificationAttempt, :count)
+    end
+
+    it "does not enqueue for a main_grader Job" do
+      grader = Job.create!(user: user, repository: repo, kind: "main_grader")
+      grader.update_columns(state: "triaging", triaging_reason: "classifier_pending")
+
+      expect { expect(described_class.enqueue_for_job!(grader)).to be_nil }
+        .not_to have_enqueued_job(described_class)
+      expect { described_class.enqueue_for_job!(grader.id) }.not_to have_enqueued_job(described_class)
+    end
+
     it "no-ops if the Job has already advanced past classifier_pending" do
       job = pending_job
       job.update_columns(state: "queued", triaging_reason: "classifier_pending")

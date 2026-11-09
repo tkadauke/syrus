@@ -394,6 +394,14 @@ For `list_chats`, `list_repositories`, `read_chat_messages`, and
 offset calculation. A normal page beyond the result set still returns an empty
 page; callers should not use the cap as a deep-pagination discovery mechanism.
 
+`read_run_transcript` returns transcript chunks plus an `agent_diff_bytes` size
+hint; it does not include the diff itself (use `get_job_diff`). `read_workflow`
+omits each Step's `details` excerpt by default and reports `details_bytes`; pass
+`step_id` for one Step's excerpt or `include_details: true` for all of them.
+Stored `tool_result` chat messages are capped at 256 KB: a larger result is
+saved as `{truncated, original_bytes, preview}` and the tool card shows a
+truncation notice in its expanded details.
+
 Sidebar pinning is exposed separately from pinned context. `pin_chat` and
 `unpin_chat` mutate `ChatSession#pinned`, the same state the recent-chats
 sidebar uses for its pin control; `update_pinned_context` and
@@ -1022,9 +1030,14 @@ advance-after-triage ordering. Proposal payloads and the chat proposal card
 surface the override for confirmation display; dependency and linear-chain
 validation are unchanged.
 
-`propose_job` accepts `priority`, and `propose_epic_with_jobs` accepts a
-`jobs[].priority` for each child. Valid values are `urgent`, `high`, `medium`,
-and `low`; omission defaults to `medium`. The proposal card displays the
+Priority is an operator-only scheduling decision. `propose_job` accepts an
+optional `priority`, and `propose_epic_with_jobs` an optional `jobs[].priority`
+for each child, but the assistant passes them only when the operator explicitly
+specifies `urgent`, `high`, `medium`, or `low`. Severity, impact, recency, or
+the assistant's recommendation never authorize an override, and relative
+priorities among Epic children are never inferred. Without an explicit
+operator choice the field is omitted and the default (`medium`) applies. The
+operator can still choose any priority. The proposal card displays the
 selected priority, and confirmation copies it onto the Job before the initial
 state transition, so admission and the first queued Run use that priority.
 

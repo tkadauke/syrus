@@ -72,8 +72,13 @@ module Mcp::Tools
       behavior: the Job inherits the repository/user default provider at
       confirmation time. Each child is pinned independently; unknown provider
       values are rejected before the proposal card is created.
-      Set jobs[].priority to urgent, high, medium, or low to control each
-      child's first scheduling decision. Each child defaults to medium.
+      Priority is an operator-only scheduling decision. Pass jobs[].priority
+      only when the operator explicitly specified urgent, high, medium, or low
+      for that work. Severity, production impact, recency, incident status, or
+      your own recommendation do not authorize a priority, and you must not
+      infer relative priorities among children. Without an explicit operator
+      choice, omit jobs[].priority on every child and accept the system
+      default (medium).
       Set jobs[].planned_execution to declare where each child has to run.
       Nothing reads the child Job text to guess this, so if a child needs a
       host other than Linux you must say so here. The only supported dimension
@@ -136,7 +141,7 @@ module Mcp::Tools
               },
               depends_on: { type: "array", items: { type: "string" }, description: "Sibling job slugs or job proposal slugs from other cards in this chat session. Child Jobs must form a single linear chain: no two children may share a dependency or a dependent, and a fan-in, fan-out, or otherwise unordered graph is rejected before the card is created. For a fresh Epic with a straight top-to-bottom chain, omit depends_on on each non-first job and Syrus defaults it to the immediately preceding job slug in the jobs array when depends_on_job_ids and depends_on_epic_ids are also omitted. Explicit values are never overwritten. When epic.epic_id targets a non-empty existing Epic, use depends_on_job_ids to name the existing tail Job instead of relying on array-order inference across the persisted-Epic boundary." },
               provider: { type: "string", description: "Optional implementing-provider override for this child Job (e.g. \"muse\"). Omit or pass \"default\" to inherit the repository/user default provider at confirmation time." },
-              priority: { type: "string", enum: Job::PRIORITIES, description: "Child Job scheduling priority. Defaults to medium." },
+              priority: { type: "string", enum: Job::PRIORITIES, description: "Operator-only scheduling decision. Pass only when the operator explicitly specified urgent, high, medium, or low for this child; never infer it from severity, impact, recency, incident status, your own recommendation, or relative ordering among children. Otherwise omit this field and accept the system default (medium)." },
               planned_execution: {
                 type: "object",
                 properties: {

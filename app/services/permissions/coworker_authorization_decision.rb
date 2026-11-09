@@ -105,11 +105,11 @@ module Permissions
     end
 
     def actor_permission_descriptor
-      surface = request.chat_session_id? ? :chat : :workflow
-      entry = McpToolRegistry.entries(surface:).find do |candidate|
-        McpToolRegistry.tool_name_for(candidate.tool) == request.payload.fetch("tool_name")
-      end
-      entry&.descriptor || raise(ArgumentError, "tool is no longer available to this actor")
+      run = (Run.find_by(id: request.payload["run_id"]) if request.payload["run_id"].present?)
+      Mcp::ActorToolResolver.resolve(
+        tool_name: request.payload.fetch("tool_name"),
+        chat_session: (request.chat_session unless run), run:
+      )&.descriptor || raise(ArgumentError, "tool is no longer available to this actor")
     end
 
     def coworker_request?

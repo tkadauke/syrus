@@ -123,9 +123,24 @@ RSpec.describe "Mcp::Tools workflow inspection tools", :full_chat_access do
       expect(response[:result][:isError]).to be_falsey
       expect(payload[:workflow]).to include(id: workflow.id, job_id: job.id, trigger_kind: "pr_comment", state: "running", step_count: 2, run_count: 2)
       expect(payload[:workflow][:steps].map { |step| step[:kind] }).to eq(%w[prepare respond])
-      expect(payload[:workflow][:steps].last[:details]).to eq(capabilities: { os: [ "macos" ] })
+            expect(payload[:workflow][:steps].map { |step| step[:details] }).to all(be_nil)
+      expect(payload[:workflow][:steps].last[:details_bytes]).to be_positive
       expect(payload[:workflow][:steps].last[:runs].first).to include(state: "running", agent_outcome: "in_progress", cost_usd: "0.5")
       expect(payload[:workflow][:steps].last[:runs].first[:agent_summary].length).to eq(500)
+    end
+
+    it "returns step details only for the requested step or with include_details" do
+      job = Factories.job(repository: repository)
+      workflow = Workflow.create!(job: job, trigger_kind: "pr_comment", state: "running", started_at: 1.minute.ago)
+      first = workflow.steps.create!(kind: "prepare", position: 0, state: "succeeded", details: { "output" => "first" })
+      second = workflow.steps.create!(kind: "respond", position: 1, state: "running", details: { "output" => "second" })
+
+      one = response_payload(call_tool("read_workflow", workflow_id: workflow.id, step_id: second.id))
+      expect(one[:workflow][:steps].map { |step| step[:details] }).to eq([ nil, { output: "second" } ])
+
+      all = response_payload(call_tool("read_workflow", workflow_id: workflow.id, include_details: true))
+      expect(all[:workflow][:steps].map { |step| step[:details] }).to eq([ { output: "first" }, { output: "second" } ])
+      expect(first.id).not_to eq(second.id)
     end
 
     it "reads workflows outside the chat repository when they belong to the chat user" do
@@ -141,7 +156,7 @@ RSpec.describe "Mcp::Tools workflow inspection tools", :full_chat_access do
   end
 
   describe "read_run_transcript" do
-    it "returns paginated transcript chunks and the full agent diff" do
+    it "returns paginated transcript chunks without the agent diff" do
       job = Factories.job(repository: repository)
       run = job.initial_run
       run.update!(agent_outcome: "success", agent_summary: "changed the code", agent_diff: "full diff\n" * 20)
@@ -152,11 +167,22 @@ RSpec.describe "Mcp::Tools workflow inspection tools", :full_chat_access do
 
       expect(response[:result][:isError]).to be_falsey
       expect(payload).to include(run_id: run.id, run_state: run.state, agent_outcome: "success", agent_summary: "changed the code", total_chunks: 5, page: 2, per: 2, total_pages: 3)
-      expect(payload[:agent_diff]).to eq("full diff\n" * 20)
+      expect(payload).not_to include(:agent_diff)
+      expect(payload[:agent_diff_bytes]).to eq(("full diff\n" * 20).bytesize)
       expect(payload[:chunks]).to eq([
         { sequence: 2, kind: "stdout", chunk: "chunk-2" },
         { sequence: 3, kind: "stdout", chunk: "chunk-3" }
       ])
+    end
+
+    it "stays small for a run with a large stored diff" do
+      run = Factories.job(repository: repository).initial_run
+      run.update!(agent_diff: "x" * 2.megabytes)
+
+      response = call_tool("read_run_transcript", run_id: run.id)
+
+      expect(response.to_json.bytesize).to be < 5.kilobytes
+      expect(response_payload(response)[:agent_diff_bytes]).to eq(2.megabytes)
     end
 
     it "reads runs outside the chat repository when they belong to the chat user" do

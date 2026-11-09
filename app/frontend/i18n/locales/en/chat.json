@@ -1014,6 +1014,7 @@
   "tool_card_diff_more_available": "more available",
   "tool_card_diff_bytes_per_page": "Bytes per page",
   "tool_card_diff_next_page": "Next page",
+  "tool_result_truncated": "Result was too large to store ({{kb}} KB); showing the beginning only.",
   "tool_card_diff_preview_truncated": "Preview shows the first {{shown}} of {{total}} lines. Copy diff includes every line.",
   "tool_card_tags_loading_summary": "Loading tags",
   "tool_card_tags_error_summary": "Could not list tags",

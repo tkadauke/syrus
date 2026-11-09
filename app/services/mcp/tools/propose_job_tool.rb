@@ -71,8 +71,11 @@ module Mcp::Tools
       the Job inherits the repository/user default provider at confirmation
       time. Unknown provider values are rejected before the proposal card is
       created.
-      Set priority to urgent, high, medium, or low to control the Job's first
-      scheduling decision. It defaults to medium.
+      Priority is an operator-only scheduling decision. Pass priority only
+      when the operator explicitly specified urgent, high, medium, or low for
+      this work. Severity, production impact, recency, incident status, or
+      your own recommendation do not authorize a priority. Without an explicit
+      operator choice, omit priority and accept the system default (medium).
       Set planned_execution to declare where the work has to run. Nothing
       reads the proposal text to guess this, so if the work needs a host other
       than Linux you must say so here. The only supported dimension is os:
@@ -118,7 +121,7 @@ module Mcp::Tools
         route_to_backlog: { type: "boolean", description: "When true, confirming this direct Job proposal creates the Job in backlog and does not start its initial workflow. Defaults to false for the current start-normal behavior." },
         investigation: { type: "boolean", description: "When true, confirming this proposal creates a standalone read-only investigation Job (no PR expected) instead of a normal implementation Job. Use this for exploratory spike, audit-only, discovery-only, or investigation-style work rather than placing that work inside an Epic. Defaults to false." },
         provider: { type: "string", description: "Optional implementing-provider override (e.g. \"muse\"). Omit or pass \"default\" to inherit the repository/user default provider at confirmation time." },
-        priority: { type: "string", enum: Job::PRIORITIES, description: "Job scheduling priority. Defaults to medium." },
+        priority: { type: "string", enum: Job::PRIORITIES, description: "Operator-only scheduling decision. Pass only when the operator explicitly specified urgent, high, medium, or low; severity, impact, recency, incident status, or your own recommendation do not authorize it. Otherwise omit this field and accept the system default (medium)." },
         planned_execution: {
           type: "object",
           properties: {

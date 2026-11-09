@@ -92,6 +92,26 @@ RSpec.describe ChatMessage do
     expect(pinnable_roles).to eq(%w[user assistant])
   end
 
+  describe "tool result size cap" do
+    def tool_result(payload)
+      session.messages.create!(role: "tool_result", tool_name: "t", tool_use_id: "u1",
+                               content: { "type" => "tool_result", "tool_use_id" => "u1", "content" => payload, "is_error" => false })
+    end
+
+    it "stores an over-cap result in the structured truncated shape" do
+      big = "a" * (ChatMessage::MAX_TOOL_RESULT_BYTES + 100)
+      stored = tool_result(big).reload.content["content"]
+
+      expect(stored).to include("truncated" => true, "original_bytes" => big.bytesize)
+      expect(stored["preview"].bytesize).to be <= ChatMessage::MAX_TOOL_RESULT_BYTES
+    end
+
+    it "leaves an under-cap result unchanged" do
+      payload = { "ok" => true, "text" => "small" }
+      expect(tool_result(payload).reload.content["content"]).to eq(payload)
+    end
+  end
+
   describe "#preview_text" do
     it "extracts text from legacy flat content" do
       message = described_class.new(chat_session: session, role: "user", content: { "text" => "Fix the aqueduct." })

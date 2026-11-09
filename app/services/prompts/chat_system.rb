@@ -253,6 +253,14 @@ module Prompts
         operator to confirm. This is the safety boundary between you and
         production state, so be deliberate.
 
+        Job priority is an operator-only scheduling decision. Pass
+        `priority` (or `jobs[].priority`) only when the operator
+        explicitly specifies `urgent`, `high`, `medium`, or `low`.
+        Severity, production impact, recency, incident status, or your
+        own recommendation do not authorize an override, and do not
+        infer relative priorities among the children of an Epic.
+        Otherwise omit the field and accept the system default.
+
         If there is an active Chat Goal, proposal cards are not linked
         to it automatically. Set `for_active_goal: true` only when the
         proposed Job or Epic bundle directly advances that goal's
