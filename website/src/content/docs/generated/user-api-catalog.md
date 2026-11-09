@@ -84,6 +84,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/chats/:id/message` | `api/v1/app/chats#message` |
 | core | DELETE | `/api/v1/app/chats/:id/messages` | `api/v1/app/chats#clear_messages` |
 | core | GET | `/api/v1/app/chats/:id/messages` | `api/v1/app/chats#messages` |
+| core | GET | `/api/v1/app/chats/:id/messages/:message_id/content` | `api/v1/app/chats#full_message_content` |
 | core | DELETE | `/api/v1/app/chats/:id/pending_action_groups/:pending_action_group_id` | `api/v1/app/chats#destroy_pending_action_group` |
 | core | POST | `/api/v1/app/chats/:id/pending_action_groups/:pending_action_group_id/confirm` | `api/v1/app/chats#confirm_pending_action_group` |
 | core | POST | `/api/v1/app/chats/:id/pending_action_groups/:pending_action_group_id/reject` | `api/v1/app/chats#reject_pending_action_group` |
@@ -102,6 +103,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | GET | `/api/v1/app/chats/:id/preview_panels/:panel_id/export` | `api/v1/app/chats#export_preview_panel` |
 | core | GET | `/api/v1/app/chats/:id/preview_panels/:panel_id/files/*path` | `api/v1/app/chats#preview_panel_file` |
 | core | POST | `/api/v1/app/chats/:id/preview_panels/:panel_id/token` | `api/v1/app/chats#preview_panel_token` |
+| core | GET | `/api/v1/app/chats/:id/proposals/:proposal_id` | `api/v1/app/chats#proposal` |
 | core | PATCH | `/api/v1/app/chats/:id/proposals/:proposal_id` | `api/v1/app/chats#update_proposal` |
 | core | POST | `/api/v1/app/chats/:id/proposals/:proposal_id/confirm` | `api/v1/app/chats#confirm_proposal` |
 | core | POST | `/api/v1/app/chats/:id/proposals/:proposal_id/reject` | `api/v1/app/chats#reject_proposal` |

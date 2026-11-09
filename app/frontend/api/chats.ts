@@ -1252,8 +1252,6 @@ export function fetchChat(id: string, search = "") {
         ...payload.chat,
         chat_provider_options: capabilities?.chat_provider_options ?? payload.chat.chat_provider_options,
         available_chat_models: capabilities?.available_chat_models?.[payload.chat.effective_chat_provider || ""] ?? payload.chat.available_chat_models,
-        provider_availability:
-          readInitialBootstrap()?.provider_availability?.[payload.chat.effective_chat_provider || ""] ?? payload.chat.provider_availability,
         turn_in_flight: payload.chat.turn_in_flight ?? legacy.turn_in_flight ?? false,
         agent_busy: payload.chat.agent_busy ?? legacy.agent_busy ?? false,
         agent_activity: payload.chat.agent_activity ?? legacy.agent_activity ?? null,
