@@ -782,19 +782,20 @@ RSpec.describe ChatTurnJob, :ci_only do
     expect(received[:prompt]).to include("What should we ask next?")
   end
 
+  def stored_attachment(name, mime_type, body)
+    attachment = chat.chat_file_attachments.build(name: name, mime_type: mime_type, byte_size: body.bytesize, checksum: "pending")
+    attachment.file.attach(io: StringIO.new(body), filename: name, content_type: mime_type)
+    attachment.save!
+    { "id" => attachment.id }
+  end
+
   it "writes image attachments into the chat workspace and describes them in the prompt" do
     payload = "png-bytes"
     image_message = chat.messages.create!(
       role: "user",
       content: {
         text: "Inspect this image",
-        attachments: [
-          {
-            name: "capture.png",
-            mime_type: "image/png",
-            data: Base64.strict_encode64(payload)
-          }
-        ]
+        attachments: [ stored_attachment("capture.png", "image/png", payload) ]
       }
     )
     received = {}
@@ -823,13 +824,7 @@ RSpec.describe ChatTurnJob, :ci_only do
       role: "user",
       content: {
         text: "Read this",
-        attachments: [
-          {
-            name: "brief.pdf",
-            mime_type: "application/pdf",
-            data: Base64.strict_encode64("%PDF")
-          }
-        ]
+        attachments: [ stored_attachment("brief.pdf", "application/pdf", "%PDF") ]
       }
     )
     received = {}
@@ -854,7 +849,7 @@ RSpec.describe ChatTurnJob, :ci_only do
       role: "user",
       content: {
         text: "Review this source",
-        attachments: [ { name: "../../handler.rb", mime_type: "text/plain", data: Base64.strict_encode64("puts :ok\n") } ]
+        attachments: [ stored_attachment("../../handler.rb", "text/plain", "puts :ok\n") ]
       }
     )
     received = {}
