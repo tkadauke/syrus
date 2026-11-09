@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { ChatPayload } from "../../api/chats"
-import { availableWorkspaceTabs, linkedWorkspaceTab, mediaTabVisible, requestedWorkspaceTab, workspaceTabClass } from "./workspaceTabs"
+import { availableWorkspaceTabs, linkedWorkspaceTab, mediaTabVisible, requestedWorkspaceTab, workspaceTabClass, workspaceTabLabel } from "./workspaceTabs"
 
 function makePayload(overrides: Partial<ChatPayload> = {}): ChatPayload {
   return {
@@ -298,5 +298,17 @@ describe("requestedWorkspaceTab", () => {
     const payload = makePayload()
     expect(requestedWorkspaceTab(payload, "?workspace=media")).toBeNull()
     expect(requestedWorkspaceTab(payload, "?workspace=bogus")).toBeNull()
+  })
+})
+
+describe("workspaceTabLabel", () => {
+  const pluginTabs = [
+    { id: "whiteboard.canvas", label: "Whiteboard", label_key: "whiteboard:tab_whiteboard", component: "whiteboard/WhiteboardTab", closable: false, order: 0 }
+  ] as ChatPayload["workspace_tabs"]
+
+  it("falls back to the plugin label when its i18n namespace is not loaded yet", () => {
+    // Mimic i18next: an unloaded namespace yields defaultValue, otherwise the bare key.
+    const t = (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key.split(":").pop()!
+    expect(workspaceTabLabel("plugin:whiteboard.canvas", t, [], pluginTabs)).toBe("Whiteboard")
   })
 })
