@@ -8,9 +8,33 @@ class CodexAuth
 
   Result = Data.define(:api_key)
 
+  # One object per User#codex_auth_mode; callers ask the mode instead of
+  # branching on the mode string.
+  module Modes
+    class Base
+      def refreshes_login? = false
+      def prepare(_auth) = raise(NotImplementedError)
+    end
+
+    class ApiKey < Base
+      def prepare(auth) = auth.send(:prepare_api_key)
+    end
+
+    class ChatgptLogin < Base
+      def refreshes_login? = true
+      def prepare(auth) = auth.send(:prepare_chatgpt_login)
+    end
+
+    REGISTRY = { "api_key" => ApiKey.new, "chatgpt_login" => ChatgptLogin.new }.freeze
+
+    def self.for(name)
+      REGISTRY.fetch(name.to_s) { raise Error, "Unknown Codex auth mode: #{name.inspect}" }
+    end
+  end
+
   class << self
     def with_refresh_lock(user:, timeout: DEFAULT_REFRESH_LOCK_TIMEOUT_SECONDS)
-      return yield unless user.codex_auth_mode == "chatgpt_login"
+      return yield unless refreshing_login?(user)
 
       if mysql?
         with_mysql_refresh_lock(user, timeout: timeout) { yield }
@@ -20,6 +44,10 @@ class CodexAuth
     end
 
     private
+
+    def refreshing_login?(user)
+      Modes::REGISTRY.fetch(user.codex_auth_mode.to_s, nil)&.refreshes_login? || false
+    end
 
     def mysql?
       ActiveRecord::Base.connection.adapter_name.match?(/mysql/i)
@@ -67,18 +95,11 @@ class CodexAuth
   end
 
   def prepare!
-    case @user.codex_auth_mode
-    when "api_key"
-      prepare_api_key
-    when "chatgpt_login"
-      prepare_chatgpt_login
-    else
-      raise Error, "Unknown Codex auth mode: #{@user.codex_auth_mode.inspect}"
-    end
+    Modes.for(@user.codex_auth_mode).prepare(self)
   end
 
   def persist_updated_auth_json
-    return unless @user.codex_auth_mode == "chatgpt_login"
+    return unless Modes.for(@user.codex_auth_mode).refreshes_login?
     return unless File.exist?(auth_path)
 
     auth_json = normalized_auth_json(File.read(auth_path))
