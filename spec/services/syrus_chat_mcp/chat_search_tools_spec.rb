@@ -188,6 +188,35 @@ RSpec.describe "Mcp::Tools chat search tools", :full_chat_access do
       )
     end
 
+    it "records a fingerprinted backend exception event when the backend fails" do
+      allow(SearchRecord.connection).to receive(:exec_query) do
+        raise ActiveRecord::StatementInvalid, "Out of sort memory, consider increasing server sort buffer size"
+      end
+
+      expect { call_tool("search_chats", query: "needle") }.to change(BackendExceptionEvent, :count).by(1)
+
+      event = BackendExceptionEvent.order(:id).last
+      expect(event.source).to eq("mcp_tool")
+      expect(event.fingerprint).to be_present
+      expect(event.message).to include("Out of sort memory")
+    end
+
+    it "sorts the primary-database fallback on ids only, never full message rows" do
+      allow(SearchRecord.connection).to receive(:exec_query).and_raise(
+        ActiveRecord::StatementInvalid, "no such table: chat_message_fts"
+      )
+      3.times { |i| message(chat_session, text: "fallbackneedle #{i}") }
+
+      queries = capture_sql do
+        results = response_payload(call_tool("search_chats", query: "fallbackneedle")).fetch(:results)
+        expect(results.size).to eq(3)
+      end
+
+      ordered = queries.grep(/FROM .chat_messages. .*ORDER BY/mi).grep(/LIKE/i)
+      expect(ordered).not_to be_empty
+      expect(ordered).to all(match(/SELECT .chat_messages.\..id. FROM/i))
+    end
+
     it "respects limit and caps it at 50" do
       55.times do |i|
         ChatMessageSearchIndex.insert(message(chat_session, text: "limitneedle #{i}"))
