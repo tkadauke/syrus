@@ -298,6 +298,21 @@ describe("AppChromeV2", () => {
     expect(screen.queryByRole("button", { name: "Forest" })).not.toBeInTheDocument()
   })
 
+  it("renders the color theme picker when the bootstrap theme carries no tokens", async () => {
+    vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse({ themes: [] })))
+    const { tokens: _tokens, ...slimTheme } = oceanColorTheme()
+
+    renderAppChrome(undefined, {
+      bootstrap: bootstrapPayload({
+        current_user: { ...bootstrapPayload().current_user!, color_theme: slimTheme as never, color_theme_id: slimTheme.id }
+      })
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: /operator@example\.com/i }))
+
+    expect(await screen.findByRole("button", { name: "Color theme: Ocean" })).toBeInTheDocument()
+  })
+
   it("lists built-in and custom color themes as swatches and highlights the selected one when expanded", async () => {
     vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)

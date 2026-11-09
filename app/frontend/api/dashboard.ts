@@ -586,8 +586,13 @@ export function fetchDashboardChromeWithMeta(search = "", options: { signal?: Ab
   return getJsonWithMeta<DashboardChromePayload>(`/api/v1/app/dashboard${dashboardSectionSearch(search, "chrome")}`, options)
 }
 
-export function fetchDashboardControls(subject: DashboardSubject, options: { signal?: AbortSignal } = {}) {
-  return getJson<DashboardControlsPayload>(`/api/v1/app/dashboard/controls?subject=${encodeURIComponent(subject)}`, options)
+// Controls depend on the active smart folder (the landing-queue and blocked
+// folders add required columns), so it is part of the request as well as the
+// cache key.
+export function fetchDashboardControls(subject: DashboardSubject, options: { signal?: AbortSignal; smartFolderId?: string | null } = {}) {
+  const { smartFolderId, ...requestOptions } = options
+  const folder = smartFolderId ? `&smart_folder_id=${encodeURIComponent(smartFolderId)}` : ""
+  return getJson<DashboardControlsPayload>(`/api/v1/app/dashboard/controls?subject=${encodeURIComponent(subject)}${folder}`, requestOptions)
 }
 
 export function fetchDashboardRows(search = "", options: { signal?: AbortSignal } = {}) {

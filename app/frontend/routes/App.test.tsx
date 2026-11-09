@@ -5835,7 +5835,7 @@ describe("App", () => {
         dashboardPayloadPath(url) &&
         (url.pathname.endsWith("/controls") || url.searchParams.get("smart_folder_id") === "7" || url.searchParams.get("section") === "chrome")
       ) {
-        if (url.searchParams.get("section") !== "chrome") dashboardRequests.push(path)
+        if (url.searchParams.get("section") !== "chrome" && !url.pathname.endsWith("/controls")) dashboardRequests.push(path)
         const q = url.searchParams.get("q")
         const filter = q ? decodeFilterQueryParam(q) : storedFilter
         const hasSmartFolder = url.searchParams.get("smart_folder_id") === "7"
@@ -5933,7 +5933,7 @@ describe("App", () => {
       }
       const url = new URL(path, "http://example.test")
       if (dashboardPayloadPath(url)) {
-        if (url.searchParams.get("section") !== "chrome") dashboardRequests.push(path)
+        if (url.searchParams.get("section") !== "chrome" && !url.pathname.endsWith("/controls")) dashboardRequests.push(path)
         const hasSmartFolder = url.searchParams.get("smart_folder_id") === "1"
         return Promise.resolve(
           dashboardResponse(

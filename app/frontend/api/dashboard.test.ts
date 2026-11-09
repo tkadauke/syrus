@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { jsonResponse } from "../testSupport"
-import { fetchEpicsGraph } from "./dashboard"
+import { fetchDashboardControls, fetchEpicsGraph } from "./dashboard"
 
 describe("fetchEpicsGraph", () => {
   afterEach(() => vi.restoreAllMocks())
@@ -35,5 +35,21 @@ describe("fetchEpicsGraph", () => {
     ])
     expect(graph.edges).toEqual([{ from_id: "epic_1", to_id: "epic_2" }])
     expect(fetchSpy).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe("fetchDashboardControls", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it("scopes the request to the active smart folder so folder-specific required columns are returned", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ controls: {} }))
+
+    await fetchDashboardControls("job", { smartFolderId: "20" })
+    await fetchDashboardControls("job")
+
+    expect(String(fetchSpy.mock.calls[0][0])).toBe("/api/v1/app/dashboard/controls?subject=job&smart_folder_id=20")
+    expect(String(fetchSpy.mock.calls[1][0])).toBe("/api/v1/app/dashboard/controls?subject=job")
   })
 })
