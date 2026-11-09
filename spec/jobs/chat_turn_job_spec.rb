@@ -782,20 +782,19 @@ RSpec.describe ChatTurnJob, :ci_only do
     expect(received[:prompt]).to include("What should we ask next?")
   end
 
+  def stored_attachment(name:, mime_type:, bytes:)
+    attachment = chat.chat_file_attachments.build(name: name, mime_type: mime_type, byte_size: bytes.bytesize, checksum: "pending")
+    attachment.file.attach(io: StringIO.new(bytes), filename: name, content_type: mime_type)
+    attachment.save!
+    attachment
+  end
+
   it "writes image attachments into the chat workspace and describes them in the prompt" do
     payload = "png-bytes"
+    stored = stored_attachment(name: "capture.png", mime_type: "image/png", bytes: payload)
     image_message = chat.messages.create!(
       role: "user",
-      content: {
-        text: "Inspect this image",
-        attachments: [
-          {
-            name: "capture.png",
-            mime_type: "image/png",
-            data: Base64.strict_encode64(payload)
-          }
-        ]
-      }
+      content: { text: "Inspect this image", attachments: [ { id: stored.id } ] }
     )
     received = {}
     ChatTurnJob.agent_runner = ->(**kwargs) {
@@ -819,18 +818,10 @@ RSpec.describe ChatTurnJob, :ci_only do
 
   it "adds a prompt note for PDF attachments when Claude does not support --file" do
     allow(described_class).to receive(:claude_file_flag_supported?).and_return(false)
+    stored = stored_attachment(name: "brief.pdf", mime_type: "application/pdf", bytes: "%PDF")
     pdf_message = chat.messages.create!(
       role: "user",
-      content: {
-        text: "Read this",
-        attachments: [
-          {
-            name: "brief.pdf",
-            mime_type: "application/pdf",
-            data: Base64.strict_encode64("%PDF")
-          }
-        ]
-      }
+      content: { text: "Read this", attachments: [ { id: stored.id } ] }
     )
     received = {}
     ChatTurnJob.agent_runner = ->(**kwargs) {
@@ -850,12 +841,10 @@ RSpec.describe ChatTurnJob, :ci_only do
   end
 
   it "materializes generic files with recognizable safe names and prompt paths" do
+    stored = stored_attachment(name: "../../handler.rb", mime_type: "text/plain", bytes: "puts :ok\n")
     source_message = chat.messages.create!(
       role: "user",
-      content: {
-        text: "Review this source",
-        attachments: [ { name: "../../handler.rb", mime_type: "text/plain", data: Base64.strict_encode64("puts :ok\n") } ]
-      }
+      content: { text: "Review this source", attachments: [ { id: stored.id } ] }
     )
     received = {}
     ChatTurnJob.agent_runner = ->(**kwargs) { received.merge!(kwargs); result_fixture(session_id: "chat-session-1", transcript_jsonl: "x") }

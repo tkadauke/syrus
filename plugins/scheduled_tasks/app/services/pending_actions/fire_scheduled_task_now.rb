@@ -47,6 +47,15 @@ module PendingActions
       { resource_title: job.issue_title, resource_url: "/jobs/#{job.id}" }
     end
 
+    # A completed card still reports whether the fire happened and which Job
+    # it produced, so the outcome has to survive onto the terminal card.
+    # Nothing to batch: it is read off each action's own payload.
+    def self.preload_tool_card_outcomes(actions)
+      actions.to_h { |action| [ action.id, new(action).tool_card_outcome ] }.compact
+    end
+
+    def self.include_terminal_tool_card_outcome? = true
+
     def tool_card_outcome
       outcome = payload["fire_outcome"]
       return nil unless outcome.is_a?(Hash)

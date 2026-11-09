@@ -271,7 +271,12 @@ module Api
         def messages
           chat_session = find_chat_session
           before_id = Integer(params[:before], exception: false)
-          limit = Integer(params[:limit], exception: false) || ChatSession::MESSAGE_PAGE_SIZE
+          # No default message count: the window is sized by the rows it will
+          # render, and a flat ceiling of thirty messages undoes that for the
+          # case the window exists for -- a collapsed run of tool calls draws
+          # one row, so thirty messages of it leave the reader a surface with
+          # nothing to scroll. A client that asks for a count still gets it.
+          limit = Integer(params[:limit], exception: false)
           messages, has_more_older = paginated_before(chat_session, before_id, limit: limit)
           payload = PerformanceLogging.phase("chat_messages_payload", chat_id: chat_session.id, before_id: before_id) {
             {
@@ -643,7 +648,11 @@ module Api
             notice = "Message sent."
           end
 
-          render json: chat_mutation_payload(chat_session, message: notice)
+          # The queued list is the state this write changed, and the composer
+          # merges only the slices a response carries -- without it a message
+          # queued while the agent is busy stays invisible until the next
+          # refetch. Its sibling update and delete actions include it already.
+          render json: chat_mutation_payload(chat_session, message: notice, include: :queued_messages)
         rescue ActiveRecord::RecordInvalid => e
           render_error("validation_failed", e.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         rescue ActiveRecord::LockWaitTimeout, ActiveRecord::Deadlocked, ActiveRecord::StatementTimeout, SolidQueue::Job::EnqueueError => e
@@ -805,7 +814,11 @@ module Api
           title = panel.title
           PreviewPanel::Service.new(panel).close!
 
-          render json: chat_mutation_payload(chat_session, message: "#{title} closed.", include: :workspace_tabs)
+          render json: chat_mutation_payload(
+            chat_session,
+            message: "#{title} closed.",
+            include: [ :workspace_tabs, :plugin_contributions ]
+          )
         end
 
         def export_preview_panel
@@ -857,7 +870,11 @@ module Api
 
           PreviewPanel::Service.new(panel).update_visibility!(visibility)
 
-          render json: chat_mutation_payload(chat_session, message: panel.public? ? "#{panel.title} is now public." : "#{panel.title} is now private.", include: :workspace_tabs)
+          render json: chat_mutation_payload(
+            chat_session,
+            message: panel.public? ? "#{panel.title} is now public." : "#{panel.title} is now private.",
+            include: [ :workspace_tabs, :plugin_contributions ]
+          )
         end
 
         # Mints a short-lived PreviewPanel::AccessToken for the chat frontend
@@ -1268,7 +1285,14 @@ module Api
           end
 
           JobCodingMode::CancelTakeover.call(chat_session: chat_session, repository: repository)
-          render json: chat_mutation_payload(chat_session, message: "Coding checkout cancelled.", include: :attached_coding_job)
+          # Cancelling the takeover also cancels the handoff's pending actions,
+          # so the response has to carry the list it just changed -- otherwise
+          # the cards it cancelled stay on screen until the next refetch.
+          render json: chat_mutation_payload(
+            chat_session,
+            message: "Coding checkout cancelled.",
+            include: [ :attached_coding_job, :pending_actions ]
+          )
         rescue ActiveRecord::RecordNotFound
           raise
         rescue JobCodingMode::CancelTakeover::Error => e

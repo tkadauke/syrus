@@ -32,8 +32,11 @@ RSpec.describe Permissions::ScheduledAuthorization, :ci_only do
 
   it "issues the exact invocation and queues execution when approved" do
     request = described_class.route(tool:, context:, arguments: { record_id: 7 }).request
-    entry = Struct.new(:tool, :descriptor).new(tool, descriptor)
-    allow(McpToolRegistry).to receive(:entries).with(surface: :workflow).and_return([ entry ])
+    # This tool carries its own descriptor and is not in the static registry,
+    # which is the shape of a plugin-provided workflow tool -- so it reaches
+    # the resolver the way one does, rather than by standing in for a registry
+    # entry whose fields the surface filter also reads.
+    allow(Mcp::Sidecar).to receive(:plugin_workflow_tools_for).and_return([ tool ])
     allow(ChatPendingActionConfirmationJob).to receive(:perform_later)
 
     result = Permissions::AuthorizationDecision.new(

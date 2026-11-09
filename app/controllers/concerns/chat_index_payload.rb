@@ -204,6 +204,13 @@ module ChatIndexPayload
         coding_checkout_uncommitted: chat_session.coding_checkout_uncommitted?,
         last_message_at: chat_session.last_message_at&.iso8601,
         created_at: chat_session.created_at.iso8601,
+        # Both are needed by the client-side cache filter, which derives a
+        # chat's type when it patches a row optimistically. Without them an
+        # external chat whose conversation_kind is "group" derives as "group"
+        # and lands in the wrong sidebar group until the next refetch. They are
+        # two scalars off a row already loaded, so neither costs a query.
+        origin_platform: chat_session.origin_platform,
+        chat_type: chat_index_chat_type_for(chat_session),
         unread: PerformanceLogging.phase("chat_index.chat.unread", chat_id: chat_session.id) { chat_unread?(chat_session) }
       }
     end

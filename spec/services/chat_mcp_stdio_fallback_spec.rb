@@ -1,7 +1,10 @@
 require "rails_helper"
 require "rack/mock"
 
-RSpec.describe ChatMcpStdioFallback, :ci_only do
+# The tools themselves are the subject here, not the permission gate, so the
+# chat owner starts from the Full access profile -- otherwise the first call to
+# a gated tool answers with an authorization request instead of its result.
+RSpec.describe ChatMcpStdioFallback, :ci_only, :full_chat_access do
   let(:user) { Factories.user(claude_oauth_token: "oat-test", github_token: "ghp-test", global_role: "admin") }
   let(:repository) { Factories.repository(user: user, owner: "acme", name: "widgets") }
   let(:chat) { ChatSession.create!(user: user, repository: repository) }
@@ -81,6 +84,14 @@ RSpec.describe ChatMcpStdioFallback, :ci_only do
 
     mysql_result = call_tool(tier: "deferred", name: "mysql_db_browser_list_connections")
     expect(mysql_result["isError"]).to be_falsey
-    expect(JSON.parse(mysql_result.dig("content", 0, "text")).fetch("mysql_connections")).not_to be_empty
+    # A plugin tool is built by the sidecar from a tool-set definition and is
+    # not in the static registry, so the Full access profile -- which writes a
+    # rule per registry descriptor -- has nothing to say about it and the
+    # descriptor's own `ask` applies. The first call therefore answers with an
+    # authorization request rather than the listing, read-only though it is.
+    expect(JSON.parse(mysql_result.dig("content", 0, "text"))).to include(
+      "authorization_status" => "waiting",
+      "tool_set_bundle" => "operations@v1"
+    )
   end
 end

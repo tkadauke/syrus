@@ -97,7 +97,9 @@ RSpec.describe App::JobDetailPayload do
     job = Factories.job_record(user: user, repository: repo)
     plan = RepoCoworkerReviewPlan::Result.new(enabled: true, rounds: 2, source: ".syrus.yml", note: nil,
       criteria: [ "Check maintainability" ], required: true)
-    allow(RepoCoworkerReviewPlan).to receive(:for_job).with(job).and_return(plan)
+    # The payload builds the plan from its own `.syrus.yml` load rather than
+    # reading the file a second time through `for_job`.
+    allow(RepoCoworkerReviewPlan).to receive(:from_syrus_yml).and_return(plan)
 
     result = payload_for(job).fetch(:job).fetch(:coworker_review_configuration)
 

@@ -282,8 +282,9 @@ RSpec.describe "API: coworkers", type: :request do
     expect(response).to have_http_status(:ok)
     expect(action.reload.payload["about"]).to eq("role: Research director")
     expect(response.parsed_body.dig("pending_actions", 0, "app_update_path")).to end_with("/pending_actions/#{action.id}")
-    tool_message = response.parsed_body.fetch("messages").find { |message| message["tool_name"] == "propose_coworker" }
-    expect(tool_message.dig("pending_action", "review", "about")).to eq("role: Research director")
+    # The write answers with the pending-action slice it changed, not a whole
+    # transcript, so the refreshed review travels on the card itself.
+    expect(response.parsed_body.dig("pending_actions", 0, "review", "about")).to eq("role: Research director")
   end
 
   it "lists only the signed-in owner's coworkers with Syrus pinned separately" do

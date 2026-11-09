@@ -39,6 +39,9 @@ RSpec.describe Calendar::Sources::RecurringMaintenance do
   end
 
   it "marks failed executions for operator attention" do
+    # The test database is single-database, so the queue tables are created on
+    # demand -- these two examples read them through the real SQL they ship.
+    ensure_solid_queue_test_tables!
     job = SolidQueue::Job.create!(class_name: "HourlyJob", queue_name: "default", priority: 0,
       active_job_id: SecureRandom.uuid, created_at: starts_at + 12.minutes, updated_at: starts_at + 13.minutes,
       finished_at: starts_at + 13.minutes)
@@ -53,6 +56,7 @@ RSpec.describe Calendar::Sources::RecurringMaintenance do
   end
 
   it "bounds loaded execution history independently for each recurring class" do
+    ensure_solid_queue_test_tables!
     classes = %w[FastJob OtherJob]
     (described_class::MAX_OBSERVATIONS_PER_CLASS + 1).times do |index|
       SolidQueue::Job.create!(class_name: classes.first, queue_name: "default", priority: 0,

@@ -15,6 +15,14 @@ module ChatSerialization
 
   def chat_payload(chat_session, message: nil)
     PerformanceLogging.phase("chat_payload", chat_id: chat_session.id) do
+      # Before anything is read, because anchoring moves a card: an anchored
+      # action is excluded from the standalone list and rendered inside its
+      # tool-call message instead. Repairing after the messages were
+      # serialized dropped it from both halves of the same response, so a
+      # freshly created card did not appear until the next fetch.
+      PerformanceLogging.phase("chat_payload.anchor_repair", chat_id: chat_session.id) do
+        ChatPendingAction.repair_tool_call_anchors_for!(chat_session)
+      end
       PerformanceLogging.phase("chat_payload.preload", chat_id: chat_session.id) { preload_chat_payload_associations(chat_session) }
       messages, has_more_older = PerformanceLogging.phase("chat_payload.messages_page", chat_id: chat_session.id) { paginated_tail(chat_session) }
       repository = chat_session.repository
@@ -102,6 +110,19 @@ module ChatSerialization
       attached_coding_job: -> { attached_coding_job_json(chat_session) }
     }
     Array(include).each do |slice|
+      # A write that changed a plugin-owned slice still has to answer with it,
+      # and core cannot name those slices -- so it asks every contributor and
+      # merges what comes back. Only the slices, not the path map: a mutation
+      # response has no paths for a contributor to extend.
+      if slice == :plugin_contributions
+        payload.merge!(ChatPayloadContributions.payload(
+          chat_session: chat_session,
+          context: { params: params, ssl: request.ssl? },
+          existing_keys: payload.keys
+        ))
+        next
+      end
+
       serializer = serializers.fetch(slice) { raise ArgumentError, "Unknown chat mutation payload slice: #{slice.inspect}" }
       payload[slice] = serializer.call
     end
@@ -320,90 +341,6 @@ module ChatSerialization
         resource = pending_action_resource(action)
         payload.merge!(resource) if resource
       end
-    end
-  end
-
-  def cached_pending_action_presentation(action, chat_session)
-    authorization_items = action.authorization_items.sort_by(&:id)
-    fingerprint = Digest::SHA256.hexdigest(
-      [
-        action.attributes.slice("action", "action_type", "payload", "before_snapshot", "after_snapshot"),
-        authorization_items.map(&:cache_key_with_version)
-      ].to_json
-    )
-    Rails.cache.fetch([ "chat-pending-action-top-level-presentation", action.cache_key_with_version, Current.user.id, fingerprint ]) do
-      presenter = PendingActions.for(action.action.presence || action.action_type).new(action)
-      payload = {
-        before_snapshot: action.before_snapshot.presence,
-        after_snapshot: action.after_snapshot.presence,
-        review: presenter.tool_card_review.presence,
-        permission_rule_preview: permission_rule_preview_for(action)
-      }.compact
-      if action.authorization_request?
-        presentation = Permissions::RequestPresentation.new(action, current_user: Current.user)
-        payload[:authorization_presentation] = presentation.as_json
-        payload[:authorization_items] = authorization_items.map do |item|
-          smart_decision = Permissions::SmartDecision.new(request: action, item:, user: Current.user)
-          {
-            id: item.id,
-            presentation: presentation.item_json(item),
-            kind: item.kind,
-            state: item.state,
-            capability: item.capability,
-            operation: item.operation,
-            effects: item.effects,
-            prerequisite_ids: item.prerequisites.map(&:id),
-            resulting_authority: Permissions::SmartDecision.authority_reference(item),
-            smart_option: smart_decision.option,
-            smart_options: smart_decision.options,
-            app_decision_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/authorization_items/#{item.id}/decision",
-            app_smart_decision_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/authorization_items/#{item.id}/smart_decision"
-          }
-        end
-      end
-      payload
-    end
-  end
-
-  def cached_pending_action_presentation(action, chat_session)
-    authorization_items = action.authorization_items.sort_by(&:id)
-    fingerprint = Digest::SHA256.hexdigest(
-      [
-        action.attributes.slice("action", "action_type", "payload", "before_snapshot", "after_snapshot"),
-        authorization_items.map(&:cache_key_with_version)
-      ].to_json
-    )
-    Rails.cache.fetch([ "chat-pending-action-top-level-presentation", action.cache_key_with_version, Current.user.id, fingerprint ]) do
-      presenter = PendingActions.for(action.action.presence || action.action_type).new(action)
-      payload = {
-        before_snapshot: action.before_snapshot.presence,
-        after_snapshot: action.after_snapshot.presence,
-        review: presenter.tool_card_review.presence,
-        permission_rule_preview: permission_rule_preview_for(action)
-      }.compact
-      if action.authorization_request?
-        presentation = Permissions::RequestPresentation.new(action, current_user: Current.user)
-        payload[:authorization_presentation] = presentation.as_json
-        payload[:authorization_items] = authorization_items.map do |item|
-          smart_decision = Permissions::SmartDecision.new(request: action, item:, user: Current.user)
-          {
-            id: item.id,
-            presentation: presentation.item_json(item),
-            kind: item.kind,
-            state: item.state,
-            capability: item.capability,
-            operation: item.operation,
-            effects: item.effects,
-            prerequisite_ids: item.prerequisites.map(&:id),
-            resulting_authority: Permissions::SmartDecision.authority_reference(item),
-            smart_option: smart_decision.option,
-            smart_options: smart_decision.options,
-            app_decision_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/authorization_items/#{item.id}/decision",
-            app_smart_decision_path: "/api/v1/app/chats/#{chat_session.id}/pending_actions/#{action.id}/authorization_items/#{item.id}/smart_decision"
-          }
-        end
-      end
-      payload
     end
   end
 

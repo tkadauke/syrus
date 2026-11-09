@@ -15,6 +15,11 @@ module PendingActions
       end
     end
 
+    # A completed card still links to the coworker it created and to that
+    # coworker's main chat, so the outcome above has to survive onto the
+    # terminal card -- the preload exists for nothing otherwise.
+    def self.include_terminal_tool_card_outcome? = true
+
     def execute
       progress!("Creating coworker...")
       Coworkers::Create.call(owner: user, idempotency_key: "pending-action-#{action.id}", **payload.symbolize_keys)

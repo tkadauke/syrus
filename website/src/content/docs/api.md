@@ -739,13 +739,27 @@ curl "https://syrus.example.com/api/v1/app/settings/hidden_chats?page=1" \
   -H "Authorization: Bearer $SYRUS_API_TOKEN"
 ```
 
+## Chat Write Responses
+
+Chat write endpoints answer with the chat's revision and the slices the write
+itself changed -- a queued-message write returns the queued list, a scratch-pad
+write returns the scratch pad, cancelling a coding checkout returns the pending
+actions it cancelled -- rather than re-rendering the transcript. New messages
+reach clients over the realtime channel. Clients patch their cached payload
+with whatever slices a response carries.
+
 ## Read Chat Message History
 
 `GET /api/v1/app/chats/:id/messages?before=:message_id&limit=:count` reads an
-older page of messages. `limit` defaults to 30 and is clamped to 1–30. Large
-tool inputs/results and completed shell output are represented by bounded
-previews with a message content path; authenticated chat participants can
-follow that path to load the full filtered content on demand.
+older page of messages. `limit` is optional: without it the page is sized by
+the rows the stream will render rather than by a message count, so a collapsed
+run of tool calls does not spend the page on messages that draw as one row. A
+supplied `limit` bounds the page's message count instead, with a minimum of 1;
+the row target and the page's byte budget still apply, so a large `limit` does
+not widen the page beyond what it will draw. Large tool inputs/results and
+completed shell output are represented by bounded previews with a message
+content path; authenticated chat participants can follow that path to load the
+full filtered content on demand.
 
 Resolved proposal bodies are likewise omitted from repeated message pages and
 include a proposal body path for on-demand expansion.

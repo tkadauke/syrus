@@ -381,7 +381,9 @@ module App
     end
 
     def coworker_review_configuration_json
-      plan = RepoCoworkerReviewPlan.for_job(@job)
+      # From the payload's own single read, not a second one of the same file:
+      # every other `.syrus.yml` gate here comes off that memo.
+      plan = RepoCoworkerReviewPlan.from_syrus_yml(local_syrus_yml(@job.user))
       {
         enabled: plan.enabled?,
         rounds: plan.rounds,
@@ -1736,10 +1738,19 @@ module App
     # config," so every check below it always fell back to its
     # never-configured default. Mirrors the fix RepositoryFeatureRecommendations
     # already applied for its own local-bare-clone reads.
-    def local_syrus_yml_config
-      return @local_syrus_yml_config if defined?(@local_syrus_yml_config)
+    # Memoized per reader, because who reads it is part of the answer: the
+    # action gates below read as the viewer, while the repository's
+    # coworker-review configuration is read as the Job's owner, the way it was
+    # before this payload shared the load. Same reader, one load.
+    def local_syrus_yml(user = @user || @job.user)
+      @local_syrus_yml ||= {}
+      @local_syrus_yml.fetch(user&.id) do
+        @local_syrus_yml[user&.id] = RepoDefaultBranchSyrusYml.new(repository: @job.repository, user: user).resolve
+      end
+    end
 
-      @local_syrus_yml_config = RepoDefaultBranchSyrusYml.new(repository: @job.repository, user: @user || @job.user).resolve.config
+    def local_syrus_yml_config
+      local_syrus_yml.config
     end
   end
 end

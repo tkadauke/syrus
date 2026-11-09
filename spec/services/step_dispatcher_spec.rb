@@ -4282,10 +4282,6 @@ RSpec.describe StepDispatcher, "urgent_blocking gate", :ci_only do
 
   it "backs off repeated urgent-blocked starts" do
     create_urgent_job!
-    puts "DEBUG job_model.id=#{job_model.id} workflow.id=#{workflow.id}"
-    WorkUnit.joins(:work_unit_members).where(work_unit_members: { job_id: job_model.id }).each do |u|
-      puts "DEBUG unit=#{u.id} kind=#{u.kind} state=#{u.state} workflow_id=#{u.workflow_id} active_dedup_key=#{u.active_dedup_key.inspect}"
-    end
     attach_work_unit(workflow)
     travel_to(Time.zone.parse("2026-07-15 12:00:00 UTC")) do
       expect(Rails.logger).to receive(:warn).once.with(include("urgent_job_active"))
@@ -4386,13 +4382,17 @@ RSpec.describe StepDispatcher, "linear Epic sibling implementation gate", :ci_on
     [ workflow, step ]
   end
 
+  # Infrastructure Jobs cannot belong to an Epic, so a main-grader Job is
+  # created outside one: the sibling gate keys on the Epic, and the guarantee
+  # is still that it never holds this workflow back.
   def epic_job(issue_number:, state: "queued", kind: "issue")
+    main_grader = kind == "main_grader"
     Factories.job_record(
       user: user,
       repository: repository,
-      epic: epic,
-      issue_number: kind == "main_grader" ? nil : issue_number,
-      issue_title: kind == "main_grader" ? "main_grader:abc123" : "Epic child #{issue_number}",
+      epic: main_grader ? nil : epic,
+      issue_number: main_grader ? nil : issue_number,
+      issue_title: main_grader ? "main_grader:abc123" : "Epic child #{issue_number}",
       kind: kind,
       state: state
     )

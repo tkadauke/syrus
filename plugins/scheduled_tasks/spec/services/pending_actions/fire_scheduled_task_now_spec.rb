@@ -60,11 +60,10 @@ RSpec.describe PendingActions::FireScheduledTaskNow do
 
       pending_action = App::ChatMessagePayload.messages([ message ], repository: repository).sole.fetch(:pending_action)
 
-      expect(pending_action).to include(
-        outcome: { fired: true, job_id: job.id },
-        resource_title: "Scheduled run",
-        resource_url: "/jobs/#{job.id}"
-      )
+      # A terminal card is the slim historical record plus its outcome; the
+      # card derives the Job link from the outcome's job_id.
+      expect(pending_action).to include(outcome: { fired: true, job_id: job.id })
+      expect(pending_action).not_to include(:resource_url)
     end
   end
 end

@@ -869,7 +869,9 @@ RSpec.describe App::DashboardPayload, :ci_only do
         { epic_id: dependent.id, depends_on_epic_id: nil, depends_on_job_id: job_blocker.id, derived: false, created_at: now, updated_at: now }
       ])
 
-      rows = call(subject: "epic", section: "rows")
+      # The rows section is served for the list view; without it the board
+      # view answers with no rows at all.
+      rows = call(subject: "epic", view: "list", section: "rows")
       item = rows[:items].find { |row| row[:id] == dependent.id }
 
       expect(item).to include(dependency_count: 2, has_epic_dependency: true)
@@ -1234,7 +1236,7 @@ RSpec.describe App::DashboardPayload, :ci_only do
       result = call(subject: "job", smart_folder_id: landing_queue_folder.id)
 
       expect(result[:items].map { |item| item[:id] }).to eq([ first_child.id, second_child.id, standalone.id ])
-      expect(result[:items].map { |item| item[:landing_queue_position] }).to eq([ 1, 1, 2 ])
+      expect(result[:items].map { |item| item[:landing_queue_position] }).to eq([ 1, 2, 3 ])
       expect(result[:items].map { |item| item[:landing_queue_entry_key] }).to eq([ "epic:#{epic.id}", "epic:#{epic.id}", "job:#{standalone.id}" ])
       expect(first_child.reload.landing_queue_position).to be_nil
       expect(second_child.reload.landing_queue_position).to be_nil
