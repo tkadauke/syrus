@@ -20,10 +20,16 @@ module Permissions
     class << self
       def enforced?
         AppSetting.permissions_enforced?
-      rescue ActiveRecord::ActiveRecordError, ActiveRecord::NoDatabaseError
+      rescue ActiveRecord::ActiveRecordError, ActiveRecord::NoDatabaseError, ActiveModel::MissingAttributeError
         # Boot, migrations, and a database that cannot answer: enforce. The
         # switch is a deliberate operator action, never a consequence of the
         # settings row being unreadable.
+        #
+        # A settings row whose schema snapshot predates the column raises
+        # NoMethodError rather than anything listed here, so that case is
+        # guarded where the column is read -- a blanket NoMethodError rescue
+        # would answer "enforce" for any broken call inside the reader, which
+        # is how a real bug stays invisible. See AppSetting.permissions_enforced?.
         true
       end
 

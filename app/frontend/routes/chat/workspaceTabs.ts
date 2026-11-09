@@ -81,7 +81,12 @@ export function workspaceTabClass(active: boolean) {
   return underlineTabClass(active, "max-w-[33vw] truncate px-3 py-2")
 }
 
-export function workspaceTabLabel(tab: WorkspaceTab, t: (key: string) => string, previewPanels: ChatPreviewPanel[] = [], pluginTabs: ChatWorkspaceTab[] = []) {
+export function workspaceTabLabel(
+  tab: WorkspaceTab,
+  t: (key: string, options?: { defaultValue?: string }) => string,
+  previewPanels: ChatPreviewPanel[] = [],
+  pluginTabs: ChatWorkspaceTab[] = []
+) {
   if (tab === "media") return t("tab_media")
   if (tab === "pinned") return t("tab_pinned")
   if (tab === "files") return t("tab_files")
@@ -96,7 +101,9 @@ export function workspaceTabLabel(tab: WorkspaceTab, t: (key: string) => string,
   if (isPluginTab(tab)) {
     const tabId = pluginTabIdFromTab(tab)
     const pluginTab = pluginTabs.find((candidate) => candidate.id === tabId)
-    if (pluginTab?.label_key) return t(pluginTab.label_key)
+    // The plugin's i18n namespace may not be loaded yet (it loads with the tab module); without a
+    // default, i18next would render the bare key such as "tab_whiteboard".
+    if (pluginTab?.label_key) return t(pluginTab.label_key, { defaultValue: pluginTab.label || t("tab_plugin") })
     return pluginTab?.label || t("tab_plugin")
   }
 
@@ -105,7 +112,7 @@ export function workspaceTabLabel(tab: WorkspaceTab, t: (key: string) => string,
 
 export function mobileChatTabLabel(
   tab: MobileChatTab,
-  t: (key: string) => string,
+  t: (key: string, options?: { defaultValue?: string }) => string,
   previewPanels: ChatPreviewPanel[] = [],
   pluginTabs: ChatWorkspaceTab[] = []
 ) {
