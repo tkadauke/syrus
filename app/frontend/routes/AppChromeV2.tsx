@@ -2234,7 +2234,7 @@ function ColorThemePicker() {
         <span
           aria-hidden="true"
           className="h-3.5 w-3.5 shrink-0 rounded-full border border-black/10 dark:border-white/20"
-          style={{ backgroundColor: "swatch" in current ? current.swatch : current.tokens.light.brand }}
+          style={{ backgroundColor: "swatch" in current ? current.swatch : current.tokens?.light?.brand }}
         />
         <span className="min-w-0 flex-1 truncate text-xs font-medium text-text-primary">{current.name}</span>
         <ChevronDownIcon className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${expanded ? "rotate-180" : ""}`} />
