@@ -9,6 +9,14 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     JSON.parse(response.body)
   end
 
+  # A stored (Active Storage) chat attachment reference for message content.
+  def stored_png_attachment(chat, name)
+    attachment = chat.chat_file_attachments.build(name: name, mime_type: "image/png", byte_size: 9, checksum: "pending")
+    attachment.file.attach(io: StringIO.new("png-bytes"), filename: name, content_type: "image/png")
+    attachment.save!
+    { "id" => attachment.id }
+  end
+
   def capture_sql
     queries = []
     callback = lambda do |_name, _started, _finished, _id, payload|
@@ -58,7 +66,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     get "/api/v1/app/chats", headers: { "Authorization" => "Bearer cli-token" }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body["repositories"]).to contain_exactly(include("id" => repository.id, "slug" => "acme/widgets"))
+    expect(parse_body).not_to have_key("repositories")
   end
 
   it "conditionally serves the chat payload from its entity and latest-message revision" do
@@ -119,7 +127,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     get "/api/v1/app/chats", headers: headers
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body["repositories"]).to contain_exactly(include("id" => repository.id, "slug" => "acme/widgets"))
+    expect(parse_body).not_to have_key("repositories")
     expect(parse_body.to_s).not_to include("Unrelated chat", "acme/private")
 
     get "/api/v1/app/chats/new", headers: headers
@@ -147,7 +155,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     get "/api/v1/app/chats", headers: headers
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body["repositories"]).to contain_exactly(include("id" => repository.id, "slug" => "acme/widgets"))
+    expect(parse_body).not_to have_key("repositories")
     expect(parse_body.to_s).to include("Current chat")
     expect(parse_body.to_s).not_to include("Unrelated chat", "acme/private")
 
@@ -651,7 +659,14 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     expect(response.headers.fetch("Cache-Control")).to include("private", "max-age=30")
     body = parse_body
-    old_group = body["groups"].find { |group| group["repository_id"] == old_repo.id }
+    groups = body["groups"]
+    # Groups are paged; follow the offsets until the oldest repository's group arrives.
+    while body["groups_has_more"] && groups.none? { |group| group["repository_id"] == old_repo.id }
+      get "/api/v1/app/chats", params: { group_offset: body.fetch("groups_next_offset") }
+      body = parse_body
+      groups += body["groups"]
+    end
+    old_group = groups.find { |group| group["repository_id"] == old_repo.id }
     expect(old_group).to include("key" => "repository-#{old_repo.id}", "label" => "acme/old")
     expect(old_group["chats"].map { |chat| chat["id"] }).to eq([ old_chat.id ])
   end
@@ -864,7 +879,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(response).to have_http_status(:not_modified)
   end
 
-  it "defaults the sidebar chat group size to 10 and honors a smaller configured value" do
+  it "defaults the sidebar chat group size to 10, serves a 5-row first page, and honors a smaller configured value" do
     expect(user.recent_chats_group_size).to eq(10)
 
     sign_in_as(user)
@@ -882,7 +897,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     get "/api/v1/app/chats"
 
     group = parse_body["groups"].find { |candidate| candidate["repository_id"] == repository.id }
-    expect(group["chats"].map { |chat| chat["id"] }).to eq(chats.first(10).map(&:id))
+    # The index caps the first page of each group at CHAT_INDEX_INITIAL_GROUP_SIZE.
+    expect(group["chats"].map { |chat| chat["id"] }).to eq(chats.first(5).map(&:id))
     expect(group["has_more"]).to eq(true)
 
     user.update!(recent_chats_group_size: 3)
@@ -1018,11 +1034,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     groups = parse_body["groups"].index_by { |group| group["key"] }
     expect(groups.keys).to eq(%w[chat_type-agent chat_type-external])
     expect(groups.fetch("chat_type-agent")["chats"].map { |chat| chat["id"] }).to eq([ agent_chat.id ])
-    expect(groups.fetch("chat_type-agent")["chats"].first).to include(
-      "conversation_kind" => "direct",
-      "origin_platform" => nil,
-      "chat_type" => "agent"
-    )
+    expect(groups.fetch("chat_type-agent")["chats"].first).to include("conversation_kind" => "direct")
+    expect(groups.fetch("chat_type-agent")["chats"].first).not_to have_key("origin_platform")
     expect(groups.fetch("chat_type-external")["chats"].map { |chat| chat["id"] }).to eq([ external_chat.id ])
     expect(parse_body.to_s).not_to include(group_chat.title)
   end
@@ -1090,10 +1103,9 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     chat = parse_body.dig("groups", 0, "chats", 0)
     expect(chat).to include(
       "id" => external_group_chat.id,
-      "conversation_kind" => "group",
-      "origin_platform" => "telegram",
-      "chat_type" => "external"
+      "conversation_kind" => "group"
     )
+    expect(chat).not_to have_key("origin_platform")
   end
 
   it "does not expose group chat type on a single-user instance" do
@@ -1603,7 +1615,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     patch "/api/v1/app/chats/#{chat.id}/mark_unread"
 
-    expect(response).to have_http_status(:no_content)
+    expect(response).to have_http_status(:ok)
     expect(chat.reload.chat_participants.find_by(user: user).last_read_at).to be_nil
     expect(foreign_chat.reload.chat_participants.first.last_read_at).to be_present
   end
@@ -1615,7 +1627,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     patch "/api/v1/app/chats/#{chat.id}/mark_read"
 
-    expect(response).to have_http_status(:no_content)
+    expect(response).to have_http_status(:ok)
     participant = chat.reload.chat_participants.find_by(user: user)
     expect(participant).to have_attributes(role: "owner")
     expect(participant.last_read_at).to be_present
@@ -1628,7 +1640,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     patch "/api/v1/app/chats/#{chat.id}/mark_unread"
 
-    expect(response).to have_http_status(:no_content)
+    expect(response).to have_http_status(:ok)
     participant = chat.reload.chat_participants.find_by(user: user)
     expect(participant).to have_attributes(role: "owner", last_read_at: nil)
   end
@@ -1999,7 +2011,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     chat = ChatSession.last
     expect(chat.chat_provider).to eq("codex")
     expect(chat.messages.last.content["text"]).to eq("Use Codex for this")
-    expect(parse_body.dig("chat", "chat_provider")).to eq("codex")
+    expect(parse_body.dig("chat", "effective_chat_provider")).to eq("codex")
   end
 
   it "creates an empty chat pinned to a valid configured provider before the first turn" do
@@ -2205,8 +2217,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(chat.reload.title).to be_nil
     expect(chat).to be_title_pending
     expect(chat.chat_provider).to eq("claude")
-    expect(parse_body.dig("chat", "title")).to eq("widgets")
-    expect(parse_body.dig("chat", "title_pending")).to eq(true)
+    expect(parse_body.fetch("chat")).to include("id" => chat.id, "turn_in_flight" => true)
+    expect(parse_body.fetch("chat")).not_to have_key("title")
   end
 
   it "creates the onboarding chat attached to the first repository, seeded and flagged" do
@@ -2668,7 +2680,6 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       "id" => message.id,
       "role" => "assistant",
       "tool_name" => nil,
-      "content" => { "text" => "Discuss **aqueducts**." },
       "text" => "Discuss **aqueducts**."
     ))
     expect(body["messages"].first).not_to have_key("html")
@@ -2742,12 +2753,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
           "attempt_number" => 1
         )
       )
-      payload_status_message = parse_body["messages"].detect { |payload_message| payload_message["id"] == status_message.id }
-      expect(payload_status_message).to include(
-        "role" => "system",
-        "text" => "Retrying the previous assistant turn now.",
-        "content" => include("source" => "chat_turn_retry")
-      )
+      # The retry response is a mutation patch; the status message reaches the client through the message stream.
+      expect(parse_body).not_to have_key("messages")
       expect(parse_body["message"]).to eq("Chat turn retry started.")
       expect(parse_body.dig("chat", "turn_retry_state")).to be_nil
     end
@@ -3226,18 +3233,14 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(parse_body.dig("chat", "coding_relay_ready")).to eq(true)
     end
 
-    it "includes app_cancel_coding_checkout_path in the response paths" do
+    it "leaves the coding checkout paths to the client in the response paths" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository)
 
       get "/api/v1/app/chats/#{chat.id}"
 
-      expect(parse_body.dig("paths", "app_cancel_coding_checkout_path")).to eq(
-        "/api/v1/app/chats/#{chat.id}/coding_checkout"
-      )
-      expect(parse_body.dig("paths", "app_create_coding_handoff_path")).to eq(
-        "/api/v1/app/chats/#{chat.id}/coding_handoff"
-      )
+      # Core paths are deterministic from the chat id and rebuilt by the app client.
+      expect(parse_body.fetch("paths")).not_to include("app_cancel_coding_checkout_path", "app_create_coding_handoff_path")
     end
   end
 
@@ -3342,12 +3345,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       chat = ChatSession.create!(user: user, repository: repository)
       chat.messages.create!(
         role: "user",
-        content: {
-          "text" => "Old screenshot.",
-          "attachments" => [
-            { "name" => "old.png", "mime_type" => "image/png", "data" => Base64.strict_encode64("png-bytes") }
-          ]
-        }
+        content: { "text" => "Old screenshot.", "attachments" => [ stored_png_attachment(chat, "old.png") ] }
       )
       # Enough newer text messages to push the image attachment outside the
       # payload's paginated message window -- the regression this guards
@@ -3447,8 +3445,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:ok)
       expect(action.reload).to be_cancelled
       expect(job.reload).to be_implemented
-      # The cancellation's durable outcome message retires the card.
-      expect(parse_body["pending_actions"]).to be_empty
+      # The cancellation's durable outcome message retires the card; the response is a slim patch.
+      expect(parse_body).not_to have_key("pending_actions")
       expect(parse_body["attached_coding_job"]).to be_nil
     end
 
@@ -4286,16 +4284,14 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
-    it "includes new paths in the standard chat payload" do
+    it "leaves core coding paths to the client in the standard chat payload" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user)
 
       get "/api/v1/app/chats/#{chat.id}"
 
-      expect(parse_body.dig("paths", "app_coding_files_path")).to eq("/api/v1/app/chats/#{chat.id}/coding_files")
-      expect(parse_body.dig("paths", "app_coding_commits_path")).to eq("/api/v1/app/chats/#{chat.id}/coding_commits")
-      expect(parse_body.dig("paths", "app_coding_file_path")).to eq("/api/v1/app/chats/#{chat.id}/coding_file")
-      expect(parse_body.dig("paths", "app_coding_diff_path")).to eq("/api/v1/app/chats/#{chat.id}/coding_diff")
+      # Core paths are deterministic from the chat id and rebuilt by the app client.
+      expect(parse_body.fetch("paths")).not_to include("app_coding_files_path", "app_coding_commits_path", "app_coding_file_path", "app_coding_diff_path")
     end
   end
 
@@ -4315,9 +4311,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     )
     expect(chat.messages.order(:created_at, :id).last.content["text"]).to include("A1: release")
     expect(parse_body["agent_questions"]).to eq([])
-    expect(parse_body["messages"]).to include(include(
-      "role" => "user"
-    ))
+    expect(parse_body).not_to have_key("messages")
     expect(ChatTurnJob).to have_been_enqueued.with(chat.id, chat.messages.last.id)
   end
 
@@ -4704,7 +4698,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     get "/api/v1/app/chats/#{other_chat.id}"
 
-    expect(response).to have_http_status(:bad_request)
+    expect(response).to have_http_status(:not_found)
     expect(response.body).not_to include("Private chat")
     expect(response.body).not_to include("Private message")
     expect(response.body).not_to include("private-box")
@@ -4807,7 +4801,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     body = parse_body
     expect(body["messages"].size).to eq(4)
     expect(body.dig("chat", "participants").size).to eq(4)
-    expect(body["pending_actions"]).to contain_exactly(include("action" => "pause_landing_queue"))
+    # Anchored pending actions render inside their tool-call message, not as standalone cards.
+    expect(body["pending_actions"]).to eq([])
     expect(body["scratchpad_items"]).to contain_exactly(include("content" => "Follow-up note"))
     expect(body["queued_messages"]).to contain_exactly(include("text" => "Queued follow-up"))
     expect(body["agent_questions"]).to contain_exactly(include("questions" => [ include("question" => "Ship it?") ]))
@@ -5029,7 +5024,6 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(body["messages"].first).to include(
       "type" => "message",
       "role" => "user",
-      "content" => { "text" => "msg-0" },
       "text" => "msg-0"
     )
     expect(body["messages"].first).not_to have_key("html")
@@ -5067,8 +5061,12 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     get "/api/v1/app/chats/#{chat.id}/messages", params: { limit: 0 }
     expect(parse_body["messages"].size).to eq(1)
 
+    # Without a cap the row-sized window reaches every one of these 35 rows.
     get "/api/v1/app/chats/#{chat.id}/messages", params: { limit: 1000 }
-    expect(parse_body["messages"].size).to eq(ChatSession::MESSAGE_PAGE_SIZE)
+    expect(parse_body["messages"].size).to eq(35)
+
+    get "/api/v1/app/chats/#{chat.id}/messages", params: { limit: ChatMessageWindow::MAX_MESSAGES + 100 }
+    expect(parse_body["messages"].size).to eq(35)
   end
 
   it "serves full message and shell content lazily" do
@@ -5291,7 +5289,6 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     expect(proposal.reload.route_to_backlog).to be(true)
     expect(parse_body.dig("proposal", "route_to_backlog")).to be(true)
-    expect(parse_body.dig("proposal", "route_label")).to eq("Backlog")
   end
 
   it "rejects backlog routing updates on Epic child proposals" do
@@ -5529,7 +5526,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     it "does not materialize legacy inline images while serving media" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
-      chat.messages.create!(
+      # A legacy row that predates the stored-attachment validation.
+      chat.messages.build(
         role: "user",
         content: {
           "text" => "Screenshot attached.",
@@ -5541,7 +5539,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
             }
           ]
         }
-      )
+      ).save!(validate: false)
 
       expect {
         get "/api/v1/app/chats/#{chat.id}/media"
@@ -5723,11 +5721,12 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(proposal_message.dig("proposal", "title")).to eq("Map auth flow")
     expect(proposal_message.dig("proposal")).not_to have_key("confirm_path")
     expect(proposal_message.dig("proposal")).not_to have_key("reject_path")
-    expect(proposal_message.dig("proposal", "app_confirm_path")).to eq("/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}/confirm")
+    # Core action paths are rebuilt by the app client from the proposal id.
+    expect(proposal_message.dig("proposal")).not_to have_key("app_confirm_path")
     system_message = parse_body["messages"].second
     expect(system_message).to include(
       "role" => "system",
-      "content" => { "text" => "[result] subtype=success, is_error=false, turns=4, duration_ms=170223, total_cost_usd=0.37236969999999997" }
+      "text" => "[result] subtype=success, is_error=false, turns=4, duration_ms=170223, total_cost_usd=0.37236969999999997"
     )
     expect(system_message).not_to have_key("system")
   end
@@ -5751,8 +5750,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     get "/api/v1/app/chats/#{chat.id}"
 
     proposal_payload = parse_body["messages"].first.fetch("proposal")
-    expect(proposal_payload["materialized_label"]).to eq(epic.slug)
-    expect(proposal_payload["materialized_path"]).to eq("/epics/#{epic.id}")
+    expect(proposal_payload["materialized"]).to include("kind" => "epic", "epic_id" => epic.id)
     # Epic state + state-change path so the chat can offer a "Start" action.
     expect(proposal_payload["materialized_epic_state"]).to eq(epic.state)
     expect(proposal_payload["materialized_epic_state_path"]).to eq("/api/v1/app/epics/#{epic.id}/state")
@@ -6236,16 +6234,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
     chat.messages.create!(
       role: "user",
-      content: {
-        "text" => "Clear this screenshot.",
-        "attachments" => [
-          {
-            "name" => "cleared.png",
-            "mime_type" => "image/png",
-            "data" => Base64.strict_encode64("png-bytes")
-          }
-        ]
-      }
+      content: { "text" => "Clear this screenshot.", "attachments" => [ stored_png_attachment(chat, "cleared.png") ] }
     )
     ChatMediaLibrary.materialize_inline_images!(chat)
     document = chat.reload.attached_repository_documents.sole
@@ -6274,7 +6263,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     messages = parse_body["messages"]
-    expect(messages.map { |m| m.dig("content", "text") }).to eq([ "After clearing" ])
+    expect(messages.map { |m| m["text"] }).to eq([ "After clearing" ])
   end
 
   it "confirms and rejects proposals through the app API" do
@@ -6298,7 +6287,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(parse_body).not_to include("chat", "recent_chats", "attachment_groups")
     expect(parse_body["pending_proposal_count"]).to eq(1)
     expect(confirmed.reload).to be_confirmed
-    expect(parse_body.dig("proposal", "materialized_label")).to eq("#{confirmed.job.slug}")
+    expect(parse_body.dig("proposal", "materialized")).to include("kind" => "job", "job_id" => confirmed.job.id)
     expect(parse_body.dig("messages", 0, "text")).to eq(%(Proposal confirmed. #{confirmed.job.slug} "Map auth" was created.))
     confirmation_message = chat.messages.where(role: "system").order(:created_at, :id).last
     expect(confirmation_message).to have_attributes(role: "system", proposal_id: nil)
@@ -7345,21 +7334,12 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     action.update_columns(outcome_message_id: nil)
     get "/api/v1/app/chats/#{chat.id}"
 
+    # A confirmed action is a slim terminal row; the created document is
+    # carried by its outcome message rather than the pending-action card.
     expect(parse_body["pending_actions"]).to contain_exactly(
-      include(
-        "id" => action.id,
-        "resource_title" => "Runbook",
-        "resource_url" => "/api/v1/app/repository_documents/#{document.id}/file",
-        "document" => include(
-          "id" => document.id,
-          "repository_id" => repository.id,
-          "repository_slug" => repository.slug,
-          "content_type" => "text/markdown",
-          "size_bytes" => 13,
-          "url" => "/api/v1/app/repository_documents/#{document.id}/file"
-        )
-      )
+      include("id" => action.id, "state" => "confirmed")
     )
+    expect(document).to be_present
   end
 
   it "includes title, submitted description, and repository resource for unanchored submit_coding_changes pending actions" do
@@ -7738,13 +7718,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     get "/api/v1/app/chats/#{chat.id}"
 
-    expect(parse_body["pending_actions"]).to contain_exactly(
-      include(
-        "id" => action.id,
-        "label" => "Check mergeability for #{job.slug}",
-        "chat_message_id" => tool_use.id
-      )
-    )
+    # Once repaired, the action is anchored to its tool-call message and renders there.
+    expect(parse_body["pending_actions"]).to eq([])
     expect(action.reload).to have_attributes(tool_call_message: tool_use, tool_use_id: "toolu_mergeability")
   end
 
@@ -7917,8 +7892,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       title_auto_fallback: false
     )
     expect(ChatTitleJob).not_to have_been_enqueued
-    expect(parse_body.dig("chat", "title")).to eq("Generated title")
-    expect(parse_body.dig("chat", "title_pending")).to eq(false)
+    expect(parse_body.fetch("chat")).to include("id" => chat.id)
+    expect(parse_body.fetch("chat")).not_to have_key("title")
   end
 
   it "pins the selected provider when sending the first message to an empty chat" do
@@ -7934,8 +7909,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     expect(chat.reload.chat_provider).to eq("codex")
     expect(chat.effective_chat_provider).to eq("codex")
-    expect(parse_body.dig("chat", "chat_provider")).to eq("codex")
-    expect(parse_body.dig("chat", "effective_chat_provider")).to eq("codex")
+    expect(parse_body.fetch("chat")).to include("id" => chat.id)
+    expect(parse_body.fetch("chat")).not_to have_key("chat_provider")
   end
 
   it "ignores chat_provider on the message endpoint after a chat has started" do
@@ -7948,7 +7923,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(chat.reload.chat_provider).to eq("claude")
-    expect(parse_body.dig("chat", "chat_provider")).to eq("claude")
+    expect(parse_body.fetch("chat")).to include("id" => chat.id)
   end
 
   it "enqueues title generation from a goal command sent to an unnamed chat" do
@@ -8031,7 +8006,9 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(response.media_type).to eq("text/event-stream")
-    expect(response.body).to include("event: text_chunk")
+    # Assistant replies stream as compact `message` events the CLI renders by role.
+    expect(response.body).to include("event: message")
+    expect(response.body).not_to include("event: text_chunk")
     expect(response.body).to include("Built **aqueducts**.")
     expect(response.body).to include("event: turn_complete")
     expect(chat.reload.messages.where(role: "user").last.content).to eq("text" => "Now inspect proposals")
@@ -8139,7 +8116,8 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       patch "/api/v1/app/chats/#{chat.id}", params: { chat: { repository_id: replacement.id } }
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body.dig("chat", "repository")).to include("id" => replacement.id, "slug" => "acme/replacement")
+      # The client refetches the chat after a repository change; the patch carries no repository.
+      expect(parse_body.fetch("chat")).to include("id" => chat.id)
       expect(chat.reload.attached_repositories).to contain_exactly(replacement)
     end
 
