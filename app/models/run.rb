@@ -475,7 +475,6 @@ class Run < ApplicationRecord
       )
       locked.save!
       workflow.artifacts = locked.artifacts
-      workflow.clear_attribute_changes([ :artifacts ])
     end
   end
 

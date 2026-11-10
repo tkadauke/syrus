@@ -359,14 +359,14 @@ class BackfillActiveWorkUnits < ActiveRecord::Migration[8.1]
   end
 
   def artifacts_hash(workflow)
-    case workflow.artifacts
-    when Hash
-      workflow.artifacts
-    when String
-      JSON.parse(workflow.artifacts.presence || "{}")
-    else
-      {}
-    end
+    # `workflows.artifacts` has since been dropped; the side table is the
+    # only source on a current schema.
+    inline = workflow.has_attribute?(:artifacts) ? workflow.artifacts : nil
+    inline = JSON.parse(inline.presence || "{}") if inline.is_a?(String)
+    inline = {} unless inline.is_a?(Hash)
+    external = select_rows("SELECT #{quote_column_name('key')}, value FROM workflow_artifact_values WHERE workflow_id = #{workflow.id.to_i}")
+      .to_h { |key, value| [ key, value.is_a?(String) ? JSON.parse(value) : value ] }
+    inline.merge(external)
   rescue JSON::ParserError
     {}
   end

@@ -747,7 +747,7 @@ module Throughput
 
     WORKFLOW_COLUMNS = %w[
       workflows.id workflows.job_id workflows.trigger_kind workflows.state
-      workflows.started_at workflows.finished_at workflows.artifacts
+      workflows.started_at workflows.finished_at
     ].freeze
     WORKFLOW_JOB_COLUMNS = %w[
       jobs.id jobs.state jobs.approved_at jobs.finished_at jobs.pr_number

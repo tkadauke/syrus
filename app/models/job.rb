@@ -1127,11 +1127,8 @@ class Job < ApplicationRecord
     return "repository_configuration" unless repository.effective_prepare_enabled
     return "issue_label" if prepare_skip_reason_override == "issue_label"
     return "issue_label" if skip_prepare?
-    return "issue_label" if Workflow.where(job_id: id).where(
-      "artifacts LIKE ? OR artifacts LIKE ?",
-      '%"prepare_skipped_reason":"issue_label"%',
-      '%"prepare_skipped_reason": "issue_label"%'
-    ).exists?
+    return "issue_label" if WorkflowArtifactValue.where(workflow_id: Workflow.where(job_id: id).select(:id), key: "prepare_skipped_reason")
+      .any? { |entry| entry.value == "issue_label" }
 
     nil
   end
@@ -1526,7 +1523,7 @@ class Job < ApplicationRecord
   def consecutive_failed_workflows_count
     workflows_since_latest_reopen.reorder(created_at: :desc, id: :desc)
              .limit(MAX_CONSECUTIVE_FAILED_WORKFLOWS)
-             .select(:id, :state, :failure_reason, :artifacts, :trigger_kind)
+             .select(:id, :state, :failure_reason, :trigger_kind)
              .take_while { |workflow| workflow.failed? && !landing_start_blocker_workflow?(workflow) }
              .count
   end
