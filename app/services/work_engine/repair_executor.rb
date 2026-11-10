@@ -2028,6 +2028,7 @@ module WorkEngine
           Workflow
             .where(trigger_kind: "merge_train", state: %w[queued running])
             .select(:id)
+            .preload(:workflow_artifact_values)
             .filter_map { |workflow| workflow.id if workflow.artifact("merge_train_id").to_i == train.id }
         end
 
