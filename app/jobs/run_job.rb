@@ -822,16 +822,32 @@ class RunJob < ApplicationJob
     # be sensitive to a reload-driven association reset.
     @run&.restore_attributes
 
-    if @run&.may_fail?
-      @run.fail!
-      @run.save!
-    end
+    fail_run_tolerating_duplicate_diagnostic! if @run&.may_fail?
 
     record_landing_failure!(exception)
     if @workflow && !workflow_controlled_failure?
       with_lifecycle_lock_retry("record failure for Workflow ##{@workflow.id}") do
         @workflow.record_run_failure!
       end
+    end
+  end
+
+  # A duplicate run_diagnostics.run_id insert (an unsaved diagnostic left
+  # on the Run's has_one and autosaved by fail!/save!) must never mask the
+  # original failure or stop the Run/Step/Workflow cascade. The diagnostic
+  # row already exists, so drop the stale in-memory candidate and retry once.
+  def fail_run_tolerating_duplicate_diagnostic!
+    attempts = 0
+    begin
+      @run.fail!
+      @run.save!
+    rescue ActiveRecord::RecordNotUnique => e
+      raise unless e.message.include?("run_diagnostics") && (attempts += 1) == 1
+
+      log("duplicate RunDiagnostic while failing Run ##{@run.id}; retrying: #{e.message}")
+      @run.association(:run_diagnostic).reset
+      @run.restore_attributes
+      retry
     end
   end
 
