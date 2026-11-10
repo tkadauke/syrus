@@ -5,6 +5,27 @@ import { cleanup, configure } from "@testing-library/react"
 import { afterEach, vi } from "vitest"
 import { _clearRecentApiRequestsForTest } from "../api/client"
 
+// jsdom's Blob lacks stream(), which @shikijs/engine-oniguruma's inlined wasm
+// loader calls (Blob -> stream -> DecompressionStream). Provide it from the
+// Blob's bytes so the real highlighter engine initializes under test.
+if (typeof Blob.prototype.stream !== "function") {
+  Blob.prototype.stream = function stream(this: Blob): ReadableStream<Uint8Array<ArrayBuffer>> {
+    const blob = this
+    return new ReadableStream<Uint8Array<ArrayBuffer>>({
+      async start(controller) {
+        const buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result as ArrayBuffer)
+          reader.onerror = () => reject(reader.error)
+          reader.readAsArrayBuffer(blob)
+        })
+        controller.enqueue(new Uint8Array(buffer))
+        controller.close()
+      }
+    })
+  }
+}
+
 await i18nReady
 // Keep direct fixed-locale assertions deterministic. Production-shaped lazy
 // boundary specs explicitly remove the resource bundle they exercise.

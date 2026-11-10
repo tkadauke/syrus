@@ -39,8 +39,11 @@ module Permissions
       end.freeze
     end
 
-    def self.find!(capability:, operation: nil)
-      matches = descriptors.select { |descriptor| descriptor.capability == capability.to_s }
+    # `from:` lets a caller that resolves many capabilities (a rule list
+    # serialization) reuse one descriptors snapshot instead of rebuilding the
+    # whole catalog for every lookup.
+    def self.find!(capability:, operation: nil, from: nil)
+      matches = (from || descriptors).select { |descriptor| descriptor.capability == capability.to_s }
       matches.select! { |descriptor| descriptor.operation == operation.to_s } if operation.present?
       raise UnknownCapability, "unknown permission capability or operation" unless matches.one?
 
