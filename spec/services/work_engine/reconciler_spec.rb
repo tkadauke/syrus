@@ -75,6 +75,8 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(offenders).to be_empty
   end
 
+  include HeavySortStatements
+
   def kind(result, name)
     result.issues.find { |issue| issue.kind == name.to_s }
   end

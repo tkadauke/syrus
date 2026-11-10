@@ -389,7 +389,7 @@ class RunCompletionReconciler
     cleaned = record.details.to_h.except(*Step::CANCELLATION_DETAIL_KEYS)
     return if cleaned == record.details.to_h && record.cancellation_reason.nil?
 
-    record.update_columns(details: cleaned, cancellation_reason: nil)
+    record.update_details_columns!(cleaned, cancellation_reason: nil)
   end
 
   def force_state!(record, state, now)
