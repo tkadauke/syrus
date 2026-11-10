@@ -569,6 +569,27 @@ RSpec.describe Job, :ci_only do
     end
   end
 
+  describe ".latest_workflow_refs_for" do
+    it "returns the latest workflow id and state per job across batches, matching the snapshot scope" do
+      repository = Factories.job_record(issue_number: 1, issue_title: "Empty").repository
+      empty = described_class.find_by!(repository: repository, issue_number: 1)
+      job = Factories.job_record(repository: repository, issue_number: 2, issue_title: "Busy")
+      Workflow.create!(job: job, trigger_kind: "retry", state: "failed", created_at: 1.hour.ago, finished_at: 30.minutes.ago)
+      latest = Workflow.create!(job: job, trigger_kind: "initial", state: "succeeded", created_at: 2.hours.ago, finished_at: 1.minute.ago)
+
+      refs = described_class.latest_workflow_refs_for([ empty.id, job.id, job.id, nil ], batch_size: 1)
+
+      expect(refs.fetch(job.id)).to eq([ latest.id, "succeeded" ])
+      expect(refs.fetch(empty.id)).to eq([ nil, nil ])
+      snapshot = described_class.where(id: job.id).with_latest_workflow_snapshot.first
+      expect(refs.fetch(job.id)).to eq([ snapshot.latest_workflow_id, snapshot.latest_workflow_state ])
+    end
+
+    it "returns an empty hash for no ids" do
+      expect(described_class.latest_workflow_refs_for([])).to eq({})
+    end
+  end
+
   describe "#latest_workflow" do
     it "prefers the most recently finished workflow over the most recently created one" do
       job = Factories.job_record(issue_number: 1, issue_title: "Pave the forum")
