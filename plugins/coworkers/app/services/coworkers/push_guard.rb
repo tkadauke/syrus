@@ -16,4 +16,15 @@ class Coworkers::PushGuard
 
     branch
   end
+
+  # Recovery refs preserve both merge parents and a failed resolution attempt;
+  # they are never the persistent home branch.
+  def allow_recovery!(ref)
+    branch = ref.to_s.delete_prefix("refs/heads/")
+    unless branch.match?(%r{\Acoworker-recovery/#{@coworker_id}-[A-Za-z0-9-]+/(?:home|source|attempt)\z})
+      raise ForeignRef, "coworker recovery pushes may only target its own recovery refs"
+    end
+
+    branch
+  end
 end
