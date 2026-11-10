@@ -7,7 +7,10 @@ RSpec.describe Run, :ci_only do
 
   describe "agent diff storage" do
     it "uses MEDIUMTEXT-sized storage for captured diffs" do
-      expect(described_class.columns_hash.fetch("agent_diff").limit).to eq(16.megabytes - 1)
+      %w[agent_diff step_agent_diff].each do |column|
+        expect(RunDiff.columns_hash.fetch(column).limit).to eq(16.megabytes - 1)
+      end
+      expect(described_class.columns_hash).not_to include("agent_diff", "step_agent_diff")
     end
 
     it "persists diffs larger than MySQL TEXT" do

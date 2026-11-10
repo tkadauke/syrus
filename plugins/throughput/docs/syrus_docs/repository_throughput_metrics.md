@@ -136,7 +136,8 @@ succeeded output-producing Runs in the window. It is an observed
 committed-output sample, not a full Git commit count, because Syrus does not
 currently persist every commit in a typed table.
 
-`output.loc` parses `runs.step_agent_diff` first, then `runs.agent_diff`, and
+`output.loc` parses `run_diffs.step_agent_diff` first, then `run_diffs.agent_diff`
+(read through a correlated subquery on `run_diffs.run_id = runs.id`), and
 reports additions, deletions, net LOC, and sample size. Diffs without a
 captured patch increase `unavailable_sample_count`.
 
@@ -161,8 +162,8 @@ Output-producing Step kinds:
 Source fields:
 
 - `runs.head_sha`
-- `runs.step_agent_diff`
-- `runs.agent_diff`
+- `run_diffs.step_agent_diff`
+- `run_diffs.agent_diff`
 - `runs.finished_at`
 - `steps.kind`
 
