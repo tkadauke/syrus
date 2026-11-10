@@ -1109,10 +1109,9 @@ module App
 
     def artifact_workflows_scope
       @job.workflows
-        .select(:id, :job_id, :trigger_kind, :state, :artifacts, :created_at, :finished_at)
+        .select(:id, :job_id, :trigger_kind, :state, :created_at, :finished_at)
         .where(<<~SQL.squish)
-          workflows.artifacts IS NOT NULL AND workflows.artifacts NOT IN ('', '{}')
-          OR EXISTS (
+          EXISTS (
             SELECT 1 FROM workflow_artifact_values
             WHERE workflow_artifact_values.workflow_id = workflows.id
           )
