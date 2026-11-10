@@ -83,7 +83,7 @@ module WorkEngine
         job_id: job_id,
         workflow_id: workflow_id,
         run_id: run_id,
-        severity: "error",
+        severity: error.is_a?(ActiveRecord::StatementInvalid) ? "alarm" : "error",
         message: "Reconciler failed#{context_description}: #{error.class}: #{error.message}",
         details: { execute_repairs: execute_repairs, work_intent_id: work_intent_id, error_class: error.class.name, error_message: error.message }.compact
       )

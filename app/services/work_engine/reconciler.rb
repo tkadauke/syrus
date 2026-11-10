@@ -364,6 +364,8 @@ module WorkEngine
 
     private
 
+    LATEST_WORKFLOW_BATCH_SIZE = 500
+
     attr_reader :source, :job_id, :workflow_id, :run_id, :work_intent_id, :now, :jobs, :workflows, :work_intents, :work_units, :runs, :steps, :solid_queue,
       :skipped_repair_issue_kinds
 
@@ -375,11 +377,18 @@ module WorkEngine
       return nil unless job
 
       @latest_workflow_for_job ||= begin
-        job_ids = jobs.map(&:id).compact
-        latest_ids_by_job_id = Job.where(id: job_ids)
-          .with_latest_workflow_snapshot
-          .each_with_object({}) { |snapshot, result| result[snapshot.id] = snapshot.latest_workflow_id }
-        workflows_by_id = Workflow.where(id: latest_ids_by_job_id.values.compact).includes(:steps).index_by(&:id)
+        latest_ids_by_job_id = {}
+        jobs.map(&:id).compact.each_slice(LATEST_WORKFLOW_BATCH_SIZE) do |batch|
+          # Only the latest workflow id is needed here; the full snapshot
+          # selects four more correlated sorting subqueries per job.
+          Job.where(id: batch)
+            .select("jobs.id", "#{Job.latest_workflow_snapshot_sql('id')} AS latest_workflow_id")
+            .each { |snapshot| latest_ids_by_job_id[snapshot.id] = snapshot.latest_workflow_id }
+        end
+        workflows_by_id = {}
+        latest_ids_by_job_id.values.compact.each_slice(LATEST_WORKFLOW_BATCH_SIZE) do |batch|
+          Workflow.where(id: batch).includes(:steps).each { |workflow| workflows_by_id[workflow.id] = workflow }
+        end
         latest_ids_by_job_id.transform_values { |workflow_id| workflows_by_id[workflow_id] }
       end
 

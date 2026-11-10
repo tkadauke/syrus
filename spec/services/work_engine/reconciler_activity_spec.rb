@@ -132,4 +132,20 @@ RSpec.describe WorkEngine::ReconcilerActivity do
 
     expect(WorkEngineReconcilerActivityEvent.count).to eq(0)
   end
+
+  describe ".record_failure!" do
+    it "raises database failures to alarm severity so they surface as attention signals" do
+      event = described_class.record_failure!(source: "spec", execute_repairs: true,
+        error: ActiveRecord::StatementInvalid.new("Mysql2::Error: Out of sort memory"))
+
+      expect(event["severity"]).to eq("alarm")
+      expect(event["details"][:error_class]).to eq("ActiveRecord::StatementInvalid")
+    end
+
+    it "keeps ordinary failures at error severity" do
+      event = described_class.record_failure!(source: "spec", error: RuntimeError.new("boom"))
+
+      expect(event["severity"]).to eq("error")
+    end
+  end
 end

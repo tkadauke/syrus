@@ -8031,4 +8031,25 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       expect(entry[:error]).to be_present
     end
   end
+
+  describe "latest workflow lookup on large job sets" do
+    it "batches the lookup and avoids the full latest-workflow snapshot" do
+      stub_const("WorkEngine::Reconciler::LATEST_WORKFLOW_BATCH_SIZE", 2)
+      jobs = Array.new(5) { Factories.job(agent_provider: "claude") }
+      reconciler = described_class.new(source: "spec")
+      reconciler.instance_variable_set(:@jobs, jobs)
+
+      queries = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") { |*, payload| queries << payload[:sql] }
+      begin
+        jobs.each { |j| expect(reconciler.send(:latest_workflow_for_job, j)).to eq(j.latest_workflow) }
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscriber)
+      end
+
+      snapshot_queries = queries.grep(/latest_workflow_id/)
+      expect(snapshot_queries.size).to eq(3)
+      expect(snapshot_queries).to all(satisfy { |q| !q.include?("latest_run_id") && !q.include?("jobs.*") })
+    end
+  end
 end
