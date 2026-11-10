@@ -68,7 +68,7 @@ class Coworkers::ConflictResolver
       next false unless file.file? && !file.symlink?
 
       content = File.binread(file).force_encoding(Encoding::UTF_8).scrub
-      !content.include?("\0") && content.match?(MARKER_START) && content.match?(MARKER_END)
+      !content.include?("\0") && (content.match?(MARKER_START) || content.match?(MARKER_END))
     end
   end
 
@@ -108,7 +108,7 @@ class Coworkers::ConflictResolver
 
   # Stages the tree, then rejects anything that is not a fully resolved,
   # well-formed result. Returns a failure description, or nil when valid.
-  def validate(dir, files)
+  def validate(dir, _files)
     git("add", "--all", chdir: dir)
     unmerged = git("diff", "--name-only", "--diff-filter=U", chdir: dir).lines.map(&:strip).reject(&:blank?)
     return "Unmerged index entries remain in #{unmerged.join(', ')}." if unmerged.any?
@@ -117,7 +117,7 @@ class Coworkers::ConflictResolver
     markers = self.class.files_with_markers(dir, changed)
     return "Conflict markers remain in #{markers.join(', ')}." if markers.any?
 
-    check = git_capture("diff", "--cached", "--check", "HEAD", "--", *files, chdir: dir)
+    check = git_capture("diff", "--cached", "--check", "HEAD", chdir: dir)
     return "git diff --check failed: #{check.stdout}#{check.stderr}".strip.last(500) unless check.success?
 
     invalid = invalid_structured_files(dir, changed)
