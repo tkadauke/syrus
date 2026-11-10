@@ -246,7 +246,7 @@ class BranchDivergenceRecovery
   end
 
   def log!(message)
-    latest_run = workflow.runs.order(:created_at).last
+    latest_run = workflow.latest_run
     JobLog.append!(run: latest_run, chunk: message, kind: "system") if latest_run
   end
 

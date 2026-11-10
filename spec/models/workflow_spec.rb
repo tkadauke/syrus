@@ -1828,4 +1828,63 @@ RSpec.describe Workflow, :ci_only do
       expect { workflow.update!(state: "failed", finished_at: Time.current) }.not_to raise_error
     end
   end
+  describe "#latest_run" do
+    let(:user) { Factories.user }
+    let(:repository) { Factories.repository(user: user) }
+    let(:job) { Factories.job(user: user, repository: repository) }
+    let(:workflow) { Workflow.create!(job: job, user: user, trigger_kind: "initial", state: "running") }
+
+    def run_on(step, created_at:, state: "succeeded")
+      Run.create!(job: job, user: user, step: step, trigger_kind: "initial", state: state,
+        created_at: created_at, agent_diff: "diff --git a/a.rb b/a.rb\n" + ("+x\n" * 64))
+    end
+
+    it "returns the newest Run across every Step of the Workflow" do
+      first_step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")
+      second_step = Step.create!(workflow: workflow, kind: "grader", position: 2, state: "succeeded")
+      run_on(first_step, created_at: 10.minutes.ago)
+      newest = run_on(second_step, created_at: 1.minute.ago)
+      run_on(first_step, created_at: 5.minutes.ago)
+
+      expect(workflow.latest_run).to eq(newest)
+    end
+
+    it "breaks a created_at tie by id, matching the previous ordering" do
+      step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")
+      at = 3.minutes.ago
+      run_on(step, created_at: at)
+      newest = run_on(step, created_at: at)
+
+      expect(workflow.latest_run).to eq(newest)
+    end
+
+    it "returns nil when the Workflow has no Runs" do
+      Step.create!(workflow: workflow, kind: "implement", position: 1, state: "queued")
+
+      expect(workflow.latest_run).to be_nil
+    end
+
+    it "returns nil when the Workflow has no Steps" do
+      expect(workflow.latest_run).to be_nil
+    end
+
+    it "does not sort whole Run rows to find the newest" do
+      step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")
+      3.times { |index| run_on(step, created_at: (index + 1).minutes.ago) }
+
+      offenders = wide_row_sort_statements { workflow.latest_run }
+
+      expect(offenders).to be_empty
+    end
+
+    it "agrees with the whole-row ordering it replaced" do
+      first_step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")
+      second_step = Step.create!(workflow: workflow, kind: "grader", position: 2, state: "succeeded")
+      run_on(first_step, created_at: 8.minutes.ago)
+      run_on(second_step, created_at: 2.minutes.ago)
+      run_on(second_step, created_at: 4.minutes.ago)
+
+      expect(workflow.latest_run).to eq(workflow.runs.order(:created_at).last)
+    end
+  end
 end

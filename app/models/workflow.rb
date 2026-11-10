@@ -547,6 +547,17 @@ class Workflow < ApplicationRecord
     Run.where(step_id: steps.select(:id)).order(:created_at)
   end
 
+  # Narrow latest-Run lookup. `runs` selects whole rows, and a Run carries two
+  # MEDIUMTEXT diff columns; ordering those rows across this Workflow's step
+  # ids cannot be served by (step_id, created_at, id), so MySQL filesorts rows
+  # wide enough to exhaust the sort buffer and raise `Out of sort memory`.
+  # Picking the id with a narrow sort and then loading the single row is the
+  # same answer without the wide sort. Prefer this over `runs.order(...).last`.
+  def latest_run
+    id = Run.where(step_id: steps.select(:id)).reorder(created_at: :desc, id: :desc).pick(:id)
+    id && Run.find_by(id: id)
+  end
+
   def total_cost_usd
     runs.sum(:cost_usd)
   end

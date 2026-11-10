@@ -12,7 +12,7 @@ module PendingActions
       raise ArgumentError, result.error unless result.success?
 
       progress!("Recording repair audit...")
-      audit!("adopted current PR head for #{workflow.slug}", run: job.current_run || workflow.runs.order(:created_at).last)
+      audit!("adopted current PR head for #{workflow.slug}", run: job.current_run || workflow.latest_run)
       workflow
     end
 

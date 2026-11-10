@@ -16,7 +16,7 @@ module PendingActions
       progress!("Queueing branch recovery job...")
       BranchDivergenceRecoveryJob.perform_later(workflow.id, user.id)
       progress!("Recording repair audit...")
-      audit!("queued PR branch replacement from #{workflow.slug}", run: job.current_run || workflow.runs.order(:created_at).last)
+      audit!("queued PR branch replacement from #{workflow.slug}", run: job.current_run || workflow.latest_run)
       workflow
     end
 

@@ -18,7 +18,7 @@ module PendingActions
       workflow.set_artifact!("ci_repair_noop", marker)
       job.update!(landing_failure_reason: landing_failure_reason(job, workflow))
       progress!("Recording repair audit...")
-      audit!("marked #{workflow.slug} as CI repair no-op", run: workflow.runs.order(created_at: :desc, id: :desc).first || workflow.job.current_run)
+      audit!("marked #{workflow.slug} as CI repair no-op", run: workflow.latest_run || workflow.job.current_run)
       nil
     end
 

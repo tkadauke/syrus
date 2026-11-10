@@ -604,7 +604,7 @@ class RetryFailedStepEnqueuer
       return failure("#{train_rebuild_label(train)} is not ready for a merge-train rebuild: #{reason}.")
     end
 
-    run = rebuilt_workflow.runs.order(:created_at).last
+    run = rebuilt_workflow.latest_run
     return failure("Merge-train rebuild did not enqueue a run.") unless run
 
     Result.new(run: run, workflow: rebuilt_workflow, step: run.step, error: nil)

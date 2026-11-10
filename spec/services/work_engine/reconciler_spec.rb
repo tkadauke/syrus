@@ -310,8 +310,12 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
 
   it "returns a structured result and snapshot without mutating state" do
     run.update_columns(state: "queued", created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
-    # Solid Queue tables are not part of the test database contract. Stub the
-    # boundary because another example may have created its temporary tables.
+    # Solid Queue tables are not part of the test database contract, and this
+    # example asserts the reconciler tolerates them being unreadable. Create
+    # them first: installing the stub resolves `SolidQueue::Job.where`, which
+    # needs the table to exist, so without this the example passes only when
+    # an earlier spec file happened to create them.
+    ensure_solid_queue_test_tables!
     allow(SolidQueue::Job).to receive(:where).and_raise(ActiveRecord::StatementInvalid, "missing table")
 
     result = reconcile(run_id: run.id)
