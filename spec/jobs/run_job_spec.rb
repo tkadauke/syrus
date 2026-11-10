@@ -607,6 +607,28 @@ RSpec.describe RunJob, :ci_only do
     end
   end
 
+  describe "duplicate RunDiagnostic while failing a Run" do
+    it "does not mask the failure and still reaches terminal states with a single diagnostic row" do
+      RunJob.agent_runner = ->(**_) { raise StandardError, "original failure" }
+      # Emulate a writer that persists a diagnostic but leaves an unsaved
+      # duplicate on the Run's has_one, which fail!/save! would autosave.
+      allow(CaptureRunDiagnostic).to receive(:capture) do |run, _exception, **|
+        RunDiagnostic.create!(run_id: run.id, error_class: "StandardError", error_message: "original failure")
+        run.association(:run_diagnostic).target = RunDiagnostic.new(run: run, error_class: "Duplicate", error_message: "dup")
+      end
+
+      job
+      expect { drain_workflow!(job) }.not_to raise_error
+
+      run = job.workflows.last.steps.find_by(kind: "implement").runs.first
+      expect(run.reload.state).to eq("failed")
+      expect(run.step.reload.state).to eq("failed")
+      expect(run.step.workflow.reload.state).to eq("failed")
+      expect(RunDiagnostic.where(run_id: run.id).count).to eq(1)
+      expect(run.run_diagnostic.error_message).to eq("original failure")
+    end
+  end
+
   describe "AutoMerge workflow" do
     it "reconciles a successful auto_merge when a poller cancels the active run before RunJob records success" do
       repository.update!(auto_merge_enabled: true)
