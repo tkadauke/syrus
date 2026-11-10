@@ -1201,4 +1201,20 @@ RSpec.describe RetryFailedStepEnqueuer do
     expect(result).to be_success
     expect(job.reload.landing_failure_reason).to eq("old landing failure")
   end
+
+  it "keeps grader output in the side table when reviving a cancelled step" do
+    job = Factories.job_record(state: "failed")
+    workflow = Workflow.create!(job: job, trigger_kind: "initial")
+    step = Step.create!(
+      workflow: workflow, kind: "grader_collect", position: 3, state: "cancelled",
+      details: { "output" => "grader log", "cancelled_reason" => "x", "name" => "n" }
+    )
+
+    described_class.new(workflow: workflow).send(:revive_cancelled_step!, step)
+
+    reloaded = Step.find(step.id)
+    expect(reloaded).to be_queued
+    expect(reloaded.inline_details).to eq("name" => "n")
+    expect(reloaded.details).to eq("name" => "n", "output" => "grader log")
+  end
 end
