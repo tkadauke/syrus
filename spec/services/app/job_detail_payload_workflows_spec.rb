@@ -3,6 +3,8 @@ require "tmpdir"
 require "fileutils"
 
 RSpec.describe App::JobDetailPayload, :ci_only do
+  include HeavySortStatements
+
   let(:user) { Factories.user }
   let(:repo) { Factories.repository(user: user) }
 
@@ -1310,6 +1312,37 @@ RSpec.describe App::JobDetailPayload, :ci_only do
 
       run_selects = queries.select { |sql| sql.match?(/FROM [`"]?runs[`"]?/i) }
       expect(run_selects.grep(/SELECT\s+[`"]?runs[`"]?\.\*/i)).to be_empty
+    end
+
+    it "reports zero diff bytes for a Run with no run_diffs row" do
+      job = Factories.job_record(repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "succeeded")
+      step = Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")
+      Run.create!(job: job, step: step, trigger_kind: "initial", agent_provider: "claude", state: "succeeded")
+
+      run_payload = workflows_payload_for(job).dig(:workflows, 0, :steps, 0, :runs, 0)
+
+      expect(run_payload).to include(
+        agent_diff_present: false,
+        agent_diff_bytes: 0,
+        step_agent_diff_present: false,
+        step_agent_diff_bytes: 0,
+        step_diff_matches_diff: false
+      )
+    end
+
+    it "serializes the workflows payload without sorting whole Run rows across an id list" do
+      job = Factories.job_record(repository: repo)
+      workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "succeeded")
+      2.times do |position|
+        step = Step.create!(workflow: workflow, kind: "implement", position: position, state: "succeeded")
+        Run.create!(job: job, step: step, trigger_kind: "initial", agent_provider: "claude",
+                    state: "succeeded", agent_diff: "diff", step_agent_diff: "diff")
+      end
+
+      offenders = heavy_sort_statements(tables: %w[runs]) { workflows_payload_for(job) }
+
+      expect(offenders).to be_empty
     end
 
     it "flags step_diff_matches_diff on a first implement run, where the step diff and full diff cover the same commits" do
