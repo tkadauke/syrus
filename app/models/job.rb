@@ -1524,6 +1524,7 @@ class Job < ApplicationRecord
     workflows_since_latest_reopen.reorder(created_at: :desc, id: :desc)
              .limit(MAX_CONSECUTIVE_FAILED_WORKFLOWS)
              .select(:id, :state, :failure_reason, :trigger_kind)
+             .preload(:workflow_artifact_values)
              .take_while { |workflow| workflow.failed? && !landing_start_blocker_workflow?(workflow) }
              .count
   end
