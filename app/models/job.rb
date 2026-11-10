@@ -423,6 +423,23 @@ class Job < ApplicationRecord
     kind == "issue"
   end
 
+  # Narrow {job_id => [latest_workflow_id, latest_workflow_state]} lookup.
+  # with_latest_workflow_snapshot selects jobs.* plus five correlated
+  # subqueries, which on a large id set can exhaust the MySQL sort buffer
+  # ("Out of sort memory"). Callers that only need the latest workflow
+  # identity should use this instead, which reads two columns in small batches.
+  def self.latest_workflow_refs_for(job_ids, batch_size: 200)
+    Array(job_ids).compact.uniq.each_slice(batch_size).each_with_object({}) do |slice, result|
+      where(id: slice)
+        .pluck(
+          Arel.sql("jobs.id"),
+          Arel.sql(latest_workflow_snapshot_sql("id")),
+          Arel.sql(latest_workflow_snapshot_sql("state"))
+        )
+        .each { |id, workflow_id, state| result[id] = [ workflow_id, state ] }
+    end
+  end
+
   def self.latest_workflow_snapshot_sql(column)
     raise ArgumentError, "unknown workflow snapshot column" unless %w[id state trigger_kind created_at].include?(column.to_s)
 
