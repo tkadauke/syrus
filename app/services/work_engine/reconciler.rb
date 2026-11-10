@@ -590,10 +590,9 @@ module WorkEngine
       ids = Array(job_ids).compact
       return Workflow.none if ids.empty?
 
-      latest_ids = Job
-        .where(id: ids)
-        .with_latest_workflow_snapshot
-        .filter_map { |job| job.latest_workflow_id if job.latest_workflow_state == "failed" }
+      latest_ids = Job.latest_workflow_refs_for(ids).filter_map do |_job_id, (workflow_id, state)|
+        workflow_id if state == "failed"
+      end
       Workflow.where(id: latest_ids)
     end
 
