@@ -109,7 +109,9 @@ test ! -d "$STAGING/vendor/bundle"
 test ! -d "$STAGING/node_modules"
 test ! -d "$STAGING/dist"
 
-tar -C "$TMP_DIR" -czf "$OUT_DIR/$NAME.tar.gz" "$NAME"
+# Piped through gzip (instead of tar -z) so the level is tunable; specs set
+# SYRUS_RELEASE_GZIP_LEVEL=1 because the artifact is ~90MB uncompressed.
+tar -C "$TMP_DIR" -cf - "$NAME" | gzip "-${SYRUS_RELEASE_GZIP_LEVEL:-6}" > "$OUT_DIR/$NAME.tar.gz"
 syrus_release_checksums "$OUT_DIR" SHA256SUMS-macos-worker.txt
 
 if [ -n "${SYRUS_MACOS_UPDATE_SIGNING_KEY_FILE:-}" ]; then

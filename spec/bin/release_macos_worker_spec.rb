@@ -38,7 +38,7 @@ RSpec.describe "native macOS worker release artifact" do
     artifact_path = File.join(output_dir, artifact_name)
 
     stdout, stderr, status = Open3.capture3(
-      { "SYRUS_BUILT_AT" => "2026-10-03T12:34:56Z" },
+      { "SYRUS_BUILT_AT" => "2026-10-03T12:34:56Z", "SYRUS_RELEASE_GZIP_LEVEL" => "1" },
       "bash",
       script,
       version,
@@ -110,7 +110,7 @@ RSpec.describe "native macOS worker release artifact" do
       system("openssl", "pkey", "-in", private_key, "-pubout", "-out", public_key, out: File::NULL, err: File::NULL)
 
       _stdout, stderr, status = Open3.capture3(
-        { "SYRUS_MACOS_UPDATE_SIGNING_KEY_FILE" => private_key },
+        { "SYRUS_MACOS_UPDATE_SIGNING_KEY_FILE" => private_key, "SYRUS_RELEASE_GZIP_LEVEL" => "1" },
         "bash", script, version, "--skip-clean-check", chdir: root
       )
 
