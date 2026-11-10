@@ -376,9 +376,7 @@ module WorkEngine
 
       @latest_workflow_for_job ||= begin
         job_ids = jobs.map(&:id).compact
-        latest_ids_by_job_id = Job.where(id: job_ids)
-          .with_latest_workflow_snapshot
-          .each_with_object({}) { |snapshot, result| result[snapshot.id] = snapshot.latest_workflow_id }
+        latest_ids_by_job_id = Job.latest_workflow_refs_for(job_ids).transform_values(&:first)
         # Deliberately no `includes(:steps)`. That preloaded every Step of
         # every Job's latest Workflow in one query, and `has_many :steps`
         # orders by position, which the (workflow_id, position) index cannot
@@ -590,10 +588,9 @@ module WorkEngine
       ids = Array(job_ids).compact
       return Workflow.none if ids.empty?
 
-      latest_ids = Job
-        .where(id: ids)
-        .with_latest_workflow_snapshot
-        .filter_map { |job| job.latest_workflow_id if job.latest_workflow_state == "failed" }
+      latest_ids = Job.latest_workflow_refs_for(ids).filter_map do |_job_id, (workflow_id, state)|
+        workflow_id if state == "failed"
+      end
       Workflow.where(id: latest_ids)
     end
 
