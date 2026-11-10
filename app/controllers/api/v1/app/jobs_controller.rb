@@ -639,7 +639,7 @@ module Api
         def preload_compact_latest_workflows(jobs)
           job_ids = jobs.map(&:id)
           latest_workflow_ids = job_ids.empty? ? [] : Workflow.where(job_id: job_ids).group(:job_id).maximum(:id).values.compact
-          workflows = latest_workflow_ids.empty? ? [] : Workflow.where(id: latest_workflow_ids).includes(:steps)
+          workflows = latest_workflow_ids.empty? ? [] : Workflows::StepPreloader.attach!(Workflow.where(id: latest_workflow_ids).to_a)
           @compact_latest_workflow_by_job_id = workflows.index_by(&:job_id)
         end
 

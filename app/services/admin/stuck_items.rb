@@ -102,7 +102,7 @@ module Admin
       run_ids = primary_affected_ids(issues, :run_ids)
       @record_maps = {
         Run => Run.where(id: run_ids).includes(:job, step: :workflow).index_by(&:id),
-        Workflow => Workflow.where(id: primary_affected_ids(issues, :workflow_ids)).includes(:job, :steps).index_by(&:id),
+        Workflow => preloaded_workflows(primary_affected_ids(issues, :workflow_ids)).index_by(&:id),
         Job => Job.where(id: primary_affected_ids(issues, :job_ids)).index_by(&:id)
       }
       @provider_session_run_ids = if run_ids.empty?
@@ -110,6 +110,12 @@ module Admin
       else
         ProviderSession.where(resumable_type: "Run", resumable_id: run_ids).pluck(:resumable_id).to_set
       end
+    end
+
+    # `includes(:steps)` here sorted every selected Step row across an id
+    # list, which MySQL cannot serve from the (workflow_id, position) index.
+    def preloaded_workflows(ids)
+      Workflows::StepPreloader.attach!(Workflow.where(id: ids).includes(:job).to_a)
     end
 
     def primary_affected_ids(issues, key)

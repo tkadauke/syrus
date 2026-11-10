@@ -231,6 +231,32 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(parse_body.dig("actions", "can_override_inherited_pr_checks")).to eq(false)
   end
 
+  it "lists jobs without sorting wide Step rows across an id list" do
+    user.update!(api_token: "syrus_cli_token", global_role: "user")
+    # Several Jobs each with a Workflow, so the compact-list preload batches
+    # their workflow ids into an IN list. One id emits `workflow_id = ?`,
+    # which the (workflow_id, position) index serves and which hides this.
+    [ 101, 102, 103 ].each do |issue_number|
+      listed = Factories.job(repository: repo, issue_number: issue_number)
+      workflow = Workflow.create!(job: listed, user: user, trigger_kind: "initial", state: "succeeded",
+        finished_at: Time.current)
+      Step.create!(workflow: workflow, kind: "grader", position: 1, state: "succeeded",
+        finished_at: Time.current, details: { "output" => "x" * 2_048 })
+      # The list drops Jobs with active runtime work, which would leave one
+      # workflow id and hide the regression behind `workflow_id = ?`.
+      finish_existing_work!(listed)
+    end
+
+    offenders = wide_row_sort_statements do
+      get "/api/v1/app/jobs", params: { repo: "acme/widgets", state: "all", limit: 10 },
+        headers: { "Authorization" => "Bearer syrus_cli_token" }
+    end
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["jobs"].size).to be >= 3
+    expect(offenders).to be_empty
+  end
+
   it "lists jobs for bearer-token CLI clients without admin access" do
     user.update!(api_token: "syrus_cli_token", global_role: "user")
     epic = Factories.epic(user: user, repository: repo, title: "Raise the aqueduct")

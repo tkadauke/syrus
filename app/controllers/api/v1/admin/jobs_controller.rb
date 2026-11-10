@@ -382,12 +382,16 @@ module Api
 
         def selected_workflows(job)
           limit = params[:workflows].to_s == "latest" ? 1 : (Integer(params[:workflows], exception: false) || 3).clamp(1, 100)
-          job.workflows
-            .includes(:workflow_artifact_values, :steps)
+          # No `includes(:steps)`: with `workflows=100` that preloads Steps
+          # across an id list, and the ordered `has_many` cannot be served by
+          # the (workflow_id, position) index across an `IN` list.
+          workflows = job.workflows
+            .includes(:workflow_artifact_values)
             .order(created_at: :desc, id: :desc)
             .limit(limit)
             .to_a
             .reverse
+          ::Workflows::StepPreloader.attach!(workflows)
         end
 
         def verbose?

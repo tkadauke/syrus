@@ -39,7 +39,11 @@ module Workflows
     end
 
     def successful_validation_workflow_after?
-      successful_workflows_after_source.any? { |workflow| validation_workflow?(workflow) }
+      # `reorder(nil)` drops the `has_many :workflows` ordering -- order is
+      # irrelevant to `any?`, and sorting whole Workflow rows (which carry a
+      # 16MB `artifacts` column) is the hazard this method used to hit.
+      candidates = Workflows::StepPreloader.attach!(successful_workflows_after_source.reorder(nil).to_a)
+      candidates.any? { |workflow| validation_workflow?(workflow) }
     end
 
     private
@@ -59,7 +63,6 @@ module Workflows
       source.job.workflows
         .where(state: "succeeded")
         .where("created_at > ? OR (created_at = ? AND id > ?)", cutoff, cutoff, source.id)
-        .includes(:steps)
     end
 
     def validation_workflow?(workflow)

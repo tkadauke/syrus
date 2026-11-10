@@ -410,22 +410,7 @@ module WorkEngine
     # its ordering into Ruby. The association is left loaded exactly as a
     # preload would leave it.
     def attach_steps!(workflows)
-      return workflows if workflows.empty?
-
-      steps_by_workflow_id = Step.where(workflow_id: workflows.map(&:id)).reorder(nil).to_a.group_by(&:workflow_id)
-      workflows.each do |workflow|
-        ordered = steps_by_workflow_id.fetch(workflow.id, []).sort_by { |step| [ step.position, step.id ] }
-        # Point each Step back at this exact Workflow instance, the way a
-        # preload's inverse would. Without it `step.workflow` re-queries and
-        # hands back a second instance holding database state, while the
-        # snapshot holds the state this pass is reasoning about -- and the two
-        # disagree the moment a repair has moved the Workflow on.
-        ordered.each { |step| step.association(:workflow).target = workflow }
-        association = workflow.association(:steps)
-        association.target = ordered
-        association.loaded!
-      end
-      workflows
+      Workflows::StepPreloader.attach!(workflows)
     end
 
     def steps_for_workflow(workflow)

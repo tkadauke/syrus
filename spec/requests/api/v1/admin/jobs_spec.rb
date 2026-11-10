@@ -69,6 +69,36 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", :ci_only, type: :request do
       expect(artifact_queries.size).to eq(1)
     end
 
+    it "nests workflow steps without sorting wide Step rows across an id list" do
+      # Several Workflows on this Job, so the Step preload batches their ids
+      # into an IN list. `?workflows=` allows up to 100, so this scales with
+      # the operator's request, not with anything bounded.
+      3.times do |index|
+        workflow = Workflow.create!(job: job, trigger_kind: "retry", artifacts: { "summary" => "Attempt #{index}" })
+        Step.create!(workflow: workflow, kind: "grader", position: 1, state: "failed",
+          details: { "output" => "x" * 2_048 })
+      end
+
+      offenders = wide_row_sort_statements do
+        get "/api/v1/admin/jobs/#{job.id}", params: { workflows: 10 }, headers: auth(admin_token)
+      end
+
+      expect(response).to have_http_status(:ok)
+      expect(offenders).to be_empty
+    end
+
+    it "still nests each workflow's steps in position order" do
+      workflow = Workflow.create!(job: job, trigger_kind: "retry")
+      Step.create!(workflow: workflow, kind: "summarize", position: 2, state: "queued")
+      Step.create!(workflow: workflow, kind: "implement", position: 1, state: "succeeded")
+
+      get "/api/v1/admin/jobs/#{job.id}", params: { workflows: 10 }, headers: auth(admin_token)
+
+      expect(response).to have_http_status(:ok)
+      nested = parse_body["workflows"].find { |entry| entry["id"] == workflow.id }
+      expect(nested["steps"].map { |step| step["kind"] }).to eq([ "implement", "summarize" ])
+    end
+
     it "caps nested workflows and keeps heavyweight fields opt-in" do
       4.times do |index|
         workflow = Workflow.create!(job: job, trigger_kind: "retry")
