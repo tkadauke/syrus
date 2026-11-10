@@ -68,7 +68,6 @@ class Workflow < ApplicationRecord
   # adding a new artifact type doesn't require a migration, and
   # the contract between producing-step and consuming-step lives
   # in the Steps::* handler code where it belongs.
-  serialize :artifacts, coder: JSON
 
   after_save :persist_assigned_external_artifacts
 
@@ -631,20 +630,17 @@ class Workflow < ApplicationRecord
     # Match the old JSON-column behavior: callers receive a value snapshot,
     # not the serialized association's mutable object. Mutating that object
     # in place can otherwise make a later locked writer appear unchanged.
-    return external.value.deep_dup if external
-
-    self[:artifacts].to_h[key]
+    external&.value&.deep_dup
   end
 
   # Preserve the historical bag-shaped API while keeping growth-bound values
-  # out of the frequently updated workflows row. Inline fallback makes rows
-  # written before the backfill safe to read during a rolling deploy.
+  # out of the frequently updated workflows row.
   def artifacts
-    inline = self[:artifacts] || {}
-    return inline unless persisted?
+    staged = defined?(@assigned_external_artifacts) ? @assigned_external_artifacts.to_h : {}
+    return staged unless persisted?
 
     external = workflow_artifact_values.to_h { |entry| [ entry.key, entry.value ] }
-    inline.merge(external).merge(defined?(@assigned_external_artifacts) ? @assigned_external_artifacts.to_h : {})
+    external.merge(staged)
   end
 
   def artifacts=(values)
@@ -655,7 +651,6 @@ class Workflow < ApplicationRecord
     observed_keys = persisted? ? artifacts.keys : []
     @assigned_external_artifact_deletions = observed_keys - normalized.keys
     @assigned_external_artifacts = normalized
-    super({})
   end
 
   # ActiveRecord#reload refreshes attributes and associations but knows
@@ -703,11 +698,7 @@ class Workflow < ApplicationRecord
     self.class.transaction do
       locked = self.class.lock.find(id)
       locked.workflow_artifact_values.where(key: keys).delete_all
-      locked[:artifacts] = locked[:artifacts].to_h.except(*keys)
-      locked.save! if locked.changed?
-      self[:artifacts] = locked[:artifacts]
       workflow_artifact_values.reset
-      clear_attribute_changes([ :artifacts ])
     end
   end
 

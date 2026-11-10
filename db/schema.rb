@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_08_233822) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_10_164236) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -4719,7 +4719,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_233822) do
 
   create_table "workflows", force: :cascade do |t|
     t.string "agent_provider", default: "claude", null: false
-    t.text "artifacts", limit: 16777215
     t.text "chain_template"
     t.datetime "cleaned_up_at"
     t.datetime "created_at", null: false
