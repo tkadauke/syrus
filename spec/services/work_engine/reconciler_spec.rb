@@ -48,27 +48,6 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
   # Ordering a single workflow's steps is fine: workflow_id equality plus the
   # (workflow_id, position) index is served without a sort. The multi-id IN
   # list is what cannot be.
-  def heavy_sort_statements
-    statements = []
-    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
-      statements << payload[:sql]
-    end
-    begin
-      yield
-    ensure
-      ActiveSupport::Notifications.unsubscribe(subscriber)
-    end
-
-    # Whole-row select from a wide table, plus a sort, plus a multi-id IN
-    # list. All three together are the hazard: a narrow correlated subquery
-    # that orders by an indexed column to pick one id is not.
-    statements.select do |sql|
-      sql.match?(/select[^;]*[`"]?(steps|workflows|runs)[`"]?\.\*/i) &&
-        sql.match?(/\border by\b/i) &&
-        sql.match?(/\bin\s*\(/i)
-    end
-  end
-
   it "reconciles without sorting wide rows across an id list" do
     # Several Jobs, so the latest-workflow lookup batches their ids into an IN
     # list. With one Job it emits `workflow_id = ?`, which the index serves and
@@ -95,6 +74,8 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
 
     expect(offenders).to be_empty
   end
+
+  include HeavySortStatements
 
   def kind(result, name)
     result.issues.find { |issue| issue.kind == name.to_s }

@@ -413,7 +413,7 @@ class RetryFailedStepEnqueuer
       if self.class.retry_until_barrier_step?(step)
         details[Step::RETRY_UNTIL_BARRIER_SUPERSEDED_DETAIL_KEY] = true
       end
-      step.update_columns(details: details, updated_at: Time.current)
+      step.update_details_columns!(details, updated_at: Time.current)
     end
   end
 
