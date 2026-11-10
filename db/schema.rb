@@ -3948,6 +3948,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_10_164236) do
     t.index ["user_id"], name: "index_state_transitions_on_user_id"
   end
 
+  create_table "step_detail_values", force: :cascade do |t|
+    t.integer "step_id", null: false
+    t.string "key", null: false
+    t.text "value", limit: 16777215, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["step_id", "key"], name: "index_step_detail_values_on_step_id_and_key", unique: true
+  end
+
   create_table "steps", force: :cascade do |t|
     t.string "cancellation_reason"
     t.datetime "created_at", null: false
