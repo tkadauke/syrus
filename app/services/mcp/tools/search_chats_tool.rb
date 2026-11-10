@@ -96,11 +96,12 @@ module Mcp::Tools
       # message so repeated failures group together.
       def report_backend_failure(error)
         message = database_error_message(error)
+        event_text = "search_chats full_text_backend: #{message}"
         BackendExceptionEvent.create!(
           source: "mcp_tool",
           role: OperationalLogging.process_role,
           exception_class: error.class.name,
-          message: "search_chats full_text_backend: #{message}",
+          message: event_text,
           backtrace: Rails.backtrace_cleaner.clean(error.backtrace || []).first(50).join("\n"),
           fingerprint: Digest::SHA256.hexdigest("search_chats:full_text_backend:#{error.cause&.class || error.class}:#{message}")[0, 64],
           metadata: { tool: "search_chats", category: "full_text_backend" }
