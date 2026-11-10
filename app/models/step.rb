@@ -17,6 +17,9 @@ class Step < ApplicationRecord
   # cascade path is Job → Workflow → Step → Run.
   has_many :runs, -> { order(:created_at) }, dependent: :destroy
   has_many :workflow_visual_evidences, dependent: :destroy
+  # Large detail values (grader output) live here, not in the `details` column,
+  # so selecting whole Step rows never sorts them. FK is ON DELETE CASCADE.
+  has_many :step_detail_values, dependent: :destroy, inverse_of: :step
   has_many :run_resource_summaries, dependent: :destroy
   has_many :created_source_snapshots,
     class_name: "WorkflowSourceSnapshot",
@@ -95,6 +98,57 @@ class Step < ApplicationRecord
   # (Native JSON column handles encode/decode — no explicit
   # serialize: needed.)
   after_initialize :default_details, if: :new_record?
+
+  after_save :persist_assigned_external_details
+
+  # `details` is the historical single bag, but the large values named in
+  # StepDetailValue::EXTERNALIZED_KEYS (grader `output`) live in
+  # step_detail_values so `SELECT steps.*` never drags them through a sort.
+  #
+  # Laziness: loading a Step never touches the side table. The side table is
+  # read only when `details` itself is called (one query, then memoized on the
+  # `step_detail_values` association). Callers that only need the structural
+  # keys can call `inline_details`, which never queries it. External values
+  # win over inline ones; the inline fallback keeps rows written before the
+  # backfill readable (and a rolling deploy safe).
+  def inline_details
+    self[:details] || {}
+  end
+
+  def details
+    inline = inline_details
+    return inline unless persisted? || defined?(@assigned_external_details)
+
+    external = if defined?(@assigned_external_details) && @assigned_external_details
+      @assigned_external_details
+    elsif persisted?
+      step_detail_values.to_h { |entry| [ entry.key, entry.value ] }
+    else
+      {}
+    end
+    external.empty? ? inline : inline.merge(external)
+  end
+
+  def details=(values)
+    normalized = values.to_h.deep_stringify_keys
+    external = normalized.slice(*StepDetailValue::EXTERNALIZED_KEYS).compact
+    @assigned_external_details = external
+    super(normalized.except(*StepDetailValue::EXTERNALIZED_KEYS))
+  end
+
+  # For the raw `update_columns` sites: write a whole details bag (plus any
+  # extra columns) without callbacks, routing externalized keys to the side
+  # table.
+  def update_details_columns!(values, **columns)
+    normalized = values.to_h.deep_stringify_keys
+    write_external_details!(normalized.slice(*StepDetailValue::EXTERNALIZED_KEYS).compact)
+    @assigned_external_details = nil
+    update_columns(details: normalized.except(*StepDetailValue::EXTERNALIZED_KEYS), **columns)
+  end
+
+  def reload(...)
+    super.tap { @assigned_external_details = nil }
+  end
 
   scope :active, -> { where(state: ACTIVE_STATES) }
   scope :terminal, -> { where(state: TERMINAL_STATES) }
@@ -331,7 +385,41 @@ class Step < ApplicationRecord
   end
 
   def default_details
-    self.details ||= {}
+    self.details = {} if self[:details].nil?
+  end
+
+  def persist_assigned_external_details
+    return unless defined?(@assigned_external_details) && @assigned_external_details
+    # A brand-new Step with nothing to externalize has nothing to delete either.
+    if @assigned_external_details.empty? && saved_change_to_id?
+      @assigned_external_details = nil
+      return
+    end
+
+    write_external_details!(@assigned_external_details)
+    @assigned_external_details = nil
+  end
+
+  def write_external_details!(assigned)
+    keys = StepDetailValue::EXTERNALIZED_KEYS
+    step_detail_values.where(key: keys - assigned.keys).delete_all
+    assigned.each do |key, value|
+      if value.nil?
+        step_detail_values.where(key: key).delete_all
+        next
+      end
+      existing = step_detail_values.find_by(key: key)
+      if existing
+        existing.update_column(:value, value)
+      else
+        begin
+          StepDetailValue.create!(step_id: id, key: key, value: value)
+        rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
+          step_detail_values.where(key: key).take!.update_column(:value, value)
+        end
+      end
+    end
+    step_detail_values.reset
   end
 
   def placement_policy_requires_distributed_gate

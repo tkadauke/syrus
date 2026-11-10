@@ -403,10 +403,12 @@ module App
           step_ids = visible_step_ids_by_workflow_id.values.flatten
           next {} if step_ids.empty?
 
+          # Ordered in Ruby: an ORDER BY across an id list cannot be served by
+          # an index, so MySQL would filesort whole step rows.
           steps = Step
             .where(id: step_ids)
-            .order(:workflow_id, :position, :id)
             .to_a
+            .sort_by { |step| [ step.workflow_id, step.position, step.id ] }
 
           grouped = steps.group_by(&:workflow_id)
           ids.to_h do |workflow_id|
