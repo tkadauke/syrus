@@ -407,6 +407,7 @@ module App
           # an index, so MySQL would filesort whole step rows.
           steps = Step
             .where(id: step_ids)
+            .preload(:step_detail_values)
             .to_a
             .sort_by { |step| [ step.workflow_id, step.position, step.id ] }
 
