@@ -43,6 +43,7 @@ fi
 syrus_release_validate_version "$VERSION"
 syrus_release_require_command git
 syrus_release_require_command tar
+syrus_release_require_command gzip
 syrus_release_require_command shasum
 
 cd "$ROOT"
