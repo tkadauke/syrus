@@ -2027,7 +2027,7 @@ module WorkEngine
         def active_workflow_ids(train)
           Workflow
             .where(trigger_kind: "merge_train", state: %w[queued running])
-            .select(:id, :artifacts)
+            .select(:id)
             .filter_map { |workflow| workflow.id if workflow.artifact("merge_train_id").to_i == train.id }
         end
 
