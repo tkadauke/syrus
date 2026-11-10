@@ -760,6 +760,7 @@ module Throughput
         .where(trigger_kind: LANDING_TRIGGER_KINDS + REBASE_TRIGGER_KINDS)
         .where(finished_at: range)
         .select(*WORKFLOW_COLUMNS)
+        .preload(:workflow_artifact_values)
         .to_a
 
       ActiveRecord::Associations::Preloader.new(
