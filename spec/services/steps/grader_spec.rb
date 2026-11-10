@@ -151,10 +151,8 @@ RSpec.describe Steps::Grader, :ci_only do
   # a ten-minute floor.
   it "gives the graded command a generous silent timeout rather than none" do
     captured = nil
-    fake_result = instance_double(
-      ProcessRunner::Result,
-      success?: true, exit_status: 0, timed_out?: false, timed_out: false,
-      stopped?: false, stopped: false,
+    fake_result = ProcessRunner::Result.new(
+      exit_status: 0, timed_out: false, stopped: false,
       silent_timed_out: false, operator_killed: false,
       aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
     )
@@ -175,10 +173,8 @@ RSpec.describe Steps::Grader, :ci_only do
   # how it was killed. The CI-repair gate keys off "is the branch red", so the
   # two have to be tellable apart.
   it "says a grader timed out rather than reporting it as a failure" do
-    fake_result = instance_double(
-      ProcessRunner::Result,
-      success?: false, exit_status: 124, timed_out?: true, timed_out: true,
-      stopped?: false, stopped: false,
+    fake_result = ProcessRunner::Result.new(
+      exit_status: 124, timed_out: true, stopped: false,
       silent_timed_out: false, operator_killed: false,
       aliveness_failed: false, duration_s: 60.0, spawned_process_id: nil
     )
@@ -190,10 +186,8 @@ RSpec.describe Steps::Grader, :ci_only do
   end
 
   it "still reports a genuine grader failure as a failure" do
-    fake_result = instance_double(
-      ProcessRunner::Result,
-      success?: false, exit_status: 1, timed_out?: false, timed_out: false,
-      stopped?: false, stopped: false,
+    fake_result = ProcessRunner::Result.new(
+      exit_status: 1, timed_out: false, stopped: false,
       silent_timed_out: false, operator_killed: false,
       aliveness_failed: false, duration_s: 3.0, spawned_process_id: nil
     )
