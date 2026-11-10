@@ -7,6 +7,19 @@ module WorkEngine
     PROBLEM_CODE = "application_error".freeze
     CIRCUIT = "repeated_failure_circuit".freeze
 
+    # Both of the tables walked below carry 16MB text columns -- a Workflow its
+    # artifacts, a Run two agent diffs -- and neither ordering has an index that
+    # serves it, so the database sorts the rows it selected. Selecting whole
+    # rows therefore asked it to fit a multi-megabyte sort row into a sort
+    # buffer sized in kilobytes, which it answered with "Out of sort memory"
+    # rather than a result. The failure landed on the caller: a single Job with
+    # a long enough failure history took down every reconcile pass, so no
+    # repair ran at all and the stuck-items watchlist that shares this path
+    # served a 500 instead of a list. The fingerprint reads none of those
+    # columns, so select only what identifies a failure and its recency.
+    FINGERPRINT_WORKFLOW_COLUMNS = %i[ id state finished_at updated_at ].freeze
+    FINGERPRINT_RUN_COLUMNS = %i[ id step_id state created_at updated_at finished_at ].freeze
+
     Result = Data.define(:open, :fingerprint, :streak_count, :app_revision, :error_class, :error_message, :top_stack_frames) do
       def open? = open
     end
@@ -82,16 +95,16 @@ module WorkEngine
 
     def recent_workflows
       job.workflows
-        .includes(steps: [ runs: [ :run_diagnostic, :run_failure_classification ] ])
         .terminal
         .where("workflows.finished_at IS NULL OR workflows.finished_at <= ?", run.workflow&.finished_at || run.finished_at || Time.current)
+        .select(*FINGERPRINT_WORKFLOW_COLUMNS)
         .reorder(finished_at: :desc, updated_at: :desc, id: :desc)
     end
 
     def latest_failed_run_for(workflow)
-      workflow.steps
-        .flat_map(&:runs)
-        .select(&:failed?)
+      Run.where(step_id: Step.where(workflow_id: workflow.id).select(:id))
+        .where(state: "failed")
+        .select(*FINGERPRINT_RUN_COLUMNS)
         .max_by { |candidate| [ candidate.finished_at || candidate.updated_at || candidate.created_at, candidate.id ] }
     end
 
