@@ -18,7 +18,7 @@ class CreateStepDetailValues < ActiveRecord::Migration[8.1]
     unless table_exists?(:step_detail_values)
       create_table :step_detail_values do |t|
         # Syrus does not add database-level FKs; Step has_many ... dependent: :destroy.
-        t.references :step, null: false, foreign_key: false, index: false
+        t.references :step, null: false, index: false
         t.string :key, null: false
         t.text :value, limit: 16.megabytes - 1, null: false
         t.timestamps
