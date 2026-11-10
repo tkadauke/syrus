@@ -7,10 +7,9 @@ RSpec.describe BackfillActiveWorkUnits, :ci_only do
   let(:repository) { Factories.repository(user: user) }
   let(:job) { Factories.job_record(user: user, repository: repository, state: "queued") }
 
-  # This historical migration ran before artifact externalization, so its
-  # fixtures must represent the inline rows it encountered at that point.
+  # `workflows.artifacts` is gone, so fixtures live in the side table.
   def write_inline_artifacts(workflow, artifacts)
-    workflow.update_column(:artifacts, artifacts)
+    artifacts.each { |key, value| workflow.set_artifact!(key, value) }
   end
 
   it "creates intent, unit, member, and lock rows for an active workflow" do

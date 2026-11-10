@@ -62,11 +62,8 @@ module Coworkers
         return chat.messages.find_by(id: locked.artifact(MESSAGE_ARTIFACT)) if locked.artifact(MESSAGE_ARTIFACT).present?
 
         message = chat.messages.create!(role: "assistant", content:, skip_turn_trigger: true)
-        locked[:artifacts] = locked[:artifacts].to_h.merge(
-          MESSAGE_ARTIFACT => message.id,
-          MERGE_ARTIFACT => merge.to_s
-        )
-        locked.save!
+        locked.set_artifact!(MESSAGE_ARTIFACT, message.id)
+        locked.set_artifact!(MERGE_ARTIFACT, merge.to_s)
         message
       end
     end
