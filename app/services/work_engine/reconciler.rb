@@ -2287,7 +2287,7 @@ module WorkEngine
       @pending_merge_train_relaunches ||= AutoRetryAttempt
         .pending
         .where(scheduled_at: PRESERVED_MERGE_TRAIN_RELAUNCH_GRACE.ago..PRESERVED_MERGE_TRAIN_RELAUNCH_GRACE.from_now)
-        .includes(:workflow)
+        .includes(workflow: :workflow_artifact_values)
         .to_a
         .select { |attempt| attempt.workflow&.trigger_kind == "merge_train" }
     end
@@ -2301,6 +2301,7 @@ module WorkEngine
       @active_merge_train_workflow_ids[train.id] ||= Workflow
         .where(trigger_kind: "merge_train", state: %w[queued running blocked])
         .select(:id)
+        .preload(:workflow_artifact_values)
         .filter_map { |workflow| workflow.id if workflow.artifact("merge_train_id").to_i == train.id }
     end
 

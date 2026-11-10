@@ -1371,6 +1371,19 @@ RSpec.describe Workflow, :ci_only do
       expect(reloaded.artifacts["workflow_admission_override"]).to eq("by" => "op")
     end
 
+    it "reads artifacts for a preloaded collection without a query per workflow" do
+      3.times { |i| described_class.create!(job: job, trigger_kind: "initial").set_artifact!("merge_train_id", i) }
+      rows = described_class.where(job_id: job.id).select(:id).preload(:workflow_artifact_values).to_a
+      sql = []
+      sub = ->(*, payload) { sql << payload[:sql] if payload[:sql] =~ /workflow_artifact_values/ }
+
+      ActiveSupport::Notifications.subscribed(sub, "sql.active_record") do
+        rows.each { |row| row.artifact("merge_train_id") }
+      end
+
+      expect(sql).to be_empty
+    end
+
     it "no longer has a 16MB-capable inline column on workflows" do
       big = described_class.columns.select { |c| c.type == :text && c.limit.to_i >= 16_777_215 }
       expect(big.map(&:name)).to be_empty
