@@ -822,7 +822,7 @@ RSpec.describe Throughput::MetricContract do
       step_for(workflow, kind: "grader", started_at: now - 8.minutes, finished_at: now - 6.minutes)
 
       queries = captured_sql { call }
-      workflow_select = queries.find { |sql| sql.include?("FROM \"workflows\"") && sql.include?("\"workflows\".\"finished_at\"") }
+      workflow_select = queries.find { |sql| sql.include?("FROM \"workflows\"") && sql.start_with?("SELECT \"workflows\".\"id\", \"workflows\".\"job_id\"") }
       step_aggregate = queries.find do |sql|
         sql.include?("MIN(CASE WHEN kind IN") && sql.include?('FROM "steps"')
       end
