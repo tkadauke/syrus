@@ -22,8 +22,9 @@ class Coworkers::ChatWorkspaceLifecycle
     end
   end
 
-  def initialize(chat_session, git: GitRunner.new, remote_url: nil, repository: nil)
+  def initialize(chat_session, git: GitRunner.new, remote_url: nil, repository: nil, resolver: nil)
     @chat = chat_session
+    @resolver = resolver
     @coworker = chat_session.coworker
     @repository = repository || workspace_repository
     @git = git
@@ -65,6 +66,9 @@ class Coworkers::ChatWorkspaceLifecycle
       return post_conflict!(files: conflicts, detail: conflict.detail, conflict:)
     end
 
+    marked = uncommitted_marker_files(path)
+    return hold_marker_files!(path, marked) if marked.any?
+
     commit_turn!(path)
     Coworkers::UnsavedWorkspace.new(@chat).attempt(branch: chat_branch, path:, operation: "chat_branch", schedule_background:) do
       push_chat_branch!(path)
@@ -84,12 +88,19 @@ class Coworkers::ChatWorkspaceLifecycle
     with_git_timeout(BACKGROUND_GIT_TIMEOUT) do
       source_branch = "coworkers/run/#{@coworker.id}-#{workflow.id}"
       @git.configure_author(identity, chdir: path.to_s)
+      marked = uncommitted_marker_files(path)
       if git_run("status", "--porcelain", chdir: path.to_s).present?
         git_run("add", "--all", chdir: path.to_s)
         git_run("commit", "-m", "Update @#{@coworker.handle} from background run", chdir: path.to_s)
       end
       push_guard.allow!(source_branch)
       git_run("push", @remote_url, "HEAD:refs/heads/#{source_branch}", chdir: path.to_s, env: @env)
+      if marked.any?
+        # Preserved on the immutable run ref only; marker text never reaches home.
+        ref = git_run("rev-parse", "HEAD", chdir: path.to_s).strip
+        return post_conflict!(files: marked, detail: "Conflict markers were left in the background run's files.",
+          source_branch:, ref:)
+      end
       merge_into_home!(source_branch, conflict_checkout: path)
     end
   end
@@ -158,7 +169,10 @@ class Coworkers::ChatWorkspaceLifecycle
       @git.configure_author(identity, chdir: dir)
       git_run("fetch", @remote_url, "refs/heads/#{source_branch}:refs/remotes/origin/coworker-source", chdir: dir, env: @env)
       merge = git_capture("merge", "--no-edit", "origin/coworker-source", chdir: dir, env: @env)
-      return report_conflict!(dir, merge, source_branch:, conflict_checkout:) unless merge.success?
+      unless merge.success?
+        resolution = resolve_semantic_conflict!(dir, merge, source_branch:, conflict_checkout:)
+        return resolution unless resolution == :resolved
+      end
 
       git_run("push", @remote_url, "HEAD:refs/heads/#{push_guard.allow!(home_branch)}", chdir: dir, env: @env)
       :merged
@@ -166,6 +180,49 @@ class Coworkers::ChatWorkspaceLifecycle
       raise unless error.output.match?(/non-fast-forward|fetch first|failed to push some refs/i)
       :retry
     end
+  end
+
+  # Deterministic merging (including union-merge attributes) already failed.
+  # Prefer a validated agent resolution; the persistent branch only advances
+  # when the caller pushes a resolved merge. Without an available agent the
+  # pre-existing hand-off to the coworker's next turn applies.
+  def resolve_semantic_conflict!(dir, merge, source_branch:, conflict_checkout:)
+    resolver = conflict_resolver
+    return report_conflict!(dir, merge, source_branch:, conflict_checkout:) unless resolver&.available?
+
+    outcome = resolver.call(dir:)
+    return :resolved if outcome.resolved?
+
+    preserve_and_notify_failed_resolution!(dir, outcome, source_branch:)
+  end
+
+  def conflict_resolver
+    @resolver ||= Coworkers::ConflictResolver.new(coworker: @coworker, user: @coworker.owner_user,
+      git: @git, env: @env, timeout: @git_timeout)
+  end
+
+  # The previous clean home HEAD stays untouched. Both parents and the attempted
+  # (possibly invalid) resolution are kept on recovery refs, and the owner is
+  # told once.
+  def preserve_and_notify_failed_resolution!(dir, outcome, source_branch:)
+    token = "#{@coworker.id}-#{Time.current.strftime('%Y%m%d%H%M%S')}-#{SecureRandom.hex(3)}"
+    git_run("add", "--all", chdir: dir)
+    git_run("commit", "--no-verify", "-m", "Preserve unresolved @#{@coworker.handle} workspace merge attempt", chdir: dir)
+    attempt_sha = git_run("rev-parse", "HEAD", chdir: dir).strip
+    { "home" => outcome.home_sha, "source" => outcome.source_sha, "attempt" => attempt_sha }.each do |name, sha|
+      ref = push_guard.allow_recovery!("coworker-recovery/#{token}/#{name}")
+      git_run("push", @remote_url, "#{sha}:refs/heads/#{ref}", chdir: dir, env: @env)
+    end
+
+    detail = "#{outcome.detail} Recovery refs coworker-recovery/#{token}/{home,source,attempt} " \
+      "(home #{outcome.home_sha[0, 12]}, source #{outcome.source_sha[0, 12]}, attempt #{attempt_sha[0, 12]}) " \
+      "after #{outcome.attempts} agent attempts."
+    conflict = terminal_conflict(files: outcome.files, source_branch:) ||
+      record_conflict!(files: outcome.files,
+        versions: outcome.files.index_with { "[See recovery ref #{attempt_sha}]" }, detail:, source_branch:, ref: attempt_sha)
+    conflict.update!(state: "failed", detail:, recovery_ref: attempt_sha)
+    post_conflict!(files: outcome.files, detail:, source_branch:, ref: attempt_sha, conflict:)
+    :conflict
   end
 
   def report_conflict!(merge_path, merge, source_branch:, conflict_checkout:)
@@ -202,6 +259,9 @@ class Coworkers::ChatWorkspaceLifecycle
     validation = git_capture("diff", "--check", "HEAD", chdir: path.to_s)
     return retry_or_fail!(conflict, files:,
       detail: "#{validation.stdout}#{validation.stderr}".last(500)) unless validation.success?
+
+    stray = uncommitted_marker_files(path)
+    return retry_or_fail!(conflict, files:, detail: "Conflict markers remain in #{stray.join(', ')}.") if stray.any?
 
     commit_turn!(path)
     push_chat_branch!(path)
@@ -289,6 +349,20 @@ class Coworkers::ChatWorkspaceLifecycle
     File.binread(file, Coworkers::PromptSection::MAX_FILE_BYTES).force_encoding(Encoding::UTF_8).scrub
   rescue Syrus::PathJail::PathEscape, Errno::ENOENT, Errno::EACCES, Errno::ELOOP
     nil
+  end
+
+  # Changed or new text files that still carry git conflict-marker lines. A
+  # turn must never commit these, whether or not the index looks clean.
+  def uncommitted_marker_files(path)
+    changed = git_run("diff", "--name-only", "HEAD", chdir: path.to_s).lines +
+      git_run("ls-files", "--others", "--exclude-standard", chdir: path.to_s).lines
+    Coworkers::ConflictResolver.files_with_markers(path, changed.map(&:strip).reject(&:blank?).uniq)
+  end
+
+  def hold_marker_files!(path, files)
+    record_conflict!(files:, versions: conflict_versions(path, files),
+      detail: "Conflict markers must be resolved before saving.", source_branch: chat_branch)
+    :pending_resolution
   end
 
   def unmerged_files(path)
