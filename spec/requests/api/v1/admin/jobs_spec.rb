@@ -130,6 +130,19 @@ RSpec.describe "API: /api/v1/admin/jobs/:id", :ci_only, type: :request do
       expect(payload.fetch("agent_session")).to include("transcript_bytes" => 8, "transcript_lines" => 2)
     end
 
+    it "reports zero diff bytes for a Run without a diff" do
+      run = job.initial_run
+
+      get "/api/v1/admin/jobs/#{job.id}", headers: auth(admin_token)
+
+      payload = parse_body.fetch("workflows").flat_map { |workflow| workflow.fetch("steps") }
+        .flat_map { |step| step.fetch("runs") }.find { |candidate| candidate["id"] == run.id }
+      expect(payload).to include(
+        "agent_diff_present" => false, "agent_diff_bytes" => 0,
+        "step_agent_diff_present" => false, "step_agent_diff_bytes" => 0
+      )
+    end
+
     it "resolves a job by its human-readable slug" do
       slugged = Factories.job(user: admin, issue_title: "Invite the statues to speak")
 

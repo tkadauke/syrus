@@ -2,6 +2,7 @@ require "rails_helper"
 
 RSpec.describe WorkEngine::Reconciler, :ci_only do
   include ActiveJob::TestHelper
+  include HeavySortStatements
 
   let(:job) { Factories.job(agent_provider: "claude") }
   let(:workflow) { job.latest_workflow }
