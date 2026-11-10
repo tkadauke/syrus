@@ -39,6 +39,10 @@ class Run < ApplicationRecord
           -> { metadata_only },
           as: :resumable,
           class_name: "ProviderSession"
+  # The agent/step diff texts live in a side table so whole-row selects of
+  # runs never drag MEDIUMTEXT through MySQL's sort buffer. Rows are created
+  # lazily on first write; no diff means no row.
+  has_one :run_diff, dependent: :destroy, autosave: true
   has_one :run_diagnostic, dependent: :destroy
   has_one :run_failure_classification, dependent: :destroy
   has_one :run_resource_summary, dependent: :destroy
@@ -46,6 +50,22 @@ class Run < ApplicationRecord
   has_many_attached :coverage_outputs
 
   # Convenience walk up to Workflow when step is set.
+  def agent_diff
+    run_diff&.agent_diff
+  end
+
+  def agent_diff=(value)
+    write_diff_attribute(:agent_diff, value)
+  end
+
+  def step_agent_diff
+    run_diff&.step_agent_diff
+  end
+
+  def step_agent_diff=(value)
+    write_diff_attribute(:step_agent_diff, value)
+  end
+
   def workflow
     step&.workflow
   end
@@ -457,5 +477,13 @@ class Run < ApplicationRecord
       workflow.artifacts = locked.artifacts
       workflow.clear_attribute_changes([ :artifacts ])
     end
+  end
+
+  # Writing nil to a Run with no run_diffs row is a no-op, so a Run without a
+  # diff never grows an empty side row.
+  def write_diff_attribute(name, value)
+    return if value.nil? && run_diff.nil?
+
+    (run_diff || build_run_diff).public_send(:"#{name}=", value)
   end
 end

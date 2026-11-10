@@ -2,6 +2,7 @@ require "rails_helper"
 
 RSpec.describe WorkEngine::Reconciler, :ci_only do
   include ActiveJob::TestHelper
+  include HeavySortStatements
 
   let(:job) { Factories.job(agent_provider: "claude") }
   let(:workflow) { job.latest_workflow }
@@ -33,39 +34,6 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
   def materialize_workflow_workspaces
     Workflow.find_each do |workflow|
       FileUtils.mkdir_p(WorkflowWorkspace.path_for(workflow))
-    end
-  end
-
-  # A reconcile pass must never ask the database to sort rows that carry a
-  # large text or JSON column. Steps carry a JSON details column that grader
-  # steps fill with command output, Workflows a 16MB artifacts column, Runs two
-  # 16MB agent diffs; when the ORDER BY is not served by an index MySQL has to
-  # fit those rows in its sort buffer, fails with "Out of sort memory", and
-  # takes the whole pass -- every repair, and the stuck-items watchlist that
-  # shares this path -- down with it. Preloading a Workflow's steps across an
-  # IN list of workflow ids did exactly that in production.
-  #
-  # Ordering a single workflow's steps is fine: workflow_id equality plus the
-  # (workflow_id, position) index is served without a sort. The multi-id IN
-  # list is what cannot be.
-  def heavy_sort_statements
-    statements = []
-    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
-      statements << payload[:sql]
-    end
-    begin
-      yield
-    ensure
-      ActiveSupport::Notifications.unsubscribe(subscriber)
-    end
-
-    # Whole-row select from a wide table, plus a sort, plus a multi-id IN
-    # list. All three together are the hazard: a narrow correlated subquery
-    # that orders by an indexed column to pick one id is not.
-    statements.select do |sql|
-      sql.match?(/select[^;]*[`"]?(steps|workflows|runs)[`"]?\.\*/i) &&
-        sql.match?(/\border by\b/i) &&
-        sql.match?(/\bin\s*\(/i)
     end
   end
 
