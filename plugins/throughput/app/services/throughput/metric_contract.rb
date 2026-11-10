@@ -872,12 +872,7 @@ module Throughput
     end
 
     def preferred_output_diff_sql
-      <<~SQL.squish
-        COALESCE(
-          NULLIF(runs.step_agent_diff, ''),
-          NULLIF(runs.agent_diff, '')
-        )
-      SQL
+      RunDiff.preferred_diff_sql
     end
 
     def output_diff_sample_run_ids
