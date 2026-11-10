@@ -23,4 +23,24 @@ RSpec.describe App::JobDetailPayload do
     # spec pins the steps table.
     expect(offenders.grep(/steps[`"]?\.\*/i)).to be_empty
   end
+
+  it "does not query step_detail_values once per step" do
+    user = Factories.user
+    job = Factories.job(user: user)
+    workflow = job.workflows.first
+    3.times do |n|
+      workflow.steps.create!(kind: "grader", position: 70 + n, state: "failed", finished_at: 1.minute.ago,
+                             details: { "name" => "g#{n}", "output" => "out #{n}" })
+    end
+
+    statements = []
+    sub = ActiveSupport::Notifications.subscribe("sql.active_record") { |*, p| statements << p[:sql] }
+    begin
+      described_class.workflows(job: job, user: user)
+    ensure
+      ActiveSupport::Notifications.unsubscribe(sub)
+    end
+
+    expect(statements.grep(/FROM "step_detail_values"/i).size).to be <= 1
+  end
 end
