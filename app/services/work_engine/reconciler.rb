@@ -240,7 +240,7 @@ module WorkEngine
         execute_repairs: execute_repairs?
       )
       @jobs = scoped_jobs.includes(:repository, :dependencies, :epic).to_a
-      @workflows = scoped_workflows.includes(:job, :steps).to_a
+      @workflows = attach_steps!(scoped_workflows.includes(:job).to_a)
       @work_intents = scoped_work_intents.includes(:work_units).to_a
       @work_units = scoped_work_units.includes(:work_intent, :work_unit_locks, { work_unit_members: :job }, { workflow: :job }, :parent_work_unit).to_a
       @runs = scoped_runs.includes(:job, :step, :provider_session_metadata, :run_failure_classification, :run_diagnostic).to_a
@@ -379,11 +379,53 @@ module WorkEngine
         latest_ids_by_job_id = Job.where(id: job_ids)
           .with_latest_workflow_snapshot
           .each_with_object({}) { |snapshot, result| result[snapshot.id] = snapshot.latest_workflow_id }
-        workflows_by_id = Workflow.where(id: latest_ids_by_job_id.values.compact).includes(:steps).index_by(&:id)
+        # Deliberately no `includes(:steps)`. That preloaded every Step of
+        # every Job's latest Workflow in one query, and `has_many :steps`
+        # orders by position, which the (workflow_id, position) index cannot
+        # serve across an IN list of many workflow ids. So the database sorted
+        # the rows it had selected -- rows carrying a JSON details column that
+        # grader steps fill with command output -- and answered "Out of sort
+        # memory" instead of returning them, failing every reconcile pass and
+        # with it all repair work. steps_for_workflow reads the snapshot first
+        # and falls back to a single-workflow query the index does serve.
+        workflows_by_id = Workflow.where(id: latest_ids_by_job_id.values.compact).index_by(&:id)
         latest_ids_by_job_id.transform_values { |workflow_id| workflows_by_id[workflow_id] }
       end
 
       @latest_workflow_for_job[job.id]
+    end
+
+    # Preloads each Workflow's steps without asking the database to sort them.
+    #
+    # `has_many :steps` orders by position, and the (workflow_id, position)
+    # index cannot serve that across an IN list of many workflow ids, so the
+    # database sorted the rows it had selected. A Step carries a JSON details
+    # column that grader steps fill with command output, so those rows do not
+    # fit a sort buffer sized in kilobytes: MySQL answered "Out of sort
+    # memory" instead of returning them and every reconcile pass failed,
+    # taking all repair work and the stuck-items watchlist with it.
+    #
+    # Ordering one workflow's steps is still fine -- workflow_id equality plus
+    # that index is served without a sort -- so only the batched load moves
+    # its ordering into Ruby. The association is left loaded exactly as a
+    # preload would leave it.
+    def attach_steps!(workflows)
+      return workflows if workflows.empty?
+
+      steps_by_workflow_id = Step.where(workflow_id: workflows.map(&:id)).reorder(nil).to_a.group_by(&:workflow_id)
+      workflows.each do |workflow|
+        ordered = steps_by_workflow_id.fetch(workflow.id, []).sort_by { |step| [ step.position, step.id ] }
+        # Point each Step back at this exact Workflow instance, the way a
+        # preload's inverse would. Without it `step.workflow` re-queries and
+        # hands back a second instance holding database state, while the
+        # snapshot holds the state this pass is reasoning about -- and the two
+        # disagree the moment a repair has moved the Workflow on.
+        ordered.each { |step| step.association(:workflow).target = workflow }
+        association = workflow.association(:steps)
+        association.target = ordered
+        association.loaded!
+      end
+      workflows
     end
 
     def steps_for_workflow(workflow)
@@ -574,12 +616,14 @@ module WorkEngine
       ids = Array(job_ids).compact
       return Workflow.none if ids.empty?
 
-      candidates = Workflow
-        .where(job_id: ids, state: "failed", trigger_kind: Workflows::ValidationSupersession.active_repair_workflow_trigger_kinds)
-        .where(cleaned_up_at: nil)
-        .where(id: retryable_failed_repair_workflow_ids)
-        .includes(:steps, job: :workflows)
-        .select { |workflow| failed_repair_workflow_still_needs_validation?(workflow) }
+      candidates = attach_steps!(
+        Workflow
+          .where(job_id: ids, state: "failed", trigger_kind: Workflows::ValidationSupersession.active_repair_workflow_trigger_kinds)
+          .where(cleaned_up_at: nil)
+          .where(id: retryable_failed_repair_workflow_ids)
+          .includes(job: :workflows)
+          .to_a
+      ).select { |workflow| failed_repair_workflow_still_needs_validation?(workflow) }
 
       Workflow.where(id: candidates.map(&:id))
     end

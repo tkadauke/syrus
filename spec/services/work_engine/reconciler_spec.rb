@@ -36,6 +36,66 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     end
   end
 
+  # A reconcile pass must never ask the database to sort rows that carry a
+  # large text or JSON column. Steps carry a JSON details column that grader
+  # steps fill with command output, Workflows a 16MB artifacts column, Runs two
+  # 16MB agent diffs; when the ORDER BY is not served by an index MySQL has to
+  # fit those rows in its sort buffer, fails with "Out of sort memory", and
+  # takes the whole pass -- every repair, and the stuck-items watchlist that
+  # shares this path -- down with it. Preloading a Workflow's steps across an
+  # IN list of workflow ids did exactly that in production.
+  #
+  # Ordering a single workflow's steps is fine: workflow_id equality plus the
+  # (workflow_id, position) index is served without a sort. The multi-id IN
+  # list is what cannot be.
+  def heavy_sort_statements
+    statements = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+      statements << payload[:sql]
+    end
+    begin
+      yield
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+    end
+
+    # Whole-row select from a wide table, plus a sort, plus a multi-id IN
+    # list. All three together are the hazard: a narrow correlated subquery
+    # that orders by an indexed column to pick one id is not.
+    statements.select do |sql|
+      sql.match?(/select[^;]*[`"]?(steps|workflows|runs)[`"]?\.\*/i) &&
+        sql.match?(/\border by\b/i) &&
+        sql.match?(/\bin\s*\(/i)
+    end
+  end
+
+  it "reconciles without sorting wide rows across an id list" do
+    # Several Jobs, so the latest-workflow lookup batches their ids into an IN
+    # list. With one Job it emits `workflow_id = ?`, which the index serves and
+    # which would hide the regression entirely.
+    [ job, Factories.job(issue_number: 101), Factories.job(issue_number: 102) ].each do |owning_job|
+      attempt = Workflow.create!(
+        job: owning_job,
+        user: owning_job.user,
+        trigger_kind: "retry",
+        agent_provider: owning_job.agent_provider,
+        state: "failed",
+        finished_at: 2.minutes.ago
+      )
+      attempt.steps.create!(
+        kind: "grader",
+        position: 0,
+        state: "failed",
+        finished_at: 2.minutes.ago,
+        details: { "output" => "x" * 2_048 }
+      )
+    end
+
+    offenders = heavy_sort_statements { reconcile }
+
+    expect(offenders).to be_empty
+  end
+
   def kind(result, name)
     result.issues.find { |issue| issue.kind == name.to_s }
   end
