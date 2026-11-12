@@ -249,6 +249,26 @@ RSpec.describe Steps::Grader, :ci_only do
     handler.call
   end
 
+  # Regression: focused selectors guessed the base from the checkout's refs.
+  # An immutable source checkout has no origin/main and a stacked Job has two
+  # origin/* branches, so the guess failed and the focused RSpec grader fell
+  # back to the full suite under a focused timeout.
+  it "passes the workflow's base ref to grader commands" do
+    fake_result = ProcessRunner::Result.new(
+      exit_status: 0, timed_out: false, stopped: false,
+      silent_timed_out: false, operator_killed: false,
+      aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+    )
+    workflow.update!(artifacts: workflow.artifacts.to_h.merge(RebaseTarget::BASE_BRANCH_ARTIFACT => "syrus/stack-parent"))
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")) do |**kwargs|
+      expect(kwargs.fetch(:env)).to include("SYRUS_BASE_REF" => "origin/syrus/stack-parent")
+      instance_double(ProcessRunner, run: fake_result)
+    end
+
+    handler.call
+    expect(ProcessRunner).to have_received(:new).with(hash_including(kind: "grader"))
+  end
+
   it "omits the memory ceiling when the grader declared no working set" do
     fake_result = ProcessRunner::Result.new(
       exit_status: 0, timed_out: false, stopped: false,

@@ -800,8 +800,22 @@ module Steps
           .merge(extra_env)
           .merge(resource_grant_env)
           .merge(previous_failure_env)
+          .merge(base_ref_env)
           .merge(GIT_READ_ONLY_ENV)
       )
+    end
+
+    # The base this workflow diffs against, for graders that select work from
+    # changed files. Without it a selector has to guess from the checkout's
+    # refs, and an immutable source checkout has neither a branch nor
+    # origin/main -- its origin/HEAD names the workflow's own branch -- so a
+    # stacked Job's guess fails and the focused grader runs the full suite.
+    def base_ref_env
+      base_ref = WorkflowWorkspace.base_ref_for(job, workflow: workflow)
+      base_ref.present? ? { "SYRUS_BASE_REF" => base_ref } : {}
+    rescue StandardError => e
+      Rails.logger.warn("[Grader] base ref unavailable for Step ##{step.id}: #{e.class}: #{e.message}")
+      {}
     end
 
     # The grant is the sole allocator for this grader: the parallelism it sizes
