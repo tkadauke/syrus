@@ -179,6 +179,17 @@
     "loading_history": "Historia auctoritatis oneratur…",
     "matrix_title": "Tabula permissionum agentium",
     "matrix_help": "Statum effectivum cuiusque agentis et facultatis compara.",
+    "operation_description": "Agenti permittit {{operation}} agere. {{effects}}",
+    "effect_descriptions": {
+      "local_read": "Data Syrus localia legere potest.", "isolated_workspace_write": "Tabulas in spatio separato mutare potest.",
+      "isolated_execution": "Codicem in ambitu munito exsequi potest.", "network_read": "Data ex reti accipere potest.",
+      "confidential_read": "Informationes fortasse secretas legere potest.", "credential_use": "Documentis fidei conditis uti potest nec ea patefacere.",
+      "internal_write": "Data intra Syrus mutare potest.", "external_write": "Data in systemate externo mutare potest.",
+      "communication": "Aliam personam vel agentem contingere potest.", "financial": "Obligationem pecuniariam creare potest.",
+      "privilege_change": "Iura accessus mutare potest.", "operational": "Ministeria vel opera currentia afficere potest.",
+      "destructive": "Data delere vel substituere potest.", "irreversible": "Effectus revocari fortasse non potest.",
+      "persistent_autonomy": "Opera quae postea pergunt disponere potest.", "operator_host_access": "Directe in hospite operatoris agere potest."
+    },
     "states": {
       "allow": "Permitte",
       "ask": "Interroga",

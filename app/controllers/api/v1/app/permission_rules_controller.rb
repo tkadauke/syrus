@@ -175,7 +175,7 @@ module Api
         def serialize_descriptor(descriptor, management:, active_rules:)
           Permissions::Catalog.as_json(descriptor).slice(
             :capability, :operation, :effects, :risk, :defaults, :resource_scope,
-            :requestable_roles, :authority_durations, :presets
+            :requestable_roles, :authority_durations, :presets, :presentation
           ).merge(
             owner: { kind: "provider", name: descriptor.capability.split(".").first },
             editable: false, explanation: "role_default",

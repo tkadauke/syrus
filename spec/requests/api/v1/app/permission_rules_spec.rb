@@ -19,6 +19,7 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     expect(payload.fetch("inherited")).not_to be_empty
     expect(payload.fetch("inherited")).to all(include("editable" => false, "explanation" => "role_default"))
     expect(payload.fetch("inherited")).to all(include("requestable_roles", "authority_durations"))
+    expect(payload.fetch("inherited")).to all(include("presentation" => include("capability_name", "operation_name")))
     expect(payload.fetch("profiles").pluck("key")).to eq(%w[full_access@v1 ask_on_first_use@v1 restricted@v1])
     expect(payload.fetch("current_profiles")).to include("interactive_chat" => nil)
     expect(payload.fetch("inherited")).to all(include("matrix_states" => include(

@@ -20,6 +20,8 @@ describe("PermissionsSettingsRoute", () => {
     expect(within(inherited).getAllByText("Read only")).toHaveLength(2)
     expect(within(inherited).getAllByText(/are decisive/)).toHaveLength(2)
     expect(screen.getByRole("link", { name: "Open approval inbox" })).toHaveAttribute("href", "/permissions/inbox")
+    expect(within(inherited).getByText(/Syrus Jobs — Cancel Job/)).toBeInTheDocument()
+    expect(within(inherited).getByText(/Permits an agent to Cancel Job/)).toBeInTheDocument()
   })
 
   it("previews and applies a fast permission profile for the selected chat surface", async () => {
@@ -373,6 +375,7 @@ function payload() {
         capability: "attach_repository@v1",
         operation: "attach_repository/attach_repository@v1",
         effects: ["internal_write"],
+        presentation: { capability_name: "Attach Repository", operation_name: "Attach Repository" },
         risk: "medium",
         defaults: { "chat:planner": "ask" },
         requestable_roles: ["chat:planner"],
@@ -387,6 +390,7 @@ function payload() {
         capability: "syrus.jobs@v1",
         operation: "cancel@v1",
         effects: ["internal_write"],
+        presentation: { capability_name: "Syrus Jobs", operation_name: "Cancel Job" },
         risk: "medium",
         defaults: { "chat:planner": "ask" },
         requestable_roles: ["chat:planner"],

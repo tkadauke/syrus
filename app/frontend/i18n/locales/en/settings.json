@@ -179,6 +179,17 @@
     "loading_history": "Loading authorization history…",
     "matrix_title": "Agent permissions matrix",
     "matrix_help": "Compare the effective state for every agent surface and capability.",
+    "operation_description": "Permits an agent to {{operation}}. {{effects}}",
+    "effect_descriptions": {
+      "local_read": "It can read local Syrus data.", "isolated_workspace_write": "It can change files in an isolated workspace.",
+      "isolated_execution": "It can run code in a confined environment.", "network_read": "It can retrieve data from the network.",
+      "confidential_read": "It can read information that may be confidential.", "credential_use": "It can use stored credentials without revealing them.",
+      "internal_write": "It can change data inside Syrus.", "external_write": "It can change data in an external system.",
+      "communication": "It can contact another person or agent.", "financial": "It can create a financial commitment.",
+      "privilege_change": "It can change access privileges.", "operational": "It can affect running services or work.",
+      "destructive": "It can delete or replace data.", "irreversible": "Its result may not be reversible.",
+      "persistent_autonomy": "It can arrange work that continues later.", "operator_host_access": "It can act directly on the operator's host."
+    },
     "states": {
       "allow": "Allow",
       "ask": "Ask",

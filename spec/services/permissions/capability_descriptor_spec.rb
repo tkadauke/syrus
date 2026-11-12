@@ -29,6 +29,7 @@ RSpec.describe Permissions::CapabilityDescriptor do
     expect(descriptor.resource_scope).to be_a(Permissions::ResourceScopeSchema)
     expect(descriptor.defaults).to eq("chat_planner" => :allow, "coworker" => :ask)
     expect(descriptor.authority_durations).to eq(%i[invocation chat_session job])
+    expect(descriptor.presentation.to_h).to eq(capability_name: "Mysql Data", operation_name: "Read")
   end
 
   it "compares policy contracts independently of declaration order and runtime hooks" do
