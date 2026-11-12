@@ -292,8 +292,9 @@ export function PermissionsSettingsRoute() {
                       checked={selectedKeys.includes(keyFor(item))}
                       label={
                         <span>
-                          {item.capability}
-                          <span className="block text-xs text-text-muted">{item.operation}</span>
+                          {item.presentation.capability_name} — {item.presentation.operation_name}
+                          <span className="block text-sm font-normal text-text-secondary">{permissionDescription(item, t)}</span>
+                          <code className="block text-xs text-text-muted">{item.capability} · {item.operation}</code>
                         </span>
                       }
                       onChange={() => setSelectedKeys(toggle(selectedKeys, keyFor(item)))}
@@ -310,9 +311,9 @@ export function PermissionsSettingsRoute() {
           </DataTable.Root>
         </section>
       ) : null}
-      {view === "resources" ? <ResourceView rules={rules} t={t} /> : null}
-      {view === "leases" ? <LeaseView leases={historyQuery.data?.active_leases ?? []} loading={historyQuery.isLoading} t={t} /> : null}
-      {view === "history" ? <HistoryView entries={historyQuery.data?.history ?? []} loading={historyQuery.isLoading} t={t} /> : null}
+      {view === "resources" ? <ResourceView descriptors={descriptors} rules={rules} t={t} /> : null}
+      {view === "leases" ? <LeaseView descriptors={descriptors} leases={historyQuery.data?.active_leases ?? []} loading={historyQuery.isLoading} t={t} /> : null}
+      {view === "history" ? <HistoryView descriptors={descriptors} entries={historyQuery.data?.history ?? []} loading={historyQuery.isLoading} t={t} /> : null}
       {view === "rules" ? (
         <section className="rounded-xl border border-border bg-surface-raised p-5">
           <div className="flex items-center justify-between gap-3">
@@ -339,7 +340,8 @@ export function PermissionsSettingsRoute() {
                 />
                 <div>
                   <p className="font-medium text-text-primary">
-                    {rule.capability} · {rule.operation || t("permissions.all_operations")}
+                    {presentationLabel(rule.capability, rule.operation, descriptors) || t("permissions.all_operations")}
+                    <code className="block text-xs font-normal text-text-muted">{rule.capability} · {rule.operation}</code>
                   </p>
                   <p className="mt-1 text-sm text-text-secondary">
                     {t("permissions.rule_summary", { policy: rule.policy, subject: t(`permissions.subjects.${rule.subject_selector_type}`) })}
@@ -498,7 +500,7 @@ function profileCopy(profile: { key: string; label: string; description: string 
   return t(`permissions.${group}.${key}`)
 }
 
-function ResourceView({ rules, t }: { rules: PermissionRule[]; t: Translate }) {
+function ResourceView({ descriptors, rules, t }: { descriptors: InheritedPermission[]; rules: PermissionRule[]; t: Translate }) {
   const groups = rules.reduce<Record<string, PermissionRule[]>>((result, rule) => {
     const key = `${rule.resource_type}:${rule.resource_scope_label}`
     ;(result[key] ||= []).push(rule)
@@ -518,7 +520,8 @@ function ResourceView({ rules, t }: { rules: PermissionRule[]; t: Translate }) {
                 <li key={rule.id}>
                   <PolicyPill policy={rule.policy} t={t} />{" "}
                   <span className="ml-2">
-                    {rule.capability} · {rule.operation}
+                    {presentationLabel(rule.capability, rule.operation, descriptors) || t("permissions.unknown")}
+                    <code className="block text-xs text-text-muted">{rule.capability} · {rule.operation}</code>
                   </span>
                 </li>
               ))}
@@ -531,7 +534,7 @@ function ResourceView({ rules, t }: { rules: PermissionRule[]; t: Translate }) {
   )
 }
 
-function LeaseView({ leases, loading, t }: { leases: PermissionLease[]; loading: boolean; t: Translate }) {
+function LeaseView({ descriptors, leases, loading, t }: { descriptors: InheritedPermission[]; leases: PermissionLease[]; loading: boolean; t: Translate }) {
   return (
     <section className="rounded-xl border border-border bg-surface-raised p-5">
       <SectionHeading>{t("permissions.leases_title")}</SectionHeading>
@@ -542,7 +545,7 @@ function LeaseView({ leases, loading, t }: { leases: PermissionLease[]; loading:
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <h3 className="font-medium">
-                  {lease.capability} · {lease.operation || t("permissions.all_operations")}
+                  {presentationLabel(lease.capability, lease.operation, descriptors) || t("permissions.all_operations")}
                 </h3>
                 <p className="mt-1 text-sm text-text-secondary">{t("permissions.lease_lifecycle", { subject: lease.subject, duration: lease.duration })}</p>
               </div>
@@ -573,7 +576,7 @@ function LeaseView({ leases, loading, t }: { leases: PermissionLease[]; loading:
   )
 }
 
-function HistoryView({ entries, loading, t }: { entries: PermissionHistoryEntry[]; loading: boolean; t: Translate }) {
+function HistoryView({ descriptors, entries, loading, t }: { descriptors: InheritedPermission[]; entries: PermissionHistoryEntry[]; loading: boolean; t: Translate }) {
   return (
     <section className="rounded-xl border border-border bg-surface-raised p-5">
       <SectionHeading>{t("permissions.history_title")}</SectionHeading>
@@ -582,7 +585,7 @@ function HistoryView({ entries, loading, t }: { entries: PermissionHistoryEntry[
         {entries.map((entry) => (
           <li className="rounded-lg border border-border p-4" key={`${entry.type}-${entry.id}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-medium">{historyTitle(entry, t)}</h3>
+              <h3 className="font-medium">{historyTitle(entry, descriptors, t)}</h3>
               <time className="text-xs text-text-muted">{formatTime(entry.occurred_at, t)}</time>
             </div>
             <p className="mt-1 text-sm text-text-secondary">{t("permissions.history_state", { state: entry.state })}</p>
@@ -640,11 +643,12 @@ function Evidence({ evidence, t }: { evidence: unknown; t: Translate }) {
   )
 }
 
-function historyTitle(entry: PermissionHistoryEntry, t: Translate) {
+function historyTitle(entry: PermissionHistoryEntry, descriptors: InheritedPermission[], t: Translate) {
   if (entry.type === "request") return t("permissions.history_types.request")
   if (entry.type === "invocation") return t("permissions.history_types.invocation", { tool: entry.tool_name })
-  if (entry.type === "policy_change") return t("permissions.history_types.policy_change", { capability: entry.capability })
-  return t("permissions.history_types.lease", { capability: entry.capability })
+  const name = presentationFor(String(entry.capability), String(entry.operation || ""), descriptors)?.operation_name || t("permissions.unknown")
+  if (entry.type === "policy_change") return t("permissions.history_types.policy_change", { capability: name })
+  return t("permissions.history_types.lease", { capability: name })
 }
 
 function formatTime(value: unknown, t: Translate) {
@@ -702,9 +706,11 @@ function InheritedRow({ item, onPreset, t }: { item: InheritedPermission; onPres
   return (
     <div className="py-3">
       <div className="flex items-center justify-between gap-3">
-        <p className="font-medium">
-          {item.capability} · {item.operation}
-        </p>
+        <div>
+          <p className="font-medium">{item.presentation.capability_name} — {item.presentation.operation_name}</p>
+          <p className="text-sm text-text-secondary">{permissionDescription(item, t)}</p>
+          <code className="text-xs text-text-muted">{item.capability} · {item.operation}</code>
+        </div>
         <span className="rounded-full bg-surface px-2 py-1 text-xs text-text-muted">{t("permissions.read_only")}</span>
       </div>
       <p className="mt-1 text-sm text-text-secondary">{defaults}</p>
@@ -723,6 +729,17 @@ function InheritedRow({ item, onPreset, t }: { item: InheritedPermission; onPres
       ) : null}
     </div>
   )
+}
+function permissionDescription(item: InheritedPermission, t: Translate) {
+  const effects = item.effects.map((effect) => t(`permissions.effect_descriptions.${effect}`)).join(" ")
+  return t("permissions.operation_description", { operation: item.presentation.operation_name, effects })
+}
+function presentationFor(capability: string, operation: string | null, descriptors: InheritedPermission[]) {
+  return descriptors.find((item) => item.capability === capability && (!operation || item.operation === operation))?.presentation
+}
+function presentationLabel(capability: string, operation: string | null, descriptors: InheritedPermission[]) {
+  const presentation = presentationFor(capability, operation, descriptors)
+  return presentation ? `${presentation.capability_name} — ${presentation.operation_name}` : null
 }
 function keyFor(item: Pick<InheritedPermission, "capability" | "operation">) {
   return `${item.capability}:${item.operation}`

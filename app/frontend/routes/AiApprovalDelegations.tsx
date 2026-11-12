@@ -37,6 +37,8 @@ export function AiApprovalDelegations({ descriptors }: { descriptors: InheritedP
   const revoke = useMutation({ mutationFn: revokeApprovalDelegation, onSuccess: refresh })
   const data = query.data
   const capabilities = [...new Set(descriptors.map((item) => item.capability))]
+  const capabilityName = (identifier: string) => descriptors.find((item) => item.capability === identifier)?.presentation.capability_name || t("permissions.unknown")
+  const effectNames = (effects: string[]) => effects.map((effect) => t(`permissions.effect_descriptions.${effect}`)).join(" ")
 
   const submit = () => {
     try {
@@ -74,7 +76,10 @@ export function AiApprovalDelegations({ descriptors }: { descriptors: InheritedP
 
       {data ? (
         <p className="text-sm text-text-secondary">
-          {t("permissions.ai.human_only", { effects: data.human_only.effects.join(", "), capabilities: data.human_only.capabilities.join(", ") })}
+          {t("permissions.ai.human_only", {
+            effects: effectNames(data.human_only.effects),
+            capabilities: data.human_only.capabilities.map(capabilityName).join(", ")
+          })}
         </p>
       ) : null}
 
@@ -84,12 +89,13 @@ export function AiApprovalDelegations({ descriptors }: { descriptors: InheritedP
           <article className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border p-3" key={delegation.id}>
             <div className="text-sm">
               <p className="font-medium text-text-primary">
-                {delegation.provider_name} · {delegation.capability}
+                {delegation.provider_name} · {capabilityName(delegation.capability)}
+                <code className="block text-xs font-normal text-text-muted">{delegation.capability}</code>
               </p>
               <p className="text-text-secondary">
                 {t(`permissions.ai.status.${delegation.status}`)} · {delegation.resource_type} · {JSON.stringify(delegation.resource_scope)}
               </p>
-              <p className="text-xs text-text-muted">{t("permissions.ai.excluded", { effects: delegation.excluded_effects.join(", ") })}</p>
+              <p className="text-xs text-text-muted">{t("permissions.ai.excluded", { effects: effectNames(delegation.excluded_effects) })}</p>
             </div>
             {delegation.status !== "revoked" ? (
               <button className="text-sm font-medium text-danger" disabled={revoke.isPending} onClick={() => revoke.mutate(delegation.id)} type="button">
@@ -124,7 +130,7 @@ export function AiApprovalDelegations({ descriptors }: { descriptors: InheritedP
             <Select value={capability || capabilities[0]} onChange={(event) => setCapability(event.target.value)}>
               {capabilities.map((item) => (
                 <option key={item} value={item}>
-                  {item}
+                  {capabilityName(item)}
                 </option>
               ))}
             </Select>
