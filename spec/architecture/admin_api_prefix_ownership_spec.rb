@@ -39,7 +39,11 @@ RSpec.describe "admin API prefix ownership" do
     GET /api/v1/app/admin/maintenance_tasks/:id api/v1/app/admin/maintenance_tasks#show
     GET /api/v1/app/admin/reconciler_activity api/v1/app/admin/reconciler_activity#index
     GET /api/v1/app/admin/browser_errors api/v1/app/admin/browser_errors#index
+    GET /api/v1/app/admin/browser_errors/controls api/v1/app/admin/browser_errors#controls
+    GET /api/v1/app/admin/browser_errors/:id api/v1/app/admin/browser_errors#show
     GET /api/v1/app/admin/backend_exceptions api/v1/app/admin/backend_exceptions#index
+    GET /api/v1/app/admin/backend_exceptions/controls api/v1/app/admin/backend_exceptions#controls
+    GET /api/v1/app/admin/backend_exceptions/:id api/v1/app/admin/backend_exceptions#show
     GET /api/v1/app/admin/github_app/register api/v1/app/admin/github_app#register
     GET /api/v1/app/admin/github_app/confirm api/v1/app/admin/github_app#confirm
     POST /api/v1/app/admin/github_app/sync_installations api/v1/app/admin/github_app#sync_installations

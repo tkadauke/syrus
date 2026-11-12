@@ -18,9 +18,9 @@ module Admin
       {
         current_revision: current_revision,
         revision_scope: revision_scope,
-        filter_schema: filter_definition.schema,
         filter: filter_tree,
         filters: filters_payload.merge(sort: sort_column, direction: sort_direction),
+        actions: Observability::EventJobFiler.actions_for(event_type),
         timeline: Admin::EventTimeline.build(filtered_scope, since_time: timeline_since_time, until_time: timeline_until_time),
         pagination: {
           page: page,
@@ -30,8 +30,19 @@ module Admin
           next_page: rows.size > per_page ? page + 1 : nil,
           previous_page: page > 1 ? page - 1 : nil
         },
-        events: visible_rows.map { |event| event_payload(event) }
+        events: visible_rows.map { |event| event_payload(event, detail: include_detail?) }
       }.merge(extra_payload)
+    end
+
+    def controls_json
+      {
+        filter_schema: filter_definition.schema,
+        actions: Observability::EventJobFiler.actions_for(event_type)
+      }.merge(extra_controls)
+    end
+
+    def detail_json(id)
+      event_payload(model_class.includes(detail_association).find(id), detail: true)
     end
 
     private
@@ -46,8 +57,24 @@ module Admin
       raise NotImplementedError
     end
 
-    def event_payload(event)
+    def event_payload(event, detail: include_detail?)
       raise NotImplementedError
+    end
+
+    def event_type
+      raise NotImplementedError
+    end
+
+    def detail_association
+      raise NotImplementedError
+    end
+
+    def extra_controls
+      {}
+    end
+
+    def include_detail?
+      params[:include].to_s.split(",").include?("detail")
     end
 
     def extra_payload

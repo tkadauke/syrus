@@ -499,7 +499,11 @@ Rails.application.routes.draw do
           end
           get "reconciler_activity", to: "reconciler_activity#index"
           get "browser_errors", to: "browser_errors#index"
+          get "browser_errors/controls", to: "browser_errors#controls"
+          get "browser_errors/:id", to: "browser_errors#show", constraints: { id: /\d+/ }
           get "backend_exceptions", to: "backend_exceptions#index"
+          get "backend_exceptions/controls", to: "backend_exceptions#controls"
+          get "backend_exceptions/:id", to: "backend_exceptions#show", constraints: { id: /\d+/ }
           get "github_app/register", to: "github_app#register"
           get "github_app/confirm", to: "github_app#confirm"
           post "github_app/sync_installations", to: "github_app#sync_installations"

@@ -50,11 +50,27 @@ RSpec.describe "API: /api/v1/app/admin/browser_errors", type: :request do
       "message" => "undefined is not an object (evaluating 'n.map')",
       "path" => "/jobs/3188"
     )
-    expect(body.dig("events", 0, "actions")).to include(
+    expect(body.fetch("actions")).to include(
       include("id" => "file_job", "label" => "File Job", "event_type" => "browser_error")
     )
-    expect(body.dig("events", 0, "recent_api_requests").first).to include("path" => "/api/v1/app/jobs/3188")
+    expect(body.dig("events", 0)).not_to have_key("recent_api_requests")
+    expect(body).not_to have_key("filter_schema")
     expect(body.fetch("timeline").sum { |bucket| bucket.fetch("count") }).to eq(1)
+
+    get "/api/v1/app/admin/browser_errors/#{body.dig("events", 0, "id")}"
+
+    expect(response.parsed_body.fetch("recent_api_requests").first).to include("path" => "/api/v1/app/jobs/3188")
+  end
+
+  it "serves stable controls separately from paginated rows" do
+    admin = Factories.user
+    sign_in_as(admin)
+
+    get "/api/v1/app/admin/browser_errors/controls"
+
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body.fetch("filter_schema")).to be_present
+    expect(response.parsed_body.fetch("actions")).to include(include("id" => "file_job"))
   end
 
   it "sorts browser error events by supported columns" do

@@ -35,6 +35,11 @@ RSpec.describe "API: /api/v1/admin/browser_errors", type: :request do
       "message" => "frontend crashed",
       "path" => "/jobs/3214"
     )
+    expect(response.parsed_body.dig("events", 0)).not_to have_key("metadata")
+
+    get "/api/v1/admin/browser_errors", params: { include: "detail" }, headers: auth
+
+    expect(response.parsed_body.dig("events", 0)).to include("metadata" => {})
   end
 
   it "filters browser errors by event id" do

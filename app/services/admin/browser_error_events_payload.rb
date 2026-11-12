@@ -25,10 +25,16 @@ module Admin
       Admin::EventLogFilterDefinitions.browser_errors
     end
 
-    def event_payload(event)
-      Observability::EventPayloads.browser_error(event).merge(
-        actions: Observability::EventJobFiler.actions_for("browser_error")
-      )
+    def event_payload(event, detail: false)
+      Observability::EventPayloads.browser_error(event, detail: detail)
+    end
+
+    def event_type
+      "browser_error"
+    end
+
+    def detail_association
+      :user
     end
   end
 end
