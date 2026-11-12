@@ -28,6 +28,7 @@ class AppEvents
   # a gap. See app/frontend/lib/appEvents.ts and entityStore.ts.
   def self.broadcast(user:, type:, resource:, id: nil, changed: [], payload: nil, revision: nil, occurred_at: Time.current)
     event = {
+      v: ApiVersion::CURRENT,
       type: type.to_s,
       resource: resource.to_s,
       id: id,
@@ -94,6 +95,7 @@ class AppEvents
 
   def self.resource_event(type:, resource:, id:, changed:, payload:, revision:, occurred_at:)
     event = {
+      v: ApiVersion::CURRENT,
       type: type.to_s,
       resource: resource.to_s,
       id: id,

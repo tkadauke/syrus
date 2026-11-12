@@ -8036,6 +8036,9 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(response.media_type).to eq("text/event-stream")
+    response.body.scan(/^data: (.+)$/).each do |(json)|
+      expect(JSON.parse(json).first).to eq([ "v", ApiVersion::CURRENT ])
+    end
     expect(response.body).to include("event: turn_complete")
     expect(response.body).not_to include("event: text_chunk")
   end

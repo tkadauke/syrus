@@ -18,12 +18,15 @@ RSpec.describe "API: /api/v1/admin/overview", type: :request do
     it "401s without a token" do
       get "/api/v1/admin/overview"
       expect(response).to have_http_status(:unauthorized)
+      expect(parse_body.first).to eq([ "v", ApiVersion::CURRENT ])
     end
 
     it "returns the tile-shaped rollup as JSON" do
       get "/api/v1/admin/overview", headers: auth
       expect(response).to be_successful
       body = parse_body
+      expect(body.keys.first).to eq("v")
+      expect(body.fetch("v")).to eq(ApiVersion::CURRENT)
       expect(body).to have_key("active_runs")
       expect(body).to have_key("queued_runs")
       expect(body).to have_key("recent_failures_24h")

@@ -21,6 +21,7 @@ RSpec.describe AppEvents do
     expect(AppUserChannel).to have_received(:broadcast_to).with(
       user,
       {
+        "v" => ApiVersion::CURRENT,
         "type" => "job.updated",
         "resource" => "job",
         "id" => 42,
@@ -78,6 +79,7 @@ RSpec.describe AppEvents do
       expect(ActionCable.server).to have_received(:broadcast).with(
         "job_resource:9",
         {
+          "v" => ApiVersion::CURRENT,
           "type" => "workflow.updated",
           "resource" => "workflow",
           "id" => 5,
