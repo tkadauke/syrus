@@ -101,43 +101,34 @@ module Steps
 
     def materialize_reviewer_prompt
       prompt = reviewer_prompt
-      target = run.step.details.to_h["reviewer_target"]
-      if target.blank?
-        reviewer = run.review_evidence&.reviewer
-        return prompt unless reviewer&.respond_to?(:prepare_review_context!)
-
-        context = reviewer.prepare_review_context!(run:, evidence: run.review_evidence, criteria: review_criteria)
-        return "#{prompt}\n\n#{reviewer.review_context_prompt(context)}"
-      end
+      target = review_target
+      return prompt if target.blank?
 
       context = ReviewContextContributions.prepare(target:, run:, evidence: run.review_evidence, criteria: review_criteria)
-      run.step.update!(details: run.step.details.to_h.merge("review_context_manifest" => context.fetch("manifest")))
+      manifest = context.fetch("manifest")
+      run.step.update!(details: run.step.details.to_h.merge("review_context_manifest" => manifest))
+      run.review_evidence&.record_context_manifest!(manifest)
       restricted_context = Prompts::RestrictedReviewContext.new(ReviewContextContributions.prompt(context))
       "#{prompt}\n\n#{restricted_context}"
     rescue ReviewContextContributions::Unavailable
       prompt
     end
 
-    def verify_reviewer_side_effects!
-      target = run.step.details.to_h["reviewer_target"]
-      if target.blank?
-        reviewer = run.review_evidence&.reviewer
-        return unless reviewer&.respond_to?(:finalize_review_memory!)
+    # Evidence carries the immutable target snapshot; the step detail is the
+    # pre-capture source, so both are read (dual-read) but only evidence is written.
+    def review_target
+      run.review_evidence&.review_target || run.step.details.to_h["reviewer_target"]
+    end
 
-        context = reviewer.review_context_for(run)
-        return if context&.persistence_state == "persisted"
-        raise MemoryPersistenceFailed.new(
-          "coworker review memory was not persisted",
-          evidence: { review_evidence_id: run.review_evidence.id, persistence_state: context&.persistence_state || "missing",
-                      persistence_error: context&.persistence_error_details }
-        )
-      end
+    def verify_reviewer_side_effects!
+      return if review_target.blank?
+      return if run.review_evidence&.persistence_receipt.present?
       return if run.step.details.to_h["review_persistence_receipt"].present?
 
       raise MemoryPersistenceFailed.new(
         "reviewer post-verdict update was not persisted",
         evidence: {
-          review_evidence_id: run.review_evidence.id,
+          review_evidence_id: run.review_evidence&.id,
           persistence_state: "missing"
         }
       )

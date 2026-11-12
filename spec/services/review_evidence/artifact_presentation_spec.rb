@@ -49,4 +49,37 @@ RSpec.describe ReviewEvidence::ArtifactPresentation do
     expect(presented).to include("cost_usd" => 0.125)
     expect(presented).not_to have_key("operator_links")
   end
+
+  describe "operator links from the opaque target" do
+    let(:user) { Factories.user }
+    let(:evidence) do
+      ReviewEvidence.create!(
+        run: run, workflow: workflow, step: step, review_kind: "coworker",
+        provider: "codex", model: "gpt-test", reviewed_base_sha: "a" * 40,
+        reviewed_head_sha: "b" * 40, canonical_diff_sha256: "c" * 64,
+        prompt_version: "1", checklist_version: "d" * 64, tool_policy_version: "1",
+        target: { "type" => "coworker", "reference" => "7", "display" => { "name" => "Maya" } }
+      )
+    end
+    let(:entry) { { "review_evidence_id" => evidence.id, "verdict" => "approved" } }
+
+    it "asks the target's provider for links" do
+      provider = class_double("ReviewContextProvider", target_type: "coworker")
+      allow(provider).to receive(:operator_links).and_return(journal: "/journal")
+      allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+      allow(Syrus::PluginRegistry).to receive(:providers_for).with(:review_context_contributor).and_return([ provider ])
+
+      expect(described_class.call([ entry ], user: user).sole["operator_links"]).to eq("journal" => "/journal")
+    end
+
+    it "still renders historical evidence when the owning plugin is absent" do
+      allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+      allow(Syrus::PluginRegistry).to receive(:providers_for).with(:review_context_contributor).and_return([])
+
+      presented = described_class.call([ entry ], user: user).sole
+
+      expect(presented).not_to have_key("operator_links")
+      expect(presented["review_evidence"]).to include("state" => "pending")
+    end
+  end
 end

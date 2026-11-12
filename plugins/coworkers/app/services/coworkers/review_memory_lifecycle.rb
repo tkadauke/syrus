@@ -29,7 +29,21 @@ class Coworkers::ReviewMemoryLifecycle
         { "id" => entry.fetch(:id), "revision" => entry.fetch(:revision),
           "sha256" => Digest::SHA256.hexdigest(entry.fetch(:content)) }
       end
-      Coworkers::ReviewContext.create!(run:, review_evidence: evidence, coworker:, manifest:, exact_context: exact, workspace_path: path.to_s)
+      Coworkers::ReviewContext.create!(
+        run:, review_evidence_id: evidence&.id, coworker:, manifest:, exact_context: exact, workspace_path: path.to_s,
+        idempotency_key: evidence && Coworkers::ReviewContext.idempotency_key_for(evidence.id),
+        evidence_snapshot: evidence_snapshot(evidence)
+      )
+    rescue ActiveRecord::RecordNotUnique
+      # A concurrent or retried preparation won the unique index: reuse it.
+      Coworkers::ReviewContext.find_by!(run: run)
+    end
+
+    def evidence_snapshot(evidence)
+      return {} unless evidence
+
+      { "review_evidence_id" => evidence.id, "reviewed_head_sha" => evidence.reviewed_head_sha,
+        "reviewed_base_sha" => evidence.reviewed_base_sha }
     end
 
     def prompt_section(context)
@@ -61,13 +75,19 @@ class Coworkers::ReviewMemoryLifecycle
         Job: #{run.job_id}
         Workflow: #{run.workflow_id}
         Run: #{run.id}
-        Reviewed SHA: #{context.review_evidence.reviewed_head_sha}
+        Reviewed SHA: #{(context.evidence_snapshot.to_h['reviewed_head_sha'] || context.review_evidence&.reviewed_head_sha)}
         Verdict: #{verdict}
         Key learning: #{key_learning}
         Evidence: #{context.review_evidence_id}
         TEXT
         persist_checkout!(coworker, run, context)
       end
+    rescue ActiveRecord::StaleObjectError
+      # Another writer persisted or tombstoned this context concurrently.
+      fresh = Coworkers::ReviewContext.find_by(run:, coworker:)
+      return fresh if fresh&.persistence_state == "persisted"
+
+      raise PersistenceError, "coworker memory persistence conflicted"
     rescue StandardError => error
       context&.update!(persistence_state: "failed", persistence_error_code: "coworker_memory_persistence_failed",
                        persistence_error_details: { "class" => error.class.name,

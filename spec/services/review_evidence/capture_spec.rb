@@ -52,6 +52,8 @@ RSpec.describe ReviewEvidence::Capture do
     allow(target_provider).to receive(:resolve).and_return(
       type: "coworker", reference: "opaque", display: { "name" => "Maya" }, record: reviewer
     )
+    allow(target_provider).to receive(:audit_snapshot).and_return("name" => "Maya")
+    allow(target_provider).to receive(:uniqueness_key).and_return("opaque")
     allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
     allow(Syrus::PluginRegistry).to receive(:providers_for).with(:reviewer_target_provider).and_return([ target_provider ])
 
@@ -59,7 +61,9 @@ RSpec.describe ReviewEvidence::Capture do
       run: run, workspace_path: "/workspace", review_kind: "adversarial", base_ref: "origin/main"
     )
 
-    expect(evidence.reviewer).to eq(reviewer)
+    expect(evidence.review_target).to include("type" => "coworker", "reference" => "opaque",
+                                              "display" => { "name" => "Maya" })
+    expect(evidence.reviewer).to be_nil # single-write: no polymorphic plugin record is stored
     expect(evidence).to have_attributes(provider: "codex", model: "gpt-pinned")
   end
 

@@ -22,6 +22,20 @@ module ReviewContextContributions
     normalize_receipt(receipt)
   end
 
+  # Historical rendering must survive plugin absence or disablement, so a
+  # missing provider simply yields no operator links.
+  def operator_links(evidence:, user:)
+    target = evidence.review_target
+    return if target.blank?
+
+    provider = provider_for(target)
+    return unless provider.respond_to?(:operator_links)
+
+    provider.operator_links(target:, run: evidence.run, evidence:, user:).presence&.deep_stringify_keys
+  rescue Unavailable
+    nil
+  end
+
   def tool_set(target)
     provider_for(target).tool_set(target.deep_stringify_keys)
   end

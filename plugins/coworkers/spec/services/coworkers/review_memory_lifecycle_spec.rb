@@ -13,7 +13,8 @@ RSpec.describe Coworkers::ReviewMemoryLifecycle do
   let(:step) { Step.create!(workflow: job.latest_workflow, kind: "coworker_review", position: 99) }
   let(:run) { step.runs.create!(job: job, trigger_kind: "initial", agent_provider: "codex", model: "test") }
   let(:evidence) do
-    ReviewEvidence.create!(run:, workflow: run.workflow, step:, reviewer: coworker, review_kind: "coworker",
+    ReviewEvidence.create!(run:, workflow: run.workflow, step:,
+      target: { "type" => "coworker", "reference" => coworker.id.to_s }, review_kind: "coworker",
       provider: "codex", model: "test", reviewed_base_sha: "a" * 40, reviewed_head_sha: "b" * 40,
       canonical_diff_sha256: "c" * 64, prompt_version: "1", checklist_version: "d" * 64, tool_policy_version: "1")
   end
@@ -103,5 +104,31 @@ RSpec.describe Coworkers::ReviewMemoryLifecycle do
 
     expect(captured.first).not_to include("top-secret", "x-access-token")
     expect(File).not_to exist(captured.last)
+  end
+
+  it "snapshots the evidence so the journal survives evidence purge" do
+    allow(described_class).to receive(:clone_home!)
+    created = described_class.prepare!(coworker:, run:, evidence:, criteria: [])
+
+    expect(created).to have_attributes(
+      idempotency_key: Coworkers::ReviewContext.idempotency_key_for(evidence.id),
+      evidence_snapshot: include("reviewed_head_sha" => "b" * 40)
+    )
+    expect(described_class.prepare!(coworker:, run:, evidence:, criteria: [])).to eq(created)
+    evidence.delete
+    expect(created.reload.evidence_snapshot["reviewed_head_sha"]).to eq("b" * 40)
+  end
+
+  it "treats a concurrent persist as success and a conflicting one as a persistence error" do
+    record = context
+    stale = Coworkers::ReviewContext.find(record.id)
+    record.update!(persistence_state: "persisted")
+    allow(Coworkers::OperationLock).to receive(:with).and_raise(ActiveRecord::StaleObjectError.new(stale, "update"))
+
+    expect(described_class.persist!(coworker:, run:, key_learning: "x", verdict: "approved")).to eq(record)
+
+    record.update!(persistence_state: "failed")
+    expect { described_class.persist!(coworker:, run:, key_learning: "x", verdict: "approved") }
+      .to raise_error(described_class::PersistenceError, /conflicted/)
   end
 end

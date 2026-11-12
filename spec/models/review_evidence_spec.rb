@@ -23,6 +23,35 @@ RSpec.describe ReviewEvidence do
     expect { described_class.create!(evidence_attributes) }.to raise_error(ActiveRecord::RecordInvalid)
   end
 
+  describe "opaque reviewer envelopes" do
+    it "keeps the target snapshot immutable once written" do
+      evidence = described_class.create!(evidence_attributes.merge(target: { "type" => "coworker", "reference" => "7" }))
+
+      evidence.target = { "type" => "coworker", "reference" => "8" }
+
+      expect(evidence).not_to be_valid
+      expect(evidence.errors[:base]).to include(/immutable/)
+      expect(evidence.reload.review_target).to eq("type" => "coworker", "reference" => "7")
+    end
+
+    it "records the context manifest and persistence receipt exactly once" do
+      evidence = described_class.create!(evidence_attributes)
+
+      expect(evidence.record_context_manifest!(protected_prompt: { sha256: "a" })).to eq("protected_prompt" => { "sha256" => "a" })
+      expect(evidence.record_context_manifest!("other" => 1)).to eq("protected_prompt" => { "sha256" => "a" })
+      expect(evidence.record_persistence_receipt!(owner: "coworkers", key: "1")).to eq("owner" => "coworkers", "key" => "1")
+      expect(evidence.record_persistence_receipt!("owner" => "x")).to eq("owner" => "coworkers", "key" => "1")
+      expect(evidence.reload).to have_attributes(context_manifest: { "protected_prompt" => { "sha256" => "a" } })
+    end
+
+    it "rejects overwriting a recorded receipt" do
+      evidence = described_class.create!(evidence_attributes.merge(persistence_receipt: { "key" => "1" }))
+      evidence.persistence_receipt = { "key" => "2" }
+
+      expect(evidence).not_to be_valid
+    end
+  end
+
   it "never permits stale evidence to become current again" do
     evidence = described_class.create!(evidence_attributes)
     evidence.mark_stale!(code: "review_evidence_mismatch", details: { current_head_sha: "new" })

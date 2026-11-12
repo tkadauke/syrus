@@ -31,6 +31,25 @@ class Coworkers::ReviewContextContributor
     }
   end
 
+  # The coworker behind a run's review, read from the evidence's opaque target
+  # envelope (dual-read: historical rows fall back to the legacy polymorphic
+  # reviewer until the ownership backfill has populated `target`).
+  def self.reviewer_for(run)
+    evidence = run.review_evidence
+    return unless evidence
+
+    target = evidence.review_target
+    return Coworkers::Coworker.find_by(id: target["reference"]) if target && target["type"] == "coworker"
+
+    legacy = evidence.reviewer if evidence.reviewer_type == "Coworkers::Coworker"
+    legacy if legacy.is_a?(Coworkers::Coworker)
+  end
+
+  def self.operator_links(target:, run:, user:, evidence: nil)
+    coworker = Coworkers::Coworker.find_by(id: target.to_h["reference"])
+    coworker&.review_evidence_links(run:, user:)
+  end
+
   def self.tool_set(_target) = Coworkers::ReviewToolSet
   def self.tool_capability(_target) = :submit_coworker_review
   def self.retention(_target) = { "policy" => "coworker_review_context", "tombstones" => true }

@@ -42,7 +42,7 @@ RSpec.describe Coworkers::ReviewStep do
   end
 
   it "uses dedicated criteria, submission tool, and iteration artifact" do
-    evidence = instance_double(ReviewEvidence, id: 42, state: "submitted", reviewer: nil)
+    evidence = instance_double(ReviewEvidence, id: 42, state: "submitted", reviewer: nil, review_target: nil, persistence_receipt: nil)
     allow(run).to receive(:review_evidence).and_return(evidence)
     allow(run).to receive(:reload).and_return(run)
     allow(ReviewEvidence::VerifySubmission).to receive(:call!).and_return(evidence)
@@ -80,7 +80,7 @@ RSpec.describe Coworkers::ReviewStep do
   end
 
   it "does not advance when submitted coworker evidence becomes stale" do
-    evidence = instance_double(ReviewEvidence, id: 42, state: "submitted", reviewer: nil)
+    evidence = instance_double(ReviewEvidence, id: 42, state: "submitted", reviewer: nil, review_target: nil, persistence_receipt: nil)
     allow(run).to receive(:review_evidence).and_return(evidence)
     allow(run).to receive(:reload).and_return(run)
     allow(handler).to receive(:run_agent) do
@@ -96,7 +96,7 @@ RSpec.describe Coworkers::ReviewStep do
   end
 
   it "requires the contributed post-verdict update before succeeding" do
-    evidence = instance_double(ReviewEvidence, id: 42, state: "submitted", reviewer: nil)
+    evidence = instance_double(ReviewEvidence, id: 42, state: "submitted", reviewer: nil, review_target: nil, persistence_receipt: nil)
     allow(run).to receive(:review_evidence).and_return(evidence)
     allow(run).to receive(:reload).and_return(run)
     allow(ReviewEvidence::VerifySubmission).to receive(:call!).and_return(evidence)

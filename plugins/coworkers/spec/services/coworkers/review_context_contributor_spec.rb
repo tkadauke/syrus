@@ -41,4 +41,40 @@ RSpec.describe Coworkers::ReviewContextContributor do
       described_class.persist(target: { type: "coworker", reference: "7" }, run:, context: {}, verdict: "approved", update: {})
     }.to raise_error(KeyError, /key_learning/)
   end
+
+  describe ".reviewer_for" do
+    let(:owner) { Factories.user }
+    let(:real) { Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya", state: "active", workspace_repo: Factories.repository(user: owner).remote_url) }
+    let(:step) { Step.create!(workflow: job.latest_workflow, kind: "coworker_review", position: 98) }
+    let(:review_run) { step.runs.create!(job: job, trigger_kind: "initial", agent_provider: "codex", model: "m") }
+
+    def evidence(**attrs)
+      ReviewEvidence.create!({ run: review_run, workflow: review_run.workflow, step:, review_kind: "coworker",
+        provider: "codex", model: "m", reviewed_base_sha: "a" * 40, reviewed_head_sha: "b" * 40,
+        canonical_diff_sha256: "c" * 64, prompt_version: "1", checklist_version: "d" * 64,
+        tool_policy_version: "1" }.merge(attrs))
+    end
+
+    it "reads the opaque target envelope" do
+      evidence(target: { "type" => "coworker", "reference" => real.id.to_s })
+
+      expect(described_class.reviewer_for(review_run)).to eq(real)
+    end
+
+    it "falls back to the legacy polymorphic reviewer for unbackfilled historical rows" do
+      evidence(reviewer: real)
+
+      expect(described_class.reviewer_for(review_run)).to eq(real)
+    end
+
+    it "is nil without evidence" do
+      expect(described_class.reviewer_for(review_run)).to be_nil
+    end
+  end
+
+  it "builds operator links only from the target reference" do
+    allow(Coworkers::Coworker).to receive(:find_by).with(id: "7").and_return(double(review_evidence_links: { "journal" => "/j" }))
+
+    expect(described_class.operator_links(target: { "reference" => "7" }, run:, user: Factories.user)).to eq("journal" => "/j")
+  end
 end

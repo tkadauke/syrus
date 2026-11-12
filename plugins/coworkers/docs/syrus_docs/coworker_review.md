@@ -74,3 +74,24 @@ Root criteria apply repository-wide. A nested project's criteria are included
 only when the reviewed changes affect that project. Coworker review remains an
 automated quality gate: neither an individual approval nor panel consensus
 satisfies repository human-approval policy.
+
+## Data ownership and storage
+
+The Coworkers plugin owns the review-context table (`coworker_review_contexts`),
+its retention, the isolated home-workspace checkout, journal updates, and the
+persistence receipt. Core's review evidence holds only opaque envelopes: an
+immutable safe snapshot of the reviewer target, a write-once safe context
+manifest (hashes and sizes, never prompt text), and a write-once persistence
+receipt. There is no database foreign key between the two, so evidence can be
+purged, or the plugin removed or disabled between iterations, without breaking
+either side. Historical reviews keep rendering from the evidence snapshot;
+operator links simply disappear while the plugin is unavailable.
+
+Preparation and persistence are idempotent: a retried Step reuses the existing
+context (unique per evidence) and the evidence's recorded receipt prevents a
+second journal update. Concurrent writers are detected with optimistic locking;
+a context that another writer already persisted counts as success, and any other
+conflict surfaces as the typed `coworker_memory_persistence_failed` failure.
+New evidence writes only the target envelope. Rows from before the envelope
+existed are read through the legacy reviewer reference until the plugin's
+ownership migration backfills their envelopes.
