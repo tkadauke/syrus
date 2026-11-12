@@ -29,9 +29,10 @@ RSpec.describe "API: /api/v1/app/passkeys", type: :request do
 
       expect(response).to have_http_status(:ok)
       body = parse_body
-      expect(body.length).to eq(2)
-      expect(body.first.keys).to match_array(%w[id nickname created_at last_used_at])
-      expect(body.none? { |p| p.key?("external_id") }).to be true
+      expect(body.keys).to eq(%w[v passkeys])
+      expect(body["passkeys"].length).to eq(2)
+      expect(body["passkeys"].first.keys).to match_array(%w[id nickname created_at last_used_at])
+      expect(body["passkeys"].none? { |passkey| passkey.key?("external_id") }).to be true
     end
 
     it "does not expose another user's passkeys" do
@@ -39,7 +40,7 @@ RSpec.describe "API: /api/v1/app/passkeys", type: :request do
 
       get "/api/v1/app/passkeys"
 
-      ids = parse_body.map { |p| p["id"] }
+      ids = parse_body.fetch("passkeys").map { |passkey| passkey["id"] }
       expect(ids).not_to include(other_user.passkeys.first.id)
     end
   end
