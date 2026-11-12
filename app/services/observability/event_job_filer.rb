@@ -7,7 +7,7 @@ module Observability
     SOURCES = {
       "browser_error" => {
         model: BrowserErrorEvent,
-        payload: ->(event) { Observability::EventPayloads.browser_error(event) },
+        payload: ->(event) { Observability::EventPayloads.browser_error(event, detail: true) },
         title: ->(event) { "Fix browser error: #{event.message}" },
         description: ->(event, payload) do
           <<~MARKDOWN
@@ -28,7 +28,7 @@ module Observability
       },
       "backend_exception" => {
         model: BackendExceptionEvent,
-        payload: ->(event) { Observability::EventPayloads.backend_exception(event) },
+        payload: ->(event) { Observability::EventPayloads.backend_exception(event, detail: true) },
         title: ->(event) { "Fix backend exception: #{event.exception_class}: #{event.message}" },
         description: ->(event, payload) do
           context = event.source == "active_job" ? [ event.job_class, event.queue_name ].compact.join(" on ") : [ event.method, event.path ].compact.join(" ")
