@@ -1154,7 +1154,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     )
   end
 
-  it "returns a workflow-only job detail payload for live workflow refreshes" do
+  it "returns only collapsed workflow summaries and pagination for live refreshes" do
     run = job.initial_run
     if (unit = run.workflow.work_unit)
       unit.work_unit_members.find_or_create_by!(job: job) { |member| member.role = "primary" }
@@ -1166,19 +1166,13 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body.keys).to contain_exactly("job_id", "current_intent", "workflows", "workflows_pagination", "work_units", "feature_flags", "actions", "paths")
-    workflows = body["workflows"] + body["work_units"].filter_map { |unit| unit["workflow"] }
-    first_run = workflows.flat_map { |workflow| workflow["steps"] }.flat_map { |step| step["runs"] }.find { |payload| payload["id"] == run.id }
-    expect(first_run).to include(
-      "job_log_count" => 2,
-      "rate_limited" => true
-    )
-    expect(body["current_intent"]).to be_nil
-    expect(body["work_units"]).to eq([])
-    expect(body.dig("feature_flags", "work_unit_debug")).to be false
+    expect(body.keys).to contain_exactly("workflows", "workflows_pagination")
+    summary = body.fetch("workflows").first
+    expect(summary).not_to include("app_retry_step_path", "app_push_commits_path")
+    expect(summary.fetch("steps").first).not_to include("runs", "details", "warnings")
   end
 
-  it "returns WorkUnit diagnostics on live workflow refreshes only when enabled" do
+  it "keeps WorkUnit diagnostics out of the workflow list when debug mode is enabled" do
     AppSetting.current.update!(show_work_unit_debug: true)
     run = job.initial_run
     unit = run.workflow.work_unit
@@ -1192,14 +1186,43 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body["current_intent"]).to include("id" => unit.work_intent_id, "kind" => "initial")
-    expect(body["work_units"]).to include(include(
-      "id" => unit.id,
-      "workflow_id" => run.workflow.id,
-      "workflow_slug" => run.workflow.slug,
-      "workflow" => nil
-    ))
-    expect(body.dig("feature_flags", "work_unit_debug")).to be true
+    expect(body.keys).to contain_exactly("workflows", "workflows_pagination")
+  end
+
+  it "loads full step and run detail only from the expanded workflow endpoint" do
+    run = job.initial_run
+    span = run.command_spans.create!(
+      job: job,
+      workflow: run.workflow,
+      step: run.step,
+      sequence: 1,
+      name: "bundle",
+      command_excerpt: "bundle exec rspec",
+      started_at: Time.current
+    )
+
+    get "/api/v1/app/workflows/#{run.workflow.id}/detail"
+
+    expect(response).to have_http_status(:ok)
+    workflow = parse_body.fetch("workflow")
+    serialized_run = workflow.fetch("steps").flat_map { |step| step.fetch("runs") }.find { |candidate| candidate.fetch("id") == run.id }
+    expect(serialized_run).to include("queued_at" => run.created_at.iso8601)
+    expect(serialized_run).not_to include("app_artifacts_path", "app_stop_path", "queue_wait")
+    serialized_span = serialized_run.fetch("command_spans").find { |candidate| candidate.fetch("id") == span.id }
+    expect(serialized_span).not_to include("job_id", "workflow_id", "step_id", "run_id", "sample_count", "samples_missing", "retention_limited", "summary", "pressure")
+  end
+
+  it "keeps workflow-list ETags stable while a run remains queued" do
+    job.initial_run.update!(state: "queued")
+
+    get "/api/v1/app/jobs/#{job.id}/workflows"
+    etag = response.headers.fetch("ETag")
+
+    travel 2.seconds do
+      get "/api/v1/app/jobs/#{job.id}/workflows", headers: { "If-None-Match" => etag }
+    end
+
+    expect(response).to have_http_status(:not_modified)
   end
 
   it "does not show repository-scoped requested intents as current work for unrelated jobs" do
