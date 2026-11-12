@@ -34,9 +34,14 @@ RSpec.describe "API: /api/v1/admin/backend_exceptions", type: :request do
       "request_id" => "req-123",
       "job_slug" => job.slug
     )
-    expect(response.parsed_body.dig("events", 0, "actions")).to include(
+    expect(response.parsed_body.fetch("actions")).to include(
       include("id" => "file_job", "label" => "File Job", "event_type" => "backend_exception")
     )
+    expect(response.parsed_body.dig("events", 0)).not_to have_key("backtrace")
+
+    get "/api/v1/admin/backend_exceptions", params: { include: "detail" }, headers: auth
+
+    expect(response.parsed_body.dig("events", 0, "request_context")).to include("path" => "/jobs/3188")
   end
 
   it "sorts backend exceptions by supported columns" do

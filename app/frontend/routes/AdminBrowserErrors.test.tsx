@@ -83,7 +83,9 @@ describe("AdminBrowserErrors", () => {
   })
 
   it("keeps expandable details working inside the shared table panel", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
+    vi.spyOn(window, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/1")) return jsonResponse({ stack: "TypeError: broken at App.tsx:12", component_stack: null, recent_api_requests: [], recent_errors: [], viewport: {}, feature_flags: {}, metadata: {}, route_params: {}, url: null, user_agent: null })
+      return jsonResponse({
       current_revision: "abc123",
       revision_scope: "current",
       filters: {},
@@ -96,8 +98,9 @@ describe("AdminBrowserErrors", () => {
         next_page: null,
         previous_page: null
       },
-      events: [browserErrorEvent({ stack: "TypeError: broken at App.tsx:12" })]
-    }))
+      events: [browserErrorEvent()]
+      })
+    })
 
     renderRoute()
     await screen.findByText("undefined is not an object")

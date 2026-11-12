@@ -11,28 +11,33 @@ export type BrowserErrorEventRow = {
   fingerprint: string
   name?: string | null
   message: string
-  stack?: string | null
-  component_stack?: string | null
-  url?: string | null
   path?: string | null
   route_id?: string | null
-  route_params?: Record<string, unknown> | null
   trace_id?: string | null
-  user_agent?: string | null
-  viewport?: Record<string, unknown> | null
-  feature_flags?: Record<string, unknown> | null
-  recent_api_requests?: Array<Record<string, unknown>> | null
-  recent_errors?: Array<Record<string, unknown>> | null
-  metadata?: Record<string, unknown> | null
   user: {
     id: number
     display_name?: string | null
     email_address?: string | null
   }
-  actions?: EventAction[]
 }
 
+export type BrowserErrorDetail = {
+  stack?: string | null
+  component_stack?: string | null
+  url?: string | null
+  route_params: Record<string, unknown>
+  user_agent?: string | null
+  viewport: Record<string, unknown>
+  feature_flags: Record<string, unknown>
+  recent_api_requests: Array<Record<string, unknown>>
+  recent_errors: Array<Record<string, unknown>>
+  metadata: Record<string, unknown>
+}
+
+export type BrowserErrorControls = { filter_schema: NonNullable<AdminEventFilterPayload["filter_schema"]>; actions: EventAction[] }
+
 export type BrowserErrorEventsPayload = AdminEventFilterPayload & {
+  actions: EventAction[]
   current_revision: string
   revision_scope: BrowserErrorRevisionScope
   filters: {
@@ -56,4 +61,12 @@ export type BrowserErrorEventsPayload = AdminEventFilterPayload & {
 
 export function fetchAdminBrowserErrors(search = "") {
   return getJson<BrowserErrorEventsPayload>(`/api/v1/app/admin/browser_errors${search}`)
+}
+
+export function fetchAdminBrowserErrorControls() {
+  return getJson<BrowserErrorControls>("/api/v1/app/admin/browser_errors/controls")
+}
+
+export async function fetchAdminBrowserError(id: number) {
+  return getJson<BrowserErrorEventRow & BrowserErrorDetail>(`/api/v1/app/admin/browser_errors/${id}`)
 }

@@ -8,6 +8,14 @@ module Api
           rescue ArgumentError => e
             render_error("invalid_browser_error_search", e.message, status: :unprocessable_content)
           end
+
+          def controls
+            render json: ::Admin::BrowserErrorEventsPayload.new(params: params).controls_json
+          end
+
+          def show
+            render json: ::Admin::BrowserErrorEventsPayload.new(params: params).detail_json(params[:id])
+          end
         end
       end
     end
