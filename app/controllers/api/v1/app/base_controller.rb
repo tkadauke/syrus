@@ -6,6 +6,7 @@ module Api
       class BaseController < ApplicationController
         include Pundit::Authorization
         include JobEpicRefFinder
+        include JsonApiVersioning
         include JsonErrorRendering
         include SecureFileDelivery
 

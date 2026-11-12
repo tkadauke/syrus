@@ -26,6 +26,7 @@ RSpec.describe "App API unified search", type: :request do
     get "/api/v1/app/search", params: { query: " a " }
 
     expect(response).to have_http_status(:bad_request)
+    expect(parse_body.first).to eq([ "v", ApiVersion::CURRENT ])
     expect(parse_body.dig("error", "code")).to eq("bad_request")
   end
 
@@ -63,6 +64,8 @@ RSpec.describe "App API unified search", type: :request do
     get "/api/v1/app/search", params: { query: "deploy" }
 
     expect(response).to have_http_status(:ok)
+    expect(parse_body.keys.first).to eq("v")
+    expect(parse_body.fetch("v")).to eq(ApiVersion::CURRENT)
     by_type_and_id = results.index_by { |row| [ row.fetch("type"), row.fetch("id") ] }
     expect(results.map { |row| row["type"] }).to contain_exactly("job", "job", "epic", "chat")
     expect(parse_body).not_to have_key("controls")

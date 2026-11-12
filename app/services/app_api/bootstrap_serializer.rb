@@ -9,6 +9,7 @@ module AppApi
     def as_json(*)
       PerformanceLogging.phase("bootstrap_payload", authenticated: user.present?) do
         payload = {
+          v: ApiVersion::CURRENT,
           current_user: PerformanceLogging.phase("bootstrap.current_user") { me_payload[:current_user] },
           time_zones: time_zones_payload,
           team_user_count: PerformanceLogging.phase("bootstrap.team_user_count") { user ? me_payload[:team_user_count] : 0 },
