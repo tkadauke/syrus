@@ -941,6 +941,7 @@ export type JobRun = {
   last_heartbeat_at: string | null
   finished_at: string | null
   created_at: string | null
+  queued_at?: string | null
   updated_at: string | null
   cost_usd: number | null
   input_tokens: number | null
@@ -984,6 +985,7 @@ export type JobRun = {
   app_diagnose_path: string
   app_resume_path: string
   app_grade_log_path: string | null
+  grade_log_available?: boolean
   test_failure_summary?: RunTestFailureSummary | null
 }
 
@@ -1364,12 +1366,9 @@ export type JobDeploymentStage = {
   tag_sha: string | null
 }
 
-export type JobWorkflowsPayload = Pick<
-  JobDetailPayload,
-  "current_intent" | "work_units" | "workflows" | "workflows_pagination" | "feature_flags" | "actions" | "paths"
-> & {
-  job_id?: number
-}
+export type JobWorkflowsPayload = Pick<JobDetailPayload, "workflows" | "workflows_pagination">
+
+export type JobWorkflowDetailPayload = { workflow: JobWorkflow }
 
 export type JobTimelinePayload = {
   job_id: number
@@ -1721,8 +1720,37 @@ export function startJobUnland(path: string) {
   return postJson<JobUnlandResult>(path, {})
 }
 
-export function fetchJobWorkflows(id: string, search = "") {
-  return getJson<JobWorkflowsPayload>(`/api/v1/app/jobs/${id}/workflows${search}`)
+export async function fetchJobWorkflows(id: string, search = "") {
+  const payload = await getJson<JobWorkflowsPayload>(`/api/v1/app/jobs/${id}/workflows${search}`)
+  return { ...payload, workflows: payload.workflows.map((workflow) => deriveWorkflowPaths(workflow, id)) }
+}
+
+export async function fetchWorkflowDetail(jobId: number, workflowId: number, signal?: AbortSignal) {
+  const payload = await getJson<JobWorkflowDetailPayload>(`/api/v1/app/workflows/${workflowId}/detail`, { signal })
+  return deriveWorkflowPaths(payload.workflow, String(jobId))
+}
+
+function deriveWorkflowPaths(workflow: JobWorkflow, jobId: string): JobWorkflow {
+  const workflowBase = `/api/v1/app/jobs/${jobId}/workflows/${workflow.id}`
+  return {
+    ...workflow,
+    app_retry_step_path: `${workflowBase}/retry_step`,
+    app_push_commits_path: `${workflowBase}/push_commits`,
+    app_force_push_branch_path: `${workflowBase}/force_push_branch`,
+    app_discard_branch_output_path: `${workflowBase}/discard_branch_output`,
+    app_dismiss_path: `${workflowBase}/dismiss`,
+    steps: workflow.steps.map((step) => Object.prototype.hasOwnProperty.call(step, "runs") ? ({
+      ...step,
+      runs: step.runs.map((run) => ({
+        ...run,
+        app_artifacts_path: `/api/v1/app/jobs/${jobId}/runs/${run.id}/artifacts`,
+        app_stop_path: `/api/v1/app/jobs/${jobId}/runs/${run.id}/stop`,
+        app_diagnose_path: `/api/v1/app/jobs/${jobId}/runs/${run.id}/diagnose`,
+        app_resume_path: `/api/v1/app/jobs/${jobId}/resume`,
+        app_grade_log_path: run.grade_log_available ? `/api/v1/app/jobs/${jobId}/runs/${run.id}/grade_log` : null
+      }))
+    }) : step)
+  }
 }
 
 export function fetchJobDependencyOptions(path: string, query = "", limit = 25) {
