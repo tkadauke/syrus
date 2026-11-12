@@ -11,6 +11,8 @@ import {
   startCodexOauth,
   testCredential,
   type CredentialTestResult,
+  type CredentialsCorePayload,
+  type CredentialsMutationPayload,
   type CredentialsPayload
 } from "../../api/credentials"
 import { openInNewTab } from "../../lib/desktopShell"
@@ -42,17 +44,22 @@ type CardProps = {
   onNotice: (message: string | null) => void
 }
 
-// Write a mutation's payload snapshot into the credentials cache.
+// Merge a mutation's changed slices into the credentials cache.
 // - Strips the server's generic `message` ("Credentials updated.") so the
 //   page-level payload-message effect cannot overwrite the card's specific
 //   notice with it.
-// - Follows up with an invalidation so concurrent partial PATCHes (e.g. a
-//   mode change racing a key save) reconcile against a fresh GET instead of
-//   whichever full snapshot happened to land last.
-export function cacheCredentials(queryClient: QueryClient, updated: CredentialsPayload) {
-  const { message: _ignored, ...snapshot } = updated
-  queryClient.setQueryData(queryKey, snapshot)
-  void queryClient.invalidateQueries({ queryKey })
+// - Revalidates only the long-cached options slice because configured chat
+//   providers can change when a credential changes.
+export function cacheCredentials(queryClient: QueryClient, updated: CredentialsMutationPayload) {
+  const { message: _ignored, provider, availability, ...changed } = updated
+  queryClient.setQueryData<CredentialsCorePayload>(queryKey, (current) => {
+    if (!current) return current
+    const providerAvailability = provider && availability
+      ? { ...current.provider_availability, [provider]: availability }
+      : current.provider_availability
+    return { ...current, ...changed, provider_availability: changed.provider_availability ?? providerAvailability }
+  })
+  void queryClient.invalidateQueries({ queryKey: ["credential-options"] })
 }
 
 // ---------- shared shell ----------

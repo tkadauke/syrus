@@ -623,6 +623,11 @@ la:
       removed: "Membrum remotum est."
 
     credentials:
+      documents:
+        added: "Documentum additum est."
+        partially_added: "Quaedam documenta addi non potuerunt: %{errors}"
+        choose_source: "Fasciculum elige aut URL Google Doc inscribe."
+        removed: "Documentum remotum est."
       labels:
         github_token: "signum GitHub"
         claude_oauth_token: "signum OAuth Claude"
