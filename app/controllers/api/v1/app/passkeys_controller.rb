@@ -11,7 +11,7 @@ module Api
 
         def index
           passkeys = current_user.passkeys.order(created_at: :desc)
-          render json: passkeys.as_json(only: %i[id nickname created_at last_used_at])
+          render json: { passkeys: passkeys.as_json(only: %i[id nickname created_at last_used_at]) }
         end
 
         def destroy

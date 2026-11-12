@@ -1501,7 +1501,7 @@ export function fetchInvitableUsers(excludeChatId?: number | string | null, quer
   if (query?.trim()) params.set("q", query.trim())
   params.set("limit", String(limit))
   const search = params.toString()
-  return getJson<InvitableUser[]>(`/api/v1/app/users/invitable?${search}`)
+  return getJson<{ users: InvitableUser[] }>(`/api/v1/app/users/invitable?${search}`).then((payload) => payload.users)
 }
 
 export function createGroupChat(participantUserIds: number[], repositoryId?: number | string | null) {

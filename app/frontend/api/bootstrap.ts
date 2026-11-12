@@ -20,6 +20,7 @@ export type SystemAlertAction =
     }
 
 export type BootstrapPayload = {
+  v: number
   current_user: {
     id: number
     email_address: string
