@@ -88,14 +88,17 @@ function withoutMessage(payload: CredentialsPayload): CredentialsPayload {
   return rest
 }
 
-// Stateful router: card saves/clears cache a snapshot AND invalidate, so the
-// follow-up GET must serve whatever state the last mutation produced.
+// Stateful router mirrors the three read slices composed by fetchCredentials.
 function mockRoutes(initialPayload: CredentialsPayload, routes: { clear?: () => Response; patch?: () => Response; test?: () => Response } = {}) {
   const state = { payload: initialPayload }
   const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
     const url = String(input)
     const method = init?.method ?? "GET"
     if (url.endsWith("/api/v1/app/credentials") && method === "GET") return jsonResponse(state.payload)
+    if (url.endsWith("/api/v1/app/credentials/options") && method === "GET") return jsonResponse({ options: state.payload.options })
+    if (url.endsWith("/api/v1/app/credentials/provider_routing_rules") && method === "GET") {
+      return jsonResponse({ provider_routing_rules: state.payload.provider_routing_rules })
+    }
     if (url.endsWith("/api/v1/app/credentials") && method === "PATCH") {
       const response = routes.patch?.() ?? jsonResponse(state.payload)
       state.payload = withoutMessage(JSON.parse(await response.clone().text()) as CredentialsPayload)

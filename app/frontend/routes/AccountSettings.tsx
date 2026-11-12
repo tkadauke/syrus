@@ -26,6 +26,8 @@ import {
 } from "../components/credentials/CredentialCard"
 import {
   fetchCredentials,
+  fetchCredentialOptions,
+  fetchAccountProviderRoutingRules,
   overrideProviderAvailability,
   revokeApiToken,
   rotateApiToken,
@@ -51,6 +53,8 @@ import {
 } from "../lib/shakeToReportPermission"
 
 const queryKey = ["credentials"] as const
+const optionsQueryKey = ["credential-options"] as const
+const routingQueryKey = ["credential-provider-routing-rules"] as const
 type AccountSettingsSection = "profile" | "credentials" | "agent" | "preferences"
 
 export function CredentialsRoute() {
@@ -97,6 +101,8 @@ function CredentialsAccountPanel({ onNotice, section }: { onNotice: (message: st
     queryKey,
     queryFn: fetchCredentials
   })
+  const options = useQuery({ queryKey: optionsQueryKey, queryFn: fetchCredentialOptions, staleTime: 24 * 60 * 60 * 1000 })
+  const routing = useQuery({ queryKey: routingQueryKey, queryFn: fetchAccountProviderRoutingRules })
 
   useEffect(() => {
     if (credentials.data?.message) onNotice(credentials.data.message)
@@ -104,9 +110,13 @@ function CredentialsAccountPanel({ onNotice, section }: { onNotice: (message: st
 
   return (
     <>
-      {credentials.isPending ? <PanelMessage>{t("account_settings.loading_credentials")}</PanelMessage> : null}
+      {credentials.isPending || options.isPending || routing.isPending ? <PanelMessage>{t("account_settings.loading_credentials")}</PanelMessage> : null}
       {credentials.isError ? <CredentialsError error={credentials.error} /> : null}
-      {credentials.isSuccess ? <CredentialsView onNotice={onNotice} payload={credentials.data} section={section} /> : null}
+      {options.isError ? <CredentialsError error={options.error} /> : null}
+      {routing.isError ? <CredentialsError error={routing.error} /> : null}
+      {credentials.isSuccess && options.isSuccess && routing.isSuccess ? (
+        <CredentialsView onNotice={onNotice} payload={{ ...credentials.data, ...options.data, ...routing.data }} section={section} />
+      ) : null}
     </>
   )
 }
@@ -149,7 +159,7 @@ function CredentialsView({
           description={t("provider_routing.account_description")}
           onSaved={() => onNotice(t("provider_routing.updated_notice"))}
           options={payload.options.provider_routing_options}
-          queryKey={queryKey}
+          queryKey={routingQueryKey}
           rules={payload.provider_routing_rules}
           title={t("provider_routing.account_title")}
         />
@@ -174,8 +184,7 @@ function ChatProviderPanel({ payload, onNotice, prefix }: { payload: Credentials
     onSuccess: (updated) => {
       // cacheCredentials strips the server's generic "Credentials updated."
       // message before caching, so the payload-message effect cannot
-      // overwrite the specific notice below, and refetches to reconcile
-      // concurrent partial saves.
+      // overwrite the specific notice below.
       cacheCredentials(queryClient, updated)
       onNotice(t("credential_cards.chat_provider_saved_notice"))
     }
@@ -253,7 +262,7 @@ function CredentialsForm({
       // CredentialsAccountPanel cannot overwrite the section-specific notice.
       cacheCredentials(queryClient, updated)
       if (section === "preferences") void queryClient.invalidateQueries({ queryKey: ["bootstrap"] })
-      setValues(inputFromPayload(updated))
+      setValues(inputFromPayload({ ...payload, ...updated }))
       const key = sectionNoticeKey[section]
       onNotice(key ? t(key) : (updated.message ?? ""))
     }
@@ -409,7 +418,7 @@ function CredentialsForm({
             description={t("provider_routing.account_description")}
             onSaved={() => onNotice(t("provider_routing.updated_notice"))}
             options={payload.options.provider_routing_options}
-            queryKey={queryKey}
+            queryKey={routingQueryKey}
             rules={payload.provider_routing_rules}
             title={t("provider_routing.account_title")}
           />
@@ -725,7 +734,7 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
   const rotate = useMutation({
     mutationFn: rotateApiToken,
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      cacheCredentials(queryClient, updated)
       setNewToken(updated.new_api_token || "")
       onNotice(updated.message || t("account_settings.api_token_rotated"))
     }
@@ -733,7 +742,7 @@ function ApiTokenPanel({ payload, onNotice }: { payload: CredentialsPayload; onN
   const revoke = useMutation({
     mutationFn: revokeApiToken,
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      cacheCredentials(queryClient, updated)
       setNewToken("")
       onNotice(updated.message || t("account_settings.api_token_revoked"))
     }

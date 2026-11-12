@@ -82,6 +82,7 @@ Rails.application.routes.draw do
         end
         post "desktop/api_token", to: "desktop_tokens#create"
         resource :credentials, only: %i[ show update ] do
+          get :options
           post :clear_credential
           post :test_credential
           post :test_github_token

@@ -103,6 +103,15 @@ export type CredentialsPayload = {
   new_api_token?: string
 }
 
+export type CredentialsCorePayload = Omit<CredentialsPayload, "options" | "provider_routing_rules">
+
+export type CredentialsMutationPayload = Partial<Pick<CredentialsPayload, "user" | "credential_status" | "provider_availability">> & {
+  provider?: string
+  availability?: ProviderAvailability
+  message?: string
+  new_api_token?: string
+}
+
 export type CredentialTestResult = {
   credential: string
   ok: boolean
@@ -166,7 +175,15 @@ export type CredentialsInput = {
 }
 
 export function fetchCredentials() {
-  return getJson<CredentialsPayload>("/api/v1/app/credentials")
+  return getJson<CredentialsCorePayload>("/api/v1/app/credentials")
+}
+
+export function fetchCredentialOptions() {
+  return getJson<{ options: CredentialsOptions }>("/api/v1/app/credentials/options")
+}
+
+export function fetchAccountProviderRoutingRules() {
+  return getJson<{ provider_routing_rules: ProviderRoutingRule[] }>("/api/v1/app/credentials/provider_routing_rules")
 }
 
 export function fetchCredentialDocuments() {
@@ -174,24 +191,24 @@ export function fetchCredentialDocuments() {
 }
 
 export function updateCredentials(values: CredentialsInput) {
-  return patchJson<CredentialsPayload>("/api/v1/app/credentials", {
+  return patchJson<CredentialsMutationPayload>("/api/v1/app/credentials", {
     user: values
   })
 }
 
 export function recheckProviderAvailability(provider: string) {
-  return postJson<CredentialsPayload>("/api/v1/app/credentials/recheck_provider_availability", { provider })
+  return postJson<CredentialsMutationPayload>("/api/v1/app/credentials/recheck_provider_availability", { provider })
 }
 
 export function overrideProviderAvailability(provider: string) {
-  return postJson<CredentialsPayload>("/api/v1/app/credentials/override_provider_availability", { provider })
+  return postJson<CredentialsMutationPayload>("/api/v1/app/credentials/override_provider_availability", { provider })
 }
 
 // Onboarding-only: enables the exact plugin backing this agent provider,
 // after the Configure Agent modal's connect panel reports success. 403s once
 // the operator has finished first-run setup.
 export function connectOnboardingProvider(provider: string) {
-  return postJson<CredentialsPayload>("/api/v1/app/credentials/connect_onboarding_provider", { provider })
+  return postJson<CredentialsMutationPayload>("/api/v1/app/credentials/connect_onboarding_provider", { provider })
 }
 
 // Saves only the GitHub token. The credentials controller updates just the
@@ -206,13 +223,13 @@ export function saveGithubToken(githubToken: string) {
 // A per-card save therefore can never clear another credential — clearing
 // stays the explicit clear_credential endpoint.
 export function savePartialCredentials(values: Partial<CredentialsInput>) {
-  return patchJson<CredentialsPayload>("/api/v1/app/credentials", {
+  return patchJson<CredentialsMutationPayload>("/api/v1/app/credentials", {
     user: values
   })
 }
 
 export function clearCredential(credential: string) {
-  return postJson<CredentialsPayload>("/api/v1/app/credentials/clear_credential", {
+  return postJson<CredentialsMutationPayload>("/api/v1/app/credentials/clear_credential", {
     credential
   })
 }
@@ -273,11 +290,11 @@ export function exchangeCodexOauth(code: string) {
 }
 
 export function rotateApiToken() {
-  return postJson<CredentialsPayload>("/api/v1/app/credentials/rotate_api_token")
+  return postJson<CredentialsMutationPayload>("/api/v1/app/credentials/rotate_api_token")
 }
 
 export function revokeApiToken() {
-  return deleteJson<CredentialsPayload>("/api/v1/app/credentials/revoke_api_token")
+  return deleteJson<CredentialsMutationPayload>("/api/v1/app/credentials/revoke_api_token")
 }
 
 export function addCredentialDocuments(files: File[], googleDocUrl: string) {
@@ -290,5 +307,5 @@ export function addCredentialDocuments(files: File[], googleDocUrl: string) {
 }
 
 export function deleteCredentialDocument(id: number) {
-  return deleteJson<PersonalDocumentsPayload>(`/api/v1/app/credentials/documents/${id}`)
+  return deleteJson<{ id: number; message?: string }>(`/api/v1/app/credentials/documents/${id}`)
 }

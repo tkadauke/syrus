@@ -15,6 +15,13 @@ module Api
           render json: credentials_payload(Current.user)
         end
 
+        def options
+          expires_in 1.day, public: false
+          return unless stale?(etag: [ "credentials-options", Current.user.cache_key_with_version ])
+
+          render json: { options: credentials_options(Current.user) }
+        end
+
         def update
           attrs = credentials_params.to_h.reject { |key, value| blank_write_only_value?(key, value) }
           handle_submitted = attrs.key?("handle")
@@ -22,7 +29,7 @@ module Api
 
           if update_user_and_handle(attrs, requested_handle, handle_submitted: handle_submitted)
             refresh_affected_provider_availability(Current.user.saved_changes.keys)
-            render json: credentials_payload(Current.user.reload).merge(message: I18n.t("api.credentials.updated"))
+            render json: credential_state_payload(Current.user.reload).merge(message: I18n.t("api.credentials.updated"))
           else
             render_error("validation_failed", Current.user.errors.full_messages.to_sentence,
                          status: :unprocessable_content)
@@ -38,7 +45,7 @@ module Api
 
           Current.user.clear_credential!(credential)
           refresh_affected_provider_availability([ credential ])
-          render json: credentials_payload(Current.user.reload).merge(
+          render json: credential_state_payload(Current.user.reload).merge(
             message: I18n.t("api.credentials.cleared", label: credential_label(credential))
           )
         end
@@ -199,7 +206,7 @@ module Api
 
         def rotate_api_token
           new_token = Current.user.generate_api_token!
-          render json: credentials_payload(Current.user.reload).merge(
+          render json: credential_state_payload(Current.user.reload).merge(
             message: I18n.t("api.credentials.api_token_rotated"),
             new_api_token: new_token
           )
@@ -207,7 +214,7 @@ module Api
 
         def revoke_api_token
           Current.user.revoke_api_token!
-          render json: credentials_payload(Current.user.reload).merge(message: I18n.t("api.credentials.api_token_revoked"))
+          render json: credential_state_payload(Current.user.reload).merge(message: I18n.t("api.credentials.api_token_revoked"))
         end
 
         # Onboarding-only: auto-enables the exact plugin backing the agent
@@ -229,7 +236,7 @@ module Api
             return
           end
 
-          render json: credentials_payload(Current.user.reload).merge(message: I18n.t("api.credentials.provider_enabled", provider: plugin.display_name || plugin.name))
+          render json: credential_state_payload(Current.user.reload).merge(message: I18n.t("api.credentials.provider_enabled", provider: plugin.display_name || plugin.name))
         rescue ::Admin::PluginEnabler::ExperimentalPluginsBlocked => e
           render_error("beta_mode_not_enabled", I18n.t("api.credentials.provider_enable_failed", error: e.message), status: :unprocessable_content)
         end
@@ -240,11 +247,11 @@ module Api
 
           result = refresh_provider_availability(provider)
           ProviderAvailabilityWakeup.call(provider: provider, user: Current.user)
-          render json: credentials_payload(Current.user.reload).merge(
+          render json: {
             provider: provider,
             availability: ::App::ProviderAvailability.for_user(Current.user.reload, provider, cached: false),
             message: result&.message.presence || I18n.t("api.credentials.availability_rechecked", provider: provider.titleize)
-          )
+          }
         end
 
         def override_provider_availability
@@ -253,23 +260,28 @@ module Api
 
           Current.user.override_provider_availability!(provider, by_user: Current.user)
           ProviderAvailabilityWakeup.call(provider: provider, user: Current.user)
-          render json: credentials_payload(Current.user.reload).merge(
+          user = Current.user.reload
+          render json: {
+            user: user_json(user),
             provider: provider,
-            availability: ::App::ProviderAvailability.for_user(Current.user.reload, provider, cached: false),
+            availability: ::App::ProviderAvailability.for_user(user, provider, cached: false),
             message: I18n.t("api.credentials.availability_override_enabled", provider: provider.titleize)
-          )
+          }
         end
 
         private
 
         def credentials_payload(user)
+          credential_state_payload(user).merge(
+            github_rate_limit: github_rate_limit_json(user),
+            provider_availability: ::App::ProviderAvailability.all_for_user(user)
+          )
+        end
+
+        def credential_state_payload(user)
           {
             user: user_json(user),
-            credential_status: credential_status_json(user),
-            github_rate_limit: github_rate_limit_json(user),
-            provider_availability: ::App::ProviderAvailability.all_for_user(user),
-            provider_routing_rules: provider_routing_rules_json(scope_type: "user", scope_id: user.id),
-            options: credentials_options(user)
+            credential_status: credential_status_json(user)
           }
         end
 
