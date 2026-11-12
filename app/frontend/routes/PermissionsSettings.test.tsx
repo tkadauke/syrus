@@ -21,7 +21,7 @@ describe("PermissionsSettingsRoute", () => {
     expect(within(inherited).getAllByText(/are decisive/)).toHaveLength(2)
     expect(screen.getByRole("link", { name: "Open approval inbox" })).toHaveAttribute("href", "/permissions/inbox")
     expect(within(inherited).getByText(/Syrus Jobs — Cancel Job/)).toBeInTheDocument()
-    expect(within(inherited).getByText(/Permits an agent to Cancel Job/)).toBeInTheDocument()
+    expect(within(inherited).getByText(/Permits an agent to cancel a job/)).toBeInTheDocument()
   })
 
   it("previews and applies a fast permission profile for the selected chat surface", async () => {
@@ -218,6 +218,7 @@ describe("PermissionsSettingsRoute", () => {
     expect(await screen.findByRole("heading", { name: "Active permission leases" })).toBeInTheDocument()
     expect(await screen.findByText("1 / 3")).toBeInTheDocument()
     expect(screen.getByText("Fix stuck job")).toBeInTheDocument()
+    expect(screen.getAllByText(/syrus\.jobs@v1 · cancel@v1/).length).toBeGreaterThan(0)
 
     fireEvent.click(screen.getByRole("button", { name: "History" }))
     expect(await screen.findByText("Authorization request")).toBeInTheDocument()
@@ -375,7 +376,10 @@ function payload() {
         capability: "attach_repository@v1",
         operation: "attach_repository/attach_repository@v1",
         effects: ["internal_write"],
-        presentation: { capability_name: "Attach Repository", operation_name: "Attach Repository" },
+        presentation: {
+          capability_name: "Attach Repository", capability_description: "Permits access to repository bindings.",
+          operation_name: "Attach Repository", operation_description: "Permits an agent to attach a repository."
+        },
         risk: "medium",
         defaults: { "chat:planner": "ask" },
         requestable_roles: ["chat:planner"],
@@ -390,7 +394,10 @@ function payload() {
         capability: "syrus.jobs@v1",
         operation: "cancel@v1",
         effects: ["internal_write"],
-        presentation: { capability_name: "Syrus Jobs", operation_name: "Cancel Job" },
+        presentation: {
+          capability_name: "Syrus Jobs", capability_description: "Permits access to Syrus jobs.",
+          operation_name: "Cancel Job", operation_description: "Permits an agent to cancel a job."
+        },
         risk: "medium",
         defaults: { "chat:planner": "ask" },
         requestable_roles: ["chat:planner"],

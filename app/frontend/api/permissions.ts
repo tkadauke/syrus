@@ -23,7 +23,12 @@ export type InheritedPermission = {
   capability: string
   operation: string
   effects: string[]
-  presentation: { capability_name: string; operation_name: string }
+  presentation: {
+    capability_name: string
+    capability_description: string
+    operation_name: string
+    operation_description: string
+  }
   risk: string
   defaults: Record<string, string>
   requestable_roles: string[]

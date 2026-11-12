@@ -180,6 +180,12 @@
     "matrix_title": "Agent permissions matrix",
     "matrix_help": "Compare the effective state for every agent surface and capability.",
     "operation_description": "Permits an agent to {{operation}}. {{effects}}",
+    "effect_names": {
+      "local_read": "Local data reading", "isolated_workspace_write": "Isolated workspace changes", "isolated_execution": "Confined code execution", "network_read": "Network access",
+      "confidential_read": "Confidential data reading", "credential_use": "Stored credential use", "internal_write": "Syrus data changes", "external_write": "External system changes",
+      "communication": "Communication", "financial": "Financial commitments", "privilege_change": "Privilege changes", "operational": "Operational control",
+      "destructive": "Destructive changes", "irreversible": "Irreversible changes", "persistent_autonomy": "Persistent autonomy", "operator_host_access": "Operator host access"
+    },
     "effect_descriptions": {
       "local_read": "It can read local Syrus data.", "isolated_workspace_write": "It can change files in an isolated workspace.",
       "isolated_execution": "It can run code in a confined environment.", "network_read": "It can retrieve data from the network.",

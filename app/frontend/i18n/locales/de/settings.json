@@ -180,6 +180,12 @@
     "matrix_title": "Agent-Berechtigungsmatrix",
     "matrix_help": "Vergleiche den effektiven Zustand für jede Agent-Oberfläche und Fähigkeit.",
     "operation_description": "Erlaubt einem Agenten, {{operation}} auszuführen. {{effects}}",
+    "effect_names": {
+      "local_read": "Lesen lokaler Daten", "isolated_workspace_write": "Änderungen im isolierten Arbeitsbereich", "isolated_execution": "Abgeschirmte Codeausführung", "network_read": "Netzwerkzugriff",
+      "confidential_read": "Lesen vertraulicher Daten", "credential_use": "Nutzung gespeicherter Zugangsdaten", "internal_write": "Änderungen an Syrus-Daten", "external_write": "Änderungen an externen Systemen",
+      "communication": "Kommunikation", "financial": "Finanzielle Verpflichtungen", "privilege_change": "Berechtigungsänderungen", "operational": "Betriebssteuerung",
+      "destructive": "Destruktive Änderungen", "irreversible": "Unumkehrbare Änderungen", "persistent_autonomy": "Dauerhafte Autonomie", "operator_host_access": "Zugriff auf den Operator-Host"
+    },
     "effect_descriptions": {
       "local_read": "Er kann lokale Syrus-Daten lesen.", "isolated_workspace_write": "Er kann Dateien in einem isolierten Arbeitsbereich ändern.",
       "isolated_execution": "Er kann Code in einer abgeschirmten Umgebung ausführen.", "network_read": "Er kann Daten aus dem Netzwerk abrufen.",

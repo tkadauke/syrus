@@ -69,6 +69,7 @@ module Permissions
         CapabilityDescriptor.new(
           capability: CAPABILITY,
           operation: operation_for(tool),
+          presentation: CapabilityPresentation.for(capability: CAPABILITY, operation: operation_for(tool)),
           effects: %i[operator_host_access],
           risk: :high,
           requestable_roles: roles,
