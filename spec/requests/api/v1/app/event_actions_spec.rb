@@ -43,6 +43,7 @@ RSpec.describe "API: /api/v1/app/event_actions", type: :request do
     expect(job.issue_title).to include("Fix browser error: undefined is not an object")
     expect(job.issue_body).to include(
       "Full browser error payload:",
+      "\"stack\": \"at JobDetails.tsx:42\"",
       "\"route_params\":",
       "\"id\": \"3188\"",
       "\"recent_api_requests\":",
@@ -101,8 +102,11 @@ RSpec.describe "API: /api/v1/app/event_actions", type: :request do
       source: "action_controller",
       exception_class: "NoMethodError",
       message: "undefined method map for nil",
+      backtrace: "app/controllers/jobs_controller.rb:42",
       path: "/jobs/3188",
       request_id: "req-123",
+      hostname: "worker-a",
+      pid: 123,
       metadata: { "duration_ms" => 1234.5 }
     )
     sign_in_as(admin_seed)
@@ -114,7 +118,10 @@ RSpec.describe "API: /api/v1/app/event_actions", type: :request do
     expect(response).to have_http_status(:created)
     expect(Job.last.issue_body).to include(
       "Full backend exception payload:",
+      "\"backtrace\": \"app/controllers/jobs_controller.rb:42\"",
+      "\"request_context\":",
       "\"request_id\": \"req-123\"",
+      "\"hostname\": \"worker-a\"",
       "\"duration_ms\": \"1234.5\""
     )
   end
