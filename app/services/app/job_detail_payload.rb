@@ -34,6 +34,10 @@ module App
       new(job: workflow.job, user: user).workflow_preview_payload(workflow)
     end
 
+    def self.workflow_detail(workflow:, user:)
+      new(job: workflow.job, user: user).workflow_detail_payload(workflow)
+    end
+
     def self.build_dependency_options(job:, user:, params: {})
       new(job: job, user: user, params: params).dependency_options_payload
     end
@@ -132,14 +136,8 @@ module App
     def workflows_payload
       PerformanceLogging.phase("job_workflows_payload", job_id: @job.id, page: workflows_page) do
         {
-          job_id: @job.id,
-          current_intent: work_unit_debug_enabled? ? PerformanceLogging.phase("job_workflows.current_intent", job_id: @job.id, page: workflows_page) { current_intent_json } : nil,
-          work_units: work_unit_debug_enabled? ? PerformanceLogging.phase("job_workflows.work_units", job_id: @job.id, page: workflows_page) { work_units_json } : [],
           workflows: PerformanceLogging.phase("job_workflows.workflows", job_id: @job.id, page: workflows_page) { workflows_json },
-          workflows_pagination: workflows_pagination_json,
-          feature_flags: feature_flags_json,
-          actions: PerformanceLogging.phase("job_workflows.actions", job_id: @job.id) { actions_json },
-          paths: paths_json
+          workflows_pagination: workflows_pagination_json
         }
       end
     end

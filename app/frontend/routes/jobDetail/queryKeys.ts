@@ -31,22 +31,18 @@ export function mergeJobWorkflowsPayload(
   { workflowsCommandsAreFresher = true }: { workflowsCommandsAreFresher?: boolean } = {}
 ): JobDetailPayload {
   if (!workflows) return payload
-  if (workflows.job_id !== undefined && workflows.job_id !== payload.job.id) return payload
-
-  const actions = { ...(workflowsCommandsAreFresher ? workflows.actions : payload.actions) }
+  const legacyWorkflowActions = (workflows as Partial<JobDetailPayload>).actions
+  const actions = { ...(workflowsCommandsAreFresher && legacyWorkflowActions ? legacyWorkflowActions : payload.actions) }
   if (payload.job.state === "approved" || payload.job.summary_state === "approved") {
     actions.can_approve = false
   }
 
   return {
     ...payload,
-    current_intent: workflows.current_intent ?? null,
-    work_units: workflows.work_units || [],
     workflows: workflows.workflows,
     workflows_pagination: workflows.workflows_pagination,
-    feature_flags: workflows.feature_flags,
     actions,
-    paths: workflowsCommandsAreFresher ? workflows.paths : payload.paths
+    paths: payload.paths
   }
 }
 
