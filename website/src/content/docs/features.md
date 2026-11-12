@@ -24,7 +24,9 @@ agent-by-capability states or inspect access by typed resource scope. The
 matrix marks authority that varies by resource rather than presenting it as a
 single global policy. Operators can edit rules, see provider presets, and
 preview every item in a bulk grant or denial before confirming an atomic
-change.
+change. Capability, operation, and effect names are presented in plain language
+with a short explanation; their stable identifiers remain visible as secondary
+audit and support details.
 Active-lease and authorization-history views also show temporary authority
 lifecycle, origins and use counts, requests and decisions, escalations,
 dismissals, policy changes, revocations, and execution outcomes. Stored

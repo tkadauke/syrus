@@ -66,6 +66,7 @@ module Permissions
         CapabilityDescriptor.new(
           capability: operation.capability,
           operation: identifier,
+          presentation: CapabilityPresentation.for(capability: operation.capability, operation: identifier),
           effects: operation.effects,
           risk: operation.risk,
           requestable_roles: roles,

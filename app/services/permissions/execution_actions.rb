@@ -82,6 +82,7 @@ module Permissions
         CapabilityDescriptor.new(
           capability: CAPABILITY,
           operation: operation_for(location),
+          presentation: CapabilityPresentation.for(capability: CAPABILITY, operation: operation_for(location)),
           effects: location == :host ? %i[operator_host_access] : %i[isolated_execution],
           risk: location == :host ? :high : :medium,
           requestable_roles: roles,

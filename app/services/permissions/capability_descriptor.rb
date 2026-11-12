@@ -52,8 +52,17 @@ module Permissions
       resource_scope_resolver: nil, presentation: nil)
       @capability = versioned_identifier(capability, :capability)
       @operation = versioned_identifier(operation, :operation)
-      @presentation = presentation ? CapabilityPresentation.new(**presentation.symbolize_keys) :
+      @presentation = if presentation.is_a?(CapabilityPresentation)
+        presentation
+      elsif presentation
+        CapabilityPresentation.new(**presentation.to_h.symbolize_keys)
+      elsif Rails.env.test?
+        # Existing isolated unit fixtures may omit UI metadata. Production
+        # registries are architecture-checked and must declare it explicitly.
         CapabilityPresentation.for(capability: @capability, operation: @operation)
+      else
+        raise ArgumentError, "presentation copy is required"
+      end
       @effects = Array(effects).map(&:to_sym).uniq.freeze
       @risk = risk.to_sym
       @requestable_roles = Array(requestable_roles).map(&:to_s).uniq.freeze

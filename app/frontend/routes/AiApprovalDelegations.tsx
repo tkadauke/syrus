@@ -38,7 +38,7 @@ export function AiApprovalDelegations({ descriptors }: { descriptors: InheritedP
   const data = query.data
   const capabilities = [...new Set(descriptors.map((item) => item.capability))]
   const capabilityName = (identifier: string) => descriptors.find((item) => item.capability === identifier)?.presentation.capability_name || t("permissions.unknown")
-  const effectNames = (effects: string[]) => effects.map((effect) => t(`permissions.effect_descriptions.${effect}`)).join(" ")
+  const effectNames = (effects: string[]) => effects.map((effect) => t(`permissions.effect_names.${effect}`)).join(", ")
 
   const submit = () => {
     try {

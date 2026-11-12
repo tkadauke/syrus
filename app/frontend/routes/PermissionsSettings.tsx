@@ -547,6 +547,7 @@ function LeaseView({ descriptors, leases, loading, t }: { descriptors: Inherited
                 <h3 className="font-medium">
                   {presentationLabel(lease.capability, lease.operation, descriptors) || t("permissions.all_operations")}
                 </h3>
+                <code className="block text-xs text-text-muted">{lease.capability} · {lease.operation}</code>
                 <p className="mt-1 text-sm text-text-secondary">{t("permissions.lease_lifecycle", { subject: lease.subject, duration: lease.duration })}</p>
               </div>
               <PolicyPill policy="allow" t={t} />
@@ -585,7 +586,10 @@ function HistoryView({ descriptors, entries, loading, t }: { descriptors: Inheri
         {entries.map((entry) => (
           <li className="rounded-lg border border-border p-4" key={`${entry.type}-${entry.id}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-medium">{historyTitle(entry, descriptors, t)}</h3>
+              <div>
+                <h3 className="font-medium">{historyTitle(entry, descriptors, t)}</h3>
+                {entry.capability ? <code className="block text-xs text-text-muted">{String(entry.capability)}{entry.operation ? ` · ${String(entry.operation)}` : ""}</code> : null}
+              </div>
               <time className="text-xs text-text-muted">{formatTime(entry.occurred_at, t)}</time>
             </div>
             <p className="mt-1 text-sm text-text-secondary">{t("permissions.history_state", { state: entry.state })}</p>
@@ -646,7 +650,9 @@ function Evidence({ evidence, t }: { evidence: unknown; t: Translate }) {
 function historyTitle(entry: PermissionHistoryEntry, descriptors: InheritedPermission[], t: Translate) {
   if (entry.type === "request") return t("permissions.history_types.request")
   if (entry.type === "invocation") return t("permissions.history_types.invocation", { tool: entry.tool_name })
-  const name = presentationFor(String(entry.capability), String(entry.operation || ""), descriptors)?.operation_name || t("permissions.unknown")
+  const name = entry.operation
+    ? presentationFor(String(entry.capability), String(entry.operation), descriptors)?.operation_name || t("permissions.unknown")
+    : presentationFor(String(entry.capability), null, descriptors)?.capability_name || t("permissions.unknown")
   if (entry.type === "policy_change") return t("permissions.history_types.policy_change", { capability: name })
   return t("permissions.history_types.lease", { capability: name })
 }
@@ -732,7 +738,7 @@ function InheritedRow({ item, onPreset, t }: { item: InheritedPermission; onPres
 }
 function permissionDescription(item: InheritedPermission, t: Translate) {
   const effects = item.effects.map((effect) => t(`permissions.effect_descriptions.${effect}`)).join(" ")
-  return t("permissions.operation_description", { operation: item.presentation.operation_name, effects })
+  return [item.presentation.operation_description, effects].filter(Boolean).join(" ")
 }
 function presentationFor(capability: string, operation: string | null, descriptors: InheritedPermission[]) {
   return descriptors.find((item) => item.capability === capability && (!operation || item.operation === operation))?.presentation

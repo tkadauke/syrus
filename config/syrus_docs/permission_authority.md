@@ -55,6 +55,9 @@ durable delegation separate from operational approvals: the hub lists editable
 user-owned rules and read-only inherited capability defaults, identifies policy
 ownership, and explains which default is decisive when no more specific
 permitted rule applies. Revoking a rule preserves its audit history.
+The Hub leads with plain-language capability, operation, and effect names and
+one-sentence explanations. Stable identifiers remain visible as secondary
+details so operators can correlate rules, audit entries, and support reports.
 The agent matrix compares evaluator-derived allow, ask, and deny states by
 subject and capability, and marks states that vary by resource instead of
 collapsing them into one policy. The resource view groups active rules by
