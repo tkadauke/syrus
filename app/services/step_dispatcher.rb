@@ -356,12 +356,34 @@ class StepDispatcher
     return true if implementation_workflows.running.where.not(job_id: workflow.job_id).exists?
     return false if implementation_workflows.running.where(job_id: workflow.job_id).exists?
 
-    winner = implementation_workflows
+    queued = implementation_workflows
       .where(state: "queued")
       .order(:created_at, :id)
-      .first
+      .to_a
+    winner = epic_sibling_turn_winner(queued)
 
     winner.present? && winner.job_id != workflow.job_id
+  end
+
+  # The oldest queued implementation workflow takes the Epic's turn -- unless
+  # its Job still waits on a sibling that is itself queued. That sibling cannot
+  # start while the turn is taken, and the waiting Job cannot start until the
+  # sibling has a branch to stack on, so the turn passes to the next candidate.
+  # A retried stack parent is queued after its child's initial workflow, which
+  # is how that order arises.
+  def self.epic_sibling_turn_winner(queued)
+    return queued.first if queued.size < 2
+
+    queued_job_ids = queued.map(&:job_id).to_set
+    waiting_job_ids = JobDependency
+      .where(job_id: queued_job_ids.to_a, depends_on_job_id: queued_job_ids.to_a)
+      .where.not("job_dependencies.job_id = job_dependencies.depends_on_job_id")
+      .includes(:depends_on_job)
+      .reject(&:execution_dependency_satisfied?)
+      .map(&:job_id)
+      .to_set
+
+    queued.find { |candidate| !waiting_job_ids.include?(candidate.job_id) } || queued.first
   end
 
   def self.start_blocked_backoff_active?(workflow, reason)

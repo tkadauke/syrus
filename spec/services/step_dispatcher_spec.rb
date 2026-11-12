@@ -4428,6 +4428,36 @@ RSpec.describe StepDispatcher, "linear Epic sibling implementation gate", :ci_on
     expect(queued_workflow.reload.artifact("start_blocked_reason")).to eq(described_class::EPIC_SIBLING_BLOCK_REASON)
   end
 
+  # Regression: a stacked child's initial workflow was queued before its
+  # parent's retry, so the child won the oldest-queued turn -- but the child
+  # cannot start until the parent has a PR branch, and the parent was held
+  # because the child had the turn. Both waited on each other forever.
+  it "gives the turn to a stack parent whose child queued first" do
+    parent_job = epic_job(issue_number: 220)
+    child_job = epic_job(issue_number: 221)
+    JobDependency.create!(job: child_job, depends_on_job: parent_job, source: "manual")
+    child_workflow, = build_workflow(job: child_job, trigger_kind: "initial")
+    parent_workflow, parent_step = build_workflow(job: parent_job, trigger_kind: "retry")
+    child_workflow.update_columns(created_at: 1.day.ago)
+
+    expect(described_class.epic_sibling_blocking?(parent_workflow)).to be(false)
+    expect(described_class.epic_sibling_blocking?(child_workflow)).to be(true)
+    expect { described_class.start_workflow(parent_workflow) }.to change { parent_step.runs.count }.by(1)
+  end
+
+  it "keeps the oldest-queued turn when the older sibling's dependency is already satisfied" do
+    parent_job = epic_job(issue_number: 222, state: "closed")
+    child_job = epic_job(issue_number: 223)
+    other_job = epic_job(issue_number: 224)
+    JobDependency.create!(job: child_job, depends_on_job: parent_job, source: "manual")
+    child_workflow, = build_workflow(job: child_job, trigger_kind: "initial")
+    other_workflow, = build_workflow(job: other_job, trigger_kind: "initial")
+    child_workflow.update_columns(created_at: 1.day.ago)
+
+    expect(described_class.epic_sibling_blocking?(child_workflow)).to be(false)
+    expect(described_class.epic_sibling_blocking?(other_workflow)).to be(true)
+  end
+
   it "does not serialize landing, recovery, or main-grader workflows behind implementation" do
     implementing_job = epic_job(issue_number: 203, state: "running")
     implementing_workflow, = build_workflow(job: implementing_job, trigger_kind: "initial")
