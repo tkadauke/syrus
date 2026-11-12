@@ -206,7 +206,8 @@ function patchJobWorkflowPayload<T extends JobDetailPayload | JobWorkflowsPayloa
   let patched = workflows !== payload.workflows
   const next = { ...payload, workflows }
   if ("work_units" in payload && Array.isArray(payload.work_units)) {
-    next.work_units = payload.work_units.map((workUnit) => {
+    const nextDetail = next as JobDetailPayload
+    nextDetail.work_units = payload.work_units.map((workUnit) => {
       if (!workUnit.workflow) return workUnit
 
       const [workflow] = patchWorkflows([workUnit.workflow], event, fields)

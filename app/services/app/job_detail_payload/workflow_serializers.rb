@@ -27,12 +27,9 @@ module App
       GRADER_NAME_WORD_OVERRIDES = { "rspec" => "RSpec", "ci" => "CI", "api" => "API", "db" => "DB" }.freeze
 
       def workflows_etag
-        fingerprint = App::JobWorkflowsSnapshotCache.fingerprint(
+        App::JobWorkflowsSnapshotCache.fingerprint(
           job: @job, page: workflows_page, admin: @user.admin?, evidence_access: review_evidence_access?
         )
-        return fingerprint unless Run.where(job_id: @job.id, state: "queued").exists?
-
-        [ fingerprint, "queue-wait", Time.current.to_i ].join(":")
       end
 
       def workflows_json
@@ -46,17 +43,24 @@ module App
           end
         end
 
-        hydrate_queue_wait(workflows)
+        workflows
       end
 
       def review_evidence_access? = @user.admin? || @job.user_id == @user.id
 
       def workflow_preview_payload(workflow)
         @serialized_workflows = [ workflow ]
-        step_ids = workflow.steps.reorder(:position, :id).pluck(:id)
+        ordered = workflow.steps.reorder(:position, :id).to_a
+        selected = App::WorkflowPreviewStepSelector.new(
+          ordered.map { |step| { id: step.id, state: step.state, display_status: step.state } },
+          active: !workflow.terminal?
+        ).call
+        step_ids = selected.filter_map { |row| row[:id] || row["id"] }
         @visible_step_ids_by_workflow_id = { workflow.id => step_ids }
-        @step_counts_by_workflow_id_from_visible_query = { workflow.id => step_ids.length }
+        @step_counts_by_workflow_id_from_visible_query = { workflow.id => ordered.length }
+        @workflow_detail = true
         serialized = workflow_json(workflow)
+        serialized_steps = serialized.fetch(:steps).index_by { |step| step.fetch(:id) }
         {
           id: workflow.id,
           slug: workflow.slug,
@@ -64,11 +68,19 @@ module App
           trigger_kind: workflow.trigger_kind,
           trigger_label: Workflow::TriggerKind.label_for(workflow.trigger_kind),
           state: workflow.state,
-          steps: App::WorkflowPreviewStepSelector.new(
-            serialized.fetch(:steps),
-            active: !workflow.terminal?
-          ).call
+          steps: selected.map do |row|
+            next row if row[:ellipsis]
+
+            step = serialized_steps.fetch(row.fetch(:id))
+            { id: step.fetch(:id), display_name: step.fetch(:display_name), status: step.fetch(:display_status) }
+          end
         }
+      end
+
+      def workflow_detail_payload(workflow)
+        @serialized_workflows = [ workflow ]
+        @workflow_detail = true
+        { workflow: workflow_json(workflow) }
       end
 
       def work_units_json
@@ -271,7 +283,6 @@ module App
           steps = ordered_steps_for(workflow)
           step_count = step_counts_by_workflow_id.fetch(workflow.id, steps.size)
           latest_step = steps.last
-          workflow_job_id = workflow.job_id || @job.id
           {
             id: workflow.id,
             entity_revision: workflow.entity_revision,
@@ -283,7 +294,7 @@ module App
             provider_failover: App::ProviderFailoverPayload.for_workflow(workflow, configured_provider: @job.workflow_agent_provider),
             state: workflow.state,
             failure_count: workflow.failure_count,
-            artifacts: workflow_artifacts_json(workflow),
+            artifacts: @workflow_detail ? workflow_artifacts_json(workflow) : workflow_list_artifacts_json(workflow),
             cancellation: Workflows::CancellationAttribution.payload_for(workflow),
             cleaned_up_at: iso8601(workflow.cleaned_up_at),
             retry_available: workflow_retry_available?(workflow),
@@ -291,11 +302,6 @@ module App
             finished_at: iso8601(workflow.finished_at),
             created_at: iso8601(workflow.created_at),
             updated_at: iso8601(workflow.updated_at),
-            app_retry_step_path: "/api/v1/app/jobs/#{workflow_job_id}/workflows/#{workflow.id}/retry_step",
-            app_push_commits_path: "/api/v1/app/jobs/#{workflow_job_id}/workflows/#{workflow.id}/push_commits",
-            app_force_push_branch_path: "/api/v1/app/jobs/#{workflow_job_id}/workflows/#{workflow.id}/force_push_branch",
-            app_discard_branch_output_path: "/api/v1/app/jobs/#{workflow_job_id}/workflows/#{workflow.id}/discard_branch_output",
-            app_dismiss_path: "/api/v1/app/jobs/#{workflow_job_id}/workflows/#{workflow.id}/dismiss",
             dismissable: workflow.operator_dismissable?,
             blocked_reason_text: workflow.blocked_reason_text,
             failure_classification: workflow_failure_classification_json(workflow),
@@ -303,10 +309,26 @@ module App
             steps_displayed: steps.size,
             steps_truncated: step_count > steps.size,
             steps: PerformanceLogging.phase("job_detail.workflow.steps", job_id: @job.id, workflow_id: workflow.id, step_count: steps.size) do
-              steps.map { |step| step_json(step, workflow: workflow, latest_step: latest_step) }
+              steps.map { |step| @workflow_detail ? step_json(step, workflow: workflow, latest_step: latest_step) : step_summary_json(step, workflow: workflow, latest_step: latest_step) }
             end
           }
         end
+      end
+
+      def step_summary_json(step, workflow:, latest_step:)
+        projection = step_state_projection(step)
+        {
+          id: step.id,
+          kind: step.kind,
+          display_name: step_display_name(step, workflow: workflow),
+          display_status: step_display_status(step, projection: projection),
+          position: step.position,
+          iteration: step.iteration,
+          loop_id: step.loop_id,
+          state: projection.visible_state,
+          latest: step == latest_step,
+          runs_total: run_counts_by_step_id.fetch(step.id, ordered_runs_for(step).size)
+        }
       end
 
       def workflows_pagination_json
@@ -747,6 +769,7 @@ module App
           last_heartbeat_at: iso8601(run.last_heartbeat_at),
           finished_at: iso8601(run.finished_at),
           created_at: iso8601(run.created_at),
+          queued_at: iso8601(run.created_at),
           updated_at: iso8601(run.updated_at),
           cost_usd: run.cost_usd&.to_f,
           input_tokens: run.input_tokens,
@@ -764,7 +787,6 @@ module App
           run_diagnostic: run_diagnostic_json(run.run_diagnostic),
           health_snapshots: latest_health_snapshot_for(run).then { |snapshot| snapshot ? [ health_snapshot_json(snapshot) ] : [] },
           active_process: active_process_json(run),
-          queue_wait: nil,
           command_spans_total: command_span_counts_by_run_id.fetch(run.id, command_spans.size),
           command_spans_displayed: command_spans.size,
           command_spans_truncated: command_span_counts_by_run_id.fetch(run.id, command_spans.size) > command_spans.size,
@@ -773,11 +795,7 @@ module App
           can_stop: run.may_cancel?,
           can_diagnose: run.queued? || run.running?,
           can_resume: %w[failed cancelled].include?(run.state) && session.present? && !job_has_active_runtime_work?,
-          app_artifacts_path: "/api/v1/app/jobs/#{run.job_id || @job.id}/runs/#{run.id}/artifacts",
-          app_stop_path: "/api/v1/app/jobs/#{run.job_id || @job.id}/runs/#{run.id}/stop",
-          app_diagnose_path: "/api/v1/app/jobs/#{run.job_id || @job.id}/runs/#{run.id}/diagnose",
-          app_resume_path: "/api/v1/app/jobs/#{run.job_id || @job.id}/resume",
-          app_grade_log_path: app_grade_log_path(run, workflow: workflow, step: step),
+          grade_log_available: app_grade_log_path(run, workflow: workflow, step: step).present?,
           test_failure_summary: test_failure_summary_json(run, step)
         }
       end
@@ -826,10 +844,6 @@ module App
       def command_span_json(span)
         {
           id: span.id,
-          run_id: span.run_id,
-          job_id: span.job_id,
-          workflow_id: span.workflow_id,
-          step_id: span.step_id,
           spawned_process_id: span.spawned_process_id,
           sequence: span.sequence,
           name: span.name,
@@ -841,16 +855,15 @@ module App
           exit_status: span.exit_status,
           outcome: span.outcome,
           hostname: span.hostname,
-          metadata: CommandRedactor.redact_value(span.metadata),
-          sample_count: 0,
-          samples_missing: true,
-          retention_limited: false,
-          summary: {},
-          pressure: {
-            level: "unknown",
-            reasons: [ "worker health correlation is loaded on demand" ]
-          }
+          metadata: CommandRedactor.redact_value(span.metadata)
         }
+      end
+
+      def workflow_list_artifacts_json(workflow)
+        artifacts = workflow.artifacts
+        return {} unless artifacts.is_a?(Hash)
+
+        artifacts.except("typed_artifacts", "pr_body", "summary", "test_plan", "coverage")
       end
 
       def workflow_failure_classification_json(workflow)

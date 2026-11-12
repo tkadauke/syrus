@@ -59,6 +59,7 @@ Rails.application.routes.draw do
         get "slug_refs/:slug", to: "slug_refs#show", constraints: { slug: /[^\/]+/ }
         get "slugs/:slug", to: "slug_refs#show", constraints: { slug: /[^\/]+/ }
         get "workflows/:workflow_id/preview", to: "workflows#preview"
+        get "workflows/:workflow_id/detail", to: "workflows#detail", constraints: { workflow_id: /\d+/ }
         get "sidebar_pages", to: "sidebar_pages#index"
         patch "sidebar_nav_order", to: "sidebar_nav_order#update"
         post "filters/usage", to: "filters#usage"
