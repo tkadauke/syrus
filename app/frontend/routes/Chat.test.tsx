@@ -1661,9 +1661,7 @@ describe("chat compose drafts", () => {
     await act(async () => rejectMessage?.(new Error("connection lost")))
 
     await waitFor(() =>
-      expect(
-        vi.mocked(window.fetch).mock.calls.some(([input]) => String(input).includes("/message_delivery?client_idempotency_key="))
-      ).toBe(true)
+      expect(vi.mocked(window.fetch).mock.calls.some(([input]) => String(input).includes("/message_delivery?client_idempotency_key="))).toBe(true)
     )
     expect(textarea).toHaveValue("")
     expect(screen.queryByText("Message failed.")).not.toBeInTheDocument()

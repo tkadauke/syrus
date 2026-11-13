@@ -40,10 +40,7 @@ export function inFlightComposerDraftWasAcknowledged(draft: InFlightComposerDraf
   return acknowledgedDrafts.has(draft)
 }
 
-export function subscribeToInFlightComposerDraftAcknowledgments(
-  chatId: string,
-  listener: (draft: InFlightComposerDraft) => void
-): () => void {
+export function subscribeToInFlightComposerDraftAcknowledgments(chatId: string, listener: (draft: InFlightComposerDraft) => void): () => void {
   const listeners = acknowledgmentListenersByChatId.get(chatId) || new Set()
   listeners.add(listener)
   acknowledgmentListenersByChatId.set(chatId, listeners)
