@@ -17,6 +17,16 @@ RSpec.describe "permission presentation copy" do
     end
   end
 
+  it "requires plugin capability registrations to declare presentation copy" do
+    Dir[Rails.root.join("plugins/*/app/**/*.rb")].each do |path|
+      body = File.read(path)
+      declarations = body.scan(/register_capability\((.*?)\n\s*\)/m)
+
+      expect(declarations.flatten).to all(include("presentation:")),
+        "#{path.delete_prefix("#{Rails.root}/")} must declare presentation copy for every capability"
+    end
+  end
+
   it "defines a localized name and description for every descriptor effect" do
     %w[en de la].each do |locale|
       settings = JSON.parse(Rails.root.join("app/frontend/i18n/locales/#{locale}/settings.json").read)

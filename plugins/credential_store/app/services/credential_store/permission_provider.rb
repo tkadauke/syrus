@@ -198,6 +198,7 @@ module CredentialStore
 
     register_capability(
       capability: "credential.metadata@v1", operation: "credential.metadata/list@v1",
+      presentation: Permissions::CapabilityPresentation.for(capability: "credential.metadata@v1", operation: "credential.metadata/list@v1"),
       effects: %i[confidential_read], risk: :low,
       requestable_roles: ROLES, defaults: ROLES.index_with { :allow },
       maximum_autonomy: :permanent,
@@ -210,6 +211,7 @@ module CredentialStore
 
     register_capability(
       capability: "ssh.execute@v1", operation: "ssh.execute/read@v1",
+      presentation: Permissions::CapabilityPresentation.for(capability: "ssh.execute@v1", operation: "ssh.execute/read@v1"),
       effects: %i[network_read confidential_read credential_use operational],
       risk: :high, requestable_roles: ROLES, defaults: ASK_DEFAULTS,
       maximum_autonomy: :permanent, authority_durations: %i[invocation chat_session permanent],
@@ -222,6 +224,7 @@ module CredentialStore
 
     register_capability(
       capability: "ssh.execute@v1", operation: "ssh.execute/risky@v1",
+      presentation: Permissions::CapabilityPresentation.for(capability: "ssh.execute@v1", operation: "ssh.execute/risky@v1"),
       effects: %i[network_read confidential_read credential_use external_write privilege_change operational destructive irreversible],
       risk: :critical, requestable_roles: ROLES, defaults: ASK_DEFAULTS,
       maximum_autonomy: :permanent, authority_durations: %i[invocation chat_session permanent],

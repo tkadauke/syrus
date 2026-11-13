@@ -17,6 +17,7 @@ class PermissionProviderContractAdapter
       )
       register_capability(
         capability: "contract.accounts@v1", operation: "contract.accounts/read@v1",
+        presentation: Permissions::CapabilityPresentation.for(capability: "contract.accounts@v1", operation: "contract.accounts/read@v1"),
         effects: %i[network_read confidential_read], risk: :medium,
         requestable_roles: [ "chat_planner" ], defaults: { chat_planner: :ask },
         maximum_autonomy: :job, authority_durations: %i[invocation job],

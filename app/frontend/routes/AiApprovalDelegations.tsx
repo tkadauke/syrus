@@ -37,7 +37,7 @@ export function AiApprovalDelegations({ descriptors }: { descriptors: InheritedP
   const revoke = useMutation({ mutationFn: revokeApprovalDelegation, onSuccess: refresh })
   const data = query.data
   const capabilities = [...new Set(descriptors.map((item) => item.capability))]
-  const capabilityName = (identifier: string) => descriptors.find((item) => item.capability === identifier)?.presentation.capability_name || t("permissions.unknown")
+  const capabilityName = (identifier: string) => descriptors.find((item) => withoutVersion(item.capability) === withoutVersion(identifier))?.presentation.capability_name || t("permissions.unknown")
   const effectNames = (effects: string[]) => effects.map((effect) => t(`permissions.effect_names.${effect}`)).join(", ")
 
   const submit = () => {
@@ -75,12 +75,13 @@ export function AiApprovalDelegations({ descriptors }: { descriptors: InheritedP
       ))}
 
       {data ? (
-        <p className="text-sm text-text-secondary">
-          {t("permissions.ai.human_only", {
+        <div className="text-sm text-text-secondary">
+          <p>{t("permissions.ai.human_only", {
             effects: effectNames(data.human_only.effects),
             capabilities: data.human_only.capabilities.map(capabilityName).join(", ")
-          })}
-        </p>
+          })}</p>
+          <code className="block text-xs text-text-muted">{data.human_only.capabilities.join(", ")}</code>
+        </div>
       ) : null}
 
       <div className="space-y-2">
@@ -162,4 +163,8 @@ export function AiApprovalDelegations({ descriptors }: { descriptors: InheritedP
       </div>
     </section>
   )
+}
+
+function withoutVersion(identifier: string) {
+  return identifier.replace(/@v\d+$/, "")
 }
