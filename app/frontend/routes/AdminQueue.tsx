@@ -32,6 +32,7 @@ import {
   type QueueSort,
   type QueueTab,
   type QueueWorker,
+  type QueueWorkerHealthPayload,
   type RecurringQueuePayload,
   type WorkersQueuePayload,
   type WorkerHealthPayload
@@ -548,7 +549,7 @@ function WorkersPanel({ onNavigate, payload, search }: { onNavigate: (params: UR
   )
 }
 
-function WorkerHealthPanel({ health }: { health: WorkerHealthPayload }) {
+function WorkerHealthPanel({ health }: { health: QueueWorkerHealthPayload }) {
   const { t } = useT("admin")
   const location = useLocation()
   const navigate = useNavigate()

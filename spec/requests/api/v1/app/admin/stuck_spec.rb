@@ -92,6 +92,25 @@ RSpec.describe "API: /api/v1/app/admin/stuck", type: :request do
     expect(parse_body.dig("snapshot", "stale")).to eq(false)
   end
 
+  it "refreshes an expired snapshot before evaluating its conditional GET" do
+    sign_in_as(admin)
+    captured_at = Time.current
+    Admin::StuckItemsCache.write(items: [], captured_at: captured_at, force: true)
+
+    get "/api/v1/app/admin/stuck"
+    etag = response.headers.fetch("ETag")
+
+    travel_to(captured_at + Admin::StuckItemsCache::STALE_AFTER + 1.second) do
+      expect(Admin::StuckItems).to receive(:all).and_return([])
+
+      get "/api/v1/app/admin/stuck", headers: { "If-None-Match" => etag }
+    end
+
+    expect(response).to have_http_status(:ok)
+    expect(response.headers.fetch("ETag")).not_to eq(etag)
+    expect(Time.iso8601(parse_body.dig("snapshot", "captured_at"))).to be > captured_at
+  end
+
   it "paginates stuck items 50 at a time" do
     sign_in_as(admin)
     snapshot = Admin::StuckItemsCache::Snapshot.new(
