@@ -25,6 +25,7 @@ export function AdminTranscript() {
   const page = positiveInteger(searchParams.get("page"), 1)
   const per = positiveInteger(searchParams.get("per"), DEFAULT_PER_PAGE)
   const payloadRef = useRef<TranscriptPayload | undefined>(undefined)
+  const cursorRef = useRef<number | undefined>(undefined)
   const pageKeyRef = useRef(`${runId}:${page}:${per}`)
   const transcript = useQuery({
     queryKey: ["admin", "transcript", runId, { page, per }],
@@ -33,11 +34,15 @@ export function AdminTranscript() {
       if (pageKeyRef.current !== pageKey) {
         pageKeyRef.current = pageKey
         payloadRef.current = undefined
+        cursorRef.current = undefined
       }
       const previous = payloadRef.current
-      const afterEvent = previous ? transcriptCursor(previous) : undefined
+      const afterEvent = cursorRef.current
       const next = await fetchAdminTranscript(runId, page, per, afterEvent)
-      if (next) payloadRef.current = previous ? mergeTranscriptDelta(previous, next) : next
+      if (next) {
+        cursorRef.current = advanceTranscriptCursor(afterEvent, next)
+        payloadRef.current = previous ? mergeTranscriptDelta(previous, next) : next
+      }
       return payloadRef.current as TranscriptPayload
     },
     enabled: runId.length > 0,
@@ -65,9 +70,11 @@ export function mergeTranscriptDelta(previous: TranscriptPayload, delta: Transcr
   return { ...delta, events: Array.from(events.entries()).sort(([left], [right]) => left - right).map(([, event]) => event) }
 }
 
-function transcriptCursor(payload: TranscriptPayload) {
+export function advanceTranscriptCursor(previousCursor: number | undefined, payload: TranscriptPayload) {
+  if (previousCursor == null) return payload.pagination.total_events
+
   const indexes = payload.events.map((event) => event.index).filter((index): index is number => index != null)
-  return indexes.length > 0 ? Math.max(...indexes) + 1 : payload.pagination.total_events
+  return indexes.length > 0 ? Math.max(previousCursor, ...indexes.map((index) => index + 1)) : previousCursor
 }
 
 function TranscriptView({ payload, prefix }: { payload: TranscriptPayload; prefix: string }) {
