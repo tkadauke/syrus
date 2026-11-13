@@ -274,8 +274,24 @@ module Api
         end
 
         def documents_payload(user)
+          result = PersonalDocuments::Query.new(user:, params:).call
+          chat_ids = result.documents.filter_map do |document|
+            source_url = document.source_url.to_s
+            match = PersonalDocuments::Origin::CHAT_UPLOAD_PATTERN.match(source_url) ||
+                    PersonalDocuments::Origin::CHAT_CAPTURE_PATTERN.match(source_url)
+            match && match[:chat_id].to_i
+          end
+          chats_by_id = user.chat_sessions.where(id: chat_ids).index_by(&:id)
           {
-            documents: user.documents.with_attached_file.order(:created_at, :id).map { |document| document_json(document) }
+            documents: result.documents.map { |document| document_json(document, chats_by_id:) },
+            pagination: {
+              page: result.page,
+              per_page: result.per_page,
+              total: result.total,
+              total_pages: result.total_pages,
+              first_item: result.total.zero? ? 0 : ((result.page - 1) * result.per_page) + 1,
+              last_item: [ result.page * result.per_page, result.total ].min
+            }
           }
         end
 
@@ -336,7 +352,7 @@ module Api
           }
         end
 
-        def document_json(document)
+        def document_json(document, chats_by_id: {})
           {
             id: document.id,
             kind: document.kind,
@@ -349,6 +365,7 @@ module Api
             content_cached_at: document.content_cached_at&.iso8601,
             created_at: document.created_at.iso8601,
             updated_at: document.updated_at.iso8601,
+            origin: PersonalDocuments::Origin.for(document, chats_by_id:).as_json,
             file_path: document.file.attached? ? "/api/v1/app/credentials/documents/#{document.id}/file" : nil
           }
         end

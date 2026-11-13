@@ -1,8 +1,8 @@
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { FormEvent, ReactNode } from "react"
-import { useMemo, useState } from "react"
-import { useLocation } from "react-router-dom"
+import { useEffect, useState } from "react"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 import { NoticeToast } from "../components/NoticeToast"
 import {
   addCredentialDocuments,
@@ -23,56 +23,39 @@ import {
   type DataTableColumnDef
 } from "../components/dataTable"
 import { FilterBar, type FilterSchemaField } from "../components/FilterBar"
-import type { FilterChip, FilterNode, FilterTree } from "../components/filterBar/types"
+import type { FilterNode, FilterTree } from "../components/filterBar/types"
 import { errorMessage } from "../lib/errorMessage"
 import { formatBytes } from "../lib/format"
 import { useConfirm } from "../hooks/useConfirm"
 import { DocumentPreviewModal, isPreviewableContentType } from "../components/DocumentPreviewModal"
+import { routePrefix } from "../lib/routing"
 
 const queryKey = ["personal-documents"] as const
 const DOCUMENTS_VISIBLE_COLUMNS_STORAGE_KEY = "syrus.settings.personal_documents.visible_columns"
 
-type DocumentSortColumn = "title" | "filename" | "kind" | "content_type" | "byte_size" | "source_url" | "content_cache_state" | "content_cached_at" | "created_at" | "updated_at"
+type DocumentSortColumn =
+  "title" | "filename" | "kind" | "content_type" | "byte_size" | "source_url" | "content_cache_state" | "content_cached_at" | "created_at" | "updated_at"
 type SortDirection = "ascending" | "descending"
 type DocumentSortState = { column: DocumentSortColumn; direction: SortDirection }
-type SortValue = number | string | null
-
 const DEFAULT_DOCUMENT_SORT: DocumentSortState = { column: "created_at", direction: "descending" }
-const DOCUMENT_SORT_ACCESSORS: Record<DocumentSortColumn, (document: PersonalDocument) => SortValue> = {
-  title: (document) => documentTitle(document),
-  filename: (document) => document.filename || "",
-  kind: (document) => document.kind,
-  content_type: (document) => document.content_type,
-  byte_size: (document) => document.byte_size,
-  source_url: (document) => document.source_url || document.google_doc_url || "",
-  content_cache_state: (document) => document.content_cache_state,
-  content_cached_at: (document) => document.content_cached_at,
-  created_at: (document) => document.created_at,
-  updated_at: (document) => document.updated_at
-}
 
 export function PersonalDocumentsRoute() {
   const { t } = useT("settings")
   usePageTitle(t("personal_documents.heading"))
+  const location = useLocation()
   const documents = useQuery({
-    queryKey,
-    queryFn: fetchCredentialDocuments
+    queryKey: [...queryKey, location.search],
+    queryFn: () => fetchCredentialDocuments(location.search)
   })
 
   return (
     <main aria-label={t("aria_personal_documents")} className="mx-auto max-w-4xl space-y-6 p-6">
       <header>
-        <PageHeading>
-          {t('personal_documents.heading')}
-        </PageHeading>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-          {t('personal_documents.description')}
-        </p>
+        <PageHeading>{t("personal_documents.heading")}</PageHeading>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t("personal_documents.description")}</p>
       </header>
 
-      {documents.isPending ? <PanelMessage>
-        {t('personal_documents.loading')}
-      </PanelMessage> : null}
+      {documents.isPending ? <PanelMessage>{t("personal_documents.loading")}</PanelMessage> : null}
       {documents.isError ? <DocumentsError error={documents.error} /> : null}
       {documents.isSuccess ? <PersonalDocumentsView payload={documents.data} /> : null}
     </main>
@@ -95,26 +78,31 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
   const { t } = useT("settings")
   const { confirm, dialog } = useConfirm()
   const location = useLocation()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [files, setFiles] = useState<File[]>([])
   const [googleDocUrl, setGoogleDocUrl] = useState("")
   const [previewDocument, setPreviewDocument] = useState<PersonalDocument | null>(null)
-  const [sortState, setSortState] = useState<DocumentSortState>(DEFAULT_DOCUMENT_SORT)
+  const searchParams = new URLSearchParams(location.search)
+  const sortState: DocumentSortState = {
+    column: isDocumentSortColumn(searchParams.get("sort")) ? (searchParams.get("sort") as DocumentSortColumn) : DEFAULT_DOCUMENT_SORT.column,
+    direction: searchParams.get("direction") === "ascending" ? "ascending" : "descending"
+  }
   const filterSchema = buildDocumentFilterSchema(t)
   const upload = useMutation({
     mutationFn: () => addCredentialDocuments(files, googleDocUrl),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      void queryClient.invalidateQueries({ queryKey })
       setFiles([])
       setGoogleDocUrl("")
-      onNotice(updated.message || t('personal_documents.added'))
+      onNotice(updated.message || t("personal_documents.added"))
     }
   })
   const destroy = useMutation({
     mutationFn: (document: PersonalDocument) => deleteCredentialDocument(document.id),
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
-      onNotice(updated.message || t('personal_documents.removed'))
+      void queryClient.invalidateQueries({ queryKey })
+      onNotice(updated.message || t("personal_documents.removed"))
     }
   })
 
@@ -140,35 +128,47 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
   const columns = buildDocumentColumns({
     destroyPending: destroy.isPending,
     onDelete: async (document) => {
-      if (await confirm({ message: t('personal_documents.confirm_delete'), destructive: true })) destroy.mutate(document)
+      if (await confirm({ message: t("personal_documents.confirm_delete"), destructive: true })) destroy.mutate(document)
     },
     onOpen: openDocument,
     t
   })
   const preferences = useLocalStorageColumnPreferences({ columns, storageKey: DOCUMENTS_VISIBLE_COLUMNS_STORAGE_KEY })
   const filterTree = filterTreeFromSearch(location.search)
-  const visibleDocuments = useMemo(
-    () => sortedDocuments(filteredDocuments(payload.documents, filterTree), sortState),
-    [payload.documents, filterTree, sortState]
-  )
+
+  useEffect(() => {
+    const requestedPage = Math.max(Number(new URLSearchParams(location.search).get("page")) || 1, 1)
+    if (requestedPage === payload.pagination.page) return
+    const params = new URLSearchParams(location.search)
+    if (payload.pagination.page === 1) params.delete("page")
+    else params.set("page", String(payload.pagination.page))
+    void navigate(`${location.pathname}?${params.toString()}`, { replace: true })
+  }, [location.pathname, location.search, navigate, payload.pagination.page])
 
   function toggleSortColumn(column: DocumentSortColumn) {
-    setSortState((current) => toggleSort(current, column))
+    const next = toggleSort(sortState, column)
+    const params = new URLSearchParams(location.search)
+    params.set("sort", next.column)
+    params.set("direction", next.direction)
+    params.delete("page")
+    void navigate(`${location.pathname}?${params.toString()}`)
   }
 
   return (
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <SectionHeading>
-            {t('personal_documents.section_heading')}
-          </SectionHeading>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {t('personal_documents.attach_description')}
-          </p>
+          <SectionHeading>{t("personal_documents.section_heading")}</SectionHeading>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("personal_documents.attach_description")}</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500 dark:text-gray-400">{visibleDocuments.length} / {payload.documents.length}</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            {t("personal_documents.visible_range", {
+              first: payload.pagination.first_item,
+              last: payload.pagination.last_item,
+              total: payload.pagination.total
+            })}
+          </span>
           <DataTableColumnMenu
             columns={columns}
             downLabel={t("personal_documents.column_down")}
@@ -187,15 +187,10 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
       </div>
 
       <div className="mt-4">
-        <FilterBar
-          filter={filterTree}
-          filterSchema={filterSchema}
-          pathname={location.pathname}
-          search={location.search}
-        />
+        <FilterBar filter={filterTree} filterSchema={filterSchema} pathname={location.pathname} search={location.search} />
       </div>
 
-      <DataTable.Root aria-label={t('personal_documents.section_heading')} className="mt-4">
+      <DataTable.Root aria-label={t("personal_documents.section_heading")} className="mt-4">
         <DataTable.Header>
           <DataTableColumnHeaderRow
             columns={columns}
@@ -207,46 +202,51 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
           />
         </DataTable.Header>
         <DataTable.Body>
-          {visibleDocuments.length === 0 ? (
+          {payload.documents.length === 0 ? (
             <DataTable.Row>
-              <DataTable.Empty colSpan={columns.length}>{t('personal_documents.empty')}</DataTable.Empty>
+              <DataTable.Empty colSpan={columns.length}>{t("personal_documents.empty")}</DataTable.Empty>
             </DataTable.Row>
-          ) : visibleDocuments.map((document) => (
-            <DataTable.Row key={document.id}>
-              <DataTableColumnCells columns={columns} order={preferences.order} row={document} />
-            </DataTable.Row>
-          ))}
+          ) : (
+            payload.documents.map((document) => (
+              <DataTable.Row key={document.id}>
+                <DataTableColumnCells columns={columns} order={preferences.order} row={document} />
+              </DataTable.Row>
+            ))
+          )}
         </DataTable.Body>
       </DataTable.Root>
+
+      <DocumentsPagination pagination={payload.pagination} search={location.search} />
 
       <form className="mt-4 space-y-3" onSubmit={submit}>
         {upload.isError ? <PanelMessage tone="error">{errorMessage(upload.error, "Unable to add document.")}</PanelMessage> : null}
         {destroy.isError ? <PanelMessage tone="error">{errorMessage(destroy.error, "Unable to delete document.")}</PanelMessage> : null}
-        <Field label={t('personal_documents.upload_files')}>
+        <Field label={t("personal_documents.upload_files")}>
+          <Form.Input multiple onChange={(event) => setFiles(Array.from(event.currentTarget.files || []))} type="file" />
+        </Field>
+        <Field label={t("personal_documents.google_doc_url")}>
           <Form.Input
-            multiple
-            onChange={(event) => setFiles(Array.from(event.currentTarget.files || []))}
-            type="file"
+            onChange={(event) => setGoogleDocUrl(event.target.value)}
+            placeholder="https://docs.google.com/document/d/..."
+            type="url"
+            value={googleDocUrl}
           />
         </Field>
-        <Field label={t('personal_documents.google_doc_url')}>
-          <Form.Input onChange={(event) => setGoogleDocUrl(event.target.value)} placeholder="https://docs.google.com/document/d/..." type="url" value={googleDocUrl} />
-        </Field>
-        <button className="rounded bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:bg-gray-400" disabled={upload.isPending} type="submit">
-          {upload.isPending ? (
-            <>
-              {t('personal_documents.adding')}
-            </>
-          ) : (
-            <>
-              {t('personal_documents.add')}
-            </>
-          )}
+        <button
+          className="rounded bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:bg-gray-400"
+          disabled={upload.isPending}
+          type="submit"
+        >
+          {upload.isPending ? <>{t("personal_documents.adding")}</> : <>{t("personal_documents.add")}</>}
         </button>
       </form>
       {previewDocument && previewDocument.file_path ? (
         <DocumentPreviewModal
-          file={{ title: previewDocument.filename || t('personal_documents.file'), rawUrl: previewDocument.file_path, contentType: previewDocument.content_type }}
+          file={{
+            title: previewDocument.filename || t("personal_documents.file"),
+            rawUrl: previewDocument.file_path,
+            contentType: previewDocument.content_type
+          }}
           onClose={() => setPreviewDocument(null)}
         />
       ) : null}
@@ -283,7 +283,12 @@ function buildDocumentFilterSchema(t: (key: string, options?: Record<string, unk
         { value: "empty", label: t("personal_documents.cache_empty") }
       ]
     },
-    { field: "content_cached_at", label: t("personal_documents.col_content_cached_at"), bucket: "date", operators: ["before", "after", "between", "is_set", "is_unset"] },
+    {
+      field: "content_cached_at",
+      label: t("personal_documents.col_content_cached_at"),
+      bucket: "date",
+      operators: ["before", "after", "between", "is_set", "is_unset"]
+    },
     { field: "created_at", label: t("personal_documents.col_created"), bucket: "date", operators: ["before", "after", "between"] },
     { field: "updated_at", label: t("personal_documents.col_updated"), bucket: "date", operators: ["before", "after", "between"] }
   ]
@@ -323,7 +328,7 @@ function buildDocumentColumns({
       key: "kind",
       label: t("personal_documents.col_kind"),
       sortKey: "kind",
-      renderCell: (document) => document.kind === "google_doc" ? t("personal_documents.google_doc") : t("personal_documents.file")
+      renderCell: (document) => (document.kind === "google_doc" ? t("personal_documents.google_doc") : t("personal_documents.file"))
     },
     {
       key: "content_type",
@@ -338,7 +343,12 @@ function buildDocumentColumns({
       label: t("personal_documents.col_size"),
       sortKey: "byte_size",
       align: "right",
-      renderCell: (document) => document.byte_size == null ? "-" : formatBytes(document.byte_size)
+      renderCell: (document) => (document.byte_size == null ? "-" : formatBytes(document.byte_size))
+    },
+    {
+      key: "origin",
+      label: t("personal_documents.col_origin"),
+      renderCell: (document) => <DocumentOrigin document={document} />
     },
     {
       key: "source_url",
@@ -353,14 +363,14 @@ function buildDocumentColumns({
       label: t("personal_documents.col_content_cache_state"),
       sortKey: "content_cache_state",
       defaultVisible: false,
-      renderCell: (document) => document.content_cache_state === "cached" ? t("personal_documents.cache_cached") : t("personal_documents.cache_empty")
+      renderCell: (document) => (document.content_cache_state === "cached" ? t("personal_documents.cache_cached") : t("personal_documents.cache_empty"))
     },
     {
       key: "content_cached_at",
       label: t("personal_documents.col_content_cached_at"),
       sortKey: "content_cached_at",
       defaultVisible: false,
-      renderCell: (document) => document.content_cached_at ? new Date(document.content_cached_at).toLocaleString() : "-"
+      renderCell: (document) => (document.content_cached_at ? new Date(document.content_cached_at).toLocaleString() : "-")
     },
     {
       key: "created",
@@ -389,11 +399,63 @@ function buildDocumentColumns({
           onClick={() => onDelete(document)}
           type="button"
         >
-          {t('personal_documents.delete')}
+          {t("personal_documents.delete")}
         </button>
       )
     }
   ]
+}
+
+function DocumentOrigin({ document }: { document: PersonalDocument }) {
+  const { t } = useT("settings")
+  const location = useLocation()
+  const label = t(`personal_documents.origin_${document.origin.kind}`)
+  if (!document.origin.chat) return label
+
+  return (
+    <span className="text-xs text-gray-600 dark:text-gray-300">
+      {label} ·{" "}
+      <Link className="font-medium text-brand hover:underline" to={`${routePrefix(location.pathname)}${document.origin.chat.path}`}>
+        {document.origin.chat.label}
+      </Link>
+    </span>
+  )
+}
+
+function DocumentsPagination({ pagination, search }: { pagination: PersonalDocumentsPayload["pagination"]; search: string }) {
+  const { t } = useT("settings")
+  if (pagination.total_pages <= 1) return null
+
+  return (
+    <nav aria-label={t("personal_documents.pagination_label")} className="mt-4 flex items-center justify-end gap-3 text-sm">
+      {pagination.page > 1 ? (
+        <Link className="text-brand hover:underline" to={pageSearch(search, pagination.page - 1)}>
+          {t("personal_documents.previous")}
+        </Link>
+      ) : (
+        <span aria-disabled="true" className="text-gray-400">
+          {t("personal_documents.previous")}
+        </span>
+      )}
+      <span>{t("personal_documents.page_of", { page: pagination.page, total: pagination.total_pages })}</span>
+      {pagination.page < pagination.total_pages ? (
+        <Link className="text-brand hover:underline" to={pageSearch(search, pagination.page + 1)}>
+          {t("personal_documents.next")}
+        </Link>
+      ) : (
+        <span aria-disabled="true" className="text-gray-400">
+          {t("personal_documents.next")}
+        </span>
+      )}
+    </nav>
+  )
+}
+
+function pageSearch(search: string, page: number) {
+  const params = new URLSearchParams(search)
+  if (page === 1) params.delete("page")
+  else params.set("page", String(page))
+  return `?${params.toString()}`
 }
 
 function DocumentSummary({ document }: { document: PersonalDocument }) {
@@ -402,142 +464,40 @@ function DocumentSummary({ document }: { document: PersonalDocument }) {
     return (
       <div className="min-w-0">
         <div className="truncate text-sm font-medium text-brand dark:text-brand-emphasis">{document.google_doc_url}</div>
-        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          {t('personal_documents.google_doc')}
-        </div>
+        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("personal_documents.google_doc")}</div>
       </div>
     )
   }
 
   return (
     <div className="min-w-0">
-      <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
-        {document.filename || (
-          <>
-            {t('personal_documents.file')}
-          </>
-        )}
+      <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{document.filename || <>{t("personal_documents.file")}</>}</div>
+      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+        {document.content_type || "unknown"} · {formatBytes(document.byte_size)}
       </div>
-      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{document.content_type || "unknown"} · {formatBytes(document.byte_size)}</div>
     </div>
   )
 }
 
-function documentTitle(document: PersonalDocument) {
-  return document.kind === "google_doc" ? document.google_doc_url || "" : document.filename || ""
-}
-
-function filteredDocuments(documents: PersonalDocument[], tree: FilterTree) {
-  const nodes = topLevelNodes(tree)
-  if (nodes.length === 0) return documents
-
-  return documents.filter((document) => nodes.every((node) => documentMatchesFilterNode(document, node)))
-}
-
-function documentMatchesFilterNode(document: PersonalDocument, node: FilterNode): boolean {
-  if ("field" in node) return documentMatchesFilter(document, node)
-  if ("and" in node && Array.isArray(node.and)) return node.and.every((child) => documentMatchesFilterNode(document, child))
-  if ("or" in node && Array.isArray(node.or)) return node.or.some((child) => documentMatchesFilterNode(document, child))
-  if ("not" in node && node.not) return !documentMatchesFilterNode(document, node.not)
-  return true
-}
-
-function documentMatchesFilter(document: PersonalDocument, chip: FilterChip) {
-  if (chip.field === "query") {
-    const query = String(chip.value || "").toLowerCase()
-    return documentSearchText(document).includes(query)
-  }
-  if (chip.field === "title") return matchesTextFilter(documentTitle(document), chip)
-  if (chip.field === "filename") return matchesTextFilter(document.filename || "", chip)
-  if (chip.field === "kind") return matchesTextFilter(document.kind, chip)
-  if (chip.field === "content_type") return matchesTextFilter(document.content_type || "", chip)
-  if (chip.field === "byte_size") return matchesNumberFilter(document.byte_size, chip)
-  if (chip.field === "source_url") return matchesTextFilter(document.source_url || document.google_doc_url || "", chip)
-  if (chip.field === "content_cache_state") return matchesTextFilter(document.content_cache_state, chip)
-  if (chip.field === "content_cached_at") return matchesDateFilter(document.content_cached_at, chip)
-  if (chip.field === "created_at") return matchesDateFilter(document.created_at, chip)
-  if (chip.field === "updated_at") return matchesDateFilter(document.updated_at, chip)
-  return true
-}
-
-function documentSearchText(document: PersonalDocument) {
-  return [
-    documentTitle(document),
-    document.filename,
-    document.kind,
-    document.content_type,
-    document.source_url,
-    document.google_doc_url,
-    document.content_cache_state
-  ].filter(Boolean).join(" ").toLowerCase()
-}
-
-function sortedDocuments(documents: PersonalDocument[], sortState: DocumentSortState) {
-  const factor = sortState.direction === "ascending" ? 1 : -1
-  const valueFor = DOCUMENT_SORT_ACCESSORS[sortState.column]
-  return [...documents].sort((left, right) => {
-    const compared = compareSortValues(valueFor(left), valueFor(right))
-    if (compared !== 0) return compared * factor
-    return documentTitle(left).localeCompare(documentTitle(right))
-  })
-}
-
 function toggleSort<TColumn extends string>(current: { column: TColumn; direction: SortDirection }, column: TColumn) {
   if (current.column !== column) return { column, direction: "ascending" as const }
-  return { column, direction: current.direction === "ascending" ? "descending" as const : "ascending" as const }
+  return { column, direction: current.direction === "ascending" ? ("descending" as const) : ("ascending" as const) }
 }
 
-function compareSortValues(left: SortValue, right: SortValue) {
-  if (left == null && right == null) return 0
-  if (left == null) return -1
-  if (right == null) return 1
-  if (typeof left === "number" && typeof right === "number") return left - right
-  return String(left).localeCompare(String(right))
-}
-
-function matchesTextFilter(value: string, chip: FilterChip) {
-  const target = value.toLowerCase()
-  const expected = String(chip.value || "").toLowerCase()
-  if (chip.op === "is") return target === expected
-  if (chip.op === "is_not") return target !== expected
-  if (chip.op === "is_set") return value.trim().length > 0
-  if (chip.op === "is_unset") return value.trim().length === 0
-  return target.includes(expected)
-}
-
-function matchesNumberFilter(value: number | null, chip: FilterChip) {
-  if (chip.op === "is_set") return value != null
-  if (chip.op === "is_unset") return value == null
-  if (value == null) return false
-  const expected = Number(chip.value)
-  if (Number.isNaN(expected)) return true
-  if (chip.op === "gt") return value > expected
-  if (chip.op === "lt") return value < expected
-  if (chip.op === "gte") return value >= expected
-  if (chip.op === "lte") return value <= expected
-  return value === expected
-}
-
-function matchesDateFilter(value: string | null, chip: FilterChip) {
-  if (chip.op === "is_set") return Boolean(value)
-  if (chip.op === "is_unset") return !value
-  if (!value) return false
-  const time = Date.parse(value)
-  if (Number.isNaN(time)) return false
-  if (chip.op === "before") return time < Date.parse(String(chip.value || ""))
-  if (chip.op === "after") return time > Date.parse(String(chip.value || ""))
-  if (chip.op === "between" && Array.isArray(chip.value)) {
-    const [start, end] = chip.value.map((part) => Date.parse(String(part || "")))
-    return (Number.isNaN(start) || time >= start) && (Number.isNaN(end) || time <= end)
-  }
-  return true
+function isDocumentSortColumn(value: string | null): value is DocumentSortColumn {
+  return (
+    value != null &&
+    ["title", "filename", "kind", "content_type", "byte_size", "source_url", "content_cache_state", "content_cached_at", "created_at", "updated_at"].includes(
+      value
+    )
+  )
 }
 
 function filterTreeFromSearch(search: string): FilterTree {
   const encoded = new URLSearchParams(search).get("q")
   if (!encoded) return { and: [] }
   try {
-    const padded = `${encoded.replace(/-/g, "+").replace(/_/g, "/")}${"=".repeat((4 - encoded.length % 4) % 4)}`
+    const padded = `${encoded.replace(/-/g, "+").replace(/_/g, "/")}${"=".repeat((4 - (encoded.length % 4)) % 4)}`
     const bytes = Uint8Array.from(atob(padded), (character) => character.charCodeAt(0))
     const parsed = JSON.parse(new TextDecoder().decode(bytes)) as FilterTree
     return { and: topLevelNodes(parsed) }

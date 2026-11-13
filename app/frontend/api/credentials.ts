@@ -62,6 +62,10 @@ export type PersonalDocument = {
   created_at: string
   updated_at: string
   file_path: string | null
+  origin: {
+    kind: "personal" | "chat_upload" | "chat_capture"
+    chat: { id: number; label: string; path: string } | null
+  }
 }
 
 export type CredentialsOptions = {
@@ -132,6 +136,14 @@ export type CredentialTestPayload = {
 
 export type PersonalDocumentsPayload = {
   documents: PersonalDocument[]
+  pagination: {
+    page: number
+    per_page: number
+    total: number
+    total_pages: number
+    first_item: number
+    last_item: number
+  }
   message?: string
 }
 
@@ -169,8 +181,8 @@ export function fetchCredentials() {
   return getJson<CredentialsPayload>("/api/v1/app/credentials")
 }
 
-export function fetchCredentialDocuments() {
-  return getJson<PersonalDocumentsPayload>("/api/v1/app/credentials/documents")
+export function fetchCredentialDocuments(search = "") {
+  return getJson<PersonalDocumentsPayload>(`/api/v1/app/credentials/documents${search}`)
 }
 
 export function updateCredentials(values: CredentialsInput) {
