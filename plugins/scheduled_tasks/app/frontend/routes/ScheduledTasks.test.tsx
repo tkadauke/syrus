@@ -49,16 +49,13 @@ function scheduledTaskRow(overrides: Record<string, unknown> = {}) {
   return {
     id: 7,
     name: "Weekly check",
-    kind: "cron",
     state: "active",
-    repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1" },
+    repository_id: 1,
+    repository_slug: "acme/widgets",
+    repository_path: "/repositories/1",
     schedule_label: "0 9 * * 1",
-    schedule_explanation: "Every Monday at 9:00 AM",
-    schedule_timezone: "UTC",
-    schedule_expression: "FREQ=WEEKLY;BYDAY=MO",
     last_fired_at: null,
-    archived_at: null,
-    consecutive_failure_count: 0,
+    system_key: null,
     scheduled_task_path: "/scheduled_tasks/7",
     ...overrides
   }
@@ -105,8 +102,8 @@ describe("ScheduledTasksIndex", () => {
   it("renders task sections with shared sortable and configurable table controls", async () => {
     renderIndexRoute({
       active_tasks: [
-        scheduledTaskRow({ id: 1, name: "Weekly check", repository: { id: 1, slug: "acme/widgets", repository_path: "/repositories/1" } }),
-        scheduledTaskRow({ id: 2, name: "Daily sync", repository: { id: 2, slug: "acme/api", repository_path: "/repositories/2" } })
+        scheduledTaskRow({ id: 1, name: "Weekly check" }),
+        scheduledTaskRow({ id: 2, name: "Daily sync", repository_id: 2, repository_slug: "acme/api", repository_path: "/repositories/2" })
       ],
       fired_one_shots: [],
       archived_tasks: [],
@@ -155,7 +152,7 @@ describe("ScheduledTaskDetailRoute archive", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const url = String(input)
       if (url === "/api/v1/app/scheduled_tasks/7" && init?.method === "DELETE") {
-        return Promise.resolve(jsonResponse({ active_tasks: [], fired_one_shots: [], archived_tasks: [], options: taskDetail().options }))
+        return Promise.resolve(jsonResponse({ task: { ...taskDetail().task, archived: true }, message: "Scheduled task archived." }))
       }
       return Promise.resolve(jsonResponse(taskDetail()))
     })

@@ -66,7 +66,7 @@ module Api
           end
 
           if task.save
-            render json: scheduled_task_detail_payload(task).merge(message: "Scheduled task created."), status: :created
+            render json: task_mutation_payload(task, "Scheduled task created."), status: :created
           else
             render_error("validation_failed", task.errors.full_messages.to_sentence,
                          status: :unprocessable_content)
@@ -89,7 +89,7 @@ module Api
             message = "Scheduled task disabled."
           end
 
-          render json: repository_scheduled_tasks_payload(repository).merge(message: message)
+          render json: repository_task_mutation_payload(task.reload, message)
         end
 
         def repository_destroy
@@ -99,7 +99,7 @@ module Api
 
           task.soft_delete!
 
-          render json: repository_scheduled_tasks_payload(repository).merge(message: "Scheduled task deleted.")
+          render json: repository_task_mutation_payload(task.reload, "Scheduled task deleted.")
         rescue ActiveRecord::RecordInvalid => error
           render_error("validation_failed", error.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         end
@@ -112,7 +112,7 @@ module Api
           task.skill_args = scheduled_task_skill_args
 
           if task.update(scheduled_task_params)
-            render json: scheduled_task_detail_payload(task).merge(message: "Scheduled task updated.")
+            render json: task_mutation_payload(task, "Scheduled task updated.")
           else
             render_error("validation_failed", task.errors.full_messages.to_sentence,
                          status: :unprocessable_content)
@@ -125,7 +125,7 @@ module Api
 
           task.soft_delete!
 
-          render json: scheduled_tasks_index_payload.merge(message: "Scheduled task archived.")
+          render json: task_mutation_payload(task.reload, "Scheduled task archived.")
         rescue ActiveRecord::RecordInvalid => error
           render_error("validation_failed", error.record.errors.full_messages.to_sentence, status: :unprocessable_content)
         end
@@ -136,7 +136,7 @@ module Api
 
           task.pause!(reason: "operator")
 
-          render json: scheduled_task_detail_payload(task.reload).merge(message: "Paused.")
+          render json: task_mutation_payload(task.reload, "Paused.")
         end
 
         def resume
@@ -146,7 +146,7 @@ module Api
 
           task.resume!
 
-          render json: scheduled_task_detail_payload(task.reload).merge(message: "Resumed.")
+          render json: task_mutation_payload(task.reload, "Resumed.")
         end
 
         def fire_now
@@ -160,7 +160,7 @@ module Api
 
           result = ScheduledTasks::Fire.new(task).call
           message = result.fired? ? "Fired (#{result.job.slug})." : "Fire skipped: #{result.reason}."
-          render json: scheduled_task_detail_payload(task.reload).merge(message: message, fire_result: fire_result_json(result))
+          render json: task_mutation_payload(task.reload, message)
         rescue StandardError => e
           Rails.logger.warn("[API ScheduledTasks#fire_now] task ##{task&.id}: #{e.class}: #{e.message}")
           render_error("fire_failed", "Fire failed: #{e.message}", status: :unprocessable_content)
@@ -179,9 +179,9 @@ module Api
         def scheduled_tasks_index_payload
           tasks = ScheduledTasks::Task.alive.where(user: Current.user).includes(:repository)
           {
-            active_tasks: tasks.where(state: %w[ scheduled paused auto_paused ]).order(:created_at).map { |task| task_summary_json(task) },
-            fired_one_shots: tasks.where(state: "fired").order(updated_at: :desc).limit(20).map { |task| task_summary_json(task) },
-            archived_tasks: ScheduledTasks::Task.archived.where(user: Current.user).includes(:repository).order(archived_at: :desc).limit(20).map { |task| task_summary_json(task) },
+            active_tasks: tasks.where(state: %w[ scheduled paused auto_paused ]).order(:created_at).map { |task| task_row_json(task) },
+            fired_one_shots: tasks.where(state: "fired").order(updated_at: :desc).limit(20).map { |task| task_row_json(task) },
+            archived_tasks: ScheduledTasks::Task.archived.where(user: Current.user).includes(:repository).order(archived_at: :desc).limit(20).map { |task| task_row_json(task) },
             options: scheduled_task_options
           }
         end
@@ -192,6 +192,14 @@ module Api
             recent_jobs: Job.visible_to(Current.user, scope: task.jobs).order(created_at: :desc).limit(20).map { |job| recent_job_json(job) },
             options: scheduled_task_options
           }
+        end
+
+        def task_mutation_payload(task, message)
+          { task: task_detail_json(task), message: message }
+        end
+
+        def repository_task_mutation_payload(task, message)
+          { task: repository_task_json(task), message: message }
         end
 
         def scheduled_task_form_payload(task, repository:, from_template:)
@@ -235,6 +243,21 @@ module Api
             archived_at: task.archived_at&.iso8601,
             consecutive_failure_count: task.consecutive_failure_count,
             coworker_id: task.attributes["coworker_id"],
+            system_key: task.system_key,
+            scheduled_task_path: "/scheduled_tasks/#{task.id}"
+          }
+        end
+
+        def task_row_json(task)
+          {
+            id: task.id,
+            name: task.name,
+            state: task.state,
+            repository_id: task.repository_id,
+            repository_slug: task.repository.slug,
+            repository_path: repository_path(task.repository),
+            schedule_label: schedule_label(task),
+            last_fired_at: task.last_fired_at&.utc&.iso8601,
             system_key: task.system_key,
             scheduled_task_path: "/scheduled_tasks/#{task.id}"
           }
@@ -321,15 +344,6 @@ module Api
             external_pr_number: job.external_pr_number,
             created_at: job.created_at.iso8601,
             job_path: job_path(job)
-          }
-        end
-
-        def fire_result_json(result)
-          {
-            fired: result.fired?,
-            skipped: result.skipped,
-            reason: result.reason,
-            job_id: result.job&.id
           }
         end
 

@@ -45,7 +45,6 @@ export type CronTemplateAppliedTask = {
 export type CronTemplatesIndexPayload = {
   templates: CronTemplateRow[]
   pr_pileup_policies: string[]
-  repositories: CronTemplateRepository[]
   message?: string
 }
 
@@ -116,5 +115,5 @@ export function previewCronTemplateSchedule({ scheduleInput, scheduleTimezone }:
 }
 
 export function deleteCronTemplate(id: number) {
-  return deleteJson<CronTemplatesIndexPayload>(`/api/v1/app/cron_templates/${id}`)
+  return deleteJson<void>(`/api/v1/app/cron_templates/${id}`)
 }

@@ -26,6 +26,7 @@ import { Input } from "@app/components/Input"
 import { fetchRepositorySkills, type SkillSummary } from "@app/api/skills"
 import { initialArgs, SkillOption, SkillParameterInput } from "@app/routes/RepositorySkillNew"
 import { useTimeZones } from "@app/contexts/TimeZoneContext"
+import { fetchScheduledTaskRepositoryOptions } from "../api/scheduledTasks"
 
 const defaultPolicies = ["skip", "pile", "replace"]
 const emptyTemplate: CronTemplateInput = {
@@ -108,11 +109,16 @@ export function CronTemplateFormRoute({ mode }: { mode: "new" | "edit" }) {
     queryFn: () => fetchCronTemplate(id),
     enabled: mode === "edit" && id.length > 0
   })
+  const repositoryOptions = useQuery({
+    queryKey: ["scheduled_tasks", "new_repository_options"],
+    queryFn: fetchScheduledTaskRepositoryOptions,
+    enabled: mode === "new"
+  })
 
-  const loading = index.isPending || (mode === "edit" && detail.isPending)
-  const error = index.error || detail.error
+  const loading = index.isPending || (mode === "edit" && detail.isPending) || (mode === "new" && repositoryOptions.isPending)
+  const error = index.error || detail.error || repositoryOptions.error
   const policies = index.data?.pr_pileup_policies || detail.data?.pr_pileup_policies || defaultPolicies
-  const repositories = index.data?.repositories || detail.data?.repositories || []
+  const repositories = mode === "new" ? repositoryOptions.data?.repositories || [] : detail.data?.repositories || []
   const initial = mode === "edit" && detail.data ? inputFromTemplate(detail.data.template) : { ...emptyTemplate, schedule_timezone: serverTimeZone }
 
   return (
@@ -238,8 +244,10 @@ function TemplateDetail({ payload, basePath, prefix }: { payload: Awaited<Return
   const navigate = useNavigate()
   const destroy = useMutation({
     mutationFn: () => deleteCronTemplate(payload.template.id),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(["cron_templates"], updated)
+    onSuccess: () => {
+      queryClient.setQueryData<Awaited<ReturnType<typeof fetchCronTemplates>>>(["cron_templates"], (current) =>
+        current ? { ...current, templates: current.templates.filter((template) => template.id !== payload.template.id) } : current
+      )
       navigate(basePath)
     }
   })
