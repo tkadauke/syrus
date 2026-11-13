@@ -2,7 +2,18 @@ import { useEffect, useMemo, useState } from "react"
 
 import { getJson } from "../../api/client"
 import { useT } from "../../hooks/useT"
-import type { FilterChip, FilterLinkBuilder, FilterLinkUpdates, FilterNode, FilterOption, FilterPath, FilterSchemaField, FilterSuggestion, FilterSuggestionSearchConfig, FilterTree } from "./types"
+import type {
+  FilterChip,
+  FilterLinkBuilder,
+  FilterLinkUpdates,
+  FilterNode,
+  FilterOption,
+  FilterPath,
+  FilterSchemaField,
+  FilterSuggestion,
+  FilterSuggestionSearchConfig,
+  FilterTree
+} from "./types"
 
 // Pure filter-tree helpers extracted from FilterBar.tsx: encode/normalize/diff
 // a filter tree, path traversal/mutation, chip/label/option derivation, and
@@ -18,7 +29,7 @@ export function smartFolderFiltersFromTree(tree: FilterTree) {
 }
 
 export function filterTreeFromPayload(filter: Record<string, unknown> | null | undefined): FilterTree {
-  return normalizedFilterTree(filter && typeof filter === "object" ? filter as FilterTree : null)
+  return normalizedFilterTree(filter && typeof filter === "object" ? (filter as FilterTree) : null)
 }
 
 export function filterTreesEqual(left: FilterTree, right: FilterTree) {
@@ -27,7 +38,10 @@ export function filterTreesEqual(left: FilterTree, right: FilterTree) {
 
 export function encodeFilterTree(tree: FilterTree) {
   const json = JSON.stringify(normalizedFilterTree(tree))
-  return btoa(unescape(encodeURIComponent(json))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+  return btoa(unescape(encodeURIComponent(json)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "")
 }
 
 export function normalizedFilterTree(tree: FilterTree | null): FilterTree {
@@ -168,7 +182,8 @@ export function formatFilterValue(
   if (meta?.bucket === "date") return formatDateFilterValue(chip, unsetLabel, agoLabel, translateUnit)
   if (Array.isArray(chip.value)) return chip.value.length > 0 ? chip.value.map((value) => labelForOption(value, meta)).join(", ") : unsetLabel
   if (isObjectValue(chip.value)) {
-    if ("n" in chip.value && "unit" in chip.value) return `${chip.value.n} ${translateUnit(String(chip.value.unit || ""))}${chip.op === "more_than_ago" ? ` ${agoLabel}` : ""}`
+    if ("n" in chip.value && "unit" in chip.value)
+      return `${chip.value.n} ${translateUnit(String(chip.value.unit || ""))}${chip.op === "more_than_ago" ? ` ${agoLabel}` : ""}`
     return JSON.stringify(chip.value)
   }
   return labelForOption(chip.value, meta)
@@ -231,7 +246,10 @@ function formatDateLiteral(value: unknown) {
     const date = new Date(raw)
     if (!Number.isNaN(date.getTime())) return formatLocalDateTime(date)
   }
-  return raw.replace(/Z$/, "").replace("T", " ").slice(0, raw.includes("T") ? 16 : 10)
+  return raw
+    .replace(/Z$/, "")
+    .replace("T", " ")
+    .slice(0, raw.includes("T") ? 16 : 10)
 }
 
 function formatLocalDateTime(date: Date) {
@@ -262,11 +280,13 @@ export function useFormattedFilterValue(chip: FilterChip, meta: FilterSchemaFiel
     setLoadedOptions([])
     if (!meta || !isFkFilterMeta(meta) || values.length === 0) return
 
-    void loadFkOptions(meta.field, { ids: values }).then((options) => {
-      if (!cancelled) setLoadedOptions(options)
-    }).catch(() => {
-      if (!cancelled) setLoadedOptions([])
-    })
+    void loadFkOptions(meta.field, { ids: values })
+      .then((options) => {
+        if (!cancelled) setLoadedOptions(options)
+      })
+      .catch(() => {
+        if (!cancelled) setLoadedOptions([])
+      })
 
     return () => {
       cancelled = true
@@ -388,7 +408,12 @@ export async function loadFkOptions(field: string, { q, ids }: { q?: string; ids
   return payload.options || []
 }
 
-export async function loadFilterSuggestions(config: FilterSuggestionSearchConfig, q: string, activeQ: string, signal: AbortSignal): Promise<FilterSuggestion[]> {
+export async function loadFilterSuggestions(
+  config: FilterSuggestionSearchConfig,
+  q: string,
+  activeQ: string,
+  signal: AbortSignal
+): Promise<FilterSuggestion[]> {
   const params = new URLSearchParams({
     surface: config.surface,
     subject: config.subject,
