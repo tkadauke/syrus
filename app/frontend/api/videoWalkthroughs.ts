@@ -1,4 +1,5 @@
 import { ApiError, postJson } from "./client"
+import { checkApiVersion } from "./version"
 
 // Walkthrough videos upload as real multipart (100-500MB) — NOT the base64
 // JSON path chat images use. XHR instead of the client's postForm because
@@ -78,6 +79,7 @@ export function uploadVideoWalkthrough(input: {
       }
     }
     xhr.onload = () => {
+      checkApiVersion(xhr.response)
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve(xhr.response as { video_walkthrough: VideoWalkthrough })
       } else {

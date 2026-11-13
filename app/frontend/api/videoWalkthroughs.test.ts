@@ -4,8 +4,10 @@ import {
   MAX_WALKTHROUGH_BYTES,
   MAX_WALKTHROUGH_DURATION_SECONDS,
   measureVideoDuration,
+  uploadVideoWalkthrough,
   WALKTHROUGH_CONTENT_TYPES
 } from "./videoWalkthroughs"
+import { readApiVersionMismatch } from "./version"
 
 describe("isWalkthroughVideoFile", () => {
   it("accepts webm video files", () => {
@@ -135,3 +137,61 @@ describe("walkthrough upload gates", () => {
     expect(WALKTHROUGH_CONTENT_TYPES).toEqual(["video/webm", "video/mp4", "video/quicktime"])
   })
 })
+
+describe("uploadVideoWalkthrough", () => {
+  afterEach(() => {
+    window.sessionStorage.clear()
+    vi.unstubAllGlobals()
+  })
+
+  it("records an API version mismatch from the XHR response", async () => {
+    const requests: FakeXMLHttpRequest[] = []
+    vi.stubGlobal("XMLHttpRequest", fakeXMLHttpRequestClass(requests))
+    vi.stubGlobal("navigator", {
+      ...window.navigator,
+      serviceWorker: { getRegistration: vi.fn(() => new Promise<ServiceWorkerRegistration | undefined>(() => {})) }
+    })
+
+    const promise = uploadVideoWalkthrough({
+      chatSessionId: 42,
+      file: new Blob(["video"], { type: "video/webm" }),
+      filename: "walkthrough.webm",
+      durationSeconds: 8
+    })
+    requests[0].respond(200, { v: 2, video_walkthrough: { id: 1 } })
+
+    await expect(promise).resolves.toMatchObject({ video_walkthrough: { id: 1 } })
+    expect(readApiVersionMismatch()).toEqual({ actual: 2, expected: 1 })
+  })
+})
+
+class FakeXMLHttpRequest {
+  responseType = ""
+  response: unknown = null
+  status = 0
+  upload: { onprogress?: (event: ProgressEvent) => void } = {}
+  onload: (() => void) | null = null
+  onerror: (() => void) | null = null
+  onabort: (() => void) | null = null
+
+  open() {}
+  setRequestHeader() {}
+  send() {}
+  abort() {
+    this.onabort?.()
+  }
+  respond(status: number, response: unknown) {
+    this.status = status
+    this.response = response
+    this.onload?.()
+  }
+}
+
+function fakeXMLHttpRequestClass(requests: FakeXMLHttpRequest[]) {
+  return class extends FakeXMLHttpRequest {
+    constructor() {
+      super()
+      requests.push(this)
+    }
+  }
+}
