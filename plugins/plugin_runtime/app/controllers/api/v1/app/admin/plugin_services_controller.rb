@@ -5,10 +5,13 @@ module Api
         # The Plugin Services admin page: list plugin containers, stop, start,
         # restart them, and read their logs.
         class PluginServicesController < BaseController
+          DETAILS_PER_PAGE = 100
           before_action :require_plugin_runtime, except: :index
 
           def index
-            render json: ::PluginRuntime::AdminPayload.new.as_json
+            builder = ::PluginRuntime::AdminPayload.new
+            payload = params[:view] == "volumes" ? builder.volumes_json : builder.as_json
+            render json: payload if stale?(etag: payload, public: false)
           end
 
           def stop = act(:stop!)
@@ -16,8 +19,12 @@ module Api
           def restart = act(:restart!)
 
           def logs
-            text = controls.logs(params[:name], tail: params[:tail].presence || ::PluginRuntime::Controls::DEFAULT_LOG_TAIL)
-            render json: { service: params[:name], logs: text }
+            cursor = Time.current.iso8601(6)
+            text = controls.logs(
+              params[:name], tail: params[:tail].presence || ::PluginRuntime::Controls::DEFAULT_LOG_TAIL,
+              since: params[:since].presence
+            )
+            render json: { service: params[:name], logs: text, cursor: cursor }
           rescue ::PluginRuntime::Controls::Error, ::PluginRuntime::Client::Error => e
             render_control_error(e)
           end
@@ -35,7 +42,7 @@ module Api
             details = endpoint && entry.provider.service_details(endpoint: endpoint)
             return render_error("runtime_unavailable", "#{entry.name} is not answering", status: :service_unavailable) unless details
 
-            render json: { service: entry.name, details: details }
+            render json: { service: entry.name, details: paginate_details(details) }
           end
 
           def remove_volume
@@ -46,6 +53,22 @@ module Api
           end
 
           private
+
+          def paginate_details(details)
+            table = details[:table] || details["table"]
+            rows = table && (table[:rows] || table["rows"])
+            return details unless rows
+
+            page = [ params[:page].to_i, 1 ].max
+            total = rows.length
+            copy = details.deep_dup
+            copy_table = copy[:table] || copy["table"]
+            rows_key = copy_table.key?(:rows) ? :rows : "rows"
+            pagination_key = copy.key?(:table) ? :pagination : "pagination"
+            copy_table[rows_key] = rows.slice((page - 1) * DETAILS_PER_PAGE, DETAILS_PER_PAGE) || []
+            copy[pagination_key] = { page: page, per_page: DETAILS_PER_PAGE, total: total, total_pages: (total.to_f / DETAILS_PER_PAGE).ceil }
+            copy
+          end
 
           def act(action)
             status = controls.public_send(action, params[:name])

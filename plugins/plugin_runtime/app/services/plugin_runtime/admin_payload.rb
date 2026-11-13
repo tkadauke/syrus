@@ -32,9 +32,12 @@ module PluginRuntime
         mode: @configuration.managed? ? "managed" : "external",
         manageable: @configuration.managed?,
         manager_error: manager_error,
-        services: services.sort_by { |service| service[:service] },
-        volumes: volumes
+        services: services.sort_by { |service| service[:service] }
       }
+    end
+
+    def volumes_json
+      { volumes: volumes }
     end
 
     private
@@ -73,6 +76,7 @@ module PluginRuntime
       # Details come from the service itself, so only while it answers.
       actions += [ "details" ] if details && status[:state] == "running"
       status.merge(plugin: plugin, desired: desired, held: held, actions: actions)
+        .except(:container_id, :pull, :checked_at)
     end
 
     def actions_for(status, desired:)

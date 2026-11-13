@@ -16,27 +16,29 @@ module K8sCluster
   class Overview < ResourceService
     SOFT_FAIL_ERRORS = (CONNECTION_ERRORS + [ RestClient::Exception, JSON::ParserError ]).freeze
 
-    def call
+    def call(summary: false, namespace: nil)
+      validate_identifiers!(namespace: namespace)
       {
         generated_at: Time.current.iso8601,
-        nodes: node_metrics,
-        pods: pod_metrics
+        nodes: node_metrics(summary: summary),
+        pods: pod_metrics(summary: summary, namespace: namespace)
       }
     end
 
     private
 
-    def node_metrics
+    def node_metrics(summary:)
       fetch("nodes") do |items|
         rows = items.map { |item| { name: item.dig("metadata", "name"), **usage(item.dig("usage")) } }
-        aggregate(rows)
+        aggregate(rows, summary: summary)
       end
     end
 
-    def pod_metrics
-      fetch("pods") do |items|
+    def pod_metrics(summary:, namespace:)
+      resource = namespace ? "namespaces/#{namespace}/pods" : "pods"
+      fetch(resource) do |items|
         rows = items.map { |item| pod_row(item) }
-        aggregate(rows)
+        aggregate(rows, summary: summary)
       end
     end
 
@@ -56,13 +58,14 @@ module K8sCluster
       { cpu_millicores: ResourceQuantity.cpu_millicores(raw_usage["cpu"]), memory_bytes: ResourceQuantity.memory_bytes(raw_usage["memory"]) }
     end
 
-    def aggregate(rows)
-      {
+    def aggregate(rows, summary:)
+      payload = {
         available: true,
-        items: rows,
         total_cpu_millicores: rows.sum { |row| row[:cpu_millicores] },
         total_memory_bytes: rows.sum { |row| row[:memory_bytes] }
       }
+      payload[:items] = rows unless summary
+      payload
     end
 
     def fetch(resource)

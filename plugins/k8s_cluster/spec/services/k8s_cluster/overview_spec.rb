@@ -43,6 +43,17 @@ RSpec.describe K8sCluster::Overview do
     expect(payload[:pods][:available]).to be(false)
   end
 
+  it "omits rows from summaries and scopes pod metrics to a namespace" do
+    stub_kube_get("#{base}/nodes", { "items" => [ { "metadata" => { "name" => "node-1" }, "usage" => { "cpu" => "1", "memory" => "1Gi" } } ] })
+    stub_kube_get("#{base}/namespaces/default/pods", { "items" => [] })
+
+    payload = described_class.new(cluster).call(summary: true, namespace: "default")
+
+    expect(payload[:nodes]).to include(available: true, total_cpu_millicores: 1_000)
+    expect(payload[:nodes]).not_to have_key(:items)
+    expect(payload[:pods]).not_to have_key(:items)
+  end
+
   it "soft-fails on a connection error rather than raising" do
     stub_request(:get, "#{base}/nodes").to_timeout
     stub_request(:get, "#{base}/pods").to_timeout

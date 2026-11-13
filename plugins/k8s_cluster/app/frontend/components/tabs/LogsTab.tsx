@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Button } from "@app/components/Button"
 import { Checkbox } from "@app/components/Checkbox"
 import { Input } from "@app/components/Input"
@@ -28,6 +28,9 @@ export function LogsTab({ clusterId, initialPod, namespace }: { clusterId: numbe
   const [timestamps, setTimestamps] = useState(false)
   const [follow, setFollow] = useState(false)
   const [logQuery, setLogQuery] = useState("")
+  const [logOutput, setLogOutput] = useState("")
+  const logCursor = useRef<string | null>(null)
+  const incrementalRequest = useRef(false)
 
   useEffect(() => {
     if (initialPod) setSelectedPodKey([namespace, initialPod].filter(Boolean).join("/"))
@@ -53,19 +56,33 @@ export function LogsTab({ clusterId, initialPod, namespace }: { clusterId: numbe
 
   const logs = useQuery({
     queryKey: ["k8s_cluster", "pod_logs", clusterId, selectedPod?.namespace, selectedPod?.name, selectedContainer, tailLines, previous, timestamps],
-    queryFn: () =>
-      fetchKubernetesPodLogs(clusterId, selectedPod!.namespace, selectedPod!.name, {
+    queryFn: () => {
+      incrementalRequest.current = follow && logCursor.current !== null
+      return fetchKubernetesPodLogs(clusterId, selectedPod!.namespace, selectedPod!.name, {
         container: selectedContainer,
         tail_lines: tailLines,
         previous,
-        timestamps
-      }),
+        timestamps,
+        since: follow ? logCursor.current : null
+      })
+    },
     enabled: !!selectedPod,
     // Follow polls the same read-only tail the manual Refresh button fetches
     // once; turning it off returns to manual-only refreshes.
     staleTime: 0,
     refetchInterval: follow ? FOLLOW_REFETCH_INTERVAL_MS : false
   })
+
+  useEffect(() => {
+    if (!logs.data) return
+    setLogOutput((current) => (incrementalRequest.current ? current + logs.data.log : logs.data.log))
+    logCursor.current = logs.data.cursor
+  }, [logs.data])
+
+  useEffect(() => {
+    logCursor.current = null
+    setLogOutput("")
+  }, [selectedPod?.namespace, selectedPod?.name, selectedContainer, tailLines, previous, timestamps])
 
   if (pods.isPending) return <PanelMessage>{t("logs_loading_pods")}</PanelMessage>
   if (pods.isError) return <PanelMessage tone="error">{errorMessage(pods.error, t("logs_error_loading_pods"))}</PanelMessage>
@@ -78,7 +95,7 @@ export function LogsTab({ clusterId, initialPod, namespace }: { clusterId: numbe
   const containerOptions = (selectedPod?.container_names ?? []).map((name) => ({ value: name, label: name }))
   const tailLineOptions = TAIL_LINE_OPTIONS.map((lines) => ({ value: String(lines), label: String(lines) }))
 
-  const logLines = splitLogLines(logs.data?.log ?? "")
+  const logLines = splitLogLines(logOutput)
   const needle = logQuery.trim().toLowerCase()
   const visibleLines = needle ? logLines.filter((line) => line.toLowerCase().includes(needle)) : logLines
 

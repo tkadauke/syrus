@@ -13,7 +13,9 @@ RSpec.describe K8sCluster::Secrets do
         "name" => name,
         "namespace" => "default",
         "creationTimestamp" => "2026-01-01T00:00:00Z",
-        "ownerReferences" => [ { "kind" => "Deployment", "name" => "api" } ]
+        "ownerReferences" => [ { "kind" => "Deployment", "name" => "api" } ],
+        "managedFields" => [ { "manager" => "kubectl" } ],
+        "annotations" => { "kubectl.kubernetes.io/last-applied-configuration" => "secret manifest" }
       },
       "type" => "Opaque",
       "immutable" => true,
@@ -37,7 +39,7 @@ RSpec.describe K8sCluster::Secrets do
       expect(row[:immutable]).to be(true)
       expect(row[:owner_references]).to eq([ "Deployment/api" ])
       expect(row[:created_at]).to eq("2026-01-01T00:00:00Z")
-      expect(payload.to_json).not_to include("c3VwZXItc2VjcmV0", "YWRtaW4=")
+      expect(payload.to_json).not_to include("c3VwZXItc2VjcmV0", "YWRtaW4=", "managedFields", "secret manifest")
     end
   end
 
@@ -50,7 +52,7 @@ RSpec.describe K8sCluster::Secrets do
 
       expect(payload[:secret]).to include(name: "db-credentials", namespace: "default", type: "Opaque")
       expect(payload[:secret][:key_names]).to eq([ "password", "username" ])
-      expect(payload.to_json).not_to include("c3VwZXItc2VjcmV0", "YWRtaW4=")
+      expect(payload.to_json).not_to include("c3VwZXItc2VjcmV0", "YWRtaW4=", "managedFields", "secret manifest")
     end
   end
 end

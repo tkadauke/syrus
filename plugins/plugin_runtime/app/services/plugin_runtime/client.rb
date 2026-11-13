@@ -90,8 +90,10 @@ module PluginRuntime
     end
 
     # The last `tail` lines of the container's stdout and stderr, as text.
-    def logs(name, tail: 200)
-      request(Net::HTTP::Get, "#{service_path(name)}/logs", query: URI.encode_www_form(tail: tail), text: true)
+    def logs(name, tail: 200, since: nil)
+      query = { tail: tail }
+      query[:since] = since if since.present?
+      request(Net::HTTP::Get, "#{service_path(name)}/logs", query: URI.encode_www_form(query), text: true)
     end
 
     private

@@ -181,6 +181,30 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
       expect(parse_body.dig("pod", "metadata", "name")).to eq("web-1")
     end
 
+    it "strips noisy server metadata from described resources" do
+      pods = instance_double(K8sCluster::Pods)
+      stub_admin_resource_service(K8sCluster::Pods, pods)
+      allow(pods).to receive(:describe).and_return(
+        available: true,
+        pod: {
+          "metadata" => {
+            "name" => "web-1",
+            "managedFields" => [ { "manager" => "kubectl" } ],
+            "annotations" => {
+              "kubectl.kubernetes.io/last-applied-configuration" => "large manifest",
+              "example.com/owner" => "platform"
+            }
+          }
+        }
+      )
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/pods", params: { name: "web-1", namespace: "default" }
+
+      expect(parse_body.dig("pod", "metadata")).to eq(
+        "name" => "web-1", "annotations" => { "example.com/owner" => "platform" }
+      )
+    end
+
     it "rejects invalid resource identifiers before dispatching to a service" do
       expect(K8sCluster::Pods).not_to receive(:new)
 
@@ -194,7 +218,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
     it "returns pod logs" do
       pods = instance_double(K8sCluster::Pods)
       stub_admin_resource_service(K8sCluster::Pods, pods)
-      allow(pods).to receive(:logs).with("web-1", namespace: "default", container: nil, tail_lines: 200, previous: false, timestamps: false)
+      allow(pods).to receive(:logs).with("web-1", namespace: "default", container: nil, tail_lines: 200, previous: false, timestamps: false, since: nil)
         .and_return(available: true, log: "log output\n")
 
       get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/pods/web-1/logs", params: { namespace: "default" }
@@ -311,7 +335,7 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
     it "lists events" do
       events = instance_double(K8sCluster::Events)
       stub_admin_resource_service(K8sCluster::Events, events)
-      allow(events).to receive(:list).with(namespace: nil).and_return(available: true, events: [ { reason: "Scheduled" } ])
+      allow(events).to receive(:list).with(namespace: nil, limit: nil, since: nil).and_return(available: true, events: [ { reason: "Scheduled" } ])
 
       get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/events"
 
@@ -444,7 +468,8 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
     it "returns the cluster overview" do
       overview = instance_double(K8sCluster::Overview)
       stub_admin_resource_service(K8sCluster::Overview, overview)
-      allow(overview).to receive(:call).and_return(nodes: { available: false, reason: "metrics_unavailable" }, pods: { available: false, reason: "metrics_unavailable" })
+      allow(overview).to receive(:call).with(summary: false, namespace: nil)
+        .and_return(nodes: { available: false, reason: "metrics_unavailable" }, pods: { available: false, reason: "metrics_unavailable" })
 
       get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/overview"
 

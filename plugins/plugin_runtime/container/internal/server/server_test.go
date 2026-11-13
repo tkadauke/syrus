@@ -24,6 +24,7 @@ type stubManager struct {
 	err               error
 	acted             []string
 	tail              int
+	since             string
 }
 
 func (s *stubManager) Ensure(_ context.Context, name string, _ spec.Service) (manager.Status, error) {
@@ -66,8 +67,9 @@ func (s *stubManager) PurgePlugin(_ context.Context, plugin string) ([]string, e
 	s.acted = append(s.acted, "purge "+plugin)
 	return []string{"syrus_plugin_git-mirror_data"}, s.err
 }
-func (s *stubManager) Logs(_ context.Context, name string, tail int) (string, error) {
+func (s *stubManager) Logs(_ context.Context, name string, tail int, since string) (string, error) {
 	s.tail = tail
+	s.since = since
 	return "2026-09-22T01:00:00Z GET /v1/repositories 200\n", s.err
 }
 
@@ -256,6 +258,12 @@ func TestLogsArePlainTextWithABoundedTail(t *testing.T) {
 	}
 	if rec := do(h, "GET", "/v1/services/git-mirror/logs?tail=zero", "Bearer "+token, ""); rec.Code != http.StatusBadRequest {
 		t.Fatalf("bad tail: %d", rec.Code)
+	}
+	if rec := do(h, "GET", "/v1/services/git-mirror/logs?since=2026-01-01T00:00:00Z", "Bearer "+token, ""); rec.Code != http.StatusOK || m.since != "2026-01-01T00:00:00Z" {
+		t.Fatalf("since cursor: status=%d cursor=%q", rec.Code, m.since)
+	}
+	if rec := do(h, "GET", "/v1/services/git-mirror/logs?since=yesterday", "Bearer "+token, ""); rec.Code != http.StatusBadRequest {
+		t.Fatalf("bad since: %d", rec.Code)
 	}
 }
 

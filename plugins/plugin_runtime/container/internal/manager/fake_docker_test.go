@@ -178,13 +178,13 @@ func (f *fakeDocker) RestartContainer(_ context.Context, id string, _ time.Durat
 	return nil
 }
 
-func (f *fakeDocker) ContainerLogs(_ context.Context, id string, tail int, _ int64) (string, error) {
+func (f *fakeDocker) ContainerLogs(_ context.Context, id string, tail int, since string, _ int64) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.containers[id] == nil {
 		return "", &docker.APIError{Status: 404}
 	}
-	return fmt.Sprintf("last %d lines of %s\n", tail, f.containers[id].name), nil
+	return fmt.Sprintf("last %d lines of %s%s\n", tail, f.containers[id].name, since), nil
 }
 
 func (f *fakeDocker) RemoveContainer(_ context.Context, id string) error {

@@ -59,6 +59,7 @@ export type KubernetesPodLogsResponse = {
   namespace: string
   container: string | null
   log: string
+  cursor: string
 }
 
 export type KubernetesDeploymentRow = {
@@ -176,6 +177,7 @@ export type KubernetesEventsResponse = {
   generated_at: string
   truncated: boolean
   events: KubernetesEventRow[]
+  cursor: string
 }
 
 export type KubernetesNodeMetricRow = { name: string; cpu_millicores: number; memory_bytes: number }
@@ -283,25 +285,31 @@ export function fetchKubernetesNodes(clusterId: number) {
   return getJson<KubernetesNodesResponse>(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/nodes`)
 }
 
-export function fetchKubernetesOverview(clusterId: number) {
-  return getJson<KubernetesOverviewResponse>(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/overview`)
+export function fetchKubernetesOverview(clusterId: number, summary = false) {
+  const suffix = summary ? "?summary=1" : ""
+  return getJson<KubernetesOverviewResponse>(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/overview${suffix}`)
 }
 
-export function fetchKubernetesPods(clusterId: number, namespace?: string | null) {
-  return getJson<KubernetesPodsResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/pods`, namespace))
+export function fetchKubernetesPods(clusterId: number, namespace?: string | null, view?: "status") {
+  const search = new URLSearchParams()
+  if (namespace) search.set("namespace", namespace)
+  if (view) search.set("view", view)
+  const suffix = search.size > 0 ? `?${search.toString()}` : ""
+  return getJson<KubernetesPodsResponse>(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/pods${suffix}`)
 }
 
 export function fetchKubernetesPodLogs(
   clusterId: number,
   namespace: string,
   name: string,
-  options: { container?: string | null; tail_lines?: number; previous?: boolean; timestamps?: boolean } = {}
+  options: { container?: string | null; tail_lines?: number; previous?: boolean; timestamps?: boolean; since?: string | null } = {}
 ) {
   const search = new URLSearchParams({ namespace })
   if (options.container) search.set("container", options.container)
   if (options.tail_lines) search.set("tail_lines", String(options.tail_lines))
   if (options.previous) search.set("previous", "true")
   if (options.timestamps) search.set("timestamps", "true")
+  if (options.since) search.set("since", options.since)
 
   return getJson<KubernetesPodLogsResponse>(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/pods/${encodeURIComponent(name)}/logs?${search.toString()}`)
 }
@@ -465,6 +473,11 @@ export function fetchKubernetesSecrets(clusterId: number, namespace?: string | n
   return getJson<KubernetesSecretsResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/secrets`, namespace))
 }
 
-export function fetchKubernetesEvents(clusterId: number, namespace?: string | null) {
-  return getJson<KubernetesEventsResponse>(withNamespace(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/events`, namespace))
+export function fetchKubernetesEvents(clusterId: number, namespace?: string | null, options: { limit?: number; since?: string | null } = {}) {
+  const search = new URLSearchParams()
+  if (namespace) search.set("namespace", namespace)
+  if (options.limit) search.set("limit", String(options.limit))
+  if (options.since) search.set("since", options.since)
+  const suffix = search.size > 0 ? `?${search.toString()}` : ""
+  return getJson<KubernetesEventsResponse>(`/api/v1/app/admin/kubernetes_clusters/${clusterId}/events${suffix}`)
 }

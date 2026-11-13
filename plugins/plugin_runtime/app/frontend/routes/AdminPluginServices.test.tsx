@@ -26,7 +26,6 @@ function payload(overrides: Partial<PluginServicesPayload> = {}): PluginServices
         state: "running",
         endpoint: "http://git-mirror:8080",
         image: "ghcr.io/tkadauke/syrus-plugin-git-mirror:dev",
-        container_id: "abc",
         desired: true,
         held: false,
         actions: ["stop", "restart", "logs"]
@@ -130,6 +129,29 @@ describe("AdminPluginServices", () => {
 
     const output = await screen.findByLabelText("Log output for git-mirror")
     await waitFor(() => expect(output).toHaveTextContent("GET /v1/repositories/1/blob 200 13B 2ms"))
+  })
+
+  it("uses the previous cursor and appends output while following logs", async () => {
+    const requests: string[] = []
+    mockApi(payload(), (path) => {
+      if (!path.includes("/git-mirror/logs?")) return undefined
+      requests.push(path)
+      return path.includes("since=")
+        ? jsonResponse({ service: "git-mirror", logs: "second line\n", cursor: "2026-01-01T00:00:02Z" })
+        : jsonResponse({ service: "git-mirror", logs: "first line\n", cursor: "2026-01-01T00:00:01Z" })
+    })
+
+    renderRoute(<AdminPluginServices />)
+    fireEvent.click(await screen.findByRole("button", { name: "Logs" }))
+    expect(await screen.findByText(/first line/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Follow" }))
+    fireEvent.click(screen.getAllByRole("button", { name: "Refresh" }).at(-1)!)
+
+    await waitFor(() => expect(requests.at(-1)).toContain("since=2026-01-01T00%3A00%3A01Z"))
+    const output = screen.getByLabelText("Log output for git-mirror")
+    expect(output).toHaveTextContent("first line")
+    await waitFor(() => expect(output).toHaveTextContent("second line"))
   })
 
   it("badges a privileged service so an operator can spot elevated capabilities at a glance", async () => {

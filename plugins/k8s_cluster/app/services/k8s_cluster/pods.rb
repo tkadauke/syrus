@@ -6,7 +6,7 @@ module K8sCluster
     MAX_LOG_TAIL_LINES = 1_000
     MAX_LOG_BYTES = 64.kilobytes
 
-    def list(namespace: nil)
+    def list(namespace: nil, view: nil)
       validate_identifiers!(namespace: namespace)
       with_client(api_client.core) do |client|
         items = client.get_pods(namespace_scope(namespace)).fetch("items", [])
@@ -15,7 +15,7 @@ module K8sCluster
           available: true,
           generated_at: Time.current.iso8601,
           truncated: items.length > MAX_PODS,
-          pods: items.first(MAX_PODS).map { |item| summary(item) }
+          pods: items.first(MAX_PODS).map { |item| view == "status" ? status_summary(item) : summary(item) }
         }
       end
     end
@@ -30,8 +30,10 @@ module K8sCluster
     # Per-container log tail. `container` is required once a pod has more
     # than one container - Kubernetes itself returns a 400 in that case, so
     # we let that surface as Unavailable rather than guessing which one.
-    def logs(name, namespace:, container: nil, tail_lines: 200, previous: false, timestamps: false)
+    def logs(name, namespace:, container: nil, tail_lines: 200, previous: false, timestamps: false, since: nil)
       validate_identifiers!(name: name, namespace: namespace, container: container)
+      since_time = Time.iso8601(since) if since
+      cursor = Time.current.iso8601(6)
       with_client(api_client.core) do |client|
         body = client.get_pod_log(
           name,
@@ -40,11 +42,14 @@ module K8sCluster
           tail_lines: [ tail_lines.to_i, MAX_LOG_TAIL_LINES ].min.clamp(1, MAX_LOG_TAIL_LINES),
           limit_bytes: MAX_LOG_BYTES,
           previous: previous,
-          timestamps: timestamps
+          timestamps: timestamps,
+          since_time: since_time
         )
 
-        { available: true, generated_at: Time.current.iso8601, pod: name, namespace: namespace, container: container, log: body.to_s }
+        { available: true, generated_at: Time.current.iso8601, cursor: cursor, pod: name, namespace: namespace, container: container, log: body.to_s }
       end
+    rescue ArgumentError
+      raise InvalidArgument, "since must be an ISO 8601 timestamp"
     end
 
     # Force-reschedule via delete: with no direct "restart pod" verb in the
@@ -96,6 +101,14 @@ module K8sCluster
         restart_count: statuses.sum { |status| integer(status["restartCount"]).to_i },
         container_names: containers.map { |container| container["name"] },
         created_at: item.dig("metadata", "creationTimestamp")
+      }
+    end
+
+    def status_summary(item)
+      {
+        name: item.dig("metadata", "name"),
+        namespace: item.dig("metadata", "namespace"),
+        status: item.dig("status", "phase")
       }
     end
   end

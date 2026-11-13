@@ -40,4 +40,19 @@ RSpec.describe K8sCluster::Events do
 
     expect { described_class.new(cluster).list }.to raise_error(K8sCluster::ResourceService::Unavailable)
   end
+
+  it "limits incremental reads to events newer than the cursor" do
+    stub_core_discovery(base)
+    stub_kube_get("#{base}/api/v1/events", {
+      "items" => [
+        event(name: "old", last_timestamp: "2026-01-01T00:00:00Z"),
+        event(name: "new", last_timestamp: "2026-01-03T00:00:00Z")
+      ]
+    })
+
+    payload = described_class.new(cluster).list(limit: 1, since: "2026-01-02T00:00:00Z")
+
+    expect(payload[:events].map { |row| row[:name] }).to eq([ "new" ])
+    expect(payload[:cursor]).to be_present
+  end
 end

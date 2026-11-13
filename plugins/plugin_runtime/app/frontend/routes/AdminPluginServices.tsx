@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useLocation } from "react-router-dom"
 import { Button, Checkbox, CodeSurface, DataTable, Notice, Page, PageHeading, Pill, Section, SectionHeading, Select, Text, Toolbar } from "@app/components/ui"
 import { AdminEventFilterBar, AdminEventLogTable, type AdminEventFilterField, type AdminEventLogTableColumn } from "@app/components/AdminEventLogPanel"
@@ -12,6 +12,7 @@ import {
   deletePluginServiceVolume,
   fetchPluginServiceDetails,
   fetchPluginServiceLogs,
+  fetchPluginServiceVolumes,
   fetchPluginServices,
   runPluginServiceAction,
   type DetailFormat,
@@ -47,6 +48,12 @@ export function AdminPluginServices() {
     queryFn: fetchPluginServices,
     staleTime: 0,
     refetchInterval: 10_000
+  })
+  const volumes = useQuery({
+    queryKey: [...QUERY_KEY, "volumes"],
+    queryFn: fetchPluginServiceVolumes,
+    staleTime: 60_000,
+    refetchInterval: 60_000
   })
   const payload = services.data
 
@@ -96,7 +103,7 @@ export function AdminPluginServices() {
           {detailsFor ? <DetailsPanel name={detailsFor} onClose={() => setDetailsFor(null)} /> : null}
           {logsFor ? <LogsPanel name={logsFor} onClose={() => setLogsFor(null)} /> : null}
 
-          {filterVolumes(payload.volumes, location.search).length > 0 ? <VolumesSection volumes={filterVolumes(payload.volumes, location.search)} /> : null}
+          {filterVolumes(volumes.data?.volumes ?? [], location.search).length > 0 ? <VolumesSection volumes={filterVolumes(volumes.data?.volumes ?? [], location.search)} /> : null}
         </>
       ) : null}
     </Page.Root>
@@ -298,12 +305,29 @@ function LogsPanel({ name, onClose }: { name: string; onClose: () => void }) {
   const { t } = useT("plugin_runtime")
   const [tail, setTail] = useState(200)
   const [follow, setFollow] = useState(false)
+  const [output, setOutput] = useState("")
+  const cursor = useRef<string | null>(null)
+  const incrementalRequest = useRef(false)
   const logs = useQuery({
     queryKey: ["admin", "plugin_services_logs", name, tail],
-    queryFn: () => fetchPluginServiceLogs(name, tail),
+    queryFn: () => {
+      incrementalRequest.current = follow && cursor.current !== null
+      return fetchPluginServiceLogs(name, tail, follow ? cursor.current : null)
+    },
     staleTime: 0,
     refetchInterval: follow ? 3_000 : false
   })
+
+  useEffect(() => {
+    if (!logs.data) return
+    setOutput((current) => (incrementalRequest.current ? current + logs.data.logs : logs.data.logs))
+    cursor.current = logs.data.cursor
+  }, [logs.data])
+
+  useEffect(() => {
+    cursor.current = null
+    setOutput("")
+  }, [name, tail])
 
   return (
     <Section.Root aria-label={t("logs_heading", { service: name })}>
@@ -332,7 +356,7 @@ function LogsPanel({ name, onClose }: { name: string; onClose: () => void }) {
       {logs.isError ? <Notice tone="danger">{logs.error instanceof Error ? logs.error.message : t("logs_error")}</Notice> : null}
       <CodeSurface
         aria-label={t("logs_output", { service: name })}
-        code={logs.isPending ? t("loading") : logs.data?.logs || t("logs_empty")}
+        code={logs.isPending ? t("loading") : output || t("logs_empty")}
         copyLabel={t("copy_logs")}
         maxHeightClassName="max-h-[32rem]"
       />
@@ -353,9 +377,10 @@ function formatValue(value: string | number | null | undefined, format: DetailFo
 // are i18n keys in the owning plugin's namespace.
 function DetailsPanel({ name, onClose }: { name: string; onClose: () => void }) {
   const { t } = useT("plugin_runtime")
+  const [page, setPage] = useState(1)
   const details = useQuery({
-    queryKey: ["admin", "plugin_services_details", name],
-    queryFn: () => fetchPluginServiceDetails(name),
+    queryKey: ["admin", "plugin_services_details", name, page],
+    queryFn: () => fetchPluginServiceDetails(name, page),
     staleTime: 0,
     refetchInterval: 30_000
   })
@@ -407,6 +432,21 @@ function DetailsPanel({ name, onClose }: { name: string; onClose: () => void }) 
                 ))}
               </DataTable.Body>
             </DataTable.Root>
+          ) : null}
+          {data.pagination && data.pagination.total_pages > 1 ? (
+            <div className="flex items-center justify-between text-sm text-text-secondary">
+              <span>
+                {`${(data.pagination.page - 1) * data.pagination.per_page + 1}–${Math.min(data.pagination.page * data.pagination.per_page, data.pagination.total)} of ${data.pagination.total}`}
+              </span>
+              <div className="flex gap-2">
+                {page > 1 ? (
+                  <Button onClick={() => setPage((current) => current - 1)} size="sm" variant="secondary">{t("previous")}</Button>
+                ) : <span className="rounded border border-border px-3 py-1 text-text-muted opacity-60">{t("previous")}</span>}
+                {page < data.pagination.total_pages ? (
+                  <Button onClick={() => setPage((current) => current + 1)} size="sm" variant="secondary">{t("next")}</Button>
+                ) : <span className="rounded border border-border px-3 py-1 text-text-muted opacity-60">{t("next")}</span>}
+              </div>
+            </div>
           ) : null}
         </div>
       ) : null}

@@ -21,7 +21,7 @@ module Api
           end
 
           def pods
-            render_namespace_scoped(resource_service(::K8sCluster::Pods))
+            render_namespace_scoped(resource_service(::K8sCluster::Pods), view: params[:view])
           end
 
           def pod_logs
@@ -33,12 +33,15 @@ module Api
               container: params[:container].presence,
               tail_lines: params[:tail_lines].presence&.to_i || DEFAULT_TAIL_LINES,
               previous: !!ActiveModel::Type::Boolean.new.cast(params[:previous]),
-              timestamps: !!ActiveModel::Type::Boolean.new.cast(params[:timestamps])
+              timestamps: !!ActiveModel::Type::Boolean.new.cast(params[:timestamps]),
+              since: params[:since].presence
             )
           rescue ::K8sCluster::ResourceService::Unavailable => e
             render_unavailable(e)
           rescue ::K8sCluster::ResourceService::NotFound => e
             render_not_found(e)
+          rescue ::K8sCluster::ResourceService::InvalidArgument => e
+            render_error("invalid_argument", e.message, status: :unprocessable_content)
           end
 
           def deployments
@@ -78,9 +81,13 @@ module Api
           end
 
           def events
-            render json: resource_service(::K8sCluster::Events).list(namespace: params[:namespace])
+            render json: resource_service(::K8sCluster::Events).list(
+              namespace: params[:namespace], limit: params[:limit], since: params[:since].presence
+            )
           rescue ::K8sCluster::ResourceService::Unavailable => e
             render_unavailable(e)
+          rescue ::K8sCluster::ResourceService::InvalidArgument => e
+            render_error("invalid_argument", e.message, status: :unprocessable_content)
           end
 
           def pvcs
@@ -96,7 +103,9 @@ module Api
           end
 
           def overview
-            render json: resource_service(::K8sCluster::Overview).call
+            render json: resource_service(::K8sCluster::Overview).call(
+              summary: !!ActiveModel::Type::Boolean.new.cast(params[:summary]), namespace: params[:namespace].presence
+            )
           rescue ::K8sCluster::ResourceService::Unavailable => e
             render_unavailable(e)
           end
@@ -119,7 +128,7 @@ module Api
           # describe over list.
           def render_cluster_scoped(service)
             if params[:name].present?
-              render json: service.describe(params[:name])
+              render json: sanitized_describe(service.describe(params[:name]))
             else
               render json: service.list
             end
@@ -134,13 +143,15 @@ module Api
           # matching `kubectl get <kind> -A`. Describing a single object
           # (`name` present) requires `namespace` too, since Kubernetes has
           # no cross-namespace "get by name" for these kinds.
-          def render_namespace_scoped(service)
+          def render_namespace_scoped(service, view: nil)
             if params[:name].present?
               return unless (namespace = require_namespace!)
 
-              render json: service.describe(params[:name], namespace: namespace)
+              render json: sanitized_describe(service.describe(params[:name], namespace: namespace))
             else
-              render json: service.list(namespace: params[:namespace])
+              options = { namespace: params[:namespace] }
+              options[:view] = view if view.present?
+              render json: service.list(**options)
             end
           rescue ::K8sCluster::ResourceService::Unavailable => e
             render_unavailable(e)
@@ -153,6 +164,26 @@ module Api
 
             render_error("namespace_required", "namespace is required to describe a specific resource", status: :unprocessable_content)
             nil
+          end
+
+          def sanitized_describe(payload)
+            payload.deep_dup.tap do |copy|
+              copy.each_value { |value| sanitize_kubernetes_object!(value) if value.is_a?(Hash) }
+            end
+          end
+
+          def sanitize_kubernetes_object!(object)
+            metadata = object["metadata"] || object[:metadata]
+            return object unless metadata.is_a?(Hash)
+
+            metadata.delete("managedFields")
+            metadata.delete(:managedFields)
+            annotations = metadata["annotations"] || metadata[:annotations]
+            if annotations.is_a?(Hash)
+              annotations.delete("kubectl.kubernetes.io/last-applied-configuration")
+              annotations.delete(:"kubectl.kubernetes.io/last-applied-configuration")
+            end
+            object
           end
 
           def validate_resource_identifiers

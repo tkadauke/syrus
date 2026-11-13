@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/manager"
 	"github.com/tkadauke/syrus/plugins/plugin_runtime/container/internal/policy"
@@ -30,7 +31,7 @@ type Manager interface {
 	Stop(ctx context.Context, name string) (manager.Status, error)
 	Start(ctx context.Context, name string) (manager.Status, error)
 	Restart(ctx context.Context, name string) (manager.Status, error)
-	Logs(ctx context.Context, name string, tail int) (string, error)
+	Logs(ctx context.Context, name string, tail int, since string) (string, error)
 	Volumes(ctx context.Context) ([]manager.VolumeStatus, error)
 	RemoveVolume(ctx context.Context, name string) error
 	PurgePlugin(ctx context.Context, plugin string) ([]string, error)
@@ -202,7 +203,14 @@ func (h *handlers) logs(w http.ResponseWriter, r *http.Request) {
 		}
 		tail = min(n, maxLogTail)
 	}
-	text, err := h.manager.Logs(r.Context(), r.PathValue("name"), tail)
+	since := r.URL.Query().Get("since")
+	if since != "" {
+		if _, err := time.Parse(time.RFC3339Nano, since); err != nil {
+			writeError(w, http.StatusBadRequest, "since must be an RFC 3339 timestamp")
+			return
+		}
+	}
+	text, err := h.manager.Logs(r.Context(), r.PathValue("name"), tail, since)
 	if err != nil {
 		h.fail(w, err)
 		return
