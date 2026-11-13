@@ -335,12 +335,12 @@ function taskColumns({
       header: t("scheduled_tasks.col_repository"),
       className: "font-mono",
       render: (task) => (
-        <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(task.repository.repository_path, prefix)}>
-          {task.repository.slug}
+        <Link className="text-brand underline hover:no-underline dark:text-brand-emphasis" to={withRoutePrefix(task.repository_path, prefix)}>
+          {task.repository_slug}
         </Link>
       ),
       sort: "repository",
-      sortValue: (task) => task.repository.slug
+      sortValue: (task) => task.repository_slug
     },
     {
       key: "schedule",
@@ -388,14 +388,16 @@ function TaskDetail({ payload, basePath, prefix }: { payload: ScheduledTaskDetai
     },
     onSuccess: (updated) => {
       setNotice(updated.message || null)
-      queryClient.setQueryData(["scheduled_tasks", String(updated.task.id)], updated)
-      void queryClient.invalidateQueries({ queryKey: ["scheduled_tasks"] })
+      queryClient.setQueryData<ScheduledTaskDetailPayload>(["scheduled_tasks", String(updated.task.id)], (current) =>
+        current ? { ...current, task: updated.task, message: updated.message } : current
+      )
+      updateScheduledTaskIndex(queryClient, updated.task)
     }
   })
   const archive = useMutation({
     mutationFn: () => archiveScheduledTask(payload.task.id),
     onSuccess: (updated) => {
-      queryClient.setQueryData(["scheduled_tasks"], updated)
+      updateScheduledTaskIndex(queryClient, updated.task)
       navigate(basePath)
     }
   })
@@ -612,7 +614,6 @@ function ScheduledTaskForm({
         ? createScheduledTask(repositoryId, submitInput(values, structuredIntent), fromTemplate)
         : updateScheduledTask(id, submitInput(values, structuredIntent)),
     onSuccess: (payload) => {
-      queryClient.setQueryData(["scheduled_tasks", String(payload.task.id)], payload)
       void queryClient.invalidateQueries({ queryKey: ["scheduled_tasks"] })
       navigate(`${basePath}/${payload.task.id}`)
     }
@@ -783,6 +784,35 @@ function ScheduledTaskForm({
       </div>
     </form>
   )
+}
+
+function updateScheduledTaskIndex(queryClient: ReturnType<typeof useQueryClient>, task: ScheduledTaskDetail) {
+  queryClient.setQueryData<ScheduledTasksIndexPayload>(["scheduled_tasks"], (current) => {
+    if (!current) return current
+
+    const row: ScheduledTaskRow = {
+      id: task.id,
+      name: task.name,
+      state: task.state,
+      repository_id: task.repository.id,
+      repository_slug: task.repository.slug,
+      repository_path: task.repository.repository_path,
+      schedule_label: task.schedule_label,
+      last_fired_at: task.last_fired_at,
+      system_key: task.system_key,
+      scheduled_task_path: task.scheduled_task_path
+    }
+    const withoutTask = (rows: ScheduledTaskRow[]) => rows.filter((candidate) => candidate.id !== task.id)
+    const activeTasks = withoutTask(current.active_tasks)
+    const firedOneShots = withoutTask(current.fired_one_shots)
+    const archivedTasks = withoutTask(current.archived_tasks)
+
+    if (task.archived) archivedTasks.unshift(row)
+    else if (task.state === "fired") firedOneShots.unshift(row)
+    else activeTasks.push(row)
+
+    return { ...current, active_tasks: activeTasks, fired_one_shots: firedOneShots, archived_tasks: archivedTasks }
+  })
 }
 
 function FormBlock({ label, children }: { label: string; children: ReactNode }) {

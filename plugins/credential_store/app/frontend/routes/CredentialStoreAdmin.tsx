@@ -182,7 +182,7 @@ export function CredentialStoreAdmin() {
     mutationFn: ({ id, input }: { id: number | null; input: CredentialStoreInput }) =>
       id ? updateCredentialStoreCredential(id, input) : createCredentialStoreCredential(input),
     onSuccess: (payload) => {
-      queryClient.setQueryData(QUERY_KEY, payload)
+      updateCredentialCache(queryClient, payload.credential)
       setCredentialModal(null)
     }
   })
@@ -190,14 +190,14 @@ export function CredentialStoreAdmin() {
   const rotateCredential = useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: string }) => rotateCredentialStoreCredential(id, payload),
     onSuccess: (payload) => {
-      queryClient.setQueryData(QUERY_KEY, payload)
+      updateCredentialCache(queryClient, payload.credential)
       setRotationModal(null)
     }
   })
 
   const revokeCredential = useMutation({
     mutationFn: revokeCredentialStoreCredential,
-    onSuccess: (payload) => queryClient.setQueryData(QUERY_KEY, payload)
+    onSuccess: (payload) => updateCredentialCache(queryClient, payload.credential)
   })
 
   function openCredentialModal(modal: CredentialModalState) {
@@ -272,6 +272,19 @@ export function CredentialStoreAdmin() {
       ) : null}
     </Page.Root>
   )
+}
+
+function updateCredentialCache(queryClient: ReturnType<typeof useQueryClient>, credential: CredentialStoreCredential) {
+  queryClient.setQueryData<CredentialStorePayload>(QUERY_KEY, (current) => {
+    if (!current) return current
+    const existing = current.credentials.some((candidate) => candidate.id === credential.id)
+    return {
+      ...current,
+      credentials: existing
+        ? current.credentials.map((candidate) => (candidate.id === credential.id ? credential : candidate))
+        : [credential, ...current.credentials]
+    }
+  })
 }
 
 function CredentialFormModal({
