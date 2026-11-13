@@ -1,4 +1,4 @@
-import { deleteJson, getJson, patchJson, postForm, postJson } from "./client"
+import { deleteJson, getJson, getJsonWithEtag, patchJson, postForm, postJson } from "./client"
 import type { BlockedReason } from "../lib/translateBlockedReason"
 import type { MergeTrainStatus } from "./epics"
 import type { PermissionRequest } from "./permissionRequests"
@@ -1721,7 +1721,7 @@ export function startJobUnland(path: string) {
 }
 
 export async function fetchJobWorkflows(id: string, search = "") {
-  const payload = await getJson<JobWorkflowsPayload>(`/api/v1/app/jobs/${id}/workflows${search}`)
+  const payload = await getJsonWithEtag<JobWorkflowsPayload>(`/api/v1/app/jobs/${id}/workflows${search}`)
   return { ...payload, workflows: payload.workflows.map((workflow) => deriveWorkflowPaths(workflow, id)) }
 }
 
