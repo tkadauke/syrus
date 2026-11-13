@@ -60,6 +60,50 @@ RSpec.describe Coworkers::ConflictResolver, :allow_host_execution do
     expect(git("log", "-1", "--format=%P").split.size).to eq(2)
   end
 
+  it "rejects markers in a successful merged tree and resolves both dated inventory updates before committing" do
+    git("merge", "--abort")
+    git("checkout", "source")
+    write("notes.md", "a\nHOME\nc\n")
+    write("UNTESTED_FEATURES.md", "## 2026-11-09\n\n- scheduled run\n")
+    git("add", "notes.md", "UNTESTED_FEATURES.md")
+    git("commit", "-m", "scheduled inventory")
+    git("checkout", "main")
+    write("chat.md", "chat parent\n")
+    git("add", "chat.md")
+    git("commit", "-m", "chat update")
+    git("merge", "--no-commit", "--no-ff", "source")
+
+    # Reproduce a merge driver reporting success while leaving marker text in
+    # the clean index, as happened when chat and scheduled persistence raced.
+    write("UNTESTED_FEATURES.md", <<~MARKDOWN)
+      ## 2026-11-09
+
+      <<<<<<< HEAD
+      - chat persistence
+      =======
+      - scheduled run
+      >>>>>>> source
+    MARKDOWN
+    git("add", "UNTESTED_FEATURES.md")
+    failure = resolver.validate_merge(dir: @dir)
+    expect(failure.files).to eq([ "UNTESTED_FEATURES.md" ])
+
+    described_class.agent = lambda do |workspace_path:, prompt:|
+      expect(prompt).to include("UNTESTED_FEATURES.md", "scheduled run")
+      Pathname(workspace_path).join("UNTESTED_FEATURES.md").write(
+        "## 2026-11-09\n\n- chat persistence\n- scheduled run\n"
+      )
+      ok
+    end
+
+    outcome = resolver.call(dir: @dir, files: failure.files)
+
+    expect(outcome).to be_resolved
+    expect(@dir.join("UNTESTED_FEATURES.md").read).to include("chat persistence", "scheduled run")
+    expect(@dir.join("UNTESTED_FEATURES.md").read).not_to include("<<<<<<<", "=======", ">>>>>>>")
+    expect(git("log", "-1", "--format=%P").split.size).to eq(2)
+  end
+
   it "rejects a lone opening marker or lone closing marker" do
     [ "a\n<<<<<<< HEAD\nHOME\nc\n", "a\nHOME\n>>>>>>> source\nc\n" ].each do |bad|
       described_class.agent = lambda do |workspace_path:, prompt:|
