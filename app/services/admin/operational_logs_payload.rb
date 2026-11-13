@@ -36,13 +36,17 @@ module Admin
         },
         logs: visible_rows.map { |row| log_payload(row) }
       }
-      payload[:filter_schema] = filter_definition.schema if normalized.fetch(:page) == 1
+      payload[:filter_schema] = filter_definition.schema if normalized.fetch(:page) == 1 || include_filter_schema?
       payload
     end
 
     private
 
     attr_reader :params
+
+    def include_filter_schema?
+      ActiveModel::Type::Boolean.new.cast(params[:include_filter_schema])
+    end
 
     def disabled_payload
       {

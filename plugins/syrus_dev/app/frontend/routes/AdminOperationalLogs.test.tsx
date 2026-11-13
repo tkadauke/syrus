@@ -69,6 +69,30 @@ describe("AdminOperationalLogs", () => {
     })))
   })
 
+  it("requests the filter schema when loaded directly on a later page", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(logsPayload({
+      filter_schema: [
+        { field: "level", label: "Level", bucket: "enum", operators: ["is"], values: [{ value: "error", label: "error" }] }
+      ],
+      pagination: {
+        page: 2,
+        per_page: 50,
+        has_next_page: false,
+        has_previous_page: true,
+        next_page: null,
+        previous_page: 1
+      }
+    })))
+
+    renderRoute(<AdminOperationalLogs />, "/app-shell/admin/operational_logs?page=2")
+
+    expect(await screen.findByRole("heading", { name: "Operational Logs" })).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/operational_logs?page=2&include_filter_schema=true", expect.objectContaining({
+      credentials: "same-origin"
+    }))
+    expect(screen.getByRole("button", { name: "+ Add filter" })).toBeInTheDocument()
+  })
+
   it("renders disabled and empty states", async () => {
     vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(logsPayload({
       enabled: false,
@@ -149,6 +173,7 @@ function logsPayload(overrides: Partial<OperationalLogsPayload> = {}) {
 function logsPayloadBase(): OperationalLogsPayload {
   return {
     enabled: true,
+    filter_schema: [],
     retention_seconds: 21600,
     current_revision: "abcdef1234567890",
     revision_scope: "current",
