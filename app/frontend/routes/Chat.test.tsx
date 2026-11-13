@@ -1451,6 +1451,81 @@ describe("chat compose drafts", () => {
     expect(screen.queryByText("Message failed.")).not.toBeInTheDocument()
   }, 30000)
 
+  it("retains delivery acknowledgment when a completed proposal turn displaces the submitted message before a late HTTP error", async () => {
+    let resolveMessage: ((response: Response) => void) | null = null
+    let clientIdempotencyKey = ""
+    const messageRequest = new Promise<Response>((resolve) => {
+      resolveMessage = resolve
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") {
+        clientIdempotencyKey = JSON.parse(String(init.body)).client_idempotency_key
+        return messageRequest
+      }
+      return Promise.resolve(jsonResponse(chatPayload({ messages: [] })))
+    })
+
+    renderRoute()
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "Propose the durable fix." } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+    await waitFor(() => expect(textarea).toHaveValue(""))
+    fireEvent.change(textarea, { target: { value: "Keep this newer follow-up." } })
+    fireEvent.change(screen.getByLabelText("Chat attachments"), {
+      target: { files: [new File(["new pixels"], "follow-up.png", { type: "image/png" })] }
+    })
+    await screen.findByRole("button", { name: "Remove follow-up.png" })
+
+    const subscription = actionCableSubscriptions.find((candidate) => candidate.params.channel === "ChatChannel")
+    act(() => {
+      subscription?.mixin.received({
+        type: "updated",
+        resource: "chat",
+        id: 8,
+        payload: {
+          action: "replace_tail",
+          replace_from_id: 10,
+          messages: [
+            {
+              type: "message",
+              id: 10,
+              role: "user",
+              content: { text: "Propose the durable fix." },
+              text: "Propose the durable fix.",
+              bookmarkable: true,
+              client_idempotency_key: clientIdempotencyKey
+            }
+          ]
+        }
+      })
+      subscription?.mixin.received({
+        type: "updated",
+        resource: "chat",
+        id: 8,
+        payload: {
+          action: "replace_tail",
+          replace_from_id: 10,
+          messages: [messageWithProposal(12, proposal({ title: "Durable delivery acknowledgment" }))]
+        }
+      })
+    })
+
+    await screen.findByText("Discuss proposal 12.")
+    expect(screen.queryByText("Propose the durable fix.")).not.toBeInTheDocument()
+
+    await act(async () => {
+      resolveMessage?.(jsonResponse({ error: "gateway timeout" }, 504))
+      await messageRequest
+    })
+
+    expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveValue("Keep this newer follow-up.")
+    expect(screen.getByRole("button", { name: "Remove follow-up.png" })).toBeInTheDocument()
+    expect(screen.queryByText("Message failed.")).not.toBeInTheDocument()
+    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Keep this newer follow-up.")
+  }, 30000)
+
   it("keeps a failed send draft for its chat after the composer unmounts", async () => {
     const attachment = { id: 1, name: "failure.png", mimeType: "image/png", url: "/failure.png", size: 7 }
     setDraftAttachments("8", [attachment])
