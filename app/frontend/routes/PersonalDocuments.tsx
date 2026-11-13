@@ -32,7 +32,8 @@ import { DocumentPreviewModal, isPreviewableContentType } from "../components/Do
 const queryKey = ["personal-documents"] as const
 const DOCUMENTS_VISIBLE_COLUMNS_STORAGE_KEY = "syrus.settings.personal_documents.visible_columns"
 
-type DocumentSortColumn = "title" | "filename" | "kind" | "content_type" | "byte_size" | "source_url" | "content_cache_state" | "content_cached_at" | "created_at" | "updated_at"
+type DocumentSortColumn =
+  "title" | "filename" | "kind" | "content_type" | "byte_size" | "source_url" | "content_cache_state" | "content_cached_at" | "created_at" | "updated_at"
 type SortDirection = "ascending" | "descending"
 type DocumentSortState = { column: DocumentSortColumn; direction: SortDirection }
 type SortValue = number | string | null
@@ -62,17 +63,11 @@ export function PersonalDocumentsRoute() {
   return (
     <main aria-label={t("aria_personal_documents")} className="mx-auto max-w-4xl space-y-6 p-6">
       <header>
-        <PageHeading>
-          {t('personal_documents.heading')}
-        </PageHeading>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-          {t('personal_documents.description')}
-        </p>
+        <PageHeading>{t("personal_documents.heading")}</PageHeading>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t("personal_documents.description")}</p>
       </header>
 
-      {documents.isPending ? <PanelMessage>
-        {t('personal_documents.loading')}
-      </PanelMessage> : null}
+      {documents.isPending ? <PanelMessage>{t("personal_documents.loading")}</PanelMessage> : null}
       {documents.isError ? <DocumentsError error={documents.error} /> : null}
       {documents.isSuccess ? <PersonalDocumentsView payload={documents.data} /> : null}
     </main>
@@ -109,7 +104,7 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
       }))
       setFiles([])
       setGoogleDocUrl("")
-      onNotice(updated.message || t('personal_documents.added'))
+      onNotice(updated.message || t("personal_documents.added"))
     }
   })
   const destroy = useMutation({
@@ -118,7 +113,7 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
       queryClient.setQueryData<PersonalDocumentsPayload>(queryKey, (current) => ({
         documents: (current?.documents ?? []).filter((document) => document.id !== updated.id)
       }))
-      onNotice(updated.message || t('personal_documents.removed'))
+      onNotice(updated.message || t("personal_documents.removed"))
     }
   })
 
@@ -144,7 +139,7 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
   const columns = buildDocumentColumns({
     destroyPending: destroy.isPending,
     onDelete: async (document) => {
-      if (await confirm({ message: t('personal_documents.confirm_delete'), destructive: true })) destroy.mutate(document)
+      if (await confirm({ message: t("personal_documents.confirm_delete"), destructive: true })) destroy.mutate(document)
     },
     onOpen: openDocument,
     t
@@ -164,15 +159,13 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
     <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <SectionHeading>
-            {t('personal_documents.section_heading')}
-          </SectionHeading>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            {t('personal_documents.attach_description')}
-          </p>
+          <SectionHeading>{t("personal_documents.section_heading")}</SectionHeading>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("personal_documents.attach_description")}</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500 dark:text-gray-400">{visibleDocuments.length} / {payload.documents.length}</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            {visibleDocuments.length} / {payload.documents.length}
+          </span>
           <DataTableColumnMenu
             columns={columns}
             downLabel={t("personal_documents.column_down")}
@@ -191,15 +184,10 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
       </div>
 
       <div className="mt-4">
-        <FilterBar
-          filter={filterTree}
-          filterSchema={filterSchema}
-          pathname={location.pathname}
-          search={location.search}
-        />
+        <FilterBar filter={filterTree} filterSchema={filterSchema} pathname={location.pathname} search={location.search} />
       </div>
 
-      <DataTable.Root aria-label={t('personal_documents.section_heading')} className="mt-4">
+      <DataTable.Root aria-label={t("personal_documents.section_heading")} className="mt-4">
         <DataTable.Header>
           <DataTableColumnHeaderRow
             columns={columns}
@@ -213,44 +201,47 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
         <DataTable.Body>
           {visibleDocuments.length === 0 ? (
             <DataTable.Row>
-              <DataTable.Empty colSpan={columns.length}>{t('personal_documents.empty')}</DataTable.Empty>
+              <DataTable.Empty colSpan={columns.length}>{t("personal_documents.empty")}</DataTable.Empty>
             </DataTable.Row>
-          ) : visibleDocuments.map((document) => (
-            <DataTable.Row key={document.id}>
-              <DataTableColumnCells columns={columns} order={preferences.order} row={document} />
-            </DataTable.Row>
-          ))}
+          ) : (
+            visibleDocuments.map((document) => (
+              <DataTable.Row key={document.id}>
+                <DataTableColumnCells columns={columns} order={preferences.order} row={document} />
+              </DataTable.Row>
+            ))
+          )}
         </DataTable.Body>
       </DataTable.Root>
 
       <form className="mt-4 space-y-3" onSubmit={submit}>
         {upload.isError ? <PanelMessage tone="error">{errorMessage(upload.error, "Unable to add document.")}</PanelMessage> : null}
         {destroy.isError ? <PanelMessage tone="error">{errorMessage(destroy.error, "Unable to delete document.")}</PanelMessage> : null}
-        <Field label={t('personal_documents.upload_files')}>
+        <Field label={t("personal_documents.upload_files")}>
+          <Form.Input multiple onChange={(event) => setFiles(Array.from(event.currentTarget.files || []))} type="file" />
+        </Field>
+        <Field label={t("personal_documents.google_doc_url")}>
           <Form.Input
-            multiple
-            onChange={(event) => setFiles(Array.from(event.currentTarget.files || []))}
-            type="file"
+            onChange={(event) => setGoogleDocUrl(event.target.value)}
+            placeholder="https://docs.google.com/document/d/..."
+            type="url"
+            value={googleDocUrl}
           />
         </Field>
-        <Field label={t('personal_documents.google_doc_url')}>
-          <Form.Input onChange={(event) => setGoogleDocUrl(event.target.value)} placeholder="https://docs.google.com/document/d/..." type="url" value={googleDocUrl} />
-        </Field>
-        <button className="rounded bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:bg-gray-400" disabled={upload.isPending} type="submit">
-          {upload.isPending ? (
-            <>
-              {t('personal_documents.adding')}
-            </>
-          ) : (
-            <>
-              {t('personal_documents.add')}
-            </>
-          )}
+        <button
+          className="rounded bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:bg-gray-400"
+          disabled={upload.isPending}
+          type="submit"
+        >
+          {upload.isPending ? <>{t("personal_documents.adding")}</> : <>{t("personal_documents.add")}</>}
         </button>
       </form>
       {previewDocument && previewDocument.file_path ? (
         <DocumentPreviewModal
-          file={{ title: previewDocument.filename || t('personal_documents.file'), rawUrl: previewDocument.file_path, contentType: previewDocument.content_type }}
+          file={{
+            title: previewDocument.filename || t("personal_documents.file"),
+            rawUrl: previewDocument.file_path,
+            contentType: previewDocument.content_type
+          }}
           onClose={() => setPreviewDocument(null)}
         />
       ) : null}
@@ -287,7 +278,12 @@ function buildDocumentFilterSchema(t: (key: string, options?: Record<string, unk
         { value: "empty", label: t("personal_documents.cache_empty") }
       ]
     },
-    { field: "content_cached_at", label: t("personal_documents.col_content_cached_at"), bucket: "date", operators: ["before", "after", "between", "is_set", "is_unset"] },
+    {
+      field: "content_cached_at",
+      label: t("personal_documents.col_content_cached_at"),
+      bucket: "date",
+      operators: ["before", "after", "between", "is_set", "is_unset"]
+    },
     { field: "created_at", label: t("personal_documents.col_created"), bucket: "date", operators: ["before", "after", "between"] },
     { field: "updated_at", label: t("personal_documents.col_updated"), bucket: "date", operators: ["before", "after", "between"] }
   ]
@@ -327,7 +323,7 @@ function buildDocumentColumns({
       key: "kind",
       label: t("personal_documents.col_kind"),
       sortKey: "kind",
-      renderCell: (document) => document.kind === "google_doc" ? t("personal_documents.google_doc") : t("personal_documents.file")
+      renderCell: (document) => (document.kind === "google_doc" ? t("personal_documents.google_doc") : t("personal_documents.file"))
     },
     {
       key: "content_type",
@@ -342,7 +338,7 @@ function buildDocumentColumns({
       label: t("personal_documents.col_size"),
       sortKey: "byte_size",
       align: "right",
-      renderCell: (document) => document.byte_size == null ? "-" : formatBytes(document.byte_size)
+      renderCell: (document) => (document.byte_size == null ? "-" : formatBytes(document.byte_size))
     },
     {
       key: "source_url",
@@ -357,14 +353,14 @@ function buildDocumentColumns({
       label: t("personal_documents.col_content_cache_state"),
       sortKey: "content_cache_state",
       defaultVisible: false,
-      renderCell: (document) => document.content_cache_state === "cached" ? t("personal_documents.cache_cached") : t("personal_documents.cache_empty")
+      renderCell: (document) => (document.content_cache_state === "cached" ? t("personal_documents.cache_cached") : t("personal_documents.cache_empty"))
     },
     {
       key: "content_cached_at",
       label: t("personal_documents.col_content_cached_at"),
       sortKey: "content_cached_at",
       defaultVisible: false,
-      renderCell: (document) => document.content_cached_at ? new Date(document.content_cached_at).toLocaleString() : "-"
+      renderCell: (document) => (document.content_cached_at ? new Date(document.content_cached_at).toLocaleString() : "-")
     },
     {
       key: "created",
@@ -393,7 +389,7 @@ function buildDocumentColumns({
           onClick={() => onDelete(document)}
           type="button"
         >
-          {t('personal_documents.delete')}
+          {t("personal_documents.delete")}
         </button>
       )
     }
@@ -406,23 +402,17 @@ function DocumentSummary({ document }: { document: PersonalDocument }) {
     return (
       <div className="min-w-0">
         <div className="truncate text-sm font-medium text-brand dark:text-brand-emphasis">{document.google_doc_url}</div>
-        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          {t('personal_documents.google_doc')}
-        </div>
+        <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("personal_documents.google_doc")}</div>
       </div>
     )
   }
 
   return (
     <div className="min-w-0">
-      <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">
-        {document.filename || (
-          <>
-            {t('personal_documents.file')}
-          </>
-        )}
+      <div className="truncate text-sm font-medium text-gray-900 dark:text-gray-100">{document.filename || <>{t("personal_documents.file")}</>}</div>
+      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+        {document.content_type || "unknown"} · {formatBytes(document.byte_size)}
       </div>
-      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{document.content_type || "unknown"} · {formatBytes(document.byte_size)}</div>
     </div>
   )
 }
@@ -473,7 +463,10 @@ function documentSearchText(document: PersonalDocument) {
     document.source_url,
     document.google_doc_url,
     document.content_cache_state
-  ].filter(Boolean).join(" ").toLowerCase()
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
 }
 
 function sortedDocuments(documents: PersonalDocument[], sortState: DocumentSortState) {
@@ -488,7 +481,7 @@ function sortedDocuments(documents: PersonalDocument[], sortState: DocumentSortS
 
 function toggleSort<TColumn extends string>(current: { column: TColumn; direction: SortDirection }, column: TColumn) {
   if (current.column !== column) return { column, direction: "ascending" as const }
-  return { column, direction: current.direction === "ascending" ? "descending" as const : "ascending" as const }
+  return { column, direction: current.direction === "ascending" ? ("descending" as const) : ("ascending" as const) }
 }
 
 function compareSortValues(left: SortValue, right: SortValue) {
@@ -541,7 +534,7 @@ function filterTreeFromSearch(search: string): FilterTree {
   const encoded = new URLSearchParams(search).get("q")
   if (!encoded) return { and: [] }
   try {
-    const padded = `${encoded.replace(/-/g, "+").replace(/_/g, "/")}${"=".repeat((4 - encoded.length % 4) % 4)}`
+    const padded = `${encoded.replace(/-/g, "+").replace(/_/g, "/")}${"=".repeat((4 - (encoded.length % 4)) % 4)}`
     const bytes = Uint8Array.from(atob(padded), (character) => character.charCodeAt(0))
     const parsed = JSON.parse(new TextDecoder().decode(bytes)) as FilterTree
     return { and: topLevelNodes(parsed) }

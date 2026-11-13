@@ -155,11 +155,11 @@ module CredentialStore
         normalize_arguments(arguments).merge(
           "credential_name" => normalize_identifier(source[:credential]),
           "command" => safe_review_command(source[:command])
-        # `command_prefix` is a matching projection, and it is raw: it does not
-        # pass through safe_review_command, so leaving it here would print a
-        # command's secrets beside the copy that carefully masks them. The
-        # reviewable command is already present under "command"; anything an
-        # operator reads or edits is derived from that.
+          # `command_prefix` is a matching projection, and it is raw: it does not
+          # pass through safe_review_command, so leaving it here would print a
+          # command's secrets beside the copy that carefully masks them. The
+          # reviewable command is already present under "command"; anything an
+          # operator reads or edits is derived from that.
         ).except("credential", "command_prefix")
       end
 
