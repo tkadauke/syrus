@@ -376,7 +376,7 @@ RSpec.describe "API: /api/v1/app/admin/mcp_tool_usage", type: :request do
       expect(usage_queries).to all(match(/created_at/i))
       expect(usage_queries).to all(match(/normalized_tool_name/i))
       expect(usage_queries).to all(match(/server_name/i))
-      expect(aggregate_tool_queries).to all(match(/LIMIT/i))
+      expect(aggregate_tool_queries.count { |query| !query.match?(/LIMIT/i) }).to eq(1)
       # Keep the budget explicit: all usage aggregates, chat tool-card gap
       # coverage, the bounded workflow transcript JobLog scan, and startup_timing_payload's bounded
       # McpStartupPhaseEvent query (see Admin::McpStartupTimingPayload).

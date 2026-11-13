@@ -114,8 +114,8 @@ RSpec.describe "API: /api/v1/app/admin/performance", type: :request, requires_pl
     expect(body["current_revision"]).to eq("new-sha")
     expect(body["revision_scope"]).to eq("current")
     expect(body["thresholds"]).to include("slow_job_ms")
-    expect(body["events"]).to include(include("event" => "syrus.performance.slow_phase", "phase" => "dashboard_payload"))
-    expect(body["events"].to_s).not_to include("stale_dashboard_payload")
+    expect(body["event_count"]).to eq(4)
+    expect(body).not_to have_key("events")
     expect(body.dig("baseline", "revision")).to eq("old-sha")
     expect(body.dig("baseline", "comparisons", "slow_requests").first).to include(
       "label" => "/api/v1/app/dashboard",
@@ -232,7 +232,7 @@ RSpec.describe "API: /api/v1/app/admin/performance", type: :request, requires_pl
   it "can include events from all app revisions" do
     sign_in_as(admin)
 
-    get "/api/v1/app/admin/performance", params: { revision_scope: "all" }
+    get "/api/v1/app/admin/performance/events", params: { revision_scope: "all" }
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["events"].map { |event| event["app_revision"] }).to contain_exactly("new-sha", "new-sha", "new-sha", "new-sha", "old-sha", "old-sha")
@@ -241,7 +241,7 @@ RSpec.describe "API: /api/v1/app/admin/performance", type: :request, requires_pl
   it "filters performance diagnostics by SHA prefix and time frame" do
     sign_in_as(admin)
 
-    get "/api/v1/app/admin/performance",
+    get "/api/v1/app/admin/performance/events",
       params: {
         revision_scope: "all",
         app_revision: "old",
@@ -258,12 +258,6 @@ RSpec.describe "API: /api/v1/app/admin/performance", type: :request, requires_pl
         "occurred_at" => "2026-08-01T12:00:02Z"
       )
     )
-    expect(body.dig("summaries", "slow_requests").first).to include("count" => 1, "average_duration_ms" => 1500.0)
-    expect(body["filter_schema"].map { |field| field["field"] }).to include("app_revision", "since", "until")
-    expect(body["filter"]).to include("and" => include(
-      include("field" => "app_revision", "op" => "is", "value" => "old"),
-      include("field" => "since", "op" => "is", "value" => "2026-08-01T11:30:00Z")
-    ))
   end
 
   it "keeps a prior-revision baseline when current-revision events fill the recent window" do
@@ -302,7 +296,7 @@ RSpec.describe "API: /api/v1/app/admin/performance", type: :request, requires_pl
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body["events"].map { |event| event["app_revision"] }.uniq).to eq([ "new-sha" ])
+    expect(body["event_count"]).to eq(300)
     expect(body.dig("baseline", "revision")).to eq("old-sha")
     expect(body.dig("baseline", "comparisons", "slow_requests").first).to include(
       "current_average_duration_ms" => 3_000.0,

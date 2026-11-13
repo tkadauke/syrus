@@ -5,6 +5,7 @@ import { Button, Notice, Page, Section, Text, Toolbar } from "@app/components/ui
 import {
   explainSql,
   fetchAdminPerformance,
+  fetchAdminPerformanceEvents,
   type AdminPerformancePayload,
   type BrowserTraceSummary,
   type PerformanceComparison,
@@ -116,20 +117,39 @@ export function AdminPerformance() {
 
       {performance.isPending ? <PanelMessage>{t("performance.loading")}</PanelMessage> : null}
       {performance.isError ? <PanelMessage tone="error">{errorMessage(performance.error, t("performance.error_load"))}</PanelMessage> : null}
-      {performance.isSuccess ? <PerformanceView payload={performance.data} /> : null}
+      {performance.isSuccess ? <PerformanceView payload={performance.data} search={search} /> : null}
     </Page.Root>
   )
 }
 
 export default AdminPerformance
 
-function PerformanceView({ payload }: { payload: AdminPerformancePayload }) {
+function PerformanceView({ payload, search }: { payload: AdminPerformancePayload; search: string }) {
   const { t } = useT("syrus_dev")
-  const eventCount = payload.events.length
+  const eventCount = payload.event_count
   const [activeTab, setActiveTab] = useState<PerformanceTab>("overview")
   const [explainSqlText, setExplainSqlText] = useState<string | null>(null)
   const [requestDetail, setRequestDetail] = useState<SlowRequestSummary | null>(null)
   const [browserDetail, setBrowserDetail] = useState<BrowserTraceSummary | null>(null)
+  const eventParams = new URLSearchParams(search)
+  if (requestDetail) {
+    eventParams.set("event_name", "syrus.performance.slow_request")
+    if (requestDetail.method) eventParams.set("method", requestDetail.method)
+    if (requestDetail.path) eventParams.set("path", requestDetail.path)
+    if (requestDetail.controller) eventParams.set("controller", requestDetail.controller)
+    if (requestDetail.action) eventParams.set("action", requestDetail.action)
+  } else if (browserDetail) {
+    eventParams.set("event_name", "syrus.performance.browser_trace")
+    eventParams.set("name", browserDetail.name)
+    if (browserDetail.path) eventParams.set("path", browserDetail.path)
+  }
+  const eventSearch = `?${eventParams.toString()}`
+  const eventDetails = useQuery({
+    queryKey: ["admin", "performance", "events", eventSearch],
+    queryFn: () => fetchAdminPerformanceEvents(eventSearch),
+    enabled: activeTab === "events" || Boolean(requestDetail) || Boolean(browserDetail)
+  })
+  const events = eventDetails.data?.events ?? []
   const openExplain = (sql: string) => {
     setRequestDetail(null)
     setBrowserDetail(null)
@@ -189,11 +209,11 @@ function PerformanceView({ payload }: { payload: AdminPerformancePayload }) {
       {activeTab === "jobs" ? <SlowJobsTable rows={payload.summaries.slow_jobs ?? []} /> : null}
       {activeTab === "sql" ? <SqlFingerprintsTable onExplain={openExplain} rows={payload.summaries.sql_fingerprints} /> : null}
       {activeTab === "phases" ? <SlowPhasesTable rows={payload.summaries.slow_phases} /> : null}
-      {activeTab === "events" ? <EventsTable rows={payload.events} /> : null}
+      {activeTab === "events" ? <EventsTable rows={events} /> : null}
       {requestDetail ? (
-        <SlowRequestSqlModal events={payload.events} onClose={() => setRequestDetail(null)} onExplain={openExplain} request={requestDetail} />
+        <SlowRequestSqlModal events={events} onClose={() => setRequestDetail(null)} onExplain={openExplain} request={requestDetail} />
       ) : null}
-      {browserDetail ? <BrowserTraceModal events={payload.events} onClose={() => setBrowserDetail(null)} trace={browserDetail} /> : null}
+      {browserDetail ? <BrowserTraceModal events={events} onClose={() => setBrowserDetail(null)} trace={browserDetail} /> : null}
       {explainSqlText ? <SqlExplainModal initialSql={explainSqlText} onClose={() => setExplainSqlText(null)} /> : null}
     </div>
   )

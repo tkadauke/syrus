@@ -20,6 +20,7 @@ module Admin
       )
       totals = totals_for(usages)
       used = used_tool_names(usages, totals)
+      aggregated_tools = aggregated_tool_rows(usages)
 
       {
         window: {
@@ -32,8 +33,8 @@ module Admin
           calls: totals.fetch(:calls),
           errors: totals.fetch(:errors)
         },
-        top_tools: tool_rows(usages, order_by: :calls),
-        error_rates: tool_rows(usages, order_by: :error_rate),
+        top_tools: tool_rows(aggregated_tools, order_by: :calls),
+        error_rates: tool_rows(aggregated_tools, order_by: :error_rate),
         surface_breakdown: surface_rows(usages),
         provider_breakdown: provider_rows(usages),
         server_breakdown: server_rows(usages),
@@ -216,11 +217,9 @@ module Admin
       [ duration, MAX_WINDOW ].min
     end
 
-    def tool_rows(usages, order_by:)
+    def aggregated_tool_rows(usages)
       usages
         .group(:normalized_tool_name, :server_name)
-        .order(tool_rows_order(order_by))
-        .limit(limit)
         .pluck(:normalized_tool_name, :server_name, count_sql, error_count_sql)
         .map do |tool_name, server_name, count, errors|
           errors = errors.to_i
@@ -233,6 +232,12 @@ module Admin
             error_rate: count.positive? ? (errors.to_f / count).round(4) : 0.0
           }
         end
+    end
+
+    def tool_rows(rows, order_by:)
+      rows.sort_by do |row|
+        order_by == :error_rate ? [ -row[:error_rate], -row[:calls], row[:tool_name].to_s ] : [ -row[:calls], -row[:errors], row[:tool_name].to_s ]
+      end.first(limit)
     end
 
     def surface_rows(usages)
@@ -340,14 +345,6 @@ module Admin
       return 20 if value <= 0
 
       [ value, 100 ].min
-    end
-
-    def tool_rows_order(order_by)
-      if order_by == :error_rate
-        Arel.sql("#{error_rate_expression} DESC, #{error_count_expression} DESC, #{McpToolUsage.quoted_table_name}.normalized_tool_name ASC")
-      else
-        Arel.sql("#{count_expression} DESC, #{McpToolUsage.quoted_table_name}.normalized_tool_name ASC")
-      end
     end
 
     def count_sql

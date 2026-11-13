@@ -8,6 +8,12 @@ module Api
           render json: PerformanceLogging.suppress { ::SyrusDev::PerformancePayload.new(params: request.query_parameters).as_json }
         end
 
+        def events
+          return render json: { error: "syrus_dev_plugin_disabled" }, status: :not_found unless SyrusDev.enabled?
+
+          render json: PerformanceLogging.suppress { ::SyrusDev::PerformancePayload.new(params: request.query_parameters).events_json }
+        end
+
         def explain
           return render json: { error: "syrus_dev_plugin_disabled" }, status: :not_found unless SyrusDev.enabled?
 
