@@ -136,9 +136,14 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
       include(
         "id" => active.id,
         "name" => "Weekly tests",
-        "repository" => include("slug" => "acme/widgets"),
-        "next_fire_at" => active.next_fire_at.iso8601
+        "repository_id" => repository.id,
+        "repository_slug" => "acme/widgets",
+        "repository_path" => repository_path(repository)
       )
+    )
+    expect(body.fetch("active_tasks").first.keys).to contain_exactly(
+      "id", "name", "state", "repository_id", "repository_slug", "repository_path",
+      "schedule_label", "last_fired_at", "system_key", "scheduled_task_path"
     )
     expect(body["fired_one_shots"]).to contain_exactly(include("id" => fired.id, "name" => "One shot"))
     expect(body["archived_tasks"]).to contain_exactly(include("id" => archived.id, "name" => "Archived"))
@@ -317,6 +322,7 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(response).to have_http_status(:ok)
     expect(task.reload.state).to eq("paused")
     expect(parse_body["message"]).to eq("Scheduled task disabled.")
+    expect(parse_body.keys).to contain_exactly("task", "message")
 
     patch "/api/v1/app/repositories/#{repository.id}/scheduled_tasks/#{task.id}", params: { enabled: "true" }
     expect(response).to have_http_status(:ok)
@@ -359,7 +365,7 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(response).to have_http_status(:ok)
     expect(task.reload.archived?).to be true
     expect(parse_body["message"]).to eq("Scheduled task deleted.")
-    expect(parse_body["tasks"]).to be_empty
+    expect(parse_body.keys).to contain_exactly("task", "message")
   end
 
   it "does not allow repository-scoped deletion of another user's task" do
@@ -389,6 +395,9 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(task.repository).to eq(repository)
     expect(task.auto_approve_mode).to eq("if_graders_pass")
     expect(parse_body["message"]).to eq("Scheduled task created.")
+    expect(parse_body.keys).to contain_exactly("task", "message")
+    expect(parse_body).not_to have_key("recent_jobs")
+    expect(parse_body).not_to have_key("options")
   end
 
   it "forbids a read-tier repository member from creating a task" do
@@ -516,6 +525,7 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(task.reload.prompt).to eq("Updated standing instruction.")
     expect(task.auto_approve_mode).to eq("if_graders_pass_and_tagged_safe")
     expect(parse_body["message"]).to eq("Scheduled task updated.")
+    expect(parse_body.keys).to contain_exactly("task", "message")
   end
 
   it "forbids task mutations after the owner is demoted to read access" do
@@ -544,6 +554,7 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(response).to have_http_status(:ok)
     expect(task.reload.archived?).to be true
     expect(parse_body["message"]).to eq("Scheduled task archived.")
+    expect(parse_body.keys).to contain_exactly("task", "message")
   end
 
   it "rejects deletion of a system schedule through both generic endpoints" do
@@ -571,6 +582,7 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(response).to have_http_status(:ok)
     expect(task.reload.state).to eq("paused")
     expect(parse_body["message"]).to eq("Paused.")
+    expect(parse_body.keys).to contain_exactly("task", "message")
 
     task.update_columns(consecutive_failure_count: 5)
     post "/api/v1/app/scheduled_tasks/#{task.id}/resume"
@@ -578,6 +590,7 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
     expect(task.reload.state).to eq("scheduled")
     expect(task.consecutive_failure_count).to eq(0)
     expect(parse_body["message"]).to eq("Resumed.")
+    expect(parse_body.keys).to contain_exactly("task", "message")
   end
 
   it "rejects attempts to resume a fired one-shot" do
@@ -606,7 +619,7 @@ RSpec.describe "API: /api/v1/app/scheduled_tasks", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Fired (#{job.slug}).")
-    expect(parse_body["fire_result"]).to include("fired" => true, "job_id" => job.id)
+    expect(parse_body.keys).to contain_exactly("task", "message")
   end
 
   it "does not allow managing another user's task" do
