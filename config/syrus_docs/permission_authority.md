@@ -212,7 +212,12 @@ The Permissions Hub's AI approvals view (`/api/v1/app/approval_delegations`)
 shows providers with their disclosure and default guidance, the owner's
 delegations (provider, capability, resource type, bounded scope, status),
 the core human-only exclusions, and the owner's `ai_approval_evaluated`
-history. It reports `enabled: false` until a provider plugin is registered.
+history. The same payload derives a plugin contribution inventory from
+`Syrus::PluginRegistry`: enabled manifests are listed as installed, disabled
+registered manifests as available, with each manifest's declared capabilities
+and MCP tools. `can_manage_plugins` lets only administrators receive the UI
+link to plugin management without hiding inventory from other users. It reports
+`enabled: false` until a provider plugin is registered.
 Creating a delegation requires a registered provider, a known capability, and a
 non-empty scope; revocation is immediate and attributed to the human. Requests
 carrying a workflow invocation credential are rejected so an AI principal cannot

@@ -146,11 +146,20 @@ export type ApprovalDecision = {
   rationale: string | null
   delegation_id: number | null
 }
+export type ApprovalPlugin = {
+  name: string
+  display_name: string
+  installed: boolean
+  capabilities: Array<{ identifier: string; name: string }>
+  tools: string[]
+}
 export type ApprovalDelegationsPayload = {
   enabled: boolean
   providers: ApprovalProvider[]
   delegations: ApprovalDelegation[]
   human_only: { effects: string[]; capabilities: string[] }
+  plugins: ApprovalPlugin[]
+  can_manage_plugins: boolean
   history: ApprovalDecision[]
 }
 export const fetchApprovalDelegations = () => {

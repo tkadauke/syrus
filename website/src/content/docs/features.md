@@ -109,6 +109,10 @@ transcript evidence.
 The **AI approvals** view in the Permissions Hub lists installed providers with
 their data-sharing disclosure and guidance, your delegations with their bounded
 scope and status, the always-human exclusions, and the history of AI decisions.
+It also attributes agent capabilities and tools to each enabled plugin and
+separately shows registered plugins that are available to enable. Administrators
+can open plugin management from this inventory; other users see the same
+inventory without the management link.
 The view stays inert until a provider plugin is installed and you add an
 explicit delegation. Revoking a delegation takes effect immediately, and
 workflow agents cannot create or revoke delegations.

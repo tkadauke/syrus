@@ -26,7 +26,8 @@ RSpec.describe "API: /api/v1/app/approval_delegations", type: :request do
     stub_providers
 
     get "/api/v1/app/approval_delegations"
-    expect(JSON.parse(response.body)).to include("enabled" => false, "providers" => [], "delegations" => [])
+    expect(JSON.parse(response.body)).to include("enabled" => false, "providers" => [], "delegations" => [], "plugins" => be_an(Array),
+      "can_manage_plugins" => user.admin?)
     expect(JSON.parse(response.body).dig("human_only", "effects")).to include("financial", "privilege_change")
 
     post "/api/v1/app/approval_delegations", params: params, as: :json
