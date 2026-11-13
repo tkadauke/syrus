@@ -465,7 +465,14 @@ export function PermissionsSettingsRoute() {
           </div>
         ) : null}
       </Modal>
-      <BulkPreviewModal applying={bulkApply.isPending} onClose={() => setPreview(null)} onConfirm={() => bulkApply.mutate()} preview={preview} t={t} />
+      <BulkPreviewModal
+        applying={bulkApply.isPending}
+        descriptors={descriptors}
+        onClose={() => setPreview(null)}
+        onConfirm={() => bulkApply.mutate()}
+        preview={preview}
+        t={t}
+      />
     </main>
   )
 }
@@ -616,7 +623,7 @@ function HistoryView({
               <time className="text-xs text-text-muted">{formatTime(entry.occurred_at, t)}</time>
             </div>
             <p className="mt-1 text-sm text-text-secondary">{t("permissions.history_state", { state: entry.state })}</p>
-            {entry.type === "request" ? <RequestDetails entry={entry} t={t} /> : null}
+            {entry.type === "request" ? <RequestDetails descriptors={descriptors} entry={entry} t={t} /> : null}
             {entry.type === "invocation" ? <InvocationDetails entry={entry} t={t} /> : null}
             {entry.type === "policy_change" ? <Evidence evidence={entry.evidence} t={t} /> : null}
             {entry.type === "lease" ? (
@@ -631,7 +638,7 @@ function HistoryView({
   )
 }
 
-function RequestDetails({ entry, t }: { entry: PermissionHistoryEntry; t: Translate }) {
+function RequestDetails({ descriptors, entry, t }: { descriptors: InheritedPermission[]; entry: PermissionHistoryEntry; t: Translate }) {
   const items = (entry.items as Array<Record<string, unknown>> | undefined) ?? []
   const origins = (entry.origins as Array<{ label: string }> | undefined) ?? []
   return (
@@ -642,8 +649,12 @@ function RequestDetails({ entry, t }: { entry: PermissionHistoryEntry; t: Transl
       {items.map((item) => (
         <div className="rounded-md bg-surface p-2" key={String(item.id)}>
           <p className="text-text-primary">
-            {String(item.capability)} · {String(item.operation || "")}
+            {presentationLabel(String(item.capability), String(item.operation || ""), descriptors) || t("permissions.unknown")}
           </p>
+          <code className="block text-xs text-text-muted">
+            {String(item.capability)}
+            {item.operation ? ` · ${String(item.operation)}` : ""}
+          </code>
           <p>{t("permissions.decision", { state: item.state, duration: item.selected_duration || "—", reason: item.decision_reason || "—" })}</p>
           <Evidence evidence={item.evidence} t={t} />
         </div>
@@ -687,13 +698,14 @@ type BulkPreview = { rows: PermissionPreview[]; digest: string; operations: Perm
 
 type BulkPreviewModalProps = {
   applying: boolean
+  descriptors: InheritedPermission[]
   onClose: () => void
   onConfirm: () => void
   preview: BulkPreview | null
   t: Translate
 }
 
-function BulkPreviewModal({ applying, onClose, onConfirm, preview, t }: BulkPreviewModalProps) {
+function BulkPreviewModal({ applying, descriptors, onClose, onConfirm, preview, t }: BulkPreviewModalProps) {
   return (
     <Modal label={t("permissions.confirm_bulk_title")} onClose={onClose} open={Boolean(preview)}>
       {preview ? (
@@ -705,8 +717,10 @@ function BulkPreviewModal({ applying, onClose, onConfirm, preview, t }: BulkPrev
               <li className="rounded-md border border-border p-2 text-sm" key={`${row.capability}-${row.operation}-${index}`}>
                 <strong>{row.policy}</strong> · {row.subject}
                 <br />
-                {row.capability} · {row.operation}
-                <br />
+                {presentationLabel(row.capability, row.operation, descriptors) || t("permissions.unknown")}
+                <code className="block text-xs text-text-muted">
+                  {row.capability} · {row.operation}
+                </code>
                 <span className="text-xs text-text-muted">{row.resource_scope_label}</span>
               </li>
             ))}

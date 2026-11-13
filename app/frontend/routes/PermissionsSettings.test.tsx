@@ -200,7 +200,9 @@ describe("PermissionsSettingsRoute", () => {
 
     fireEvent.click(await screen.findByRole("checkbox", { name: "Select syrus.jobs@v1 cancel@v1" }))
     fireEvent.click(screen.getByRole("button", { name: "Allow selected (1)" }))
-    expect(await screen.findByRole("dialog", { name: "Confirm permission changes" })).toHaveTextContent("syrus.jobs@v1")
+    const dialog = await screen.findByRole("dialog", { name: "Confirm permission changes" })
+    expect(dialog).toHaveTextContent("Syrus Jobs — Cancel Job")
+    expect(dialog).toHaveTextContent("syrus.jobs@v1 · cancel@v1")
     fireEvent.click(screen.getByRole("button", { name: "Confirm changes" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/permission_rules/bulk", expect.objectContaining({ method: "POST" })))
@@ -235,6 +237,8 @@ describe("PermissionsSettingsRoute", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "History" }))
     expect(await screen.findByText("Authorization request")).toBeInTheDocument()
+    expect(screen.getAllByText("Syrus Jobs — Cancel Job").length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/syrus\.jobs@v1 · cancel@v1/).length).toBeGreaterThan(0)
     expect(screen.getByText("Repeated requests were escalated into this decision.")).toBeInTheDocument()
     expect(screen.getByText(/\[redacted\]/)).toBeInTheDocument()
   })
