@@ -22,13 +22,13 @@ class AdoptCoworkerReviewContexts < ActiveRecord::Migration[8.1]
       t.datetime :tombstoned_at
       t.timestamps
     end
-    add_index :coworker_review_contexts, :run_id, unique: true, if_not_exists: true
-    add_index :coworker_review_contexts, :review_evidence_id, unique: true, if_not_exists: true
+    add_index :coworker_review_contexts, :run_id, unique: true unless index_exists?(:coworker_review_contexts, :run_id)
+    add_index :coworker_review_contexts, :review_evidence_id, unique: true unless index_exists?(:coworker_review_contexts, :review_evidence_id)
 
     add_column :coworker_review_contexts, :lock_version, :integer, null: false, default: 0 unless column_exists?(:coworker_review_contexts, :lock_version)
     add_column :coworker_review_contexts, :idempotency_key, :string unless column_exists?(:coworker_review_contexts, :idempotency_key)
     add_column :coworker_review_contexts, :evidence_snapshot, :json unless column_exists?(:coworker_review_contexts, :evidence_snapshot)
-    add_index :coworker_review_contexts, :idempotency_key, unique: true, if_not_exists: true
+    add_index :coworker_review_contexts, :idempotency_key, unique: true unless index_exists?(:coworker_review_contexts, :idempotency_key)
 
     backfill_envelopes
   end
