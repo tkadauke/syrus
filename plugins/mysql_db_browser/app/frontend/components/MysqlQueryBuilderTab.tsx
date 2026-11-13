@@ -71,12 +71,12 @@ export function MysqlQueryBuilderTab({ connectionId, database, table }: { connec
 
   const baseDetail = useQuery({
     queryKey: ["mysql_db_browser", "schema", connectionId, "table", database, builderTable],
-    queryFn: () => fetchMysqlTableDetail(connectionId, database, builderTable)
+    queryFn: () => fetchMysqlTableDetail(connectionId, database, builderTable, ["columns", "foreign_keys"])
   })
 
   const joinDetail = useQuery({
     queryKey: ["mysql_db_browser", "schema", connectionId, "table", database, join?.table],
-    queryFn: () => fetchMysqlTableDetail(connectionId, database, join?.table ?? ""),
+    queryFn: () => fetchMysqlTableDetail(connectionId, database, join?.table ?? "", ["columns"]),
     enabled: Boolean(join)
   })
 

@@ -47,6 +47,9 @@ RSpec.describe "API: /api/v1/app/admin/mysql_connections", type: :request do
       expect(connection).not_to have_key("password")
       expect(connection).not_to have_key("credentials")
       expect(response.body).not_to include("s3cret")
+      expect(parse_body).not_to have_key("credential_scope_options")
+
+      get "/api/v1/app/admin/mysql_connections/credential_scope_options"
       expect(parse_body.dig("credential_scope_options", "scopes").pluck("value")).to contain_exactly("user", "instance")
     end
 

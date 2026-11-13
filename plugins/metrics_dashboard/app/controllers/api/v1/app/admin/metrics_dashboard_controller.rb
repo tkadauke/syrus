@@ -11,7 +11,7 @@ module Api
           before_action :require_metrics_dashboard_enabled
 
           def show
-            render json: ::MetricsDashboard::DashboardPayload.build(window: params[:window].to_s)
+            render json: ::MetricsDashboard::DashboardPayload.build(window: params[:window].to_s, category: params[:category].to_s)
           end
 
           private

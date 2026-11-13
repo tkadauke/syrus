@@ -16,24 +16,30 @@ module AdminMysql
       end
     end
 
-    def snapshot(limit: DEFAULT_LIMIT, include_slow_log: false)
+    SECTIONS = %w[live configuration diagnostics].freeze
+
+    def snapshot(limit: DEFAULT_LIMIT, include_slow_log: false, sections: SECTIONS, include_idle: false)
       require_mysql!
       limit = clamp_limit(limit)
+      requested = Array(sections).map(&:to_s) & SECTIONS
+      requested = SECTIONS if requested.empty?
 
       PerformanceLogging.suppress do
-        processes = process_list(limit: limit)
-        {
+        payload = {
           available: true,
-          generated_at: Time.current.iso8601,
-          adapter: connection.adapter_name,
-          database: connection.current_database,
-          connection_summary: connection_summary(processes: processes),
-          variables: variables,
-          status: status,
-          process_list: processes,
-          statement_digests: statement_digests(limit: [ limit, 25 ].min),
-          slow_log: slow_log(limit: [ limit, 25 ].min, include_rows: include_slow_log)
+          generated_at: Time.current.iso8601
         }
+        if requested.include?("live")
+          processes = process_list(limit: limit, include_idle: include_idle)
+          payload.merge!(connection_summary: connection_summary(processes: processes), process_list: processes)
+        end
+        if requested.include?("configuration")
+          payload.merge!(adapter: connection.adapter_name, database: connection.current_database, variables: variables, status: status)
+        end
+        if requested.include?("diagnostics")
+          payload.merge!(statement_digests: statement_digests(limit: [ limit, 25 ].min), slow_log: slow_log(limit: [ limit, 25 ].min, include_rows: include_slow_log))
+        end
+        payload
       end
     end
 
@@ -176,9 +182,6 @@ module AdminMysql
         Threads_running
         Max_used_connections
         Slow_queries
-        Questions
-        Queries
-        Uptime
         Created_tmp_tables
         Created_tmp_disk_tables
         Handler_commit
@@ -186,10 +189,7 @@ module AdminMysql
         Innodb_row_lock_current_waits
         Innodb_row_lock_time
         Innodb_row_lock_waits
-        Innodb_buffer_pool_reads
-        Innodb_buffer_pool_read_requests
         Innodb_data_fsyncs
-        Innodb_data_pending_fsyncs
         Innodb_os_log_fsyncs
         Innodb_log_waits
       ])
@@ -213,8 +213,9 @@ module AdminMysql
       sql.to_s.sub(/\ASELECT\b/i, "SELECT /*+ MAX_EXECUTION_TIME(#{Integer(timeout_ms)}) */")
     end
 
-    def process_list(limit:)
+    def process_list(limit:, include_idle: false)
       rows = select_all("SHOW FULL PROCESSLIST")
+      rows.reject! { |row| row["Command"].to_s.casecmp?("Sleep") } unless include_idle
 
       rows.sort_by { |row| [ row["Command"].to_s.casecmp?("Sleep") ? 1 : 0, -row["Time"].to_i, row["Id"].to_i ] }
         .first(limit)

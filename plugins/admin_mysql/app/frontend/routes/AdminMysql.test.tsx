@@ -16,7 +16,7 @@ function mockUseConfirm(confirmed: boolean) {
 
 describe("AdminMysql", () => {
   it("keeps the statement digests and slow log panels shrinkable so their tables scroll instead of overflowing the page", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(mysqlPayload()))
+    vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(mysqlPayload())))
 
     renderRoute(<AdminMysql />)
 
@@ -36,12 +36,12 @@ describe("AdminMysql", () => {
   })
 
   it("hides idle (Sleep) threads by default and reveals them when the toggle is unchecked", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(mysqlPayload({
+    vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(mysqlPayload({
       process_list: [
         { id: 1, user: "app", host: "10.0.0.1:5000", database: "syrus_production", command: "Sleep", time_seconds: 12, state: null, info: null },
         { id: 2, user: "app", host: "10.0.0.2:5000", database: "syrus_production", command: "Query", time_seconds: 3, state: "executing", info: "SELECT 1" }
       ]
-    })))
+    }))))
 
     renderRoute(<AdminMysql />)
 
@@ -56,17 +56,17 @@ describe("AdminMysql", () => {
     fireEvent.click(toggle)
 
     expect(toggle).not.toBeChecked()
-    expect(screen.getByText("Sleep")).toBeInTheDocument()
+    expect(await screen.findByText("Sleep")).toBeInTheDocument()
     expect(screen.getByText("Query")).toBeInTheDocument()
   })
 
   it("renders the process list with shared sortable and configurable table controls", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(mysqlPayload({
+    vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(mysqlPayload({
       process_list: [
         { id: 1, user: "app", host: "10.0.0.1:5000", database: "syrus_production", command: "Query", time_seconds: 12, state: "executing", info: "SELECT slow" },
         { id: 2, user: "app", host: "10.0.0.2:5000", database: "syrus_production", command: "Query", time_seconds: 3, state: "executing", info: "SELECT fast" }
       ]
-    })))
+    }))))
 
     renderRoute(<AdminMysql />)
 

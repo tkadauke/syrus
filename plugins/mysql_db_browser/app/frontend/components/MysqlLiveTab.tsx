@@ -9,9 +9,9 @@ import { MysqlQueryResultPanel } from "./MysqlQueryResultPanel"
 // (built for Syrus's own database) to any registered connection. Each is
 // just a plain SELECT against a system table/schema the schema explorer
 // already treats as browsable - so this is the Query tab with a canned
-// statement and 10s auto-refresh, not bespoke controller/service code.
+// statement and 30s auto-refresh, not bespoke controller/service code.
 const CANNED_QUERIES = [
-  { id: "process_list", labelKey: "live_process_list", sql: "SELECT * FROM information_schema.PROCESSLIST ORDER BY TIME DESC" },
+  { id: "process_list", labelKey: "live_process_list", sql: "SELECT ID, USER, HOST, DB, COMMAND, TIME, STATE, LEFT(INFO, 200) AS INFO FROM information_schema.PROCESSLIST ORDER BY TIME DESC" },
   {
     id: "global_status",
     labelKey: "live_global_status",
@@ -28,7 +28,7 @@ export function MysqlLiveTab({ connectionId }: { connectionId: number }) {
     queryKey: ["mysql_db_browser", "live", connectionId, selectedId],
     queryFn: () => executeMysqlQuery(connectionId, canned.sql),
     staleTime: 0,
-    refetchInterval: 10_000
+    refetchInterval: 30_000
   })
 
   return (

@@ -6,7 +6,8 @@ module Api
 
         def show
           render json: PerformanceLogging.suppress {
-            ::AdminMysql::Inspector.new.snapshot(limit: params[:limit], include_slow_log: ActiveModel::Type::Boolean.new.cast(params[:include_slow_log]))
+            ::AdminMysql::Inspector.new.snapshot(limit: params[:limit], include_slow_log: boolean_param(:include_slow_log),
+              include_idle: boolean_param(:include_idle), sections: params[:sections].to_s.split(","))
           }
         rescue ::AdminMysql::Inspector::Unavailable => e
           render_error("mysql_unavailable", e.message, status: :unprocessable_entity)
@@ -23,6 +24,8 @@ module Api
         end
 
         private
+
+        def boolean_param(name) = ActiveModel::Type::Boolean.new.cast(params[name])
 
         def require_admin_mysql_enabled
           return if ::AdminMysql.enabled?
