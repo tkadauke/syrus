@@ -196,9 +196,7 @@ function PluginGroup({ installed, plugins }: { installed: boolean; plugins: impo
   const { t } = useT("settings")
   return (
     <section aria-label={t(installed ? "permissions.ai.installed_plugins" : "permissions.ai.available_plugins")} className="space-y-2">
-      <h4 className="text-sm font-semibold text-text-primary">
-        {t(installed ? "permissions.ai.installed_plugins" : "permissions.ai.available_plugins")}
-      </h4>
+      <h4 className="text-sm font-semibold text-text-primary">{t(installed ? "permissions.ai.installed_plugins" : "permissions.ai.available_plugins")}</h4>
       {plugins.map((plugin) => (
         <article className="min-w-0 rounded-lg border border-border p-3 text-sm" key={plugin.name}>
           <h5 className="font-medium text-text-primary">{plugin.display_name}</h5>
@@ -218,7 +216,14 @@ function ContributionList({ label, values, code = false }: { label: string; valu
   return (
     <p className="mt-1 break-words text-text-secondary">
       <span className="font-medium">{label}:</span>{" "}
-      {values.length ? values.map((value, index) => <span key={value}>{index ? ", " : ""}{code ? <code>{value}</code> : value}</span>) : t("permissions.ai.none")}
+      {values.length
+        ? values.map((value, index) => (
+            <span key={value}>
+              {index ? ", " : ""}
+              {code ? <code>{value}</code> : value}
+            </span>
+          ))
+        : t("permissions.ai.none")}
     </p>
   )
 }
