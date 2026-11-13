@@ -1542,6 +1542,11 @@ export function sendChatMessage(
   })
 }
 
+export function chatMessageWasDelivered(chatId: number | string, clientIdempotencyKey: string) {
+  const params = new URLSearchParams({ client_idempotency_key: clientIdempotencyKey })
+  return getJson<{ delivered: boolean }>(`/api/v1/app/chats/${chatId}/message_delivery?${params}`).then((result) => result.delivered)
+}
+
 export function renameChat(path: string, title: string) {
   return patchJson<ChatPayloadUpdate>(path, { chat: { title } })
 }
