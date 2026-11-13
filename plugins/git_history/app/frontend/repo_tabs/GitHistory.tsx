@@ -11,14 +11,7 @@ import { routePrefix } from "@app/lib/routing"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
 import { fetchGitHistory, type GitHistoryCommit, type GitHistoryOrigin } from "../api/gitHistory"
-import {
-  commitGroupKey,
-  groupCommits,
-  type BundleCommitGroup,
-  type CommitGroup,
-  type EpicCommitGroup,
-  type JobCommitGroup
-} from "./groupCommits"
+import { commitGroupKey, groupCommits, type BundleCommitGroup, type CommitGroup, type EpicCommitGroup, type JobCommitGroup } from "./groupCommits"
 
 export function GitHistory() {
   const { t } = useT("git_history")
@@ -38,10 +31,7 @@ export function GitHistory() {
   // Recomputed over the full accumulated commit list (not per-page) so a
   // Job's or Epic's commit group reassembles correctly even when "load
   // more" happened to land in the middle of it.
-  const commits = useMemo(
-    () => (history.data ? history.data.pages.flatMap((page) => page.commits) : []),
-    [history.data]
-  )
+  const commits = useMemo(() => (history.data ? history.data.pages.flatMap((page) => page.commits) : []), [history.data])
   const groups = useMemo(() => groupCommits(commits), [commits])
   const firstPage = history.data?.pages[0]
   const available = firstPage?.available ?? false
@@ -50,11 +40,15 @@ export function GitHistory() {
     <RepositoryPageShell
       activeTab="git_history.git_history"
       ariaLabel={t("aria_label")}
-      heading={firstPage ? (
-        <PageHeading mono>
-          <a className="hover:underline" href={firstPage.repository!.github_url} rel="noopener" target="_blank">{firstPage.repository!.slug}</a>
-        </PageHeading>
-      ) : null}
+      heading={
+        firstPage ? (
+          <PageHeading mono>
+            <a className="hover:underline" href={firstPage.repository!.github_url} rel="noopener" target="_blank">
+              {firstPage.repository!.slug}
+            </a>
+          </PageHeading>
+        ) : null
+      }
       prefix={prefix}
       tabs={firstPage?.tabs ?? []}
     >
@@ -70,17 +64,15 @@ export function GitHistory() {
           <>
             <Section.Root className="overflow-hidden p-0">
               <ul className="divide-y divide-border">
-                {groups.map((group) => <CommitGroupRow group={group} key={commitGroupKey(group)} />)}
+                {groups.map((group) => (
+                  <CommitGroupRow group={group} key={commitGroupKey(group)} />
+                ))}
               </ul>
             </Section.Root>
 
             {history.hasNextPage ? (
               <div className="flex justify-center">
-                <Button
-                  disabled={history.isFetchingNextPage}
-                  onClick={() => void history.fetchNextPage()}
-                  variant="secondary"
-                >
+                <Button disabled={history.isFetchingNextPage} onClick={() => void history.fetchNextPage()} variant="secondary">
                   {history.isFetchingNextPage ? t("loading_more") : t("load_more")}
                 </Button>
               </div>
@@ -121,8 +113,12 @@ function EpicGroupRow({ group }: { group: EpicCommitGroup }) {
         </summary>
         {restCommits.length > 0 || nestedJobGroups.length > 0 ? (
           <div className="divide-y divide-gray-100 border-t border-gray-100 bg-gray-50/60 pl-6 dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-800/40">
-            {restCommits.map((commit) => <CommitContent commit={commit} emphasized key={commit.sha} />)}
-            {nestedJobGroups.map((jobGroup) => <NestedJobGroupRow group={jobGroup} key={`job-${jobGroup.job.id}`} />)}
+            {restCommits.map((commit) => (
+              <CommitContent commit={commit} emphasized key={commit.sha} />
+            ))}
+            {nestedJobGroups.map((jobGroup) => (
+              <NestedJobGroupRow group={jobGroup} key={`job-${jobGroup.job.id}`} />
+            ))}
           </div>
         ) : null}
       </details>
@@ -145,8 +141,12 @@ function BundleGroupRow({ group }: { group: BundleCommitGroup }) {
         </summary>
         {restCommits.length > 0 || nestedJobGroups.length > 0 ? (
           <div className="divide-y divide-gray-100 border-t border-gray-100 bg-gray-50/60 pl-6 dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-800/40">
-            {restCommits.map((commit) => <CommitContent commit={commit} emphasized key={commit.sha} />)}
-            {nestedJobGroups.map((jobGroup) => <NestedJobGroupRow group={jobGroup} key={`job-${jobGroup.job.id}`} />)}
+            {restCommits.map((commit) => (
+              <CommitContent commit={commit} emphasized key={commit.sha} />
+            ))}
+            {nestedJobGroups.map((jobGroup) => (
+              <NestedJobGroupRow group={jobGroup} key={`job-${jobGroup.job.id}`} />
+            ))}
           </div>
         ) : null}
       </details>
@@ -169,7 +169,9 @@ function JobGroupRow({ group }: { group: JobCommitGroup }) {
         </summary>
         {restCommits.length > 0 ? (
           <div className="divide-y divide-gray-100 border-t border-gray-100 bg-gray-50/60 pl-6 dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-800/40">
-            {restCommits.map((commit) => <CommitContent commit={commit} emphasized key={commit.sha} />)}
+            {restCommits.map((commit) => (
+              <CommitContent commit={commit} emphasized key={commit.sha} />
+            ))}
           </div>
         ) : null}
       </details>
@@ -191,7 +193,9 @@ function NestedJobGroupRow({ group }: { group: JobCommitGroup }) {
         </summary>
         {restCommits.length > 0 ? (
           <div className="divide-y divide-gray-100 border-t border-gray-100 pl-6 dark:divide-gray-800 dark:border-gray-800">
-            {restCommits.map((commit) => <CommitContent commit={commit} emphasized key={commit.sha} />)}
+            {restCommits.map((commit) => (
+              <CommitContent commit={commit} emphasized key={commit.sha} />
+            ))}
           </div>
         ) : null}
       </details>
@@ -217,9 +221,7 @@ function CommitContent({ commit, emphasized }: { commit: GitHistoryCommit; empha
           <ClassificationPill commit={commit} />
           <span
             className={
-              emphasized
-                ? "truncate text-sm font-semibold text-gray-900 dark:text-gray-100"
-                : "truncate text-sm font-normal text-gray-500 dark:text-gray-500"
+              emphasized ? "truncate text-sm font-semibold text-gray-900 dark:text-gray-100" : "truncate text-sm font-normal text-gray-500 dark:text-gray-500"
             }
           >
             {commit.subject}
@@ -258,7 +260,9 @@ function ClassificationPill({ commit }: { commit: GitHistoryCommit }) {
 function JobSlugLink({ id, slug }: { id: number; slug: string }) {
   return (
     <SlugHoverCard id={id} kind="job">
-      <Link className="text-brand hover:underline dark:text-brand-emphasis" to={`/jobs/${id}`}>{slug}</Link>
+      <Link className="text-brand hover:underline dark:text-brand-emphasis" to={`/jobs/${id}`}>
+        {slug}
+      </Link>
     </SlugHoverCard>
   )
 }
@@ -266,7 +270,9 @@ function JobSlugLink({ id, slug }: { id: number; slug: string }) {
 function EpicSlugLink({ id, slug }: { id: number; slug: string }) {
   return (
     <SlugHoverCard id={id} kind="epic">
-      <Link className="text-brand hover:underline dark:text-brand-emphasis" to={`/epics/${id}`}>{slug}</Link>
+      <Link className="text-brand hover:underline dark:text-brand-emphasis" to={`/epics/${id}`}>
+        {slug}
+      </Link>
     </SlugHoverCard>
   )
 }
@@ -289,16 +295,16 @@ function CommitAttribution({ commit }: { commit: GitHistoryCommit }) {
     return (
       <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
         {commit.epic ? <EpicSlugLink id={commit.epic.id} slug={commit.epic.slug} /> : null}
-        {(commit.jobs ?? []).map((job) => <JobSlugLink id={job.id} key={job.id} slug={job.slug} />)}
+        {(commit.jobs ?? []).map((job) => (
+          <JobSlugLink id={job.id} key={job.id} slug={job.slug} />
+        ))}
       </span>
     )
   }
 
   if (commit.classification === "epic_reconciliation") {
     return (
-      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        {commit.epic ? <EpicSlugLink id={commit.epic.id} slug={commit.epic.slug} /> : null}
-      </span>
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">{commit.epic ? <EpicSlugLink id={commit.epic.id} slug={commit.epic.slug} /> : null}</span>
     )
   }
 
@@ -306,7 +312,9 @@ function CommitAttribution({ commit }: { commit: GitHistoryCommit }) {
     return (
       <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
         {commit.bundle ? <span>{t("attribution.bundle", { id: commit.bundle.id })}</span> : null}
-        {(commit.jobs ?? []).map((job) => <JobSlugLink id={job.id} key={job.id} slug={job.slug} />)}
+        {(commit.jobs ?? []).map((job) => (
+          <JobSlugLink id={job.id} key={job.id} slug={job.slug} />
+        ))}
       </span>
     )
   }

@@ -58,7 +58,10 @@ export type RepositoryIssue = {
 // tree, or "" when no filter is applied) taken verbatim from the `q` URL
 // param -- see Filters::QueryParam on the backend. It is never decoded on
 // the client; the server round-trips it back as `payload.filter`/`query`.
-export type RepositoryIssuesMutationPayload = Pick<RepositoryIssuesPayload, "message" | "folder_counts"> & { changed_issues?: RepositoryIssue[]; issues?: RepositoryIssue[] }
+export type RepositoryIssuesMutationPayload = Pick<RepositoryIssuesPayload, "message" | "folder_counts"> & {
+  changed_issues?: RepositoryIssue[]
+  issues?: RepositoryIssue[]
+}
 
 export function fetchRepositoryIssues(id: string, folder: IssueFolder, filterParam: string, sort: { column: string; direction: "asc" | "desc" }, page = 1) {
   const params = new URLSearchParams({ folder })

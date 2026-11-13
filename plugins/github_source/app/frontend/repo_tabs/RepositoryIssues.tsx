@@ -110,7 +110,16 @@ export function RepositoryIssues({
   const currentPage = payload.page ?? 1
   const perPage = payload.per_page ?? 50
   const totalPages = payload.total_pages ?? 1
-  const queryKey = ["repositories", String(payload.repository.id), "issues", resolveFolder(searchParams), filterParam, sort.column, sort.direction, page] as const
+  const queryKey = [
+    "repositories",
+    String(payload.repository.id),
+    "issues",
+    resolveFolder(searchParams),
+    filterParam,
+    sort.column,
+    sort.direction,
+    page
+  ] as const
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const [selected, setSelected] = useState<number[]>([])
   const allSelected = payload.issues.length > 0 && selected.length === payload.issues.length
@@ -140,11 +149,15 @@ export function RepositoryIssues({
     },
     onSuccess: (updated) => {
       const changedIssues = updated.changed_issues ?? updated.issues ?? []
-      queryClient.setQueryData<RepositoryIssuesPayload>(queryKey, (current) => current && ({
-        ...current,
-        folder_counts: updated.folder_counts,
-        issues: current.issues.map((issue) => changedIssues.find((changed) => changed.number === issue.number) ?? issue)
-      }))
+      queryClient.setQueryData<RepositoryIssuesPayload>(
+        queryKey,
+        (current) =>
+          current && {
+            ...current,
+            folder_counts: updated.folder_counts,
+            issues: current.issues.map((issue) => changedIssues.find((changed) => changed.number === issue.number) ?? issue)
+          }
+      )
       void queryClient.invalidateQueries({ queryKey: ["repositories", String(payload.repository.id), "issues"] })
       setNotice(updated.message || null)
       setSelected([])
@@ -309,10 +322,28 @@ export function RepositoryIssues({
             </DataTable.Root>
             {totalPages > 1 ? (
               <div className="flex items-center justify-between text-sm text-gray-600">
-                <span>{t("repository.pagination_showing", { first: (currentPage - 1) * perPage + 1, last: Math.min(currentPage * perPage, payload.issue_count), total: payload.issue_count })}</span>
+                <span>
+                  {t("repository.pagination_showing", {
+                    first: (currentPage - 1) * perPage + 1,
+                    last: Math.min(currentPage * perPage, payload.issue_count),
+                    total: payload.issue_count
+                  })}
+                </span>
                 <div className="flex gap-2">
-                  {currentPage > 1 ? <Button onClick={() => navigate(pageLink(location.pathname, location.search, currentPage - 1))} size="sm" variant="secondary">{t("repository.pagination_previous")}</Button> : <span className="rounded border border-gray-200 px-3 py-1 text-gray-300">{t("repository.pagination_previous")}</span>}
-                  {currentPage < totalPages ? <Button onClick={() => navigate(pageLink(location.pathname, location.search, currentPage + 1))} size="sm" variant="secondary">{t("repository.pagination_next")}</Button> : <span className="rounded border border-gray-200 px-3 py-1 text-gray-300">{t("repository.pagination_next")}</span>}
+                  {currentPage > 1 ? (
+                    <Button onClick={() => navigate(pageLink(location.pathname, location.search, currentPage - 1))} size="sm" variant="secondary">
+                      {t("repository.pagination_previous")}
+                    </Button>
+                  ) : (
+                    <span className="rounded border border-gray-200 px-3 py-1 text-gray-300">{t("repository.pagination_previous")}</span>
+                  )}
+                  {currentPage < totalPages ? (
+                    <Button onClick={() => navigate(pageLink(location.pathname, location.search, currentPage + 1))} size="sm" variant="secondary">
+                      {t("repository.pagination_next")}
+                    </Button>
+                  ) : (
+                    <span className="rounded border border-gray-200 px-3 py-1 text-gray-300">{t("repository.pagination_next")}</span>
+                  )}
                 </div>
               </div>
             ) : null}

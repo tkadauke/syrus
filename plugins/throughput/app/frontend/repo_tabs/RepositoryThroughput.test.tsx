@@ -130,10 +130,12 @@ function throughputPayload(windowKey: "1h" | "4h" = "4h"): RepositoryThroughputM
     generated_at: "2026-07-31T12:00:00Z",
     repository: REPOSITORY,
     tabs: TABS,
-    windows: { [windowKey]: {
-      "1h": empty,
-      "4h": throughputWindow(),
-    }[windowKey] }
+    windows: {
+      [windowKey]: {
+        "1h": empty,
+        "4h": throughputWindow()
+      }[windowKey]
+    }
   } as RepositoryThroughputMetricsPayload
 }
 
