@@ -1,8 +1,26 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate } from "react-router-dom"
-import { fetchAdminBackendException, fetchAdminBackendExceptionControls, fetchAdminBackendExceptions, type BackendExceptionEventRow, type BackendExceptionEventsPayload } from "../api/adminBackendExceptions"
+import {
+  fetchAdminBackendException,
+  fetchAdminBackendExceptionControls,
+  fetchAdminBackendExceptions,
+  type BackendExceptionEventRow,
+  type BackendExceptionEventsPayload
+} from "../api/adminBackendExceptions"
 import { AdminEventActions } from "../components/AdminEventActions"
-import { AdminDataTablePanel, type AdminDataTablePanelConfig, AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPanelMessage, DetailBlock, JsonBlock, formatEventDate, shortRevision } from "../components/AdminEventLogPanel"
+import {
+  AdminDataTablePanel,
+  type AdminDataTablePanelConfig,
+  AdminEventFilterBar,
+  AdminEventLogTable,
+  type AdminEventLogTableColumn,
+  AdminEventPageShell,
+  AdminEventPanelMessage,
+  DetailBlock,
+  JsonBlock,
+  formatEventDate,
+  shortRevision
+} from "../components/AdminEventLogPanel"
 import { Button } from "../components/Button"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { useT } from "../hooks/useT"
@@ -35,12 +53,7 @@ export function AdminBackendExceptions() {
   return (
     <AdminEventPageShell
       actions={
-        <Button
-          className="w-fit"
-          disabled={exceptions.isFetching}
-          onClick={() => void exceptions.refetch()}
-          variant="secondary"
-        >
+        <Button className="w-fit" disabled={exceptions.isFetching} onClick={() => void exceptions.refetch()} variant="secondary">
           {exceptions.isFetching ? t("backend_exceptions.refreshing") : t("backend_exceptions.refresh")}
         </Button>
       }
@@ -50,35 +63,87 @@ export function AdminBackendExceptions() {
     >
       <BackendExceptionFilters controls={controls.data} search={search} payload={exceptions.data} onNavigate={navigateSearch} />
       {exceptions.isPending ? <AdminEventPanelMessage>{t("backend_exceptions.loading")}</AdminEventPanelMessage> : null}
-      {exceptions.isError ? <AdminEventPanelMessage tone="error">{errorMessage(exceptions.error, t("backend_exceptions.error_load"))}</AdminEventPanelMessage> : null}
-      {exceptions.isSuccess ? <BackendExceptionsView actions={controls.data?.actions || exceptions.data.actions} payload={exceptions.data} search={search} onNavigate={navigateSearch} /> : null}
+      {exceptions.isError ? (
+        <AdminEventPanelMessage tone="error">{errorMessage(exceptions.error, t("backend_exceptions.error_load"))}</AdminEventPanelMessage>
+      ) : null}
+      {exceptions.isSuccess ? (
+        <BackendExceptionsView
+          actions={controls.data?.actions || exceptions.data.actions}
+          payload={exceptions.data}
+          search={search}
+          onNavigate={navigateSearch}
+        />
+      ) : null}
     </AdminEventPageShell>
   )
 }
 
-function BackendExceptionFilters({ controls, onNavigate, payload, search }: { controls?: Awaited<ReturnType<typeof fetchAdminBackendExceptionControls>>; onNavigate: (params: URLSearchParams) => void; payload?: BackendExceptionEventsPayload; search: string }) {
+function BackendExceptionFilters({
+  controls,
+  onNavigate,
+  payload,
+  search
+}: {
+  controls?: Awaited<ReturnType<typeof fetchAdminBackendExceptionControls>>
+  onNavigate: (params: URLSearchParams) => void
+  payload?: BackendExceptionEventsPayload
+  search: string
+}) {
   const { t } = useT("admin")
-  return <AdminEventFilterBar clearLabel={t("backend_exceptions.clear")} filter={payload?.filter} filterSchema={controls?.filter_schema} fields={[
-    { name: "query", label: t("backend_exceptions.query"), placeholder: t("backend_exceptions.query_placeholder") },
-    { name: "since", label: t("backend_exceptions.since"), defaultValue: "24h", placeholder: "24h" },
-    { name: "until", label: t("backend_exceptions.until"), placeholder: t("backend_exceptions.until_placeholder") },
-    { name: "source", label: t("backend_exceptions.source"), options: [
-      { value: "", label: t("backend_exceptions.all_sources") },
-      ...(controls?.sources || []).map((source) => ({ value: source, label: source }))
-    ] },
-    { name: "exception_class", label: t("backend_exceptions.exception_class"), placeholder: "ActiveRecord::..." },
-    { name: "path", label: t("backend_exceptions.path"), placeholder: "/api/..." },
-    { name: "fingerprint", label: t("backend_exceptions.fingerprint"), placeholder: "sha..." },
-    { name: "revision_scope", label: t("backend_exceptions.revision_scope"), defaultValue: "current", options: revisionScopes.map((scope) => ({ value: scope, label: t(`backend_exceptions.revision_${scope}`) })) },
-    { name: "per_page", label: t("backend_exceptions.per_page"), defaultValue: "50", options: [25, 50, 100].map((value) => ({ value: String(value), label: String(value) })) }
-  ]} search={search} searchLabel={t("backend_exceptions.search")} onNavigate={onNavigate} />
+  return (
+    <AdminEventFilterBar
+      clearLabel={t("backend_exceptions.clear")}
+      filter={payload?.filter}
+      filterSchema={controls?.filter_schema}
+      fields={[
+        { name: "query", label: t("backend_exceptions.query"), placeholder: t("backend_exceptions.query_placeholder") },
+        { name: "since", label: t("backend_exceptions.since"), defaultValue: "24h", placeholder: "24h" },
+        { name: "until", label: t("backend_exceptions.until"), placeholder: t("backend_exceptions.until_placeholder") },
+        {
+          name: "source",
+          label: t("backend_exceptions.source"),
+          options: [{ value: "", label: t("backend_exceptions.all_sources") }, ...(controls?.sources || []).map((source) => ({ value: source, label: source }))]
+        },
+        { name: "exception_class", label: t("backend_exceptions.exception_class"), placeholder: "ActiveRecord::..." },
+        { name: "path", label: t("backend_exceptions.path"), placeholder: "/api/..." },
+        { name: "fingerprint", label: t("backend_exceptions.fingerprint"), placeholder: "sha..." },
+        {
+          name: "revision_scope",
+          label: t("backend_exceptions.revision_scope"),
+          defaultValue: "current",
+          options: revisionScopes.map((scope) => ({ value: scope, label: t(`backend_exceptions.revision_${scope}`) }))
+        },
+        {
+          name: "per_page",
+          label: t("backend_exceptions.per_page"),
+          defaultValue: "50",
+          options: [25, 50, 100].map((value) => ({ value: String(value), label: String(value) }))
+        }
+      ]}
+      search={search}
+      searchLabel={t("backend_exceptions.search")}
+      onNavigate={onNavigate}
+    />
+  )
 }
 
-function BackendExceptionsView({ actions, onNavigate, payload, search }: { actions: BackendExceptionEventsPayload["actions"]; onNavigate: (params: URLSearchParams) => void; payload: BackendExceptionEventsPayload; search: string }) {
+function BackendExceptionsView({
+  actions,
+  onNavigate,
+  payload,
+  search
+}: {
+  actions: BackendExceptionEventsPayload["actions"]
+  onNavigate: (params: URLSearchParams) => void
+  payload: BackendExceptionEventsPayload
+  search: string
+}) {
   const { t } = useT("admin")
   const panel = {
     summary: t("backend_exceptions.showing", { count: payload.events.length, page: payload.pagination.page }),
-    meta: t("backend_exceptions.revision_hint", { revision: payload.revision_scope === "all" ? t("backend_exceptions.all_revisions") : shortRevision(payload.current_revision) }),
+    meta: t("backend_exceptions.revision_hint", {
+      revision: payload.revision_scope === "all" ? t("backend_exceptions.all_revisions") : shortRevision(payload.current_revision)
+    }),
     pagination: {
       label: t("backend_exceptions.page", { page: payload.pagination.page }),
       nextLabel: t("backend_exceptions.next"),
@@ -98,11 +163,32 @@ function BackendExceptionsView({ actions, onNavigate, payload, search }: { actio
   }
 
   return (
-    <BackendExceptionsTable actions={actions} panel={panel} revisionScope={payload.revision_scope} rows={payload.events} search={search} onNavigate={onNavigate} />
+    <BackendExceptionsTable
+      actions={actions}
+      panel={panel}
+      revisionScope={payload.revision_scope}
+      rows={payload.events}
+      search={search}
+      onNavigate={onNavigate}
+    />
   )
 }
 
-function BackendExceptionsTable({ actions, onNavigate, panel, revisionScope, rows, search }: { actions: BackendExceptionEventsPayload["actions"]; onNavigate: (params: URLSearchParams) => void; panel: AdminDataTablePanelConfig; revisionScope: string; rows: BackendExceptionEventRow[]; search: string }) {
+function BackendExceptionsTable({
+  actions,
+  onNavigate,
+  panel,
+  revisionScope,
+  rows,
+  search
+}: {
+  actions: BackendExceptionEventsPayload["actions"]
+  onNavigate: (params: URLSearchParams) => void
+  panel: AdminDataTablePanelConfig
+  revisionScope: string
+  rows: BackendExceptionEventRow[]
+  search: string
+}) {
   const { t } = useT("admin")
   const columns: Array<AdminEventLogTableColumn<BackendExceptionEventRow>> = [
     {
@@ -125,14 +211,19 @@ function BackendExceptionsTable({ actions, onNavigate, panel, revisionScope, row
       key: "context",
       sort: "context",
       render: (row) => {
-        const context = row.source === "active_job"
-          ? [row.job_class, row.queue_name ? `queue ${row.queue_name}` : null].filter(Boolean).join(" · ")
-          : [row.method, row.path, row.status].filter(Boolean).join(" ")
+        const context =
+          row.source === "active_job"
+            ? [row.job_class, row.queue_name ? `queue ${row.queue_name}` : null].filter(Boolean).join(" · ")
+            : [row.method, row.path, row.status].filter(Boolean).join(" ")
         return (
           <>
             <div className="font-mono">{row.source}</div>
             <div className="mt-1 break-words">{context || "-"}</div>
-            {row.job_id ? <Link className="mt-1 inline-block underline" to={`/jobs/${row.job_id}`}>{row.job_slug || `JOB-${row.job_id}`}</Link> : null}
+            {row.job_id ? (
+              <Link className="mt-1 inline-block underline" to={`/jobs/${row.job_id}`}>
+                {row.job_slug || `JOB-${row.job_id}`}
+              </Link>
+            ) : null}
           </>
         )
       }
@@ -146,7 +237,9 @@ function BackendExceptionsTable({ actions, onNavigate, panel, revisionScope, row
       render: (row) => (
         <>
           <div className="break-words font-medium text-gray-900 dark:text-gray-100">{row.message}</div>
-          <div className="mt-1 break-all font-mono text-xs text-gray-500 dark:text-gray-400">{row.exception_class} · {row.fingerprint}</div>
+          <div className="mt-1 break-all font-mono text-xs text-gray-500 dark:text-gray-400">
+            {row.exception_class} · {row.fingerprint}
+          </div>
         </>
       )
     },
@@ -176,7 +269,13 @@ function BackendExceptionsTable({ actions, onNavigate, panel, revisionScope, row
       pin: "end",
       required: true,
       render: (row, state) => (
-        <AdminEventActions actions={actions} eventId={row.id} eventType="backend_exception" showDetailsLabel={state.expanded ? t("backend_exceptions.hide_details") : t("backend_exceptions.show_details")} onToggleDetails={state.toggleExpanded} />
+        <AdminEventActions
+          actions={actions}
+          eventId={row.id}
+          eventType="backend_exception"
+          showDetailsLabel={state.expanded ? t("backend_exceptions.hide_details") : t("backend_exceptions.show_details")}
+          onToggleDetails={state.toggleExpanded}
+        />
       )
     }
   ]
@@ -199,12 +298,14 @@ function BackendExceptionDetails({ id }: { id: number }) {
   const { t } = useT("admin")
   const detail = useQuery({ queryKey: ["admin", "backend_exceptions", id], queryFn: () => fetchAdminBackendException(id) })
   if (!detail.data) return <AdminEventPanelMessage>{t("backend_exceptions.loading")}</AdminEventPanelMessage>
-  return <div className="grid gap-4 lg:grid-cols-2">
-    <DetailBlock title={t("backend_exceptions.backtrace")} value={detail.data.backtrace} />
-    <JsonBlock title={t("backend_exceptions.request_context")} value={detail.data.request_context} />
-    <JsonBlock title={t("backend_exceptions.job_context")} value={detail.data.job_context} />
-    <JsonBlock title={t("backend_exceptions.environment")} value={{ hostname: detail.data.hostname, pid: detail.data.pid, metadata: detail.data.metadata }} />
-  </div>
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <DetailBlock title={t("backend_exceptions.backtrace")} value={detail.data.backtrace} />
+      <JsonBlock title={t("backend_exceptions.request_context")} value={detail.data.request_context} />
+      <JsonBlock title={t("backend_exceptions.job_context")} value={detail.data.job_context} />
+      <JsonBlock title={t("backend_exceptions.environment")} value={{ hostname: detail.data.hostname, pid: detail.data.pid, metadata: detail.data.metadata }} />
+    </div>
+  )
 }
 
 export default AdminBackendExceptions
