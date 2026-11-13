@@ -37,12 +37,17 @@ module RetryJobs
 
     attr_reader :job, :source_workflow_id, :reason
 
-    def retry_preflight(extra = {})
-      if WorkUnits::Ownership.active_for_job?(job)
-        return failure("Active mutation work must finish before retrying this Job.")
+    # `retiring_workflow` is a Workflow the retry itself will retire before it
+    # starts, so its own WorkUnit and Runs are not "other" active work.
+    def retry_preflight(extra = {}, retiring_workflow: nil)
+      active = if retiring_workflow
+        WorkUnits::Ownership.active_units_for_job(job).any? { |unit| unit.workflow_id != retiring_workflow.id }
+      else
+        WorkUnits::Ownership.active_for_job?(job)
       end
+      return failure("Active mutation work must finish before retrying this Job.") if active
 
-      eligibility = RetryWorkflowEligibility.call(job: job)
+      eligibility = RetryWorkflowEligibility.call(job: job, workflow: retiring_workflow)
       return failure(eligibility.message) unless eligibility.eligible?
 
       success(extra)

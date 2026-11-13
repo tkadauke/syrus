@@ -88,7 +88,9 @@ Syrus prefers the smallest safe retry:
 - Resume: continue after a pause or transient failure.
 - Retry workflow: start a new workflow for the same desired work.
 - Retry implementation: start a new implementation attempt when the previous
-  output itself should not be trusted.
+  output itself should not be trusted. This is also the way out when the agent
+  reported it cannot proceed: the blocked attempt is retired first, so the Job
+  does not have to be cancelled.
 
 The operator-confirmed `retry_job` tool makes these choices explicit. Its
 `auto` mode preserves the compatible smart-retry behavior and never chooses a

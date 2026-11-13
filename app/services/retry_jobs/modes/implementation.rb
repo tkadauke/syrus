@@ -9,6 +9,7 @@ module RetryJobs
         grader_collect
       ].freeze
       FRESH_IMPLEMENTATION_ESCAPE_TRIGGER_KINDS = %w[base_refresh_retry rebase stack_rebase].freeze
+      AGENT_BLOCKED_RETIRED_REASON = "retired_for_implementation_retry"
 
       def initialize(job:, agent_provider: nil, retry_context: nil, explicit_operator_intent: false,
                      source_workflow_id: nil, reason: nil, **)
@@ -22,9 +23,9 @@ module RetryJobs
         return failure("No changes were needed, so there is no implementation to retry.") if job.no_change_needed?
         return failure("Infrastructure workflows cannot be retried as implementation work.") if latest_workflow&.infrastructure_workflow?
 
-        common = retry_preflight
+        common = retry_preflight(retiring_workflow: agent_blocked_workflow)
         return common unless common.eligible?
-        unless job.failed? || latest_workflow&.failed? || latest_workflow&.cancelled?
+        unless job.failed? || latest_workflow&.failed? || latest_workflow&.cancelled? || agent_blocked_workflow
           return failure("The latest workflow did not fail or get cancelled.")
         end
         return failure("Landing workflows must be retried with their landing action.") if latest_workflow&.landing_workflow?
@@ -40,6 +41,7 @@ module RetryJobs
       end
 
       def execute
+        retire_agent_blocked_workflow!
         RetryWorkflowEnqueuer.call(job: job, agent_provider: @agent_provider,
           provider_validation: :retry_alternate, resume_checkpoint: false, retry_kind: "retry",
           artifacts: {
@@ -60,7 +62,35 @@ module RetryJobs
       end
 
       def failure_workflow
-        @failure_workflow ||= source_workflow || (latest_workflow if latest_workflow&.failed?)
+        @failure_workflow ||= source_workflow || (latest_workflow if latest_workflow&.failed?) || agent_blocked_workflow
+      end
+
+      # A primary implementation Workflow whose agent reported it cannot
+      # proceed. Unlike auxiliary work, it keeps its WorkUnit -- and so the
+      # Job lock -- blocked, with its workspace already cleaned up. Nothing
+      # else releases it short of cancelling the Job, so retrying
+      # implementation is the way out: the retry retires it first.
+      def agent_blocked_workflow
+        return @agent_blocked_workflow if defined?(@agent_blocked_workflow)
+
+        workflow = latest_workflow
+        @agent_blocked_workflow = workflow if workflow&.blocked? &&
+          workflow.artifact("cannot_proceed").present? &&
+          !workflow.landing_workflow? &&
+          !Workflow::TriggerKind.non_approval_blocking?(workflow.trigger_kind)
+      end
+
+      def retire_agent_blocked_workflow!
+        workflow = agent_blocked_workflow
+        return unless workflow
+
+        WorkUnits::WorkflowCancellation.cancel!(
+          workflow,
+          reason: AGENT_BLOCKED_RETIRED_REASON,
+          artifacts: { "cancelled_reason" => AGENT_BLOCKED_RETIRED_REASON }
+        )
+        job.reload.clear_needs_attention!(reason: "agent_cannot_proceed")
+        @latest_workflow = nil
       end
 
       def failed_step

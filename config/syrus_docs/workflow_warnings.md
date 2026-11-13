@@ -151,7 +151,10 @@ details, Run id, Step id, and report timestamp. Unlike advisory grader
 warnings, this one is paired with a terminal `blocked` Run/Step/Workflow state
 and a Job `needs_attention_reason` of `agent_cannot_proceed`, so the operator
 can read the blocker without opening the transcript and decide whether to file
-a follow-up Job from the warning.
+a follow-up Job from the warning. Once the blocker is resolved, **Retry
+implementation** retires the blocked primary workflow -- releasing the Job lock
+its WorkUnit kept holding -- and starts a fresh attempt. Blocked auxiliary
+workflows are dismissed instead.
 
 ## Review execution skipped
 

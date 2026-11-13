@@ -497,6 +497,40 @@ RSpec.describe "App API job lifecycle commands", :ci_only, type: :request do
     )
   end
 
+  # Regression: when the agent reported it could not proceed, the primary
+  # workflow blocked while its WorkUnit kept holding the Job lock. Retry,
+  # retry-from-step, resume, restart and dismiss all refused, leaving only
+  # cancelling the whole Job.
+  it "retries implementation out of a primary workflow the agent blocked" do
+    job.update!(state: "running")
+    blocked_workflow = job.latest_workflow
+    blocked_workflow.update!(state: "running", started_at: 5.minutes.ago)
+    blocked_workflow.steps.update_all(state: "succeeded")
+    unit = blocked_workflow.work_unit || attach_work_unit(blocked_workflow)
+    unit.update!(state: "running")
+    blocked_workflow.artifacts = blocked_workflow.artifacts.to_h.merge(
+      "cannot_proceed" => { "reason" => "The grader needs a higher timeout." }
+    )
+    blocked_workflow.block!
+    blocked_workflow.save!
+    expect(unit.reload.state).to eq("blocked")
+    expect(job.reload.needs_attention_reason).to eq("agent_cannot_proceed")
+
+    get "/api/v1/app/jobs/#{job.id}", as: :json
+    expect(parse_body.dig("actions", "can_retry")).to be(true)
+
+    expect {
+      post app_job_path(job, "retry_implementation"), as: :json
+    }.to change { job.reload.workflows.where(trigger_kind: "retry").count }.by(1)
+
+    expect(response).to have_http_status(:ok), response.body
+    expect(blocked_workflow.reload.state).to eq("cancelled")
+    expect(blocked_workflow.artifact("cancelled_reason")).to eq(RetryJobs::Modes::Implementation::AGENT_BLOCKED_RETIRED_REASON)
+    expect(unit.reload.state).not_to eq("blocked")
+    expect(job.reload.needs_attention?).to be(false)
+    expect(job.workflows.where(trigger_kind: "retry").last.artifact("retry_source_workflow_id")).to eq(blocked_workflow.id)
+  end
+
   it "executes the fresh implementation retry advertised for workspace recovery failure" do
     job.update!(state: "failed")
     run = job.initial_run
