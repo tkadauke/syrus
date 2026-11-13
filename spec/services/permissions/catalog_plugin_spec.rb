@@ -68,6 +68,7 @@ RSpec.describe Permissions::Catalog, :reset_plugin_registry do
       register_resource_scope :example_resource
       register_capability(
         capability: "example.observe@v1", operation: "example.observe/read@v1", effects: effects, risk: :low,
+        presentation: Permissions::CapabilityPresentation.for(capability: "example.observe@v1", operation: "example.observe/read@v1"),
         requestable_roles: [ "chat_planner" ], defaults: { chat_planner: :ask }, maximum_autonomy: :job,
         authority_durations: %i[invocation job], resource_scope: :example_resource,
         classifier: ->(arguments) { arguments }, fingerprint_normalizer: ->(arguments) { arguments },

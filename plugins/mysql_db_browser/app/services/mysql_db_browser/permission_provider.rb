@@ -102,6 +102,7 @@ module MysqlDbBrowser
     READ_OPERATIONS.each do |operation, scope|
       register_capability(
         capability: "mysql.read@v1", operation:, effects: %i[network_read confidential_read credential_use],
+        presentation: Permissions::CapabilityPresentation.for(capability: "mysql.read@v1", operation:),
         risk: :medium, requestable_roles: READ_ROLES, defaults: COWORKER_READ_DEFAULTS,
         maximum_autonomy: :permanent, authority_durations: READ_DURATIONS, resource_scope: scope,
         classifier: ->(_arguments) { { operation:, effects: %i[network_read confidential_read credential_use], risk: :medium, confidence: :certain } },
@@ -126,6 +127,7 @@ module MysqlDbBrowser
     # execute@v1 below and still ask.
     register_capability(
       capability: "mysql.query@v1", operation: "mysql.query/read@v1",
+      presentation: Permissions::CapabilityPresentation.for(capability: "mysql.query@v1", operation: "mysql.query/read@v1"),
       effects: %i[network_read confidential_read credential_use],
       risk: :medium, requestable_roles: ROLES, defaults: READ_DEFAULTS,
       maximum_autonomy: :permanent, authority_durations: READ_DURATIONS, resource_scope: :query,
@@ -135,6 +137,7 @@ module MysqlDbBrowser
 
     register_capability(
       capability: "mysql.query@v1", operation: "mysql.query/execute@v1",
+      presentation: Permissions::CapabilityPresentation.for(capability: "mysql.query@v1", operation: "mysql.query/execute@v1"),
       effects: %i[network_read confidential_read credential_use external_write privilege_change operational destructive irreversible],
       risk: :critical, requestable_roles: ROLES, defaults: READ_DEFAULTS,
       maximum_autonomy: :invocation, authority_durations: %i[invocation], resource_scope: :query,

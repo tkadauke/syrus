@@ -148,6 +148,7 @@ module K8sCluster
     OBSERVE_OPERATIONS.each do |operation, scope|
       register_capability(
         capability: "k8s.observe@v1", operation:, effects: OBSERVE_EFFECTS,
+        presentation: Permissions::CapabilityPresentation.for(capability: "k8s.observe@v1", operation:),
         risk: :medium, requestable_roles: ROLES, defaults: ASK_DEFAULTS,
         maximum_autonomy: :permanent, authority_durations: OBSERVE_DURATIONS, resource_scope: scope,
         classifier: fixed_classifier(operation, OBSERVE_EFFECTS, :medium),
@@ -157,6 +158,7 @@ module K8sCluster
 
     register_capability(
       capability: "k8s.secret_access@v1", operation: "k8s.secret/read@v1",
+      presentation: Permissions::CapabilityPresentation.for(capability: "k8s.secret_access@v1", operation: "k8s.secret/read@v1"),
       effects: %i[network_read confidential_read credential_use], risk: :high,
       requestable_roles: ROLES, defaults: ASK_DEFAULTS, maximum_autonomy: :chat_session,
       authority_durations: SECRET_DURATIONS, resource_scope: :secret,
@@ -173,6 +175,7 @@ module K8sCluster
       effects = %i[credential_use external_write operational destructive]
       register_capability(
         capability: "k8s.workload_operations@v1", operation:, effects:, risk: :high,
+        presentation: Permissions::CapabilityPresentation.for(capability: "k8s.workload_operations@v1", operation:),
         requestable_roles: ROLES, defaults: ASK_DEFAULTS, maximum_autonomy: :invocation,
         authority_durations: %i[invocation], resource_scope: scope,
         classifier: fixed_classifier(operation, effects, :high),
@@ -182,6 +185,7 @@ module K8sCluster
 
     register_capability(
       capability: "k8s.node_administration@v1", operation: "k8s.node/cordon@v1",
+      presentation: Permissions::CapabilityPresentation.for(capability: "k8s.node_administration@v1", operation: "k8s.node/cordon@v1"),
       effects: %i[credential_use external_write privilege_change operational], risk: :critical,
       requestable_roles: ROLES, defaults: ASK_DEFAULTS, maximum_autonomy: :invocation,
       authority_durations: %i[invocation], resource_scope: :node,
@@ -191,6 +195,7 @@ module K8sCluster
 
     register_capability(
       capability: "k8s.raw@v1", operation: "k8s.raw/execute@v1",
+      presentation: Permissions::CapabilityPresentation.for(capability: "k8s.raw@v1", operation: "k8s.raw/execute@v1"),
       effects: %i[network_read confidential_read credential_use external_write privilege_change operational destructive irreversible],
       risk: :critical, requestable_roles: ROLES, defaults: ASK_DEFAULTS,
       maximum_autonomy: :invocation, authority_durations: %i[invocation], resource_scope: :raw,

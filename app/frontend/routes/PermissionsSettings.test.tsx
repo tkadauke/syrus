@@ -239,6 +239,16 @@ describe("PermissionsSettingsRoute", () => {
     expect(screen.getByText(/\[redacted\]/)).toBeInTheDocument()
   })
   it("shows the AI approval section disabled until a provider exists and revokes delegations immediately", async () => {
+    const permissionsPayload = payload()
+    permissionsPayload.inherited.push({
+      ...permissionsPayload.inherited[0],
+      capability: "syrus.permissions@v1",
+      operation: "syrus.permissions/list_permissions@v1",
+      presentation: {
+        capability_name: "Syrus Permissions", capability_description: "Permits access to permission management.",
+        operation_name: "List Permissions", operation_description: "Permits an agent to list permissions."
+      }
+    })
     const empty = { enabled: false, providers: [], delegations: [], human_only: { effects: ["financial"], capabilities: [] }, history: [] }
     const enabled = {
       enabled: true,
@@ -257,7 +267,7 @@ describe("PermissionsSettingsRoute", () => {
           created_at: "2026-01-01T00:00:00Z"
         }
       ],
-      human_only: { effects: ["financial"], capabilities: ["syrus.permissions@v1"] },
+      human_only: { effects: ["financial"], capabilities: ["syrus.permissions"] },
       history: [
         {
           id: 1,
@@ -278,7 +288,7 @@ describe("PermissionsSettingsRoute", () => {
         current = { ...enabled, delegations: [{ ...enabled.delegations[0], status: "revoked" }] }
         return Promise.resolve(jsonResponse({}))
       }
-      return Promise.resolve(jsonResponse(url.endsWith("/approval_delegations") ? current : payload()))
+      return Promise.resolve(jsonResponse(url.endsWith("/approval_delegations") ? current : permissionsPayload))
     })
     renderRoute()
 
@@ -289,7 +299,8 @@ describe("PermissionsSettingsRoute", () => {
     fireEvent.click(screen.getByRole("button", { name: "Agent matrix" }))
     fireEvent.click(screen.getByRole("button", { name: "AI approvals" }))
     expect(await screen.findByText(/Sent to Reviewer Cloud/)).toBeInTheDocument()
-    expect(screen.getByText(/Always decided by a human/)).toBeInTheDocument()
+    expect(screen.getByText(/Always decided by a human.*Syrus Permissions/)).toBeInTheDocument()
+    expect(screen.getByText("syrus.permissions")).toBeInTheDocument()
     expect(screen.getByText(/allow: Cancel job/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Revoke now" }))
