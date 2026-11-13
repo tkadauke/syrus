@@ -81,6 +81,11 @@ export async function getJson<T>(path: string, options: { signal?: AbortSignal }
   return data
 }
 
+export async function getJsonIfModified<T>(path: string, options: { signal?: AbortSignal } = {}): Promise<T | null> {
+  const { data, meta } = await getJsonWithMeta<T>(path, options)
+  return meta.status === 304 ? null : data
+}
+
 export type JsonResponseMeta = {
   path: string
   requestId: string | null
@@ -126,6 +131,8 @@ async function performJsonRead<T>(path: string, options: { signal?: AbortSignal 
   if (response.status === 401) {
     redirectToSignIn()
   }
+
+  if (response.status === 304) return { data: undefined as T, meta }
 
   if (!response.ok) {
     const payload = await readErrorPayload(response)

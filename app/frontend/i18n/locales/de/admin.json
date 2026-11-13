@@ -1159,6 +1159,7 @@
     "download_jsonl": "JSONL herunterladen",
     "title": "Lauf #{{runId}} · Transkript",
     "new_messages": "Neue Nachrichten",
+    "load_full_event": "Vollständigen Ereignisinhalt laden",
     "turns": "Züge",
     "tool_calls": "Tool-Aufrufe",
     "cost": "Kosten",

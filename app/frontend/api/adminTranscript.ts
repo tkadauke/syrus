@@ -1,22 +1,21 @@
-import { getJson } from "./client"
+import { getJson, getJsonIfModified } from "./client"
 
 export type TranscriptSummary = {
-  session_id: string | null
   model: string | null
-  cwd: string | null
   total_turns: number | null
   total_tool_calls: number
   total_cost_usd: number | null
   exit_reason: string | null
   tool_call_counts: Record<string, number>
   mcp_tool_called: boolean
-  available_tools_at_init: string[]
 }
 
 export type TranscriptEvent = {
+  index?: number
   kind: string
   timestamp: string | null
   data: Record<string, unknown>
+  body_truncated?: boolean
 }
 
 export type TranscriptPayload = {
@@ -37,6 +36,11 @@ export type TranscriptPayload = {
   events: TranscriptEvent[]
 }
 
-export function fetchAdminTranscript(runId: string, page: number, per: number) {
-  return getJson<TranscriptPayload>(`/api/v1/app/admin/runs/${runId}/transcript?page=${page}&per=${per}`)
+export function fetchAdminTranscript(runId: string, page: number, per: number, afterEvent?: number) {
+  const cursor = afterEvent == null ? "" : `&after_event=${afterEvent}`
+  return getJsonIfModified<TranscriptPayload>(`/api/v1/app/admin/runs/${runId}/transcript?page=${page}&per=${per}${cursor}`)
+}
+
+export function fetchAdminTranscriptEvent(runId: number, eventIndex: number) {
+  return getJson<TranscriptEvent>(`/api/v1/app/admin/runs/${runId}/transcript/events/${eventIndex}`)
 }

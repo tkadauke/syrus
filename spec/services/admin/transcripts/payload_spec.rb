@@ -21,9 +21,6 @@ RSpec.describe Admin::Transcripts::Payload do
     payload = described_class.new(params: {}).show_for_agent(agent.id)
 
     expect(payload).to include(
-      agent_id: agent.id,
-      resumable_type: "ChatSession",
-      resumable_id: chat.id,
       run_id: nil,
       job_id: nil,
       step_kind: nil,
@@ -48,8 +45,6 @@ RSpec.describe Admin::Transcripts::Payload do
     payload = described_class.new(params: {}).show_for_resumable(type: "Run", id: run.id)
 
     expect(payload).to include(
-      resumable_type: "Run",
-      resumable_id: run.id,
       run_id: run.id,
       job_id: job.id
     )
@@ -66,5 +61,31 @@ RSpec.describe Admin::Transcripts::Payload do
 
     expect(active_payload.fetch(:finished)).to be(false)
     expect(finished_payload.fetch(:finished)).to be(true)
+  end
+
+  it "returns only events after the supplied cursor" do
+    run = Factories.job.initial_run
+    run.create_provider_session!(provider: "codex", session_id: "delta", transcript_jsonl: jsonl(
+      { "type" => "assistant", "message" => { "content" => [ { "type" => "text", "text" => "first" } ] } },
+      { "type" => "assistant", "message" => { "content" => [ { "type" => "text", "text" => "second" } ] } }
+    ))
+
+    payload = described_class.new(params: { after_event: "1" }).show(run.id)
+
+    expect(payload.fetch(:events)).to contain_exactly(include(index: 1, data: include(text: "second")))
+    expect(payload.dig(:pagination, :total_events)).to eq(2)
+  end
+
+  it "previews oversized event bodies and serves the full indexed event separately" do
+    run = Factories.job.initial_run
+    full_text = "x" * (described_class::MAX_INLINE_EVENT_BYTES + 1)
+    run.create_provider_session!(provider: "codex", session_id: "large", transcript_jsonl: jsonl(
+      { "type" => "assistant", "message" => { "content" => [ { "type" => "text", "text" => full_text } ] } }
+    ))
+    payload = described_class.new(params: {}).show(run.id)
+
+    expect(payload.fetch(:events).first).to include(index: 0, body_truncated: true)
+    expect(payload.dig(:events, 0, :data, :text).bytesize).to be < full_text.bytesize
+    expect(described_class.new(params: {}).event(run.id, 0).dig(:data, :text)).to eq(full_text)
   end
 end

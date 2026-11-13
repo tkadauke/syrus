@@ -3,7 +3,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type UIEvent, type ReactNode } from "react"
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom"
 import { ApiError } from "../api/client"
-import { fetchAdminTranscript, type TranscriptPayload } from "../api/adminTranscript"
+import { fetchAdminTranscript, fetchAdminTranscriptEvent, type TranscriptPayload } from "../api/adminTranscript"
 import { AnsiText } from "../components/AnsiText"
 import { Markdown } from "../lib/Markdown"
 import { useT } from "../hooks/useT"
@@ -24,9 +24,22 @@ export function AdminTranscript() {
   const prefix = routePrefix(location.pathname)
   const page = positiveInteger(searchParams.get("page"), 1)
   const per = positiveInteger(searchParams.get("per"), DEFAULT_PER_PAGE)
+  const payloadRef = useRef<TranscriptPayload | undefined>(undefined)
+  const pageKeyRef = useRef(`${runId}:${page}:${per}`)
   const transcript = useQuery({
     queryKey: ["admin", "transcript", runId, { page, per }],
-    queryFn: () => fetchAdminTranscript(runId, page, per),
+    queryFn: async () => {
+      const pageKey = `${runId}:${page}:${per}`
+      if (pageKeyRef.current !== pageKey) {
+        pageKeyRef.current = pageKey
+        payloadRef.current = undefined
+      }
+      const previous = payloadRef.current
+      const afterEvent = previous ? transcriptCursor(previous) : undefined
+      const next = await fetchAdminTranscript(runId, page, per, afterEvent)
+      if (next) payloadRef.current = previous ? mergeTranscriptDelta(previous, next) : next
+      return payloadRef.current as TranscriptPayload
+    },
     enabled: runId.length > 0,
     staleTime: 0,
     refetchInterval: (query) => transcriptRefetchInterval(query.state.data),
@@ -44,6 +57,17 @@ export function AdminTranscript() {
 
 export function transcriptRefetchInterval(payload?: Pick<TranscriptPayload, "finished">) {
   return payload?.finished ? false : TRANSCRIPT_REFETCH_INTERVAL_MS
+}
+
+export function mergeTranscriptDelta(previous: TranscriptPayload, delta: TranscriptPayload) {
+  const events = new Map(previous.events.map((event, index) => [event.index ?? index, event]))
+  delta.events.forEach((event, index) => events.set(event.index ?? previous.events.length + index, event))
+  return { ...delta, events: Array.from(events.entries()).sort(([left], [right]) => left - right).map(([, event]) => event) }
+}
+
+function transcriptCursor(payload: TranscriptPayload) {
+  const indexes = payload.events.map((event) => event.index).filter((index): index is number => index != null)
+  return indexes.length > 0 ? Math.max(...indexes) + 1 : payload.pagination.total_events
 }
 
 function TranscriptView({ payload, prefix }: { payload: TranscriptPayload; prefix: string }) {
@@ -86,8 +110,15 @@ function TranscriptEventStream({ payload }: { payload: TranscriptPayload }) {
   const totalEventsRef = useRef(payload.pagination.total_events)
   const streamPageRef = useRef(transcriptPageKey(payload))
   const [hasNewMessages, setHasNewMessages] = useState(false)
-  const eventSignature = transcriptEventSignature(payload)
-  const items = useMemo(() => groupTranscriptEvents(payload.events), [payload])
+  const [events, setEvents] = useState(payload.events)
+  useEffect(() => setEvents(payload.events), [payload.events])
+  const eventSignature = transcriptEventSignature({ ...payload, events })
+  const items = useMemo(() => groupTranscriptEvents(events), [events])
+
+  const loadFullEvent = useCallback(async (eventIndex: number) => {
+    const event = await fetchAdminTranscriptEvent(payload.run_id, eventIndex)
+    setEvents((current) => current.map((existing) => existing.index === eventIndex ? event : existing))
+  }, [payload.run_id])
 
   const scrollToBottom = useCallback(() => {
     scrollTranscriptStreamToBottom(streamRef.current)
@@ -133,7 +164,7 @@ function TranscriptEventStream({ payload }: { payload: TranscriptPayload }) {
       >
         {items.length === 0 ? <PanelMessage>{t("transcript.no_events")}</PanelMessage> : null}
         {items.map((item) => (
-          <TranscriptRenderItemView item={item} key={item.key} />
+          <TranscriptRenderItemView item={item} key={item.key} loadFullEvent={loadFullEvent} />
         ))}
       </section>
       {hasNewMessages ? <NewMessagesButton onClick={scrollToBottom} /> : null}
@@ -234,46 +265,60 @@ function Pagination({ payload }: { payload: TranscriptPayload }) {
   )
 }
 
-function TranscriptRenderItemView({ item }: { item: AdminTranscriptRenderItem }) {
+function TranscriptRenderItemView({ item, loadFullEvent }: { item: AdminTranscriptRenderItem; loadFullEvent: (eventIndex: number) => Promise<void> }) {
   const { t } = useT("admin")
 
-  switch (item.type) {
-    case "tool_group":
-      return <ToolGroup item={item} />
-    case "text":
-      if (item.kind === "user_prompt") {
+  const view = (() => {
+    switch (item.type) {
+      case "tool_group":
+        return <ToolGroup item={item} />
+      case "text":
+        if (item.kind === "user_prompt") {
+          return (
+            <div className="flex justify-end">
+              <pre className="max-w-[85%] whitespace-pre-wrap break-words rounded bg-brand px-4 py-2 text-sm leading-normal text-on-brand">
+                <AnsiText text={item.text} />
+              </pre>
+            </div>
+          )
+        }
+        if (item.kind === "assistant_text") {
+          return (
+            <div className="rounded border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900">
+              <Markdown className="chat-prose text-gray-800 dark:text-gray-100" text={item.text} />
+            </div>
+          )
+        }
         return (
-          <div className="flex justify-end">
-            <pre className="max-w-[85%] whitespace-pre-wrap break-words rounded bg-brand px-4 py-2 text-sm leading-normal text-on-brand">
+          <div className="rounded border border-gray-200 bg-white px-3 py-2 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
+            <div className="mb-1 font-medium uppercase">job log</div>
+            <pre className="whitespace-pre-wrap break-words font-mono">
               <AnsiText text={item.text} />
             </pre>
           </div>
         )
-      }
-      if (item.kind === "assistant_text") {
-        return (
-          <div className="rounded border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900">
-            <Markdown className="chat-prose text-gray-800 dark:text-gray-100" text={item.text} />
-          </div>
-        )
-      }
-      return (
-        <div className="rounded border border-gray-200 bg-white px-3 py-2 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">
-          <div className="mb-1 font-medium uppercase">job log</div>
-          <pre className="whitespace-pre-wrap break-words font-mono">
-            <AnsiText text={item.text} />
-          </pre>
-        </div>
-      )
-    case "system_init":
-      return <DetailsCard badge="init" title={`${stringValue(item.data.model)} · ${stringValue(item.data.cwd)}`} data={item.data} />
-    case "result":
-      return <ResultCard data={item.data} />
-    case "fallback":
-      return <DetailsCard badge={item.badge} title={item.title ?? t("transcript.other_event")} data={item.data} tone={item.tone} />
-    default:
-      return null
-  }
+      case "system_init":
+        return <DetailsCard badge="init" title={`${stringValue(item.data.model)} · ${stringValue(item.data.cwd)}`} data={item.data} />
+      case "result":
+        return <ResultCard data={item.data} />
+      case "fallback":
+        return <DetailsCard badge={item.badge} title={item.title ?? t("transcript.other_event")} data={item.data} tone={item.tone} />
+      default:
+        return null
+    }
+  })()
+
+  if (item.truncatedEventIndexes.length === 0) return view
+  return (
+    <div>
+      {view}
+      {item.truncatedEventIndexes.map((eventIndex) => (
+        <button className="mt-1 text-xs text-brand underline hover:no-underline" key={eventIndex} onClick={() => void loadFullEvent(eventIndex)} type="button">
+          {t("transcript.load_full_event")}
+        </button>
+      ))}
+    </div>
+  )
 }
 
 function DetailsCard({ badge, title, data, tone = "gray" }: { badge: string; title: string; data: unknown; tone?: "gray" | "red" | "emerald" }) {
