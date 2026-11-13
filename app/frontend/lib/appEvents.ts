@@ -197,10 +197,17 @@ function patchJobResourceQueries(queryClient: QueryClient, event: AppEvent, fiel
   queryClient.setQueriesData<JobDetailPayload | JobWorkflowsPayload>({ predicate: (query) => jobWorkflowPayloadQuery(query.queryKey, jobId) }, (current) =>
     current ? patchJobWorkflowPayload(current, event, patch) : current
   )
+  queryClient.setQueriesData<JobWorkflow>({ predicate: (query) => jobWorkflowDetailQuery(query.queryKey, jobId) }, (current) =>
+    current ? patchWorkflow(current, event, String(event.id), patch) : current
+  )
 }
 
 function jobWorkflowPayloadQuery(queryKey: QueryKey, jobId: string) {
   return queryKey.length >= 3 && queryKey[0] === "jobs" && queryKey[1] === jobId && (queryKey[2] === "detail" || queryKey[2] === "workflows")
+}
+
+function jobWorkflowDetailQuery(queryKey: QueryKey, jobId: string) {
+  return queryKey.length === 4 && queryKey[0] === "jobs" && queryKey[1] === jobId && queryKey[2] === "workflow_detail"
 }
 
 function patchJobWorkflowPayload<T extends JobDetailPayload | JobWorkflowsPayload>(payload: T, event: AppEvent, fields: Record<string, unknown>): T {
@@ -250,6 +257,8 @@ function patchStep(step: JobStep, event: AppEvent, id: string, fields: Record<st
   if (event.resource === "step") {
     return String(step.id) === id && freshEnoughForCachePatch(event, step.entity_revision) ? { ...step, ...fields } : step
   }
+
+  if (!Object.prototype.hasOwnProperty.call(step, "runs")) return step
 
   let patched = false
   const runs = step.runs.map((run) => {
