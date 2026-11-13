@@ -156,7 +156,7 @@ export function PermissionRuleEditor({
     <form
       aria-busy={loading || review.isPending || apply.isPending}
       aria-labelledby={`${ids}-title`}
-      className="space-y-4 text-sm"
+      className="min-w-0 space-y-4 overflow-x-auto text-sm"
       data-testid="permission-rule-editor"
       onKeyDown={(event) => {
         if (event.key === "Escape" && !apply.isPending) {

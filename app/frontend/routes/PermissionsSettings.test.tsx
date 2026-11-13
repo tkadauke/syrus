@@ -8,6 +8,29 @@ import { PermissionsSettingsRoute } from "./PermissionsSettings"
 describe("PermissionsSettingsRoute", () => {
   afterEach(() => vi.restoreAllMocks())
 
+  it("contains wide permission content in local horizontal scrollers", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      if (String(input).endsWith("/history")) return Promise.resolve(jsonResponse(historyPayload()))
+      return Promise.resolve(jsonResponse(payload()))
+    })
+    const { container } = renderRoute()
+
+    const hub = await screen.findByRole("main", { name: "Permissions" })
+    expect(hub).toHaveClass("min-w-0", "px-4", "sm:px-6")
+    const tabs = screen.getByRole("navigation", { name: "Permission views" })
+    expect(tabs).toHaveClass("min-w-0", "overflow-x-auto")
+    expect(within(tabs).getByRole("button", { name: "AI approvals" })).toHaveClass("shrink-0")
+    expect(container.querySelector('[data-data-table-overflow-wrapper="true"]')).toHaveClass("max-w-full", "overflow-x-auto")
+
+    fireEvent.click(screen.getByRole("button", { name: "Rules" }))
+    expect(container.querySelector("#permission-rule-4")).toHaveClass("min-w-0", "overflow-x-auto")
+    fireEvent.click(screen.getByRole("button", { name: "New rule" }))
+    expect(await screen.findByTestId("permission-rule-editor")).toHaveClass("min-w-0", "overflow-x-auto")
+
+    fireEvent.click(screen.getByRole("button", { name: "History" }))
+    expect((await screen.findByText("Authorization request")).closest("li")).toHaveClass("min-w-0", "overflow-x-auto")
+  })
+
   it("separates editable user rules from inherited read-only policy", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(payload())))
     renderRoute()
@@ -54,6 +77,7 @@ describe("PermissionsSettingsRoute", () => {
     const fullAccess = (await screen.findByRole("heading", { name: "Full access" })).closest("article")!
     fireEvent.click(within(fullAccess).getByRole("button", { name: "Select" }))
     const dialog = await screen.findByRole("dialog", { name: "Change permission profile" })
+    expect(dialog).toHaveClass("min-w-0", "overflow-x-hidden")
     expect(dialog).toHaveTextContent("Apply Full access to Interactive chat")
     expect(dialog).toHaveTextContent("Rules removed (1)")
     expect(dialog).toHaveTextContent("Profile rules added (2)")
@@ -300,7 +324,8 @@ describe("PermissionsSettingsRoute", () => {
     renderRoute()
 
     fireEvent.click(await screen.findByRole("button", { name: "AI approvals" }))
-    expect(await screen.findByText(/AI approvals are off/)).toBeInTheDocument()
+    const disabledNotice = await screen.findByText(/AI approvals are off/)
+    expect(disabledNotice.closest("section")).toHaveClass("min-w-0", "p-4", "sm:p-5")
 
     current = enabled
     fireEvent.click(screen.getByRole("button", { name: "Agent matrix" }))
@@ -376,7 +401,7 @@ function mockHub() {
 }
 
 function renderRoute(entry = "/") {
-  render(
+  return render(
     <MemoryRouter initialEntries={[entry]}>
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <PermissionsSettingsRoute />

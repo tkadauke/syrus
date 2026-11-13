@@ -175,7 +175,7 @@ export function PermissionsSettingsRoute() {
   const previewRevokes = () => bulkPreview.mutate(selectedRuleIds.map((id) => ({ action: "revoke" as const, id })))
 
   return (
-    <main aria-label={t("permissions.title")} className="mx-auto max-w-7xl space-y-6 p-6">
+    <main aria-label={t("permissions.title")} className="mx-auto min-w-0 max-w-7xl space-y-6 px-4 py-6 sm:px-6">
       <header>
         <PageHeading>{t("permissions.title")}</PageHeading>
         <p className="mt-1 text-sm text-text-secondary">{t("permissions.description")}</p>
@@ -184,7 +184,7 @@ export function PermissionsSettingsRoute() {
         </Link>
       </header>
       {query.data ? (
-        <section aria-labelledby="permission-profile-heading" className="rounded-xl border border-border bg-surface-raised p-5">
+        <section aria-labelledby="permission-profile-heading" className="min-w-0 rounded-xl border border-border bg-surface-raised p-4 sm:p-5">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <SectionHeading id="permission-profile-heading">{t("permissions.profile_title")}</SectionHeading>
@@ -242,10 +242,10 @@ export function PermissionsSettingsRoute() {
         <PanelMessage tone="error">{errorMessage(bulkPreview.error || bulkApply.error, t("permissions.create_error"))}</PanelMessage>
       ) : null}
       {revoke.isError ? <PanelMessage tone="error">{errorMessage(revoke.error, t("permissions.revoke_error"))}</PanelMessage> : null}
-      <nav aria-label={t("permissions.views_label")} className="flex gap-2 border-b border-border">
+      <nav aria-label={t("permissions.views_label")} className="scroll-fade-x flex min-w-0 overflow-x-auto border-b border-border">
         {(["matrix", "resources", "rules", "leases", "history", "ai_approval"] as View[]).map((item) => (
           <button
-            className={`px-3 py-2 text-sm font-medium ${view === item ? "border-b-2 border-brand text-brand" : "text-text-secondary"}`}
+            className={`shrink-0 px-3 py-2 text-sm font-medium ${view === item ? "border-b-2 border-brand text-brand" : "text-text-secondary"}`}
             key={item}
             onClick={() => setView(item)}
           >
@@ -257,7 +257,7 @@ export function PermissionsSettingsRoute() {
       {view === "ai_approval" ? <AiApprovalDelegations descriptors={descriptors} /> : null}
 
       {view === "matrix" ? (
-        <section className="overflow-x-auto rounded-xl border border-border bg-surface-raised p-5">
+        <section className="min-w-0 rounded-xl border border-border bg-surface-raised p-4 sm:p-5">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <div>
               <SectionHeading>{t("permissions.matrix_title")}</SectionHeading>
@@ -274,7 +274,7 @@ export function PermissionsSettingsRoute() {
               </div>
             ) : null}
           </div>
-          <DataTable.Root>
+          <DataTable.Root wrapperClassName="max-w-full">
             <DataTable.Header>
               <DataTable.Row>
                 <DataTable.HeadCell>{t("permissions.capability")}</DataTable.HeadCell>
@@ -319,7 +319,7 @@ export function PermissionsSettingsRoute() {
       ) : null}
       {view === "history" ? <HistoryView descriptors={descriptors} entries={historyQuery.data?.history ?? []} loading={historyQuery.isLoading} t={t} /> : null}
       {view === "rules" ? (
-        <section className="rounded-xl border border-border bg-surface-raised p-5">
+        <section className="min-w-0 rounded-xl border border-border bg-surface-raised p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3">
             <SectionHeading>{t("permissions.your_rules")}</SectionHeading>
             {selectedRuleIds.length ? (
@@ -333,44 +333,46 @@ export function PermissionsSettingsRoute() {
             {rules.map((rule) => (
               <article
                 aria-current={rule.id === highlightedRuleId ? "true" : undefined}
-                className={`flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between ${rule.id === highlightedRuleId ? "border-brand bg-brand/5" : "border-border"}`}
+                className={`min-w-0 overflow-x-auto rounded-lg border p-4 ${rule.id === highlightedRuleId ? "border-brand bg-brand/5" : "border-border"}`}
                 id={`permission-rule-${rule.id}`}
                 key={rule.id}
               >
-                <Checkbox
-                  aria-label={t("permissions.select_rule", { capability: rule.capability, operation: rule.operation })}
-                  checked={selectedRuleIds.includes(rule.id)}
-                  onChange={() => setSelectedRuleIds(toggleNumber(selectedRuleIds, rule.id))}
-                />
-                <div>
-                  <p className="font-medium text-text-primary">
-                    {presentationLabel(rule.capability, rule.operation, descriptors) || t("permissions.all_operations")}
-                    <code className="block text-xs font-normal text-text-muted">
-                      {rule.capability} · {rule.operation}
-                    </code>
-                  </p>
-                  <p className="mt-1 text-sm text-text-secondary">
-                    {t("permissions.rule_summary", { policy: rule.policy, subject: t(`permissions.subjects.${rule.subject_selector_type}`) })}
-                  </p>
-                  <p className="mt-1 text-xs text-text-muted">
-                    {rule.resource_scope_label} · {t("permissions.owned_by", { owner: rule.owner.name })}
-                    {rule.rationale ? ` · ${rule.rationale}` : ""}
-                  </p>
-                </div>
-                {rule.editable ? (
-                  <div className="flex gap-2">
-                    <button className="rounded-md border border-border px-3 py-1.5 text-sm" onClick={() => startEdit(rule)}>
-                      {t("permissions.edit")}
-                    </button>
-                    <button
-                      className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-danger"
-                      disabled={revoke.isPending}
-                      onClick={() => revoke.mutate(rule.id)}
-                    >
-                      {t("permissions.revoke")}
-                    </button>
+                <div className="flex min-w-max flex-col gap-3 sm:min-w-full sm:flex-row sm:items-center sm:justify-between">
+                  <Checkbox
+                    aria-label={t("permissions.select_rule", { capability: rule.capability, operation: rule.operation })}
+                    checked={selectedRuleIds.includes(rule.id)}
+                    onChange={() => setSelectedRuleIds(toggleNumber(selectedRuleIds, rule.id))}
+                  />
+                  <div>
+                    <p className="font-medium text-text-primary">
+                      {presentationLabel(rule.capability, rule.operation, descriptors) || t("permissions.all_operations")}
+                      <code className="block text-xs font-normal text-text-muted">
+                        {rule.capability} · {rule.operation}
+                      </code>
+                    </p>
+                    <p className="mt-1 text-sm text-text-secondary">
+                      {t("permissions.rule_summary", { policy: rule.policy, subject: t(`permissions.subjects.${rule.subject_selector_type}`) })}
+                    </p>
+                    <p className="mt-1 text-xs text-text-muted">
+                      {rule.resource_scope_label} · {t("permissions.owned_by", { owner: rule.owner.name })}
+                      {rule.rationale ? ` · ${rule.rationale}` : ""}
+                    </p>
                   </div>
-                ) : null}
+                  {rule.editable ? (
+                    <div className="flex gap-2">
+                      <button className="rounded-md border border-border px-3 py-1.5 text-sm" onClick={() => startEdit(rule)}>
+                        {t("permissions.edit")}
+                      </button>
+                      <button
+                        className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-danger"
+                        disabled={revoke.isPending}
+                        onClick={() => revoke.mutate(rule.id)}
+                      >
+                        {t("permissions.revoke")}
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
               </article>
             ))}
             {rules.length === 0 ? <p className="text-sm text-text-muted">{t("permissions.no_rules")}</p> : null}
@@ -410,7 +412,7 @@ export function PermissionsSettingsRoute() {
           )}
         </section>
       ) : null}
-      <section className="rounded-xl border border-border bg-surface-raised p-5">
+      <section className="min-w-0 rounded-xl border border-border bg-surface-raised p-4 sm:p-5">
         <SectionHeading>{t("permissions.inherited_policy")}</SectionHeading>
         <p className="mt-1 text-sm text-text-secondary">{t("permissions.inherited_help")}</p>
         <div className="mt-4 divide-y divide-border">
@@ -419,7 +421,12 @@ export function PermissionsSettingsRoute() {
           ))}
         </div>
       </section>
-      <Modal label={t("permissions.profile_confirm_title")} onClose={() => setProfilePreview(null)} open={Boolean(profilePreview)}>
+      <Modal
+        className="w-full min-w-0 max-w-sm overflow-x-hidden rounded-[var(--radius-panel)] bg-surface p-5 shadow-[var(--shadow-panel)]"
+        label={t("permissions.profile_confirm_title")}
+        onClose={() => setProfilePreview(null)}
+        open={Boolean(profilePreview)}
+      >
         {profilePreview ? (
           <div className="space-y-4">
             <SectionHeading>
@@ -495,7 +502,7 @@ function ProfileRuleList({
   t: Translate
 }) {
   return (
-    <section className="rounded-lg border border-border p-3">
+    <section className="min-w-0 overflow-x-auto rounded-lg border border-border p-3">
       <h3 className="text-sm font-semibold text-text-primary">{heading}</h3>
       {rows.length ? (
         <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto">
@@ -537,12 +544,12 @@ function ResourceView({ descriptors, rules, t }: { descriptors: InheritedPermiss
     return result
   }, {})
   return (
-    <section className="rounded-xl border border-border bg-surface-raised p-5">
+    <section className="min-w-0 rounded-xl border border-border bg-surface-raised p-4 sm:p-5">
       <SectionHeading>{t("permissions.resources_title")}</SectionHeading>
       <p className="mt-1 text-sm text-text-secondary">{t("permissions.resources_help")}</p>
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         {Object.entries(groups).map(([label, items]) => (
-          <article className="rounded-lg border border-border p-4" key={label}>
+          <article className="min-w-0 overflow-x-auto rounded-lg border border-border p-4" key={label}>
             <h3 className="font-medium">{items[0].resource_scope_label}</h3>
             <p className="text-xs text-text-muted">{items[0].resource_type}</p>
             <ul className="mt-2 space-y-1 text-sm">
@@ -568,12 +575,12 @@ function ResourceView({ descriptors, rules, t }: { descriptors: InheritedPermiss
 
 function LeaseView({ descriptors, leases, loading, t }: { descriptors: InheritedPermission[]; leases: PermissionLease[]; loading: boolean; t: Translate }) {
   return (
-    <section className="rounded-xl border border-border bg-surface-raised p-5">
+    <section className="min-w-0 rounded-xl border border-border bg-surface-raised p-4 sm:p-5">
       <SectionHeading>{t("permissions.leases_title")}</SectionHeading>
       <p className="mt-1 text-sm text-text-secondary">{t("permissions.leases_help")}</p>
       <div className="mt-4 space-y-3">
         {leases.map((lease) => (
-          <article className="rounded-lg border border-border p-4" key={lease.id}>
+          <article className="min-w-0 overflow-x-auto rounded-lg border border-border p-4" key={lease.id}>
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <h3 className="font-medium">{presentationLabel(lease.capability, lease.operation, descriptors) || t("permissions.all_operations")}</h3>
@@ -621,12 +628,12 @@ function HistoryView({
   t: Translate
 }) {
   return (
-    <section className="rounded-xl border border-border bg-surface-raised p-5">
+    <section className="min-w-0 rounded-xl border border-border bg-surface-raised p-4 sm:p-5">
       <SectionHeading>{t("permissions.history_title")}</SectionHeading>
       <p className="mt-1 text-sm text-text-secondary">{t("permissions.history_help")}</p>
       <ol className="mt-4 space-y-3">
         {entries.map((entry) => (
-          <li className="rounded-lg border border-border p-4" key={`${entry.type}-${entry.id}`}>
+          <li className="min-w-0 overflow-x-auto rounded-lg border border-border p-4" key={`${entry.type}-${entry.id}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h3 className="font-medium">{historyTitle(entry, descriptors, t)}</h3>
@@ -724,14 +731,19 @@ type BulkPreviewModalProps = {
 
 function BulkPreviewModal({ applying, descriptors, onClose, onConfirm, preview, t }: BulkPreviewModalProps) {
   return (
-    <Modal label={t("permissions.confirm_bulk_title")} onClose={onClose} open={Boolean(preview)}>
+    <Modal
+      className="w-full min-w-0 max-w-sm overflow-x-hidden rounded-[var(--radius-panel)] bg-surface p-5 shadow-[var(--shadow-panel)]"
+      label={t("permissions.confirm_bulk_title")}
+      onClose={onClose}
+      open={Boolean(preview)}
+    >
       {preview ? (
         <>
           <SectionHeading>{t("permissions.confirm_bulk_title")}</SectionHeading>
           <p className="mt-1 text-sm text-text-secondary">{t("permissions.confirm_bulk_help", { count: preview.rows.length })}</p>
           <ul className="my-4 max-h-80 space-y-2 overflow-y-auto">
             {preview.rows.map((row: PermissionPreview, index: number) => (
-              <li className="rounded-md border border-border p-2 text-sm" key={`${row.capability}-${row.operation}-${index}`}>
+              <li className="overflow-x-auto rounded-md border border-border p-2 text-sm" key={`${row.capability}-${row.operation}-${index}`}>
                 <strong>{row.policy}</strong> · {row.subject}
                 <br />
                 {presentationLabel(row.capability, row.operation, descriptors) || t("permissions.unknown")}
@@ -764,7 +776,7 @@ function InheritedRow({ item, onPreset, t }: { item: InheritedPermission; onPres
     .map(([role, policy]) => `${role}: ${policy}`)
     .join(", ")
   return (
-    <div className="py-3">
+    <div className="min-w-0 overflow-x-auto py-3">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="font-medium">
