@@ -11,7 +11,11 @@ import { MysqlQueryResultPanel } from "./MysqlQueryResultPanel"
 // already treats as browsable - so this is the Query tab with a canned
 // statement and 30s auto-refresh, not bespoke controller/service code.
 const CANNED_QUERIES = [
-  { id: "process_list", labelKey: "live_process_list", sql: "SELECT ID, USER, HOST, DB, COMMAND, TIME, STATE, LEFT(INFO, 200) AS INFO FROM information_schema.PROCESSLIST ORDER BY TIME DESC" },
+  {
+    id: "process_list",
+    labelKey: "live_process_list",
+    sql: "SELECT ID, USER, HOST, DB, COMMAND, TIME, STATE, LEFT(INFO, 200) AS INFO FROM information_schema.PROCESSLIST ORDER BY TIME DESC"
+  },
   {
     id: "global_status",
     labelKey: "live_global_status",
