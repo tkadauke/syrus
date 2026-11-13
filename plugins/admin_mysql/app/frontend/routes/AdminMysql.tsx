@@ -127,7 +127,6 @@ function MysqlDashboard({
 }) {
   const summary = payload.connection_summary
   const activeProcesses = payload.process_list.filter((process) => process.command !== "Sleep")
-  const idleCount = payload.process_list.length - activeProcesses.length
   const visibleProcesses = hideIdle ? activeProcesses : payload.process_list
   return (
     <div className="space-y-6">
@@ -192,7 +191,7 @@ function MysqlDashboard({
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
           <SectionHeading>{t("process_list")}</SectionHeading>
           <div className="flex flex-wrap items-center gap-3">
-            <Checkbox checked={hideIdle} label={t("hide_idle_threads", { count: idleCount })} onChange={onToggleHideIdle} />
+            <Checkbox checked={hideIdle} label={t("hide_idle_threads", { count: summary.sleeping_connections })} onChange={onToggleHideIdle} />
             <p className="text-xs text-gray-500 dark:text-gray-400">{t("generated", { time: new Date(payload.generated_at).toLocaleString() })}</p>
           </div>
         </div>
