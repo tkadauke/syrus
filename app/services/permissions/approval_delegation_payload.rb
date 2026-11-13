@@ -20,6 +20,8 @@ module Permissions
           effects: ApprovalProviderDelegation::CORE_HUMAN_ONLY_EFFECTS,
           capabilities: [ Permissions::ApprovalProviderAuthorizer::HUMAN_ONLY_CAPABILITY ]
         },
+        plugins: Permissions::PluginContributions.as_json,
+        can_manage_plugins: user.admin?,
         history: history
       }
     end

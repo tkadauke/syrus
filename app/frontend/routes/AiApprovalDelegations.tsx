@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
+import { Link, useLocation } from "react-router-dom"
 import { createApprovalDelegation, fetchApprovalDelegations, revokeApprovalDelegation, type InheritedPermission } from "../api/permissions"
 import { Input } from "../components/Input"
 import { SectionHeading } from "../components/Heading"
@@ -7,11 +8,14 @@ import { PanelMessage } from "../components/PanelMessage"
 import { Select } from "../components/Select"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
+import { routePrefix, withRoutePrefix } from "../lib/routing"
 
 const queryKey = ["approval_delegations"] as const
 
 export function AiApprovalDelegations({ descriptors }: { descriptors: InheritedPermission[] }) {
   const { t } = useT("settings")
+  const location = useLocation()
+  const prefix = routePrefix(location.pathname)
   const queryClient = useQueryClient()
   const query = useQuery({ queryKey, queryFn: fetchApprovalDelegations })
   const refresh = () => queryClient.invalidateQueries({ queryKey })
@@ -84,6 +88,24 @@ export function AiApprovalDelegations({ descriptors }: { descriptors: InheritedP
             })}
           </p>
           <code className="block text-xs text-text-muted">{data.human_only.capabilities.join(", ")}</code>
+        </div>
+      ) : null}
+
+      {data ? (
+        <div className="space-y-4 border-t border-border pt-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-medium text-text-primary">{t("permissions.ai.plugins_title")}</h3>
+              <p className="mt-1 text-sm text-text-secondary">{t("permissions.ai.plugins_help")}</p>
+            </div>
+            {data.can_manage_plugins ? (
+              <Link className="text-sm font-medium text-brand hover:underline" to={withRoutePrefix("/admin/plugins", prefix)}>
+                {t("permissions.ai.manage_plugins")}
+              </Link>
+            ) : null}
+          </div>
+          <PluginGroup installed plugins={(data.plugins || []).filter((plugin) => plugin.installed)} />
+          <PluginGroup installed={false} plugins={(data.plugins || []).filter((plugin) => !plugin.installed)} />
         </div>
       ) : null}
 
@@ -167,6 +189,37 @@ export function AiApprovalDelegations({ descriptors }: { descriptors: InheritedP
         {data && data.history.length === 0 ? <p className="text-sm text-text-muted">{t("permissions.ai.no_history")}</p> : null}
       </div>
     </section>
+  )
+}
+
+function PluginGroup({ installed, plugins }: { installed: boolean; plugins: import("../api/permissions").ApprovalPlugin[] }) {
+  const { t } = useT("settings")
+  return (
+    <section aria-label={t(installed ? "permissions.ai.installed_plugins" : "permissions.ai.available_plugins")} className="space-y-2">
+      <h4 className="text-sm font-semibold text-text-primary">
+        {t(installed ? "permissions.ai.installed_plugins" : "permissions.ai.available_plugins")}
+      </h4>
+      {plugins.map((plugin) => (
+        <article className="min-w-0 rounded-lg border border-border p-3 text-sm" key={plugin.name}>
+          <h5 className="font-medium text-text-primary">{plugin.display_name}</h5>
+          <ContributionList label={t("permissions.ai.plugin_capabilities")} values={plugin.capabilities.map((capability) => capability.name)} />
+          <ContributionList label={t("permissions.ai.plugin_tools")} values={plugin.tools} code />
+        </article>
+      ))}
+      {plugins.length === 0 ? (
+        <p className="text-sm text-text-muted">{t(installed ? "permissions.ai.no_installed_plugins" : "permissions.ai.no_available_plugins")}</p>
+      ) : null}
+    </section>
+  )
+}
+
+function ContributionList({ label, values, code = false }: { label: string; values: string[]; code?: boolean }) {
+  const { t } = useT("settings")
+  return (
+    <p className="mt-1 break-words text-text-secondary">
+      <span className="font-medium">{label}:</span>{" "}
+      {values.length ? values.map((value, index) => <span key={value}>{index ? ", " : ""}{code ? <code>{value}</code> : value}</span>) : t("permissions.ai.none")}
+    </p>
   )
 }
 

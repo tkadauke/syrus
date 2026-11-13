@@ -396,9 +396,42 @@ describe("PermissionsSettingsRoute", () => {
         operation_description: "Permits an agent to list permissions."
       }
     })
-    const empty = { enabled: false, providers: [], delegations: [], human_only: { effects: ["financial"], capabilities: [] }, history: [] }
+    const empty = {
+      enabled: false,
+      can_manage_plugins: false,
+      plugins: [
+        {
+          name: "visible_example",
+          display_name: "Visible Example",
+          installed: true,
+          capabilities: [{ identifier: "example.read@v1", name: "Read examples" }],
+          tools: ["read_example"]
+        }
+      ],
+      providers: [],
+      delegations: [],
+      human_only: { effects: ["financial"], capabilities: [] },
+      history: []
+    }
     const enabled = {
       enabled: true,
+      can_manage_plugins: true,
+      plugins: [
+        {
+          name: "installed_example",
+          display_name: "Installed Example",
+          installed: true,
+          capabilities: [{ identifier: "example.read@v1", name: "Read examples" }],
+          tools: ["read_example"]
+        },
+        {
+          name: "available_example",
+          display_name: "Available Example",
+          installed: false,
+          capabilities: [{ identifier: "example.write@v1", name: "Write examples" }],
+          tools: ["write_example"]
+        }
+      ],
       providers: [{ provider_key: "reviewer", display_name: "Reviewer", data_sharing: "Sent to Reviewer Cloud", default_guidance: "Be careful" }],
       delegations: [
         {
@@ -442,6 +475,8 @@ describe("PermissionsSettingsRoute", () => {
     fireEvent.click(await screen.findByRole("button", { name: "AI approvals" }))
     const disabledNotice = await screen.findByText(/AI approvals are off/)
     expect(disabledNotice.closest("section")).toHaveClass("min-w-0", "p-4", "sm:p-5")
+    expect(screen.getByRole("region", { name: "Installed plugins" })).toHaveTextContent("Visible Example")
+    expect(screen.queryByRole("link", { name: "Manage plugins" })).not.toBeInTheDocument()
 
     current = enabled
     fireEvent.click(screen.getByRole("button", { name: "Agent matrix" }))
@@ -450,6 +485,11 @@ describe("PermissionsSettingsRoute", () => {
     expect(screen.getByText(/Always decided by a human.*Syrus Permissions/)).toBeInTheDocument()
     expect(screen.getByText("syrus.permissions")).toBeInTheDocument()
     expect(screen.getByText(/allow: Cancel job/)).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "Installed plugins" })).toHaveTextContent("Installed Example")
+    expect(screen.getByRole("region", { name: "Installed plugins" })).toHaveTextContent("Read examples")
+    expect(screen.getByRole("region", { name: "Installed plugins" })).toHaveTextContent("read_example")
+    expect(screen.getByRole("region", { name: "Available plugins" })).toHaveTextContent("Available Example")
+    expect(screen.getByRole("link", { name: "Manage plugins" })).toHaveAttribute("href", "/admin/plugins")
 
     fireEvent.click(screen.getByRole("button", { name: "Revoke now" }))
     await waitFor(() => expect(screen.queryByRole("button", { name: "Revoke now" })).not.toBeInTheDocument())
