@@ -169,10 +169,7 @@ describe("TerminalRoute", () => {
     fireEvent.click(screen.getByRole("button", { name: "+" }))
 
     expect(await screen.findByRole("menuitem", { name: /WF-99 - Build terminal/ })).toBeInTheDocument()
-    expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/terminal/workspaces",
-      expect.objectContaining({ credentials: "same-origin" })
-    )
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/terminal/workspaces", expect.objectContaining({ credentials: "same-origin" }))
   })
 
   it("does not offer session creation to non-admin users", async () => {

@@ -1399,7 +1399,9 @@ export function fetchMoreChatsForGroup(
 }
 
 function withChatNavAppearances<
-  T extends { agent_appearances?: Record<string, ChatAgentAppearance>; provider_availability?: Record<string, ProviderAvailability> } & ({ groups: ChatGroupRecord[] } | { chats: ChatNavRecord[] })
+  T extends { agent_appearances?: Record<string, ChatAgentAppearance>; provider_availability?: Record<string, ProviderAvailability> } & (
+    { groups: ChatGroupRecord[] } | { chats: ChatNavRecord[] }
+  )
 >(payload: T): T {
   const appearances = payload.agent_appearances || {}
   const availability = payload.provider_availability || {}

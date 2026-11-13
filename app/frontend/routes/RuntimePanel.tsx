@@ -460,12 +460,10 @@ function RuntimeSessionDetail({ chatId, summary }: { chatId: string | number; su
   const detail = useQuery({
     queryKey: runtimeSessionQueryKey(chatId, summary.id),
     queryFn: () => fetchRuntimeSession(chatId, summary.id),
-    initialData: "capabilities" in summary ? summary as RuntimeSession : undefined,
+    initialData: "capabilities" in summary ? (summary as RuntimeSession) : undefined,
     staleTime: Infinity
   })
-  const session: RuntimeSession = detail.data
-    ? { ...detail.data, ...summary }
-    : { ...summary, capabilities: {}, metadata: {} }
+  const session: RuntimeSession = detail.data ? { ...detail.data, ...summary } : { ...summary, capabilities: {}, metadata: {} }
   const active = sessionIsActive(summary)
   const LiveView = pluginRuntimeSessionViewComponentFor(session.provider_key)
   const hasLiveView = LiveView !== null
@@ -478,7 +476,9 @@ function RuntimeSessionDetail({ chatId, summary }: { chatId: string | number; su
   function patchSession(updated: RuntimeSession) {
     queryClient.setQueryData(runtimeSessionQueryKey(chatId, updated.id), updated)
     queryClient.setQueryData<{ runtime_sessions: RuntimeSessionSummary[] } | undefined>(runtimeSessionsQueryKey(chatId), (current) =>
-      current ? { runtime_sessions: current.runtime_sessions.map((candidate) => (candidate.id === updated.id ? { ...candidate, ...updated } : candidate)) } : current
+      current
+        ? { runtime_sessions: current.runtime_sessions.map((candidate) => (candidate.id === updated.id ? { ...candidate, ...updated } : candidate)) }
+        : current
     )
   }
 

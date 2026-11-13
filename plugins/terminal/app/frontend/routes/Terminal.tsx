@@ -1,7 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
-import { createTerminalSession, fetchTerminalSessions, fetchTerminalWorkspaces, killTerminalSession, type TerminalSessionRecord, type TerminalSessionsPayload } from "../api/terminal"
+import {
+  createTerminalSession,
+  fetchTerminalSessions,
+  fetchTerminalWorkspaces,
+  killTerminalSession,
+  type TerminalSessionRecord,
+  type TerminalSessionsPayload
+} from "../api/terminal"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { CloseIcon } from "@app/components/CloseIcon"
