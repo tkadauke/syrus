@@ -88,17 +88,22 @@ describe("GET request single-flight", () => {
 
   it("resolves an ETag revalidation from the retained JSON payload", async () => {
     const { getJsonWithEtag } = await import("./client")
-    const fetch = vi.spyOn(window, "fetch")
+    const fetch = vi
+      .spyOn(window, "fetch")
       .mockResolvedValueOnce(jsonResponseWithEtag({ workflows: [{ id: 7 }] }, '"workflow-v1"'))
       .mockResolvedValueOnce(new Response(null, { status: 304 }))
 
     await expect(getJsonWithEtag("/api/v1/app/jobs/42/workflows")).resolves.toEqual({ workflows: [{ id: 7 }] })
     await expect(getJsonWithEtag("/api/v1/app/jobs/42/workflows")).resolves.toEqual({ workflows: [{ id: 7 }] })
 
-    expect(fetch).toHaveBeenNthCalledWith(2, "/api/v1/app/jobs/42/workflows", expect.objectContaining({
-      cache: "no-store",
-      headers: expect.objectContaining({ "If-None-Match": '"workflow-v1"' })
-    }))
+    expect(fetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/v1/app/jobs/42/workflows",
+      expect.objectContaining({
+        cache: "no-store",
+        headers: expect.objectContaining({ "If-None-Match": '"workflow-v1"' })
+      })
+    )
   })
 
   it("does not share a pending pre-write response with a post-write refetch", async () => {

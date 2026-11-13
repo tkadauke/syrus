@@ -9,9 +9,7 @@ import { StepCoworkerReviewPanel, WorkflowsTab } from "./WorkflowGraph"
 stubVirtualizerMeasurements()
 
 function render(ui: Parameters<typeof testingRender>[0]) {
-  return testingRender(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>
-  )
+  return testingRender(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>)
 }
 
 describe("StepCoworkerReviewPanel", () => {
@@ -126,9 +124,9 @@ describe("WorkflowsTab", () => {
     const detailed = workflowWithDiffRun()
     const summary = structuredClone(detailed) as JobDetailPayload["workflows"][number]
     summary.steps.forEach((step) => delete (step as Partial<typeof step>).runs)
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ workflow: detailed }), { status: 200, headers: { "Content-Type": "application/json" } })
-    )
+    const fetchSpy = vi
+      .spyOn(window, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ workflow: detailed }), { status: 200, headers: { "Content-Type": "application/json" } }))
 
     render(
       <MemoryRouter>
@@ -138,7 +136,9 @@ describe("WorkflowsTab", () => {
 
     expect(fetchSpy).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole("button", { name: "Show more" }))
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(`/api/v1/app/workflows/${summary.id}/detail`, expect.objectContaining({ signal: expect.any(AbortSignal) })))
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenCalledWith(`/api/v1/app/workflows/${summary.id}/detail`, expect.objectContaining({ signal: expect.any(AbortSignal) }))
+    )
     expect(await screen.findByRole("button", { name: /Implement/ })).toBeInTheDocument()
   })
 
