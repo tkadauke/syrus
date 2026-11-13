@@ -52,7 +52,6 @@ function redirectToSignIn() {
 const REVISION_HEADER = "X-Syrus-Revision"
 const RELOAD_STORAGE_KEY = "syrus:revision-reload"
 const MAX_RECENT_API_REQUESTS = 20
-const MAX_ETAG_JSON_READS = 20
 const REDACTED = "[FILTERED]"
 const REDACTED_QUERY = `?${REDACTED}`
 let embeddedRevision: string | null | undefined
@@ -64,16 +63,6 @@ type InFlightJsonRead = {
 }
 
 const inFlightJsonReads = new Map<string, InFlightJsonRead>()
-const etagJsonReads = new Map<string, { etag: string; data: unknown }>()
-
-function retainEtagJsonRead(path: string, entry: { etag: string; data: unknown }) {
-  etagJsonReads.delete(path)
-  if (etagJsonReads.size >= MAX_ETAG_JSON_READS) {
-    const oldestPath = etagJsonReads.keys().next().value
-    if (oldestPath) etagJsonReads.delete(oldestPath)
-  }
-  etagJsonReads.set(path, entry)
-}
 
 export type RecentApiRequest = {
   path: string
@@ -87,7 +76,6 @@ const recentApiRequests: RecentApiRequest[] = []
 
 function resetInFlightJsonReadsForTests() {
   inFlightJsonReads.clear()
-  etagJsonReads.clear()
   writeEpoch = 0
 }
 
@@ -103,11 +91,6 @@ export async function getJsonIfModified<T>(path: string, options: { signal?: Abo
   return meta.status === 304 ? null : data
 }
 
-export async function getJsonWithEtag<T>(path: string, options: { signal?: AbortSignal } = {}): Promise<T> {
-  const { data } = await getJsonWithMeta<T>(path, { ...options, etag: true })
-  return data
-}
-
 export type JsonResponseMeta = {
   path: string
   requestId: string | null
@@ -115,10 +98,7 @@ export type JsonResponseMeta = {
   durationMs: number
 }
 
-export async function getJsonWithMeta<T>(
-  path: string,
-  options: { signal?: AbortSignal; etag?: boolean } = {}
-): Promise<{ data: T; meta: JsonResponseMeta }> {
+export async function getJsonWithMeta<T>(path: string, options: { signal?: AbortSignal } = {}): Promise<{ data: T; meta: JsonResponseMeta }> {
   if (options.signal) return performJsonRead<T>(path, options)
 
   const existing = inFlightJsonReads.get(path)
@@ -139,18 +119,13 @@ function invalidateInFlightJsonReadsAfterWrite() {
   inFlightJsonReads.clear()
 }
 
-async function performJsonRead<T>(
-  path: string,
-  options: { signal?: AbortSignal; etag?: boolean } = {}
-): Promise<{ data: T; meta: JsonResponseMeta }> {
+async function performJsonRead<T>(path: string, options: { signal?: AbortSignal } = {}): Promise<{ data: T; meta: JsonResponseMeta }> {
   const startedAt = performanceNow()
-  const cached = options.etag ? etagJsonReads.get(path) : undefined
   const response = await fetch(path, {
-    cache: options.etag ? "no-store" : "no-cache",
+    cache: "no-cache",
     credentials: "same-origin",
     headers: {
-      Accept: "application/json",
-      ...(cached ? { "If-None-Match": cached.etag } : {})
+      Accept: "application/json"
     },
     signal: options.signal
   })
@@ -162,7 +137,6 @@ async function performJsonRead<T>(
     redirectToSignIn()
   }
 
-  if (response.status === 304 && cached) return { data: cached.data as T, meta }
   if (response.status === 304) return { data: undefined as T, meta }
 
   if (!response.ok) {
@@ -178,10 +152,7 @@ async function performJsonRead<T>(
 
   if (response.status === 204) return { data: undefined as T, meta }
 
-  const data = await readJsonResponse<T>(response)
-  const etag = options.etag ? response.headers.get("ETag") : null
-  if (etag) retainEtagJsonRead(path, { etag, data })
-  return { data, meta }
+  return { data: await readJsonResponse<T>(response), meta }
 }
 
 export async function postJson<T>(path: string, body?: unknown): Promise<T> {
