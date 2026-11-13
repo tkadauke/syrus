@@ -140,7 +140,13 @@ import {
 } from "./utils"
 import { ScratchpadPanel } from "./ScratchpadPanel"
 import { getDraftAttachments, setDraftAttachments } from "./attachmentDraftStore"
-import { clearInFlightComposerDraft, getInFlightComposerDraft, setInFlightComposerDraft } from "./inFlightComposerDraftStore"
+import {
+  acknowledgeInFlightComposerDraft,
+  clearInFlightComposerDraft,
+  getInFlightComposerDraft,
+  inFlightComposerDraftWasAcknowledged,
+  setInFlightComposerDraft
+} from "./inFlightComposerDraftStore"
 import { lastAssistantRenderedMessage } from "./streamBuilders"
 import { AcceptSuggestionIcon, PencilIcon, UploadIcon } from "./icons"
 import { isAgentActive } from "./messageDisplay"
@@ -648,6 +654,12 @@ export function Compose({
     },
     onError: (error, draft) => {
       submittedDraftRef.current = null
+      if (inFlightComposerDraftWasAcknowledged(draft)) {
+        clearInFlightComposerDraft(chatId, draft)
+        onNotice(null)
+        queueMicrotask(() => send.reset())
+        return
+      }
       if (finishSubmittedDraft(draft, false)) onNotice(errorMessage(error, t("message_send_error")))
     }
   })
@@ -657,6 +669,7 @@ export function Compose({
     if (!inFlight?.clientIdempotencyKey) return
     if (!payload.messages.some((message) => message.client_idempotency_key === inFlight.clientIdempotencyKey)) return
 
+    acknowledgeInFlightComposerDraft(chatId, inFlight.clientIdempotencyKey)
     clearInFlightComposerDraft(chatId, inFlight)
     if (
       currentDraftRef.current.composerText === inFlight.composerText &&
