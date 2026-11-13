@@ -67,7 +67,12 @@ export function transcriptRefetchInterval(payload?: Pick<TranscriptPayload, "fin
 export function mergeTranscriptDelta(previous: TranscriptPayload, delta: TranscriptPayload) {
   const events = new Map(previous.events.map((event, index) => [event.index ?? index, event]))
   delta.events.forEach((event, index) => events.set(event.index ?? previous.events.length + index, event))
-  return { ...delta, events: Array.from(events.entries()).sort(([left], [right]) => left - right).map(([, event]) => event) }
+  return {
+    ...delta,
+    events: Array.from(events.entries())
+      .sort(([left], [right]) => left - right)
+      .map(([, event]) => event)
+  }
 }
 
 export function advanceTranscriptCursor(previousCursor: number | undefined, payload: TranscriptPayload) {
@@ -122,10 +127,13 @@ function TranscriptEventStream({ payload }: { payload: TranscriptPayload }) {
   const eventSignature = transcriptEventSignature({ ...payload, events })
   const items = useMemo(() => groupTranscriptEvents(events), [events])
 
-  const loadFullEvent = useCallback(async (eventIndex: number) => {
-    const event = await fetchAdminTranscriptEvent(payload.run_id, eventIndex)
-    setEvents((current) => current.map((existing) => existing.index === eventIndex ? event : existing))
-  }, [payload.run_id])
+  const loadFullEvent = useCallback(
+    async (eventIndex: number) => {
+      const event = await fetchAdminTranscriptEvent(payload.run_id, eventIndex)
+      setEvents((current) => current.map((existing) => (existing.index === eventIndex ? event : existing)))
+    },
+    [payload.run_id]
+  )
 
   const scrollToBottom = useCallback(() => {
     scrollTranscriptStreamToBottom(streamRef.current)

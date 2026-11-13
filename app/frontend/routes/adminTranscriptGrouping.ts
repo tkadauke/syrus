@@ -5,7 +5,15 @@
 // re-rendering every tool_use/tool_result as its own unrelated flat card.
 import type { ChatToolGroupItem } from "../api/chats"
 import type { TranscriptEvent } from "../api/adminTranscript"
-import { fullResultBody, fullResultBodyUnbounded, isPlainObject, parsedToolResult, simpleToolProgressLabel, toolPresentation, toolResultPresentation } from "./chat/toolRendering"
+import {
+  fullResultBody,
+  fullResultBodyUnbounded,
+  isPlainObject,
+  parsedToolResult,
+  simpleToolProgressLabel,
+  toolPresentation,
+  toolResultPresentation
+} from "./chat/toolRendering"
 import { stringValue } from "./chat/utils"
 
 type LazyEventBody = { truncatedEventIndexes: number[] }
@@ -13,21 +21,26 @@ export type AdminTranscriptToolGroupItem = ChatToolGroupItem & LazyEventBody & {
 export type AdminTranscriptTextItem = LazyEventBody & { type: "text"; kind: "user_prompt" | "assistant_text" | "job_log"; text: string; key: string }
 export type AdminTranscriptInitItem = LazyEventBody & { type: "system_init"; data: Record<string, unknown>; key: string }
 export type AdminTranscriptResultItem = LazyEventBody & { type: "result"; data: Record<string, unknown>; key: string }
-export type AdminTranscriptFallbackItem = LazyEventBody & { type: "fallback"; badge: string; title: string | null; data: unknown; tone: "gray" | "red" | "emerald"; key: string }
+export type AdminTranscriptFallbackItem = LazyEventBody & {
+  type: "fallback"
+  badge: string
+  title: string | null
+  data: unknown
+  tone: "gray" | "red" | "emerald"
+  key: string
+}
 
 export type AdminTranscriptRenderItem =
-  | AdminTranscriptToolGroupItem
-  | AdminTranscriptTextItem
-  | AdminTranscriptInitItem
-  | AdminTranscriptResultItem
-  | AdminTranscriptFallbackItem
+  AdminTranscriptToolGroupItem | AdminTranscriptTextItem | AdminTranscriptInitItem | AdminTranscriptResultItem | AdminTranscriptFallbackItem
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
 function preview(value: unknown) {
-  return stringValue(typeof value === "string" ? value : JSON.stringify(value)).replace(/\s+/g, " ").slice(0, 150)
+  return stringValue(typeof value === "string" ? value : JSON.stringify(value))
+    .replace(/\s+/g, " ")
+    .slice(0, 150)
 }
 
 // Pairs tool_result events back to their tool_use call by id (Claude's
