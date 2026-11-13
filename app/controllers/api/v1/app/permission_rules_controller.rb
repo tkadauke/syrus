@@ -45,6 +45,27 @@ module Api
           render_error("invalid_permission_profile", error.message, status: :unprocessable_entity)
         end
 
+        def apply_starting_profile
+          if Current.user.first_run_setup_complete?
+            return render_error("forbidden", I18n.t("api.credentials.onboarding_only"), status: :forbidden)
+          end
+
+          management = Permissions::Management.new(Current.user)
+          profile = params.require(:profile)
+          subjects = %w[interactive_chat coding_chat local_chat]
+
+          PermissionRule.transaction do
+            subjects.each do |subject|
+              plan = management.profile_plan(profile_key: profile, subject_selector_type: subject, lock: true)
+              management.apply_profile!(plan:, actor: Current.user)
+            end
+          end
+
+          render json: { profile:, subject_selector_types: subjects }
+        rescue ActiveRecord::RecordInvalid, ArgumentError, KeyError => error
+          render_error("invalid_permission_profile", error.message, status: :unprocessable_entity)
+        end
+
         def history
           render json: Permissions::HistoryPayload.new(Current.user, params:).as_json
         rescue ArgumentError, KeyError => error

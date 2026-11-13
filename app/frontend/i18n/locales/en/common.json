@@ -91,6 +91,28 @@
     "loading": "Loading setup status...",
     "setup_label": "First-run setup",
     "heading": "Set up Syrus",
+    "permission_title": "Choose a starting permission posture",
+    "permission_intro": "Syrus agents run in containers against cloned workspaces, not directly on your laptop. The profile controls how often they interrupt you and which eligible capabilities they may reach through Syrus.",
+    "permission_enforced": "Container confinement, network policy, authorization ceilings, credentials, and nondelegable operations remain enforced. A normally safe capability can still escalate when a specific invocation is sensitive.",
+    "permission_change_later": "Change later in Permissions",
+    "permission_selected": "Selected",
+    "permission_choose": "Choose {{profile}}",
+    "permission_skip": "Optional: if you skip this choice, Syrus keeps its current defaults. You can choose or customize a profile later in Permissions.",
+    "permission_error": "The starting permission profile could not be applied. Your current defaults are unchanged.",
+    "permission_profiles": {
+      "full_access": {
+        "name": "Full access",
+        "tradeoff": "Fewer interruptions. Agents may use every capability you are eligible to delegate, but only inside the remaining resource, container, network, and safety boundaries."
+      },
+      "ask_on_first_use": {
+        "name": "Ask on first use",
+        "tradeoff": "A balanced start. Low-risk reads and isolated workspace writes continue quietly; code execution and other consequential actions pause for approval."
+      },
+      "restricted": {
+        "name": "Restricted",
+        "tradeoff": "The narrowest reach and fewest surprises. Low-risk isolated work is allowed; other eligible capabilities are denied instead of interrupting you for approval."
+      }
+    },
     "complete_badge": "Complete",
     "edit_label": "Edit",
     "ready_heading": "Ready for normal operations",

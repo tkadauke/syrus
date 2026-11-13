@@ -23,6 +23,16 @@ is normally safe can still ask when its arguments classify the particular use
 as consequential. Only low-risk local reads and isolated workspace writes are
 quiet under the Ask on first use and Restricted profiles; code execution asks.
 
+First-run setup presents these profiles as an optional starting posture and
+applies the selected profile consistently to Interactive, Coding, and Local
+chat. Skipping writes no profile rules, so the evaluator's current defaults
+remain in effect. The setup copy describes the containerized execution model:
+agents work in containers against cloned workspaces, while confinement,
+network policy, resource authorization, provider ceilings, credentials, and
+nondelegable operations continue to narrow every profile. Invocation-time
+safety classification can still escalate a sensitive call. Operators can
+change each chat surface independently later in the Permissions Hub.
+
 ## Permission authority lifetimes
 
 Syrus represents permanent agent authority as an audited `PermissionRule` and

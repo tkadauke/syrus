@@ -1884,6 +1884,17 @@ Syrus refuses a stale confirmation if those rules change meanwhile.
 Fine-grained capability and resource controls stay available in Advanced, but
 are not required for initial setup.
 
+First-run setup also offers the three profiles as an optional starting posture
+for all three chat surfaces. Syrus explains the choice in terms of its actual
+execution model: agents run in containers against cloned workspaces rather than
+directly on the operator's laptop. Full access reduces interruptions, Ask on
+first use pauses consequential actions, and Restricted denies capabilities
+outside low-risk isolated work. Container confinement, network policy,
+authorization and provider ceilings, credentials, nondelegable operations, and
+sensitive-invocation escalation remain enforced with every choice. Skipping
+keeps the existing defaults, and each surface can be changed independently
+later in **Settings → Permissions**.
+
 Core and plugin tools share five human-sized bundles: Workspace, Knowledge,
 Collaboration, Operations, and Administration. Plugin capabilities join these
 bundles by their declared effects rather than receiving authority merely

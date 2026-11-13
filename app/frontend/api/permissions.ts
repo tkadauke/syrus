@@ -120,6 +120,8 @@ export const applyPermissionProfile = (profile: string, subject_selector_type: s
     subject_selector_type,
     confirmation_digest
   })
+export const applyStartingPermissionProfile = (profile: string) =>
+  postJson<{ profile: string; subject_selector_types: string[] }>("/api/v1/app/permission_rules/apply_starting_profile", { profile })
 export const fetchPermissionHistory = (search = "") => {
   return getJson<PermissionHistoryPayload>(`/api/v1/app/permission_rules/history${search}`)
 }

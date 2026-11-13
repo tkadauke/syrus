@@ -86,6 +86,20 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     expect(old_rule.reload.revoked_at).to be_nil
   end
 
+  it "applies one onboarding posture atomically to every chat surface" do
+    post "/api/v1/app/permission_rules/apply_starting_profile", params: { profile: "ask_on_first_use@v1" }
+
+    expect(response).to have_http_status(:ok)
+    expect(JSON.parse(response.body)).to include(
+      "profile" => "ask_on_first_use@v1",
+      "subject_selector_types" => %w[interactive_chat coding_chat local_chat]
+    )
+    expect(PermissionRule.for_owner(user).active.group(:subject_selector_type).count.keys).to contain_exactly(
+      "interactive_chat", "coding_chat", "local_chat"
+    )
+    expect(PermissionRule.for_owner(user).active.distinct.pluck(:source)).to eq([ "permission_profile:ask_on_first_use@v1" ])
+  end
+
   it "rejects unknown profiles and subjects without changing rules" do
     rule = permission_rule(owner: user)
 
