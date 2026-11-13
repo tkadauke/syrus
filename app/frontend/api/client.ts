@@ -113,10 +113,7 @@ export type JsonResponseMeta = {
   durationMs: number
 }
 
-export async function getJsonWithMeta<T>(
-  path: string,
-  options: { signal?: AbortSignal; etag?: boolean } = {}
-): Promise<{ data: T; meta: JsonResponseMeta }> {
+export async function getJsonWithMeta<T>(path: string, options: { signal?: AbortSignal; etag?: boolean } = {}): Promise<{ data: T; meta: JsonResponseMeta }> {
   if (options.signal) return performJsonRead<T>(path, options)
 
   const existing = inFlightJsonReads.get(path)
@@ -137,10 +134,7 @@ function invalidateInFlightJsonReadsAfterWrite() {
   inFlightJsonReads.clear()
 }
 
-async function performJsonRead<T>(
-  path: string,
-  options: { signal?: AbortSignal; etag?: boolean } = {}
-): Promise<{ data: T; meta: JsonResponseMeta }> {
+async function performJsonRead<T>(path: string, options: { signal?: AbortSignal; etag?: boolean } = {}): Promise<{ data: T; meta: JsonResponseMeta }> {
   const startedAt = performanceNow()
   const cached = options.etag ? etagJsonReads.get(path) : undefined
   const response = await fetch(path, {
