@@ -74,6 +74,21 @@ RSpec.describe Mcp::Tools::ListPendingActionsTool, :full_chat_access do
     )
   end
 
+  it "redacts credentials from operator-facing and failure summaries" do
+    action(
+      state: "failed",
+      reason: "Retry https://x-access-token:operator-secret@github.com/acme/widgets.git",
+      execution_error: "Command failed with github_token=ghp_abcdefghijklmnopqrstuvwxyz123456",
+      execution_finished_at: Time.current
+    )
+
+    row = call_tool(state: "failed").fetch(:actions).first
+
+    expect(row.fetch(:reason)).to include("[redacted]")
+    expect(row.fetch(:error_summary)).to include("[redacted]")
+    expect(row.to_s).not_to include("operator-secret", "ghp_abcdefghijklmnopqrstuvwxyz123456")
+  end
+
   it "caps the requested limit at 100" do
     101.times { |index| action(payload: { "job_id" => index + 1 }) }
 
