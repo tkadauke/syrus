@@ -32,7 +32,9 @@ RSpec.describe WorkflowActivity do
     end
 
     expect(WorkflowActivityEvent.where(workflow_id: workflow.id).pluck(:event_type)).to include("workflow_created", "workflow_started", "run_started", "run_finished")
-    expect(WorkflowActivityEvent.find_by!(event_type: "run_finished", run_id: run.id).duration_ms).to be >= 0
+    finished = WorkflowActivityEvent.find_by!(event_type: "run_finished", run_id: run.id)
+    expect(finished.duration_ms).to be >= 0
+    expect(finished.metadata).to include("primary_outcome" => "succeeded")
   end
 
   it "records workflow transition reasons on activity events" do
