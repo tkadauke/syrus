@@ -100,6 +100,19 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     expect(PermissionRule.for_owner(user).active.distinct.pluck(:source)).to eq([ "permission_profile:ask_on_first_use@v1" ])
   end
 
+  it "rejects the onboarding posture shortcut after first-run setup is complete" do
+    repository = Factories.repository(user: user)
+    Factories.epic(user: user, repository: repository, state: "done")
+    existing_rule = permission_rule(owner: user)
+
+    post "/api/v1/app/permission_rules/apply_starting_profile", params: { profile: "restricted@v1" }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(JSON.parse(response.body).dig("error", "code")).to eq("forbidden")
+    expect(existing_rule.reload.revoked_at).to be_nil
+    expect(PermissionRule.for_owner(user).active).to contain_exactly(existing_rule)
+  end
+
   it "rejects unknown profiles and subjects without changing rules" do
     rule = permission_rule(owner: user)
 
