@@ -143,6 +143,6 @@ export type RepositoryThroughputMetricsPayload = {
   tabs: RepositoryTab[]
 }
 
-export function fetchRepositoryThroughputMetrics(id: number | string) {
-  return getJson<RepositoryThroughputMetricsPayload>(`/api/v1/app/repositories/${id}/throughput_metrics`)
+export function fetchRepositoryThroughputMetrics(id: number | string, window: RepositoryThroughputWindowKey) {
+  return getJson<RepositoryThroughputMetricsPayload>(`/api/v1/app/repositories/${id}/throughput_metrics?window=${window}`)
 }

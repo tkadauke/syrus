@@ -33,7 +33,7 @@ module Api
             repository: repository_json(repository),
             tabs: repository_tabs_json(repository),
             filter: filter.to_h,
-            filter_schema: TestInsights::TestsFilter.schema,
+            **(params[:include_schema] == "0" ? {} : { filter_schema: TestInsights::TestsFilter.schema }),
             tests: tests
           }
         end
@@ -52,9 +52,9 @@ module Api
             .offset((page - 1) * per_page)
             .limit(per_page)
 
-          duration_cases = test_identity.test_cases
+          duration_cases = page == 1 ? test_identity.test_cases
             .order(created_at: :desc, id: :desc)
-            .limit(TestInsights::TestIdentity::HISTORY_LIMIT)
+            .limit(TestInsights::TestIdentity::HISTORY_LIMIT) : []
 
           render json: {
             repository: repository_json(repository),
@@ -67,7 +67,7 @@ module Api
               total: total_count,
               total_pages: (total_count.to_f / per_page).ceil
             },
-            duration_points: duration_cases.filter_map { |test_case| duration_point_json(test_case) }.reverse
+            **(page == 1 ? { duration_points: duration_cases.filter_map { |test_case| duration_point_json(test_case) }.reverse } : {})
           }
         end
 
@@ -114,7 +114,7 @@ module Api
             id: test_case.id,
             status: test_case.status,
             duration_ms: test_case.duration_ms,
-            failure_message: test_case.failure_message,
+            failure_message: test_case.failure_message&.truncate(300),
             created_at: test_case.created_at&.iso8601,
             grader_name: test_case.test_run.grader_name,
             run: {

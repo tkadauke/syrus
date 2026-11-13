@@ -87,6 +87,18 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/git_history", type:
     expect(response).to have_http_status(:ok)
   end
 
+  it "omits static repository chrome from cursor pages" do
+    allow(GitHistory::Commits).to receive(:call).and_return(
+      GitHistory::Commits::Result.new(commits: [], next_cursor: nil, has_more: false, available: true)
+    )
+    sign_in_as(owner)
+
+    get "/api/v1/app/repositories/#{repository.id}/git_history/commits", params: { cursor: "a" * 40 }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).not_to include("repository", "tabs")
+  end
+
   it "includes the repository's tab bar and a github_url so the frontend can render RepositoryPageShell" do
     sign_in_as(owner)
 

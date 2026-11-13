@@ -84,9 +84,13 @@ export function fetchPipelineStage(repositoryId: string, stage: string, page = 1
   const params = new URLSearchParams(search)
   params.set("stage", stage)
   params.set("page", String(page))
+  params.set("history", "0")
   return getJson<PipelinePayload>(`/api/v1/app/repositories/${repositoryId}/sdlc_pipeline?${params}`)
 }
 
 export function fetchPipeline(repositoryId: string, search = "") {
-  return getJson<PipelinePayload>(`/api/v1/app/repositories/${repositoryId}/sdlc_pipeline${search}`)
+  return getJson<PipelinePayload>(`/api/v1/app/repositories/${repositoryId}/sdlc_pipeline${search}`).then((payload) => {
+    if (payload.history && !payload.history.ticks) payload.history.ticks = [...new Set(payload.history.deltas.map((delta) => delta.at))]
+    return payload
+  })
 }

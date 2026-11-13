@@ -124,6 +124,9 @@
     "empty_open_action": "GitHub-Issues ansehen",
     "empty_open_description": "Es sind keine offenen Issues zum Delegieren verfügbar. Erstelle oder markiere ein Issue mit {{label}}, oder nutze einen direkten Job für erste Arbeit.",
     "empty_closed_action": "Offene Issues anzeigen",
-    "empty_closed_description": "In dieser Repository-Ansicht sind keine geschlossenen Issues verfügbar."
+    "empty_closed_description": "In dieser Repository-Ansicht sind keine geschlossenen Issues verfügbar.",
+    "pagination_showing": "{{first}}–{{last}} von {{total}} werden angezeigt",
+    "pagination_previous": "Zurück",
+    "pagination_next": "Weiter"
   }
 }

@@ -52,7 +52,7 @@ export function GitHistory() {
       ariaLabel={t("aria_label")}
       heading={firstPage ? (
         <PageHeading mono>
-          <a className="hover:underline" href={firstPage.repository.github_url} rel="noopener" target="_blank">{firstPage.repository.slug}</a>
+          <a className="hover:underline" href={firstPage.repository!.github_url} rel="noopener" target="_blank">{firstPage.repository!.slug}</a>
         </PageHeading>
       ) : null}
       prefix={prefix}

@@ -21,8 +21,8 @@ export function RepositoryThroughputRoute({ repositoryId, prefix }: { repository
   const { t } = useT("throughput")
   const [windowKey, setWindowKey] = useState<RepositoryThroughputWindowKey>("4h")
   const metrics = useQuery({
-    queryKey: ["repositories", repositoryId, "throughput_metrics"],
-    queryFn: () => fetchRepositoryThroughputMetrics(repositoryId),
+    queryKey: ["repositories", repositoryId, "throughput_metrics", windowKey],
+    queryFn: () => fetchRepositoryThroughputMetrics(repositoryId, windowKey),
     enabled: repositoryId.length > 0
   })
 
@@ -39,7 +39,7 @@ export function RepositoryThroughputRoute({ repositoryId, prefix }: { repository
     >
       {metrics.isPending ? <Notice>{t("loading")}</Notice> : null}
       {metrics.isError ? <Notice tone="danger">{errorMessage(metrics.error, t("load_error"))}</Notice> : null}
-      {metrics.data?.windows?.["4h"] ? (
+      {metrics.data?.windows?.[windowKey] ? (
         <RepositoryThroughputDashboard metrics={metrics.data} windowKey={windowKey} onWindowChange={setWindowKey} />
       ) : null}
     </RepositoryPageShell>
