@@ -12,7 +12,7 @@ RSpec.describe "API: /api/v1/app/admin/stuck", type: :request do
   end
 
   it "401s with a JSON error when signed out" do
-    get "/api/v1/app/admin/stuck"
+    get "/api/v1/app/admin/stuck", params: { include_diagnostics: true }
 
     expect(response).to have_http_status(:unauthorized)
     expect(parse_body.dig("error", "code")).to eq("unauthorized")
@@ -21,7 +21,7 @@ RSpec.describe "API: /api/v1/app/admin/stuck", type: :request do
   it "403s with a JSON error for non-admin users" do
     sign_in_as(non_admin)
 
-    get "/api/v1/app/admin/stuck"
+    get "/api/v1/app/admin/stuck", params: { include_diagnostics: true }
 
     expect(response).to have_http_status(:forbidden)
     expect(parse_body.dig("error", "code")).to eq("forbidden")
@@ -35,7 +35,7 @@ RSpec.describe "API: /api/v1/app/admin/stuck", type: :request do
                        started_at: 10.minutes.ago,
                        last_heartbeat_at: 10.minutes.ago)
 
-    get "/api/v1/app/admin/stuck"
+    get "/api/v1/app/admin/stuck", params: { include_diagnostics: true }
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["items"].first).to include(
@@ -57,6 +57,17 @@ RSpec.describe "API: /api/v1/app/admin/stuck", type: :request do
     expect(parse_body["items"].first["repair_plan"].fetch("action")).to match(/\Amark_worker_died/)
   end
 
+  it "omits diagnostic objects from the polling payload by default" do
+    sign_in_as(admin)
+    job = Factories.job(user: admin)
+    job.initial_run.update_columns(state: "running", started_at: 10.minutes.ago, last_heartbeat_at: 10.minutes.ago)
+
+    get "/api/v1/app/admin/stuck"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.fetch("items").first).not_to include("issue", "repair_plan", "repair_execution")
+  end
+
   it "uses a fresh stuck snapshot instead of recomputing the reconciler on normal page loads" do
     sign_in_as(admin)
     snapshot = Admin::StuckItemsCache::Snapshot.new(
@@ -74,7 +85,7 @@ RSpec.describe "API: /api/v1/app/admin/stuck", type: :request do
     allow(Admin::StuckItemsCache).to receive(:read).and_return(snapshot)
     expect(Admin::StuckItems).not_to receive(:all)
 
-    get "/api/v1/app/admin/stuck"
+    get "/api/v1/app/admin/stuck", params: { include_diagnostics: true }
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["items"]).to eq(snapshot.items)
@@ -193,7 +204,7 @@ RSpec.describe "API: /api/v1/app/admin/stuck", type: :request do
     workflow.update_columns(state: "running", started_at: 6.minutes.ago)
     step.update_columns(state: "queued")
 
-    get "/api/v1/app/admin/stuck"
+    get "/api/v1/app/admin/stuck", params: { include_diagnostics: true }
 
     expect(response).to have_http_status(:ok)
     item = parse_body["items"].find { |row| row["run_id"] == retry_run.id }
@@ -213,7 +224,7 @@ RSpec.describe "API: /api/v1/app/admin/stuck", type: :request do
     sign_in_as(admin)
     job = Factories.job_record(user: admin, state: "running", updated_at: 10.minutes.ago)
 
-    get "/api/v1/app/admin/stuck"
+    get "/api/v1/app/admin/stuck", params: { include_diagnostics: true }
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["items"]).to include(include(
@@ -256,7 +267,7 @@ RSpec.describe "API: /api/v1/app/admin/stuck", type: :request do
     )
     workflow.first_step.update_columns(state: "queued")
 
-    get "/api/v1/app/admin/stuck"
+    get "/api/v1/app/admin/stuck", params: { include_diagnostics: true }
 
     expect(response).to have_http_status(:ok)
     item = parse_body.fetch("items").find { |row| row["kind"] == "queued_workflow_without_first_run" }
@@ -277,7 +288,7 @@ RSpec.describe "API: /api/v1/app/admin/stuck", type: :request do
     run.update_columns(state: "queued", created_at: 10.minutes.ago, updated_at: 10.minutes.ago)
     SolidQueue::Pause.create!(queue_name: "runs")
 
-    get "/api/v1/app/admin/stuck"
+    get "/api/v1/app/admin/stuck", params: { include_diagnostics: true }
 
     expect(response).to have_http_status(:ok)
     item = parse_body.fetch("items").find { |row| row["kind"] == "runs_paused" }

@@ -29,7 +29,6 @@ module Admin
 
       def index
         PerformanceLogging.phase("admin_processes_payload") do
-          PerformanceLogging.phase("admin_processes.ensure_builtins") { SmartFolder.ensure_spawned_process_builtins! }
           active_folder = PerformanceLogging.phase("admin_processes.active_folder") { active_smart_folder }
           base_scope = SpawnedProcess.all
           filter = PerformanceLogging.phase("admin_processes.display_filter") { display_filter(active_folder) }

@@ -4,6 +4,8 @@ module Api
       module Admin
         class SpawnedProcessesController < BaseController
           def index
+            return unless stale?(etag: [ SpawnedProcess.maximum(:updated_at), SpawnedProcess.count, request.query_parameters ])
+
             render json: payload.index
           rescue ArgumentError, TypeError => e
             render_error("bad_request", e.message, status: :bad_request)

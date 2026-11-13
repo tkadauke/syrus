@@ -17,7 +17,7 @@ RSpec.describe "API: /api/v1/app/admin/reconciler_activity", type: :request do
     job = Factories.job(user: admin)
     workflow = job.workflows.first
     run = job.initial_run
-    WorkEngineReconcilerActivityEvent.record!(
+    WorkEngineReconcilerActivityEvent.create!(
       event_type: "repair_executed",
       source: "spec",
       severity: "info",
@@ -54,15 +54,17 @@ RSpec.describe "API: /api/v1/app/admin/reconciler_activity", type: :request do
     admin = Factories.user
     sign_in_as(admin)
 
-    WorkEngineReconcilerActivityEvent.record!(
+    WorkEngineReconcilerActivityEvent.create!(
       event_type: "run_started",
       source: "spec",
-      message: "Zulu"
+      message: "Zulu",
+      occurred_at: Time.current
     )
-    WorkEngineReconcilerActivityEvent.record!(
+    WorkEngineReconcilerActivityEvent.create!(
       event_type: "run_finished",
       source: "spec",
-      message: "Alpha"
+      message: "Alpha",
+      occurred_at: Time.current
     )
 
     get "/api/v1/app/admin/reconciler_activity", params: { sort: "message", direction: "asc" }
