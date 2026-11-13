@@ -5560,6 +5560,30 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response.body).to be_present
     end
 
+    it "does not return the original file as a thumbnail for non-variable images" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+      doc = Document.new(kind: "file", attachable: user, user: user)
+      doc.file.attach(io: StringIO.new('<svg xmlns="http://www.w3.org/2000/svg" width="960" height="960"></svg>'), filename: "diagram.svg", content_type: "image/svg+xml")
+      doc.save!
+      ChatAttachment.create!(chat_session: chat, attachable: doc, suppress_header_broadcast: true)
+
+      get "/api/v1/app/chats/#{chat.id}/media"
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["chat_images"]).to eq([])
+
+      get "/api/v1/app/chats/#{chat.id}/media/chat_images/#{doc.id}/thumbnail"
+
+      expect(response).to have_http_status(:not_found)
+      expect(response.body).not_to include("<svg")
+
+      get "/api/v1/app/chats/#{chat.id}/media/chat_images/#{doc.id}/file"
+
+      expect(response).to have_http_status(:ok)
+      expect(response.body).to include("<svg")
+    end
+
     it "paginates chat images and typed artifacts independently" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
