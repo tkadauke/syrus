@@ -280,7 +280,11 @@ function Pagination({ payload }: { payload: TranscriptPayload }) {
   )
 }
 
-function TranscriptRenderItemView({ item, loadFullEvent }: { item: AdminTranscriptRenderItem; loadFullEvent: (eventIndex: number) => Promise<void> }) {
+interface LoadFullTranscriptEvent {
+  (eventIndex: number): Promise<void>
+}
+
+function TranscriptRenderItemView({ item, loadFullEvent }: { item: AdminTranscriptRenderItem; loadFullEvent: LoadFullTranscriptEvent }) {
   const { t } = useT("admin")
 
   const view = (() => {
