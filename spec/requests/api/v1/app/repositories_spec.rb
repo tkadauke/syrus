@@ -2382,7 +2382,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body).to include("jobs" => include(include("issue_number" => 1)), "pagination" => include("page" => 1, "total_jobs" => 1))
-      expect(parse_body.keys).to contain_exactly("jobs", "pagination", "provider_availability")
+      expect(parse_body.keys).to contain_exactly("v", "jobs", "pagination", "provider_availability")
       expect(parse_body.fetch("jobs").first).not_to have_key("provider_availability")
     end
 
