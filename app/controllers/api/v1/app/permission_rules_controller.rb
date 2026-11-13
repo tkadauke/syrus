@@ -45,7 +45,9 @@ module Api
         end
 
         def history
-          render json: Permissions::HistoryPayload.new(Current.user).as_json
+          render json: Permissions::HistoryPayload.new(Current.user, params:).as_json
+        rescue ArgumentError => error
+          render_error("invalid_permission_history_filter", error.message, status: :unprocessable_entity)
         end
 
         def create

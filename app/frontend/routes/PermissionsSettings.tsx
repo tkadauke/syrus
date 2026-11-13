@@ -16,6 +16,7 @@ import {
   type PermissionHistoryEntry,
   type PermissionLease,
   type PermissionPreview,
+  type PermissionPagination,
   type PermissionRule
 } from "../api/permissions"
 import { updatePermissionHubPreferences, type PermissionHubMode } from "../api/permissionHubPreferences"
@@ -26,6 +27,7 @@ import { PageHeading, SectionHeading } from "../components/Heading"
 import { PanelMessage } from "../components/PanelMessage"
 import { Select } from "../components/Select"
 import { Checkbox, DataTable, Input } from "../components/ui"
+import { FilterBar, type FilterSchemaField } from "../components/FilterBar"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { errorMessage } from "../lib/errorMessage"
@@ -55,6 +57,7 @@ export function PermissionsSettingsRoute() {
     linkedView || searchParams.get("request") || searchParams.get("item") || searchParams.get("rule") || searchParams.get("capability")
   )
   const mode: PermissionHubMode = forcedAdvanced ? "advanced" : (query.data?.permission_hub_mode ?? "simple")
+  const historySearch = permissionHistorySearch(searchParams)
   const updateMode = useMutation({
     mutationFn: updatePermissionHubPreferences,
     onMutate: (nextMode) =>
@@ -67,8 +70,8 @@ export function PermissionsSettingsRoute() {
       )
   })
   const historyQuery = useQuery({
-    queryKey: ["permission_history"],
-    queryFn: fetchPermissionHistory,
+    queryKey: ["permission_history", historySearch],
+    queryFn: () => fetchPermissionHistory(historySearch),
     enabled: mode === "advanced" && (view === "leases" || view === "history")
   })
   const subject: Subject = "interactive_chat"
@@ -426,10 +429,28 @@ export function PermissionsSettingsRoute() {
           ) : null}
           {view === "resources" ? <ResourceView descriptors={descriptors} rules={rules} t={t} /> : null}
           {view === "leases" ? (
-            <LeaseView descriptors={descriptors} leases={historyQuery.data?.active_leases ?? []} loading={historyQuery.isLoading} t={t} />
+            <LeaseView
+              descriptors={descriptors}
+              leases={historyQuery.data?.active_leases ?? []}
+              loading={historyQuery.isLoading}
+              pagination={historyQuery.data?.leases_pagination}
+              searchParams={searchParams}
+              t={t}
+            />
           ) : null}
           {view === "history" ? (
-            <HistoryView descriptors={descriptors} entries={historyQuery.data?.history ?? []} loading={historyQuery.isLoading} t={t} />
+            <HistoryView
+              descriptors={descriptors}
+              entries={historyQuery.data?.history ?? []}
+              filter={historyQuery.data?.filter}
+              filterSchema={historyQuery.data?.filter_schema ?? []}
+              loading={historyQuery.isLoading}
+              pathname={location.pathname}
+              pagination={historyQuery.data?.history_pagination}
+              search={location.search}
+              searchParams={searchParams}
+              t={t}
+            />
           ) : null}
           {view === "rules" ? (
             <section className="min-w-0 rounded-xl border border-border bg-surface-raised p-4 sm:p-5">
@@ -691,7 +712,21 @@ function ResourceView({ descriptors, rules, t }: { descriptors: InheritedPermiss
   )
 }
 
-function LeaseView({ descriptors, leases, loading, t }: { descriptors: InheritedPermission[]; leases: PermissionLease[]; loading: boolean; t: Translate }) {
+function LeaseView({
+  descriptors,
+  leases,
+  loading,
+  pagination,
+  searchParams,
+  t
+}: {
+  descriptors: InheritedPermission[]
+  leases: PermissionLease[]
+  loading: boolean
+  pagination?: PermissionPagination
+  searchParams: URLSearchParams
+  t: Translate
+}) {
   return (
     <section className="min-w-0 rounded-xl border border-border bg-surface-raised p-4 sm:p-5">
       <SectionHeading>{t("permissions.leases_title")}</SectionHeading>
@@ -730,6 +765,7 @@ function LeaseView({ descriptors, leases, loading, t }: { descriptors: Inherited
         {!loading && leases.length === 0 ? <p className="text-sm text-text-muted">{t("permissions.no_leases")}</p> : null}
         {loading ? <p className="text-sm text-text-muted">{t("permissions.loading_history")}</p> : null}
       </div>
+      <PermissionPaginationControls pagination={pagination} paramName="lease_page" searchParams={searchParams} t={t} />
     </section>
   )
 }
@@ -737,18 +773,31 @@ function LeaseView({ descriptors, leases, loading, t }: { descriptors: Inherited
 function HistoryView({
   descriptors,
   entries,
+  filter,
+  filterSchema,
   loading,
+  pathname,
+  pagination,
+  search,
+  searchParams,
   t
 }: {
   descriptors: InheritedPermission[]
   entries: PermissionHistoryEntry[]
+  filter?: Record<string, unknown>
+  filterSchema: FilterSchemaField[]
   loading: boolean
+  pathname: string
+  pagination?: PermissionPagination
+  search: string
+  searchParams: URLSearchParams
   t: Translate
 }) {
   return (
     <section className="min-w-0 rounded-xl border border-border bg-surface-raised p-4 sm:p-5">
       <SectionHeading>{t("permissions.history_title")}</SectionHeading>
       <p className="mt-1 text-sm text-text-secondary">{t("permissions.history_help")}</p>
+      <FilterBar className="mt-4 space-y-2" filter={filter} filterSchema={filterSchema} pathname={pathname} search={search} />
       <ol className="mt-4 space-y-3">
         {entries.map((entry) => (
           <li className="min-w-0 overflow-x-auto rounded-lg border border-border p-4" key={`${entry.type}-${entry.id}`}>
@@ -776,7 +825,47 @@ function HistoryView({
         {!loading && entries.length === 0 ? <li className="text-sm text-text-muted">{t("permissions.no_history")}</li> : null}
         {loading ? <li className="text-sm text-text-muted">{t("permissions.loading_history")}</li> : null}
       </ol>
+      <PermissionPaginationControls pagination={pagination} paramName="page" searchParams={searchParams} t={t} />
     </section>
+  )
+}
+
+function PermissionPaginationControls({
+  pagination,
+  paramName,
+  searchParams,
+  t
+}: {
+  pagination?: PermissionPagination
+  paramName: string
+  searchParams: URLSearchParams
+  t: Translate
+}) {
+  if (!pagination || pagination.total_pages <= 1) return null
+  const first = (pagination.page - 1) * pagination.per_page + 1
+  const last = Math.min(pagination.page * pagination.per_page, pagination.total)
+  const pageLink = (page: number) => {
+    const next = new URLSearchParams(searchParams)
+    next.set(paramName, String(page))
+    return `?${next.toString()}`
+  }
+  const buttonClass = "rounded border border-border px-3 py-1 hover:bg-surface"
+  return (
+    <nav aria-label={t("permissions.pagination_label")} className="mt-4 flex items-center justify-between text-sm text-text-secondary">
+      <span>{t("permissions.pagination_showing", { first, last, total: pagination.total })}</span>
+      <span className="flex gap-2">
+        {pagination.page > 1 ? (
+          <Link className={buttonClass} to={pageLink(pagination.page - 1)}>{t("permissions.previous")}</Link>
+        ) : (
+          <span className="rounded border border-border px-3 py-1 text-text-muted opacity-50">{t("permissions.previous")}</span>
+        )}
+        {pagination.page < pagination.total_pages ? (
+          <Link className={buttonClass} to={pageLink(pagination.page + 1)}>{t("permissions.next")}</Link>
+        ) : (
+          <span className="rounded border border-border px-3 py-1 text-text-muted opacity-50">{t("permissions.next")}</span>
+        )}
+      </span>
+    </nav>
   )
 }
 
@@ -835,6 +924,16 @@ function historyTitle(entry: PermissionHistoryEntry, descriptors: InheritedPermi
 
 function formatTime(value: unknown, t: Translate) {
   return typeof value === "string" && value ? new Date(value).toLocaleString() : t("permissions.never")
+}
+
+function permissionHistorySearch(searchParams: URLSearchParams) {
+  const historyParams = new URLSearchParams()
+  ;["q", "page", "lease_page"].forEach((key) => {
+    const value = searchParams.get(key)
+    if (value != null) historyParams.set(key, value)
+  })
+  const query = historyParams.toString()
+  return query ? `?${query}` : ""
 }
 type BulkPreview = { rows: PermissionPreview[]; digest: string; operations: PermissionBulkOperation[] }
 

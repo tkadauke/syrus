@@ -59,6 +59,24 @@ describe("PermissionsSettingsRoute", () => {
     expect(screen.queryByRole("heading", { name: "Inherited policy" })).not.toBeInTheDocument()
   })
 
+  it("renders the shared history filter bar and requests the next server page", async () => {
+    const history = historyPayload()
+    history.history_pagination = { page: 1, per_page: 25, total: 26, total_pages: 2, has_more: true }
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      if (String(input).includes("/history")) return Promise.resolve(jsonResponse(history))
+      return Promise.resolve(jsonResponse(payload()))
+    })
+    renderRoute("/settings/permissions?view=history")
+
+    expect(await screen.findByRole("button", { name: /Add filter/ })).toBeInTheDocument()
+    expect(screen.getByText("Showing 1–25 of 26")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("link", { name: "Next" }))
+
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/permission_rules/history?page=2", expect.objectContaining({ credentials: "same-origin" }))
+    )
+  })
+
   it("contains wide permission content in local horizontal scrollers", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       if (String(input).endsWith("/history")) return Promise.resolve(jsonResponse(historyPayload()))
@@ -560,6 +578,16 @@ function payload() {
 
 function historyPayload() {
   return {
+    filter: { and: [] },
+    filter_schema: [
+      { field: "capability", label: "Capability or operation", bucket: "text", operators: ["contains", "is"] },
+      { field: "outcome", label: "Outcome", bucket: "enum", operators: ["is"], values: ["approved", "denied"] },
+      { field: "actor", label: "Agent or role", bucket: "text", operators: ["contains", "is"] },
+      { field: "context", label: "Chat or job", bucket: "text", operators: ["contains", "is"] },
+      { field: "occurred_at", label: "Date", bucket: "date", operators: ["between"], date_precision: "datetime" }
+    ],
+    leases_pagination: { page: 1, per_page: 25, total: 1, total_pages: 1, has_more: false },
+    history_pagination: { page: 1, per_page: 25, total: 1, total_pages: 1, has_more: false },
     active_leases: [
       {
         id: 9,

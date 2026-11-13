@@ -1,4 +1,5 @@
 import { getJson, patchJson, postJson } from "./client"
+import type { FilterSchemaField } from "../components/FilterBar"
 
 export type PermissionRule = {
   id: number
@@ -79,7 +80,15 @@ export type PermissionHistoryEntry = Record<string, unknown> & {
   occurred_at: string
   state: string
 }
-export type PermissionHistoryPayload = { active_leases: PermissionLease[]; history: PermissionHistoryEntry[] }
+export type PermissionPagination = { page: number; per_page: number; total: number; total_pages: number; has_more: boolean }
+export type PermissionHistoryPayload = {
+  active_leases: PermissionLease[]
+  leases_pagination: PermissionPagination
+  history: PermissionHistoryEntry[]
+  history_pagination: PermissionPagination
+  filter: Record<string, unknown>
+  filter_schema: FilterSchemaField[]
+}
 
 export const fetchPermissions = () => {
   return getJson<PermissionsPayload>("/api/v1/app/permission_rules")
@@ -95,8 +104,8 @@ export const applyPermissionProfile = (profile: string, subject_selector_type: s
     subject_selector_type,
     confirmation_digest
   })
-export const fetchPermissionHistory = () => {
-  return getJson<PermissionHistoryPayload>("/api/v1/app/permission_rules/history")
+export const fetchPermissionHistory = (search = "") => {
+  return getJson<PermissionHistoryPayload>(`/api/v1/app/permission_rules/history${search}`)
 }
 export const createPermissionRule = (permission_rule: Record<string, unknown>) =>
   postJson<{ rule: PermissionRule }>("/api/v1/app/permission_rules", { permission_rule })
