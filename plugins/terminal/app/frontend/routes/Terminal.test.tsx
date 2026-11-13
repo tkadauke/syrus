@@ -181,47 +181,47 @@ describe("TerminalRoute", () => {
 
   it("groups the default workspace picker and limits each section to three choices", async () => {
     mockFetchBody(
-        terminalSessionsPayload({
-          workspaces: [
-            workspace({ key: "workflow:1", id: 1, label: "WF-1 - Failed checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
-            workspace({ key: "workflow:2", id: 2, label: "WF-2 - Running checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
-            workspace({
-              key: "workflow:3",
-              id: 3,
-              label: "WF-3 - Approved checkout",
-              section: "interesting_workflows",
-              section_title: "Interesting workflows"
-            }),
-            workspace({
-              key: "workflow:4",
-              id: 4,
-              label: "WF-4 - Search-only checkout",
-              section: "interesting_workflows",
-              section_title: "Interesting workflows",
-              search_text: "needle workflow"
-            }),
-            workspace({
-              key: "workflow:5",
-              id: 5,
-              label: "WF-5 - Stale succeeded checkout",
-              section: "interesting_workflows",
-              section_title: "Interesting workflows",
-              default_visible: false,
-              search_text: "stale-only workflow"
-            }),
-            workspace({ key: "chat:10", id: 10, label: "Chat #10 - Coding terminal", kind: "chat", section: "coding_chats", section_title: "Coding chats" }),
-            workspace({
-              key: "worker:alpha:storage-a",
-              id: "worker:alpha:storage-a",
-              label: "Scratch on alpha",
-              kind: "worker",
-              section: "workers",
-              section_title: "Workers",
-              worker_hostname: "alpha",
-              worker_storage_key: "storage-a"
-            })
-          ]
-        })
+      terminalSessionsPayload({
+        workspaces: [
+          workspace({ key: "workflow:1", id: 1, label: "WF-1 - Failed checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
+          workspace({ key: "workflow:2", id: 2, label: "WF-2 - Running checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
+          workspace({
+            key: "workflow:3",
+            id: 3,
+            label: "WF-3 - Approved checkout",
+            section: "interesting_workflows",
+            section_title: "Interesting workflows"
+          }),
+          workspace({
+            key: "workflow:4",
+            id: 4,
+            label: "WF-4 - Search-only checkout",
+            section: "interesting_workflows",
+            section_title: "Interesting workflows",
+            search_text: "needle workflow"
+          }),
+          workspace({
+            key: "workflow:5",
+            id: 5,
+            label: "WF-5 - Stale succeeded checkout",
+            section: "interesting_workflows",
+            section_title: "Interesting workflows",
+            default_visible: false,
+            search_text: "stale-only workflow"
+          }),
+          workspace({ key: "chat:10", id: 10, label: "Chat #10 - Coding terminal", kind: "chat", section: "coding_chats", section_title: "Coding chats" }),
+          workspace({
+            key: "worker:alpha:storage-a",
+            id: "worker:alpha:storage-a",
+            label: "Scratch on alpha",
+            kind: "worker",
+            section: "workers",
+            section_title: "Workers",
+            worker_hostname: "alpha",
+            worker_storage_key: "storage-a"
+          })
+        ]
+      })
     )
 
     renderTerminalRoute()
@@ -238,38 +238,38 @@ describe("TerminalRoute", () => {
 
   it("searches workspace candidates across hidden default entries and worker metadata", async () => {
     mockFetchBody(
-        terminalSessionsPayload({
-          workspaces: [
-            workspace({ key: "workflow:1", id: 1, label: "WF-1 - Failed checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
-            workspace({ key: "workflow:2", id: 2, label: "WF-2 - Running checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
-            workspace({
-              key: "workflow:3",
-              id: 3,
-              label: "WF-3 - Approved checkout",
-              section: "interesting_workflows",
-              section_title: "Interesting workflows"
-            }),
-            workspace({
-              key: "workflow:4",
-              id: 4,
-              label: "WF-4 - Search-only checkout",
-              section: "interesting_workflows",
-              section_title: "Interesting workflows",
-              search_text: "needle workflow"
-            }),
-            workspace({
-              key: "worker:beta:storage-b",
-              id: "worker:beta:storage-b",
-              label: "Scratch on beta",
-              kind: "worker",
-              section: "workers",
-              section_title: "Workers",
-              worker_hostname: "beta",
-              worker_storage_key: "storage-b",
-              search_text: "beta storage-b"
-            })
-          ]
-        })
+      terminalSessionsPayload({
+        workspaces: [
+          workspace({ key: "workflow:1", id: 1, label: "WF-1 - Failed checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
+          workspace({ key: "workflow:2", id: 2, label: "WF-2 - Running checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
+          workspace({
+            key: "workflow:3",
+            id: 3,
+            label: "WF-3 - Approved checkout",
+            section: "interesting_workflows",
+            section_title: "Interesting workflows"
+          }),
+          workspace({
+            key: "workflow:4",
+            id: 4,
+            label: "WF-4 - Search-only checkout",
+            section: "interesting_workflows",
+            section_title: "Interesting workflows",
+            search_text: "needle workflow"
+          }),
+          workspace({
+            key: "worker:beta:storage-b",
+            id: "worker:beta:storage-b",
+            label: "Scratch on beta",
+            kind: "worker",
+            section: "workers",
+            section_title: "Workers",
+            worker_hostname: "beta",
+            worker_storage_key: "storage-b",
+            search_text: "beta storage-b"
+          })
+        ]
+      })
     )
 
     renderTerminalRoute()
@@ -299,19 +299,19 @@ describe("TerminalRoute", () => {
 
   it("can find stale workflow candidates through search without showing them by default", async () => {
     mockFetchBody(
-        terminalSessionsPayload({
-          workspaces: [
-            workspace({
-              key: "workflow:5",
-              id: 5,
-              label: "WF-5 - Stale succeeded checkout",
-              section: "interesting_workflows",
-              section_title: "Interesting workflows",
-              default_visible: false,
-              search_text: "stale-only workflow"
-            })
-          ]
-        })
+      terminalSessionsPayload({
+        workspaces: [
+          workspace({
+            key: "workflow:5",
+            id: 5,
+            label: "WF-5 - Stale succeeded checkout",
+            section: "interesting_workflows",
+            section_title: "Interesting workflows",
+            default_visible: false,
+            search_text: "stale-only workflow"
+          })
+        ]
+      })
     )
 
     renderTerminalRoute()
@@ -561,7 +561,9 @@ function renderWithClient(ui: ReactElement, bootstrap?: BootstrapPayload) {
 
 // Mocked fetch answers every URL with this body, so it carries both the sessions and
 // workspaces endpoint shapes.
-function terminalSessionsPayload(overrides: Partial<TerminalSessionsPayload & TerminalWorkspacesPayload> = {}): TerminalSessionsPayload & TerminalWorkspacesPayload {
+function terminalSessionsPayload(
+  overrides: Partial<TerminalSessionsPayload & TerminalWorkspacesPayload> = {}
+): TerminalSessionsPayload & TerminalWorkspacesPayload {
   return {
     sessions: [
       terminalSession({ id: 1, name: "Scratch", working_directory: "/app" }),
