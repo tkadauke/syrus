@@ -35,7 +35,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       expect(workflows_payload_for(job).fetch(:job_id)).to eq(job.id)
     end
 
-    it "refreshes the workflows ETag while a queued Run may change queue state" do
+    it "keeps the workflows ETag stable while a Run remains queued" do
       job = Factories.job_record(user: user, repository: repo)
       workflow = Workflow.create!(job: job, trigger_kind: "initial", state: "running")
       step = Step.create!(workflow: workflow, kind: "implement", position: 0, state: "running")
@@ -44,7 +44,7 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       first = described_class.workflows_etag(job: job, user: user)
       travel 1.second
 
-      expect(described_class.workflows_etag(job: job, user: user)).not_to eq(first)
+      expect(described_class.workflows_etag(job: job, user: user)).to eq(first)
     end
   end
 
