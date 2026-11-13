@@ -11,8 +11,9 @@ class Coworkers::PushGuard
     allowed = branch == "coworkers/#{@handle}" ||
       branch.match?(%r{\Acoworkers/chat/#{@coworker_id}-\d+\z}) ||
       branch.match?(%r{\Acoworkers/run/#{@coworker_id}-\d+\z}) ||
+      branch.match?(%r{\Acoworkers/recovery/#{@coworker_id}-[0-9a-f]{40}\z}) ||
       branch.match?(%r{\Acoworkers/archived/#{Regexp.escape(@handle)}-\d{4}-\d{2}-\d{2}(?:-\d+)?\z})
-    raise ForeignRef, "coworker pushes may only target its home, chat, run, or archive refs" unless allowed
+    raise ForeignRef, "coworker pushes may only target its home, chat, run, recovery, or archive refs" unless allowed
 
     branch
   end

@@ -156,16 +156,99 @@ class Coworkers::ChatWorkspaceLifecycle
     Dir.mktmpdir("syrus-coworker-merge-") do |dir|
       clone_branch!(home_branch, dir)
       @git.configure_author(identity, chdir: dir)
+      expected_home_sha = git_run("rev-parse", "HEAD", chdir: dir).strip
       git_run("fetch", @remote_url, "refs/heads/#{source_branch}:refs/remotes/origin/coworker-source", chdir: dir, env: @env)
       merge = git_capture("merge", "--no-edit", "origin/coworker-source", chdir: dir, env: @env)
-      return report_conflict!(dir, merge, source_branch:, conflict_checkout:) unless merge.success?
+      unless merge.success?
+        resolved = resolve_compatible_markdown_conflicts!(dir)
+        return report_conflict!(dir, merge, source_branch:, conflict_checkout:) unless resolved
+        git_run("commit", "--no-edit", chdir: dir, env: { "GIT_EDITOR" => "true" })
+      end
 
-      git_run("push", @remote_url, "HEAD:refs/heads/#{push_guard.allow!(home_branch)}", chdir: dir, env: @env)
+      Coworkers::WorkspaceCandidateValidator.new(dir, git: @git).validate!(base_sha: expected_home_sha)
+      candidate_sha = git_run("rev-parse", "HEAD", chdir: dir).strip
+      destination = push_guard.allow!(home_branch)
+      git_run("push", @remote_url,
+        "--force-with-lease=refs/heads/#{destination}:#{expected_home_sha}",
+        "HEAD:refs/heads/#{destination}", chdir: dir, env: @env)
+      verify_remote_ref!(destination, candidate_sha)
       :merged
     rescue GitRunner::GitError => error
       raise unless error.output.match?(/non-fast-forward|fetch first|failed to push some refs/i)
       :retry
+    rescue Coworkers::WorkspaceCandidateValidator::ValidationError => error
+      recovery_ref = snapshot_invalid_candidate!(dir)
+      report_invalid_candidate!(source_branch, conflict_checkout, error, recovery_ref:)
     end
+  end
+
+  def resolve_compatible_markdown_conflicts!(path)
+    files = unmerged_files(path)
+    return false if files.empty? || files.any? { |relative| File.extname(relative).downcase != ".md" }
+
+    files.each do |relative|
+      base = index_blob(path, 1, relative)
+      ours = index_blob(path, 2, relative)
+      theirs = index_blob(path, 3, relative)
+      merged = additive_merge(base, ours, theirs)
+      return false unless merged
+
+      candidate = Syrus::PathJail.resolve!(path, relative)
+      File.binwrite(candidate, merged)
+      git_run("add", "--", relative, chdir: path.to_s)
+    end
+    unmerged_files(path).empty?
+  end
+
+  def index_blob(path, stage, relative)
+    git_run("show", ":#{stage}:#{relative}", chdir: path.to_s)
+  rescue GitRunner::GitError
+    nil
+  end
+
+  def additive_merge(base, ours, theirs)
+    return unless base && ours && theirs
+    base_lines = base.lines
+    ours_groups = additive_groups(base_lines, ours.lines)
+    theirs_groups = additive_groups(base_lines, theirs.lines)
+    return unless ours_groups && theirs_groups
+
+    (0..base_lines.length).flat_map do |index|
+      # Identical additions express the same table row or prose insertion, so
+      # retaining it once preserves both intents without manufacturing a duplicate.
+      additions = (ours_groups[index] + theirs_groups[index]).uniq
+      index < base_lines.length ? additions + [ base_lines[index] ] : additions
+    end.join
+  end
+
+  def additive_groups(base_lines, candidate_lines)
+    groups = Array.new(base_lines.length + 1) { [] }
+    cursor = 0
+    candidate_lines.each do |line|
+      if cursor < base_lines.length && line == base_lines[cursor]
+        cursor += 1
+      else
+        groups[cursor] << line
+      end
+    end
+    cursor == base_lines.length ? groups : nil
+  end
+
+  def verify_remote_ref!(branch, candidate_sha)
+    line = git_run("ls-remote", "--heads", @remote_url, "refs/heads/#{branch}", env: @env).lines.first
+    actual_sha = line.to_s.split.first
+    return if actual_sha == candidate_sha
+
+    raise GitRunner::GitError.new([ "ls-remote", branch ], 1,
+      "pushed home ref verification failed: expected #{candidate_sha}, observed #{actual_sha.presence || 'missing'}")
+  end
+
+  def report_invalid_candidate!(source_branch, source_path, error, recovery_ref:)
+    relative = error.relative_path.presence || "workspace"
+    detail = error.message
+    content = safe_conflict_content(source_path, relative) || "[Candidate validation failed: #{detail}]"
+    record_conflict!(files: [ relative ], versions: { relative => content }, detail:, source_branch:, ref: recovery_ref)
+    :pending_resolution
   end
 
   def report_conflict!(merge_path, merge, source_branch:, conflict_checkout:)
@@ -292,7 +375,7 @@ class Coworkers::ChatWorkspaceLifecycle
   end
 
   def unmerged_files(path)
-    git_run("diff", "--name-only", "--diff-filter=U", chdir: path.to_s).lines.map(&:strip).reject(&:blank?)
+    git_run("diff", "--name-only", "-z", "--diff-filter=U", chdir: path.to_s).split("\0")
   end
 
   def markdown_link_label(value)
@@ -313,6 +396,13 @@ class Coworkers::ChatWorkspaceLifecycle
     git_run("commit", "-m", "Preserve @#{@coworker.handle} background run conflict", chdir: path.to_s)
     git_run("push", @remote_url, "HEAD:refs/heads/#{push_guard.allow!(source_branch)}", chdir: path.to_s, env: @env)
     git_run("rev-parse", "HEAD", chdir: path.to_s).strip
+  end
+
+  def snapshot_invalid_candidate!(path)
+    candidate_sha = git_run("rev-parse", "HEAD", chdir: path.to_s).strip
+    branch = push_guard.allow!("coworkers/recovery/#{@coworker.id}-#{candidate_sha}")
+    git_run("push", @remote_url, "HEAD:refs/heads/#{branch}", chdir: path.to_s, env: @env)
+    candidate_sha
   end
 
   def clone_branch!(branch, destination)

@@ -67,12 +67,19 @@ class Coworkers::HomeBranchPersistence
 
   def push!(repository, path, branch)
     url = repository.authenticated_url(user: @chat_session.user)
+    refresh_remote_branch!(url, path, branch)
+    base_sha = @git.run("rev-parse", "origin/#{branch}", chdir: path.to_s).strip
+    Coworkers::WorkspaceCandidateValidator.new(path, git: @git).validate!(base_sha:)
+    candidate_sha = @git.run("rev-parse", "HEAD", chdir: path.to_s).strip
     @git.run(
       "push", url,
       "HEAD:refs/heads/#{branch}", chdir: path.to_s,
       env: { "GIT_TERMINAL_PROMPT" => "0" }
     )
-    refresh_remote_branch!(url, path, branch)
+    verify_remote_ref!(url, branch, candidate_sha)
+  rescue Coworkers::WorkspaceCandidateValidator::ValidationError => error
+    raise GitRunner::GitError.new([ "validate", branch ], 1,
+      "coworker home candidate was not pushed: #{error.message}")
   end
 
   def reconcile_and_push!(repository, path, branch)
@@ -93,6 +100,16 @@ class Coworkers::HomeBranchPersistence
     @git.run("fetch", url, refspec, "--prune", chdir: path.to_s, env: { "GIT_TERMINAL_PROMPT" => "0" })
   end
 
+  def verify_remote_ref!(url, branch, candidate_sha)
+    line = @git.run("ls-remote", "--heads", url, "refs/heads/#{branch}",
+      env: { "GIT_TERMINAL_PROMPT" => "0" }).lines.first
+    actual_sha = line.to_s.split.first
+    return if actual_sha == candidate_sha
+
+    raise GitRunner::GitError.new([ "ls-remote", branch ], 1,
+      "pushed home ref verification failed: expected #{candidate_sha}, observed #{actual_sha.presence || 'missing'}")
+  end
+
   def continue_rebase!(path)
     unresolved = conflict_paths(path)
     if unresolved_conflict_markers?(path, unresolved)
@@ -109,15 +126,19 @@ class Coworkers::HomeBranchPersistence
   end
 
   def conflict_paths(path)
-    @git.run("diff", "--name-only", "--diff-filter=U", chdir: path.to_s).lines.map(&:strip).reject(&:blank?).join(", ").presence || "the workspace"
+    conflict_path_list(path).join(", ").presence || "the workspace"
   rescue GitRunner::GitError
     "the workspace"
+  end
+
+  def conflict_path_list(path)
+    @git.run("diff", "--name-only", "-z", "--diff-filter=U", chdir: path.to_s).split("\0")
   end
 
   def unresolved_conflict_markers?(path, paths)
     return true if paths == "the workspace"
 
-    paths.split(", ").any? do |relative|
+    conflict_path_list(path).any? do |relative|
       file = Pathname.new(path).join(relative)
       file.file? && File.binread(file).match?(/^(?:<<<<<<<|=======|>>>>>>>)(?: |$)/n)
     rescue ArgumentError, Encoding::CompatibilityError

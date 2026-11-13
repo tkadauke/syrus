@@ -356,11 +356,20 @@ Each coworker chat runs in its own disposable checkout and immutable-id branch,
 `coworkers/<handle>` home branch. At turn end Syrus commits with the coworker's
 git identity, pushes the chat branch, and merges it into the home branch. Clean
 and file-disjoint changes merge automatically; append-oriented files under
-`memory/` use Git's union merge driver. A conflict keeps both refs and the
+`memory/` use Git's union merge driver. Concurrent Markdown edits that only
+add table rows or prose while retaining the base lines are combined
+automatically; replacements and deletions still enter conflict recovery. A
+conflict keeps both refs and the
 conflicted local checkout intact, then privately gives the coworker a bounded
 opportunity to reconcile both sides on a later turn. Syrus verifies that the
 index is merged, text conflict markers are gone, `git diff --check` succeeds,
-and the result reaches the home branch. Unchanged turns do not spend a retry.
+changed JSON and YAML parse, and the exact candidate commit is visible at the
+remote home ref before reporting success. The home update uses the previously
+observed remote SHA as a lease, so a retry cannot overwrite a newer update.
+Rejected automatic merge candidates are retained under a guarded
+`coworkers/recovery/` ref, preserving the attempted resolution and both parent
+commits without advancing the home branch.
+Unchanged turns do not spend a retry.
 Only exhausted retries, a one-hour resolution deadline, failed validation, or
 inaccessible recovery data produce one owner-facing warning. The Workspace
 Browser lists pending and failed-but-unresolved conflicts and drops them as
