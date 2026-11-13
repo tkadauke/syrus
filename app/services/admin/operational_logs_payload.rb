@@ -19,12 +19,11 @@ module Admin
       has_next_page = rows.size > normalized.fetch(:per_page)
       visible_rows = rows.first(normalized.fetch(:per_page))
 
-      {
+      payload = {
         enabled: true,
         retention_seconds: (OperationalLogEvent.retention_window || 0).to_i,
         current_revision: current_revision,
         revision_scope: normalized.fetch(:revision_scope),
-        filter_schema: filter_definition.schema,
         filter: filter_tree,
         filters: normalized.fetch(:filters),
         pagination: {
@@ -37,11 +36,17 @@ module Admin
         },
         logs: visible_rows.map { |row| log_payload(row) }
       }
+      payload[:filter_schema] = filter_definition.schema if normalized.fetch(:page) == 1 || include_filter_schema?
+      payload
     end
 
     private
 
     attr_reader :params
+
+    def include_filter_schema?
+      ActiveModel::Type::Boolean.new.cast(params[:include_filter_schema])
+    end
 
     def disabled_payload
       {

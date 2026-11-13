@@ -39,7 +39,11 @@ RSpec.describe "admin API prefix ownership" do
     GET /api/v1/app/admin/maintenance_tasks/:id api/v1/app/admin/maintenance_tasks#show
     GET /api/v1/app/admin/reconciler_activity api/v1/app/admin/reconciler_activity#index
     GET /api/v1/app/admin/browser_errors api/v1/app/admin/browser_errors#index
+    GET /api/v1/app/admin/browser_errors/controls api/v1/app/admin/browser_errors#controls
+    GET /api/v1/app/admin/browser_errors/:id api/v1/app/admin/browser_errors#show
     GET /api/v1/app/admin/backend_exceptions api/v1/app/admin/backend_exceptions#index
+    GET /api/v1/app/admin/backend_exceptions/controls api/v1/app/admin/backend_exceptions#controls
+    GET /api/v1/app/admin/backend_exceptions/:id api/v1/app/admin/backend_exceptions#show
     GET /api/v1/app/admin/github_app/register api/v1/app/admin/github_app#register
     GET /api/v1/app/admin/github_app/confirm api/v1/app/admin/github_app#confirm
     POST /api/v1/app/admin/github_app/sync_installations api/v1/app/admin/github_app#sync_installations
@@ -47,6 +51,7 @@ RSpec.describe "admin API prefix ownership" do
     GET /api/v1/app/admin/processes api/v1/app/admin/spawned_processes#index
     GET /api/v1/app/admin/processes/:id api/v1/app/admin/spawned_processes#show
     GET /api/v1/app/admin/runs/:run_id/transcript api/v1/app/admin/transcripts#show
+    GET /api/v1/app/admin/runs/:run_id/transcript/events/:event_index api/v1/app/admin/transcripts#event
     GET /api/v1/app/admin/mcp_tool_usage api/v1/app/admin/mcp_tool_usage#show
     GET /api/v1/app/admin/permission_parity api/v1/app/admin/permission_parity#show
     POST /api/v1/app/admin/provider_routing_holds/:id/release api/v1/app/admin/provider_routing_holds#release
@@ -98,6 +103,7 @@ RSpec.describe "admin API prefix ownership" do
     GET /api/v1/admin/runs api/v1/admin/runs#index
     GET /api/v1/admin/runs/:run_id/artifacts api/v1/admin/runs#artifacts
     GET /api/v1/admin/runs/:run_id/transcript api/v1/admin/transcripts#show
+    GET /api/v1/admin/runs/:run_id/transcript/events/:event_index api/v1/admin/transcripts#event
     GET /api/v1/admin/runs/:run_id/transcript/raw api/v1/admin/transcripts#raw
     GET /api/v1/admin/mcp_tool_usage api/v1/admin/mcp_tool_usage#show
     GET /api/v1/admin/permission_parity api/v1/admin/permission_parity#show
@@ -197,6 +203,7 @@ RSpec.describe "admin API prefix ownership" do
     plugin_runtime POST /api/v1/app/admin/plugin_services/:name/stop api/v1/app/admin/plugin_services#stop
     syrus_dev GET /api/v1/app/admin/operational_logs api/v1/app/admin/operational_logs#index
     syrus_dev GET /api/v1/app/admin/performance api/v1/app/admin/performance#show
+    syrus_dev GET /api/v1/app/admin/performance/events api/v1/app/admin/performance#events
     syrus_dev POST /api/v1/app/admin/permission_factory_resets api/v1/app/admin/permission_factory_resets#create
     syrus_dev POST /api/v1/app/admin/permission_factory_resets/preview api/v1/app/admin/permission_factory_resets#preview
     syrus_dev POST /api/v1/app/admin/performance/explain api/v1/app/admin/performance#explain
@@ -230,6 +237,7 @@ RSpec.describe "admin API prefix ownership" do
     scheduled_tasks POST /api/v1/admin/scheduled_tasks/:id/unpause api/v1/admin/scheduled_tasks#unpause
     syrus_dev GET /api/v1/admin/operational_logs api/v1/admin/operational_logs#index
     syrus_dev GET /api/v1/admin/performance api/v1/admin/performance#show
+    syrus_dev GET /api/v1/admin/performance/events api/v1/admin/performance#events
     syrus_dev POST /api/v1/admin/performance/explain api/v1/admin/performance#explain
     tailscale GET /api/v1/admin/tailscale/status api/v1/admin/tailscale#status
     terminal GET /api/v1/admin/terminal_sessions api/v1/admin/terminal_sessions#index

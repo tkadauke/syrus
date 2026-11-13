@@ -2,9 +2,11 @@ module Admin
   # Raw JSONL transcript downloads for offline analysis (jq grep, etc.).
   # The navigable transcript UI is rendered by React from the app API.
   class TranscriptsController < BaseController
+    include AdminTranscriptDelivery
+
     def download
       @run = Run.find(params[:run_id])
-      session = @run.provider_session
+      session = ProviderSession.metadata_only.find_by(resumable: @run)
 
       unless session
         redirect_back fallback_location: job_path(@run.job),
@@ -12,9 +14,7 @@ module Admin
         return
       end
 
-      send_data session.transcript_jsonl,
-                filename: "run-#{@run.id}-#{session.session_id}.jsonl",
-                type: "application/jsonl"
+      stream_transcript(session, filename: "run-#{@run.id}-#{session.session_id}.jsonl")
     end
   end
 end

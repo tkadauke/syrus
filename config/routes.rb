@@ -461,6 +461,7 @@ Rails.application.routes.draw do
         end
 
         namespace :admin do
+          get "runs/:run_id/transcript/events/:event_index", to: "transcripts#event"
           get "overview", to: "overview#show"
           get "worker_health", to: "worker_health#show"
           get "macos_worker_update", to: "macos_worker_updates#desired"
@@ -499,7 +500,11 @@ Rails.application.routes.draw do
           end
           get "reconciler_activity", to: "reconciler_activity#index"
           get "browser_errors", to: "browser_errors#index"
+          get "browser_errors/controls", to: "browser_errors#controls"
+          get "browser_errors/:id", to: "browser_errors#show", constraints: { id: /\d+/ }
           get "backend_exceptions", to: "backend_exceptions#index"
+          get "backend_exceptions/controls", to: "backend_exceptions#controls"
+          get "backend_exceptions/:id", to: "backend_exceptions#show", constraints: { id: /\d+/ }
           get "github_app/register", to: "github_app#register"
           get "github_app/confirm", to: "github_app#confirm"
           post "github_app/sync_installations", to: "github_app#sync_installations"
@@ -586,6 +591,7 @@ Rails.application.routes.draw do
         # Transcripts. Paginated event stream via ?page= + ?per=,
         # plus a raw-JSONL pass-through.
         get "runs/:run_id/transcript",     to: "transcripts#show"
+        get "runs/:run_id/transcript/events/:event_index", to: "transcripts#event"
         get "runs/:run_id/transcript/raw", to: "transcripts#raw"
         get "mcp_tool_usage",              to: "mcp_tool_usage#show"
         get "permission_parity",           to: "permission_parity#show"

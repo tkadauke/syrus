@@ -1,6 +1,10 @@
 require "rails_helper"
 
 RSpec.describe FeatureRegistry do
+  it "memoizes declarations while the configuration file is unchanged" do
+    expect(described_class.declarations).to equal(described_class.declarations)
+  end
+
   it "returns typed boolean declarations for config/features.yml" do
     declarations = described_class.declarations
 

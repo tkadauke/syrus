@@ -1,7 +1,18 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { useLocation, useNavigate } from "react-router-dom"
+import { useRef } from "react"
 import { fetchAdminOperationalLogs, type OperationalLogRevisionScope, type OperationalLogRow, type OperationalLogsPayload } from "../api/adminOperationalLogs"
-import { AdminDataTablePanel, type AdminDataTablePanelConfig, AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPanelMessage, formatEventDate, shortRevision } from "@app/components/AdminEventLogPanel"
+import {
+  AdminDataTablePanel,
+  type AdminDataTablePanelConfig,
+  AdminEventFilterBar,
+  AdminEventLogTable,
+  type AdminEventLogTableColumn,
+  AdminEventPageShell,
+  AdminEventPanelMessage,
+  formatEventDate,
+  shortRevision
+} from "@app/components/AdminEventLogPanel"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { useT } from "@app/hooks/useT"
 import { errorMessage } from "@app/lib/errorMessage"
@@ -14,11 +25,14 @@ export function AdminOperationalLogs() {
   const navigate = useNavigate()
   usePageTitle(t("page_title_operational_logs"))
   const search = normalizedSearch(location.search)
+  const filterSchemaRef = useRef<OperationalLogsPayload["filter_schema"] | undefined>(undefined)
   const logs = useQuery({
     queryKey: ["admin", "operational_logs", search],
-    queryFn: () => fetchAdminOperationalLogs(search),
+    queryFn: () => fetchAdminOperationalLogs(search, pageFromSearch(search) > 1 && !filterSchemaRef.current),
     placeholderData: keepPreviousData
   })
+  const filterSchema = logs.data?.filter_schema
+  if (filterSchema) filterSchemaRef.current = filterSchema
 
   function navigateSearch(params: URLSearchParams) {
     const next = params.toString()
@@ -41,7 +55,7 @@ export function AdminOperationalLogs() {
       eyebrow={t("section_label")}
       title={t("operational_logs.heading")}
     >
-      <OperationalLogFilters payload={logs.data} search={search} onNavigate={navigateSearch} />
+      <OperationalLogFilters filterSchema={filterSchemaRef.current} payload={logs.data} search={search} onNavigate={navigateSearch} />
 
       {logs.isPending ? <AdminEventPanelMessage>{t("operational_logs.loading")}</AdminEventPanelMessage> : null}
       {logs.isError ? <AdminEventPanelMessage tone="error">{errorMessage(logs.error, t("operational_logs.error_load"))}</AdminEventPanelMessage> : null}
@@ -52,21 +66,63 @@ export function AdminOperationalLogs() {
 
 export default AdminOperationalLogs
 
-function OperationalLogFilters({ onNavigate, payload, search }: { onNavigate: (params: URLSearchParams) => void; payload?: OperationalLogsPayload; search: string }) {
+function OperationalLogFilters({
+  filterSchema,
+  onNavigate,
+  payload,
+  search
+}: {
+  filterSchema?: OperationalLogsPayload["filter_schema"]
+  onNavigate: (params: URLSearchParams) => void
+  payload?: OperationalLogsPayload
+  search: string
+}) {
   const { t } = useT("admin")
-  return <AdminEventFilterBar clearLabel={t("operational_logs.clear")} filter={payload?.filter} filterSchema={payload?.filter_schema} fields={[
-    { name: "query", label: t("operational_logs.query"), placeholder: t("operational_logs.query_placeholder") },
-    { name: "since", label: t("operational_logs.since"), defaultValue: "1h", placeholder: "1h" },
-    { name: "until", label: t("operational_logs.until"), placeholder: t("operational_logs.until_placeholder") },
-    { name: "level", label: t("operational_logs.level") },
-    { name: "role", label: t("operational_logs.role") },
-    { name: "hostname", label: t("operational_logs.hostname"), placeholder: "worker-0" },
-    { name: "revision_scope", label: t("operational_logs.revision_scope"), defaultValue: "current", options: revisionScopes.map((scope) => ({ value: scope, label: t(`operational_logs.revision_${scope}`) })) },
-    { name: "per_page", label: t("operational_logs.per_page"), defaultValue: "50", options: [25, 50, 100].map((value) => ({ value: String(value), label: String(value) })) }
-  ]} search={search} searchLabel={t("operational_logs.search")} onNavigate={onNavigate} />
+  return (
+    <AdminEventFilterBar
+      clearLabel={t("operational_logs.clear")}
+      filter={payload?.filter}
+      filterSchema={filterSchema}
+      fields={[
+        { name: "query", label: t("operational_logs.query"), placeholder: t("operational_logs.query_placeholder") },
+        { name: "since", label: t("operational_logs.since"), defaultValue: "1h", placeholder: "1h" },
+        { name: "until", label: t("operational_logs.until"), placeholder: t("operational_logs.until_placeholder") },
+        { name: "level", label: t("operational_logs.level") },
+        { name: "role", label: t("operational_logs.role") },
+        { name: "hostname", label: t("operational_logs.hostname"), placeholder: "worker-0" },
+        {
+          name: "revision_scope",
+          label: t("operational_logs.revision_scope"),
+          defaultValue: "current",
+          options: revisionScopes.map((scope) => ({ value: scope, label: t(`operational_logs.revision_${scope}`) }))
+        },
+        {
+          name: "per_page",
+          label: t("operational_logs.per_page"),
+          defaultValue: "50",
+          options: [25, 50, 100].map((value) => ({ value: String(value), label: String(value) }))
+        }
+      ]}
+      search={search}
+      searchLabel={t("operational_logs.search")}
+      onNavigate={onNavigate}
+    />
+  )
 }
 
-function OperationalLogsView({ onNavigate, payload, search }: { onNavigate: (params: URLSearchParams) => void; payload: OperationalLogsPayload; search: string }) {
+function pageFromSearch(search: string) {
+  return Number.parseInt(new URLSearchParams(search).get("page") || "1", 10)
+}
+
+function OperationalLogsView({
+  onNavigate,
+  payload,
+  search
+}: {
+  onNavigate: (params: URLSearchParams) => void
+  payload: OperationalLogsPayload
+  search: string
+}) {
   const { t } = useT("admin")
   if (!payload.enabled) {
     return <AdminEventPanelMessage tone="warn">{payload.error?.message || t("operational_logs.disabled")}</AdminEventPanelMessage>
@@ -74,7 +130,10 @@ function OperationalLogsView({ onNavigate, payload, search }: { onNavigate: (par
 
   const panel = {
     summary: t("operational_logs.showing", { count: payload.logs.length, page: payload.pagination.page }),
-    meta: t("operational_logs.retention", { hours: Math.round(payload.retention_seconds / 3600), revision: payload.revision_scope === "all" ? t("operational_logs.all_revisions") : shortRevision(payload.current_revision) }),
+    meta: t("operational_logs.retention", {
+      hours: Math.round(payload.retention_seconds / 3600),
+      revision: payload.revision_scope === "all" ? t("operational_logs.all_revisions") : shortRevision(payload.current_revision)
+    }),
     pagination: {
       label: t("operational_logs.page", { page: payload.pagination.page }),
       nextLabel: t("operational_logs.next"),
@@ -93,12 +152,22 @@ function OperationalLogsView({ onNavigate, payload, search }: { onNavigate: (par
     )
   }
 
-  return (
-    <OperationalLogsTable onNavigate={onNavigate} panel={panel} revisionScope={payload.revision_scope} rows={payload.logs} search={search} />
-  )
+  return <OperationalLogsTable onNavigate={onNavigate} panel={panel} revisionScope={payload.revision_scope} rows={payload.logs} search={search} />
 }
 
-function OperationalLogsTable({ onNavigate, panel, revisionScope, rows, search }: { onNavigate: (params: URLSearchParams) => void; panel: AdminDataTablePanelConfig; revisionScope: OperationalLogRevisionScope; rows: OperationalLogRow[]; search: string }) {
+function OperationalLogsTable({
+  onNavigate,
+  panel,
+  revisionScope,
+  rows,
+  search
+}: {
+  onNavigate: (params: URLSearchParams) => void
+  panel: AdminDataTablePanelConfig
+  revisionScope: OperationalLogRevisionScope
+  rows: OperationalLogRow[]
+  search: string
+}) {
   const { t } = useT("admin")
   const columns: Array<AdminEventLogTableColumn<OperationalLogRow>> = [
     {
@@ -125,7 +194,10 @@ function OperationalLogsTable({ onNavigate, panel, revisionScope, rows, search }
       sort: "process",
       render: (row) => (
         <>
-          <div className="font-medium">{row.role} · {row.hostname}{row.pid ? ` · pid ${row.pid}` : ""}</div>
+          <div className="font-medium">
+            {row.role} · {row.hostname}
+            {row.pid ? ` · pid ${row.pid}` : ""}
+          </div>
           {revisionScope === "all" ? <div className="mt-1 font-mono text-gray-500 dark:text-gray-400">{shortRevision(row.app_revision)}</div> : null}
         </>
       )
@@ -152,7 +224,11 @@ function OperationalLogsTable({ onNavigate, panel, revisionScope, rows, search }
       render: (row) => (
         <>
           <div className="overflow-hidden break-words font-mono text-xs leading-5 text-gray-900 dark:text-gray-100">{row.message}</div>
-          {row.context && Object.keys(row.context).length > 0 ? <div className="mt-2 overflow-hidden break-words font-mono text-xs leading-5 text-gray-500 dark:text-gray-400">{compactContext(row.context, row.message)}</div> : null}
+          {row.context && Object.keys(row.context).length > 0 ? (
+            <div className="mt-2 overflow-hidden break-words font-mono text-xs leading-5 text-gray-500 dark:text-gray-400">
+              {compactContext(row.context, row.message)}
+            </div>
+          ) : null}
         </>
       )
     }
@@ -172,11 +248,12 @@ function OperationalLogsTable({ onNavigate, panel, revisionScope, rows, search }
 }
 
 function LevelBadge({ level }: { level: string }) {
-  const tone = level === "error" || level === "fatal"
-    ? "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300"
-    : level === "warn"
-      ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
-      : "border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+  const tone =
+    level === "error" || level === "fatal"
+      ? "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300"
+      : level === "warn"
+        ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+        : "border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
   return <span className={`inline-flex rounded border px-2 py-0.5 font-mono text-xs font-medium uppercase ${tone}`}>{level}</span>
 }
 

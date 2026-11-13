@@ -32,7 +32,11 @@ class FeatureRegistry
   end
 
   def self.declarations(config_path: CONFIG_PATH)
-    new(config_path: config_path).declarations
+    path = Pathname.new(config_path)
+    @declarations_by_path ||= {}
+    cache_key = [ path.to_s, path.mtime.to_f ]
+    @declarations_by_path.delete_if { |cached_key, _value| cached_key.first == path.to_s && cached_key != cache_key }
+    @declarations_by_path[cache_key] ||= new(config_path: path).declarations.freeze
   end
 
   def initialize(config_path:)

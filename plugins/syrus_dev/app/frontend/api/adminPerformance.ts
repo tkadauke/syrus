@@ -186,7 +186,7 @@ export type AdminPerformancePayload = {
     browser_traces: BrowserTraceSummary[]
     sql_fingerprints: SqlFingerprintSummary[]
   }
-  events: PerformanceEvent[]
+  event_count: number
 }
 
 export type SqlExplainResult = {
@@ -204,9 +204,14 @@ export type SqlExplainResult = {
 
 export function fetchAdminPerformance(search = "") {
   const params = new URLSearchParams(search)
-  if (!params.has("limit")) params.set("limit", "500")
   if (!params.has("revision_scope")) params.set("revision_scope", "current")
   return getJson<AdminPerformancePayload>(`/api/v1/app/admin/performance?${params.toString()}`)
+}
+
+export function fetchAdminPerformanceEvents(search = "") {
+  const params = new URLSearchParams(search)
+  if (!params.has("revision_scope")) params.set("revision_scope", "current")
+  return getJson<{ events: PerformanceEvent[]; event_count: number }>(`/api/v1/app/admin/performance/events?${params.toString()}`)
 }
 
 export function explainSql(sql: string, options: { analyze?: boolean; timeoutMs?: number } = {}) {

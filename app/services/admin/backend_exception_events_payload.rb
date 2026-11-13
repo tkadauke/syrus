@@ -21,14 +21,20 @@ module Admin
       Admin::EventLogFilterDefinitions.backend_exceptions
     end
 
-    def event_payload(event)
-      Observability::EventPayloads.backend_exception(event).merge(
-        actions: Observability::EventJobFiler.actions_for("backend_exception")
-      )
+    def event_payload(event, detail: false)
+      Observability::EventPayloads.backend_exception(event, detail: detail)
     end
 
-    def extra_payload
-      { sources: BackendExceptionEvent.distinct.order(:source).pluck(:source) }
+    def event_type
+      "backend_exception"
+    end
+
+    def detail_association
+      :job
+    end
+
+    def extra_controls
+      { sources: Rails.cache.fetch("admin/backend_exception_sources", expires_in: 5.minutes) { BackendExceptionEvent.distinct.order(:source).pluck(:source) } }
     end
   end
 end

@@ -5,6 +5,7 @@ import { Button, Notice, Page, Section, Text, Toolbar } from "@app/components/ui
 import {
   explainSql,
   fetchAdminPerformance,
+  fetchAdminPerformanceEvents,
   type AdminPerformancePayload,
   type BrowserTraceSummary,
   type PerformanceComparison,
@@ -19,10 +20,7 @@ import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { errorMessage } from "@app/lib/errorMessage"
 import { DataTable, DescriptionList } from "@app/components/ui"
-import {
-  AdminEventFilterBar,
-  AdminDataTablePanel
-} from "@app/components/AdminEventLogPanel"
+import { AdminEventFilterBar, AdminDataTablePanel } from "@app/components/AdminEventLogPanel"
 import {
   DataTableColumnCells,
   DataTableColumnHeaderRow,
@@ -73,10 +71,13 @@ function performanceFilterFields(t: (key: string) => string) {
   ]
 }
 
-const performanceFilterLink = buildFlatFilterLink(["app_revision", "since", "until", "revision_scope", "event_name", "request_id", "trace_id", "job_class", "path", "controller", "action", "sql_fingerprint"], (params) => {
-  if (!params.has("revision_scope")) params.set("revision_scope", "current")
-  if (!params.has("since")) params.set("since", "1h")
-})
+const performanceFilterLink = buildFlatFilterLink(
+  ["app_revision", "since", "until", "revision_scope", "event_name", "request_id", "trace_id", "job_class", "path", "controller", "action", "sql_fingerprint"],
+  (params) => {
+    if (!params.has("revision_scope")) params.set("revision_scope", "current")
+    if (!params.has("since")) params.set("since", "1h")
+  }
+)
 
 export function AdminPerformance() {
   const { t } = useT("syrus_dev")
@@ -116,20 +117,39 @@ export function AdminPerformance() {
 
       {performance.isPending ? <PanelMessage>{t("performance.loading")}</PanelMessage> : null}
       {performance.isError ? <PanelMessage tone="error">{errorMessage(performance.error, t("performance.error_load"))}</PanelMessage> : null}
-      {performance.isSuccess ? <PerformanceView payload={performance.data} /> : null}
+      {performance.isSuccess ? <PerformanceView payload={performance.data} search={search} /> : null}
     </Page.Root>
   )
 }
 
 export default AdminPerformance
 
-function PerformanceView({ payload }: { payload: AdminPerformancePayload }) {
+function PerformanceView({ payload, search }: { payload: AdminPerformancePayload; search: string }) {
   const { t } = useT("syrus_dev")
-  const eventCount = payload.events.length
+  const eventCount = payload.event_count
   const [activeTab, setActiveTab] = useState<PerformanceTab>("overview")
   const [explainSqlText, setExplainSqlText] = useState<string | null>(null)
   const [requestDetail, setRequestDetail] = useState<SlowRequestSummary | null>(null)
   const [browserDetail, setBrowserDetail] = useState<BrowserTraceSummary | null>(null)
+  const eventParams = new URLSearchParams(search)
+  if (requestDetail) {
+    eventParams.set("event_name", "syrus.performance.slow_request")
+    if (requestDetail.method) eventParams.set("method", requestDetail.method)
+    if (requestDetail.path) eventParams.set("path", requestDetail.path)
+    if (requestDetail.controller) eventParams.set("controller", requestDetail.controller)
+    if (requestDetail.action) eventParams.set("action", requestDetail.action)
+  } else if (browserDetail) {
+    eventParams.set("event_name", "syrus.performance.browser_trace")
+    eventParams.set("name", browserDetail.name)
+    if (browserDetail.path) eventParams.set("path", browserDetail.path)
+  }
+  const eventSearch = `?${eventParams.toString()}`
+  const eventDetails = useQuery({
+    queryKey: ["admin", "performance", "events", eventSearch],
+    queryFn: () => fetchAdminPerformanceEvents(eventSearch),
+    enabled: activeTab === "events" || Boolean(requestDetail) || Boolean(browserDetail)
+  })
+  const events = eventDetails.data?.events ?? []
   const openExplain = (sql: string) => {
     setRequestDetail(null)
     setBrowserDetail(null)
@@ -189,11 +209,9 @@ function PerformanceView({ payload }: { payload: AdminPerformancePayload }) {
       {activeTab === "jobs" ? <SlowJobsTable rows={payload.summaries.slow_jobs ?? []} /> : null}
       {activeTab === "sql" ? <SqlFingerprintsTable onExplain={openExplain} rows={payload.summaries.sql_fingerprints} /> : null}
       {activeTab === "phases" ? <SlowPhasesTable rows={payload.summaries.slow_phases} /> : null}
-      {activeTab === "events" ? <EventsTable rows={payload.events} /> : null}
-      {requestDetail ? (
-        <SlowRequestSqlModal events={payload.events} onClose={() => setRequestDetail(null)} onExplain={openExplain} request={requestDetail} />
-      ) : null}
-      {browserDetail ? <BrowserTraceModal events={payload.events} onClose={() => setBrowserDetail(null)} trace={browserDetail} /> : null}
+      {activeTab === "events" ? <EventsTable rows={events} /> : null}
+      {requestDetail ? <SlowRequestSqlModal events={events} onClose={() => setRequestDetail(null)} onExplain={openExplain} request={requestDetail} /> : null}
+      {browserDetail ? <BrowserTraceModal events={events} onClose={() => setBrowserDetail(null)} trace={browserDetail} /> : null}
       {explainSqlText ? <SqlExplainModal initialSql={explainSqlText} onClose={() => setExplainSqlText(null)} /> : null}
     </div>
   )
@@ -217,16 +235,84 @@ function RegressionTable({ payload }: { payload: AdminPerformancePayload }) {
 
   type RegressionRow = (typeof rows)[number]
   const columns: PerformanceColumnDef<RegressionRow>[] = [
-    { key: "kind", label: t("performance.col_kind"), required: true, sortKey: "kind", sortValue: (row) => row.kind, cellClassName: "whitespace-nowrap font-medium text-gray-600 dark:text-gray-300", renderCell: (row) => row.kind },
-    { key: "item", label: t("performance.col_item"), sortKey: "item", sortValue: (row) => row.label, cellClassName: "max-w-3xl font-mono text-gray-900 dark:text-gray-100", renderCell: (row) => <div className="truncate" title={row.label}>{row.label}</div> },
-    { key: "status", label: t("performance.col_status"), sortKey: "status", sortValue: (row) => row.status, cellClassName: "whitespace-nowrap", renderCell: (row) => <span className={comparisonPillClass(row.status)}>{row.status}</span> },
-    { key: "current", label: t("performance.col_current"), align: "right", sortKey: "current", sortValue: (row) => row.current_average_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.current_average_duration_ms) },
-    { key: "baseline", label: t("performance.col_baseline"), align: "right", sortKey: "baseline", sortValue: (row) => row.baseline_average_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.baseline_average_duration_ms) },
-    { key: "delta", label: t("performance.col_delta"), align: "right", sortKey: "delta", sortValue: (row) => row.delta_average_duration_ms, cellClassName: numberCellClass(), renderCell: formatDelta },
-    { key: "count", label: t("performance.col_count"), align: "right", sortKey: "count", sortValue: (row) => row.current_count, cellClassName: numberCellClass(), renderCell: (row) => `${row.current_count} / ${row.baseline_count ?? "-"}` }
+    {
+      key: "kind",
+      label: t("performance.col_kind"),
+      required: true,
+      sortKey: "kind",
+      sortValue: (row) => row.kind,
+      cellClassName: "whitespace-nowrap font-medium text-gray-600 dark:text-gray-300",
+      renderCell: (row) => row.kind
+    },
+    {
+      key: "item",
+      label: t("performance.col_item"),
+      sortKey: "item",
+      sortValue: (row) => row.label,
+      cellClassName: "max-w-3xl font-mono text-gray-900 dark:text-gray-100",
+      renderCell: (row) => (
+        <div className="truncate" title={row.label}>
+          {row.label}
+        </div>
+      )
+    },
+    {
+      key: "status",
+      label: t("performance.col_status"),
+      sortKey: "status",
+      sortValue: (row) => row.status,
+      cellClassName: "whitespace-nowrap",
+      renderCell: (row) => <span className={comparisonPillClass(row.status)}>{row.status}</span>
+    },
+    {
+      key: "current",
+      label: t("performance.col_current"),
+      align: "right",
+      sortKey: "current",
+      sortValue: (row) => row.current_average_duration_ms,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => formatMs(row.current_average_duration_ms)
+    },
+    {
+      key: "baseline",
+      label: t("performance.col_baseline"),
+      align: "right",
+      sortKey: "baseline",
+      sortValue: (row) => row.baseline_average_duration_ms,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => formatMs(row.baseline_average_duration_ms)
+    },
+    {
+      key: "delta",
+      label: t("performance.col_delta"),
+      align: "right",
+      sortKey: "delta",
+      sortValue: (row) => row.delta_average_duration_ms,
+      cellClassName: numberCellClass(),
+      renderCell: formatDelta
+    },
+    {
+      key: "count",
+      label: t("performance.col_count"),
+      align: "right",
+      sortKey: "count",
+      sortValue: (row) => row.current_count,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => `${row.current_count} / ${row.baseline_count ?? "-"}`
+    }
   ]
 
-  return <ConfigurablePerformanceTable columns={columns} defaultSort={{ column: "delta", direction: "desc" }} empty={payload.baseline?.revision ? t("performance.no_regressions") : t("performance.no_baseline")} getRowKey={(row) => `${row.kind}-${row.key}`} rows={rows} storageKey="syrus.admin.performance.regressions.visible_columns" title={title} />
+  return (
+    <ConfigurablePerformanceTable
+      columns={columns}
+      defaultSort={{ column: "delta", direction: "desc" }}
+      empty={payload.baseline?.revision ? t("performance.no_regressions") : t("performance.no_baseline")}
+      getRowKey={(row) => `${row.kind}-${row.key}`}
+      rows={rows}
+      storageKey="syrus.admin.performance.regressions.visible_columns"
+      title={title}
+    />
+  )
 }
 
 function comparisonRows(kind: string, rows: PerformanceComparison[]) {
@@ -254,21 +340,68 @@ function SlowRequestsTable({ onInspect, rows }: { onInspect: (row: SlowRequestSu
       cellClassName: "max-w-xl",
       renderCell: (row) => (
         <>
-                <div className="font-mono text-xs text-gray-900 dark:text-gray-100">
-                  {row.method} {row.path}
-                </div>
-                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  {row.controller}#{row.action}
-                </div>
+          <div className="font-mono text-xs text-gray-900 dark:text-gray-100">
+            {row.method} {row.path}
+          </div>
+          <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {row.controller}#{row.action}
+          </div>
         </>
       )
     },
-    { key: "count", label: t("performance.col_count"), align: "right", sortKey: "count", sortValue: (row) => row.count, cellClassName: numberCellClass(), renderCell: (row) => row.count },
-    { key: "total", label: t("performance.col_total"), align: "right", sortKey: "total", sortValue: (row) => row.total_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.total_duration_ms) },
-    { key: "avg", label: t("performance.col_avg"), align: "right", sortKey: "avg", sortValue: (row) => row.average_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.average_duration_ms) },
-    { key: "max", label: t("performance.col_max"), align: "right", sortKey: "max", sortValue: (row) => row.max_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.max_duration_ms) },
-    { key: "sql", label: t("performance.col_sql"), align: "right", sortKey: "sql", sortValue: (row) => row.average_sql_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => `${row.average_sql_count ?? "-"} / ${formatMs(row.average_sql_duration_ms)}` },
-    { key: "last_seen", label: t("performance.col_last_seen"), sortKey: "last_seen", sortValue: (row) => row.last_seen_at ?? "", cellClassName: "text-gray-600 dark:text-gray-300", renderCell: (row) => formatDate(row.last_seen_at) },
+    {
+      key: "count",
+      label: t("performance.col_count"),
+      align: "right",
+      sortKey: "count",
+      sortValue: (row) => row.count,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => row.count
+    },
+    {
+      key: "total",
+      label: t("performance.col_total"),
+      align: "right",
+      sortKey: "total",
+      sortValue: (row) => row.total_duration_ms,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => formatMs(row.total_duration_ms)
+    },
+    {
+      key: "avg",
+      label: t("performance.col_avg"),
+      align: "right",
+      sortKey: "avg",
+      sortValue: (row) => row.average_duration_ms,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => formatMs(row.average_duration_ms)
+    },
+    {
+      key: "max",
+      label: t("performance.col_max"),
+      align: "right",
+      sortKey: "max",
+      sortValue: (row) => row.max_duration_ms,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => formatMs(row.max_duration_ms)
+    },
+    {
+      key: "sql",
+      label: t("performance.col_sql"),
+      align: "right",
+      sortKey: "sql",
+      sortValue: (row) => row.average_sql_duration_ms,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => `${row.average_sql_count ?? "-"} / ${formatMs(row.average_sql_duration_ms)}`
+    },
+    {
+      key: "last_seen",
+      label: t("performance.col_last_seen"),
+      sortKey: "last_seen",
+      sortValue: (row) => row.last_seen_at ?? "",
+      cellClassName: "text-gray-600 dark:text-gray-300",
+      renderCell: (row) => formatDate(row.last_seen_at)
+    },
     {
       key: "actions",
       label: t("performance.col_actions"),
@@ -277,13 +410,23 @@ function SlowRequestsTable({ onInspect, rows }: { onInspect: (row: SlowRequestSu
       required: true,
       cellClassName: "whitespace-nowrap",
       renderCell: (row) => (
-                <button className={smallActionClass()} onClick={() => onInspect(row)} type="button">
-                  {t("performance.details")}
-                </button>
+        <button className={smallActionClass()} onClick={() => onInspect(row)} type="button">
+          {t("performance.details")}
+        </button>
       )
     }
   ]
-  return <ConfigurablePerformanceTable columns={columns} defaultSort={{ column: "total", direction: "desc" }} empty={t("performance.no_slow_requests")} getRowKey={(row) => `${row.method}-${row.path}-${row.controller}-${row.action}`} rows={rows} storageKey="syrus.admin.performance.slow_requests.visible_columns" title={t("performance.slow_requests")} />
+  return (
+    <ConfigurablePerformanceTable
+      columns={columns}
+      defaultSort={{ column: "total", direction: "desc" }}
+      empty={t("performance.no_slow_requests")}
+      getRowKey={(row) => `${row.method}-${row.path}-${row.controller}-${row.action}`}
+      rows={rows}
+      storageKey="syrus.admin.performance.slow_requests.visible_columns"
+      title={t("performance.slow_requests")}
+    />
+  )
 }
 
 function SlowJobsTable({ rows }: { rows: SlowJobSummary[] }) {
@@ -298,25 +441,96 @@ function SlowJobsTable({ rows }: { rows: SlowJobSummary[] }) {
       cellClassName: "max-w-xl",
       renderCell: (row) => (
         <>
-                <div className="font-mono text-xs text-gray-900 dark:text-gray-100">{row.job_class ?? "-"}</div>
-                {row.recent_trigger_reasons?.length ? (
-                  <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    {t("performance.triggered_by", { reasons: row.recent_trigger_reasons.join(", ") })}
-                  </div>
-                ) : null}
+          <div className="font-mono text-xs text-gray-900 dark:text-gray-100">{row.job_class ?? "-"}</div>
+          {row.recent_trigger_reasons?.length ? (
+            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {t("performance.triggered_by", { reasons: row.recent_trigger_reasons.join(", ") })}
+            </div>
+          ) : null}
         </>
       )
     },
-    { key: "queue", label: t("performance.col_queue"), sortKey: "queue", sortValue: (row) => row.queue_name ?? "", cellClassName: "whitespace-nowrap font-mono text-gray-600 dark:text-gray-300", renderCell: (row) => row.queue_name ?? "-" },
-    { key: "count", label: t("performance.col_count"), align: "right", sortKey: "count", sortValue: (row) => row.count, cellClassName: numberCellClass(), renderCell: (row) => row.count },
-    { key: "total", label: t("performance.col_total"), align: "right", sortKey: "total", sortValue: (row) => row.total_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.total_duration_ms) },
-    { key: "avg", label: t("performance.col_avg"), align: "right", sortKey: "avg", sortValue: (row) => row.average_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.average_duration_ms) },
-    { key: "max", label: t("performance.col_max"), align: "right", sortKey: "max", sortValue: (row) => row.max_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.max_duration_ms) },
-    { key: "sql", label: t("performance.col_sql"), align: "right", sortKey: "sql", sortValue: (row) => row.average_sql_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => `${row.average_sql_count ?? "-"} / ${formatMs(row.average_sql_duration_ms)}` },
-    { key: "recent_job", label: t("performance.col_recent_job"), sortKey: "recent_job", sortValue: (row) => row.recent_active_job_id ?? "", cellClassName: "whitespace-nowrap font-mono text-gray-600 dark:text-gray-300", renderCell: (row) => row.recent_active_job_id ?? "-" },
-    { key: "last_seen", label: t("performance.col_last_seen"), sortKey: "last_seen", sortValue: (row) => row.last_seen_at ?? "", cellClassName: "whitespace-nowrap text-gray-600 dark:text-gray-300", renderCell: (row) => formatDate(row.last_seen_at) }
+    {
+      key: "queue",
+      label: t("performance.col_queue"),
+      sortKey: "queue",
+      sortValue: (row) => row.queue_name ?? "",
+      cellClassName: "whitespace-nowrap font-mono text-gray-600 dark:text-gray-300",
+      renderCell: (row) => row.queue_name ?? "-"
+    },
+    {
+      key: "count",
+      label: t("performance.col_count"),
+      align: "right",
+      sortKey: "count",
+      sortValue: (row) => row.count,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => row.count
+    },
+    {
+      key: "total",
+      label: t("performance.col_total"),
+      align: "right",
+      sortKey: "total",
+      sortValue: (row) => row.total_duration_ms,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => formatMs(row.total_duration_ms)
+    },
+    {
+      key: "avg",
+      label: t("performance.col_avg"),
+      align: "right",
+      sortKey: "avg",
+      sortValue: (row) => row.average_duration_ms,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => formatMs(row.average_duration_ms)
+    },
+    {
+      key: "max",
+      label: t("performance.col_max"),
+      align: "right",
+      sortKey: "max",
+      sortValue: (row) => row.max_duration_ms,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => formatMs(row.max_duration_ms)
+    },
+    {
+      key: "sql",
+      label: t("performance.col_sql"),
+      align: "right",
+      sortKey: "sql",
+      sortValue: (row) => row.average_sql_duration_ms,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => `${row.average_sql_count ?? "-"} / ${formatMs(row.average_sql_duration_ms)}`
+    },
+    {
+      key: "recent_job",
+      label: t("performance.col_recent_job"),
+      sortKey: "recent_job",
+      sortValue: (row) => row.recent_active_job_id ?? "",
+      cellClassName: "whitespace-nowrap font-mono text-gray-600 dark:text-gray-300",
+      renderCell: (row) => row.recent_active_job_id ?? "-"
+    },
+    {
+      key: "last_seen",
+      label: t("performance.col_last_seen"),
+      sortKey: "last_seen",
+      sortValue: (row) => row.last_seen_at ?? "",
+      cellClassName: "whitespace-nowrap text-gray-600 dark:text-gray-300",
+      renderCell: (row) => formatDate(row.last_seen_at)
+    }
   ]
-  return <ConfigurablePerformanceTable columns={columns} defaultSort={{ column: "total", direction: "desc" }} empty={t("performance.no_slow_jobs")} getRowKey={(row) => `${row.job_class}-${row.queue_name}`} rows={rows} storageKey="syrus.admin.performance.slow_jobs.visible_columns" title={t("performance.slow_jobs")} />
+  return (
+    <ConfigurablePerformanceTable
+      columns={columns}
+      defaultSort={{ column: "total", direction: "desc" }}
+      empty={t("performance.no_slow_jobs")}
+      getRowKey={(row) => `${row.job_class}-${row.queue_name}`}
+      rows={rows}
+      storageKey="syrus.admin.performance.slow_jobs.visible_columns"
+      title={t("performance.slow_jobs")}
+    />
+  )
 }
 
 function SlowRequestSqlModal({
@@ -502,11 +716,51 @@ function RequestSqlTable({
 function SlowPhasesTable({ rows }: { rows: SlowPhaseSummary[] }) {
   const { t } = useT("syrus_dev")
   const columns: PerformanceColumnDef<SlowPhaseSummary>[] = [
-    { key: "phase", label: t("performance.col_phase"), required: true, sortKey: "phase", sortValue: (row) => row.phase, cellClassName: "font-mono text-gray-900 dark:text-gray-100", renderCell: (row) => row.phase },
-    { key: "count", label: t("performance.col_count"), align: "right", sortKey: "count", sortValue: (row) => row.count, cellClassName: numberCellClass(), renderCell: (row) => row.count },
-    { key: "total", label: t("performance.col_total"), align: "right", sortKey: "total", sortValue: (row) => row.total_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.total_duration_ms) },
-    { key: "avg", label: t("performance.col_avg"), align: "right", sortKey: "avg", sortValue: (row) => row.average_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.average_duration_ms) },
-    { key: "max", label: t("performance.col_max"), align: "right", sortKey: "max", sortValue: (row) => row.max_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.max_duration_ms) },
+    {
+      key: "phase",
+      label: t("performance.col_phase"),
+      required: true,
+      sortKey: "phase",
+      sortValue: (row) => row.phase,
+      cellClassName: "font-mono text-gray-900 dark:text-gray-100",
+      renderCell: (row) => row.phase
+    },
+    {
+      key: "count",
+      label: t("performance.col_count"),
+      align: "right",
+      sortKey: "count",
+      sortValue: (row) => row.count,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => row.count
+    },
+    {
+      key: "total",
+      label: t("performance.col_total"),
+      align: "right",
+      sortKey: "total",
+      sortValue: (row) => row.total_duration_ms,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => formatMs(row.total_duration_ms)
+    },
+    {
+      key: "avg",
+      label: t("performance.col_avg"),
+      align: "right",
+      sortKey: "avg",
+      sortValue: (row) => row.average_duration_ms,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => formatMs(row.average_duration_ms)
+    },
+    {
+      key: "max",
+      label: t("performance.col_max"),
+      align: "right",
+      sortKey: "max",
+      sortValue: (row) => row.max_duration_ms,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => formatMs(row.max_duration_ms)
+    },
     {
       key: "metadata",
       label: t("performance.col_metadata"),
@@ -515,12 +769,33 @@ function SlowPhasesTable({ rows }: { rows: SlowPhaseSummary[] }) {
       cellClassName: "max-w-md overflow-hidden font-mono text-gray-600 dark:text-gray-300",
       renderCell: (row) => {
         const metadata = compactJson(row.recent_metadata)
-        return <div className="truncate" title={metadata !== "-" ? metadata : undefined}>{metadata}</div>
+        return (
+          <div className="truncate" title={metadata !== "-" ? metadata : undefined}>
+            {metadata}
+          </div>
+        )
       }
     },
-    { key: "last_seen", label: t("performance.col_last_seen"), sortKey: "last_seen", sortValue: (row) => row.last_seen_at ?? "", cellClassName: "whitespace-nowrap text-gray-600 dark:text-gray-300", renderCell: (row) => formatDate(row.last_seen_at) }
+    {
+      key: "last_seen",
+      label: t("performance.col_last_seen"),
+      sortKey: "last_seen",
+      sortValue: (row) => row.last_seen_at ?? "",
+      cellClassName: "whitespace-nowrap text-gray-600 dark:text-gray-300",
+      renderCell: (row) => formatDate(row.last_seen_at)
+    }
   ]
-  return <ConfigurablePerformanceTable columns={columns} defaultSort={{ column: "total", direction: "desc" }} empty={t("performance.no_slow_phases")} getRowKey={(row) => row.phase} rows={rows} storageKey="syrus.admin.performance.slow_phases.visible_columns" title={t("performance.slow_phases")} />
+  return (
+    <ConfigurablePerformanceTable
+      columns={columns}
+      defaultSort={{ column: "total", direction: "desc" }}
+      empty={t("performance.no_slow_phases")}
+      getRowKey={(row) => row.phase}
+      rows={rows}
+      storageKey="syrus.admin.performance.slow_phases.visible_columns"
+      title={t("performance.slow_phases")}
+    />
+  )
 }
 
 function BrowserTracesTable({ onInspect, rows }: { onInspect: (row: BrowserTraceSummary) => void; rows: BrowserTraceSummary[] }) {
@@ -535,22 +810,97 @@ function BrowserTracesTable({ onInspect, rows }: { onInspect: (row: BrowserTrace
       cellClassName: "max-w-xl",
       renderCell: (row) => (
         <>
-                <div className="font-mono text-xs text-gray-900 dark:text-gray-100">{row.name}</div>
-                <div className="mt-1 truncate font-mono text-xs text-gray-500 dark:text-gray-400" title={row.path ?? undefined}>
-                  {row.path ?? "-"}
-                </div>
+          <div className="font-mono text-xs text-gray-900 dark:text-gray-100">{row.name}</div>
+          <div className="mt-1 truncate font-mono text-xs text-gray-500 dark:text-gray-400" title={row.path ?? undefined}>
+            {row.path ?? "-"}
+          </div>
         </>
       )
     },
-    { key: "count", label: t("performance.col_count"), align: "right", sortKey: "count", sortValue: (row) => row.count, cellClassName: numberCellClass(), renderCell: (row) => row.count },
-    { key: "total", label: t("performance.col_browser_total"), align: "right", sortKey: "total", sortValue: (row) => row.total_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.total_duration_ms) },
-    { key: "avg", label: t("performance.col_browser_avg"), align: "right", sortKey: "avg", sortValue: (row) => row.average_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.average_duration_ms) },
-    { key: "max", label: t("performance.col_browser_max"), align: "right", sortKey: "max", sortValue: (row) => row.max_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.max_duration_ms) },
-    { key: "backend_api", label: t("performance.col_backend_api"), align: "right", sortKey: "backend_api", sortValue: (row) => row.average_api_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => `${formatMs(row.average_api_duration_ms)} / ${formatMs(row.max_api_duration_ms)}` },
-    { key: "frontend_overhead", label: t("performance.col_frontend_overhead"), align: "right", sortKey: "frontend_overhead", sortValue: (row) => frontendOverhead(row.average_duration_ms, row.average_api_duration_ms), cellClassName: numberCellClass(), renderCell: (row) => `${formatMs(frontendOverhead(row.average_duration_ms, row.average_api_duration_ms))} / ${formatMs(frontendOverhead(row.max_duration_ms, row.max_api_duration_ms))}` },
-    { key: "spans", label: t("performance.col_spans"), align: "right", sortKey: "spans", sortValue: (row) => row.average_span_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => `${formatMs(row.average_span_duration_ms)} / ${formatMs(row.max_span_duration_ms)}` },
-    { key: "request_ids", label: t("performance.col_request_ids"), sortKey: "request_ids", sortValue: (row) => row.recent_api_request_ids.join(", "), cellClassName: "max-w-md font-mono text-gray-600 dark:text-gray-300", renderCell: (row) => <div className="truncate" title={row.recent_api_request_ids.join(", ")}>{row.recent_api_request_ids.join(", ") || "-"}</div> },
-    { key: "last_seen", label: t("performance.col_last_seen"), sortKey: "last_seen", sortValue: (row) => row.last_seen_at ?? "", cellClassName: "whitespace-nowrap text-gray-600 dark:text-gray-300", renderCell: (row) => formatDate(row.last_seen_at) },
+    {
+      key: "count",
+      label: t("performance.col_count"),
+      align: "right",
+      sortKey: "count",
+      sortValue: (row) => row.count,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => row.count
+    },
+    {
+      key: "total",
+      label: t("performance.col_browser_total"),
+      align: "right",
+      sortKey: "total",
+      sortValue: (row) => row.total_duration_ms,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => formatMs(row.total_duration_ms)
+    },
+    {
+      key: "avg",
+      label: t("performance.col_browser_avg"),
+      align: "right",
+      sortKey: "avg",
+      sortValue: (row) => row.average_duration_ms,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => formatMs(row.average_duration_ms)
+    },
+    {
+      key: "max",
+      label: t("performance.col_browser_max"),
+      align: "right",
+      sortKey: "max",
+      sortValue: (row) => row.max_duration_ms,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => formatMs(row.max_duration_ms)
+    },
+    {
+      key: "backend_api",
+      label: t("performance.col_backend_api"),
+      align: "right",
+      sortKey: "backend_api",
+      sortValue: (row) => row.average_api_duration_ms,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => `${formatMs(row.average_api_duration_ms)} / ${formatMs(row.max_api_duration_ms)}`
+    },
+    {
+      key: "frontend_overhead",
+      label: t("performance.col_frontend_overhead"),
+      align: "right",
+      sortKey: "frontend_overhead",
+      sortValue: (row) => frontendOverhead(row.average_duration_ms, row.average_api_duration_ms),
+      cellClassName: numberCellClass(),
+      renderCell: (row) =>
+        `${formatMs(frontendOverhead(row.average_duration_ms, row.average_api_duration_ms))} / ${formatMs(frontendOverhead(row.max_duration_ms, row.max_api_duration_ms))}`
+    },
+    {
+      key: "spans",
+      label: t("performance.col_spans"),
+      align: "right",
+      sortKey: "spans",
+      sortValue: (row) => row.average_span_duration_ms,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => `${formatMs(row.average_span_duration_ms)} / ${formatMs(row.max_span_duration_ms)}`
+    },
+    {
+      key: "request_ids",
+      label: t("performance.col_request_ids"),
+      sortKey: "request_ids",
+      sortValue: (row) => row.recent_api_request_ids.join(", "),
+      cellClassName: "max-w-md font-mono text-gray-600 dark:text-gray-300",
+      renderCell: (row) => (
+        <div className="truncate" title={row.recent_api_request_ids.join(", ")}>
+          {row.recent_api_request_ids.join(", ") || "-"}
+        </div>
+      )
+    },
+    {
+      key: "last_seen",
+      label: t("performance.col_last_seen"),
+      sortKey: "last_seen",
+      sortValue: (row) => row.last_seen_at ?? "",
+      cellClassName: "whitespace-nowrap text-gray-600 dark:text-gray-300",
+      renderCell: (row) => formatDate(row.last_seen_at)
+    },
     {
       key: "actions",
       label: t("performance.col_actions"),
@@ -559,18 +909,28 @@ function BrowserTracesTable({ onInspect, rows }: { onInspect: (row: BrowserTrace
       required: true,
       cellClassName: "whitespace-nowrap",
       renderCell: (row) => (
-                <button
-                  aria-label={t("performance.browser_trace_details_action", { name: row.name })}
-                  className={smallActionClass()}
-                  onClick={() => onInspect(row)}
-                  type="button"
-                >
-                  {t("performance.details")}
-                </button>
+        <button
+          aria-label={t("performance.browser_trace_details_action", { name: row.name })}
+          className={smallActionClass()}
+          onClick={() => onInspect(row)}
+          type="button"
+        >
+          {t("performance.details")}
+        </button>
       )
     }
   ]
-  return <ConfigurablePerformanceTable columns={columns} defaultSort={{ column: "total", direction: "desc" }} empty={t("performance.no_browser_traces")} getRowKey={(row) => `${row.name}-${row.path}`} rows={rows} storageKey="syrus.admin.performance.browser_traces.visible_columns" title={t("performance.browser_traces")} />
+  return (
+    <ConfigurablePerformanceTable
+      columns={columns}
+      defaultSort={{ column: "total", direction: "desc" }}
+      empty={t("performance.no_browser_traces")}
+      getRowKey={(row) => `${row.name}-${row.path}`}
+      rows={rows}
+      storageKey="syrus.admin.performance.browser_traces.visible_columns"
+      title={t("performance.browser_traces")}
+    />
+  )
 }
 
 function BrowserTraceModal({ events, onClose, trace }: { events: PerformanceEvent[]; onClose: () => void; trace: BrowserTraceSummary }) {
@@ -673,17 +1033,49 @@ function SqlFingerprintsTable({ onExplain, rows }: { onExplain: (sql: string) =>
       cellClassName: "max-w-4xl",
       renderCell: (row) => (
         <>
-                <div className="text-xs font-medium text-gray-700 dark:text-gray-200">{row.name || t("performance.sql_unknown")}</div>
-                <div className="mt-1 max-h-16 overflow-hidden break-words font-mono text-xs text-gray-600 dark:text-gray-300">
-                  {row.sample_sql || row.fingerprint}
-                </div>
+          <div className="text-xs font-medium text-gray-700 dark:text-gray-200">{row.name || t("performance.sql_unknown")}</div>
+          <div className="mt-1 max-h-16 overflow-hidden break-words font-mono text-xs text-gray-600 dark:text-gray-300">
+            {row.sample_sql || row.fingerprint}
+          </div>
         </>
       )
     },
-    { key: "count", label: t("performance.col_count"), align: "right", sortKey: "count", sortValue: (row) => row.count, cellClassName: numberCellClass(), renderCell: (row) => row.count },
-    { key: "total", label: t("performance.col_total"), align: "right", sortKey: "total", sortValue: (row) => row.total_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.total_duration_ms) },
-    { key: "avg", label: t("performance.col_avg"), align: "right", sortKey: "avg", sortValue: (row) => row.average_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.average_duration_ms) },
-    { key: "max", label: t("performance.col_max"), align: "right", sortKey: "max", sortValue: (row) => row.max_duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.max_duration_ms) },
+    {
+      key: "count",
+      label: t("performance.col_count"),
+      align: "right",
+      sortKey: "count",
+      sortValue: (row) => row.count,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => row.count
+    },
+    {
+      key: "total",
+      label: t("performance.col_total"),
+      align: "right",
+      sortKey: "total",
+      sortValue: (row) => row.total_duration_ms,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => formatMs(row.total_duration_ms)
+    },
+    {
+      key: "avg",
+      label: t("performance.col_avg"),
+      align: "right",
+      sortKey: "avg",
+      sortValue: (row) => row.average_duration_ms,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => formatMs(row.average_duration_ms)
+    },
+    {
+      key: "max",
+      label: t("performance.col_max"),
+      align: "right",
+      sortKey: "max",
+      sortValue: (row) => row.max_duration_ms,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => formatMs(row.max_duration_ms)
+    },
     {
       key: "actions",
       label: t("performance.col_actions"),
@@ -692,18 +1084,28 @@ function SqlFingerprintsTable({ onExplain, rows }: { onExplain: (sql: string) =>
       required: true,
       cellClassName: "whitespace-nowrap",
       renderCell: (row) => (
-                <button
-                  className="rounded border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-500"
-                  disabled={!row.sample_sql}
-                  onClick={() => row.sample_sql && onExplain(row.sample_sql)}
-                  type="button"
-                >
-                  {t("performance.explain")}
-                </button>
+        <button
+          className="rounded border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:disabled:text-gray-500"
+          disabled={!row.sample_sql}
+          onClick={() => row.sample_sql && onExplain(row.sample_sql)}
+          type="button"
+        >
+          {t("performance.explain")}
+        </button>
       )
     }
   ]
-  return <ConfigurablePerformanceTable columns={columns} defaultSort={{ column: "total", direction: "desc" }} empty={t("performance.no_sql")} getRowKey={(row) => row.fingerprint} rows={rows} storageKey="syrus.admin.performance.sql_fingerprints.visible_columns" title={t("performance.sql_fingerprints")} />
+  return (
+    <ConfigurablePerformanceTable
+      columns={columns}
+      defaultSort={{ column: "total", direction: "desc" }}
+      empty={t("performance.no_sql")}
+      getRowKey={(row) => row.fingerprint}
+      rows={rows}
+      storageKey="syrus.admin.performance.sql_fingerprints.visible_columns"
+      title={t("performance.sql_fingerprints")}
+    />
+  )
 }
 
 function SqlExplainModal({ initialSql, onClose }: { initialSql: string; onClose: () => void }) {
@@ -812,10 +1214,40 @@ function SqlExplainModal({ initialSql, onClose }: { initialSql: string; onClose:
 function EventsTable({ rows }: { rows: PerformanceEvent[] }) {
   const { t } = useT("syrus_dev")
   const columns: PerformanceColumnDef<PerformanceEvent>[] = [
-    { key: "time", label: t("performance.col_time"), required: true, sortKey: "time", sortValue: (row) => row.occurred_at ?? "", cellClassName: "whitespace-nowrap text-gray-600 dark:text-gray-300", renderCell: (row) => formatDate(row.occurred_at) },
-    { key: "revision", label: t("performance.col_revision"), sortKey: "revision", sortValue: (row) => row.app_revision ?? "", cellClassName: "whitespace-nowrap font-mono text-gray-600 dark:text-gray-300", renderCell: (row) => shortRevision(row.app_revision) },
-    { key: "event", label: t("performance.col_event"), sortKey: "event", sortValue: (row) => row.event, cellClassName: "font-mono text-gray-900 dark:text-gray-100", renderCell: (row) => shortEvent(row.event) },
-    { key: "duration", label: t("performance.col_duration"), align: "right", sortKey: "duration", sortValue: (row) => row.duration_ms, cellClassName: numberCellClass(), renderCell: (row) => formatMs(row.duration_ms) },
+    {
+      key: "time",
+      label: t("performance.col_time"),
+      required: true,
+      sortKey: "time",
+      sortValue: (row) => row.occurred_at ?? "",
+      cellClassName: "whitespace-nowrap text-gray-600 dark:text-gray-300",
+      renderCell: (row) => formatDate(row.occurred_at)
+    },
+    {
+      key: "revision",
+      label: t("performance.col_revision"),
+      sortKey: "revision",
+      sortValue: (row) => row.app_revision ?? "",
+      cellClassName: "whitespace-nowrap font-mono text-gray-600 dark:text-gray-300",
+      renderCell: (row) => shortRevision(row.app_revision)
+    },
+    {
+      key: "event",
+      label: t("performance.col_event"),
+      sortKey: "event",
+      sortValue: (row) => row.event,
+      cellClassName: "font-mono text-gray-900 dark:text-gray-100",
+      renderCell: (row) => shortEvent(row.event)
+    },
+    {
+      key: "duration",
+      label: t("performance.col_duration"),
+      align: "right",
+      sortKey: "duration",
+      sortValue: (row) => row.duration_ms,
+      cellClassName: numberCellClass(),
+      renderCell: (row) => formatMs(row.duration_ms)
+    },
     {
       key: "context",
       label: t("performance.col_context"),
@@ -824,31 +1256,41 @@ function EventsTable({ rows }: { rows: PerformanceEvent[] }) {
       cellClassName: "max-w-4xl text-gray-600 dark:text-gray-300",
       renderCell: (row) => (
         <>
-                <div className="font-mono">{row.phase || row.path || row.job_class || row.name || row.fingerprint || "-"}</div>
-                {row.queue_name ? (
-                  <div className="mt-1">{t("performance.job_context", { queue: row.queue_name, active_job_id: row.active_job_id || "-" })}</div>
-                ) : null}
-                {row.trigger_reasons?.length ? <div className="mt-1">{t("performance.triggered_by", { reasons: row.trigger_reasons.join(", ") })}</div> : null}
-                {row.sql_count != null ? (
-                  <div className="mt-1">{t("performance.sql_context", { count: row.sql_count, duration: formatMs(row.sql_duration_ms) })}</div>
-                ) : null}
-                {row.api_requests?.length ? (
-                  <div className="mt-1">
-                    {t("performance.browser_api_context", {
-                      count: row.api_requests.length,
-                      ids:
-                        row.api_requests
-                          .map((request) => request.request_id)
-                          .filter(Boolean)
-                          .join(", ") || "-"
-                    })}
-                  </div>
-                ) : null}
+          <div className="font-mono">{row.phase || row.path || row.job_class || row.name || row.fingerprint || "-"}</div>
+          {row.queue_name ? (
+            <div className="mt-1">{t("performance.job_context", { queue: row.queue_name, active_job_id: row.active_job_id || "-" })}</div>
+          ) : null}
+          {row.trigger_reasons?.length ? <div className="mt-1">{t("performance.triggered_by", { reasons: row.trigger_reasons.join(", ") })}</div> : null}
+          {row.sql_count != null ? (
+            <div className="mt-1">{t("performance.sql_context", { count: row.sql_count, duration: formatMs(row.sql_duration_ms) })}</div>
+          ) : null}
+          {row.api_requests?.length ? (
+            <div className="mt-1">
+              {t("performance.browser_api_context", {
+                count: row.api_requests.length,
+                ids:
+                  row.api_requests
+                    .map((request) => request.request_id)
+                    .filter(Boolean)
+                    .join(", ") || "-"
+              })}
+            </div>
+          ) : null}
         </>
       )
     }
   ]
-  return <ConfigurablePerformanceTable columns={columns} defaultSort={{ column: "time", direction: "desc" }} empty={t("performance.no_events")} getRowKey={(row, index) => `${row.occurred_at}-${row.event}-${index}`} rows={rows} storageKey="syrus.admin.performance.events.visible_columns" title={t("performance.recent_events")} />
+  return (
+    <ConfigurablePerformanceTable
+      columns={columns}
+      defaultSort={{ column: "time", direction: "desc" }}
+      empty={t("performance.no_events")}
+      getRowKey={(row, index) => `${row.occurred_at}-${row.event}-${index}`}
+      rows={rows}
+      storageKey="syrus.admin.performance.events.visible_columns"
+      title={t("performance.recent_events")}
+    />
+  )
 }
 
 type PlanNode = {
@@ -1139,24 +1581,27 @@ function ConfigurablePerformanceTable<TRow>({
     setSort((current) => ({ column, direction: current.column === column && current.direction === "asc" ? "desc" : "asc" }))
   }
 
-  const columnMenu = rows.length > 0 ? (
-    <DataTableColumnMenu
-      columns={columns}
-      downLabel={t("performance.column_down")}
-      menuId={`${storageKey}-columns-menu`}
-      moveDownLabel={(label) => t("performance.column_move_down", { label })}
-      moveUpLabel={(label) => t("performance.column_move_up", { label })}
-      onChange={preferences.onChange}
-      order={preferences.order}
-      triggerAriaLabel={t("performance.columns")}
-      upLabel={t("performance.column_up")}
-      visibleLabel={t("performance.visible_columns")}
-    />
-  ) : null
+  const columnMenu =
+    rows.length > 0 ? (
+      <DataTableColumnMenu
+        columns={columns}
+        downLabel={t("performance.column_down")}
+        menuId={`${storageKey}-columns-menu`}
+        moveDownLabel={(label) => t("performance.column_move_down", { label })}
+        moveUpLabel={(label) => t("performance.column_move_up", { label })}
+        onChange={preferences.onChange}
+        order={preferences.order}
+        triggerAriaLabel={t("performance.columns")}
+        upLabel={t("performance.column_up")}
+        visibleLabel={t("performance.visible_columns")}
+      />
+    ) : null
 
   return (
     <AdminDataTablePanel columnSelector={columnMenu} config={{ summary: title, meta: t("performance.table_count", { count: rows.length }) }}>
-      {rows.length === 0 ? <PanelMessage>{empty}</PanelMessage> : (
+      {rows.length === 0 ? (
+        <PanelMessage>{empty}</PanelMessage>
+      ) : (
         <DataTable.Root density="compact" wrapperClassName="rounded-none border-0">
           <DataTable.Header>
             <DataTableColumnHeaderRow
@@ -1181,9 +1626,7 @@ function ConfigurablePerformanceTable<TRow>({
   )
 }
 
-function sortRows<
-  TRow
->(
+function sortRows<TRow>(
   rows: TRow[],
   columns: PerformanceColumnDef<TRow>[],
   sort: SortState
@@ -1194,9 +1637,7 @@ function sortRows<
   return [...rows].sort((a, b) => compareSortValues(sortValue(column, a), sortValue(column, b)) * direction)
 }
 
-function sortValue<
-  TRow
->(
+function sortValue<TRow>(
   column: PerformanceColumnDef<TRow>,
   row: TRow
 ) {

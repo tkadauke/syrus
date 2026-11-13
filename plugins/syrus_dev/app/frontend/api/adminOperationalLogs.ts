@@ -50,6 +50,9 @@ export type OperationalLogsPayload = AdminEventFilterPayload & {
   }
 }
 
-export function fetchAdminOperationalLogs(search = "") {
-  return getJson<OperationalLogsPayload>(`/api/v1/app/admin/operational_logs${search}`)
+export function fetchAdminOperationalLogs(search = "", includeFilterSchema = false) {
+  const params = new URLSearchParams(search)
+  if (includeFilterSchema) params.set("include_filter_schema", "true")
+  const query = params.toString()
+  return getJson<OperationalLogsPayload>(`/api/v1/app/admin/operational_logs${query ? `?${query}` : ""}`)
 }

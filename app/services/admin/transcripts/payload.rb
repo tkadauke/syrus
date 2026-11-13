@@ -3,6 +3,8 @@ module Admin
     class Payload
       DEFAULT_PER_PAGE = 100
       MAX_PER_PAGE = 500
+      MAX_INLINE_EVENT_BYTES = 16.kilobytes
+      EVENT_PREVIEW_BYTES = 2.kilobytes
 
       def initialize(params:)
         @params = params
@@ -22,6 +24,16 @@ module Admin
         build(context)
       end
 
+      def event(run_id, event_index)
+        context = SessionContext.for_resumable(type: "Run", id: run_id)
+        all_events, = events_for(context)
+        index = Integer(event_index, exception: false)
+        event = index && index >= 0 && all_events[index]
+        return { error: { code: "not_found", message: "Transcript event not found" }, status: :not_found } unless event
+
+        serialize_event(event, index: index, truncate: false)
+      end
+
       private
 
       attr_reader :params
@@ -29,17 +41,14 @@ module Admin
       def build(context)
         session = context.provider_session
 
-        transcript = ClaudeTranscript.new(session&.transcript_jsonl)
-        all_events = transcript.events.to_a
-        all_events.concat(context.fallback_events) if context.include_fallback_events?(session, all_events)
+        all_events, transcript = events_for(context)
         page = [ params.fetch(:page, 1).to_i, 1 ].max
         per = [ [ params.fetch(:per, DEFAULT_PER_PAGE).to_i, 1 ].max, MAX_PER_PAGE ].min
-        slice = all_events.slice((page - 1) * per, per) || []
+        after_event = Integer(params[:after_event], exception: false)
+        offset = after_event ? [ after_event, 0 ].max : (page - 1) * per
+        slice = all_events.slice(offset, per) || []
 
         {
-          agent_id: context.agent_id,
-          resumable_type: context.resumable_type,
-          resumable_id: context.resumable_id,
           run_id: context.run_id,
           job_id: context.job_id,
           job_slug: context.job_slug,
@@ -54,27 +63,49 @@ module Admin
             total_events: all_events.size,
             total_pages: [ (all_events.size.to_f / per).ceil, 1 ].max
           },
-          events: slice.map { |event| serialize_event(event) }
+          events: slice.each_with_index.map { |event, index| serialize_event(event, index: offset + index) }
         }
+      end
+
+      def events_for(context)
+        session = context.provider_session
+        transcript = ClaudeTranscript.new(session&.transcript_jsonl)
+        events = transcript.events.to_a
+        events.concat(context.fallback_events) if context.include_fallback_events?(session, events)
+        [ events, transcript ]
       end
 
       def serialize_summary(summary)
         {
-          session_id: summary.session_id,
           model: summary.model,
-          cwd: summary.cwd,
           total_turns: summary.total_turns,
           total_tool_calls: summary.total_tool_calls,
           total_cost_usd: summary.total_cost_usd,
           exit_reason: summary.exit_reason,
           tool_call_counts: summary.tool_call_counts,
-          mcp_tool_called: summary.mcp_tool_called?,
-          available_tools_at_init: summary.available_tools_at_init
+          mcp_tool_called: summary.mcp_tool_called?
         }
       end
 
-      def serialize_event(event)
-        { kind: event.kind.to_s, timestamp: event.timestamp, data: event.data }
+      def serialize_event(event, index:, truncate: true)
+        data = event.data
+        serialized = { index: index, kind: event.kind.to_s, timestamp: event.timestamp, data: data }
+        return serialized unless truncate && data.to_json.bytesize > MAX_INLINE_EVENT_BYTES
+
+        serialized.merge(data: preview_data(data), body_truncated: true)
+      end
+
+      def preview_data(value)
+        case value
+        when Hash
+          value.transform_values { |child| preview_data(child) }
+        when Array
+          value.map { |child| preview_data(child) }
+        when String
+          value.bytesize > EVENT_PREVIEW_BYTES ? "#{value.safe_byteslice(0, EVENT_PREVIEW_BYTES)}…" : value
+        else
+          value
+        end
       end
 
       class SessionContext

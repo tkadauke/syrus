@@ -104,6 +104,7 @@ RSpec.describe "API: /api/v1/app/admin/operational_logs", type: :request do
 
     expect(response).to have_http_status(:ok)
     body = parse_body
+    expect(body["filter_schema"]).to be_present
     expect(body["enabled"]).to eq(true)
     expect(body["revision_scope"]).to eq("current")
     expect(body.dig("pagination", "per_page")).to eq(OperationalLogIndex::MAX_LIMIT)
@@ -168,13 +169,20 @@ RSpec.describe "API: /api/v1/app/admin/operational_logs", type: :request do
 
     expect(response).to have_http_status(:ok)
     body = parse_body
+    expect(body["filter_schema"]).to be_present
     expect(body["logs"].map { |row| row["id"] }).to eq([ newest.id, middle.id ])
     expect(body.dig("pagination", "has_next_page")).to be(true)
 
     get "/api/v1/app/admin/operational_logs", params: { revision_scope: "all", per_page: 2, page: 2 }
 
-    expect(parse_body["logs"].map { |row| row["id"] }).to eq([ oldest.id ])
-    expect(parse_body.dig("pagination", "has_previous_page")).to be(true)
+    page_two = parse_body
+    expect(page_two["logs"].map { |row| row["id"] }).to eq([ oldest.id ])
+    expect(page_two.dig("pagination", "has_previous_page")).to be(true)
+    expect(page_two).not_to have_key("filter_schema")
+
+    get "/api/v1/app/admin/operational_logs", params: { revision_scope: "all", per_page: 2, page: 2, include_filter_schema: true }
+
+    expect(parse_body["filter_schema"]).to be_present
   end
 
   it "sorts logs by requested columns and reports sort metadata" do

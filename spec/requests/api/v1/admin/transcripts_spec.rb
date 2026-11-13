@@ -38,7 +38,7 @@ RSpec.describe "API: /api/v1/admin/runs/:run_id/transcript", type: :request do
 
       summary = body["summary"]
       expect(summary["model"]).to eq("claude-sonnet-4-6")
-      expect(summary["available_tools_at_init"]).to include("mcp__syrus__submit_summary")
+      expect(summary).not_to include("available_tools_at_init", "cwd", "session_id")
       expect(summary["mcp_tool_called"]).to be false  # Bash, not the MCP tool
 
       kinds = body["events"].map { |e| e["kind"] }
@@ -55,6 +55,20 @@ RSpec.describe "API: /api/v1/admin/runs/:run_id/transcript", type: :request do
       expect(body["events"].first["kind"]).to eq("tool_use")
     end
 
+
+    it "returns 304 for an unchanged event cursor" do
+      get "/api/v1/admin/runs/#{run.id}/transcript", params: { after_event: 3 }, headers: auth
+
+      expect(response).to have_http_status(:not_modified)
+    end
+
+    it "returns one full event by index" do
+      get "/api/v1/admin/runs/#{run.id}/transcript/events/1", headers: auth
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).to include("index" => 1, "kind" => "tool_use")
+    end
+
     it "returns JobLog fallback events when no session was captured" do
       run.provider_session.destroy
       JobLog.append!(run: run, chunk: "assistant text captured from the run log", kind: "assistant_text")
@@ -64,11 +78,7 @@ RSpec.describe "API: /api/v1/admin/runs/:run_id/transcript", type: :request do
       expect(response).to have_http_status(:ok)
       body = parse_body
       expect(body["session_id"]).to be_nil
-      expect(body["summary"]).to include(
-        "session_id" => nil,
-        "total_tool_calls" => 0,
-        "exit_reason" => nil
-      )
+      expect(body["summary"]).to include("total_tool_calls" => 0, "exit_reason" => nil)
       expect(body["events"].map { |event| event["kind"] }).to eq([ "job_log" ])
       expect(body["events"].first["data"]).to include(
         "sequence" => 0,

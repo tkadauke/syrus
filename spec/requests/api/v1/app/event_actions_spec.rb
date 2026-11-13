@@ -24,10 +24,11 @@ RSpec.describe "API: /api/v1/app/event_actions", type: :request do
         "component_stack" => "JobDetails",
         "path" => "/jobs/3188",
         "route_id" => "job",
-        "route_params" => { "id" => "3188" },
+        "route_params" => { "id" => "3188", "token" => "route-secret" },
         "recent_api_requests" => [ { "path" => "/api/v1/app/jobs/3188", "status" => 200 } ],
-        "recent_errors" => [ { "message" => "prior failure" } ],
-        "metadata" => { "boundary" => "route" }
+        "recent_errors" => [ { "message" => "prior failure with api_key=recent-error-secret" } ],
+        "metadata" => { "boundary" => "route", "access_token" => "metadata-secret" },
+        "url" => "https://syrus.example/chats/shared/share-secret?api_key=query-secret"
       }
     )
     sign_in_as(user)
@@ -43,11 +44,21 @@ RSpec.describe "API: /api/v1/app/event_actions", type: :request do
     expect(job.issue_title).to include("Fix browser error: undefined is not an object")
     expect(job.issue_body).to include(
       "Full browser error payload:",
+      "\"stack\": \"at JobDetails.tsx:42\"",
       "\"route_params\":",
       "\"id\": \"3188\"",
       "\"recent_api_requests\":",
       "\"recent_errors\":",
       "\"metadata\":"
+    )
+    expect(job.issue_body).to include(
+      "https://syrus.example/chats/shared/[FILTERED]?[FILTERED]",
+      '"access_token": "[FILTERED]"',
+      '"token": "[FILTERED]"',
+      "api_key=[redacted]"
+    )
+    expect(job.issue_body).not_to include(
+      "share-secret", "query-secret", "metadata-secret", "route-secret", "recent-error-secret"
     )
   end
 
@@ -101,8 +112,11 @@ RSpec.describe "API: /api/v1/app/event_actions", type: :request do
       source: "action_controller",
       exception_class: "NoMethodError",
       message: "undefined method map for nil",
+      backtrace: "app/controllers/jobs_controller.rb:42",
       path: "/jobs/3188",
       request_id: "req-123",
+      hostname: "worker-a",
+      pid: 123,
       metadata: { "duration_ms" => 1234.5 }
     )
     sign_in_as(admin_seed)
@@ -114,7 +128,10 @@ RSpec.describe "API: /api/v1/app/event_actions", type: :request do
     expect(response).to have_http_status(:created)
     expect(Job.last.issue_body).to include(
       "Full backend exception payload:",
+      "\"backtrace\": \"app/controllers/jobs_controller.rb:42\"",
+      "\"request_context\":",
       "\"request_id\": \"req-123\"",
+      "\"hostname\": \"worker-a\"",
       "\"duration_ms\": \"1234.5\""
     )
   end

@@ -83,7 +83,8 @@ RSpec.describe "API: /api/v1/admin/performance", type: :request, requires_plugin
     expect(body["revision_scope"]).to eq("current")
     expect(body["thresholds"]).to include("slow_request_ms", "slow_job_ms", "slow_sql_ms", "slow_phase_ms")
     expect(body["storage"]).to include("max_events" => PerformanceLogging::Store::MAX_EVENTS)
-    expect(body["events"]).to include(include("event" => "syrus.performance.slow_request", "path" => "/dashboard/jobs"))
+    expect(body).not_to have_key("events")
+    expect(body["event_count"]).to eq(4)
     expect(body.dig("summaries", "slow_requests").first).to include(
       "method" => "GET",
       "path" => "/dashboard/jobs",
@@ -101,6 +102,11 @@ RSpec.describe "API: /api/v1/admin/performance", type: :request, requires_plugin
       "count" => 2,
       "total_duration_ms" => 80.0
     )
+
+    get "/api/v1/admin/performance/events", headers: auth
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["events"]).to include(include("event" => "syrus.performance.slow_request", "path" => "/dashboard/jobs"))
   end
 
   it "explains read-only SQL for admin API clients" do
