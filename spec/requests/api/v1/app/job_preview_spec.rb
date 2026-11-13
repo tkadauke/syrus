@@ -294,7 +294,8 @@ RSpec.describe "App API job preview", type: :request do
     it "returns tailed preview logs fetched through the preview control endpoint" do
       env = create_preview_env(job, state: "running", internal_host: "10.0.0.5", expires_at: 10.minutes.from_now)
       stub = stub_control_endpoint(env, lines: "2", body: {
-        logs: [ { path: "log/development.log", content: "second\nthird", missing: false } ]
+        logs: [ { path: "log/development.log", content: "second\nthird", missing: false } ],
+        cursor: "next-page"
       }.to_json)
 
       get "#{preview_logs_path(job)}?lines=2", as: :json
@@ -305,6 +306,7 @@ RSpec.describe "App API job preview", type: :request do
       expect(parse_body["logs"]).to include(
         a_hash_including("path" => "log/development.log", "content" => "second\nthird", "missing" => false)
       )
+      expect(parse_body["cursor"]).to eq("next-page")
     end
 
     it "clamps requested log lines before calling the preview control endpoint" do

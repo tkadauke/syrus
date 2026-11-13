@@ -37,6 +37,16 @@ RSpec.describe "App API repository preview", type: :request do
       )
     end
 
+    it "returns not modified when the preview payload is unchanged" do
+      create_preview_env(repo, state: "running", expires_at: 10.minutes.from_now)
+
+      get preview_path(repo), as: :json
+      etag = response.headers.fetch("ETag")
+      get preview_path(repo), headers: { "If-None-Match" => etag }, as: :json
+
+      expect(response).to have_http_status(:not_modified)
+    end
+
     it "includes the preview URL when running, keyed on the environment id" do
       env = create_preview_env(repo, state: "running", expires_at: 10.minutes.from_now)
 
@@ -208,7 +218,8 @@ RSpec.describe "App API repository preview", type: :request do
     it "returns tailed preview logs fetched through the preview control endpoint" do
       env = create_preview_env(repo, state: "running", internal_host: "10.0.0.5", expires_at: 10.minutes.from_now)
       stub = stub_control_endpoint(env, lines: "2", body: {
-        logs: [ { path: "log/development.log", content: "second\nthird", missing: false } ]
+        logs: [ { path: "log/development.log", content: "second\nthird", missing: false } ],
+        cursor: "next-page"
       }.to_json)
 
       get "#{preview_logs_path(repo)}?lines=2", as: :json
@@ -219,6 +230,7 @@ RSpec.describe "App API repository preview", type: :request do
       expect(parse_body["logs"]).to include(
         a_hash_including("path" => "log/development.log", "content" => "second\nthird", "missing" => false)
       )
+      expect(parse_body["cursor"]).to eq("next-page")
     end
 
     it "returns not_found when no preview environment exists" do

@@ -113,6 +113,85 @@ RSpec.describe PreviewLogReader do
     expect(logs.first.content).to eq("last")
   end
 
+  it "returns only bytes appended after an offset and preserves line boundaries" do
+    path = File.join(workspace_path, "log/development.log")
+    FileUtils.mkdir_p(File.dirname(path))
+    File.binwrite(path, "first\n")
+    source = instance_double(PreviewCommandSource, resolve: preview_config(log_paths: [ "log/development.log" ]))
+    allow(PreviewCommandSource).to receive(:new).with(workspace_path).and_return(source)
+    env = preview_environment(workspace_path)
+
+    first = described_class.call(env).first
+    File.open(path, "ab") { |file| file.write("second\n") }
+    second = described_class.call(env, offsets: { first.path => first.offset }).first
+
+    expect(second).to have_attributes(content: "\nsecond", offset: File.size(path), missing: false)
+  end
+
+  it "does not invent a newline when appended bytes continue the current line" do
+    path = File.join(workspace_path, "log/development.log")
+    FileUtils.mkdir_p(File.dirname(path))
+    File.binwrite(path, "first")
+    source = instance_double(PreviewCommandSource, resolve: preview_config(log_paths: [ "log/development.log" ]))
+    allow(PreviewCommandSource).to receive(:new).with(workspace_path).and_return(source)
+    env = preview_environment(workspace_path)
+
+    first = described_class.call(env).first
+    File.open(path, "ab") { |file| file.write(" continued") }
+    second = described_class.call(env, offsets: { first.path => first.offset }).first
+
+    expect(second.content).to eq(" continued")
+  end
+
+  it "returns an empty chunk when the offset is at the end of the file" do
+    path = File.join(workspace_path, "log/development.log")
+    FileUtils.mkdir_p(File.dirname(path))
+    File.binwrite(path, "complete\n")
+    source = instance_double(PreviewCommandSource, resolve: preview_config(log_paths: [ "log/development.log" ]))
+    allow(PreviewCommandSource).to receive(:new).with(workspace_path).and_return(source)
+
+    log = described_class.call(preview_environment(workspace_path), offsets: { "log/development.log" => File.size(path) }).first
+
+    expect(log).to have_attributes(content: "", offset: File.size(path), missing: false)
+  end
+
+  it "restarts from the tail when the file was truncated past the offset" do
+    path = File.join(workspace_path, "log/development.log")
+    FileUtils.mkdir_p(File.dirname(path))
+    File.binwrite(path, "replacement\n")
+    source = instance_double(PreviewCommandSource, resolve: preview_config(log_paths: [ "log/development.log" ]))
+    allow(PreviewCommandSource).to receive(:new).with(workspace_path).and_return(source)
+
+    log = described_class.call(preview_environment(workspace_path), offsets: { "log/development.log" => 1_000 }).first
+
+    expect(log).to have_attributes(content: "replacement", offset: File.size(path), missing: false)
+  end
+
+  it "returns a missing log when a cursor names a file that does not exist" do
+    path = File.join(workspace_path, "log/development.log")
+    FileUtils.mkdir_p(File.dirname(path))
+    source = instance_double(PreviewCommandSource, resolve: preview_config(log_paths: [ "log/development.log" ]))
+    allow(PreviewCommandSource).to receive(:new).with(workspace_path).and_return(source)
+
+    log = described_class.call(preview_environment(workspace_path), offsets: { "log/development.log" => 1 }).first
+
+    expect(log).to have_attributes(content: "", offset: 0, missing: true)
+  end
+
+  it "restarts from the tail when truncation races the incremental read" do
+    path = File.join(workspace_path, "log/development.log")
+    FileUtils.mkdir_p(File.dirname(path))
+    File.binwrite(path, "replacement\n")
+    source = instance_double(PreviewCommandSource, resolve: preview_config(log_paths: [ "log/development.log" ]))
+    allow(PreviewCommandSource).to receive(:new).with(workspace_path).and_return(source)
+    allow(File).to receive(:binread).and_call_original
+    allow(File).to receive(:binread).with(path, anything, anything).and_raise(ArgumentError, "negative length")
+
+    log = described_class.call(preview_environment(workspace_path), offsets: { "log/development.log" => 1 }).first
+
+    expect(log).to have_attributes(content: "replacement", offset: File.size(path), missing: false)
+  end
+
   it "returns no logs when the preview workspace no longer exists" do
     missing_workspace = File.join(workspace_path, "missing")
     env = preview_environment(missing_workspace)

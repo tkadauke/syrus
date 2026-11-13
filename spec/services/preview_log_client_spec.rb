@@ -16,7 +16,7 @@ RSpec.describe PreviewLogClient do
     stub_request(:get, control_url(env, lines: 50)).to_return(
       status: 200,
       headers: { "Content-Type" => "application/json" },
-      body: { logs: [ { path: "log/development.log", content: "hi", missing: false } ] }.to_json
+      body: { logs: [ { path: "log/development.log", content: "hi", missing: false } ], cursor: "next-page" }.to_json
     )
 
     result = described_class.call(env, lines: 50)
@@ -24,6 +24,20 @@ RSpec.describe PreviewLogClient do
     expect(result.logs).to contain_exactly(
       have_attributes(path: "log/development.log", content: "hi", missing: false)
     )
+    expect(result.cursor).to eq("next-page")
+  end
+
+  it "forwards the opaque cursor to the control endpoint" do
+    env = create_env
+    stub = stub_request(:get, "#{control_url(env, lines: 50)}&since=previous-page").to_return(
+      status: 200,
+      headers: { "Content-Type" => "application/json" },
+      body: { logs: [], cursor: "next-page" }.to_json
+    )
+
+    described_class.call(env, lines: 50, since: "previous-page")
+
+    expect(stub).to have_been_requested
   end
 
   it "raises Unavailable when the environment has no internal host" do

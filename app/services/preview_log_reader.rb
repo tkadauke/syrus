@@ -23,7 +23,8 @@ class PreviewLogReader
       next unless absolute
 
       path_name = display_path(absolute)
-      Log.new(path: path_name, content: read_file(absolute, @offsets[path_name]), missing: !File.exist?(absolute), offset: file_size(absolute))
+      content, next_offset = read_file(absolute, @offsets[path_name])
+      Log.new(path: path_name, content: content, missing: !File.exist?(absolute), offset: next_offset)
     end
   end
 
@@ -73,25 +74,27 @@ class PreviewLogReader
   end
 
   def tail_file(path)
-    return "" unless File.exist?(path)
+    return [ "", 0 ] unless File.exist?(path)
 
-    File.readlines(path, chomp: true).last(@lines).join("\n")
+    bytes = File.binread(path)
+    content = bytes.force_encoding(Encoding::UTF_8).scrub.lines(chomp: true).last(@lines).join("\n")
+    [ content, bytes.bytesize ]
   rescue Errno::ENOENT
-    ""
+    [ "", 0 ]
   end
 
   def read_file(path, offset)
-    return tail_file(path) if offset.nil? || !File.exist?(path) || File.size(path) < offset
+    return tail_file(path) if offset.nil? || !File.exist?(path)
 
-    content = File.binread(path, File.size(path) - offset, offset).force_encoding(Encoding::UTF_8).scrub
-    offset.positive? && content.present? ? "\n#{content.chomp}" : content
-  rescue Errno::ENOENT
-    ""
-  end
+    size = File.size(path)
+    return tail_file(path) if size < offset
 
-  def file_size(path)
-    File.exist?(path) ? File.size(path) : 0
-  rescue Errno::ENOENT
-    0
+    bytes = File.binread(path, size - offset, offset)
+    preceding_newline = offset.positive? && File.binread(path, 1, offset - 1) == "\n"
+    content = bytes.force_encoding(Encoding::UTF_8).scrub
+    content = "\n#{content.chomp}" if preceding_newline && content.present?
+    [ content, offset + bytes.bytesize ]
+  rescue Errno::ENOENT, EOFError, ArgumentError
+    tail_file(path)
   end
 end
