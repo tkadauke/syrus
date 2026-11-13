@@ -90,6 +90,46 @@ RSpec.describe "App API runtime sessions", type: :request do
     end
   end
 
+  describe "logs limit" do
+    it "passes a clamped limit to the provider and truncates oversized provider responses" do
+      sign_in_as(user)
+      session = build_runtime_session
+      provider = double("provider")
+      allow(RuntimeSessionProviders).to receive(:for).and_return(double(new: provider))
+      big = Array.new(900) { |i| "line-#{i}" }
+      expect(provider).to receive(:logs).with(session.id, "0", { limit: 500 }).and_return({ entries: big, cursor: 900 })
+
+      get "/api/v1/app/chats/#{chat_session.id}/runtime_sessions/#{session.id}/logs", params: { cursor: 0, limit: 100_000 }
+
+      expect(response).to have_http_status(:ok)
+      expect(parse_body["entries"].size).to eq(500)
+      expect(parse_body["cursor"]).to eq(500)
+    end
+  end
+
+  describe "index efficiency" do
+    it "answers an unchanged poll with 304 and does not query leases per session" do
+      sign_in_as(user)
+      3.times { build_runtime_session }
+
+      get "/api/v1/app/chats/#{chat_session.id}/runtime_sessions"
+      expect(response).to have_http_status(:ok)
+      etag = response.headers["ETag"]
+      expect(etag).to be_present
+
+      get "/api/v1/app/chats/#{chat_session.id}/runtime_sessions", headers: { "If-None-Match" => etag }
+      expect(response).to have_http_status(:not_modified)
+
+      lease_queries = []
+      sub = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        lease_queries << payload[:sql] if payload[:sql].include?("runtime_control_leases")
+      end
+      get "/api/v1/app/chats/#{chat_session.id}/runtime_sessions"
+      ActiveSupport::Notifications.unsubscribe(sub)
+      expect(lease_queries.size).to eq(1)
+    end
+  end
+
   describe "POST /api/v1/app/chats/:chat_id/runtime_sessions/:id/capture" do
     it "calls the provider's snapshot and returns the refreshed session" do
       sign_in_as(user)
