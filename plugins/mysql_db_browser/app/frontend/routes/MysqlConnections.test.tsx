@@ -80,10 +80,21 @@ function setupFetchMock(initial = [stagingConnection()], options: { createDelay?
       )
     }
     if (url === "/api/v1/app/admin/mysql_connections/credential_scope_options" && method === "GET") {
-      return Promise.resolve(jsonResponse({ credential_scope_options: {
-        scopes: [ { value: "user", label: "User" }, { value: "repository", label: "Repository" }, { value: "team", label: "Team" }, { value: "instance", label: "Instance" } ],
-        users: [{ id: 7, label: "Admin" }], repositories: [{ id: 9, label: "acme/widgets" }], teams: [{ id: 11, label: "Platform" }]
-      } }))
+      return Promise.resolve(
+        jsonResponse({
+          credential_scope_options: {
+            scopes: [
+              { value: "user", label: "User" },
+              { value: "repository", label: "Repository" },
+              { value: "team", label: "Team" },
+              { value: "instance", label: "Instance" }
+            ],
+            users: [{ id: 7, label: "Admin" }],
+            repositories: [{ id: 9, label: "acme/widgets" }],
+            teams: [{ id: 11, label: "Platform" }]
+          }
+        })
+      )
     }
     if (url === "/api/v1/app/admin/mysql_connections" && method === "POST") {
       await options.createDelay
