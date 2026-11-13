@@ -115,6 +115,65 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
       "created_at" => document.created_at.iso8601,
       "updated_at" => document.updated_at.iso8601
     )
+    expect(parse_body["pagination"]).to include("page" => 1, "per_page" => 25, "total" => 1, "total_pages" => 1)
+    expect(parse_body.dig("documents", 0, "origin")).to eq("kind" => "personal", "chat" => nil)
+  end
+
+  it "filters and sorts the full personal document collection before paginating" do
+    sign_in_as(user)
+    26.times do |index|
+      user.documents.create!(kind: "google_doc", google_doc_url: "https://docs.google.com/document/d/doc-#{index}/edit", user: user)
+    end
+    matching = user.documents.create!(kind: "google_doc", google_doc_url: "https://docs.google.com/document/d/needle/edit", user: user)
+    q = Filters::QueryParam.encode(and: [ { field: "title", op: "contains", value: "needle" } ])
+
+    get "/api/v1/app/credentials/documents", params: { q:, sort: "title", direction: "ascending", page: 2 }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["documents"].pluck("id")).to eq([ matching.id ])
+    expect(parse_body["pagination"]).to include("page" => 1, "total" => 1, "total_pages" => 1, "first_item" => 1, "last_item" => 1)
+  end
+
+  it "paginates personal documents at the bounded default page size" do
+    sign_in_as(user)
+    26.times do |index|
+      document = user.documents.create!(kind: "google_doc", google_doc_url: "https://docs.google.com/document/d/page-#{index}/edit", user: user)
+      document.update_column(:created_at, Time.zone.parse("2026-01-01") + index.minutes)
+    end
+
+    get "/api/v1/app/credentials/documents", params: { page: 2 }
+
+    expect(parse_body["documents"].length).to eq(1)
+    expect(parse_body["pagination"]).to include("page" => 2, "per_page" => 25, "total" => 26, "total_pages" => 2, "first_item" => 26, "last_item" => 26)
+  end
+
+  it "clamps a now-invalid personal documents page after deletion" do
+    sign_in_as(user)
+    documents = 26.times.map do |index|
+      user.documents.create!(kind: "google_doc", google_doc_url: "https://docs.google.com/document/d/delete-page-#{index}/edit", user: user)
+    end
+
+    delete "/api/v1/app/credentials/documents/#{documents.last.id}", params: { page: 2 }
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["pagination"]).to include("page" => 1, "total" => 25, "total_pages" => 1, "first_item" => 1, "last_item" => 25)
+  end
+
+  it "explains chat image origins and only links chats owned by the current user" do
+    sign_in_as(user)
+    chat = ChatSession.create!(user: user, title: "Source chat")
+    upload = user.documents.build(kind: "file", user: user, source_url: "chat-message-image://#{chat.id}/123/0")
+    upload.file.attach(upload_file(name: "upload.png", content_type: "image/png"))
+    upload.save!
+    capture = user.documents.build(kind: "file", user: user, source_url: "chat-captured-image://#{chat.id}/capture")
+    capture.file.attach(upload_file(name: "capture.png", content_type: "image/png"))
+    capture.save!
+
+    get "/api/v1/app/credentials/documents"
+
+    origins = parse_body["documents"].to_h { |document| [ document["id"], document["origin"] ] }
+    expect(origins.fetch(upload.id)).to eq("kind" => "chat_upload", "chat" => { "id" => chat.id, "label" => "CHAT-#{chat.id}", "path" => "/chats/#{chat.id}" })
+    expect(origins.fetch(capture.id)).to eq("kind" => "chat_capture", "chat" => { "id" => chat.id, "label" => "CHAT-#{chat.id}", "path" => "/chats/#{chat.id}" })
   end
 
   it "updates write-only credentials while preserving blank secrets and false booleans" do

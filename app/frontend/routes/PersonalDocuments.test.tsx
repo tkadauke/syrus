@@ -7,7 +7,7 @@ import { PersonalDocumentsRoute } from "./PersonalDocuments"
 import * as useConfirmModule from "../hooks/useConfirm"
 
 function documentsPayload(overrides: Record<string, unknown> = {}) {
-  return {
+  const payload = {
     documents: [
       {
         id: 30,
@@ -21,10 +21,27 @@ function documentsPayload(overrides: Record<string, unknown> = {}) {
         content_cached_at: null,
         created_at: "2026-01-01T00:00:00Z",
         updated_at: "2026-01-01T00:00:00Z",
-        file_path: "/api/v1/app/credentials/documents/30/file"
+        file_path: "/api/v1/app/credentials/documents/30/file",
+        origin: { kind: "personal", chat: null }
       }
     ],
     ...overrides
+  }
+  const documents = (payload.documents as Array<Record<string, unknown>>).map((document) => ({
+    origin: { kind: "personal", chat: null },
+    ...document
+  }))
+  return {
+    ...payload,
+    documents,
+    pagination: (payload as any).pagination || {
+      page: 1,
+      per_page: 25,
+      total: documents.length,
+      total_pages: documents.length > 0 ? 1 : 0,
+      first_item: documents.length > 0 ? 1 : 0,
+      last_item: documents.length
+    }
   }
 }
 
@@ -62,7 +79,22 @@ function renderRouteWithDocuments(documents: Record<string, unknown>[], rawConte
 }
 
 function renderRouteWithDocumentsAt(documents: Record<string, unknown>[], entry = "/documents") {
-  vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(documentsPayload({ documents })))
+  vi.spyOn(window, "fetch").mockImplementation((input) => {
+    const url = new URL(String(input), "https://example.test")
+    let result = [...documents]
+    const encoded = url.searchParams.get("q")
+    if (encoded) {
+      const normalized = encoded.replace(/-/g, "+").replace(/_/g, "/")
+      const decoded = atob(`${normalized}${"=".repeat((4 - normalized.length % 4) % 4)}`)
+      const tree = JSON.parse(new TextDecoder().decode(Uint8Array.from(decoded, (character) => character.charCodeAt(0))))
+      result = result.filter((document) => testFilterMatches(document, tree))
+    }
+    const sort = url.searchParams.get("sort") || "created_at"
+    const direction = url.searchParams.get("direction") || "descending"
+    const value = (document: Record<string, unknown>) => sort === "title" ? document.google_doc_url || document.filename || "" : document[sort] || ""
+    result.sort((left, right) => String(value(left)).localeCompare(String(value(right))) * (direction === "ascending" ? 1 : -1))
+    return Promise.resolve(jsonResponse(documentsPayload({ documents: result })))
+  })
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
@@ -71,6 +103,18 @@ function renderRouteWithDocumentsAt(documents: Record<string, unknown>[], entry 
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+function testFilterMatches(document: Record<string, unknown>, node: Record<string, any>): boolean {
+  if (Array.isArray(node.and)) return node.and.every((child: Record<string, any>) => testFilterMatches(document, child))
+  if (Array.isArray(node.or)) return node.or.some((child: Record<string, any>) => testFilterMatches(document, child))
+  if (node.not) return !testFilterMatches(document, node.not)
+  const raw = node.field === "query"
+    ? Object.values(document).filter((value) => typeof value === "string").join(" ")
+    : node.field === "source_url" ? document.source_url || document.google_doc_url || "" : document[node.field]
+  if (node.op === "before") return Date.parse(String(raw)) < Date.parse(String(node.value))
+  if (node.op === "is") return String(raw) === String(node.value)
+  return String(raw || "").toLowerCase().includes(String(node.value || "").toLowerCase())
 }
 
 function documentRows() {
@@ -206,10 +250,8 @@ describe("PersonalDocumentsRoute table controls", () => {
     fireEvent.change(screen.getByPlaceholderText("Search filters..."), { target: { value: "shot" } })
     fireEvent.click(screen.getByRole("button", { name: "Search for shot" }))
 
-    await waitFor(() => {
-      expect(screen.queryByRole("button", { name: /z-notes\.md/ })).not.toBeInTheDocument()
-    })
-    expect(screen.getByRole("button", { name: /screenshot\.png/ })).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: /screenshot\.png/ })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /z-notes\.md/ })).not.toBeInTheDocument()
   })
 
   it("honors negated FilterBar groups when filtering documents", async () => {
@@ -267,7 +309,43 @@ describe("PersonalDocumentsRoute table controls", () => {
     fireEvent.drop(createdHeader, { dataTransfer: transfer })
 
     const headers = screen.getAllByRole("columnheader").map((header) => header.textContent)
-    expect(headers).toEqual(["Document", "Size", "Kind", "Created", "Actions"])
+    expect(headers).toEqual(["Document", "Size", "Origin", "Kind", "Created", "Actions"])
+  })
+
+  it("renders chat provenance as a human-readable link without exposing the source scheme", async () => {
+    renderRouteWithDocumentsAt([
+      {
+        ...TABLE_DOCUMENTS[1],
+        source_url: "chat-message-image://77/123/0",
+        origin: { kind: "chat_upload", chat: { id: 77, label: "CHAT-77", path: "/chats/77" } }
+      }
+    ])
+
+    const chatLink = await screen.findByRole("link", { name: "CHAT-77" })
+    expect(chatLink).toHaveAttribute("href", "/chats/77")
+    expect(chatLink.closest("span")).toHaveTextContent("Uploaded in a chat")
+    expect(screen.queryByText(/chat-message-image:/)).not.toBeInTheDocument()
+  })
+
+  it("shows an accurate range and preserves filters and sort in pagination links", async () => {
+    const q = encodeFilterTree({ and: [{ field: "kind", op: "is", value: "file" }] })
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(documentsPayload({
+      documents: [TABLE_DOCUMENTS[0]],
+      pagination: { page: 2, per_page: 25, total: 51, total_pages: 3, first_item: 26, last_item: 50 }
+    })))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[`/documents?q=${q}&sort=title&direction=ascending&page=2`]}>
+          <PersonalDocumentsRoute />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByText("26–50 of 51")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Previous" }).getAttribute("href")).toContain(`q=${q}`)
+    expect(screen.getByRole("link", { name: "Next" }).getAttribute("href")).toContain("sort=title")
+    expect(screen.getByRole("link", { name: "Next" }).getAttribute("href")).toContain("page=3")
   })
 })
 
