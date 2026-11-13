@@ -1,8 +1,9 @@
 module Permissions
   class RequestPresenter
-    def initialize(request, current_user: nil)
+    def initialize(request, current_user: nil, summary: false)
       @request = request
       @current_user = current_user
+      @summary = summary
     end
 
     def as_json
@@ -33,17 +34,20 @@ module Permissions
         capability: item.capability, operation: item.operation,
         resource_type: item.resource_type,
         resource_scope: ToolPayloadRedactor.redact(item.resource_scope),
-        arguments: ToolPayloadRedactor.redact(item.normalized_arguments),
         effects: item.effects, risk: item.risk, purpose: item.purpose,
-        policy_chain: item.policy_chain, decisive_rule: item.decisive_rule,
         requested_durations: item.requested_durations,
         selected_duration: item.selected_duration,
         decision_reason: item.decision_reason, decided_at: item.decided_at,
         prerequisite_ids: item.prerequisites.map(&:id),
-        smart_option: smart_decision(item).option,
-        smart_options: smart_decision(item).options,
         resulting_authority: SmartDecision.authority_reference(item)
-      }
+      }.tap do |json|
+        unless @summary
+          json.merge!(arguments: ToolPayloadRedactor.redact(item.normalized_arguments),
+            policy_chain: item.policy_chain, decisive_rule: item.decisive_rule,
+            smart_option: smart_decision(item).option,
+            smart_options: smart_decision(item).options)
+        end
+      end
     end
 
     def smart_decision(item)

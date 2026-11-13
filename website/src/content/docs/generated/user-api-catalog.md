@@ -144,6 +144,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/credentials/documents` | `api/v1/app/credentials/documents#create` |
 | core | DELETE | `/api/v1/app/credentials/documents/:id` | `api/v1/app/credentials/documents#destroy` |
 | core | GET | `/api/v1/app/credentials/documents/:id/file` | `api/v1/app/credentials/documents#file` |
+| core | GET | `/api/v1/app/credentials/options` | `api/v1/app/credentials#options` |
 | core | POST | `/api/v1/app/credentials/override_provider_availability` | `api/v1/app/credentials#override_provider_availability` |
 | core | GET | `/api/v1/app/credentials/provider_routing_rules` | `api/v1/app/provider_routing_rules#index` |
 | core | POST | `/api/v1/app/credentials/provider_routing_rules` | `api/v1/app/provider_routing_rules#create` |
@@ -321,9 +322,11 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/performance_events` | `api/v1/app/performance_events#create` |
 | core | GET | `/api/v1/app/permission_requests` | `api/v1/app/permission_requests#index` |
 | core | DELETE | `/api/v1/app/permission_requests/:id` | `api/v1/app/permission_requests#dismiss` |
+| core | GET | `/api/v1/app/permission_requests/:id` | `api/v1/app/permission_requests#show` |
 | core | POST | `/api/v1/app/permission_requests/:id/decide` | `api/v1/app/permission_requests#decide` |
 | core | POST | `/api/v1/app/permission_requests/:id/items/:item_id/smart_decision` | `api/v1/app/permission_requests#smart_decide` |
 | core | POST | `/api/v1/app/permission_requests/batch_decide` | `api/v1/app/permission_requests#batch_decide` |
+| core | GET | `/api/v1/app/permission_requests/count` | `api/v1/app/permission_requests#count` |
 | core | POST | `/api/v1/app/permission_rule_drafts/apply` | `api/v1/app/permission_rule_drafts#apply` |
 | core | POST | `/api/v1/app/permission_rule_drafts/from_request` | `api/v1/app/permission_rule_drafts#from_request` |
 | core | GET | `/api/v1/app/permission_rule_drafts/options` | `api/v1/app/permission_rule_drafts#options` |
@@ -335,6 +338,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/permission_rules/apply_preset` | `api/v1/app/permission_rules#apply_preset` |
 | core | POST | `/api/v1/app/permission_rules/apply_profile` | `api/v1/app/permission_rules#apply_profile` |
 | core | POST | `/api/v1/app/permission_rules/bulk` | `api/v1/app/permission_rules#bulk` |
+| core | GET | `/api/v1/app/permission_rules/catalog` | `api/v1/app/permission_rules#catalog` |
 | core | GET | `/api/v1/app/permission_rules/history` | `api/v1/app/permission_rules#history` |
 | core | POST | `/api/v1/app/permission_rules/preview_bulk` | `api/v1/app/permission_rules#preview_bulk` |
 | core | POST | `/api/v1/app/permission_rules/preview_profile` | `api/v1/app/permission_rules#preview_profile` |

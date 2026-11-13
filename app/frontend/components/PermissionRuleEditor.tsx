@@ -16,6 +16,7 @@ import {
   type ScopeField
 } from "../api/permissionRuleDrafts"
 import { ApiError } from "../api/client"
+import type { PermissionsPayload } from "../api/permissions"
 import { useT } from "../hooks/useT"
 import { errorMessage } from "../lib/errorMessage"
 import { Input } from "./Input"
@@ -83,7 +84,8 @@ export function PermissionRuleEditor({
   const optionsQuery = useQuery({
     queryKey: ["permission_rule_options", fields.capability, fields.operation],
     queryFn: () => fetchRuleDraftOptions(fields.capability, fields.operation),
-    enabled: Boolean(fields.capability && fields.operation)
+    enabled: Boolean(fields.capability && fields.operation),
+    staleTime: 5 * 60_000
   })
   const options = optionsQuery.data?.options
 
@@ -113,9 +115,20 @@ export function PermissionRuleEditor({
   })
   const apply = useMutation({
     mutationFn: () => applyRuleDraft(fields, preview!.digest!, { replaceRuleId }),
-    onSuccess: ({ authority }) => {
+    onSuccess: ({ authority, permissions }) => {
       // A new or replaced rule changes the Hub's rules, leases and audit history.
-      void queryClient.invalidateQueries({ queryKey: ["permission_rules"] })
+      queryClient.setQueryData<PermissionsPayload>(["permission_rules"], (current) =>
+        current
+          ? {
+              ...current,
+              ...permissions,
+              inherited: current.inherited.map((descriptor) => ({
+                ...descriptor,
+                matrix_states: permissions.matrix_states?.[`${descriptor.capability}|${descriptor.operation}`] ?? descriptor.matrix_states
+              }))
+            }
+          : current
+      )
       void queryClient.invalidateQueries({ queryKey: ["permission_history"] })
       onApplied({ id: authority.id, policy: fields.policy })
     },

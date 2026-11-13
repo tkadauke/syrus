@@ -38,6 +38,10 @@ export type RepositorySkillsPayload = {
   priorities: string[]
 }
 
+export type RepositorySkillCommandsPayload = {
+  skills: Array<Pick<SkillSummary, "name" | "description"> & { parameters: Array<Pick<SkillParameterField, "key" | "required">> }>
+}
+
 export type CreateSkillJobInput = {
   name: string
   args: Record<string, string | boolean>
@@ -59,6 +63,10 @@ export type SkillJobCreatedPayload = {
 
 export function fetchRepositorySkills(repositoryId: string) {
   return getJson<RepositorySkillsPayload>(`/api/v1/app/repositories/${repositoryId}/skills`)
+}
+
+export function fetchRepositorySkillCommands(repositoryId: string) {
+  return getJson<RepositorySkillCommandsPayload>(`/api/v1/app/repositories/${repositoryId}/skills?fields=commands`)
 }
 
 export function createSkillJob(repositoryId: string, input: CreateSkillJobInput) {

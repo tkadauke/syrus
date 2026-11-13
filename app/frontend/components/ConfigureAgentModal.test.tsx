@@ -208,6 +208,8 @@ describe("ConfigureAgentModal", () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["credentials"] })
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["me"] })
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["credential-options"] })
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["bootstrap"] })
   })
 
   it("keeps the connected provider complete after bootstrap refetch and a fresh onboarding mount", async () => {

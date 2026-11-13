@@ -1,4 +1,5 @@
 import { getJson, postJson } from "./client"
+import type { PermissionRulesDynamicPayload } from "./permissions"
 
 export type DraftPolicy = "allow" | "ask" | "deny"
 export type DraftDuration = "chat_session" | "job" | "permanent"
@@ -111,13 +112,7 @@ export const previewRuleDraft = (fields: RuleDraftFields, request?: { requestId:
     ...(request ? { request_id: request.requestId, item_id: request.itemId } : {})
   })
 
-export const previewRuleDraftFromRequest = (
-  requestId: number,
-  itemId: number,
-  duration: DraftDuration,
-  policy: DraftPolicy = "allow",
-  prefix?: string
-) =>
+export const previewRuleDraftFromRequest = (requestId: number, itemId: number, duration: DraftDuration, policy: DraftPolicy = "allow", prefix?: string) =>
   postJson<{ preview: RuleDraftPreview }>(`${BASE}/from_request`, {
     request_id: requestId,
     item_id: itemId,
@@ -127,11 +122,14 @@ export const previewRuleDraftFromRequest = (
   })
 
 export const applyRuleDraft = (fields: RuleDraftFields, digest: string, options: { replaceRuleId?: number | null } = {}) =>
-  postJson<{ authority: { kind: string; id: number; capability: string; operation: string | null } }>(`${BASE}/apply`, {
-    draft: draftBody(fields),
-    digest,
-    ...(options.replaceRuleId ? { replace_rule_id: options.replaceRuleId } : {})
-  })
+  postJson<{ authority: { kind: string; id: number; capability: string; operation: string | null }; permissions: PermissionRulesDynamicPayload }>(
+    `${BASE}/apply`,
+    {
+      draft: draftBody(fields),
+      digest,
+      ...(options.replaceRuleId ? { replace_rule_id: options.replaceRuleId } : {})
+    }
+  )
 
 /** Maps a server preview's normalized draft back onto editable fields. */
 export function fieldsFromPreview(preview: RuleDraftPreview): RuleDraftFields {

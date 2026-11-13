@@ -83,6 +83,7 @@ Rails.application.routes.draw do
         end
         post "desktop/api_token", to: "desktop_tokens#create"
         resource :credentials, only: %i[ show update ] do
+          get :options
           post :clear_credential
           post :test_credential
           post :test_github_token
@@ -249,6 +250,8 @@ Rails.application.routes.draw do
         get "dashboard", to: "dashboard#show"
         get "dashboard/controls", to: "dashboard#controls"
         get "permission_requests", to: "permission_requests#index"
+        get "permission_requests/count", to: "permission_requests#count"
+        get "permission_requests/:id", to: "permission_requests#show", constraints: { id: /\d+/ }
         post "permission_requests/batch_decide", to: "permission_requests#batch_decide"
         post "permission_requests/:id/decide", to: "permission_requests#decide", constraints: { id: /\d+/ }
         post "permission_requests/:id/items/:item_id/smart_decision", to: "permission_requests#smart_decide", constraints: { id: /\d+/, item_id: /\d+/ }
@@ -443,6 +446,7 @@ Rails.application.routes.draw do
         end
         resources :permission_rules, only: %i[ index create ] do
           collection do
+            get :catalog
             post :preview_profile
             post :apply_profile
             get :history

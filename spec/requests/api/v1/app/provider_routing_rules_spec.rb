@@ -36,13 +36,13 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
       },
       as: :json
 
-    expect(response).to have_http_status(:created)
+    expect(response).to have_http_status(:no_content)
     rule = ProviderRoutingRule.find_by!(scope_type: "user", scope_id: user.id, task_key: "ci_failure")
     expect(rule.candidates).to eq([
       { "provider" => "codex", "model" => "gpt-5.2-codex", "effort_level" => "high" },
       { "provider" => "claude", "model" => "claude-sonnet-4-6" }
     ])
-    expect(parse_body.fetch("provider_routing_rules")).to include(include("id" => rule.id, "task_key" => "ci_failure"))
+    expect(response.body).to be_empty
 
     patch "/api/v1/app/credentials/provider_routing_rules/#{rule.id}",
       params: {
@@ -53,7 +53,7 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
       },
       as: :json
 
-    expect(response).to have_http_status(:ok)
+    expect(response).to have_http_status(:no_content)
     expect(rule.reload.task_key).to eq("default")
     expect(rule.candidates).to eq([ { "provider" => "codex" } ])
     expect(rule.trigger).to eq("type" => "default")
@@ -61,7 +61,7 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
 
     delete "/api/v1/app/credentials/provider_routing_rules/#{rule.id}"
 
-    expect(response).to have_http_status(:ok)
+    expect(response).to have_http_status(:no_content)
     expect(ProviderRoutingRule.where(id: rule.id)).to be_empty
   end
 
@@ -75,7 +75,7 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
       },
       as: :json
 
-    expect(response).to have_http_status(:created)
+    expect(response).to have_http_status(:no_content)
     rule = ProviderRoutingRule.find_by!(scope_type: "repository", scope_id: repository.id, task_key: "initial")
     expect(rule.candidates).to eq([ { "provider" => "codex", "effort_level" => "medium" } ])
   end
@@ -97,8 +97,8 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
       },
       as: :json
 
-    expect(response).to have_http_status(:created)
-    action = parse_body.fetch("provider_routing_rules").first.fetch("action")
+    expect(response).to have_http_status(:no_content)
+    action = ProviderRoutingRule.find_by!(scope_type: "repository", scope_id: repository.id).serialized_action
     expect(action).to include(
       "strategy" => "panel",
       "consensus" => { "at_least" => 2 },
@@ -118,7 +118,7 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
       },
       as: :json
 
-    expect(response).to have_http_status(:created)
+    expect(response).to have_http_status(:no_content)
     rule = ProviderRoutingRule.find_by!(scope_type: "job", scope_id: job.id)
     expect(rule.repository_id).to eq(repository.id)
     expect(rule.user_id).to eq(user.id)
@@ -133,12 +133,12 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
       },
       as: :json
 
-    expect(response).to have_http_status(:ok)
+    expect(response).to have_http_status(:no_content)
     expect(rule.reload.trigger).to eq("type" => "chat_role", "role" => AgentRole::CHAT_CODING)
 
     delete "/api/v1/app/jobs/#{job.id}/provider_routing_rules/#{rule.id}"
 
-    expect(response).to have_http_status(:ok)
+    expect(response).to have_http_status(:no_content)
     expect(ProviderRoutingRule.where(id: rule.id)).to be_empty
   end
 
@@ -153,6 +153,7 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
     repository_body = parse_body
     expect(repository_body.fetch("scope")).to include("type" => "repository", "id" => repository.id)
     expect(repository_body.fetch("provider_routing_rules")).to include(include("id" => repository_rule.id))
+    expect(repository_body).not_to have_key("provider_routing_options")
     expect(repository_body.fetch("inherited_provider_routing_context")).to contain_exactly(
       include("scope_type" => "user", "scope_id" => user.id, "rules" => include(include("id" => user_rule.id)))
     )
@@ -179,10 +180,10 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
       params: { provider_routing_rule_ids: [ second.id, first.id ] },
       as: :json
 
-    expect(response).to have_http_status(:ok)
+    expect(response).to have_http_status(:no_content)
     expect(first.reload.position).to eq(2)
     expect(second.reload.position).to eq(1)
-    expect(parse_body.fetch("provider_routing_rules").map { |rule| rule.fetch("id") }).to eq([ second.id, first.id ])
+    expect(response.body).to be_empty
 
     patch "/api/v1/app/credentials/provider_routing_rules/reorder",
       params: { provider_routing_rule_ids: [ first.id, repository_rule.id ] },
@@ -200,16 +201,15 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
     patch "/api/v1/app/credentials/provider_routing_rules/#{disabled.id}",
       params: { provider_routing_rule: { enabled: false, trigger: { type: "default" }, action: { type: "hold", reason: "Paused by policy" } } }, as: :json
 
-    expect(response).to have_http_status(:ok)
-    serialized = parse_body.fetch("provider_routing_rules").find { |rule| rule.fetch("id") == disabled.id }
-    expect(serialized).to include("enabled" => false, "action" => { "type" => "hold", "reason" => "Paused by policy" }, "candidates" => [])
+    expect(response).to have_http_status(:no_content)
+    expect(disabled.reload).to have_attributes(enabled: false, action: { "type" => "hold", "reason" => "Paused by policy" }, candidates: [])
 
     patch "/api/v1/app/credentials/provider_routing_rules/reorder", params: { provider_routing_rule_ids: [ disabled.id ] }, as: :json
     expect(response).to have_http_status(:unprocessable_content)
     expect(ProviderRoutingRule.where(scope_type: "user", scope_id: user.id).order(:position).pluck(:id)).to eq([ enabled.id, disabled.id ])
 
     patch "/api/v1/app/credentials/provider_routing_rules/reorder", params: { provider_routing_rule_ids: [ disabled.id, enabled.id ] }, as: :json
-    expect(response).to have_http_status(:ok)
+    expect(response).to have_http_status(:no_content)
     expect(ProviderRoutingRule.where(scope_type: "user", scope_id: user.id).order(:position).pluck(:id)).to eq([ disabled.id, enabled.id ])
   end
 
@@ -217,31 +217,31 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
     post "/api/v1/app/credentials/provider_routing_rules",
       params: { provider_routing_rule: { trigger: { type: "default" }, action: { strategy: "fallback_order", name: "My Claude default", candidates: [ { provider: "claude" } ] } } },
       as: :json
-    expect(response).to have_http_status(:created)
+    expect(response).to have_http_status(:no_content)
     user_default_rule = ProviderRoutingRule.where(scope_type: "user", scope_id: user.id).detect { |rule| rule.action["name"] == "My Claude default" }
 
     post "/api/v1/app/credentials/provider_routing_rules",
       params: { provider_routing_rule: { trigger: { type: "step", kind: "implement" }, action: { strategy: "fallback_order", name: "My Codex implementation", candidates: [ { provider: "codex" } ] } } },
       as: :json
-    expect(response).to have_http_status(:created)
+    expect(response).to have_http_status(:no_content)
     user_implement_rule = ProviderRoutingRule.where(scope_type: "user", scope_id: user.id).detect { |rule| rule.action["name"] == "My Codex implementation" }
 
     patch "/api/v1/app/credentials/provider_routing_rules/reorder",
       params: { provider_routing_rule_ids: [ user_implement_rule.id, user_default_rule.id ] },
       as: :json
-    expect(response).to have_http_status(:ok)
-    expect(parse_body.fetch("provider_routing_rules").map { |rule| rule.fetch("id") }).to eq([ user_implement_rule.id, user_default_rule.id ])
+    expect(response).to have_http_status(:no_content)
+    expect(ProviderRoutingRule.where(scope_type: "user", scope_id: user.id).order(:position).pluck(:id)).to eq([ user_implement_rule.id, user_default_rule.id ])
 
     post "/api/v1/app/repositories/#{repository.id}/provider_routing_rules",
       params: { provider_routing_rule: { trigger: { type: "default" }, action: { strategy: "fallback_order", name: "Repository Claude override", candidates: [ { provider: "claude" } ] } } },
       as: :json
-    expect(response).to have_http_status(:created)
+    expect(response).to have_http_status(:no_content)
     repository_rule = ProviderRoutingRule.find_by!(scope_type: "repository", scope_id: repository.id)
 
     post "/api/v1/app/jobs/#{job.id}/provider_routing_rules",
       params: { provider_routing_rule: { trigger: { type: "default" }, action: { strategy: "fallback_order", name: "Job Codex override", candidates: [ { provider: "codex", effort_level: "high" } ] } } },
       as: :json
-    expect(response).to have_http_status(:created)
+    expect(response).to have_http_status(:no_content)
     job_rule = ProviderRoutingRule.find_by!(scope_type: "job", scope_id: job.id)
 
     get "/api/v1/app/jobs/#{job.id}"
@@ -321,9 +321,9 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
 
   it "exposes job kinds, repositories, and the time zone for the condition editor" do
     repository
-    get "/api/v1/app/credentials/provider_routing_rules"
+    get "/api/v1/app/credentials/options"
 
-    conditions = parse_body.dig("provider_routing_options", "conditions")
+    conditions = parse_body.dig("options", "provider_routing_options", "conditions")
     expect(conditions.fetch("job_kinds").map { |entry| entry["value"] }).to eq(Job::Kind.user_facing_values)
     expect(conditions.fetch("repositories")).to include(include("id" => repository.id, "owner" => repository.owner, "name" => repository.name))
     expect(conditions.fetch("time_zone")).to eq(Time.zone.name)
@@ -334,9 +334,9 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
     availability = { "codex" => { "state" => "available", "usage" => { "remaining_percent" => 20.0, "observed_at" => observed } }, "claude" => nil }
     allow(App::ProviderAvailability).to receive(:all_for_user).and_return(availability)
 
-    get "/api/v1/app/credentials/provider_routing_rules"
+    get "/api/v1/app/credentials/options"
 
-    usage = parse_body.dig("provider_routing_options", "conditions", "provider_usage")
+    usage = parse_body.dig("options", "provider_routing_options", "conditions", "provider_usage")
     expect(usage).to eq([ { "provider" => "codex", "state" => "available", "remaining_percent" => 20.0, "observed_at" => observed } ])
   end
 
@@ -358,10 +358,10 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
     end
     Syrus::PluginRegistry.register(name: "provider_routing_rules_spec_plugin", version: "1.0.0", provides: { workflow_kinds: workflow_kind_provider })
 
-    get "/api/v1/app/credentials/provider_routing_rules"
+    get "/api/v1/app/credentials/options"
 
     expect(response).to have_http_status(:ok)
-    options = parse_body.fetch("provider_routing_options")
+    options = parse_body.dig("options", "provider_routing_options")
     expect(options.dig("triggers", "chat_roles")).to include(include("value" => AgentRole::CHAT_CODING))
     expect(options.dig("triggers", "step_kinds")).to include(
       include("value" => "implement"),
@@ -413,10 +413,14 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
       candidates: [ { "provider" => "claude" } ]
     )
 
-    get "/api/v1/app/credentials"
+    get "/api/v1/app/credentials/provider_routing_rules"
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.fetch("provider_routing_rules")).to include(include("task_key" => "default"))
+
+    get "/api/v1/app/credentials/options"
+
+    expect(response).to have_http_status(:ok)
     expect(parse_body.dig("options", "provider_routing_options", "agent_providers")).to include(
       include("value" => "codex", "models" => include(include("id" => "gpt-5.2-codex")))
     )

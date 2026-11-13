@@ -60,6 +60,23 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     body = parse_body
     expect(body.dig("user", "email_address")).to eq(user.email_address)
     expect(body.dig("user", "chat_provider")).to be_nil
+    expect(body.dig("user", "role")).to eq("developer")
+    expect(body.dig("user", "recent_chats_group_size")).to eq(10)
+    expect(body["credential_status"]).to include(
+      "claude_oauth_token" => true,
+      "codex_api_key" => true,
+      "codex_auth_json" => true,
+      "muse_api_key" => true,
+      "github_token" => true
+    )
+    expect(body).not_to have_key("options")
+    expect(body).not_to have_key("provider_routing_rules")
+
+    get "/api/v1/app/credentials/options"
+    expect(response).to have_http_status(:ok)
+    expect(response.headers["Cache-Control"]).to include("max-age=86400", "private")
+    etag = response.headers.fetch("ETag")
+    body = parse_body
     expect(body.dig("options", "chat_providers")).to eq(%w[claude codex muse])
     expect(body.dig("options", "agent_provider_labels")).to include(
       "claude" => "Claude Code",
@@ -71,25 +88,17 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
       "codex" => "Codex",
       "muse" => "Muse Code"
     )
-    expect(body.dig("user", "role")).to eq("developer")
     expect(body.dig("options", "roles")).to eq(%w[ developer product_owner ])
-    expect(body.dig("user", "recent_chats_group_size")).to eq(10)
     expect(body.dig("options", "recent_chats_group_size")).to eq("min" => 1, "max" => 50)
-    expect(body["user"]).not_to have_key("agent_provider_failover_policy")
     expect(body["options"]).not_to have_key("agent_provider_failover_causes")
-    expect(body["credential_status"]).to include(
-      "claude_oauth_token" => true,
-      "codex_api_key" => true,
-      "codex_auth_json" => true,
-      "muse_api_key" => true,
-      "github_token" => true
-    )
-    expect(body).not_to have_key("documents")
     expect(response.body).not_to include("sk-existing")
     expect(response.body).not_to include("sk-codex-existing")
     expect(response.body).not_to include("codex-access-existing")
     expect(response.body).not_to include("muse-existing")
     expect(response.body).not_to include("ghp_existing")
+
+    get "/api/v1/app/credentials/options", headers: { "If-None-Match" => etag }
+    expect(response).to have_http_status(:not_modified)
   end
 
   it "lists personal documents separately from credentials" do
@@ -149,6 +158,9 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(user.recent_chats_group_size).to eq(20)
     expect(user.role).to eq("product_owner")
     expect(parse_body["message"]).to eq("Credentials updated.")
+    expect(parse_body).not_to have_key("options")
+    expect(parse_body).not_to have_key("provider_routing_rules")
+    expect(parse_body).not_to have_key("provider_availability")
     expect(AgentProviders::Claude).to have_received(:refresh_usage!).with(user: user, force: true)
     expect(ProviderAvailabilityWakeup).to have_received(:call).with(provider: "claude", user: user).at_least(:once)
   end
@@ -280,11 +292,12 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(response).to have_http_status(:ok)
     expect(ClaudeUsageProbe).to have_received(:refresh_for).with(user: user, force: true)
     expect(parse_body["message"]).to eq("Claude usage limit has been reached.")
-    expect(parse_body.dig("provider_availability", "claude")).to include(
+    expect(parse_body["provider"]).to eq("claude")
+    expect(parse_body["availability"]).to include(
       "state" => "exhausted",
       "usage_exhausted" => true
     )
-    expect(parse_body.dig("provider_availability", "claude", "usage", "remaining_percent")).to eq(0.0)
+    expect(parse_body.dig("availability", "usage", "remaining_percent")).to eq(0.0)
   end
 
   it "forces an Antigravity readiness recheck through the plugin probe" do
@@ -316,7 +329,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     expect(response).to have_http_status(:ok)
     expect(AgyCredentialProbe).to have_received(:refresh_for).with(user: user, force: true)
     expect(parse_body["message"]).to eq("Antigravity accepted the shared Gemini API key.")
-    expect(parse_body.dig("provider_availability", "agy", "state")).to eq("available")
+    expect(parse_body.dig("availability", "state")).to eq("available")
   end
 
   it "records a provider availability override and wakes provider-paused workflows" do
@@ -358,7 +371,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     user.update!(codex_auth_mode: "api_key", codex_api_key: nil, codex_auth_json: nil)
     sign_in_as(user)
 
-    get "/api/v1/app/credentials"
+    get "/api/v1/app/credentials/options"
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("options", "chat_providers")).to eq(%w[claude muse])
@@ -368,11 +381,10 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
     user.update!(gemini_api_key: "AIza-test")
     sign_in_as(user)
 
-    get "/api/v1/app/credentials"
+    get "/api/v1/app/credentials/options"
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("options", "chat_providers")).to include("agy")
-    expect(parse_body.dig("credential_status", "gemini_api_key")).to be(true)
   end
 
   it "updates team-visible profile fields" do
@@ -484,9 +496,6 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Claude-OAuth-Token gelöscht.")
-    expect(parse_body.dig("options", "clearable_credentials")).to include(
-      { "value" => "claude_oauth_token", "label" => "Claude-OAuth-Token" }
-    )
 
     user.update!(locale: "la", muse_api_key: "muse-secret")
 
@@ -845,7 +854,18 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(Document.where(id: document.id)).not_to exist
+    expect(parse_body["id"]).to eq(document.id)
     expect(parse_body["message"]).to eq("Document removed.")
+  end
+
+  it "localizes personal document validation messages" do
+    user.update!(locale: "de")
+    sign_in_as(user)
+
+    post "/api/v1/app/credentials/documents", params: { document: {} }
+
+    expect(response).to have_http_status(:unprocessable_content)
+    expect(parse_body.dig("error", "message")).to eq("Wähle eine Datei oder gib eine Google-Doc-URL ein.")
   end
 
   it "downloads a personal document's non-previewable raw file with restrictive browser headers" do
@@ -947,7 +967,7 @@ RSpec.describe "API: /api/v1/app/credentials", type: :request do
   it "returns available locales in credentials options" do
     sign_in_as(user)
 
-    get "/api/v1/app/credentials"
+    get "/api/v1/app/credentials/options"
 
     expect(parse_body.dig("options", "locales")).to eq(%w[en de la])
   end
