@@ -67,12 +67,16 @@ class Coworkers::HomeBranchPersistence
 
   def push!(repository, path, branch)
     url = repository.authenticated_url(user: @chat_session.user)
+    refresh_remote_branch!(url, path, branch)
+    base_sha = @git.run("rev-parse", "origin/#{branch}", chdir: path.to_s).strip
+    Coworkers::WorkspaceCandidateValidator.new(path, git: @git).validate!(base_sha:)
+    candidate_sha = @git.run("rev-parse", "HEAD", chdir: path.to_s).strip
     @git.run(
       "push", url,
       "HEAD:refs/heads/#{branch}", chdir: path.to_s,
       env: { "GIT_TERMINAL_PROMPT" => "0" }
     )
-    refresh_remote_branch!(url, path, branch)
+    verify_remote_ref!(url, branch, candidate_sha)
   end
 
   def reconcile_and_push!(repository, path, branch)
@@ -91,6 +95,16 @@ class Coworkers::HomeBranchPersistence
   def refresh_remote_branch!(url, path, branch)
     refspec = "+refs/heads/#{branch}:refs/remotes/origin/#{branch}"
     @git.run("fetch", url, refspec, "--prune", chdir: path.to_s, env: { "GIT_TERMINAL_PROMPT" => "0" })
+  end
+
+  def verify_remote_ref!(url, branch, candidate_sha)
+    line = @git.run("ls-remote", "--heads", url, "refs/heads/#{branch}",
+      env: { "GIT_TERMINAL_PROMPT" => "0" }).lines.first
+    actual_sha = line.to_s.split.first
+    return if actual_sha == candidate_sha
+
+    raise GitRunner::GitError.new([ "ls-remote", branch ], 1,
+      "pushed home ref verification failed: expected #{candidate_sha}, observed #{actual_sha.presence || 'missing'}")
   end
 
   def continue_rebase!(path)

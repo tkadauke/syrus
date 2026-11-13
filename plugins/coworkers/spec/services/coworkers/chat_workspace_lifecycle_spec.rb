@@ -19,6 +19,16 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle, :allow_host_execution do
     write(seed, ".gitattributes", "memory/** merge=union\n")
     write(seed, "SOUL.md", "role: tester\n")
     write(seed, "shared.md", "first\ntwo\nthree\nfour\nlast\n")
+    write(seed, "UNTESTED_FEATURES.md", <<~MARKDOWN)
+      # Untested features
+
+      | Feature | Risk |
+      | --- | --- |
+      | Existing | medium |
+
+      Keep this inventory current.
+    MARKDOWN
+    write(seed, "settings.json", "{\"careful\":true}\n")
     write(seed, "memory/daily.md", "start\n")
     run_git("add", ".", chdir: seed)
     run_git("-c", "user.name=Maya", "-c", "user.email=maya@example.test", "commit", "-m", "seed", chdir: seed)
@@ -122,6 +132,58 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle, :allow_host_execution do
     expect(home_file("from-second.md")).to eq("second\n")
     expect(home_file("shared.md")).to eq("FIRST\ntwo\nthree\nfour\nLAST\n")
     expect(home_file("memory/daily.md")).to include("first append", "second append")
+  end
+
+  it "semantically preserves concurrent additive Markdown table and nearby prose edits" do
+    first = chat
+    second = chat
+    first_service = lifecycle(first)
+    second_service = lifecycle(second)
+    first_path = first_service.prepare!
+    second_path = second_service.prepare!
+    original = first_path.join("UNTESTED_FEATURES.md").read
+    write(first_path, "UNTESTED_FEATURES.md",
+      original.sub("| Existing | medium |\n", "| Existing | medium |\n| Search filters | high |\n")
+        .sub("Keep this inventory current.\n", "Check filters on mobile.\nKeep this inventory current.\n"))
+    write(second_path, "UNTESTED_FEATURES.md",
+      original.sub("| Existing | medium |\n", "| Existing | medium |\n| Export receipts | low |\n")
+        .sub("Keep this inventory current.\n", "Verify exported receipts.\nKeep this inventory current.\n"))
+
+    expect(first_service.finalize!).to eq(:merged)
+    expect(second_service.finalize!).to eq(:merged)
+
+    durable = home_file("UNTESTED_FEATURES.md")
+    expect(durable).to include("| Search filters | high |", "| Export receipts | low |",
+      "Check filters on mobile.", "Verify exported receipts.")
+    expect(durable).not_to match(/^(?:<<<<<<<|=======|>>>>>>>)(?: |$)/)
+    expect(Coworkers::WorkspaceConflict.where(chat_session: second)).to be_empty
+  end
+
+  it "rejects invalid changed structured data without advancing the durable home ref" do
+    session = chat
+    service = lifecycle(session)
+    path = service.prepare!
+    previous_home = run_git("rev-parse", "coworkers/maya", chdir: @remote).strip
+    write(path, "settings.json", "{\"careful\":\n")
+
+    expect(service.finalize!).to eq(:pending_resolution)
+
+    expect(run_git("rev-parse", "coworkers/maya", chdir: @remote).strip).to eq(previous_home)
+    expect(home_file("settings.json")).to eq("{\"careful\":true}\n")
+    expect(Coworkers::WorkspaceConflict.active.find_by!(chat_session: session).detail).to include("settings.json is invalid")
+  end
+
+  it "rejects committed conflict markers without advancing the durable home ref" do
+    session = chat
+    service = lifecycle(session)
+    path = service.prepare!
+    previous_home = run_git("rev-parse", "coworkers/maya", chdir: @remote).strip
+    write(path, "UNTESTED_FEATURES.md", "<<<<<<< ours\n=======\n>>>>>>> theirs\n")
+
+    expect(service.finalize!).to eq(:pending_resolution)
+
+    expect(run_git("rev-parse", "coworkers/maya", chdir: @remote).strip).to eq(previous_home)
+    expect(home_file("UNTESTED_FEATURES.md")).not_to include("<<<<<<<")
   end
 
   it "silently lets the coworker resolve a real conflict on the next turn" do
