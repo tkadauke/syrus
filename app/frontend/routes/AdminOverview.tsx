@@ -526,7 +526,7 @@ function ChatScopedEventsSection({ data, prefix }: { data: NonNullable<AdminOver
                     <span className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{event.severity}</span>
                   ) : null}
                 </div>
-                <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                <div className="mt-1 text-xs text-text-secondary">
                   <EventLinks event={event} prefix={prefix} />
                   {event.reason ? <span className="ml-2">{event.reason}</span> : null}
                 </div>
@@ -542,7 +542,7 @@ function ChatScopedEventsSection({ data, prefix }: { data: NonNullable<AdminOver
           ))}
         </ul>
       ) : (
-        <div className="px-4 py-6 text-sm text-gray-500 dark:text-gray-400">{t("overview.no_chat_events")}</div>
+        <div className="px-4 py-6 text-sm text-text-secondary">{t("overview.no_chat_events")}</div>
       )}
     </section>
   )
