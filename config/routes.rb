@@ -446,6 +446,7 @@ Rails.application.routes.draw do
           collection do
             post :preview_profile
             post :apply_profile
+            post :apply_starting_profile
             get :history
             post :apply_preset
             post :preview_bulk

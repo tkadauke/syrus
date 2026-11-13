@@ -91,6 +91,28 @@
     "loading": "Setup-Status wird geladen...",
     "setup_label": "Ersteinrichtung",
     "heading": "Syrus einrichten",
+    "permission_title": "Wähle eine anfängliche Berechtigungshaltung",
+    "permission_intro": "Syrus-Agenten laufen in Containern gegen geklonte Workspaces, nicht direkt auf deinem Laptop. Das Profil bestimmt, wie oft sie dich unterbrechen und welche zulässigen Fähigkeiten sie über Syrus erreichen dürfen.",
+    "permission_enforced": "Container-Isolierung, Netzwerkrichtlinien, Berechtigungsgrenzen, Zugangsdaten und nicht delegierbare Vorgänge bleiben wirksam. Eine normalerweise sichere Fähigkeit kann bei einem sensiblen konkreten Aufruf weiterhin eskalieren.",
+    "permission_change_later": "Später unter Berechtigungen ändern",
+    "permission_selected": "Ausgewählt",
+    "permission_choose": "{{profile}} wählen",
+    "permission_skip": "Optional: Wenn du diese Auswahl überspringst, behält Syrus seine aktuellen Standardwerte. Du kannst später unter Berechtigungen ein Profil wählen oder anpassen.",
+    "permission_error": "Das anfängliche Berechtigungsprofil konnte nicht angewendet werden. Deine aktuellen Standardwerte bleiben unverändert.",
+    "permission_profiles": {
+      "full_access": {
+        "name": "Vollzugriff",
+        "tradeoff": "Weniger Unterbrechungen. Agenten dürfen jede Fähigkeit verwenden, die du delegieren darfst, aber nur innerhalb der verbleibenden Ressourcen-, Container-, Netzwerk- und Sicherheitsgrenzen."
+      },
+      "ask_on_first_use": {
+        "name": "Beim ersten Mal fragen",
+        "tradeoff": "Ein ausgewogener Start. Risikoarme Lesezugriffe und isolierte Workspace-Schreibvorgänge laufen ruhig weiter; Codeausführung und andere folgenreiche Aktionen warten auf deine Genehmigung."
+      },
+      "restricted": {
+        "name": "Eingeschränkt",
+        "tradeoff": "Der engste Zugriff mit den wenigsten Überraschungen. Risikoarme isolierte Arbeit ist erlaubt; andere zulässige Fähigkeiten werden abgelehnt, statt dich zur Genehmigung zu unterbrechen."
+      }
+    },
     "complete_badge": "Abgeschlossen",
     "edit_label": "Bearbeiten",
     "ready_heading": "Bereit für den Normalbetrieb",
