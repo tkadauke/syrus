@@ -1587,36 +1587,52 @@ describe("chat compose drafts", () => {
 
     await waitFor(() => expect(textarea).toHaveValue("Committed despite the network."))
     expect(screen.getByText("Message failed.")).toBeInTheDocument()
+    fireEvent.change(textarea, { target: { value: "Keep this newer follow-up." } })
+    fireEvent.change(screen.getByLabelText("Chat attachments"), {
+      target: { files: [new File(["new pixels"], "after-error.png", { type: "image/png" })] }
+    })
+    await screen.findByRole("button", { name: "Remove after-error.png" })
 
     act(() => {
-      actionCableSubscriptions
-        .find((subscription) => subscription.params.channel === "ChatChannel")
-        ?.mixin.received({
-          type: "updated",
-          resource: "chat",
-          id: 8,
-          payload: {
-            action: "replace_tail",
-            replace_from_id: 10,
-            messages: [
-              {
-                type: "message",
-                id: 10,
-                role: "user",
-                content: { text: "Committed despite the network." },
-                text: "Committed despite the network.",
-                bookmarkable: true,
-                client_idempotency_key: clientIdempotencyKey
-              }
-            ]
-          }
-        })
+      const subscription = actionCableSubscriptions.find((candidate) => candidate.params.channel === "ChatChannel")
+      subscription?.mixin.received({
+        type: "updated",
+        resource: "chat",
+        id: 8,
+        payload: {
+          action: "replace_tail",
+          replace_from_id: 10,
+          messages: [
+            {
+              type: "message",
+              id: 10,
+              role: "user",
+              content: { text: "Committed despite the network." },
+              text: "Committed despite the network.",
+              bookmarkable: true,
+              client_idempotency_key: clientIdempotencyKey
+            }
+          ]
+        }
+      })
+      subscription?.mixin.received({
+        type: "updated",
+        resource: "chat",
+        id: 8,
+        payload: {
+          action: "replace_tail",
+          replace_from_id: 10,
+          messages: [messageWithProposal(12, proposal({ title: "Delivered after the request failed" }))]
+        }
+      })
     })
 
-    await waitFor(() => expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveValue(""))
+    await screen.findByText("Discuss proposal 12.")
+    expect(screen.getByPlaceholderText("Ask about this repository...")).toHaveValue("Keep this newer follow-up.")
+    expect(screen.getByRole("button", { name: "Remove after-error.png" })).toBeInTheDocument()
     expect(screen.queryByText("Message failed.")).not.toBeInTheDocument()
     expect(screen.queryByText("Message could not be sent.")).not.toBeInTheDocument()
-    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBeNull()
+    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Keep this newer follow-up.")
   }, 30000)
 
   it("does not discard newer typing when an earlier send succeeds", async () => {
