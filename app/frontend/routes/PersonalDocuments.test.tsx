@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi, afterEach, beforeEach } from "vitest"
 import { PersonalDocumentsRoute } from "./PersonalDocuments"
 import * as useConfirmModule from "../hooks/useConfirm"
+import type { FilterNode } from "../components/filterBar/types"
 
 function documentsPayload(overrides: Record<string, unknown> = {}) {
   const payload = {
@@ -34,7 +35,7 @@ function documentsPayload(overrides: Record<string, unknown> = {}) {
   return {
     ...payload,
     documents,
-    pagination: (payload as any).pagination || {
+    pagination: overrides.pagination || {
       page: 1,
       per_page: 25,
       total: documents.length,
@@ -105,10 +106,11 @@ function renderRouteWithDocumentsAt(documents: Record<string, unknown>[], entry 
   )
 }
 
-function testFilterMatches(document: Record<string, unknown>, node: Record<string, any>): boolean {
-  if (Array.isArray(node.and)) return node.and.every((child: Record<string, any>) => testFilterMatches(document, child))
-  if (Array.isArray(node.or)) return node.or.some((child: Record<string, any>) => testFilterMatches(document, child))
-  if (node.not) return !testFilterMatches(document, node.not)
+function testFilterMatches(document: Record<string, unknown>, node: FilterNode): boolean {
+  if ("and" in node && Array.isArray(node.and)) return node.and.every((child) => testFilterMatches(document, child))
+  if ("or" in node && Array.isArray(node.or)) return node.or.some((child) => testFilterMatches(document, child))
+  if ("not" in node && node.not) return !testFilterMatches(document, node.not)
+  if (!("field" in node)) return true
   const raw =
     node.field === "query"
       ? Object.values(document)

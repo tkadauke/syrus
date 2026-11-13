@@ -23,7 +23,7 @@ import {
   type DataTableColumnDef
 } from "../components/dataTable"
 import { FilterBar, type FilterSchemaField } from "../components/FilterBar"
-import type { FilterTree } from "../components/filterBar/types"
+import type { FilterNode, FilterTree } from "../components/filterBar/types"
 import { errorMessage } from "../lib/errorMessage"
 import { formatBytes } from "../lib/format"
 import { useConfirm } from "../hooks/useConfirm"
