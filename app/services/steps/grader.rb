@@ -93,7 +93,6 @@ module Steps
 
       log_path = grader_log_path(name)
       absolute_log_path = workspace.path.join(log_path)
-      FileUtils.mkdir_p(absolute_log_path.dirname)
 
       started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       exit_code = nil
@@ -717,7 +716,7 @@ module Steps
 
     def open_grade_log(path, relative_path)
       flags = File::WRONLY | File::CREAT | File::TRUNC | nofollow_flag
-      [ File.open(path, flags, 0o600), nil ]
+      [ open_workspace_grade_log(relative_path, flags, 0o600, create_directories: true), nil ]
     rescue SystemCallError, IOError => e
       warning = grade_log_warning(relative_path, diagnostic_status(e, path))
       log("[grader diagnostic warning] #{warning.to_json}", kind: "system")
@@ -725,7 +724,7 @@ module Steps
     end
 
     def append_grade_diagnostic(path, relative_path, text)
-      File.open(path, File::WRONLY | File::APPEND | nofollow_flag) { |file| file.write(text) }
+      open_workspace_grade_log(relative_path, File::WRONLY | File::APPEND | nofollow_flag) { |file| file.write(text) }
       log(text, kind: "grade_log")
       nil
     rescue SystemCallError, IOError => e
@@ -745,21 +744,20 @@ module Steps
     end
 
     def capture_grade_log(path, relative_path, diagnostic_warning: nil, fallback_output: nil)
-      stat = path.lstat
       warning = diagnostic_warning
-      unless stat.file? && !stat.symlink?
-        warning ||= grade_log_warning(relative_path, stat.symlink? ? "unsafe_symlink" : "not_regular_file")
+      file = open_workspace_grade_log(relative_path, File::RDONLY | nofollow_flag)
+      stat = file.stat
+      unless stat.file?
+        warning ||= grade_log_warning(relative_path, "not_regular_file")
         return { output: durable_grade_log_excerpt(fallback_output), bytes: 0, warning: warning }
       end
 
       bytes = stat.size
-      output = File.open(path, File::RDONLY | nofollow_flag) do |file|
-        if bytes > DIAGNOSTIC_CAPTURE_MAX_BYTES
-          warning ||= grade_log_warning(relative_path, "oversized", "capture_limit_bytes" => DIAGNOSTIC_CAPTURE_MAX_BYTES)
-          file.seek(-DIAGNOSTIC_CAPTURE_MAX_BYTES, IO::SEEK_END)
-        end
-        file.read(DIAGNOSTIC_CAPTURE_MAX_BYTES).to_s
+      if bytes > DIAGNOSTIC_CAPTURE_MAX_BYTES
+        warning ||= grade_log_warning(relative_path, "oversized", "capture_limit_bytes" => DIAGNOSTIC_CAPTURE_MAX_BYTES)
+        file.seek(-DIAGNOSTIC_CAPTURE_MAX_BYTES, IO::SEEK_END)
       end
+      output = file.read(DIAGNOSTIC_CAPTURE_MAX_BYTES).to_s
       { output: grader_output_excerpt(output), bytes: bytes, warning: warning }
     rescue Errno::ENOENT
       warning ||= grade_log_warning(relative_path, "missing")
@@ -767,6 +765,56 @@ module Steps
     rescue SystemCallError, IOError => e
       warning ||= grade_log_warning(relative_path, diagnostic_status(e, path))
       { output: durable_grade_log_excerpt(fallback_output), bytes: 0, warning: warning }
+    ensure
+      file&.close
+    end
+
+    # Opens a log relative to an already-open workspace directory. Each
+    # directory component is opened with O_NOFOLLOW and retained until the
+    # leaf is open, so replacing an ancestor pathname cannot redirect an
+    # operation outside the workspace between validation and use.
+    def open_workspace_grade_log(relative_path, flags, mode = nil, create_directories: false)
+      raise Errno::ENOTSUP unless File.const_defined?(:NOFOLLOW)
+      raise Errno::ENOTSUP unless File.directory?("/proc/self/fd")
+
+      components = Pathname.new(relative_path.to_s).each_filename.to_a
+      raise Errno::ELOOP if components.empty? || components.any? { |component| component == ".." }
+
+      directories = [ open_grade_log_directory(workspace.path) ]
+      components[0...-1].each do |component|
+        parent = directories.last
+        child_path = "/proc/self/fd/#{parent.fileno}/#{component}"
+        begin
+          directories << open_grade_log_directory(child_path)
+        rescue Errno::ENOENT
+          raise unless create_directories
+
+          Dir.mkdir(child_path, 0o700)
+          directories << open_grade_log_directory(child_path)
+        rescue Errno::ENOTDIR
+          raise Errno::ELOOP
+        end
+      end
+
+      leaf_path = "/proc/self/fd/#{directories.last.fileno}/#{components.last}"
+      opener = ->(&block) do
+        mode ? File.open(leaf_path, flags, mode, &block) : File.open(leaf_path, flags, &block)
+      end
+      return opener.call unless block_given?
+
+      opener.call { |file| yield file }
+    ensure
+      directories&.reverse_each(&:close)
+    end
+
+    def open_grade_log_directory(path)
+      directory = File.open(path, File::RDONLY | nofollow_flag)
+      return directory if directory.stat.directory?
+
+      directory.close
+      raise Errno::ELOOP
+    rescue Errno::ENOTDIR
+      raise Errno::ELOOP
     end
 
     def grader_output_excerpt(output)
