@@ -186,22 +186,28 @@ export function JobDetailRoute() {
     staleTime: 5 * 60 * 1000
   })
   const payload = detail.isSuccess
-    ? mergeJobWorkflowsPayload({
-        ...jobDetailDefaults(detail.data),
-        ...section.data,
-        job: providerRouting.data ? {
-          ...detail.data.job,
-          job_provider_setting_options: providerRouting.data.job_provider_setting_options,
-          provider_routing_options: providerRouting.data.provider_routing_options,
-          provider_routing_rules: providerRouting.data.provider_routing_rules,
-          inherited_provider_routing_context: providerRouting.data.inherited_provider_routing_context,
-          provider_routing_resolution: providerRouting.data.provider_routing_resolution,
-          active_provider_routing_holds: providerRouting.data.active_provider_routing_holds
-        } : detail.data.job,
-        pending_feedback: pendingFeedback.data?.comments ?? []
-      }, workflows.isPlaceholderData ? undefined : workflows.data, {
-        workflowsCommandsAreFresher: workflows.dataUpdatedAt > detail.dataUpdatedAt
-      })
+    ? mergeJobWorkflowsPayload(
+        {
+          ...jobDetailDefaults(detail.data),
+          ...section.data,
+          job: providerRouting.data
+            ? {
+                ...detail.data.job,
+                job_provider_setting_options: providerRouting.data.job_provider_setting_options,
+                provider_routing_options: providerRouting.data.provider_routing_options,
+                provider_routing_rules: providerRouting.data.provider_routing_rules,
+                inherited_provider_routing_context: providerRouting.data.inherited_provider_routing_context,
+                provider_routing_resolution: providerRouting.data.provider_routing_resolution,
+                active_provider_routing_holds: providerRouting.data.active_provider_routing_holds
+              }
+            : detail.data.job,
+          pending_feedback: pendingFeedback.data?.comments ?? []
+        },
+        workflows.isPlaceholderData ? undefined : workflows.data,
+        {
+          workflowsCommandsAreFresher: workflows.dataUpdatedAt > detail.dataUpdatedAt
+        }
+      )
     : null
   const job = detail.data?.job
   const pageTitle = job ? (job.issue_title ? `${jobSlug(job.id)}: ${job.issue_title}` : jobSlug(job.id)) : id ? `JOB-${id}` : undefined

@@ -135,11 +135,13 @@ export type ProviderRoutingRulesPayload = {
 }
 
 export function fetchProviderRoutingRules(path: string) {
-  return getJson<ProviderRoutingRulesPayload & {
-    job_provider_setting_options?: NonNullable<import("./jobs").JobRecord["job_provider_setting_options"]>
-    provider_routing_resolution?: import("./jobs").ProviderRoutingResolution | null
-    active_provider_routing_holds?: import("./jobs").ProviderRoutingHold[]
-  }>(path)
+  return getJson<
+    ProviderRoutingRulesPayload & {
+      job_provider_setting_options?: NonNullable<import("./jobs").JobRecord["job_provider_setting_options"]>
+      provider_routing_resolution?: import("./jobs").ProviderRoutingResolution | null
+      active_provider_routing_holds?: import("./jobs").ProviderRoutingHold[]
+    }
+  >(path)
 }
 
 export type ProviderRoutingRuleInput = {

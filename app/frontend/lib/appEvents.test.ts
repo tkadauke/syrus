@@ -41,10 +41,16 @@ describe("queryKeysFor", () => {
   it("maps resource events to the query keys they invalidate", () => {
     expect(queryKeysFor(event("user", null))).toEqual([["me"]])
     expect(queryKeysFor(event("job", 42))).toEqual([
-      ["dashboard"], ["jobs"], ["jobs", "42"], ["jobs", "42", "detail"],
-      ["jobs", "42", "section", "summary"], ["jobs", "42", "section", "review"],
-      ["jobs", "42", "section", "workflows"], ["jobs", "42", "pending_feedback"],
-      ["jobs", "42", "provider_routing_rules"], ["job_run_artifacts", "42"]
+      ["dashboard"],
+      ["jobs"],
+      ["jobs", "42"],
+      ["jobs", "42", "detail"],
+      ["jobs", "42", "section", "summary"],
+      ["jobs", "42", "section", "review"],
+      ["jobs", "42", "section", "workflows"],
+      ["jobs", "42", "pending_feedback"],
+      ["jobs", "42", "provider_routing_rules"],
+      ["job_run_artifacts", "42"]
     ])
     expect(queryKeysFor(event("workflow", 7))).toEqual([["dashboard"], ["workflows"], ["workflows", "7"]])
     expect(queryKeysFor(event("epic", 5))).toEqual([["dashboard"], ["epics"], ["epics", "5"]])

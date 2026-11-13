@@ -586,33 +586,35 @@ function WorkflowCard({
           })}
         </Notice>
       ) : null}
-      {open && detail ? <Surface className="mt-4 overflow-hidden" padding="none">
-        {stepItems.map((item, index) =>
-          item.type === "loop" ? (
-            <LoopGroup
-              command={command}
-              item={item}
-              key={item.loopId}
-              numberLabel={index + 1}
-              payload={payload}
-              prefix={prefix}
-              workflowArtifacts={displayedWorkflow.artifacts}
-              workflowId={workflow.id}
-            />
-          ) : (
-            <DisplayStepCard
-              command={command}
-              item={item}
-              key={displayStepItemKey(item)}
-              numberLabel={index + 1}
-              payload={payload}
-              prefix={prefix}
-              workflowArtifacts={displayedWorkflow.artifacts}
-              workflowId={workflow.id}
-            />
-          )
-        )}
-      </Surface> : null}
+      {open && detail ? (
+        <Surface className="mt-4 overflow-hidden" padding="none">
+          {stepItems.map((item, index) =>
+            item.type === "loop" ? (
+              <LoopGroup
+                command={command}
+                item={item}
+                key={item.loopId}
+                numberLabel={index + 1}
+                payload={payload}
+                prefix={prefix}
+                workflowArtifacts={displayedWorkflow.artifacts}
+                workflowId={workflow.id}
+              />
+            ) : (
+              <DisplayStepCard
+                command={command}
+                item={item}
+                key={displayStepItemKey(item)}
+                numberLabel={index + 1}
+                payload={payload}
+                prefix={prefix}
+                workflowArtifacts={displayedWorkflow.artifacts}
+                workflowId={workflow.id}
+              />
+            )
+          )}
+        </Surface>
+      ) : null}
     </Section.Root>
   )
 }
