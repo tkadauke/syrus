@@ -297,6 +297,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body).to eq(
+        "v" => 1,
         "id" => chat.id,
         "chat_slug" => "CHAT-#{chat.id}",
         "title" => "Launch planning",
@@ -5100,6 +5101,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body).to eq(
+      "v" => 1,
       "content" => message.content.except("text", "attachments"),
       "chat_shell_command_output" => "full output"
     )
@@ -5135,7 +5137,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(proposal_payload).not_to have_key("body_html")
 
     get "/api/v1/app/chats/#{chat.id}/proposals/#{proposal.id}"
-    expect(parse_body).to eq("proposal" => { "id" => proposal.id, "body" => "Trace **auth** and `<script>`." })
+    expect(parse_body).to eq("v" => 1, "proposal" => { "id" => proposal.id, "body" => "Trace **auth** and `<script>`." })
   end
 
   it "serializes direct proposal route metadata in chat payloads" do
@@ -8036,6 +8038,9 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(response.media_type).to eq("text/event-stream")
+    response.body.scan(/^data: (.+)$/).each do |(json)|
+      expect(JSON.parse(json).first).to eq([ "v", ApiVersion::CURRENT ])
+    end
     expect(response.body).to include("event: turn_complete")
     expect(response.body).not_to include("event: text_chunk")
   end

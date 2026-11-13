@@ -1,4 +1,5 @@
 import { ApiError, postJson } from "./client"
+import { checkApiVersion } from "./version"
 
 export type SpeechToTextTranscript = {
   text: string
@@ -23,14 +24,7 @@ export type SpeechToTextStreamConfig = {
 export const MAX_TRANSCRIPTION_DURATION_SECONDS = 120
 export const MAX_TRANSCRIPTION_BYTES = 10 * 1024 * 1024
 export const MIN_TRANSCRIPTION_BYTES = 256
-export const TRANSCRIPTION_AUDIO_CONTENT_TYPES = [
-  "audio/webm",
-  "audio/mp4",
-  "audio/mpeg",
-  "audio/wav",
-  "audio/x-wav",
-  "audio/ogg"
-]
+export const TRANSCRIPTION_AUDIO_CONTENT_TYPES = ["audio/webm", "audio/mp4", "audio/mpeg", "audio/wav", "audio/x-wav", "audio/ogg"]
 
 export function isTranscriptionAudioFile(file: File): boolean {
   return TRANSCRIPTION_AUDIO_CONTENT_TYPES.some((type) => file.type === type || file.type.startsWith(`${type};`))
@@ -48,10 +42,7 @@ export function transcribeChatAudio(input: {
   return transcribeChatAudioAttempt(input, 0)
 }
 
-function transcribeChatAudioAttempt(
-  input: Parameters<typeof transcribeChatAudio>[0],
-  attempt: number
-): Promise<{ transcript: SpeechToTextTranscript }> {
+function transcribeChatAudioAttempt(input: Parameters<typeof transcribeChatAudio>[0], attempt: number): Promise<{ transcript: SpeechToTextTranscript }> {
   return new Promise((resolve, reject) => {
     const form = new FormData()
     form.append("file", input.file, input.filename)
@@ -68,6 +59,7 @@ function transcribeChatAudioAttempt(
     if (csrf) xhr.setRequestHeader("X-CSRF-Token", csrf)
 
     xhr.onload = () => {
+      checkApiVersion(xhr.response)
       if (xhr.status >= 200 && xhr.status < 300) {
         resolve(xhr.response as { transcript: SpeechToTextTranscript })
       } else {

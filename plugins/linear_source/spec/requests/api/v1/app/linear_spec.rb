@@ -36,6 +36,7 @@ RSpec.describe "API: /api/v1/app/linear", type: :request do
 
       expect(response).to have_http_status(:ok)
       body = parse_body
+      expect(body.first).to eq([ "v", ApiVersion::CURRENT ])
       expect(body["teams"]).to eq([
         { "id" => "team-uuid-1", "name" => "Engineering" },
         { "id" => "team-uuid-2", "name" => "Design" }
@@ -59,6 +60,7 @@ RSpec.describe "API: /api/v1/app/linear", type: :request do
       post "/api/v1/app/linear/teams", params: { api_key: "lin_api_bad" }, as: :json
 
       expect(response).to have_http_status(:unprocessable_content)
+      expect(parse_body.first).to eq([ "v", ApiVersion::CURRENT ])
       expect(parse_body.dig("error", "message")).to include("unauthorized")
     end
 

@@ -6,6 +6,7 @@ import syrusIconUrl from "../assets/syrusIcon.png"
 import { groupJobsByEpic, epicFullyImplemented } from "./inboxUtils"
 import { applyTheme, writeCachedTheme } from "./theme"
 import { t } from "./i18n"
+import { ApiVersionError, checkJsonResponseVersion, readApiJson } from "../electron/apiVersion"
 
 type AuthState = "loading" | "authenticated" | "setup"
 type PreferencesTab = "account" | "projects"
@@ -52,13 +53,14 @@ type ApiErrorPayload = {
 
 const responseErrorMessage = async (response: Response, fallback: string) => {
   try {
-    const payload = (await response.json()) as ApiErrorPayload
+    const payload = await readApiJson<ApiErrorPayload>(response)
     if (typeof payload.error === "string") {
       return payload.error || fallback
     }
 
     return payload.error?.message || fallback
-  } catch {
+  } catch (error) {
+    if (error instanceof ApiVersionError) throw error
     return fallback
   }
 }
@@ -90,6 +92,7 @@ const submitJobFeedback = async (jobId: number, body: string) => {
   if (!response.ok) {
     throw new Error(await responseErrorMessage(response, `Could not submit feedback for JOB-${jobId}.`))
   }
+  await checkJsonResponseVersion(response)
 }
 
 const compareInboxJobs = (a: SyrusJobItem, b: SyrusJobItem) => {

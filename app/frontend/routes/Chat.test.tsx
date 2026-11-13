@@ -7660,7 +7660,7 @@ describe("group chat participants and composer hint", () => {
         return Promise.resolve(jsonResponse({ current_user: { id: 1, display_name: "Marcus Cato" } }))
       }
       if (path.startsWith("/api/v1/app/users/invitable")) {
-        return Promise.resolve(jsonResponse([{ id: 3, name: "Cicero", avatar_url: null }]))
+        return Promise.resolve(jsonResponse({ v: 1, users: [{ id: 3, name: "Cicero", avatar_url: null }] }))
       }
       if (path === "/api/v1/app/chats/8/participants" && init?.method === "POST") {
         return Promise.resolve(

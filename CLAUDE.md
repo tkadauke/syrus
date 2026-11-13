@@ -196,6 +196,9 @@ High-frequency reminders:
   `plugins/<name>/app/frontend/tool_cards/`, or register an explicit
   `generic`/`hidden`/`deferred` status in
   `Admin::McpToolCardCoverage::EXPLICIT_CARD_STATUSES`.
+- Bump the top-level JSON API `v` only for breaking payload changes. Syrus
+  supports one current version with no compatibility shims, so update the web,
+  ActionCable, inline bootstrap, desktop, and CLI consumers in the same change.
 - **Collapsed tool-card headers are operator design-locked.** Every collapsed
   generic, core, plugin, pending, completed, failed, grouped, and single-call
   tool card is exactly one visual line at every width, ordered disclosure

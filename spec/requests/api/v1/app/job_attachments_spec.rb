@@ -125,6 +125,7 @@ RSpec.describe "App API job attachments", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body).to eq(
+      "v" => 1,
       "path" => "notes.md",
       "content" => "# Notes\n\nHello",
       "binary" => false,
@@ -163,7 +164,7 @@ RSpec.describe "App API job attachments", type: :request do
     get app_attachment_content_path(job, attachment)
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body).to eq("path" => "screenshot.png", "content" => nil, "binary" => true, "too_large" => false)
+    expect(parse_body).to eq("v" => 1, "path" => "screenshot.png", "content" => nil, "binary" => true, "too_large" => false)
   end
 
   it "flags oversized attachment content instead of downloading it" do
@@ -226,6 +227,7 @@ RSpec.describe "App API job attachments", type: :request do
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body).to eq(
+      "v" => 1,
       "error" => {
         "code" => "validation_failed",
         "message" => "Choose a file or enter a Google Doc URL."

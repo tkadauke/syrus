@@ -133,7 +133,7 @@ RSpec.describe "API: /api/v1/app/notifications", type: :request do
     expect(already_read.reload.read_at).to be_present
     expect(foreign.reload.read_at).to be_nil
     expect(parse_body["unread_count"]).to eq(0)
-    expect(parse_body.keys).to eq([ "unread_count" ])
+    expect(parse_body.keys).to eq([ "v", "unread_count" ])
     expect(AppUserChannel).to have_received(:broadcast_to).with(
       user,
       hash_including(

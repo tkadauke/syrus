@@ -22,6 +22,7 @@ RSpec.describe "API: /api/v1/app/admin/overview", type: :request do
     expect(response).to have_http_status(:unauthorized)
     expect(response.media_type).to eq("application/json")
     expect(parse_body).to eq(
+      "v" => 1,
       "error" => {
         "code" => "unauthorized",
         "message" => "Sign in to use the app API."
@@ -39,6 +40,7 @@ RSpec.describe "API: /api/v1/app/admin/overview", type: :request do
     expect(response).to have_http_status(:forbidden)
     expect(response.media_type).to eq("application/json")
     expect(parse_body).to eq(
+      "v" => 1,
       "error" => {
         "code" => "forbidden",
         "message" => "Admin access required."

@@ -1399,7 +1399,9 @@ export function fetchMoreChatsForGroup(
 }
 
 function withChatNavAppearances<
-  T extends { agent_appearances?: Record<string, ChatAgentAppearance>; provider_availability?: Record<string, ProviderAvailability> } & ({ groups: ChatGroupRecord[] } | { chats: ChatNavRecord[] })
+  T extends { agent_appearances?: Record<string, ChatAgentAppearance>; provider_availability?: Record<string, ProviderAvailability> } & (
+    { groups: ChatGroupRecord[] } | { chats: ChatNavRecord[] }
+  )
 >(payload: T): T {
   const appearances = payload.agent_appearances || {}
   const availability = payload.provider_availability || {}
@@ -1501,7 +1503,7 @@ export function fetchInvitableUsers(excludeChatId?: number | string | null, quer
   if (query?.trim()) params.set("q", query.trim())
   params.set("limit", String(limit))
   const search = params.toString()
-  return getJson<InvitableUser[]>(`/api/v1/app/users/invitable?${search}`)
+  return getJson<{ users: InvitableUser[] }>(`/api/v1/app/users/invitable?${search}`).then((payload) => payload.users)
 }
 
 export function createGroupChat(participantUserIds: number[], repositoryId?: number | string | null) {

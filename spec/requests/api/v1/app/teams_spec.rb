@@ -73,7 +73,7 @@ RSpec.describe "API: /api/v1/app/teams", type: :request do
       expect(response).to have_http_status(:created)
       team = Team.find_by(name: "Platform")
       expect(team.owned_by?(owner)).to be true
-      expect(parse_body.keys).to contain_exactly("message", "team")
+      expect(parse_body.keys).to contain_exactly("v", "message", "team")
     end
 
     it "rejects a blank name" do
@@ -181,7 +181,7 @@ RSpec.describe "API: /api/v1/app/teams", type: :request do
       }.to change(Team, :count).by(-1)
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body.keys).to contain_exactly("message")
+      expect(parse_body.keys).to contain_exactly("v", "message")
     end
 
     it "forbids a non-owner member from deleting" do

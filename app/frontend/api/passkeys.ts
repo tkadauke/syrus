@@ -17,7 +17,7 @@ export function registerPasskey(credential: PublicKeyCredentialWithAttestationJS
 }
 
 export function fetchPasskeys() {
-  return getJson<PasskeyRecord[]>("/api/v1/app/passkeys")
+  return getJson<{ passkeys: PasskeyRecord[] }>("/api/v1/app/passkeys").then((payload) => payload.passkeys)
 }
 
 export function deletePasskey(id: number) {

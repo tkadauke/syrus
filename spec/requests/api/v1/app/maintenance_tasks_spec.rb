@@ -11,7 +11,7 @@ RSpec.describe "API: /api/v1/app/maintenance_tasks/sidebar", type: :request do
     get "/api/v1/app/maintenance_tasks/sidebar"
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body).to eq("tasks" => [])
+    expect(parse_body).to eq("v" => 1, "tasks" => [])
   end
 
   it "returns a slim conditional payload for admins" do

@@ -84,6 +84,6 @@ module ChatTurnStreaming
 
   def write_sse(stream, event, data)
     stream << "event: #{event}\n"
-    stream << "data: #{JSON.generate(data)}\n\n"
+    stream << "data: #{JSON.generate(ApiVersion.envelope(data))}\n\n"
   end
 end

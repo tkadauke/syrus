@@ -15,7 +15,7 @@ RSpec.describe "API: /api/v1/admin/permission_parity", type: :request do
       headers: { "Authorization" => "Bearer #{admin_token}" }
 
     expect(response).to have_http_status(:ok)
-    expect(JSON.parse(response.body)).to eq("total" => 1, "events" => [ { "id" => 1 } ])
+    expect(JSON.parse(response.body)).to eq("v" => 1, "total" => 1, "events" => [ { "id" => 1 } ])
 
     get "/api/v1/admin/permission_parity", params: { summary: 1 },
       headers: { "Authorization" => "Bearer #{admin_token}" }

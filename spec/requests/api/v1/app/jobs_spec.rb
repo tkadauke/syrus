@@ -1166,7 +1166,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body.keys).to contain_exactly("job_id", "current_intent", "workflows", "workflows_pagination", "work_units", "feature_flags", "actions", "paths")
+    expect(body.keys).to contain_exactly("v", "job_id", "current_intent", "workflows", "workflows_pagination", "work_units", "feature_flags", "actions", "paths")
     workflows = body["workflows"] + body["work_units"].filter_map { |unit| unit["workflow"] }
     first_run = workflows.flat_map { |workflow| workflow["steps"] }.flat_map { |step| step["runs"] }.find { |payload| payload["id"] == run.id }
     expect(first_run).to include(
@@ -1680,7 +1680,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(job.reload.state).to eq("failed")
-    expect(parse_body).to eq("ok" => true, "message" => "Job force-failed.")
+    expect(parse_body).to eq("v" => 1, "ok" => true, "message" => "Job force-failed.")
   end
 
   it "clears the admin stuck snapshot after app-admin force-fail" do

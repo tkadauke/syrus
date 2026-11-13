@@ -77,6 +77,7 @@ describe("VisualEvidenceGallery", () => {
 
 function buildBootstrap(seenTours: string[] = []): BootstrapPayload {
   return {
+    v: 1,
     current_user: {
       id: 1,
       email_address: "test@example.com",

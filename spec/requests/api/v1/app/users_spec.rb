@@ -19,10 +19,11 @@ RSpec.describe "App API users", type: :request do
       get "/api/v1/app/users/invitable"
 
       expect(response).to have_http_status(:ok)
-      ids = parse_body.pluck("id")
+      expect(parse_body.keys).to eq(%w[v users])
+      ids = parse_body.fetch("users").pluck("id")
       expect(ids).to include(other_user.id)
       expect(ids).not_to include(user.id)
-      expect(parse_body).to include(hash_including("id" => other_user.id, "name" => other_user.display_name))
+      expect(parse_body.fetch("users")).to include(hash_including("id" => other_user.id, "name" => other_user.display_name))
     end
 
     it "additionally excludes participants of the given exclude_chat_id" do
@@ -34,7 +35,7 @@ RSpec.describe "App API users", type: :request do
 
       get "/api/v1/app/users/invitable", params: { exclude_chat_id: chat.id }
 
-      ids = parse_body.pluck("id")
+      ids = parse_body.fetch("users").pluck("id")
       expect(ids).to include(not_in_chat.id)
       expect(ids).not_to include(already_in_chat.id)
       expect(ids).not_to include(user.id)
@@ -49,7 +50,7 @@ RSpec.describe "App API users", type: :request do
       get "/api/v1/app/users/invitable", params: { exclude_chat_id: other_chat.id }
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body.pluck("id")).to include(candidate.id)
+      expect(parse_body.fetch("users").pluck("id")).to include(candidate.id)
     end
 
     it "searches the directory and bounds the result size" do
@@ -60,7 +61,7 @@ RSpec.describe "App API users", type: :request do
       get "/api/v1/app/users/invitable", params: { q: "afric", limit: 1 }
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body).to contain_exactly(hash_including("id" => matching.id))
+      expect(parse_body.fetch("users")).to contain_exactly(hash_including("id" => matching.id))
     end
 
     it "defaults to a bounded first page" do
@@ -69,7 +70,7 @@ RSpec.describe "App API users", type: :request do
 
       get "/api/v1/app/users/invitable"
 
-      expect(parse_body.length).to eq(20)
+      expect(parse_body.fetch("users").length).to eq(20)
     end
   end
 end

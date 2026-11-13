@@ -8,6 +8,7 @@ module Api
     include ActionController::HttpAuthentication::Token::ControllerMethods
     include JobEpicRefFinder
     include PerformanceLoggingContext
+    include JsonApiVersioning
     include JsonErrorRendering
 
     # Only a *present* token that fails to resolve to a user counts against

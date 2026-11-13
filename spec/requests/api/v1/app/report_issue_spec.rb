@@ -28,7 +28,7 @@ RSpec.describe "API: /api/v1/app/report_issue", type: :request do
     post "/api/v1/app/report_issue", params: { title: "Chat report", body: "Something broke." }
 
     expect(response).to have_http_status(:created)
-    expect(parse_body).to eq("issue_url" => "https://github.com/acme/syrus/issues/123")
+    expect(parse_body).to eq("v" => 1, "issue_url" => "https://github.com/acme/syrus/issues/123")
     expect(stub).to have_been_requested
   end
 

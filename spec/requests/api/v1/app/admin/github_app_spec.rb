@@ -97,13 +97,13 @@ RSpec.describe "API: /api/v1/app/admin/github_app", type: :request do
     expect {
       post "/api/v1/app/admin/github_app/sync_installations"
     }.to have_enqueued_job(SyncInstallationsJob).with(admin.id)
-    expect(parse_body).to eq("enqueued" => true)
+    expect(parse_body).to eq("v" => 1, "enqueued" => true)
 
     # A 3-second UI poll must not stack sync jobs — the cache throttle
     # swallows repeats inside the window.
     expect {
       post "/api/v1/app/admin/github_app/sync_installations"
     }.not_to have_enqueued_job(SyncInstallationsJob)
-    expect(parse_body).to eq("enqueued" => false)
+    expect(parse_body).to eq("v" => 1, "enqueued" => false)
   end
 end

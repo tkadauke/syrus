@@ -224,6 +224,7 @@ function featuresPayload(
 
 function bootstrapPayload(overrides: Partial<BootstrapPayload> = {}): BootstrapPayload {
   return {
+    v: 1,
     current_user: {
       id: 1,
       email_address: "operator@example.com",

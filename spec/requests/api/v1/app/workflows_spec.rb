@@ -213,6 +213,7 @@ RSpec.describe "API: /api/v1/app/workflows/:workflow_id/visual_artifact", type: 
     expect(response.headers["Retry-After"]).to eq(StorageConnectivity::RETRY_AFTER_SECONDS.to_s)
     expect(response.headers["Cache-Control"]).not_to include("immutable")
     expect(JSON.parse(response.body)).to eq(
+      "v" => 1,
       "error" => {
         "code" => "storage_unavailable",
         "message" => "Visual artifact storage is temporarily unavailable. Please retry shortly."

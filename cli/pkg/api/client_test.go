@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -22,7 +23,7 @@ func TestListJobsSendsBearerToken(t *testing.T) {
 			t.Fatalf("X-Syrus-CLI-Command = %q", got)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"count":0,"jobs":[]}`))
+		w.Write([]byte(`{"v":1,"count":0,"jobs":[]}`))
 	}))
 	defer server.Close()
 
@@ -37,6 +38,53 @@ func TestListJobsSendsBearerToken(t *testing.T) {
 	}
 	if list.Count != 0 {
 		t.Fatalf("Count = %d", list.Count)
+	}
+}
+
+func TestAPIVersionMismatchRequestsCLIUpdate(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"v":2,"count":0,"jobs":[]}`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "secret-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = client.ListJobs(context.Background(), nil)
+	if err == nil || !strings.Contains(err.Error(), "update the syrus CLI") {
+		t.Fatalf("expected CLI update error, got %v", err)
+	}
+}
+
+func TestAPIVersionAllowsUnknownFields(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"v":1,"future_field":true,"count":0,"jobs":[]}`))
+	}))
+	defer server.Close()
+
+	client, err := NewClient(server.URL, "secret-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := client.ListJobs(context.Background(), nil); err != nil {
+		t.Fatalf("ListJobs returned error for unknown field: %v", err)
+	}
+}
+
+func TestAPIResponseSizeIsBounded(t *testing.T) {
+	response := &http.Response{
+		Body:          io.NopCloser(strings.NewReader("12345")),
+		ContentLength: -1,
+	}
+
+	_, err := readResponseBodyWithLimit(response, 4)
+	if err == nil || !strings.Contains(err.Error(), "response exceeds") {
+		t.Fatalf("expected bounded response error, got %v", err)
 	}
 }
 

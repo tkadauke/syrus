@@ -21,6 +21,9 @@ type Client struct {
 	unauthorizedHint string
 }
 
+const ExpectedAPIVersion = 1
+const maxAPIResponseBytes int64 = 64 << 20
+
 var apiIDPattern = regexp.MustCompile(`^[0-9]+$`)
 
 type Error struct {
@@ -115,24 +118,77 @@ func (c *Client) do(ctx context.Context, method string, path string, input any, 
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode >= 400 {
-		return c.responseError(resp)
-	}
-
-	if output == nil || resp.StatusCode == http.StatusNoContent {
+	if resp.StatusCode == http.StatusNoContent {
 		return nil
 	}
-	return json.NewDecoder(resp.Body).Decode(output)
+
+	payload, err := readResponseBody(resp)
+	if err != nil {
+		return err
+	}
+	if err := checkAPIVersion(payload); err != nil {
+		return err
+	}
+	if resp.StatusCode >= 400 {
+		return c.responseErrorBody(resp, payload)
+	}
+	if output == nil || len(bytes.TrimSpace(payload)) == 0 {
+		return nil
+	}
+	return json.Unmarshal(payload, output)
+}
+
+func checkAPIVersion(payload []byte) error {
+	var envelope struct {
+		Version *int `json:"v"`
+	}
+	if len(bytes.TrimSpace(payload)) == 0 || json.Unmarshal(payload, &envelope) != nil || envelope.Version == nil {
+		return nil
+	}
+	if *envelope.Version != ExpectedAPIVersion {
+		return fmt.Errorf("Syrus API version %d is not supported by this client (expected %d); update the syrus CLI", *envelope.Version, ExpectedAPIVersion)
+	}
+	return nil
+}
+
+func readResponseBody(resp *http.Response) ([]byte, error) {
+	return readResponseBodyWithLimit(resp, maxAPIResponseBytes)
+}
+
+func readResponseBodyWithLimit(resp *http.Response, limit int64) ([]byte, error) {
+	if resp.ContentLength > limit {
+		return nil, fmt.Errorf("Syrus API response exceeds the %d-byte limit", limit)
+	}
+
+	payload, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(payload)) > limit {
+		return nil, fmt.Errorf("Syrus API response exceeds the %d-byte limit", limit)
+	}
+	return payload, nil
 }
 
 func (c *Client) responseError(resp *http.Response) error {
+	body, err := readResponseBody(resp)
+	if err != nil {
+		return err
+	}
+	if err := checkAPIVersion(body); err != nil {
+		return err
+	}
+	return c.responseErrorBody(resp, body)
+}
+
+func (c *Client) responseErrorBody(resp *http.Response, body []byte) error {
 	var payload struct {
 		Error struct {
 			Message string `json:"message"`
 		} `json:"error"`
 	}
 	message := resp.Status
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err == nil && payload.Error.Message != "" {
+	if err := json.Unmarshal(body, &payload); err == nil && payload.Error.Message != "" {
 		message = payload.Error.Message
 	}
 

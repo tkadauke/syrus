@@ -691,7 +691,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body).to include("message" => "Dependency added.")
-    expect(parse_body.keys).to contain_exactly("message", "epic")
+    expect(parse_body.keys).to contain_exactly("v", "message", "epic")
     expect(epic.reload.dependencies.pluck(:depends_on_epic_id)).to eq([ blocker.id ])
   end
 
@@ -738,14 +738,14 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body).to include("message" => "Dependency removed.")
-    expect(parse_body.keys).to contain_exactly("message", "epic")
+    expect(parse_body.keys).to contain_exactly("v", "message", "epic")
 
     expect {
       delete "/api/v1/app/epics/#{epic.id}/dependencies/#{blocker.id}", as: :json
     }.not_to change(EpicDependency, :count)
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body.keys).to contain_exactly("message", "epic")
+    expect(parse_body.keys).to contain_exactly("v", "message", "epic")
   end
 
   it "claims and unclaims ready Epics through the app API" do
@@ -823,7 +823,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     expect(epic.reload.owner_user).to eq(user)
     expect(unowned_child.reload.owner_user).to eq(user)
     expect(owned_child.reload.owner_user).to eq(existing_owner)
-    expect(parse_body.keys).to contain_exactly("message", "epic")
+    expect(parse_body.keys).to contain_exactly("v", "message", "epic")
   end
 
   it "rejects claim races instead of overwriting the current owner" do
@@ -1199,7 +1199,7 @@ RSpec.describe "API: /api/v1/app/epics", :ci_only, type: :request do
     expect(epic.reload.owner_user).to eq(user)
     expect(unowned_child.reload.owner_user).to eq(user)
     expect(owned_child.reload.owner_user).to eq(existing_owner)
-    expect(parse_body.keys).to contain_exactly("message", "epic")
+    expect(parse_body.keys).to contain_exactly("v", "message", "epic")
   end
 
   it "does not take over an already-owned Epic when moving it to in-progress" do

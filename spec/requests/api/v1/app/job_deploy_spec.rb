@@ -15,7 +15,7 @@ RSpec.describe "App API job deploy", type: :request do
       get deploy_path(job), as: :json
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body).to eq("deploy" => nil)
+      expect(parse_body).to eq("v" => 1, "deploy" => nil)
     end
 
     it "returns the most recent deploy workflow" do

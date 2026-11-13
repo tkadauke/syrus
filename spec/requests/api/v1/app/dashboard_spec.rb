@@ -1311,6 +1311,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
 
       expect(response).to have_http_status(:unprocessable_content)
       expect(parse_body).to eq(
+        "v" => 1,
         "error" => {
           "code" => "validation_failed",
           "message" => "Unknown dashboard scope: somebody_else"
@@ -2158,7 +2159,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
             as: :json
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body).to eq("message" => "Dashboard preferences updated.")
+      expect(parse_body).to eq("v" => 1, "message" => "Dashboard preferences updated.")
       preferences = user.reload.dashboard_preferences.fetch("jobs")
       expect(preferences).to include(
         "sort_column" => "started_at",
@@ -2193,6 +2194,7 @@ RSpec.describe "App API dashboard commands", :ci_only, type: :request do
 
       expect(response).to have_http_status(:unprocessable_content)
       expect(parse_body).to eq(
+        "v" => 1,
         "error" => {
           "code" => "validation_failed",
           "message" => "Unknown dashboard sort column: vapor"

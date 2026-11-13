@@ -310,7 +310,7 @@ RSpec.describe "API: /api/v1/app/bug_reports", type: :request do
       }.not_to change(Job, :count)
 
       expect(response).to have_http_status(:created)
-      expect(parse_body).to eq("message" => "Bug report filed.", "issue_url" => "https://github.com/upstream-org/syrus/issues/42")
+      expect(parse_body).to eq("v" => 1, "message" => "Bug report filed.", "issue_url" => "https://github.com/upstream-org/syrus/issues/42")
       expect(stub).to have_been_requested
     end
 

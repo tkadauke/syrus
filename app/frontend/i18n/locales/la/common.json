@@ -355,7 +355,8 @@
     "not_signed_in": "Non initum",
     "revision": "Recensio",
     "view_commit": "Commissum videre",
-    "load_error_instance": "Haec instantia Syrus onerari non potest."
+    "load_error_instance": "Haec instantia Syrus onerari non potest.",
+    "api_version_mismatch": "Nova versio praesto est — recarica"
   },
   "start_blocked_reasons": {
     "dependency_failed": "Dependentia defecit",

@@ -10,6 +10,7 @@ RSpec.describe "API: /api/v1/app/me", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(JSON.parse(response.body)).to match(
+      "v" => 1,
       "current_user" => hash_including("email_address" => "operator@example.com"),
       "team_user_count" => 2,
       "unread_notifications_count" => 0

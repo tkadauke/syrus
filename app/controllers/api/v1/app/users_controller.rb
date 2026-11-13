@@ -24,7 +24,8 @@ module Api
             scope = scope.where("first_name LIKE :pattern OR last_name LIKE :pattern OR email_address LIKE :pattern", pattern: pattern)
           end
 
-          render json: scope.limit(limit_param).map { |user| { id: user.id, name: user.display_name, avatar_url: user.avatar_url } }
+          users = scope.limit(limit_param).map { |user| { id: user.id, name: user.display_name, avatar_url: user.avatar_url } }
+          render json: { users: users }
         end
 
         private

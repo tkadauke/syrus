@@ -355,7 +355,8 @@
     "not_signed_in": "Not signed in",
     "revision": "Revision",
     "view_commit": "View commit",
-    "load_error_instance": "Unable to load this Syrus instance."
+    "load_error_instance": "Unable to load this Syrus instance.",
+    "api_version_mismatch": "A new version is available — reload"
   },
   "start_blocked_reasons": {
     "dependency_failed": "Dependency failed",
