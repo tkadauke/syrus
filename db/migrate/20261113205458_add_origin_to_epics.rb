@@ -2,11 +2,13 @@ class AddOriginToEpics < ActiveRecord::Migration[8.1]
   def up
     add_column :epics, :origin, :string unless column_exists?(:epics, :origin)
 
+    # Historical GitHub-shaped URLs are ambiguous because operator-created
+    # Epics accepted the same field. Keep those operator-owned rather than
+    # granting marker attachment without durable ingestion provenance.
     execute <<~SQL.squish
       UPDATE epics
       SET origin = CASE
         WHEN github_issue_url LIKE 'linear:issue:%' THEN 'linear_issue'
-        WHEN github_issue_url LIKE 'https://github.com/%/issues/%' THEN 'github_issue'
         ELSE 'operator'
       END
       WHERE origin IS NULL
