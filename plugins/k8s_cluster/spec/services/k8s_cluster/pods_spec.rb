@@ -63,6 +63,15 @@ RSpec.describe K8sCluster::Pods do
 
       expect(summary[:container_names]).to eq([ "app", "sidecar" ])
     end
+
+    it "returns only the fields consumed by the live status view" do
+      stub_core_discovery(base)
+      stub_kube_get("#{base}/api/v1/pods", { "items" => [ pod ] })
+
+      expect(described_class.new(cluster).list(view: "status")[:pods].sole).to eq(
+        name: "web-1", namespace: "default", status: "Running"
+      )
+    end
   end
 
   describe "#describe" do
@@ -101,6 +110,16 @@ RSpec.describe K8sCluster::Pods do
 
       expect(payload[:log]).to eq("sidecar logs\n")
       expect(payload[:container]).to eq("sidecar")
+    end
+
+    it "passes a cursor as Kubernetes sinceTime and returns the next cursor" do
+      stub_core_discovery(base)
+      stub_kube_text("#{base}/api/v1/namespaces/default/pods/web-1/log?limitBytes=65536&sinceTime=2026-01-01T00%3A00%3A00Z&tailLines=200", "new line\n")
+
+      payload = described_class.new(cluster).logs("web-1", namespace: "default", since: "2026-01-01T00:00:00Z")
+
+      expect(payload[:log]).to eq("new line\n")
+      expect(payload[:cursor]).to be_present
     end
 
     it "caps requested lines and response bytes at bounded values" do

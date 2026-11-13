@@ -181,6 +181,22 @@ RSpec.describe "API: /api/v1/app/admin/kubernetes_clusters/:id/<resource>", type
       expect(parse_body.dig("pod", "metadata", "name")).to eq("web-1")
     end
 
+    it "strips Kubernetes bookkeeping from described resources" do
+      pods = instance_double(K8sCluster::Pods)
+      stub_admin_resource_service(K8sCluster::Pods, pods)
+      allow(pods).to receive(:describe).and_return(available: true, pod: { "metadata" => {
+        "name" => "web-1",
+        "managedFields" => [ { "manager" => "kubectl" } ],
+        "annotations" => { "kubectl.kubernetes.io/last-applied-configuration" => "secret-ish", "app.example/note" => "keep" }
+      } })
+
+      get "/api/v1/app/admin/kubernetes_clusters/#{cluster.id}/pods", params: { name: "web-1", namespace: "default" }
+
+      metadata = parse_body.dig("pod", "metadata")
+      expect(metadata).not_to have_key("managedFields")
+      expect(metadata["annotations"]).to eq("app.example/note" => "keep")
+    end
+
     it "rejects invalid resource identifiers before dispatching to a service" do
       expect(K8sCluster::Pods).not_to receive(:new)
 

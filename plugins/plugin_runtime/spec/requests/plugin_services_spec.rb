@@ -34,6 +34,7 @@ RSpec.describe "API: admin plugin services", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(json).to include("mode" => "managed", "manageable" => true, "manager_error" => nil)
+    expect(json).not_to have_key("volumes")
     mirror, leftover = json["services"]
     expect(mirror).to include("service" => "git-mirror", "state" => "running", "desired" => true, "held" => false,
                               "actions" => %w[stop restart logs details])
@@ -77,12 +78,17 @@ RSpec.describe "API: admin plugin services", type: :request do
 
   it "returns logs" do
     stub_request(:get, "#{manager}/v1/services/git-mirror/logs?tail=100")
-      .to_return(status: 200, body: "GET /v1/repositories 200\n")
+      .to_return(status: 200, body: { logs: "GET /v1/repositories 200\n", cursor: "2026-01-01T00:00:00Z" }.to_json)
     sign_in_as(admin)
 
     get "/api/v1/app/admin/plugin_services/git-mirror/logs", params: { tail: 100 }
 
-    expect(json).to eq("v" => ApiVersion::CURRENT, "service" => "git-mirror", "logs" => "GET /v1/repositories 200\n")
+    expect(json).to eq(
+      "v" => ApiVersion::CURRENT,
+      "service" => "git-mirror",
+      "logs" => "GET /v1/repositories 200\n",
+      "cursor" => "2026-01-01T00:00:00Z"
+    )
   end
 
   it "answers 404 for a service no plugin provides and 503 when the manager is down" do
@@ -115,7 +121,7 @@ RSpec.describe "API: admin plugin services", type: :request do
     stub_request(:delete, "#{manager}/v1/volumes/syrus_plugin_git-mirror_data").to_return(status: 409, body: { error: "in use" }.to_json)
     sign_in_as(admin)
 
-    get "/api/v1/app/admin/plugin_services"
+    get "/api/v1/app/admin/plugin_services", params: { view: "volumes" }
     expect(json["volumes"].sole).to include("name" => "syrus_plugin_old_data", "in_use" => false, "size_bytes" => 4096)
 
     delete "/api/v1/app/admin/plugin_services/volumes/syrus_plugin_old_data"
@@ -136,6 +142,26 @@ RSpec.describe "API: admin plugin services", type: :request do
     expect(response).to have_http_status(:ok)
     expect(json.dig("details", "summary", 0, "value")).to eq(1)
     expect(json.dig("details", "endpoint")).to eq("http://git-mirror:8080")
+  end
+
+  it "paginates details and clamps a page beyond a shrinking result set" do
+    rows = 101.times.map { |index| { "name" => "repository-#{index}" } }
+    allow(provider).to receive(:service_details).and_return(
+      { summary: [], table: { columns: [ { key: "name", label_key: "name", format: "text" } ], rows: rows } }
+    )
+    allow(PluginRuntime::Services).to receive(:endpoint_for).with("git-mirror").and_return("http://git-mirror:8080")
+    sign_in_as(admin)
+
+    get "/api/v1/app/admin/plugin_services/git-mirror/details", params: { page: 2 }
+
+    expect(json.dig("details", "table", "rows").length).to eq(1)
+    expect(json.dig("details", "pagination")).to include("page" => 2, "total" => 101, "total_pages" => 2)
+
+    rows.pop(51)
+    get "/api/v1/app/admin/plugin_services/git-mirror/details", params: { page: 2 }
+
+    expect(json.dig("details", "table", "rows").length).to eq(50)
+    expect(json.dig("details", "pagination")).to include("page" => 1, "total" => 50, "total_pages" => 1)
   end
 
   it "answers 503 for details while the service is not answering" do
