@@ -419,12 +419,14 @@ export function PermissionsSettingsRoute() {
             <p className="text-sm text-text-secondary">{t("permissions.profile_confirm_body", { subject: t(`permissions.subjects.${profileSubject}`) })}</p>
             <div className="grid gap-3 md:grid-cols-2">
               <ProfileRuleList
+                descriptors={descriptors}
                 empty={t("permissions.profile_no_revocations")}
                 heading={t("permissions.profile_revoked", { count: profilePreview.preview.revoked.length })}
                 rows={profilePreview.preview.revoked}
                 t={t}
               />
               <ProfileRuleList
+                descriptors={descriptors}
                 empty={t("permissions.profile_no_replacements")}
                 heading={t("permissions.profile_replacements", { count: profilePreview.preview.replacements.length })}
                 rows={profilePreview.preview.replacements}
@@ -467,7 +469,19 @@ export function PermissionsSettingsRoute() {
 
 type ProfileRuleRow = { policy: string; capability: string; operation: string | null; resource_scope_label: string }
 
-function ProfileRuleList({ empty, heading, rows, t }: { empty: string; heading: string; rows: ProfileRuleRow[]; t: Translate }) {
+function ProfileRuleList({
+  descriptors,
+  empty,
+  heading,
+  rows,
+  t
+}: {
+  descriptors: InheritedPermission[]
+  empty: string
+  heading: string
+  rows: ProfileRuleRow[]
+  t: Translate
+}) {
   return (
     <section className="rounded-lg border border-border p-3">
       <h3 className="text-sm font-semibold text-text-primary">{heading}</h3>
@@ -475,8 +489,10 @@ function ProfileRuleList({ empty, heading, rows, t }: { empty: string; heading: 
         <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto">
           {rows.map((row, index) => (
             <li className="text-xs text-text-secondary" key={`${row.capability}-${row.operation}-${index}`}>
-              <strong>{t(`permissions.states.${row.policy}`)}</strong> · {row.capability} · {row.operation || t("permissions.all_operations")}
-              <br />
+              <strong>{t(`permissions.states.${row.policy}`)}</strong> · {presentationLabel(row.capability, row.operation, descriptors) || t("permissions.unknown")}
+              <code className="block text-xs text-text-muted">
+                {row.capability} · {row.operation || t("permissions.all_operations")}
+              </code>
               <span className="text-text-muted">{row.resource_scope_label}</span>
             </li>
           ))}

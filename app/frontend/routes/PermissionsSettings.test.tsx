@@ -57,7 +57,8 @@ describe("PermissionsSettingsRoute", () => {
     expect(dialog).toHaveTextContent("Apply Full access to Interactive chat")
     expect(dialog).toHaveTextContent("Rules removed (1)")
     expect(dialog).toHaveTextContent("Profile rules added (2)")
-    expect(dialog).toHaveTextContent("Allow · syrus.jobs@v1 · cancel@v1")
+    expect(dialog).toHaveTextContent("Allow · Syrus Jobs — Cancel Job")
+    expect(dialog).toHaveTextContent("syrus.jobs@v1 · cancel@v1")
     expect(dialog).toHaveTextContent("safety ceilings")
     fireEvent.click(screen.getByRole("button", { name: "Apply profile" }))
 
