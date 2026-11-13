@@ -47,7 +47,7 @@ describe("AdminMysql", () => {
 
     await waitFor(() => expect(screen.queryByText("Loading MySQL state...")).not.toBeInTheDocument())
 
-    const toggle = await screen.findByLabelText(/Hide idle threads/)
+    const toggle = await screen.findByLabelText("Hide idle threads (8)")
     expect(toggle).toBeChecked()
 
     expect(screen.queryByText("Sleep")).not.toBeInTheDocument()
