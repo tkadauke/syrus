@@ -821,29 +821,6 @@ module App
         }
       end
 
-      def hydrate_queue_wait(workflows)
-        queued_ids = workflows.flat_map do |workflow|
-          workflow.fetch(:steps).flat_map do |step|
-            step.fetch(:runs).filter_map { |run| run[:id] if run[:state] == "queued" }
-          end
-        end
-        return workflows if queued_ids.empty?
-
-        runs_by_id = Run.includes(step: :workflow).where(id: queued_ids).index_by(&:id)
-        hydrated = workflows.deep_dup
-        hydrated.each do |workflow|
-          workflow.fetch(:steps).each do |step|
-            step.fetch(:runs).each do |run|
-              next unless run[:state] == "queued"
-
-              queued_run = runs_by_id[run[:id]]
-              run[:queue_wait] = RunQueueDiagnosis.call(queued_run) if queued_run
-            end
-          end
-        end
-        hydrated
-      end
-
       def command_span_json(span)
         {
           id: span.id,
