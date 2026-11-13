@@ -75,6 +75,26 @@ RSpec.describe Coworkers::HomeBranchPersistence do
     expect(link.unsaved_workspace_error).to include("pushed home ref verification failed")
   end
 
+  it "records one actionable unsaved-workspace notice when candidate validation fails" do
+    allow(ChatWorkspace).to receive(:uncommitted_changes?).with(path).and_return(false)
+    allow(git).to receive(:run).with("rev-list", "--count", "origin/coworkers/maya..HEAD", chdir: path.to_s).and_return("1\n")
+    validator = instance_double(Coworkers::WorkspaceCandidateValidator)
+    allow(Coworkers::WorkspaceCandidateValidator).to receive(:new).and_return(validator)
+    allow(validator).to receive(:validate!).and_raise(
+      Coworkers::WorkspaceCandidateValidator::ValidationError, "settings.json is invalid"
+    )
+
+    2.times do
+      expect(described_class.new(chat, coworker, git: git).persist!(schedule_background: false)).to eq(:unsaved)
+    end
+
+    link = Coworkers::Chat.find_by!(chat_session: chat)
+    expect(link).to be_unsaved_workspace
+    expect(link.unsaved_workspace_error).to include("settings.json is invalid")
+    expect(chat.messages.count).to eq(1)
+    expect(git).not_to have_received(:run).with("push", anything, anything, anything)
+  end
+
   it "rebases a clean unpublished commit after a non-fast-forward push and retries" do
     allow(ChatWorkspace).to receive(:uncommitted_changes?).with(path).and_return(false)
     allow(git).to receive(:run).with("rev-list", "--count", "origin/coworkers/maya..HEAD", chdir: path.to_s).and_return("1\n")
@@ -107,8 +127,8 @@ RSpec.describe Coworkers::HomeBranchPersistence do
       .with("push", "https://token@example.test/workspace.git", "HEAD:refs/heads/coworkers/maya", chdir: path.to_s, env: { "GIT_TERMINAL_PROMPT" => "0" })
       .and_raise(rejected)
     allow(git).to receive(:run).with("rebase", "origin/coworkers/maya", chdir: path.to_s).and_raise(conflict)
-    allow(git).to receive(:run).with("diff", "--name-only", "--diff-filter=U", chdir: path.to_s)
-      .and_return("", "SOUL.md\n")
+    allow(git).to receive(:run).with("diff", "--name-only", "-z", "--diff-filter=U", chdir: path.to_s)
+      .and_return("", "SOUL.md\0")
 
     expect { described_class.new(chat, coworker, git: git).persist! }
       .to raise_error(described_class::Conflict, /conflicts remain in SOUL\.md.*next turn.*preserved local commits/m)

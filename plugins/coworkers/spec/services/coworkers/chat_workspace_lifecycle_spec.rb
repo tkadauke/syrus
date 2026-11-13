@@ -170,7 +170,9 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle, :allow_host_execution do
 
     expect(run_git("rev-parse", "coworkers/maya", chdir: @remote).strip).to eq(previous_home)
     expect(home_file("settings.json")).to eq("{\"careful\":true}\n")
-    expect(Coworkers::WorkspaceConflict.active.find_by!(chat_session: session).detail).to include("settings.json is invalid")
+    conflict = Coworkers::WorkspaceConflict.active.find_by!(chat_session: session)
+    expect(conflict.detail).to include("settings.json is invalid")
+    expect(run_git("show", "#{conflict.recovery_ref}:settings.json", chdir: @remote)).to eq("{\"careful\":\n")
   end
 
   it "rejects committed conflict markers without advancing the durable home ref" do
@@ -184,6 +186,8 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle, :allow_host_execution do
 
     expect(run_git("rev-parse", "coworkers/maya", chdir: @remote).strip).to eq(previous_home)
     expect(home_file("UNTESTED_FEATURES.md")).not_to include("<<<<<<<")
+    conflict = Coworkers::WorkspaceConflict.active.find_by!(chat_session: session)
+    expect(run_git("show", "#{conflict.recovery_ref}:UNTESTED_FEATURES.md", chdir: @remote)).to include("<<<<<<<")
   end
 
   it "silently lets the coworker resolve a real conflict on the next turn" do

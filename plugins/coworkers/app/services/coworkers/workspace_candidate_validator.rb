@@ -2,7 +2,14 @@ require "json"
 require "yaml"
 
 class Coworkers::WorkspaceCandidateValidator
-  ValidationError = Class.new(StandardError)
+  class ValidationError < StandardError
+    attr_reader :relative_path
+
+    def initialize(message, relative_path: nil)
+      @relative_path = relative_path
+      super(message)
+    end
+  end
   CONFLICT_MARKER = /^(?:<<<<<<<|=======|>>>>>>>)(?: |$)/
 
   def initialize(path, git: GitRunner.new)
@@ -20,7 +27,7 @@ class Coworkers::WorkspaceCandidateValidator
   private
 
   def reject_unmerged!
-    paths = @git.run("diff", "--name-only", "--diff-filter=U", chdir: @path.to_s).lines.map(&:strip).reject(&:blank?)
+    paths = nul_paths(@git.run("diff", "--name-only", "-z", "--diff-filter=U", chdir: @path.to_s))
     raise ValidationError, "unmerged index entries remain in #{paths.join(', ')}" if paths.any?
   end
 
@@ -32,9 +39,10 @@ class Coworkers::WorkspaceCandidateValidator
   end
 
   def changed_paths(base_sha)
-    @git.run("diff", "--name-only", "--diff-filter=ACMR", base_sha, "HEAD", chdir: @path.to_s)
-      .lines.map(&:strip).reject(&:blank?)
+    nul_paths(@git.run("diff", "--name-only", "-z", "--diff-filter=ACMR", base_sha, "HEAD", chdir: @path.to_s))
   end
+
+  def nul_paths(output) = output.split("\0")
 
   def validate_file!(relative)
     candidate = Syrus::PathJail.resolve!(@path, relative)
@@ -42,7 +50,7 @@ class Coworkers::WorkspaceCandidateValidator
 
     content = File.binread(candidate)
     return if content.include?("\0")
-    raise ValidationError, "conflict markers remain in #{relative}" if content.match?(CONFLICT_MARKER)
+    raise ValidationError.new("conflict markers remain in #{relative}", relative_path: relative) if content.match?(CONFLICT_MARKER)
 
     case candidate.extname.downcase
     when ".json"
@@ -51,8 +59,8 @@ class Coworkers::WorkspaceCandidateValidator
       Psych.parse_stream(content)
     end
   rescue JSON::ParserError, Psych::Exception => error
-    raise ValidationError, "#{relative} is invalid: #{error.message}"
+    raise ValidationError.new("#{relative} is invalid: #{error.message}", relative_path: relative)
   rescue Syrus::PathJail::PathEscape, Errno::EACCES, Errno::ELOOP => error
-    raise ValidationError, "#{relative} cannot be validated safely: #{error.message}"
+    raise ValidationError.new("#{relative} cannot be validated safely: #{error.message}", relative_path: relative)
   end
 end

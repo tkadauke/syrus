@@ -77,6 +77,9 @@ class Coworkers::HomeBranchPersistence
       env: { "GIT_TERMINAL_PROMPT" => "0" }
     )
     verify_remote_ref!(url, branch, candidate_sha)
+  rescue Coworkers::WorkspaceCandidateValidator::ValidationError => error
+    raise GitRunner::GitError.new([ "validate", branch ], 1,
+      "coworker home candidate was not pushed: #{error.message}")
   end
 
   def reconcile_and_push!(repository, path, branch)
@@ -123,15 +126,19 @@ class Coworkers::HomeBranchPersistence
   end
 
   def conflict_paths(path)
-    @git.run("diff", "--name-only", "--diff-filter=U", chdir: path.to_s).lines.map(&:strip).reject(&:blank?).join(", ").presence || "the workspace"
+    conflict_path_list(path).join(", ").presence || "the workspace"
   rescue GitRunner::GitError
     "the workspace"
+  end
+
+  def conflict_path_list(path)
+    @git.run("diff", "--name-only", "-z", "--diff-filter=U", chdir: path.to_s).split("\0")
   end
 
   def unresolved_conflict_markers?(path, paths)
     return true if paths == "the workspace"
 
-    paths.split(", ").any? do |relative|
+    conflict_path_list(path).any? do |relative|
       file = Pathname.new(path).join(relative)
       file.file? && File.binread(file).match?(/^(?:<<<<<<<|=======|>>>>>>>)(?: |$)/n)
     rescue ArgumentError, Encoding::CompatibilityError

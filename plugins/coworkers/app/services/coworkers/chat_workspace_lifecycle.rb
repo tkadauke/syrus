@@ -177,7 +177,8 @@ class Coworkers::ChatWorkspaceLifecycle
       raise unless error.output.match?(/non-fast-forward|fetch first|failed to push some refs/i)
       :retry
     rescue Coworkers::WorkspaceCandidateValidator::ValidationError => error
-      report_invalid_candidate!(source_branch, conflict_checkout, error.message)
+      recovery_ref = snapshot_invalid_candidate!(dir)
+      report_invalid_candidate!(source_branch, conflict_checkout, error, recovery_ref:)
     end
   end
 
@@ -213,6 +214,8 @@ class Coworkers::ChatWorkspaceLifecycle
     return unless ours_groups && theirs_groups
 
     (0..base_lines.length).flat_map do |index|
+      # Identical additions express the same table row or prose insertion, so
+      # retaining it once preserves both intents without manufacturing a duplicate.
       additions = (ours_groups[index] + theirs_groups[index]).uniq
       index < base_lines.length ? additions + [ base_lines[index] ] : additions
     end.join
@@ -240,10 +243,11 @@ class Coworkers::ChatWorkspaceLifecycle
       "pushed home ref verification failed: expected #{candidate_sha}, observed #{actual_sha.presence || 'missing'}")
   end
 
-  def report_invalid_candidate!(source_branch, source_path, detail)
-    relative = detail[/[A-Za-z0-9_.\/-]+\.(?:json|ya?ml|md)\b/i] || "workspace"
+  def report_invalid_candidate!(source_branch, source_path, error, recovery_ref:)
+    relative = error.relative_path.presence || "workspace"
+    detail = error.message
     content = safe_conflict_content(source_path, relative) || "[Candidate validation failed: #{detail}]"
-    record_conflict!(files: [ relative ], versions: { relative => content }, detail:, source_branch:)
+    record_conflict!(files: [ relative ], versions: { relative => content }, detail:, source_branch:, ref: recovery_ref)
     :pending_resolution
   end
 
@@ -371,7 +375,7 @@ class Coworkers::ChatWorkspaceLifecycle
   end
 
   def unmerged_files(path)
-    git_run("diff", "--name-only", "--diff-filter=U", chdir: path.to_s).lines.map(&:strip).reject(&:blank?)
+    git_run("diff", "--name-only", "-z", "--diff-filter=U", chdir: path.to_s).split("\0")
   end
 
   def markdown_link_label(value)
@@ -392,6 +396,13 @@ class Coworkers::ChatWorkspaceLifecycle
     git_run("commit", "-m", "Preserve @#{@coworker.handle} background run conflict", chdir: path.to_s)
     git_run("push", @remote_url, "HEAD:refs/heads/#{push_guard.allow!(source_branch)}", chdir: path.to_s, env: @env)
     git_run("rev-parse", "HEAD", chdir: path.to_s).strip
+  end
+
+  def snapshot_invalid_candidate!(path)
+    candidate_sha = git_run("rev-parse", "HEAD", chdir: path.to_s).strip
+    branch = push_guard.allow!("coworkers/recovery/#{@coworker.id}-#{candidate_sha}")
+    git_run("push", @remote_url, "HEAD:refs/heads/#{branch}", chdir: path.to_s, env: @env)
+    candidate_sha
   end
 
   def clone_branch!(branch, destination)
