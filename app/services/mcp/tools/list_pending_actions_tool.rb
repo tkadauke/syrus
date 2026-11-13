@@ -75,9 +75,13 @@ module Mcp::Tools
         }
         row[:target_ids] = payload.select { |key, _value| key.to_s.match?(ID_KEY) } if payload.any?
         reason = action.reason.presence || payload["reason"].presence || payload["message"].presence || action.purpose.presence
-        row[:reason] = reason.to_s.truncate(500) if reason
-        row[:error_summary] = action.execution_error.to_s.truncate(300) if action.execution_error.present?
+        row[:reason] = safe_summary(reason, 500) if reason
+        row[:error_summary] = safe_summary(action.execution_error, 300) if action.execution_error.present?
         row.compact
+      end
+
+      def safe_summary(value, limit)
+        ToolPayloadRedactor.redact_text(value.to_s).truncate(limit)
       end
 
       def resolved_at(action)
