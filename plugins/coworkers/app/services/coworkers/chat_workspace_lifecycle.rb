@@ -171,7 +171,13 @@ class Coworkers::ChatWorkspaceLifecycle
       # Keep MERGE_HEAD and the uncommitted merged tree available until the
       # final tree has passed persistence validation. A successful merge
       # driver is not proof that it did not write conflict-marker text.
-      merge = git_capture("merge", "--no-commit", "origin/coworker-source", chdir: dir, env: @env)
+      # --no-ff is required here because --no-commit cannot stop a
+      # fast-forward. Always producing an uncommitted merge keeps MERGE_HEAD
+      # available so even an already-committed source tree is validated before
+      # the persistent branch advances.
+      source_subject = git_run("log", "-1", "--format=%s", "origin/coworker-source", chdir: dir).strip
+      merge = git_capture("merge", "--no-ff", "--no-commit", "-m", source_subject,
+        "origin/coworker-source", chdir: dir, env: @env)
       unless merge.success?
         resolution = resolve_semantic_conflict!(dir, merge, source_branch:, conflict_checkout:)
         return resolution unless resolution == :resolved
