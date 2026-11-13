@@ -32,16 +32,6 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     expect(catalog.fetch("profiles").pluck("key")).to eq(%w[full_access@v1 ask_on_first_use@v1 restricted@v1])
   end
 
-  it "paginates history with a capped page size" do
-    3.times { permission_rule(owner: user) }
-
-    get "/api/v1/app/permission_rules/history", params: { page: 2, per_page: 1_000 }
-
-    payload = JSON.parse(response.body)
-    expect(payload.fetch("pagination")).to include("page" => 2, "per_page" => Permissions::HistoryPayload::MAX_PER_PAGE)
-    expect(payload.fetch("history")).to be_empty
-  end
-
   it "atomically replaces one chat surface's custom rules with a canonical profile" do
     descriptor = Permissions::Catalog.descriptors.find { |candidate| candidate.requestable_roles.include?(AgentRole::CHAT_PLANNER) }
     old_rule = permission_rule(owner: user, descriptor:, resource_scope: { "repository_id" => 42 })

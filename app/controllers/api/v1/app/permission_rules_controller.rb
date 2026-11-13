@@ -7,19 +7,20 @@ module Api
         before_action :reject_invocation_context, only: :history
 
         def index
-          management = Permissions::Management.new(Current.user)
-          active_rules = management.rules.to_a
-          render json: {
-            rules: management.rules(active: false).map { |rule| serialize_rule(rule) },
-            inherited: Permissions::Catalog.descriptors.map { |descriptor| serialize_descriptor(descriptor, management:, active_rules:) },
-            profiles: Permissions::PermissionProfiles.all.map(&:to_h),
-            permission_hub_mode: Current.user.permission_hub_mode,
-            current_profiles: PermissionRule::SUBJECT_SELECTORS.filter_map { |subject, definition|
-              next unless definition[:role]
-              [ subject, management.current_profile(subject_selector_type: subject) ]
-            }.to_h,
-            ownership: { editable_layer: "agent", owner_user_id: Current.user.id }
+          render json: dynamic_payload
+        end
+
+        def dynamic_payload
+          Permissions::RulesPayload.new(Current.user).as_json
+        end
+
+        def catalog
+          payload = {
+            inherited: Permissions::Catalog.descriptors.map { |descriptor| serialize_descriptor(descriptor) },
+            profiles: Permissions::PermissionProfiles.all.map(&:to_h)
           }
+          fresh_when(etag: [ "permission-rules-catalog", payload ], public: false)
+          render json: payload unless performed?
         end
 
         def preview_profile
@@ -39,7 +40,7 @@ module Api
 
             Permissions::Management.new(Current.user).apply_profile!(plan:, actor: Current.user)
           end
-          render json: { rules: rules.map { |rule| serialize_rule(rule) }, profile: params[:profile], subject_selector_type: subject }
+          render json: dynamic_payload.merge(profile: params[:profile], subject_selector_type: subject)
         rescue ActiveRecord::RecordInvalid, ArgumentError, KeyError => error
           render_error("invalid_permission_profile", error.message, status: :unprocessable_entity)
         end
@@ -55,14 +56,14 @@ module Api
           management = Permissions::Management.new(Current.user)
           action = POLICY_ACTIONS.fetch(payload.delete("policy"))
           rule = management.public_send(action, payload, actor: Current.user)
-          render json: { rule: serialize_rule(rule) }, status: :created
+          render json: dynamic_payload.merge(rule_id: rule.id, rule: rule_presenter.as_json(rule)), status: :created
         rescue Permissions::Catalog::UnknownCapability, ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound, ArgumentError, KeyError => error
           render_error("invalid_permission_rule", error.message, status: :unprocessable_entity)
         end
 
         def update
           rule = Permissions::Management.new(Current.user).replace_rule!(params[:id], permission_rule_params.to_h, actor: Current.user)
-          render json: { rule: serialize_rule(rule) }
+          render json: dynamic_payload.merge(rule_id: rule.id, rule: rule_presenter.as_json(rule))
         rescue Permissions::Catalog::UnknownCapability, ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound, ArgumentError, KeyError => error
           render_error("invalid_permission_rule", error.message, status: :unprocessable_entity)
         end
@@ -76,7 +77,7 @@ module Api
 
         def apply_preset
           rule = Permissions::Management.new(Current.user).apply_preset!(permission_preset_params.to_h, actor: Current.user)
-          render json: { rule: serialize_rule(rule) }, status: :created
+          render json: dynamic_payload.merge(rule_id: rule.id, rule: rule_presenter.as_json(rule)), status: :created
         rescue Permissions::Catalog::UnknownCapability, ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound, ArgumentError, KeyError => error
           render_error("invalid_permission_preset", error.message, status: :unprocessable_entity)
         end
@@ -99,14 +100,14 @@ module Api
               end
             end
           end
-          render json: { rules: rules.map { |rule| serialize_rule(rule) } }
+          render json: dynamic_payload.merge(changed_rule_ids: rules.map(&:id))
         rescue Permissions::Catalog::UnknownCapability, ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound, ArgumentError, KeyError => error
           render_error("invalid_permission_bulk", error.message, status: :unprocessable_entity)
         end
 
         def revoke
           rule = Permissions::Management.new(Current.user).revoke_rule!(params[:id], actor: Current.user)
-          render json: { rule: serialize_rule(rule) }
+          render json: dynamic_payload.merge(rule_id: rule.id, rule: rule_presenter.as_json(rule))
         end
 
         private
@@ -135,7 +136,11 @@ module Api
           {
             profile: plan.fetch(:profile).to_h,
             subject_selector_type: plan.fetch(:subject_selector_type),
-            revoked: plan.fetch(:revoked_rules).map { |rule| serialize_rule(rule) },
+            revoked: plan.fetch(:revoked_rules).map { |rule| {
+              id: rule.id, policy: rule.policy, capability: rule.capability, operation: rule.operation,
+              resource_scope: ToolPayloadRedactor.redact(rule.resource_scope),
+              resource_scope_label: rule_scope_label(rule)
+            } },
             replacements: plan.fetch(:replacements).map do |replacement|
               descriptor = replacement.fetch(:descriptor)
               {
@@ -147,7 +152,13 @@ module Api
         end
 
         def profile_digest(plan)
-          OpenSSL::HMAC.hexdigest("SHA256", Rails.application.secret_key_base, JSON.generate(serialize_profile_plan(plan)))
+          revoked = plan.fetch(:revoked_rules).map { |rule| rule.attributes.slice(*PermissionRule::AUDITED_ATTRIBUTES) }
+          replacements = plan.fetch(:replacements).map { |replacement|
+            descriptor = replacement.fetch(:descriptor)
+            { policy: replacement.fetch(:policy), capability: descriptor.capability, operation: descriptor.operation }
+          }
+          OpenSSL::HMAC.hexdigest("SHA256", Rails.application.secret_key_base,
+            JSON.generate(profile: plan.fetch(:profile).to_h, subject_selector_type: plan.fetch(:subject_selector_type), revoked:, replacements:))
         end
 
         def permission_preset_params
@@ -158,31 +169,21 @@ module Api
           )
         end
 
-        # One catalog snapshot per request; building it walks every MCP tool
-        # registry entry and plugin provider.
-        def catalog_descriptors
-          @catalog_descriptors ||= Permissions::Catalog.descriptors
+        def rule_presenter = @rule_presenter ||= Permissions::RulePresenter.new(Current.user)
+        def catalog_by_key = @catalog_by_key ||= Permissions::Catalog.descriptors.index_by { |descriptor| [ descriptor.capability, descriptor.operation ] }
+
+        def rule_scope_label(rule)
+          descriptor = catalog_by_key[[ rule.capability, rule.operation ]]
+          descriptor ? scope_label(descriptor, rule.resource_scope) : rule.resource_scope.to_json
         end
 
-        def serialize_rule(rule)
-          serialized = rule.attributes.slice(*PermissionRule::AUDITED_ATTRIBUTES).merge(
-            "id" => rule.id, "editable" => rule.policy_layer == "agent" && rule.owner_user_id == Current.user.id,
-            "owner" => { "kind" => "user", "id" => rule.owner_user_id, "name" => rule.owner_user.name.presence || rule.owner_user.email_address }
-          )
-          descriptor = Permissions::Catalog.find!(capability: rule.capability, operation: rule.operation, from: catalog_descriptors)
-          serialized.merge("resource_scope_label" => scope_label(descriptor, rule.resource_scope))
-        rescue Permissions::Catalog::UnknownCapability
-          serialized.merge("resource_scope_label" => rule.resource_scope.to_json)
-        end
-
-        def serialize_descriptor(descriptor, management:, active_rules:)
+        def serialize_descriptor(descriptor)
           Permissions::Catalog.as_json(descriptor).slice(
             :capability, :operation, :effects, :risk, :defaults, :resource_scope,
             :requestable_roles, :authority_durations, :presets, :presentation
           ).merge(
             owner: { kind: "provider", name: descriptor.capability.split(".").first },
-            editable: false, explanation: "role_default",
-            matrix_states: matrix_states(descriptor, management:, active_rules:)
+            editable: false, explanation: "role_default"
           )
         end
 
@@ -201,22 +202,14 @@ module Api
           end
         end
 
-        def matrix_states(descriptor, management:, active_rules:)
-          PermissionRule::SUBJECT_SELECTORS.filter_map do |subject, definition|
-            next unless definition[:role]
-
-            [ subject, management.matrix_state(descriptor:, role: definition[:role],
-              subject_selector_type: subject, active_rules:) ]
-          end.to_h
-        end
-
         def serialize_preview(operations)
           management = Permissions::Management.new(Current.user)
           operations.map do |operation|
             if operation.fetch("action") == "revoke"
               rule = management.rules.find(operation.fetch("id"))
               { action: "revoke", policy: rule.policy, subject: rule.subject_selector_type,
-                capability: rule.capability, operation: rule.operation, resource_scope_label: serialize_rule(rule)["resource_scope_label"] }
+                capability: rule.capability, operation: rule.operation,
+                resource_scope_label: rule_scope_label(rule) }
             else
               descriptor = Permissions::Catalog.find!(capability: operation.fetch("capability"), operation: operation["operation"])
               normalized = descriptor.resource_scope.normalize(operation.fetch("resource_scope", {}), context: { user: Current.user })
