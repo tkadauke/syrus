@@ -17,7 +17,7 @@ module Api
 
           rule = ProviderRoutingRule.new(provider_routing_rule_attrs.merge(scope))
           if rule.save
-            render json: routing_rule_payload(scope), status: :created
+            head :no_content
           else
             render_error("validation_failed", rule.errors.full_messages.to_sentence, status: :unprocessable_content)
           end
@@ -29,7 +29,7 @@ module Api
 
           rule = ProviderRoutingRule.find_by!(scope.merge(id: params[:id]))
           if rule.update(provider_routing_rule_attrs)
-            render json: routing_rule_payload(scope)
+            head :no_content
           else
             render_error("validation_failed", rule.errors.full_messages.to_sentence, status: :unprocessable_content)
           end
@@ -40,7 +40,7 @@ module Api
           return unless scope
 
           ProviderRoutingRule.find_by!(scope.merge(id: params[:id])).destroy!
-          render json: routing_rule_payload(scope)
+          head :no_content
         end
 
         def reorder
@@ -72,7 +72,7 @@ module Api
             end
           end
 
-          render json: routing_rule_payload(scope)
+          head :no_content
         end
 
         # Dry-runs the effective routing rules against a Job the caller can see.
@@ -124,8 +124,7 @@ module Api
           {
             scope: provider_routing_scope_json(scope),
             provider_routing_rules: provider_routing_rules_json(**scope),
-            inherited_provider_routing_context: provider_routing_inherited_context_json(scope),
-            provider_routing_options: provider_routing_options_json(Current.user)
+            inherited_provider_routing_context: provider_routing_inherited_context_json(scope)
           }
         end
       end
