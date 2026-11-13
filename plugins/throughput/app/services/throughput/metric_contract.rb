@@ -747,7 +747,7 @@ module Throughput
 
     WORKFLOW_COLUMNS = %w[
       workflows.id workflows.job_id workflows.trigger_kind workflows.state
-      workflows.started_at workflows.finished_at workflows.artifacts
+      workflows.started_at workflows.finished_at
     ].freeze
     WORKFLOW_JOB_COLUMNS = %w[
       jobs.id jobs.state jobs.approved_at jobs.finished_at jobs.pr_number
@@ -760,6 +760,7 @@ module Throughput
         .where(trigger_kind: LANDING_TRIGGER_KINDS + REBASE_TRIGGER_KINDS)
         .where(finished_at: range)
         .select(*WORKFLOW_COLUMNS)
+        .preload(:workflow_artifact_values)
         .to_a
 
       ActiveRecord::Associations::Preloader.new(
@@ -872,12 +873,7 @@ module Throughput
     end
 
     def preferred_output_diff_sql
-      <<~SQL.squish
-        COALESCE(
-          NULLIF(runs.step_agent_diff, ''),
-          NULLIF(runs.agent_diff, '')
-        )
-      SQL
+      RunDiff.preferred_diff_sql
     end
 
     def output_diff_sample_run_ids

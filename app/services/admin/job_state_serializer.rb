@@ -109,7 +109,7 @@ module Admin
       return {} if run_ids.empty?
 
       metadata = Run.where(id: run_ids)
-        .pluck(:id, Arel.sql("LENGTH(agent_diff)"), Arel.sql("LENGTH(step_agent_diff)"))
+        .pluck(:id, Arel.sql(RunDiff.byte_length_sql(:agent_diff)), Arel.sql(RunDiff.byte_length_sql(:step_agent_diff)))
         .to_h { |id, diff_bytes, step_diff_bytes| [ id, { agent_diff_bytes: diff_bytes.to_i, step_agent_diff_bytes: step_diff_bytes.to_i } ] }
 
       JobLog.where(run_id: run_ids).group(:run_id).count.each do |run_id, count|

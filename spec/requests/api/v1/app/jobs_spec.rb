@@ -1016,16 +1016,10 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     end
 
     expect(response).to have_http_status(:ok)
-    # Scope to queries that load the historical Workflow list itself. An
-    # eager-load join (`AS t0_r0`) elsewhere in the payload pulls the active
-    # WorkUnits' own Workflows, a small bounded set, and is not the
-    # unbounded artifact load this example guards.
-    workflow_artifact_queries = queries
-      .grep(/SELECT .*["`]?workflows["`]?.*["`]?artifacts["`]?/i)
-      .reject { |sql| sql.match?(/ AS t0_r/i) }
-    expect(workflow_artifact_queries).not_to be_empty
-    expect(workflow_artifact_queries).to all(include("artifacts"))
-    expect(workflow_artifact_queries).to all(match(/NOT/i))
+    artifact_queries = queries.select do |sql|
+      sql.match?(/FROM ["`]?workflow_artifact_values["`]?/i) && sql.match?(/workflow_id.* IN \(/i)
+    end
+    expect(artifact_queries.size).to eq(1)
   end
 
   it "counts runs without loading full run rows on the default job detail payload" do

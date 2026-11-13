@@ -403,10 +403,13 @@ module App
           step_ids = visible_step_ids_by_workflow_id.values.flatten
           next {} if step_ids.empty?
 
+          # Ordered in Ruby: an ORDER BY across an id list cannot be served by
+          # an index, so MySQL would filesort whole step rows.
           steps = Step
             .where(id: step_ids)
-            .order(:workflow_id, :position, :id)
+            .preload(:step_detail_values)
             .to_a
+            .sort_by { |step| [ step.workflow_id, step.position, step.id ] }
 
           grouped = steps.group_by(&:workflow_id)
           ids.to_h do |workflow_id|
@@ -1021,9 +1024,9 @@ module App
               :output_tokens,
               :cache_creation_input_tokens,
               :cache_read_input_tokens,
-              Arel.sql("LENGTH(runs.agent_diff) AS agent_diff_byte_size"),
-              Arel.sql("LENGTH(runs.step_agent_diff) AS step_agent_diff_byte_size"),
-              Arel.sql("(runs.step_agent_diff = runs.agent_diff) AS step_diff_matches_diff")
+              Arel.sql("COALESCE(#{RunDiff.byte_length_sql(:agent_diff)}, 0) AS agent_diff_byte_size"),
+              Arel.sql("COALESCE(#{RunDiff.byte_length_sql(:step_agent_diff)}, 0) AS step_agent_diff_byte_size"),
+              Arel.sql("#{RunDiff.step_diff_matches_diff_sql} AS step_diff_matches_diff")
             )
             .includes(:run_diagnostic, :run_failure_classification)
             .order(:step_id, :created_at, :id)

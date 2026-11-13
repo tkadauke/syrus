@@ -298,9 +298,7 @@ class RetryFailedStepEnqueuer
       step.reopen!
       step.save!
     elsif step.cancelled? && step.runs.none?
-      step.update_columns(
-        revived_cancelled_step_attributes(step)
-      )
+      revive_cancelled_step!(step)
     else
       raise Error, "Step #{step.id} cannot be reopened from #{step.state}"
     end
@@ -325,7 +323,7 @@ class RetryFailedStepEnqueuer
       .where(loop_id: fanout.loop_id, iteration: fanout.iteration, state: "cancelled")
       .where(kind: %w[grader grader_collect])
       .find_each do |step|
-        step.update_columns(revived_cancelled_step_attributes(step))
+        revive_cancelled_step!(step)
       end
     revive_cancelled_downstream_steps!(fanout)
   end
@@ -413,7 +411,7 @@ class RetryFailedStepEnqueuer
       if self.class.retry_until_barrier_step?(step)
         details[Step::RETRY_UNTIL_BARRIER_SUPERSEDED_DETAIL_KEY] = true
       end
-      step.update_columns(details: details, updated_at: Time.current)
+      step.update_details_columns!(details, updated_at: Time.current)
     end
   end
 
@@ -530,9 +528,7 @@ class RetryFailedStepEnqueuer
     cursor = downstream_start_after(step)
     while cursor
       if cursor.cancelled? && cursor.runs.none?
-        cursor.update_columns(
-          revived_cancelled_step_attributes(cursor)
-        )
+        revive_cancelled_step!(cursor)
       end
       cursor = cursor.next_step
     end
@@ -542,6 +538,13 @@ class RetryFailedStepEnqueuer
     manual_grade_loop_restart_loop_id
     superseded_active_work_cancelled_at
   ].freeze
+
+  # Goes through update_details_columns! so externalized keys (grader output)
+  # stay in the side table instead of being written back inline.
+  def revive_cancelled_step!(step)
+    attributes = revived_cancelled_step_attributes(step)
+    step.update_details_columns!(attributes.delete(:details), **attributes)
+  end
 
   def revived_cancelled_step_attributes(step)
     {
@@ -584,9 +587,7 @@ class RetryFailedStepEnqueuer
     collect = collect_step_for(failed_step)
     return unless collect&.failed? || (collect&.cancelled? && collect.runs.none?)
 
-    collect.update_columns(
-      revived_cancelled_step_attributes(collect)
-    )
+    revive_cancelled_step!(collect)
   end
 
   def rebuild_merge_train

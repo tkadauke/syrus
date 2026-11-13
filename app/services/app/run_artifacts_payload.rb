@@ -226,10 +226,10 @@ module App
 
       def diff_payload(key)
         bytes, diff = if full
-          value = Run.where(id: run.id).pick(key)
+          value = RunDiff.where(run_id: run.id).pick(key)
           [ value&.bytesize || 0, value ]
         else
-          Run.where(id: run.id).pick(
+          RunDiff.where(run_id: run.id).pick(
             Arel.sql(diff_bytes_expression(key)),
             Arel.sql("SUBSTRING(#{key}, 1, #{MAX_DIFF_BYTES})")
           )

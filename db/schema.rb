@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_08_233822) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_10_164236) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -3473,6 +3473,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_233822) do
     t.index ["run_id"], name: "index_run_diagnostics_on_run_id", unique: true
   end
 
+  create_table "run_diffs", force: :cascade do |t|
+    t.bigint "run_id", null: false
+    t.text "agent_diff", limit: 16777215
+    t.text "step_agent_diff", limit: 16777215
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["run_id"], name: "index_run_diffs_on_run_id", unique: true
+  end
+
   create_table "run_failure_classifications", force: :cascade do |t|
     t.string "classification", null: false
     t.datetime "classified_at"
@@ -3593,7 +3602,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_233822) do
   end
 
   create_table "runs", force: :cascade do |t|
-    t.text "agent_diff", limit: 16777215
     t.string "agent_outcome"
     t.text "agent_pr_body"
     t.string "agent_pr_title"
@@ -3620,7 +3628,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_233822) do
     t.datetime "updated_at", null: false
     t.integer "user_id", null: false
     t.string "base_sha"
-    t.text "step_agent_diff", limit: 16777215
     t.string "live_session_id"
     t.string "skill_source"
     t.string "skill_resolved_path"
@@ -3946,6 +3953,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_233822) do
     t.index ["subject_type", "subject_id", "created_at"], name: "idx_state_transitions_on_subject_created"
     t.index ["subject_type", "subject_id"], name: "index_state_transitions_on_subject"
     t.index ["user_id"], name: "index_state_transitions_on_user_id"
+  end
+
+  create_table "step_detail_values", force: :cascade do |t|
+    t.integer "step_id", null: false
+    t.string "key", null: false
+    t.text "value", limit: 16777215, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["step_id", "key"], name: "index_step_detail_values_on_step_id_and_key", unique: true
   end
 
   create_table "steps", force: :cascade do |t|
@@ -4719,7 +4735,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_08_233822) do
 
   create_table "workflows", force: :cascade do |t|
     t.string "agent_provider", default: "claude", null: false
-    t.text "artifacts", limit: 16777215
     t.text "chain_template"
     t.datetime "cleaned_up_at"
     t.datetime "created_at", null: false

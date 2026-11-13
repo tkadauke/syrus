@@ -1198,7 +1198,6 @@ RSpec.describe Workflow, :ci_only do
       expect(reloaded.artifact("previously_unknown_key")).to eq(value)
       expect(reloaded.artifacts).to eq("previously_unknown_key" => value)
       expect(reloaded.workflow_artifact_values.find_by!(key: "previously_unknown_key").value).to eq(value)
-      expect(reloaded.attributes_before_type_cast.fetch("artifacts")).to eq("{}")
     end
 
     # `(workflow_id, key)` is uniquely indexed, and two Runs failing the same
@@ -1224,16 +1223,6 @@ RSpec.describe Workflow, :ci_only do
 
       expect(wf.workflow_artifact_values.reload.where(key: "failure_reason").count).to eq(1)
       expect(described_class.find(wf.id).artifact("failure_reason")).to eq("written by the loser")
-    end
-
-    it "falls back to inline storage for a row not yet backfilled" do
-      iterations = [ [ { "grader" => "rspec", "output" => "legacy" } ] ]
-      wf.update_column(:artifacts, { "iterations" => iterations, "head_sha" => "abc123" })
-
-      reloaded = described_class.find(wf.id)
-
-      expect(reloaded.artifact("iterations")).to eq(iterations)
-      expect(reloaded.artifact("head_sha")).to eq("abc123")
     end
 
     it "updates only the external value row for any artifact" do
@@ -1336,6 +1325,69 @@ RSpec.describe Workflow, :ci_only do
       expect(wf).not_to be_changed
       wf.attach_coverage_hit_map!("app/a.rb" => { "1" => 1 })
       expect(described_class.find(wf.id).coverage_hit_map).to be_attached
+    end
+
+    it "returns the merged hash for several artifacts and an empty hash for none" do
+      expect(wf.artifacts).to eq({})
+      wf.set_artifact!("a", 1)
+      wf.update!(artifacts: wf.artifacts.merge("b" => { "c" => 2 }))
+
+      expect(described_class.find(wf.id).artifacts).to eq("a" => 1, "b" => { "c" => 2 })
+    end
+
+    it "returns nil rather than raising for an unknown key" do
+      expect(wf.artifact("nope")).to be_nil
+      expect(described_class.find(wf.id).artifact("nope")).to be_nil
+    end
+
+    it "does not let a staged assignment mask a value written through another instance, and reload clears it" do
+      wf.update!(artifacts: { "k" => "old" })
+      stale = described_class.find(wf.id)
+      stale.artifacts = { "k" => "staged" }
+      described_class.find(wf.id).set_artifact!("k", "fresh")
+
+      stale.reload
+      expect(stale.artifact("k")).to eq("fresh")
+      expect(stale.artifacts).to eq("k" => "fresh")
+    end
+
+    it "removes keys absent from a new assignment on save" do
+      wf.update!(artifacts: { "keep" => 1, "drop" => 2 })
+      wf.update!(artifacts: { "keep" => 1 })
+
+      expect(described_class.find(wf.id).artifacts).to eq("keep" => 1)
+    end
+
+    it "reads the state-machine and admission artifacts" do
+      wf.set_artifact!("cancelled_reason", "superseded_by_newer_workflow")
+      wf.set_artifact!("start_blocked_reason", "no_capable_worker")
+      wf.set_artifact!("cannot_proceed", { "reason" => "missing binary" })
+      wf.set_artifact!("workflow_admission_override", { "by" => "op" })
+
+      reloaded = described_class.find(wf.id)
+      expect(reloaded.artifact("cancelled_reason")).to eq("superseded_by_newer_workflow")
+      expect(reloaded.artifact("start_blocked_reason")).to eq("no_capable_worker")
+      expect(reloaded.artifact("cannot_proceed")).to eq("reason" => "missing binary")
+      expect(reloaded.artifacts["workflow_admission_override"]).to eq("by" => "op")
+    end
+
+    it "reads artifacts for a preloaded collection without a query per workflow" do
+      3.times { |i| described_class.create!(job: job, trigger_kind: "initial").set_artifact!("merge_train_id", i) }
+      rows = described_class.where(job_id: job.id).select(:id).preload(:workflow_artifact_values).to_a
+      sql = []
+      sub = ->(*, payload) { sql << payload[:sql] if payload[:sql] =~ /workflow_artifact_values/ }
+
+      ActiveSupport::Notifications.subscribed(sub, "sql.active_record") do
+        rows.each { |row| row.artifact("merge_train_id") }
+      end
+
+      expect(sql).to be_empty
+    end
+
+    it "no longer has a 16MB-capable inline column on workflows" do
+      big = described_class.columns.select { |c| c.type == :text && c.limit.to_i >= 16_777_215 }
+      expect(big.map(&:name)).to be_empty
+      expect(described_class.column_names).not_to include("artifacts")
     end
 
     describe "#detected_plugins" do

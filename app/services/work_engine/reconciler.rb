@@ -590,10 +590,9 @@ module WorkEngine
       ids = Array(job_ids).compact
       return Workflow.none if ids.empty?
 
-      latest_ids = Job
-        .where(id: ids)
-        .with_latest_workflow_snapshot
-        .filter_map { |job| job.latest_workflow_id if job.latest_workflow_state == "failed" }
+      latest_ids = Job.latest_workflow_refs_for(ids).filter_map do |_job_id, (workflow_id, state)|
+        workflow_id if state == "failed"
+      end
       Workflow.where(id: latest_ids)
     end
 
@@ -2285,7 +2284,7 @@ module WorkEngine
       @pending_merge_train_relaunches ||= AutoRetryAttempt
         .pending
         .where(scheduled_at: PRESERVED_MERGE_TRAIN_RELAUNCH_GRACE.ago..PRESERVED_MERGE_TRAIN_RELAUNCH_GRACE.from_now)
-        .includes(:workflow)
+        .includes(workflow: :workflow_artifact_values)
         .to_a
         .select { |attempt| attempt.workflow&.trigger_kind == "merge_train" }
     end
@@ -2298,7 +2297,8 @@ module WorkEngine
       @active_merge_train_workflow_ids ||= {}
       @active_merge_train_workflow_ids[train.id] ||= Workflow
         .where(trigger_kind: "merge_train", state: %w[queued running blocked])
-        .select(:id, :artifacts)
+        .select(:id)
+        .preload(:workflow_artifact_values)
         .filter_map { |workflow| workflow.id if workflow.artifact("merge_train_id").to_i == train.id }
     end
 

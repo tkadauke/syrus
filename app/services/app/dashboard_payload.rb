@@ -902,7 +902,8 @@ module App
         .pluck(:id)
       selected_ids.empty? ? {} : Workflow
         .where(id: selected_ids)
-        .select(:id, :job_id, :state, :trigger_kind, :agent_provider, :created_at, :started_at, :finished_at, :failure_count, :failure_reason, :artifacts, :cleaned_up_at)
+        .select(:id, :job_id, :state, :trigger_kind, :agent_provider, :created_at, :started_at, :finished_at, :failure_count, :failure_reason, :cleaned_up_at)
+        .preload(:workflow_artifact_values)
         .index_by(&:job_id)
     end
 

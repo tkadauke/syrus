@@ -201,7 +201,7 @@ RSpec.describe Steps::Grade do
     artifact_bytes = JSON.dump(artifacts).bytesize
 
     expect(artifact_bytes).to be > 65_535
-    expect(Workflow.columns_hash.fetch("artifacts").limit).to be >= artifact_bytes
+    expect(WorkflowArtifactValue.columns_hash.fetch("value").limit).to be >= artifact_bytes
     expect { workflow.update!(artifacts: artifacts) }.not_to raise_error
     expect(workflow.reload.artifact("iterations").size).to eq(5)
   end

@@ -214,8 +214,9 @@ RSpec.describe Throughput::MetricContract do
         net: 0
       )
     )
-    expect(diff_query).to match(/SELECT .*runs.*id.*, COALESCE\(\s*NULLIF\(runs\.step_agent_diff, ''\),\s*NULLIF\(runs\.agent_diff, ''\)\s*\)/i)
-    expect(diff_query).to match(/OCTET_LENGTH\(COALESCE\(\s*NULLIF\(runs\.step_agent_diff, ''\),\s*NULLIF\(runs\.agent_diff, ''\)\s*\)\) <= \?/i)
+    preferred = /COALESCE\(NULLIF\(run_diffs\.step_agent_diff, ''\), NULLIF\(run_diffs\.agent_diff, ''\)\)/i
+    expect(diff_query).to match(/SELECT .*runs.*id.*, \(SELECT #{preferred.source} FROM run_diffs WHERE run_diffs\.run_id = runs\.id\)/i)
+    expect(diff_query).to match(/OCTET_LENGTH\(\(SELECT #{preferred.source} FROM run_diffs[^)]*\)\) <= \?/i)
   end
 
   it "uses the run diff when the preferred step diff is empty" do
@@ -822,7 +823,7 @@ RSpec.describe Throughput::MetricContract do
       step_for(workflow, kind: "grader", started_at: now - 8.minutes, finished_at: now - 6.minutes)
 
       queries = captured_sql { call }
-      workflow_select = queries.find { |sql| sql.include?("FROM \"workflows\"") && sql.include?("\"workflows\".\"artifacts\"") }
+      workflow_select = queries.find { |sql| sql.include?("FROM \"workflows\"") && sql.start_with?("SELECT \"workflows\".\"id\", \"workflows\".\"job_id\"") }
       step_aggregate = queries.find do |sql|
         sql.include?("MIN(CASE WHEN kind IN") && sql.include?('FROM "steps"')
       end

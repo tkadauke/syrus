@@ -563,10 +563,10 @@ RSpec.describe App::JobDetailPayload, :ci_only do
         "message" => "No PR was opened because the workflow made no effective changes.",
         "base_branch" => "syrus/direct-parent"
       )
-      artifact_queries = queries.grep(/FROM ["`]?workflows["`]?.*["`]?artifacts["`]?/im)
-      expect(artifact_queries).not_to be_empty
-      expect(artifact_queries).to all(match(/WHERE/i))
-      expect(artifact_queries.grep(/artifacts LIKE/im)).to be_empty
+      artifact_queries = queries.select do |sql|
+        sql.match?(/FROM ["`]?workflow_artifact_values["`]?/i) && sql.match?(/workflow_id.* IN \(/i)
+      end
+      expect(artifact_queries.size).to eq(1)
     end
   end
 
@@ -921,14 +921,11 @@ RSpec.describe App::JobDetailPayload, :ci_only do
 
       queries = capture_sql { expect(payload_for(job)[:test_plan]).to include(steps: [ "Run bin/rspec" ]) }
       artifact_selects = queries.select do |sql|
-        sql.match?(/SELECT .*[`"]?workflows[`"]?\.[`"]?artifacts[`"]?/im) &&
-          sql.match?(/FROM [`"]?workflows[`"]?/i)
+        sql.match?(/FROM [`"]?workflow_artifact_values[`"]?/i) && sql.match?(/workflow_id.* IN \(/i)
       end
 
       expect(artifact_selects.size).to eq(1)
       expect(artifact_selects).to all(match(/WHERE/i))
-      expect(artifact_selects).to all(match(/NOT/i))
-      expect(artifact_selects).to all(satisfy { |sql| !sql.match?(/artifacts[`"]? LIKE/i) })
     end
 
     it "builds feedback history without key-specific artifact scans" do
@@ -958,11 +955,9 @@ RSpec.describe App::JobDetailPayload, :ci_only do
       end
 
       artifact_selects = queries.select do |sql|
-        sql.match?(/SELECT .*[`"]?workflows[`"]?\.[`"]?artifacts[`"]?/im) &&
-          sql.match?(/FROM [`"]?workflows[`"]?/i)
+        sql.match?(/FROM [`"]?workflow_artifact_values[`"]?/i) && sql.match?(/workflow_id.* IN \(/i)
       end
       expect(artifact_selects.size).to eq(1)
-      expect(artifact_selects).to all(satisfy { |sql| !sql.match?(/artifacts[`"]? LIKE/i) })
     end
   end
 

@@ -62,7 +62,8 @@ RSpec.describe "Smart permission decisions", type: :request do
     end.to change(PermissionRule, :count).by(1)
 
     expect(response).to have_http_status(:ok)
-    expect(JSON.parse(response.body).dig("request", "items", 0, "resulting_authority")).to include("kind" => "PermissionRule")
+    expect(JSON.parse(response.body).fetch("request")).to include("id" => action.id, "state" => "confirming")
+    expect(item.reload.resulting_authority).to be_a(PermissionRule)
   end
 
   it "applies from the chat endpoint and answers 409 for a stale or duplicate decision without creating rules" do

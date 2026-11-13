@@ -2,6 +2,7 @@ require "rails_helper"
 
 RSpec.describe WorkEngine::Reconciler, :ci_only do
   include ActiveJob::TestHelper
+  include HeavySortStatements
 
   let(:job) { Factories.job(agent_provider: "claude") }
   let(:workflow) { job.latest_workflow }
@@ -14,6 +15,16 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     example.run
     clear_enqueued_jobs
     clear_performed_jobs
+  end
+
+  # `workflows.artifacts` no longer exists; artifact fixtures go through the
+  # side table while the remaining columns are written directly.
+  def update_columns_with_artifacts(record, attrs)
+    attrs = attrs.dup
+    artifacts = attrs.delete(:artifacts)
+    record.update_columns(attrs) if attrs.any?
+    record.artifacts = artifacts
+    record.save!
   end
 
   def reconcile(**attrs)
@@ -764,8 +775,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
   it "classifies a pinned queued Run that exhausted its host admission deferral budget" do
     ensure_solid_queue_test_tables!
     run.update_columns(state: "queued", created_at: 20.minutes.ago, updated_at: 20.minutes.ago, started_at: nil)
-    workflow.update_columns(
-      state: "running",
+    update_columns_with_artifacts(workflow, state: "running",
       started_at: 20.minutes.ago,
       worker_hostname: "worker-critical",
       worker_storage_key: "storage-critical",
@@ -854,8 +864,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
   it "ignores exhausted host admission deferral evidence from a different Run" do
     ensure_solid_queue_test_tables!
     run.update_columns(state: "queued", created_at: 20.minutes.ago, updated_at: 20.minutes.ago, started_at: nil)
-    workflow.update_columns(
-      state: "running",
+    update_columns_with_artifacts(workflow, state: "running",
       started_at: 20.minutes.ago,
       worker_hostname: "worker-critical",
       worker_storage_key: "storage-critical",
@@ -3571,8 +3580,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
   it "repairs exhausted pinned host admission deferrals by deleting queue rows before clearing affinity and re-enqueueing" do
     ensure_solid_queue_test_tables!
     run.update_columns(state: "queued", created_at: 20.minutes.ago, updated_at: 20.minutes.ago, started_at: nil)
-    workflow.update_columns(
-      state: "running",
+    update_columns_with_artifacts(workflow, state: "running",
       started_at: 20.minutes.ago,
       worker_hostname: "worker-critical",
       worker_storage_key: "storage-critical",
@@ -5181,8 +5189,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     run.destroy!
     prerequisite = Factories.job_record(user: job.user, repository: job.repository, issue_number: 99, state: "queued")
     JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual")
-    workflow.update_columns(
-      state: "queued",
+    update_columns_with_artifacts(workflow, state: "queued",
       artifacts: {
         "start_blocked_reason" => StepDispatcher::STACK_BLOCK_REASON,
         "start_blocked_next_check_at" => 3.minutes.from_now.iso8601
@@ -5208,7 +5215,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
 
   it "classifies WorkUnit-only admission start blocks as wait-only" do
     run.destroy!
-    workflow.update_columns(state: "queued", artifacts: {}, created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
+    workflow.update_columns(state: "queued", created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
     step.update_columns(state: "queued")
     unit = attach_work_unit(
       workflow,
@@ -5236,7 +5243,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
 
   it "rechecks expired WorkUnit-only admission start blocks by starting the workflow again" do
     run.destroy!
-    workflow.update_columns(state: "queued", artifacts: {}, created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
+    workflow.update_columns(state: "queued", created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
     step.update_columns(state: "queued")
     attach_work_unit(workflow, blocked_reason: "admission_control", blocked_until: 1.minute.ago)
 
@@ -5252,8 +5259,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
 
   it "rechecks start blocks with missing retry metadata instead of waiting indefinitely" do
     run.destroy!
-    workflow.update_columns(
-      state: "queued",
+    update_columns_with_artifacts(workflow, state: "queued",
       created_at: 22.hours.ago,
       updated_at: 22.hours.ago,
       artifacts: { "start_blocked_reason" => "admission_control" }
@@ -5280,8 +5286,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
   it "keeps manual pauses with missing retry metadata wait-only" do
     run.destroy!
     job.update_columns(manual_paused: true)
-    workflow.update_columns(
-      state: "queued",
+    update_columns_with_artifacts(workflow, state: "queued",
       created_at: 22.hours.ago,
       updated_at: 22.hours.ago,
       artifacts: {
@@ -5326,8 +5331,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
 
   it "rechecks stale dependency or stack start blocks once dependencies are ready" do
     run.destroy!
-    workflow.update_columns(
-      state: "queued",
+    update_columns_with_artifacts(workflow, state: "queued",
       created_at: 6.minutes.ago,
       updated_at: 6.minutes.ago,
       artifacts: {
@@ -5355,8 +5359,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
 
   it "classifies a stale dependency start block as repairable when dependencies are satisfied" do
     run.destroy!
-    workflow.update_columns(
-      state: "queued",
+    update_columns_with_artifacts(workflow, state: "queued",
       created_at: 5.minutes.ago,
       updated_at: 5.minutes.ago,
       artifacts: {
@@ -5401,8 +5404,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     parent.unapprove!
     JobDependency.create!(job: job, depends_on_job: parent, source: "manual")
     run.destroy!
-    workflow.update_columns(
-      state: "queued",
+    update_columns_with_artifacts(workflow, state: "queued",
       created_at: 5.minutes.ago,
       updated_at: 5.minutes.ago,
       artifacts: {
@@ -5451,8 +5453,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     parent.update_columns(state: "closed", finished_at: 1.minute.ago, closure_reason: "pr_merged")
     JobDependency.create!(job: job, depends_on_job: parent, source: "manual")
     run.destroy!
-    workflow.update_columns(
-      state: "queued",
+    update_columns_with_artifacts(workflow, state: "queued",
       created_at: 5.minutes.ago,
       updated_at: 5.minutes.ago,
       artifacts: {
@@ -5511,7 +5512,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
 
   it "repairs a stale WorkUnit-only dependency start block by unblocking it and starting the workflow" do
     run.destroy!
-    workflow.update_columns(state: "queued", artifacts: {}, created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
+    workflow.update_columns(state: "queued", created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
     step.update_columns(state: "queued")
     unit = attach_work_unit(workflow, blocked_reason: "stack_dependencies_not_ready", blocked_until: 3.minutes.from_now)
     allow(WorkUnits::Launcher).to receive(:start!).and_call_original
@@ -5531,8 +5532,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
 
   it "repairs a stale dependency start block by clearing it and starting the workflow" do
     run.destroy!
-    workflow.update_columns(
-      state: "queued",
+    update_columns_with_artifacts(workflow, state: "queued",
       created_at: 5.minutes.ago,
       updated_at: 5.minutes.ago,
       artifacts: {
@@ -5560,8 +5560,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
   it "classifies main-health start blocks with the matching wait-only action" do
     run.destroy!
     job.repository.update!(main_branch_health_enabled: true, main_branch_repair_blocks_work: true, ci_health: "broken", landing_paused: true)
-    workflow.update_columns(
-      state: "queued",
+    update_columns_with_artifacts(workflow, state: "queued",
       artifacts: {
         "start_blocked_reason" => StepDispatcher::MAIN_HEALTH_BLOCK_REASON,
         "start_blocked_next_check_at" => 3.minutes.from_now.iso8601
@@ -5585,8 +5584,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
 
   it "classifies workflow admission budget start blocks as resource admission, not main health" do
     run.destroy!
-    workflow.update_columns(
-      state: "queued",
+    update_columns_with_artifacts(workflow, state: "queued",
       artifacts: {
         "start_blocked_reason" => StepDispatcher::ADMISSION_BLOCK_REASON,
         "start_blocked_next_check_at" => 3.minutes.from_now.iso8601,
@@ -5621,8 +5619,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     step.update_columns(state: "succeeded", finished_at: 10.minutes.ago)
     next_step.runs.destroy_all
     next_step.update_columns(state: "queued", created_at: 10.minutes.ago, updated_at: 10.minutes.ago)
-    workflow.update_columns(
-      state: "running",
+    update_columns_with_artifacts(workflow, state: "running",
       started_at: 10.minutes.ago,
       artifacts: {
         "pause_reason" => StepDispatcher::PAUSE_REASON_RESOURCE_SAFETY,
@@ -5667,8 +5664,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
   it "ignores stale main-health start blocks after repository health recovers" do
     run.destroy!
     job.repository.update!(ci_health: "healthy", grader_health: "healthy", landing_paused: false)
-    workflow.update_columns(
-      state: "queued",
+    update_columns_with_artifacts(workflow, state: "queued",
       created_at: 5.minutes.ago,
       updated_at: 5.minutes.ago,
       artifacts: {
@@ -5689,8 +5685,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
 
   it "ignores stale main-broken workflow artifacts after repository health recovers" do
     job.repository.update!(ci_health: "healthy", grader_health: "healthy", landing_paused: false)
-    workflow.update_columns(
-      state: "failed",
+    update_columns_with_artifacts(workflow, state: "failed",
       finished_at: Time.current,
       artifacts: { "main_broken" => true }
     )
@@ -5994,8 +5989,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       approved_via: "operator"
     )
     auto_merge = Workflows::AutoMerge.instantiate(job: landing_job)
-    auto_merge.update_columns(
-      state: "queued",
+    update_columns_with_artifacts(auto_merge, state: "queued",
       created_at: 5.minutes.ago,
       updated_at: 5.minutes.ago,
       artifacts: {
@@ -6066,8 +6060,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       approved_via: "operator"
     )
     auto_merge = Workflows::AutoMerge.instantiate(job: landing_job)
-    auto_merge.update_columns(
-      state: "queued",
+    update_columns_with_artifacts(auto_merge, state: "queued",
       created_at: 5.minutes.ago,
       updated_at: 5.minutes.ago,
       artifacts: {
@@ -6109,8 +6102,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     repository = job.repository
     landing_job = Factories.job_record(user: job.user, repository: repository, state: "landing", priority: "medium")
     blocked_workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: landing_job)
-    blocked_workflow.update_columns(
-      state: "queued",
+    update_columns_with_artifacts(blocked_workflow, state: "queued",
       created_at: 5.minutes.ago,
       artifacts: {
         "start_blocked_reason" => "urgent_job_active",
@@ -6153,8 +6145,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     repository = job.repository
     landing_job = Factories.job_record(user: job.user, repository: repository, state: "landing", priority: "medium")
     blocked_workflow = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: landing_job)
-    blocked_workflow.update_columns(
-      state: "queued",
+    update_columns_with_artifacts(blocked_workflow, state: "queued",
       created_at: 5.minutes.ago,
       artifacts: {
         "start_blocked_reason" => "urgent_job_active",
@@ -6194,7 +6185,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       approved_via: "operator"
     )
     auto_merge = WorkUnits::Launcher.instantiate(kind: "auto_merge", job: landing_job)
-    auto_merge.update_columns(state: "queued", created_at: 5.minutes.ago, updated_at: 5.minutes.ago, artifacts: {})
+    auto_merge.update_columns(state: "queued", created_at: 5.minutes.ago, updated_at: 5.minutes.ago)
     attach_work_unit(
       auto_merge,
       kind: "auto_merge",
@@ -6241,8 +6232,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       approved_via: "operator"
     )
     auto_merge = Workflows::AutoMerge.instantiate(job: landing_job)
-    auto_merge.update_columns(
-      state: "queued",
+    update_columns_with_artifacts(auto_merge, state: "queued",
       created_at: 5.minutes.ago,
       updated_at: 5.minutes.ago,
       artifacts: {
@@ -6682,8 +6672,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
       )
       MergeTrainMember.create!(merge_train: train, job: job, position: 0)
       job.update_columns(state: "landing")
-      workflow.update_columns(
-        trigger_kind: "merge_train",
+      update_columns_with_artifacts(workflow, trigger_kind: "merge_train",
         state: workflow_state,
         finished_at: (Time.current if workflow_state == "failed"),
         artifacts: { "merge_train_id" => train.id }
@@ -6749,8 +6738,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     train = MergeTrain.create!(repository: job.repository, base_branch: job.repository.default_branch, priority: "medium")
     MergeTrainMember.create!(merge_train: train, job: job, position: 0)
     job.update_columns(state: "landing")
-    workflow.update_columns(
-      trigger_kind: "merge_train",
+    update_columns_with_artifacts(workflow, trigger_kind: "merge_train",
       state: "failed",
       finished_at: Time.current,
       artifacts: { "merge_train_id" => train.id }
@@ -7700,8 +7688,7 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
   it "uses WorkDefinition retry policy to rebuild nonretryable WorkUnit attempts" do
     train = MergeTrain.create!(repository: job.repository, base_branch: job.repository.default_branch, priority: "medium")
     MergeTrainMember.create!(merge_train: train, job: job, position: 0)
-    workflow.update_columns(
-      trigger_kind: "merge_train",
+    update_columns_with_artifacts(workflow, trigger_kind: "merge_train",
       state: "failed",
       finished_at: Time.current,
       artifacts: { "merge_train_id" => train.id }

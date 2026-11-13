@@ -423,6 +423,23 @@ class Job < ApplicationRecord
     kind == "issue"
   end
 
+  # Narrow {job_id => [latest_workflow_id, latest_workflow_state]} lookup.
+  # with_latest_workflow_snapshot selects jobs.* plus five correlated
+  # subqueries, which on a large id set can exhaust the MySQL sort buffer
+  # ("Out of sort memory"). Callers that only need the latest workflow
+  # identity should use this instead, which reads two columns in small batches.
+  def self.latest_workflow_refs_for(job_ids, batch_size: 200)
+    Array(job_ids).compact.uniq.each_slice(batch_size).each_with_object({}) do |slice, result|
+      where(id: slice)
+        .pluck(
+          Arel.sql("jobs.id"),
+          Arel.sql(latest_workflow_snapshot_sql("id")),
+          Arel.sql(latest_workflow_snapshot_sql("state"))
+        )
+        .each { |id, workflow_id, state| result[id] = [ workflow_id, state ] }
+    end
+  end
+
   def self.latest_workflow_snapshot_sql(column)
     raise ArgumentError, "unknown workflow snapshot column" unless %w[id state trigger_kind created_at].include?(column.to_s)
 
@@ -1110,11 +1127,8 @@ class Job < ApplicationRecord
     return "repository_configuration" unless repository.effective_prepare_enabled
     return "issue_label" if prepare_skip_reason_override == "issue_label"
     return "issue_label" if skip_prepare?
-    return "issue_label" if Workflow.where(job_id: id).where(
-      "artifacts LIKE ? OR artifacts LIKE ?",
-      '%"prepare_skipped_reason":"issue_label"%',
-      '%"prepare_skipped_reason": "issue_label"%'
-    ).exists?
+    return "issue_label" if WorkflowArtifactValue.where(workflow_id: Workflow.where(job_id: id).select(:id), key: "prepare_skipped_reason")
+      .any? { |entry| entry.value == "issue_label" }
 
     nil
   end
@@ -1509,7 +1523,8 @@ class Job < ApplicationRecord
   def consecutive_failed_workflows_count
     workflows_since_latest_reopen.reorder(created_at: :desc, id: :desc)
              .limit(MAX_CONSECUTIVE_FAILED_WORKFLOWS)
-             .select(:id, :state, :failure_reason, :artifacts, :trigger_kind)
+             .select(:id, :state, :failure_reason, :trigger_kind)
+             .preload(:workflow_artifact_values)
              .take_while { |workflow| workflow.failed? && !landing_start_blocker_workflow?(workflow) }
              .count
   end

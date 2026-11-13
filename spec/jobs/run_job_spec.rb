@@ -607,6 +607,85 @@ RSpec.describe RunJob, :ci_only do
     end
   end
 
+  describe "two failure handlers racing on one Run" do
+    # Handler B loads the Run while it is still running and starts capturing;
+    # handler A runs its whole failure path (capture + fail! + cascade) inside
+    # B's capture, i.e. after B read the Run but before B wrote anything. B
+    # then goes through the real create_or_find_by! (hitting the unique
+    # run_id index), fail! on its stale Run, and the workflow bookkeeping.
+    # Deterministic interleaving, no threads. Runs on the test database
+    # (SQLite locally); the unique index and the code path are the same ones
+    # MySQL exercises in production.
+    def build_handler(run_id)
+      handler = RunJob.new
+      run = Run.find(run_id)
+      handler.instance_variable_set(:@run, run)
+      handler.instance_variable_set(:@step, run.step)
+      handler.instance_variable_set(:@workflow, run.step.workflow)
+      handler.instance_variable_set(:@job, run.job)
+      handler
+    end
+
+    it "persists one diagnostic, keeps the first failure and reaches consistent terminal states" do
+      job
+      run = Run.where(job_id: job.id).order(:id).first
+      run.update_columns(state: "running", started_at: Time.current)
+      run.step.update_columns(state: "running")
+      run.step.workflow.update_columns(state: "running")
+
+      handler_a = build_handler(run.id)
+      handler_b = build_handler(run.id)
+      first_error = StandardError.new("first failure")
+      second_error = StandardError.new("second failure")
+
+      original_capture = CaptureRunDiagnostic.method(:capture)
+      raced = false
+      allow(CaptureRunDiagnostic).to receive(:capture) do |captured_run, exception, **kwargs|
+        if !raced && exception.equal?(second_error)
+          raced = true
+          handler_a.send(:handle_failure, first_error)
+        end
+        original_capture.call(captured_run, exception, **kwargs)
+      end
+
+      expect { handler_b.send(:handle_failure, second_error) }.not_to raise_error
+
+      expect(raced).to be(true)
+      expect(RunDiagnostic.where(run_id: run.id).count).to eq(1)
+      expect(RunDiagnostic.find_by(run_id: run.id).error_message).to eq("first failure")
+      expect(run.reload.state).to eq("failed")
+      expect(run.step.reload.state).to eq("failed")
+      expect(run.step.workflow.reload.state).to eq("failed")
+    end
+
+    it "does not let a leftover unsaved diagnostic on the Run's has_one re-insert during fail!" do
+      job
+      run = Run.where(job_id: job.id).order(:id).first
+      run.update_columns(state: "running", started_at: Time.current)
+      run.step.update_columns(state: "running")
+      run.step.workflow.update_columns(state: "running")
+      handler = build_handler(run.id)
+
+      # The writer that produced this state before CaptureRunDiagnostic stopped
+      # assigning `run:` (the run is autosaved through Run has_one
+      # :run_diagnostic by fail!/save!). The guard in handle_failure must
+      # recover instead of letting RecordNotUnique escape.
+      allow(CaptureRunDiagnostic).to receive(:capture) do |captured_run, *_|
+        RunDiagnostic.create!(run_id: captured_run.id, error_class: "StandardError", error_message: "original failure")
+        captured_run.association(:run_diagnostic).target =
+          RunDiagnostic.new(run: captured_run, error_class: "Duplicate", error_message: "dup")
+      end
+
+      expect { handler.send(:handle_failure, StandardError.new("original failure")) }.not_to raise_error
+
+      expect(RunDiagnostic.where(run_id: run.id).count).to eq(1)
+      expect(RunDiagnostic.find_by(run_id: run.id).error_message).to eq("original failure")
+      expect(run.reload.state).to eq("failed")
+      expect(run.step.reload.state).to eq("failed")
+      expect(run.step.workflow.reload.state).to eq("failed")
+    end
+  end
+
   describe "AutoMerge workflow" do
     it "reconciles a successful auto_merge when a poller cancels the active run before RunJob records success" do
       repository.update!(auto_merge_enabled: true)

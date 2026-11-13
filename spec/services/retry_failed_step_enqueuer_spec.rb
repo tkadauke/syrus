@@ -93,9 +93,9 @@ RSpec.describe RetryFailedStepEnqueuer do
       state: "failed",
       started_at: 10.minutes.ago,
       finished_at: 1.minute.ago,
-      failure_reason: "loop_exhausted_after_grader_failure",
-      artifacts: { "failure_reason" => "loop_exhausted_after_grader_failure" }
+      failure_reason: "loop_exhausted_after_grader_failure"
     )
+    workflow.update!(artifacts: { "failure_reason" => "loop_exhausted_after_grader_failure" })
 
     fanout = Step.create!(
       workflow: workflow,
@@ -770,10 +770,10 @@ RSpec.describe RetryFailedStepEnqueuer do
     workflow.update_columns(
       state: "failed",
       failure_reason: "pr_publication_missing_after_success",
-      artifacts: { "failure_reason" => "pr_publication_missing_after_success" },
       started_at: 30.minutes.ago,
       finished_at: 1.minute.ago
     )
+    workflow.update!(artifacts: { "failure_reason" => "pr_publication_missing_after_success" })
     prepare = Step.create!(workflow: workflow, kind: "prepare", position: 1)
     summarize = Step.create!(workflow: workflow, kind: "summarize", position: 2)
     test_plan = Step.create!(workflow: workflow, kind: "test_plan", position: 3)
@@ -803,10 +803,10 @@ RSpec.describe RetryFailedStepEnqueuer do
     workflow.update_columns(
       state: "failed",
       failure_reason: "pr_publication_missing_after_success",
-      artifacts: { "failure_reason" => "pr_publication_missing_after_success" },
       started_at: 30.minutes.ago,
       finished_at: 1.minute.ago
     )
+    workflow.update!(artifacts: { "failure_reason" => "pr_publication_missing_after_success" })
     test_plan = Step.create!(workflow: workflow, kind: "test_plan", position: 3)
     test_plan.update_columns(state: "cancelled", started_at: 1.minute.ago, finished_at: 1.minute.ago)
     test_plan.runs.create!(job: job, trigger_kind: "initial")
@@ -1200,5 +1200,21 @@ RSpec.describe RetryFailedStepEnqueuer do
 
     expect(result).to be_success
     expect(job.reload.landing_failure_reason).to eq("old landing failure")
+  end
+
+  it "keeps grader output in the side table when reviving a cancelled step" do
+    job = Factories.job_record(state: "failed")
+    workflow = Workflow.create!(job: job, trigger_kind: "initial")
+    step = Step.create!(
+      workflow: workflow, kind: "grader_collect", position: 3, state: "cancelled",
+      details: { "output" => "grader log", "cancelled_reason" => "x", "name" => "n" }
+    )
+
+    described_class.new(workflow: workflow).send(:revive_cancelled_step!, step)
+
+    reloaded = Step.find(step.id)
+    expect(reloaded).to be_queued
+    expect(reloaded.inline_details).to eq("name" => "n")
+    expect(reloaded.details).to eq("name" => "n", "output" => "grader log")
   end
 end

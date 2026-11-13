@@ -4160,21 +4160,19 @@ RSpec.describe StepDispatcher, "phase admission gate", :ci_only do
       finished_at: 10.minutes.ago
     )
     grader_fanout.runs.destroy_all
-    workflow.update_columns(
-      artifacts: {
-        "pause_reason" => StepDispatcher::PAUSE_REASON_RESOURCE_SAFETY,
-        "pause_kind" => "hard_resource_pressure",
-        "pause_started_at" => 10.minutes.ago.iso8601,
-        "pause_next_check_at" => 1.minute.ago.iso8601,
-        "start_blocked_reason" => StepDispatcher::PAUSE_REASON_RESOURCE_SAFETY,
-        "start_blocked_next_check_at" => 1.minute.ago.iso8601,
-        "start_blocked_details" => {
-          "phase_step_id" => grader_fanout.id,
-          "phase_step_kind" => grader_fanout.kind,
-          "phase_step_position" => grader_fanout.position
-        }
+    workflow.update!(artifacts: {
+      "pause_reason" => StepDispatcher::PAUSE_REASON_RESOURCE_SAFETY,
+      "pause_kind" => "hard_resource_pressure",
+      "pause_started_at" => 10.minutes.ago.iso8601,
+      "pause_next_check_at" => 1.minute.ago.iso8601,
+      "start_blocked_reason" => StepDispatcher::PAUSE_REASON_RESOURCE_SAFETY,
+      "start_blocked_next_check_at" => 1.minute.ago.iso8601,
+      "start_blocked_details" => {
+        "phase_step_id" => grader_fanout.id,
+        "phase_step_kind" => grader_fanout.kind,
+        "phase_step_position" => grader_fanout.position
       }
-    )
+    })
 
     expect {
       described_class.resume_deferred_phase(workflow.id, grader_fanout.id)
