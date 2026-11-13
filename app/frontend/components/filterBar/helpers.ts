@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 
+import { getJson } from "../../api/client"
 import { useT } from "../../hooks/useT"
 import type { FilterChip, FilterLinkBuilder, FilterLinkUpdates, FilterNode, FilterOption, FilterPath, FilterSchemaField, FilterSuggestion, FilterSuggestionSearchConfig, FilterTree } from "./types"
 
@@ -383,14 +384,7 @@ export async function loadFkOptions(field: string, { q, ids }: { q?: string; ids
   if (q) params.set("q", q)
   for (const id of ids || []) params.append("ids[]", id)
 
-  const response = await fetch(`/api/v1/app/filters/fk_options?${params}`, {
-    credentials: "same-origin",
-    headers: { Accept: "application/json" }
-  })
-
-  if (!response.ok) throw new Error(`Failed to load filter options: ${response.status}`)
-
-  const payload = await response.json() as { options?: FilterOption[] }
+  const payload = await getJson<{ options?: FilterOption[] }>(`/api/v1/app/filters/fk_options?${params}`)
   return payload.options || []
 }
 
@@ -402,14 +396,6 @@ export async function loadFilterSuggestions(config: FilterSuggestionSearchConfig
   })
   if (activeQ) params.set("active_q", activeQ)
 
-  const response = await fetch(`/api/v1/app/filters/suggestions?${params}`, {
-    credentials: "same-origin",
-    headers: { Accept: "application/json" },
-    signal
-  })
-
-  if (!response.ok) throw new Error(`Failed to load filter suggestions: ${response.status}`)
-
-  const payload = await response.json() as { suggestions?: FilterSuggestion[] }
+  const payload = await getJson<{ suggestions?: FilterSuggestion[] }>(`/api/v1/app/filters/suggestions?${params}`, { signal })
   return payload.suggestions || []
 }

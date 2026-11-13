@@ -22,6 +22,7 @@ type Client struct {
 }
 
 const ExpectedAPIVersion = 1
+const maxAPIResponseBytes int64 = 64 << 20
 
 var apiIDPattern = regexp.MustCompile(`^[0-9]+$`)
 
@@ -121,7 +122,7 @@ func (c *Client) do(ctx context.Context, method string, path string, input any, 
 		return nil
 	}
 
-	payload, err := io.ReadAll(resp.Body)
+	payload, err := readResponseBody(resp)
 	if err != nil {
 		return err
 	}
@@ -150,8 +151,27 @@ func checkAPIVersion(payload []byte) error {
 	return nil
 }
 
+func readResponseBody(resp *http.Response) ([]byte, error) {
+	return readResponseBodyWithLimit(resp, maxAPIResponseBytes)
+}
+
+func readResponseBodyWithLimit(resp *http.Response, limit int64) ([]byte, error) {
+	if resp.ContentLength > limit {
+		return nil, fmt.Errorf("Syrus API response exceeds the %d-byte limit", limit)
+	}
+
+	payload, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(payload)) > limit {
+		return nil, fmt.Errorf("Syrus API response exceeds the %d-byte limit", limit)
+	}
+	return payload, nil
+}
+
 func (c *Client) responseError(resp *http.Response) error {
-	body, err := io.ReadAll(resp.Body)
+	body, err := readResponseBody(resp)
 	if err != nil {
 		return err
 	}

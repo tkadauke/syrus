@@ -21,6 +21,7 @@ describe("ApiVersionBanner", () => {
     })
 
     expect(screen.getByRole("alert")).toHaveTextContent("A new version is available — reload")
+    expect(screen.getByRole("button", { name: "Reload page" })).toBeInTheDocument()
     expect(readApiVersionMismatch()).toEqual({ actual: 2, expected: 1 })
     expect(getRegistration).toHaveBeenCalledTimes(1)
   })

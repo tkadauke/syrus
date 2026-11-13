@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -72,6 +73,18 @@ func TestAPIVersionAllowsUnknownFields(t *testing.T) {
 
 	if _, err := client.ListJobs(context.Background(), nil); err != nil {
 		t.Fatalf("ListJobs returned error for unknown field: %v", err)
+	}
+}
+
+func TestAPIResponseSizeIsBounded(t *testing.T) {
+	response := &http.Response{
+		Body:          io.NopCloser(strings.NewReader("12345")),
+		ContentLength: -1,
+	}
+
+	_, err := readResponseBodyWithLimit(response, 4)
+	if err == nil || !strings.Contains(err.Error(), "response exceeds") {
+		t.Fatalf("expected bounded response error, got %v", err)
 	}
 }
 
