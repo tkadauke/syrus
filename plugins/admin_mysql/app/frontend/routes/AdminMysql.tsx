@@ -16,12 +16,25 @@ export function AdminMysql() {
   const [hideIdle, setHideIdle] = useState(true)
   const { confirm, dialog } = useConfirm()
   const queryClient = useQueryClient()
-  const mysql = useQuery({
-    queryKey: ["admin", "mysql", limit, includeSlowLog],
-    queryFn: () => fetchAdminMysql(limit, includeSlowLog),
+  const liveMysql = useQuery({
+    queryKey: ["admin", "mysql", "live", limit, hideIdle],
+    queryFn: () => fetchAdminMysql(limit, false, "live", !hideIdle),
     staleTime: 0,
-    refetchInterval: includeSlowLog ? false : 10_000
+    refetchInterval: 10_000
   })
+  const staticMysql = useQuery({
+    queryKey: ["admin", "mysql", "static", limit, includeSlowLog],
+    queryFn: () => fetchAdminMysql(limit, includeSlowLog, "configuration,diagnostics"),
+    staleTime: 0,
+    refetchInterval: 60_000
+  })
+  const mysql = {
+    data: liveMysql.data && staticMysql.data ? ({ ...staticMysql.data, ...liveMysql.data } as MysqlSnapshot) : undefined,
+    error: liveMysql.error || staticMysql.error,
+    isPending: liveMysql.isPending || staticMysql.isPending,
+    isError: liveMysql.isError || staticMysql.isError,
+    refetch: () => Promise.all([liveMysql.refetch(), staticMysql.refetch()])
+  }
   const killQuery = useMutation({
     mutationFn: killMysqlQuery,
     onSuccess: () => {

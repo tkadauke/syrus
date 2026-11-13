@@ -70,10 +70,6 @@ module Timeline
         iteration: step.iteration,
         started_at: step.started_at&.iso8601,
         finished_at: step.finished_at&.iso8601,
-        worker_storage_key: attribution[:worker_storage_key],
-        queue_role: attribution[:queue_role],
-        hostname: attribution[:hostname],
-        pid: attribution[:pid],
         runs: step.runs.map { |run| run_payload(run) }
       }
       payload[:blocked] = workflow_blocked if step.started_at.nil?
