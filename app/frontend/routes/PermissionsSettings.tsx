@@ -489,7 +489,8 @@ function ProfileRuleList({
         <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto">
           {rows.map((row, index) => (
             <li className="text-xs text-text-secondary" key={`${row.capability}-${row.operation}-${index}`}>
-              <strong>{t(`permissions.states.${row.policy}`)}</strong> · {presentationLabel(row.capability, row.operation, descriptors) || t("permissions.unknown")}
+              <strong>{t(`permissions.states.${row.policy}`)}</strong> ·{" "}
+              {presentationLabel(row.capability, row.operation, descriptors) || t("permissions.unknown")}
               <code className="block text-xs text-text-muted">
                 {row.capability} · {row.operation || t("permissions.all_operations")}
               </code>
