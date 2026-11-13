@@ -546,6 +546,36 @@ RSpec.describe Steps::Grader, :ci_only do
     expect(step.reload.details.dig("diagnostic_warnings", 0, "status")).to eq("unsafe_symlink")
   end
 
+  it "does not follow a grader log symlink present before command execution" do
+    outside = @ws_path.dirname.join("outside.log")
+    outside.write("do not alter\n")
+    log_path = @ws_path.join(".syrus/grade-output/iteration-1/tests.log")
+    FileUtils.mkdir_p(log_path.dirname)
+    FileUtils.ln_s(outside, log_path)
+    failed_result = ProcessRunner::Result.new(
+      exit_status: 2, timed_out: false, stopped: false,
+      silent_timed_out: false, operator_killed: false,
+      aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+    )
+
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")) do |**kwargs|
+      kwargs[:on_output_chunk]&.call("original stderr evidence\n")
+      instance_double(ProcessRunner, run: failed_result)
+    end
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /failed \(exit 2\)/)
+
+    expect(outside.read).to eq("do not alter\n")
+    details = step.reload.details
+    expect(details.fetch("output")).to include("original stderr evidence", "[grader:tests] failed (exit 2)")
+    expect(details.fetch("diagnostic_warnings")).to contain_exactly(
+      "code" => "grader_diagnostic_artifact_unavailable",
+      "artifact_type" => "grader_log",
+      "path" => ".syrus/grade-output/iteration-1/tests.log",
+      "status" => "unsafe_symlink"
+    )
+  end
+
   it "bounds oversized grader diagnostic capture and records the truncation" do
     failed_result = ProcessRunner::Result.new(
       exit_status: 3, timed_out: false, stopped: false,
