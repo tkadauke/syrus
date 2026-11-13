@@ -37,6 +37,7 @@ import { getAppConsumer } from "../../lib/actionCable"
 import { mergeChatPayloadUpdate, refreshRecentChats, updateRecentChatCache } from "../../lib/chatCache"
 import {
   branchChat,
+  chatMessageWasDelivered,
   addChatAgent,
   cancelChatShellCommand,
   clearChatHistory,
@@ -652,13 +653,32 @@ export function Compose({
       setPendingConfirmation(null)
       onNotice(null)
     },
-    onError: (error, draft) => {
+    onError: async (error, draft) => {
       submittedDraftRef.current = null
       if (inFlightComposerDraftWasAcknowledged(draft)) {
         clearInFlightComposerDraft(chatId, draft)
         onNotice(null)
         queueMicrotask(() => send.reset())
         return
+      }
+      if (draft.clientIdempotencyKey) {
+        try {
+          if (await chatMessageWasDelivered(chatId, draft.clientIdempotencyKey)) {
+            acknowledgeInFlightComposerDraft(chatId, draft.clientIdempotencyKey)
+            clearInFlightComposerDraft(chatId, draft)
+            if (
+              currentDraftRef.current.composerText === draft.composerText &&
+              JSON.stringify(currentDraftRef.current.attachments) === JSON.stringify(draft.attachments)
+            )
+              clearComposerDraft()
+            onNotice(null)
+            queueMicrotask(() => send.reset())
+            return
+          }
+        } catch (_deliveryStatusError) {
+          // A failed status check leaves delivery ambiguous, so preserve the
+          // original draft and idempotency key for a safe retry.
+        }
       }
       if (finishSubmittedDraft(draft, false)) onNotice(errorMessage(error, t("message_send_error")))
     }

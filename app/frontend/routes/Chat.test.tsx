@@ -1635,6 +1635,41 @@ describe("chat compose drafts", () => {
     expect(window.localStorage.getItem("syrus.chat.draft.8")).toBe("Keep this newer follow-up.")
   }, 30000)
 
+  it("confirms persisted delivery after an HTTP error when realtime acknowledgment was missed", async () => {
+    let rejectMessage: ((reason?: unknown) => void) | null = null
+    let clientIdempotencyKey = ""
+    const messageRequest = new Promise<Response>((_resolve, reject) => {
+      rejectMessage = reject
+    })
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path === "/api/v1/app/chats/8/mark_read" && init?.method === "PATCH") return Promise.resolve(new Response(null, { status: 204 }))
+      if (path === "/api/v1/app/chats/8/message" && init?.method === "POST") {
+        clientIdempotencyKey = JSON.parse(String(init.body)).client_idempotency_key
+        return messageRequest
+      }
+      if (path === `/api/v1/app/chats/8/message_delivery?client_idempotency_key=${clientIdempotencyKey}`)
+        return Promise.resolve(jsonResponse({ delivered: true }))
+      return Promise.resolve(jsonResponse(chatPayload({ messages: [] })))
+    })
+
+    renderRoute()
+    const textarea = await screen.findByPlaceholderText("Ask about this repository...")
+    fireEvent.change(textarea, { target: { value: "Persisted before the connection failed." } })
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }))
+    await waitFor(() => expect(textarea).toHaveValue(""))
+    await act(async () => rejectMessage?.(new Error("connection lost")))
+
+    await waitFor(() =>
+      expect(
+        vi.mocked(window.fetch).mock.calls.some(([input]) => String(input).includes("/message_delivery?client_idempotency_key="))
+      ).toBe(true)
+    )
+    expect(textarea).toHaveValue("")
+    expect(screen.queryByText("Message failed.")).not.toBeInTheDocument()
+    expect(window.localStorage.getItem("syrus.chat.draft.8")).toBeNull()
+  }, 30000)
+
   it("does not discard newer typing when an earlier send succeeds", async () => {
     let resolveMessage: ((response: Response) => void) | null = null
     const messageRequest = new Promise<Response>((resolve) => {
