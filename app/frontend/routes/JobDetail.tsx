@@ -1684,20 +1684,22 @@ function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: numbe
   const [replaceId, setReplaceId] = useState<number | null>(null)
   const [replaceBody, setReplaceBody] = useState("")
   const [notice, setNotice] = useState<string | null>(null)
+  const refreshPendingFeedback = () => {
+    void queryClient.invalidateQueries({ queryKey })
+    void queryClient.invalidateQueries({ queryKey: ["jobs", String(jobId), "pending_feedback"] })
+  }
 
   const apply = useMutation({
     mutationFn: (commentId: number) => applyPendingFeedback(jobId, commentId),
     onSuccess: (data) => {
       setNotice(data.message)
-      void queryClient.invalidateQueries({ queryKey })
+      refreshPendingFeedback()
     }
   })
 
   const ignore = useMutation({
     mutationFn: (commentId: number) => ignorePendingFeedback(jobId, commentId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey })
-    }
+    onSuccess: refreshPendingFeedback
   })
 
   const replace = useMutation({
@@ -1706,7 +1708,7 @@ function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: numbe
       setReplaceId(null)
       setReplaceBody("")
       setNotice(data.message)
-      void queryClient.invalidateQueries({ queryKey })
+      refreshPendingFeedback()
     }
   })
 
@@ -1714,7 +1716,7 @@ function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: numbe
     mutationFn: (commentId: number) => retryPendingFeedback(jobId, commentId),
     onSuccess: (data) => {
       setNotice(data.message)
-      void queryClient.invalidateQueries({ queryKey })
+      refreshPendingFeedback()
     }
   })
 

@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-rou
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { BootstrapPayload } from "../api/bootstrap"
 import * as useTourModule from "../hooks/useTour"
-import type { JobDetailPayload, JobRun, JobSourceDiffPayload, JobSourcePayload, JobStep, JobWorkflow } from "../api/jobs"
+import type { JobDetailPayload, JobRun, JobSourceDiffPayload, JobSourcePayload, JobStep, JobWorkflow, PendingFeedbackComment } from "../api/jobs"
 import type { TypedArtifact } from "../api/artifacts"
 import { BugReportContext } from "../lib/bugReportContext"
 import type { BugReportOptionalAttachment } from "../lib/bugReportOptionalAttachments"
@@ -1149,6 +1149,35 @@ describe("JobDetailView", () => {
     expect(screen.getByText("Last attempt failed: rate_limit")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Retry addressing PR feedback" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Apply" })).not.toBeInTheDocument()
+  })
+
+  it.each([
+    { action: "Apply", endpoint: "/apply" },
+    { action: "Ignore", endpoint: "/ignore" },
+    { action: "Replace", endpoint: "/replace" }
+  ])("refreshes pending feedback after $action succeeds", async ({ action, endpoint }) => {
+    const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries")
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Feedback updated." }))
+    renderJobDetail(jobPayload({ pending_feedback: [pendingFeedbackComment()] }))
+
+    fireEvent.click(screen.getByRole("button", { name: action }))
+    if (action === "Replace") {
+      fireEvent.change(screen.getByRole("textbox", { name: "Replacement feedback text" }), { target: { value: "Use this instead." } })
+      fireEvent.click(screen.getByRole("button", { name: "Submit replacement" }))
+    }
+
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(`/api/v1/app/jobs/1/pending_feedback/17${endpoint}`, expect.anything()))
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs", "1", "pending_feedback"] }))
+  })
+
+  it("refreshes pending feedback after retry succeeds", async () => {
+    const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries")
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({ message: "Retry started." }))
+    renderJobDetail(jobPayload({ pending_feedback: [pendingFeedbackComment({ handling_state: "failed", retryable: true })] }))
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry addressing PR feedback" }))
+
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs", "1", "pending_feedback"] }))
   })
 
   it("links the originating message when origin_chat is present", () => {
@@ -5832,6 +5861,24 @@ function jobPayload(overrides: Partial<JobDetailPayload> = {}): JobDetailPayload
       app_ref_movement_actions_path: "/api/v1/app/jobs/1/ref_movement_actions",
       admin_resource_admission_path: "/admin/resource_admission"
     },
+    ...overrides
+  }
+}
+
+function pendingFeedbackComment(overrides: Partial<PendingFeedbackComment> = {}): PendingFeedbackComment {
+  return {
+    id: 17,
+    github_handle: "reviewer",
+    attributed_to: "external",
+    pr_type: "direct",
+    comment_kind: "issue",
+    body: "Please add the missing regression.",
+    comment_created_at: "2026-07-30T10:00:00Z",
+    handling_state: "pending",
+    handling_workflow_id: null,
+    handling_failed_at: null,
+    handling_failure_reason: null,
+    retryable: false,
     ...overrides
   }
 }
