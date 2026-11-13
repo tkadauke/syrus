@@ -840,10 +840,7 @@ module App
       end
 
       def workflow_list_artifacts_json(workflow)
-        artifacts = workflow.artifacts
-        return {} unless artifacts.is_a?(Hash)
-
-        artifacts.except("typed_artifacts", "pr_body", "summary", "test_plan", "coverage")
+        workflow_artifacts_json(workflow).except("typed_artifacts", "pr_body", "summary", "test_plan", "coverage")
       end
 
       def workflow_failure_classification_json(workflow)

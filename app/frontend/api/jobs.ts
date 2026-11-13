@@ -1749,12 +1749,22 @@ function deriveWorkflowPaths(workflow: JobWorkflow, jobId: string): JobWorkflow 
               app_stop_path: `/api/v1/app/jobs/${jobId}/runs/${run.id}/stop`,
               app_diagnose_path: `/api/v1/app/jobs/${jobId}/runs/${run.id}/diagnose`,
               app_resume_path: `/api/v1/app/jobs/${jobId}/resume`,
-              app_grade_log_path: run.grade_log_available ? `/api/v1/app/jobs/${jobId}/runs/${run.id}/grade_log` : null
+              app_grade_log_path: deriveGradeLogPath(run, step, workflow.id, jobId)
             }))
           }
         : step
     )
   }
+}
+
+function deriveGradeLogPath(run: JobRun, step: JobStep, workflowId: number, jobId: string) {
+  if (!run.grade_log_available || (step.kind !== "grade" && step.kind !== "grader")) return null
+
+  const details = step.details && typeof step.details === "object" ? (step.details as Record<string, unknown>) : null
+  if (typeof details?.name !== "string" || !details.name) return null
+
+  const query = new URLSearchParams({ name: details.name, workflow_id: String(workflowId) })
+  return `/api/v1/app/jobs/${jobId}/runs/${run.id}/grade_log?${query}`
 }
 
 export function fetchJobDependencyOptions(path: string, query = "", limit = 25) {
