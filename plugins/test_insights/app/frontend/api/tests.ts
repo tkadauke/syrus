@@ -72,13 +72,16 @@ export type RepositoryTestDetailPayload = {
   test: RepositoryTestIdentity
   history: RepositoryTestHistoryItem[]
   pagination: RepositoryTestHistoryPagination
-  duration_points: RepositoryTestDurationPoint[]
+  duration_points?: RepositoryTestDurationPoint[]
 }
 
-export function fetchRepositoryTests(repositoryId: string | number, search = "") {
+export function fetchRepositoryTests(repositoryId: string | number, search = "", includeSchema = true) {
   const params = new URLSearchParams(search)
   const q = params.get("q")
-  const suffix = q ? `?q=${encodeURIComponent(q)}` : ""
+  const query = new URLSearchParams()
+  if (q) query.set("q", q)
+  if (!includeSchema) query.set("include_schema", "0")
+  const suffix = query.size ? `?${query}` : ""
   return getJson<RepositoryTestsPayload>(`/api/v1/app/repositories/${repositoryId}/tests${suffix}`)
 }
 

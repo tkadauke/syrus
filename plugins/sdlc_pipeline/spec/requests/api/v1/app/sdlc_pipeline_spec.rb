@@ -98,7 +98,8 @@ RSpec.describe "API: repository SDLC pipeline", type: :request do
     expect(response.parsed_body.dig("history", "from")).to eq(Time.zone.parse(range_start).iso8601)
     expect(response.parsed_body.dig("history", "to")).to eq(Time.zone.parse(range_end).iso8601)
     expect(response.parsed_body.dig("history", "deltas").map { |delta| delta.fetch("job_id") }.uniq).to eq([ included.id ])
-    expect(response.parsed_body.dig("history", "ticks")).not_to be_empty
+    expect(response.parsed_body.dig("history", "ticks")).to be_nil
+    expect(response.parsed_body.dig("history", "deltas")).not_to be_empty
   end
 
   it "filters by the chat Jobs-tab association scope without including explicit attachments" do

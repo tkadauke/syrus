@@ -21,6 +21,9 @@ export type RepositoryIssuesPayload = {
     direction: "asc" | "desc"
   }
   issue_count: number
+  page?: number
+  per_page?: number
+  total_pages?: number
   issues: RepositoryIssue[]
   folder_counts: Record<IssueFolder, number>
   folder_paths: Record<IssueFolder, string>
@@ -55,11 +58,14 @@ export type RepositoryIssue = {
 // tree, or "" when no filter is applied) taken verbatim from the `q` URL
 // param -- see Filters::QueryParam on the backend. It is never decoded on
 // the client; the server round-trips it back as `payload.filter`/`query`.
-export function fetchRepositoryIssues(id: string, folder: IssueFolder, filterParam: string, sort: { column: string; direction: "asc" | "desc" }) {
+export type RepositoryIssuesMutationPayload = Pick<RepositoryIssuesPayload, "message" | "folder_counts"> & { changed_issues?: RepositoryIssue[]; issues?: RepositoryIssue[] }
+
+export function fetchRepositoryIssues(id: string, folder: IssueFolder, filterParam: string, sort: { column: string; direction: "asc" | "desc" }, page = 1) {
   const params = new URLSearchParams({ folder })
   if (filterParam) params.set("q", filterParam)
   params.set("sort", sort.column)
   params.set("direction", sort.direction)
+  if (page > 1) params.set("page", String(page))
   return getJson<RepositoryIssuesPayload>(`/api/v1/app/repositories/${id}/issues?${params}`)
 }
 
@@ -67,7 +73,7 @@ export function closeRepositoryIssue(
   path: string,
   values: { issueNumber: number; folder: IssueFolder; filterParam: string; sort: { column: string; direction: "asc" | "desc" } }
 ) {
-  return postJson<RepositoryIssuesPayload>(path, {
+  return postJson<RepositoryIssuesMutationPayload>(path, {
     issue_number: values.issueNumber,
     folder: values.folder,
     ...(values.filterParam ? { q: values.filterParam } : {}),
@@ -80,7 +86,7 @@ export function delegateRepositoryIssue(
   path: string,
   values: { issueNumber: number; folder: IssueFolder; filterParam: string; sort: { column: string; direction: "asc" | "desc" } }
 ) {
-  return postJson<RepositoryIssuesPayload>(path, {
+  return postJson<RepositoryIssuesMutationPayload>(path, {
     issue_number: values.issueNumber,
     folder: values.folder,
     ...(values.filterParam ? { q: values.filterParam } : {}),
@@ -99,7 +105,7 @@ export function bulkRepositoryIssues(
     sort: { column: string; direction: "asc" | "desc" }
   }
 ) {
-  return postJson<RepositoryIssuesPayload>(path, {
+  return postJson<RepositoryIssuesMutationPayload>(path, {
     issue_numbers: values.issueNumbers,
     bulk_action: values.bulkAction,
     folder: values.folder,

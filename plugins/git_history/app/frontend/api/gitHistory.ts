@@ -40,8 +40,8 @@ export type GitHistoryCommit = {
 }
 
 export type GitHistoryPage = {
-  repository: { id: number; slug: string; github_url: string }
-  tabs: RepositoryTab[]
+  repository?: { id: number; slug: string; github_url: string }
+  tabs?: RepositoryTab[]
   available: boolean
   commits: GitHistoryCommit[]
   next_cursor: string | null

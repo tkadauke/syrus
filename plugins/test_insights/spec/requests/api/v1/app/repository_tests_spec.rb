@@ -241,6 +241,18 @@ RSpec.describe "App API repository tests", type: :request do
       body = parse_body
       expect(body.fetch("history").map { |row| row.fetch("id") }).to eq(cases[20..24].map(&:id))
       expect(body.fetch("pagination")).to eq("page" => 3, "per_page" => 10, "total" => 25, "total_pages" => 3)
+      expect(body).not_to have_key("duration_points")
+    end
+
+
+    it "bounds failure messages in history rows" do
+      identity = make_identity(name: "bounded failure", suite_name: "HistorySpec")
+      test_case = make_case(identity: identity, status: "failed")
+      test_case.update!(failure_message: "x" * 500)
+
+      get "/api/v1/app/repositories/#{repo.id}/tests/#{identity.id}"
+
+      expect(parse_body.dig("history", 0, "failure_message").length).to eq(300)
     end
   end
 
