@@ -65,5 +65,7 @@
   "filter_volume": "Volumen",
   "filter_volume_plugin": "Additamentum voluminis",
   "filter_volume_state": "Status voluminis",
-  "filter_min_size": "Magnitudo minima"
+  "filter_min_size": "Magnitudo minima",
+  "previous": "Prior",
+  "next": "Proxima"
 }
