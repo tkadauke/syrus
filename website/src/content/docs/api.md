@@ -60,8 +60,10 @@ not browser sessions, so bearer-token requests receive
 When the `terminal` plugin is enabled, user-scoped app API clients
 can manage their own interactive terminal sessions. `GET
 /api/v1/app/terminal_sessions` lists the authenticated user's running
-sessions, and `GET /api/v1/app/terminal_sessions/open_count` returns just the
-count. With the plugin disabled these endpoints return `plugin_disabled`.
+sessions (sessions only, with an `ETag` for cheap polling),
+`GET /api/v1/app/terminal_sessions/workspaces?query=` lists the workspace
+candidates for the new-session picker, and
+`GET /api/v1/app/terminal_sessions/open_count` returns just the count. With the plugin disabled these endpoints return `plugin_disabled`.
 Admins can use `POST /api/v1/app/terminal_sessions` to create a session with
 an optional `workflow_id`, `candidate_key`, and `name`. Syrus selects the
 working directory from the chosen workspace; scratch sessions use the app
