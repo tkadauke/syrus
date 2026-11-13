@@ -66,9 +66,9 @@ func (s *stubManager) PurgePlugin(_ context.Context, plugin string) ([]string, e
 	s.acted = append(s.acted, "purge "+plugin)
 	return []string{"syrus_plugin_git-mirror_data"}, s.err
 }
-func (s *stubManager) Logs(_ context.Context, name string, tail int) (string, error) {
+func (s *stubManager) Logs(_ context.Context, name string, tail int, _ string) (string, string, error) {
 	s.tail = tail
-	return "2026-09-22T01:00:00Z GET /v1/repositories 200\n", s.err
+	return "2026-09-22T01:00:00Z GET /v1/repositories 200\n", "2026-09-22T01:00:01Z", s.err
 }
 
 const body = `{"plugin":"git_mirror","image":"ghcr.io/tkadauke/x:1","internal_port":8080}`
@@ -239,12 +239,12 @@ func TestActionsOnAServiceWithoutAContainerAre404(t *testing.T) {
 	}
 }
 
-func TestLogsArePlainTextWithABoundedTail(t *testing.T) {
+func TestLogsReturnCursorWithABoundedTail(t *testing.T) {
 	m := &stubManager{}
 	h := New(m, token, Info{})
 
 	rec := do(h, "GET", "/v1/services/git-mirror/logs", "Bearer "+token, "")
-	if rec.Code != http.StatusOK || !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/plain") || !strings.Contains(rec.Body.String(), "GET /v1/repositories") {
+	if rec.Code != http.StatusOK || !strings.HasPrefix(rec.Header().Get("Content-Type"), "application/json") || !strings.Contains(rec.Body.String(), "GET /v1/repositories") || !strings.Contains(rec.Body.String(), "cursor") {
 		t.Fatalf("got %d %q %q", rec.Code, rec.Header().Get("Content-Type"), rec.Body)
 	}
 	if m.tail != 200 {

@@ -35,6 +35,21 @@ RSpec.describe K8sCluster::Events do
     expect(payload[:events].first[:involved_object]).to eq(kind: "Pod", name: "web-1")
   end
 
+  it "returns a bounded incremental page after a cursor" do
+    stub_core_discovery(base)
+    stub_kube_get("#{base}/api/v1/events", { "items" => [
+      event(name: "old", last_timestamp: "2026-01-01T00:00:00Z"),
+      event(name: "new", last_timestamp: "2026-01-03T00:00:00Z"),
+      event(name: "newer", last_timestamp: "2026-01-04T00:00:00Z")
+    ] })
+
+    payload = described_class.new(cluster).list(limit: 1, since: "2026-01-02T00:00:00Z")
+
+    expect(payload[:events].map { |event| event[:name] }).to eq([ "newer" ])
+    expect(payload[:truncated]).to be(true)
+    expect(payload[:cursor]).to be_present
+  end
+
   it "raises Unavailable on an API error" do
     stub_kube_error("#{base}/api/v1", 500)
 
