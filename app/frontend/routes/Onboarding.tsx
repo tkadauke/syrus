@@ -149,14 +149,15 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
               )
               const name = t(`onboarding.permission_profiles.${profileSlug(profile.key)}.name`)
               return (
-                <article className={`rounded-lg border p-4 ${activeEverywhere ? "border-brand bg-brand-subtle" : "border-gray-200 dark:border-gray-700"}`} key={profile.key}>
+                <article
+                  className={`rounded-lg border p-4 ${activeEverywhere ? "border-brand bg-brand-subtle" : "border-gray-200 dark:border-gray-700"}`}
+                  key={profile.key}
+                >
                   <div className="flex items-center justify-between gap-2">
                     <h3 className="font-semibold text-gray-900 dark:text-gray-100">{name}</h3>
                     {activeEverywhere ? <span className="text-xs font-medium text-brand">{t("onboarding.permission_selected")}</span> : null}
                   </div>
-                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                    {t(`onboarding.permission_profiles.${profileSlug(profile.key)}.tradeoff`)}
-                  </p>
+                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t(`onboarding.permission_profiles.${profileSlug(profile.key)}.tradeoff`)}</p>
                   <button
                     className="mt-4 rounded border border-brand px-3 py-2 text-sm font-medium text-brand disabled:opacity-60"
                     disabled={activeEverywhere || applyProfile.isPending || setup.first_epic_landed}
@@ -171,7 +172,11 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
           </div>
         ) : null}
         <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">{t("onboarding.permission_skip")}</p>
-        {applyProfile.isError ? <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">{t("onboarding.permission_error")}</p> : null}
+        {applyProfile.isError ? (
+          <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">
+            {t("onboarding.permission_error")}
+          </p>
+        ) : null}
       </Surface>
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
@@ -250,10 +255,7 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
         <Surface padding="md" variant="success">
           <h2 className="text-sm font-medium">{t("onboarding.ready_heading")}</h2>
           <p className="mt-1 text-sm">{t("onboarding.ready_description")}</p>
-          <Link
-            className={buttonClasses("primary", "md", "mt-3")}
-            to={withRoutePrefix(dashboardPath, prefix)}
-          >
+          <Link className={buttonClasses("primary", "md", "mt-3")} to={withRoutePrefix(dashboardPath, prefix)}>
             {t("onboarding.open_dashboard")}
           </Link>
         </Surface>
