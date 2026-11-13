@@ -62,7 +62,7 @@ RSpec.describe InputSources::Github do
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
         .and_return([ issue(labels: [ "syrus", Workflows::INVESTIGATION_LABEL ]) ])
 
-      source.poll!
+      WorkflowActivity.synchronously { source.poll! }
 
       expect(Job.last).to be_investigation
     end
@@ -81,6 +81,7 @@ RSpec.describe InputSources::Github do
         user: user,
         repository: repository,
         github_issue_url: "https://github.com/acme/widgets/issues/77",
+        origin: "github_issue",
         title: "Batch epic",
         description: "Existing epic"
       )
@@ -187,6 +188,7 @@ RSpec.describe InputSources::Github do
         user: user,
         repository: repository,
         github_issue_url: "https://github.com/acme/widgets/issues/77",
+        origin: "github_issue",
         title: "Batch epic",
         description: "Existing epic"
       )
@@ -206,6 +208,57 @@ RSpec.describe InputSources::Github do
       expect(Job.where(issue_number: [ 102, 103 ]).pluck(:epic_id)).to contain_exactly(epic.id, epic.id)
       expect(queries.grep(/SELECT .*FROM [`"]?epics[`"]?.*github_issue_url/i).size).to be <= 1
       expect(queries.grep(/SELECT .*FROM [`"]?jobs[`"]?.*issue_number/i).size).to be <= 1
+    end
+
+    it "ignores a marker targeting an operator-created Epic and records why" do
+      epic = Factories.epic(
+        user: user,
+        repository: repository,
+        github_issue_url: "https://github.com/acme/widgets/issues/77"
+      )
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label).and_return([ issue(body: epic_marker("#77")) ])
+
+      WorkflowActivity.synchronously { source.poll! }
+
+      job = Job.find_by!(repository: repository, issue_number: 42)
+      expect(job.epic).to be_nil
+      expect(WorkflowActivityEvent.where(job: job).sole.message).to include("Epic marker ignored", "not created from a github issue")
+      expect(epic.origin).to eq("operator")
+    end
+
+    it "ignores a marker targeting another user's GitHub-origin Epic" do
+      other_user = Factories.user
+      Epic.create!(
+        user: other_user,
+        repository: Factories.repository(user: other_user),
+        title: "Other owner's Epic",
+        github_issue_url: "https://github.com/acme/widgets/issues/77",
+        origin: "github_issue"
+      )
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label).and_return([ issue(body: epic_marker("#77")) ])
+
+      WorkflowActivity.synchronously { source.poll! }
+
+      job = Job.find_by!(repository: repository, issue_number: 42)
+      expect(job.epic).to be_nil
+      expect(WorkflowActivityEvent.where(job: job).sole.message).to include("belongs to another user")
+    end
+
+    it "ignores a marker targeting an Epic ingested from another source" do
+      Epic.create!(
+        user: user,
+        repository: repository,
+        title: "Imported elsewhere",
+        github_issue_url: "https://github.com/acme/widgets/issues/77",
+        origin: "linear_issue"
+      )
+      allow_any_instance_of(GithubClient).to receive(:issues_with_label).and_return([ issue(body: epic_marker("#77")) ])
+
+      WorkflowActivity.synchronously { source.poll! }
+
+      job = Job.find_by!(repository: repository, issue_number: 42)
+      expect(job.epic).to be_nil
+      expect(WorkflowActivityEvent.where(job: job).sole.message).to include("not created from a github issue")
     end
 
     it "sets external_ref and input_source on a preempted Job" do

@@ -57,17 +57,23 @@ For issues that pass the policy:
 - **Epic markers** — the issue's `description` is parsed with the same
   `EpicMarkerParser` GitHub Source uses. An explicit
   `<!-- syrus-epic: <name> -->` comment creates/finds an `Epic`; an explicit
-  `<!-- syrus-epic: #<number> -->` (or `owner/repo#<number>`) comment creates
-  a Job as a child of that Epic (or, if the referenced Epic doesn't exist yet
+  `<!-- syrus-epic: linear:issue:<id> -->` comment creates a Job as a child of
+  the Epic declared by that Linear issue id (or, if it doesn't exist yet
   locally, files the Job as
   `triaging_reason: "pending_epic_ref"` the same way an out-of-order GitHub
-  child issue would). Visible prose such as `Epic: #123` is ignored for
+  child issue would). This is the only Linear child-reference format; GitHub
+  `#123` and `owner/repo#123` references cannot select Linear Epics. Visible
+  prose such as `Epic: #123` is ignored for
   routing. To migrate an older template, wrap the old line in a marker block:
   `<!-- syrus-epic\nEpic: #123\n-->`. Because a Linear issue has no natural
   GitHub URL to dedup an Epic on, Linear-declared Epics are keyed on a synthetic
   `linear:issue:<id>` value in `Epic#github_issue_url` instead of a real,
   clickable URL — deliberately not shaped like a GitHub link so it can't be
-  mistaken for one.
+  mistaken for one. Linear markers attach only when that persisted Epic has
+  `linear_issue` origin and belongs to the same user. Operator-created,
+  chat-proposed, GitHub-origin, and other-user targets are ignored; the
+  ordinary unattached Job records an `epic_marker_ignored` activity explaining
+  why. Pending references store and recheck the Linear origin before attachment.
 - **Plain issues** (no marker) become an ordinary Syrus `Job` with
   `issue_title`/`issue_body` copied from the Linear issue's `title`/
   `description`.

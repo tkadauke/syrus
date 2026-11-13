@@ -154,6 +154,7 @@ module InputSources
         ) do |epic|
           epic.title = marker[:name]
           epic.description = issue_body(issue)
+          epic.origin = "github_issue"
         end
         Rails.logger.info("[InputSources::Github] #{repository.slug}##{issue.number} ingested as Epic")
       when :child_of_epic
@@ -170,7 +171,9 @@ module InputSources
       end
 
       epic_url = issue_url_for_reference(marker)
-      epic = epic_for_url(epic_url)
+      candidate = epic_for_url(epic_url)
+      rejection = candidate&.epic_marker_rejection(marker_origin: "github_issue", marker_user: user)
+      epic = rejection ? nil : candidate
       job = Job.create!(
         user: user,
         repository: repository,
@@ -179,13 +182,15 @@ module InputSources
         issue_body: issue_body(issue),
         epic: epic,
         state: initial_state_for_issue(issue),
-        triaging_reason: epic ? "classifier_pending" : "pending_epic_ref",
-        pending_epic_reference: epic ? {} : pending_epic_reference(marker, epic_url),
+        triaging_reason: epic || rejection ? "classifier_pending" : "pending_epic_ref",
+        pending_epic_reference: epic || rejection ? {} : pending_epic_reference(marker, epic_url),
         input_source: self,
         external_ref: dedup_key(issue),
         **GithubIssueJobAttributes.for_creation(issue).merge(investigation: false)
       )
       job.advance_after_triage! if job.epic && job.may_advance_after_triage?
+      job.record_ignored_epic_marker!(rejection) if rejection
+      classify_if_available(job) if rejection
       enqueue_issue_image_ingest(job)
       remember_latest_job(job)
     end
@@ -225,7 +230,13 @@ module InputSources
         .select { |marker| marker[:kind] == :child_of_epic }
         .map { |marker| issue_url_for_reference(marker) }
         .uniq
-      @epics_by_url = epic_urls.empty? ? {} : user.epics.where(github_issue_url: epic_urls).index_by(&:github_issue_url)
+      @epics_by_url = if epic_urls.empty?
+        {}
+      else
+        Epic.where(github_issue_url: epic_urls).group_by(&:github_issue_url).transform_values do |candidates|
+          candidates.find { |candidate| candidate.user_id == user.id } || candidates.first
+        end
+      end
     end
 
     def clear_ingest_caches
@@ -243,7 +254,7 @@ module InputSources
     def epic_for_url(epic_url)
       return @epics_by_url[epic_url] if defined?(@epics_by_url) && @epics_by_url
 
-      user.epics.find_by(github_issue_url: epic_url)
+      Epic.find_by(user: user, github_issue_url: epic_url) || Epic.find_by(github_issue_url: epic_url)
     end
 
     def remember_latest_job(job)
@@ -282,6 +293,8 @@ module InputSources
     end
 
     def issue_url_for_reference(reference)
+      return "linear:issue:#{reference[:linear_issue_id]}" if reference[:linear_issue_id]
+
       "https://github.com/#{reference[:owner]}/#{reference[:repo]}/issues/#{reference[:number]}"
     end
 
@@ -290,7 +303,8 @@ module InputSources
         "owner" => reference[:owner],
         "repo" => reference[:repo],
         "number" => reference[:number],
-        "github_issue_url" => github_issue_url
+        "github_issue_url" => github_issue_url,
+        "origin" => "github_issue"
       }
     end
 

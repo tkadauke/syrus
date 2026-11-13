@@ -16,6 +16,7 @@ class Epic < ApplicationRecord
   # See Repository::EPIC_DEPENDENCY_POLICIES for why this stays a policy list
   # despite the single current value.
   EPIC_DEPENDENCY_POLICIES = %w[ linear ].freeze
+  ORIGINS = %w[ operator github_issue linear_issue ].freeze
 
   # Mirrors Job::SEARCH_TEXT_COLUMNS / Job.search's MySQL FULLTEXT vs.
   # cross-DB LIKE fallback (see AddSearchFulltextIndexToEpics).
@@ -23,6 +24,7 @@ class Epic < ApplicationRecord
 
   attr_readonly :number
   attribute :epic_dependency_policy, :string, default: "linear"
+  attribute :origin, :string, default: "operator"
 
   belongs_to :user
   belongs_to :chat_goal, optional: true
@@ -58,6 +60,7 @@ class Epic < ApplicationRecord
   validates :title, presence: true
   validates :state, presence: true, inclusion: { in: STATES }
   validates :epic_dependency_policy, presence: true, inclusion: { in: EPIC_DEPENDENCY_POLICIES }
+  validates :origin, presence: true, inclusion: { in: ORIGINS }
   validate :user_is_repository_member
 
   after_initialize :default_pending_epic_dependency_refs
@@ -154,6 +157,14 @@ class Epic < ApplicationRecord
 
   def slug
     App::Presentation.epic_slug(self)
+  end
+
+  def epic_marker_rejection(marker_origin:, marker_user:)
+    return "Epic ##{number} belongs to another user" unless user_id == marker_user.id
+    return if origin == marker_origin
+    return "Epic ##{number} cannot be matched because the marker source was not recorded" if marker_origin.blank?
+
+    "Epic ##{number} was not created from a #{marker_origin.humanize.downcase}"
   end
 
   alias_method :display_number, :slug

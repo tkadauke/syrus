@@ -20,6 +20,15 @@ module JobLifecycle
     return false unless triaging? && triaging_reason_pending_epic_ref?
     return false unless pending_epic_reference.to_h["github_issue_url"] == resolved_epic.github_issue_url
 
+    expected_origin = pending_epic_reference.to_h["origin"]
+    rejection = resolved_epic.epic_marker_rejection(marker_origin: expected_origin, marker_user: user)
+    if rejection
+      update!(triaging_reason: "classifier_pending", pending_epic_reference: {})
+      record_ignored_epic_marker!(rejection)
+      ClassifyIssueJob.enqueue_for_job!(self) if user.agent_provider_configured?(workflow_agent_provider)
+      return false
+    end
+
     update!(
       epic: resolved_epic,
       triaging_reason: "classifier_pending",
@@ -27,6 +36,12 @@ module JobLifecycle
     )
     advance_after_triage! if may_advance_after_triage?
     true
+  end
+
+  def record_ignored_epic_marker!(reason)
+    message = "Epic marker ignored: #{reason}"
+    Rails.logger.info("[EpicMarker] #{slug} #{message}")
+    WorkflowActivity.record!(event_type: "epic_marker_ignored", source: "ingestion", message: message, job: self, repository: repository, reason_key: "epic_marker_ignored")
   end
 
   def closed_epic_reopenable?(closed_epic)

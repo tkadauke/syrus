@@ -103,7 +103,6 @@ RSpec.describe ClassifyIssueJob do
       allow(IngestionClassifier).to receive(:call) do
         job.increment!(:classifier_attempts)
         IngestionClassifier::Result.new(
-          epic_id: nil,
           invalid_kind: nil,
           reason: nil,
           evidence_urls: [],
@@ -128,7 +127,6 @@ RSpec.describe ClassifyIssueJob do
         job.increment!(:classifier_attempts)
         job.mark_classifier_uncertain!
         IngestionClassifier::Result.new(
-          epic_id: nil,
           invalid_kind: nil,
           reason: nil,
           evidence_urls: [],
@@ -152,7 +150,6 @@ RSpec.describe ClassifyIssueJob do
       allow(IngestionClassifier).to receive(:call) do
         job.increment!(:classifier_attempts)
         IngestionClassifier::Result.new(
-          epic_id: nil,
           invalid_kind: nil,
           reason: nil,
           evidence_urls: [],
