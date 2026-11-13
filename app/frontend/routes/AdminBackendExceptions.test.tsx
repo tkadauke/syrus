@@ -22,22 +22,24 @@ describe("AdminBackendExceptions", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("renders dashboard-style filter chips for backend exception searches", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      current_revision: "abc123",
-      revision_scope: "current",
-      filters: {},
-      sources: ["active_job", "action_controller"],
-      timeline: [],
-      pagination: {
-        page: 1,
-        per_page: 50,
-        has_next_page: false,
-        has_previous_page: false,
-        next_page: null,
-        previous_page: null
-      },
-      events: [backendExceptionEvent()]
-    }))
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        current_revision: "abc123",
+        revision_scope: "current",
+        filters: {},
+        sources: ["active_job", "action_controller"],
+        timeline: [],
+        pagination: {
+          page: 1,
+          per_page: 50,
+          has_next_page: false,
+          has_previous_page: false,
+          next_page: null,
+          previous_page: null
+        },
+        events: [backendExceptionEvent()]
+      })
+    )
 
     renderRoute()
 
@@ -51,22 +53,24 @@ describe("AdminBackendExceptions", () => {
   })
 
   it("sorts by a clicked column header and reverses direction on a second click", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      current_revision: "abc123",
-      revision_scope: "current",
-      filters: {},
-      sources: ["active_job", "action_controller"],
-      timeline: [],
-      pagination: {
-        page: 1,
-        per_page: 50,
-        has_next_page: false,
-        has_previous_page: false,
-        next_page: null,
-        previous_page: null
-      },
-      events: [backendExceptionEvent()]
-    }))
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        current_revision: "abc123",
+        revision_scope: "current",
+        filters: {},
+        sources: ["active_job", "action_controller"],
+        timeline: [],
+        pagination: {
+          page: 1,
+          per_page: 50,
+          has_next_page: false,
+          has_previous_page: false,
+          next_page: null,
+          previous_page: null
+        },
+        events: [backendExceptionEvent()]
+      })
+    )
 
     renderRoute()
     await screen.findByText("undefined method map")
@@ -86,7 +90,8 @@ describe("AdminBackendExceptions", () => {
 
   it("loads exception detail only when the row expands", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(async (input) => {
-      if (String(input).endsWith("/1")) return jsonResponse({ backtrace: "app/models/job.rb:12", metadata: {}, request_context: {}, job_context: {}, hostname: "worker-a", pid: 42 })
+      if (String(input).endsWith("/1"))
+        return jsonResponse({ backtrace: "app/models/job.rb:12", metadata: {}, request_context: {}, job_context: {}, hostname: "worker-a", pid: 42 })
       return jsonResponse({
         current_revision: "abc123",
         revision_scope: "current",

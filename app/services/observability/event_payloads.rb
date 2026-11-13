@@ -51,7 +51,7 @@ module Observability
         job_class: event.job_class,
         queue_name: event.queue_name,
         job_id: event.job_id,
-        job_slug: event.job&.slug,
+        job_slug: event.job&.slug
       }.tap do |payload|
         payload.merge!(
           backtrace: event.backtrace,
