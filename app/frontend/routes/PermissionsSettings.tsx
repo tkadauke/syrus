@@ -855,12 +855,16 @@ function PermissionPaginationControls({
       <span>{t("permissions.pagination_showing", { first, last, total: pagination.total })}</span>
       <span className="flex gap-2">
         {pagination.page > 1 ? (
-          <Link className={buttonClass} to={pageLink(pagination.page - 1)}>{t("permissions.previous")}</Link>
+          <Link className={buttonClass} to={pageLink(pagination.page - 1)}>
+            {t("permissions.previous")}
+          </Link>
         ) : (
           <span className="rounded border border-border px-3 py-1 text-text-muted opacity-50">{t("permissions.previous")}</span>
         )}
         {pagination.page < pagination.total_pages ? (
-          <Link className={buttonClass} to={pageLink(pagination.page + 1)}>{t("permissions.next")}</Link>
+          <Link className={buttonClass} to={pageLink(pagination.page + 1)}>
+            {t("permissions.next")}
+          </Link>
         ) : (
           <span className="rounded border border-border px-3 py-1 text-text-muted opacity-50">{t("permissions.next")}</span>
         )}
