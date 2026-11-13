@@ -13,6 +13,7 @@ module Api
             rules: management.rules(active: false).map { |rule| serialize_rule(rule) },
             inherited: Permissions::Catalog.descriptors.map { |descriptor| serialize_descriptor(descriptor, management:, active_rules:) },
             profiles: Permissions::PermissionProfiles.all.map(&:to_h),
+            permission_hub_mode: Current.user.permission_hub_mode,
             current_profiles: PermissionRule::SUBJECT_SELECTORS.filter_map { |subject, definition|
               next unless definition[:role]
               [ subject, management.current_profile(subject_selector_type: subject) ]

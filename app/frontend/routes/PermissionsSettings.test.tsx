@@ -8,6 +8,57 @@ import { PermissionsSettingsRoute } from "./PermissionsSettings"
 describe("PermissionsSettingsRoute", () => {
   afterEach(() => vi.restoreAllMocks())
 
+  it("defaults a new operator to Simple with only the permission profile", async () => {
+    const data = payload()
+    data.permission_hub_mode = "simple"
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(data))
+    renderRoute()
+
+    expect(await screen.findByRole("button", { name: "Simple", pressed: true })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "Choose a permission profile" })).toBeInTheDocument()
+    expect(screen.queryByRole("navigation", { name: "Permission views" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Inherited policy" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Open approval inbox" })).not.toBeInTheDocument()
+  })
+
+  it("persists Advanced and exposes stable deep links for its views", async () => {
+    const data = payload()
+    data.permission_hub_mode = "simple"
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path.endsWith("/permission_hub_preferences") && init?.method === "PATCH") return Promise.resolve(jsonResponse({ mode: "advanced" }))
+      if (path.endsWith("/history")) return Promise.resolve(jsonResponse(historyPayload()))
+      return Promise.resolve(jsonResponse(data))
+    })
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Advanced" }))
+    expect(await screen.findByRole("navigation", { name: "Permission views" })).toBeInTheDocument()
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/permission_hub_preferences",
+        expect.objectContaining({ method: "PATCH", body: JSON.stringify({ permission_hub_preferences: { mode: "advanced" } }) })
+      )
+    )
+    fireEvent.click(screen.getByRole("button", { name: "History" }))
+    expect(screen.getByRole("button", { name: "History" })).toHaveClass("border-brand")
+  })
+
+  it("opens Advanced for a linked view even when the stored preference is Simple", async () => {
+    const data = payload()
+    data.permission_hub_mode = "simple"
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path.endsWith("/history")) return Promise.resolve(jsonResponse(historyPayload()))
+      return Promise.resolve(jsonResponse(data))
+    })
+    renderRoute("/settings/permissions?view=history")
+
+    expect(await screen.findByRole("button", { name: "Advanced", pressed: true })).toBeInTheDocument()
+    expect(await screen.findByText("Authorization request")).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Inherited policy" })).not.toBeInTheDocument()
+  })
+
   it("contains wide permission content in local horizontal scrollers", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       if (String(input).endsWith("/history")) return Promise.resolve(jsonResponse(historyPayload()))
@@ -17,7 +68,7 @@ describe("PermissionsSettingsRoute", () => {
 
     const hub = await screen.findByRole("main", { name: "Permissions" })
     expect(hub).toHaveClass("min-w-0", "px-4", "sm:px-6")
-    const tabs = screen.getByRole("navigation", { name: "Permission views" })
+    const tabs = await screen.findByRole("navigation", { name: "Permission views" })
     expect(tabs).toHaveClass("min-w-0", "overflow-x-auto")
     expect(within(tabs).getByRole("button", { name: "AI approvals" })).toHaveClass("shrink-0")
     expect(container.querySelector('[data-data-table-overflow-wrapper="true"]')).toHaveClass("max-w-full", "overflow-x-auto")
@@ -35,19 +86,22 @@ describe("PermissionsSettingsRoute", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(payload()))
     renderRoute()
 
-    fireEvent.click(await screen.findByRole("button", { name: "Rules" }))
-
-    expect((await screen.findAllByText("syrus.jobs@v1 · cancel@v1")).length).toBeGreaterThanOrEqual(2)
-    expect(screen.getByRole("button", { name: "Revoke" })).toBeInTheDocument()
-    const inherited = screen.getByRole("heading", { name: "Inherited policy" }).parentElement!
+    const inherited = (await screen.findByRole("heading", { name: "Inherited policy" })).parentElement!
     expect(within(inherited).getAllByText("Read only")).toHaveLength(2)
     expect(within(inherited).getAllByText(/are decisive/)).toHaveLength(2)
-    expect(screen.getByRole("link", { name: "Open approval inbox" })).toHaveAttribute("href", "/permissions/inbox")
     expect(within(inherited).getByText(/Syrus Jobs — Cancel Job/)).toBeInTheDocument()
     expect(within(inherited).getByText(/Permits an agent to cancel a job/)).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Rules" }))
+    expect((await screen.findAllByText("syrus.jobs@v1 · cancel@v1")).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByRole("button", { name: "Revoke" })).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Inherited policy" })).not.toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Open approval inbox" })).toHaveAttribute("href", "/permissions/inbox")
   })
 
   it("previews and applies a fast permission profile for the selected chat surface", async () => {
+    const data = payload()
+    data.permission_hub_mode = "simple"
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       if (String(input).endsWith("/preview_profile"))
         return Promise.resolve(
@@ -70,7 +124,7 @@ describe("PermissionsSettingsRoute", () => {
           })
         )
       if (String(input).endsWith("/apply_profile")) return Promise.resolve(jsonResponse({ rules: [], profile: "full_access@v1" }))
-      return Promise.resolve(jsonResponse(payload()))
+      return Promise.resolve(jsonResponse(data))
     })
     renderRoute()
 
@@ -435,6 +489,7 @@ function renderRoute(entry = "/") {
 
 function payload() {
   return {
+    permission_hub_mode: "advanced",
     profiles: [
       { key: "full_access@v1", label: "Full access", description: "Allow eligible capabilities." },
       { key: "ask_on_first_use@v1", label: "Ask on first use", description: "Ask first." },

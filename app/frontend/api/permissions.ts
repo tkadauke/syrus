@@ -48,6 +48,7 @@ export type PermissionProfilePreview = {
   replacements: Array<{ policy: "allow" | "ask" | "deny"; capability: string; operation: string; resource_scope_label: string }>
 }
 export type PermissionsPayload = {
+  permission_hub_mode: "simple" | "advanced"
   rules: PermissionRule[]
   inherited: InheritedPermission[]
   profiles: PermissionProfile[]

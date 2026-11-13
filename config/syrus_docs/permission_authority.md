@@ -55,6 +55,12 @@ durable delegation separate from operational approvals: the hub lists editable
 user-owned rules and read-only inherited capability defaults, identifies policy
 ownership, and explains which default is decisive when no more specific
 permitted rule applies. Revoking a rule preserves its audit history.
+The Hub opens in a Simple view containing only the permission-profile choices.
+Advanced exposes the matrix, resources, rules, leases, history, and AI approval
+workspaces. The selected level is stored per user; links to an Advanced
+workspace or a specific rule, request, or capability open Advanced directly.
+Inherited policy appears once with the default matrix workspace rather than on
+every Advanced tab.
 The Hub leads with plain-language capability, operation, and effect names and
 one-sentence explanations. Stable identifiers remain visible as secondary
 details so operators can correlate rules, audit entries, and support reports.

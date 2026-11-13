@@ -79,6 +79,11 @@
   "permissions": {
     "title": "Berechtigungen",
     "description": "Verwalte dauerhafte Befugnisse, die du Agenten übertragen hast.",
+    "mode_label": "Detailstufe der Berechtigungszentrale",
+    "modes": {
+      "simple": "Einfach",
+      "advanced": "Erweitert"
+    },
     "profile_title": "Berechtigungsprofil wählen",
     "profile_help": "Beginne mit einer klaren Haltung. Feine Regeln bleiben unten unter Anpassen optional.",
     "profile_for": "Profil für",
