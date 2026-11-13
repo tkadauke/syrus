@@ -118,12 +118,7 @@ export type WorkersQueuePayload = {
   worker_health?: QueueWorkerHealthPayload
 }
 
-export type AdminQueuePayload =
-  | ActiveQueuePayload
-  | PendingQueuePayload
-  | FailedQueuePayload
-  | RecurringQueuePayload
-  | WorkersQueuePayload
+export type AdminQueuePayload = ActiveQueuePayload | PendingQueuePayload | FailedQueuePayload | RecurringQueuePayload | WorkersQueuePayload
 
 export function isQueueTab(value: string | undefined): value is QueueTab {
   return queueTabs.includes(value as QueueTab)
