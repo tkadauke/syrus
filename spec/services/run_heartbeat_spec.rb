@@ -1,6 +1,11 @@
 require "rails_helper"
 
 RSpec.describe RunHeartbeat do
+  before do
+    allow(described_class).to receive(:sleep)
+    allow(described_class).to receive(:rand).and_return(0.05)
+  end
+
   it "touches a running run with no heartbeat" do
     run = create_running_run(last_heartbeat_at: nil)
 
@@ -42,6 +47,79 @@ RSpec.describe RunHeartbeat do
     expect(described_class.touch(stale_copy, now: Time.zone.parse("2026-08-20T12:01:00Z"))).to be false
 
     expect(run.reload.last_heartbeat_at).to eq(Time.zone.parse("2026-08-20T12:00:59Z"))
+  end
+
+  it "retries one transient lock timeout and records redacted structured diagnostics" do
+    run = create_running_run(last_heartbeat_at: 1.minute.ago)
+    relation = instance_double(ActiveRecord::Relation)
+    allow(Run).to receive(:where).with(id: run.id, finished_at: nil).and_return(relation)
+    attempts = 0
+    allow(relation).to receive(:update_all) do
+      attempts += 1
+      raise ActiveRecord::LockWaitTimeout, "sensitive database detail" if attempts == 1
+      1
+    end
+    messages = []
+    allow(Rails.logger).to receive(:warn) { |message| messages << JSON.parse(message) }
+
+    expect(described_class.touch(run, force: true)).to be true
+
+    expect(relation).to have_received(:update_all).twice
+    expect(messages).to contain_exactly(include(
+      "event" => "run_heartbeat_contention", "action" => "retry",
+      "run_id" => run.id, "attempt" => 1, "exhausted" => false,
+      "error_class" => "ActiveRecord::LockWaitTimeout"
+    ))
+    expect(messages.to_json).not_to include("sensitive database detail")
+  end
+
+  it "retries deadlocks using the same bounded policy" do
+    run = create_running_run(last_heartbeat_at: 1.minute.ago)
+    attempts = 0
+    allow_any_instance_of(ActiveRecord::Relation).to receive(:update_all) do
+      attempts += 1
+      raise ActiveRecord::Deadlocked, "deadlock" if attempts == 1
+      1
+    end
+
+    expect(described_class.touch(run, force: true)).to be true
+    expect(attempts).to eq(2)
+  end
+
+  it "skips one heartbeat after retry exhaustion while the durable heartbeat is fresh" do
+    run = create_running_run(last_heartbeat_at: 1.minute.ago)
+    allow_any_instance_of(ActiveRecord::Relation).to receive(:update_all)
+      .and_raise(ActiveRecord::LockWaitTimeout, "lock wait timed out")
+    messages = []
+    allow(Rails.logger).to receive(:warn) { |message| messages << JSON.parse(message) }
+
+    expect(described_class.touch(run, force: true)).to be false
+
+    expect(messages.pluck("action")).to eq(%w[retry retry exhausted skipped])
+  end
+
+  it "uses a recent start as the liveness signal when the first heartbeat is contended" do
+    run = create_running_run(last_heartbeat_at: nil)
+    run.update_columns(started_at: 1.minute.ago)
+    allow_any_instance_of(ActiveRecord::Relation).to receive(:update_all)
+      .and_raise(ActiveRecord::Deadlocked, "deadlock")
+
+    expect(described_class.touch(run, force: true)).to be false
+  end
+
+  it "raises after retry exhaustion when skipping would leave the run genuinely stale" do
+    run = create_running_run(last_heartbeat_at: Run::STALE_HEARTBEAT_THRESHOLD.ago - 1.second)
+    allow_any_instance_of(ActiveRecord::Relation).to receive(:update_all)
+      .and_raise(ActiveRecord::LockWaitTimeout, "lock wait timed out")
+
+    expect { described_class.touch(run, force: true) }.to raise_error(ActiveRecord::LockWaitTimeout)
+  end
+
+  it "does not update a run that was cancelled before the heartbeat write" do
+    run = create_running_run(last_heartbeat_at: 1.minute.ago)
+    run.update_columns(state: "cancelled", finished_at: Time.current)
+
+    expect(described_class.touch(run.reload, force: true)).to be false
   end
 
   # What matters here is that the heartbeat thread makes progress *while* the
