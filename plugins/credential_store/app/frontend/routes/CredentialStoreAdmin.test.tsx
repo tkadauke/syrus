@@ -68,7 +68,9 @@ describe("CredentialStoreAdmin", () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
       const path = String(input)
       if (path.endsWith("/credentials") && init?.method === "POST") {
-        return Promise.resolve(jsonResponse({ credential: credential({ name: "CI token", safe_metadata: { host: "ci.example.com" } }), message: "Credential created." }))
+        return Promise.resolve(
+          jsonResponse({ credential: credential({ name: "CI token", safe_metadata: { host: "ci.example.com" } }), message: "Credential created." })
+        )
       }
       return Promise.resolve(jsonResponse(payload({ credentials: [] })))
     })
@@ -173,8 +175,12 @@ describe("CredentialStoreAdmin", () => {
         safe_metadata: { host: "host.example", username: "deploy", port: 22, fingerprint: "SHA256:old", known_host: "host.example ssh-ed25519 OLD" }
       })
       if (String(input).endsWith("/credentials/1") && init?.method === "PATCH")
-        return Promise.resolve(jsonResponse({ credential: { ...existing, safe_metadata: { host: "new.example", username: "deploy", port: 2222 } }, message: "Credential updated." }))
-      return Promise.resolve(jsonResponse(payload({ credentials: [existing], options: { credential_types: [{ name: "ssh_private_key", label: "SSH private key" }] } })))
+        return Promise.resolve(
+          jsonResponse({ credential: { ...existing, safe_metadata: { host: "new.example", username: "deploy", port: 2222 } }, message: "Credential updated." })
+        )
+      return Promise.resolve(
+        jsonResponse(payload({ credentials: [existing], options: { credential_types: [{ name: "ssh_private_key", label: "SSH private key" }] } }))
+      )
     })
     renderRoute(<CredentialStoreAdmin />)
     fireEvent.click(await screen.findByRole("button", { name: "Edit" }))
