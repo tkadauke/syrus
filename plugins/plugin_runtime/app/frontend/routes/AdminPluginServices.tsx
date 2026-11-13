@@ -103,7 +103,9 @@ export function AdminPluginServices() {
           {detailsFor ? <DetailsPanel key={detailsFor} name={detailsFor} onClose={() => setDetailsFor(null)} /> : null}
           {logsFor ? <LogsPanel name={logsFor} onClose={() => setLogsFor(null)} /> : null}
 
-          {filterVolumes(volumes.data?.volumes ?? [], location.search).length > 0 ? <VolumesSection volumes={filterVolumes(volumes.data?.volumes ?? [], location.search)} /> : null}
+          {filterVolumes(volumes.data?.volumes ?? [], location.search).length > 0 ? (
+            <VolumesSection volumes={filterVolumes(volumes.data?.volumes ?? [], location.search)} />
+          ) : null}
         </>
       ) : null}
     </Page.Root>
@@ -442,11 +444,19 @@ function DetailsPanel({ name, onClose }: { name: string; onClose: () => void }) 
               <span>{`${(data.pagination.page - 1) * data.pagination.per_page + 1}–${Math.min(data.pagination.page * data.pagination.per_page, data.pagination.total)} of ${data.pagination.total}`}</span>
               <div className="flex gap-2">
                 {page > 1 ? (
-                  <Button onClick={() => setPage((current) => current - 1)} size="sm" variant="secondary">{t("previous")}</Button>
-                ) : <span className="rounded border border-border px-3 py-1 text-text-muted opacity-60">{t("previous")}</span>}
+                  <Button onClick={() => setPage((current) => current - 1)} size="sm" variant="secondary">
+                    {t("previous")}
+                  </Button>
+                ) : (
+                  <span className="rounded border border-border px-3 py-1 text-text-muted opacity-60">{t("previous")}</span>
+                )}
                 {page < data.pagination.total_pages ? (
-                  <Button onClick={() => setPage((current) => current + 1)} size="sm" variant="secondary">{t("next")}</Button>
-                ) : <span className="rounded border border-border px-3 py-1 text-text-muted opacity-60">{t("next")}</span>}
+                  <Button onClick={() => setPage((current) => current + 1)} size="sm" variant="secondary">
+                    {t("next")}
+                  </Button>
+                ) : (
+                  <span className="rounded border border-border px-3 py-1 text-text-muted opacity-60">{t("next")}</span>
+                )}
               </div>
             </div>
           ) : null}

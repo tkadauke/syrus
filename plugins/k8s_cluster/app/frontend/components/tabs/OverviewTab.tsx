@@ -24,15 +24,15 @@ export function OverviewTab({ clusterId }: { clusterId: number }) {
   const detail = useResourceDetail()
   const { query, setQuery } = useTableSearch()
   const nodes = useQuery({
-    queryKey: [ "k8s_cluster", "nodes", clusterId ],
+    queryKey: ["k8s_cluster", "nodes", clusterId],
     queryFn: () => fetchKubernetesNodes(clusterId)
   })
   const namespaces = useQuery({
-    queryKey: [ "k8s_cluster", "namespaces", clusterId ],
+    queryKey: ["k8s_cluster", "namespaces", clusterId],
     queryFn: () => fetchKubernetesNamespaces(clusterId)
   })
   const overview = useQuery({
-    queryKey: [ "k8s_cluster", "overview", clusterId, "summary" ],
+    queryKey: ["k8s_cluster", "overview", clusterId, "summary"],
     queryFn: () => fetchKubernetesOverview(clusterId, true)
   })
 
@@ -134,9 +134,7 @@ function namespaceColumns(
     {
       key: "status",
       header: t("col_status"),
-      render: (row) => (
-        <StatusBadge tone={row.status === "Active" ? "success" : "neutral"}>{row.status || "-"}</StatusBadge>
-      ),
+      render: (row) => <StatusBadge tone={row.status === "Active" ? "success" : "neutral"}>{row.status || "-"}</StatusBadge>,
       sort: "status",
       sortValue: (row) => row.status
     },
@@ -151,7 +149,13 @@ function namespaceColumns(
   ]
 }
 
-function MetricsCard({ heading, section }: { heading: string; section: KubernetesMetricsSection<{ name: string; cpu_millicores: number; memory_bytes: number }> }) {
+function MetricsCard({
+  heading,
+  section
+}: {
+  heading: string
+  section: KubernetesMetricsSection<{ name: string; cpu_millicores: number; memory_bytes: number }>
+}) {
   const { t } = useT("k8s_cluster")
 
   return (
@@ -159,10 +163,18 @@ function MetricsCard({ heading, section }: { heading: string; section: Kubernete
       <h4 className="text-sm font-semibold text-text-primary">{heading}</h4>
       {section.available ? (
         <DescriptionList.Root className="mt-2 grid-cols-2 sm:grid-cols-2" density="compact">
-          <DescriptionList.Item descriptionClassName="font-medium text-text-primary" label={t("overview_total_cpu")} termClassName="normal-case tracking-normal">
+          <DescriptionList.Item
+            descriptionClassName="font-medium text-text-primary"
+            label={t("overview_total_cpu")}
+            termClassName="normal-case tracking-normal"
+          >
             {formatMillicores(section.total_cpu_millicores)}
           </DescriptionList.Item>
-          <DescriptionList.Item descriptionClassName="font-medium text-text-primary" label={t("overview_total_memory")} termClassName="normal-case tracking-normal">
+          <DescriptionList.Item
+            descriptionClassName="font-medium text-text-primary"
+            label={t("overview_total_memory")}
+            termClassName="normal-case tracking-normal"
+          >
             {formatBytes(section.total_memory_bytes)}
           </DescriptionList.Item>
         </DescriptionList.Root>

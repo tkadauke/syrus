@@ -85,7 +85,8 @@ describe("AdminPluginServices", () => {
   it("asks before stopping, then stops the service", async () => {
     const confirm = mockUseConfirm(true)
     const fetchSpy = mockApi(payload(), (path, method) =>
-      path.endsWith("/git-mirror/stop") && method === "POST" ? jsonResponse({ service: { service: "git-mirror", state: "stopped" } }) : undefined)
+      path.endsWith("/git-mirror/stop") && method === "POST" ? jsonResponse({ service: { service: "git-mirror", state: "stopped" } }) : undefined
+    )
 
     renderRoute(<AdminPluginServices />)
     fireEvent.click(await screen.findByRole("button", { name: "Stop" }))
@@ -106,15 +107,18 @@ describe("AdminPluginServices", () => {
 
   it("starts a stopped service without asking", async () => {
     const confirm = mockUseConfirm(true)
-    const stopped = payload({ services: [ { ...payload().services[0], state: "stopped", held: true, actions: [ "start", "logs" ] } ] })
+    const stopped = payload({ services: [{ ...payload().services[0], state: "stopped", held: true, actions: ["start", "logs"] }] })
     const fetchSpy = mockApi(stopped, (path, method) =>
-      path.endsWith("/git-mirror/start") && method === "POST" ? jsonResponse({ service: { service: "git-mirror", state: "running" } }) : undefined)
+      path.endsWith("/git-mirror/start") && method === "POST" ? jsonResponse({ service: { service: "git-mirror", state: "running" } }) : undefined
+    )
 
     renderRoute(<AdminPluginServices />)
     expect(await screen.findByText("Stopped by an admin")).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Start" }))
 
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/plugin_services/git-mirror/start", expect.objectContaining({ method: "POST" })))
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/plugin_services/git-mirror/start", expect.objectContaining({ method: "POST" }))
+    )
     expect(confirm).not.toHaveBeenCalled()
   })
 
@@ -122,7 +126,8 @@ describe("AdminPluginServices", () => {
     mockApi(payload(), (path) =>
       path.startsWith("/api/v1/app/admin/plugin_services/git-mirror/logs?tail=200")
         ? jsonResponse({ service: "git-mirror", logs: "GET /v1/repositories/1/blob 200 13B 2ms\n", cursor: "2026-01-01T00:00:00Z" })
-        : undefined)
+        : undefined
+    )
 
     renderRoute(<AdminPluginServices />)
     fireEvent.click(await screen.findByRole("button", { name: "Logs" }))
@@ -132,11 +137,11 @@ describe("AdminPluginServices", () => {
   })
 
   it("badges a privileged service so an operator can spot elevated capabilities at a glance", async () => {
-    mockApi(payload({
-      services: [
-        { ...payload().services[0], service: "tailscale", plugin: "tailscale", endpoint: "http://tailscale:8080", privileged: true }
-      ]
-    }))
+    mockApi(
+      payload({
+        services: [{ ...payload().services[0], service: "tailscale", plugin: "tailscale", endpoint: "http://tailscale:8080", privileged: true }]
+      })
+    )
 
     renderRoute(<AdminPluginServices />)
 
@@ -168,7 +173,7 @@ describe("AdminPluginServices", () => {
   })
 
   it("explains that externally managed services cannot be controlled", async () => {
-    mockApi(payload({ mode: "external", manageable: false, services: [ { ...payload().services[0], actions: [] } ] }))
+    mockApi(payload({ mode: "external", manageable: false, services: [{ ...payload().services[0], actions: [] }] }))
 
     renderRoute(<AdminPluginServices />)
 
@@ -178,13 +183,15 @@ describe("AdminPluginServices", () => {
 
   it("lists stored data and deletes only what no running service uses, after asking", async () => {
     const confirm = mockUseConfirm(true)
-    const fetchSpy = mockApi(payload({
-      volumes: [
-        { name: "syrus_plugin_git-mirror_data", service: "git-mirror", plugin: "git_mirror", in_use: true, size_bytes: 1_288_490_189 },
-        { name: "syrus_plugin_old-service_data", service: "old-service", plugin: "old_plugin", in_use: false, size_bytes: 2048 }
-      ]
-    }), (path, method) =>
-      method === "DELETE" ? new Response(null, { status: 204 }) : undefined)
+    const fetchSpy = mockApi(
+      payload({
+        volumes: [
+          { name: "syrus_plugin_git-mirror_data", service: "git-mirror", plugin: "git_mirror", in_use: true, size_bytes: 1_288_490_189 },
+          { name: "syrus_plugin_old-service_data", service: "old-service", plugin: "old_plugin", in_use: false, size_bytes: 2048 }
+        ]
+      }),
+      (path, method) => (method === "DELETE" ? new Response(null, { status: 204 }) : undefined)
+    )
 
     renderRoute(<AdminPluginServices />)
 
@@ -195,29 +202,36 @@ describe("AdminPluginServices", () => {
     const unused = screen.getByText("syrus_plugin_old-service_data").closest("tr") as HTMLElement
     fireEvent.click(within(unused).getByRole("button", { name: "Delete data" }))
 
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/v1/app/admin/plugin_services/volumes/syrus_plugin_old-service_data",
-      expect.objectContaining({ method: "DELETE" })
-    ))
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/admin/plugin_services/volumes/syrus_plugin_old-service_data",
+        expect.objectContaining({ method: "DELETE" })
+      )
+    )
     expect(confirm).toHaveBeenCalledWith(expect.objectContaining({ destructive: true }))
   })
 
   it("shows what a service says about itself under Details", async () => {
-    mockApi(payload({ services: [ { ...payload().services[0], actions: [ "stop", "restart", "details", "logs" ] } ] }), (path) =>
+    mockApi(payload({ services: [{ ...payload().services[0], actions: ["stop", "restart", "details", "logs"] }] }), (path) =>
       path === "/api/v1/app/admin/plugin_services/git-mirror/details"
         ? jsonResponse({
-          service: "git-mirror",
-          details: {
-            summary: [ { label_key: "git_mirror:details.repositories", value: 2, format: "number" },
-              { label_key: "git_mirror:details.mirror_size", value: 5_242_880, format: "bytes" } ],
-            table: {
-              columns: [ { key: "repository", label_key: "git_mirror:details.col_repository", format: "text" },
-                { key: "size", label_key: "git_mirror:details.col_size", format: "bytes" } ],
-              rows: [ { repository: "acme/widgets", size: 4_194_304 } ]
+            service: "git-mirror",
+            details: {
+              summary: [
+                { label_key: "git_mirror:details.repositories", value: 2, format: "number" },
+                { label_key: "git_mirror:details.mirror_size", value: 5_242_880, format: "bytes" }
+              ],
+              table: {
+                columns: [
+                  { key: "repository", label_key: "git_mirror:details.col_repository", format: "text" },
+                  { key: "size", label_key: "git_mirror:details.col_size", format: "bytes" }
+                ],
+                rows: [{ repository: "acme/widgets", size: 4_194_304 }]
+              }
             }
-          }
-        })
-        : undefined)
+          })
+        : undefined
+    )
 
     renderRoute(<AdminPluginServices />)
     fireEvent.click(await screen.findByRole("button", { name: "Details" }))
@@ -231,17 +245,22 @@ describe("AdminPluginServices", () => {
 
   it("resets details pagination when switching services", async () => {
     const services: PluginServicesPayload["services"] = [
-      { ...payload().services[0], actions: [ "details" ] },
-      { ...payload().services[0], service: "whisper", plugin: "whisper_stt", actions: [ "details" ] }
+      { ...payload().services[0], actions: ["details"] },
+      { ...payload().services[0], service: "whisper", plugin: "whisper_stt", actions: ["details"] }
     ]
     const requests: string[] = []
     mockApi(payload({ services }), (path) => {
       if (!path.includes("/details")) return undefined
       requests.push(path)
       const page = path.includes("page=2") ? 2 : 1
-      return jsonResponse({ service: path.includes("/whisper/") ? "whisper" : "git-mirror", details: {
-        summary: [], table: { columns: [], rows: [] }, pagination: { page, per_page: 100, total: 101, total_pages: 2 }
-      } })
+      return jsonResponse({
+        service: path.includes("/whisper/") ? "whisper" : "git-mirror",
+        details: {
+          summary: [],
+          table: { columns: [], rows: [] },
+          pagination: { page, per_page: 100, total: 101, total_pages: 2 }
+        }
+      })
     })
 
     renderRoute(<AdminPluginServices />)
