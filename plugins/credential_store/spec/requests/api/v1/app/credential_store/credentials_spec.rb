@@ -112,7 +112,20 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
     expect(response).to have_http_status(:ok)
     expect(parse_body.dig("credential", "id")).to eq(credential.id)
     expect(parse_body.fetch("credential")).not_to have_key("payload")
+    expect(parse_body).not_to have_key("options")
     expect(response.body).not_to include("show-secret")
+  end
+
+  it "supports conditional index requests with an ETag" do
+    create_credential
+    sign_in_as(operator)
+
+    get "/api/v1/app/credential_store/credentials"
+    etag = response.headers.fetch("ETag")
+    get "/api/v1/app/credential_store/credentials", headers: { "If-None-Match" => etag }
+
+    expect(response).to have_http_status(:not_modified)
+    expect(response.body).to be_empty
   end
 
   it "probes, previews, and explicitly confirms SSH host keys without auditing key material" do
@@ -232,6 +245,7 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
 
     expect(response).to have_http_status(:ok)
     expect(credential.reload.payload).to eq("new-secret")
+    expect(parse_body.keys).to contain_exactly("credential", "message")
     expect(response.body).not_to include("old-secret")
     expect(response.body).not_to include("new-secret")
 
@@ -239,7 +253,8 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
 
     expect(response).to have_http_status(:ok)
     expect(credential.reload).to be_revoked
-    expect(parse_body.fetch("credentials").find { |item| item.fetch("id") == credential.id }).to include("revoked_at")
+    expect(parse_body.fetch("credential")).to include("id" => credential.id, "revoked_at" => a_string_matching(/\A\d{4}-/))
+    expect(parse_body.keys).to contain_exactly("credential", "message")
   end
 
   it "audits credential creation and privilege-affecting updates without payload material" do
