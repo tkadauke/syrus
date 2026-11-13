@@ -99,7 +99,7 @@ RSpec.describe IngestionClassifier do
     )
   end
 
-  it "assigns a strong Epic match and advances through the normal triage flow" do
+  it "never assigns an Epic even when model output includes an epic_id" do
     epic = Factories.epic(user: user, repository: repository, state: "backlog", title: "Dashboard cleanup")
     job = Job.create!(
       user: user,
@@ -114,29 +114,8 @@ RSpec.describe IngestionClassifier do
       "invalid" => { "kind" => nil, "reason" => "", "evidence_urls" => [] }
     })
 
-    expect(job.reload.epic).to eq(epic)
-    expect(job.state).to eq("blocked_by_epic")
-    expect(job.runs).to be_empty
-  end
-
-  it "does not assign an Epic to an investigation Job" do
-    epic = Factories.epic(user: user, repository: repository)
-    job = Job.create!(
-      user: user,
-      repository: repository,
-      issue_number: 15,
-      issue_title: "Investigate failures",
-      investigation: true
-    )
-
-    result = classify(job, {
-      "epic_id" => epic.id,
-      "invalid" => { "kind" => nil, "reason" => "", "evidence_urls" => [] }
-    })
-
-    expect(result).not_to be_success
-    expect(result.error).to include(Job::INVESTIGATION_EPIC_ERROR)
     expect(job.reload.epic_id).to be_nil
+    expect(job).to be_queued
   end
 
   it "queues ordinary backend and JavaScript work on the Linux default" do
@@ -185,8 +164,7 @@ RSpec.describe IngestionClassifier do
       error: nil,
       agent_provider: job.workflow_agent_provider
     )
-    expect(attempt.decision).to include("epic_id" => nil)
-    expect(attempt.raw_output).to include("epic_id")
+    expect(attempt.decision).not_to have_key("epic_id")
   end
 
   it "marks the job uncertain when a valid classifier result cannot advance triage" do
@@ -217,7 +195,7 @@ RSpec.describe IngestionClassifier do
       finished_at: be_present,
       outcome: "uncertain"
     )
-    expect(attempt.decision).to include("epic_id" => nil)
+    expect(attempt.decision).not_to have_key("epic_id")
     expect(attempt.error).to include("could not advance")
   end
 
@@ -363,25 +341,6 @@ RSpec.describe IngestionClassifier do
     expect(limit).to be >= 16.megabytes
   end
 
-  it "records timing and outcome for a raised classifier error" do
-    job = Job.create!(user: user, repository: repository, issue_number: 117)
-    stub_agent_text(JSON.generate(
-      "epic_id" => 999_999,
-      "invalid" => { "kind" => nil, "reason" => "", "evidence_urls" => [] }
-    ))
-
-    described_class.call(job: job, github_client: github_client)
-
-    attempt = job.reload.classification_attempts.sole
-    expect(attempt).to have_attributes(
-      started_at: be_present,
-      finished_at: be_present,
-      outcome: "errored"
-    )
-    expect(attempt.error).to include("classifier returned unknown Epic")
-    expect(job.triaging_uncertainty_reason).to include("classifier returned unknown Epic")
-  end
-
   it "refuses a main_grader Job without calling the model or creating an attempt" do
     grader = Job.create!(user: user, repository: repository, kind: "main_grader")
     grader.update_columns(state: "triaging", triaging_reason: "classifier_pending")
@@ -394,16 +353,6 @@ RSpec.describe IngestionClassifier do
     expect(result.success?).to be(false)
     expect(grader.reload.epic_id).to be_nil
     expect(grader.classifier_attempts).to eq(0)
-  end
-
-  it "rejects assigning an Epic to a main_grader Job" do
-    grader = Job.create!(user: user, repository: repository, kind: "main_grader")
-    epic = Factories.epic(user: user, repository: repository)
-    classifier = described_class.new(job: grader, github_client: github_client)
-
-    expect { classifier.send(:assign_epic, epic.id) }
-      .to raise_error(ActiveRecord::RecordInvalid, /Main grader Jobs cannot belong to Epics/)
-    expect(grader.reload.epic_id).to be_nil
   end
 
   it "leaves infrastructure-shaped exceptions eligible for another classification pass" do

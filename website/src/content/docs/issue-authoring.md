@@ -74,6 +74,11 @@ Epic: #123
 -->
 ```
 
+The referenced Epic must have been declared by an ingested GitHub issue for
+the same Syrus user. A marker cannot attach to an operator-created,
+chat-proposed, Linear-origin, or another user's Epic. Syrus keeps the Job
+unattached and records the reason when it ignores such a marker.
+
 ## Labels
 
 `syrus` or the repository's configured trigger label tells Syrus to ingest
@@ -148,7 +153,10 @@ malformed Epic marker, the issue follows the ordinary Job ingestion path.
 Filing order does not matter. If a child issue references an Epic before the
 Epic issue itself has been ingested, Syrus creates the child Job in a pending
 Epic-reference state. When the Epic issue is later labelled and ingested, Syrus
-resolves the pending child automatically.
+resolves the pending child automatically after applying the same origin and
+ownership checks. Linear uses the unambiguous
+`<!-- syrus-epic: linear:issue:<id> -->` child reference instead of GitHub issue
+numbers.
 
 ## Dependencies
 

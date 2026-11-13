@@ -321,6 +321,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
         user: user,
         repository: repository,
         github_issue_url: "https://github.com/acme/widgets/issues/41",
+        origin: "github_issue",
         state: "backlog"
       )
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
@@ -341,6 +342,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
         user: user,
         repository: repository,
         github_issue_url: "https://github.com/acme/widgets/issues/41",
+        origin: "github_issue",
         state: "backlog"
       )
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)
@@ -418,6 +420,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
         user: user,
         repository: repository,
         github_issue_url: "https://github.com/acme/widgets/issues/41",
+        origin: "github_issue",
         state: "in_progress"
       )
       child = issue(number: 42, body: epic_marker("#41"), labels: [ "syrus", Workflows::INVESTIGATION_LABEL ])
@@ -437,6 +440,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
         user: user,
         repository: repository,
         github_issue_url: "https://github.com/acme/widgets/issues/41",
+        origin: "github_issue",
         state: "in_progress"
       )
       first = issue(number: 42, body: epic_marker("#41"))
@@ -465,6 +469,7 @@ RSpec.describe PollRepositoryJob, :ci_only do
         user: user,
         repository: repository,
         github_issue_url: "https://github.com/acme/widgets/issues/41",
+        origin: "github_issue",
         state: "in_progress"
       )
       root = Factories.job_record(user: user, repository: repository, epic: epic, issue_number: 42, state: "queued")
@@ -506,7 +511,8 @@ RSpec.describe PollRepositoryJob, :ci_only do
         "owner" => "acme",
         "repo" => "widgets",
         "number" => 41,
-        "github_issue_url" => "https://github.com/acme/widgets/issues/41"
+        "github_issue_url" => "https://github.com/acme/widgets/issues/41",
+        "origin" => "github_issue"
       )
 
       described_class.perform_now(repository.id)
@@ -525,7 +531,8 @@ RSpec.describe PollRepositoryJob, :ci_only do
       epic = Factories.epic(
         user: user,
         repository: upstream,
-        github_issue_url: "https://github.com/acme/core/issues/41"
+        github_issue_url: "https://github.com/acme/core/issues/41",
+        origin: "github_issue"
       )
       # Child issue on the fork must use owner/repo#number to resolve to the upstream epic.
       allow_any_instance_of(GithubClient).to receive(:issues_with_label)

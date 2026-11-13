@@ -71,7 +71,9 @@ Check these in order:
 5. The issue does not have `syrus-skip`.
 6. If the issue should attach to an Epic, it uses the explicit
    `<!-- syrus-epic: #123 -->` marker comment. Visible `Epic: #123` prose is
-   ignored for routing.
+   ignored for routing. The target must be an Epic ingested from a GitHub issue
+   for the same user; operator-created, Linear-origin, and other-user targets
+   remain unattached and leave an `epic_marker_ignored` activity with the reason.
 7. The user's GitHub token is present and can read the repository.
 8. The GitHub credential is not currently rate-limited. Syrus delays
    autonomous repository polls until GitHub's reset time when quota is
