@@ -1,0 +1,10 @@
+project:
+  id: calendar
+  label: "calendar plugin"
+  kind: plugin
+
+grade:
+  - type: rspec
+    deps:
+      - "//:plugin-api"
+  - type: vitest
