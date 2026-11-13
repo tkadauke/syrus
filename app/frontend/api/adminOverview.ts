@@ -82,7 +82,7 @@ export type AdminOverviewPayload = {
     level: string
     observed_at: string
   }[]
-  worker_health?: WorkerHealthPayload
+  worker_health?: WorkerHealthPayload | { levels: Record<string, number> }
   resource_admission?: ResourceAdmissionDiagnosticsPayload
   chat_scoped_events?: {
     window_hours: number

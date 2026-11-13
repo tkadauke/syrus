@@ -23,7 +23,7 @@ module Mcp::Tools
         page = Mcp::Pagination.normalize_page(page)
         per = normalize_per(per)
         result = ::Admin::OverviewPayload.new(
-          params: { page: page },
+          params: { page: page, include_diagnostics: true },
           stuck_per_page: per,
           stable_stuck_order: true
         ).stuck_json

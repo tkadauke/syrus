@@ -13,7 +13,7 @@ export type QueueJob = {
   class_name: string
   queue_name: string
   priority: number
-  arguments: unknown[] | null
+  arguments: QueueArguments
   created_at: string
   scheduled_at: string | null
   claimed_at?: string | null
@@ -27,10 +27,12 @@ export type QueueFailure = {
   class_name: string | null
   priority: number | null
   scheduled_at: string | null
-  arguments: unknown[] | null
+  arguments: QueueArguments
   exception_class: string | null
   message: string | null
 }
+
+export type QueueArguments = unknown[] | { truncated: true; preview: string; original_length: number } | null
 
 export type QueueRecurringTask = {
   key: string
