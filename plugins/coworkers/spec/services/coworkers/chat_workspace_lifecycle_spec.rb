@@ -499,5 +499,27 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle, :allow_host_execution do
       expect(run_git("rev-parse", "coworkers/maya", chdir: @remote).strip).to eq(home_before)
       expect(Coworkers::WorkspaceConflict.active.find_by!(chat_session: session).files).to eq([ "UNTESTED_FEATURES.md" ])
     end
+
+    it "validates an already-committed marker-bearing source before a fast-forward can reach home" do
+      Coworkers::ConflictResolver.agent = lambda do |workspace_path:, prompt:|
+        # Leave the committed markers untouched so validation must reject the
+        # attempted merge rather than advancing the persistent branch.
+        Struct.new(:timed_out, :is_error, :exit_status, :final_text) { def success? = true }.new(false, false, 0, "done")
+      end
+      session = chat
+      service = lifecycle(session)
+      path = service.prepare!
+      write(path, "UNTESTED_FEATURES.md", "<<<<<<< HEAD\none\n=======\ntwo\n>>>>>>> source\n")
+      run_git("add", "UNTESTED_FEATURES.md", chdir: path)
+      run_git("commit", "-m", "precommitted invalid tree", chdir: path)
+      home_before = run_git("rev-parse", "coworkers/maya", chdir: @remote).strip
+
+      expect(service.finalize!).to eq(:conflict)
+
+      expect(run_git("rev-parse", "coworkers/maya", chdir: @remote).strip).to eq(home_before)
+      expect(home_file("UNTESTED_FEATURES.md")).not_to include("<<<<<<<", "=======", ">>>>>>>")
+      expect(Coworkers::WorkspaceConflict.where(chat_session: session, state: "failed").count).to eq(1)
+      expect(session.messages.where(role: "system").count).to eq(1)
+    end
   end
 end
