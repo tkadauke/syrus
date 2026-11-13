@@ -53,7 +53,7 @@ export function AiApprovalDelegations({ descriptors }: { descriptors: InheritedP
   }
 
   return (
-    <section aria-label={t("permissions.ai.title")} className="space-y-4 rounded-xl border border-border bg-surface-raised p-5">
+    <section aria-label={t("permissions.ai.title")} className="min-w-0 space-y-4 rounded-xl border border-border bg-surface-raised p-4 sm:p-5">
       <div>
         <SectionHeading>{t("permissions.ai.title")}</SectionHeading>
         <p className="mt-1 text-sm text-text-secondary">{t("permissions.ai.help")}</p>
@@ -64,7 +64,7 @@ export function AiApprovalDelegations({ descriptors }: { descriptors: InheritedP
       {data && !data.enabled ? <p className="text-sm text-text-muted">{t("permissions.ai.disabled")}</p> : null}
 
       {data?.providers.map((provider) => (
-        <article className="rounded-lg border border-border p-3 text-sm" key={provider.provider_key}>
+        <article className="min-w-0 overflow-x-auto rounded-lg border border-border p-3 text-sm" key={provider.provider_key}>
           <h3 className="font-medium text-text-primary">{provider.display_name}</h3>
           <p className="mt-1 text-text-secondary">
             <span className="font-medium">{t("permissions.ai.privacy")}:</span> {provider.data_sharing}
@@ -90,22 +90,24 @@ export function AiApprovalDelegations({ descriptors }: { descriptors: InheritedP
       <div className="space-y-2">
         <h3 className="text-sm font-medium text-text-primary">{t("permissions.ai.delegations")}</h3>
         {data?.delegations.map((delegation) => (
-          <article className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border p-3" key={delegation.id}>
-            <div className="text-sm">
-              <p className="font-medium text-text-primary">
-                {delegation.provider_name} · {capabilityName(delegation.capability)}
-                <code className="block text-xs font-normal text-text-muted">{delegation.capability}</code>
-              </p>
-              <p className="text-text-secondary">
-                {t(`permissions.ai.status.${delegation.status}`)} · {delegation.resource_type} · {JSON.stringify(delegation.resource_scope)}
-              </p>
-              <p className="text-xs text-text-muted">{t("permissions.ai.excluded", { effects: effectNames(delegation.excluded_effects) })}</p>
+          <article className="min-w-0 overflow-x-auto rounded-lg border border-border p-3" key={delegation.id}>
+            <div className="flex min-w-max flex-wrap items-start justify-between gap-3 sm:min-w-full">
+              <div className="text-sm">
+                <p className="font-medium text-text-primary">
+                  {delegation.provider_name} · {capabilityName(delegation.capability)}
+                  <code className="block text-xs font-normal text-text-muted">{delegation.capability}</code>
+                </p>
+                <p className="text-text-secondary">
+                  {t(`permissions.ai.status.${delegation.status}`)} · {delegation.resource_type} · {JSON.stringify(delegation.resource_scope)}
+                </p>
+                <p className="text-xs text-text-muted">{t("permissions.ai.excluded", { effects: effectNames(delegation.excluded_effects) })}</p>
+              </div>
+              {delegation.status !== "revoked" ? (
+                <button className="text-sm font-medium text-danger" disabled={revoke.isPending} onClick={() => revoke.mutate(delegation.id)} type="button">
+                  {t("permissions.ai.revoke")}
+                </button>
+              ) : null}
             </div>
-            {delegation.status !== "revoked" ? (
-              <button className="text-sm font-medium text-danger" disabled={revoke.isPending} onClick={() => revoke.mutate(delegation.id)} type="button">
-                {t("permissions.ai.revoke")}
-              </button>
-            ) : null}
           </article>
         ))}
         {data && data.delegations.length === 0 ? <p className="text-sm text-text-muted">{t("permissions.ai.no_delegations")}</p> : null}
