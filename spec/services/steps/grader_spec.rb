@@ -576,6 +576,52 @@ RSpec.describe Steps::Grader, :ci_only do
     )
   end
 
+  it "does not follow a grader log ancestor symlink present before command execution" do
+    outside = @ws_path.dirname.join("outside-grade-output")
+    FileUtils.mkdir_p(outside)
+    FileUtils.mkdir_p(@ws_path.join(".syrus"))
+    FileUtils.ln_s(outside, @ws_path.join(".syrus/grade-output"))
+    failed_result = ProcessRunner::Result.new(
+      exit_status: 2, timed_out: false, stopped: false,
+      silent_timed_out: false, operator_killed: false,
+      aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+    )
+
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")) do |**kwargs|
+      kwargs[:on_output_chunk]&.call("original stderr evidence\n")
+      instance_double(ProcessRunner, run: failed_result)
+    end
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /failed \(exit 2\)/)
+
+    expect(outside.children).to be_empty
+    details = step.reload.details
+    expect(details.fetch("output")).to include("original stderr evidence", "[grader:tests] failed (exit 2)")
+    expect(details.dig("diagnostic_warnings", 0, "status")).to eq("unsafe_symlink")
+  end
+
+  it "does not follow a grader log ancestor symlink replaced after command execution" do
+    outside = @ws_path.dirname.join("outside-grade-output")
+    FileUtils.mkdir_p(outside)
+    failed_result = ProcessRunner::Result.new(
+      exit_status: 2, timed_out: false, stopped: false,
+      silent_timed_out: false, operator_killed: false,
+      aliveness_failed: false, duration_s: 0.1, spawned_process_id: nil
+    )
+
+    allow(ProcessRunner).to receive(:new).with(hash_including(kind: "grader")) do
+      grade_output = @ws_path.join(".syrus/grade-output")
+      FileUtils.rm_rf(grade_output)
+      FileUtils.ln_s(outside, grade_output)
+      instance_double(ProcessRunner, run: failed_result)
+    end
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, /failed \(exit 2\)/)
+
+    expect(outside.children).to be_empty
+    expect(step.reload.details.dig("diagnostic_warnings", 0, "status")).to eq("unsafe_symlink")
+  end
+
   it "bounds oversized grader diagnostic capture and records the truncation" do
     failed_result = ProcessRunner::Result.new(
       exit_status: 3, timed_out: false, stopped: false,
@@ -614,16 +660,10 @@ RSpec.describe Steps::Grader, :ci_only do
     expect(step.details.fetch("output")).to include("[grader:tests] failed (exit 4)")
   end
 
-  it "handles deletion between inspection and opening without exposing the absolute path" do
+  it "handles deletion before capture opening without exposing the absolute path" do
     relative = Pathname.new(".syrus/grade-output/iteration-1/tests.log")
     path = @ws_path.join(relative)
-    FileUtils.mkdir_p(path.dirname)
-    path.write("output")
-    stat = path.lstat
-    allow(path).to receive(:lstat) do
-      FileUtils.rm_f(path)
-      stat
-    end
+    allow(handler).to receive(:open_workspace_grade_log).with(relative, anything).and_raise(Errno::ENOENT)
 
     capture = handler.send(:capture_grade_log, path, relative)
 
@@ -640,9 +680,7 @@ RSpec.describe Steps::Grader, :ci_only do
     path = @ws_path.join(relative)
     FileUtils.mkdir_p(path.dirname)
     path.write("output")
-    flags = File::RDONLY | (File.const_defined?(:NOFOLLOW) ? File::NOFOLLOW : 0)
-    allow(File).to receive(:open).and_call_original
-    allow(File).to receive(:open).with(path, flags).and_raise(Errno::EACCES)
+    allow(handler).to receive(:open_workspace_grade_log).with(relative, anything).and_raise(Errno::EACCES)
 
     capture = handler.send(:capture_grade_log, path, relative)
 
