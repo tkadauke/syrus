@@ -266,6 +266,8 @@ en:
       provider_unavailable: "The approval provider is not installed or enabled."
       unknown_capability: "Unknown permission capability."
       scope_required: "A bounded resource scope is required."
+    permission_hub_preferences:
+      invalid_mode: "Choose Simple or Advanced."
     permission_rules:
       stale_preview: "Preview these permission changes again before confirming."
     permission_rule_drafts:
