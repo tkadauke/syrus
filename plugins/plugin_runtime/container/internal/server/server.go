@@ -6,7 +6,6 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
-	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -30,7 +29,7 @@ type Manager interface {
 	Stop(ctx context.Context, name string) (manager.Status, error)
 	Start(ctx context.Context, name string) (manager.Status, error)
 	Restart(ctx context.Context, name string) (manager.Status, error)
-	Logs(ctx context.Context, name string, tail int) (string, error)
+	Logs(ctx context.Context, name string, tail int, since string) (string, string, error)
 	Volumes(ctx context.Context) ([]manager.VolumeStatus, error)
 	RemoveVolume(ctx context.Context, name string) error
 	PurgePlugin(ctx context.Context, plugin string) ([]string, error)
@@ -190,8 +189,7 @@ func (h *handlers) action(do func(context.Context, string) (manager.Status, erro
 	})
 }
 
-// logs answers text/plain: the last `tail` lines (default 200, at most 5000)
-// of the container's stdout and stderr, timestamped.
+// logs returns a bounded tail and a cursor suitable for the next incremental read.
 func (h *handlers) logs(w http.ResponseWriter, r *http.Request) {
 	tail := defaultLogTail
 	if raw := r.URL.Query().Get("tail"); raw != "" {
@@ -202,14 +200,12 @@ func (h *handlers) logs(w http.ResponseWriter, r *http.Request) {
 		}
 		tail = min(n, maxLogTail)
 	}
-	text, err := h.manager.Logs(r.Context(), r.PathValue("name"), tail)
+	text, cursor, err := h.manager.Logs(r.Context(), r.PathValue("name"), tail, r.URL.Query().Get("since"))
 	if err != nil {
 		h.fail(w, err)
 		return
 	}
-	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	_, _ = io.WriteString(w, text)
+	writeJSON(w, http.StatusOK, map[string]string{"logs": text, "cursor": cursor})
 }
 
 func (h *handlers) volumes(w http.ResponseWriter, r *http.Request) {

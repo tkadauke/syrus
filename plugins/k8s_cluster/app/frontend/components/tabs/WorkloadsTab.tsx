@@ -66,8 +66,8 @@ function PodsTable({ clusterId, namespace }: { clusterId: number; namespace: str
   // rows. Soft-fail by design: when metrics-server is absent (or the fetch
   // fails) the columns fall back to "-" instead of failing the tab.
   const overview = useQuery({
-    queryKey: ["k8s_cluster", "overview", clusterId],
-    queryFn: () => fetchKubernetesOverview(clusterId)
+    queryKey: ["k8s_cluster", "overview", clusterId, namespace],
+    queryFn: () => fetchKubernetesOverview(clusterId, false, namespace)
   })
   const podsSection = overview.data?.pods
   const podMetrics = new Map<string, KubernetesPodMetricRow>(
