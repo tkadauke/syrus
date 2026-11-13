@@ -18,6 +18,7 @@ class Coworkers::ConflictResolver
   Outcome = Data.define(:resolved, :detail, :attempts, :files, :home_sha, :source_sha) do
     def resolved? = resolved
   end
+  ValidationFailure = Data.define(:detail, :files)
 
   class << self
     # Test seam, mirroring RunJob.agent_runner: a callable taking
@@ -41,8 +42,8 @@ class Coworkers::ConflictResolver
     @user.agent_provider_configured?(@user.agent_provider)
   end
 
-  def call(dir:)
-    files = git("diff", "--name-only", "--diff-filter=U", chdir: dir).lines.map(&:strip).reject(&:blank?)
+  def call(dir:, files: nil)
+    files ||= git("diff", "--name-only", "--diff-filter=U", chdir: dir).lines.map(&:strip).reject(&:blank?)
     home_sha = git("rev-parse", "HEAD", chdir: dir).strip
     source_sha = git("rev-parse", "MERGE_HEAD", chdir: dir).strip
     context = gather_context(dir, files:, home_sha:, source_sha:)
@@ -56,8 +57,24 @@ class Coworkers::ConflictResolver
       break if failure.nil?
     end
 
-    commit_merge!(dir) if failure.nil?
+    commit_merge!(dir:) if failure.nil?
     Outcome.new(resolved: failure.nil?, detail: failure, attempts:, files:, home_sha:, source_sha:)
+  end
+
+  # Validate the complete merge result while MERGE_HEAD still exists. This is
+  # deliberately independent of Git's exit status: custom and union drivers
+  # can report success after writing marker-shaped text into a clean index.
+  def validate_merge(dir:)
+    changed = git("diff", "--name-only", "HEAD", chdir: dir).lines.map(&:strip).reject(&:blank?)
+    failure = validate(dir, changed)
+    return unless failure
+
+    marker_files = self.class.files_with_markers(dir, changed)
+    ValidationFailure.new(detail: failure, files: marker_files.presence || changed)
+  end
+
+  def commit_validated_merge!(dir:)
+    commit_merge!(dir:)
   end
 
   # Conflict-marker lines in supported (non-binary) text files, used both to
@@ -108,12 +125,12 @@ class Coworkers::ConflictResolver
 
   # Stages the tree, then rejects anything that is not a fully resolved,
   # well-formed result. Returns a failure description, or nil when valid.
-  def validate(dir, _files)
+  def validate(dir, files)
     git("add", "--all", chdir: dir)
     unmerged = git("diff", "--name-only", "--diff-filter=U", chdir: dir).lines.map(&:strip).reject(&:blank?)
     return "Unmerged index entries remain in #{unmerged.join(', ')}." if unmerged.any?
 
-    changed = git("diff", "--cached", "--name-only", "HEAD", chdir: dir).lines.map(&:strip).reject(&:blank?)
+    changed = (git("diff", "--cached", "--name-only", "HEAD", chdir: dir).lines.map(&:strip).reject(&:blank?) + files).uniq
     markers = self.class.files_with_markers(dir, changed)
     return "Conflict markers remain in #{markers.join(', ')}." if markers.any?
 
@@ -142,14 +159,16 @@ class Coworkers::ConflictResolver
     end
   end
 
-  def commit_merge!(dir)
+  def commit_merge!(dir:)
     git("commit", "--no-edit", "--no-verify", chdir: dir)
   end
 
   def gather_context(dir, files:, home_sha:, source_sha:)
     base = git_capture("merge-base", home_sha, source_sha, chdir: dir).stdout.to_s.strip
     stages = files.to_h do |relative|
-      [ relative, { base: stage(dir, 1, relative), home: stage(dir, 2, relative), source: stage(dir, 3, relative) } ]
+      [ relative, { base: stage(dir, 1, relative, fallback_ref: base),
+                    home: stage(dir, 2, relative, fallback_ref: home_sha),
+                    source: stage(dir, 3, relative, fallback_ref: source_sha) } ]
     end
     rules = CONTEXT_FILES.filter_map do |name|
       file = Pathname(dir).join(name)
@@ -160,8 +179,9 @@ class Coworkers::ConflictResolver
     { base:, home_sha:, source_sha:, files:, stages:, rules: }
   end
 
-  def stage(dir, number, relative)
+  def stage(dir, number, relative, fallback_ref: nil)
     result = git_capture("show", ":#{number}:#{relative}", chdir: dir)
+    result = git_capture("show", "#{fallback_ref}:#{relative}", chdir: dir) if !result.success? && fallback_ref.present?
     return "(absent in this version)" unless result.success?
 
     result.stdout.to_s.byteslice(0, STAGE_BYTES).to_s.force_encoding(Encoding::UTF_8).scrub
