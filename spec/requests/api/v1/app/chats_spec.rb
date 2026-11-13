@@ -5521,10 +5521,11 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
           "id" => doc.id,
           "filename" => "diagram.png",
           "content_type" => "image/png",
-          "file_path" => "/api/v1/app/chats/#{chat.id}/media/chat_images/#{doc.id}/file",
-          "image_url" => "/api/v1/app/repository_documents/#{doc.id}/file"
+          "image_url" => "/api/v1/app/chats/#{chat.id}/media/chat_images/#{doc.id}/file",
+          "thumbnail_url" => "/api/v1/app/chats/#{chat.id}/media/chat_images/#{doc.id}/thumbnail"
         )
       )
+      expect(body.dig("pagination", "chat_images")).to include("offset" => 0, "limit" => 24, "has_more" => false, "next_offset" => nil)
     end
 
     it "serves chat image files through the chat-scoped media path" do
@@ -5543,6 +5544,51 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       expect(response.headers["Cache-Control"]).to include("private", "max-age=31536000", "immutable")
     end
 
+    it "serves a resized thumbnail separately from the full-size image" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+      png = Base64.strict_decode64("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
+      doc = Document.new(kind: "file", attachable: user, user: user)
+      doc.file.attach(io: StringIO.new(png), filename: "pixel.png", content_type: "image/png")
+      doc.save!
+      ChatAttachment.create!(chat_session: chat, attachable: doc, suppress_header_broadcast: true)
+
+      get "/api/v1/app/chats/#{chat.id}/media/chat_images/#{doc.id}/thumbnail"
+
+      expect(response).to have_http_status(:ok)
+      expect(response.media_type).to eq("image/png")
+      expect(response.body).to be_present
+    end
+
+    it "paginates chat images and typed artifacts independently" do
+      sign_in_as(user)
+      chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
+      25.times do |index|
+        doc = Document.new(kind: "file", attachable: user, user: user, content_type: "image/png")
+        doc.file.attach(io: StringIO.new("pixels-#{index}"), filename: "image-#{index}.png", content_type: "image/png")
+        doc.save!
+        ChatAttachment.create!(chat_session: chat, attachable: doc, suppress_header_broadcast: true)
+      end
+      chat.set_artifact!("typed_artifacts", 25.times.map { |index| { "type" => "table_#{index}", "title" => "Table #{index}", "payload" => { "rows" => [ index ] } } })
+
+      get "/api/v1/app/chats/#{chat.id}/media"
+
+      first_page = parse_body
+      expect(first_page["chat_images"].length).to eq(24)
+      expect(first_page["typed_artifacts"].length).to eq(24)
+      expect(first_page.dig("pagination", "chat_images")).to include("has_more" => true, "next_offset" => 24)
+      expect(first_page.dig("pagination", "typed_artifacts")).to include("has_more" => true, "next_offset" => 24)
+      expect(first_page["typed_artifacts"]).to all(satisfy { |entry| !entry.key?("payload") })
+
+      get "/api/v1/app/chats/#{chat.id}/media", params: { chat_images_offset: 24, typed_artifacts_offset: 24 }
+
+      second_page = parse_body
+      expect(second_page["chat_images"].length).to eq(1)
+      expect(second_page["typed_artifacts"].length).to eq(1)
+      expect(second_page.dig("pagination", "chat_images", "has_more")).to be(false)
+      expect(second_page.dig("pagination", "typed_artifacts", "has_more")).to be(false)
+    end
+
     it "does not materialize legacy inline images while serving media" do
       sign_in_as(user)
       chat = ChatSession.create!(user: user, repository: repository, last_message_at: Time.current)
@@ -5556,7 +5602,7 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
 
       expect {
         get "/api/v1/app/chats/#{chat.id}/media"
-      }.not_to change(Document, :count)
+      }.not_to change { [ Document.count, ChatAttachment.count ] }
 
       expect(response).to have_http_status(:ok)
       expect(parse_body["chat_images"]).to eq([])
@@ -5660,6 +5706,12 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
           entry = parse_body["typed_artifacts"].find { |e| e["type"] == "rails_schema_erd" }
           expect(entry).to be_present
           expect(entry["renderer_type"]).to eq("erd_diagram")
+          expect(entry).not_to have_key("payload")
+
+          get "/api/v1/app/chats/#{chat.id}/media/typed_artifacts/rails_schema_erd"
+
+          expect(response).to have_http_status(:ok)
+          expect(parse_body.dig("typed_artifact", "payload", "tables")).to eq([ { "name" => "users", "columns" => [] } ])
         ensure
           Syrus::PluginRegistry.reset! unless registered_before
         end

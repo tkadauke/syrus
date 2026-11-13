@@ -20,6 +20,7 @@ class Document < ApplicationRecord
     "image/webp",
     "image/svg+xml"
   ].freeze
+  ACCEPTED_IMAGE_CONTENT_TYPES = ACCEPTED_FILE_CONTENT_TYPES.grep(/\Aimage\//).freeze
   OFFICE_CONTENT_TYPE_PREFIX = "application/vnd.openxmlformats-officedocument.".freeze
   ALLOWED_CONTENT_TYPES = ACCEPTED_FILE_CONTENT_TYPES
 
