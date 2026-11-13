@@ -59,7 +59,8 @@ export function usePluginAdminPage() {
   const pages = useQuery({
     queryKey: ["admin", "plugin_pages"],
     queryFn: fetchAdminPluginPages,
-    staleTime: 30_000
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false
   })
 
   const page = pages.data?.pages.find((candidate) => candidate.paths.some((path) => matchPath({ path, end: false }, normalizedPath) !== null))

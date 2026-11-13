@@ -23,8 +23,18 @@ module SyrusDev
         storage: storage_payload,
         baseline: baseline_payload(baseline_revision, raw_events, current_summaries),
         summaries: summaries,
-        events: events
+        event_count: events.size
       }
+    end
+
+    def events_json
+      raw_events = PerformanceLogging::Store.recent(limit: limit)
+      matched_events = filtered_events(raw_events)
+      request_ids = matched_events.filter_map { |event| event["request_id"].presence }.to_set
+      related_events = raw_events.select { |event| request_ids.include?(event["request_id"]) }
+      events = (matched_events + related_events).uniq
+      events.select! { |event| event["app_revision"] == current_revision } unless revision_scope == "all"
+      { events: events, event_count: events.size }
     end
 
     private
@@ -56,7 +66,7 @@ module SyrusDev
       chips << { field: "since", op: "is", value: since_param } if since_param.present?
       chips << { field: "until", op: "is", value: until_param } if until_param.present?
       chips << { field: "revision_scope", op: "is", value: revision_scope }
-      %i[event_name request_id trace_id job_class path controller action sql_fingerprint].each do |field|
+      %i[event_name request_id trace_id job_class method name path controller action sql_fingerprint].each do |field|
         value = params[field]
         chips << { field: field.to_s, op: "is", value: value.to_s } if value.present?
       end
@@ -96,6 +106,8 @@ module SyrusDev
           matches_text_filter?(event, :request_id, event["request_id"]) &&
           matches_text_filter?(event, :trace_id, event["trace_id"]) &&
           matches_text_filter?(event, :job_class, event["job_class"]) &&
+          matches_text_filter?(event, :method, event["method"]) &&
+          matches_text_filter?(event, :name, event["name"]) &&
           matches_text_filter?(event, :path, event["path"]) &&
           matches_text_filter?(event, :controller, event["controller"]) &&
           matches_text_filter?(event, :action, event["action"]) &&

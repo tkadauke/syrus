@@ -16,6 +16,10 @@ module Admin
     end
 
     def as_json
+      Rails.cache.fetch(cache_key, expires_in: 60.seconds) { uncached_json }
+    end
+
+    def uncached_json
       events = scoped_events
       {
         window: { start: window_start.iso8601, end: window_end.iso8601 },
@@ -29,6 +33,10 @@ module Admin
     private
 
     attr_reader :params
+
+    def cache_key
+      [ self.class.name, window_start.to_i / 60, window_end.to_i / 60, provider, server_name ]
+    end
 
     # Only "agent_process_spawn" and "server_name" carry a filterable
     # value on every phase of a turn -- most phases are turn-scoped

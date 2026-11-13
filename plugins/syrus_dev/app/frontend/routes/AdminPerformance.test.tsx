@@ -36,12 +36,12 @@ describe("AdminPerformance", () => {
   })
 
   it("renders performance summaries and recent events", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(performancePayload()))
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(performancePayload())))
 
     renderRoute(<AdminPerformance />)
 
     expect(await screen.findByRole("heading", { name: "Performance" })).toBeInTheDocument()
-    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/performance?revision_scope=current&since=1h&limit=500", expect.objectContaining({
+    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/performance?revision_scope=current&since=1h", expect.objectContaining({
       credentials: "same-origin"
     }))
 
@@ -81,10 +81,10 @@ describe("AdminPerformance", () => {
     expect(screen.getByText("SELECT `jobs`.* FROM `jobs` WHERE `jobs`.`state` = ?")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Events" }))
-    expect(screen.getByText("slow_request")).toBeInTheDocument()
+    expect(await screen.findByText("slow_request")).toBeInTheDocument()
     expect(screen.getByText("246 SQL · 629ms")).toBeInTheDocument()
 
-    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
   })
 
   it("puts browser traces above backend-only slow request details", async () => {
@@ -134,6 +134,7 @@ describe("AdminPerformance", () => {
   it("shows request-level SQL fingerprints from a slow request summary", async () => {
     const fetchSpy = vi.spyOn(window, "fetch")
       .mockResolvedValueOnce(jsonResponse(performancePayload()))
+      .mockResolvedValueOnce(jsonResponse({ events: performancePayload().events, event_count: 3 }))
       .mockResolvedValueOnce(jsonResponse(explainPayload({ analyzeSafe: true })))
 
     renderRoute(<AdminPerformance />)
@@ -141,7 +142,7 @@ describe("AdminPerformance", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Details" }))
     const dialog = await screen.findByRole("dialog", { name: "Slow request SQL details" })
-    expect(within(dialog).getByText("request-123")).toBeInTheDocument()
+    expect(await within(dialog).findByText("request-123")).toBeInTheDocument()
     expect(within(dialog).getAllByText((_content, element) => element?.textContent?.includes("246 SQL · 629ms") ?? false).length).toBeGreaterThan(0)
     expect(within(dialog).getByText("Slow phases")).toBeInTheDocument()
     expect(within(dialog).getByText("chat_payload.messages_json")).toBeInTheDocument()
@@ -292,6 +293,7 @@ function performancePayload() {
         }
       ]
     },
+    event_count: 3,
     events: [
       {
         event: "syrus.performance.slow_job",

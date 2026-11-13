@@ -1200,7 +1200,8 @@ function AdminNav({
   const pluginPages = useQuery({
     queryKey: ["admin", "plugin_pages"],
     queryFn: fetchAdminPluginPages,
-    staleTime: 30_000
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false
   })
   const [searchQuery, setSearchQuery] = useState("")
 

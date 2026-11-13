@@ -41,10 +41,11 @@ module SyrusDev
           return Mcp::Tools.invalid("performance diagnostics are only available for Syrus repositories") unless McpToolPolicy.syrus_repository?(context.repository)
         end
 
-        payload = PerformanceLogging.suppress do
-          PerformancePayload.new(params: { limit: limit, revision_scope: revision_scope }).as_json
+        payload, events = PerformanceLogging.suppress do
+          builder = PerformancePayload.new(params: { limit: limit, revision_scope: revision_scope })
+          [ builder.as_json, include_events ? builder.events_json[:events] : [] ]
         end
-        payload = sanitized_payload(payload, include_events: include_events)
+        payload = sanitized_payload(payload, events: events, include_events: include_events)
         MCP::Tool::Response.new([ { type: "text", text: JSON.generate(payload) } ])
       rescue StandardError => e
         Rails.logger.error("[SyrusDev::ReadPerformanceDiagnosticsTool] #{e.class}: #{e.message}")
@@ -53,7 +54,7 @@ module SyrusDev
 
       private
 
-      def sanitized_payload(payload, include_events:)
+      def sanitized_payload(payload, events:, include_events:)
         {
           enabled: payload[:enabled],
           current_revision: payload[:current_revision],
@@ -63,7 +64,7 @@ module SyrusDev
           baseline: sanitized_baseline(payload[:baseline]),
           summaries: sanitized_summaries(payload[:summaries])
         }.tap do |result|
-          result[:events] = Array(payload[:events]).map { |event| sanitized_event(event) } if include_events
+          result[:events] = events.map { |event| sanitized_event(event) } if include_events
         end
       end
 

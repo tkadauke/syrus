@@ -1,5 +1,6 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { useLocation, useNavigate } from "react-router-dom"
+import { useRef } from "react"
 import { fetchAdminOperationalLogs, type OperationalLogRevisionScope, type OperationalLogRow, type OperationalLogsPayload } from "../api/adminOperationalLogs"
 import { AdminDataTablePanel, type AdminDataTablePanelConfig, AdminEventFilterBar, AdminEventLogTable, type AdminEventLogTableColumn, AdminEventPageShell, AdminEventPanelMessage, formatEventDate, shortRevision } from "@app/components/AdminEventLogPanel"
 import { usePageTitle } from "@app/hooks/usePageTitle"
@@ -19,6 +20,9 @@ export function AdminOperationalLogs() {
     queryFn: () => fetchAdminOperationalLogs(search),
     placeholderData: keepPreviousData
   })
+  const filterSchema = logs.data?.filter_schema
+  const filterSchemaRef = useRef(filterSchema)
+  if (filterSchema) filterSchemaRef.current = filterSchema
 
   function navigateSearch(params: URLSearchParams) {
     const next = params.toString()
@@ -41,7 +45,7 @@ export function AdminOperationalLogs() {
       eyebrow={t("section_label")}
       title={t("operational_logs.heading")}
     >
-      <OperationalLogFilters payload={logs.data} search={search} onNavigate={navigateSearch} />
+      <OperationalLogFilters filterSchema={filterSchemaRef.current} payload={logs.data} search={search} onNavigate={navigateSearch} />
 
       {logs.isPending ? <AdminEventPanelMessage>{t("operational_logs.loading")}</AdminEventPanelMessage> : null}
       {logs.isError ? <AdminEventPanelMessage tone="error">{errorMessage(logs.error, t("operational_logs.error_load"))}</AdminEventPanelMessage> : null}
@@ -52,9 +56,9 @@ export function AdminOperationalLogs() {
 
 export default AdminOperationalLogs
 
-function OperationalLogFilters({ onNavigate, payload, search }: { onNavigate: (params: URLSearchParams) => void; payload?: OperationalLogsPayload; search: string }) {
+function OperationalLogFilters({ filterSchema, onNavigate, payload, search }: { filterSchema?: OperationalLogsPayload["filter_schema"]; onNavigate: (params: URLSearchParams) => void; payload?: OperationalLogsPayload; search: string }) {
   const { t } = useT("admin")
-  return <AdminEventFilterBar clearLabel={t("operational_logs.clear")} filter={payload?.filter} filterSchema={payload?.filter_schema} fields={[
+  return <AdminEventFilterBar clearLabel={t("operational_logs.clear")} filter={payload?.filter} filterSchema={filterSchema} fields={[
     { name: "query", label: t("operational_logs.query"), placeholder: t("operational_logs.query_placeholder") },
     { name: "since", label: t("operational_logs.since"), defaultValue: "1h", placeholder: "1h" },
     { name: "until", label: t("operational_logs.until"), placeholder: t("operational_logs.until_placeholder") },
