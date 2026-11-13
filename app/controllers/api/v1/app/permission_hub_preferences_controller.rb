@@ -7,7 +7,7 @@ module Api
           Current.user.update_permission_hub_mode!(mode)
           render json: preferences_payload
         rescue ArgumentError
-          render_error("validation_failed", "Choose Simple or Advanced.", status: :unprocessable_content)
+          render_error("validation_failed", I18n.t("api.permission_hub_preferences.invalid_mode"), status: :unprocessable_content)
         end
 
         private
