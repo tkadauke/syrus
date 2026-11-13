@@ -44,14 +44,12 @@ RSpec.describe Coworkers::WorkspaceCandidateValidator, :allow_host_execution do
   it "rejects invalid JSON in a pathname containing a newline" do
     relative = "unusual\nname.json"
     @path.join(relative).write("{broken\n")
-    git = instance_double(GitRunner)
-    allow(git).to receive(:run).with("diff", "--name-only", "-z", "--diff-filter=U", chdir: @path.to_s).and_return("")
-    allow(git).to receive(:capture).and_return(instance_double(ProcessRunner::CaptureResult, success?: true))
-    allow(git).to receive(:run)
-      .with("diff", "--name-only", "-z", "--diff-filter=ACMR", @base_sha, "HEAD", chdir: @path.to_s)
-      .and_return("#{relative}\0")
-    expect { described_class.new(@path, git:).validate!(base_sha: @base_sha) }
-      .to raise_error(described_class::ValidationError, /unusual\nname\.json is invalid/)
+    commit!("invalid unusual path")
+
+    expect { validate! }.to raise_error(described_class::ValidationError) do |error|
+      expect(error.relative_path).to eq(relative)
+      expect(error.message).to include("is invalid")
+    end
   end
 
   it "rejects unmerged index entries from NUL-delimited Git output" do
