@@ -133,6 +133,22 @@ describe("entityStore", () => {
     expect(readEntity("runs", 300)?.fields.state).toBe("running")
   })
 
+  it("normalizes collapsed workflow steps without requiring run detail", () => {
+    expect(() => normalizeJobDetailPayload({
+      job: { id: 42, state: "running", issue_title: "Collapsed workflows", updated_at: "2026-09-01T00:00:00Z" },
+      workflows: [
+        {
+          id: 100,
+          state: "running",
+          updated_at: "2026-09-01T00:00:00Z",
+          steps: [{ id: 200, state: "running", updated_at: "2026-09-01T00:00:00Z" }]
+        }
+      ]
+    } as unknown as JobDetailPayload)).not.toThrow()
+
+    expect(readEntity("steps", 200)?.fields.state).toBe("running")
+  })
+
   it("normalizes chat sessions, messages, repositories, and materialized jobs", () => {
     normalizeChatPayload({
       chat: {
