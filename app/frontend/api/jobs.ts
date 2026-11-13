@@ -1738,17 +1738,21 @@ function deriveWorkflowPaths(workflow: JobWorkflow, jobId: string): JobWorkflow 
     app_force_push_branch_path: `${workflowBase}/force_push_branch`,
     app_discard_branch_output_path: `${workflowBase}/discard_branch_output`,
     app_dismiss_path: `${workflowBase}/dismiss`,
-    steps: workflow.steps.map((step) => Object.prototype.hasOwnProperty.call(step, "runs") ? ({
-      ...step,
-      runs: step.runs.map((run) => ({
-        ...run,
-        app_artifacts_path: `/api/v1/app/jobs/${jobId}/runs/${run.id}/artifacts`,
-        app_stop_path: `/api/v1/app/jobs/${jobId}/runs/${run.id}/stop`,
-        app_diagnose_path: `/api/v1/app/jobs/${jobId}/runs/${run.id}/diagnose`,
-        app_resume_path: `/api/v1/app/jobs/${jobId}/resume`,
-        app_grade_log_path: run.grade_log_available ? `/api/v1/app/jobs/${jobId}/runs/${run.id}/grade_log` : null
-      }))
-    }) : step)
+    steps: workflow.steps.map((step) =>
+      Object.prototype.hasOwnProperty.call(step, "runs")
+        ? {
+            ...step,
+            runs: step.runs.map((run) => ({
+              ...run,
+              app_artifacts_path: `/api/v1/app/jobs/${jobId}/runs/${run.id}/artifacts`,
+              app_stop_path: `/api/v1/app/jobs/${jobId}/runs/${run.id}/stop`,
+              app_diagnose_path: `/api/v1/app/jobs/${jobId}/runs/${run.id}/diagnose`,
+              app_resume_path: `/api/v1/app/jobs/${jobId}/resume`,
+              app_grade_log_path: run.grade_log_available ? `/api/v1/app/jobs/${jobId}/runs/${run.id}/grade_log` : null
+            }))
+          }
+        : step
+    )
   }
 }
 
