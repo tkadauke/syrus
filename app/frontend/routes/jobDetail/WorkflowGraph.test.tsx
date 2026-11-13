@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render as testingRender, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
@@ -7,6 +7,12 @@ import { stubVirtualizerMeasurements } from "../../test/virtualizerMeasurements"
 import { StepCoworkerReviewPanel, WorkflowsTab } from "./WorkflowGraph"
 
 stubVirtualizerMeasurements()
+
+function render(ui: Parameters<typeof testingRender>[0]) {
+  return testingRender(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>
+  )
+}
 
 describe("StepCoworkerReviewPanel", () => {
   it("distinguishes named identity, provider provenance, immutable evidence, and durable memory", () => {
@@ -131,7 +137,7 @@ describe("WorkflowsTab", () => {
     )
 
     expect(fetchSpy).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole("button", { name: "show_more" }))
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith(`/api/v1/app/workflows/${summary.id}/detail`, expect.objectContaining({ signal: expect.any(AbortSignal) })))
     expect(await screen.findByRole("button", { name: /Implement/ })).toBeInTheDocument()
   })

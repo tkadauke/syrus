@@ -1,7 +1,7 @@
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import type { ReactNode } from "react"
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { PluginUiSlot } from "../../pluginUiSlots"
 import { matchingReviewContribution, renderReviewContribution, type ReviewContribution } from "../../pluginReviewContributions"
@@ -88,6 +88,7 @@ import {
 import type { BranchDivergence, BranchDivergenceCommitList, BranchDivergenceComparison } from "./branchDivergence"
 import { workflowBranchDivergence } from "./branchDivergence"
 import { mergeTranscriptLogs } from "./transcript"
+import { jobWorkflowDetailQueryKey } from "./queryKeys"
 
 // Workflow / step / run execution-graph rendering extracted from JobDetail.tsx.
 //
@@ -501,24 +502,12 @@ function WorkflowCard({
   const { t } = useT("jobs")
   const alreadyDetailed = workflow.steps.every((step) => Object.prototype.hasOwnProperty.call(step, "runs"))
   const [open, setOpen] = useState(alreadyDetailed)
-  const [detail, setDetail] = useState<JobWorkflow | null>(alreadyDetailed ? workflow : null)
-  const [detailError, setDetailError] = useState<unknown>(null)
-  const [detailLoading, setDetailLoading] = useState(false)
-  useEffect(() => {
-    if (!open || detail || alreadyDetailed) return undefined
-
-    const controller = new AbortController()
-    setDetailLoading(true)
-    fetchWorkflowDetail(payload.job.id, workflow.id, controller.signal)
-      .then(setDetail)
-      .catch((error) => {
-        if (!controller.signal.aborted) setDetailError(error)
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setDetailLoading(false)
-      })
-    return () => controller.abort()
-  }, [alreadyDetailed, detail, open, payload.job.id, workflow.id])
+  const detailQuery = useQuery({
+    queryKey: jobWorkflowDetailQueryKey(payload.job.id, workflow.id),
+    queryFn: ({ signal }) => fetchWorkflowDetail(payload.job.id, workflow.id, signal),
+    enabled: open && !alreadyDetailed
+  })
+  const detail = alreadyDetailed ? workflow : detailQuery.data
   const displayedWorkflow = detail || workflow
   const stepItems = workflowStepItems(displayedWorkflow.steps)
   const branchDivergence = workflowBranchDivergence(displayedWorkflow)
@@ -563,13 +552,13 @@ function WorkflowCard({
           ) : null}
           {!alreadyDetailed ? (
             <Button aria-expanded={open} onClick={() => setOpen((value) => !value)} variant="secondary">
-              {open ? t("show_less") : t("show_more")}
+              {open ? t("common:show_less") : t("common:show_more")}
             </Button>
           ) : null}
         </div>
       </div>
-      {open && detailLoading ? <PanelMessage>{t("loading")}</PanelMessage> : null}
-      {open && detailError ? <PanelMessage tone="error">{errorMessage(detailError, t("load_error"))}</PanelMessage> : null}
+      {open && detailQuery.isLoading ? <PanelMessage>{t("loading")}</PanelMessage> : null}
+      {open && detailQuery.error ? <PanelMessage tone="error">{errorMessage(detailQuery.error, t("load_error"))}</PanelMessage> : null}
       {workflow.dismissable && workflow.app_dismiss_path ? (
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1" data-testid={`workflow-dismiss-${workflow.id}`}>
           {workflow.blocked_reason_text ? <p className="min-w-0 flex-1 truncate text-xs text-text-muted">{workflow.blocked_reason_text}</p> : null}
