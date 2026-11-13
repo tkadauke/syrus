@@ -279,7 +279,7 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle, :allow_host_execution do
     expect(conflict.recovery_ref).to match(/\A[0-9a-f]{40}\z/)
     expect(background_path.join("SOUL.md").read).to include("<<<<<<<", "role: foreground", "role: background")
     preserved = run_git("show", "#{conflict.recovery_ref}:SOUL.md", chdir: @remote)
-    expect(preserved).to include("<<<<<<<", "role: foreground", "role: background")
+    expect(preserved).to eq("role: background\n")
     expect(home_file("SOUL.md")).to eq("role: foreground\n")
   end
 
@@ -461,7 +461,7 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle, :allow_host_execution do
       expect(run_git("rev-parse", "coworkers/maya", chdir: @remote).strip).to eq(home_before)
       expect(home_file("UNTESTED_FEATURES.md")).not_to include("<<<<<<<")
       refs = run_git("for-each-ref", "--format=%(refname:short)", "refs/heads/coworker-recovery", chdir: @remote).lines.map(&:strip)
-      expect(refs.map { |ref| ref.split("/").last }).to contain_exactly("home", "source", "attempt")
+      expect(refs.map { |ref| ref.split("/").last }).to contain_exactly("home", "source")
       home_ref = refs.find { |ref| ref.end_with?("/home") }
       expect(run_git("rev-parse", home_ref, chdir: @remote).strip).to eq(home_before)
       expect(run_git("show", "#{refs.find { |ref| ref.end_with?('/source') }}:UNTESTED_FEATURES.md", chdir: @remote))
