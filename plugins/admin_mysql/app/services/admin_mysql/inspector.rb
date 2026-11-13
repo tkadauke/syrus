@@ -31,7 +31,7 @@ module AdminMysql
         }
         if requested.include?("live")
           processes = process_list(limit: limit, include_idle: include_idle)
-          payload.merge!(connection_summary: connection_summary(processes: processes), process_list: processes)
+          payload.merge!(connection_summary: connection_summary, process_list: processes)
         end
         if requested.include?("configuration")
           payload.merge!(adapter: connection.adapter_name, database: connection.current_database, variables: variables, status: status)
@@ -131,7 +131,7 @@ module AdminMysql
       }
     end
 
-    def connection_summary(processes:)
+    def connection_summary
       status_values = status_hash(%w[
         Threads_connected
         Threads_running
@@ -144,14 +144,15 @@ module AdminMysql
         wait_timeout
         interactive_timeout
       ])
-      sleeping = processes.count { |process| process[:command].to_s.casecmp?("sleep") }
+      threads_connected = integer(status_values["Threads_connected"])
+      threads_running = integer(status_values["Threads_running"])
 
       {
-        threads_connected: integer(status_values["Threads_connected"]),
-        threads_running: integer(status_values["Threads_running"]),
+        threads_connected: threads_connected,
+        threads_running: threads_running,
         max_used_connections: integer(status_values["Max_used_connections"]),
         max_connections: integer(variable_values["max_connections"]),
-        sleeping_connections: sleeping,
+        sleeping_connections: [ threads_connected - threads_running, 0 ].max,
         aborted_connects: integer(status_values["Aborted_connects"]),
         max_connection_errors: integer(status_values["Connection_errors_max_connections"]),
         wait_timeout: integer(variable_values["wait_timeout"]),
