@@ -53,6 +53,27 @@ describe("AdminQueue worker health charts", () => {
     expect(screen.getByText(JSON.stringify([{ job_id: 42 }]))).toBeInTheDocument()
   })
 
+  it("renders truncated argument previews with their original length", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(activeQueuePayload({
+      jobs: [
+        {
+          arguments: { truncated: true, preview: '["long argument', original_length: 812 },
+          claimed_at: "2026-05-30T12:00:00Z",
+          class_name: "RunJob",
+          created_at: "2026-05-30T11:59:00Z",
+          id: 1,
+          priority: 0,
+          scheduled_at: "2026-05-30T11:59:00Z",
+          queue_name: "runs"
+        }
+      ]
+    })))
+
+    renderAdminQueue("/admin/queue/active")
+
+    expect(await screen.findByText('["long argument… (812 chars)')).toBeInTheDocument()
+  })
+
   it("sorts active queue tables through shareable query params", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(activeQueuePayload({
       jobs: [
