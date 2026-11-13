@@ -9,23 +9,25 @@ import { AdminPerformance } from "./AdminPerformance"
 describe("AdminPerformance", () => {
   it("truncates long metadata in the slow phases table and exposes full value via title", async () => {
     const longMetadata = { extension_point: "agent_provider", provider: "AgentProviders::Claude", op: "invoke_one_shot", extra: "x".repeat(80) }
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse({
-      ...performancePayload(),
-      summaries: {
-        ...performancePayload().summaries,
-        slow_phases: [
-          {
-            phase: "plugin.agent_provider.invoke_one_shot",
-            count: 1,
-            total_duration_ms: 4240,
-            average_duration_ms: 4240,
-            max_duration_ms: 4240,
-            last_seen_at: "2026-08-01T14:32:46Z",
-            recent_metadata: longMetadata
-          }
-        ]
-      }
-    }))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse({
+        ...performancePayload(),
+        summaries: {
+          ...performancePayload().summaries,
+          slow_phases: [
+            {
+              phase: "plugin.agent_provider.invoke_one_shot",
+              count: 1,
+              total_duration_ms: 4240,
+              average_duration_ms: 4240,
+              max_duration_ms: 4240,
+              last_seen_at: "2026-08-01T14:32:46Z",
+              recent_metadata: longMetadata
+            }
+          ]
+        }
+      })
+    )
 
     renderRoute(<AdminPerformance />)
     await waitFor(() => expect(screen.queryByText("Loading performance logs...")).not.toBeInTheDocument())
@@ -41,9 +43,12 @@ describe("AdminPerformance", () => {
     renderRoute(<AdminPerformance />)
 
     expect(await screen.findByRole("heading", { name: "Performance" })).toBeInTheDocument()
-    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/performance?revision_scope=current&since=1h", expect.objectContaining({
-      credentials: "same-origin"
-    }))
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/admin/performance?revision_scope=current&since=1h",
+      expect.objectContaining({
+        credentials: "same-origin"
+      })
+    )
 
     await waitFor(() => expect(screen.queryByText("Loading performance logs...")).not.toBeInTheDocument())
     const summary = await screen.findByRole("region", { name: "Performance summary" })
@@ -100,10 +105,15 @@ describe("AdminPerformance", () => {
   })
 
   it("opens SQL explain results in a visual modal and supports safe analyze", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch")
+    const fetchSpy = vi
+      .spyOn(window, "fetch")
       .mockResolvedValueOnce(jsonResponse(performancePayload()))
       .mockResolvedValueOnce(jsonResponse(explainPayload({ analyzeSafe: true })))
-      .mockResolvedValueOnce(jsonResponse(explainPayload({ mode: "analyze", analyzeSafe: true, rows: [{ "EXPLAIN": "-> Table scan on jobs (actual time=0.1..1.2 rows=25 loops=1)" }] })))
+      .mockResolvedValueOnce(
+        jsonResponse(
+          explainPayload({ mode: "analyze", analyzeSafe: true, rows: [{ EXPLAIN: "-> Table scan on jobs (actual time=0.1..1.2 rows=25 loops=1)" }] })
+        )
+      )
 
     renderRoute(<AdminPerformance />)
     await screen.findByRole("heading", { name: "Performance" })
@@ -121,10 +131,13 @@ describe("AdminPerformance", () => {
     fireEvent.click(screen.getByRole("button", { name: "Run EXPLAIN ANALYZE" }))
     await screen.findByText(/EXPLAIN ANALYZE executed this read-only query/)
 
-    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/performance/explain", expect.objectContaining({
-      method: "POST",
-      body: expect.stringContaining("\"analyze\":true")
-    }))
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/admin/performance/explain",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"analyze":true')
+      })
+    )
 
     fireEvent.click(screen.getByRole("button", { name: "Run EXPLAIN" }))
     expect(await screen.findByText("Table jobs")).toBeInTheDocument()
@@ -132,7 +145,8 @@ describe("AdminPerformance", () => {
   })
 
   it("shows request-level SQL fingerprints from a slow request summary", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch")
+    const fetchSpy = vi
+      .spyOn(window, "fetch")
       .mockResolvedValueOnce(jsonResponse(performancePayload()))
       .mockResolvedValueOnce(jsonResponse({ events: performancePayload().events, event_count: 3 }))
       .mockResolvedValueOnce(jsonResponse(explainPayload({ analyzeSafe: true })))
@@ -156,19 +170,20 @@ describe("AdminPerformance", () => {
     fireEvent.click(screen.getByRole("button", { name: "Run EXPLAIN" }))
     await screen.findByText("Table jobs")
 
-    expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/admin/performance/explain", expect.objectContaining({
-      method: "POST",
-      body: expect.stringContaining("SELECT 1 AS one")
-    }))
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/admin/performance/explain",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining("SELECT 1 AS one")
+      })
+    )
   })
 })
 
 function renderRoute(children: ReactNode) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter initialEntries={["/app-shell/admin/performance"]}>
-        {children}
-      </MemoryRouter>
+      <MemoryRouter initialEntries={["/app-shell/admin/performance"]}>{children}</MemoryRouter>
     </QueryClientProvider>
   )
 }
@@ -178,12 +193,26 @@ function performancePayload() {
     enabled: true,
     current_revision: "abcdef1234567890",
     revision_scope: "current",
-    filter: { and: [{ field: "since", op: "is", value: "1h" }, { field: "revision_scope", op: "is", value: "current" }] },
+    filter: {
+      and: [
+        { field: "since", op: "is", value: "1h" },
+        { field: "revision_scope", op: "is", value: "current" }
+      ]
+    },
     filter_schema: [
       { field: "app_revision", label: "SHA", bucket: "text", operators: ["is"] },
       { field: "since", label: "Since", bucket: "text", operators: ["is"] },
       { field: "until", label: "Until", bucket: "text", operators: ["is"] },
-      { field: "revision_scope", label: "Revision scope", bucket: "enum", operators: ["is"], values: [{ value: "current", label: "Current SHA" }, { value: "all", label: "All SHAs" }] }
+      {
+        field: "revision_scope",
+        label: "Revision scope",
+        bucket: "enum",
+        operators: ["is"],
+        values: [
+          { value: "current", label: "Current SHA" },
+          { value: "all", label: "All SHAs" }
+        ]
+      }
     ],
     thresholds: {
       slow_request_ms: 1000,
@@ -252,7 +281,7 @@ function performancePayload() {
           slow_sql_count: 2,
           last_seen_at: "2026-08-01T14:32:44Z",
           recent_active_job_id: "job-123",
-          recent_trigger_reasons: [ "duration", "sql_duration" ]
+          recent_trigger_reasons: ["duration", "sql_duration"]
         }
       ],
       slow_phases: [
@@ -276,7 +305,7 @@ function performancePayload() {
           max_duration_ms: 1500,
           average_api_duration_ms: 1200,
           max_api_duration_ms: 1200,
-          recent_api_request_ids: [ "frontend-request-1" ],
+          recent_api_request_ids: ["frontend-request-1"],
           last_seen_at: "2026-08-01T14:32:47Z",
           recent_metadata: { subject: "job", rows_count: "0" }
         }
@@ -305,7 +334,7 @@ function performancePayload() {
         queue_name: "polling",
         sql_count: 60,
         sql_duration_ms: 8_000,
-        trigger_reasons: [ "duration", "sql_duration" ]
+        trigger_reasons: ["duration", "sql_duration"]
       },
       {
         event: "syrus.performance.slow_request",
@@ -355,7 +384,15 @@ function performancePayload() {
   }
 }
 
-function explainPayload({ analyzeSafe, mode = "explain", rows }: { analyzeSafe: boolean; mode?: "explain" | "analyze"; rows?: Array<Record<string, unknown>> }) {
+function explainPayload({
+  analyzeSafe,
+  mode = "explain",
+  rows
+}: {
+  analyzeSafe: boolean
+  mode?: "explain" | "analyze"
+  rows?: Array<Record<string, unknown>>
+}) {
   return {
     adapter: "mysql2",
     mode,
@@ -363,7 +400,9 @@ function explainPayload({ analyzeSafe, mode = "explain", rows }: { analyzeSafe: 
     placeholder_substituted: true,
     timeout_ms: mode === "analyze" ? 1000 : null,
     analyze_safe: analyzeSafe,
-    analyze_safety_reason: analyzeSafe ? "Read-only single-statement query; EXPLAIN ANALYZE will run with a short statement timeout." : "Only SELECT/CTE statements can be analyzed.",
+    analyze_safety_reason: analyzeSafe
+      ? "Read-only single-statement query; EXPLAIN ANALYZE will run with a short statement timeout."
+      : "Only SELECT/CTE statements can be analyzed.",
     rows: rows ?? [
       {
         EXPLAIN: JSON.stringify({
@@ -379,17 +418,19 @@ function explainPayload({ analyzeSafe, mode = "explain", rows }: { analyzeSafe: 
         })
       }
     ],
-    json_plan: rows ? null : {
-      query_block: {
-        table: {
-          table_name: "jobs",
-          access_type: "ALL",
-          rows_examined_per_scan: 1000,
-          filtered: 10,
-          cost_info: { query_cost: "42.00" }
-        }
-      }
-    },
+    json_plan: rows
+      ? null
+      : {
+          query_block: {
+            table: {
+              table_name: "jobs",
+              access_type: "ALL",
+              rows_examined_per_scan: 1000,
+              filtered: 10,
+              cost_info: { query_cost: "42.00" }
+            }
+          }
+        },
     warnings: []
   }
 }
