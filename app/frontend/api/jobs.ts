@@ -1230,6 +1230,7 @@ export type PreviewLogRecord = {
 export type PreviewLogsPayload = {
   preview: PreviewEnvironmentRecord
   logs: PreviewLogRecord[]
+  cursor?: string
 }
 
 export type PreviewActionPayload = {
@@ -2055,12 +2056,14 @@ export function fetchPickerJobs(params: { state?: string; repo?: string; q?: str
 // Path-based — used for both job-scoped previews (JobDetail) and
 // repository-scoped "preview main" previews (RepositoryDetail); see
 // components/PreviewPanel.tsx.
-export function fetchPreview(path: string) {
-  return getJson<PreviewStatusPayload>(path)
+export function fetchPreview(path: string, includeProjects = true) {
+  const separator = path.includes("?") ? "&" : "?"
+  return getJson<PreviewStatusPayload>(includeProjects ? path : `${path}${separator}include_projects=false`)
 }
 
-export function fetchPreviewLogs(path: string) {
-  return getJson<PreviewLogsPayload>(path)
+export function fetchPreviewLogs(path: string, since?: string) {
+  const separator = path.includes("?") ? "&" : "?"
+  return getJson<PreviewLogsPayload>(since ? `${path}${separator}since=${encodeURIComponent(since)}` : path)
 }
 
 export function startPreview(path: string, projectId?: string | null) {

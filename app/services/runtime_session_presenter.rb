@@ -12,7 +12,7 @@ module RuntimeSessionPresenter
   # if it were provider-reported metadata like `url`/`port`.
   INTERNAL_METADATA_KEYS = %w[latest_frame_document_id].freeze
 
-  def session_payload(session)
+  def session_payload(session, agent_input_lease: :load)
     {
       id: session.id,
       provider_key: session.provider_key,
@@ -26,8 +26,12 @@ module RuntimeSessionPresenter
       latest_frame_url: session.latest_frame_url,
       latest_frame_at: session.latest_frame_at&.iso8601,
       last_error: session.last_error,
-      active_agent_input_lease: lease_payload(session.active_agent_input_lease)
+      active_agent_input_lease: lease_payload(agent_input_lease == :load ? session.active_agent_input_lease : agent_input_lease)
     }
+  end
+
+  def index_payload(session, agent_input_lease: nil)
+    session_payload(session, agent_input_lease: agent_input_lease).except(:capabilities, :metadata)
   end
 
   def lease_payload(lease)

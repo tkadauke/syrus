@@ -41,6 +41,17 @@ RSpec.describe "App API job preview", type: :request do
       )
     end
 
+    it "omits project choices from polls and validates unchanged responses" do
+      create_preview_env(job, state: "running", expires_at: 10.minutes.from_now)
+
+      get preview_path(job), params: { include_projects: false }, as: :json
+      etag = response.headers.fetch("ETag")
+      expect(parse_body).not_to have_key("preview_projects")
+
+      get preview_path(job), params: { include_projects: false }, headers: { "If-None-Match" => etag }, as: :json
+      expect(response).to have_http_status(:not_modified)
+    end
+
     it "includes the preview URL when running" do
       env = create_preview_env(job, state: "running", expires_at: 10.minutes.from_now)
 

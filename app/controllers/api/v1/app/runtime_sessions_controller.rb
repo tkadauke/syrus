@@ -16,8 +16,11 @@ module Api
 
         # GET /api/v1/app/chats/:chat_id/runtime_sessions
         def index
-          sessions = @chat_session.runtime_sessions.order(:created_at)
-          render json: { runtime_sessions: sessions.map { |session| session_payload(session) } }
+          sessions = @chat_session.runtime_sessions.order(:created_at).to_a
+          leases = active_input_leases(sessions)
+          payload = { runtime_sessions: sessions.map { |session| index_session_payload(session, leases) } }
+          validator = [ sessions.max_by(&:updated_at)&.updated_at, leases.values.flatten.max_by(&:updated_at)&.updated_at ]
+          render json: payload if stale?(etag: validator, public: false)
         end
 
         # GET /api/v1/app/chats/:chat_id/runtime_sessions/:id
@@ -28,8 +31,8 @@ module Api
         # GET /api/v1/app/chats/:chat_id/runtime_sessions/:id/logs
         def logs
           cursor = params[:cursor].presence || 0
-          limit = params[:limit].presence
-          result = provider_for(@runtime_session).logs(@runtime_session.id, cursor, { limit: limit }.compact)
+          limit = params.fetch(:limit, 200).to_i.clamp(1, 1_000)
+          result = provider_for(@runtime_session).logs(@runtime_session.id, cursor, { limit: limit })
           render json: result
         rescue RuntimeSessionProviders::ConfigurationError => e
           render_error("validation_failed", e.message, status: :unprocessable_content)
@@ -169,6 +172,22 @@ module Api
           RuntimeSessionPresenter.session_payload(runtime_session).merge(
             active_user_input_lease: RuntimeSessionPresenter.lease_payload(current_user_input_lease(runtime_session))
           )
+        end
+
+        def index_session_payload(runtime_session, leases)
+          session_leases = leases.fetch(runtime_session.id, [])
+          RuntimeSessionPresenter.index_payload(
+            runtime_session,
+            agent_input_lease: session_leases.find { |lease| lease.owner == "agent" }
+          ).merge(
+            active_user_input_lease: RuntimeSessionPresenter.lease_payload(
+              session_leases.find { |lease| lease.owner == "user" && lease.owner_ref == "operator:#{Current.user.id}" }
+            )
+          )
+        end
+
+        def active_input_leases(sessions)
+          RuntimeControlLease.active.for_mode("input").where(runtime_session_id: sessions.map(&:id)).group_by(&:runtime_session_id)
         end
 
         def current_user_input_lease(runtime_session = @runtime_session)

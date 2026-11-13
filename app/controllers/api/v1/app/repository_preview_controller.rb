@@ -13,7 +13,10 @@ module Api
           return unless repository
 
           env = repository.preview_environments.order(created_at: :desc).first
-          render json: { preview: env ? preview_json(env) : nil }
+          payload = { preview: env ? preview_json(env) : nil }
+          validator = payload.deep_dup
+          validator.dig(:preview)&.delete(:url)
+          render json: payload if stale?(etag: validator, public: false)
         end
 
         def logs
@@ -27,7 +30,8 @@ module Api
           end
 
           begin
-            logs = PreviewLogClient.call(env, lines: params.fetch(:lines, PreviewLogReader::DEFAULT_LINES))
+            lines = params.fetch(:lines, PreviewLogReader::DEFAULT_LINES).to_i.clamp(1, PreviewLogReader::MAX_LINES)
+            result = PreviewLogClient.call(env, lines: lines, since: params[:since])
           rescue PreviewLogClient::Unavailable
             render_error("preview_logs_unavailable", I18n.t("api.preview.logs_unavailable"), status: :service_unavailable)
             return
@@ -35,7 +39,8 @@ module Api
 
           render json: {
             preview: preview_json(env),
-            logs: logs.map { |log| preview_log_json(log) }
+            logs: result.logs.map { |log| preview_log_json(log) },
+            cursor: result.cursor
           }
         end
 

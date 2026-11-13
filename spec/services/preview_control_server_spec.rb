@@ -46,6 +46,21 @@ RSpec.describe PreviewControlServer do
     )
   end
 
+  it "returns only log bytes added after an opaque cursor" do
+    FileUtils.mkdir_p(File.join(workspace_path, "log"))
+    log_path = File.join(workspace_path, "log", "development.log")
+    File.write(log_path, "first\nsecond\n")
+    env = create_env
+    first = json_body(call("/environments/#{env.id}/logs"))
+
+    File.open(log_path, "a") { |file| file.write("third\n") }
+    response = call("/environments/#{env.id}/logs?since=#{CGI.escape(first.fetch("cursor"))}")
+
+    expect(json_body(response)["logs"]).to include(
+      a_hash_including("path" => "log/development.log", "content" => "\nthird")
+    )
+  end
+
   it "returns 404 for an unknown environment id" do
     response = call("/environments/999999/logs")
 

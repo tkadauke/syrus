@@ -46,6 +46,19 @@ RSpec.describe "App API runtime sessions", type: :request do
       expect(parse_body.dig("runtime_sessions", 0, "active_user_input_lease", "id")).to eq(lease.id)
     end
 
+    it "omits static provider blobs and supports conditional polling" do
+      sign_in_as(user)
+      build_runtime_session(capabilities: { "stream" => true }, metadata: { "port" => 3000 })
+
+      get "/api/v1/app/chats/#{chat_session.id}/runtime_sessions"
+      etag = response.headers.fetch("ETag")
+
+      expect(parse_body.fetch("runtime_sessions").first).not_to include("capabilities", "metadata")
+
+      get "/api/v1/app/chats/#{chat_session.id}/runtime_sessions", headers: { "If-None-Match" => etag }
+      expect(response).to have_http_status(:not_modified)
+    end
+
     it "404s when Coding Mode is disabled" do
       allow(Feature).to receive(:coding_mode_enabled?).and_return(false)
       sign_in_as(user)
@@ -87,6 +100,20 @@ RSpec.describe "App API runtime sessions", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body).to eq("entries" => [ "line-3" ], "cursor" => 4)
+    end
+
+
+    it "clamps the provider log limit" do
+      sign_in_as(user)
+      session = build_runtime_session
+      provider = instance_double("Runtime provider")
+      provider_class = class_double("Runtime provider class", new: provider)
+      allow(RuntimeSessionProviders).to receive(:for).and_return(provider_class)
+      allow(provider).to receive(:logs).and_return(entries: [], cursor: 0)
+
+      get "/api/v1/app/chats/#{chat_session.id}/runtime_sessions/#{session.id}/logs", params: { limit: 50_000 }
+
+      expect(provider).to have_received(:logs).with(session.id, 0, limit: 1_000)
     end
   end
 

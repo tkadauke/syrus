@@ -7,7 +7,13 @@ module Api
         def show
           job = find_readable_job
           env = job.preview_environments.order(created_at: :desc).first
-          render json: { preview: env ? preview_json(env) : nil, preview_projects: preview_projects(job).to_a, unavailable_reason: preview_projects(job).unavailable_reason }
+          payload = { preview: env ? preview_json(env) : nil }
+          if params[:include_projects].to_s != "false"
+            payload.merge!(preview_projects: preview_projects(job).to_a, unavailable_reason: preview_projects(job).unavailable_reason)
+          end
+          validator = payload.deep_dup
+          validator.dig(:preview)&.delete(:url)
+          render json: payload if stale?(etag: validator, public: false)
         end
 
         def logs
@@ -20,7 +26,7 @@ module Api
 
           begin
             lines = params.fetch(:lines, PreviewLogReader::DEFAULT_LINES).to_i.clamp(1, PreviewLogReader::MAX_LINES)
-            logs = PreviewLogClient.call(env, lines: lines)
+            result = PreviewLogClient.call(env, lines: lines, since: params[:since])
           rescue PreviewLogClient::Unavailable
             render_error("preview_logs_unavailable", I18n.t("api.preview.logs_unavailable"), status: :service_unavailable)
             return
@@ -28,7 +34,8 @@ module Api
 
           render json: {
             preview: preview_json(env),
-            logs: logs.map { |log| preview_log_json(log) }
+            logs: result.logs.map { |log| preview_log_json(log) },
+            cursor: result.cursor
           }
         end
 

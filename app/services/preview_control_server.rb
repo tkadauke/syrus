@@ -1,5 +1,6 @@
 require "puma"
 require "json"
+require "base64"
 
 # Internal-only HTTP control surface for the `preview` service process.
 #
@@ -51,7 +52,7 @@ class PreviewControlServer
     match = LOGS_PATH.match(request.path)
     return not_found unless match
 
-    logs_response(match[1].to_i, request.params["lines"])
+    logs_response(match[1].to_i, request.params["lines"], request.params["since"])
   rescue StandardError => e
     Rails.logger.error("[PreviewControlServer] #{e.class}: #{e.message}")
     json_response(500, error: "internal_error")
@@ -59,12 +60,23 @@ class PreviewControlServer
 
   private
 
-  def logs_response(environment_id, lines)
+  def logs_response(environment_id, lines, since)
     environment = with_connection { PreviewEnvironment.find_by(id: environment_id) }
     return not_found unless environment
 
-    logs = PreviewLogReader.call(environment, lines: lines.presence || PreviewLogReader::DEFAULT_LINES)
-    json_response(200, logs: logs.map { |log| { path: log.path, content: log.content, missing: log.missing } })
+    offsets = decode_offsets(since)
+    logs = PreviewLogReader.call(environment, lines: lines.presence || PreviewLogReader::DEFAULT_LINES, offsets: offsets)
+    payload = logs.map { |log| { path: log.path, content: log.content, missing: log.missing } }
+    cursor = Base64.urlsafe_encode64(JSON.generate(logs.to_h { |log| [ log.path, log.offset ] }), padding: false)
+    json_response(200, logs: payload, cursor: cursor)
+  end
+
+  def decode_offsets(cursor)
+    return {} if cursor.blank?
+
+    JSON.parse(Base64.urlsafe_decode64(cursor)).transform_values { |value| Integer(value) }
+  rescue ArgumentError, JSON::ParserError, TypeError
+    {}
   end
 
   def not_found

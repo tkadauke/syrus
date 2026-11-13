@@ -7,7 +7,7 @@ import type { ReactElement } from "react"
 import { AppChromeV2 } from "@app/routes/AppChromeV2"
 import { TerminalPane, TerminalRoute } from "./Terminal"
 import type { BootstrapPayload } from "@app/api/bootstrap"
-import type { TerminalSessionRecord, TerminalSessionsPayload } from "../api/terminal"
+import type { TerminalSessionRecord, TerminalSessionsPayload, TerminalWorkspaceRecord } from "../api/terminal"
 import i18n from "@app/i18n"
 
 const actionCable = vi.hoisted(() => {
@@ -151,6 +151,28 @@ describe("TerminalRoute", () => {
       )
     })
     expect(await screen.findByRole("tab", { name: "WF-100 - Follow-up" })).toBeInTheDocument()
+  })
+
+  it("loads workspace candidates only after the picker opens", async () => {
+    const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path === "/api/v1/app/terminal/workspaces") {
+        return Promise.resolve(jsonResponse({ workspaces: [workspace()] }))
+      }
+      return Promise.resolve(jsonResponse({ sessions: terminalSessionsPayload().sessions }))
+    })
+
+    renderTerminalRoute()
+    await screen.findByRole("tab", { name: "Scratch" })
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/terminal/workspaces", expect.anything())
+
+    fireEvent.click(screen.getByRole("button", { name: "+" }))
+
+    expect(await screen.findByRole("menuitem", { name: /WF-99 - Build terminal/ })).toBeInTheDocument()
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/v1/app/terminal/workspaces",
+      expect.objectContaining({ credentials: "same-origin" })
+    )
   })
 
   it("does not offer session creation to non-admin users", async () => {
@@ -584,7 +606,7 @@ function terminalSessionsPayload(overrides: Partial<TerminalSessionsPayload> = {
   }
 }
 
-function workspace(overrides: Partial<TerminalSessionsPayload["workspaces"][number]> = {}): TerminalSessionsPayload["workspaces"][number] {
+function workspace(overrides: Partial<TerminalWorkspaceRecord> = {}): TerminalWorkspaceRecord {
   return {
     key: "workflow:99",
     id: 99,

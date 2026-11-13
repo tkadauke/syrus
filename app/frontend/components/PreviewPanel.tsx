@@ -125,7 +125,7 @@ export function PreviewPanel({
 
   const preview = useQuery({
     queryKey: previewQueryKey,
-    queryFn: () => fetchPreview(previewPath),
+    queryFn: () => fetchPreview(previewPath, false),
     initialData: { preview: initialPreview, preview_projects: initialPreviewProjects },
     staleTime: 0,
     refetchInterval: (query) => {
@@ -364,10 +364,26 @@ function PreviewLogsModal({
 }) {
   const { t } = useT("jobs")
   const closeRef = useRef<HTMLButtonElement>(null)
+  const cursorRef = useRef<string | undefined>(undefined)
+  const queryClient = useQueryClient()
+  const logsQueryKey = [`${queryKeyPrefix}-preview-logs`, entityId] as const
 
   const logs = useQuery({
-    queryKey: [`${queryKeyPrefix}-preview-logs`, entityId],
-    queryFn: () => fetchPreviewLogs(previewLogsPath),
+    queryKey: logsQueryKey,
+    queryFn: async () => {
+      const next = await fetchPreviewLogs(previewLogsPath, cursorRef.current)
+      cursorRef.current = next.cursor
+      const previous = queryClient.getQueryData<Awaited<ReturnType<typeof fetchPreviewLogs>>>(logsQueryKey)
+      if (!previous || !previous.cursor) return next
+
+      const additions = new Map(next.logs.map((log) => [log.path, log]))
+      const merged = previous.logs.map((log) => {
+        const addition = additions.get(log.path)
+        additions.delete(log.path)
+        return addition ? { ...addition, content: `${log.content}${addition.content}` } : log
+      })
+      return { ...next, logs: [...merged, ...additions.values()] }
+    },
     staleTime: 0,
     refetchInterval: running ? POLL_INTERVAL_MS : false
   })

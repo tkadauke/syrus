@@ -10,13 +10,16 @@ class PreviewLogClient
   OPEN_TIMEOUT_SECONDS = 2
   READ_TIMEOUT_SECONDS = 5
 
-  def self.call(preview_environment, lines: PreviewLogReader::DEFAULT_LINES)
-    new(preview_environment, lines: lines).call
+  Result = Data.define(:logs, :cursor)
+
+  def self.call(preview_environment, lines: PreviewLogReader::DEFAULT_LINES, since: nil)
+    new(preview_environment, lines: lines, since: since).call
   end
 
-  def initialize(preview_environment, lines:)
+  def initialize(preview_environment, lines:, since: nil)
     @preview_environment = preview_environment
     @lines = lines
+    @since = since
   end
 
   def call
@@ -27,9 +30,10 @@ class PreviewLogClient
     raise Unavailable, "preview control endpoint returned #{response.code}" unless response.is_a?(Net::HTTPSuccess)
 
     parsed = JSON.parse(response.body)
-    Array(parsed["logs"]).map do |log|
-      PreviewLogReader::Log.new(path: log["path"], content: log["content"], missing: log["missing"])
+    logs = Array(parsed["logs"]).map do |log|
+      PreviewLogReader::Log.new(path: log["path"], content: log["content"], missing: log["missing"], offset: nil)
     end
+    Result.new(logs: logs, cursor: parsed["cursor"])
   rescue Errno::ECONNREFUSED, Errno::ETIMEDOUT, Net::OpenTimeout, Net::ReadTimeout, SocketError, JSON::ParserError => e
     raise Unavailable, e.message
   end
@@ -41,7 +45,7 @@ class PreviewLogClient
       host: host,
       port: PreviewControlServer::PORT,
       path: "/environments/#{@preview_environment.id}/logs",
-      query: "lines=#{@lines}"
+      query: URI.encode_www_form({ lines: @lines, since: @since }.compact)
     )
 
     Net::HTTP.start(uri.host, uri.port, open_timeout: OPEN_TIMEOUT_SECONDS, read_timeout: READ_TIMEOUT_SECONDS) do |http|

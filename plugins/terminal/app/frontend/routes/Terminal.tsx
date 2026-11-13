@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useMemo, useState } from "react"
 import { useLocation, useNavigate } from "react-router-dom"
-import { createTerminalSession, fetchTerminalSessions, killTerminalSession, type TerminalSessionRecord, type TerminalSessionsPayload } from "../api/terminal"
+import { createTerminalSession, fetchTerminalSessions, fetchTerminalWorkspaces, killTerminalSession, type TerminalSessionRecord, type TerminalSessionsPayload } from "../api/terminal"
 import { useT } from "@app/hooks/useT"
 import { usePageTitle } from "@app/hooks/usePageTitle"
 import { CloseIcon } from "@app/components/CloseIcon"
@@ -35,8 +35,15 @@ export function TerminalRoute() {
   })
 
   const sessions = sessionsQuery.data?.sessions ?? []
-  const workspaces = sessionsQuery.data?.workspaces ?? []
   const [workspaceSearch, setWorkspaceSearch] = useState("")
+  const workspacesQuery = useQuery({
+    queryKey: ["terminal_workspaces", workspaceSearch],
+    queryFn: ({ signal }) => fetchTerminalWorkspaces(workspaceSearch, { signal }),
+    enabled: workspacePickerOpen,
+    placeholderData: sessionsQuery.data?.workspaces ? { workspaces: sessionsQuery.data.workspaces } : undefined,
+    staleTime: 15_000
+  })
+  const workspaces = workspacesQuery.data?.workspaces ?? []
   const pickerGroups = useMemo(() => workspacePickerGroups(workspaces, workspaceSearch), [workspaces, workspaceSearch])
   const activeSession = sessions.find((session) => session.id === activeSessionId) ?? sessions[0] ?? null
 
@@ -44,7 +51,7 @@ export function TerminalRoute() {
     mutationFn: createTerminalSession,
     onSuccess(payload) {
       queryClient.setQueryData(terminalSessionsQueryKey, (current: TerminalSessionsPayload | undefined) => {
-        if (!current) return { sessions: [payload.session], workspaces: [] }
+        if (!current) return { sessions: [payload.session] }
         return {
           ...current,
           sessions: [payload.session, ...current.sessions.filter((session) => session.id !== payload.session.id)]

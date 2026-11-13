@@ -19,9 +19,9 @@ RSpec.describe PreviewLogClient do
       body: { logs: [ { path: "log/development.log", content: "hi", missing: false } ] }.to_json
     )
 
-    logs = described_class.call(env, lines: 50)
+    result = described_class.call(env, lines: 50)
 
-    expect(logs).to contain_exactly(
+    expect(result.logs).to contain_exactly(
       have_attributes(path: "log/development.log", content: "hi", missing: false)
     )
   end

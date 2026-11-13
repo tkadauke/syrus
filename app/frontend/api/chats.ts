@@ -1988,6 +1988,8 @@ export type RuntimeSession = {
   active_user_input_lease?: RuntimeControlLease | null
 }
 
+export type RuntimeSessionSummary = Omit<RuntimeSession, "capabilities" | "metadata">
+
 export type RuntimeSessionLogs = {
   entries: string[]
   cursor: number | string
@@ -2002,7 +2004,7 @@ function runtimeSessionsBasePath(chatId: string | number) {
 }
 
 export function fetchRuntimeSessions(chatId: string | number) {
-  return getJson<{ runtime_sessions: RuntimeSession[] }>(runtimeSessionsBasePath(chatId))
+  return getJson<{ runtime_sessions: RuntimeSessionSummary[] }>(runtimeSessionsBasePath(chatId))
 }
 
 export function fetchRuntimeSession(chatId: string | number, sessionId: number) {

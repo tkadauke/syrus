@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   RUNTIME_SESSION_ACTIVE_STATES,
   captureRuntimeArtifact,
+  fetchRuntimeSession,
   fetchRuntimeSessionLogs,
   fetchRuntimeSessions,
   releaseRuntimeControl,
@@ -12,7 +13,8 @@ import {
   takeRuntimeControl,
   type RuntimeInputEvent,
   type RuntimeControlLease,
-  type RuntimeSession
+  type RuntimeSession,
+  type RuntimeSessionSummary
 } from "../api/chats"
 import { useT } from "../hooks/useT"
 import { StatusPill } from "../components/StatusPill"
@@ -40,7 +42,11 @@ function runtimeSessionsQueryKey(chatId: string | number) {
   return ["chats", String(chatId), "runtime_sessions"] as const
 }
 
-function sessionIsActive(session: RuntimeSession | undefined): boolean {
+function runtimeSessionQueryKey(chatId: string | number, sessionId: number) {
+  return ["chats", String(chatId), "runtime_sessions", sessionId] as const
+}
+
+function sessionIsActive(session: RuntimeSessionSummary | undefined): boolean {
   return Boolean(session && RUNTIME_SESSION_ACTIVE_STATES.includes(session.state))
 }
 
@@ -446,12 +452,21 @@ function ControlPanel({
   )
 }
 
-function RuntimeSessionDetail({ chatId, session }: { chatId: string | number; session: RuntimeSession }) {
+function RuntimeSessionDetail({ chatId, summary }: { chatId: string | number; summary: RuntimeSessionSummary }) {
   const { t } = useT("chat")
   const queryClient = useQueryClient()
   const [myLease, setMyLease] = useState<RuntimeControlLease | null>(null)
   const [captureError, setCaptureError] = useState<string | null>(null)
-  const active = sessionIsActive(session)
+  const detail = useQuery({
+    queryKey: runtimeSessionQueryKey(chatId, summary.id),
+    queryFn: () => fetchRuntimeSession(chatId, summary.id),
+    initialData: "capabilities" in summary ? summary as RuntimeSession : undefined,
+    staleTime: Infinity
+  })
+  const session: RuntimeSession = detail.data
+    ? { ...detail.data, ...summary }
+    : { ...summary, capabilities: {}, metadata: {} }
+  const active = sessionIsActive(summary)
   const LiveView = pluginRuntimeSessionViewComponentFor(session.provider_key)
   const hasLiveView = LiveView !== null
   const logs = useRuntimeLogs(chatId, hasLiveView ? null : session.id, !hasLiveView && active)
@@ -461,8 +476,9 @@ function RuntimeSessionDetail({ chatId, session }: { chatId: string | number; se
   }, [session.id, session.active_user_input_lease?.id, session.active_user_input_lease?.expires_at])
 
   function patchSession(updated: RuntimeSession) {
-    queryClient.setQueryData<{ runtime_sessions: RuntimeSession[] } | undefined>(runtimeSessionsQueryKey(chatId), (current) =>
-      current ? { runtime_sessions: current.runtime_sessions.map((candidate) => (candidate.id === updated.id ? updated : candidate)) } : current
+    queryClient.setQueryData(runtimeSessionQueryKey(chatId, updated.id), updated)
+    queryClient.setQueryData<{ runtime_sessions: RuntimeSessionSummary[] } | undefined>(runtimeSessionsQueryKey(chatId), (current) =>
+      current ? { runtime_sessions: current.runtime_sessions.map((candidate) => (candidate.id === updated.id ? { ...candidate, ...updated } : candidate)) } : current
     )
   }
 
@@ -581,7 +597,7 @@ export function RuntimePanel({ chatId }: { chatId: string | number }) {
           ))}
         </div>
       ) : null}
-      <RuntimeSessionDetail chatId={chatId} key={selected.id} session={selected} />
+      <RuntimeSessionDetail chatId={chatId} key={selected.id} summary={selected} />
     </div>
   )
 }

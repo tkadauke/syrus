@@ -5,7 +5,14 @@ module Api
         before_action :require_admin, only: :create
 
         def index
-          render json: sessions_payload
+          sessions = ::Terminal::Session.where(user: Current.user).running.order(started_at: :desc)
+          payload = { sessions: sessions.map { |session| session_json(session) } }
+          render json: payload if stale?(etag: payload, public: false)
+        end
+
+        def workspaces
+          payload = { workspaces: workspace_json }
+          render json: payload if stale?(etag: payload, public: false)
         end
 
         def create
@@ -50,19 +57,12 @@ module Api
           ::Terminal::Session.where(user: Current.user).find(params[:id])
         end
 
-        def sessions_payload
-          {
-            sessions: ::Terminal::Session.where(user: Current.user).running.order(started_at: :desc).map { |session| session_json(session) },
-            workspaces: workspace_json
-          }
-        end
-
         def session_json(session)
           ::Terminal::SessionSerializer.render(session)
         end
 
         def workspace_json
-          ::Terminal::WorkspaceCandidates.for(user: Current.user)
+          ::Terminal::WorkspaceCandidates.for(user: Current.user, query: params[:query])
         end
 
         def selected_candidate

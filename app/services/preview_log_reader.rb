@@ -2,16 +2,17 @@ class PreviewLogReader
   DEFAULT_LINES = 120
   MAX_LINES = 1000
 
-  Log = Data.define(:path, :content, :missing)
+  Log = Data.define(:path, :content, :missing, :offset)
 
-  def self.call(preview_environment, lines: DEFAULT_LINES)
-    new(preview_environment, lines: lines).call
+  def self.call(preview_environment, lines: DEFAULT_LINES, offsets: {})
+    new(preview_environment, lines: lines, offsets: offsets).call
   end
 
-  def initialize(preview_environment, lines:)
+  def initialize(preview_environment, lines:, offsets: {})
     @preview_environment = preview_environment
     @workspace_path = preview_environment.workspace_path
     @lines = [[Integer(lines.to_i), 1].max, MAX_LINES].min
+    @offsets = offsets
   end
 
   def call
@@ -21,7 +22,8 @@ class PreviewLogReader
       absolute = resolve_path(path)
       next unless absolute
 
-      Log.new(path: display_path(absolute), content: tail_file(absolute), missing: !File.exist?(absolute))
+      path_name = display_path(absolute)
+      Log.new(path: path_name, content: read_file(absolute, @offsets[path_name]), missing: !File.exist?(absolute), offset: file_size(absolute))
     end
   end
 
@@ -76,5 +78,20 @@ class PreviewLogReader
     File.readlines(path, chomp: true).last(@lines).join("\n")
   rescue Errno::ENOENT
     ""
+  end
+
+  def read_file(path, offset)
+    return tail_file(path) if offset.nil? || !File.exist?(path) || File.size(path) < offset
+
+    content = File.binread(path, File.size(path) - offset, offset).force_encoding(Encoding::UTF_8).scrub
+    offset.positive? && content.present? ? "\n#{content.chomp}" : content
+  rescue Errno::ENOENT
+    ""
+  end
+
+  def file_size(path)
+    File.exist?(path) ? File.size(path) : 0
+  rescue Errno::ENOENT
+    0
   end
 end
