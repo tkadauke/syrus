@@ -128,6 +128,41 @@ RSpec.describe Mcp::Sidecar, "agent insight chat tools" do
     expect(forbidden_repository.dig(:result, :content, 0, :text)).to include("repository not found or not accessible")
   end
 
+  it "does not grant an admin owner's global insight access to their coworker" do
+    enable!(true)
+    admin = Factories.user(admin: true)
+    admin_repository = Factories.repository(user: admin)
+    admin_chat = ChatSession.create!(user: admin, repository: admin_repository)
+    allow(AgentInsights::ChatToolSet).to receive(:coworker_chat?).with(admin_chat).and_return(true)
+    visible_job = Job.create!(user: admin, repository: admin_repository, kind: "agent_insight", priority: "low")
+    visible = AgentInsights::Suggestion.create!(
+      job: visible_job, repository: admin_repository, title: "Attached admin finding",
+      category: "configuration", severity: "low", confidence: 0.5
+    )
+    hidden_repository = Factories.repository(user: Factories.user)
+    hidden_job = Job.create!(user: hidden_repository.user, repository: hidden_repository, kind: "agent_insight", priority: "low")
+    hidden = AgentInsights::Suggestion.create!(
+      job: hidden_job, repository: hidden_repository, title: "Global admin finding",
+      category: "secret", severity: "low", confidence: 0.5
+    )
+    server = server_for(admin_chat, tier: :deferred, agent_actor: coworker)
+    _ = jsonrpc(server, "initialize", id: 0)
+
+    listed = call_tool(server, "list_insights")
+    read_visible = call_tool(server, "read_insight", id: visible.id)
+    read_hidden = call_tool(server, "read_insight", id: hidden.id)
+    forbidden_repository = call_tool(server, "list_insights", repository_id: hidden_repository.id)
+
+    expect(listed.dig(:result, :content, 0, :text)).to include("Attached admin finding")
+    expect(listed.dig(:result, :content, 0, :text)).not_to include("Global admin finding")
+    expect(read_visible.dig(:result, :isError)).to be_falsey
+    expect(read_hidden.dig(:result, :isError)).to be(true)
+    expect(read_hidden.dig(:result, :content, 0, :text)).to include("not found or not accessible")
+    expect(read_hidden.dig(:result, :content, 0, :text)).not_to include("Global admin finding")
+    expect(forbidden_repository.dig(:result, :isError)).to be(true)
+    expect(forbidden_repository.dig(:result, :content, 0, :text)).to include("repository not found or not accessible")
+  end
+
   it "lets repository chats retire a pending insight with a superseding Job" do
     enable!(true)
     insight_job = Job.create!(user: user, repository: repository, kind: "agent_insight", priority: "low")
