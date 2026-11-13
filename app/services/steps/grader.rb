@@ -120,13 +120,15 @@ module Steps
       git_status_before = capture_git_status(name: name)
       git_metadata_before = capture_git_metadata_digest
 
-      File.open(absolute_log_path, "wb") do |file|
+      grade_log, diagnostic_warning = open_grade_log(absolute_log_path, log_path)
+      grade_log.binmode
+      begin
         runner_result = run_with_span_recording(
           runner_command: runner_command,
           display_command: command,
           timeout_minutes: timeout_minutes,
           span_recorder: span_recorder,
-          file: file,
+          file: grade_log,
           sink: sink
         )
 
@@ -134,8 +136,8 @@ module Steps
         exit_code = timed_out ? TIMEOUT_EXIT_CODE : runner_result.exit_status
         trailing_chunk = span_recorder.flush_visible
         if trailing_chunk.present?
-          file.write(trailing_chunk)
-          file.flush
+          grade_log.write(trailing_chunk)
+          grade_log.flush
           sink.call(trailing_chunk, kind: "grade_log")
         end
         span_recorder.finalize!(
@@ -147,10 +149,12 @@ module Steps
 
         if timed_out
           timeout_message = "\n[timed out after #{timeout_minutes} minutes]\n"
-          file.write(timeout_message)
+          grade_log.write(timeout_message)
           log(timeout_message, kind: "grade_log")
           log("[grader:#{name}] timed out after #{timeout_minutes} minutes")
         end
+      ensure
+        grade_log.close
       end
 
       flush.call
@@ -189,7 +193,8 @@ module Steps
       diagnostic_text = "\n[grader:#{name}] failed (exit #{exit_code})\n"
       unless passed
         diagnostic_buffer << diagnostic_text
-        diagnostic_warning = append_grade_diagnostic(absolute_log_path, log_path, diagnostic_text)
+        append_warning = append_grade_diagnostic(absolute_log_path, log_path, diagnostic_text)
+        diagnostic_warning ||= append_warning
       end
 
       # Snapshot the result onto Step#details after all failure
@@ -708,6 +713,15 @@ module Steps
     def grader_log_path(name)
       safe_name = GraderLogArchive.sanitize_name(name)
       Pathname.new(".syrus/grade-output/iteration-#{run.iteration}/#{safe_name}.log")
+    end
+
+    def open_grade_log(path, relative_path)
+      flags = File::WRONLY | File::CREAT | File::TRUNC | nofollow_flag
+      [ File.open(path, flags, 0o600), nil ]
+    rescue SystemCallError, IOError => e
+      warning = grade_log_warning(relative_path, diagnostic_status(e, path))
+      log("[grader diagnostic warning] #{warning.to_json}", kind: "system")
+      [ File.open(File::NULL, "wb"), warning ]
     end
 
     def append_grade_diagnostic(path, relative_path, text)
