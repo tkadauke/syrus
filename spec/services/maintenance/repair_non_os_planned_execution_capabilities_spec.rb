@@ -35,7 +35,9 @@ RSpec.describe Maintenance::RepairNonOsPlannedExecutionCapabilities do
     unit = WorkUnit.create!(work_intent: intent, kind: "initial", state: "blocked", blocked_reason: "no_capable_worker", repository: repository, scope_type: "job", scope_id: job.id, workflow: workflow)
     unit.work_unit_members.create!(job: job, role: "primary")
     workflow.update_columns(
-      planned_execution_capabilities: { "os" => [ "linux" ], "runtime" => [ "node" ] },
+      planned_execution_capabilities: { "os" => [ "linux" ], "runtime" => [ "node" ] }
+    )
+    workflow.update!(
       artifacts: { "start_blocked_reason" => "no_capable_worker", "start_blocked_count" => 2 }
     )
     expect_any_instance_of(Run).to receive(:reenqueue!)

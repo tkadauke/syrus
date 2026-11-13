@@ -4108,7 +4108,7 @@ RSpec.describe StepDispatcher, "phase admission gate", :ci_only do
       finished_at: 10.minutes.ago
     )
     grader_fanout.runs.destroy_all
-    workflow.update_columns(
+    workflow.update!(
       artifacts: {
         "pause_reason" => StepDispatcher::PAUSE_REASON_RESOURCE_SAFETY,
         "pause_kind" => "hard_resource_pressure",

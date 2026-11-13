@@ -241,7 +241,9 @@ RSpec.describe "API: /api/v1/app/admin/stuck", type: :request do
     run.destroy!
     workflow.update_columns(
       state: "queued",
-      created_at: 10.minutes.ago,
+      created_at: 10.minutes.ago
+    )
+    workflow.update!(
       artifacts: {
         "start_blocked_reason" => StepDispatcher::MAIN_HEALTH_BLOCK_REASON,
         "start_blocked_next_check_at" => 3.minutes.from_now.iso8601

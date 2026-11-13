@@ -410,7 +410,9 @@ RSpec.describe "Work engine resilience regression matrix" do
         JobDependency.create!(job: job, depends_on_job: prerequisite, source: "manual")
         run.destroy!
         workflow.update_columns(
-          state: "queued",
+          state: "queued"
+        )
+        workflow.update!(
           artifacts: {
             "start_blocked_reason" => StepDispatcher::STACK_BLOCK_REASON,
             "start_blocked_next_check_at" => 5.minutes.from_now.iso8601
