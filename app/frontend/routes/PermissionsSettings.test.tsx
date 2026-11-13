@@ -232,8 +232,10 @@ describe("PermissionsSettingsRoute", () => {
       capability: "syrus.permissions@v1",
       operation: "syrus.permissions/list_permissions@v1",
       presentation: {
-        capability_name: "Syrus Permissions", capability_description: "Permits access to permission management.",
-        operation_name: "List Permissions", operation_description: "Permits an agent to list permissions."
+        capability_name: "Syrus Permissions",
+        capability_description: "Permits access to permission management.",
+        operation_name: "List Permissions",
+        operation_description: "Permits an agent to list permissions."
       }
     })
     const empty = { enabled: false, providers: [], delegations: [], human_only: { effects: ["financial"], capabilities: [] }, history: [] }
@@ -388,8 +390,10 @@ function payload() {
         operation: "attach_repository/attach_repository@v1",
         effects: ["internal_write"],
         presentation: {
-          capability_name: "Attach Repository", capability_description: "Permits access to repository bindings.",
-          operation_name: "Attach Repository", operation_description: "Permits an agent to attach a repository."
+          capability_name: "Attach Repository",
+          capability_description: "Permits access to repository bindings.",
+          operation_name: "Attach Repository",
+          operation_description: "Permits an agent to attach a repository."
         },
         risk: "medium",
         defaults: { "chat:planner": "ask" },
@@ -406,8 +410,10 @@ function payload() {
         operation: "cancel@v1",
         effects: ["internal_write"],
         presentation: {
-          capability_name: "Syrus Jobs", capability_description: "Permits access to Syrus jobs.",
-          operation_name: "Cancel Job", operation_description: "Permits an agent to cancel a job."
+          capability_name: "Syrus Jobs",
+          capability_description: "Permits access to Syrus jobs.",
+          operation_name: "Cancel Job",
+          operation_description: "Permits an agent to cancel a job."
         },
         risk: "medium",
         defaults: { "chat:planner": "ask" },

@@ -281,7 +281,9 @@ export function PermissionsSettingsRoute() {
                         <span>
                           {item.presentation.capability_name} — {item.presentation.operation_name}
                           <span className="block text-sm font-normal text-text-secondary">{permissionDescription(item, t)}</span>
-                          <code className="block text-xs text-text-muted">{item.capability} · {item.operation}</code>
+                          <code className="block text-xs text-text-muted">
+                            {item.capability} · {item.operation}
+                          </code>
                         </span>
                       }
                       onChange={() => setSelectedKeys(toggle(selectedKeys, keyFor(item)))}
@@ -299,7 +301,9 @@ export function PermissionsSettingsRoute() {
         </section>
       ) : null}
       {view === "resources" ? <ResourceView descriptors={descriptors} rules={rules} t={t} /> : null}
-      {view === "leases" ? <LeaseView descriptors={descriptors} leases={historyQuery.data?.active_leases ?? []} loading={historyQuery.isLoading} t={t} /> : null}
+      {view === "leases" ? (
+        <LeaseView descriptors={descriptors} leases={historyQuery.data?.active_leases ?? []} loading={historyQuery.isLoading} t={t} />
+      ) : null}
       {view === "history" ? <HistoryView descriptors={descriptors} entries={historyQuery.data?.history ?? []} loading={historyQuery.isLoading} t={t} /> : null}
       {view === "rules" ? (
         <section className="rounded-xl border border-border bg-surface-raised p-5">
@@ -328,7 +332,9 @@ export function PermissionsSettingsRoute() {
                 <div>
                   <p className="font-medium text-text-primary">
                     {presentationLabel(rule.capability, rule.operation, descriptors) || t("permissions.all_operations")}
-                    <code className="block text-xs font-normal text-text-muted">{rule.capability} · {rule.operation}</code>
+                    <code className="block text-xs font-normal text-text-muted">
+                      {rule.capability} · {rule.operation}
+                    </code>
                   </p>
                   <p className="mt-1 text-sm text-text-secondary">
                     {t("permissions.rule_summary", { policy: rule.policy, subject: t(`permissions.subjects.${rule.subject_selector_type}`) })}
@@ -509,7 +515,9 @@ function ResourceView({ descriptors, rules, t }: { descriptors: InheritedPermiss
                   <PolicyPill policy={rule.policy} t={t} />{" "}
                   <span className="ml-2">
                     {presentationLabel(rule.capability, rule.operation, descriptors) || t("permissions.unknown")}
-                    <code className="block text-xs text-text-muted">{rule.capability} · {rule.operation}</code>
+                    <code className="block text-xs text-text-muted">
+                      {rule.capability} · {rule.operation}
+                    </code>
                   </span>
                 </li>
               ))}
@@ -532,10 +540,10 @@ function LeaseView({ descriptors, leases, loading, t }: { descriptors: Inherited
           <article className="rounded-lg border border-border p-4" key={lease.id}>
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
-                <h3 className="font-medium">
-                  {presentationLabel(lease.capability, lease.operation, descriptors) || t("permissions.all_operations")}
-                </h3>
-                <code className="block text-xs text-text-muted">{lease.capability} · {lease.operation}</code>
+                <h3 className="font-medium">{presentationLabel(lease.capability, lease.operation, descriptors) || t("permissions.all_operations")}</h3>
+                <code className="block text-xs text-text-muted">
+                  {lease.capability} · {lease.operation}
+                </code>
                 <p className="mt-1 text-sm text-text-secondary">{t("permissions.lease_lifecycle", { subject: lease.subject, duration: lease.duration })}</p>
               </div>
               <PolicyPill policy="allow" t={t} />
@@ -565,7 +573,17 @@ function LeaseView({ descriptors, leases, loading, t }: { descriptors: Inherited
   )
 }
 
-function HistoryView({ descriptors, entries, loading, t }: { descriptors: InheritedPermission[]; entries: PermissionHistoryEntry[]; loading: boolean; t: Translate }) {
+function HistoryView({
+  descriptors,
+  entries,
+  loading,
+  t
+}: {
+  descriptors: InheritedPermission[]
+  entries: PermissionHistoryEntry[]
+  loading: boolean
+  t: Translate
+}) {
   return (
     <section className="rounded-xl border border-border bg-surface-raised p-5">
       <SectionHeading>{t("permissions.history_title")}</SectionHeading>
@@ -576,7 +594,12 @@ function HistoryView({ descriptors, entries, loading, t }: { descriptors: Inheri
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <h3 className="font-medium">{historyTitle(entry, descriptors, t)}</h3>
-                {entry.capability ? <code className="block text-xs text-text-muted">{String(entry.capability)}{entry.operation ? ` · ${String(entry.operation)}` : ""}</code> : null}
+                {entry.capability ? (
+                  <code className="block text-xs text-text-muted">
+                    {String(entry.capability)}
+                    {entry.operation ? ` · ${String(entry.operation)}` : ""}
+                  </code>
+                ) : null}
               </div>
               <time className="text-xs text-text-muted">{formatTime(entry.occurred_at, t)}</time>
             </div>
@@ -701,9 +724,13 @@ function InheritedRow({ item, onPreset, t }: { item: InheritedPermission; onPres
     <div className="py-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="font-medium">{item.presentation.capability_name} — {item.presentation.operation_name}</p>
+          <p className="font-medium">
+            {item.presentation.capability_name} — {item.presentation.operation_name}
+          </p>
           <p className="text-sm text-text-secondary">{permissionDescription(item, t)}</p>
-          <code className="text-xs text-text-muted">{item.capability} · {item.operation}</code>
+          <code className="text-xs text-text-muted">
+            {item.capability} · {item.operation}
+          </code>
         </div>
         <span className="rounded-full bg-surface px-2 py-1 text-xs text-text-muted">{t("permissions.read_only")}</span>
       </div>
