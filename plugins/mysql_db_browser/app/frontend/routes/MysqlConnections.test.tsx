@@ -79,6 +79,12 @@ function setupFetchMock(initial = [stagingConnection()], options: { createDelay?
         })
       )
     }
+    if (url === "/api/v1/app/admin/mysql_connections/credential_scope_options" && method === "GET") {
+      return Promise.resolve(jsonResponse({ credential_scope_options: {
+        scopes: [ { value: "user", label: "User" }, { value: "repository", label: "Repository" }, { value: "team", label: "Team" }, { value: "instance", label: "Instance" } ],
+        users: [{ id: 7, label: "Admin" }], repositories: [{ id: 9, label: "acme/widgets" }], teams: [{ id: 11, label: "Platform" }]
+      } }))
+    }
     if (url === "/api/v1/app/admin/mysql_connections" && method === "POST") {
       await options.createDelay
       if (options.createError) {
@@ -152,7 +158,7 @@ function setupFetchMock(initial = [stagingConnection()], options: { createDelay?
         })
       )
     }
-    if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/schema\/app_staging\/tables\/users$/.test(url) && method === "GET") {
+    if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/schema\/app_staging\/tables\/users(?:\?.*)?$/.test(url) && method === "GET") {
       return Promise.resolve(
         jsonResponse({
           database: "app_staging",
@@ -226,7 +232,7 @@ function setupFetchMock(initial = [stagingConnection()], options: { createDelay?
         })
       )
     }
-    if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/schema\/app_staging\/tables\/accounts$/.test(url) && method === "GET") {
+    if (/\/api\/v1\/app\/admin\/mysql_connections\/\d+\/schema\/app_staging\/tables\/accounts(?:\?.*)?$/.test(url) && method === "GET") {
       return Promise.resolve(
         jsonResponse({
           database: "app_staging",

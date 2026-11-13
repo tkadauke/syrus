@@ -20,9 +20,6 @@ export type MysqlTableSummary = {
   approximate_row_count: number | null
   data_length_bytes: number | null
   index_length_bytes: number | null
-  created_at: string | null
-  updated_at: string | null
-  comment: string | null
 }
 
 export type MysqlTablesSection =
@@ -100,8 +97,9 @@ export function fetchMysqlTables(connectionId: number, database: string) {
   return getJson<MysqlTablesSection>(`/api/v1/app/admin/mysql_connections/${connectionId}/schema/${encodeURIComponent(database)}/tables`)
 }
 
-export function fetchMysqlTableDetail(connectionId: number, database: string, table: string) {
+export function fetchMysqlTableDetail(connectionId: number, database: string, table: string, sections?: string[]) {
+  const params = sections?.length ? `?sections=${encodeURIComponent(sections.join(","))}` : ""
   return getJson<MysqlTableDetailResponse>(
-    `/api/v1/app/admin/mysql_connections/${connectionId}/schema/${encodeURIComponent(database)}/tables/${encodeURIComponent(table)}`
+    `/api/v1/app/admin/mysql_connections/${connectionId}/schema/${encodeURIComponent(database)}/tables/${encodeURIComponent(table)}${params}`
   )
 }
