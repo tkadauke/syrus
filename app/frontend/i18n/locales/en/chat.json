@@ -875,6 +875,8 @@
   "artifact_view": "View",
   "artifact_hide": "Hide",
   "image_attachments": "Image Attachments",
+  "media_load_more_artifacts": "Load more artifacts",
+  "media_load_more_images": "Load more images",
   "aria_close_settings": "Close chat settings",
   "provider": "Provider",
   "none": "None",

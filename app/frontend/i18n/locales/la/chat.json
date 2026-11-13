@@ -596,6 +596,8 @@
   "artifact_view": "Monstrare",
   "artifact_hide": "Celare",
   "image_attachments": "Adnexa imaginum",
+  "media_load_more_artifacts": "Plura artifacta onerare",
+  "media_load_more_images": "Plures imagines onerare",
   "aria_close_settings": "Optiones colloquii claudere",
   "provider": "Praebitor",
   "none": "Nulla",
