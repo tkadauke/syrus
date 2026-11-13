@@ -57,6 +57,7 @@ import { computePopoverPosition } from "./windows/popoverPosition.js"
 import { createWebAppWindow, type WebAppWindowHandle } from "./windows/webAppWindow.js"
 import { createAnnotationController, type AnnotationController } from "./windows/annotationOverlay.js"
 import { createRecorderHudController, type RecorderHudController } from "./windows/recorderHud.js"
+import { ApiVersionError, checkApiVersion, checkJsonResponseVersion, readApiJson } from "./apiVersion.js"
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -420,7 +421,15 @@ const appUserCableClient = new AppUserCableClient({
   createSocket: (url, protocol) => new WebSocket(url, protocol),
   cableUrl: (credentials) => appCableUrl(credentials.url, credentials.token),
   credentialsKey,
-  onMessage: (message) => desktopNotificationEvents.emit(DESKTOP_NOTIFICATION_EVENT, message),
+  onMessage: (message) => {
+    try {
+      checkApiVersion(message)
+      desktopNotificationEvents.emit(DESKTOP_NOTIFICATION_EVENT, message)
+    } catch (error) {
+      appUserCableClient.stop()
+      new Notification({ title: "Syrus update required", body: error instanceof Error ? error.message : String(error) }).show()
+    }
+  },
   onUnauthorized: (credentials) => {
     suspectTokenKey = credentialsKey(credentials)
   }
@@ -493,6 +502,7 @@ const validateCredentialsWithServer = async (credentials: Credentials) => {
   if (!response.ok) {
     throw new Error("The Syrus instance rejected those credentials.")
   }
+  await readApiJson(response)
 }
 
 const fetchBootstrap = async () => {
@@ -512,7 +522,7 @@ const fetchBootstrap = async () => {
     throw new Error("Could not load account details.")
   }
 
-  const payload = (await response.json()) as BootstrapPayload
+  const payload = await readApiJson<BootstrapPayload>(response)
   seedUnreadCountFromBootstrap(payload)
   return payload
 }
@@ -539,7 +549,7 @@ const syncUnreadCount = async () => {
     throw new Error("Could not load notifications.")
   }
 
-  const payload = (await response.json()) as { unread_count?: unknown }
+  const payload = await readApiJson<{ unread_count?: unknown }>(response)
   const count = normalizeUnreadCount(payload.unread_count)
   if (count !== null) {
     setUnreadCount(count)
@@ -568,7 +578,7 @@ const fetchNotifications = async () => {
     throw new Error(await responseErrorMessage(response, "Could not load notifications."))
   }
 
-  const payload = (await response.json()) as NotificationsPayload
+  const payload = await readApiJson<NotificationsPayload>(response)
   const count = normalizeUnreadCount(payload.unread_count)
   if (count !== null) {
     setUnreadCount(count)
@@ -594,7 +604,7 @@ const markNotificationRead = async (id: number) => {
     throw new Error(await responseErrorMessage(response, "Could not mark notification read."))
   }
 
-  const payload = (await response.json()) as NotificationPayload
+  const payload = await readApiJson<NotificationPayload>(response)
   const count = normalizeUnreadCount(payload.unread_count)
   if (count !== null) {
     setUnreadCount(count)
@@ -620,7 +630,7 @@ const markAllNotificationsRead = async () => {
     throw new Error(await responseErrorMessage(response, "Could not mark notifications read."))
   }
 
-  const payload = (await response.json()) as NotificationsPayload
+  const payload = await readApiJson<NotificationsPayload>(response)
   const count = normalizeUnreadCount(payload.unread_count)
   if (count !== null) {
     setUnreadCount(count)
@@ -646,7 +656,7 @@ const fetchJobList = async (credentials: Credentials, state: string) => {
     throw new Error(`Could not fetch ${state} jobs.`)
   }
 
-  return (await response.json()) as JobList
+  return readApiJson<JobList>(response)
 }
 
 const fetchInboxJobs = async () => {
@@ -677,14 +687,15 @@ const fetchJobDetail = async (jobID: number) => {
     throw new Error(await responseErrorMessage(response, `Could not load JOB-${jobID}.`))
   }
 
-  return (await response.json()) as JobDetail
+  return readApiJson<JobDetail>(response)
 }
 
 const responseErrorMessage = async (response: Response, fallback: string) => {
   try {
-    const payload = (await response.json()) as ApiErrorPayload
+    const payload = await readApiJson<ApiErrorPayload>(response)
     return payload.error?.message || fallback
-  } catch {
+  } catch (error) {
+    if (error instanceof ApiVersionError) throw error
     return fallback
   }
 }
@@ -712,7 +723,7 @@ const createDirectJob = async ({ repositoryId, prompt }: CreateJobRequest) => {
     throw new Error(await responseErrorMessage(response, "Could not create job."))
   }
 
-  return (await response.json()) as CreateJobResponse
+  return readApiJson<CreateJobResponse>(response)
 }
 
 const fetchRepositories = async () => {
@@ -732,7 +743,7 @@ const fetchRepositories = async () => {
     throw new Error("Could not load repositories.")
   }
 
-  const payload = (await response.json()) as RepositoryList
+  const payload = await readApiJson<RepositoryList>(response)
   return payload.active_repositories ?? payload.repositories ?? []
 }
 
@@ -753,6 +764,7 @@ const approveJob = async (jobID: number) => {
   if (!response.ok) {
     throw new Error(await responseErrorMessage(response, `Could not approve JOB-${jobID}.`))
   }
+  await checkJsonResponseVersion(response)
 }
 
 const retryJob = async (jobID: number) => {
@@ -772,6 +784,7 @@ const retryJob = async (jobID: number) => {
   if (!response.ok) {
     throw new Error(await responseErrorMessage(response, `Could not retry JOB-${jobID}.`))
   }
+  await checkJsonResponseVersion(response)
 }
 
 const submitJobFeedback = async (jobID: number, body: string) => {
@@ -793,6 +806,7 @@ const submitJobFeedback = async (jobID: number, body: string) => {
   if (!response.ok) {
     throw new Error(await responseErrorMessage(response, `Could not submit feedback for JOB-${jobID}.`))
   }
+  await checkJsonResponseVersion(response)
 }
 
 const getDesktopSettings = (): DesktopSettings => ({
@@ -1436,7 +1450,7 @@ const fetchAdminControls = async () => {
     throw new Error("Could not load admin controls.")
   }
 
-  const payload = (await response.json()) as AdminConsolePayload
+  const payload = await readApiJson<AdminConsolePayload>(response)
   return {
     polling_paused: payload.settings.polling_paused,
     runs_paused: payload.settings.runs_paused
@@ -1487,7 +1501,7 @@ const toggleAdminControl = async (sender: Electron.WebContents, control: AdminCo
     throw new Error(t("dialog.action_failed", { action: `${t(pause ? "dialog.pause" : "dialog.resume").toLowerCase()} ${label}` }))
   }
 
-  const payload = (await response.json()) as AdminConsolePayload
+  const payload = await readApiJson<AdminConsolePayload>(response)
   return {
     cancelled: false,
     controls: {

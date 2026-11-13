@@ -1,5 +1,6 @@
 import type { WebContents } from "electron"
 import type { Credentials } from "./credentialsStore.js"
+import { EXPECTED_API_VERSION } from "./apiVersion.js"
 
 // Auto-provisions the menu-bar Bearer token from the signed-in webview
 // session so users never paste a token by hand. The script runs inside the
@@ -12,6 +13,7 @@ const PROVISION_SCRIPT = `
       const status = await fetch("/api/v1/app/auth/status", { headers: { Accept: "application/json" } })
       if (!status.ok) return { state: "signed_out" }
       const statusPayload = await status.json()
+      if (typeof statusPayload?.v === "number" && statusPayload.v !== ${EXPECTED_API_VERSION}) return { state: "api_version_mismatch" }
       if (!statusPayload || statusPayload.authenticated !== true) return { state: "signed_out" }
 
       const meta = document.querySelector('meta[name="csrf-token"]')
@@ -26,6 +28,7 @@ const PROVISION_SCRIPT = `
       if (!response.ok) return { state: "error" }
 
       const payload = await response.json()
+      if (typeof payload?.v === "number" && payload.v !== ${EXPECTED_API_VERSION}) return { state: "api_version_mismatch" }
       return { state: "ok", apiToken: payload.api_token }
     } catch {
       return { state: "error" }
@@ -34,14 +37,7 @@ const PROVISION_SCRIPT = `
 `
 
 type ProvisionResult =
-  | "already-configured"
-  | "suppressed"
-  | "different-instance"
-  | "provisioned"
-  | "signed_out"
-  | "no_csrf"
-  | "forbidden"
-  | "error"
+  "already-configured" | "suppressed" | "different-instance" | "provisioned" | "signed_out" | "no_csrf" | "forbidden" | "api_version_mismatch" | "error"
 
 type ProvisionDeps = {
   getCachedCredentials: () => Credentials | null
@@ -75,11 +71,7 @@ let forbiddenInstanceUrl: string | null = null
 const EXECUTE_TIMEOUT_MS = 15_000
 const EXECUTE_TIMED_OUT = Symbol("execute-timed-out")
 
-export const maybeProvisionDesktopToken = async (
-  webContents: WebContents,
-  serverUrl: string,
-  deps: ProvisionDeps
-): Promise<ProvisionResult> => {
+export const maybeProvisionDesktopToken = async (webContents: WebContents, serverUrl: string, deps: ProvisionDeps): Promise<ProvisionResult> => {
   const normalized = normalizeUrl(serverUrl)
   const cached = deps.getCachedCredentials()
   const credentialGeneration = deps.getCredentialGeneration()
@@ -161,6 +153,8 @@ export const maybeProvisionDesktopToken = async (
   if (state === "signed_out" || state === "no_csrf") {
     return state
   }
+
+  if (state === "api_version_mismatch") return state
 
   return "error"
 }

@@ -13,6 +13,7 @@ import type {
 import type { AdmissionBreakdown, StartBlockedDetails } from "../types/startBlocked"
 import type { TypedArtifact } from "./artifacts"
 import type { GoalProvenance } from "./chats"
+import { checkApiVersion } from "./version"
 
 export type JobRepository = {
   id: number
@@ -1824,6 +1825,7 @@ export async function fetchJobSourceFileDiff(id: string | number, base: string, 
     credentials: "same-origin"
   })
   const body = await response.json()
+  checkApiVersion(body)
   if (response.ok) return { patch: body.patch as string }
   if (body?.error?.code === "interactive_diff_limit") return { limitMessage: body.error.message as string }
   throw new Error(body?.error?.message || "Unable to load full diff")

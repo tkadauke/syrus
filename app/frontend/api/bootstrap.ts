@@ -1,6 +1,7 @@
 import { getJson } from "./client"
 import type { ColorTheme } from "./themes"
 import type { ChatModelOption, ChatProviderOption, ChatSpeechToTextCapability } from "./chats"
+import { checkApiVersion } from "./version"
 
 export type SystemAlertAction =
   | {
@@ -127,7 +128,9 @@ export function readInitialBootstrap() {
   if (!element?.textContent) return null
 
   try {
-    return JSON.parse(element.textContent) as BootstrapPayload
+    const payload = JSON.parse(element.textContent) as BootstrapPayload
+    checkApiVersion(payload)
+    return payload
   } catch {
     return null
   }
