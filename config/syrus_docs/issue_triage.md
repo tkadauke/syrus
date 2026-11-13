@@ -1,10 +1,9 @@
 # Issue triage
 
 Every Job created from a labeled GitHub issue starts in `triaging`.
-`ClassifyIssueJob` runs `IngestionClassifier`, which asks the agent to place the
-request: attach it to an Epic, mark it a duplicate or already implemented, or
-leave it as ordinary valid work. The Job leaves `triaging` as soon as that
-question is answered.
+`ClassifyIssueJob` runs `IngestionClassifier`, which asks the agent to mark the
+request as a duplicate or already implemented, or leave it as ordinary valid
+work. The classifier never assigns Epic membership.
 
 Each classifier invocation creates a `JobClassificationAttempt` row. The
 attempt records when classification started and finished, whether it classified
@@ -41,6 +40,13 @@ a marker block:
 Epic: #123
 -->
 ```
+
+The referenced Epic must have been created by ingesting a GitHub Epic marker
+for the same user. Operator-created, chat-proposed, Linear-origin, and
+other-user Epics are never attached by a GitHub marker. An ignored marker leaves
+the Job unattached and records an `epic_marker_ignored` activity explaining why.
+Pending references retain their source origin and apply the same check when the
+Epic issue is ingested later.
 
 Job and Epic dependency lines use the same reference syntax:
 `Depends-on: #123`, `Depends-on: 123`, `Blocked-by: #123`, or

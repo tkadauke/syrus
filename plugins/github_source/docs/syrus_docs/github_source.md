@@ -71,6 +71,13 @@ files the Job with `triaging_reason: "pending_epic_ref"` and a
 has been ingested — can attach it). Neither path
 runs the plain-issue flow below.
 
+GitHub markers attach only to Epics whose persisted `origin` is
+`github_issue` and whose user owns the incoming issue. They cannot attach to
+operator-created, chat-proposed, Linear-origin, or other-user Epics. A rejected
+marker creates an ordinary unattached Job and records an
+`epic_marker_ignored` activity with the reason. Pending references store the
+GitHub origin and are checked again when resolved.
+
 **Plain issue ingestion.** For a genuinely new issue with no prior Job: if
 the issue already has a linked open PR (`linked_open_pr_for_issue`), the Job
 is created pre-closed with `closure_reason: "preempted"` and
