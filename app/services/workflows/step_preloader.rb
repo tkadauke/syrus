@@ -33,5 +33,15 @@ module Workflows
       end
       workflows
     end
+
+    # The same hazard inside one Workflow: once a query also filters on
+    # loop_id, iteration or kind, MySQL picks an index that does not end in
+    # position, so ORDER BY position filesorts the whole rows -- a grader
+    # loop iteration's rows carry every grader's output. Load unsorted and
+    # order in Ruby instead.
+    def self.sorted(scope, descending: false)
+      steps = scope.reorder(nil).to_a.sort_by { |step| [ step.position, step.id ] }
+      descending ? steps.reverse : steps
+    end
   end
 end

@@ -84,11 +84,10 @@ class LandingRepairOutcome
     return unless repair_head_sha && failing_context.present? && rerun_head_sha == repair_head_sha
     return unless matching_grade_context?(workflow, entries[index])
 
-    grader_steps = workflow.steps.where(
-      loop_id: collect_step.loop_id,
-      iteration: collect_step.iteration,
-      kind: "grader"
-    ).order(:position)
+    # Sorted in Ruby: see Workflows::StepPreloader.sorted.
+    grader_steps = Workflows::StepPreloader.sorted(
+      workflow.steps.where(loop_id: collect_step.loop_id, iteration: collect_step.iteration, kind: "grader")
+    )
     successful_rerun = grader_steps.select(&:succeeded?)
     return unless (failing_context - grader_identities(successful_rerun.map(&:details))).empty?
 

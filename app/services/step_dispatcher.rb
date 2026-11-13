@@ -1587,10 +1587,10 @@ class StepDispatcher
     #
     # Which kinds those are is declared on the step kind, so a second
     # fan-out step kind is a registry entry rather than another name here.
-    iteration_steps = @workflow.steps
-                            .where(loop_id: step.loop_id, iteration: step.iteration)
-                            .order(:position)
-    actual_kinds = iteration_steps.pluck(:kind)
+    iteration_steps = Workflows::StepPreloader.sorted(
+      @workflow.steps.where(loop_id: step.loop_id, iteration: step.iteration)
+    )
+    actual_kinds = iteration_steps.map(&:kind)
     inserted = Step::Kind.runtime_inserted_kinds
     comparable_kinds = iteration_steps.reject { |candidate| candidate.details.to_h["panel_member"] }
                                       .map(&:kind)
@@ -2162,8 +2162,11 @@ class StepDispatcher
 
     step.dependencies_settled?(settled_step: @from_step)
   rescue StandardError => e
+    # Fail closed. Treating a failed check as "ready" started a merge train's
+    # land step while its graders were still running; a Step left queued is
+    # picked up again by the next dispatch or the reconciler.
     Rails.logger.warn("[StepDispatcher] readiness check failed for Step ##{step.id}: #{e.class}: #{e.message}")
-    true
+    false
   end
 
   def skippable_queued_step?(step)
@@ -2199,11 +2202,9 @@ class StepDispatcher
   end
 
   def latest_retry_until_barrier_for(step, loop_id)
-    @workflow.steps
-             .where(loop_id: loop_id)
-             .where("position < ?", step.position)
-             .reorder(position: :desc, id: :desc)
-             .detect { |candidate| retry_until_barrier_step?(candidate) && !candidate.retry_until_barrier_superseded? }
+    Workflows::StepPreloader
+      .sorted(@workflow.steps.where(loop_id: loop_id).where("position < ?", step.position), descending: true)
+      .detect { |candidate| retry_until_barrier_step?(candidate) && !candidate.retry_until_barrier_superseded? }
   end
 
   def barrier_dependencies_for(step)
@@ -2224,7 +2225,7 @@ class StepDispatcher
   def grader_batch_for(collect_step, grader_kind)
     scope = @workflow.steps.where(kind: grader_kind, iteration: collect_step.iteration)
     scope = scope.where(loop_id: collect_step.loop_id) if collect_step.loop_id.present?
-    scope.where("position < ?", collect_step.position).order(:position).to_a
+    Workflows::StepPreloader.sorted(scope.where("position < ?", collect_step.position))
   end
 
   def skip_queued_step!(step)

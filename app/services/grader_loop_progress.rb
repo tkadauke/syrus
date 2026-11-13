@@ -186,10 +186,11 @@ class GraderLoopProgress
   end
 
   def failed_required_graders
-    workflow.steps
-      .where(kind: "grader", loop_id: collect_step.loop_id, iteration: collect_step.iteration, state: "failed")
-      .order(:position)
-      .select { |grader| grader.details.to_h["required"] }
+    # Failed graders carry the largest output of all, so this is the sort most
+    # likely to exhaust MySQL's buffer; order in Ruby (Workflows::StepPreloader.sorted).
+    Workflows::StepPreloader.sorted(
+      workflow.steps.where(kind: "grader", loop_id: collect_step.loop_id, iteration: collect_step.iteration, state: "failed")
+    ).select { |grader| grader.details.to_h["required"] }
   end
 
   def grader_result_payload(grader)
@@ -234,11 +235,13 @@ class GraderLoopProgress
   end
 
   def repair_step_payload
-    repair_step = workflow.steps
-      .where(loop_id: collect_step.loop_id, iteration: collect_step.iteration, kind: Step::AGENTIC_KINDS)
-      .where("position < ?", collect_step.position)
-      .order(position: :desc)
-      .first
+    # Sorted in Ruby: see Workflows::StepPreloader.sorted.
+    repair_step = Workflows::StepPreloader.sorted(
+      workflow.steps
+        .where(loop_id: collect_step.loop_id, iteration: collect_step.iteration, kind: Step::AGENTIC_KINDS)
+        .where("position < ?", collect_step.position),
+      descending: true
+    ).first
     return unless repair_step
 
     run = repair_step.latest_run

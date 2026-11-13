@@ -2242,6 +2242,58 @@ RSpec.describe StepDispatcher, :ci_only do
       expect(auto_merge.reload.position).to eq(6)
     end
 
+    # Regression: deciding the next loop iteration selected the iteration's
+    # whole steps rows -- every grader's output in `details` -- with ORDER BY
+    # position, which no index serves once loop_id and iteration are in the
+    # WHERE. MySQL raised `Out of sort memory`, the decision never ran, and a
+    # merge train landed nothing without ever starting its landing_fix.
+    it "decides the landing repair without sorting whole step rows" do
+      workflow_class = Class.new(Workflows::Base) do
+        steps Workflows::RetryUntil.new(
+                max_iterations: 2,
+                repair_first: false,
+                repair: [ :landing_fix ],
+                check: [ :grader_fanout, :grader_collect ]
+              ),
+              :push
+
+        def self.trigger_kind = "auto_merge"
+      end
+      retry_workflow = workflow_class.instantiate(job: job)
+      _grader_fanout, grader_collect = retry_workflow.steps.order(:position)
+
+      statements = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+        statements << [ payload[:sql], caller.grep(%r{/app/(services|models)/}).first(3) ]
+      end
+      begin
+        described_class.fail_from(grader_collect)
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscriber)
+      end
+
+      expect(retry_workflow.steps.where(kind: "landing_fix", iteration: 2)).to exist
+      whole_row_step_sorts = statements.select do |sql, _frames|
+        sql.match?(/select\s+[`"]?steps[`"]?\.\*/i) && sql.match?(/\border by\b/i) && sql.match?(/[`"]?loop_id[`"]?\s*=/i)
+      end
+      expect(whole_row_step_sorts).to be_empty, whole_row_step_sorts.map { |sql, frames| "#{sql}\n  #{frames.join("\n  ")}" }.join("\n")
+    end
+
+    it "leaves a step queued when its readiness check raises" do
+      workflow_class = Class.new(Workflows::Base) do
+        steps :prepare, :push
+
+        def self.trigger_kind = "auto_merge"
+      end
+      ready_workflow = workflow_class.instantiate(job: job)
+      prepare, push = ready_workflow.steps.order(:position)
+      prepare.update!(state: "succeeded")
+      allow(push).to receive(:dependencies_settled?).and_raise(ActiveRecord::StatementInvalid, "Out of sort memory")
+
+      dispatcher = described_class.new(ready_workflow, advancing_from: prepare)
+      expect(dispatcher.send(:ready?, push)).to be(false)
+    end
+
     it "skips the repair step and regrades directly when grader_collect only saw transient/infrastructure grader failures" do
       workflow_class = Class.new(Workflows::Base) do
         steps Workflows::RetryUntil.new(

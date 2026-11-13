@@ -210,20 +210,20 @@ class ChatJobStatusQuery
   def current_steps_by_workflow_id(workflow_ids)
     return {} if workflow_ids.empty?
 
-    active_steps = Step
-      .where(workflow_id: workflow_ids, state: %w[ queued running ])
-      .order(:workflow_id, :position, :id)
-      .to_a
+    # Sorted in Ruby: ORDER BY across a workflow_id IN list filesorts whole
+    # steps rows, whose details carry grader output (see Workflows::StepPreloader).
+    active_steps = steps_in_order(Step.where(workflow_id: workflow_ids, state: %w[ queued running ]))
       .each_with_object({}) { |step, result| result[step.workflow_id] ||= step }
 
     missing_workflow_ids = workflow_ids - active_steps.keys
     return active_steps if missing_workflow_ids.empty?
 
-    Step
-      .where(workflow_id: missing_workflow_ids)
-      .order(:workflow_id, :position, :id)
-      .to_a
+    steps_in_order(Step.where(workflow_id: missing_workflow_ids))
       .each_with_object(active_steps) { |step, result| result[step.workflow_id] = step }
+  end
+
+  def steps_in_order(scope)
+    scope.reorder(nil).to_a.sort_by { |step| [ step.workflow_id, step.position, step.id ] }
   end
 
   def failed_dependency_by_job_id(job_ids)

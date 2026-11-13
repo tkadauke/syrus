@@ -32,6 +32,30 @@ RSpec.describe Workflows::StepPreloader do
     expect(attached.steps.map(&:id)).to eq(expected)
   end
 
+  describe ".sorted" do
+    it "orders a filtered Step scope by position then id, without an ORDER BY" do
+      workflow = workflow_with_steps(210, [ 3, 1, 2, 1 ])
+      expected = workflow.steps.reorder(:position, :id).pluck(:id)
+
+      statements = []
+      subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") { |*, payload| statements << payload[:sql] }
+      begin
+        @sorted = described_class.sorted(workflow.steps.where(kind: "grader"))
+      ensure
+        ActiveSupport::Notifications.unsubscribe(subscriber)
+      end
+
+      expect(@sorted.map(&:id)).to eq(expected)
+      expect(statements.grep(/\border by\b/i)).to be_empty
+    end
+
+    it "reverses the order on request" do
+      workflow = workflow_with_steps(211, [ 1, 2, 3 ])
+
+      expect(described_class.sorted(workflow.steps, descending: true).map(&:position)).to eq([ 3, 2, 1 ])
+    end
+  end
+
   it "points each Step back at the Workflow instance it was attached to" do
     workflow = workflow_with_steps(202, [ 1 ])
 

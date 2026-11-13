@@ -75,6 +75,37 @@ RSpec.describe WorkEngine::Reconciler, :ci_only do
     expect(offenders).to be_empty
   end
 
+  # Regression: finding a queued Step's latest retry_until barrier selected the
+  # loop's whole steps rows ordered by position. With loop_id in the WHERE no
+  # index serves that order, grader output in `details` filled the sort
+  # buffer, and the reconciler raised `Out of sort memory` on every pass.
+  it "looks up retry_until barriers without sorting whole step rows" do
+    loop_id = SecureRandom.uuid
+    loop_workflow = Workflow.create!(job: job, user: job.user, trigger_kind: "merge_train",
+      agent_provider: job.agent_provider, state: "running", started_at: 10.minutes.ago)
+    grader = loop_workflow.steps.create!(kind: "grader", position: 0, state: "failed", loop_id: loop_id,
+      finished_at: 5.minutes.ago, details: { "output" => "x" * 2_048 })
+    collect = loop_workflow.steps.create!(kind: "grader_collect", position: 1, state: "cancelled", loop_id: loop_id,
+      finished_at: 5.minutes.ago)
+    push = loop_workflow.steps.create!(kind: "push", position: 2, state: "queued",
+      created_at: described_class::ORPHAN_RUN_GRACE_PERIOD.ago - 1.minute)
+    grader.update!(next_step: collect)
+    collect.update!(next_step: push)
+
+    statements = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") { |*, payload| statements << payload[:sql] }
+    begin
+      reconcile
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+    end
+
+    whole_row_loop_sorts = statements.select do |sql|
+      sql.match?(/select\s+[`"]?steps[`"]?\.\*/i) && sql.match?(/\border by\b/i) && sql.match?(/[`"]?loop_id[`"]?\s*=/i)
+    end
+    expect(whole_row_loop_sorts).to be_empty
+  end
+
   def kind(result, name)
     result.issues.find { |issue| issue.kind == name.to_s }
   end

@@ -202,6 +202,28 @@ RSpec.describe ChatJobStatusQuery do
       )
     end
 
+    # Regression: the current-step lookup ordered whole steps rows across an IN
+    # list of workflow ids, which MySQL filesorts -- grader output in
+    # `details` exhausted the sort buffer and broke chat status broadcasts.
+    it "finds each workflow's current step without sorting wide rows" do
+      workflows = 2.times.map do |index|
+        job = Factories.job_record(user: user, repository: repository, kind: "direct", issue_number: nil,
+          linked_chat_id: session.id, state: "open")
+        workflow = Workflow.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude", state: "running")
+        attach_work_unit(workflow, member_jobs: [ job ])
+        Step.create!(workflow: workflow, kind: "grader", state: "running", position: 3, details: { "output" => "x" * 1_024 })
+        Step.create!(workflow: workflow, kind: index.zero? ? "implement" : "prepare", state: "running", position: 1)
+        workflow
+      end
+
+      result = nil
+      offenders = wide_row_sort_statements { result = items_for(session) }
+
+      expect(offenders).to be_empty
+      expect(result.map { |item| item[:workflow_step] }).to contain_exactly("implement", "prepare")
+      expect(workflows.size).to eq(2)
+    end
+
     it "includes active queued workflows and suppresses awaiting review blockers" do
       _, job = confirmed_job_proposal(title: "Feedback Job", state: "implemented")
       workflow = Workflow.create!(

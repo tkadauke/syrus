@@ -1045,10 +1045,8 @@ module WorkEngine
     end
 
     def latest_retry_until_barrier_for_step(step, loop_id)
-      step.workflow.steps
-        .where(loop_id: loop_id)
-        .where("position < ?", step.position)
-        .reorder(position: :desc, id: :desc)
+      Workflows::StepPreloader
+        .sorted(step.workflow.steps.where(loop_id: loop_id).where("position < ?", step.position), descending: true)
         .detect { |candidate| retry_until_barrier_step_for_reconciliation?(candidate) && !candidate.retry_until_barrier_superseded? }
     end
 
