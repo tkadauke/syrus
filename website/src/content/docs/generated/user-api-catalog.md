@@ -142,6 +142,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/credentials/documents` | `api/v1/app/credentials/documents#create` |
 | core | DELETE | `/api/v1/app/credentials/documents/:id` | `api/v1/app/credentials/documents#destroy` |
 | core | GET | `/api/v1/app/credentials/documents/:id/file` | `api/v1/app/credentials/documents#file` |
+| core | GET | `/api/v1/app/credentials/options` | `api/v1/app/credentials#options` |
 | core | POST | `/api/v1/app/credentials/override_provider_availability` | `api/v1/app/credentials#override_provider_availability` |
 | core | GET | `/api/v1/app/credentials/provider_routing_rules` | `api/v1/app/provider_routing_rules#index` |
 | core | POST | `/api/v1/app/credentials/provider_routing_rules` | `api/v1/app/provider_routing_rules#create` |
@@ -317,8 +318,8 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | GET | `/api/v1/app/passkeys/registration_options` | `api/v1/app/passkeys#registration_options` |
 | core | POST | `/api/v1/app/performance_events` | `api/v1/app/performance_events#create` |
 | core | GET | `/api/v1/app/permission_requests` | `api/v1/app/permission_requests#index` |
-| core | GET | `/api/v1/app/permission_requests/:id` | `api/v1/app/permission_requests#show` |
 | core | DELETE | `/api/v1/app/permission_requests/:id` | `api/v1/app/permission_requests#dismiss` |
+| core | GET | `/api/v1/app/permission_requests/:id` | `api/v1/app/permission_requests#show` |
 | core | POST | `/api/v1/app/permission_requests/:id/decide` | `api/v1/app/permission_requests#decide` |
 | core | POST | `/api/v1/app/permission_requests/:id/items/:item_id/smart_decision` | `api/v1/app/permission_requests#smart_decide` |
 | core | POST | `/api/v1/app/permission_requests/batch_decide` | `api/v1/app/permission_requests#batch_decide` |
