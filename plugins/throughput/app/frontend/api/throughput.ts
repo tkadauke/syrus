@@ -138,7 +138,7 @@ export type RepositoryThroughputMetricsPayload = {
   version: number
   repository_id: number
   generated_at: string
-  windows: Record<RepositoryThroughputWindowKey, RepositoryThroughputWindow>
+  windows: Partial<Record<RepositoryThroughputWindowKey, RepositoryThroughputWindow>>
   repository: { id: number; slug: string; github_url: string }
   tabs: RepositoryTab[]
 }

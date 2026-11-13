@@ -49,6 +49,7 @@ export function RepositoryThroughputRoute({ repositoryId, prefix }: { repository
 function RepositoryThroughputDashboard({ metrics, windowKey, onWindowChange }: { metrics: RepositoryThroughputMetricsPayload; windowKey: RepositoryThroughputWindowKey; onWindowChange: (key: RepositoryThroughputWindowKey) => void }) {
   const { t } = useT("throughput")
   const window = metrics.windows[windowKey]
+  if (!window) return null
 
   return (
     <section aria-label={t("aria_repository_throughput")}>
