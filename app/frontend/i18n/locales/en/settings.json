@@ -79,6 +79,11 @@
   "permissions": {
     "title": "Permissions",
     "description": "Manage durable authority you have delegated to agents.",
+    "mode_label": "Permission Hub detail level",
+    "modes": {
+      "simple": "Simple",
+      "advanced": "Advanced"
+    },
     "profile_title": "Choose a permission profile",
     "profile_help": "Start with one clear posture. Fine-grained rules remain optional under Customize below.",
     "profile_for": "Profile for",

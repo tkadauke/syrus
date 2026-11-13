@@ -77,6 +77,7 @@ Rails.application.routes.draw do
         patch "user_time_zone", to: "user_time_zones#update"
         get "review_diff_settings", to: "review_diff_settings#show"
         patch "review_diff_settings", to: "review_diff_settings#update"
+        patch "permission_hub_preferences", to: "permission_hub_preferences#update"
         resource :tours, only: [] do
           post :dismiss
           delete :reset

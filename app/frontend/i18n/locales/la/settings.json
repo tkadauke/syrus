@@ -79,6 +79,11 @@
   "permissions": {
     "title": "Permissiones",
     "description": "Auctoritatem diuturnam agentibus delegatam administra.",
+    "mode_label": "Gradus explicationis permissionum",
+    "modes": {
+      "simple": "Simplex",
+      "advanced": "Provectus"
+    },
     "profile_title": "Formam permissionum elige",
     "profile_help": "Ab uno habitu claro incipe. Regulae subtiliores infra optionales manent.",
     "profile_for": "Forma pro",

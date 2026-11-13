@@ -18,6 +18,7 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     expect(payload.fetch("rules").pluck("id")).to eq([ mine.id ])
     expect(payload.dig("rules", 0, "editable")).to be(true)
     expect(payload.dig("rules", 0, "owner", "id")).to eq(user.id)
+    expect(payload.fetch("permission_hub_mode")).to eq("simple")
     expect(payload.fetch("current_profiles")).to include("interactive_chat" => nil)
     expect(payload.fetch("matrix_states").values).to all(include("interactive_chat", "coding_chat", "local_chat"))
 

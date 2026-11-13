@@ -481,6 +481,17 @@ class User < ApplicationRecord
     update!(ui_preferences: ui_preferences.merge("review_diff_settings" => ReviewDiffSettings.normalize(review_diff_settings.merge(settings))))
   end
 
+  def permission_hub_mode
+    ui_preferences["permission_hub_mode"].to_s.presence_in(%w[simple advanced]) || "simple"
+  end
+
+  def update_permission_hub_mode!(mode)
+    normalized_mode = mode.to_s.presence_in(%w[simple advanced])
+    raise ArgumentError, "invalid permission hub mode" unless normalized_mode
+
+    update!(ui_preferences: ui_preferences.merge("permission_hub_mode" => normalized_mode))
+  end
+
   def notification_preferences
     NOTIFICATION_PREFERENCES_DEFAULTS.merge(normalized_notification_preferences(read_attribute(:notification_preferences)))
   end

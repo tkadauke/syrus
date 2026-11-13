@@ -19,6 +19,11 @@ user has delegated to agents. User-owned rules can be added or revoked, while
 inherited core and provider policy remains visible and read-only with ownership
 and decisive-default explanations. Operational requests needing an immediate
 decision remain a separate approvals workflow rather than durable settings.
+It opens in a Simple view containing only the permission profiles. Advanced is
+an obvious, remembered per-user choice for the matrix, resources, rules,
+leases, history, and AI approvals; direct links to those workspaces open
+Advanced automatically. Inherited policy is shown once with the default
+Advanced matrix rather than repeated across its tabs.
 Matrix and resource views make it possible to compare evaluator-derived
 agent-by-capability states or inspect access by typed resource scope. The
 matrix marks authority that varies by resource rather than presenting it as a
@@ -1868,12 +1873,12 @@ nondelegable operations, and invocation-time safety classification still apply.
 Quiet isolated work is limited to low-risk reads and workspace writes; code
 execution still asks under Ask on first use and remains denied by Restricted.
 Operators select or change these profiles per interactive, Coding, or Local chat
-surface at the top of the Permissions Hub. The confirmation explains that a
+surface in the Permissions Hub's Simple view. The confirmation explains that a
 profile replaces that surface's custom rules, lists the exact rules removed and
 allow/ask/deny rules added, and previews the boundaries that remain enforced.
 Syrus refuses a stale confirmation if those rules change meanwhile.
-Fine-grained capability and resource controls stay available
-below, but are not required for initial setup.
+Fine-grained capability and resource controls stay available in Advanced, but
+are not required for initial setup.
 
 Core and plugin tools share five human-sized bundles: Workspace, Knowledge,
 Collaboration, Operations, and Administration. Plugin capabilities join these
