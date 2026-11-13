@@ -85,7 +85,7 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
   const [previewDocument, setPreviewDocument] = useState<PersonalDocument | null>(null)
   const searchParams = new URLSearchParams(location.search)
   const sortState: DocumentSortState = {
-    column: isDocumentSortColumn(searchParams.get("sort")) ? searchParams.get("sort") as DocumentSortColumn : DEFAULT_DOCUMENT_SORT.column,
+    column: isDocumentSortColumn(searchParams.get("sort")) ? (searchParams.get("sort") as DocumentSortColumn) : DEFAULT_DOCUMENT_SORT.column,
     direction: searchParams.get("direction") === "ascending" ? "ascending" : "descending"
   }
   const filterSchema = buildDocumentFilterSchema(t)
@@ -163,7 +163,11 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-gray-500 dark:text-gray-400">
-            {t("personal_documents.visible_range", { first: payload.pagination.first_item, last: payload.pagination.last_item, total: payload.pagination.total })}
+            {t("personal_documents.visible_range", {
+              first: payload.pagination.first_item,
+              last: payload.pagination.last_item,
+              total: payload.pagination.total
+            })}
           </span>
           <DataTableColumnMenu
             columns={columns}
@@ -202,11 +206,13 @@ function DocumentsPanel({ payload, onNotice }: { payload: PersonalDocumentsPaylo
             <DataTable.Row>
               <DataTable.Empty colSpan={columns.length}>{t("personal_documents.empty")}</DataTable.Empty>
             </DataTable.Row>
-          ) : payload.documents.map((document) => (
-            <DataTable.Row key={document.id}>
-              <DataTableColumnCells columns={columns} order={preferences.order} row={document} />
-            </DataTable.Row>
-          ))}
+          ) : (
+            payload.documents.map((document) => (
+              <DataTable.Row key={document.id}>
+                <DataTableColumnCells columns={columns} order={preferences.order} row={document} />
+              </DataTable.Row>
+            ))
+          )}
         </DataTable.Body>
       </DataTable.Root>
 
@@ -408,7 +414,10 @@ function DocumentOrigin({ document }: { document: PersonalDocument }) {
 
   return (
     <span className="text-xs text-gray-600 dark:text-gray-300">
-      {label} · <Link className="font-medium text-brand hover:underline" to={`${routePrefix(location.pathname)}${document.origin.chat.path}`}>{document.origin.chat.label}</Link>
+      {label} ·{" "}
+      <Link className="font-medium text-brand hover:underline" to={`${routePrefix(location.pathname)}${document.origin.chat.path}`}>
+        {document.origin.chat.label}
+      </Link>
     </span>
   )
 }
@@ -419,9 +428,25 @@ function DocumentsPagination({ pagination, search }: { pagination: PersonalDocum
 
   return (
     <nav aria-label={t("personal_documents.pagination_label")} className="mt-4 flex items-center justify-end gap-3 text-sm">
-      {pagination.page > 1 ? <Link className="text-brand hover:underline" to={pageSearch(search, pagination.page - 1)}>{t("personal_documents.previous")}</Link> : <span aria-disabled="true" className="text-gray-400">{t("personal_documents.previous")}</span>}
+      {pagination.page > 1 ? (
+        <Link className="text-brand hover:underline" to={pageSearch(search, pagination.page - 1)}>
+          {t("personal_documents.previous")}
+        </Link>
+      ) : (
+        <span aria-disabled="true" className="text-gray-400">
+          {t("personal_documents.previous")}
+        </span>
+      )}
       <span>{t("personal_documents.page_of", { page: pagination.page, total: pagination.total_pages })}</span>
-      {pagination.page < pagination.total_pages ? <Link className="text-brand hover:underline" to={pageSearch(search, pagination.page + 1)}>{t("personal_documents.next")}</Link> : <span aria-disabled="true" className="text-gray-400">{t("personal_documents.next")}</span>}
+      {pagination.page < pagination.total_pages ? (
+        <Link className="text-brand hover:underline" to={pageSearch(search, pagination.page + 1)}>
+          {t("personal_documents.next")}
+        </Link>
+      ) : (
+        <span aria-disabled="true" className="text-gray-400">
+          {t("personal_documents.next")}
+        </span>
+      )}
     </nav>
   )
 }
@@ -460,7 +485,12 @@ function toggleSort<TColumn extends string>(current: { column: TColumn; directio
 }
 
 function isDocumentSortColumn(value: string | null): value is DocumentSortColumn {
-  return value != null && ["title", "filename", "kind", "content_type", "byte_size", "source_url", "content_cache_state", "content_cached_at", "created_at", "updated_at"].includes(value)
+  return (
+    value != null &&
+    ["title", "filename", "kind", "content_type", "byte_size", "source_url", "content_cache_state", "content_cached_at", "created_at", "updated_at"].includes(
+      value
+    )
+  )
 }
 
 function filterTreeFromSearch(search: string): FilterTree {
