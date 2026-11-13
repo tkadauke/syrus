@@ -397,14 +397,30 @@ export type ChatMediaImage = {
   title: string
   filename: string | null
   content_type: string
+  image_url: string
+  thumbnail_url?: string | null
+  // Legacy tool-result payloads can still carry this alias. The media API no
+  // longer emits it.
   file_path?: string | null
-  image_url?: string | null
 }
+
+export type ChatMediaPagination = {
+  offset: number
+  limit: number
+  has_more: boolean
+  next_offset: number | null
+}
+
+export type ChatMediaArtifactSummary = Omit<TypedArtifact, "payload"> & Partial<Pick<TypedArtifact, "payload">>
 
 export type ChatMediaPayload = {
   snapshots: ChatMediaSnapshot[]
   chat_images: ChatMediaImage[]
-  typed_artifacts: TypedArtifact[]
+  typed_artifacts: ChatMediaArtifactSummary[]
+  pagination?: {
+    chat_images: ChatMediaPagination
+    typed_artifacts: ChatMediaPagination
+  }
   whiteboard_has_unsaved_content: boolean
 }
 
@@ -1464,8 +1480,18 @@ export function fetchWhiteboardSnapshot(chatSessionId: string | number, snapshot
   )
 }
 
-export function fetchChatMedia(chatId: string | number) {
-  return getJson<ChatMediaPayload>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/media`)
+export function fetchChatMedia(chatId: string | number, offsets: { chatImages?: number; typedArtifacts?: number } = {}) {
+  const params = new URLSearchParams()
+  if (offsets.chatImages != null) params.set("chat_images_offset", String(offsets.chatImages))
+  if (offsets.typedArtifacts != null) params.set("typed_artifacts_offset", String(offsets.typedArtifacts))
+  const query = params.size > 0 ? `?${params.toString()}` : ""
+  return getJson<ChatMediaPayload>(`/api/v1/app/chats/${encodeURIComponent(String(chatId))}/media${query}`)
+}
+
+export function fetchChatMediaArtifact(chatId: string | number, artifactType: string) {
+  return getJson<{ typed_artifact: TypedArtifact }>(
+    `/api/v1/app/chats/${encodeURIComponent(String(chatId))}/media/typed_artifacts/${encodeURIComponent(artifactType)}`
+  )
 }
 
 export function postSnapshotPng(jobAttachmentsPath: string, blob: Blob, filename: string) {
