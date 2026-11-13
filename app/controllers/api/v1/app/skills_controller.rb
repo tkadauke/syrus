@@ -10,7 +10,10 @@ module Api
           repository = find_repository
           return unless repository
 
-          render json: skills_index_payload(repository)
+          payload = skills_index_payload(repository)
+          return unless stale?(etag: [ "repository-skills", repository.id, params[:fields], payload ], public: false)
+
+          render json: payload
         end
 
         def create
@@ -56,11 +59,22 @@ module Api
 
         def skills_index_payload(repository)
           resolutions = Skills.all_for(repository: repository, user: Current.user)
+          return { skills: resolutions.map { |resolution| skill_command_json(resolution) } } if params[:fields] == "commands"
+
           {
             repository: repository_json(repository),
             skills: resolutions.map { |resolution| skill_json(resolution) },
             configured_agent_providers: Current.user.configured_agent_providers.map { |provider| provider_json(provider) },
             priorities: Job::PRIORITIES
+          }
+        end
+
+        def skill_command_json(resolution)
+          definition = resolution.definition
+          {
+            name: definition.name,
+            description: definition.description,
+            parameters: definition.parameters.map { |field| { key: field.key, required: field.required } }
           }
         end
 

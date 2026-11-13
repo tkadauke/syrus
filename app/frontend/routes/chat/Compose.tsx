@@ -105,7 +105,7 @@ import {
   type SlashCommandMatch
 } from "../../lib/slashCommands"
 import { bangCommandText, isBangCommandMode } from "../../lib/bangCommand"
-import { fetchRepositorySkills } from "../../api/skills"
+import { fetchRepositorySkillCommands } from "../../api/skills"
 import { formatScheduledTime, parseScheduleCommandArgs } from "../../lib/scheduleTime"
 import { useBugReportTrigger } from "../../lib/bugReportContext"
 import { chatTranscriptBugReportAttachment } from "../../lib/chatBugReportAttachments"
@@ -445,9 +445,10 @@ export function Compose({
     }
   })
   const repositorySkills = useQuery({
-    queryKey: ["repositories", String(repositoryId), "skills"],
-    queryFn: () => fetchRepositorySkills(String(repositoryId)),
-    enabled: repositoryId != null
+    queryKey: ["repositories", String(repositoryId), "skills", "commands"],
+    queryFn: () => fetchRepositorySkillCommands(String(repositoryId)),
+    enabled: repositoryId != null,
+    staleTime: 5 * 60_000
   })
   const dynamicSkillCommands = useMemo(() => repoSkillCommands(repositorySkills.data?.skills ?? []), [repositorySkills.data])
   const slashCommandContext = useMemo(

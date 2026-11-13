@@ -33,7 +33,6 @@ import {
   type ProviderRoutingOptions,
   type ProviderRoutingRule,
   type ProviderRoutingRuleInput,
-  type ProviderRoutingRulesPayload,
   type ProviderRoutingTrigger
 } from "../api/providerRoutingRules"
 
@@ -109,7 +108,7 @@ export function ProviderRoutingRulesEditor({
   rules?: ProviderRoutingRule[]
   title: string
   options?: ProviderRoutingOptions
-  onSaved?: (payload: ProviderRoutingRulesPayload) => void
+  onSaved?: () => void
   scope?: ConditionScope
 }) {
   const queryClient = useQueryClient()
@@ -120,22 +119,22 @@ export function ProviderRoutingRulesEditor({
   const save = useMutation({
     mutationFn: ({ rule, input }: { rule?: ProviderRoutingRule; input: ProviderRoutingRuleInput }) =>
       rule ? updateProviderRoutingRule(`${basePath}/${rule.id}`, input) : createProviderRoutingRule(basePath, input),
-    onSuccess: (payload) => {
-      onSaved?.(payload)
+    onSuccess: () => {
+      onSaved?.()
       void queryClient.invalidateQueries({ queryKey })
     }
   })
   const destroy = useMutation({
     mutationFn: (rule: ProviderRoutingRule) => deleteProviderRoutingRule(`${basePath}/${rule.id}`),
-    onSuccess: (payload) => {
-      onSaved?.(payload)
+    onSuccess: () => {
+      onSaved?.()
       void queryClient.invalidateQueries({ queryKey })
     }
   })
   const reorder = useMutation({
     mutationFn: ({ ids }: { ids: number[]; previousRules: ProviderRoutingRule[] }) => reorderProviderRoutingRules(basePath, ids),
-    onSuccess: (payload) => {
-      onSaved?.(payload)
+    onSuccess: () => {
+      onSaved?.()
       void queryClient.invalidateQueries({ queryKey })
     },
     onError: (_error, variables) => setDisplayRules(variables.previousRules)
