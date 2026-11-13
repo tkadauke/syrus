@@ -413,10 +413,14 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
       candidates: [ { "provider" => "claude" } ]
     )
 
-    get "/api/v1/app/credentials"
+    get "/api/v1/app/credentials/provider_routing_rules"
 
     expect(response).to have_http_status(:ok)
     expect(parse_body.fetch("provider_routing_rules")).to include(include("task_key" => "default"))
+
+    get "/api/v1/app/credentials/options"
+
+    expect(response).to have_http_status(:ok)
     expect(parse_body.dig("options", "provider_routing_options", "agent_providers")).to include(
       include("value" => "codex", "models" => include(include("id" => "gpt-5.2-codex")))
     )

@@ -65,6 +65,8 @@ function makePayload(locale = "en"): CredentialsPayload {
 
 function renderPreferences(payload: CredentialsPayload) {
   vi.spyOn(credentialsApi, "fetchCredentials").mockResolvedValue(payload)
+  vi.spyOn(credentialsApi, "fetchCredentialOptions").mockResolvedValue({ options: payload.options })
+  vi.spyOn(credentialsApi, "fetchAccountProviderRoutingRules").mockResolvedValue({ provider_routing_rules: payload.provider_routing_rules })
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <I18nextProvider i18n={i18n}>

@@ -194,7 +194,7 @@ describe("ConfigureAgentModal", () => {
     resolveConnect({} as never)
 
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1))
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["credentials"] })
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["credential-options"] })
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["bootstrap"] })
   })
 

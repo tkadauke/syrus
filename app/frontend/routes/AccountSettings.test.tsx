@@ -45,6 +45,8 @@ function credentialsPayload(overrides: Record<string, unknown> = {}) {
       api_token: true
     },
     github_rate_limit: null,
+    provider_availability: {},
+    provider_routing_rules: [],
     options: {
       locales: ["en", "de", "la"],
       agent_providers: ["claude"],
@@ -54,14 +56,15 @@ function credentialsPayload(overrides: Record<string, unknown> = {}) {
       agent_max_turns: { min: 0, max: 1000 },
       recent_chats_group_size: { min: 1, max: 50 },
       clearable_credentials: [],
-      auto_approve_modes: [{ value: "never", label: "Never", preview: "No direct rule." }]
+      auto_approve_modes: [{ value: "never", label: "Never", preview: "No direct rule." }],
+      provider_routing_options: { agent_providers: [], effort_levels: [] }
     },
     ...overrides
   }
 }
 
 function renderRoute(payload = credentialsPayload(), route: ReactElement = <CredentialsRoute />) {
-  const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(payload))
+  const fetchSpy = vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(payload)))
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={client}>
