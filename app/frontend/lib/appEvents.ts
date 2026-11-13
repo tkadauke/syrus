@@ -24,6 +24,7 @@ import { chatPinsQueryPrefix } from "../routes/chat/pins"
 import { chatBookmarksQueryPrefix } from "../routes/chat/bookmarks"
 import { compareRevision, normalizeChatMessage, readEntity, upsertEntity, type EntityKind, type EntityRevision } from "./entityStore"
 import { currentVisibilityState, recordClientMetric, resourceTagFor } from "./clientMetrics"
+import { checkApiVersion } from "../api/version"
 
 // A proposal card can live in a chat view's paginated-older-history state,
 // outside the React Query cache the rest of this module patches. Dispatching
@@ -87,6 +88,7 @@ const hiddenInvalidations = new WeakMap<QueryClient, Map<string, InvalidationTar
 const visibilityListeners = new WeakSet<QueryClient>()
 
 export type AppEvent = {
+  v?: number
   type: string
   resource?: string
   id?: number | string | null
@@ -293,6 +295,7 @@ function patchCachedChatRecord(
 }
 
 export function applyAppEvent(queryClient: QueryClient, event: AppEvent) {
+  if (!checkApiVersion(event)) return
   const sequenceOutcome = trackAppEventSequence(queryClient, event)
   if (sequenceOutcome === "duplicate") return
 

@@ -115,6 +115,7 @@ import { useResizableSplitter } from "./chat/useResizableSplitter"
 import { MOBILE_CHROME_BOTTOM_OVERLAP_CLASS, MOBILE_CHROME_SURFACE_CLASS, MobileChromeContext } from "../components/mobileChrome"
 import { CHAT_MOBILE_HEADER_SCROLL_DELTA_THRESHOLD_PX } from "./chat/constants"
 import { keyboardVisualViewport } from "../lib/visualViewport"
+import { ApiVersionBanner } from "../components/ApiVersionBanner"
 
 export const PUBLILIUS_SYRUS_WIKIPEDIA_URL = "https://en.wikipedia.org/wiki/Publilius_Syrus"
 const SYSTEM_ALERT_DISMISSALS_KEY = "syrus.system_alert_dismissals"
@@ -661,6 +662,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     return (
       <InactiveShortcutsProvider>
         <ThemeProvider colorTheme={null} theme="system">
+          <ApiVersionBanner />
           {pageContent}
           <BuildBadge builtAt={data.app?.built_at} revision={data.app?.revision} version={data.app?.version} />
         </ThemeProvider>
@@ -672,6 +674,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
     return (
       <ShortcutsProvider>
         <ThemeProvider colorTheme={user?.color_theme ?? null} theme={user?.theme ?? "system"}>
+          <ApiVersionBanner />
           <div className="h-[100dvh] overflow-auto bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-white" data-testid="embedded-presentation-root">
             {pageContent}
           </div>
@@ -685,6 +688,7 @@ export function AppChromeV2({ children, initialBootstrap }: { children?: ReactNo
       <ThemeProvider colorTheme={user?.color_theme ?? null} theme={user?.theme ?? "system"}>
         <BugReportContext.Provider value={bugReportContextValue}>
           <ActivityProvider prefix={prefix}>
+            <ApiVersionBanner />
             <GlobalShortcutsHelp />
             {user ? <GlobalBugReportShortcut onOpenBugReport={openBugReport} /> : null}
             <div

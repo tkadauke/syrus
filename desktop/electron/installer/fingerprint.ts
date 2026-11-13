@@ -1,6 +1,8 @@
 // "Is this URL a Syrus instance?" without needing credentials: the auth
 // status endpoint is unauthenticated JSON on every Syrus install. Failure
 // messages are classified so the connect form can say what to actually do.
+import { ApiVersionError, readApiJson } from "../apiVersion.js"
+
 // Electron-free on purpose — global fetch only — so the classification is
 // unit-testable from vitest (desktop/src/fingerprint.test.ts).
 export const fingerprintSyrus = async (url: string) => {
@@ -31,11 +33,12 @@ export const fingerprintSyrus = async (url: string) => {
   }
 
   try {
-    const payload = (await response.json()) as { authenticated?: unknown }
+    const payload = await readApiJson<{ authenticated?: unknown }>(response)
     if (typeof payload.authenticated !== "boolean") {
       throw new Error("shape")
     }
-  } catch {
+  } catch (error) {
+    if (error instanceof ApiVersionError) throw error
     throw new Error(`Something answered at ${url}, but it doesn't look like a Syrus instance.`)
   }
 }

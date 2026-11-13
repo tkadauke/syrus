@@ -21,6 +21,21 @@ the same authorization policies as the browser UI. `/api/v1/admin/*` endpoints
 reject non-admin tokens with `403 Forbidden`; missing or invalid tokens return
 a JSON `401` error.
 
+## Payload version
+
+Every JSON response includes a top-level `v` field. The current value is `1`:
+
+```json
+{ "v": 1, "jobs": [] }
+```
+
+Syrus has one current payload version and does not serve compatibility
+variants. The version changes only when a breaking payload change requires
+clients to update; the server, browser app, desktop app, and CLI ship together.
+Browser clients prompt for a reload when versions differ, while packaged
+clients ask the user to update. Additive fields do not require a version bump,
+and clients continue to ignore fields they do not recognize.
+
 The generated [user API catalog](/docs/generated/user-api-catalog) lists every
 registered `/api/v1/app/*` endpoint. Operator/admin endpoint inventory lives
 with the operator docs in `config/syrus_docs/admin_api_catalog.md`.

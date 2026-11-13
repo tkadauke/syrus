@@ -333,7 +333,8 @@
     "not_signed_in": "Nicht angemeldet",
     "revision": "Revision",
     "view_commit": "Commit anzeigen",
-    "load_error_instance": "Diese Syrus-Instanz konnte nicht geladen werden."
+    "load_error_instance": "Diese Syrus-Instanz konnte nicht geladen werden.",
+    "api_version_mismatch": "Eine neue Version ist verfügbar — neu laden"
   },
   "start_blocked_reasons": {
     "dependency_failed": "Abhängigkeit fehlgeschlagen",

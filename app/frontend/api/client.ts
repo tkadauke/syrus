@@ -1,5 +1,8 @@
 import { reloadPage } from "../lib/pageReload"
 import { registerApiClientStateResetForTests } from "./clientTestState"
+import { checkApiVersion, type ApiEnvelope } from "./version"
+
+export type { ApiEnvelope } from "./version"
 
 export type ApiErrorPayload = {
   error?: {
@@ -139,7 +142,7 @@ async function performJsonRead<T>(path: string, options: { signal?: AbortSignal 
 
   if (response.status === 204) return { data: undefined as T, meta }
 
-  return { data: (await response.json()) as T, meta }
+  return { data: await readJsonResponse<T>(response), meta }
 }
 
 export async function postJson<T>(path: string, body?: unknown): Promise<T> {
@@ -192,7 +195,7 @@ export async function postForm<T>(path: string, body: FormData): Promise<T> {
 
     if (response.status === 204) return undefined as T
 
-    return response.json() as Promise<T>
+    return readJsonResponse<T>(response)
   } finally {
     invalidateInFlightJsonReadsAfterWrite()
   }
@@ -239,7 +242,7 @@ async function writeJson<T>(path: string, method: "POST" | "PATCH" | "DELETE", b
 
     if (response.status === 204) return undefined as T
 
-    return response.json() as Promise<T>
+    return readJsonResponse<T>(response)
   } finally {
     invalidateInFlightJsonReadsAfterWrite()
   }
@@ -247,10 +250,16 @@ async function writeJson<T>(path: string, method: "POST" | "PATCH" | "DELETE", b
 
 async function readErrorPayload(response: Response): Promise<ApiErrorPayload> {
   try {
-    return (await response.json()) as ApiErrorPayload
+    return await readJsonResponse<ApiErrorPayload>(response)
   } catch (_error) {
     return {}
   }
+}
+
+async function readJsonResponse<T>(response: Response): Promise<T> {
+  const payload = (await response.json()) as T & ApiEnvelope
+  checkApiVersion(payload)
+  return payload
 }
 
 function responseMeta(path: string, response: Response, startedAt: number): JsonResponseMeta {
