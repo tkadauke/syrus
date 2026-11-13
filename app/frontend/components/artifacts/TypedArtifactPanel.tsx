@@ -1,5 +1,8 @@
+import { Suspense, type ReactNode } from "react"
 import type { TypedArtifact } from "../../api/artifacts"
-import { renderArtifactBody } from "../../artifactRendererRegistry"
+import { artifactRendererEntryFor, renderArtifactBody } from "../../artifactRendererRegistry"
+import { useT } from "../../hooks/useT"
+import { pluginNamespacesFor } from "../../i18n"
 
 // Renders all typed artifacts stored on a workflow. Dispatches to the
 // appropriate renderer via the artifact renderer registry (see
@@ -41,5 +44,20 @@ function ArtifactCard({ artifact }: { artifact: TypedArtifact }) {
 // Exported so Job Review/Report and chat artifact surfaces render the same
 // renderer_type -> component mappings instead of duplicating this switch.
 export function ArtifactBody({ artifact }: { artifact: TypedArtifact }) {
-  return <div className="min-w-0 overflow-x-auto">{renderArtifactBody(artifact)}</div>
+  const namespaces = pluginNamespacesFor(artifactRendererEntryFor(artifact.renderer_type).pluginName)
+  const body = <div className="min-w-0 overflow-x-auto">{renderArtifactBody(artifact)}</div>
+  if (namespaces.length === 0) return body
+
+  // Plugin renderers are bundled eagerly, but their locale namespaces load
+  // lazily; suspend on a local boundary instead of the whole route.
+  return (
+    <Suspense fallback={null}>
+      <PluginArtifactLocaleGate namespaces={namespaces}>{body}</PluginArtifactLocaleGate>
+    </Suspense>
+  )
+}
+
+function PluginArtifactLocaleGate({ namespaces, children }: { namespaces: string[]; children: ReactNode }) {
+  useT(namespaces)
+  return children
 }

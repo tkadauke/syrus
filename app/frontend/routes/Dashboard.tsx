@@ -72,6 +72,7 @@ export function DashboardRoute() {
   const search = dashboardApiSearch(location.pathname, location.search)
   const chromeSearch = dashboardChromeSearch(location.pathname, location.search)
   const subject = dashboardSubjectFromPath(location.pathname) ?? "epic"
+  const smartFolderId = new URLSearchParams(location.search).get("smart_folder_id")
   const traceKey = `${location.pathname}?${search}`
   const activeTrace = useRef<{ key: string; traceId: string; startedAt: number } | null>(null)
   const reportedTraceKey = useRef<string | null>(null)
@@ -101,8 +102,9 @@ export function DashboardRoute() {
     placeholderData: (previousData) => previousData
   })
   const dashboardControls = useQuery({
-    queryKey: ["dashboard", "controls", subject],
-    queryFn: ({ signal }) => fetchDashboardControls(subject, { signal }),
+    queryKey: ["dashboard", "controls", subject, smartFolderId],
+    queryFn: ({ signal }) => fetchDashboardControls(subject, { signal, smartFolderId }),
+    placeholderData: (previousData) => previousData,
     staleTime: 60 * 60 * 1000
   })
   const payload = useMemo(() => {

@@ -83,7 +83,7 @@ import { fetchAdminMaintenanceTask, fetchMaintenanceSidebar, runMaintenanceTaskA
 import { updateSidebarNavOrder } from "../api/sidebarNavOrder"
 import { fetchSidebarPluginPages, type SidebarPluginPage } from "../api/sidebarPages"
 import { fetchSmartFolderNavigation } from "../api/smartFolders"
-import { fetchTheme, fetchThemePickerThemes } from "../api/themes"
+import { fetchTheme, fetchThemePickerThemes, type ColorTheme, type ThemePickerItem } from "../api/themes"
 import { useT } from "../hooks/useT"
 import { BugIcon, BugReportButton, type BugReportButtonHandle } from "../components/BugReportButton"
 import { Input } from "../components/Input"
@@ -2210,6 +2210,13 @@ function ThemePicker() {
 
 const TERRACOTTA_SLUG = "terracotta"
 
+// The bootstrap payload's active theme is slimmed to identity fields (no
+// tokens), so fall back to the live brand variable instead of reading tokens.
+function colorThemeSwatch(theme: ThemePickerItem | ColorTheme) {
+  if ("swatch" in theme) return theme.swatch
+  return theme.tokens?.light?.brand ?? "var(--color-brand)"
+}
+
 function ColorThemePicker() {
   const { t } = useTranslation("nav")
   const queryClient = useQueryClient()
@@ -2234,7 +2241,7 @@ function ColorThemePicker() {
         <span
           aria-hidden="true"
           className="h-3.5 w-3.5 shrink-0 rounded-full border border-black/10 dark:border-white/20"
-          style={{ backgroundColor: "swatch" in current ? current.swatch : current.tokens.light.brand }}
+          style={{ backgroundColor: colorThemeSwatch(current) }}
         />
         <span className="min-w-0 flex-1 truncate text-xs font-medium text-text-primary">{current.name}</span>
         <ChevronDownIcon className={`h-3.5 w-3.5 shrink-0 text-text-muted transition-transform ${expanded ? "rotate-180" : ""}`} />
