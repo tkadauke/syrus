@@ -39,6 +39,7 @@ module ScheduledTasks
         operation = "scheduled_tasks/#{name}@v1"
         register_capability(
           capability:, operation:, effects:, risk:,
+          presentation: Permissions::CapabilityPresentation.for(capability:, operation:),
           requestable_roles: ROLES, defaults: ROLES.index_with { default },
           maximum_autonomy:, authority_durations: durations,
           resource_scope: { type: :none },

@@ -8,21 +8,118 @@ import { PermissionsSettingsRoute } from "./PermissionsSettings"
 describe("PermissionsSettingsRoute", () => {
   afterEach(() => vi.restoreAllMocks())
 
+  it("defaults a new operator to Simple with only the permission profile", async () => {
+    const data = payload()
+    data.permission_hub_mode = "simple"
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(data)))
+    renderRoute()
+
+    expect(await screen.findByRole("button", { name: "Simple", pressed: true })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "Choose a permission profile" })).toBeInTheDocument()
+    expect(screen.queryByRole("navigation", { name: "Permission views" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Inherited policy" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("link", { name: "Open approval inbox" })).not.toBeInTheDocument()
+  })
+
+  it("persists Advanced and exposes stable deep links for its views", async () => {
+    const data = payload()
+    data.permission_hub_mode = "simple"
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const path = String(input)
+      if (path.endsWith("/permission_hub_preferences") && init?.method === "PATCH") return Promise.resolve(jsonResponse({ mode: "advanced" }))
+      if (path.endsWith("/history")) return Promise.resolve(jsonResponse(historyPayload()))
+      return Promise.resolve(jsonResponse(data))
+    })
+    renderRoute()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Advanced" }))
+    expect(await screen.findByRole("navigation", { name: "Permission views" })).toBeInTheDocument()
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/v1/app/permission_hub_preferences",
+        expect.objectContaining({ method: "PATCH", body: JSON.stringify({ permission_hub_preferences: { mode: "advanced" } }) })
+      )
+    )
+    fireEvent.click(screen.getByRole("button", { name: "History" }))
+    expect(screen.getByRole("button", { name: "History" })).toHaveClass("border-brand")
+  })
+
+  it("opens Advanced for a linked view even when the stored preference is Simple", async () => {
+    const data = payload()
+    data.permission_hub_mode = "simple"
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const path = String(input)
+      if (path.endsWith("/history")) return Promise.resolve(jsonResponse(historyPayload()))
+      return Promise.resolve(jsonResponse(data))
+    })
+    renderRoute("/settings/permissions?view=history")
+
+    expect(await screen.findByRole("button", { name: "Advanced", pressed: true })).toBeInTheDocument()
+    expect(await screen.findByText("Authorization request")).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Inherited policy" })).not.toBeInTheDocument()
+  })
+
+  it("renders the shared history filter bar and requests the next server page", async () => {
+    const history = historyPayload()
+    history.history_pagination = { page: 1, per_page: 25, total: 26, total_pages: 2, has_more: true }
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      if (String(input).includes("/history")) return Promise.resolve(jsonResponse(history))
+      return Promise.resolve(jsonResponse(payload()))
+    })
+    renderRoute("/settings/permissions?view=history")
+
+    expect(await screen.findByRole("button", { name: /Add filter/ })).toBeInTheDocument()
+    expect(screen.getByText("Showing 1–25 of 26")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("link", { name: "Next" }))
+
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/permission_rules/history?page=2", expect.objectContaining({ credentials: "same-origin" }))
+    )
+  })
+
+  it("contains wide permission content in local horizontal scrollers", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      if (String(input).endsWith("/history")) return Promise.resolve(jsonResponse(historyPayload()))
+      return Promise.resolve(jsonResponse(payload()))
+    })
+    const { container } = renderRoute()
+
+    const hub = await screen.findByRole("main", { name: "Permissions" })
+    expect(hub).toHaveClass("min-w-0", "px-4", "sm:px-6")
+    const tabs = await screen.findByRole("navigation", { name: "Permission views" })
+    expect(tabs).toHaveClass("min-w-0", "overflow-x-auto")
+    expect(within(tabs).getByRole("button", { name: "AI approvals" })).toHaveClass("shrink-0")
+    expect(container.querySelector('[data-data-table-overflow-wrapper="true"]')).toHaveClass("max-w-full", "overflow-x-auto")
+
+    fireEvent.click(screen.getByRole("button", { name: "Rules" }))
+    expect(container.querySelector("#permission-rule-4")).toHaveClass("min-w-0", "overflow-x-auto")
+    fireEvent.click(screen.getByRole("button", { name: "New rule" }))
+    expect(await screen.findByTestId("permission-rule-editor")).toHaveClass("min-w-0", "overflow-x-auto")
+
+    fireEvent.click(screen.getByRole("button", { name: "History" }))
+    expect((await screen.findByText("Authorization request")).closest("li")).toHaveClass("min-w-0", "overflow-x-auto")
+  })
+
   it("separates editable user rules from inherited read-only policy", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(payload())))
     renderRoute()
 
-    fireEvent.click(await screen.findByRole("button", { name: "Rules" }))
-
-    expect((await screen.findAllByText("syrus.jobs@v1 · cancel@v1")).length).toBeGreaterThanOrEqual(2)
-    expect(screen.getByRole("button", { name: "Revoke" })).toBeInTheDocument()
-    const inherited = screen.getByRole("heading", { name: "Inherited policy" }).parentElement!
+    const inherited = (await screen.findByRole("heading", { name: "Inherited policy" })).parentElement!
     expect(within(inherited).getAllByText("Read only")).toHaveLength(2)
     expect(within(inherited).getAllByText(/are decisive/)).toHaveLength(2)
+    expect(within(inherited).getByText(/Syrus Jobs — Cancel Job/)).toBeInTheDocument()
+    expect(within(inherited).getByText(/Permits an agent to cancel a job/)).toBeInTheDocument()
+
+    fireEvent.click(await screen.findByRole("button", { name: "Rules" }))
+    expect((await screen.findAllByText("syrus.jobs@v1 · cancel@v1")).length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByRole("button", { name: "Revoke" })).toBeInTheDocument()
+    expect(screen.queryByRole("heading", { name: "Inherited policy" })).not.toBeInTheDocument()
     expect(screen.getByRole("link", { name: "Open approval inbox" })).toHaveAttribute("href", "/permissions/inbox")
   })
 
   it("previews and applies a fast permission profile for the selected chat surface", async () => {
+    const data = payload()
+    data.permission_hub_mode = "simple"
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
       if (String(input).endsWith("/preview_profile"))
         return Promise.resolve(
@@ -45,17 +142,19 @@ describe("PermissionsSettingsRoute", () => {
           })
         )
       if (String(input).endsWith("/apply_profile")) return Promise.resolve(jsonResponse({ rules: [], profile: "full_access@v1" }))
-      return Promise.resolve(jsonResponse(payload()))
+      return Promise.resolve(jsonResponse(data))
     })
     renderRoute()
 
     const fullAccess = (await screen.findByRole("heading", { name: "Full access" })).closest("article")!
     fireEvent.click(within(fullAccess).getByRole("button", { name: "Select" }))
     const dialog = await screen.findByRole("dialog", { name: "Change permission profile" })
+    expect(dialog).toHaveClass("min-w-0", "overflow-x-hidden")
     expect(dialog).toHaveTextContent("Apply Full access to Interactive chat")
     expect(dialog).toHaveTextContent("Rules removed (1)")
     expect(dialog).toHaveTextContent("Profile rules added (2)")
-    expect(dialog).toHaveTextContent("Allow · syrus.jobs@v1 · cancel@v1")
+    expect(dialog).toHaveTextContent("Allow · Syrus Jobs — Cancel Job")
+    expect(dialog).toHaveTextContent("syrus.jobs@v1 · cancel@v1")
     expect(dialog).toHaveTextContent("safety ceilings")
     fireEvent.click(screen.getByRole("button", { name: "Apply profile" }))
 
@@ -196,9 +295,12 @@ describe("PermissionsSettingsRoute", () => {
     })
     renderRoute()
 
+    fireEvent.click(await screen.findByRole("button", { name: /Syrus Jobs/ }))
     fireEvent.click(await screen.findByRole("checkbox", { name: "Select syrus.jobs@v1 cancel@v1" }))
     fireEvent.click(screen.getByRole("button", { name: "Allow selected (1)" }))
-    expect(await screen.findByRole("dialog", { name: "Confirm permission changes" })).toHaveTextContent("syrus.jobs@v1")
+    const dialog = await screen.findByRole("dialog", { name: "Confirm permission changes" })
+    expect(dialog).toHaveTextContent("Syrus Jobs — Cancel Job")
+    expect(dialog).toHaveTextContent("syrus.jobs@v1 · cancel@v1")
     fireEvent.click(screen.getByRole("button", { name: "Confirm changes" }))
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/permission_rules/bulk", expect.objectContaining({ method: "POST" })))
@@ -213,7 +315,50 @@ describe("PermissionsSettingsRoute", () => {
 
     renderRoute()
 
-    expect(await screen.findByText("Varies by resource")).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole("button", { name: /Attach Repository/ }))
+    expect((await screen.findAllByText("Varies by resource")).length).toBeGreaterThanOrEqual(2)
+  })
+
+  it("groups operations by capability, keeps policy summaries visible, and expands on demand", async () => {
+    const response = payload()
+    response.inherited.push({
+      ...response.inherited[1],
+      operation: "retry@v1",
+      presentation: {
+        ...response.inherited[1].presentation,
+        operation_name: "Retry Job",
+        operation_description: "Permits an agent to retry a job."
+      },
+      matrix_states: { interactive_chat: "allow", coding_chat: "deny", local_chat: "deny" }
+    })
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(response)))
+    renderRoute()
+
+    const group = await screen.findByRole("button", { name: /Syrus Jobs/ })
+    expect(group).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByRole("checkbox", { name: "Select syrus.jobs@v1 cancel@v1" })).not.toBeInTheDocument()
+    expect(group).toHaveTextContent("2 operations")
+    expect(screen.getAllByText("Allow").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("Ask").length).toBeGreaterThan(0)
+
+    fireEvent.click(group)
+    expect(group).toHaveAttribute("aria-expanded", "true")
+    expect(screen.getByRole("checkbox", { name: "Select syrus.jobs@v1 cancel@v1" })).toBeInTheDocument()
+    expect(screen.getByRole("checkbox", { name: "Select syrus.jobs@v1 retry@v1" })).toBeInTheDocument()
+  })
+
+  it("expands the containing capability for search results and operation deep links", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(payload())))
+    const { unmount } = renderRoute()
+
+    fireEvent.change(await screen.findByRole("searchbox", { name: "Search capabilities and operations" }), { target: { value: "Cancel Job" } })
+    expect(screen.getByRole("checkbox", { name: "Select syrus.jobs@v1 cancel@v1" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Attach Repository.*1 operation/ })).not.toBeInTheDocument()
+
+    unmount()
+    renderRoute("/settings/permissions?capability=syrus.jobs%40v1&operation=cancel%40v1")
+    expect(await screen.findByRole("button", { name: /Syrus Jobs/ })).toHaveAttribute("aria-expanded", "true")
+    expect(screen.getByRole("checkbox", { name: "Select syrus.jobs@v1 cancel@v1" }).closest("tr")).toHaveAttribute("aria-current", "true")
   })
 
   it("shows active lease lifecycle and redacted authorization history", async () => {
@@ -229,16 +374,64 @@ describe("PermissionsSettingsRoute", () => {
     expect(await screen.findByRole("heading", { name: "Active permission leases" })).toBeInTheDocument()
     expect(await screen.findByText("1 / 3")).toBeInTheDocument()
     expect(screen.getByText("Fix stuck job")).toBeInTheDocument()
+    expect(screen.getAllByText(/syrus\.jobs@v1 · cancel@v1/).length).toBeGreaterThan(0)
 
     fireEvent.click(screen.getByRole("button", { name: "History" }))
     expect(await screen.findByText("Authorization request")).toBeInTheDocument()
+    expect(screen.getAllByText("Syrus Jobs — Cancel Job").length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/syrus\.jobs@v1 · cancel@v1/).length).toBeGreaterThan(0)
     expect(screen.getByText("Repeated requests were escalated into this decision.")).toBeInTheDocument()
     expect(screen.getByText(/\[redacted\]/)).toBeInTheDocument()
   })
   it("shows the AI approval section disabled until a provider exists and revokes delegations immediately", async () => {
-    const empty = { enabled: false, providers: [], delegations: [], human_only: { effects: ["financial"], capabilities: [] }, history: [] }
+    const permissionsPayload = payload()
+    permissionsPayload.inherited.push({
+      ...permissionsPayload.inherited[0],
+      capability: "syrus.permissions@v1",
+      operation: "syrus.permissions/list_permissions@v1",
+      presentation: {
+        capability_name: "Syrus Permissions",
+        capability_description: "Permits access to permission management.",
+        operation_name: "List Permissions",
+        operation_description: "Permits an agent to list permissions."
+      }
+    })
+    const empty = {
+      enabled: false,
+      can_manage_plugins: false,
+      plugins: [
+        {
+          name: "visible_example",
+          display_name: "Visible Example",
+          installed: true,
+          capabilities: [{ identifier: "example.read@v1", name: "Read examples" }],
+          tools: ["read_example"]
+        }
+      ],
+      providers: [],
+      delegations: [],
+      human_only: { effects: ["financial"], capabilities: [] },
+      history: []
+    }
     const enabled = {
       enabled: true,
+      can_manage_plugins: true,
+      plugins: [
+        {
+          name: "installed_example",
+          display_name: "Installed Example",
+          installed: true,
+          capabilities: [{ identifier: "example.read@v1", name: "Read examples" }],
+          tools: ["read_example"]
+        },
+        {
+          name: "available_example",
+          display_name: "Available Example",
+          installed: false,
+          capabilities: [{ identifier: "example.write@v1", name: "Write examples" }],
+          tools: ["write_example"]
+        }
+      ],
       providers: [{ provider_key: "reviewer", display_name: "Reviewer", data_sharing: "Sent to Reviewer Cloud", default_guidance: "Be careful" }],
       delegations: [
         {
@@ -254,7 +447,7 @@ describe("PermissionsSettingsRoute", () => {
           created_at: "2026-01-01T00:00:00Z"
         }
       ],
-      human_only: { effects: ["financial"], capabilities: ["syrus.permissions@v1"] },
+      human_only: { effects: ["financial"], capabilities: ["syrus.permissions"] },
       history: [
         {
           id: 1,
@@ -275,19 +468,28 @@ describe("PermissionsSettingsRoute", () => {
         current = { ...enabled, delegations: [{ ...enabled.delegations[0], status: "revoked" }] }
         return Promise.resolve(jsonResponse({}))
       }
-      return Promise.resolve(jsonResponse(url.endsWith("/approval_delegations") ? current : payload()))
+      return Promise.resolve(jsonResponse(url.endsWith("/approval_delegations") ? current : permissionsPayload))
     })
     renderRoute()
 
     fireEvent.click(await screen.findByRole("button", { name: "AI approvals" }))
-    expect(await screen.findByText(/AI approvals are off/)).toBeInTheDocument()
+    const disabledNotice = await screen.findByText(/AI approvals are off/)
+    expect(disabledNotice.closest("section")).toHaveClass("min-w-0", "p-4", "sm:p-5")
+    expect(screen.getByRole("region", { name: "Installed plugins" })).toHaveTextContent("Visible Example")
+    expect(screen.queryByRole("link", { name: "Manage plugins" })).not.toBeInTheDocument()
 
     current = enabled
     fireEvent.click(screen.getByRole("button", { name: "Agent matrix" }))
     fireEvent.click(screen.getByRole("button", { name: "AI approvals" }))
     expect(await screen.findByText(/Sent to Reviewer Cloud/)).toBeInTheDocument()
-    expect(screen.getByText(/Always decided by a human/)).toBeInTheDocument()
+    expect(screen.getByText(/Always decided by a human.*Syrus Permissions/)).toBeInTheDocument()
+    expect(screen.getByText("syrus.permissions")).toBeInTheDocument()
     expect(screen.getByText(/allow: Cancel job/)).toBeInTheDocument()
+    expect(screen.getByRole("region", { name: "Installed plugins" })).toHaveTextContent("Installed Example")
+    expect(screen.getByRole("region", { name: "Installed plugins" })).toHaveTextContent("Read examples")
+    expect(screen.getByRole("region", { name: "Installed plugins" })).toHaveTextContent("read_example")
+    expect(screen.getByRole("region", { name: "Available plugins" })).toHaveTextContent("Available Example")
+    expect(screen.getByRole("link", { name: "Manage plugins" })).toHaveAttribute("href", "/admin/plugins")
 
     fireEvent.click(screen.getByRole("button", { name: "Revoke now" }))
     await waitFor(() => expect(screen.queryByRole("button", { name: "Revoke now" })).not.toBeInTheDocument())
@@ -355,7 +557,7 @@ function mockHub() {
 }
 
 function renderRoute(entry = "/") {
-  render(
+  return render(
     <MemoryRouter initialEntries={[entry]}>
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <PermissionsSettingsRoute />
@@ -366,6 +568,7 @@ function renderRoute(entry = "/") {
 
 function payload() {
   return {
+    permission_hub_mode: "advanced",
     profiles: [
       { key: "full_access@v1", label: "Full access", description: "Allow eligible capabilities." },
       { key: "ask_on_first_use@v1", label: "Ask on first use", description: "Ask first." },
@@ -394,6 +597,12 @@ function payload() {
         capability: "attach_repository@v1",
         operation: "attach_repository/attach_repository@v1",
         effects: ["internal_write"],
+        presentation: {
+          capability_name: "Attach Repository",
+          capability_description: "Permits access to repository bindings.",
+          operation_name: "Attach Repository",
+          operation_description: "Permits an agent to attach a repository."
+        },
         risk: "medium",
         defaults: { "chat:planner": "ask" },
         requestable_roles: ["chat:planner"],
@@ -408,6 +617,12 @@ function payload() {
         capability: "syrus.jobs@v1",
         operation: "cancel@v1",
         effects: ["internal_write"],
+        presentation: {
+          capability_name: "Syrus Jobs",
+          capability_description: "Permits access to Syrus jobs.",
+          operation_name: "Cancel Job",
+          operation_description: "Permits an agent to cancel a job."
+        },
         risk: "medium",
         defaults: { "chat:planner": "ask" },
         requestable_roles: ["chat:planner"],
@@ -424,6 +639,16 @@ function payload() {
 
 function historyPayload() {
   return {
+    filter: { and: [] },
+    filter_schema: [
+      { field: "capability", label: "Capability or operation", bucket: "text", operators: ["contains", "is"] },
+      { field: "outcome", label: "Outcome", bucket: "enum", operators: ["is"], values: ["approved", "denied"] },
+      { field: "actor", label: "Agent or role", bucket: "text", operators: ["contains", "is"] },
+      { field: "context", label: "Chat or job", bucket: "text", operators: ["contains", "is"] },
+      { field: "occurred_at", label: "Date", bucket: "date", operators: ["between"], date_precision: "datetime" }
+    ],
+    leases_pagination: { page: 1, per_page: 25, total: 1, total_pages: 1, has_more: false },
+    history_pagination: { page: 1, per_page: 25, total: 1, total_pages: 1, has_more: false },
     active_leases: [
       {
         id: 9,

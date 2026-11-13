@@ -11,6 +11,7 @@ module Mcp::Tools
 
       params = filters.compact_blank.merge(per_page: capped_limit(filters[:limit]))
       payload = payload_class.new(params: params).as_json.deep_dup
+      payload.except!(:actions, "actions")
       payload[:events] = Array(payload[:events]).map { |event| event.except(:actions, "actions") }
       Mcp::Tools.success(CommandRedactor.redact_value(payload))
     rescue StandardError => e

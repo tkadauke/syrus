@@ -14,6 +14,9 @@ RSpec.describe Syrus::Plugin::PermissionProvider do
       register_capability(
         capability: "example.records@v1",
         operation: "example.records/read@v1",
+        presentation: Permissions::CapabilityPresentation.for(
+          capability: "example.records@v1", operation: "example.records/read@v1"
+        ),
         effects: %i[network_read confidential_read],
         risk: :medium,
         requestable_roles: %w[chat_planner coworker],
@@ -55,6 +58,10 @@ RSpec.describe Syrus::Plugin::PermissionProvider do
     expect(descriptor.role_recommendations).to eq("chat_planner" => :allow, "coworker" => :ask)
   end
 
+  it "rejects plugin capabilities without presentation copy" do
+    expect { provider.register_capability(**capability_attributes(resource_scope: :example_account).except(:presentation)) }
+      .to raise_error(ArgumentError, "presentation copy is required for plugin capabilities")
+  end
 
   it "renders named presets as complete, inert permission rule drafts" do
     preset = provider.permission_preset("interactive_observer")
@@ -130,6 +137,7 @@ RSpec.describe Syrus::Plugin::PermissionProvider do
   def capability_attributes(resource_scope:)
     {
       capability: "other.records@v1", operation: "other.records/read@v1", effects: [ :network_read ], risk: :low,
+      presentation: Permissions::CapabilityPresentation.for(capability: "other.records@v1", operation: "other.records/read@v1"),
       requestable_roles: [ "chat_planner" ], defaults: { chat_planner: :ask }, maximum_autonomy: :invocation,
       authority_durations: [ :invocation ], resource_scope: resource_scope, classifier: ->(arguments) { arguments },
       fingerprint_normalizer: ->(arguments) { arguments }, redactor: ->(arguments) { arguments }

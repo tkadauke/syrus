@@ -5,6 +5,12 @@ RSpec.describe Permissions::CapabilityDescriptor do
     {
       capability: "mysql.data@v1",
       operation: "mysql.data/read@v1",
+      presentation: {
+        capability_name: "MySQL data",
+        capability_description: "Permits access to MySQL data.",
+        operation_name: "Read",
+        operation_description: "Permits an agent to read MySQL data."
+      },
       effects: %i[network_read confidential_read],
       risk: :medium,
       requestable_roles: %w[chat_planner coworker],
@@ -29,6 +35,20 @@ RSpec.describe Permissions::CapabilityDescriptor do
     expect(descriptor.resource_scope).to be_a(Permissions::ResourceScopeSchema)
     expect(descriptor.defaults).to eq("chat_planner" => :allow, "coworker" => :ask)
     expect(descriptor.authority_durations).to eq(%i[invocation chat_session job])
+    expect(descriptor.presentation.to_h).to eq(attributes[:presentation])
+  end
+
+  it "keeps compatibility descriptors complete when explicit copy is unavailable" do
+    presentation = described_class.new(**attributes.except(:presentation)).presentation
+
+    expect(presentation.to_h.values).to all(be_present)
+  end
+
+  it "rejects production descriptors without presentation copy" do
+    allow(Rails).to receive(:env).and_return(ActiveSupport::EnvironmentInquirer.new("production"))
+
+    expect { described_class.new(**attributes.except(:presentation)) }
+      .to raise_error(ArgumentError, "presentation copy is required")
   end
 
   it "compares policy contracts independently of declaration order and runtime hooks" do
@@ -141,6 +161,9 @@ RSpec.describe Permissions::CapabilityDescriptorAdapter do
   it "accepts an explicit canonical descriptor from a plugin definition" do
     explicit = Permissions::CapabilityDescriptor.new(**{
       capability: "plugin.observe@v2", operation: "plugin.observe/read@v3", effects: [ :network_read ], risk: :low,
+      presentation: Permissions::CapabilityPresentation.for(
+        capability: "plugin.observe@v2", operation: "plugin.observe/read@v3"
+      ),
       requestable_roles: [ "chat_planner" ], defaults: { chat_planner: :allow }, maximum_autonomy: :permanent,
       authority_durations: [ :permanent ], resource_scope: { type: :account }, classifier: ->(args) { args },
       fingerprint_normalizer: ->(args) { args }, redactor: ->(args) { args }

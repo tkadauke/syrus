@@ -320,6 +320,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/passkeys/register` | `api/v1/app/passkeys#register` |
 | core | GET | `/api/v1/app/passkeys/registration_options` | `api/v1/app/passkeys#registration_options` |
 | core | POST | `/api/v1/app/performance_events` | `api/v1/app/performance_events#create` |
+| core | PATCH | `/api/v1/app/permission_hub_preferences` | `api/v1/app/permission_hub_preferences#update` |
 | core | GET | `/api/v1/app/permission_requests` | `api/v1/app/permission_requests#index` |
 | core | DELETE | `/api/v1/app/permission_requests/:id` | `api/v1/app/permission_requests#dismiss` |
 | core | GET | `/api/v1/app/permission_requests/:id` | `api/v1/app/permission_requests#show` |
@@ -337,6 +338,7 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | POST | `/api/v1/app/permission_rules/:id/revoke` | `api/v1/app/permission_rules#revoke` |
 | core | POST | `/api/v1/app/permission_rules/apply_preset` | `api/v1/app/permission_rules#apply_preset` |
 | core | POST | `/api/v1/app/permission_rules/apply_profile` | `api/v1/app/permission_rules#apply_profile` |
+| core | POST | `/api/v1/app/permission_rules/apply_starting_profile` | `api/v1/app/permission_rules#apply_starting_profile` |
 | core | POST | `/api/v1/app/permission_rules/bulk` | `api/v1/app/permission_rules#bulk` |
 | core | GET | `/api/v1/app/permission_rules/catalog` | `api/v1/app/permission_rules#catalog` |
 | core | GET | `/api/v1/app/permission_rules/history` | `api/v1/app/permission_rules#history` |

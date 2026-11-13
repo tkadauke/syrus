@@ -20,6 +20,9 @@ module Syrus
 
         def register_capability(**attributes)
           attributes = attributes.dup
+          attributes.fetch(:presentation) do
+            raise ArgumentError, "presentation copy is required for plugin capabilities"
+          end
           scope = attributes.fetch(:resource_scope)
           attributes[:resource_scope] = registered_permission_resource_scopes.fetch(scope.to_sym) if scope.is_a?(String) || scope.is_a?(Symbol)
           descriptor = Permissions::CapabilityDescriptor.new(**attributes)

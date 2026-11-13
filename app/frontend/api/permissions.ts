@@ -1,4 +1,5 @@
 import { getJson, patchJson, postJson } from "./client"
+import type { FilterSchemaField } from "../components/FilterBar"
 
 export type PermissionRule = {
   id: number
@@ -23,6 +24,12 @@ export type InheritedPermission = {
   capability: string
   operation: string
   effects: string[]
+  presentation: {
+    capability_name: string
+    capability_description: string
+    operation_name: string
+    operation_description: string
+  }
   risk: string
   defaults: Record<string, string>
   requestable_roles: string[]
@@ -42,6 +49,7 @@ export type PermissionProfilePreview = {
   replacements: Array<{ policy: "allow" | "ask" | "deny"; capability: string; operation: string; resource_scope_label: string }>
 }
 export type PermissionsPayload = {
+  permission_hub_mode: "simple" | "advanced"
   rules: PermissionRule[]
   inherited: InheritedPermission[]
   profiles: PermissionProfile[]
@@ -72,7 +80,15 @@ export type PermissionHistoryEntry = Record<string, unknown> & {
   occurred_at: string
   state: string
 }
-export type PermissionHistoryPayload = { active_leases: PermissionLease[]; history: PermissionHistoryEntry[] }
+export type PermissionPagination = { page: number; per_page: number; total: number; total_pages: number; has_more: boolean }
+export type PermissionHistoryPayload = {
+  active_leases: PermissionLease[]
+  leases_pagination: PermissionPagination
+  history: PermissionHistoryEntry[]
+  history_pagination: PermissionPagination
+  filter: Record<string, unknown>
+  filter_schema: FilterSchemaField[]
+}
 
 export type PermissionRulesDynamicPayload = Omit<PermissionsPayload, "inherited" | "profiles"> & {
   matrix_states?: Record<string, InheritedPermission["matrix_states"]>
@@ -104,8 +120,10 @@ export const applyPermissionProfile = (profile: string, subject_selector_type: s
     subject_selector_type,
     confirmation_digest
   })
-export const fetchPermissionHistory = () => {
-  return getJson<PermissionHistoryPayload>("/api/v1/app/permission_rules/history")
+export const applyStartingPermissionProfile = (profile: string) =>
+  postJson<{ profile: string; subject_selector_types: string[] }>("/api/v1/app/permission_rules/apply_starting_profile", { profile })
+export const fetchPermissionHistory = (search = "") => {
+  return getJson<PermissionHistoryPayload>(`/api/v1/app/permission_rules/history${search}`)
 }
 export const createPermissionRule = (permission_rule: Record<string, unknown>) =>
   postJson<PermissionRulesDynamicPayload & { rule_id: number }>("/api/v1/app/permission_rules", { permission_rule })
@@ -146,11 +164,20 @@ export type ApprovalDecision = {
   rationale: string | null
   delegation_id: number | null
 }
+export type ApprovalPlugin = {
+  name: string
+  display_name: string
+  installed: boolean
+  capabilities: Array<{ identifier: string; name: string }>
+  tools: string[]
+}
 export type ApprovalDelegationsPayload = {
   enabled: boolean
   providers: ApprovalProvider[]
   delegations: ApprovalDelegation[]
   human_only: { effects: string[]; capabilities: string[] }
+  plugins: ApprovalPlugin[]
+  can_manage_plugins: boolean
   history: ApprovalDecision[]
 }
 export const fetchApprovalDelegations = () => {

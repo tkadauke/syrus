@@ -100,6 +100,7 @@ module SyrusBrowser
       maximum_autonomy: :job, authority_durations: %i[invocation chat_session job], classifier: nil)
       register_capability(
         capability:, operation:, effects:, risk:, requestable_roles: ROLES, defaults:,
+        presentation: Permissions::CapabilityPresentation.for(capability:, operation:),
         maximum_autonomy:, authority_durations:, resource_scope: :browser_session,
         classifier: classifier || fixed_classifier(operation, effects, risk),
         fingerprint_normalizer: method(:normalize_arguments), redactor: method(:redact_arguments)

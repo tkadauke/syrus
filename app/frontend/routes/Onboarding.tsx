@@ -1,7 +1,7 @@
 import { withRoutePrefix } from "../lib/routing"
 import { PageHeading } from "../components/Heading"
 import { useState } from "react"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import type { BootstrapPayload } from "../api/bootstrap"
 import { fetchSetup, type FullSetupStatusPayload } from "../api/setup"
@@ -14,6 +14,8 @@ import { useT } from "../hooks/useT"
 import type { TFunction } from "i18next"
 import { fetchRepositoryReadiness, fetchRepositoryReadinessProbe, fetchRepositoryReadinessSummary } from "../api/repositories"
 import { RepositoryReadinessModal, readinessTone } from "../components/RepositoryReadinessModal"
+import { applyStartingPermissionProfile, fetchPermissions } from "../api/permissions"
+import { Surface } from "../components/ui"
 
 type SetupStatus = FullSetupStatusPayload
 
@@ -46,6 +48,23 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
   const [chatError, setChatError] = useState<string | null>(null)
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const setupQuery = useQuery({ queryKey: ["setup"], queryFn: fetchSetup, staleTime: 30_000 })
+  const permissionsQuery = useQuery({ queryKey: ["permissions"], queryFn: fetchPermissions, staleTime: 30_000 })
+  const applyProfile = useMutation({
+    mutationFn: applyStartingPermissionProfile,
+    onSuccess: (result) => {
+      queryClient.setQueryData<Awaited<ReturnType<typeof fetchPermissions>>>(["permissions"], (current) =>
+        current
+          ? {
+              ...current,
+              current_profiles: result.subject_selector_types.reduce(
+                (profiles, subject) => ({ ...profiles, [subject]: result.profile }),
+                current.current_profiles
+              )
+            }
+          : current
+      )
+    }
+  })
   const setup = setupQuery.data
   const user = bootstrap?.current_user
   const repositoryId = setup?.onboarding_repository_id
@@ -108,6 +127,57 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
         <p className="text-xs font-medium uppercase text-gray-500 dark:text-gray-400">{t("onboarding.setup_label")}</p>
         <PageHeading className="mt-2">{t("onboarding.heading")}</PageHeading>
       </header>
+
+      <Surface aria-labelledby="onboarding-permission-profile" padding="md" role="region">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="max-w-3xl">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100" id="onboarding-permission-profile">
+              {t("onboarding.permission_title")}
+            </h2>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t("onboarding.permission_intro")}</p>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t("onboarding.permission_enforced")}</p>
+          </div>
+          <Link className={secondaryCtaClass()} to={withRoutePrefix("/settings/permissions", prefix)}>
+            {t("onboarding.permission_change_later")}
+          </Link>
+        </div>
+        {permissionsQuery.data ? (
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {permissionsQuery.data.profiles.map((profile) => {
+              const activeEverywhere = ["interactive_chat", "coding_chat", "local_chat"].every(
+                (subject) => permissionsQuery.data.current_profiles[subject] === profile.key
+              )
+              const name = t(`onboarding.permission_profiles.${profileSlug(profile.key)}.name`)
+              return (
+                <article
+                  className={`rounded-lg border p-4 ${activeEverywhere ? "border-brand bg-brand-subtle" : "border-gray-200 dark:border-gray-700"}`}
+                  key={profile.key}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="font-semibold text-gray-900 dark:text-gray-100">{name}</h3>
+                    {activeEverywhere ? <span className="text-xs font-medium text-brand">{t("onboarding.permission_selected")}</span> : null}
+                  </div>
+                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t(`onboarding.permission_profiles.${profileSlug(profile.key)}.tradeoff`)}</p>
+                  <button
+                    className="mt-4 rounded border border-brand px-3 py-2 text-sm font-medium text-brand disabled:opacity-60"
+                    disabled={activeEverywhere || applyProfile.isPending || setup.first_epic_landed}
+                    onClick={() => applyProfile.mutate(profile.key)}
+                    type="button"
+                  >
+                    {activeEverywhere ? t("onboarding.permission_selected") : t("onboarding.permission_choose", { profile: name })}
+                  </button>
+                </article>
+              )
+            })}
+          </div>
+        ) : null}
+        <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">{t("onboarding.permission_skip")}</p>
+        {applyProfile.isError ? (
+          <p className="mt-3 text-sm text-red-700 dark:text-red-300" role="alert">
+            {t("onboarding.permission_error")}
+          </p>
+        ) : null}
+      </Surface>
 
       <section className="rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
         <ol className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -176,25 +246,19 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
       </section>
 
       {chatError ? (
-        <p
-          className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
-          role="alert"
-        >
-          {chatError}
-        </p>
+        <Surface padding="sm" role="alert" variant="danger">
+          <p className="text-sm">{chatError}</p>
+        </Surface>
       ) : null}
 
       {complete ? (
-        <section className="rounded border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/40 p-4">
-          <h2 className="text-sm font-medium text-green-900 dark:text-green-100">{t("onboarding.ready_heading")}</h2>
-          <p className="mt-1 text-sm text-green-800 dark:text-green-200">{t("onboarding.ready_description")}</p>
-          <Link
-            className="mt-3 inline-flex rounded bg-green-700 px-3 py-2 text-sm font-medium text-white hover:bg-green-800"
-            to={withRoutePrefix(dashboardPath, prefix)}
-          >
+        <Surface padding="md" variant="success">
+          <h2 className="text-sm font-medium">{t("onboarding.ready_heading")}</h2>
+          <p className="mt-1 text-sm">{t("onboarding.ready_description")}</p>
+          <Link className={buttonClasses("primary", "md", "mt-3")} to={withRoutePrefix(dashboardPath, prefix)}>
             {t("onboarding.open_dashboard")}
           </Link>
-        </section>
+        </Surface>
       ) : null}
 
       {openModal === "github_token" ? <GithubTokenModal onClose={() => setOpenModal(null)} /> : null}
@@ -210,6 +274,10 @@ export function OnboardingRoute({ bootstrap }: { bootstrap: BootstrapPayload | n
       ) : null}
     </main>
   )
+}
+
+function profileSlug(key: string) {
+  return key.split("@")[0]
 }
 
 function readinessTriggerClass(tone: "green" | "amber" | "red") {

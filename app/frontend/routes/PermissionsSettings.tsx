@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { TFunction } from "i18next"
-import { useEffect, useMemo, useState } from "react"
+import { Fragment, useEffect, useMemo, useState } from "react"
 import { Link, useLocation, useSearchParams } from "react-router-dom"
 import {
   applyPermissionBulk,
@@ -16,16 +16,18 @@ import {
   type PermissionHistoryEntry,
   type PermissionLease,
   type PermissionPreview,
-  type PermissionRule,
-  type PermissionRulesDynamicPayload
+  type PermissionPagination,
+  type PermissionRule
 } from "../api/permissions"
+import { updatePermissionHubPreferences, type PermissionHubMode } from "../api/permissionHubPreferences"
 import { AiApprovalDelegations } from "./AiApprovalDelegations"
 import { PermissionRuleEditor, type RuleEditorSeed } from "../components/PermissionRuleEditor"
 import { Modal } from "../components/Modal"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { PanelMessage } from "../components/PanelMessage"
 import { Select } from "../components/Select"
-import { Checkbox, DataTable } from "../components/ui"
+import { Checkbox, DataTable, Input } from "../components/ui"
+import { FilterBar, type FilterSchemaField } from "../components/FilterBar"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { errorMessage } from "../lib/errorMessage"
@@ -35,25 +37,50 @@ const queryKey = ["permission_rules"] as const
 const subjects = ["interactive_chat", "coding_chat", "local_chat"] as const
 type Subject = (typeof subjects)[number]
 type View = "matrix" | "resources" | "rules" | "leases" | "history" | "ai_approval"
+const advancedViews: View[] = ["matrix", "resources", "rules", "leases", "history", "ai_approval"]
 type PolicyState = "allow" | "ask" | "deny" | "scoped"
 type Translate = TFunction<"settings">
 
 export function PermissionsSettingsRoute() {
   const { t } = useT("settings")
-  const prefix = routePrefix(useLocation().pathname)
+  const location = useLocation()
+  const prefix = routePrefix(location.pathname)
   usePageTitle(t("permissions.title"))
   const queryClient = useQueryClient()
   const query = useQuery({ queryKey, queryFn: fetchPermissions })
   const descriptors = query.data?.inherited ?? []
   const rules = (query.data?.rules ?? []).filter((rule) => !rule.revoked_at)
-  const [view, setView] = useState<View>("matrix")
-  const historyQuery = useQuery({ queryKey: ["permission_history"], queryFn: fetchPermissionHistory, enabled: view === "leases" || view === "history" })
-  const subject: Subject = "interactive_chat"
   const [searchParams, setSearchParams] = useSearchParams()
+  const linkedView = parseView(searchParams.get("view"))
+  const [view, setView] = useState<View>(linkedView ?? "matrix")
+  const forcedAdvanced = Boolean(
+    linkedView || searchParams.get("request") || searchParams.get("item") || searchParams.get("rule") || searchParams.get("capability")
+  )
+  const mode: PermissionHubMode = forcedAdvanced ? "advanced" : (query.data?.permission_hub_mode ?? "simple")
+  const historySearch = permissionHistorySearch(searchParams)
+  const updateMode = useMutation({
+    mutationFn: updatePermissionHubPreferences,
+    onMutate: (nextMode) =>
+      queryClient.setQueryData(queryKey, (current: Awaited<ReturnType<typeof fetchPermissions>> | undefined) =>
+        current ? { ...current, permission_hub_mode: nextMode } : current
+      ),
+    onSuccess: (preferences) =>
+      queryClient.setQueryData(queryKey, (current: Awaited<ReturnType<typeof fetchPermissions>> | undefined) =>
+        current ? { ...current, permission_hub_mode: preferences.mode } : current
+      )
+  })
+  const historyQuery = useQuery({
+    queryKey: ["permission_history", historySearch],
+    queryFn: () => fetchPermissionHistory(historySearch),
+    enabled: mode === "advanced" && (view === "leases" || view === "history")
+  })
+  const subject: Subject = "interactive_chat"
   const [editor, setEditor] = useState<RuleEditorSeed | null>(null)
   const [savedNotice, setSavedNotice] = useState(false)
   const highlightedRuleId = Number(searchParams.get("rule")) || null
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
+  const [matrixSearch, setMatrixSearch] = useState("")
+  const [expandedCapabilities, setExpandedCapabilities] = useState<string[]>([])
   const [selectedRuleIds, setSelectedRuleIds] = useState<number[]>([])
   const [preview, setPreview] = useState<{ rows: PermissionPreview[]; digest: string; operations: PermissionBulkOperation[] } | null>(null)
   const [profileSubject, setProfileSubject] = useState<Subject>("interactive_chat")
@@ -62,22 +89,14 @@ export function PermissionsSettingsRoute() {
     digest: string
   } | null>(null)
   const role = roleFor(subject)
+  const targetedCapability = searchParams.get("capability")
+  const targetedOperation = searchParams.get("operation")
+  const capabilityGroups = useMemo(() => groupCapabilities(descriptors), [descriptors])
+  const visibleCapabilityGroups = useMemo(() => filterCapabilityGroups(capabilityGroups, matrixSearch), [capabilityGroups, matrixSearch])
   // Capabilities that can carry a standing (permanent) rule for some role.
   const authorableCapabilities = useMemo(() => descriptors.filter((item) => item.requestable_roles.length > 0), [descriptors])
-  const patchRules = (result: PermissionRulesDynamicPayload) =>
-    queryClient.setQueryData<Awaited<ReturnType<typeof fetchPermissions>>>(queryKey, (current) =>
-      current
-        ? {
-            ...current,
-            ...result,
-            inherited: current.inherited.map((descriptor) => ({
-              ...descriptor,
-              matrix_states: result.matrix_states?.[`${descriptor.capability}|${descriptor.operation}`] ?? descriptor.matrix_states
-            }))
-          }
-        : current
-    )
-  const revoke = useMutation({ mutationFn: revokePermissionRule, onSuccess: patchRules })
+  const refresh = () => queryClient.invalidateQueries({ queryKey })
+  const revoke = useMutation({ mutationFn: revokePermissionRule, onSuccess: refresh })
   const preset = useMutation({
     mutationFn: ({ item, name }: { item: InheritedPermission; name: string }) =>
       applyPermissionPreset({
@@ -89,7 +108,7 @@ export function PermissionsSettingsRoute() {
         resource_scope: {},
         constraints: {}
       }),
-    onSuccess: patchRules
+    onSuccess: refresh
   })
   const bulkPreview = useMutation({
     mutationFn: (operations: PermissionBulkOperation[]) => previewPermissionBulk(operations),
@@ -97,11 +116,11 @@ export function PermissionsSettingsRoute() {
   })
   const bulkApply = useMutation({
     mutationFn: () => applyPermissionBulk(preview!.operations, preview!.digest),
-    onSuccess: (result) => {
+    onSuccess: () => {
       setPreview(null)
       setSelectedKeys([])
       setSelectedRuleIds([])
-      patchRules(result)
+      void refresh()
     }
   })
   const loadProfilePreview = useMutation({
@@ -110,9 +129,9 @@ export function PermissionsSettingsRoute() {
   })
   const applyProfile = useMutation({
     mutationFn: () => applyPermissionProfile(profilePreview!.preview.profile.key, profileSubject, profilePreview!.digest),
-    onSuccess: (result) => {
+    onSuccess: () => {
       setProfilePreview(null)
-      patchRules(result)
+      void refresh()
     }
   })
 
@@ -150,6 +169,9 @@ export function PermissionsSettingsRoute() {
   const deepRequest = Number(searchParams.get("request")) || null
   const deepItem = Number(searchParams.get("item")) || null
   useEffect(() => {
+    if (linkedView) setView(linkedView)
+  }, [linkedView])
+  useEffect(() => {
     if (deepRequest && deepItem) {
       setView("rules")
       setEditor({ kind: "request", requestId: deepRequest, itemId: deepItem })
@@ -157,6 +179,15 @@ export function PermissionsSettingsRoute() {
       setView("rules")
     }
   }, [deepRequest, deepItem, highlightedRuleId])
+  useEffect(() => {
+    if (
+      targetedCapability &&
+      descriptors.some((item) => item.capability === targetedCapability && (!targetedOperation || item.operation === targetedOperation))
+    ) {
+      setView("matrix")
+      setExpandedCapabilities((current) => (current.includes(targetedCapability) ? current : [...current, targetedCapability]))
+    }
+  }, [descriptors, targetedCapability, targetedOperation])
   const previewSelected = (nextPolicy: "allow" | "deny") => {
     const operations = descriptors
       .filter((item) => selectedKeys.includes(keyFor(item)))
@@ -173,18 +204,47 @@ export function PermissionsSettingsRoute() {
     bulkPreview.mutate(operations)
   }
   const previewRevokes = () => bulkPreview.mutate(selectedRuleIds.map((id) => ({ action: "revoke" as const, id })))
+  const selectMode = (nextMode: PermissionHubMode) => {
+    if (nextMode === "simple") {
+      const next = new URLSearchParams(searchParams)
+      ;["view", "request", "item", "rule", "capability", "operation"].forEach((key) => next.delete(key))
+      setSearchParams(next, { replace: true })
+    }
+    updateMode.mutate(nextMode)
+  }
+  const selectView = (nextView: View) => {
+    setView(nextView)
+    const next = new URLSearchParams(searchParams)
+    next.set("view", nextView)
+    setSearchParams(next, { replace: true })
+  }
 
   return (
-    <main aria-label={t("permissions.title")} className="mx-auto max-w-7xl space-y-6 p-6">
+    <main aria-label={t("permissions.title")} className="mx-auto min-w-0 max-w-7xl space-y-6 px-4 py-6 sm:px-6">
       <header>
         <PageHeading>{t("permissions.title")}</PageHeading>
         <p className="mt-1 text-sm text-text-secondary">{t("permissions.description")}</p>
-        <Link className="mt-2 inline-block text-sm font-medium text-brand hover:underline" to={withRoutePrefix("/permissions/inbox", prefix)}>
-          {t("permissions.approvals_link")}
-        </Link>
+        {mode === "advanced" ? (
+          <Link className="mt-2 inline-block text-sm font-medium text-brand hover:underline" to={withRoutePrefix("/permissions/inbox", prefix)}>
+            {t("permissions.approvals_link")}
+          </Link>
+        ) : null}
       </header>
-      {query.data ? (
-        <section aria-labelledby="permission-profile-heading" className="rounded-xl border border-border bg-surface-raised p-5">
+      <nav aria-label={t("permissions.mode_label")} className="grid max-w-md grid-cols-2 rounded-lg border border-border bg-surface-raised p-1">
+        {(["simple", "advanced"] as PermissionHubMode[]).map((item) => (
+          <button
+            aria-pressed={mode === item}
+            className={`rounded-md px-4 py-2 text-sm font-semibold ${mode === item ? "bg-brand text-on-brand" : "text-text-secondary hover:bg-surface"}`}
+            key={item}
+            onClick={() => selectMode(item)}
+            type="button"
+          >
+            {t(`permissions.modes.${item}`)}
+          </button>
+        ))}
+      </nav>
+      {mode === "simple" && query.data ? (
+        <section aria-labelledby="permission-profile-heading" className="min-w-0 rounded-xl border border-border bg-surface-raised p-4 sm:p-5">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <SectionHeading id="permission-profile-heading">{t("permissions.profile_title")}</SectionHeading>
@@ -242,176 +302,270 @@ export function PermissionsSettingsRoute() {
         <PanelMessage tone="error">{errorMessage(bulkPreview.error || bulkApply.error, t("permissions.create_error"))}</PanelMessage>
       ) : null}
       {revoke.isError ? <PanelMessage tone="error">{errorMessage(revoke.error, t("permissions.revoke_error"))}</PanelMessage> : null}
-      <nav aria-label={t("permissions.views_label")} className="flex gap-2 border-b border-border">
-        {(["matrix", "resources", "rules", "leases", "history", "ai_approval"] as View[]).map((item) => (
-          <button
-            className={`px-3 py-2 text-sm font-medium ${view === item ? "border-b-2 border-brand text-brand" : "text-text-secondary"}`}
-            key={item}
-            onClick={() => setView(item)}
-          >
-            {t(`permissions.views.${item}`)}
-          </button>
-        ))}
-      </nav>
-
-      {view === "ai_approval" ? <AiApprovalDelegations descriptors={descriptors} /> : null}
-
-      {view === "matrix" ? (
-        <section className="overflow-x-auto rounded-xl border border-border bg-surface-raised p-5">
-          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <SectionHeading>{t("permissions.matrix_title")}</SectionHeading>
-              <p className="mt-1 text-sm text-text-secondary">{t("permissions.matrix_help")}</p>
-            </div>
-            {selectedKeys.length ? (
-              <div className="flex gap-2">
-                <button className="rounded-md bg-brand px-3 py-2 text-sm font-semibold text-on-brand" onClick={() => previewSelected("allow")}>
-                  {t("permissions.bulk_allow", { count: selectedKeys.length })}
-                </button>
-                <button className="rounded-md border border-danger px-3 py-2 text-sm font-semibold text-danger" onClick={() => previewSelected("deny")}>
-                  {t("permissions.bulk_deny", { count: selectedKeys.length })}
-                </button>
-              </div>
-            ) : null}
-          </div>
-          <DataTable.Root>
-            <DataTable.Header>
-              <DataTable.Row>
-                <DataTable.HeadCell>{t("permissions.capability")}</DataTable.HeadCell>
-                {subjects.map((item) => (
-                  <DataTable.HeadCell key={item}>{t(`permissions.subjects.${item}`)}</DataTable.HeadCell>
-                ))}
-              </DataTable.Row>
-            </DataTable.Header>
-            <DataTable.Body>
-              {descriptors.map((item) => (
-                <DataTable.Row key={keyFor(item)}>
-                  <DataTable.Cell>
-                    <Checkbox
-                      aria-label={t("permissions.select_capability", { capability: item.capability, operation: item.operation })}
-                      checked={selectedKeys.includes(keyFor(item))}
-                      label={
-                        <span>
-                          {item.capability}
-                          <span className="block text-xs text-text-muted">{item.operation}</span>
-                        </span>
-                      }
-                      onChange={() => setSelectedKeys(toggle(selectedKeys, keyFor(item)))}
-                    />
-                  </DataTable.Cell>
-                  {subjects.map((cellSubject) => (
-                    <DataTable.Cell key={cellSubject}>
-                      <PolicyPill policy={item.matrix_states[cellSubject] ?? "deny"} t={t} />
-                    </DataTable.Cell>
-                  ))}
-                </DataTable.Row>
-              ))}
-            </DataTable.Body>
-          </DataTable.Root>
-        </section>
-      ) : null}
-      {view === "resources" ? <ResourceView rules={rules} t={t} /> : null}
-      {view === "leases" ? <LeaseView leases={historyQuery.data?.active_leases ?? []} loading={historyQuery.isLoading} t={t} /> : null}
-      {view === "history" ? <HistoryView entries={historyQuery.data?.history ?? []} loading={historyQuery.isLoading} t={t} /> : null}
-      {view === "rules" ? (
-        <section className="rounded-xl border border-border bg-surface-raised p-5">
-          <div className="flex items-center justify-between gap-3">
-            <SectionHeading>{t("permissions.your_rules")}</SectionHeading>
-            {selectedRuleIds.length ? (
-              <button className="rounded-md border border-danger px-3 py-2 text-sm font-semibold text-danger" onClick={previewRevokes}>
-                {t("permissions.bulk_revoke", { count: selectedRuleIds.length })}
-              </button>
-            ) : null}
-          </div>
-          <p className="mt-1 text-sm text-text-secondary">{t("permissions.your_rules_help")}</p>
-          <div className="mt-4 space-y-3">
-            {rules.map((rule) => (
-              <article
-                aria-current={rule.id === highlightedRuleId ? "true" : undefined}
-                className={`flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between ${rule.id === highlightedRuleId ? "border-brand bg-brand/5" : "border-border"}`}
-                id={`permission-rule-${rule.id}`}
-                key={rule.id}
+      {mode === "advanced" ? (
+        <>
+          <nav aria-label={t("permissions.views_label")} className="scroll-fade-x flex min-w-0 overflow-x-auto border-b border-border">
+            {advancedViews.map((item) => (
+              <button
+                className={`shrink-0 px-3 py-2 text-sm font-medium ${view === item ? "border-b-2 border-brand text-brand" : "text-text-secondary"}`}
+                key={item}
+                onClick={() => selectView(item)}
+                type="button"
               >
-                <Checkbox
-                  aria-label={t("permissions.select_rule", { capability: rule.capability, operation: rule.operation })}
-                  checked={selectedRuleIds.includes(rule.id)}
-                  onChange={() => setSelectedRuleIds(toggleNumber(selectedRuleIds, rule.id))}
-                />
+                {t(`permissions.views.${item}`)}
+              </button>
+            ))}
+          </nav>
+
+          {view === "ai_approval" ? <AiApprovalDelegations descriptors={descriptors} /> : null}
+
+          {view === "matrix" ? (
+            <section className="min-w-0 rounded-xl border border-border bg-surface-raised p-4 sm:p-5">
+              <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <p className="font-medium text-text-primary">
-                    {rule.capability} · {rule.operation || t("permissions.all_operations")}
-                  </p>
-                  <p className="mt-1 text-sm text-text-secondary">
-                    {t("permissions.rule_summary", { policy: rule.policy, subject: t(`permissions.subjects.${rule.subject_selector_type}`) })}
-                  </p>
-                  <p className="mt-1 text-xs text-text-muted">
-                    {rule.resource_scope_label} · {t("permissions.owned_by", { owner: rule.owner.name })}
-                    {rule.rationale ? ` · ${rule.rationale}` : ""}
-                  </p>
+                  <SectionHeading>{t("permissions.matrix_title")}</SectionHeading>
+                  <p className="mt-1 text-sm text-text-secondary">{t("permissions.matrix_help")}</p>
                 </div>
-                {rule.editable ? (
+                {selectedKeys.length ? (
                   <div className="flex gap-2">
-                    <button className="rounded-md border border-border px-3 py-1.5 text-sm" onClick={() => startEdit(rule)}>
-                      {t("permissions.edit")}
+                    <button className="rounded-md bg-brand px-3 py-2 text-sm font-semibold text-on-brand" onClick={() => previewSelected("allow")}>
+                      {t("permissions.bulk_allow", { count: selectedKeys.length })}
                     </button>
-                    <button
-                      className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-danger"
-                      disabled={revoke.isPending}
-                      onClick={() => revoke.mutate(rule.id)}
-                    >
-                      {t("permissions.revoke")}
+                    <button className="rounded-md border border-danger px-3 py-2 text-sm font-semibold text-danger" onClick={() => previewSelected("deny")}>
+                      {t("permissions.bulk_deny", { count: selectedKeys.length })}
                     </button>
                   </div>
                 ) : null}
-              </article>
-            ))}
-            {rules.length === 0 ? <p className="text-sm text-text-muted">{t("permissions.no_rules")}</p> : null}
-          </div>
-          {editor ? (
-            <div className="mt-5 border-t border-border pt-5">
-              <PermissionRuleEditor
-                headingLevel={3}
-                key={editorKey(editor)}
-                onApplied={() => {
-                  closeEditor()
-                  setSavedNotice(true)
-                  void queryClient.invalidateQueries({ queryKey: ["permission_history"] })
-                }}
-                onCancel={closeEditor}
-                seed={editor}
-              />
-            </div>
-          ) : (
-            <div className="mt-5 border-t border-border pt-5">
-              <button
-                className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-on-brand"
-                onClick={() => {
-                  setSavedNotice(false)
-                  setEditor({ kind: "blank", capabilities: authorableCapabilities.map(({ capability, operation }) => ({ capability, operation })) })
-                }}
-                type="button"
-              >
-                {t("permission_editor.custom_rule")}
-              </button>
-              {savedNotice ? (
-                <span className="ml-3 text-sm text-success" role="status">
-                  {t("permission_editor.rule_saved")}
-                </span>
-              ) : null}
-            </div>
-          )}
-        </section>
+              </div>
+              <label className="mb-4 block max-w-md text-sm font-medium text-text-secondary">
+                {t("permissions.matrix_search")}
+                <Input
+                  className="mt-1"
+                  onChange={(event) => setMatrixSearch(event.target.value)}
+                  placeholder={t("permissions.matrix_search_placeholder")}
+                  type="search"
+                  value={matrixSearch}
+                />
+              </label>
+              <DataTable.Root wrapperClassName="max-w-full">
+                <DataTable.Header>
+                  <DataTable.Row>
+                    <DataTable.HeadCell>{t("permissions.capability")}</DataTable.HeadCell>
+                    {subjects.map((item) => (
+                      <DataTable.HeadCell key={item}>{t(`permissions.subjects.${item}`)}</DataTable.HeadCell>
+                    ))}
+                  </DataTable.Row>
+                </DataTable.Header>
+                <DataTable.Body>
+                  {visibleCapabilityGroups.map((group) => {
+                    const searchExpanded = matrixSearch.trim().length > 0
+                    const expanded = searchExpanded || expandedCapabilities.includes(group.capability)
+                    return (
+                      <Fragment key={group.capability}>
+                        <DataTable.Row groupHeader>
+                          <DataTable.Cell>
+                            <button
+                              aria-expanded={expanded}
+                              className="flex w-full min-w-56 items-start gap-2 text-left"
+                              onClick={() => setExpandedCapabilities(toggle(expandedCapabilities, group.capability))}
+                              type="button"
+                            >
+                              <span aria-hidden="true" className="mt-0.5 w-3 shrink-0 text-text-muted">
+                                {expanded ? "▾" : "▸"}
+                              </span>
+                              <span>
+                                <span className="block font-semibold text-text-primary">{group.items[0].presentation.capability_name}</span>
+                                <span className="block text-sm font-normal text-text-secondary">{group.items[0].presentation.capability_description}</span>
+                                <code className="block text-xs font-normal text-text-muted">{group.capability}</code>
+                                <span className="block text-xs font-normal text-text-muted">
+                                  {t("permissions.operation_count", { count: group.items.length })}
+                                </span>
+                              </span>
+                            </button>
+                          </DataTable.Cell>
+                          {subjects.map((cellSubject) => (
+                            <DataTable.Cell key={cellSubject}>
+                              <PolicySummary items={group.items} subject={cellSubject} t={t} />
+                            </DataTable.Cell>
+                          ))}
+                        </DataTable.Row>
+                        {expanded
+                          ? group.items.map((item) => (
+                              <DataTable.Row
+                                aria-current={item.capability === targetedCapability && item.operation === targetedOperation ? "true" : undefined}
+                                className={item.capability === targetedCapability && item.operation === targetedOperation ? "bg-brand/5" : undefined}
+                                id={operationRowId(item)}
+                                key={keyFor(item)}
+                              >
+                                <DataTable.Cell className="pl-9">
+                                  <Checkbox
+                                    aria-label={t("permissions.select_capability", { capability: item.capability, operation: item.operation })}
+                                    checked={selectedKeys.includes(keyFor(item))}
+                                    label={
+                                      <span>
+                                        {item.presentation.operation_name}
+                                        <span className="block text-sm font-normal text-text-secondary">{permissionDescription(item, t)}</span>
+                                        <code className="block text-xs text-text-muted">{item.operation}</code>
+                                      </span>
+                                    }
+                                    onChange={() => setSelectedKeys(toggle(selectedKeys, keyFor(item)))}
+                                  />
+                                </DataTable.Cell>
+                                {subjects.map((cellSubject) => (
+                                  <DataTable.Cell key={cellSubject}>
+                                    <PolicyPill policy={item.matrix_states[cellSubject] ?? "deny"} t={t} />
+                                  </DataTable.Cell>
+                                ))}
+                              </DataTable.Row>
+                            ))
+                          : null}
+                      </Fragment>
+                    )
+                  })}
+                  {visibleCapabilityGroups.length === 0 ? <DataTable.Empty colSpan={4}>{t("permissions.matrix_no_results")}</DataTable.Empty> : null}
+                </DataTable.Body>
+              </DataTable.Root>
+            </section>
+          ) : null}
+          {view === "resources" ? <ResourceView descriptors={descriptors} rules={rules} t={t} /> : null}
+          {view === "leases" ? (
+            <LeaseView
+              descriptors={descriptors}
+              leases={historyQuery.data?.active_leases ?? []}
+              loading={historyQuery.isLoading}
+              pagination={historyQuery.data?.leases_pagination}
+              searchParams={searchParams}
+              t={t}
+            />
+          ) : null}
+          {view === "history" ? (
+            <HistoryView
+              descriptors={descriptors}
+              entries={historyQuery.data?.history ?? []}
+              filter={historyQuery.data?.filter}
+              filterSchema={historyQuery.data?.filter_schema ?? []}
+              loading={historyQuery.isLoading}
+              pathname={location.pathname}
+              pagination={historyQuery.data?.history_pagination}
+              search={location.search}
+              searchParams={searchParams}
+              t={t}
+            />
+          ) : null}
+          {view === "rules" ? (
+            <section className="min-w-0 rounded-xl border border-border bg-surface-raised p-4 sm:p-5">
+              <div className="flex items-center justify-between gap-3">
+                <SectionHeading>{t("permissions.your_rules")}</SectionHeading>
+                {selectedRuleIds.length ? (
+                  <button className="rounded-md border border-danger px-3 py-2 text-sm font-semibold text-danger" onClick={previewRevokes}>
+                    {t("permissions.bulk_revoke", { count: selectedRuleIds.length })}
+                  </button>
+                ) : null}
+              </div>
+              <p className="mt-1 text-sm text-text-secondary">{t("permissions.your_rules_help")}</p>
+              <div className="mt-4 space-y-3">
+                {rules.map((rule) => (
+                  <article
+                    aria-current={rule.id === highlightedRuleId ? "true" : undefined}
+                    className={`min-w-0 overflow-x-auto rounded-lg border p-4 ${rule.id === highlightedRuleId ? "border-brand bg-brand/5" : "border-border"}`}
+                    id={`permission-rule-${rule.id}`}
+                    key={rule.id}
+                  >
+                    <div className="flex min-w-max flex-col gap-3 sm:min-w-full sm:flex-row sm:items-center sm:justify-between">
+                      <Checkbox
+                        aria-label={t("permissions.select_rule", { capability: rule.capability, operation: rule.operation })}
+                        checked={selectedRuleIds.includes(rule.id)}
+                        onChange={() => setSelectedRuleIds(toggleNumber(selectedRuleIds, rule.id))}
+                      />
+                      <div>
+                        <p className="font-medium text-text-primary">
+                          {presentationLabel(rule.capability, rule.operation, descriptors) || t("permissions.all_operations")}
+                          <code className="block text-xs font-normal text-text-muted">
+                            {rule.capability} · {rule.operation}
+                          </code>
+                        </p>
+                        <p className="mt-1 text-sm text-text-secondary">
+                          {t("permissions.rule_summary", { policy: rule.policy, subject: t(`permissions.subjects.${rule.subject_selector_type}`) })}
+                        </p>
+                        <p className="mt-1 text-xs text-text-muted">
+                          {rule.resource_scope_label} · {t("permissions.owned_by", { owner: rule.owner.name })}
+                          {rule.rationale ? ` · ${rule.rationale}` : ""}
+                        </p>
+                      </div>
+                      {rule.editable ? (
+                        <div className="flex gap-2">
+                          <button className="rounded-md border border-border px-3 py-1.5 text-sm" onClick={() => startEdit(rule)}>
+                            {t("permissions.edit")}
+                          </button>
+                          <button
+                            className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-danger"
+                            disabled={revoke.isPending}
+                            onClick={() => revoke.mutate(rule.id)}
+                          >
+                            {t("permissions.revoke")}
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  </article>
+                ))}
+                {rules.length === 0 ? <p className="text-sm text-text-muted">{t("permissions.no_rules")}</p> : null}
+              </div>
+              {editor ? (
+                <div className="mt-5 border-t border-border pt-5">
+                  <PermissionRuleEditor
+                    headingLevel={3}
+                    key={editorKey(editor)}
+                    onApplied={() => {
+                      closeEditor()
+                      setSavedNotice(true)
+                      void refresh()
+                      void queryClient.invalidateQueries({ queryKey: ["permission_history"] })
+                    }}
+                    onCancel={closeEditor}
+                    seed={editor}
+                  />
+                </div>
+              ) : (
+                <div className="mt-5 border-t border-border pt-5">
+                  <button
+                    className="rounded-md bg-brand px-4 py-2 text-sm font-semibold text-on-brand"
+                    onClick={() => {
+                      setSavedNotice(false)
+                      setEditor({ kind: "blank", capabilities: authorableCapabilities.map(({ capability, operation }) => ({ capability, operation })) })
+                    }}
+                    type="button"
+                  >
+                    {t("permission_editor.custom_rule")}
+                  </button>
+                  {savedNotice ? (
+                    <span className="ml-3 text-sm text-success" role="status">
+                      {t("permission_editor.rule_saved")}
+                    </span>
+                  ) : null}
+                </div>
+              )}
+            </section>
+          ) : null}
+          {view === "matrix" ? (
+            <section className="min-w-0 rounded-xl border border-border bg-surface-raised p-4 sm:p-5">
+              <SectionHeading>{t("permissions.inherited_policy")}</SectionHeading>
+              <p className="mt-1 text-sm text-text-secondary">{t("permissions.inherited_help")}</p>
+              <div className="mt-4 divide-y divide-border">
+                {descriptors.map((item) => (
+                  <InheritedRow item={item} key={keyFor(item)} onPreset={(name) => preset.mutate({ item, name })} t={t} />
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </>
       ) : null}
-      <section className="rounded-xl border border-border bg-surface-raised p-5">
-        <SectionHeading>{t("permissions.inherited_policy")}</SectionHeading>
-        <p className="mt-1 text-sm text-text-secondary">{t("permissions.inherited_help")}</p>
-        <div className="mt-4 divide-y divide-border">
-          {descriptors.map((item) => (
-            <InheritedRow item={item} key={keyFor(item)} onPreset={(name) => preset.mutate({ item, name })} t={t} />
-          ))}
-        </div>
-      </section>
-      <Modal label={t("permissions.profile_confirm_title")} onClose={() => setProfilePreview(null)} open={Boolean(profilePreview)}>
+      <Modal
+        className="w-full min-w-0 max-w-sm overflow-x-hidden rounded-[var(--radius-panel)] bg-surface p-5 shadow-[var(--shadow-panel)]"
+        label={t("permissions.profile_confirm_title")}
+        onClose={() => setProfilePreview(null)}
+        open={Boolean(profilePreview)}
+      >
         {profilePreview ? (
           <div className="space-y-4">
             <SectionHeading>
@@ -423,12 +577,14 @@ export function PermissionsSettingsRoute() {
             <p className="text-sm text-text-secondary">{t("permissions.profile_confirm_body", { subject: t(`permissions.subjects.${profileSubject}`) })}</p>
             <div className="grid gap-3 md:grid-cols-2">
               <ProfileRuleList
+                descriptors={descriptors}
                 empty={t("permissions.profile_no_revocations")}
                 heading={t("permissions.profile_revoked", { count: profilePreview.preview.revoked.length })}
                 rows={profilePreview.preview.revoked}
                 t={t}
               />
               <ProfileRuleList
+                descriptors={descriptors}
                 empty={t("permissions.profile_no_replacements")}
                 heading={t("permissions.profile_replacements", { count: profilePreview.preview.replacements.length })}
                 rows={profilePreview.preview.replacements}
@@ -457,23 +613,45 @@ export function PermissionsSettingsRoute() {
           </div>
         ) : null}
       </Modal>
-      <BulkPreviewModal applying={bulkApply.isPending} onClose={() => setPreview(null)} onConfirm={() => bulkApply.mutate()} preview={preview} t={t} />
+      <BulkPreviewModal
+        applying={bulkApply.isPending}
+        descriptors={descriptors}
+        onClose={() => setPreview(null)}
+        onConfirm={() => bulkApply.mutate()}
+        preview={preview}
+        t={t}
+      />
     </main>
   )
 }
 
 type ProfileRuleRow = { policy: string; capability: string; operation: string | null; resource_scope_label: string }
 
-function ProfileRuleList({ empty, heading, rows, t }: { empty: string; heading: string; rows: ProfileRuleRow[]; t: Translate }) {
+function ProfileRuleList({
+  descriptors,
+  empty,
+  heading,
+  rows,
+  t
+}: {
+  descriptors: InheritedPermission[]
+  empty: string
+  heading: string
+  rows: ProfileRuleRow[]
+  t: Translate
+}) {
   return (
-    <section className="rounded-lg border border-border p-3">
+    <section className="min-w-0 overflow-x-auto rounded-lg border border-border p-3">
       <h3 className="text-sm font-semibold text-text-primary">{heading}</h3>
       {rows.length ? (
         <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto">
           {rows.map((row, index) => (
             <li className="text-xs text-text-secondary" key={`${row.capability}-${row.operation}-${index}`}>
-              <strong>{t(`permissions.states.${row.policy}`)}</strong> · {row.capability} · {row.operation || t("permissions.all_operations")}
-              <br />
+              <strong>{t(`permissions.states.${row.policy}`)}</strong> ·{" "}
+              {presentationLabel(row.capability, row.operation, descriptors) || t("permissions.unknown")}
+              <code className="block text-xs text-text-muted">
+                {row.capability} · {row.operation || t("permissions.all_operations")}
+              </code>
               <span className="text-text-muted">{row.resource_scope_label}</span>
             </li>
           ))}
@@ -498,19 +676,19 @@ function profileCopy(profile: { key: string; label: string; description: string 
   return t(`permissions.${group}.${key}`)
 }
 
-function ResourceView({ rules, t }: { rules: PermissionRule[]; t: Translate }) {
+function ResourceView({ descriptors, rules, t }: { descriptors: InheritedPermission[]; rules: PermissionRule[]; t: Translate }) {
   const groups = rules.reduce<Record<string, PermissionRule[]>>((result, rule) => {
     const key = `${rule.resource_type}:${rule.resource_scope_label}`
     ;(result[key] ||= []).push(rule)
     return result
   }, {})
   return (
-    <section className="rounded-xl border border-border bg-surface-raised p-5">
+    <section className="min-w-0 rounded-xl border border-border bg-surface-raised p-4 sm:p-5">
       <SectionHeading>{t("permissions.resources_title")}</SectionHeading>
       <p className="mt-1 text-sm text-text-secondary">{t("permissions.resources_help")}</p>
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         {Object.entries(groups).map(([label, items]) => (
-          <article className="rounded-lg border border-border p-4" key={label}>
+          <article className="min-w-0 overflow-x-auto rounded-lg border border-border p-4" key={label}>
             <h3 className="font-medium">{items[0].resource_scope_label}</h3>
             <p className="text-xs text-text-muted">{items[0].resource_type}</p>
             <ul className="mt-2 space-y-1 text-sm">
@@ -518,7 +696,10 @@ function ResourceView({ rules, t }: { rules: PermissionRule[]; t: Translate }) {
                 <li key={rule.id}>
                   <PolicyPill policy={rule.policy} t={t} />{" "}
                   <span className="ml-2">
-                    {rule.capability} · {rule.operation}
+                    {presentationLabel(rule.capability, rule.operation, descriptors) || t("permissions.unknown")}
+                    <code className="block text-xs text-text-muted">
+                      {rule.capability} · {rule.operation}
+                    </code>
                   </span>
                 </li>
               ))}
@@ -531,19 +712,34 @@ function ResourceView({ rules, t }: { rules: PermissionRule[]; t: Translate }) {
   )
 }
 
-function LeaseView({ leases, loading, t }: { leases: PermissionLease[]; loading: boolean; t: Translate }) {
+function LeaseView({
+  descriptors,
+  leases,
+  loading,
+  pagination,
+  searchParams,
+  t
+}: {
+  descriptors: InheritedPermission[]
+  leases: PermissionLease[]
+  loading: boolean
+  pagination?: PermissionPagination
+  searchParams: URLSearchParams
+  t: Translate
+}) {
   return (
-    <section className="rounded-xl border border-border bg-surface-raised p-5">
+    <section className="min-w-0 rounded-xl border border-border bg-surface-raised p-4 sm:p-5">
       <SectionHeading>{t("permissions.leases_title")}</SectionHeading>
       <p className="mt-1 text-sm text-text-secondary">{t("permissions.leases_help")}</p>
       <div className="mt-4 space-y-3">
         {leases.map((lease) => (
-          <article className="rounded-lg border border-border p-4" key={lease.id}>
+          <article className="min-w-0 overflow-x-auto rounded-lg border border-border p-4" key={lease.id}>
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
-                <h3 className="font-medium">
-                  {lease.capability} · {lease.operation || t("permissions.all_operations")}
-                </h3>
+                <h3 className="font-medium">{presentationLabel(lease.capability, lease.operation, descriptors) || t("permissions.all_operations")}</h3>
+                <code className="block text-xs text-text-muted">
+                  {lease.capability} · {lease.operation}
+                </code>
                 <p className="mt-1 text-sm text-text-secondary">{t("permissions.lease_lifecycle", { subject: lease.subject, duration: lease.duration })}</p>
               </div>
               <PolicyPill policy="allow" t={t} />
@@ -569,24 +765,56 @@ function LeaseView({ leases, loading, t }: { leases: PermissionLease[]; loading:
         {!loading && leases.length === 0 ? <p className="text-sm text-text-muted">{t("permissions.no_leases")}</p> : null}
         {loading ? <p className="text-sm text-text-muted">{t("permissions.loading_history")}</p> : null}
       </div>
+      <PermissionPaginationControls pagination={pagination} paramName="lease_page" searchParams={searchParams} t={t} />
     </section>
   )
 }
 
-function HistoryView({ entries, loading, t }: { entries: PermissionHistoryEntry[]; loading: boolean; t: Translate }) {
+function HistoryView({
+  descriptors,
+  entries,
+  filter,
+  filterSchema,
+  loading,
+  pathname,
+  pagination,
+  search,
+  searchParams,
+  t
+}: {
+  descriptors: InheritedPermission[]
+  entries: PermissionHistoryEntry[]
+  filter?: Record<string, unknown>
+  filterSchema: FilterSchemaField[]
+  loading: boolean
+  pathname: string
+  pagination?: PermissionPagination
+  search: string
+  searchParams: URLSearchParams
+  t: Translate
+}) {
   return (
-    <section className="rounded-xl border border-border bg-surface-raised p-5">
+    <section className="min-w-0 rounded-xl border border-border bg-surface-raised p-4 sm:p-5">
       <SectionHeading>{t("permissions.history_title")}</SectionHeading>
       <p className="mt-1 text-sm text-text-secondary">{t("permissions.history_help")}</p>
+      <FilterBar className="mt-4 space-y-2" filter={filter} filterSchema={filterSchema} pathname={pathname} search={search} />
       <ol className="mt-4 space-y-3">
         {entries.map((entry) => (
-          <li className="rounded-lg border border-border p-4" key={`${entry.type}-${entry.id}`}>
+          <li className="min-w-0 overflow-x-auto rounded-lg border border-border p-4" key={`${entry.type}-${entry.id}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-medium">{historyTitle(entry, t)}</h3>
+              <div>
+                <h3 className="font-medium">{historyTitle(entry, descriptors, t)}</h3>
+                {entry.capability ? (
+                  <code className="block text-xs text-text-muted">
+                    {String(entry.capability)}
+                    {entry.operation ? ` · ${String(entry.operation)}` : ""}
+                  </code>
+                ) : null}
+              </div>
               <time className="text-xs text-text-muted">{formatTime(entry.occurred_at, t)}</time>
             </div>
             <p className="mt-1 text-sm text-text-secondary">{t("permissions.history_state", { state: entry.state })}</p>
-            {entry.type === "request" ? <RequestDetails entry={entry} t={t} /> : null}
+            {entry.type === "request" ? <RequestDetails descriptors={descriptors} entry={entry} t={t} /> : null}
             {entry.type === "invocation" ? <InvocationDetails entry={entry} t={t} /> : null}
             {entry.type === "policy_change" ? <Evidence evidence={entry.evidence} t={t} /> : null}
             {entry.type === "lease" ? (
@@ -597,11 +825,55 @@ function HistoryView({ entries, loading, t }: { entries: PermissionHistoryEntry[
         {!loading && entries.length === 0 ? <li className="text-sm text-text-muted">{t("permissions.no_history")}</li> : null}
         {loading ? <li className="text-sm text-text-muted">{t("permissions.loading_history")}</li> : null}
       </ol>
+      <PermissionPaginationControls pagination={pagination} paramName="page" searchParams={searchParams} t={t} />
     </section>
   )
 }
 
-function RequestDetails({ entry, t }: { entry: PermissionHistoryEntry; t: Translate }) {
+function PermissionPaginationControls({
+  pagination,
+  paramName,
+  searchParams,
+  t
+}: {
+  pagination?: PermissionPagination
+  paramName: string
+  searchParams: URLSearchParams
+  t: Translate
+}) {
+  if (!pagination || pagination.total_pages <= 1) return null
+  const first = (pagination.page - 1) * pagination.per_page + 1
+  const last = Math.min(pagination.page * pagination.per_page, pagination.total)
+  const pageLink = (page: number) => {
+    const next = new URLSearchParams(searchParams)
+    next.set(paramName, String(page))
+    return `?${next.toString()}`
+  }
+  const buttonClass = "rounded border border-border px-3 py-1 hover:bg-surface"
+  return (
+    <nav aria-label={t("permissions.pagination_label")} className="mt-4 flex items-center justify-between text-sm text-text-secondary">
+      <span>{t("permissions.pagination_showing", { first, last, total: pagination.total })}</span>
+      <span className="flex gap-2">
+        {pagination.page > 1 ? (
+          <Link className={buttonClass} to={pageLink(pagination.page - 1)}>
+            {t("permissions.previous")}
+          </Link>
+        ) : (
+          <span className="rounded border border-border px-3 py-1 text-text-muted opacity-50">{t("permissions.previous")}</span>
+        )}
+        {pagination.page < pagination.total_pages ? (
+          <Link className={buttonClass} to={pageLink(pagination.page + 1)}>
+            {t("permissions.next")}
+          </Link>
+        ) : (
+          <span className="rounded border border-border px-3 py-1 text-text-muted opacity-50">{t("permissions.next")}</span>
+        )}
+      </span>
+    </nav>
+  )
+}
+
+function RequestDetails({ descriptors, entry, t }: { descriptors: InheritedPermission[]; entry: PermissionHistoryEntry; t: Translate }) {
   const items = (entry.items as Array<Record<string, unknown>> | undefined) ?? []
   const origins = (entry.origins as Array<{ label: string }> | undefined) ?? []
   return (
@@ -612,8 +884,12 @@ function RequestDetails({ entry, t }: { entry: PermissionHistoryEntry; t: Transl
       {items.map((item) => (
         <div className="rounded-md bg-surface p-2" key={String(item.id)}>
           <p className="text-text-primary">
-            {String(item.capability)} · {String(item.operation || "")}
+            {presentationLabel(String(item.capability), String(item.operation || ""), descriptors) || t("permissions.unknown")}
           </p>
+          <code className="block text-xs text-text-muted">
+            {String(item.capability)}
+            {item.operation ? ` · ${String(item.operation)}` : ""}
+          </code>
           <p>{t("permissions.decision", { state: item.state, duration: item.selected_duration || "—", reason: item.decision_reason || "—" })}</p>
           <Evidence evidence={item.evidence} t={t} />
         </div>
@@ -640,40 +916,61 @@ function Evidence({ evidence, t }: { evidence: unknown; t: Translate }) {
   )
 }
 
-function historyTitle(entry: PermissionHistoryEntry, t: Translate) {
+function historyTitle(entry: PermissionHistoryEntry, descriptors: InheritedPermission[], t: Translate) {
   if (entry.type === "request") return t("permissions.history_types.request")
   if (entry.type === "invocation") return t("permissions.history_types.invocation", { tool: entry.tool_name })
-  if (entry.type === "policy_change") return t("permissions.history_types.policy_change", { capability: entry.capability })
-  return t("permissions.history_types.lease", { capability: entry.capability })
+  const name = entry.operation
+    ? presentationFor(String(entry.capability), String(entry.operation), descriptors)?.operation_name || t("permissions.unknown")
+    : presentationFor(String(entry.capability), null, descriptors)?.capability_name || t("permissions.unknown")
+  if (entry.type === "policy_change") return t("permissions.history_types.policy_change", { capability: name })
+  return t("permissions.history_types.lease", { capability: name })
 }
 
 function formatTime(value: unknown, t: Translate) {
   return typeof value === "string" && value ? new Date(value).toLocaleString() : t("permissions.never")
 }
+
+function permissionHistorySearch(searchParams: URLSearchParams) {
+  const historyParams = new URLSearchParams()
+  ;["q", "page", "lease_page"].forEach((key) => {
+    const value = searchParams.get(key)
+    if (value != null) historyParams.set(key, value)
+  })
+  const query = historyParams.toString()
+  return query ? `?${query}` : ""
+}
 type BulkPreview = { rows: PermissionPreview[]; digest: string; operations: PermissionBulkOperation[] }
 
 type BulkPreviewModalProps = {
   applying: boolean
+  descriptors: InheritedPermission[]
   onClose: () => void
   onConfirm: () => void
   preview: BulkPreview | null
   t: Translate
 }
 
-function BulkPreviewModal({ applying, onClose, onConfirm, preview, t }: BulkPreviewModalProps) {
+function BulkPreviewModal({ applying, descriptors, onClose, onConfirm, preview, t }: BulkPreviewModalProps) {
   return (
-    <Modal label={t("permissions.confirm_bulk_title")} onClose={onClose} open={Boolean(preview)}>
+    <Modal
+      className="w-full min-w-0 max-w-sm overflow-x-hidden rounded-[var(--radius-panel)] bg-surface p-5 shadow-[var(--shadow-panel)]"
+      label={t("permissions.confirm_bulk_title")}
+      onClose={onClose}
+      open={Boolean(preview)}
+    >
       {preview ? (
         <>
           <SectionHeading>{t("permissions.confirm_bulk_title")}</SectionHeading>
           <p className="mt-1 text-sm text-text-secondary">{t("permissions.confirm_bulk_help", { count: preview.rows.length })}</p>
           <ul className="my-4 max-h-80 space-y-2 overflow-y-auto">
             {preview.rows.map((row: PermissionPreview, index: number) => (
-              <li className="rounded-md border border-border p-2 text-sm" key={`${row.capability}-${row.operation}-${index}`}>
+              <li className="overflow-x-auto rounded-md border border-border p-2 text-sm" key={`${row.capability}-${row.operation}-${index}`}>
                 <strong>{row.policy}</strong> · {row.subject}
                 <br />
-                {row.capability} · {row.operation}
-                <br />
+                {presentationLabel(row.capability, row.operation, descriptors) || t("permissions.unknown")}
+                <code className="block text-xs text-text-muted">
+                  {row.capability} · {row.operation}
+                </code>
                 <span className="text-xs text-text-muted">{row.resource_scope_label}</span>
               </li>
             ))}
@@ -695,16 +992,41 @@ function PolicyPill({ policy, t }: { policy: PolicyState; t: Translate }) {
   const tone = policy === "allow" ? "bg-success/10 text-success" : policy === "deny" ? "bg-danger/10 text-danger" : "bg-warning/10 text-warning"
   return <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${tone}`}>{t(`permissions.states.${policy}`)}</span>
 }
+function PolicySummary({ items, subject, t }: { items: InheritedPermission[]; subject: Subject; t: Translate }) {
+  const counts = items.reduce<Partial<Record<PolicyState, number>>>((result, item) => {
+    const policy = item.matrix_states[subject] ?? "deny"
+    result[policy] = (result[policy] ?? 0) + 1
+    return result
+  }, {})
+  return (
+    <div className="flex min-w-28 flex-wrap gap-1.5">
+      {(["allow", "ask", "deny", "scoped"] as PolicyState[]).map((policy) =>
+        counts[policy] ? (
+          <span className="inline-flex items-center gap-1" key={policy}>
+            <PolicyPill policy={policy} t={t} />
+            <span className="text-xs text-text-muted">{counts[policy]}</span>
+          </span>
+        ) : null
+      )}
+    </div>
+  )
+}
 function InheritedRow({ item, onPreset, t }: { item: InheritedPermission; onPreset: (name: string) => void; t: Translate }) {
   const defaults = Object.entries(item.defaults)
     .map(([role, policy]) => `${role}: ${policy}`)
     .join(", ")
   return (
-    <div className="py-3">
+    <div className="min-w-0 overflow-x-auto py-3">
       <div className="flex items-center justify-between gap-3">
-        <p className="font-medium">
-          {item.capability} · {item.operation}
-        </p>
+        <div>
+          <p className="font-medium">
+            {item.presentation.capability_name} — {item.presentation.operation_name}
+          </p>
+          <p className="text-sm text-text-secondary">{permissionDescription(item, t)}</p>
+          <code className="text-xs text-text-muted">
+            {item.capability} · {item.operation}
+          </code>
+        </div>
         <span className="rounded-full bg-surface px-2 py-1 text-xs text-text-muted">{t("permissions.read_only")}</span>
       </div>
       <p className="mt-1 text-sm text-text-secondary">{defaults}</p>
@@ -724,8 +1046,50 @@ function InheritedRow({ item, onPreset, t }: { item: InheritedPermission; onPres
     </div>
   )
 }
+function permissionDescription(item: InheritedPermission, t: Translate) {
+  const effects = item.effects.map((effect) => t(`permissions.effect_descriptions.${effect}`)).join(" ")
+  return [item.presentation.operation_description, effects].filter(Boolean).join(" ")
+}
+function presentationFor(capability: string, operation: string | null, descriptors: InheritedPermission[]) {
+  return descriptors.find((item) => item.capability === capability && (!operation || item.operation === operation))?.presentation
+}
+function presentationLabel(capability: string, operation: string | null, descriptors: InheritedPermission[]) {
+  const presentation = presentationFor(capability, operation, descriptors)
+  return presentation ? `${presentation.capability_name} — ${presentation.operation_name}` : null
+}
 function keyFor(item: Pick<InheritedPermission, "capability" | "operation">) {
   return `${item.capability}:${item.operation}`
+}
+type CapabilityGroup = { capability: string; items: InheritedPermission[] }
+function groupCapabilities(items: InheritedPermission[]) {
+  return Array.from(
+    items.reduce<Map<string, InheritedPermission[]>>((groups, item) => {
+      groups.set(item.capability, [...(groups.get(item.capability) ?? []), item])
+      return groups
+    }, new Map())
+  ).map(([capability, groupedItems]): CapabilityGroup => ({ capability, items: groupedItems }))
+}
+function filterCapabilityGroups(groups: CapabilityGroup[], search: string) {
+  const query = search.trim().toLocaleLowerCase()
+  if (!query) return groups
+  return groups
+    .map((group) => {
+      const capabilityMatches = [group.capability, group.items[0].presentation.capability_name, group.items[0].presentation.capability_description].some(
+        (value) => value.toLocaleLowerCase().includes(query)
+      )
+      const items = capabilityMatches
+        ? group.items
+        : group.items.filter((item) =>
+            [item.operation, item.presentation.operation_name, item.presentation.operation_description].some((value) =>
+              value.toLocaleLowerCase().includes(query)
+            )
+          )
+      return { ...group, items }
+    })
+    .filter((group) => group.items.length > 0)
+}
+function operationRowId(item: Pick<InheritedPermission, "capability" | "operation">) {
+  return `permission-operation-${encodeURIComponent(keyFor(item))}`
 }
 function roleFor(subject: string) {
   return subject === "interactive_chat" ? "chat:planner" : subject === "coding_chat" ? "chat:coding" : "chat:local"
@@ -735,6 +1099,10 @@ function toggle(items: string[], item: string) {
 }
 function toggleNumber(items: number[], item: number) {
   return items.includes(item) ? items.filter((value) => value !== item) : [...items, item]
+}
+
+function parseView(value: string | null): View | null {
+  return advancedViews.find((view) => view === value) ?? null
 }
 
 // A different seed must remount the editor so one rule's fields and preview

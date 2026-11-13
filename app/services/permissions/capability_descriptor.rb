@@ -1,6 +1,7 @@
 require "digest"
 require_dependency "permissions/resource_scope_schema"
 require_dependency "permissions/tool_set_bundles"
+require_dependency "permissions/capability_presentation"
 
 module Permissions
   class CapabilityDescriptor
@@ -41,15 +42,27 @@ module Permissions
       :capability_aliases, :operation_aliases, :constraint_fields,
       :fresh_authentication_window, :budget_dimensions, :benign_internal, :tool_set_bundle,
       :resource_scope_resolver
+    attr_reader :presentation
 
     def initialize(capability:, operation:, effects:, risk:, requestable_roles:, defaults:,
       maximum_autonomy:, authority_durations:, resource_scope:, classifier:,
       fingerprint_normalizer:, redactor:, maximum_duration: nil, presets: [],
       capability_aliases: [], operation_aliases: [], constraint_fields: {},
       fresh_authentication_window: nil, budget_dimensions: [], benign_internal: nil, tool_set_bundle: nil,
-      resource_scope_resolver: nil)
+      resource_scope_resolver: nil, presentation: nil)
       @capability = versioned_identifier(capability, :capability)
       @operation = versioned_identifier(operation, :operation)
+      @presentation = if presentation.is_a?(CapabilityPresentation)
+        presentation
+      elsif presentation
+        CapabilityPresentation.new(**presentation.to_h.symbolize_keys)
+      elsif Rails.env.test?
+        # Existing isolated unit fixtures may omit UI metadata. Production
+        # registries are architecture-checked and must declare it explicitly.
+        CapabilityPresentation.for(capability: @capability, operation: @operation)
+      else
+        raise ArgumentError, "presentation copy is required"
+      end
       @effects = Array(effects).map(&:to_sym).uniq.freeze
       @risk = risk.to_sym
       @requestable_roles = Array(requestable_roles).map(&:to_s).uniq.freeze
@@ -115,7 +128,8 @@ module Permissions
         fresh_authentication_window: fresh_authentication_window,
         budget_dimensions: budget_dimensions,
         benign_internal: benign_internal,
-        tool_set_bundle: tool_set_bundle
+        tool_set_bundle: tool_set_bundle,
+        presentation: presentation.to_h
       }
     end
 

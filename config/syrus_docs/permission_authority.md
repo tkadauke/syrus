@@ -23,6 +23,16 @@ is normally safe can still ask when its arguments classify the particular use
 as consequential. Only low-risk local reads and isolated workspace writes are
 quiet under the Ask on first use and Restricted profiles; code execution asks.
 
+First-run setup presents these profiles as an optional starting posture and
+applies the selected profile consistently to Interactive, Coding, and Local
+chat. Skipping writes no profile rules, so the evaluator's current defaults
+remain in effect. The setup copy describes the containerized execution model:
+agents work in containers against cloned workspaces, while confinement,
+network policy, resource authorization, provider ceilings, credentials, and
+nondelegable operations continue to narrow every profile. Invocation-time
+safety classification can still escalate a sensitive call. Operators can
+change each chat surface independently later in the Permissions Hub.
+
 ## Permission authority lifetimes
 
 Syrus represents permanent agent authority as an audited `PermissionRule` and
@@ -55,6 +65,15 @@ durable delegation separate from operational approvals: the hub lists editable
 user-owned rules and read-only inherited capability defaults, identifies policy
 ownership, and explains which default is decisive when no more specific
 permitted rule applies. Revoking a rule preserves its audit history.
+The Hub opens in a Simple view containing only the permission-profile choices.
+Advanced exposes the matrix, resources, rules, leases, history, and AI approval
+workspaces. The selected level is stored per user; links to an Advanced
+workspace or a specific rule, request, or capability open Advanced directly.
+Inherited policy appears once with the default matrix workspace rather than on
+every Advanced tab.
+The Hub leads with plain-language capability, operation, and effect names and
+one-sentence explanations. Stable identifiers remain visible as secondary
+details so operators can correlate rules, audit entries, and support reports.
 The agent matrix compares evaluator-derived allow, ask, and deny states by
 subject and capability, and marks states that vary by resource instead of
 collapsing them into one policy. The resource view groups active rules by
@@ -213,7 +232,12 @@ The Permissions Hub's AI approvals view (`/api/v1/app/approval_delegations`)
 shows providers with their disclosure and default guidance, the owner's
 delegations (provider, capability, resource type, bounded scope, status),
 the core human-only exclusions, and the owner's `ai_approval_evaluated`
-history. It reports `enabled: false` until a provider plugin is registered.
+history. The same payload derives a plugin contribution inventory from
+`Syrus::PluginRegistry`: enabled manifests are listed as installed, disabled
+registered manifests as available, with each manifest's declared capabilities
+and MCP tools. `can_manage_plugins` lets only administrators receive the UI
+link to plugin management without hiding inventory from other users. It reports
+`enabled: false` until a provider plugin is registered.
 Creating a delegation requires a registered provider, a known capability, and a
 non-empty scope; revocation is immediate and attributed to the human. Requests
 carrying a workflow invocation credential are rejected so an AI principal cannot

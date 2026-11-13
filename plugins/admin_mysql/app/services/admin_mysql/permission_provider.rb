@@ -27,6 +27,7 @@ module AdminMysql
 
     register_capability(
       capability: "mysql.admin.observe@v1", operation: "mysql.admin/status@v1",
+      presentation: Permissions::CapabilityPresentation.for(capability: "mysql.admin.observe@v1", operation: "mysql.admin/status@v1"),
       effects: %i[confidential_read operational], risk: :medium,
       requestable_roles: ROLES, defaults: ROLES.index_with { :allow },
       maximum_autonomy: :job, authority_durations: %i[invocation chat_session job],
@@ -37,6 +38,7 @@ module AdminMysql
 
     register_capability(
       capability: "mysql.admin.kill_query@v1", operation: "mysql.admin/kill_query@v1",
+      presentation: Permissions::CapabilityPresentation.for(capability: "mysql.admin.kill_query@v1", operation: "mysql.admin/kill_query@v1"),
       effects: %i[external_write operational destructive], risk: :critical,
       requestable_roles: [ AgentRole::CHAT_PLANNER ], defaults: { AgentRole::CHAT_PLANNER => :ask },
       maximum_autonomy: :invocation, authority_durations: %i[invocation],

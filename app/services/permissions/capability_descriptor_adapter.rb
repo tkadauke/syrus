@@ -48,6 +48,9 @@ module Permissions
         CapabilityDescriptor.new(
           capability: "#{family}@v1",
           operation: "#{family}/#{operation}@v1",
+          presentation: CapabilityPresentation.for(
+            capability: "#{family}@v1", operation: "#{family}/#{operation}@v1"
+          ),
           effects: effects,
           risk: mutation ? :medium : :low,
           requestable_roles: roles,

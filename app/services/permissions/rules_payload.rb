@@ -10,6 +10,7 @@ module Permissions
       presenter = RulePresenter.new(user, descriptors:)
       {
         rules: active_rules.map { |rule| presenter.as_json(rule) },
+        permission_hub_mode: user.permission_hub_mode,
         matrix_states: descriptors.to_h { |descriptor|
           [ descriptor_key(descriptor), matrix_states(descriptor, management:, active_rules:) ]
         },

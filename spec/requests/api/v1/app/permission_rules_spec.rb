@@ -18,6 +18,7 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     expect(payload.fetch("rules").pluck("id")).to eq([ mine.id ])
     expect(payload.dig("rules", 0, "editable")).to be(true)
     expect(payload.dig("rules", 0, "owner", "id")).to eq(user.id)
+    expect(payload.fetch("permission_hub_mode")).to eq("simple")
     expect(payload.fetch("current_profiles")).to include("interactive_chat" => nil)
     expect(payload.fetch("matrix_states").values).to all(include("interactive_chat", "coding_chat", "local_chat"))
 
@@ -27,17 +28,8 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     expect(catalog.fetch("inherited")).not_to be_empty
     expect(catalog.fetch("inherited")).to all(include("editable" => false, "explanation" => "role_default"))
     expect(catalog.fetch("inherited")).to all(include("requestable_roles", "authority_durations"))
+    expect(catalog.fetch("inherited")).to all(include("presentation" => include("capability_name", "operation_name")))
     expect(catalog.fetch("profiles").pluck("key")).to eq(%w[full_access@v1 ask_on_first_use@v1 restricted@v1])
-  end
-
-  it "paginates history with a capped page size" do
-    3.times { permission_rule(owner: user) }
-
-    get "/api/v1/app/permission_rules/history", params: { page: 2, per_page: 1_000 }
-
-    payload = JSON.parse(response.body)
-    expect(payload.fetch("pagination")).to include("page" => 2, "per_page" => Permissions::HistoryPayload::MAX_PER_PAGE)
-    expect(payload.fetch("history")).to be_empty
   end
 
   it "atomically replaces one chat surface's custom rules with a canonical profile" do
@@ -94,6 +86,33 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     expect(old_rule.reload.revoked_at).to be_nil
   end
 
+  it "applies one onboarding posture atomically to every chat surface" do
+    post "/api/v1/app/permission_rules/apply_starting_profile", params: { profile: "ask_on_first_use@v1" }
+
+    expect(response).to have_http_status(:ok)
+    expect(JSON.parse(response.body)).to include(
+      "profile" => "ask_on_first_use@v1",
+      "subject_selector_types" => %w[interactive_chat coding_chat local_chat]
+    )
+    expect(PermissionRule.for_owner(user).active.group(:subject_selector_type).count.keys).to contain_exactly(
+      "interactive_chat", "coding_chat", "local_chat"
+    )
+    expect(PermissionRule.for_owner(user).active.distinct.pluck(:source)).to eq([ "permission_profile:ask_on_first_use@v1" ])
+  end
+
+  it "rejects the onboarding posture shortcut after first-run setup is complete" do
+    repository = Factories.repository(user: user)
+    Factories.epic(user: user, repository: repository, state: "done")
+    existing_rule = permission_rule(owner: user)
+
+    post "/api/v1/app/permission_rules/apply_starting_profile", params: { profile: "restricted@v1" }
+
+    expect(response).to have_http_status(:forbidden)
+    expect(JSON.parse(response.body).dig("error", "code")).to eq("forbidden")
+    expect(existing_rule.reload.revoked_at).to be_nil
+    expect(PermissionRule.for_owner(user).active).to contain_exactly(existing_rule)
+  end
+
   it "rejects unknown profiles and subjects without changing rules" do
     rule = permission_rule(owner: user)
 
@@ -112,6 +131,7 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
   it "shows current leases and a redacted, user-scoped authorization history" do
     repository = Factories.repository(user: user)
     job = Factories.job_record(user: user, repository: repository)
+    job.update!(issue_title: "Stuck deployment")
     other_user = Factories.user
     lease = PermissionLease.create!(
       owner_user: user, subject_selector_type: "workflow_role", subject_selector_id: "implementer",
@@ -127,6 +147,11 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     request = ChatPendingAction.create!(
       request_kind: "authorization_request", user:, repository:, origin: job, subject: user,
       deduplication_key: "history-request", purpose: "Cancel a stuck job"
+    )
+    request.authorization_items.create!(
+      kind: "capability_possession", capability: "unrelated.capability@v1",
+      resource_type: "none", resource_scope: {}, normalized_arguments: {}, effects: [],
+      policy_chain: [], decisive_rule: {}, requested_durations: [ "job" ]
     )
     item = request.authorization_items.create!(
       kind: "operation", capability: "syrus.jobs@v1", operation: "cancel@v1", operation_version: 1,
@@ -149,10 +174,23 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     ))
     request_entry = payload.fetch("history").find { |entry| entry["type"] == "request" }
     expect(request_entry).to include("state" => "pending", "escalated" => true)
-    expect(request_entry.dig("items", 0, "state")).to eq("approved")
-    expect(request_entry.dig("items", 0, "evidence")).to eq("api_token" => "[redacted]", "job_id" => job.id)
+    approved_item = request_entry.fetch("items").find { |entry| entry["capability"] == "syrus.jobs@v1" }
+    expect(approved_item.fetch("state")).to eq("approved")
+    expect(approved_item.fetch("evidence")).to eq("api_token" => "[redacted]", "job_id" => job.id)
     expect(payload.fetch("history")).to include(include("type" => "policy_change", "state" => "created"))
     expect(payload.to_json).not_to include("hidden@v1", "secret-value")
+
+    filter = Filters::QueryParam.encode("and" => [
+      { "field" => "capability", "op" => "is", "value" => "syrus.jobs@v1" },
+      { "field" => "outcome", "op" => "is_one_of", "value" => [ "approved" ] },
+      { "field" => "actor", "op" => "contains", "value" => user.email_address },
+      { "field" => "context", "op" => "contains", "value" => job.title },
+      { "field" => "occurred_at", "op" => "between", "value" => [ 1.hour.ago.iso8601, 1.hour.from_now.iso8601 ] }
+    ])
+    get "/api/v1/app/permission_rules/history", params: { q: filter }
+
+    filtered = JSON.parse(response.body).fetch("history")
+    expect(filtered).to contain_exactly(include("type" => "request", "id" => request.id))
   end
 
   it "rejects workflow invocation credentials before exposing user-wide history", :skip_sign_in do
@@ -168,7 +206,7 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
 
   it "bounds active leases in the history payload" do
     now = Time.current
-    PermissionLease.insert_all!(Array.new(Permissions::HistoryPayload::LIMIT + 1) do |index|
+    PermissionLease.insert_all!(Array.new(Permissions::HistoryPayload::PER_PAGE + 1) do |index|
       {
         owner_user_id: user.id, subject_selector_type: "interactive_chat",
         capability: "test.read@v1", operation: "read@v1", resource_type: "none",
@@ -182,8 +220,63 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
 
     expect(response).to have_http_status(:ok)
     active_leases = JSON.parse(response.body).fetch("active_leases")
-    expect(active_leases.size).to eq(Permissions::HistoryPayload::LIMIT)
+    expect(active_leases.size).to eq(Permissions::HistoryPayload::PER_PAGE)
     expect(active_leases.first.fetch("origin")).to be_nil
+  end
+
+  it "paginates and filters permission history with the shared filter AST" do
+    descriptor = Permissions::Catalog.descriptors.first
+    other_descriptor = Permissions::Catalog.descriptors.find { |candidate| candidate.capability != descriptor.capability }
+    (Permissions::HistoryPayload::PER_PAGE + 1).times do |index|
+      permission_rule(owner: user, descriptor:, policy: index.zero? ? "deny" : "allow")
+    end
+    # Newer non-matches fill the old per-source fetch window. The filtered
+    # query must still find and paginate the older matching decisions.
+    (Permissions::HistoryPayload::PER_PAGE + 1).times do
+      permission_rule(owner: user, descriptor: other_descriptor)
+    end
+    filter = Filters::QueryParam.encode("and" => [
+      { "field" => "capability", "op" => "is", "value" => descriptor.capability },
+      { "field" => "outcome", "op" => "is", "value" => "created" },
+      { "field" => "actor", "op" => "contains", "value" => user.email_address },
+      { "field" => "occurred_at", "op" => "within_last", "value" => { "n" => 1, "unit" => "days" } }
+    ])
+
+    get "/api/v1/app/permission_rules/history", params: { q: filter, page: 1 }
+
+    expect(response).to have_http_status(:ok)
+    payload = JSON.parse(response.body)
+    expect(payload.fetch("history").size).to eq(Permissions::HistoryPayload::PER_PAGE)
+    expect(payload.fetch("history")).to all(include("type" => "policy_change", "capability" => descriptor.capability, "state" => "created"))
+    expect(payload.dig("history_pagination", "page")).to eq(1)
+    expect(payload.fetch("history_pagination")).to include("total" => 26, "total_pages" => 2, "has_more" => true)
+    expect(payload.fetch("filter")).to eq(Filters::QueryParam.decode(filter))
+    expect(payload.fetch("filter_schema").map { |field| field.fetch("field") }).to eq(%w[capability outcome actor context occurred_at])
+
+    get "/api/v1/app/permission_rules/history", params: { q: filter, page: 2 }
+    second_page = JSON.parse(response.body)
+    expect(second_page.fetch("history").size).to eq(1)
+    expect(second_page.fetch("history_pagination")).to include("total" => 26, "total_pages" => 2, "has_more" => false)
+  end
+
+  it "rejects an out-of-range history page before loading history records" do
+    permission_rule(owner: user)
+
+    get "/api/v1/app/permission_rules/history", params: { page: 1_000_000_000 }
+
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(JSON.parse(response.body).dig("error", "code")).to eq("invalid_permission_history_filter")
+  end
+
+  it "rejects unsupported history filter fields" do
+    filter = Filters::QueryParam.encode("and" => [
+      { "field" => "unknown", "op" => "is", "value" => "value" }
+    ])
+
+    get "/api/v1/app/permission_rules/history", params: { q: filter }
+
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(JSON.parse(response.body).dig("error", "code")).to eq("invalid_permission_history_filter")
   end
 
   it "uses the policy evaluator for matrix states and marks resource-dependent outcomes" do

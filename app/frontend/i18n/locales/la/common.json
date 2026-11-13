@@ -91,6 +91,28 @@
     "loading": "Status constitutionis oneratur...",
     "setup_label": "Constitutio Prima",
     "heading": "Syrum Constituere",
+    "permission_title": "Habitudinem permissionum initialem elige",
+    "permission_intro": "Agent Syri in receptaculis contra spatia operis clonata currunt, non directe in computatro tuo. Forma moderatur quotiens te interrumpant et quas facultates delegabiles per Syrum attingere possint.",
+    "permission_enforced": "Claustra receptaculi, regulae retis, fines auctoritatis, documenta secreta, et opera non delegabilia manent. Facultas plerumque tuta adhuc escalare potest cum invocatio ipsa sensibilis est.",
+    "permission_change_later": "Postea in Permissionibus muta",
+    "permission_selected": "Electa",
+    "permission_choose": "{{profile}} elige",
+    "permission_skip": "Optionale: si hanc electionem praeteris, Syrus praescripta praesentia servat. Formam postea in Permissionibus eligere vel subtilius componere potes.",
+    "permission_error": "Forma permissionum initialis applicari non potuit. Praescripta praesentia immutata manent.",
+    "permission_profiles": {
+      "full_access": {
+        "name": "Accessus plenus",
+        "tradeoff": "Pauciores interruptiones. Agent omnes facultates quas delegare licet adhibere possunt, sed intra fines rerum, receptaculi, retis, et securitatis qui manent."
+      },
+      "ask_on_first_use": {
+        "name": "Primo usu roga",
+        "tradeoff": "Initium aequatum. Lectiones periculi humilis et scripturae in spatio operis separato tacite pergunt; executio codicis et aliae actiones graves approbationem exspectant."
+      },
+      "restricted": {
+        "name": "Restricta",
+        "tradeoff": "Accessus angustissimus et paucissima improvisa. Opus separatum periculi humilis permittitur; aliae facultates delegabiles negantur potius quam te approbationis causa interrumpant."
+      }
+    },
     "complete_badge": "Perfectum",
     "edit_label": "Muta",
     "ready_heading": "Parata ad Opera Ordinaria",

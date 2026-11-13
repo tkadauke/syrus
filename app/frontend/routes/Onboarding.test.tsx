@@ -84,6 +84,17 @@ function bootstrap(overrides: Partial<OnboardingBootstrap> = {}): OnboardingBoot
 function renderOnboarding(payload: OnboardingBootstrap | null) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   client.setQueryData(["setup"], payload?.setup_status)
+  client.setQueryData(["permissions"], {
+    profiles: [
+      { key: "full_access@v1", label: "Full access", description: "" },
+      { key: "ask_on_first_use@v1", label: "Ask on first use", description: "" },
+      { key: "restricted@v1", label: "Restricted", description: "" }
+    ],
+    current_profiles: { interactive_chat: null, coding_chat: null, local_chat: null },
+    permission_hub_mode: "simple",
+    rules: [],
+    inherited: []
+  })
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter>
@@ -137,6 +148,26 @@ describe("OnboardingRoute — revisiting completed steps", () => {
       )
     ).not.toThrow()
     expect(screen.getByRole("heading", { name: "Set up Syrus" })).toBeInTheDocument()
+  })
+
+  it("explains and applies a container-aware starting permission posture", async () => {
+    vi.mocked(window.fetch).mockResolvedValueOnce(
+      jsonResponse({ profile: "ask_on_first_use@v1", subject_selector_types: ["interactive_chat", "coding_chat", "local_chat"] })
+    )
+    renderOnboarding(bootstrap({ setup_status: { ...bootstrap().setup_status!, first_epic_landed: false } }))
+
+    expect(screen.getByText(/containers against cloned workspaces/)).toBeInTheDocument()
+    expect(screen.getByText(/confinement, network policy, authorization ceilings/)).toBeInTheDocument()
+    expect(screen.getByText(/skip this choice/)).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "Change later in Permissions" })).toHaveAttribute("href", "/settings/permissions")
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose Ask on first use" }))
+    await waitFor(() =>
+      expect(window.fetch).toHaveBeenCalledWith(
+        "/api/v1/app/permission_rules/apply_starting_profile",
+        expect.objectContaining({ body: JSON.stringify({ profile: "ask_on_first_use@v1" }), method: "POST" })
+      )
+    )
   })
 
   it("keeps the report inside the Repository step modal", async () => {

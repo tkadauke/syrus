@@ -19,12 +19,19 @@ user has delegated to agents. User-owned rules can be added or revoked, while
 inherited core and provider policy remains visible and read-only with ownership
 and decisive-default explanations. Operational requests needing an immediate
 decision remain a separate approvals workflow rather than durable settings.
+It opens in a Simple view containing only the permission profiles. Advanced is
+an obvious, remembered per-user choice for the matrix, resources, rules,
+leases, history, and AI approvals; direct links to those workspaces open
+Advanced automatically. Inherited policy is shown once with the default
+Advanced matrix rather than repeated across its tabs.
 Matrix and resource views make it possible to compare evaluator-derived
 agent-by-capability states or inspect access by typed resource scope. The
 matrix marks authority that varies by resource rather than presenting it as a
 single global policy. Operators can edit rules, see provider presets, and
 preview every item in a bulk grant or denial before confirming an atomic
-change.
+change. Capability, operation, and effect names are presented in plain language
+with a short explanation; their stable identifiers remain visible as secondary
+audit and support details.
 Active-lease and authorization-history views also show temporary authority
 lifecycle, origins and use counts, requests and decisions, escalations,
 dismissals, policy changes, revocations, and execution outcomes. Stored
@@ -102,6 +109,10 @@ transcript evidence.
 The **AI approvals** view in the Permissions Hub lists installed providers with
 their data-sharing disclosure and guidance, your delegations with their bounded
 scope and status, the always-human exclusions, and the history of AI decisions.
+It also attributes agent capabilities and tools to each enabled plugin and
+separately shows registered plugins that are available to enable. Administrators
+can open plugin management from this inventory; other users see the same
+inventory without the management link.
 The view stays inert until a provider plugin is installed and you add an
 explicit delegation. Revoking a delegation takes effect immediately, and
 workflow agents cannot create or revoke delegations.
@@ -1866,12 +1877,23 @@ nondelegable operations, and invocation-time safety classification still apply.
 Quiet isolated work is limited to low-risk reads and workspace writes; code
 execution still asks under Ask on first use and remains denied by Restricted.
 Operators select or change these profiles per interactive, Coding, or Local chat
-surface at the top of the Permissions Hub. The confirmation explains that a
+surface in the Permissions Hub's Simple view. The confirmation explains that a
 profile replaces that surface's custom rules, lists the exact rules removed and
 allow/ask/deny rules added, and previews the boundaries that remain enforced.
 Syrus refuses a stale confirmation if those rules change meanwhile.
-Fine-grained capability and resource controls stay available
-below, but are not required for initial setup.
+Fine-grained capability and resource controls stay available in Advanced, but
+are not required for initial setup.
+
+First-run setup also offers the three profiles as an optional starting posture
+for all three chat surfaces. Syrus explains the choice in terms of its actual
+execution model: agents run in containers against cloned workspaces rather than
+directly on the operator's laptop. Full access reduces interruptions, Ask on
+first use pauses consequential actions, and Restricted denies capabilities
+outside low-risk isolated work. Container confinement, network policy,
+authorization and provider ceilings, credentials, nondelegable operations, and
+sensitive-invocation escalation remain enforced with every choice. Skipping
+keeps the existing defaults, and each surface can be changed independently
+later in **Settings → Permissions**.
 
 Core and plugin tools share five human-sized bundles: Workspace, Knowledge,
 Collaboration, Operations, and Administration. Plugin capabilities join these

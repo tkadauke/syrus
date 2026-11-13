@@ -91,6 +91,7 @@ module Permissions
         CoworkerDefaultPolicy.validate!(CapabilityDescriptor.new(
           capability: "#{family}@v1",
           operation: operation,
+          presentation: CapabilityPresentation.for(capability: "#{family}@v1", operation: operation),
           effects: effects,
           risk: risk,
           requestable_roles: roles,
