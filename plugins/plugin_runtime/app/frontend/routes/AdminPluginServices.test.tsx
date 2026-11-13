@@ -228,4 +228,38 @@ describe("AdminPluginServices", () => {
     expect(within(panel).getByText("acme/widgets")).toBeInTheDocument()
     expect(within(panel).getByText("4.0 MB")).toBeInTheDocument()
   })
+
+  it("resets details pagination when switching services", async () => {
+    const services = [
+      { ...payload().services[0], actions: [ "details" ] },
+      { ...payload().services[0], service: "whisper", plugin: "whisper_stt", actions: [ "details" ] }
+    ]
+    const requests: string[] = []
+    mockApi(payload({ services }), (path) => {
+      if (!path.includes("/details")) return undefined
+      requests.push(path)
+      const page = path.includes("page=2") ? 2 : 1
+      return jsonResponse({
+        service: path.includes("/whisper/") ? "whisper" : "git-mirror",
+        details: {
+          summary: [],
+          table: { columns: [], rows: [] },
+          pagination: { page, per_page: 100, total: 101, total_pages: 2 }
+        }
+      })
+    })
+
+    renderRoute(<AdminPluginServices />)
+    const mirrorRow = (await screen.findByText("git-mirror")).closest("tr") as HTMLElement
+    fireEvent.click(within(mirrorRow).getByRole("button", { name: "Details" }))
+    const mirrorPanel = await screen.findByRole("region", { name: "Details: git-mirror" })
+    fireEvent.click(await within(mirrorPanel).findByRole("button", { name: "Next" }))
+    await waitFor(() => expect(requests).toContain("/api/v1/app/admin/plugin_services/git-mirror/details?page=2"))
+
+    const whisperRow = screen.getByText("whisper").closest("tr") as HTMLElement
+    fireEvent.click(within(whisperRow).getByRole("button", { name: "Details" }))
+
+    await waitFor(() => expect(requests).toContain("/api/v1/app/admin/plugin_services/whisper/details"))
+    expect(requests).not.toContain("/api/v1/app/admin/plugin_services/whisper/details?page=2")
+  })
 })

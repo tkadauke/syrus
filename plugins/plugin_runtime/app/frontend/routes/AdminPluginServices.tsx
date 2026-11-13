@@ -100,7 +100,7 @@ export function AdminPluginServices() {
             />
           )}
 
-          {detailsFor ? <DetailsPanel name={detailsFor} onClose={() => setDetailsFor(null)} /> : null}
+          {detailsFor ? <DetailsPanel key={detailsFor} name={detailsFor} onClose={() => setDetailsFor(null)} /> : null}
           {logsFor ? <LogsPanel name={logsFor} onClose={() => setLogsFor(null)} /> : null}
 
           {filterVolumes(volumes.data?.volumes ?? [], location.search).length > 0 ? <VolumesSection volumes={filterVolumes(volumes.data?.volumes ?? [], location.search)} /> : null}

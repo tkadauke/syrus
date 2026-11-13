@@ -59,14 +59,15 @@ module Api
             rows = table && (table[:rows] || table["rows"])
             return details unless rows
 
-            page = [ params[:page].to_i, 1 ].max
             total = rows.length
+            total_pages = (total.to_f / DETAILS_PER_PAGE).ceil
+            page = [ [ params[:page].to_i, 1 ].max, [ total_pages, 1 ].max ].min
             copy = details.deep_dup
             copy_table = copy[:table] || copy["table"]
             rows_key = copy_table.key?(:rows) ? :rows : "rows"
             pagination_key = copy.key?(:table) ? :pagination : "pagination"
             copy_table[rows_key] = rows.slice((page - 1) * DETAILS_PER_PAGE, DETAILS_PER_PAGE) || []
-            copy[pagination_key] = { page: page, per_page: DETAILS_PER_PAGE, total: total, total_pages: (total.to_f / DETAILS_PER_PAGE).ceil }
+            copy[pagination_key] = { page: page, per_page: DETAILS_PER_PAGE, total: total, total_pages: total_pages }
             copy
           end
 

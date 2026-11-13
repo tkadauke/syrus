@@ -168,6 +168,20 @@ RSpec.describe "API: admin plugin services", type: :request do
     expect(json.dig("details", "pagination")).to include("page" => 2, "total" => 101, "total_pages" => 2)
   end
 
+  it "clamps a details page that is beyond the current rows" do
+    rows = 50.times.map { |index| { repository: "repo-#{index}" } }
+    allow(provider).to receive(:service_details).and_return(
+      summary: [], table: { columns: [ { key: "repository", label_key: "repository", format: "text" } ], rows: rows }
+    )
+    allow(PluginRuntime::Services).to receive(:endpoint_for).with("git-mirror").and_return("http://git-mirror:8080")
+    sign_in_as(admin)
+
+    get "/api/v1/app/admin/plugin_services/git-mirror/details", params: { page: 2 }
+
+    expect(json.dig("details", "table", "rows").length).to eq(50)
+    expect(json.dig("details", "pagination")).to include("page" => 1, "total" => 50, "total_pages" => 1)
+  end
+
   it "answers 503 for details while the service is not answering" do
     allow(PluginRuntime::Services).to receive(:endpoint_for).with("git-mirror").and_return(nil)
     sign_in_as(admin)
