@@ -111,7 +111,7 @@ function throughputWindow(overrides = {}) {
   }
 }
 
-function throughputPayload(): RepositoryThroughputMetricsPayload {
+function throughputPayload(windowKey: "1h" | "4h" = "4h"): RepositoryThroughputMetricsPayload {
   const empty = throughputWindow({
     range: { start: "2026-07-31T11:00:00Z", end: "2026-07-31T12:00:00Z", hours: 1 },
     pr_creation: {
@@ -130,13 +130,10 @@ function throughputPayload(): RepositoryThroughputMetricsPayload {
     generated_at: "2026-07-31T12:00:00Z",
     repository: REPOSITORY,
     tabs: TABS,
-    windows: {
+    windows: { [windowKey]: {
       "1h": empty,
       "4h": throughputWindow(),
-      "24h": throughputWindow({ range: { start: "2026-07-30T12:00:00Z", end: "2026-07-31T12:00:00Z", hours: 24 } }),
-      "7d": throughputWindow({ range: { start: "2026-07-24T12:00:00Z", end: "2026-07-31T12:00:00Z", hours: 168 } }),
-      last_active: throughputWindow({ range: { start: "2026-07-31T10:20:00Z", end: "2026-07-31T11:20:00Z", hours: 1 } })
-    }
+    }[windowKey] }
   } as RepositoryThroughputMetricsPayload
 }
 
@@ -155,7 +152,8 @@ describe("RepositoryThroughputRoute", () => {
   beforeEach(() => {
     vi.spyOn(globalThis, "fetch").mockImplementation((input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input.toString()
-      if (url === THROUGHPUT_PATH) return Promise.resolve(jsonResponse(throughputPayload()))
+      if (url === `${THROUGHPUT_PATH}?window=4h`) return Promise.resolve(jsonResponse(throughputPayload("4h")))
+      if (url === `${THROUGHPUT_PATH}?window=1h`) return Promise.resolve(jsonResponse(throughputPayload("1h")))
       return Promise.reject(new Error(`unexpected fetch: ${url}`))
     })
   })
