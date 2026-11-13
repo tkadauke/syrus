@@ -271,16 +271,19 @@ module App
               ProviderUsageLimit::CLASSIFICATION
             )
             .select(
-              "runs.*, " \
+              "runs.id, " \
               "ROW_NUMBER() OVER (PARTITION BY runs.agent_provider ORDER BY runs.finished_at DESC, runs.updated_at DESC, runs.id DESC) AS provider_rank"
             )
+          # Rank ids only, then load the rows by id and order them in Ruby:
+          # sorting whole runs rows drags their agent diffs through MySQL's
+          # sort buffer (see Workflows::StepPreloader).
+          run_ids = Run.from(ranked, :ranked_runs).where("provider_rank <= 50").pluck("ranked_runs.id")
           Run
-            .from(ranked, :ranked_runs)
-            .select("ranked_runs.*")
-            .where("provider_rank <= 50")
+            .where(id: run_ids)
             .includes(:run_diagnostic, :run_failure_classification, :step)
-            .order(finished_at: :desc, updated_at: :desc)
             .to_a
+            .sort_by { |run| [ run.finished_at.to_f, run.updated_at.to_f ] }
+            .reverse
             .group_by(&:agent_provider)
         end
       end
