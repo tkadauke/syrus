@@ -1,7 +1,6 @@
 module Permissions
   class HistoryPayload
     PER_PAGE = 25
-    LIMIT = PER_PAGE
 
     def initialize(user, params: {})
       @user = user
@@ -13,7 +12,7 @@ module Permissions
         active_leases: paginated_leases.map { |lease| serialize_lease(lease) },
         leases_pagination: pagination(lease_page, active_leases.count),
         history: paginated_history,
-        history_pagination: pagination(history_page, history_total, has_more: history_source_has_more?),
+        history_pagination: pagination(history_page, history_total),
         filter: filter_tree,
         filter_schema: HistoryFilter.schema
       }
@@ -37,15 +36,8 @@ module Permissions
         .sort_by { |entry| [ entry.fetch(:occurred_at), entry.fetch(:id) ] }.reverse
     end
 
-    def filtered_history
-      @filtered_history ||= begin
-        filter = HistoryFilter.new(filter_tree)
-        history.select { |entry| filter.match?(entry) }
-      end
-    end
-
     def paginated_history
-      filtered_history.slice((history_page - 1) * PER_PAGE, PER_PAGE) || []
+      history.slice((history_page - 1) * PER_PAGE, PER_PAGE) || []
     end
 
     def filter_tree
@@ -64,19 +56,22 @@ module Permissions
     end
 
     def history_source_limit = history_page * PER_PAGE + 1
-    def history_source_has_more? = history.size > history_page * PER_PAGE
-
     def history_total
-      return filtered_history.size unless filter_tree == { "and" => [] }
-
-      ChatPendingAction.where(user:, request_kind: "authorization_request").count +
-        AuthorizedInvocation.joins(pending_action_item: :chat_pending_action).where(chat_pending_actions: { user_id: user.id }).count +
-        PermissionRuleAuditEvent.joins(:permission_rule).where(permission_rules: { owner_user_id: user.id }).count +
-        PermissionLease.where(owner_user: user).count
+      history_filter.apply(request_scope, source: :request).count +
+        history_filter.apply(invocation_scope, source: :invocation).count +
+        history_filter.apply(rule_scope, source: :rule).count +
+        history_filter.apply(lease_scope, source: :lease).count
     end
 
+    def history_filter = @history_filter ||= HistoryFilter.new(filter_tree)
+
+    def request_scope = ChatPendingAction.where(user:, request_kind: "authorization_request")
+    def invocation_scope = AuthorizedInvocation.joins(pending_action_item: :chat_pending_action).where(chat_pending_actions: { user_id: user.id })
+    def rule_scope = PermissionRuleAuditEvent.joins(:permission_rule, :actor_user).where(permission_rules: { owner_user_id: user.id })
+    def lease_scope = PermissionLease.where(owner_user: user)
+
     def request_history
-      ChatPendingAction.where(user:, request_kind: "authorization_request")
+      history_filter.apply(request_scope, source: :request)
         .preload(:origin, occurrences: :origin, authorization_items: [ :decision_principal, :resulting_authority ])
         .order(created_at: :desc).limit(history_source_limit).map do |request|
         {
@@ -91,8 +86,7 @@ module Permissions
     end
 
     def invocation_history
-      AuthorizedInvocation.joins(pending_action_item: :chat_pending_action)
-        .where(chat_pending_actions: { user_id: user.id })
+      history_filter.apply(invocation_scope, source: :invocation)
         .preload(:authority, :claimed_by, :result, pending_action_item: :chat_pending_action)
         .order(created_at: :desc).limit(history_source_limit).map do |invocation|
         {
@@ -108,7 +102,7 @@ module Permissions
     end
 
     def rule_history
-      PermissionRuleAuditEvent.joins(:permission_rule).where(permission_rules: { owner_user_id: user.id })
+      history_filter.apply(rule_scope, source: :rule)
         .includes(:actor_user, :permission_rule).order(created_at: :desc).limit(history_source_limit).map do |event|
         {
           type: "policy_change", id: event.id, occurred_at: event.created_at,
@@ -121,7 +115,7 @@ module Permissions
     end
 
     def lease_history
-      PermissionLease.where(owner_user: user).includes(:chat_session, :job, :issued_by_user, :revoked_by_user, :source)
+      history_filter.apply(lease_scope, source: :lease).includes(:chat_session, :job, :issued_by_user, :revoked_by_user, :source)
         .order(created_at: :desc).limit(history_source_limit).map do |lease|
         serialize_lease(lease).merge(type: "lease", occurred_at: lease.created_at,
           state: lease.revoked_at? ? "revoked" : lease_state(lease))
