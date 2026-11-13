@@ -38,11 +38,13 @@ RSpec.describe Permissions::PluginContributions do
     expect(payload.fetch("available_example")).to include(installed: false, tools: [ "read_example" ])
   end
 
-  it "omits registry plugins that contribute neither permissions nor tools" do
+  it "includes registry plugins that contribute neither permissions nor tools" do
     allow(Syrus::PluginRegistry).to receive(:all_plugins).and_return(
       [ manifest(name: "presentation_only", enabled: true, provides: { sidebar_page: Class.new }) ]
     )
 
-    expect(described_class.as_json).to be_empty
+    expect(described_class.as_json).to contain_exactly(
+      include(name: "presentation_only", installed: true, capabilities: [], tools: [])
+    )
   end
 end
