@@ -13,6 +13,7 @@ import {
   closeChatPreviewPanel,
   createWhiteboardSnapshot,
   fetchChatMedia,
+  fetchChatMediaArtifact,
   fetchChatPreviewPanelAccessToken,
   fetchChatPreviewPanelFile,
   fetchPreviewPanelHistory,
@@ -28,6 +29,7 @@ import {
   updateChatMode,
   updateChatPreviewPanelVisibility,
   type ChatMediaImage,
+  type ChatMediaArtifactSummary,
   type ChatMode,
   type ChatPayload,
   type ChatPreviewPanel,
@@ -1057,6 +1059,8 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
   const [loadingSnapshotId, setLoadingSnapshotId] = useState<number | null>(null)
   const [snapshotError, setSnapshotError] = useState<string | null>(null)
   const [selectedArtifactType, setSelectedArtifactType] = useState<string | null>(null)
+  const [additionalImages, setAdditionalImages] = useState<ChatMediaImage[]>([])
+  const [additionalArtifacts, setAdditionalArtifacts] = useState<ChatMediaArtifactSummary[]>([])
   const queryClient = useQueryClient()
   const snapshots = useQuery({
     queryKey: ["whiteboard_snapshots", String(payload.chat.id)],
@@ -1068,16 +1072,33 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
     queryFn: () => fetchChatMedia(payload.chat.id),
     enabled: payload.chat.id != null
   })
+  const moreImages = useMutation({
+    mutationFn: (offset: number) => fetchChatMedia(payload.chat.id, { chatImages: offset }),
+    onSuccess: (page) => setAdditionalImages((current) => [...current, ...page.chat_images])
+  })
+  const moreArtifacts = useMutation({
+    mutationFn: (offset: number) => fetchChatMedia(payload.chat.id, { typedArtifacts: offset }),
+    onSuccess: (page) => setAdditionalArtifacts((current) => [...current, ...page.typed_artifacts])
+  })
+  const selectedArtifact = useQuery({
+    queryKey: ["chat_media_artifact", String(payload.chat.id), selectedArtifactType],
+    queryFn: () => fetchChatMediaArtifact(payload.chat.id, selectedArtifactType!),
+    enabled: selectedArtifactType != null
+  })
+  useEffect(() => {
+    setAdditionalImages([])
+    setAdditionalArtifacts([])
+    setSelectedArtifactType(null)
+  }, [payload.chat.id])
   const chatBusy = Boolean(payload.chat.agent_busy ?? (payload as ChatPayload & { agent_busy?: boolean }).agent_busy)
   const snapshotLoading = loadingSnapshotId != null
   const snapshotItems = snapshots.data?.whiteboard_snapshots || []
-  const artifactItems = media.data?.typed_artifacts || []
-  // Sourced from the chat's full history via GET /media (which also
-  // materializes any not-yet-materialized inline attachments into
-  // Documents), not payload.messages -- the currently loaded message window
-  // is paginated, so an older image would otherwise be invisible here even
-  // though the chat has media.
-  const images = media.data?.chat_images || []
+  const artifactItems = [...(media.data?.typed_artifacts || []), ...additionalArtifacts]
+  // Sourced from the chat's full attachment history, not payload.messages --
+  // the currently loaded message window is paginated.
+  const images = [...(media.data?.chat_images || []), ...additionalImages]
+  const imagePagination = moreImages.data?.pagination?.chat_images || media.data?.pagination?.chat_images
+  const artifactPagination = moreArtifacts.data?.pagination?.typed_artifacts || media.data?.pagination?.typed_artifacts
   const lightboxImage = lightboxImageIndex == null ? null : images[lightboxImageIndex] || null
   const previousLightboxImage = lightboxImageIndex != null && lightboxImageIndex > 0 ? images[lightboxImageIndex - 1] : null
   const nextLightboxImage = lightboxImageIndex != null && lightboxImageIndex < images.length - 1 ? images[lightboxImageIndex + 1] : null
@@ -1146,7 +1167,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
   // there. The result is awaited so the notice reflects what actually
   // happened rather than assuming success.
   async function attachImageToComposer(image: ChatMediaImage) {
-    const src = image.image_url || image.file_path || ""
+    const src = image.image_url
     if (!src) return
 
     const result = await attachMediaLibraryImage({
@@ -1213,13 +1234,29 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
                   </div>
                   {selected ? (
                     <div className="mt-3">
-                      <TypedArtifactPanel artifacts={[artifact]} />
+                      {selectedArtifact.isPending ? (
+                        <PanelMessage>{t("common:loading")}</PanelMessage>
+                      ) : selectedArtifact.isError ? (
+                        <PanelMessage tone="error">{errorMessage(selectedArtifact.error, t("artifacts_load_error"))}</PanelMessage>
+                      ) : selectedArtifact.data ? (
+                        <TypedArtifactPanel artifacts={[selectedArtifact.data.typed_artifact]} />
+                      ) : null}
                     </div>
                   ) : null}
                 </article>
               )
             })}
           </div>
+          {artifactPagination?.has_more && artifactPagination.next_offset != null ? (
+            <Button
+              className="w-full"
+              disabled={moreArtifacts.isPending}
+              onClick={() => moreArtifacts.mutate(artifactPagination.next_offset!)}
+              variant="secondary"
+            >
+              {moreArtifacts.isPending ? t("common:loading") : t("media_load_more_artifacts")}
+            </Button>
+          ) : null}
         </section>
       ) : null}
 
@@ -1305,7 +1342,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
           <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("image_attachments")}</h2>
           <div className="grid grid-cols-3 gap-2">
             {images.map((image, index) => {
-              const src = image.image_url || image.file_path || ""
+              const src = image.image_url
               const name = image.title || image.filename || "image attachment"
 
               return (
@@ -1318,7 +1355,11 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
                       title={name}
                       type="button"
                     >
-                      <img alt={name} className="h-full w-full object-contain transition group-hover/media:scale-105" src={src} />
+                      <img
+                        alt={name}
+                        className="h-full w-full object-contain transition group-hover/media:scale-105"
+                        src={image.thumbnail_url || image.image_url}
+                      />
                     </button>
                     <a
                       aria-label={t("image_download_aria", { name })}
@@ -1344,6 +1385,11 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
               )
             })}
           </div>
+          {imagePagination?.has_more && imagePagination.next_offset != null ? (
+            <Button className="w-full" disabled={moreImages.isPending} onClick={() => moreImages.mutate(imagePagination.next_offset!)} variant="secondary">
+              {moreImages.isPending ? t("common:loading") : t("media_load_more_images")}
+            </Button>
+          ) : null}
         </section>
       ) : null}
       {lightboxImage ? (
@@ -1354,12 +1400,12 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
           imageCount={images.length}
           imageIndex={lightboxImageIndex ?? 0}
           name={lightboxImage.title || lightboxImage.filename || t("image_attachment")}
-          nextSrc={nextLightboxImage ? nextLightboxImage.image_url || nextLightboxImage.file_path : null}
+          nextSrc={nextLightboxImage?.image_url || null}
           onClose={() => setLightboxImageIndex(null)}
           onNext={() => setLightboxImageIndex((index) => (index == null ? index : Math.min(index + 1, images.length - 1)))}
           onPrevious={() => setLightboxImageIndex((index) => (index == null ? index : Math.max(index - 1, 0)))}
-          previousSrc={previousLightboxImage ? previousLightboxImage.image_url || previousLightboxImage.file_path : null}
-          src={lightboxImage.image_url || lightboxImage.file_path || ""}
+          previousSrc={previousLightboxImage?.image_url || null}
+          src={lightboxImage.image_url}
         />
       ) : null}
     </div>

@@ -23,6 +23,7 @@ module Api
         include ChatIngressIdempotency
 
         HIDDEN_CHATS_PAGE_SIZE = 20
+        MEDIA_PAGE_SIZE = 24
         CODING_RELAY_RETRY_AFTER_SECONDS = 30
         CODING_RELAY_READ_TIMEOUT_SECONDS = 10
         CODING_TREE_MAX_BYTES = 16.megabytes
@@ -1225,50 +1226,84 @@ module Api
 
         def media
           chat_session = find_chat_session
+          image_offset = non_negative_offset(params[:chat_images_offset])
+          artifact_offset = non_negative_offset(params[:typed_artifacts_offset])
 
-          chat_images = chat_session.attached_repository_documents
+          image_scope = chat_session.attached_repository_documents
+                                    .joins(file_attachment: :blob)
                                     .with_attached_file
                                     .where(kind: "file")
+                                    .where("documents.content_type IN (?) OR active_storage_blobs.content_type LIKE ?", Document::ACCEPTED_IMAGE_CONTENT_TYPES, "image/%")
                                     .order(:created_at, :id)
-                                    .select { |doc| doc.content_type.to_s.start_with?("image/") }
-                                    .map do |doc|
+          image_page = image_scope.offset(image_offset).limit(MEDIA_PAGE_SIZE + 1).to_a
+          image_has_more = image_page.length > MEDIA_PAGE_SIZE
+          chat_images = image_page.first(MEDIA_PAGE_SIZE).map do |doc|
             {
               id: doc.id,
               title: doc.title,
               filename: doc.filename,
               content_type: doc.content_type,
-              file_path: "/api/v1/app/chats/#{chat_session.id}/media/chat_images/#{doc.id}/file",
-              image_url: chat_media_image_url(doc)
+              image_url: "/api/v1/app/chats/#{chat_session.id}/media/chat_images/#{doc.id}/file",
+              thumbnail_url: "/api/v1/app/chats/#{chat_session.id}/media/chat_images/#{doc.id}/thumbnail"
             }
           end
 
+          artifacts = TypedArtifactRenderer.enrich(chat_session.artifact("typed_artifacts"))
+          artifact_page = artifacts.slice(artifact_offset, MEDIA_PAGE_SIZE + 1) || []
+          artifact_has_more = artifact_page.length > MEDIA_PAGE_SIZE
+          typed_artifacts = artifact_page.first(MEDIA_PAGE_SIZE).map { |entry| entry.except("payload") }
+
           render json: {
             chat_images: chat_images,
-            typed_artifacts: TypedArtifactRenderer.enrich(chat_session.artifact("typed_artifacts"))
+            typed_artifacts: typed_artifacts,
+            pagination: {
+              chat_images: media_pagination(image_offset, chat_images.length, image_has_more),
+              typed_artifacts: media_pagination(artifact_offset, typed_artifacts.length, artifact_has_more)
+            }
           }.merge(ChatMediaSources.panel(chat_session: chat_session))
         end
 
-        def media_chat_image
+        def media_typed_artifact
           chat_session = find_chat_session
-          document = chat_session.attached_repository_documents
-                                 .with_attached_file
-                                 .where(kind: "file")
-                                 .find(params[:document_id])
-          raise ActiveRecord::RecordNotFound, "Chat image not found" unless document.content_type.to_s.start_with?("image/")
-          raise ActiveRecord::RecordNotFound, "Chat image file not found" unless document.file.attached?
+          artifact = TypedArtifactRenderer.enrich(chat_session.artifact("typed_artifacts"))
+                                           .find { |entry| entry["type"] == params[:artifact_type] }
+          raise ActiveRecord::RecordNotFound, "Chat artifact not found" unless artifact
+
+          render json: { typed_artifact: artifact }
+        end
+
+        def media_chat_image_thumbnail
+          document = find_chat_media_image
+          representation = document.file.variable? ? document.file.variant(resize_to_limit: [ 480, 480 ]).processed : document.file
+
+          send_secure_file(
+            representation.download,
+            filename: document.filename || "image",
+            type: document.content_type || "application/octet-stream"
+          )
+        end
+
+        def media_chat_image
+          document = find_chat_media_image
 
           send_secure_blob(document.file.blob, immutable: true)
         end
 
-        def chat_media_image_url(document)
-          return nil unless document.file.attached?
+        def find_chat_media_image
+          chat_session = find_chat_session
+          document = chat_session.attached_repository_documents.with_attached_file.where(kind: "file").find(params[:document_id])
+          raise ActiveRecord::RecordNotFound, "Chat image not found" unless document.content_type.to_s.start_with?("image/")
+          raise ActiveRecord::RecordNotFound, "Chat image file not found" unless document.file.attached?
 
-          case document.attachable_type
-          when "User"
-            "/api/v1/app/credentials/documents/#{document.id}/file"
-          when "Repository"
-            "/api/v1/app/repository_documents/#{document.id}/file"
-          end
+          document
+        end
+
+        def non_negative_offset(value)
+          [ Integer(value, exception: false) || 0, 0 ].max
+        end
+
+        def media_pagination(offset, count, has_more)
+          { offset: offset, limit: MEDIA_PAGE_SIZE, has_more: has_more, next_offset: has_more ? offset + count : nil }
         end
 
         def cancel_coding_checkout

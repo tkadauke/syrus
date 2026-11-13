@@ -26,3 +26,8 @@ artifact architecture](../../docs/engineering/architecture/typed-artifacts.md).
 Plugin renderers are documented in the [plugin authoring
 reference](../../docs/engineering/conventions/plugins/authoring.md); Rails
 schema and migration artifacts are owned by the [Rails plugin](../../plugins/rails/docs/syrus_docs/rails.md).
+
+Chat-scoped typed artifacts appear in the chat Media panel beside whiteboard
+snapshots and image attachments. Large collections load in pages, artifact
+bodies load only when opened, and image tiles use thumbnails while downloads
+and attachments retain the full-size image.
