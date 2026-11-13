@@ -30,4 +30,5 @@ schema and migration artifacts are owned by the [Rails plugin](../../plugins/rai
 Chat-scoped typed artifacts appear in the chat Media panel beside whiteboard
 snapshots and image attachments. Large collections load in pages, artifact
 bodies load only when opened, and image tiles use thumbnails while downloads
-and attachments retain the full-size image.
+and attachments retain the full-size image. Formats that cannot generate a
+thumbnail, such as SVG, are omitted from the image grid.

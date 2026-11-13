@@ -1146,8 +1146,10 @@ image thumbnail in the composer to mark it up with basic shapes, arrows,
 freehand strokes, text, and undo; Syrus flattens the result into a PNG
 attachment. Image attachments render as inline thumbnails in the transcript
 and open in a full-size preview. The chat workspace also includes a Media tab
-that gathers image attachments into a paginated, downloadable gallery using
-small thumbnail variants until an image is opened. Its artifact list is also
+that gathers variant-capable image attachments into a paginated, downloadable
+gallery using small thumbnail variants until an image is opened. Formats that
+cannot produce an Active Storage variant, such as SVG, are omitted from the
+gallery rather than fetched at full size for its grid. Its artifact list is also
 paginated and loads each artifact's full contents only when opened. It lists saved
 whiteboard snapshots with element counts, relative timestamps, and a Load
 action that merges the snapshot back onto the current canvas after preserving
