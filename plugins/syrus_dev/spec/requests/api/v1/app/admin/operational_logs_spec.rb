@@ -179,6 +179,10 @@ RSpec.describe "API: /api/v1/app/admin/operational_logs", type: :request do
     expect(page_two["logs"].map { |row| row["id"] }).to eq([ oldest.id ])
     expect(page_two.dig("pagination", "has_previous_page")).to be(true)
     expect(page_two).not_to have_key("filter_schema")
+
+    get "/api/v1/app/admin/operational_logs", params: { revision_scope: "all", per_page: 2, page: 2, include_filter_schema: true }
+
+    expect(parse_body["filter_schema"]).to be_present
   end
 
   it "sorts logs by requested columns and reports sort metadata" do

@@ -15,13 +15,13 @@ export function AdminOperationalLogs() {
   const navigate = useNavigate()
   usePageTitle(t("page_title_operational_logs"))
   const search = normalizedSearch(location.search)
+  const filterSchemaRef = useRef<OperationalLogsPayload["filter_schema"] | undefined>(undefined)
   const logs = useQuery({
     queryKey: ["admin", "operational_logs", search],
-    queryFn: () => fetchAdminOperationalLogs(search),
+    queryFn: () => fetchAdminOperationalLogs(search, pageFromSearch(search) > 1 && !filterSchemaRef.current),
     placeholderData: keepPreviousData
   })
   const filterSchema = logs.data?.filter_schema
-  const filterSchemaRef = useRef(filterSchema)
   if (filterSchema) filterSchemaRef.current = filterSchema
 
   function navigateSearch(params: URLSearchParams) {
@@ -68,6 +68,10 @@ function OperationalLogFilters({ filterSchema, onNavigate, payload, search }: { 
     { name: "revision_scope", label: t("operational_logs.revision_scope"), defaultValue: "current", options: revisionScopes.map((scope) => ({ value: scope, label: t(`operational_logs.revision_${scope}`) })) },
     { name: "per_page", label: t("operational_logs.per_page"), defaultValue: "50", options: [25, 50, 100].map((value) => ({ value: String(value), label: String(value) })) }
   ]} search={search} searchLabel={t("operational_logs.search")} onNavigate={onNavigate} />
+}
+
+function pageFromSearch(search: string) {
+  return Number.parseInt(new URLSearchParams(search).get("page") || "1", 10)
 }
 
 function OperationalLogsView({ onNavigate, payload, search }: { onNavigate: (params: URLSearchParams) => void; payload: OperationalLogsPayload; search: string }) {
