@@ -366,6 +366,9 @@ index is merged, text conflict markers are gone, `git diff --check` succeeds,
 changed JSON and YAML parse, and the exact candidate commit is visible at the
 remote home ref before reporting success. The home update uses the previously
 observed remote SHA as a lease, so a retry cannot overwrite a newer update.
+Rejected automatic merge candidates are retained under a guarded
+`coworkers/recovery/` ref, preserving the attempted resolution and both parent
+commits without advancing the home branch.
 Unchanged turns do not spend a retry.
 Only exhausted retries, a one-hour resolution deadline, failed validation, or
 inaccessible recovery data produce one owner-facing warning. The Workspace

@@ -190,6 +190,31 @@ RSpec.describe Coworkers::ChatWorkspaceLifecycle, :allow_host_execution do
     expect(run_git("show", "#{conflict.recovery_ref}:UNTESTED_FEATURES.md", chdir: @remote)).to include("<<<<<<<")
   end
 
+  it "preserves a rejected semantic merge and both parents on the recovery ref" do
+    first = chat
+    second = chat
+    first_service = lifecycle(first)
+    second_service = lifecycle(second)
+    first_path = first_service.prepare!
+    second_path = second_service.prepare!
+    original = first_path.join("UNTESTED_FEATURES.md").read
+    write(first_path, "UNTESTED_FEATURES.md",
+      original.sub("| Existing | medium |\n", "| Existing | medium |\n| Search filters | high |\n"))
+    write(second_path, "UNTESTED_FEATURES.md",
+      original.sub("| Existing | medium |\n", "| Existing | medium |\n| Export receipts | low |\n"))
+    write(second_path, "settings.json", "{\"careful\":\n")
+    first_service.finalize!
+    previous_home = run_git("rev-parse", "coworkers/maya", chdir: @remote).strip
+
+    expect(second_service.finalize!).to eq(:pending_resolution)
+
+    conflict = Coworkers::WorkspaceConflict.active.find_by!(chat_session: second)
+    expect(run_git("rev-parse", "coworkers/maya", chdir: @remote).strip).to eq(previous_home)
+    expect(run_git("rev-list", "--parents", "-n", "1", conflict.recovery_ref, chdir: @remote).split.length).to eq(3)
+    preserved = run_git("show", "#{conflict.recovery_ref}:UNTESTED_FEATURES.md", chdir: @remote)
+    expect(preserved).to include("| Search filters | high |", "| Export receipts | low |")
+  end
+
   it "silently lets the coworker resolve a real conflict on the next turn" do
     first = chat
     second = chat
