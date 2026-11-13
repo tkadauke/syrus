@@ -4425,10 +4425,51 @@ describe("chat message image attachments", () => {
           jsonResponse({
             snapshots: [],
             chat_images: [
-              { id: 1, title: "diagram.png", filename: "diagram.png", content_type: "image/png", image_url: "/api/v1/app/repository_documents/1/file" },
-              { id: 2, title: "mockup.jpg", filename: "mockup.jpg", content_type: "image/jpeg", image_url: "/api/v1/app/repository_documents/2/file" }
+              {
+                id: 1,
+                title: "diagram.png",
+                filename: "diagram.png",
+                content_type: "image/png",
+                image_url: "/api/v1/app/chats/8/media/chat_images/1/file",
+                thumbnail_url: "/api/v1/app/chats/8/media/chat_images/1/thumbnail"
+              },
+              {
+                id: 2,
+                title: "mockup.jpg",
+                filename: "mockup.jpg",
+                content_type: "image/jpeg",
+                image_url: "/api/v1/app/chats/8/media/chat_images/2/file",
+                thumbnail_url: "/api/v1/app/chats/8/media/chat_images/2/thumbnail"
+              }
             ],
             typed_artifacts: [],
+            pagination: {
+              chat_images: { offset: 0, limit: 24, has_more: true, next_offset: 2 },
+              typed_artifacts: { offset: 0, limit: 24, has_more: false, next_offset: null }
+            },
+            whiteboard_has_unsaved_content: false
+          })
+        )
+      }
+      if (path === "/api/v1/app/chats/8/media?chat_images_offset=2") {
+        return Promise.resolve(
+          jsonResponse({
+            snapshots: [],
+            chat_images: [
+              {
+                id: 3,
+                title: "more.png",
+                filename: "more.png",
+                content_type: "image/png",
+                image_url: "/api/v1/app/chats/8/media/chat_images/3/file",
+                thumbnail_url: "/api/v1/app/chats/8/media/chat_images/3/thumbnail"
+              }
+            ],
+            typed_artifacts: [],
+            pagination: {
+              chat_images: { offset: 2, limit: 24, has_more: false, next_offset: null },
+              typed_artifacts: { offset: 0, limit: 24, has_more: false, next_offset: null }
+            },
             whiteboard_has_unsaved_content: false
           })
         )
@@ -4474,11 +4515,15 @@ describe("chat message image attachments", () => {
 
     const workspace = screen.getByRole("complementary", { name: "Chat workspace" })
     expect(await within(workspace).findByText("diagram.png")).toBeInTheDocument()
+    expect(within(workspace).getByRole("img", { name: "diagram.png" })).toHaveAttribute("src", "/api/v1/app/chats/8/media/chat_images/1/thumbnail")
     expect(within(workspace).getByText("mockup.jpg")).toBeInTheDocument()
 
     const download = within(workspace).getByRole("link", { name: "Download diagram.png" })
-    expect(download).toHaveAttribute("href", "/api/v1/app/repository_documents/1/file")
+    expect(download).toHaveAttribute("href", "/api/v1/app/chats/8/media/chat_images/1/file")
     expect(download).toHaveAttribute("download", "diagram.png")
+
+    fireEvent.click(within(workspace).getByRole("button", { name: "Load more images" }))
+    expect(await within(workspace).findByText("more.png")).toBeInTheDocument()
 
     fireEvent.click(within(workspace).getByRole("button", { name: "Open mockup.jpg" }))
 

@@ -7,6 +7,7 @@ import type { ChatPayload } from "../../api/chats"
 import {
   closeChatPreviewPanel,
   fetchChatMedia,
+  fetchChatMediaArtifact,
   fetchChatMessagePins,
   fetchChatPreviewPanelAccessToken,
   fetchChatPreviewPanelFile,
@@ -44,6 +45,7 @@ vi.mock("../../api/chats", async (importOriginal) => {
     ...actual,
     closeChatPreviewPanel: vi.fn(),
     fetchChatMedia: vi.fn(),
+    fetchChatMediaArtifact: vi.fn(),
     fetchChatMessagePins: vi.fn(),
     fetchChatPreviewPanelAccessToken: vi.fn(),
     fetchChatPreviewPanelFile: vi.fn(),
@@ -1066,6 +1068,25 @@ describe("MediaGallery artifacts", () => {
   })
 
   it("lists a submitted rails_schema_erd artifact and renders it via TypedArtifactPanel when viewed", async () => {
+    vi.mocked(fetchChatMediaArtifact).mockResolvedValue({
+      typed_artifact: {
+        type: "rails_schema_erd",
+        title: "Schema ERD",
+        created_at: "2026-08-06T10:00:00Z",
+        renderer_type: "erd_diagram",
+        payload: {
+          tables: [
+            {
+              name: "users",
+              columns: [
+                { name: "id", type: "bigint" },
+                { name: "email", type: "string" }
+              ]
+            }
+          ]
+        }
+      }
+    })
     vi.mocked(fetchChatMedia).mockResolvedValue({
       snapshots: [],
       chat_images: [],
@@ -1074,18 +1095,7 @@ describe("MediaGallery artifacts", () => {
           type: "rails_schema_erd",
           title: "Schema ERD",
           created_at: "2026-08-06T10:00:00Z",
-          renderer_type: "erd_diagram",
-          payload: {
-            tables: [
-              {
-                name: "users",
-                columns: [
-                  { name: "id", type: "bigint" },
-                  { name: "email", type: "string" }
-                ]
-              }
-            ]
-          }
+          renderer_type: "erd_diagram"
         }
       ],
       whiteboard_has_unsaved_content: false
@@ -1108,6 +1118,19 @@ describe("MediaGallery artifacts", () => {
   })
 
   it("renders a submitted visual_review_screenshot artifact as an image via TypedArtifactPanel", async () => {
+    vi.mocked(fetchChatMediaArtifact).mockResolvedValue({
+      typed_artifact: {
+        type: "visual_review_screenshot",
+        title: "Homepage after fix",
+        created_at: "2026-08-06T10:00:00Z",
+        renderer_type: "image_diff",
+        payload: {
+          image_url: "/api/v1/app/workflows/1/visual_artifact?type=visual_review_screenshot",
+          content_type: "image/png",
+          byte_size: 48213
+        }
+      }
+    })
     vi.mocked(fetchChatMedia).mockResolvedValue({
       snapshots: [],
       chat_images: [],
@@ -1116,12 +1139,7 @@ describe("MediaGallery artifacts", () => {
           type: "visual_review_screenshot",
           title: "Homepage after fix",
           created_at: "2026-08-06T10:00:00Z",
-          renderer_type: "image_diff",
-          payload: {
-            image_url: "/api/v1/app/workflows/1/visual_artifact?type=visual_review_screenshot",
-            content_type: "image/png",
-            byte_size: 48213
-          }
+          renderer_type: "image_diff"
         }
       ],
       whiteboard_has_unsaved_content: false
