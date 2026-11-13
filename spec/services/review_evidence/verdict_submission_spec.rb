@@ -68,4 +68,19 @@ RSpec.describe ReviewEvidence::VerdictSubmission do
     expect(evidence.reload.persistence_receipt).to eq(receipt)
     expect(run.step.reload.details["review_persistence_receipt"]).to eq(receipt)
   end
+
+  it "recovers using the recorded verdict and learning, ignoring conflicting resubmitted values" do
+    allow(ReviewContextContributions).to receive(:persist).and_raise(ReviewContextContributions::Unavailable)
+    submit
+    allow(ReviewContextContributions).to receive(:persist).and_return(receipt)
+
+    described_class.call!(run: run, artifact_key: "coworker_review_iterations", review_kind: "coworker",
+                          critique: "Different.", verdict: "needs_work", key_learning: "Tampered.")
+
+    expect(ReviewContextContributions).to have_received(:persist)
+      .with(hash_including(verdict: "approved", update: { "key_learning" => "Stay small." })).twice
+    expect(ReviewContextContributions).not_to have_received(:persist).with(hash_including(verdict: "needs_work"))
+    expect(workflow.reload.artifact("coworker_review_iterations").sole)
+      .to include("verdict" => "approved", "critique" => "Fine.")
+  end
 end

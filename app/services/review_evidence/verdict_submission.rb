@@ -12,7 +12,7 @@ module ReviewEvidence::VerdictSubmission
 
     existing = existing_submission(run.workflow, artifact_key, run.id)
     if existing
-      existing = recover_missing_receipt!(run:, evidence:, artifact_key:, existing:, verdict:, critique:, key_learning:)
+      existing = recover_missing_receipt!(run:, evidence:, artifact_key:, existing:)
       evidence&.mark_submitted! unless evidence&.state == "submitted"
       return existing
     end
@@ -36,7 +36,8 @@ module ReviewEvidence::VerdictSubmission
           "run_id" => run.id,
           "review_evidence_id" => evidence&.id,
           "critique" => critique,
-          "verdict" => verdict
+          "verdict" => verdict,
+          "key_learning" => (key_learning.presence if target.present?)
         }
         if target.present?
           entry["review_context_manifest"] = evidence&.context_manifest.presence || run.step.details.to_h["review_context_manifest"]
@@ -73,14 +74,17 @@ module ReviewEvidence::VerdictSubmission
   # A verdict recorded while the owning plugin was unavailable has no receipt.
   # Resubmitting retries only the post-verdict update and patches the existing
   # artifact entry, so the retry recovers without duplicating the verdict.
-  def recover_missing_receipt!(run:, evidence:, artifact_key:, existing:, verdict:, critique:, key_learning:)
+  # Recovery uses only the values stored with the original submission, never the
+  # resubmitted ones, so the plugin journal cannot diverge from recorded evidence.
+  def recover_missing_receipt!(run:, evidence:, artifact_key:, existing:)
     return existing unless evidence
     return existing if evidence.persistence_receipt.present?
 
     target = evidence.review_target
     return existing if target.blank?
 
-    receipt = persist_review_update(target:, run:, verdict:, key_learning: key_learning.presence || critique)
+    receipt = persist_review_update(target:, run:, verdict: existing["verdict"],
+                                    key_learning: existing["key_learning"].presence || existing["critique"])
     return existing unless receipt
 
     evidence.record_persistence_receipt!(receipt)
