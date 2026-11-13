@@ -2,13 +2,24 @@ class PreviewLogReader
   DEFAULT_LINES = 120
   MAX_LINES = 1000
 
-  Log = Data.define(:path, :content, :missing)
+  # Upper bound for one incremental chunk; a bigger gap falls back to a full tail.
+  MAX_INCREMENTAL_BYTES = 256 * 1024
 
-  def self.call(preview_environment, lines: DEFAULT_LINES)
-    new(preview_environment, lines: lines).call
+  # `size` is the file's byte size when read (the client's next `since`
+  # cursor). `incremental` means `content` is only the bytes appended after the
+  # requested offset and should be appended to what the client already has;
+  # otherwise `content` is a full tail replacing it.
+  Log = Data.define(:path, :content, :missing, :size, :incremental) do
+    def initialize(path:, content:, missing:, size: nil, incremental: false) = super
   end
 
-  def initialize(preview_environment, lines:)
+  # since: { "log/development.log" => byte_offset } from a previous response.
+  def self.call(preview_environment, lines: DEFAULT_LINES, since: nil)
+    new(preview_environment, lines: lines, since: since).call
+  end
+
+  def initialize(preview_environment, lines:, since: nil)
+    @since = since.is_a?(Hash) ? since.transform_keys(&:to_s) : {}
     @preview_environment = preview_environment
     @workspace_path = preview_environment.workspace_path
     @lines = [[Integer(lines.to_i), 1].max, MAX_LINES].min
@@ -21,7 +32,7 @@ class PreviewLogReader
       absolute = resolve_path(path)
       next unless absolute
 
-      Log.new(path: display_path(absolute), content: tail_file(absolute), missing: !File.exist?(absolute))
+      read_log(display_path(absolute), absolute)
     end
   end
 
@@ -68,6 +79,36 @@ class PreviewLogReader
     Pathname.new(path).relative_path_from(Pathname.new(File.realpath(@workspace_path))).to_s
   rescue ArgumentError
     path
+  end
+
+  def read_log(display, absolute)
+    return Log.new(path: display, content: "", missing: true, size: 0) unless File.exist?(absolute)
+
+    size = File.size(absolute)
+    offset = Integer(@since[display], exception: false)
+    if offset && offset >= 0 && offset <= size && size - offset <= MAX_INCREMENTAL_BYTES
+      return Log.new(path: display, content: incremental_chunk(absolute, offset, size), missing: false, size: size, incremental: true)
+    end
+
+    Log.new(path: display, content: tail_file(absolute), missing: false, size: size)
+  rescue Errno::ENOENT
+    Log.new(path: display, content: "", missing: true, size: 0)
+  end
+
+  # Bytes appended since `offset`, shaped so plain string concatenation onto the
+  # previously returned content reproduces the file: full tails carry no
+  # trailing newline, so a chunk that begins on a line boundary gets its
+  # separator back, and its own trailing newline is dropped.
+  def incremental_chunk(path, offset, size)
+    return "" if offset == size
+
+    File.open(path, "rb") do |file|
+      boundary = offset.zero? ? false : (file.seek(offset - 1) && file.read(1) == "\n")
+      file.seek(offset)
+      chunk = file.read(size - offset).to_s.force_encoding(Encoding::UTF_8).scrub
+      chunk = chunk.delete_suffix("\n")
+      boundary ? "\n#{chunk}" : chunk
+    end
   end
 
   def tail_file(path)

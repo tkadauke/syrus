@@ -24,6 +24,19 @@ RSpec.describe "App API job preview", type: :request do
       expect(parse_body).to have_key("preview_projects")
     end
 
+    it "omits the static project list with projects=0 and answers an unchanged poll with 304" do
+      create_preview_env(job, state: "running", expires_at: 10.minutes.from_now)
+
+      get preview_path(job), params: { projects: "0" }, as: :json
+      expect(response).to have_http_status(:ok)
+      expect(parse_body).not_to have_key("preview_projects")
+      expect(parse_body).not_to have_key("unavailable_reason")
+
+      etag = response.headers["ETag"]
+      get preview_path(job), params: { projects: "0" }, headers: { "If-None-Match" => etag }, as: :json
+      expect(response).to have_http_status(:not_modified)
+    end
+
     it "returns the most recent preview environment" do
       env = create_preview_env(job, state: "running",
                                 expires_at: 10.minutes.from_now,
@@ -294,6 +307,23 @@ RSpec.describe "App API job preview", type: :request do
       expect(parse_body["logs"]).to include(
         a_hash_including("path" => "log/development.log", "content" => "second\nthird", "missing" => false)
       )
+    end
+
+    it "forwards the since cursor and answers an unchanged logs poll with 304" do
+      env = create_preview_env(job, state: "running", internal_host: "10.0.0.5", expires_at: 10.minutes.from_now)
+      since = { "log/development.log" => 12 }.to_json
+      stub = stub_request(:get, "http://10.0.0.5:#{PreviewControlServer::PORT}/environments/#{env.id}/logs")
+        .with(query: { lines: PreviewLogReader::DEFAULT_LINES, since: since })
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" }, body: {
+          logs: [ { path: "log/development.log", content: "", missing: false, size: 12, incremental: true } ]
+        }.to_json)
+
+      get preview_logs_path(job), params: { since: since }, as: :json
+      expect(stub).to have_been_requested
+      expect(parse_body["logs"]).to include(a_hash_including("size" => 12, "incremental" => true))
+
+      get preview_logs_path(job), params: { since: since }, headers: { "If-None-Match" => response.headers["ETag"] }, as: :json
+      expect(response).to have_http_status(:not_modified)
     end
 
     it "clamps requested log lines before calling the preview control endpoint" do

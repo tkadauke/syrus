@@ -1225,6 +1225,10 @@ export type PreviewLogRecord = {
   path: string
   content: string
   missing: boolean
+  // Byte size of the file when read; send these back as `since` for incremental reads.
+  size?: number | null
+  // True when `content` is only the bytes appended after the requested offset.
+  incremental?: boolean
 }
 
 export type PreviewLogsPayload = {
@@ -2055,12 +2059,39 @@ export function fetchPickerJobs(params: { state?: string; repo?: string; q?: str
 // Path-based — used for both job-scoped previews (JobDetail) and
 // repository-scoped "preview main" previews (RepositoryDetail); see
 // components/PreviewPanel.tsx.
-export function fetchPreview(path: string) {
-  return getJson<PreviewStatusPayload>(path)
+export function fetchPreview(path: string, options: { includeProjects?: boolean } = {}) {
+  // The project list is static while polling; callers that already hold it opt out.
+  const url = options.includeProjects === false ? `${path}${path.includes("?") ? "&" : "?"}projects=0` : path
+  return getJson<PreviewStatusPayload>(url)
 }
 
-export function fetchPreviewLogs(path: string) {
-  return getJson<PreviewLogsPayload>(path)
+export function fetchPreviewLogs(path: string, since?: Record<string, number>) {
+  if (!since || Object.keys(since).length === 0) return getJson<PreviewLogsPayload>(path)
+
+  return getJson<PreviewLogsPayload>(`${path}${path.includes("?") ? "&" : "?"}since=${encodeURIComponent(JSON.stringify(since))}`)
+}
+
+// Folds an incremental logs response into the previous accumulated one: files
+// answered with `incremental` content are appended to what we already have
+// (bounded to maxChars); everything else replaces it.
+export function mergePreviewLogs(previous: PreviewLogsPayload | undefined, next: PreviewLogsPayload, maxChars = 200_000): PreviewLogsPayload {
+  const previousByPath = new Map((previous?.logs ?? []).map((log) => [log.path, log]))
+  const logs = next.logs.map((log) => {
+    const before = previousByPath.get(log.path)
+    if (!log.incremental || !before) return log
+
+    const content = `${before.content}${log.content}`
+    return { ...log, content: content.length > maxChars ? content.slice(-maxChars) : content, incremental: false }
+  })
+  return { ...next, logs }
+}
+
+export function previewLogCursor(payload: PreviewLogsPayload | undefined): Record<string, number> {
+  const cursor: Record<string, number> = {}
+  for (const log of payload?.logs ?? []) {
+    if (typeof log.size === "number" && !log.missing) cursor[log.path] = log.size
+  }
+  return cursor
 }
 
 export function startPreview(path: string, projectId?: string | null) {
