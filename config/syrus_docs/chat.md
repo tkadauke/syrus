@@ -203,7 +203,13 @@ rejecting the group emits one group outcome chat
 message and one follow-up turn, rather than one per successful member.
 Rejecting discards every still-pending member without applying any.
 
-The chat agent can call `withdraw_pending_action` with an action ID and an
+The chat agent can call `list_pending_actions` to inspect actions created in
+the current chat. It returns pending actions by default and can include a
+specific resolved state or all outcomes, filter by Job, and cap the result
+count. Results contain only target identifiers, short operator-facing context,
+status and timestamps; raw tool arguments are not exposed.
+
+The agent can call `withdraw_pending_action` with an action ID and an
 optional concise reason when it recognizes that it proposed an action in
 error. The tool is scoped to the current chat and its owner, acts immediately
 without creating a second confirmation, rejects pending actions, and cancels

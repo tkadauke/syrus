@@ -217,6 +217,7 @@ class McpToolRegistry
         legacy_chat(Mcp::Tools::ProposeEpicWithJobsTool, mutation: true),
         legacy_chat(Mcp::Tools::ListProposalsTool),
         legacy_chat(Mcp::Tools::DeleteProposalTool, mutation: true),
+        legacy_chat(Mcp::Tools::ListPendingActionsTool),
         legacy_chat(Mcp::Tools::WithdrawPendingActionTool, mutation: true, default_policy: :allow),
         permission_management_chat(Mcp::Tools::ListPermissionsTool),
         permission_management_chat(Mcp::Tools::RequestPermissionTool, mutation: true, ungated: true),

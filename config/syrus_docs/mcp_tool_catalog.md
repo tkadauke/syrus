@@ -136,6 +136,7 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `list_epics` | chat | essential | read | no | - | - | - | - |
 | `list_files` | chat | essential | read | no | `chat:local` | - | - | `local_mode` |
 | `list_jobs` | chat | essential | read | no | - | - | - | - |
+| `list_pending_actions` | chat | essential | read | no | - | - | - | - |
 | `list_proposals` | chat | essential | read | no | - | - | - | - |
 | `manual_agentic_run` | chat | essential | write | yes | - | - | - | - |
 | `mark_ci_repair_noop` | chat | essential | write | yes | - | - | - | - |
