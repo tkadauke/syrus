@@ -57,9 +57,9 @@ RSpec.describe PluginRuntime::Controls do
   end
 
   it "reads logs with a bounded tail" do
-    allow(client).to receive(:logs).with("git-mirror", tail: 5000).and_return("lines")
+    allow(client).to receive(:logs).with("git-mirror", tail: 5000, since: "cursor").and_return(logs: "lines", cursor: "next")
 
-    expect(controls.logs("git-mirror", tail: 100_000)).to eq("lines")
+    expect(controls.logs("git-mirror", tail: 100_000, since: "cursor")).to eq(logs: "lines", cursor: "next")
   end
 
   it "refuses services no enabled plugin provides" do

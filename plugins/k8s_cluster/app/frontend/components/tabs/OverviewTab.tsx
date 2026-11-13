@@ -32,8 +32,8 @@ export function OverviewTab({ clusterId }: { clusterId: number }) {
     queryFn: () => fetchKubernetesNamespaces(clusterId)
   })
   const overview = useQuery({
-    queryKey: [ "k8s_cluster", "overview", clusterId ],
-    queryFn: () => fetchKubernetesOverview(clusterId)
+    queryKey: [ "k8s_cluster", "overview", clusterId, "summary" ],
+    queryFn: () => fetchKubernetesOverview(clusterId, true)
   })
 
   const openNamespace = (row: KubernetesNamespaceRow) =>

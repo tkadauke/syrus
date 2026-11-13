@@ -806,9 +806,12 @@ func TestOperatorActionsStopStartAndRestartTheContainer(t *testing.T) {
 			t.Fatalf("restarts = %d, want 1", c.restarts)
 		}
 	}
-	logs, err := m.Logs(context.Background(), "git-mirror", 50)
+	logs, cursor, err := m.Logs(context.Background(), "git-mirror", 50, "")
 	if err != nil || logs != "last 50 lines of syrus-plugin-git-mirror\n" {
 		t.Fatalf("logs = %q, %v", logs, err)
+	}
+	if cursor == "" {
+		t.Fatal("cursor is empty")
 	}
 }
 
@@ -817,7 +820,7 @@ func TestOperatorActionsOnAMissingServiceAreNotFound(t *testing.T) {
 	if _, err := m.Stop(context.Background(), "git-mirror"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("stop: %v", err)
 	}
-	if _, err := m.Logs(context.Background(), "git-mirror", 10); !errors.Is(err, ErrNotFound) {
+	if _, _, err := m.Logs(context.Background(), "git-mirror", 10, ""); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("logs: %v", err)
 	}
 }
