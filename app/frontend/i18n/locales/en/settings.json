@@ -179,6 +179,11 @@
     "loading_history": "Loading authorization history…",
     "matrix_title": "Agent permissions matrix",
     "matrix_help": "Compare the effective state for every agent surface and capability.",
+    "matrix_search": "Search capabilities and operations",
+    "matrix_search_placeholder": "Search by name or identifier",
+    "matrix_no_results": "No capabilities or operations match this search.",
+    "operation_count_one": "{{count}} operation",
+    "operation_count_other": "{{count}} operations",
     "operation_description": "Permits an agent to {{operation}}. {{effects}}",
     "effect_names": {
       "local_read": "Local data reading",

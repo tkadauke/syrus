@@ -179,6 +179,11 @@
     "loading_history": "Historia auctoritatis oneratur…",
     "matrix_title": "Tabula permissionum agentium",
     "matrix_help": "Statum effectivum cuiusque agentis et facultatis compara.",
+    "matrix_search": "Facultates et opera quaere",
+    "matrix_search_placeholder": "Nomine vel signo quaere",
+    "matrix_no_results": "Nulla facultas vel opus huic inquisitioni respondet.",
+    "operation_count_one": "{{count}} opus",
+    "operation_count_other": "{{count}} opera",
     "operation_description": "Agenti permittit {{operation}} agere. {{effects}}",
     "effect_names": {
       "local_read": "Lectio datorum localium",

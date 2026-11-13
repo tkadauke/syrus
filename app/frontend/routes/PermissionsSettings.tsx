@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { TFunction } from "i18next"
-import { useEffect, useMemo, useState } from "react"
+import { Fragment, useEffect, useMemo, useState } from "react"
 import { Link, useLocation, useSearchParams } from "react-router-dom"
 import {
   applyPermissionBulk,
@@ -24,7 +24,7 @@ import { Modal } from "../components/Modal"
 import { PageHeading, SectionHeading } from "../components/Heading"
 import { PanelMessage } from "../components/PanelMessage"
 import { Select } from "../components/Select"
-import { Checkbox, DataTable } from "../components/ui"
+import { Checkbox, DataTable, Input } from "../components/ui"
 import { useT } from "../hooks/useT"
 import { usePageTitle } from "../hooks/usePageTitle"
 import { errorMessage } from "../lib/errorMessage"
@@ -39,7 +39,8 @@ type Translate = TFunction<"settings">
 
 export function PermissionsSettingsRoute() {
   const { t } = useT("settings")
-  const prefix = routePrefix(useLocation().pathname)
+  const location = useLocation()
+  const prefix = routePrefix(location.pathname)
   usePageTitle(t("permissions.title"))
   const queryClient = useQueryClient()
   const query = useQuery({ queryKey, queryFn: fetchPermissions })
@@ -53,6 +54,8 @@ export function PermissionsSettingsRoute() {
   const [savedNotice, setSavedNotice] = useState(false)
   const highlightedRuleId = Number(searchParams.get("rule")) || null
   const [selectedKeys, setSelectedKeys] = useState<string[]>([])
+  const [matrixSearch, setMatrixSearch] = useState("")
+  const [expandedCapabilities, setExpandedCapabilities] = useState<string[]>([])
   const [selectedRuleIds, setSelectedRuleIds] = useState<number[]>([])
   const [preview, setPreview] = useState<{ rows: PermissionPreview[]; digest: string; operations: PermissionBulkOperation[] } | null>(null)
   const [profileSubject, setProfileSubject] = useState<Subject>("interactive_chat")
@@ -61,6 +64,10 @@ export function PermissionsSettingsRoute() {
     digest: string
   } | null>(null)
   const role = roleFor(subject)
+  const targetedCapability = searchParams.get("capability")
+  const targetedOperation = searchParams.get("operation")
+  const capabilityGroups = useMemo(() => groupCapabilities(descriptors), [descriptors])
+  const visibleCapabilityGroups = useMemo(() => filterCapabilityGroups(capabilityGroups, matrixSearch), [capabilityGroups, matrixSearch])
   // Capabilities that can carry a standing (permanent) rule for some role.
   const authorableCapabilities = useMemo(() => descriptors.filter((item) => item.requestable_roles.length > 0), [descriptors])
   const refresh = () => queryClient.invalidateQueries({ queryKey })
@@ -144,6 +151,15 @@ export function PermissionsSettingsRoute() {
       setView("rules")
     }
   }, [deepRequest, deepItem, highlightedRuleId])
+  useEffect(() => {
+    if (
+      targetedCapability &&
+      descriptors.some((item) => item.capability === targetedCapability && (!targetedOperation || item.operation === targetedOperation))
+    ) {
+      setView("matrix")
+      setExpandedCapabilities((current) => (current.includes(targetedCapability) ? current : [...current, targetedCapability]))
+    }
+  }, [descriptors, targetedCapability, targetedOperation])
   const previewSelected = (nextPolicy: "allow" | "deny") => {
     const operations = descriptors
       .filter((item) => selectedKeys.includes(keyFor(item)))
@@ -261,6 +277,16 @@ export function PermissionsSettingsRoute() {
               </div>
             ) : null}
           </div>
+          <label className="mb-4 block max-w-md text-sm font-medium text-text-secondary">
+            {t("permissions.matrix_search")}
+            <Input
+              className="mt-1"
+              onChange={(event) => setMatrixSearch(event.target.value)}
+              placeholder={t("permissions.matrix_search_placeholder")}
+              type="search"
+              value={matrixSearch}
+            />
+          </label>
           <DataTable.Root wrapperClassName="max-w-full">
             <DataTable.Header>
               <DataTable.Row>
@@ -271,31 +297,70 @@ export function PermissionsSettingsRoute() {
               </DataTable.Row>
             </DataTable.Header>
             <DataTable.Body>
-              {descriptors.map((item) => (
-                <DataTable.Row key={keyFor(item)}>
-                  <DataTable.Cell>
-                    <Checkbox
-                      aria-label={t("permissions.select_capability", { capability: item.capability, operation: item.operation })}
-                      checked={selectedKeys.includes(keyFor(item))}
-                      label={
-                        <span>
-                          {item.presentation.capability_name} — {item.presentation.operation_name}
-                          <span className="block text-sm font-normal text-text-secondary">{permissionDescription(item, t)}</span>
-                          <code className="block text-xs text-text-muted">
-                            {item.capability} · {item.operation}
-                          </code>
-                        </span>
-                      }
-                      onChange={() => setSelectedKeys(toggle(selectedKeys, keyFor(item)))}
-                    />
-                  </DataTable.Cell>
-                  {subjects.map((cellSubject) => (
-                    <DataTable.Cell key={cellSubject}>
-                      <PolicyPill policy={item.matrix_states[cellSubject] ?? "deny"} t={t} />
-                    </DataTable.Cell>
-                  ))}
-                </DataTable.Row>
-              ))}
+              {visibleCapabilityGroups.map((group) => {
+                const searchExpanded = matrixSearch.trim().length > 0
+                const expanded = searchExpanded || expandedCapabilities.includes(group.capability)
+                return (
+                  <Fragment key={group.capability}>
+                    <DataTable.Row groupHeader>
+                      <DataTable.Cell>
+                        <button
+                          aria-expanded={expanded}
+                          className="flex w-full min-w-56 items-start gap-2 text-left"
+                          onClick={() => setExpandedCapabilities(toggle(expandedCapabilities, group.capability))}
+                          type="button"
+                        >
+                          <span aria-hidden="true" className="mt-0.5 w-3 shrink-0 text-text-muted">
+                            {expanded ? "▾" : "▸"}
+                          </span>
+                          <span>
+                            <span className="block font-semibold text-text-primary">{group.items[0].presentation.capability_name}</span>
+                            <span className="block text-sm font-normal text-text-secondary">{group.items[0].presentation.capability_description}</span>
+                            <code className="block text-xs font-normal text-text-muted">{group.capability}</code>
+                            <span className="block text-xs font-normal text-text-muted">{t("permissions.operation_count", { count: group.items.length })}</span>
+                          </span>
+                        </button>
+                      </DataTable.Cell>
+                      {subjects.map((cellSubject) => (
+                        <DataTable.Cell key={cellSubject}>
+                          <PolicySummary items={group.items} subject={cellSubject} t={t} />
+                        </DataTable.Cell>
+                      ))}
+                    </DataTable.Row>
+                    {expanded
+                      ? group.items.map((item) => (
+                          <DataTable.Row
+                            aria-current={item.capability === targetedCapability && item.operation === targetedOperation ? "true" : undefined}
+                            className={item.capability === targetedCapability && item.operation === targetedOperation ? "bg-brand/5" : undefined}
+                            id={operationRowId(item)}
+                            key={keyFor(item)}
+                          >
+                            <DataTable.Cell className="pl-9">
+                              <Checkbox
+                                aria-label={t("permissions.select_capability", { capability: item.capability, operation: item.operation })}
+                                checked={selectedKeys.includes(keyFor(item))}
+                                label={
+                                  <span>
+                                    {item.presentation.operation_name}
+                                    <span className="block text-sm font-normal text-text-secondary">{permissionDescription(item, t)}</span>
+                                    <code className="block text-xs text-text-muted">{item.operation}</code>
+                                  </span>
+                                }
+                                onChange={() => setSelectedKeys(toggle(selectedKeys, keyFor(item)))}
+                              />
+                            </DataTable.Cell>
+                            {subjects.map((cellSubject) => (
+                              <DataTable.Cell key={cellSubject}>
+                                <PolicyPill policy={item.matrix_states[cellSubject] ?? "deny"} t={t} />
+                              </DataTable.Cell>
+                            ))}
+                          </DataTable.Row>
+                        ))
+                      : null}
+                  </Fragment>
+                )
+              })}
+              {visibleCapabilityGroups.length === 0 ? <DataTable.Empty colSpan={4}>{t("permissions.matrix_no_results")}</DataTable.Empty> : null}
             </DataTable.Body>
           </DataTable.Root>
         </section>
@@ -759,6 +824,25 @@ function PolicyPill({ policy, t }: { policy: PolicyState; t: Translate }) {
   const tone = policy === "allow" ? "bg-success/10 text-success" : policy === "deny" ? "bg-danger/10 text-danger" : "bg-warning/10 text-warning"
   return <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${tone}`}>{t(`permissions.states.${policy}`)}</span>
 }
+function PolicySummary({ items, subject, t }: { items: InheritedPermission[]; subject: Subject; t: Translate }) {
+  const counts = items.reduce<Partial<Record<PolicyState, number>>>((result, item) => {
+    const policy = item.matrix_states[subject] ?? "deny"
+    result[policy] = (result[policy] ?? 0) + 1
+    return result
+  }, {})
+  return (
+    <div className="flex min-w-28 flex-wrap gap-1.5">
+      {(["allow", "ask", "deny", "scoped"] as PolicyState[]).map((policy) =>
+        counts[policy] ? (
+          <span className="inline-flex items-center gap-1" key={policy}>
+            <PolicyPill policy={policy} t={t} />
+            <span className="text-xs text-text-muted">{counts[policy]}</span>
+          </span>
+        ) : null
+      )}
+    </div>
+  )
+}
 function InheritedRow({ item, onPreset, t }: { item: InheritedPermission; onPreset: (name: string) => void; t: Translate }) {
   const defaults = Object.entries(item.defaults)
     .map(([role, policy]) => `${role}: ${policy}`)
@@ -807,6 +891,37 @@ function presentationLabel(capability: string, operation: string | null, descrip
 }
 function keyFor(item: Pick<InheritedPermission, "capability" | "operation">) {
   return `${item.capability}:${item.operation}`
+}
+type CapabilityGroup = { capability: string; items: InheritedPermission[] }
+function groupCapabilities(items: InheritedPermission[]) {
+  return Array.from(
+    items.reduce<Map<string, InheritedPermission[]>>((groups, item) => {
+      groups.set(item.capability, [...(groups.get(item.capability) ?? []), item])
+      return groups
+    }, new Map())
+  ).map(([capability, groupedItems]): CapabilityGroup => ({ capability, items: groupedItems }))
+}
+function filterCapabilityGroups(groups: CapabilityGroup[], search: string) {
+  const query = search.trim().toLocaleLowerCase()
+  if (!query) return groups
+  return groups
+    .map((group) => {
+      const capabilityMatches = [group.capability, group.items[0].presentation.capability_name, group.items[0].presentation.capability_description].some(
+        (value) => value.toLocaleLowerCase().includes(query)
+      )
+      const items = capabilityMatches
+        ? group.items
+        : group.items.filter((item) =>
+            [item.operation, item.presentation.operation_name, item.presentation.operation_description].some((value) =>
+              value.toLocaleLowerCase().includes(query)
+            )
+          )
+      return { ...group, items }
+    })
+    .filter((group) => group.items.length > 0)
+}
+function operationRowId(item: Pick<InheritedPermission, "capability" | "operation">) {
+  return `permission-operation-${encodeURIComponent(keyFor(item))}`
 }
 function roleFor(subject: string) {
   return subject === "interactive_chat" ? "chat:planner" : subject === "coding_chat" ? "chat:coding" : "chat:local"

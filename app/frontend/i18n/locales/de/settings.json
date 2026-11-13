@@ -179,6 +179,11 @@
     "loading_history": "Autorisierungsverlauf wird geladen…",
     "matrix_title": "Agent-Berechtigungsmatrix",
     "matrix_help": "Vergleiche den effektiven Zustand für jede Agent-Oberfläche und Fähigkeit.",
+    "matrix_search": "Capabilities und Vorgänge durchsuchen",
+    "matrix_search_placeholder": "Nach Name oder Kennung suchen",
+    "matrix_no_results": "Keine Capability und kein Vorgang entspricht dieser Suche.",
+    "operation_count_one": "{{count}} Vorgang",
+    "operation_count_other": "{{count}} Vorgänge",
     "operation_description": "Erlaubt einem Agenten, {{operation}} auszuführen. {{effects}}",
     "effect_names": {
       "local_read": "Lesen lokaler Daten",

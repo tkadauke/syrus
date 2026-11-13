@@ -210,6 +210,7 @@ describe("PermissionsSettingsRoute", () => {
       .mockResolvedValue(jsonResponse(payload()))
     renderRoute()
 
+    fireEvent.click(await screen.findByRole("button", { name: /Syrus Jobs/ }))
     fireEvent.click(await screen.findByRole("checkbox", { name: "Select syrus.jobs@v1 cancel@v1" }))
     fireEvent.click(screen.getByRole("button", { name: "Allow selected (1)" }))
     const dialog = await screen.findByRole("dialog", { name: "Confirm permission changes" })
@@ -229,7 +230,50 @@ describe("PermissionsSettingsRoute", () => {
 
     renderRoute()
 
-    expect(await screen.findByText("Varies by resource")).toBeInTheDocument()
+    fireEvent.click(await screen.findByRole("button", { name: /Attach Repository/ }))
+    expect((await screen.findAllByText("Varies by resource")).length).toBeGreaterThanOrEqual(2)
+  })
+
+  it("groups operations by capability, keeps policy summaries visible, and expands on demand", async () => {
+    const response = payload()
+    response.inherited.push({
+      ...response.inherited[1],
+      operation: "retry@v1",
+      presentation: {
+        ...response.inherited[1].presentation,
+        operation_name: "Retry Job",
+        operation_description: "Permits an agent to retry a job."
+      },
+      matrix_states: { interactive_chat: "allow", coding_chat: "deny", local_chat: "deny" }
+    })
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(response))
+    renderRoute()
+
+    const group = await screen.findByRole("button", { name: /Syrus Jobs/ })
+    expect(group).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByRole("checkbox", { name: "Select syrus.jobs@v1 cancel@v1" })).not.toBeInTheDocument()
+    expect(group).toHaveTextContent("2 operations")
+    expect(screen.getAllByText("Allow").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("Ask").length).toBeGreaterThan(0)
+
+    fireEvent.click(group)
+    expect(group).toHaveAttribute("aria-expanded", "true")
+    expect(screen.getByRole("checkbox", { name: "Select syrus.jobs@v1 cancel@v1" })).toBeInTheDocument()
+    expect(screen.getByRole("checkbox", { name: "Select syrus.jobs@v1 retry@v1" })).toBeInTheDocument()
+  })
+
+  it("expands the containing capability for search results and operation deep links", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(payload())))
+    const { unmount } = renderRoute()
+
+    fireEvent.change(await screen.findByRole("searchbox", { name: "Search capabilities and operations" }), { target: { value: "Cancel Job" } })
+    expect(screen.getByRole("checkbox", { name: "Select syrus.jobs@v1 cancel@v1" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Attach Repository.*1 operation/ })).not.toBeInTheDocument()
+
+    unmount()
+    renderRoute("/settings/permissions?capability=syrus.jobs%40v1&operation=cancel%40v1")
+    expect(await screen.findByRole("button", { name: /Syrus Jobs/ })).toHaveAttribute("aria-expanded", "true")
+    expect(screen.getByRole("checkbox", { name: "Select syrus.jobs@v1 cancel@v1" }).closest("tr")).toHaveAttribute("aria-current", "true")
   })
 
   it("shows active lease lifecycle and redacted authorization history", async () => {
