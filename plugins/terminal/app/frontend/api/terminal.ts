@@ -39,6 +39,9 @@ export type TerminalWorkspaceRecord = {
 
 export type TerminalSessionsPayload = {
   sessions: TerminalSessionRecord[]
+}
+
+export type TerminalWorkspacesPayload = {
   workspaces: TerminalWorkspaceRecord[]
 }
 
@@ -56,6 +59,12 @@ export type CreateTerminalSessionInput =
 
 export function fetchTerminalSessions(options: { signal?: AbortSignal } = {}) {
   return getJson<TerminalSessionsPayload>("/api/v1/app/terminal_sessions", options)
+}
+
+export function fetchTerminalWorkspaces(options: { query?: string; signal?: AbortSignal } = {}) {
+  const query = options.query?.trim()
+  const path = query ? `/api/v1/app/terminal_sessions/workspaces?query=${encodeURIComponent(query)}` : "/api/v1/app/terminal_sessions/workspaces"
+  return getJson<TerminalWorkspacesPayload>(path, { signal: options.signal })
 }
 
 export function createTerminalSession(input: CreateTerminalSessionInput) {

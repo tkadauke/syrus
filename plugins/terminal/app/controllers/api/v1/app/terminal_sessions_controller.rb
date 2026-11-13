@@ -4,8 +4,18 @@ module Api
       class TerminalSessionsController < BaseController
         before_action :require_admin, only: :create
 
+        # Sessions only: the 5s poll must not carry the workspace picker's
+        # candidates. Those come from #workspaces when the picker opens.
         def index
-          render json: sessions_payload
+          scope = ::Terminal::Session.where(user: Current.user).running
+          sessions = scope.order(started_at: :desc).to_a
+          return unless stale?(etag: [ "terminal-sessions", Current.user.id, sessions.map { |s| [ s.id, s.updated_at.to_f ] } ])
+
+          render json: { sessions: sessions.map { |session| session_json(session) } }
+        end
+
+        def workspaces
+          render json: { workspaces: ::Terminal::WorkspaceCandidates.for(user: Current.user, query: params[:query]) }
         end
 
         def create
@@ -50,19 +60,8 @@ module Api
           ::Terminal::Session.where(user: Current.user).find(params[:id])
         end
 
-        def sessions_payload
-          {
-            sessions: ::Terminal::Session.where(user: Current.user).running.order(started_at: :desc).map { |session| session_json(session) },
-            workspaces: workspace_json
-          }
-        end
-
         def session_json(session)
           ::Terminal::SessionSerializer.render(session)
-        end
-
-        def workspace_json
-          ::Terminal::WorkspaceCandidates.for(user: Current.user)
         end
 
         def selected_candidate

@@ -7,7 +7,7 @@ import type { ReactElement } from "react"
 import { AppChromeV2 } from "@app/routes/AppChromeV2"
 import { TerminalPane, TerminalRoute } from "./Terminal"
 import type { BootstrapPayload } from "@app/api/bootstrap"
-import type { TerminalSessionRecord, TerminalSessionsPayload } from "../api/terminal"
+import type { TerminalSessionRecord, TerminalSessionsPayload, TerminalWorkspacesPayload } from "../api/terminal"
 import i18n from "@app/i18n"
 
 const actionCable = vi.hoisted(() => {
@@ -139,7 +139,7 @@ describe("TerminalRoute", () => {
     renderTerminalRoute()
 
     fireEvent.click(await screen.findByRole("button", { name: "+" }))
-    fireEvent.click(screen.getByRole("menuitem", { name: /WF-99 - Build terminal/ }))
+    fireEvent.click(await screen.findByRole("menuitem", { name: /WF-99 - Build terminal/ }))
 
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -167,9 +167,20 @@ describe("TerminalRoute", () => {
     expect(screen.queryByRole("button", { name: "+" })).not.toBeInTheDocument()
   })
 
+  it("loads workspace candidates from their own endpoint only once the picker opens", async () => {
+    const fetchSpy = mockFetchBody(terminalSessionsPayload())
+
+    renderTerminalRoute()
+    fireEvent.click(await screen.findByRole("button", { name: "+" }))
+    await screen.findByRole("menuitem", { name: /WF-99 - Build terminal/ })
+
+    const paths = fetchSpy.mock.calls.map(([input]) => String(input))
+    expect(paths).toContain("/api/v1/app/terminal_sessions/workspaces")
+    expect(paths.indexOf("/api/v1/app/terminal_sessions")).toBeLessThan(paths.indexOf("/api/v1/app/terminal_sessions/workspaces"))
+  })
+
   it("groups the default workspace picker and limits each section to three choices", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse(
+    mockFetchBody(
         terminalSessionsPayload({
           workspaces: [
             workspace({ key: "workflow:1", id: 1, label: "WF-1 - Failed checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
@@ -211,14 +222,13 @@ describe("TerminalRoute", () => {
             })
           ]
         })
-      )
     )
 
     renderTerminalRoute()
 
     fireEvent.click(await screen.findByRole("button", { name: "+" }))
 
-    expect(screen.getByText("Interesting workflows")).toBeInTheDocument()
+    expect(await screen.findByText("Interesting workflows")).toBeInTheDocument()
     expect(screen.getByText("Coding chats")).toBeInTheDocument()
     expect(screen.getByText("Workers")).toBeInTheDocument()
     expect(screen.getByRole("menuitem", { name: /WF-1 - Failed checkout/ })).toBeInTheDocument()
@@ -227,8 +237,7 @@ describe("TerminalRoute", () => {
   })
 
   it("searches workspace candidates across hidden default entries and worker metadata", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse(
+    mockFetchBody(
         terminalSessionsPayload({
           workspaces: [
             workspace({ key: "workflow:1", id: 1, label: "WF-1 - Failed checkout", section: "interesting_workflows", section_title: "Interesting workflows" }),
@@ -261,7 +270,6 @@ describe("TerminalRoute", () => {
             })
           ]
         })
-      )
     )
 
     renderTerminalRoute()
@@ -269,7 +277,7 @@ describe("TerminalRoute", () => {
     fireEvent.click(await screen.findByRole("button", { name: "+" }))
     fireEvent.change(screen.getByRole("searchbox", { name: "Search workspaces" }), { target: { value: "storage-b" } })
 
-    expect(screen.getByRole("menuitem", { name: /Scratch on beta/ })).toBeInTheDocument()
+    expect(await screen.findByRole("menuitem", { name: /Scratch on beta/ })).toBeInTheDocument()
     expect(screen.queryByRole("menuitem", { name: /WF-1 - Failed checkout/ })).not.toBeInTheDocument()
   })
 
@@ -290,8 +298,7 @@ describe("TerminalRoute", () => {
   })
 
   it("can find stale workflow candidates through search without showing them by default", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(
-      jsonResponse(
+    mockFetchBody(
         terminalSessionsPayload({
           workspaces: [
             workspace({
@@ -305,7 +312,6 @@ describe("TerminalRoute", () => {
             })
           ]
         })
-      )
     )
 
     renderTerminalRoute()
@@ -314,7 +320,7 @@ describe("TerminalRoute", () => {
     expect(screen.queryByRole("menuitem", { name: /WF-5 - Stale succeeded checkout/ })).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByRole("searchbox", { name: "Search workspaces" }), { target: { value: "stale-only" } })
-    expect(screen.getByRole("menuitem", { name: /WF-5 - Stale succeeded checkout/ })).toBeInTheDocument()
+    expect(await screen.findByRole("menuitem", { name: /WF-5 - Stale succeeded checkout/ })).toBeInTheDocument()
   })
 
   it("kills a session from its tab close button", async () => {
@@ -553,7 +559,9 @@ function renderWithClient(ui: ReactElement, bootstrap?: BootstrapPayload) {
   return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>)
 }
 
-function terminalSessionsPayload(overrides: Partial<TerminalSessionsPayload> = {}): TerminalSessionsPayload {
+// Mocked fetch answers every URL with this body, so it carries both the sessions and
+// workspaces endpoint shapes.
+function terminalSessionsPayload(overrides: Partial<TerminalSessionsPayload & TerminalWorkspacesPayload> = {}): TerminalSessionsPayload & TerminalWorkspacesPayload {
   return {
     sessions: [
       terminalSession({ id: 1, name: "Scratch", working_directory: "/app" }),
@@ -584,7 +592,7 @@ function terminalSessionsPayload(overrides: Partial<TerminalSessionsPayload> = {
   }
 }
 
-function workspace(overrides: Partial<TerminalSessionsPayload["workspaces"][number]> = {}): TerminalSessionsPayload["workspaces"][number] {
+function workspace(overrides: Partial<TerminalWorkspacesPayload["workspaces"][number]> = {}): TerminalWorkspacesPayload["workspaces"][number] {
   return {
     key: "workflow:99",
     id: 99,
@@ -650,4 +658,9 @@ function bootstrapPayload(overrides: Partial<BootstrapPayload> = {}): BootstrapP
     feature_flags: {},
     ...overrides
   }
+}
+
+// Each call gets a fresh Response: the picker now issues several reads (sessions + workspaces).
+function mockFetchBody(body: unknown) {
+  return vi.spyOn(window, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(body)))
 }
