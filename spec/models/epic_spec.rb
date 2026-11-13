@@ -83,6 +83,43 @@ RSpec.describe Epic, :ci_only do
     expect(job.reload.epic_title).to eq("Landing train")
   end
 
+  it "rejects another user's pending child marker when the referenced Epic is created later" do
+    marker_user = Factories.user
+    marker_repository = Factories.repository(user: marker_user)
+    epic_user = Factories.user
+    epic_repository = Factories.repository(user: epic_user)
+    epic_url = "https://github.com/acme/widgets/issues/77"
+    job = Factories.job_record(
+      user: marker_user,
+      repository: marker_repository,
+      state: "triaging",
+      triaging_reason: "pending_epic_ref",
+      pending_epic_reference: {
+        "github_issue_url" => epic_url,
+        "origin" => "github_issue"
+      }
+    )
+
+    WorkflowActivity.synchronously do
+      Factories.epic(
+        user: epic_user,
+        repository: epic_repository,
+        github_issue_url: epic_url,
+        origin: "github_issue"
+      )
+    end
+
+    expect(job.reload).to have_attributes(
+      epic_id: nil,
+      triaging_reason: "classifier_pending",
+      pending_epic_reference: {}
+    )
+    expect(WorkflowActivityEvent.where(job: job).sole.message).to include(
+      "Epic marker ignored",
+      "belongs to another user"
+    )
+  end
+
   it "records title and description versions with the current actor" do
     actor = Factories.user(email_address: "actor@example.com")
     epic = Factories.epic(title: "Migration train", description: "Old notes")
