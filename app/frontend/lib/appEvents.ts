@@ -24,6 +24,7 @@ import { chatPinsQueryPrefix } from "../routes/chat/pins"
 import { chatBookmarksQueryPrefix } from "../routes/chat/bookmarks"
 import { compareRevision, normalizeChatMessage, readEntity, upsertEntity, type EntityKind, type EntityRevision } from "./entityStore"
 import { currentVisibilityState, recordClientMetric, resourceTagFor } from "./clientMetrics"
+import { acknowledgeInFlightComposerDraft } from "../routes/chat/inFlightComposerDraftStore"
 
 // A proposal card can live in a chat view's paginated-older-history state,
 // outside the React Query cache the rest of this module patches. Dispatching
@@ -909,6 +910,7 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
 
   const replaceTail = chatReplaceTailPayload(event.payload)
   if (replaceTail) {
+    acknowledgeDeliveredChatMessages(event.id, replaceTail.messages)
     // Route each message through the same revision-gated entity merge as
     // everywhere else (see applyAppEventToEntityStore) instead of a
     // chat-tail-specific path, so a duplicate/out-of-order delivery of the
@@ -943,6 +945,7 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
 
   const upsertMessages = chatUpsertMessagesPayload(event.payload)
   if (upsertMessages) {
+    acknowledgeDeliveredChatMessages(event.id, upsertMessages.messages)
     upsertMessages.messages.forEach((message) => normalizeChatMessage(message, "app_event"))
     let patched = false
     if (typeof upsertMessages.turn_in_flight === "boolean")
@@ -1186,6 +1189,12 @@ function applyChatPayloadEvent(queryClient: QueryClient, event: AppEvent) {
   }
 
   return false
+}
+
+function acknowledgeDeliveredChatMessages(chatId: string | number, messages: ChatMessageItem[]) {
+  messages.forEach((message) => {
+    if (message.client_idempotency_key) acknowledgeInFlightComposerDraft(String(chatId), message.client_idempotency_key)
+  })
 }
 
 type ChatUpdateTurnStatePayload = {
