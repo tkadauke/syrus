@@ -10550,12 +10550,12 @@ describe("App", () => {
       kind: string
       display_name: string
       details: unknown
-      runs: Array<{ app_grade_log_path: string | null }>
+      runs: Array<{ grade_log_available?: boolean }>
     }
     gradeStep.kind = "grader"
     gradeStep.display_name = "tests"
     gradeStep.details = { name: "tests", command: "bin/rspec" }
-    gradeStep.runs[0].app_grade_log_path = "/api/v1/app/jobs/42/runs/9/grade_log?name=tests&workflow_id=5"
+    gradeStep.runs[0].grade_log_available = true
     const clipboardWrite = mockClipboardWrite()
     let artifactFetchCount = 0
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {
@@ -10579,7 +10579,7 @@ describe("App", () => {
       if (path === "/api/v1/app/jobs/42/timeline") {
         return Promise.resolve(new Response(JSON.stringify(jobTimelinePayload()), { status: 200, headers: { "Content-Type": "application/json" } }))
       }
-      if (path === "/api/v1/app/jobs/42/runs/9/grade_log?name=tests&workflow_id=5") {
+      if (path === "/api/v1/app/jobs/42/runs/9/grade_log") {
         return Promise.resolve(
           new Response(JSON.stringify({ job_id: 42, run_id: 9, name: "tests", contents: "rspec output\n" }), {
             status: 200,
@@ -10738,7 +10738,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Grade log" }))
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/jobs/42/runs/9/grade_log?name=tests&workflow_id=5",
+        "/api/v1/app/jobs/42/runs/9/grade_log",
         expect.objectContaining({ credentials: "same-origin", headers: { Accept: "application/json" } })
       )
     })
