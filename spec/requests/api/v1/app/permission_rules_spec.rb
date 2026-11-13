@@ -242,6 +242,26 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     expect(second_page.fetch("history_pagination")).to include("total" => 26, "total_pages" => 2, "has_more" => false)
   end
 
+  it "rejects an out-of-range history page before loading history records" do
+    permission_rule(owner: user)
+
+    get "/api/v1/app/permission_rules/history", params: { page: 1_000_000_000 }
+
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(JSON.parse(response.body).dig("error", "code")).to eq("invalid_permission_history_filter")
+  end
+
+  it "rejects unsupported history filter fields" do
+    filter = Filters::QueryParam.encode("and" => [
+      { "field" => "unknown", "op" => "is", "value" => "value" }
+    ])
+
+    get "/api/v1/app/permission_rules/history", params: { q: filter }
+
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(JSON.parse(response.body).dig("error", "code")).to eq("invalid_permission_history_filter")
+  end
+
   it "uses the policy evaluator for matrix states and marks resource-dependent outcomes" do
     # An auto-allowed default would make an allow rule indistinguishable from the
     # default, so pick a descriptor that does not already allow by default.
