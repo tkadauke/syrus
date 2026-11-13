@@ -24,6 +24,7 @@ module Api
 
         HIDDEN_CHATS_PAGE_SIZE = 20
         MEDIA_PAGE_SIZE = 24
+        MEDIA_THUMBNAIL_CONTENT_TYPES = (Document::ACCEPTED_IMAGE_CONTENT_TYPES & ActiveStorage.variable_content_types).freeze
         CODING_RELAY_RETRY_AFTER_SECONDS = 30
         CODING_RELAY_READ_TIMEOUT_SECONDS = 10
         PRODUCT_OWNER_EPIC_JOB_MESSAGE = "Product owners cannot add Jobs to Epics directly — " \
@@ -1161,7 +1162,7 @@ module Api
                                     .joins(file_attachment: :blob)
                                     .with_attached_file
                                     .where(kind: "file")
-                                    .where("documents.content_type IN (?) OR active_storage_blobs.content_type LIKE ?", Document::ACCEPTED_IMAGE_CONTENT_TYPES, "image/%")
+                                    .where(active_storage_blobs: { content_type: MEDIA_THUMBNAIL_CONTENT_TYPES })
                                     .order(:created_at, :id)
           image_page = image_scope.offset(image_offset).limit(MEDIA_PAGE_SIZE + 1).to_a
           image_has_more = image_page.length > MEDIA_PAGE_SIZE
@@ -1202,7 +1203,9 @@ module Api
 
         def media_chat_image_thumbnail
           document = find_chat_media_image
-          representation = document.file.variable? ? document.file.variant(resize_to_limit: [ 480, 480 ]).processed : document.file
+          raise ActiveRecord::RecordNotFound, "Chat image thumbnail not available" unless document.file.variable?
+
+          representation = document.file.variant(resize_to_limit: [ 480, 480 ]).processed
 
           send_secure_file(
             representation.download,
