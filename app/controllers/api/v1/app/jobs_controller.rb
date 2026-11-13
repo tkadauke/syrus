@@ -65,7 +65,18 @@ module Api
         end
 
         def show
-          render json: ::App::JobDetailPayload.build(job: find_job, user: Current.user, params: params)
+          render json: ::App::JobDetailPayload.header(job: find_job, user: Current.user, params: params)
+        end
+
+        def section
+          render json: ::App::JobDetailPayload.section(
+            job: find_job,
+            user: Current.user,
+            section: params[:section],
+            params: params
+          )
+        rescue ArgumentError
+          render_error("not_found", "Job detail section not found.", status: :not_found)
         end
 
         def visual_evidence

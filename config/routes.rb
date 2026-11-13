@@ -131,6 +131,7 @@ Rails.application.routes.draw do
         get "jobs/:id/timeline", to: "jobs#timeline", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id/waterfall", to: "jobs#waterfall", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id/workflows", to: "jobs#workflows", constraints: { id: /[a-zA-Z0-9_-]+/ }
+        get "jobs/:id/sections/:section", to: "jobs#section", constraints: { id: /[a-zA-Z0-9_-]+/, section: /summary|review|workflows/ }
         get "jobs/:id/transcript", to: "jobs#transcript", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id/diff", to: "jobs#diff", constraints: { id: /[a-zA-Z0-9_-]+/ }
         get "jobs/:id/agent_conversation", to: "jobs#agent_conversation", constraints: { id: /[a-zA-Z0-9_-]+/ }

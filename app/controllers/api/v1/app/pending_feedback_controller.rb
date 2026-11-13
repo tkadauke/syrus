@@ -129,10 +129,8 @@ module Api
 
         def pending_comments(job)
           job.pr_review_comments
-             .actionable_comments
-             .where.not(attributed_to: "job_owner")
+             .pending_for_operator_review
              .order(:comment_created_at, :id)
-             .select(&:pending_for_operator?)
         end
 
         def comment_json(comment)

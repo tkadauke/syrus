@@ -31,6 +31,8 @@ import {
   deleteJobCommand,
   fetchJobDependencyOptions,
   fetchJobDetail,
+  fetchJobDetailSection,
+  fetchPendingFeedback,
   fetchJobUnlandPlan,
   fetchJobWorkflows,
   ignorePendingFeedback,
@@ -120,6 +122,7 @@ import { UnderlineTabs } from "../components/Tabs"
 import { UnlandPlanConfirmation } from "../components/UnlandPlanConfirmation"
 import { normalizeJobDetailPayload } from "../lib/entityStore"
 import { useConfirm } from "../hooks/useConfirm"
+import { fetchProviderRoutingRules } from "../api/providerRoutingRules"
 
 const TimelineTab = lazy(() => import("./jobDetail/Timeline").then((module) => ({ default: module.TimelineTab })))
 const HIDE_UNSATISFIED_DEPENDENCIES_STATES = new Set(["running", "coding", "implemented", "approved", "landing", "closed", "no_change_needed"])
@@ -165,8 +168,38 @@ export function JobDetailRoute() {
     enabled: id.length > 0 && (activeTab === "workflows" || activeTab === "timeline") && detail.isSuccess,
     placeholderData: keepPreviousData
   })
+  const sectionName = activeTab === "review" ? "review" : activeTab === "workflows" ? "workflows" : activeTab === "summary" ? "summary" : null
+  const section = useQuery({
+    queryKey: ["jobs", id, "section", sectionName],
+    queryFn: () => fetchJobDetailSection(id, sectionName as "summary" | "review" | "workflows"),
+    enabled: id.length > 0 && sectionName !== null && detail.isSuccess
+  })
+  const pendingFeedback = useQuery({
+    queryKey: ["jobs", id, "pending_feedback"],
+    queryFn: () => fetchPendingFeedback(id),
+    enabled: id.length > 0 && activeTab === "summary" && detail.isSuccess
+  })
+  const providerRouting = useQuery({
+    queryKey: ["jobs", id, "provider_routing_rules"],
+    queryFn: () => fetchProviderRoutingRules(`/api/v1/app/jobs/${id}/provider_routing_rules`),
+    enabled: id.length > 0 && activeTab === "summary" && detail.isSuccess,
+    staleTime: 5 * 60 * 1000
+  })
   const payload = detail.isSuccess
-    ? mergeJobWorkflowsPayload(detail.data, workflows.isPlaceholderData ? undefined : workflows.data, {
+    ? mergeJobWorkflowsPayload({
+        ...jobDetailDefaults(detail.data),
+        ...section.data,
+        job: providerRouting.data ? {
+          ...detail.data.job,
+          job_provider_setting_options: providerRouting.data.job_provider_setting_options,
+          provider_routing_options: providerRouting.data.provider_routing_options,
+          provider_routing_rules: providerRouting.data.provider_routing_rules,
+          inherited_provider_routing_context: providerRouting.data.inherited_provider_routing_context,
+          provider_routing_resolution: providerRouting.data.provider_routing_resolution,
+          active_provider_routing_holds: providerRouting.data.active_provider_routing_holds
+        } : detail.data.job,
+        pending_feedback: pendingFeedback.data?.comments ?? []
+      }, workflows.isPlaceholderData ? undefined : workflows.data, {
         workflowsCommandsAreFresher: workflows.dataUpdatedAt > detail.dataUpdatedAt
       })
     : null
@@ -217,6 +250,26 @@ export function JobDetailRoute() {
       ) : null}
     </Page.Root>
   )
+}
+
+function jobDetailDefaults(payload: JobDetailPayload): JobDetailPayload {
+  return {
+    ...payload,
+    typed_artifacts: payload.typed_artifacts ?? [],
+    coverage: payload.coverage ?? null,
+    summary: payload.summary ?? null,
+    test_plan: payload.test_plan ?? null,
+    report: payload.report ?? null,
+    feedback_history: payload.feedback_history ?? [],
+    classification_attempts: payload.classification_attempts ?? [],
+    authorization_requests: payload.authorization_requests ?? [],
+    current_intent: payload.current_intent ?? null,
+    active_work: payload.active_work ?? null,
+    work_units: payload.work_units ?? [],
+    preview: null,
+    preview_projects: [],
+    deploy: null
+  }
 }
 
 export function JobDetailView({
@@ -1090,7 +1143,7 @@ function SummaryTab({
             <TagsPanel canManageTags={payload.actions.can_manage_tags} embedded command={command} payload={payload} />
           </Section.Root>
 
-          <JobRoutingPanel payload={payload} queryKey={queryKey} />
+          <JobRoutingPanel payload={payload} />
 
           <ApprovalStatusPanel payload={payload} prefix={prefix} />
           {deliveryPanelRelevant(payload) ? <DeliveryPanel payload={payload} /> : null}
@@ -1319,7 +1372,7 @@ function PrioritySelector({ currentPriority, priorityPath, queryKey }: { current
   )
 }
 
-function JobRoutingPanel({ payload, queryKey }: { payload: JobDetailPayload; queryKey: JobDetailQueryKey }) {
+function JobRoutingPanel({ payload }: { payload: JobDetailPayload }) {
   const { t } = useT("jobs")
   const resolution = payload.job.provider_routing_resolution
   const candidates = resolution?.final_action?.candidates || []
@@ -1397,7 +1450,7 @@ function JobRoutingPanel({ payload, queryKey }: { payload: JobDetailPayload; que
         description={t("routing_job_panel_description")}
         inheritedContext={payload.job.inherited_provider_routing_context}
         options={payload.job.provider_routing_options}
-        queryKey={queryKey}
+        queryKey={["jobs", String(payload.job.id), "provider_routing_rules"]}
         rules={payload.job.provider_routing_rules}
         title={t("routing_job_panel_title")}
       />

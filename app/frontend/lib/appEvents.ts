@@ -666,7 +666,30 @@ function jobQueryKeysFor(event: AppEvent): QueryKey[] {
   const id = String(event.id)
   const previewKey: QueryKey = ["jobs", id]
   const detailKey: QueryKey = workflowOnlyJobEvent(event) ? ["jobs", id, "workflows"] : ["jobs", id, "detail"]
-  return [["dashboard"], ["jobs"], previewKey, detailKey, ["job_run_artifacts", id]]
+  return [["dashboard"], ["jobs"], previewKey, detailKey, ...jobSectionQueryKeys(event, id), ["job_run_artifacts", id]]
+}
+
+function jobSectionQueryKeys(event: AppEvent, id: string): QueryKey[] {
+  const changed = event.changed || []
+  if (changed.length === 0) {
+    return [
+      ["jobs", id, "section", "summary"],
+      ["jobs", id, "section", "review"],
+      ["jobs", id, "section", "workflows"],
+      ["jobs", id, "pending_feedback"],
+      ["jobs", id, "provider_routing_rules"]
+    ]
+  }
+
+  const keys: QueryKey[] = []
+  if (changed.some((value) => /feedback|classification|authorization|summary|test_plan|coverage|report/.test(value))) {
+    keys.push(["jobs", id, "section", "summary"])
+  }
+  if (changed.some((value) => /feedback/.test(value))) keys.push(["jobs", id, "pending_feedback"])
+  if (changed.some((value) => /artifact|visual_evidence|review/.test(value))) keys.push(["jobs", id, "section", "review"])
+  if (changed.some((value) => /work_unit|work_intent/.test(value))) keys.push(["jobs", id, "section", "workflows"])
+  if (changed.some((value) => /provider_routing/.test(value))) keys.push(["jobs", id, "provider_routing_rules"])
+  return keys
 }
 
 function workflowOnlyJobEvent(event: AppEvent) {

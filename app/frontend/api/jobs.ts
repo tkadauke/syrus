@@ -1366,6 +1366,30 @@ export type JobDeploymentStage = {
 }
 
 export type JobWorkflowsPayload = Pick<JobDetailPayload, "workflows" | "workflows_pagination">
+export type JobDetailSectionPayload = Partial<Pick<
+  JobDetailPayload,
+  | "typed_artifacts"
+  | "review_contributions"
+  | "visual_evidence"
+  | "coverage"
+  | "summary"
+  | "test_plan"
+  | "report"
+  | "ui_panels"
+  | "ui_workflow_actions"
+  | "feedback_history"
+  | "classification_attempts"
+  | "authorization_requests"
+  | "current_intent"
+  | "active_work"
+  | "work_units"
+>>
+
+export type PendingFeedbackPayload = {
+  job_id: number
+  feedback_policy: string
+  comments: PendingFeedbackComment[]
+}
 
 export type JobWorkflowDetailPayload = { workflow: JobWorkflow }
 
@@ -1709,6 +1733,14 @@ export type JobRunArtifactsPayload = {
 
 export function fetchJobDetail(id: string, search = "", options: { signal?: AbortSignal } = {}) {
   return getJson<JobDetailPayload>(`/api/v1/app/jobs/${id}${search}`, options)
+}
+
+export function fetchJobDetailSection(id: string, section: "summary" | "review" | "workflows") {
+  return getJson<JobDetailSectionPayload>(`/api/v1/app/jobs/${id}/sections/${section}`)
+}
+
+export function fetchPendingFeedback(id: string) {
+  return getJson<PendingFeedbackPayload>(`/api/v1/app/jobs/${id}/pending_feedback`)
 }
 
 export function fetchJobUnlandPlan(path: string) {

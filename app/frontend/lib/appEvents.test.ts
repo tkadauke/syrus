@@ -40,7 +40,12 @@ afterEach(() => {
 describe("queryKeysFor", () => {
   it("maps resource events to the query keys they invalidate", () => {
     expect(queryKeysFor(event("user", null))).toEqual([["me"]])
-    expect(queryKeysFor(event("job", 42))).toEqual([["dashboard"], ["jobs"], ["jobs", "42"], ["jobs", "42", "detail"], ["job_run_artifacts", "42"]])
+    expect(queryKeysFor(event("job", 42))).toEqual([
+      ["dashboard"], ["jobs"], ["jobs", "42"], ["jobs", "42", "detail"],
+      ["jobs", "42", "section", "summary"], ["jobs", "42", "section", "review"],
+      ["jobs", "42", "section", "workflows"], ["jobs", "42", "pending_feedback"],
+      ["jobs", "42", "provider_routing_rules"], ["job_run_artifacts", "42"]
+    ])
     expect(queryKeysFor(event("workflow", 7))).toEqual([["dashboard"], ["workflows"], ["workflows", "7"]])
     expect(queryKeysFor(event("epic", 5))).toEqual([["dashboard"], ["epics"], ["epics", "5"]])
     expect(queryKeysFor(event("repository", 3))).toEqual([
@@ -271,6 +276,17 @@ describe("applyAppEvent", () => {
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs", "42", "detail"] })
     expect(queryClient.getQueryState(detailQueryKey)?.isInvalidated).toBe(true)
+  })
+
+  it("invalidates only the affected job detail section", () => {
+    const queryClient = new QueryClient()
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries")
+
+    applyAppEvent(queryClient, { ...event("job", 42), changed: ["classification_attempts"] })
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["jobs", "42", "section", "summary"] })
+    expect(invalidate).not.toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["jobs", "42", "section", "review"] }))
+    expect(invalidate).not.toHaveBeenCalledWith(expect.objectContaining({ queryKey: ["jobs", "42", "section", "workflows"] }))
   })
 
   it("does not refresh recent chats for unrelated high-churn job progress", () => {

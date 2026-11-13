@@ -3,6 +3,7 @@ module Api
     module App
       class ProviderRoutingRulesController < BaseController
         include ProviderRoutingRuleSerialization
+        include AgentProviderCatalogOptions
 
         def index
           scope = routing_rule_scope!
@@ -121,12 +122,39 @@ module Api
         end
 
         def routing_rule_payload(scope)
-          {
+          payload = {
             scope: provider_routing_scope_json(scope),
             provider_routing_rules: provider_routing_rules_json(**scope),
             inherited_provider_routing_context: provider_routing_inherited_context_json(scope),
             provider_routing_options: provider_routing_options_json(Current.user)
           }
+          return payload unless scope[:job_id]
+
+          job = policy_scope(Job).find(scope[:job_id])
+          provider_options = agent_provider_catalog_options(Current.user).fetch(:agent_providers)
+          payload.merge(
+            job_provider_setting_options: Job.provider_settings.map do |setting|
+              option = provider_options.find { |candidate| candidate[:value] == setting }
+              {
+                value: setting,
+                label: setting == "default" ? "Default" : ::App::Presentation.agent_provider_label(setting),
+                configured: setting == "default" || Current.user.agent_provider_configured?(setting),
+                models: option ? option[:models] : []
+              }
+            end,
+            provider_routing_resolution: ProviderRouting::Resolver.resolve(
+              job: job,
+              task_key: job.latest_workflow&.trigger_kind.presence || "initial",
+              workflow_trigger_kind: job.latest_workflow&.trigger_kind.presence || "initial"
+            ).explanation,
+            active_provider_routing_holds: ProviderRoutingHold.active.where(workflow_id: job.workflows.select(:id)).order(:created_at).map do |hold|
+              {
+                id: hold.id, workflow_id: hold.workflow_id, provider_routing_rule_id: hold.provider_routing_rule_id,
+                reason: hold.reason, resumption_mode: hold.resumption_mode,
+                next_reevaluation_at: hold.next_reevaluation_at&.iso8601, created_at: hold.created_at.iso8601
+              }
+            end
+          )
         end
       end
     end

@@ -244,16 +244,16 @@ RSpec.describe "API: /api/v1/app/provider_routing_rules", type: :request do
     expect(response).to have_http_status(:created)
     job_rule = ProviderRoutingRule.find_by!(scope_type: "job", scope_id: job.id)
 
-    get "/api/v1/app/jobs/#{job.id}"
+    get "/api/v1/app/jobs/#{job.id}/provider_routing_rules"
 
     expect(response).to have_http_status(:ok)
     body = parse_body
-    expect(body.dig("job", "provider_routing_rules")).to include(include("id" => job_rule.id, "scope_type" => "job"))
-    expect(body.dig("job", "inherited_provider_routing_context")).to include(
+    expect(body["provider_routing_rules"]).to include(include("id" => job_rule.id, "scope_type" => "job"))
+    expect(body["inherited_provider_routing_context"]).to include(
       include("scope_type" => "user", "rules" => include(include("id" => user_implement_rule.id))),
       include("scope_type" => "repository", "rules" => include(include("id" => repository_rule.id)))
     )
-    expect(body.dig("job", "provider_routing_resolution")).to include(
+    expect(body["provider_routing_resolution"]).to include(
       "source_scope" => "job",
       "reason" => "matched_rule",
       "matched_rule" => include("id" => job_rule.id),

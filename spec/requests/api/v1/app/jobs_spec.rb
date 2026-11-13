@@ -70,6 +70,40 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       .update_all(state: "succeeded", finished_at: Time.current, blocked_reason: nil, blocked_until: nil, blocked_details: {})
   end
 
+  it "keeps the job shell lean and loads heavyweight data by tab" do
+    get "/api/v1/app/jobs/#{job.id}"
+
+    expect(response).to have_http_status(:ok)
+    header = parse_body
+    expect(header).to include("job", "actions", "paths", "pinned", "tags")
+    expect(header.keys).not_to include(
+      "typed_artifacts", "feedback_history", "classification_attempts",
+      "authorization_requests", "test_plan", "summary", "report",
+      "ui_panels", "ui_workflow_actions", "work_units", "active_work",
+      "pending_feedback", "preview", "preview_projects", "deploy"
+    )
+    expect(header.fetch("job").keys).not_to include(
+      "provider_routing_options", "provider_routing_rules",
+      "inherited_provider_routing_context", "provider_routing_resolution",
+      "active_provider_routing_holds"
+    )
+
+    get "/api/v1/app/jobs/#{job.id}/sections/summary"
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.keys).to contain_exactly(
+      "authorization_requests", "classification_attempts", "coverage",
+      "feedback_history", "report", "summary", "test_plan", "ui_panels"
+    )
+
+    get "/api/v1/app/jobs/#{job.id}/sections/review"
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.keys).to contain_exactly("review_contributions", "typed_artifacts", "visual_evidence")
+
+    get "/api/v1/app/jobs/#{job.id}/sections/workflows"
+    expect(response).to have_http_status(:ok)
+    expect(parse_body.keys).to contain_exactly("active_work", "current_intent", "ui_workflow_actions", "work_units")
+  end
+
   it "returns curated and retained visual evidence and serves images through Job authorization" do
     workflow = job.workflows.first
     run = workflow.runs.first
@@ -80,7 +114,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     )
     evidence.image.attach(io: StringIO.new("png-data"), filename: "dashboard.png", content_type: "image/png")
 
-    get "/api/v1/app/jobs/#{job.id}"
+    get "/api/v1/app/jobs/#{job.id}/sections/review"
 
     expect(response).to have_http_status(:ok)
     gallery = parse_body.fetch("visual_evidence")
@@ -1001,7 +1035,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     expect(response).to have_http_status(:ok)
     body = parse_body
     expect(body["workflows"]).to eq([])
-    expect(body["work_units"]).to eq([])
+    expect(body).not_to have_key("work_units")
     expect(body.dig("workflows_pagination", "total_workflows")).to eq(1)
   end
 
@@ -1023,9 +1057,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     workflow_artifact_queries = queries
       .grep(/SELECT .*["`]?workflows["`]?.*["`]?artifacts["`]?/i)
       .reject { |sql| sql.match?(/ AS t0_r/i) }
-    expect(workflow_artifact_queries).not_to be_empty
-    expect(workflow_artifact_queries).to all(include("artifacts"))
-    expect(workflow_artifact_queries).to all(match(/NOT/i))
+    expect(workflow_artifact_queries).to be_empty
   end
 
   it "counts runs without loading full run rows on the default job detail payload" do
@@ -1053,7 +1085,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     active = PreviewEnvironment.create!(job: job, state: "running", expires_at: 10.minutes.from_now, created_at: 1.hour.ago)
 
     queries = capture_sql do
-      get "/api/v1/app/jobs/#{job.id}"
+      get "/api/v1/app/jobs/#{job.id}/preview"
     end
 
     expect(response).to have_http_status(:ok)
@@ -1118,7 +1150,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     )
     workflow = WorkUnits::Launcher.instantiate(kind: "manual_visual_review", job: bare_job)
 
-    get "/api/v1/app/jobs/#{bare_job.id}"
+    get "/api/v1/app/jobs/#{bare_job.id}/sections/workflows"
 
     expect(response).to have_http_status(:ok)
     body = parse_body
@@ -1146,7 +1178,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     MergeTrainMember.create!(merge_train: train, job: second, position: 1)
     workflow = WorkUnits::Launcher.instantiate(kind: "merge_train", job: second, artifacts: { "merge_train_id" => train.id })
 
-    get "/api/v1/app/jobs/#{first.id}"
+    get "/api/v1/app/jobs/#{first.id}/sections/workflows"
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["active_work"]).to include(
@@ -1249,7 +1281,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
       actor: user
     )
 
-    get "/api/v1/app/jobs/#{bare_job.id}/workflows"
+    get "/api/v1/app/jobs/#{bare_job.id}/sections/workflows"
 
     expect(response).to have_http_status(:ok)
     body = parse_body
@@ -1281,7 +1313,7 @@ RSpec.describe "App API job detail", :ci_only, type: :request do
     )
     unit.work_unit_members.create!(job: member, role: "member")
 
-    get "/api/v1/app/jobs/#{member.id}/workflows"
+    get "/api/v1/app/jobs/#{member.id}/sections/workflows"
 
     expect(response).to have_http_status(:ok)
     body = parse_body

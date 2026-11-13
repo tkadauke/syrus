@@ -1,4 +1,4 @@
-import { deleteJson, patchJson, postJson } from "./client"
+import { deleteJson, getJson, patchJson, postJson } from "./client"
 
 export type ProviderModelOption = {
   id: string
@@ -132,6 +132,14 @@ export type ProviderRoutingRulesPayload = {
   provider_routing_rules: ProviderRoutingRule[]
   provider_routing_options: ProviderRoutingOptions
   inherited_provider_routing_context?: ProviderRoutingInheritedContext[]
+}
+
+export function fetchProviderRoutingRules(path: string) {
+  return getJson<ProviderRoutingRulesPayload & {
+    job_provider_setting_options?: NonNullable<import("./jobs").JobRecord["job_provider_setting_options"]>
+    provider_routing_resolution?: import("./jobs").ProviderRoutingResolution | null
+    active_provider_routing_holds?: import("./jobs").ProviderRoutingHold[]
+  }>(path)
 }
 
 export type ProviderRoutingRuleInput = {
