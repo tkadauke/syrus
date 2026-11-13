@@ -54,9 +54,12 @@ module Admin
       end
     end
 
-    def stuck_json
+    def stuck_snapshot
+      stuck_snapshot_for_request
+    end
+
+    def stuck_json(snapshot: stuck_snapshot)
       PerformanceLogging.phase("admin_stuck_payload") do
-        snapshot = PerformanceLogging.phase("admin_stuck.snapshot") { stuck_snapshot_for_request }
         items = sorted_stuck_items(filtered_stuck_items(snapshot.items))
         {
           items: paginated_items(items),

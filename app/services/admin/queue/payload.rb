@@ -356,8 +356,7 @@ module Admin
       end
 
       def compact_worker_health_payload
-        payload = ::Admin::WorkerHealthPayload.new(**worker_health_options).as_json
-        payload.except(:current, "current")
+        ::Admin::WorkerHealthPayload.new(**worker_health_options, include_current: false).as_json
       end
 
       def default_worker_health_since(until_time)

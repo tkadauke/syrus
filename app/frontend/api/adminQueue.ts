@@ -34,6 +34,8 @@ export type QueueFailure = {
 
 export type QueueArguments = unknown[] | { truncated: true; preview: string; original_length: number } | null
 
+export type QueueWorkerHealthPayload = Omit<WorkerHealthPayload, "current">
+
 export type QueueRecurringTask = {
   key: string
   class_name: string | null
@@ -113,7 +115,7 @@ export type WorkersQueuePayload = {
   workers: QueueWorker[]
   all_processes: QueueProcess[]
   sort: QueueSort
-  worker_health?: WorkerHealthPayload
+  worker_health?: QueueWorkerHealthPayload
 }
 
 export type AdminQueuePayload =

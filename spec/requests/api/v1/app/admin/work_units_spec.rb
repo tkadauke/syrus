@@ -52,6 +52,20 @@ RSpec.describe "API: /api/v1/app/admin/work_units", type: :request do
         )
       )
     )
+    expect(serialized.fetch("debug")).to include("delivery_track", "wait_details", "source_repository", "target_repository")
+    expect(serialized.fetch("units").first.fetch("debug")).to include("kind", "scope_type", "blocked_details", "created_at", "repository")
+  end
+
+  it "omits intent and unit debug fields when work unit debug is disabled" do
+    sign_in_as(admin)
+    fixture = work_unit_fixture(user: user, repository: repo, issue_number: 17, kind: "initial")
+    AppSetting.current.update!(show_work_unit_debug: false)
+
+    get "/api/v1/app/admin/work_units"
+
+    serialized = parse_body.fetch("intents").find { |intent| intent["id"] == fixture.fetch(:intent).id }
+    expect(serialized).not_to have_key("debug")
+    expect(serialized.fetch("units").first).not_to have_key("debug")
   end
 
   it "attributes provider availability blocks to the owning user's credential state" do

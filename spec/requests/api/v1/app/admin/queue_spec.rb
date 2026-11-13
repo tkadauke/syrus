@@ -65,6 +65,27 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     )
   end
 
+  it "truncates large job arguments unless full arguments are requested" do
+    sign_in_as(admin)
+    process = solid_queue_process(hostname: "worker-a", pid: 101)
+    arguments = [ "x" * (Admin::Queue::Payload::ARGUMENT_PREVIEW_LIMIT + 1) ]
+    job = solid_queue_job(class_name: "RunJob", queue_name: "runs", arguments: { "arguments" => arguments })
+    SolidQueue::ClaimedExecution.create!(job: job, process: process)
+
+    get "/api/v1/app/admin/queue/active"
+
+    serialized = parse_body.fetch("jobs").first.fetch("arguments")
+    expect(serialized).to include(
+      "truncated" => true,
+      "original_length" => be > Admin::Queue::Payload::ARGUMENT_PREVIEW_LIMIT
+    )
+    expect(serialized.fetch("preview").length).to eq(Admin::Queue::Payload::ARGUMENT_PREVIEW_LIMIT)
+
+    get "/api/v1/app/admin/queue/active", params: { include: "arguments" }
+
+    expect(parse_body.fetch("jobs").first.fetch("arguments")).to eq(arguments)
+  end
+
   it "sorts active claimed executions with an allowlisted column" do
     sign_in_as(admin)
     process = solid_queue_process(hostname: "worker-a", pid: 101)
