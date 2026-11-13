@@ -128,12 +128,6 @@ export type ProviderRoutingInheritedContext = {
   rules: ProviderRoutingRule[]
 }
 
-export type ProviderRoutingRulesPayload = {
-  provider_routing_rules: ProviderRoutingRule[]
-  provider_routing_options: ProviderRoutingOptions
-  inherited_provider_routing_context?: ProviderRoutingInheritedContext[]
-}
-
 export type ProviderRoutingRuleInput = {
   task_key: string
   position?: number
@@ -145,19 +139,19 @@ export type ProviderRoutingRuleInput = {
 }
 
 export function createProviderRoutingRule(path: string, values: ProviderRoutingRuleInput) {
-  return postJson<ProviderRoutingRulesPayload>(path, { provider_routing_rule: values })
+  return postJson<void>(path, { provider_routing_rule: values })
 }
 
 export function updateProviderRoutingRule(path: string, values: ProviderRoutingRuleInput) {
-  return patchJson<ProviderRoutingRulesPayload>(path, { provider_routing_rule: values })
+  return patchJson<void>(path, { provider_routing_rule: values })
 }
 
 export function deleteProviderRoutingRule(path: string) {
-  return deleteJson<ProviderRoutingRulesPayload>(path)
+  return deleteJson<void>(path)
 }
 
 export function reorderProviderRoutingRules(path: string, ids: number[]) {
-  return patchJson<ProviderRoutingRulesPayload>(`${path}/reorder`, { provider_routing_rule_ids: ids })
+  return patchJson<void>(`${path}/reorder`, { provider_routing_rule_ids: ids })
 }
 
 export type ProviderRoutingConditionResult = {

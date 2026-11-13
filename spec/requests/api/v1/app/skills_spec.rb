@@ -109,6 +109,25 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/skills", type: :req
       expect(parse_body["skills"]).to contain_exactly(include("name" => "investigate"))
       expect(Skills).to have_received(:all_for).with(repository: repository, user: collaborator)
     end
+
+    it "returns an ETag-backed command projection for the chat composer" do
+      allow(Skills).to receive(:all_for).and_return(
+        [ resolution(name: "investigate", source: :repo_override, path: ".syrus/skills/investigate/SKILL.md", parameters: [ { key: "question", type: "string", required: true, label: "Question" } ]) ]
+      )
+      sign_in_as(user)
+
+      get "/api/v1/app/repositories/#{repository.id}/skills", params: { fields: "commands" }
+
+      expect(response).to have_http_status(:ok)
+      etag = response.headers.fetch("ETag")
+      expect(parse_body).to eq(
+        "skills" => [ { "name" => "investigate", "description" => "Does a thing.", "parameters" => [ { "key" => "question", "required" => true } ] } ]
+      )
+
+      get "/api/v1/app/repositories/#{repository.id}/skills", params: { fields: "commands" }, headers: { "If-None-Match" => etag }
+
+      expect(response).to have_http_status(:not_modified)
+    end
   end
 
   describe "POST create" do

@@ -757,10 +757,7 @@ describe("ProviderRoutingRulesEditor", () => {
 
   it("wires edits, creates, deletes, and reorders through the API adapter", async () => {
     const fetchMock = vi.fn(async (path: RequestInfo | URL, init?: RequestInit) => {
-      return new Response(JSON.stringify({ provider_routing_rules: rules, provider_routing_options: options }), {
-        status: String(init?.method) === "POST" ? 201 : 200,
-        headers: { "Content-Type": "application/json" }
-      })
+      return new Response(null, { status: 204 })
     })
     vi.stubGlobal("fetch", fetchMock)
     renderEditor({ rules })
