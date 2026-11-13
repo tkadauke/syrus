@@ -193,6 +193,8 @@ function normalizeWorkflow(workflow: JobWorkflow, source: string) {
 
 function normalizeStep(step: JobStep, source: string) {
   upsertEntity({ kind: "steps", id: step.id, fields: step as unknown as Record<string, unknown>, completeness: "detail", source })
+  if (!Object.prototype.hasOwnProperty.call(step, "runs")) return
+
   step.runs.forEach((run) => normalizeRun(run, source))
 }
 
