@@ -19,7 +19,7 @@ RSpec.describe "App API repository preview", type: :request do
       get preview_path(repo), as: :json
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body).to eq("preview" => nil)
+      expect(parse_body).to eq("v" => 1, "preview" => nil)
     end
 
     it "returns the most recent preview environment" do
@@ -61,7 +61,7 @@ RSpec.describe "App API repository preview", type: :request do
 
       get preview_path(repo), as: :json
 
-      expect(parse_body).to eq("preview" => nil)
+      expect(parse_body).to eq("v" => 1, "preview" => nil)
     end
 
     it "does not expose another user's repository" do

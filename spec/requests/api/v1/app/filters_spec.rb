@@ -47,6 +47,7 @@ RSpec.describe "API: /api/v1/app/filters", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body).to eq(
+      "v" => 1,
       "options" => [
         { "value" => own.id, "label" => "#{own.slug} - Find me" }
       ]
@@ -274,7 +275,7 @@ RSpec.describe "API: /api/v1/app/filters", type: :request do
     2.times do
       post "/api/v1/app/filters/usage", params: { surface: "dashboard", subject: "job", filter: state_tree }
       expect(response).to have_http_status(:ok)
-      expect(parse_body).to eq("recorded" => true)
+      expect(parse_body).to eq("v" => 1, "recorded" => true)
     end
     post "/api/v1/app/filters/usage", params: { surface: "dashboard", subject: "job", filter: repository_tree }
 
@@ -317,7 +318,7 @@ RSpec.describe "API: /api/v1/app/filters", type: :request do
          }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body).to eq("recorded" => false)
+    expect(parse_body).to eq("v" => 1, "recorded" => false)
   end
 
   it "suggests complete filters from FK value matches" do

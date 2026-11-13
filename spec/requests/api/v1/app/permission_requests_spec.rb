@@ -76,7 +76,7 @@ RSpec.describe "API: /api/v1/app/permission_requests", type: :request do
     request.authorization_items.create!(item_attributes)
 
     get "/api/v1/app/permission_requests/count"
-    expect(JSON.parse(response.body)).to eq("summary" => { "pending_count" => 1, "blocked_agent_count" => 0 })
+    expect(JSON.parse(response.body)).to eq("v" => 1, "summary" => { "pending_count" => 1, "blocked_agent_count" => 0 })
     expect(response.headers["ETag"]).to be_present
 
     get "/api/v1/app/permission_requests/#{request.id}"

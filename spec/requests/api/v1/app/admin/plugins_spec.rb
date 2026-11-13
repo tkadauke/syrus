@@ -356,13 +356,13 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     post "/api/v1/app/admin/plugins/toggle-plugin/disable"
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body).to eq("ok" => true, "plugin" => { "name" => "toggle-plugin", "enabled" => false })
+    expect(parse_body).to eq("v" => 1, "ok" => true, "plugin" => { "name" => "toggle-plugin", "enabled" => false })
     expect(Syrus::PluginRegistry.providers_for(:agent_provider)).to eq([])
 
     post "/api/v1/app/admin/plugins/toggle-plugin/enable"
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body).to eq("ok" => true, "plugin" => { "name" => "toggle-plugin", "enabled" => true })
+    expect(parse_body).to eq("v" => 1, "ok" => true, "plugin" => { "name" => "toggle-plugin", "enabled" => true })
     expect(Syrus::PluginRegistry.providers_for(:agent_provider)).to eq([ AdminPluginsSpec::AvailableProvider ])
   end
 
@@ -452,7 +452,7 @@ RSpec.describe "API: /api/v1/app/admin/plugins", type: :request do
     post "/api/v1/app/admin/plugins/ruby-confirm-plugin/disable", params: { confirm_cascade: true }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body).to eq("ok" => true, "plugin" => { "name" => "ruby-confirm-plugin", "enabled" => false })
+    expect(parse_body).to eq("v" => 1, "ok" => true, "plugin" => { "name" => "ruby-confirm-plugin", "enabled" => false })
     expect(PluginRecord.find_by!(name: "ruby-confirm-plugin").enabled).to be(false)
     expect(PluginRecord.find_by!(name: "rails-confirm-plugin").enabled).to be(false)
   end

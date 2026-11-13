@@ -439,6 +439,7 @@ RSpec.describe "API: /api/v1/app/admin/users", type: :request do
 
     expect(response).to have_http_status(:unprocessable_content)
     expect(parse_body).to eq(
+      "v" => 1,
       "error" => {
         "code" => "validation_failed",
         "message" => "Role must be one of developer, product_owner."

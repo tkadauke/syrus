@@ -63,7 +63,7 @@ RSpec.describe "API: /api/v1/app/admin/console", type: :request do
     }.to change { AppSetting.current.tap(&:reload).polling_paused }.from(false).to(true)
       .and change { AdminAction.where(action: "pause_polling").count }.by(1)
     expect(parse_body.dig("settings", "polling_paused")).to be true
-    expect(parse_body.keys).to contain_exactly("settings", "active_runs", "ok")
+    expect(parse_body.keys).to contain_exactly("v", "settings", "active_runs", "ok")
 
     expect {
       post "/api/v1/app/admin/console/unpause_polling"

@@ -86,7 +86,7 @@ RSpec.describe "App API runtime sessions", type: :request do
       get "/api/v1/app/chats/#{chat_session.id}/runtime_sessions/#{session.id}/logs", params: { cursor: 3 }
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body).to eq("entries" => [ "line-3" ], "cursor" => 4)
+      expect(parse_body).to eq("v" => 1, "entries" => [ "line-3" ], "cursor" => 4)
     end
   end
 

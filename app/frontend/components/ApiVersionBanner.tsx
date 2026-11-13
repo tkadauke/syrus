@@ -12,7 +12,9 @@ export function ApiVersionBanner() {
   const [mismatch, setMismatch] = useState<ApiVersionMismatch | null>(readApiVersionMismatch)
 
   useEffect(() => {
-    const handleMismatch = (event: Event) => setMismatch((event as CustomEvent<ApiVersionMismatch>).detail)
+    const handleMismatch = (event: Event) => {
+      setMismatch((event as CustomEvent<ApiVersionMismatch>).detail)
+    }
     window.addEventListener(API_VERSION_MISMATCH_EVENT, handleMismatch)
     return () => window.removeEventListener(API_VERSION_MISMATCH_EVENT, handleMismatch)
   }, [])

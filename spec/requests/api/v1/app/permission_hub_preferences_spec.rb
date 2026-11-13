@@ -13,7 +13,7 @@ RSpec.describe "API: /api/v1/app/permission_hub_preferences", type: :request do
     patch "/api/v1/app/permission_hub_preferences", params: { permission_hub_preferences: { mode: "advanced" } }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body).to eq("mode" => "advanced")
+    expect(parse_body).to eq("v" => 1, "mode" => "advanced")
     expect(user.reload.permission_hub_mode).to eq("advanced")
   end
 

@@ -1545,7 +1545,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Polling acme/widgets now.")
-    expect(parse_body.keys).to eq([ "message" ])
+    expect(parse_body.keys).to eq([ "v", "message" ])
   end
 
   it "does not render the detail payload when a poll requests a detail return" do
@@ -1558,7 +1558,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Polling acme/widgets now.")
-    expect(parse_body.keys).to eq([ "message" ])
+    expect(parse_body.keys).to eq([ "v", "message" ])
   end
 
   it "rejects polling an archived repository" do
@@ -1585,14 +1585,14 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     expect(repository.reload).to be_archived
     expect(repository.polling_enabled).to eq(false)
     expect(parse_body["message"]).to eq("acme/widgets archived.")
-    expect(parse_body.keys).to eq([ "message" ])
+    expect(parse_body.keys).to eq([ "v", "message" ])
 
     post "/api/v1/app/repositories/#{repository.id}/unarchive"
 
     expect(response).to have_http_status(:ok)
     expect(repository.reload).not_to be_archived
     expect(parse_body["message"]).to include("unarchived")
-    expect(parse_body.keys).to eq([ "message" ])
+    expect(parse_body.keys).to eq([ "v", "message" ])
   end
 
   it "lists and releases needs-triage jobs for developers" do
@@ -1707,7 +1707,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     get "/api/v1/app/repositories/owners"
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body).to eq("user" => "john", "orgs" => [ "org-a" ])
+    expect(parse_body).to eq("v" => 1, "user" => "john", "orgs" => [ "org-a" ])
   end
 
   it "returns no_token for owner selectors without GitHub credentials" do
@@ -1831,7 +1831,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
     get "/api/v1/app/repositories/branches", params: { owner: "john", name: "alpha" }
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body).to eq("branches" => [ "main", "trunk" ], "default_branch" => "main")
+    expect(parse_body).to eq("v" => 1, "branches" => [ "main", "trunk" ], "default_branch" => "main")
   end
 
   it "500s and logs unexpected branch selector errors" do
@@ -2010,7 +2010,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Graders enqueued for abc1234 on acme/widgets.")
-    expect(parse_body.keys).to eq([ "message" ])
+    expect(parse_body.keys).to eq([ "v", "message" ])
   end
 
   it "rejects run_main_branch_graders for an archived repository" do
@@ -2116,7 +2116,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("CI check enqueued for acme/widgets.")
-    expect(parse_body.keys).to eq([ "message" ])
+    expect(parse_body.keys).to eq([ "v", "message" ])
   end
 
   it "rejects check_ci_now for an archived repository" do
@@ -2392,14 +2392,14 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       get "/api/v1/app/repositories/#{repository.id}/health_history"
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body.keys).to contain_exactly("health_history")
+      expect(parse_body.keys).to contain_exactly("v", "health_history")
     end
 
     it "serves delivery independently" do
       sign_in_as(user)
       get "/api/v1/app/repositories/#{repository.id}/delivery"
       expect(response).to have_http_status(:ok)
-      expect(parse_body.keys).to contain_exactly("delivery")
+      expect(parse_body.keys).to contain_exactly("v", "delivery")
     end
 
     it "serves and caches the syrus config summary in the viewer's credential context" do
@@ -2413,7 +2413,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       get "/api/v1/app/repositories/#{repository.id}/syrus_yml"
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body.keys).to contain_exactly("syrus_yml")
+      expect(parse_body.keys).to contain_exactly("v", "syrus_yml")
       expect(cache_fetches).to include(
         satisfy("a revision-keyed syrus_yml cache entry") do |key, options|
           key.first(2) == [ "repository_syrus_yml_summary", repository.id ] && key.length == 3 && options == { expires_in: 5.minutes }

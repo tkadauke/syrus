@@ -70,7 +70,7 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(AppSetting.current.reload.telegram_bot_handle).to be_nil
-    expect(parse_body).to eq("ok" => true)
+    expect(parse_body).to eq("v" => 1, "ok" => true)
   end
 
   it "rejects clearing a required string setting" do
@@ -97,7 +97,7 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(AppSetting.current.reload.signups_open).to be true
-    expect(parse_body).to eq("ok" => true)
+    expect(parse_body).to eq("v" => 1, "ok" => true)
   end
 
   it "exposes and updates operator-facing workflow and landing policy settings" do
@@ -255,7 +255,7 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(AppSetting.current.reload.show_work_unit_debug).to be true
-    expect(parse_body).to eq("ok" => true)
+    expect(parse_body).to eq("v" => 1, "ok" => true)
   end
 
   it "exposes and updates the rebase failure cooldown" do
@@ -292,7 +292,7 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
     expect(setting.workflow_admission_control_enabled).to be false
     expect(setting.workflow_admission_control_changed_at).to be_present
     expect(setting.workflow_admission_control_changed_by_user).to eq(admin)
-    expect(parse_body).to eq("ok" => true)
+    expect(parse_body).to eq("v" => 1, "ok" => true)
   end
 
   it "audits enabling workflow admission control" do
@@ -322,7 +322,7 @@ RSpec.describe "API: /api/v1/app/admin/settings", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(AppSetting.current.reload.workflow_admission_policy).to eq("phase_aware")
-    expect(parse_body).to eq("ok" => true)
+    expect(parse_body).to eq("v" => 1, "ok" => true)
   end
 
   it "rejects a proactive_rebase_commit_threshold below 1" do

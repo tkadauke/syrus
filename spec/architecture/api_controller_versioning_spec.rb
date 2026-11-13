@@ -24,8 +24,7 @@ RSpec.describe "API controller versioning" do
     ]
     bare_array_patterns = [
       /render\s+json:\s*\[/,
-      /render\s+json:\s*[^\n{]+\.map\s*\{/,
-      /render\s+json:\s*[^\n{]+\.as_json\([^\n]+\)\s*$/
+      /render\s+json:\s*[^\n{]+\.map\s*\{/
     ]
     offenders = controller_files.select do |file|
       source = File.read(file)

@@ -132,7 +132,7 @@ RSpec.describe "API: /api/v1/app/sidebar_pages", type: :request do
     get "/api/v1/app/sidebar_pages"
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body).to eq("pages" => [])
+    expect(parse_body).to eq("v" => 1, "pages" => [])
   end
 
   it "treats a freshly-registered default-enabled plugin as enabled with no prior PluginRecord row" do

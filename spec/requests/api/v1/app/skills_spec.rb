@@ -121,6 +121,7 @@ RSpec.describe "API: /api/v1/app/repositories/:repository_id/skills", type: :req
       expect(response).to have_http_status(:ok)
       etag = response.headers.fetch("ETag")
       expect(parse_body).to eq(
+        "v" => 1,
         "skills" => [ { "name" => "investigate", "description" => "Does a thing.", "parameters" => [ { "key" => "question", "required" => true } ] } ]
       )
 

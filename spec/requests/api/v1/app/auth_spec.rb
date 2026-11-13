@@ -87,6 +87,7 @@ RSpec.describe "API: /api/v1/app/auth", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(parse_body).to eq(
+      "v" => 1,
       "authenticated" => false,
       "first_signup" => true,
       "signups_open" => false,
