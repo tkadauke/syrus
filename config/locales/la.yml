@@ -232,6 +232,8 @@ la:
       provider_unavailable: "Provisor approbationis non est installatus vel activatus."
       unknown_capability: "Facultas permissionis ignota."
       scope_required: "Ambitus rerum finitus requiritur."
+    permission_hub_preferences:
+      invalid_mode: "Modum Simplicem vel Provectum elige."
     permission_rules:
       stale_preview: "Has mutationes permissionum ante confirmationem iterum considera."
     permission_rule_drafts:

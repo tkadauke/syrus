@@ -11,7 +11,7 @@ describe("PermissionsSettingsRoute", () => {
   it("defaults a new operator to Simple with only the permission profile", async () => {
     const data = payload()
     data.permission_hub_mode = "simple"
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(data))
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => Promise.resolve(jsonResponse(data)))
     renderRoute()
 
     expect(await screen.findByRole("button", { name: "Simple", pressed: true })).toBeInTheDocument()

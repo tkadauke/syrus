@@ -232,6 +232,8 @@ de:
       provider_unavailable: "Der Genehmigungsanbieter ist nicht installiert oder aktiviert."
       unknown_capability: "Unbekannte Berechtigungs-Capability."
       scope_required: "Ein begrenzter Ressourcenbereich ist erforderlich."
+    permission_hub_preferences:
+      invalid_mode: "Wähle Einfach oder Erweitert."
     permission_rules:
       stale_preview: "Prüfe diese Berechtigungsänderungen vor dem Bestätigen erneut."
     permission_rule_drafts:
