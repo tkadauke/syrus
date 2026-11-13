@@ -66,10 +66,12 @@ export type MysqlSnapshot = {
   variables: Record<string, string | number>
   status: Record<string, string | number>
   process_list: MysqlProcess[]
-  statement_digests: MysqlUnavailableSection | {
-    available: true
-    rows: MysqlStatementDigest[]
-  }
+  statement_digests:
+    | MysqlUnavailableSection
+    | {
+        available: true
+        rows: MysqlStatementDigest[]
+      }
   slow_log: {
     available: boolean
     config: Record<string, string | number>

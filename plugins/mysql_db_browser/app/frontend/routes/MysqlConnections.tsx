@@ -186,8 +186,7 @@ function browseSelectionFromSearch(search: string): BrowseDeepLink | null {
 
   return {
     connectionId,
-    selection:
-      database && table ? { database, table, tab: tab === "structure" || tab === "builder" ? tab : "content" } : null
+    selection: database && table ? { database, table, tab: tab === "structure" || tab === "builder" ? tab : "content" } : null
   }
 }
 
