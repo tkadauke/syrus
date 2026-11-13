@@ -1346,7 +1346,6 @@ RSpec.describe MainHealthChangedService, :ci_only do
             trigger_kind: "retry",
             agent_provider: "claude",
             state: "failed",
-            artifacts: "{}",
             created_at: now + index.seconds,
             updated_at: now + index.seconds
           }
