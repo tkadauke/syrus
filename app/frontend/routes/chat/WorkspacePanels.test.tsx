@@ -7,6 +7,7 @@ import type { ChatPayload } from "../../api/chats"
 import {
   closeChatPreviewPanel,
   fetchChatMedia,
+  fetchChatMediaArtifact,
   fetchChatMessagePins,
   fetchChatPreviewPanelAccessToken,
   fetchChatPreviewPanelFile,
@@ -44,6 +45,7 @@ vi.mock("../../api/chats", async (importOriginal) => {
     ...actual,
     closeChatPreviewPanel: vi.fn(),
     fetchChatMedia: vi.fn(),
+    fetchChatMediaArtifact: vi.fn(),
     fetchChatMessagePins: vi.fn(),
     fetchChatPreviewPanelAccessToken: vi.fn(),
     fetchChatPreviewPanelFile: vi.fn(),
@@ -1160,6 +1162,42 @@ describe("MediaGallery images", () => {
     vi.mocked(fetchWhiteboardSnapshots).mockResolvedValue({ whiteboard_snapshots: [] })
   })
 
+  it("loads additional media pages on demand", async () => {
+    vi.mocked(fetchChatMedia)
+      .mockResolvedValueOnce({
+        snapshots: [],
+        chat_images: [],
+        typed_artifacts: [],
+        whiteboard_has_unsaved_content: false,
+        pagination: { page: 1, chat_images_has_more: true, typed_artifacts_has_more: false }
+      })
+      .mockResolvedValueOnce({
+        snapshots: [],
+        chat_images: [
+          {
+            id: 2,
+            title: "older.png",
+            filename: "older.png",
+            content_type: "image/png",
+            image_url: "/api/v1/app/chats/1/media/chat_images/2/file",
+            thumbnail_url: "/api/v1/app/chats/1/media/chat_images/2/file?thumbnail=1"
+          }
+        ],
+        typed_artifacts: [],
+        whiteboard_has_unsaved_content: false,
+        pagination: { page: 2, chat_images_has_more: false, typed_artifacts_has_more: false }
+      })
+
+    const payload = makePayload()
+    payload.chat.has_chat_images = true
+    renderWorkspacePanel(payload, { activeTab: "media" })
+
+    fireEvent.click(await screen.findByRole("button", { name: "Load more media" }))
+
+    expect(await screen.findByRole("button", { name: "Open older.png" })).toBeInTheDocument()
+    expect(fetchChatMedia).toHaveBeenLastCalledWith(1, 2)
+  })
+
   it("renders images from the full chat_images history instead of the currently loaded message window, with download and lightbox preview", async () => {
     // The payload's own `messages` array is the paginated window shown in
     // the transcript; chat_images comes from GET /media, which is scoped to
@@ -1173,8 +1211,8 @@ describe("MediaGallery images", () => {
           title: "old.png",
           filename: "old.png",
           content_type: "image/png",
-          file_path: "/api/v1/app/chats/1/media/chat_images/1/file",
-          image_url: "/api/v1/app/repository_documents/1/file"
+          image_url: "/api/v1/app/chats/1/media/chat_images/1/file",
+          thumbnail_url: "/api/v1/app/chats/1/media/chat_images/1/file?thumbnail=1"
         }
       ],
       typed_artifacts: [],
@@ -1184,15 +1222,18 @@ describe("MediaGallery images", () => {
     renderWorkspacePanel(makePayload(), { activeTab: "media" })
 
     const thumbnail = await screen.findByRole("button", { name: "Open old.png" })
-    expect(within(thumbnail).getByAltText("old.png")).toHaveAttribute("src", "/api/v1/app/repository_documents/1/file")
+    expect(within(thumbnail).getByAltText("old.png")).toHaveAttribute("src", "/api/v1/app/chats/1/media/chat_images/1/file?thumbnail=1")
 
     const download = screen.getByRole("link", { name: "Download old.png" })
-    expect(download).toHaveAttribute("href", "/api/v1/app/repository_documents/1/file")
+    expect(download).toHaveAttribute("href", "/api/v1/app/chats/1/media/chat_images/1/file")
     expect(download).toHaveAttribute("download", "old.png")
 
     fireEvent.click(thumbnail)
 
     expect(screen.getByRole("dialog", { name: "old.png" })).toBeInTheDocument()
+    within(screen.getByRole("dialog", { name: "old.png" }))
+      .getAllByRole("img")
+      .forEach((image) => expect(image).toHaveAttribute("src", "/api/v1/app/chats/1/media/chat_images/1/file"))
   })
 
   it("attaches the media-library image to the target chat's draft and shows a notice when the gallery's attach action is clicked", async () => {

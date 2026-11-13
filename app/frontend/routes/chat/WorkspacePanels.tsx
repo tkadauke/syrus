@@ -1,7 +1,7 @@
 import { RelativeTimestamp } from "../../components/RelativeTimestamp"
 import { Button } from "../../components/Button"
 import { PanelMessage } from "../../components/PanelMessage"
-import { useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query"
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query"
 import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent, MutableRefObject } from "react"
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link } from "react-router-dom"
@@ -13,6 +13,7 @@ import {
   closeChatPreviewPanel,
   createWhiteboardSnapshot,
   fetchChatMedia,
+  fetchChatMediaArtifact,
   fetchChatPreviewPanelAccessToken,
   fetchChatPreviewPanelFile,
   fetchPreviewPanelHistory,
@@ -1063,21 +1064,24 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
     queryFn: () => fetchWhiteboardSnapshots(payload.chat.id),
     enabled: payload.chat.id != null
   })
-  const media = useQuery({
+  const media = useInfiniteQuery({
     queryKey: ["chat_media", String(payload.chat.id)],
-    queryFn: () => fetchChatMedia(payload.chat.id),
+    queryFn: ({ pageParam }) => fetchChatMedia(payload.chat.id, pageParam),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.pagination?.chat_images_has_more || lastPage.pagination?.typed_artifacts_has_more ? (lastPage.pagination?.page || 1) + 1 : undefined,
     enabled: payload.chat.id != null
   })
   const chatBusy = payload.agent_busy
   const snapshotLoading = loadingSnapshotId != null
   const snapshotItems = snapshots.data?.whiteboard_snapshots || []
-  const artifactItems = media.data?.typed_artifacts || []
-  // Sourced from the chat's full history via GET /media (which also
-  // materializes any not-yet-materialized inline attachments into
-  // Documents), not payload.messages -- the currently loaded message window
-  // is paginated, so an older image would otherwise be invisible here even
-  // though the chat has media.
-  const images = media.data?.chat_images || []
+  const artifactItems = media.data?.pages.flatMap((page) => page.typed_artifacts) || []
+  const images = media.data?.pages.flatMap((page) => page.chat_images) || []
+  const selectedArtifact = useQuery({
+    queryKey: ["chat_media_artifact", String(payload.chat.id), selectedArtifactType],
+    queryFn: () => fetchChatMediaArtifact(payload.chat.id, selectedArtifactType!),
+    enabled: selectedArtifactType != null
+  })
   const lightboxImage = lightboxImageIndex == null ? null : images[lightboxImageIndex] || null
   const previousLightboxImage = lightboxImageIndex != null && lightboxImageIndex > 0 ? images[lightboxImageIndex - 1] : null
   const nextLightboxImage = lightboxImageIndex != null && lightboxImageIndex < images.length - 1 ? images[lightboxImageIndex + 1] : null
@@ -1166,7 +1170,8 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
     !snapshots.isPending &&
     !snapshots.isError &&
     !media.isPending &&
-    !media.isError
+    !media.isError &&
+    !media.hasNextPage
   ) {
     return <PanelMessage>{t("media_empty")}</PanelMessage>
   }
@@ -1213,7 +1218,11 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
                   </div>
                   {selected ? (
                     <div className="mt-3">
-                      <TypedArtifactPanel artifacts={[artifact]} />
+                      {selectedArtifact.isPending ? <PanelMessage>{t("common:loading")}</PanelMessage> : null}
+                      {selectedArtifact.isError ? (
+                        <PanelMessage tone="error">{errorMessage(selectedArtifact.error, t("artifacts_load_error"))}</PanelMessage>
+                      ) : null}
+                      {selectedArtifact.data || artifact.payload ? <TypedArtifactPanel artifacts={[selectedArtifact.data || artifact]} /> : null}
                     </div>
                   ) : null}
                 </article>
@@ -1305,7 +1314,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
           <h2 className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">{t("image_attachments")}</h2>
           <div className="grid grid-cols-3 gap-2">
             {images.map((image, index) => {
-              const src = image.image_url || image.file_path || ""
+              const src = image.thumbnail_url || image.image_url || image.file_path || ""
               const name = image.title || image.filename || "image attachment"
 
               return (
@@ -1324,7 +1333,7 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
                       aria-label={t("image_download_aria", { name })}
                       className="absolute right-1 top-1 rounded bg-white/90 px-2 py-1 text-xs font-medium text-gray-700 opacity-0 shadow transition hover:bg-white hover:text-gray-900 focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-brand group-hover/media:opacity-100 dark:bg-gray-900/90 dark:text-gray-200 dark:hover:bg-gray-900"
                       download={image.filename || name}
-                      href={src}
+                      href={image.image_url || image.file_path || src}
                     >
                       {t("image_download")}
                     </a>
@@ -1354,13 +1363,23 @@ function MediaGallery({ payload, queryKey, onNotice }: { payload: ChatPayload; q
           imageCount={images.length}
           imageIndex={lightboxImageIndex ?? 0}
           name={lightboxImage.title || lightboxImage.filename || t("image_attachment")}
-          nextSrc={nextLightboxImage ? nextLightboxImage.image_url || nextLightboxImage.file_path : null}
+          nextSrc={nextLightboxImage?.image_url || null}
           onClose={() => setLightboxImageIndex(null)}
           onNext={() => setLightboxImageIndex((index) => (index == null ? index : Math.min(index + 1, images.length - 1)))}
           onPrevious={() => setLightboxImageIndex((index) => (index == null ? index : Math.max(index - 1, 0)))}
-          previousSrc={previousLightboxImage ? previousLightboxImage.image_url || previousLightboxImage.file_path : null}
+          previousSrc={previousLightboxImage?.image_url || null}
           src={lightboxImage.image_url || lightboxImage.file_path || ""}
         />
+      ) : null}
+      {media.hasNextPage ? (
+        <button
+          className={`${secondaryButton()} w-full px-3 py-2 text-sm`}
+          disabled={media.isFetchingNextPage}
+          onClick={() => void media.fetchNextPage()}
+          type="button"
+        >
+          {media.isFetchingNextPage ? t("common:loading") : t("media_load_more")}
+        </button>
       ) : null}
     </div>
   )

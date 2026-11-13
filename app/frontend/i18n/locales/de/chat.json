@@ -664,6 +664,7 @@
   "declined": "Abgelehnt",
   "aria_multi_select_option": "{{option}} umschalten",
   "media_empty": "Noch keine Medien geteilt.",
+  "media_load_more": "Weitere Medien laden",
   "snapshots_loading": "Snapshots werden geladen...",
   "canvas_busy": "Canvas ist beschäftigt. Warte, bis das Zeichnen abgeschlossen ist, bevor du einen Snapshot lädst.",
   "chat_busy": "Chat ist beschäftigt. Warte, bis der aktuelle Zug abgeschlossen ist, bevor du einen Snapshot lädst.",

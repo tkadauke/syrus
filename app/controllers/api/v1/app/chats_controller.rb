@@ -1153,27 +1153,37 @@ module Api
 
         def media
           chat_session = find_chat_session
-          ChatMediaLibrary.materialize_inline_images!(chat_session)
+          page = [ params.fetch(:page, 1).to_i, 1 ].max
+          per_page = 24
 
-          chat_images = chat_session.attached_repository_documents
+          image_scope = chat_session.attached_repository_documents
                                     .with_attached_file
+                                    .joins(file_attachment: :blob)
                                     .where(kind: "file")
-                                    .order(:created_at, :id)
-                                    .select { |doc| doc.content_type.to_s.start_with?("image/") }
-                                    .map do |doc|
+                                    .where("active_storage_blobs.content_type LIKE ?", "image/%")
+                                    .order(created_at: :desc, id: :desc)
+          image_rows = image_scope.offset((page - 1) * per_page).limit(per_page + 1).to_a
+          chat_images = image_rows.first(per_page).map do |doc|
             {
               id: doc.id,
               title: doc.title,
               filename: doc.filename,
               content_type: doc.content_type,
-              file_path: "/api/v1/app/chats/#{chat_session.id}/media/chat_images/#{doc.id}/file",
-              image_url: chat_media_image_url(doc)
+              image_url: "/api/v1/app/chats/#{chat_session.id}/media/chat_images/#{doc.id}/file",
+              thumbnail_url: "/api/v1/app/chats/#{chat_session.id}/media/chat_images/#{doc.id}/file?thumbnail=1"
             }
           end
+          artifact_rows = Array(chat_session.artifact("typed_artifacts")).reverse
+          artifact_page = artifact_rows.slice((page - 1) * per_page, per_page) || []
 
           render json: {
             chat_images: chat_images,
-            typed_artifacts: TypedArtifactRenderer.enrich(chat_session.artifact("typed_artifacts"))
+            typed_artifacts: TypedArtifactRenderer.enrich(artifact_page).map { |entry| entry.except("payload", :payload) },
+            pagination: {
+              page: page,
+              chat_images_has_more: image_rows.size > per_page,
+              typed_artifacts_has_more: page * per_page < artifact_rows.size
+            }
           }.merge(ChatMediaSources.panel(chat_session: chat_session))
         end
 
@@ -1186,22 +1196,20 @@ module Api
           raise ActiveRecord::RecordNotFound, "Chat image not found" unless document.content_type.to_s.start_with?("image/")
           raise ActiveRecord::RecordNotFound, "Chat image file not found" unless document.file.attached?
 
+          attachment = params[:thumbnail].present? ? document.file.variant(resize_to_limit: [ 480, 480 ]).processed : document.file
           send_secure_file(
-            document.file.download,
+            attachment.download,
             filename: document.filename || "image",
             type: document.content_type || "application/octet-stream"
           )
         end
 
-        def chat_media_image_url(document)
-          return nil unless document.file.attached?
+        def media_typed_artifact
+          chat_session = find_chat_session
+          artifact = Array(chat_session.artifact("typed_artifacts")).find { |entry| entry.is_a?(Hash) && entry["type"].to_s == params[:artifact_type].to_s }
+          raise ActiveRecord::RecordNotFound, "Typed artifact not found" unless artifact
 
-          case document.attachable_type
-          when "User"
-            "/api/v1/app/credentials/documents/#{document.id}/file"
-          when "Repository"
-            "/api/v1/app/repository_documents/#{document.id}/file"
-          end
+          render json: TypedArtifactRenderer.enrich([ artifact ]).first
         end
 
         def cancel_coding_checkout
