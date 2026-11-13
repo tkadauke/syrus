@@ -53,4 +53,19 @@ RSpec.describe ReviewEvidence::VerdictSubmission do
     expect(workflow.reload.artifact("coworker_review_iterations").sole).to include("verdict" => "approved")
     expect(evidence.reload.persistence_receipt).to be_nil
   end
+
+  it "recovers the receipt on resubmission after a transient plugin outage without duplicating the verdict" do
+    allow(ReviewContextContributions).to receive(:persist).and_raise(ReviewContextContributions::Unavailable)
+    submit
+    expect(evidence.reload.persistence_receipt).to be_nil
+
+    allow(ReviewContextContributions).to receive(:persist).and_return(receipt)
+    submit
+
+    entries = workflow.reload.artifact("coworker_review_iterations")
+    expect(entries.size).to eq(1)
+    expect(entries.sole).to include("persistence_receipt" => receipt, "memory_persistence" => { "state" => "persisted" })
+    expect(evidence.reload.persistence_receipt).to eq(receipt)
+    expect(run.step.reload.details["review_persistence_receipt"]).to eq(receipt)
+  end
 end

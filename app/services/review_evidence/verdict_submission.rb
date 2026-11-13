@@ -12,6 +12,7 @@ module ReviewEvidence::VerdictSubmission
 
     existing = existing_submission(run.workflow, artifact_key, run.id)
     if existing
+      existing = recover_missing_receipt!(run:, evidence:, artifact_key:, existing:, verdict:, critique:, key_learning:)
       evidence&.mark_submitted! unless evidence&.state == "submitted"
       return existing
     end
@@ -67,6 +68,36 @@ module ReviewEvidence::VerdictSubmission
         evidence&.mark_submitted!
       end
     end
+  end
+
+  # A verdict recorded while the owning plugin was unavailable has no receipt.
+  # Resubmitting retries only the post-verdict update and patches the existing
+  # artifact entry, so the retry recovers without duplicating the verdict.
+  def recover_missing_receipt!(run:, evidence:, artifact_key:, existing:, verdict:, critique:, key_learning:)
+    return existing unless evidence
+    return existing if evidence.persistence_receipt.present?
+
+    target = evidence.review_target
+    return existing if target.blank?
+
+    receipt = persist_review_update(target:, run:, verdict:, key_learning: key_learning.presence || critique)
+    return existing unless receipt
+
+    evidence.record_persistence_receipt!(receipt)
+    run.workflow.with_lock do
+      iterations = Array(run.workflow.artifact(artifact_key)).map do |entry|
+        next entry unless entry["run_id"] == run.id
+
+        existing = entry.merge(
+          "persistence_receipt" => receipt,
+          "memory_persistence" => { "state" => "persisted",
+                                    "persisted_commit_sha" => receipt.dig("details", "persisted_commit_sha") }.compact
+        )
+      end
+      run.workflow.set_artifact!(artifact_key, iterations)
+      run.step.update!(details: run.step.details.to_h.merge("review_persistence_receipt" => receipt))
+    end
+    existing
   end
 
   def existing_submission(workflow, artifact_key, run_id)
