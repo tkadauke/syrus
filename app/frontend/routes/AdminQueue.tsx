@@ -1301,8 +1301,9 @@ function PanelMessage({ children, tone = "muted" }: { children: ReactNode; tone?
   )
 }
 
-function formatArguments(value: unknown[] | null) {
-  if (!value || value.length === 0) return "[]"
+function formatArguments(value: unknown[] | { truncated: true; preview: string; original_length: number } | null) {
+  if (!value || (Array.isArray(value) && value.length === 0)) return "[]"
+  if (!Array.isArray(value)) return `${value.preview}… (${value.original_length} chars)`
 
   return JSON.stringify(value)
 }
