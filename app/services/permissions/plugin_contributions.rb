@@ -8,7 +8,6 @@ module Permissions
     def self.as_json
       Syrus::PluginRegistry.all_plugins.map do |manifest|
         contributions = contributions_for(manifest)
-        next if contributions[:capabilities].empty? && contributions[:tools].empty?
 
         {
           name: manifest.name,
@@ -16,7 +15,7 @@ module Permissions
           installed: manifest.enabled?,
           **contributions
         }
-      end.compact.sort_by { |plugin| plugin[:display_name].downcase }
+      end.sort_by { |plugin| plugin[:display_name].downcase }
     end
 
     def self.contributions_for(manifest)
