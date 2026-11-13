@@ -27,6 +27,7 @@ module Terminal
     route :get,    "/api/v1/app/terminal_sessions", to: "api/v1/app/terminal_sessions#index"
     route :post,   "/api/v1/app/terminal_sessions", to: "api/v1/app/terminal_sessions#create"
     route :get,    "/api/v1/app/terminal_sessions/open_count", to: "api/v1/app/terminal_sessions#open_count"
+    route :get,    "/api/v1/app/terminal_sessions/workspaces", to: "api/v1/app/terminal_sessions#workspaces"
     route :get,    "/api/v1/app/terminal_sessions/:id", to: "api/v1/app/terminal_sessions#show"
     route :delete, "/api/v1/app/terminal_sessions/:id", to: "api/v1/app/terminal_sessions#destroy"
     route :post,   "/api/v1/app/terminal_sessions/:id/kill", to: "api/v1/app/terminal_sessions#kill"
