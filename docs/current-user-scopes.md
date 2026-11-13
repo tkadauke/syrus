@@ -178,6 +178,7 @@ per-user/private:
   - app/controllers/api/v1/app/approval_delegations_controller.rb
   - app/controllers/api/v1/app/notification_preferences_controller.rb
   - app/controllers/api/v1/app/notifications_controller.rb
+  - app/controllers/api/v1/app/permission_hub_preferences_controller.rb
   - app/controllers/api/v1/app/permission_requests_controller.rb
   - app/controllers/api/v1/app/permission_rules_controller.rb
   - app/controllers/api/v1/app/permission_rule_drafts_controller.rb
