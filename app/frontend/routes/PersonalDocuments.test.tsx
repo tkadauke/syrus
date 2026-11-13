@@ -85,13 +85,13 @@ function renderRouteWithDocumentsAt(documents: Record<string, unknown>[], entry 
     const encoded = url.searchParams.get("q")
     if (encoded) {
       const normalized = encoded.replace(/-/g, "+").replace(/_/g, "/")
-      const decoded = atob(`${normalized}${"=".repeat((4 - normalized.length % 4) % 4)}`)
+      const decoded = atob(`${normalized}${"=".repeat((4 - (normalized.length % 4)) % 4)}`)
       const tree = JSON.parse(new TextDecoder().decode(Uint8Array.from(decoded, (character) => character.charCodeAt(0))))
       result = result.filter((document) => testFilterMatches(document, tree))
     }
     const sort = url.searchParams.get("sort") || "created_at"
     const direction = url.searchParams.get("direction") || "descending"
-    const value = (document: Record<string, unknown>) => sort === "title" ? document.google_doc_url || document.filename || "" : document[sort] || ""
+    const value = (document: Record<string, unknown>) => (sort === "title" ? document.google_doc_url || document.filename || "" : document[sort] || "")
     result.sort((left, right) => String(value(left)).localeCompare(String(value(right))) * (direction === "ascending" ? 1 : -1))
     return Promise.resolve(jsonResponse(documentsPayload({ documents: result })))
   })
@@ -109,16 +109,26 @@ function testFilterMatches(document: Record<string, unknown>, node: Record<strin
   if (Array.isArray(node.and)) return node.and.every((child: Record<string, any>) => testFilterMatches(document, child))
   if (Array.isArray(node.or)) return node.or.some((child: Record<string, any>) => testFilterMatches(document, child))
   if (node.not) return !testFilterMatches(document, node.not)
-  const raw = node.field === "query"
-    ? Object.values(document).filter((value) => typeof value === "string").join(" ")
-    : node.field === "source_url" ? document.source_url || document.google_doc_url || "" : document[node.field]
+  const raw =
+    node.field === "query"
+      ? Object.values(document)
+          .filter((value) => typeof value === "string")
+          .join(" ")
+      : node.field === "source_url"
+        ? document.source_url || document.google_doc_url || ""
+        : document[node.field]
   if (node.op === "before") return Date.parse(String(raw)) < Date.parse(String(node.value))
   if (node.op === "is") return String(raw) === String(node.value)
-  return String(raw || "").toLowerCase().includes(String(node.value || "").toLowerCase())
+  return String(raw || "")
+    .toLowerCase()
+    .includes(String(node.value || "").toLowerCase())
 }
 
 function documentRows() {
-  return screen.getAllByRole("row").slice(1).map((row) => row.textContent || "")
+  return screen
+    .getAllByRole("row")
+    .slice(1)
+    .map((row) => row.textContent || "")
 }
 
 function dataTransfer() {
@@ -126,7 +136,10 @@ function dataTransfer() {
 }
 
 function encodeFilterTree(tree: Record<string, unknown>) {
-  return btoa(unescape(encodeURIComponent(JSON.stringify(tree)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+  return btoa(unescape(encodeURIComponent(JSON.stringify(tree))))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "")
 }
 
 const TABLE_DOCUMENTS = [
@@ -210,10 +223,7 @@ describe("PersonalDocumentsRoute delete", () => {
     fireEvent.click(deleteButton)
 
     await waitFor(() => {
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/v1/app/credentials/documents/30",
-        expect.objectContaining({ method: "DELETE" })
-      )
+      expect(fetchSpy).toHaveBeenCalledWith("/api/v1/app/credentials/documents/30", expect.objectContaining({ method: "DELETE" }))
     })
   })
 
@@ -224,13 +234,14 @@ describe("PersonalDocumentsRoute delete", () => {
     renderRoute()
 
     const deleteButton = await screen.findByRole("button", { name: "Delete" })
-    await act(async () => { fireEvent.click(deleteButton) })
+    await act(async () => {
+      fireEvent.click(deleteButton)
+    })
 
-    await waitFor(() => { expect(mockConfirm).toHaveBeenCalled() })
-    expect(fetchSpy).not.toHaveBeenCalledWith(
-      "/api/v1/app/credentials/documents/30",
-      expect.objectContaining({ method: "DELETE" })
-    )
+    await waitFor(() => {
+      expect(mockConfirm).toHaveBeenCalled()
+    })
+    expect(fetchSpy).not.toHaveBeenCalledWith("/api/v1/app/credentials/documents/30", expect.objectContaining({ method: "DELETE" }))
   })
 })
 
@@ -329,10 +340,14 @@ describe("PersonalDocumentsRoute table controls", () => {
 
   it("shows an accurate range and preserves filters and sort in pagination links", async () => {
     const q = encodeFilterTree({ and: [{ field: "kind", op: "is", value: "file" }] })
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(documentsPayload({
-      documents: [TABLE_DOCUMENTS[0]],
-      pagination: { page: 2, per_page: 25, total: 51, total_pages: 3, first_item: 26, last_item: 50 }
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        documentsPayload({
+          documents: [TABLE_DOCUMENTS[0]],
+          pagination: { page: 2, per_page: 25, total: 51, total_pages: 3, first_item: 26, last_item: 50 }
+        })
+      )
+    )
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={client}>
@@ -357,22 +372,25 @@ describe("PersonalDocumentsRoute preview", () => {
   afterEach(() => vi.restoreAllMocks())
 
   it("opens a preview modal with rendered markdown for a markdown document", async () => {
-    renderRouteWithDocuments([
-      {
-        id: 31,
-        kind: "file",
-        google_doc_url: null,
-        filename: "notes.md",
-        content_type: "text/markdown",
-        byte_size: 12,
-        source_url: null,
-        content_cache_state: "empty",
-        content_cached_at: null,
-        created_at: "2026-01-01T00:00:00Z",
-        updated_at: "2026-01-01T00:00:00Z",
-        file_path: "/api/v1/app/credentials/documents/31/file"
-      }
-    ], { "31": "# Hello there" })
+    renderRouteWithDocuments(
+      [
+        {
+          id: 31,
+          kind: "file",
+          google_doc_url: null,
+          filename: "notes.md",
+          content_type: "text/markdown",
+          byte_size: 12,
+          source_url: null,
+          content_cache_state: "empty",
+          content_cached_at: null,
+          created_at: "2026-01-01T00:00:00Z",
+          updated_at: "2026-01-01T00:00:00Z",
+          file_path: "/api/v1/app/credentials/documents/31/file"
+        }
+      ],
+      { "31": "# Hello there" }
+    )
 
     fireEvent.click(await screen.findByRole("button", { name: /notes\.md/ }))
 
