@@ -817,6 +817,10 @@ function ProposalMediaPicker({
       snapshots: [],
       chat_images: [],
       typed_artifacts: [],
+      pagination: {
+        chat_images: { offset: 0, limit: 24, has_more: false, next_offset: null },
+        typed_artifacts: { offset: 0, limit: 24, has_more: false, next_offset: null }
+      },
       whiteboard_has_unsaved_content: false
     },
     []

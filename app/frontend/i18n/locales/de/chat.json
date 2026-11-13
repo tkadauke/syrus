@@ -596,6 +596,8 @@
   "artifact_view": "Anzeigen",
   "artifact_hide": "Ausblenden",
   "image_attachments": "Bildanhänge",
+  "media_load_more_artifacts": "Weitere Artefakte laden",
+  "media_load_more_images": "Weitere Bilder laden",
   "aria_close_settings": "Chat-Einstellungen schließen",
   "provider": "Anbieter",
   "none": "Keine",
