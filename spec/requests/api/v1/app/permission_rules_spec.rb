@@ -188,6 +188,32 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     expect(active_leases.first.fetch("origin")).to be_nil
   end
 
+  it "paginates and filters permission history with the shared filter AST" do
+    descriptor = Permissions::Catalog.descriptors.first
+    (Permissions::HistoryPayload::PER_PAGE + 1).times do |index|
+      permission_rule(owner: user, descriptor:, policy: index.zero? ? "deny" : "allow")
+    end
+    filter = Filters::QueryParam.encode("and" => [
+      { "field" => "capability", "op" => "is", "value" => descriptor.capability },
+      { "field" => "outcome", "op" => "is", "value" => "created" },
+      { "field" => "actor", "op" => "contains", "value" => user.email_address },
+      { "field" => "occurred_at", "op" => "within_last", "value" => { "n" => 1, "unit" => "days" } }
+    ])
+
+    get "/api/v1/app/permission_rules/history", params: { q: filter, page: 1 }
+
+    expect(response).to have_http_status(:ok)
+    payload = JSON.parse(response.body)
+    expect(payload.fetch("history").size).to eq(Permissions::HistoryPayload::PER_PAGE)
+    expect(payload.fetch("history")).to all(include("type" => "policy_change", "capability" => descriptor.capability, "state" => "created"))
+    expect(payload.dig("history_pagination", "page")).to eq(1)
+    expect(payload.fetch("filter")).to eq(Filters::QueryParam.decode(filter))
+    expect(payload.fetch("filter_schema").map { |field| field.fetch("field") }).to eq(%w[capability outcome actor context occurred_at])
+
+    get "/api/v1/app/permission_rules/history", params: { q: filter, page: 2 }
+    expect(JSON.parse(response.body).fetch("history").size).to eq(1)
+  end
+
   it "uses the policy evaluator for matrix states and marks resource-dependent outcomes" do
     # An auto-allowed default would make an allow rule indistinguishable from the
     # default, so pick a descriptor that does not already allow by default.

@@ -1,43 +1,84 @@
 module Permissions
   class HistoryPayload
-    LIMIT = 200
-    DEFAULT_PER_PAGE = 50
-    MAX_PER_PAGE = 100
+    PER_PAGE = 25
+    LIMIT = PER_PAGE
 
-    def initialize(user, page: 1, per_page: DEFAULT_PER_PAGE)
+    def initialize(user, params: {})
       @user = user
-      @page = [ page.presence&.to_i || 1, 1 ].max
-      @per_page = [[per_page.presence&.to_i || DEFAULT_PER_PAGE, 1].max, MAX_PER_PAGE].min
+      @params = params
     end
 
     def as_json
-      entries = history
-      offset = (page - 1) * per_page
-      { active_leases: active_leases.map { |lease| serialize_lease(lease) },
-        history: entries.slice(offset, per_page) || [],
-        pagination: { page:, per_page:, has_more: entries.length > offset + per_page } }
+      {
+        active_leases: paginated_leases.map { |lease| serialize_lease(lease) },
+        leases_pagination: pagination(lease_page, active_leases.count),
+        history: paginated_history,
+        history_pagination: pagination(history_page, history_total, has_more: history_source_has_more?),
+        filter: filter_tree,
+        filter_schema: HistoryFilter.schema
+      }
     end
 
     private
 
-    attr_reader :user, :page, :per_page
-
-    def source_limit = [ page * per_page + 1, LIMIT ].min
+    attr_reader :user, :params
 
     def active_leases
       PermissionLease.where(owner_user: user).not_revoked.not_expired.with_uses_remaining
-        .includes(:chat_session, :job, :issued_by_user, :source).order(created_at: :desc).limit(LIMIT)
+        .includes(:chat_session, :job, :issued_by_user, :source).order(created_at: :desc)
+    end
+
+    def paginated_leases
+      active_leases.offset((lease_page - 1) * PER_PAGE).limit(PER_PAGE)
     end
 
     def history
-      (request_history + invocation_history + rule_history + lease_history)
+      @history ||= (request_history + invocation_history + rule_history + lease_history)
         .sort_by { |entry| [ entry.fetch(:occurred_at), entry.fetch(:id) ] }.reverse
+    end
+
+    def filtered_history
+      @filtered_history ||= begin
+        filter = HistoryFilter.new(filter_tree)
+        history.select { |entry| filter.match?(entry) }
+      end
+    end
+
+    def paginated_history
+      filtered_history.slice((history_page - 1) * PER_PAGE, PER_PAGE) || []
+    end
+
+    def filter_tree
+      @filter_tree ||= Filters::QueryParam.decode(params[:q]) || { "and" => [] }
+    end
+
+    def history_page = positive_page(params[:page])
+    def lease_page = positive_page(params[:lease_page])
+
+    def positive_page(value)
+      [ value.to_i, 1 ].max
+    end
+
+    def pagination(page, total, has_more: page * PER_PAGE < total)
+      { page:, per_page: PER_PAGE, total:, total_pages: [ (total.to_f / PER_PAGE).ceil, page + (has_more ? 1 : 0), 1 ].max, has_more: }
+    end
+
+    def history_source_limit = history_page * PER_PAGE + 1
+    def history_source_has_more? = history.size > history_page * PER_PAGE
+
+    def history_total
+      return filtered_history.size unless filter_tree == { "and" => [] }
+
+      ChatPendingAction.where(user:, request_kind: "authorization_request").count +
+        AuthorizedInvocation.joins(pending_action_item: :chat_pending_action).where(chat_pending_actions: { user_id: user.id }).count +
+        PermissionRuleAuditEvent.joins(:permission_rule).where(permission_rules: { owner_user_id: user.id }).count +
+        PermissionLease.where(owner_user: user).count
     end
 
     def request_history
       ChatPendingAction.where(user:, request_kind: "authorization_request")
         .preload(:origin, occurrences: :origin, authorization_items: [ :decision_principal, :resulting_authority ])
-        .order(created_at: :desc).limit(source_limit).map do |request|
+        .order(created_at: :desc).limit(history_source_limit).map do |request|
         {
           type: "request", id: request.id, occurred_at: request.created_at, state: request.state,
           purpose: request.purpose, requested_by: request.requested_by,
@@ -53,7 +94,7 @@ module Permissions
       AuthorizedInvocation.joins(pending_action_item: :chat_pending_action)
         .where(chat_pending_actions: { user_id: user.id })
         .preload(:authority, :claimed_by, :result, pending_action_item: :chat_pending_action)
-        .order(created_at: :desc).limit(source_limit).map do |invocation|
+        .order(created_at: :desc).limit(history_source_limit).map do |invocation|
         {
           type: "invocation", id: invocation.id, occurred_at: invocation.created_at,
           state: invocation.state, tool_name: invocation.tool_name,
@@ -68,7 +109,7 @@ module Permissions
 
     def rule_history
       PermissionRuleAuditEvent.joins(:permission_rule).where(permission_rules: { owner_user_id: user.id })
-        .includes(:actor_user, :permission_rule).order(created_at: :desc).limit(source_limit).map do |event|
+        .includes(:actor_user, :permission_rule).order(created_at: :desc).limit(history_source_limit).map do |event|
         {
           type: "policy_change", id: event.id, occurred_at: event.created_at,
           state: event.event_type, actor: reference(event.actor_user),
@@ -81,7 +122,7 @@ module Permissions
 
     def lease_history
       PermissionLease.where(owner_user: user).includes(:chat_session, :job, :issued_by_user, :revoked_by_user, :source)
-        .order(created_at: :desc).limit(source_limit).map do |lease|
+        .order(created_at: :desc).limit(history_source_limit).map do |lease|
         serialize_lease(lease).merge(type: "lease", occurred_at: lease.created_at,
           state: lease.revoked_at? ? "revoked" : lease_state(lease))
       end
