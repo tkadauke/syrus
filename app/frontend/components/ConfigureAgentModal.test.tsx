@@ -22,7 +22,15 @@ const panelPropsSpy = vi.hoisted(() => vi.fn())
 // panel instead of unmounting it, the same guarantee ClaudeConnect's OAuth
 // flow depends on to survive a Claude <-> Gemini (or Claude <-> Codex) switch.
 vi.mock("./AgentProviderConnectPanel", () => ({
-  AgentProviderConnectPanel: ({ provider, onSaved, deferBootstrapRefresh }: { provider: string; onSaved?: () => Promise<void> | void; deferBootstrapRefresh?: boolean }) => {
+  AgentProviderConnectPanel: ({
+    provider,
+    onSaved,
+    deferBootstrapRefresh
+  }: {
+    provider: string
+    onSaved?: () => Promise<void> | void
+    deferBootstrapRefresh?: boolean
+  }) => {
     useEffect(() => {
       mountSpy(provider)
     }, [])
