@@ -12,6 +12,8 @@ module Api
       # produce hundreds of events and we don't want to ship the
       # whole stream every call.
       class TranscriptsController < BaseController
+        include AdminTranscriptDelivery
+
         def show
           result = payload.show(params[:run_id])
           if result[:error]
@@ -19,19 +21,30 @@ module Api
             return
           end
 
-          render json: result
+          if params[:after_event].present? && result.dig(:pagination, :total_events) == params[:after_event].to_i
+            head :not_modified
+          else
+            render json: result
+          end
+        end
+
+        def event
+          result = payload.event(params[:run_id], params[:event_index])
+          if result[:error]
+            render_error(result.dig(:error, :code), result.dig(:error, :message), status: result[:status])
+          else
+            render json: result
+          end
         end
 
         def raw
           run = Run.find(params[:run_id])
-          session = run.provider_session
+          session = ProviderSession.metadata_only.find_by(resumable: run)
           unless session
             render_error("not_found", I18n.t("api.admin_transcripts.no_session", id: run.id), status: :not_found)
             return
           end
-          send_data session.transcript_jsonl,
-                    filename: "run-#{run.id}-#{session.session_id}.jsonl",
-                    type: "application/jsonl"
+          stream_transcript(session, filename: "run-#{run.id}-#{session.session_id}.jsonl")
         end
 
         private

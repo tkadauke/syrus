@@ -83,7 +83,7 @@ without a deliberate migration choice:
 - queue introspection and stale-run reaping
 - reconciler activity
 - restart
-- run transcripts
+- run transcripts, including lazy full-event reads for oversized event bodies
 - users
 - worker health
 

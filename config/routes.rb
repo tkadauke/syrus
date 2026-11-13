@@ -457,6 +457,7 @@ Rails.application.routes.draw do
         end
 
         namespace :admin do
+          get "runs/:run_id/transcript/events/:event_index", to: "transcripts#event"
           get "overview", to: "overview#show"
           get "worker_health", to: "worker_health#show"
           get "macos_worker_update", to: "macos_worker_updates#desired"
@@ -586,6 +587,7 @@ Rails.application.routes.draw do
         # Transcripts. Paginated event stream via ?page= + ?per=,
         # plus a raw-JSONL pass-through.
         get "runs/:run_id/transcript",     to: "transcripts#show"
+        get "runs/:run_id/transcript/events/:event_index", to: "transcripts#event"
         get "runs/:run_id/transcript/raw", to: "transcripts#raw"
         get "mcp_tool_usage",              to: "mcp_tool_usage#show"
         get "permission_parity",           to: "permission_parity#show"

@@ -8,11 +8,12 @@ import type { TranscriptEvent } from "../api/adminTranscript"
 import { fullResultBody, fullResultBodyUnbounded, isPlainObject, parsedToolResult, simpleToolProgressLabel, toolPresentation, toolResultPresentation } from "./chat/toolRendering"
 import { stringValue } from "./chat/utils"
 
-export type AdminTranscriptToolGroupItem = ChatToolGroupItem & { key: string }
-export type AdminTranscriptTextItem = { type: "text"; kind: "user_prompt" | "assistant_text" | "job_log"; text: string; key: string }
-export type AdminTranscriptInitItem = { type: "system_init"; data: Record<string, unknown>; key: string }
-export type AdminTranscriptResultItem = { type: "result"; data: Record<string, unknown>; key: string }
-export type AdminTranscriptFallbackItem = { type: "fallback"; badge: string; title: string | null; data: unknown; tone: "gray" | "red" | "emerald"; key: string }
+type LazyEventBody = { truncatedEventIndexes: number[] }
+export type AdminTranscriptToolGroupItem = ChatToolGroupItem & LazyEventBody & { key: string }
+export type AdminTranscriptTextItem = LazyEventBody & { type: "text"; kind: "user_prompt" | "assistant_text" | "job_log"; text: string; key: string }
+export type AdminTranscriptInitItem = LazyEventBody & { type: "system_init"; data: Record<string, unknown>; key: string }
+export type AdminTranscriptResultItem = LazyEventBody & { type: "result"; data: Record<string, unknown>; key: string }
+export type AdminTranscriptFallbackItem = LazyEventBody & { type: "fallback"; badge: string; title: string | null; data: unknown; tone: "gray" | "red" | "emerald"; key: string }
 
 export type AdminTranscriptRenderItem =
   | AdminTranscriptToolGroupItem
@@ -43,6 +44,7 @@ export function groupTranscriptEvents(events: TranscriptEvent[]): AdminTranscrip
 
   events.forEach((event, index) => {
     const data = event.data || {}
+    const truncatedEventIndexes = event.body_truncated && event.index != null ? [event.index] : []
 
     if (event.kind === "tool_use") {
       const name = stringValue(data.name)
@@ -66,9 +68,10 @@ export function groupTranscriptEvents(events: TranscriptEvent[]): AdminTranscrip
       if (currentGroup && currentGroup.tool === tool) {
         currentGroup.calls.push(call)
       } else {
-        currentGroup = { type: "tool_group", tool, calls: [call], key: `group-${index}` }
+        currentGroup = { type: "tool_group", tool, calls: [call], key: `group-${index}`, truncatedEventIndexes: [] }
         items.push(currentGroup)
       }
+      currentGroup.truncatedEventIndexes.push(...truncatedEventIndexes)
 
       const id = data.id
       if (id != null) openCalls.set(String(id), { tool, call })
@@ -80,6 +83,8 @@ export function groupTranscriptEvents(events: TranscriptEvent[]): AdminTranscrip
       const open = toolUseId != null ? openCalls.get(String(toolUseId)) : undefined
 
       if (open) {
+        const group = items.find((item): item is AdminTranscriptToolGroupItem => item.type === "tool_group" && item.calls.includes(open.call))
+        group?.truncatedEventIndexes.push(...truncatedEventIndexes)
         const unboundedBody = fullResultBodyUnbounded(data.content)
         const body = fullResultBody(data.content)
         open.call.result_body = body
@@ -108,7 +113,8 @@ export function groupTranscriptEvents(events: TranscriptEvent[]): AdminTranscrip
         title: preview(data.content),
         data: data.content,
         tone: data.error === true ? "red" : "emerald",
-        key: `event-${index}`
+        key: `event-${index}`,
+        truncatedEventIndexes
       })
       return
     }
@@ -116,17 +122,17 @@ export function groupTranscriptEvents(events: TranscriptEvent[]): AdminTranscrip
     currentGroup = null
 
     if (event.kind === "user_prompt") {
-      items.push({ type: "text", kind: "user_prompt", text: stringValue(data.text), key: `event-${index}` })
+      items.push({ type: "text", kind: "user_prompt", text: stringValue(data.text), key: `event-${index}`, truncatedEventIndexes })
     } else if (event.kind === "assistant_text") {
-      items.push({ type: "text", kind: "assistant_text", text: stringValue(data.text), key: `event-${index}` })
+      items.push({ type: "text", kind: "assistant_text", text: stringValue(data.text), key: `event-${index}`, truncatedEventIndexes })
     } else if (event.kind === "job_log") {
-      items.push({ type: "text", kind: "job_log", text: stringValue(data.text), key: `event-${index}` })
+      items.push({ type: "text", kind: "job_log", text: stringValue(data.text), key: `event-${index}`, truncatedEventIndexes })
     } else if (event.kind === "system_init") {
-      items.push({ type: "system_init", data, key: `event-${index}` })
+      items.push({ type: "system_init", data, key: `event-${index}`, truncatedEventIndexes })
     } else if (event.kind === "result") {
-      items.push({ type: "result", data, key: `event-${index}` })
+      items.push({ type: "result", data, key: `event-${index}`, truncatedEventIndexes })
     } else {
-      items.push({ type: "fallback", badge: event.kind, title: null, data, tone: "gray", key: `event-${index}` })
+      items.push({ type: "fallback", badge: event.kind, title: null, data, tone: "gray", key: `event-${index}`, truncatedEventIndexes })
     }
   })
 

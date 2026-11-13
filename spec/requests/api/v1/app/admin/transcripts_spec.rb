@@ -64,10 +64,8 @@ RSpec.describe "API: /api/v1/app/admin/runs/:run_id/transcript", type: :request 
       "job_slug" => job.slug,
       "session_id" => "abc-123"
     )
-    expect(body["summary"]).to include(
-      "model" => "claude-sonnet-4-6",
-      "available_tools_at_init" => [ "Bash", "mcp__syrus__submit_summary" ]
-    )
+    expect(body["summary"]).to include("model" => "claude-sonnet-4-6")
+    expect(body["summary"]).not_to include("available_tools_at_init", "cwd", "session_id")
     expect(body["pagination"]).to include(
       "page" => 2,
       "per" => 1,
@@ -90,5 +88,24 @@ RSpec.describe "API: /api/v1/app/admin/runs/:run_id/transcript", type: :request 
       "kind" => "system",
       "text" => "fallback transcript row"
     )
+  end
+
+
+  it "returns 304 when a delta cursor already matches the event count" do
+    sign_in_as(admin)
+
+    get "/api/v1/app/admin/runs/#{run.id}/transcript", params: { after_event: 3 }
+
+    expect(response).to have_http_status(:not_modified)
+    expect(response.body).to be_empty
+  end
+
+  it "loads one full event by its stable transcript index" do
+    sign_in_as(admin)
+
+    get "/api/v1/app/admin/runs/#{run.id}/transcript/events/1"
+
+    expect(response).to have_http_status(:ok)
+    expect(parse_body).to include("index" => 1, "kind" => "tool_use")
   end
 end

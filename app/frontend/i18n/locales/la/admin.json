@@ -1159,6 +1159,7 @@
     "download_jsonl": "JSONL deponere",
     "title": "Cursus #{{runId}} · transcriptum",
     "new_messages": "Nuntii Novi",
+    "load_full_event": "Corpus eventus integrum onerare",
     "turns": "Vices",
     "tool_calls": "Vocationes instrumenti",
     "cost": "Sumptus",

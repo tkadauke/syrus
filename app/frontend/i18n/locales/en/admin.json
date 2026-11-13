@@ -1316,6 +1316,7 @@
     "download_jsonl": "Download JSONL",
     "title": "Run #{{runId}} · transcript",
     "new_messages": "New Messages",
+    "load_full_event": "Load full event body",
     "turns": "Turns",
     "tool_calls": "Tool calls",
     "cost": "Cost",
