@@ -100,6 +100,7 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
   it "shows current leases and a redacted, user-scoped authorization history" do
     repository = Factories.repository(user: user)
     job = Factories.job_record(user: user, repository: repository)
+    job.update!(issue_title: "Stuck deployment")
     other_user = Factories.user
     lease = PermissionLease.create!(
       owner_user: user, subject_selector_type: "workflow_role", subject_selector_id: "implementer",
@@ -115,6 +116,11 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     request = ChatPendingAction.create!(
       request_kind: "authorization_request", user:, repository:, origin: job, subject: user,
       deduplication_key: "history-request", purpose: "Cancel a stuck job"
+    )
+    request.authorization_items.create!(
+      kind: "capability_possession", capability: "unrelated.capability@v1",
+      resource_type: "none", resource_scope: {}, normalized_arguments: {}, effects: [],
+      policy_chain: [], decisive_rule: {}, requested_durations: [ "job" ]
     )
     item = request.authorization_items.create!(
       kind: "operation", capability: "syrus.jobs@v1", operation: "cancel@v1", operation_version: 1,
@@ -137,10 +143,23 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     ))
     request_entry = payload.fetch("history").find { |entry| entry["type"] == "request" }
     expect(request_entry).to include("state" => "pending", "escalated" => true)
-    expect(request_entry.dig("items", 0, "state")).to eq("approved")
-    expect(request_entry.dig("items", 0, "evidence")).to eq("api_token" => "[redacted]", "job_id" => job.id)
+    approved_item = request_entry.fetch("items").find { |entry| entry["capability"] == "syrus.jobs@v1" }
+    expect(approved_item.fetch("state")).to eq("approved")
+    expect(approved_item.fetch("evidence")).to eq("api_token" => "[redacted]", "job_id" => job.id)
     expect(payload.fetch("history")).to include(include("type" => "policy_change", "state" => "created"))
     expect(payload.to_json).not_to include("hidden@v1", "secret-value")
+
+    filter = Filters::QueryParam.encode("and" => [
+      { "field" => "capability", "op" => "is", "value" => "syrus.jobs@v1" },
+      { "field" => "outcome", "op" => "is_one_of", "value" => [ "approved" ] },
+      { "field" => "actor", "op" => "contains", "value" => user.email_address },
+      { "field" => "context", "op" => "contains", "value" => job.title },
+      { "field" => "occurred_at", "op" => "between", "value" => [ 1.hour.ago.iso8601, 1.hour.from_now.iso8601 ] }
+    ])
+    get "/api/v1/app/permission_rules/history", params: { q: filter }
+
+    filtered = JSON.parse(response.body).fetch("history")
+    expect(filtered).to contain_exactly(include("type" => "request", "id" => request.id))
   end
 
   it "rejects workflow invocation credentials before exposing user-wide history", :skip_sign_in do
@@ -156,7 +175,7 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
 
   it "bounds active leases in the history payload" do
     now = Time.current
-    PermissionLease.insert_all!(Array.new(Permissions::HistoryPayload::LIMIT + 1) do |index|
+    PermissionLease.insert_all!(Array.new(Permissions::HistoryPayload::PER_PAGE + 1) do |index|
       {
         owner_user_id: user.id, subject_selector_type: "interactive_chat",
         capability: "test.read@v1", operation: "read@v1", resource_type: "none",
@@ -170,14 +189,20 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
 
     expect(response).to have_http_status(:ok)
     active_leases = JSON.parse(response.body).fetch("active_leases")
-    expect(active_leases.size).to eq(Permissions::HistoryPayload::LIMIT)
+    expect(active_leases.size).to eq(Permissions::HistoryPayload::PER_PAGE)
     expect(active_leases.first.fetch("origin")).to be_nil
   end
 
   it "paginates and filters permission history with the shared filter AST" do
     descriptor = Permissions::Catalog.descriptors.first
+    other_descriptor = Permissions::Catalog.descriptors.find { |candidate| candidate.capability != descriptor.capability }
     (Permissions::HistoryPayload::PER_PAGE + 1).times do |index|
       permission_rule(owner: user, descriptor:, policy: index.zero? ? "deny" : "allow")
+    end
+    # Newer non-matches fill the old per-source fetch window. The filtered
+    # query must still find and paginate the older matching decisions.
+    (Permissions::HistoryPayload::PER_PAGE + 1).times do
+      permission_rule(owner: user, descriptor: other_descriptor)
     end
     filter = Filters::QueryParam.encode("and" => [
       { "field" => "capability", "op" => "is", "value" => descriptor.capability },
@@ -193,11 +218,14 @@ RSpec.describe "API: /api/v1/app/permission_rules", type: :request do
     expect(payload.fetch("history").size).to eq(Permissions::HistoryPayload::PER_PAGE)
     expect(payload.fetch("history")).to all(include("type" => "policy_change", "capability" => descriptor.capability, "state" => "created"))
     expect(payload.dig("history_pagination", "page")).to eq(1)
+    expect(payload.fetch("history_pagination")).to include("total" => 26, "total_pages" => 2, "has_more" => true)
     expect(payload.fetch("filter")).to eq(Filters::QueryParam.decode(filter))
     expect(payload.fetch("filter_schema").map { |field| field.fetch("field") }).to eq(%w[capability outcome actor context occurred_at])
 
     get "/api/v1/app/permission_rules/history", params: { q: filter, page: 2 }
-    expect(JSON.parse(response.body).fetch("history").size).to eq(1)
+    second_page = JSON.parse(response.body)
+    expect(second_page.fetch("history").size).to eq(1)
+    expect(second_page.fetch("history_pagination")).to include("total" => 26, "total_pages" => 2, "has_more" => false)
   end
 
   it "uses the policy evaluator for matrix states and marks resource-dependent outcomes" do
