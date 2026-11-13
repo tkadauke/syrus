@@ -144,7 +144,8 @@ import {
   clearInFlightComposerDraft,
   getInFlightComposerDraft,
   inFlightComposerDraftWasAcknowledged,
-  setInFlightComposerDraft
+  setInFlightComposerDraft,
+  subscribeToInFlightComposerDraftAcknowledgments
 } from "./inFlightComposerDraftStore"
 import { lastAssistantRenderedMessage } from "./streamBuilders"
 import { AcceptSuggestionIcon, PencilIcon, UploadIcon } from "./icons"
@@ -663,6 +664,21 @@ export function Compose({
     }
   })
   const resetSend = send.reset
+  useEffect(
+    () =>
+      subscribeToInFlightComposerDraftAcknowledgments(chatId, (inFlight) => {
+        clearInFlightComposerDraft(chatId, inFlight)
+        if (
+          currentDraftRef.current.composerText === inFlight.composerText &&
+          JSON.stringify(currentDraftRef.current.attachments) === JSON.stringify(inFlight.attachments)
+        )
+          clearComposerDraft()
+        submittedDraftRef.current = null
+        resetSend()
+        onNotice(null)
+      }),
+    [chatId, onNotice, resetSend]
+  )
   useEffect(() => {
     const inFlight = getInFlightComposerDraft(chatId)
     if (!inFlight?.clientIdempotencyKey) return
