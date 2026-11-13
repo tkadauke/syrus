@@ -701,7 +701,7 @@ class Epic < ApplicationRecord
   def resolve_pending_child_jobs
     return if github_issue_url.blank?
 
-    user.jobs
+    Job.includes(:user)
         .triaging
         .where(triaging_reason: "pending_epic_ref")
         .find_each do |job|
