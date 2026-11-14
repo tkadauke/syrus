@@ -98,6 +98,15 @@ RSpec.describe SyrusDev::PermissionFactoryReset do
       .to eq("ask_on_first_use@v1")
   end
 
+  it "builds each factory profile plan once per preview" do
+    service = described_class.new(scope_type: "user", scope_id: owner.id, initiated_by: admin)
+
+    expect_any_instance_of(Permissions::Management).to receive(:profile_plan)
+      .exactly(described_class::PROFILE_SUBJECTS.size).times.and_call_original
+
+    service.preview
+  end
+
   it "rejects stale confirmation and records the failed outcome without changing authority" do
     rule = custom_rule
     service = described_class.new(scope_type: "user", scope_id: owner.id, initiated_by: admin)
