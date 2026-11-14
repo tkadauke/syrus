@@ -21,6 +21,6 @@ RSpec.describe "CI workflow" do
   end
 
   it "leaves enough time for the complete React coverage suite" do
-    expect(workflow.dig("jobs", "react", "timeout-minutes")).to be >= 20
+    expect(workflow.dig("jobs", "react", "timeout-minutes")).to be >= 30
   end
 end

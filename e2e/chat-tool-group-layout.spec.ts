@@ -55,7 +55,8 @@ for (const viewport of [
     const expandedCalls = bashSummary.locator("xpath=following-sibling::div[1]")
     await expect(expandedCalls).not.toContainText(MULTILINE_BASH_COMMAND)
     await expandedCalls.getByText("Raw details", { exact: false }).click()
-    await expect(expandedCalls).toContainText(MULTILINE_BASH_COMMAND)
+    const rawDetails = JSON.parse(await expandedCalls.locator("pre").innerText())
+    expect(rawDetails.input.command).toBe(MULTILINE_BASH_COMMAND)
     await expectNoHorizontalOverflow(page, bashSummary)
   })
 }
