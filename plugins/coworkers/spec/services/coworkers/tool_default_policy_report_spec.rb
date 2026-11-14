@@ -50,11 +50,14 @@ RSpec.describe Coworkers::ToolDefaultPolicyReport do
     )
   end
 
-  it "includes the coworker's own memory reads, searches, and listings as allowed" do
+  it "allows memory reads while keeping inherited memory mutations gated" do
     memory = report.rows.select { |row| row.source == "AgentMemory::ChatToolSet" }.map(&:tool)
 
-    expect(memory).to match_array(%w[read_memory search_memories list_memories])
-    expect(group(:allow)).to include(*memory)
+    reads = %w[read_memory search_memories list_memories]
+    mutations = %w[write_memory delete_memory publish_memory unpublish_memory]
+    expect(memory).to match_array(reads + mutations)
+    expect(group(:allow)).to include(*reads)
+    expect(group(:ask)).to include(*mutations)
   end
 
   it "keeps confidential, operational, communicating, scheduling, and spawning tools gated" do

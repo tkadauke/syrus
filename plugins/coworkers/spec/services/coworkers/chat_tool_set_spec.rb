@@ -9,6 +9,7 @@ RSpec.describe Coworkers::ChatToolSet do
 
   it "advertises messaging, owner-thread replies, scheduling, and workspace tools only on the essential coworker surface" do
     expect(Syrus::PluginRegistry.providers_for(:chat_mcp_tool_set)).to include(described_class)
+    expect(described_class.coworker_specific_availability?).to be(true)
     expect(described_class.available_for?(chat, tier: :essential)).to be(false)
     expect(described_class.available_for_coworker?(chat, tier: :essential)).to be(true)
     expect(described_class.available_for_coworker?(chat, tier: :deferred)).to be(false)
