@@ -1380,6 +1380,13 @@ export type PendingFeedbackPayload = {
   comments: PendingFeedbackComment[]
 }
 
+export type JobProviderRoutingPayload = {
+  scope: { scope_type: string; scope_id: number; job_id?: number }
+  provider_routing_rules: ProviderRoutingRule[]
+  inherited_provider_routing_context: ProviderRoutingInheritedContext[]
+  job: Pick<JobRecord, "job_provider_setting_options" | "provider_routing_options" | "provider_routing_rules" | "inherited_provider_routing_context" | "provider_routing_resolution" | "active_provider_routing_holds">
+}
+
 export type JobWorkflowDetailPayload = { workflow: JobWorkflow }
 
 export type JobTimelinePayload = {
@@ -1733,7 +1740,7 @@ export function fetchPendingFeedback(id: string) {
 }
 
 export function fetchJobProviderRouting(id: string) {
-  return getJson<{ job: Partial<JobRecord> }>(`/api/v1/app/jobs/${id}/provider_routing_rules`)
+  return getJson<JobProviderRoutingPayload>(`/api/v1/app/jobs/${id}/provider_routing_rules`)
 }
 
 export function fetchJobUnlandPlan(path: string) {

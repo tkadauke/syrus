@@ -10,6 +10,7 @@ import { promisify } from "node:util"
 import { DESKTOP_NOTIFICATION_EVENT, desktopNotificationEvents } from "./appUserEvents.js"
 import { AppUserCableClient } from "./appUserCable.js"
 import { dispatchNativeNotification } from "./nativeNotifications.js"
+import { jobDetailPayloadPaths, mergeJobDetailPayload } from "./jobDetailPayload.js"
 import { appLocale, t } from "./i18n.js"
 import { deleteCredentialsFile, parseCredentials, readCredentialsFile, validateCredentialsShape, writeCredentialsFile } from "./credentialsStore.js"
 import type { Credentials } from "./credentialsStore.js"
@@ -676,18 +677,21 @@ const fetchJobDetail = async (jobID: number) => {
     throw new Error("Connect Syrus before loading jobs.")
   }
 
-  const response = await fetch(appApiUrl(credentials.url, `/api/v1/app/jobs/${jobID}`), {
-    headers: {
-      Authorization: `Bearer ${credentials.token.trim()}`
-    }
-  })
-
-  throwIfUnauthorized(credentials, response)
-  if (!response.ok) {
-    throw new Error(await responseErrorMessage(response, `Could not load JOB-${jobID}.`))
+  const headers = { Authorization: `Bearer ${credentials.token.trim()}` }
+  const [detailPath, summaryPath] = jobDetailPayloadPaths(jobID)
+  const [detailResponse, summaryResponse] = await Promise.all([
+    fetch(appApiUrl(credentials.url, detailPath), { headers }),
+    fetch(appApiUrl(credentials.url, summaryPath), { headers })
+  ])
+  for (const response of [detailResponse, summaryResponse]) {
+    throwIfUnauthorized(credentials, response)
+    if (!response.ok) throw new Error(await responseErrorMessage(response, `Could not load JOB-${jobID}.`))
   }
-
-  return readApiJson<JobDetail>(response)
+  const [detail, summary] = await Promise.all([
+    readApiJson<Omit<JobDetail, "summary" | "test_plan" | "feedback_history">>(detailResponse),
+    readApiJson<Pick<JobDetail, "summary" | "test_plan" | "feedback_history">>(summaryResponse)
+  ])
+  return mergeJobDetailPayload(detail, summary)
 }
 
 const responseErrorMessage = async (response: Response, fallback: string) => {
