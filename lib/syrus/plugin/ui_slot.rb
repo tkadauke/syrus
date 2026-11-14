@@ -12,7 +12,7 @@ module Syrus
     #
     # Providers expose:
     #
-    #   .ui_slots(slot:, context:) => [{ id:, component:, order: }]
+    #   .ui_slots(slot:, context:) => [{ id:, component:, order:, cacheable: }]
     #
     # Panels in a `.tab` slot are rendered as extra tabs rather than inline
     # sections, so they also carry `label` (or `label_key`) and a `key`.
@@ -26,6 +26,8 @@ module Syrus
     # whatever the host page has resolved (e.g. { repository:, user: } or
     # { job:, user: }), so a provider can decide per record whether to render.
     # Return [] to render nothing.
+    # Dashboard panels default to cacheable. Set `cacheable: false` when props
+    # contain counts or other values that must be rebuilt on every request.
     module UiSlot
       # Declared here rather than as free-form strings so a typo in a plugin
       # fails loudly instead of silently rendering nowhere.
