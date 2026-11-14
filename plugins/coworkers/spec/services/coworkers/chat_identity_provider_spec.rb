@@ -24,6 +24,12 @@ RSpec.describe Coworkers::ChatIdentityProvider do
       .to include(chat.id => include(identity: include(id: coworker.id)))
   end
 
+  it "owns the coworker chat search filter" do
+    expect(described_class.chat_search_ownership(user: owner)).to eq(
+      key: "coworkers", filter_field: "coworker_id"
+    )
+  end
+
   it "selects the first roster-mentioned coworker for a turn" do
     Coworkers::ChatAgent.create!(chat_session: chat, coworker: coworker, added_by_user: owner)
     message = chat.messages.create!(
@@ -66,5 +72,22 @@ RSpec.describe Coworkers::ChatIdentityProvider do
 
     expect(described_class.chat_message_presentations(messages: [ message ]))
       .to include(message.id => include(coworker_sender: include(handle: "maya-identity")))
+  end
+
+  it "computes coworker message presentations once during generic serialization" do
+    message = chat.messages.create!(
+      role: "system",
+      content: {
+        "text" => "Message from @maya-identity", "source" => "coworker_message",
+        "coworker_message" => { "direction" => "incoming", "sender_id" => coworker.id }
+      },
+      skip_turn_trigger: true
+    )
+    expect(Coworkers::PayloadContributor).to receive(:message_presentations)
+      .once.and_call_original
+
+    payload = App::ChatMessagePayload.messages([ message ], repository: nil).sole
+
+    expect(payload.fetch(:coworker_sender)).to include("handle" => "maya-identity")
   end
 end

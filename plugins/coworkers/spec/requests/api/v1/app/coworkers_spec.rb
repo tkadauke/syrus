@@ -861,6 +861,19 @@ RSpec.describe "API: coworkers", type: :request do
     end
   end
 
+  it "stops applying plugin chat filters after rendering an operator error" do
+    sign_in_as(owner)
+    allow(ChatIdentityContributions).to receive(:search_ownership).and_return([
+      { "key" => "first", "filter_field" => "coworker_id" },
+      { "key" => "second", "filter_field" => "coworker_id" }
+    ])
+
+    get "/api/v1/app/chats/search", params: { coworker_id: "syrus", coworker_op: "unsupported" }
+
+    expect(response).to have_http_status(:bad_request)
+    expect(response.parsed_body.fetch("error")).to include("code" => "bad_request")
+  end
+
   it "removes the routes and sidebar contribution when the plugin is disabled" do
     PluginRecord.find_by!(name: "coworkers").update!(enabled: false)
     sign_in_as(owner)
