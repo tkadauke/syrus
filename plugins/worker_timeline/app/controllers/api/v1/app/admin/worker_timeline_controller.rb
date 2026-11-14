@@ -72,11 +72,13 @@ module Api
           end
 
           def smart_folder_count(folder)
-            filter = ::WorkerTimeline::MacroQueryFilter.from_tree(folder.filter, user: Current.user)
-            ::Timeline::MacroQuery.new(
-              from: filter.from, to: filter.to, expression: filter,
-              allowed_job_ids: ::Job.visible_to(Current.user).select(:id)
-            ).capped_count
+            Rails.cache.fetch([ "worker_timeline", "smart_folder_count", Current.user.id, folder.id, folder.updated_at.to_i ], expires_in: 1.minute) do
+              filter = ::WorkerTimeline::MacroQueryFilter.from_tree(folder.filter, user: Current.user)
+              ::Timeline::MacroQuery.new(
+                from: filter.from, to: filter.to, expression: filter,
+                allowed_job_ids: ::Job.visible_to(Current.user).select(:id)
+              ).capped_count
+            end
           end
 
           def require_worker_timeline_enabled

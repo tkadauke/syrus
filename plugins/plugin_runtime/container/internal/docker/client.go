@@ -233,12 +233,15 @@ func (c *Client) RestartContainer(ctx context.Context, id string, timeout time.D
 // Managed containers run without a TTY, so the daemon multiplexes the two
 // streams into frames: an 8-byte header (stream type, three zero bytes, a
 // big-endian payload length) followed by the payload. DemuxLogs strips them.
-func (c *Client) ContainerLogs(ctx context.Context, id string, tail int, maxBytes int64) (string, error) {
+func (c *Client) ContainerLogs(ctx context.Context, id string, tail int, maxBytes int64, since string) (string, error) {
 	query := url.Values{
 		"stdout":     {"1"},
 		"stderr":     {"1"},
 		"timestamps": {"1"},
 		"tail":       {fmt.Sprint(tail)},
+	}
+	if since != "" {
+		query.Set("since", since)
 	}
 	resp, err := c.send(ctx, http.MethodGet, "/containers/"+url.PathEscape(id)+"/logs", query, nil)
 	if err != nil {

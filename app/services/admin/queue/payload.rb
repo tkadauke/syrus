@@ -2,6 +2,8 @@ module Admin
   module Queue
     class Payload
       PER_PAGE = 100
+      ARGUMENT_PREVIEW_LIMIT = 400
+      PROCESS_LIMIT = 200
       PROCESS_STALE_THRESHOLD = InstanceVersion::HEARTBEAT_STALE_THRESHOLD
       LATEST_SAMPLE_HOST_LIMIT = 500
       SORT_DIRECTIONS = %w[asc desc].freeze
@@ -158,7 +160,9 @@ module Admin
       def workers
         PerformanceLogging.phase("admin_queue_payload", tab: "workers") do
           workers = PerformanceLogging.phase("admin_queue.workers.query") { fresh_processes(SolidQueue::Process.where(kind: "Worker")).order(:hostname, :pid).to_a }
-          processes = PerformanceLogging.phase("admin_queue.processes.query") { SolidQueue::Process.order(:kind, :hostname, :pid).to_a }
+          processes = PerformanceLogging.phase("admin_queue.processes.query") {
+            SolidQueue::Process.where.not(kind: "Worker").order(:kind, :hostname, :pid).limit(PROCESS_LIMIT).to_a
+          }
           worker_rows = PerformanceLogging.phase("admin_queue.workers.serialize", count: workers.size) { workers.map { |worker| serialize_worker(worker) } }
           process_rows = PerformanceLogging.phase("admin_queue.processes.serialize", count: processes.size) { processes.map { |process| serialize_process(process) } }
 
@@ -166,7 +170,7 @@ module Admin
             workers: sort_hash_rows(worker_rows, :workers),
             all_processes: sort_hash_rows(process_rows, :processes),
             sort: sort_payload(:workers),
-            worker_health: PerformanceLogging.phase("admin_queue.worker_health") { ::Admin::WorkerHealthPayload.new(**worker_health_options).as_json }
+            worker_health: PerformanceLogging.phase("admin_queue.worker_health") { compact_worker_health_payload }
           }
         end
       end
@@ -351,6 +355,10 @@ module Admin
         }
       end
 
+      def compact_worker_health_payload
+        ::Admin::WorkerHealthPayload.new(**worker_health_options, include_current: false).as_json
+      end
+
       def default_worker_health_since(until_time)
         end_time = parse_time(until_time) || Time.current
         (end_time - 2.hours).iso8601
@@ -428,7 +436,7 @@ module Admin
           class_name: job.class_name,
           queue_name: job.queue_name,
           priority: job.priority,
-          arguments: job.arguments&.dig("arguments"),
+          arguments: argument_preview(job.arguments&.dig("arguments")),
           created_at: job.created_at,
           scheduled_at: job.scheduled_at,
           claimed_at: claimed_at,
@@ -445,7 +453,7 @@ module Admin
           class_name: failure.job&.class_name,
           priority: failure.job&.priority,
           scheduled_at: failure.job&.scheduled_at,
-          arguments: failure.job&.arguments&.dig("arguments"),
+          arguments: argument_preview(failure.job&.arguments&.dig("arguments")),
           exception_class: error["exception_class"],
           message: error["message"]
         }
@@ -461,7 +469,7 @@ module Admin
           stale: process_stale?(worker),
           status: process_status(worker),
           capabilities: process_capabilities(worker),
-          capability_diagnostics: process_capability_diagnostics(worker),
+          capability_diagnostics: include_capability_diagnostics? ? process_capability_diagnostics(worker) : nil,
           admission_capacity: process_capability_diagnostics(worker)["admission_capacity"],
           macos_worker_drain: drain_payload(worker)
         }
@@ -566,9 +574,23 @@ module Admin
           stale: process_stale?(process),
           status: process_status(process),
           capabilities: process_capabilities(process),
-          capability_diagnostics: process_capability_diagnostics(process),
+          capability_diagnostics: include_capability_diagnostics? ? process_capability_diagnostics(process) : nil,
           macos_worker_drain: drain_payload(process)
         }
+      end
+
+      def include_capability_diagnostics?
+        params[:include].to_s.split(",").include?("capability_diagnostics")
+      end
+
+      def argument_preview(arguments)
+        return arguments if arguments.nil?
+        return arguments if params[:include].to_s.split(",").include?("arguments")
+
+        json = JSON.generate(arguments)
+        return arguments if json.length <= ARGUMENT_PREVIEW_LIMIT
+
+        { truncated: true, preview: json.first(ARGUMENT_PREVIEW_LIMIT), original_length: json.length }
       end
     end
   end

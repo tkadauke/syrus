@@ -184,6 +184,7 @@ RSpec.describe "admin API prefix ownership" do
     metrics_dashboard GET /api/v1/app/admin/metrics_dashboard api/v1/app/admin/metrics_dashboard#show
     mysql_db_browser DELETE /api/v1/app/admin/mysql_connections/:id api/v1/app/admin/mysql_connections#destroy
     mysql_db_browser GET /api/v1/app/admin/mysql_connections api/v1/app/admin/mysql_connections#index
+    mysql_db_browser GET /api/v1/app/admin/mysql_connections/credential_scope_options api/v1/app/admin/mysql_connections#credential_scope_options
     mysql_db_browser GET /api/v1/app/admin/mysql_connections/:id/schema api/v1/app/admin/mysql_schema#databases
     mysql_db_browser GET /api/v1/app/admin/mysql_connections/:id/schema/:database/query_builder api/v1/app/admin/mysql_query#query_builder
     mysql_db_browser GET /api/v1/app/admin/mysql_connections/:id/schema/:database/tables api/v1/app/admin/mysql_schema#tables

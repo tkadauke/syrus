@@ -20,9 +20,6 @@ export type MysqlTableSummary = {
   approximate_row_count: number | null
   data_length_bytes: number | null
   index_length_bytes: number | null
-  created_at: string | null
-  updated_at: string | null
-  comment: string | null
 }
 
 export type MysqlTablesSection =
@@ -78,15 +75,14 @@ export type MysqlForeignKey = {
 }
 
 export type MysqlSection<TRow> =
-  | { available: true; truncated: boolean; rows: TRow[] }
-  | { available: false; error: { class: string; message: string; hint?: string } }
+  { available: true; truncated: boolean; rows: TRow[] } | { available: false; error: { class: string; message: string; hint?: string } }
 
 export type MysqlTableDetailResponse = {
   database: string
   table: string
   system_schema: boolean
   generated_at: string
-  info: { available: true } & MysqlTableInfo | { available: false; error: { class: string; message: string; hint?: string } }
+  info: ({ available: true } & MysqlTableInfo) | { available: false; error: { class: string; message: string; hint?: string } }
   columns: MysqlSection<MysqlColumn>
   indexes: MysqlSection<MysqlIndex>
   foreign_keys: MysqlSection<MysqlForeignKey>
@@ -100,8 +96,9 @@ export function fetchMysqlTables(connectionId: number, database: string) {
   return getJson<MysqlTablesSection>(`/api/v1/app/admin/mysql_connections/${connectionId}/schema/${encodeURIComponent(database)}/tables`)
 }
 
-export function fetchMysqlTableDetail(connectionId: number, database: string, table: string) {
+export function fetchMysqlTableDetail(connectionId: number, database: string, table: string, sections?: string[]) {
+  const params = sections?.length ? `?sections=${encodeURIComponent(sections.join(","))}` : ""
   return getJson<MysqlTableDetailResponse>(
-    `/api/v1/app/admin/mysql_connections/${connectionId}/schema/${encodeURIComponent(database)}/tables/${encodeURIComponent(table)}`
+    `/api/v1/app/admin/mysql_connections/${connectionId}/schema/${encodeURIComponent(database)}/tables/${encodeURIComponent(table)}${params}`
   )
 }

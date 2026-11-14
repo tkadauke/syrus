@@ -26,7 +26,6 @@ function payload(overrides: Partial<PluginServicesPayload> = {}): PluginServices
         state: "running",
         endpoint: "http://git-mirror:8080",
         image: "ghcr.io/tkadauke/syrus-plugin-git-mirror:dev",
-        container_id: "abc",
         desired: true,
         held: false,
         actions: ["stop", "restart", "logs"]
@@ -122,7 +121,7 @@ describe("AdminPluginServices", () => {
   it("shows a service's logs", async () => {
     mockApi(payload(), (path) =>
       path.startsWith("/api/v1/app/admin/plugin_services/git-mirror/logs?tail=200")
-        ? jsonResponse({ service: "git-mirror", logs: "GET /v1/repositories/1/blob 200 13B 2ms\n" })
+        ? jsonResponse({ service: "git-mirror", logs: "GET /v1/repositories/1/blob 200 13B 2ms\n", cursor: "2026-01-01T00:00:00Z" })
         : undefined)
 
     renderRoute(<AdminPluginServices />)
@@ -143,6 +142,29 @@ describe("AdminPluginServices", () => {
 
     const row = (await screen.findByText("http://tailscale:8080")).closest("tr") as HTMLElement
     expect(within(row).getByText("Privileged")).toBeInTheDocument()
+  })
+
+  it("uses the previous cursor and appends output while following logs", async () => {
+    const requests: string[] = []
+    mockApi(payload(), (path) => {
+      if (!path.includes("/git-mirror/logs?")) return undefined
+      requests.push(path)
+      return path.includes("since=")
+        ? jsonResponse({ service: "git-mirror", logs: "second line\n", cursor: "2026-01-01T00:00:02Z" })
+        : jsonResponse({ service: "git-mirror", logs: "first line\n", cursor: "2026-01-01T00:00:01Z" })
+    })
+
+    renderRoute(<AdminPluginServices />)
+    fireEvent.click(await screen.findByRole("button", { name: "Logs" }))
+    expect(await screen.findByText(/first line/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Follow" }))
+    fireEvent.click(screen.getAllByRole("button", { name: "Refresh" }).at(-1)!)
+
+    await waitFor(() => expect(requests.at(-1)).toContain("since=2026-01-01T00%3A00%3A01Z"))
+    const output = screen.getByLabelText("Log output for git-mirror")
+    expect(output).toHaveTextContent("first line")
+    await waitFor(() => expect(output).toHaveTextContent("second line"))
   })
 
   it("explains that externally managed services cannot be controlled", async () => {
@@ -205,5 +227,32 @@ describe("AdminPluginServices", () => {
     expect(within(panel).getByText("5.0 MB")).toBeInTheDocument()
     expect(within(panel).getByText("acme/widgets")).toBeInTheDocument()
     expect(within(panel).getByText("4.0 MB")).toBeInTheDocument()
+  })
+
+  it("resets details pagination when switching services", async () => {
+    const services: PluginServicesPayload["services"] = [
+      { ...payload().services[0], actions: [ "details" ] },
+      { ...payload().services[0], service: "whisper", plugin: "whisper_stt", actions: [ "details" ] }
+    ]
+    const requests: string[] = []
+    mockApi(payload({ services }), (path) => {
+      if (!path.includes("/details")) return undefined
+      requests.push(path)
+      const page = path.includes("page=2") ? 2 : 1
+      return jsonResponse({ service: path.includes("/whisper/") ? "whisper" : "git-mirror", details: {
+        summary: [], table: { columns: [], rows: [] }, pagination: { page, per_page: 100, total: 101, total_pages: 2 }
+      } })
+    })
+
+    renderRoute(<AdminPluginServices />)
+    const mirrorRow = (await screen.findByText("git-mirror")).closest("tr") as HTMLElement
+    fireEvent.click(within(mirrorRow).getByRole("button", { name: "Details" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Next" }))
+    await waitFor(() => expect(requests).toContain("/api/v1/app/admin/plugin_services/git-mirror/details?page=2"))
+
+    const whisperRow = screen.getByText("whisper").closest("tr") as HTMLElement
+    fireEvent.click(within(whisperRow).getByRole("button", { name: "Details" }))
+    await waitFor(() => expect(requests).toContain("/api/v1/app/admin/plugin_services/whisper/details"))
+    expect(requests).not.toContain("/api/v1/app/admin/plugin_services/whisper/details?page=2")
   })
 })

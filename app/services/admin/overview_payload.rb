@@ -11,6 +11,13 @@ module Admin
 
     def as_json(*)
       PerformanceLogging.phase("admin_overview_payload") do
+        if resource_admission_page?
+          return { resource_admission: PerformanceLogging.phase("admin_overview.resource_admission") { resource_admission_payload } }
+        end
+        if scoped_chat_events_page?
+          return { chat_scoped_events: PerformanceLogging.phase("admin_overview.chat_scoped_events") { chat_scoped_events_payload } }
+        end
+
         payload = {
           active_runs: PerformanceLogging.phase("admin_overview.active_runs") {
             {
@@ -36,22 +43,25 @@ module Admin
           data_root_disk_usage: PerformanceLogging.phase("admin_overview.data_root_disk_usage") { data_root_disk_usage_payload },
           active_storage: PerformanceLogging.phase("admin_overview.active_storage") { active_storage_payload },
           stalled_classifier_jobs: PerformanceLogging.phase("admin_overview.stalled_classifier_jobs") { stalled_classifier_jobs_payload },
-          worker_data_root_usages: PerformanceLogging.phase("admin_overview.worker_data_root_usages") { InstanceVersion.worker_data_root_usages },
-          worker_health: PerformanceLogging.phase("admin_overview.worker_health") { worker_health_payload(sample_limit_per_host: 4) },
+          worker_health: PerformanceLogging.phase("admin_overview.worker_health") {
+            include_worker_health? ? worker_health_payload(sample_limit_per_host: 4) : worker_health_levels_payload
+          },
           time_zones: time_zones_payload
         }
 
-        payload[:resource_admission] = PerformanceLogging.phase("admin_overview.resource_admission") { resource_admission_payload } if resource_admission_page?
-        payload[:chat_scoped_events] = PerformanceLogging.phase("admin_overview.chat_scoped_events") { chat_scoped_events_payload } if scoped_chat_events_page?
+        payload[:worker_data_root_usages] = PerformanceLogging.phase("admin_overview.worker_data_root_usages") { InstanceVersion.worker_data_root_usages } if include_worker_data_root_usages?
         payload[:workers] = PerformanceLogging.phase("admin_overview.workers") { workers_payload }
         payload[:recurring] = PerformanceLogging.phase("admin_overview.recurring") { recurring_payload }
         payload
       end
     end
 
-    def stuck_json
+    def stuck_snapshot
+      stuck_snapshot_for_request
+    end
+
+    def stuck_json(snapshot: stuck_snapshot)
       PerformanceLogging.phase("admin_stuck_payload") do
-        snapshot = PerformanceLogging.phase("admin_stuck.snapshot") { stuck_snapshot_for_request }
         items = sorted_stuck_items(filtered_stuck_items(snapshot.items))
         {
           items: paginated_items(items),
@@ -90,6 +100,18 @@ module Admin
 
     def scoped_chat_events_page?
       requested_page == "scoped_chat_events"
+    end
+
+    def include_worker_data_root_usages?
+      requested_includes.include?("worker_data_root_usages")
+    end
+
+    def include_worker_health?
+      requested_includes.include?("worker_health")
+    end
+
+    def requested_includes
+      @requested_includes ||= params[:include].to_s.split(",").map(&:strip)
     end
 
     def recurring_diagnostics_page?
@@ -193,6 +215,16 @@ module Admin
       ).as_json
     end
 
+    def worker_health_levels_payload
+      health = worker_health_payload(sample_limit_per_host: 1)
+      current_workers = health[:current] || health["current"] || []
+      levels = current_workers.filter_map do |current|
+        worker_health = current[:health] || current["health"]
+        worker_health && (worker_health[:level] || worker_health["level"])
+      end
+      { levels: levels.tally }
+    end
+
     def chat_scoped_events_payload
       ::Admin::ChatScopedEventObservabilityPayload.new.as_json
     end
@@ -261,8 +293,14 @@ module Admin
 
     def stuck_items
       @stuck_items ||= PerformanceLogging.phase("admin_stuck.compute_items") do
-        ::Admin::StuckItems.all.map { |item| ::Admin::StuckItemPayload.serialize(item: item) }
+        ::Admin::StuckItems.all.map do |item|
+          ::Admin::StuckItemPayload.serialize(item: item, include_diagnostics: include_stuck_diagnostics?)
+        end
       end
+    end
+
+    def include_stuck_diagnostics?
+      ActiveModel::Type::Boolean.new.cast(params[:include_diagnostics])
     end
 
     def stuck_snapshot_for_request

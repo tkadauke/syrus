@@ -65,6 +65,27 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     )
   end
 
+  it "truncates large job arguments unless full arguments are requested" do
+    sign_in_as(admin)
+    process = solid_queue_process(hostname: "worker-a", pid: 101)
+    arguments = [ "x" * (Admin::Queue::Payload::ARGUMENT_PREVIEW_LIMIT + 1) ]
+    job = solid_queue_job(class_name: "RunJob", queue_name: "runs", arguments: { "arguments" => arguments })
+    SolidQueue::ClaimedExecution.create!(job: job, process: process)
+
+    get "/api/v1/app/admin/queue/active"
+
+    serialized = parse_body.fetch("jobs").first.fetch("arguments")
+    expect(serialized).to include(
+      "truncated" => true,
+      "original_length" => be > Admin::Queue::Payload::ARGUMENT_PREVIEW_LIMIT
+    )
+    expect(serialized.fetch("preview").length).to eq(Admin::Queue::Payload::ARGUMENT_PREVIEW_LIMIT)
+
+    get "/api/v1/app/admin/queue/active", params: { include: "arguments" }
+
+    expect(parse_body.fetch("jobs").first.fetch("arguments")).to eq(arguments)
+  end
+
   it "sorts active claimed executions with an allowlisted column" do
     sign_in_as(admin)
     process = solid_queue_process(hostname: "worker-a", pid: 101)
@@ -476,7 +497,7 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
                                    observed_at: 30.minutes.ago,
                                    cpu_used_percent: 35)
 
-    get "/api/v1/app/admin/queue/workers"
+    get "/api/v1/app/admin/queue/workers", params: { include: "capability_diagnostics" }
 
     expect(response).to have_http_status(:ok)
     body = parse_body
@@ -492,19 +513,11 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
       "capability_diagnostics" => { "docker" => true },
       "macos_worker_drain" => include("state" => "draining", "desired_git_sha" => "newsha")
     )
-    expect(body["all_processes"].map { |process| process["kind"] }).to eq([ "Dispatcher", "Worker", "Worker" ])
+    expect(body["all_processes"].map { |process| process["kind"] }).to eq([ "Dispatcher" ])
     expect(body["all_processes"].find { |process| process["kind"] == "Dispatcher" }).to include(
-      "capabilities" => { "os" => [ "linux" ] }
+      "status" => "current"
     )
-    expect(body["all_processes"].find { |process| process["hostname"] == "worker-old" }).to include(
-      "stale" => true,
-      "status" => "stale"
-    )
-    expect(body.dig("worker_health", "current", 0)).to include(
-      "hostname" => "worker-a",
-      "health" => include("level" => "ok"),
-      "macos_worker_drain" => include("state" => "draining")
-    )
+    expect(body.fetch("worker_health")).not_to have_key("current")
     historical = body.dig("worker_health", "hosts").find { |host| host["hostname"] == "worker-old" }
     expect(historical).to include(
       "status" => "historical",
@@ -545,7 +558,7 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
     InstanceVersion.create!(hostname: "worker-silent", role: "worker", version: "abc123", started_at: 5.minutes.ago,
                             last_heartbeat_at: 10.seconds.ago)
 
-    get "/api/v1/app/admin/queue/workers"
+    get "/api/v1/app/admin/queue/workers", params: { include: "capability_diagnostics" }
 
     workers = parse_body["workers"].index_by { |worker| worker["hostname"] }
     expect(workers.fetch("worker-quota")["admission_capacity"]).to eq(quota)
@@ -577,7 +590,7 @@ RSpec.describe "API: /api/v1/app/admin/queue/*", type: :request do
       capability_diagnostics: { "xcode" => true }
     )
 
-    get "/api/v1/app/admin/queue/workers"
+    get "/api/v1/app/admin/queue/workers", params: { include: "capability_diagnostics" }
 
     expect(response).to have_http_status(:ok)
     expect(parse_body["workers"].first).to include(

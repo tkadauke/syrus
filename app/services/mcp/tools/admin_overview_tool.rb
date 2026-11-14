@@ -12,7 +12,7 @@ module Mcp::Tools
       def call(server_context:)
         return Mcp::Tools.unauthorized("Admin access required") unless admin?(server_context)
 
-        overview = ::Admin::OverviewPayload.new.as_json
+        overview = ::Admin::OverviewPayload.new(params: { include: "worker_data_root_usages,worker_health" }).as_json
         resource_admission = ::Admin::OverviewPayload.new(params: { page: "resource_admission" }).as_json[:resource_admission]
         overview[:resource_admission] ||= resource_admission
         Mcp::Tools.success(

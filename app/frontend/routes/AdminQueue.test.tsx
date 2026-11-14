@@ -30,20 +30,24 @@ describe("AdminQueue worker health charts", () => {
   })
 
   it("renders active queue jobs in the DataTable overflow wrapper", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(activeQueuePayload({
-      jobs: [
-        {
-          arguments: [{ job_id: 42 }],
-          claimed_at: "2026-05-30T12:00:00Z",
-          class_name: "RunJob",
-          created_at: "2026-05-30T11:59:00Z",
-          id: 1,
-          priority: 0,
-          scheduled_at: "2026-05-30T11:59:00Z",
-          queue_name: "runs"
-        }
-      ]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        activeQueuePayload({
+          jobs: [
+            {
+              arguments: [{ job_id: 42 }],
+              claimed_at: "2026-05-30T12:00:00Z",
+              class_name: "RunJob",
+              created_at: "2026-05-30T11:59:00Z",
+              id: 1,
+              priority: 0,
+              scheduled_at: "2026-05-30T11:59:00Z",
+              queue_name: "runs"
+            }
+          ]
+        })
+      )
+    )
 
     renderAdminQueue("/admin/queue/active")
 
@@ -53,21 +57,50 @@ describe("AdminQueue worker health charts", () => {
     expect(screen.getByText(JSON.stringify([{ job_id: 42 }]))).toBeInTheDocument()
   })
 
+  it("renders truncated argument previews with their original length", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        activeQueuePayload({
+          jobs: [
+            {
+              arguments: { truncated: true, preview: '["long argument', original_length: 812 },
+              claimed_at: "2026-05-30T12:00:00Z",
+              class_name: "RunJob",
+              created_at: "2026-05-30T11:59:00Z",
+              id: 1,
+              priority: 0,
+              scheduled_at: "2026-05-30T11:59:00Z",
+              queue_name: "runs"
+            }
+          ]
+        })
+      )
+    )
+
+    renderAdminQueue("/admin/queue/active")
+
+    expect(await screen.findByText('["long argument… (812 chars)')).toBeInTheDocument()
+  })
+
   it("sorts active queue tables through shareable query params", async () => {
-    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(activeQueuePayload({
-      jobs: [
-        {
-          arguments: [{ job_id: 42 }],
-          claimed_at: "2026-05-30T12:00:00Z",
-          class_name: "RunJob",
-          created_at: "2026-05-30T11:59:00Z",
-          id: 1,
-          priority: 0,
-          scheduled_at: "2026-05-30T11:59:00Z",
-          queue_name: "runs"
-        }
-      ]
-    })))
+    const fetchSpy = vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        activeQueuePayload({
+          jobs: [
+            {
+              arguments: [{ job_id: 42 }],
+              claimed_at: "2026-05-30T12:00:00Z",
+              class_name: "RunJob",
+              created_at: "2026-05-30T11:59:00Z",
+              id: 1,
+              priority: 0,
+              scheduled_at: "2026-05-30T11:59:00Z",
+              queue_name: "runs"
+            }
+          ]
+        })
+      )
+    )
 
     renderAdminQueue("/admin/queue/active")
     fireEvent.click(await screen.findByRole("button", { name: "Queue" }))
@@ -78,21 +111,25 @@ describe("AdminQueue worker health charts", () => {
   })
 
   it("leaves serialized failed error fields unsortable", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(failedQueuePayload({
-      failures: [
-        {
-          arguments: [{ job_id: 42 }],
-          class_name: "RunJob",
-          created_at: "2026-05-30T11:59:00Z",
-          exception_class: "RuntimeError",
-          id: 1,
-          job_id: 1,
-          message: "boom",
-          priority: 0,
-          scheduled_at: "2026-05-30T11:59:00Z"
-        }
-      ]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        failedQueuePayload({
+          failures: [
+            {
+              arguments: [{ job_id: 42 }],
+              class_name: "RunJob",
+              created_at: "2026-05-30T11:59:00Z",
+              exception_class: "RuntimeError",
+              id: 1,
+              job_id: 1,
+              message: "boom",
+              priority: 0,
+              scheduled_at: "2026-05-30T11:59:00Z"
+            }
+          ]
+        })
+      )
+    )
 
     renderAdminQueue("/admin/queue/failed")
 
@@ -159,12 +196,12 @@ describe("AdminQueue worker health charts", () => {
     fireEvent.click(within(form).getByRole("button", { name: "Apply" }))
 
     await waitFor(() => {
-      expect(fetchSpy.mock.calls.some((call) => {
-        const url = String(call[0])
-        return url.includes("since=") &&
-          url.includes("until=") &&
-          url.includes("minute_bucket_window_minutes=120")
-      })).toBe(true)
+      expect(
+        fetchSpy.mock.calls.some((call) => {
+          const url = String(call[0])
+          return url.includes("since=") && url.includes("until=") && url.includes("minute_bucket_window_minutes=120")
+        })
+      ).toBe(true)
     })
   })
 
@@ -226,20 +263,24 @@ describe("AdminQueue configurable columns", () => {
   })
 
   it("hides an optional column on the active jobs table through the column picker and persists it", async () => {
-    vi.spyOn(window, "fetch").mockResolvedValue(jsonResponse(activeQueuePayload({
-      jobs: [
-        {
-          arguments: [{ job_id: 42 }],
-          claimed_at: "2026-05-30T12:00:00Z",
-          class_name: "RunJob",
-          created_at: "2026-05-30T11:59:00Z",
-          id: 1,
-          priority: 0,
-          scheduled_at: "2026-05-30T11:59:00Z",
-          queue_name: "runs"
-        }
-      ]
-    })))
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      jsonResponse(
+        activeQueuePayload({
+          jobs: [
+            {
+              arguments: [{ job_id: 42 }],
+              claimed_at: "2026-05-30T12:00:00Z",
+              class_name: "RunJob",
+              created_at: "2026-05-30T11:59:00Z",
+              id: 1,
+              priority: 0,
+              scheduled_at: "2026-05-30T11:59:00Z",
+              queue_name: "runs"
+            }
+          ]
+        })
+      )
+    )
 
     renderAdminQueue("/admin/queue/active")
 

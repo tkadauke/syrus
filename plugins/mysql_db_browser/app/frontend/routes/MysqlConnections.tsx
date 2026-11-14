@@ -14,6 +14,7 @@ import { errorMessage } from "@app/lib/errorMessage"
 import {
   createMysqlConnection,
   deleteMysqlConnection,
+  fetchCredentialScopeOptions,
   fetchMysqlConnections,
   testDraftMysqlConnection,
   testMysqlConnection,
@@ -107,6 +108,11 @@ export function MysqlConnections() {
     queryKey,
     queryFn: fetchMysqlConnections
   })
+  const scopeOptions = useQuery({
+    queryKey: ["mysql_db_browser", "credential_scope_options"],
+    queryFn: fetchCredentialScopeOptions,
+    enabled: formTarget !== null
+  })
   const deepLink = useMemo(() => browseSelectionFromSearch(location.search), [location.search])
 
   useEffect(() => {
@@ -160,7 +166,7 @@ export function MysqlConnections() {
       {formTarget ? (
         <ConnectionFormModal
           connection={formTarget === "create" ? null : formTarget}
-          scopeOptions={connections.data?.credential_scope_options}
+          scopeOptions={scopeOptions.data?.credential_scope_options}
           onClose={() => setFormTarget(null)}
           onNotice={setNotice}
         />
@@ -180,8 +186,7 @@ function browseSelectionFromSearch(search: string): BrowseDeepLink | null {
 
   return {
     connectionId,
-    selection:
-      database && table ? { database, table, tab: tab === "structure" || tab === "builder" ? tab : "content" } : null
+    selection: database && table ? { database, table, tab: tab === "structure" || tab === "builder" ? tab : "content" } : null
   }
 }
 

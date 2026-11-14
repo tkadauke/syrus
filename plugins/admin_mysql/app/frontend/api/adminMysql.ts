@@ -66,10 +66,12 @@ export type MysqlSnapshot = {
   variables: Record<string, string | number>
   status: Record<string, string | number>
   process_list: MysqlProcess[]
-  statement_digests: MysqlUnavailableSection | {
-    available: true
-    rows: MysqlStatementDigest[]
-  }
+  statement_digests:
+    | MysqlUnavailableSection
+    | {
+        available: true
+        rows: MysqlStatementDigest[]
+      }
   slow_log: {
     available: boolean
     config: Record<string, string | number>
@@ -93,12 +95,14 @@ export type MysqlKillQueryResult = {
   }
 }
 
-export function fetchAdminMysql(limit = 50, includeSlowLog = false) {
+export function fetchAdminMysql(limit = 50, includeSlowLog = false, sections = "live", includeIdle = false) {
   const params = new URLSearchParams({
-    limit: String(limit)
+    limit: String(limit),
+    sections,
+    include_idle: String(includeIdle)
   })
   if (includeSlowLog) params.set("include_slow_log", "true")
-  return getJson<MysqlSnapshot>(`/api/v1/app/admin/mysql?${params.toString()}`)
+  return getJson<Partial<MysqlSnapshot> & Pick<MysqlSnapshot, "available" | "generated_at">>(`/api/v1/app/admin/mysql?${params.toString()}`)
 }
 
 export function killMysqlQuery(threadId: number) {
