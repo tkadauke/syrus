@@ -5,7 +5,7 @@ class Coworkers::ReviewContext < ApplicationRecord
 
   belongs_to :run
   belongs_to :review_evidence
-  belongs_to :coworker, class_name: "Coworkers::Coworker"
+  belongs_to :coworker, class_name: "Coworkers::Coworker", inverse_of: :review_contexts
 
   encrypts :exact_context
   serialize :exact_context, coder: JSON
@@ -15,6 +15,8 @@ class Coworkers::ReviewContext < ApplicationRecord
   validates :manifest, :exact_context, :workspace_path, presence: true
 
   scope :retention_candidates, -> { where.not(persistence_state: "tombstoned") }
+
+  before_destroy { Coworkers::ReviewWorkspace.remove!(self) }
 
   def tombstone!
     update!(exact_context: "[tombstoned]", workspace_path: "[tombstoned]",

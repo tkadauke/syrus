@@ -14,7 +14,7 @@
 # MySQL schema authority is the migration history; do not load this SQLite
 # snapshot into MySQL.
 
-ActiveRecord::Schema[8.1].define(version: 2026_11_10_164236) do
+ActiveRecord::Schema[8.1].define(version: 2026_11_14_192220) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -3426,6 +3426,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_11_10_164236) do
     t.json "terminal_failure_details"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.json "target_envelope"
+    t.json "target_snapshot"
+    t.json "context_envelope"
+    t.json "persistence_envelope"
     t.index ["reviewer_type", "reviewer_id"], name: "index_review_evidences_on_reviewer_type_and_reviewer_id"
     t.index ["run_id"], name: "index_review_evidences_on_run_id", unique: true
     t.index ["step_id"], name: "index_review_evidences_on_step_id"

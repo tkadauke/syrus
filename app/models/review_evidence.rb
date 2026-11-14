@@ -1,14 +1,14 @@
 class ReviewEvidence < ApplicationRecord
   STATES = %w[pending submitted failed stale].freeze
-  REVIEW_KINDS = %w[adversarial security coworker].freeze
-
   belongs_to :run
   belongs_to :workflow
   belongs_to :step
+  # Compatibility reader for evidence written before opaque target envelopes.
+  # New writes never populate these polymorphic columns.
   belongs_to :reviewer, polymorphic: true, optional: true
 
   validates :run_id, uniqueness: true
-  validates :review_kind, inclusion: { in: REVIEW_KINDS }
+  validates :review_kind, presence: true
   validates :state, inclusion: { in: STATES }
   validates :provider, :model, :reviewed_base_sha, :reviewed_head_sha,
             :canonical_diff_sha256, :prompt_version, :checklist_version,
@@ -37,6 +37,14 @@ class ReviewEvidence < ApplicationRecord
 
   def stale? = state == "stale"
 
+  def record_context!(value)
+    record_envelope!(:context_envelope, value)
+  end
+
+  def record_persistence!(value)
+    record_envelope!(:persistence_envelope, value)
+  end
+
   private
 
   def lineage_matches_run
@@ -47,7 +55,7 @@ class ReviewEvidence < ApplicationRecord
   end
 
   def immutable_provenance
-    immutable = %w[run_id workflow_id step_id review_kind provider model reviewer_type reviewer_id
+    immutable = %w[run_id workflow_id step_id review_kind provider model reviewer_type reviewer_id target_envelope target_snapshot
                    reviewed_base_sha reviewed_head_sha canonical_diff_sha256 prompt_version
                    checklist_version tool_policy_version]
     changed = changes_to_save.keys & immutable
@@ -56,5 +64,16 @@ class ReviewEvidence < ApplicationRecord
 
   def stale_state_is_monotonic
     errors.add(:state, :review_evidence_stale_monotonic) if state_in_database == "stale" && state != "stale"
+  end
+
+
+  def record_envelope!(attribute, value)
+    normalized = value.to_h.deep_stringify_keys
+    current = public_send(attribute)
+    return current if current == normalized
+    raise ActiveRecord::ReadOnlyRecord, "#{attribute} is immutable" if current.present?
+
+    update!(attribute => normalized)
+    normalized
   end
 end
