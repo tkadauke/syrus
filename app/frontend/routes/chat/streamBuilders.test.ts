@@ -863,6 +863,31 @@ describe("renderChatMessages benign cleanup suppression", () => {
     expect(toolGroups(items)).toHaveLength(0)
   })
 
+  it("resumes after a pruned cleanup without retaining items beyond the checkpoint", () => {
+    const cache = createChatRenderCache()
+    const cleanupUse = toolUse(1, { toolUseId: "tu_cleanup", toolName: "bash", input: { command: "sleep 10" } })
+    const cleanup = cleanupResult(2, { toolUseId: "tu_cleanup", text: "Stopped normally.", benign: true })
+    const checkpoint = { type: "message", id: 3, role: "assistant", text: "Continuing.", bookmarkable: false } as ChatMessageItem
+    const pendingUse = toolUse(4, { toolUseId: "tu_pending", toolName: "read_file" })
+    const first = renderChatMessages([cleanupUse, cleanup, checkpoint, pendingUse], cache)
+
+    const second = renderChatMessages([
+      cleanupUse,
+      cleanup,
+      checkpoint,
+      pendingUse,
+      toolResult(5, { toolUseId: "tu_pending", content: "done" })
+    ], cache)
+
+    expect(first).toHaveLength(2)
+    expect(second).toHaveLength(2)
+    expect(second[0]).toBe(first[0])
+    expect(toolGroups(second)).toHaveLength(1)
+    expect(group(second[1]).calls).toHaveLength(1)
+    expect(group(second[1]).calls[0]).toMatchObject({ message_id: 4, result_body: "done" })
+    expect(cache.lastDerivation).toEqual({ reusedMessageCount: 3, rebuiltMessageCount: 2, fullRebuild: false })
+  })
+
   it("keeps a cleanup the producer marked as a failure", () => {
     const items = renderChatMessages([
       toolUse(1, { toolUseId: "tu_1", toolName: "bash", input: { command: "sleep 10" } }),
