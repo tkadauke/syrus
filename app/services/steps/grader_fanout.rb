@@ -23,6 +23,7 @@ module Steps
     # Steps::GraderCollect always sees a value scoped to *this* iteration,
     # never a stale entry left over from an earlier one.
     CARRIED_FORWARD_ARTIFACT_KEY = "grade_carried_forward_graders".freeze
+    DEDUPLICATED_ARTIFACT_KEY = "grade_deduplicated_graders".freeze
     MATERIALIZATION_LOCK_ERRORS = [
       ActiveRecord::Deadlocked,
       ActiveRecord::LockWaitTimeout
@@ -30,13 +31,16 @@ module Steps
     MATERIALIZATION_LOCK_RETRY_ATTEMPTS = 3
     TARGET_HEALTH_FORCED_ARTIFACT_KEY = "target_health_forced_targets".freeze
     TARGET_HEALTH_SKIPS_ARTIFACT_KEY = "target_health_skipped_targets".freeze
+    SELECTION_EXPLANATIONS_ARTIFACT_KEY = "grader_selection_explanations".freeze
     TARGET_SELECTIONS_ARTIFACT_KEY = "grader_target_selections".freeze
 
     def call
       workspace.setup
       workflow.set_artifact!(CARRIED_FORWARD_ARTIFACT_KEY, [])
+      workflow.set_artifact!(DEDUPLICATED_ARTIFACT_KEY, [])
       workflow.set_artifact!(TARGET_HEALTH_FORCED_ARTIFACT_KEY, [])
       workflow.set_artifact!(TARGET_HEALTH_SKIPS_ARTIFACT_KEY, [])
+      workflow.set_artifact!(SELECTION_EXPLANATIONS_ARTIFACT_KEY, [])
       plan = effective_plan(graph_grade_plan)
       grader_fingerprint = GraderConclusionCache.fingerprint_for_plan(plan, target_graph: target_graph)
       record_plan_source!(plan, grader_fingerprint)
@@ -73,7 +77,12 @@ module Steps
       ensure_required_unland_grader_selected!(active_graders)
       active_graders = enforce_required_target_health_for_unaffected_graders(active_graders, selections) if enforce_required_target_health_for_unaffected_graders?
 
-      if (plan.rerun_only_failed? || retrying_transient_only_failure? || retrying_no_change_repair?) && step.iteration > 1
+      carried_forward = []
+      if evidence_driven_landing_repair?
+        passed_steps_by_name = prior_passed_steps_by_name
+        active_graders, carried_forward = partition_evidence_driven_repair_graders(active_graders, passed_steps_by_name)
+        record_carried_forward_graders!(carried_forward, passed_steps_by_name) if carried_forward.any?
+      elsif (plan.rerun_only_failed? || retrying_transient_only_failure? || retrying_no_change_repair?) && step.iteration > 1
         passed_steps_by_name = reusable_passed_steps_by_name
         active_graders, carried_forward = if retrying_transient_only_failure?
           partition_transient_retry_graders(active_graders, passed_steps_by_name, reason: "passed before infrastructure-only retry")
@@ -99,6 +108,8 @@ module Steps
       end
 
       active_graders = skip_reusable_target_health!(active_graders) if target_health_narrowing_applies?
+      active_graders, deduplicated = deduplicate_equivalent_failed_variants(active_graders)
+      record_selection_explanations!(plan.graders, selections, active_graders, carried_forward, deduplicated)
 
       if active_graders.empty?
         record_fanout_outcome!("all_graders_skipped")
@@ -346,6 +357,185 @@ module Steps
 
     def code_changing_repair_run?(repair_run)
       repair_run.step_agent_diff.present? || repair_run.head_sha != repair_run.base_sha
+    end
+
+    def evidence_driven_landing_repair?
+      step.iteration > 1 && code_changing_repair_for_this_iteration? &&
+        workflow.work_definition.target_health_narrows_after_code_changing_repair?(workflow)
+    end
+
+    # Landing retries retain a successful conclusion when the repair could not
+    # have reached the target and its executable inputs are unchanged. A
+    # repo-wide target has no declared source scope, so treating every repaired
+    # file as one of its inputs recreates the broad fanout this path exists to
+    # avoid. For those targets, configuration, command, environment and
+    # dependency-closure changes remain invalidating; repositories that need a
+    # fresh execution on every repair can opt a grader in with
+    # `metadata.always_rerun: true`.
+    def partition_evidence_driven_repair_graders(active_graders, passed_steps_by_name)
+      repair_files = repair_changed_files
+      return [ active_graders, [] ] if repair_files.empty?
+
+      carried_forward = []
+      remaining = active_graders.reject do |grader|
+        prior = passed_steps_by_name[grader.name]
+        next false unless prior
+        next false if grader.metadata["always_rerun"] == true
+        next false if repair_affects_target?(grader, repair_files)
+
+        current = target_fingerprints_for(grader)
+        prior_fingerprints = prior.details.to_h["target_fingerprints"].to_h
+        next false unless reusable_repair_fingerprints?(grader, prior_fingerprints, current.to_h)
+
+        result = CarryForwardResult.new("carried forward after unaffected repair", current, [])
+        carried_forward << [ grader, result ]
+        true
+      end
+
+      [ remaining, carried_forward ]
+    end
+
+    def prior_passed_steps_by_name
+      workflow.steps
+        .where(kind: "grader", loop_id: step.loop_id, state: "succeeded")
+        .where("iteration < ?", step.iteration)
+        .order(iteration: :desc, position: :desc)
+        .each_with_object({}) do |candidate, memo|
+          name = candidate.details.to_h["name"]
+          memo[name] ||= candidate if name.present?
+        end
+    end
+
+    def repair_changed_files
+      repair_run = repair_run_for_this_iteration
+      DiffReviewVersions::UnifiedDiffFiles.parse(repair_run&.step_agent_diff).filter_map { |entry| entry[:path] }.uniq
+    end
+
+    def repair_affects_target?(grader, files)
+      target = target_graph.target(target_label_for(grader))
+      if target.source_scope.empty?
+        return target_graph.dependency_closure_for(target.label).any? do |dependency_label|
+          dependency = target_graph.target(dependency_label)
+          dependency&.source_scope&.any? && target_graph.affected(dependency.label, changed_files: files).affected
+        end
+      end
+
+      target_graph.affected(target.label, changed_files: files).affected
+    end
+
+    def reusable_repair_fingerprints?(grader, prior, current)
+      return false if prior.blank?
+
+      target = target_graph.target(target_label_for(grader))
+      keys = %w[command_fingerprint environment_fingerprint]
+      keys << "input_fingerprint" if target.source_scope.any?
+      keys.all? { |key| prior[key] == current[key] }
+    end
+
+    def deduplicate_equivalent_failed_variants(graders)
+      return [ graders, [] ] unless evidence_driven_landing_repair?
+
+      kept = []
+      deduplicated = []
+      graders.each do |grader|
+        duplicate_of = kept.find { |candidate| equivalent_failed_variant?(candidate, grader) }
+        if duplicate_of
+          deduplicated << {
+            "name" => grader.name,
+            "target_label" => target_label_for(grader),
+            "canonical_name" => duplicate_of.name,
+            "canonical_target_label" => target_label_for(duplicate_of),
+            "required" => grader.required,
+            "reason" => "equivalent failed identity and unchanged inputs"
+          }
+        else
+          kept << grader
+        end
+      end
+      workflow.set_artifact!(DEDUPLICATED_ARTIFACT_KEY, deduplicated)
+      [ kept, deduplicated ]
+    end
+
+    def equivalent_failed_variant?(left, right)
+      return false unless normalized_grader_name(left.name) == normalized_grader_name(right.name)
+      return false unless left.command == right.command
+      return false unless equivalent_variant_inputs?(left, right)
+
+      left_failures = prior_failed_identities(left.name)
+      right_failures = prior_failed_identities(right.name)
+      left_failures.any? && left_failures == right_failures
+    end
+
+    def equivalent_variant_inputs?(left, right)
+      left_target = target_graph.target(target_label_for(left))
+      right_target = target_graph.target(target_label_for(right))
+      left_target.source_scope == right_target.source_scope &&
+        left_target.dependencies.map(&:to_s).sort == right_target.dependencies.map(&:to_s).sort &&
+        left_target.capabilities.to_h == right_target.capabilities.to_h &&
+        left_target.owner_config_path == right_target.owner_config_path
+    end
+
+    def prior_failed_identities(name)
+      prior = prior_grader_steps_by_name[name]
+      return [] unless prior&.latest_run
+
+      TestEvidenceLookup.failed_test_cases_for(prior.latest_run, name).filter_map do |test_case|
+        test_case["identity"].presence || test_case["name"].presence
+      end.sort
+    end
+
+    def normalized_grader_name(name)
+      name.to_s.downcase.sub(/-ci\z/, "").sub(/\Aci-/, "")
+    end
+
+    def record_selection_explanations!(graders, selections, active_graders, carried_forward, deduplicated)
+      active_names = active_graders.map(&:name).to_set
+      carried_names = carried_forward.map { |grader, _| grader.name }.to_set
+      deduplicated_names = deduplicated.map { |entry| entry["name"] }.to_set
+      prior_steps = step.iteration > 1 ? prior_grader_steps_by_name : {}
+      repair_files = evidence_driven_landing_repair? ? repair_changed_files : []
+      selections_by_name = selections.to_h { |grader, selection| [ grader.name, selection ] }
+
+      entries = graders.map do |grader|
+        prior = prior_steps[grader.name]
+        explanation = if carried_names.include?(grader.name)
+          "carried_forward"
+        elsif deduplicated_names.include?(grader.name)
+          "deduplicated"
+        elsif grader.metadata["always_rerun"] == true && active_names.include?(grader.name)
+          "explicitly_always_run"
+        elsif prior && !prior.succeeded? && active_names.include?(grader.name)
+          "prior_failure"
+        elsif evidence_driven_landing_repair? && active_names.include?(grader.name) && repair_affects_target?(grader, repair_files)
+          "repair_affected"
+        elsif prior&.succeeded? && active_names.include?(grader.name)
+          "fingerprint_changed"
+        elsif active_names.include?(grader.name)
+          "repair_affected"
+        else
+          "carried_forward"
+        end
+        {
+          "name" => grader.name,
+          "target_label" => target_label_for(grader),
+          "explanation" => explanation,
+          "selected" => active_names.include?(grader.name),
+          "scope_reason" => selections_by_name[grader.name]&.reason
+        }.compact
+      end
+      workflow.set_artifact!(SELECTION_EXPLANATIONS_ARTIFACT_KEY, entries)
+      step.update!(details: step.details.to_h.merge(SELECTION_EXPLANATIONS_ARTIFACT_KEY => entries))
+    end
+
+    def prior_grader_steps_by_name
+      workflow.steps
+        .where(kind: "grader", loop_id: step.loop_id)
+        .where("iteration < ?", step.iteration)
+        .order(iteration: :desc, position: :desc)
+        .each_with_object({}) do |candidate, memo|
+          name = candidate.details.to_h["name"]
+          memo[name] ||= candidate if name.present?
+        end
     end
 
     def partition_rerun_only_failed_graders(active_graders, passed_steps_by_name)

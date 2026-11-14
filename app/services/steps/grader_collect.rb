@@ -44,6 +44,7 @@ module Steps
     def call
       grader_steps = current_iteration_graders
       carried_forward = carried_forward_grader_entries
+      carried_forward.concat(resolved_deduplicated_grader_entries(grader_steps))
       target_health_skipped = target_health_skipped_entries
       reject_unexplained_empty_iteration!(grader_steps, carried_forward, target_health_skipped)
       @manifest_grader_steps = grader_steps
@@ -498,6 +499,29 @@ module Steps
     # iteration's results instead of continuing to count as passing.
     def carried_forward_grader_entries
       Array(workflow.artifact(GraderFanout::CARRIED_FORWARD_ARTIFACT_KEY))
+    end
+
+    # A CI/non-CI alias is only synthesized after its canonical execution has
+    # succeeded. If the canonical grader fails, the normal required-failure
+    # barrier remains authoritative and no passing alias is invented.
+    def resolved_deduplicated_grader_entries(grader_steps)
+      by_name = grader_steps.index_by { |grader| grader.details.to_h["name"] }
+      Array(workflow.artifact(GraderFanout::DEDUPLICATED_ARTIFACT_KEY)).filter_map do |entry|
+        canonical = by_name[entry["canonical_name"]]
+        next unless canonical&.succeeded?
+
+        canonical_details = canonical.details.to_h
+        entry.slice("name", "required", "target_label").merge(
+          "source_iteration" => step.iteration,
+          "reason" => "deduplicated equivalent grader variant",
+          "target_fingerprints" => canonical_details["target_fingerprints"],
+          "exit_code" => canonical_details["exit_code"],
+          "duration_s" => canonical_details["duration_s"],
+          "log_path" => canonical_details["log_path"],
+          "log_bytes" => canonical_details["log_bytes"],
+          "output" => canonical_details["output"]
+        ).compact
+      end
     end
 
     def target_health_skipped_entries
