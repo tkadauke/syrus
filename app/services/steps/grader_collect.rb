@@ -34,6 +34,9 @@ module Steps
       database_capacity
       database_lock
       disk_full
+      grader_cancelled
+      silent_timed_out
+      timed_out
       worker_died
       worker_died_under_resource_pressure
     ].freeze
@@ -63,10 +66,15 @@ module Steps
 
       if cancelled_required.any?
         names = grader_names(cancelled_required)
+        evidence = record_infrastructure_evidence!(cancelled_required)
         log("[grader_collect] required graders were cancelled: #{names.join(', ')}")
         mark_transient_only_failure!
         fail_with!(:worker_died, "required graders were cancelled: #{names.join(', ')}",
-                   evidence: { grader_names: names, states: cancelled_required.to_h { |grader| [ grader.id, grader.state ] } })
+                   evidence: {
+                     grader_names: names,
+                     states: cancelled_required.to_h { |grader| [ grader.id, grader.state ] },
+                     graders: evidence
+                   })
       end
 
       infrastructure_failed_required = failed_required.select { |g| infrastructure_failed_step?(g) }
@@ -348,11 +356,38 @@ module Steps
     def fail_for_infrastructure!(grader_steps)
       names = grader_names(grader_steps)
       classifications = grader_steps.filter_map { |grader| infrastructure_failure_classification_for(grader) }.uniq
-      code = classifications.find { |classification| Problem::Kind.exists?(classification) } || "database_lock"
+      code = classifications.find { |classification| Problem::Kind.exists?(classification) } || "worker_died"
+      evidence = record_infrastructure_evidence!(grader_steps)
       log("[grader_collect] required graders failed due to infrastructure: #{names.join(', ')}")
       mark_transient_only_failure!
       fail_with!(code, "required graders failed due to infrastructure: #{names.join(', ')}",
-                 evidence: { grader_names: names, classifications: classifications })
+                 evidence: { grader_names: names, classifications: classifications, graders: evidence })
+    end
+
+    def record_infrastructure_evidence!(grader_steps)
+      evidence = grader_steps.map { |grader| infrastructure_evidence_for(grader) }
+      evidence.each do |entry|
+        log(
+          "[grader_collect] inconclusive grader #{entry['grader_name']}: " \
+          "configured_timeout=#{entry['configured_timeout_s'].inspect}s " \
+          "observed_duration=#{entry['observed_duration_s'].inspect}s " \
+          "process_outcome=#{entry['process_outcome']} " \
+          "assertion_failures_present=#{entry['assertion_failures_present']}"
+        )
+      end
+      workflow.set_artifact!("grader_infrastructure_failures", evidence)
+      evidence
+    end
+
+    def infrastructure_evidence_for(grader)
+      details = grader.details.to_h
+      {
+        "grader_name" => details["name"],
+        "configured_timeout_s" => details["configured_timeout_s"] || details["timeout_minutes"].to_i.minutes.to_i.presence,
+        "observed_duration_s" => details["duration_s"],
+        "process_outcome" => details["process_outcome"] || grader_outcome_for(grader).reason,
+        "assertion_failures_present" => assertion_failures_present?(grader)
+      }
     end
 
     def grader_names(grader_steps) = grader_steps.map { |grader| grader.details["name"] }
@@ -695,7 +730,19 @@ module Steps
     def infrastructure_failure_classification_for(grader_step)
       return nil unless grader_step.failed?
 
-      latest_runs_by_step_id([ grader_step ])[grader_step.id]&.run_failure_classification&.classification
+      run = latest_runs_by_step_id([ grader_step ])[grader_step.id]
+      classification = run&.run_failure_classification&.classification
+      return classification if infrastructure_failure_classification?(classification)
+
+      outcome = grader_outcome_for(grader_step)
+      return nil if outcome.test_failed? || assertion_failures_present?(grader_step, run: run)
+
+      outcome.reason if infrastructure_failure_classification?(outcome.reason)
+    end
+
+    def assertion_failures_present?(grader_step, run: nil)
+      run ||= latest_runs_by_step_id([ grader_step ])[grader_step.id]
+      TestEvidenceLookup.failed_test_cases_for(run, grader_step.details.to_h["name"]).any?
     end
 
     def rounded_average(values)
