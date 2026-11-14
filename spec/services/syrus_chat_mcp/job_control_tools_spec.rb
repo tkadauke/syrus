@@ -709,6 +709,11 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     RunCheckpoint.create!(run: run, workflow: workflow, step: step, job: job, repository: repository, user: user,
       step_kind: "implement", commit_sha: "checkpoint-sha", base_sha: "old-base",
       remote_ref: RunCheckpoint.remote_ref_for(run), status: "published", published_at: Time.current)
+    reader = instance_double(RepositoryContent::Reader)
+    allow(reader).to receive(:resolve).and_return(
+      RepositoryContent::Revision.new(id: "checkpoint-sha", ref: RunCheckpoint.remote_ref_for(run), observed_at: Time.current)
+    )
+    allow(RepositoryContent).to receive(:for).and_return(reader)
 
     response = call_tool("base_refresh_retry_job", job_id: job.id, source_workflow_id: workflow.id, reason: "Base repaired")
     pending = chat_session.pending_actions.find(payload(response)[:pending_confirmation_id])

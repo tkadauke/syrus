@@ -2109,6 +2109,20 @@ module WorkEngine
         end
       end
 
+      class RefreshBaseFromBlockedCheckpoint < Base
+        def perform
+          workflow = target_workflow
+          return skipped("Workflow no longer exists") unless workflow
+
+          result = BaseRefreshRetryEnqueuer.call(
+            job: workflow.job,
+            source_workflow: workflow,
+            reason: "Automatic recovery of a verified checkpoint-backed blocked Workflow"
+          )
+          result.success? ? success("started checkpoint-backed base refresh for #{workflow_label(workflow)}") : skipped(result.error)
+        end
+      end
+
       class DiscardSupersededBranchOutput < Base
         def perform
           workflow = target_workflow

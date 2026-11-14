@@ -287,6 +287,7 @@ module WorkEngine
       issues.concat(classify_stale_active_merge_trains_without_runtime)
       issues.concat(classify_succeeded_merge_trains_with_failed_members)
       issues.concat(classify_releasable_epic_blocked_jobs)
+      issues.concat(classify_checkpoint_backed_blocked_workflows)
       issues.concat(classify_jobs_without_active_runtime_work)
       issues.concat(classify_queued_jobs_cancelled_by_epic_workflow_conflict)
       issues.concat(classify_queued_jobs_cancelled_with_active_start_block)
@@ -450,6 +451,7 @@ module WorkEngine
         active_workflows = Workflow.where(id: WorkUnits::Ownership.active_workflow_ids([ job_id ]).to_a)
         active_job_workflows = active_workflows_for_jobs([ job_id ])
         latest_failed_workflows = latest_failed_workflows_for_jobs([ job_id ])
+        latest_blocked_workflows = latest_blocked_workflows_for_jobs([ job_id ])
         unrevalidated_repair_workflows = unrevalidated_failed_repair_workflows_for_jobs([ job_id ])
         stale_auto_retry_workflows = queued_retry_workflows_for_jobs([ job_id ])
         terminal_descendant_workflows = terminal_workflows_with_active_descendants(job_ids: [ job_id ])
@@ -457,6 +459,7 @@ module WorkEngine
         Workflow.where(id: active_workflows.select(:id))
           .or(Workflow.where(id: active_job_workflows.select(:id)))
           .or(Workflow.where(id: latest_failed_workflows.select(:id)))
+          .or(Workflow.where(id: latest_blocked_workflows.select(:id)))
           .or(Workflow.where(id: unrevalidated_repair_workflows.select(:id)))
           .or(Workflow.where(id: stale_auto_retry_workflows.select(:id)))
           .or(Workflow.where(id: terminal_descendant_workflows.select(:id)))
@@ -465,6 +468,7 @@ module WorkEngine
         active_workflows = Workflow.where(id: WorkUnits::Ownership.active_workflow_ids(job_ids).to_a)
         active_job_workflows = active_workflows_for_jobs(job_ids)
         latest_failed_workflows = latest_failed_workflows_for_jobs(job_ids)
+        latest_blocked_workflows = latest_blocked_workflows_for_jobs(job_ids)
         unrevalidated_repair_workflows = unrevalidated_failed_repair_workflows_for_jobs(job_ids)
         stale_auto_retry_workflows = queued_retry_workflows_for_jobs(job_ids)
         terminal_descendant_workflows = terminal_workflows_with_active_descendants
@@ -472,6 +476,7 @@ module WorkEngine
         Workflow.where(id: active_workflows.select(:id))
           .or(Workflow.where(id: active_job_workflows.select(:id)))
           .or(Workflow.where(id: latest_failed_workflows.select(:id)))
+          .or(Workflow.where(id: latest_blocked_workflows.select(:id)))
           .or(Workflow.where(id: unrevalidated_repair_workflows.select(:id)))
           .or(Workflow.where(id: stale_auto_retry_workflows.select(:id)))
           .or(Workflow.where(id: terminal_descendant_workflows.select(:id)))
@@ -592,6 +597,16 @@ module WorkEngine
 
       latest_ids = Job.latest_workflow_refs_for(ids).filter_map do |_job_id, (workflow_id, state)|
         workflow_id if state == "failed"
+      end
+      Workflow.where(id: latest_ids)
+    end
+
+    def latest_blocked_workflows_for_jobs(job_ids)
+      ids = Array(job_ids).compact
+      return Workflow.none if ids.empty?
+
+      latest_ids = Job.latest_workflow_refs_for(ids).filter_map do |_job_id, (workflow_id, state)|
+        workflow_id if state == "blocked"
       end
       Workflow.where(id: latest_ids)
     end
@@ -2348,6 +2363,31 @@ module WorkEngine
             unsatisfied_dependencies: []
           },
           explanation: "#{job_label(job)} is still blocked by #{job.epic.slug}, but the Epic and Job dependencies are ready."
+        )
+      end
+    end
+
+    def classify_checkpoint_backed_blocked_workflows
+      workflows.select(&:blocked?).filter_map do |workflow|
+        job = workflow.job
+        next unless job&.failed?
+        next unless workflow == latest_workflow_for_job(job)
+
+        eligibility = BaseRefreshRetryEligibility.call(job: job, source_workflow_id: workflow.id)
+        next unless eligibility.eligible?
+
+        issue(
+          kind: :checkpoint_backed_blocked_workflow,
+          severity: :warning,
+          affected_ids: ids_for(workflow),
+          safe_to_auto_repair: true,
+          recommended_repair_action: "refresh_base_from_blocked_checkpoint",
+          evidence: workflow_evidence(workflow).merge(
+            checkpoint_id: eligibility.checkpoint.id,
+            checkpoint_sha: eligibility.checkpoint.commit_sha,
+            checkpoint_ref: eligibility.checkpoint.remote_ref
+          ),
+          explanation: "A terminal blocked Workflow has a verified durable mutation checkpoint and no active ownership, so it can be restored onto the current effective base."
         )
       end
     end
