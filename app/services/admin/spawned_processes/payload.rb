@@ -20,16 +20,17 @@ module Admin
       }.freeze
       DEFAULT_SORT = "started_at"
 
-      def initialize(params:, user:, per_page: PER_PAGE, default_to_running: false)
+      def initialize(params:, user:, per_page: PER_PAGE, default_to_running: false, ensure_builtins: false)
         @params = params
         @user = user
         @per_page = normalized_per_page(per_page)
         @default_to_running = default_to_running
+        @ensure_builtins = ensure_builtins
       end
 
       def index
         PerformanceLogging.phase("admin_processes_payload") do
-          PerformanceLogging.phase("admin_processes.ensure_builtins") { SmartFolder.ensure_spawned_process_builtins! }
+          PerformanceLogging.phase("admin_processes.ensure_builtins") { SmartFolder.ensure_spawned_process_builtins! } if ensure_builtins
           active_folder = PerformanceLogging.phase("admin_processes.active_folder") { active_smart_folder }
           base_scope = SpawnedProcess.all
           filter = PerformanceLogging.phase("admin_processes.display_filter") { display_filter(active_folder) }
@@ -73,7 +74,7 @@ module Admin
 
       private
 
-      attr_reader :params, :user, :default_to_running
+      attr_reader :params, :user, :default_to_running, :ensure_builtins
 
       def normalized_per_page(default)
         raw = params[:per_page].to_i
