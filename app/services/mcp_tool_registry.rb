@@ -260,7 +260,8 @@ class McpToolRegistry
         legacy_chat(Mcp::Tools::SetJobPriorityTool, mutation: true),
         legacy_chat(Mcp::Tools::RepoInfoTool),
         lifecycle_chat(Mcp::Tools::SubmitChatFeedbackTool, mutation: true, approval_effect: true,
-          capability: "syrus.jobs", descriptor_roles: AgentRole::CHAT_ROLES + [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]),
+          capability: "syrus.jobs", descriptor_roles: AgentRole::CHAT_ROLES + [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ],
+          descriptor_default_policies: AgentRole::CHAT_ROLES.index_with { :allow }),
         legacy_chat(Mcp::Tools::RenameChatTool, mutation: true, default_policy: :allow),
         legacy_chat(Mcp::Tools::PinChatTool, mutation: true, default_policy: :allow),
         legacy_chat(Mcp::Tools::UnpinChatTool, mutation: true, default_policy: :allow),
@@ -631,15 +632,19 @@ class McpToolRegistry
     def legacy_entry(tool, **metadata) = entry(tool, **metadata, compatibility_descriptor: true)
 
     def lifecycle_chat(tool, **metadata)
-      roles = metadata[:required_roles].presence || AgentRole::CHAT_ROLES
+      roles = metadata.delete(:descriptor_roles) || metadata[:required_roles].presence || AgentRole::CHAT_ROLES
       shared_roles = (Array(roles) + [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]).uniq
-      descriptor = Permissions::JobLifecycle.descriptor_for(tool_name_for(tool), required_roles: shared_roles)
+      default_policies = metadata.delete(:descriptor_default_policies) || {}
+      descriptor = Permissions::JobLifecycle.descriptor_for(
+        tool_name_for(tool), required_roles: shared_roles, default_policies:
+      )
       chat(tool, **metadata, descriptor:)
     end
 
     def lifecycle_coworker(tool, **metadata)
       roles = metadata.delete(:descriptor_roles) || metadata[:required_roles].presence || [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]
-      descriptor = Permissions::JobLifecycle.descriptor_for(tool_name_for(tool), required_roles: roles)
+      default_policies = metadata.delete(:descriptor_default_policies) || {}
+      descriptor = Permissions::JobLifecycle.descriptor_for(tool_name_for(tool), required_roles: roles, default_policies:)
       coworker(tool, **metadata, descriptor:)
     end
 

@@ -133,6 +133,8 @@ RSpec.describe McpToolRegistry do
         effects: chat_feedback.descriptor.effects,
         risk: chat_feedback.descriptor.risk
       )
+      expect(chat_feedback.descriptor.defaults.values_at(*AgentRole::CHAT_ROLES)).to all(eq(:allow))
+      expect(coworker_feedback.descriptor.defaults.values_at(AgentRole::COWORKER_CHAT, AgentRole::COWORKER)).to all(eq(:ask))
       expect(coworker_feedback).to have_attributes(mutation: true, approval_effect: true)
       expect(described_class.entries(surface: :coworker).map(&:tool_name)).not_to include(
         "submit_visual_review", "submit_adversarial_review", "submit_security_review", "submit_coworker_review"
