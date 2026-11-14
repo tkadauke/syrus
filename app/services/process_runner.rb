@@ -1536,16 +1536,17 @@ class ProcessRunner
     # Collected before signalling anything: once the group dies its children
     # are reparented to init and the ppid trail is gone.
     descendants = descendant_pids(pid)
+    signal_target = @pgroup ? -Process.getpgid(pid) : pid
 
-    Process.kill("TERM", -pid)
+    Process.kill("TERM", signal_target)
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + @kill_grace_seconds
     loop do
-      Process.kill(0, -pid)
+      Process.kill(0, signal_target)
       break if Process.clock_gettime(Process::CLOCK_MONOTONIC) >= deadline
 
       sleep 0.1
     end
-    Process.kill("KILL", -pid)
+    Process.kill("KILL", signal_target)
   rescue Errno::ESRCH, Errno::EPERM
     # Already dead. ESRCH is the usual answer, but a group that exits while we
     # are signalling it can report EPERM instead -- the pgid no longer names
