@@ -8,6 +8,8 @@ export type ReviewContribution = {
   kind: ReviewContributionKind
   target_type?: string | null
   artifact_type?: string | null
+  trigger_kinds?: string[]
+  target_required?: string[]
   label_key?: string | null
   description_key?: string | null
   aria_label_key?: string | null

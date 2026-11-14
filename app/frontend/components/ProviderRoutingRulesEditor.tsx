@@ -641,10 +641,12 @@ function RuleEditorModal({
             <div>
               <div className="text-sm font-medium text-text-primary">{t("provider_routing.provider_candidates")}</div>
               <p className="mt-1 text-xs text-text-secondary">{t("provider_routing.provider_candidates_help")}</p>
-              {["step:adversarial_review", "step:security_review", "step:coworker_review"].includes(currentDraft.triggerKey) ? (
+              {reviewerTargetCapable(options, currentDraft.triggerKey) ? (
                 <p className="mt-1 text-xs text-text-secondary">
                   <span className="sr-only">{t("provider_routing.review_identity_accessibility")}</span>
-                  {t(currentDraft.triggerKey === "step:coworker_review" ? "provider_routing.dedicated_coworker_help" : "provider_routing.named_reviewer_help")}
+                  {reviewerTargetRequired(options, currentDraft.triggerKey)
+                    ? t("provider_routing.dedicated_reviewer_help")
+                    : t("provider_routing.named_reviewer_help")}
                 </p>
               ) : null}
             </div>
@@ -656,7 +658,7 @@ function RuleEditorModal({
                 onRemove={() => onUpdate({ ...currentDraft, candidates: currentDraft.candidates.filter((_, itemIndex) => itemIndex !== index) })}
                 options={options}
                 removable={currentDraft.candidates.length > 1}
-                reviewerTargetEnabled={["step:adversarial_review", "step:security_review", "step:coworker_review"].includes(currentDraft.triggerKey)}
+                reviewerTargetEnabled={reviewerTargetCapable(options, currentDraft.triggerKey)}
                 t={t}
               />
             ))}
@@ -880,6 +882,7 @@ function normalizeOptions(options?: ProviderRoutingOptions): ProviderRoutingOpti
     agent_providers: options?.agent_providers || EMPTY_OPTIONS.agent_providers,
     effort_levels: options?.effort_levels || EMPTY_OPTIONS.effort_levels,
     reviewer_targets: options?.reviewer_targets || [],
+    review_contributions: options?.review_contributions || [],
     triggers: {
       chat_roles: options?.triggers?.chat_roles || [],
       step_kinds: options?.triggers?.step_kinds || []
@@ -945,8 +948,8 @@ function validateDraft(draft: DraftRule, options: ProviderRoutingOptions, t: (ke
   if (!draft.name.trim()) errors.name = t("provider_routing.validation_name")
   if (!draft.triggerKey) errors.trigger = t("provider_routing.validation_trigger")
   if (draft.actionType === "route" && !draft.candidates.some((candidate) => candidate.provider)) errors.candidates = t("provider_routing.validation_candidates")
-  if (draft.actionType === "route" && draft.triggerKey === "step:coworker_review" && draft.candidates.some((candidate) => !candidate.reviewer_target)) {
-    errors.candidates = t("provider_routing.validation_coworker_targets")
+  if (draft.actionType === "route" && reviewerTargetRequired(options, draft.triggerKey) && draft.candidates.some((candidate) => !candidate.reviewer_target)) {
+    errors.candidates = t("provider_routing.validation_reviewer_targets")
   }
   if (draft.actionType === "route" && draft.actionStrategy === "panel") {
     const distinct = new Set(draft.candidates.filter((candidate) => candidate.provider).map((candidate) => JSON.stringify(candidate))).size
@@ -966,6 +969,25 @@ function validateDraft(draft: DraftRule, options: ProviderRoutingOptions, t: (ke
   if (draft.actionType === "hold" && !draft.holdReason.trim()) errors.holdReason = t("provider_routing.validation_hold_reason")
   if (draft.actionType === "hold" && draft.resumptionMode === "until_time" && !draft.resumeAt) errors.resumeAt = t("provider_routing.validation_resume_time")
   return errors
+}
+
+function stepKindForTrigger(triggerKey: string) {
+  return triggerKey.startsWith("step:") ? triggerKey.slice("step:".length) : null
+}
+
+function reviewerTargetCapable(options: ProviderRoutingOptions, triggerKey: string) {
+  const stepKind = stepKindForTrigger(triggerKey)
+  return Boolean(stepKind && options.triggers?.step_kinds?.some((option) => option.value === stepKind && option.reviewer_target_capable))
+}
+
+function reviewerTargetRequired(options: ProviderRoutingOptions, triggerKey: string) {
+  const stepKind = stepKindForTrigger(triggerKey)
+  return Boolean(
+    stepKind &&
+      (options.review_contributions || []).some(
+        (contribution) => contribution.kind === "target_editor" && contribution.target_required?.includes(stepKind)
+      )
+  )
 }
 
 function draftToInput(draft: DraftRule): ProviderRoutingRuleInput {

@@ -27,9 +27,9 @@ const options: ProviderRoutingOptions = {
     step_kinds: [
       { value: "implement", label: "Implement" },
       { value: "rebase", label: "Rebase" },
-      { value: "adversarial_review", label: "Adversarial review", panel_capable: true },
-      { value: "security_review", label: "Security review", panel_capable: true },
-      { value: "coworker_review", label: "Coworker review", panel_capable: true }
+      { value: "adversarial_review", label: "Adversarial review", panel_capable: true, reviewer_target_capable: true },
+      { value: "security_review", label: "Security review", panel_capable: true, reviewer_target_capable: true },
+      { value: "coworker_review", label: "Coworker review", panel_capable: true, reviewer_target_capable: true }
     ],
     chat_roles: [{ value: "chat:supervisor", label: "Supervisor" }]
   },
@@ -53,6 +53,16 @@ const options: ProviderRoutingOptions = {
     { value: "fallback_order", label: "Fallback order" },
     { value: "weighted", label: "Weighted" },
     { value: "panel", label: "Panel" }
+  ],
+  review_contributions: [
+    {
+      key: "coworkers.target_editor",
+      component: "coworkers/CoworkerTargetEditor",
+      kind: "target_editor",
+      target_type: "coworker",
+      trigger_kinds: ["adversarial_review", "security_review", "coworker_review"],
+      target_required: ["coworker_review"]
+    }
   ],
   condition_keys: []
 }
@@ -254,8 +264,8 @@ describe("ProviderRoutingRulesEditor", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Edit" }))
     const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
-    expect(within(dialog).getByLabelText("Coworker reviewer")).toHaveValue("coworker:opaque-maya")
-    expect(within(dialog).getByText(/Dedicated coworker review requires a named coworker/)).toBeInTheDocument()
+    expect(await within(dialog).findByLabelText("Coworker reviewer target")).toHaveValue("coworker:opaque-maya")
+    expect(within(dialog).getByText(/This review requires a named target/)).toBeInTheDocument()
     expect(within(dialog).getByText("Automated reviewer identity and human approval distinction")).toHaveClass("sr-only")
     fireEvent.click(within(dialog).getByRole("button", { name: "Save rule" }))
 

@@ -44,6 +44,7 @@ ownership:
     - write_coworker_file
   frontend_contributions:
     - coworkers/Coworkers
+    - coworkers review contributions
     - coworkers tool cards
   documentation_paths:
     - plugins/coworkers/docs
@@ -65,7 +66,6 @@ compatibility_quarantine:
   app/frontend/components/PermissionRequestCard.test.tsx: 4
   app/frontend/components/PermissionRuleEditor.tsx: 1
   app/frontend/components/ProviderRoutingRulesEditor.test.tsx: 13
-  app/frontend/components/ProviderRoutingRulesEditor.tsx: 6
   app/frontend/components/SmartPermissionActions.test.tsx: 7
   app/frontend/components/SmartPermissionActions.tsx: 2
   app/frontend/components/StartBlockedReasonPill.tsx: 2

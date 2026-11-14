@@ -7,6 +7,10 @@ RSpec.describe Coworkers::ReviewPresentationContributor do
 
     expect(contributions.map { |entry| entry[:target_type] }.uniq).to eq([ "coworker" ])
     expect(contributions).to all(include(:component, :label_key, :description_key, :aria_label_key))
+    expect(described_class.target_editors.first).to include(
+      trigger_kinds: %w[adversarial_review security_review coworker_review],
+      target_required: [ "coworker_review" ]
+    )
     expect(described_class.translation_namespaces).to eq([ "coworkers" ])
   end
 end
