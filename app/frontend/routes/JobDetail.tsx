@@ -162,20 +162,21 @@ export function JobDetailRoute() {
   const pluginTabKeys = (detail.data?.ui_tabs ?? []).map((tab) => tab.key).filter((key): key is string => Boolean(key))
   const activeTab = tabFromLocation(location.pathname, location.search, pluginTabKeys)
   const lazyTab = ["summary", "review", "attachments", "source"].includes(activeTab) ? activeTab : null
+  const hasCanonicalId = detail.isSuccess && String(detail.data.job.id) === id
   const tabDetail = useQuery({
     queryKey: jobTabQueryKey(id, lazyTab ?? "none"),
     queryFn: () => fetchJobTab(id, lazyTab as string),
-    enabled: id.length > 0 && lazyTab !== null && detail.isSuccess
+    enabled: id.length > 0 && lazyTab !== null && hasCanonicalId
   })
   const pendingFeedback = useQuery({
     queryKey: jobPendingFeedbackQueryKey(id),
     queryFn: () => fetchPendingFeedback(id),
-    enabled: id.length > 0 && activeTab === "summary" && detail.isSuccess
+    enabled: id.length > 0 && activeTab === "summary" && hasCanonicalId
   })
   const providerRouting = useQuery({
     queryKey: jobProviderRoutingQueryKey(id),
     queryFn: () => fetchJobProviderRouting(id),
-    enabled: id.length > 0 && activeTab === "summary" && detail.isSuccess,
+    enabled: id.length > 0 && activeTab === "summary" && hasCanonicalId,
     staleTime: 5 * 60 * 1000
   })
   const workflows = useQuery({
@@ -185,7 +186,7 @@ export function JobDetailRoute() {
       if (detail.data) normalizeJobDetailPayload(mergeJobWorkflowsPayload(detail.data, payload), "job_workflows")
       return payload
     },
-    enabled: id.length > 0 && (activeTab === "workflows" || activeTab === "timeline") && detail.isSuccess,
+    enabled: id.length > 0 && (activeTab === "workflows" || activeTab === "timeline") && hasCanonicalId,
     placeholderData: keepPreviousData
   })
   const payload = detail.isSuccess
