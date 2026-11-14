@@ -245,7 +245,7 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
 
     expect(response).to have_http_status(:ok)
     expect(credential.reload.payload).to eq("new-secret")
-    expect(parse_body.keys).to contain_exactly("credential", "message")
+    expect(parse_body.keys).to contain_exactly("v", "credential", "message")
     expect(response.body).not_to include("old-secret")
     expect(response.body).not_to include("new-secret")
 
@@ -254,7 +254,7 @@ RSpec.describe "API: /api/v1/app/credential_store/credentials", type: :request d
     expect(response).to have_http_status(:ok)
     expect(credential.reload).to be_revoked
     expect(parse_body.fetch("credential")).to include("id" => credential.id, "revoked_at" => a_string_matching(/\A\d{4}-/))
-    expect(parse_body.keys).to contain_exactly("credential", "message")
+    expect(parse_body.keys).to contain_exactly("v", "credential", "message")
   end
 
   it "audits credential creation and privilege-affecting updates without payload material" do

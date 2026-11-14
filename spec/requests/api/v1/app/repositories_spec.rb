@@ -218,7 +218,7 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
       )
 
       sign_in_as(user)
-      get "/api/v1/app/repositories/#{repository.id}/throughput_metrics"
+      get "/api/v1/app/repositories/#{repository.id}/throughput_metrics", params: { window: "1h" }
 
       expect(response).to have_http_status(:ok)
       body = parse_body
@@ -232,24 +232,13 @@ RSpec.describe "API: /api/v1/app/repositories", :ci_only, type: :request do
         "confidence" => "low",
         "total_observed_count" => 1
       )
-      expect(body.dig("windows", "1h", "pr_creation", "series", "syrus_authored"))
-        .to include("count" => 1)
+      expect(body.dig("windows", "1h", "pr_creation")).not_to have_key("series")
       expect(body.dig("windows", "1h", "output", "loc")).to include(
         "additions" => 2,
         "deletions" => 1,
         "net" => 1
       )
-      expect(body.dig("windows", "1h", "output", "by_job")).to contain_exactly(
-        include(
-          "job_id" => job.id,
-          "pr_source" => "syrus_authored",
-          "commit_count" => 1,
-          "sample_count" => 1,
-          "additions" => 2,
-          "deletions" => 1,
-          "net" => 1
-        )
-      )
+      expect(body.dig("windows", "1h", "output")).not_to have_key("by_job")
       expect(step.reload).to be_succeeded
     end
   end

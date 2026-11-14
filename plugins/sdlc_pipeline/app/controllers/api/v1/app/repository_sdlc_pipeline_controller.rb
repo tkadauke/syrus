@@ -38,7 +38,7 @@ module Api
           end
 
           poll_only = params[:section] == "poll"
-          fresh_when(etag: [ repository.id, ::Job.where(repository_id: repository.id).maximum(:updated_at), resolution.filter.to_h, params[:stage], params[:page] ])
+          fresh_when(etag: [ repository.id, ::Job.visible_to(Current.user).where(repository_id: repository.id).maximum(:updated_at), resolution.filter.to_h, params[:stage], params[:page] ])
           return if request.fresh?(response)
           static_payload = poll_only ? {} : {
             **(history ? { history: history } : {}),
