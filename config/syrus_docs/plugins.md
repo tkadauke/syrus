@@ -193,7 +193,17 @@ Provider-specific settings belong under `config`.
 ### Execution backends
 
 An `execution_backend` may accept work through the shared execution contract.
-The bundled Container Execution backend accepts a grader only when
+Repositories select a grader backend explicitly:
+
+```yaml
+execution:
+  grader_backend: container_execution
+```
+
+Core matches that name against enabled providers. With no selection, an unknown
+name, or an unavailable provider, the grader uses the local backend.
+
+The bundled Container Execution backend accepts a selected grader only when
 the plugin is enabled, an image is configured or resolved, Docker is reachable,
 and every requested mount maps from the worker to the Docker host. If any
 condition is unmet, execution falls back to the local backend unless workload

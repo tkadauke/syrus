@@ -81,9 +81,9 @@ class SyrusYml
   TARGET_KINDS = %w[default library binary application formatter builder grader prepare generator repo_check].freeze
   TARGET_GRAPH_IMPORT_FAILURE_POLICIES = %w[strict warn].freeze
 
-  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :security_review, :coworker_review, :review_notes, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :merge_train, :project, :targets, :target_graph, :scripts, :plugin_configurations) do
-    def initialize(security_review: nil, coworker_review: nil, plugin_configurations: PluginRepositoryConfiguration::Set.new, **rest)
-      super(security_review: security_review, coworker_review: coworker_review, plugin_configurations: plugin_configurations, **rest)
+  Config = Data.define(:prepare, :grade, :hooks, :adversarial_review, :security_review, :coworker_review, :review_notes, :agent_insight, :coverage, :formatters, :generated, :deployment_stages, :preview, :visual_review, :review_plan, :deploy, :delivery, :raw_delivery, :approval, :external_prs, :merge_train, :project, :targets, :target_graph, :scripts, :plugin_configurations, :execution) do
+    def initialize(security_review: nil, coworker_review: nil, execution: nil, plugin_configurations: PluginRepositoryConfiguration::Set.new, **rest)
+      super(security_review: security_review, coworker_review: coworker_review, execution: execution, plugin_configurations: plugin_configurations, **rest)
     end
   end
   DeploymentStage = Data.define(:name, :label, :tag, :tag_pattern) do
@@ -156,6 +156,7 @@ class SyrusYml
   ExternalPrsConfig = Data.define(:ingest)
   ExternalPrsIngestConfig = Data.define(:enabled, :unknown, :syrus_job_export, :syrus_branch_export)
   MergeTrainConfig = Data.define(:failure_policy, :failure_rungs)
+  ExecutionConfig = Data.define(:grader_backend)
   ScriptConfig = Data.define(:name, :command, :description, :credentials, :allow_agent_invocation)
   ScriptCredentialRequirement = Data.define(:name, :credential, :type, :wrapper, :env, :purpose, :tool, :target)
   GradeConfig = Data.define(:max_iterations, :failures, :steps, :rerun_only_failed)
@@ -339,13 +340,26 @@ class SyrusYml
       targets: parse_targets(raw["targets"]),
       target_graph: parse_target_graph(raw["target_graph"]),
       scripts: parse_scripts(raw["scripts"]),
-      plugin_configurations: plugin_configurations
+      plugin_configurations: plugin_configurations,
+      execution: parse_execution(raw["execution"])
     )
   rescue Psych::Exception => e
     raise ParseError, "YAML parse error: #{e.message}"
   end
 
   private
+
+  def parse_execution(raw)
+    return nil if raw.nil?
+    raise ParseError, "execution: must be a mapping" unless raw.is_a?(Hash)
+
+    grader_backend = raw["grader_backend"]
+    unless grader_backend.is_a?(String) && grader_backend.match?(/\A[a-z][a-z0-9_]*\z/)
+      raise ParseError, "execution.grader_backend: must be a lowercase backend name"
+    end
+
+    ExecutionConfig.new(grader_backend: grader_backend)
+  end
 
   def parse_agent_insight(raw)
     return nil if raw.nil?
