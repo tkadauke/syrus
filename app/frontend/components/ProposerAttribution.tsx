@@ -5,15 +5,17 @@ export type ProposerAttributionValue = {
 
 export function ProposerAttribution({
   label,
-  proposer
+  proposer,
+  testId = "proposer-attribution"
 }: {
   label: (values: { name: string; handle: string }) => string
   proposer: ProposerAttributionValue | null | undefined
+  testId?: string
 }) {
   if (!proposer) return null
 
   return (
-    <span className="text-xs text-text-muted" data-testid="proposer-attribution">
+    <span className="text-xs text-text-muted" data-testid={testId}>
       {label({ name: proposer.label, handle: proposer.handle ? `@${proposer.handle}` : "" })}
     </span>
   )
