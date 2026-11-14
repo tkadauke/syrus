@@ -51,6 +51,7 @@ module Syrus
       mentionable
       chat_list_group
       chat_result_decorator
+      chat_identity_provider
       repository_filter
       preview_panel_viewer
       preview_panel_retention
@@ -129,6 +130,7 @@ module Syrus
       mentionable:              -> { Syrus::Plugin::Mentionable },
       chat_list_group:           -> { Syrus::Plugin::ChatListGroup },
       chat_result_decorator:      -> { Syrus::Plugin::ChatResultDecorator },
+      chat_identity_provider:     -> { Syrus::Plugin::ChatIdentityProvider },
       repository_filter:       -> { Syrus::Plugin::RepositoryFilter },
       preview_panel_viewer:    -> { Syrus::Plugin::PreviewPanelViewer },
       preview_panel_retention: -> { Syrus::Plugin::PreviewPanelRetention },
