@@ -165,6 +165,10 @@ RSpec.describe "Coworker chat surface" do
     expect(Epic.where(title: "Release readiness")).to be_empty
     expect(Job.where(issue_title: "Prepare release")).to be_empty
     expect(chat.pending_actions.where(action: "coworker_tool_call")).to be_empty
+
+    result = ChatEpicProposalMaterializer.new(user: owner).file!(proposal)
+    expect(result.epic).to have_attributes(proposer: coworker)
+    expect(result.jobs.sole).to have_attributes(proposer: coworker)
   end
 
   it "preserves proposal validation and repository visibility for coworkers" do

@@ -262,6 +262,7 @@ RSpec.describe "API: coworkers", type: :request do
 
     expect(response).to have_http_status(:ok)
     expect(proposal.reload).to have_attributes(state: "confirmed", proposer: coworker)
+    expect(proposal.job).to have_attributes(proposer: coworker)
     expect(response.parsed_body.dig("proposal", "proposer")).to eq(
       "type" => "coworker", "id" => coworker.id, "label" => "Maya", "handle" => "maya-proposer"
     )
