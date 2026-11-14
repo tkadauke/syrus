@@ -2,7 +2,10 @@ class Coworkers::ReviewPresentationContributor
   include Syrus::Plugin::ReviewPresentationContributor
 
   def self.target_editors
-    [ contribution("target_editor", "CoworkerTargetEditor", "review_target_editor") ]
+    [ contribution("target_editor", "CoworkerTargetEditor", "review_target_editor").merge(
+      trigger_kinds: %w[adversarial_review security_review coworker_review],
+      target_required: [ "coworker_review" ]
+    ) ]
   end
 
   def self.evidence_renderers
