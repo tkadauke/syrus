@@ -15,6 +15,10 @@ RSpec.describe App::JobDetailPayload do
     described_class.workflows(job: job, user: user)
   end
 
+  def provider_routing_payload_for(job)
+    described_class.provider_routing(job: job, user: user)
+  end
+
   def capture_sql
     queries = []
     callback = lambda do |_name, _started, _finished, _id, payload|
@@ -170,7 +174,7 @@ RSpec.describe App::JobDetailPayload do
       matched_scope: { "source_scope" => "job", "source_id" => job.id }
     )
 
-    expect(payload_for(job).dig(:job, :active_provider_routing_holds)).to contain_exactly(
+    expect(provider_routing_payload_for(job).fetch(:active_provider_routing_holds)).to contain_exactly(
       include(id: hold.id, workflow_id: workflow.id, reason: "Await approval", resumption_mode: "until_time", next_reevaluation_at: wake_at.iso8601)
     )
   end
