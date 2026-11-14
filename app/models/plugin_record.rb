@@ -1,4 +1,5 @@
 class PluginRecord < ApplicationRecord
+  after_commit -> { App::DashboardChromeCache.invalidate_all! }
   # Stamped here rather than in the enable action so every path that turns a
   # plugin on -- admin UI, cascade of a dependency, console, seeds -- records
   # it. Never cleared: "has been enabled here" is a fact about the instance's

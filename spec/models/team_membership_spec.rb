@@ -30,4 +30,13 @@ RSpec.describe TeamMembership do
 
     expect(membership).to be_valid
   end
+
+  it "invalidates dashboard chrome for the affected user after permission changes" do
+    membership = team.team_memberships.create!(user: user, role: "member")
+    allow(App::DashboardChromeCache).to receive(:invalidate_user!)
+
+    membership.update!(role: "owner")
+
+    expect(App::DashboardChromeCache).to have_received(:invalidate_user!).with(user.id)
+  end
 end

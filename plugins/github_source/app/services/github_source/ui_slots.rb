@@ -26,6 +26,7 @@ module GithubSource
           id: "github_source.untagged_issues",
           component: "github_source/UntaggedIssuesBanner",
           order: 10,
+          cacheable: false,
           props: {
             untagged_issues: {
               total: total,

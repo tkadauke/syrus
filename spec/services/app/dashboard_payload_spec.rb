@@ -2401,6 +2401,117 @@ RSpec.describe App::DashboardPayload, :ci_only do
     end
   end
 
+  describe "stable dashboard chrome caching" do
+    let(:cache_store) { ActiveSupport::Cache::MemoryStore.new }
+
+    before do
+      SmartFolder.ensure_builtins_for_subject!("job")
+      allow(Rails).to receive(:cache).and_return(cache_store)
+      allow(App::UiSlotsPayload).to receive(:panels_for) do |context:, cacheable:, **|
+        cacheable ? [ { id: "notice-#{context.fetch(:user).id}", component: "test/Notice" } ] : []
+      end
+    end
+
+    it "returns equivalent cached and uncached chrome while building stable chrome once" do
+      builds = 0
+      allow_any_instance_of(described_class).to receive(:build_stable_chrome_payload).and_wrap_original do |method|
+        builds += 1
+        method.call
+      end
+
+      uncached = call(subject: "job", section: "chrome")
+      cached = call(subject: "job", section: "chrome")
+
+      expect(cached).to eq(uncached)
+      expect(builds).to eq(1)
+    end
+
+    it "rebuilds volatile plugin panels without rebuilding stable chrome" do
+      volatile_revision = 0
+      allow(App::UiSlotsPayload).to receive(:panels_for) do |cacheable:, **|
+        if cacheable
+          [ { id: "stable", component: "test/Stable", order: 20 } ]
+        else
+          volatile_revision += 1
+          [ { id: "volatile-#{volatile_revision}", component: "test/Volatile", order: 10 } ]
+        end
+      end
+      builds = 0
+      allow_any_instance_of(described_class).to receive(:build_stable_chrome_payload).and_wrap_original do |method|
+        builds += 1
+        method.call
+      end
+
+      first = call(subject: "job", section: "chrome")
+      second = call(subject: "job", section: "chrome")
+
+      expect(first.fetch(:ui_panels).map { |panel| panel.fetch(:id) }).to eq(%w[volatile-1 stable])
+      expect(second.fetch(:ui_panels).map { |panel| panel.fetch(:id) }).to eq(%w[volatile-2 stable])
+      expect(builds).to eq(1)
+    end
+
+    it "rotates stable cache keys when preferences, folders, permissions, plugins, or repositories change" do
+      plugin = PluginRecord.find_or_create_by!(name: "dashboard-cache-spec")
+      folder = SmartFolder.create!(
+        user: user,
+        subject_type: "job",
+        kind: "user_defined",
+        name: "Mine",
+        filter: { "and" => [] }
+      )
+      builds = 0
+      allow_any_instance_of(described_class).to receive(:build_stable_chrome_payload).and_wrap_original do |method|
+        builds += 1
+        method.call
+      end
+
+      call(subject: "job", section: "chrome")
+      call(subject: "job", section: "chrome")
+      expect(builds).to eq(1)
+
+      user.update_dashboard_columns!(subject: "job", columns: %w[priority])
+      user.reload
+      call(subject: "job", section: "chrome")
+      expect(builds).to eq(2)
+
+      folder.update!(name: "My work")
+      call(subject: "job", section: "chrome")
+      expect(builds).to eq(3)
+
+      repo.membership_for(user).update!(role: "write")
+      call(subject: "job", section: "chrome")
+      expect(builds).to eq(4)
+
+      plugin.update!(config: { "banner" => true })
+      call(subject: "job", section: "chrome")
+      expect(builds).to eq(5)
+
+      repo.update!(trigger_label: "dashboard-cache-spec")
+      call(subject: "job", section: "chrome")
+      expect(builds).to eq(6)
+    end
+
+    it "isolates stable chrome by user and keeps volatile counts fresh" do
+      other_user = Factories.user
+      Factories.repository(user: other_user, owner: "other", name: "dashboard-cache")
+
+      first = call(subject: "job", section: "chrome")
+      Factories.job_record(user: user, repository: repo, state: "queued")
+      user.update_columns(landing_paused: true)
+      second = call(subject: "job", section: "chrome")
+      other = described_class.call(
+        user: other_user,
+        params: ActionController::Parameters.new(subject: "job", section: "chrome")
+      )
+
+      expect(second.dig(:counts, :jobs)).to eq(first.dig(:counts, :jobs) + 1)
+      expect(first.dig(:landing_queue, :paused)).to be(false)
+      expect(second.dig(:landing_queue, :paused)).to be(true)
+      expect(first.fetch(:ui_panels).sole.fetch(:id)).to eq("notice-#{user.id}")
+      expect(other.fetch(:ui_panels).sole.fetch(:id)).to eq("notice-#{other_user.id}")
+    end
+  end
+
   describe "job bulk action eligibility" do
     it "exposes per-row bulk actions that match dashboard mutation eligibility" do
       repo.update!(auto_merge_enabled: true)

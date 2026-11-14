@@ -28,6 +28,7 @@ module App
     PER_PAGE = 25
     KANBAN_LIMIT_OPTIONS = [ 10, 25, 50, 100 ].freeze
     KANBAN_PER_PAGE = 25
+    STABLE_CHROME_CACHE_VERSION = 1
     JOB_KANBAN_LANES = %w[backlog blocked queued running succeeded landing failed].freeze
     WORKFLOW_DONE_STATES = %w[succeeded failed cancelled blocked].freeze
     class InvalidScope < StandardError; end
@@ -62,7 +63,15 @@ module App
 
     def chrome_payload
       health_blocked_repositories = PerformanceLogging.phase("dashboard_chrome.health_blocked_repositories", subject: subject) { health_blocked_repositories_json }
+      stable = stable_chrome_payload
+      ui_panels = (stable.fetch(:ui_panels) + volatile_ui_panels_json).sort_by { |panel| panel[:order].to_i }
 
+      volatile_chrome_payload(health_blocked_repositories)
+        .merge(stable)
+        .merge(ui_panels: ui_panels)
+    end
+
+    def volatile_chrome_payload(health_blocked_repositories)
       {
         subject: subject,
         view: view,
@@ -70,18 +79,33 @@ module App
         per_page: PER_PAGE,
         counts: PerformanceLogging.phase("dashboard_chrome.counts", subject: subject) { counts },
         ownership_scope: PerformanceLogging.phase("dashboard_chrome.ownership_scope", subject: subject) { ownership_scope_json },
-        preferences: PerformanceLogging.phase("dashboard_chrome.preferences", subject: subject) { preferences_json },
         ownership: PerformanceLogging.phase("dashboard_chrome.ownership", subject: subject) { ownership_json },
         filter: smart_folder_resolution.filter.to_h,
         landing_queue: PerformanceLogging.phase("dashboard_chrome.landing_queue", subject: subject) { landing_queue_json },
         provider_availability: PerformanceLogging.phase("dashboard_chrome.provider_availability", subject: subject) { provider_availability_by_provider },
         health_blocked_repositories: health_blocked_repositories,
-        ui_panels: PerformanceLogging.phase("dashboard_chrome.ui_panels", subject: subject) { ui_panels_json },
         smart_folders: PerformanceLogging.phase("dashboard_chrome.smart_folders", subject: subject) { smart_folders_json },
         active_smart_folder_id: smart_folder_resolution.active_smart_folder_id,
         active_smart_folder_filter: active_smart_folder&.filter,
-        setup: PerformanceLogging.phase("dashboard_chrome.setup", subject: subject) { ::App::SetupStatus.call(user: user) },
-        paths: paths_json
+        setup: PerformanceLogging.phase("dashboard_chrome.setup", subject: subject) { ::App::SetupStatus.call(user: user) }
+      }
+    end
+
+    def stable_chrome_payload
+      PerformanceLogging.phase("dashboard_chrome.stable", subject: subject) do
+        Rails.cache.fetch(stable_chrome_cache_key, expires_in: 1.hour) do
+          PerformanceLogging.phase("dashboard_chrome.stable.build", subject: subject) do
+            build_stable_chrome_payload
+          end
+        end
+      end
+    end
+
+    def build_stable_chrome_payload
+      {
+        preferences: PerformanceLogging.phase("dashboard_chrome.preferences", subject: subject) { preferences_json },
+        ui_panels: PerformanceLogging.phase("dashboard_chrome.ui_panels", subject: subject) { ui_panels_json },
+        paths: PerformanceLogging.phase("dashboard_chrome.paths", subject: subject) { paths_json }
       }
     end
 
@@ -117,6 +141,25 @@ module App
     private
 
     attr_reader :user, :params
+
+    # Stable chrome can vary with preferences, saved folders, permission grants,
+    # repository/plugin configuration, and the selected folder's plugin context.
+    # Folding each source revision into the key gives those mutations explicit,
+    # targeted invalidation without flushing unrelated users' dashboard caches.
+    def stable_chrome_cache_key
+      [
+        "dashboard_chrome_stable",
+        STABLE_CHROME_CACHE_VERSION,
+        ENV.fetch("GIT_SHA", "dev"),
+        user.id,
+        ::App::DashboardChromeCache.revision_for(user),
+        subject,
+        view,
+        ownership_scope,
+        selected_owner_user&.id,
+        active_smart_folder&.id
+      ]
+    end
 
     def provider_availability_by_provider
       @provider_availability_by_provider ||= PerformanceLogging.phase("dashboard_provider_availability.all_for_user") do
@@ -193,8 +236,19 @@ module App
     def ui_panels_json
       @ui_panels_json ||= core_ui_panels_json + ::App::UiSlotsPayload.panels_for(
         slot: "dashboard.jobs.notice",
-        context: ui_panel_context
+        context: ui_panel_context,
+        cacheable: true
       )
+    end
+
+    def volatile_ui_panels_json
+      PerformanceLogging.phase("dashboard_chrome.ui_panels.volatile", subject: subject) do
+        ::App::UiSlotsPayload.panels_for(
+          slot: "dashboard.jobs.notice",
+          context: ui_panel_context,
+          cacheable: false
+        )
+      end
     end
 
     def ui_panel_context

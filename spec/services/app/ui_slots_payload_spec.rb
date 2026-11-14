@@ -54,6 +54,21 @@ RSpec.describe App::UiSlotsPayload do
     expect(described_class.panels_for(slot: "repository.detail").map { |p| p[:id] }).to eq(%w[a b])
   end
 
+  it "filters cacheable and volatile panels when the host partitions its payload" do
+    register(provider({
+      "dashboard.jobs.notice" => [
+        { id: "stable", component: "x/Stable" },
+        { id: "volatile", component: "x/Volatile", cacheable: false }
+      ]
+    }))
+
+    stable = described_class.panels_for(slot: "dashboard.jobs.notice", cacheable: true)
+    volatile = described_class.panels_for(slot: "dashboard.jobs.notice", cacheable: false)
+
+    expect(stable.map { |panel| panel.fetch(:id) }).to eq([ "stable" ])
+    expect(volatile.map { |panel| panel.fetch(:id) }).to eq([ "volatile" ])
+  end
+
   it "omits panels from a disabled plugin" do
     klass = provider({ "repository.detail" => [ { id: "throughput", component: "throughput/Panel" } ] })
     register(klass)
