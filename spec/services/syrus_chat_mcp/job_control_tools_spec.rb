@@ -89,6 +89,22 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     expect(job.reload).to be_open
   end
 
+  it "rechecks cancellation safety after locking a stale Job" do
+    job = Factories.job_record(repository: repository, state: "implemented")
+    body = payload(call_tool("cancel_job", job_id: job.id, reason: "No longer needed."))
+    pending_action = chat_session.pending_actions.find(body.fetch(:pending_confirmation_id))
+
+    allow_any_instance_of(Job).to receive(:lock!) do |locked_job|
+      locked_job.update_column(:landed_sha, "landed-while-confirming")
+      locked_job.reload
+    end
+
+    expect { pending_action.confirm!(user: user) }
+      .to raise_error(ArgumentError, "#{job.slug} has landing or deployment evidence and cannot be cancelled.")
+    expect(job.reload).to be_implemented
+    expect(StateTransition.for_subject(job).where(to_state: "closed")).to be_empty
+  end
+
   it "does not execute unland_job or unland_epic while the flag is off" do
     job = Factories.job_record(repository: repository, state: "closed", closure_reason: "pr_merged", landed_sha: "abc")
     epic = Factories.epic(user: user, repository: repository, state: "done")

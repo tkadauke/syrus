@@ -5,18 +5,13 @@ module PendingActions
     repairs_job!
 
     def execute
-      eligibility = JobCancellationEligibility.call(job: action_job)
-      raise ArgumentError, eligibility.message unless eligibility.eligible?
-      if action_job.landed_sha.present? || action_job.deployment_stage_statuses.exists?
-        raise ArgumentError, "#{action_job.slug} has landing or deployment evidence and cannot be cancelled."
-      end
-
       canonical_job = accessible_canonical_job
 
       progress!("Cancelling active work for #{action_job.slug}...")
       StateTransition.with_source("operator", user:, reason: closure_reason(canonical_job), metadata: audit_metadata(canonical_job)) do
         action_job.transaction do
           action_job.lock!
+          validate_cancellable!
           action_job.cancel_active_execution!
           action_job.update!(canonical_job: canonical_job)
           action_job.close_with_reason!(closure_reason(canonical_job))
@@ -57,6 +52,14 @@ module PendingActions
     end
 
     def closure_reason(canonical_job) = canonical_job ? "duplicate" : "cancelled"
+
+    def validate_cancellable!
+      eligibility = JobCancellationEligibility.call(job: action_job)
+      raise ArgumentError, eligibility.message unless eligibility.eligible?
+      if action_job.landed_sha.present? || action_job.deployment_stage_statuses.exists?
+        raise ArgumentError, "#{action_job.slug} has landing or deployment evidence and cannot be cancelled."
+      end
+    end
 
     def audit_metadata(canonical_job)
       actor = action.subject || user
