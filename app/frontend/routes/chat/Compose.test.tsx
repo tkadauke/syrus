@@ -238,12 +238,14 @@ describe("pending action carousel", () => {
     expect(screen.queryByText("Deploy service")).not.toBeInTheDocument()
     expect(screen.getByText("Pending actions · 1 of 2")).toHaveClass("truncate", "whitespace-nowrap")
     expect(screen.queryByRole("button", { name: "Next pending action" })).not.toBeInTheDocument()
+    fireEvent.keyDown(screen.getByTestId("pending-action-carousel"), { key: "ArrowRight" })
 
     const expand = screen.getByRole("button", { name: "Expand pending actions" })
     expect(expand).toHaveAttribute("aria-expanded", "false")
     fireEvent.click(expand)
 
     expect(screen.getByText("Deploy service")).toBeInTheDocument()
+    expect(screen.queryByText("Restart worker")).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Next pending action" })).toBeInTheDocument()
   })
 })
