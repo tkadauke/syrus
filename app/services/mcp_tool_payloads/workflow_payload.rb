@@ -8,17 +8,17 @@ module McpToolPayloads
       payload[:cancellation].nil? ? payload.except(:cancellation) : payload
     end
 
-    def workflow_index_payload(workflow)
-      runs = workflow_step_runs(workflow)
-      latest_run = latest_run_for(runs)
+    def workflow_index_payload(workflow, step_count: nil, run_count: nil, latest_run: nil)
+      runs = workflow_step_runs(workflow) if step_count.nil? || run_count.nil?
+      latest_run ||= latest_run_for(runs || [])
       {
         id: workflow.id,
         trigger_kind: workflow.trigger_kind,
         state: workflow.state,
         planned_execution: workflow.planned_execution_json,
         summary: text_snippet(workflow.artifact("summary").presence || latest_run&.agent_summary, 300),
-        step_count: workflow.steps.size,
-        run_count: runs.size,
+        step_count: step_count || workflow.steps.size,
+        run_count: run_count || runs.size,
         created_at: workflow.created_at&.iso8601,
         started_at: workflow.started_at&.iso8601,
         finished_at: workflow.finished_at&.iso8601,
@@ -26,11 +26,50 @@ module McpToolPayloads
       }.then { |h| without_blank_cancellation(h) }
     end
 
+    # Builds workflow index entries without eager-loading the Step/Run graph.
+    # In particular, no query selects Run prompts or either diff artifact.
+    def workflow_index_for(job)
+      workflows = job.workflows
+        .select(:id, :job_id, :trigger_kind, :state, :planned_execution_project_label,
+                :planned_execution_target_label, :planned_execution_capabilities, :planned_execution_source,
+                :created_at, :started_at, :finished_at)
+        .reorder(created_at: :desc, id: :desc)
+        .to_a
+      workflow_ids = workflows.map(&:id)
+      return [] if workflow_ids.empty?
+
+      step_counts = Step.where(workflow_id: workflow_ids).group(:workflow_id).count
+      run_counts = Run.joins(:step).where(steps: { workflow_id: workflow_ids }).group("steps.workflow_id").count
+      latest_runs = latest_index_runs(workflow_ids)
+      workflows_by_id = workflows.index_by(&:id)
+      WorkflowArtifactValue.where(workflow_id: workflow_ids, key: %w[summary cancellation])
+        .select(:id, :workflow_id, :key, :value)
+        .load
+        .group_by(&:workflow_id)
+        .each do |workflow_id, values|
+          workflows_by_id[workflow_id]
+            &.association(:workflow_artifact_values)&.target&.concat(values)
+        end
+      workflows.each { |workflow| workflow.association(:workflow_artifact_values).loaded! }
+
+      workflows.map do |workflow|
+        workflow_index_payload(
+          workflow,
+          step_count: step_counts.fetch(workflow.id, 0),
+          run_count: run_counts.fetch(workflow.id, 0),
+          latest_run: latest_runs[workflow.id]
+        )
+      end
+    end
+
     # Brief summary payload used in read_job's latest_workflow field.
     def workflow_summary_payload(workflow)
       return nil unless workflow
 
-      latest_run = workflow.runs.last
+      latest_run = workflow.runs
+        .select(:id, :step_id, :agent_summary, :created_at)
+        .reorder(created_at: :desc, id: :desc)
+        .first
       {
         id: workflow.id,
         trigger_kind: workflow.trigger_kind,
@@ -61,6 +100,15 @@ module McpToolPayloads
     # The most recently created run in a flat runs list.
     def latest_run_for(runs)
       runs.max_by { |run| [ run.created_at || Time.at(0), run.id || 0 ] }
+    end
+
+    def latest_index_runs(workflow_ids)
+      ranked = Run.joins(:step)
+        .where(steps: { workflow_id: workflow_ids })
+        .select("runs.id, runs.step_id, runs.agent_summary, runs.created_at, " \
+                "steps.workflow_id, ROW_NUMBER() OVER " \
+                "(PARTITION BY steps.workflow_id ORDER BY runs.created_at DESC, runs.id DESC) AS workflow_row_number")
+      Run.from("(#{ranked.to_sql}) runs").where(workflow_row_number: 1).index_by { |run| run[:workflow_id] }
     end
 
     # Truncate text to a character count, returning nil if blank after truncation.

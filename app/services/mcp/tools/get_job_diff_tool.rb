@@ -7,11 +7,13 @@ module Mcp::Tools
 
     tool_name "get_job_diff"
 
-    description "Read the latest stored agent diff for a Job in this chat session's repository."
+    description "Read a paginated stored Run diff for a Job, preferring the per-step artifact by default."
 
     input_schema(
       properties: {
         job_id: { type: "integer", description: "Syrus Job id." },
+        run_id: { type: "integer", description: "Optional Run id. It must belong to the Job." },
+        artifact: { type: "string", enum: %w[preferred step_agent_diff agent_diff], description: "Diff artifact. Defaults to preferred (step diff, then cumulative diff)." },
         page: { type: "integer", description: "Diff page number. Defaults to 1." },
         per_bytes: { type: "integer", description: "Maximum diff bytes per page. Defaults to 51200 and is capped at 51200." }
       },
@@ -22,7 +24,7 @@ module Mcp::Tools
     MAX_DIFF_BYTES = 50.kilobytes
 
     class << self
-      def call(job_id:, server_context:, page: 1, per_bytes: DEFAULT_DIFF_BYTES)
+      def call(job_id:, server_context:, page: 1, per_bytes: DEFAULT_DIFF_BYTES, run_id: nil, artifact: "preferred")
         chat_session = server_context.fetch(:chat_session)
         job = find_job!(job_id)
         context = McpToolContext.from_server_context(server_context)
@@ -31,19 +33,22 @@ module Mcp::Tools
           return access if access.is_a?(MCP::Tool::Response)
         end
 
-        run = job.latest_workflow&.runs&.order(created_at: :desc, id: :desc)&.first
-        diff = run&.agent_diff.to_s
+        return Mcp::Tools.invalid("artifact must be preferred, step_agent_diff, or agent_diff") unless artifact.in?(%w[preferred step_agent_diff agent_diff])
+
+        run = selected_run(job, run_id:, artifact:)
+        selected_artifact, diff = selected_diff(run, artifact)
         if diff.blank?
           return Mcp::Tools.success(
             job_id: job.id,
             run_id: run&.id,
+            artifact_type: selected_artifact,
             diff: nil,
             page: normalize_page(page),
             per_bytes: normalize_per_bytes(per_bytes),
             total_bytes: 0,
             total_pages: 0,
             has_next_page: false,
-            message: "No stored diff is available for this Job yet."
+            message: run_id ? "The requested Run has no #{artifact.tr('_', ' ')} artifact." : "No stored diff is available for this Job yet."
           )
         end
 
@@ -59,6 +64,12 @@ module Mcp::Tools
         Mcp::Tools.success(
           job_id: job.id,
           run_id: run.id,
+          step_kind: run.step&.kind,
+          step_iteration: run.step&.iteration,
+          artifact_type: selected_artifact,
+          byte_count: total_bytes,
+          base_sha: run.base_sha,
+          head_sha: run.head_sha,
           diff: chunk,
           page: page,
           per_bytes: per_bytes,
@@ -72,6 +83,32 @@ module Mcp::Tools
       end
 
       private
+
+      def selected_run(job, run_id:, artifact:)
+        return job.runs.includes(:step, :run_diff).find(run_id) if run_id.present?
+
+        scope = job.runs.joins(:run_diff).includes(:step, :run_diff)
+        scope = case artifact
+        when "step_agent_diff"
+          scope.where.not(run_diffs: { step_agent_diff: [ nil, "" ] })
+        when "agent_diff"
+          scope.where.not(run_diffs: { agent_diff: [ nil, "" ] })
+        else
+          scope.where("NULLIF(run_diffs.step_agent_diff, '') IS NOT NULL OR NULLIF(run_diffs.agent_diff, '') IS NOT NULL")
+        end
+        scope.reorder(created_at: :desc, id: :desc).first
+      end
+
+      def selected_diff(run, artifact)
+        return [ artifact == "preferred" ? nil : artifact, nil ] unless run
+
+        case artifact
+        when "step_agent_diff" then [ artifact, run.step_agent_diff ]
+        when "agent_diff" then [ artifact, run.agent_diff ]
+        else
+          run.step_agent_diff.present? ? [ "step_agent_diff", run.step_agent_diff ] : [ "agent_diff", run.agent_diff ]
+        end
+      end
 
       def normalize_page(value)
         [ value.to_i, 1 ].max
