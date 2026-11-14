@@ -13,6 +13,7 @@ class Coworkers::ConflictResolver
   CONTEXT_FILE_BYTES = 8.kilobytes
   STAGE_BYTES = 24.kilobytes
   MARKER_START = /^<{7}(?: |$)/
+  MARKER_MIDDLE = /^={7}$/
   MARKER_END = /^>{7}(?: |$)/
 
   Outcome = Data.define(:resolved, :detail, :attempts, :files, :home_sha, :source_sha) do
@@ -85,7 +86,7 @@ class Coworkers::ConflictResolver
       next false unless file.file? && !file.symlink?
 
       content = File.binread(file).force_encoding(Encoding::UTF_8).scrub
-      !content.include?("\0") && (content.match?(MARKER_START) || content.match?(MARKER_END))
+      !content.include?("\0") && [ MARKER_START, MARKER_MIDDLE, MARKER_END ].any? { |marker| content.match?(marker) }
     end
   end
 

@@ -104,8 +104,8 @@ RSpec.describe Coworkers::ConflictResolver, :allow_host_execution do
     expect(git("log", "-1", "--format=%P").split.size).to eq(2)
   end
 
-  it "rejects a lone opening marker or lone closing marker" do
-    [ "a\n<<<<<<< HEAD\nHOME\nc\n", "a\nHOME\n>>>>>>> source\nc\n" ].each do |bad|
+  it "rejects any lone conflict marker" do
+    [ "a\n<<<<<<< HEAD\nHOME\nc\n", "a\nHOME\n=======\nc\n", "a\nHOME\n>>>>>>> source\nc\n" ].each do |bad|
       described_class.agent = lambda do |workspace_path:, prompt:|
         Pathname(workspace_path).join("notes.md").write(bad)
         ok
