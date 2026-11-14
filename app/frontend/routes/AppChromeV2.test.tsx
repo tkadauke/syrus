@@ -1080,7 +1080,7 @@ describe("AppChromeV2", () => {
 
   it("does not reuse an unstarted chat from a filtered recent-chat cache", async () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    queryClient.setQueryData(recentChatsQueryKey({ status: "hidden" }), {
+    queryClient.setQueryData(recentChatsQueryKey({ show_archived: true }), {
       groups: [
         chatGroup({
           chats: [

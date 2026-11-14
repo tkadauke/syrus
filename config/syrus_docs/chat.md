@@ -265,13 +265,11 @@ Coworkers that are neither the chat's implicit coworker nor on its roster are
 not resolved, rendered, notified, or run. All turns in one chat share the same
 serialized chat-turn concurrency lane.
 
-Delete and clear-history mutate the shared conversation and are therefore
-owner-only, as is the session-level sidebar pin. Hide/unhide is instead a
-per-participant preference stored on `ChatParticipant#hidden_at`: hiding a
-group chat removes it only from that participant's sidebar, search, slug
-resolution, and chat MCP listings, without changing what other participants
-see. The Hidden chats settings list and restore action use the same
-participant-local state.
+Archive and clear-history mutate the shared conversation and are therefore
+owner-only, as is the session-level sidebar pin. Archiving soft-deletes the
+chat, removes its active workspace, and stops in-flight work. Archived chats
+are omitted from the sidebar by default; enable **Show archived chats** in the
+recent-chat sidebar settings to include labeled, non-navigable archive rows.
 
 The recent-chat sidebar also summarizes Jobs created from confirmed proposals
 in a chat and Jobs for which that chat is the earliest active discussion

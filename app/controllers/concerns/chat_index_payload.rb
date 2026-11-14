@@ -56,6 +56,7 @@ module ChatIndexPayload
 
       {
         status: status,
+        include_archived: ActiveModel::Type::Boolean.new.cast(params[:include_archived]),
         group_by: group_by,
         chat_types: chat_types,
         apply_chat_type_filter: chat_type_feature_visible? || params.key?(:chat_types),
@@ -190,6 +191,7 @@ module ChatIndexPayload
         conversation_kind: chat_session.conversation_kind,
         mode: chat_session.mode,
         chat_path: chat_path(chat_session),
+        archived_at: chat_session.deleted_at&.iso8601,
         repository: repository ? repository_json(repository).merge(repository_path: repository_path(repository)) : nil,
         turn_in_flight: chat_session.turn_in_flight?,
         agent_busy: context.fetch(:agent_busy_ids).include?(chat_session.id),
@@ -329,7 +331,7 @@ module ChatIndexPayload
       start_at = zone.local(first_date.year, first_date.month, first_date.day)
       end_date = last_date.next_day
       end_at = zone.local(end_date.year, end_date.month, end_date.day)
-      chats_by_date = chat_index_base_scope.active.ordinary_chats
+      chats_by_date = chat_index_base_scope.ordinary_chats
         .where("#{chat_activity_order_sql} >= ? AND #{chat_activity_order_sql} < ?", start_at, end_at)
         .order(Arel.sql(chat_index_order_sql))
         .preload(*chat_repository_preloads)
@@ -376,9 +378,7 @@ module ChatIndexPayload
   end
 
   def chat_index_initial_group_rows
-    ranked_scope = chat_index_base_scope
-      .active
-      .ordinary_chats
+    ranked_scope = chat_index_base_scope.ordinary_chats
     ranked_scope = ranked_scope.left_outer_joins(:repository_attachments) if chat_index_settings.fetch(:group_by) == "repository"
     repository_id_sql = chat_index_settings.fetch(:group_by) == "repository" ? "chat_attachments.attachable_id" : "NULL"
     ranked_scope = ranked_scope
@@ -407,7 +407,7 @@ module ChatIndexPayload
     @chat_index_group_page ||= begin
       date_grouping = chat_index_settings.fetch(:group_by) == "date"
       keys = if date_grouping
-        chat_index_base_scope.active.ordinary_chats
+        chat_index_base_scope.ordinary_chats
           .pluck(:last_message_at, :created_at)
           .map { |last_message_at, created_at| (last_message_at || created_at).in_time_zone(Current.user.time_zone).to_date.iso8601 }
           .uniq
@@ -426,9 +426,7 @@ module ChatIndexPayload
   end
 
   def chat_index_group_page_sql
-    grouped_scope = chat_index_base_scope
-      .active
-      .ordinary_chats
+    grouped_scope = chat_index_base_scope.ordinary_chats
     grouped_scope = grouped_scope.left_outer_joins(:repository_attachments) if chat_index_settings.fetch(:group_by) == "repository"
     grouped_scope = grouped_scope
       .reselect(Arel.sql(<<~SQL.squish))
@@ -450,7 +448,7 @@ module ChatIndexPayload
     when "repository"
       "active_at DESC, group_key ASC"
     when "status"
-      "CASE group_key WHEN 'active' THEN 0 WHEN 'hidden' THEN 1 ELSE 9 END ASC"
+      "CASE group_key WHEN 'active' THEN 0 WHEN 'hidden' THEN 1 WHEN 'archived' THEN 2 ELSE 9 END ASC"
     when "mode"
       mode_order = ChatSession::MODES.each_with_index.map do |mode, index|
         "WHEN #{ActiveRecord::Base.connection.quote(mode)} THEN #{index}"
@@ -492,9 +490,7 @@ module ChatIndexPayload
       return plugin_chat_group_scope(group)
     end
 
-    scope = chat_index_base_scope
-      .active
-      .ordinary_chats
+    scope = chat_index_base_scope.ordinary_chats
       .order(Arel.sql(chat_index_order_sql))
     scope = scope.left_outer_joins(:repository_attachments) if group_by == "repository"
 
@@ -525,6 +521,7 @@ module ChatIndexPayload
     else
       scope.where(chat_participants: { hidden_at: nil })
     end
+    scope = scope.active unless chat_index_settings.fetch(:include_archived)
 
     if chat_index_settings.fetch(:unread_only)
       active_chat_id = chat_index_settings.fetch(:active_chat_id)
@@ -577,7 +574,6 @@ module ChatIndexPayload
     chat_index_filtered_scope
       .where.not(id: Current.user.received_chat_shares.select(:chat_session_id))
       .where(id: group.fetch(:chat_session_ids))
-      .active
       .ordinary_chats
       .order(Arel.sql(chat_index_order_sql))
   end
@@ -617,11 +613,11 @@ module ChatIndexPayload
   end
 
   def chat_index_shared_scope
-    invocation_scoped_chat_scope(Current.user.accessible_chat_sessions)
+    scope = invocation_scoped_chat_scope(Current.user.accessible_chat_sessions)
       .where(id: Current.user.received_chat_shares.select(:chat_session_id))
-      .active
       .ordinary_chats
       .order(Arel.sql(chat_index_order_sql))
+    chat_index_settings.fetch(:include_archived) ? scope : scope.active
   end
 
   def chat_index_group_spec_for(group_key, repository_id:, repositories_by_id:)
@@ -679,7 +675,7 @@ module ChatIndexPayload
     when "date"
       chat_index_date_label(group_key)
     when "status"
-      { "unread" => "Unread", "hidden" => "Hidden", "active" => "Active" }.fetch(group_key, group_key.to_s.titleize)
+      { "unread" => "Unread", "hidden" => "Hidden", "archived" => "Archived", "active" => "Active" }.fetch(group_key, group_key.to_s.titleize)
     when "mode"
       CHAT_INDEX_MODE_LABELS.fetch(group_key, group_key.to_s.titleize)
     when "chat_type"
@@ -707,7 +703,7 @@ module ChatIndexPayload
     when "repository"
       groups.sort_by { |group| [ group.fetch(:chats).empty? ? 1 : 0, -(group.delete(:active_at)&.to_i || 0), group.fetch(:label).downcase ] }
     when "status"
-      order = { "status-unread" => 0, "status-active" => 1, "status-hidden" => 2 }
+      order = { "status-unread" => 0, "status-active" => 1, "status-hidden" => 2, "status-archived" => 3 }
       groups.sort_by { |group| [ order.fetch(group.fetch(:key), 9), group.fetch(:chats).empty? ? 1 : 0 ] }
     when "mode"
       order = ChatSession::MODES.each_with_index.to_h { |mode, index| [ "mode-#{mode}", index ] }
@@ -737,7 +733,7 @@ module ChatIndexPayload
     {
       "date" => "DATE(#{chat_activity_order_sql})",
       "repository" => "COALESCE(CAST(chat_attachments.attachable_id AS CHAR), 'general')",
-      "status" => "CASE WHEN chat_participants.hidden_at IS NOT NULL THEN 'hidden' WHEN #{chat_index_unread_sql} THEN 'unread' ELSE 'active' END",
+      "status" => "CASE WHEN chat_sessions.deleted_at IS NOT NULL THEN 'archived' WHEN chat_participants.hidden_at IS NOT NULL THEN 'hidden' WHEN #{chat_index_unread_sql} THEN 'unread' ELSE 'active' END",
       "mode" => "COALESCE(chat_sessions.mode, 'planning')",
       "chat_type" => chat_index_chat_type_sql,
       "agent" => chat_index_agent_sql
@@ -748,7 +744,7 @@ module ChatIndexPayload
     {
       "date" => "DATE(#{chat_activity_order_sql}) = ?",
       "repository" => "COALESCE(CAST(chat_attachments.attachable_id AS CHAR), 'general') = ?",
-      "status" => "CASE WHEN chat_participants.hidden_at IS NOT NULL THEN 'hidden' WHEN #{chat_index_unread_sql} THEN 'unread' ELSE 'active' END = ?",
+      "status" => "CASE WHEN chat_sessions.deleted_at IS NOT NULL THEN 'archived' WHEN chat_participants.hidden_at IS NOT NULL THEN 'hidden' WHEN #{chat_index_unread_sql} THEN 'unread' ELSE 'active' END = ?",
       "mode" => "COALESCE(chat_sessions.mode, 'planning') = ?",
       "chat_type" => "#{chat_index_chat_type_sql} = ?",
       "agent" => "#{chat_index_agent_sql} = ?"
@@ -784,9 +780,13 @@ module ChatIndexPayload
   end
 
   def chat_index_empty_status_groups
-    return %w[unread active hidden] if chat_index_settings.fetch(:status) == "all"
-
-    [ "unread", chat_index_settings.fetch(:status) ].uniq
+    groups = if chat_index_settings.fetch(:status) == "all"
+      %w[unread active hidden]
+    else
+      [ "unread", chat_index_settings.fetch(:status) ].uniq
+    end
+    groups << "archived" if chat_index_settings.fetch(:include_archived)
+    groups
   end
 
   def chat_index_unread_sql

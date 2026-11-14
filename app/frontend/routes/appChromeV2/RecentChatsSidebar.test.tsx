@@ -309,6 +309,17 @@ describe("RecentChatsSidebar settings", () => {
     expect(screen.getByRole("switch", { name: "Unread only" })).toHaveAttribute("aria-checked", "true")
   })
 
+  it("includes archived chats when the sidebar setting is enabled", async () => {
+    renderSidebar([])
+    fireEvent.click(await screen.findByRole("button", { name: "Recent chats settings" }))
+    fireEvent.click(screen.getByRole("switch", { name: "Show archived chats" }))
+
+    await waitFor(() => {
+      expect(JSON.parse(window.localStorage.getItem("syrus.recent_chats_sidebar.settings") || "{}")).toMatchObject({ show_archived: true })
+    })
+    expect(screen.getByRole("switch", { name: "Show archived chats" })).toHaveAttribute("aria-checked", "true")
+  })
+
   it("refetches with selected settings and uses the same page size for show more", async () => {
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input) => {
       const path = String(input)
@@ -1019,8 +1030,19 @@ describe("RecentChatsSidebar action and marker slot", () => {
     fireEvent.click(screen.getByRole("button", { name: "Chat actions for Chat" }))
 
     expect(screen.queryByRole("button", { name: "Pin" })).not.toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Hide Chat" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Archive Chat" })).not.toBeInTheDocument()
+  })
+
+  it("labels archived chats and prevents opening their removed workspace", () => {
+    renderSidebar([chatNav({ id: 7, title: "Past planning", archived_at: "2026-11-14T12:00:00Z" })])
+
+    const archived = screen.getByRole("link", { name: "Past planning" })
+    expect(archived).toHaveAttribute("aria-disabled", "true")
+    expect(screen.getByText("Archived")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Chat actions for Past planning" })).not.toBeInTheDocument()
+
+    fireEvent.click(archived)
+    expect(screen.getByTestId("location")).toHaveTextContent("/")
   })
 
   it("uses the same fixed-width slot for section controls, markers, and row actions", () => {
@@ -1219,8 +1241,7 @@ describe("RecentChatsSidebar group chat ownership", () => {
     fireEvent.click(screen.getByRole("button", { name: "Chat actions for Shared chat" }))
 
     expect(screen.queryByRole("button", { name: "Pin" })).not.toBeInTheDocument()
-    expect(screen.queryByRole("button", { name: "Delete Chat" })).not.toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Hide Chat" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Archive Chat" })).not.toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Mark as unread" })).toBeInTheDocument()
   })
 })
