@@ -38,7 +38,10 @@ function decodeFilter(encoded: string) {
 }
 
 function encodeFilter(filter: object) {
-  return btoa(unescape(encodeURIComponent(JSON.stringify(filter)))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")
+  return btoa(unescape(encodeURIComponent(JSON.stringify(filter))))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "")
 }
 
 afterEach(() => {
