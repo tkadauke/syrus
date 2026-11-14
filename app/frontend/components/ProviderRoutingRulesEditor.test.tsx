@@ -27,9 +27,10 @@ const options: ProviderRoutingOptions = {
     step_kinds: [
       { value: "implement", label: "Implement" },
       { value: "rebase", label: "Rebase" },
-      { value: "adversarial_review", label: "Adversarial review", panel_capable: true, reviewer_target_capable: true },
-      { value: "security_review", label: "Security review", panel_capable: true, reviewer_target_capable: true },
-      { value: "coworker_review", label: "Coworker review", panel_capable: true, reviewer_target_capable: true }
+      { value: "adversarial_review", label: "Adversarial review", panel_capable: true },
+      { value: "security_review", label: "Security review", panel_capable: true },
+      { value: "visual_review", label: "Visual review" },
+      { value: "coworker_review", label: "Coworker review", panel_capable: true }
     ],
     chat_roles: [{ value: "chat:supervisor", label: "Supervisor" }]
   },
@@ -277,6 +278,27 @@ describe("ProviderRoutingRulesEditor", () => {
         })
       )
     )
+  })
+
+  it("does not offer reviewer targets to review kinds outside the contribution contract", () => {
+    const visualReviewRule: ProviderRoutingRule = {
+      id: 53,
+      scope_type: "repository",
+      scope_id: 7,
+      task_key: "visual_review",
+      trigger: { type: "step", kind: "visual_review" },
+      conditions: {},
+      action: { strategy: "fallback_order", name: "Visual review", candidates: [{ provider: "codex" }] },
+      candidates: [{ provider: "codex" }]
+    }
+    renderPanel({ rules: [visualReviewRule] })
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }))
+    const dialog = screen.getByRole("dialog", { name: "Edit routing rule" })
+
+    expect(within(dialog).queryByLabelText("Coworker reviewer target")).not.toBeInTheDocument()
+    expect(within(dialog).queryByLabelText("Reviewer target")).not.toBeInTheDocument()
+    expect(within(dialog).queryByText(/Selecting a target adds its persistent identity/)).not.toBeInTheDocument()
   })
 
   it("displays mutation error states", () => {

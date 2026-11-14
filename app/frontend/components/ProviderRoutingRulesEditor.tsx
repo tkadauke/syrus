@@ -977,7 +977,12 @@ function stepKindForTrigger(triggerKey: string) {
 
 function reviewerTargetCapable(options: ProviderRoutingOptions, triggerKey: string) {
   const stepKind = stepKindForTrigger(triggerKey)
-  return Boolean(stepKind && options.triggers?.step_kinds?.some((option) => option.value === stepKind && option.reviewer_target_capable))
+  return Boolean(
+    stepKind &&
+      (options.review_contributions || []).some(
+        (contribution) => contribution.kind === "target_editor" && contribution.trigger_kinds?.includes(stepKind)
+      )
+  )
 }
 
 function reviewerTargetRequired(options: ProviderRoutingOptions, triggerKey: string) {

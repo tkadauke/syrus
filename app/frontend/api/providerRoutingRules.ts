@@ -80,7 +80,6 @@ export type ProviderRoutingRegistryOption = {
   label: string
   style?: string
   panel_capable?: boolean
-  reviewer_target_capable?: boolean
 }
 
 export type ProviderUsageReading = {
