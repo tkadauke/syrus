@@ -93,6 +93,29 @@ RSpec.describe "API: coworkers", type: :request do
     expect(schedule.fetch("system_result_history").to_json).not_to include(secret)
   end
 
+  it "shows a threshold-level journaling failure before it becomes overdue" do
+    repository = Factories.repository(user: owner, owner: "acme", name: "journal-attention-workspace")
+    coworker = Coworkers::Coworker.create!(
+      owner_user: owner, name: "Maya", handle: "maya-journal-attention",
+      workspace_repo: repository.remote_url
+    )
+    task = Coworkers::SystemSchedules.reconcile!(coworker)
+    sign_in_as(owner)
+
+    travel_to(Time.utc(2026, 11, 4, 3)) do
+      task.update_columns(consecutive_failure_count: Coworkers::JournalingFailureAlert::FAILURE_THRESHOLD)
+      task.record_system_result!(date: Date.new(2026, 11, 3), result: "failed", reason: "RuntimeError: workspace locked")
+
+      get "/api/v1/app/coworkers/#{coworker.id}/schedules"
+    end
+
+    schedule = response.parsed_body.fetch("schedules").find { |item| item.fetch("id") == task.id }
+    expect(schedule).to include(
+      "journaling_overdue" => true,
+      "last_system_result_reason" => "RuntimeError: workspace locked"
+    )
+  end
+
   it "adds coworker sender and receiver appearances to chat messages without per-message queries" do
     sender = Coworkers::Coworker.create!(owner_user: owner, name: "Maya", handle: "maya-payload", workspace_repo: "https://github.com/acme/maya.git", avatar_key: "comet")
     receiver = Coworkers::Coworker.create!(owner_user: owner, name: "Rin", handle: "rin-payload", workspace_repo: "https://github.com/acme/rin.git", avatar_key: "prism")
