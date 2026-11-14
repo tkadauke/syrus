@@ -115,6 +115,15 @@ export function refreshRecentChats(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: ["chats", "recent"] })
 }
 
+// The chat currently open in the route. Unread-only recent-chat lists keep it
+// visible after it is marked read; the sidebar drops it once the user navigates
+// away. Kept out of the query key so navigation never selects a new cache entry.
+let openRecentChatId: number | null = null
+
+export function setOpenRecentChatId(id: number | null) {
+  openRecentChatId = id
+}
+
 export function updateChatUnread(queryClient: QueryClient, id: number, unread: boolean) {
   queryClient
     .getQueryCache()
@@ -132,6 +141,7 @@ export function updateChatUnread(queryClient: QueryClient, id: number, unread: b
 
 function chatBelongsAfterUnreadUpdate(queryKey: QueryKey, id: number, unread: boolean) {
   if (queryKey[7] !== true || unread) return true
+  if (openRecentChatId === id) return true
 
   return queryKey.length > 9 && queryKey[9] === id
 }
