@@ -426,7 +426,7 @@ RSpec.describe "API: /api/v1/app/memories", type: :request do
       get "/api/v1/app/memories/metadata"
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body.keys).to contain_exactly("controls", "kinds", "repositories", "scopes")
+      expect(parse_body.keys).to contain_exactly("v", "controls", "kinds", "repositories", "scopes")
       expect(parse_body).not_to have_key("memories")
     end
   end

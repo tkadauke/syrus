@@ -82,7 +82,7 @@ RSpec.describe "API: admin plugin services", type: :request do
 
     get "/api/v1/app/admin/plugin_services/git-mirror/logs", params: { tail: 100 }
 
-    expect(json).to eq("service" => "git-mirror", "logs" => "GET /v1/repositories 200\n")
+    expect(json).to eq("v" => ApiVersion::CURRENT, "service" => "git-mirror", "logs" => "GET /v1/repositories 200\n")
   end
 
   it "answers 404 for a service no plugin provides and 503 when the manager is down" do

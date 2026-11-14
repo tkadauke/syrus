@@ -377,7 +377,7 @@ RSpec.describe "App API terminal sessions", type: :request do
     Observability::EventSink.flush!(kinds: [ :operational ])
 
     expect(response).to have_http_status(:ok)
-    expect(parse_body).to eq("count" => 1)
+    expect(parse_body).to eq("v" => ApiVersion::CURRENT, "count" => 1)
     events = OperationalLogEvent.where(source: "action_controller").select do |event|
       event.message.start_with?("GET /api/v1/app/terminal_sessions/open_count ")
     end

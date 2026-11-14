@@ -18,7 +18,7 @@ RSpec.describe "App API chat whiteboards", type: :request do
       }.not_to change(Whiteboard::Board, :count)
 
       expect(response).to have_http_status(:ok)
-      expect(parse_body).to eq("scene_json" => { "elements" => [], "appState" => {}, "files" => {} }, "version" => 0)
+      expect(parse_body).to eq("v" => ApiVersion::CURRENT, "scene_json" => { "elements" => [], "appState" => {}, "files" => {} }, "version" => 0)
     end
 
     it "returns the current whiteboard state" do
@@ -35,6 +35,7 @@ RSpec.describe "App API chat whiteboards", type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(parse_body).to eq(
+        "v" => ApiVersion::CURRENT,
         "scene_json" => {
           "elements" => [ { "id" => "rect-1", "type" => "rectangle" } ],
           "appState" => { "viewBackgroundColor" => "#ffffff" },
@@ -83,7 +84,7 @@ RSpec.describe "App API chat whiteboards", type: :request do
 
       whiteboard = Whiteboard::Board.for(chat.reload)
       expect(response).to have_http_status(:ok)
-      expect(parse_body).to eq("scene_json" => { "elements" => elements, "appState" => app_state, "files" => files }, "version" => 1)
+      expect(parse_body).to eq("v" => ApiVersion::CURRENT, "scene_json" => { "elements" => elements, "appState" => app_state, "files" => files }, "version" => 1)
       expect(whiteboard.scene_json).to eq("elements" => elements, "appState" => app_state, "files" => files)
       expect(whiteboard.version).to eq(1)
       expect(whiteboard.last_edited_at).to be_present
@@ -102,6 +103,7 @@ RSpec.describe "App API chat whiteboards", type: :request do
 
       expect(response).to have_http_status(:unprocessable_content)
       expect(parse_body).to eq(
+        "v" => ApiVersion::CURRENT,
         "error" => {
           "code" => "element_limit",
           "message" => Whiteboard::Board.element_limit_message
@@ -122,7 +124,7 @@ RSpec.describe "App API chat whiteboards", type: :request do
             as: :json
 
       expect(response).to have_http_status(:conflict)
-      expect(parse_body).to eq("scene_json" => { "elements" => [ { "id" => "current" } ], "appState" => {}, "files" => {} }, "version" => 3)
+      expect(parse_body).to eq("v" => ApiVersion::CURRENT, "scene_json" => { "elements" => [ { "id" => "current" } ], "appState" => {}, "files" => {} }, "version" => 3)
       expect(whiteboard.reload.scene_json).to eq("elements" => [ { "id" => "current" } ])
       expect(whiteboard.version).to eq(3)
     end
