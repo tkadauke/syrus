@@ -185,12 +185,7 @@ module Mcp
         .select do |tool_set|
           PerformanceLogging.plugin_call(extension_point: :chat_mcp_tool_set, provider: tool_set, operation: :available_for) do
             if policy == :coworker
-              Mcp::CoworkerToolExposure.plugin_provider?(tool_set) &&
-                if tool_set.respond_to?(:available_for_coworker?)
-                  tool_set.available_for_coworker?(chat_session, tier: tier)
-                else
-                  tool_set.available_for?(chat_session, tier: tier)
-                end
+              Mcp::CoworkerToolExposure.plugin_provider_available?(tool_set, chat_session, tier: tier)
             else
               tool_set.available_for?(chat_session, tier: tier)
             end
