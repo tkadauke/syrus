@@ -1037,6 +1037,11 @@ paginated chat transcripts, inspect Solid Queue health, update or remove the
 chat's pinned context for future turns, and create proposal cards for the
 operator to confirm. Chat search also remains available to scheduled coworkers
 running on compute workers without the home node's local full-text index.
+For long Job histories, inspection tools return bounded summaries and paginate
+Run transcripts separately. Diff inspection selects the newest Run that has a
+stored diff, prefers the per-Step change, and can target an exact Run and its
+per-Step or cumulative branch artifact when an operator needs a specific
+repair iteration.
 Removing pinned context shows the previous note as a
 linked Markdown preview, with a full-content view for longer notes and clear
 pending or error states. New chats use a short interpreted title from the

@@ -29,8 +29,8 @@ module Mcp::Tools
         logs = run.job_logs.order(:sequence)
         total_chunks = logs.count
         diff_sizes = RunDiff.where(run_id: run.id).pick(
-          Arel.sql("COALESCE(LENGTH(agent_diff), 0)"),
-          Arel.sql("COALESCE(LENGTH(step_agent_diff), 0)")
+          Arel.sql("COALESCE(#{RunDiff.direct_byte_length_sql(:agent_diff)}, 0)"),
+          Arel.sql("COALESCE(#{RunDiff.direct_byte_length_sql(:step_agent_diff)}, 0)")
         ) || [ 0, 0 ]
 
         Mcp::Tools.success(
