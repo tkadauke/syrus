@@ -1,4 +1,5 @@
 class Job < ApplicationRecord
+  include HasProposer
   include AuthorizationCheckpointOrigin
   has_many :planned_execution_overrides, dependent: :destroy
   include AASM

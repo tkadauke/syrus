@@ -105,6 +105,7 @@ class ChatEpicProposalMaterializer
       chat_goal: proposal.chat_goal,
       goal_prompt_snapshot: proposal.goal_prompt_snapshot,
       epic_dependency_policy: "linear",
+      proposer: proposal.proposer,
       state: proposal.route_to_backlog? ? "backlog" : "ready"
     )
   end
@@ -154,7 +155,8 @@ class ChatEpicProposalMaterializer
       planned_execution_project_label: proposal.planned_execution_project_label,
       planned_execution_target_label: proposal.planned_execution_target_label,
       planned_execution_capabilities: proposal.planned_execution_capabilities,
-      planned_execution_source: proposal.planned_execution_source
+      planned_execution_source: proposal.planned_execution_source,
+      proposer: proposal.proposer
     )
     job.agent_provider = Job::ProviderSetting::Base.for(provider_setting).resolve(job)
     job.save!
