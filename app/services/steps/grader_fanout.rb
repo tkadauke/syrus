@@ -108,6 +108,7 @@ module Steps
       end
 
       active_graders = skip_reusable_target_health!(active_graders) if target_health_narrowing_applies?
+      active_graders = force_prior_unsuccessful_graders(active_graders, plan.graders) if evidence_driven_landing_repair?
       active_graders, deduplicated = deduplicate_equivalent_failed_variants(active_graders)
       record_selection_explanations!(plan.graders, selections, active_graders, carried_forward, deduplicated)
 
@@ -331,7 +332,7 @@ module Steps
       workflow.steps
               .where(kind: "grader", loop_id: step.loop_id, state: "succeeded")
               .where("iteration >= ? AND iteration < ?", lower_bound, step.iteration)
-              .order(iteration: :desc, position: :desc)
+              .reorder(iteration: :desc, position: :desc)
               .each_with_object({}) do |s, memo|
                 name = s.details && s.details["name"]
                 memo[name] ||= s if name
@@ -399,11 +400,28 @@ module Steps
       workflow.steps
         .where(kind: "grader", loop_id: step.loop_id, state: "succeeded")
         .where("iteration < ?", step.iteration)
-        .order(iteration: :desc, position: :desc)
+        .reorder(iteration: :desc, position: :desc)
         .each_with_object({}) do |candidate, memo|
           name = candidate.details.to_h["name"]
           memo[name] ||= candidate if name.present?
         end
+    end
+
+    # A changed repair can remove the last file that originally selected a
+    # scoped grader. The current base...HEAD target selection must not erase
+    # that grader's unresolved conclusion: failed and otherwise inconclusive
+    # graders run again even when their source scope no longer matches. Apply
+    # this after target-health reuse so an older green record cannot suppress
+    # the unresolved result; equivalent CI aliases may still be deduplicated
+    # below when their persisted failure identities are the same.
+    def force_prior_unsuccessful_graders(active_graders, graders)
+      prior_steps = prior_grader_steps_by_name
+      forced = graders.select do |grader|
+        prior = prior_steps[grader.name]
+        prior && !prior.succeeded?
+      end
+
+      (active_graders + forced).uniq(&:name)
     end
 
     def repair_changed_files
@@ -528,10 +546,10 @@ module Steps
     end
 
     def prior_grader_steps_by_name
-      workflow.steps
+      @prior_grader_steps_by_name ||= workflow.steps
         .where(kind: "grader", loop_id: step.loop_id)
         .where("iteration < ?", step.iteration)
-        .order(iteration: :desc, position: :desc)
+        .reorder(iteration: :desc, position: :desc)
         .each_with_object({}) do |candidate, memo|
           name = candidate.details.to_h["name"]
           memo[name] ||= candidate if name.present?
