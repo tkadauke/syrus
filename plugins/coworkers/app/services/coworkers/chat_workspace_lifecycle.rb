@@ -136,9 +136,7 @@ class Coworkers::ChatWorkspaceLifecycle
   end
 
   def remote_workspace
-    match = @coworker.workspace_repo.match(%r{github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?\z}i)
-    Coworkers::RemoteWorkspace.new(owner: match[1], name: match[2], user: @coworker.owner_user, git: @git,
-      authenticated_url: @remote_url)
+    Coworkers::RemoteWorkspace.for_coworker(@coworker, git: @git, authenticated_url: @remote_url)
   end
 
   def workspace_repository

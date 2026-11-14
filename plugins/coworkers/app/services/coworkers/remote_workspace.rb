@@ -3,7 +3,17 @@ require "tmpdir"
 
 class Coworkers::RemoteWorkspace
   RefChanged = Class.new(StandardError)
+  InvalidRemote = Class.new(ArgumentError)
   attr_reader :repository
+
+  class << self
+    def for_coworker(coworker, git: GitRunner.new, authenticated_url: nil)
+      match = coworker.workspace_repo.to_s.match(%r{github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?\z}i)
+      raise InvalidRemote, "invalid coworker workspace repository" unless match
+
+      new(owner: match[1], name: match[2], user: coworker.owner_user, git:, authenticated_url:)
+    end
+  end
 
   def initialize(owner:, name:, user:, git: GitRunner.new, authenticated_url: nil)
     @repository = Repository.new(owner: owner, name: name, user: user)

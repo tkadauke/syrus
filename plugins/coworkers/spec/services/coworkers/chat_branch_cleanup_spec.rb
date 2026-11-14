@@ -32,4 +32,11 @@ RSpec.describe Coworkers::ChatBranchCleanup do
     expect(described_class.call(link, remote:)).to eq(:retained)
     expect(remote).not_to have_received(:branch_sha)
   end
+
+
+  it "retains the branch when the recorded workspace remote is invalid" do
+    coworker.update_column(:workspace_repo, "")
+
+    expect(described_class.call(link)).to eq(:retained)
+  end
 end

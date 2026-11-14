@@ -805,6 +805,30 @@ it("warns when the workspace tree and selected file are truncated", async () => 
   expect(screen.queryByRole("button", { name: /edit|save|delete/i })).not.toBeInTheDocument()
 })
 
+it("hides branch counts when the remote count is unavailable", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes("/workspace"))
+        return jsonResponse({
+          remote: "https://github.com/acme/workspace.git",
+          branch: "coworkers/maya",
+          files: [],
+          partial: false,
+          selected_file: null,
+          commits: [],
+          conflicts: [],
+          branch_counts: { home: null, chat: null, run: null }
+        })
+      return jsonResponse(detailPayload)
+    })
+  )
+  renderRoute("/coworkers/7?tab=workspace")
+
+  await screen.findByText("coworkers/maya")
+  expect(screen.queryByText(/Branches:/)).not.toBeInTheDocument()
+})
+
 it("keeps unsaved recovery visible when the remote workspace is unavailable", async () => {
   const detail = {
     coworker: {
