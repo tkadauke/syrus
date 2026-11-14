@@ -9,7 +9,7 @@ class IngestionClassifier
   DUPLICATE_TEXT_BYTES = 20_000
   DUPLICATE_TOKEN_LIMIT = 400
 
-  Result = Data.define(:epic_id, :invalid_kind, :reason, :evidence_urls, :placement_recommendation, :raw_output, :spawned_process_id, :error) do
+  Result = Data.define(:invalid_kind, :reason, :evidence_urls, :placement_recommendation, :raw_output, :spawned_process_id, :error) do
     def success? = error.nil?
     def invalid? = invalid_kind.present?
   end
@@ -106,7 +106,6 @@ class IngestionClassifier
   def invoke_classifier
     prompt = Prompts::IngestionClassifier.new(
       job: job,
-      epics: epic_index,
       merged_pull_requests: merged_pull_request_index,
       duplicate_candidates: duplicate_candidate_index,
       repository_capabilities: repository_capability_index
@@ -134,11 +133,7 @@ class IngestionClassifier
     return failure("invalid kind #{kind.inspect}", raw_output: raw_output, spawned_process_id: spawned_process_id) if kind && !Job::VALIDITIES.include?(kind)
     return failure("invalid kind must not be valid", raw_output: raw_output, spawned_process_id: spawned_process_id) if kind == "valid"
 
-    epic_id = parsed["epic_id"].presence
-    epic_id = Integer(epic_id) if epic_id
-
     Result.new(
-      epic_id: epic_id,
       invalid_kind: kind,
       reason: invalid["reason"].to_s.strip.presence,
       evidence_urls: Array(invalid["evidence_urls"]).map(&:to_s).map(&:strip).select(&:present?),
@@ -147,14 +142,10 @@ class IngestionClassifier
       spawned_process_id: spawned_process_id,
       error: nil
     )
-  rescue ArgumentError
-    failure("epic_id must be an integer or null", raw_output: raw_output, spawned_process_id: spawned_process_id)
   end
 
   def apply(result)
     job.transaction do
-      assign_epic(result.epic_id) if result.epic_id
-
       if result.invalid?
         invalidate!(result)
       else
@@ -201,23 +192,6 @@ class IngestionClassifier
     job.update!(placement_recommendation: nil, placement_recommendation_status: nil)
   end
 
-  def assign_epic(epic_id)
-    epic = user.epics.find_by(id: epic_id, repository_id: repository.id)
-    raise ActiveRecord::RecordInvalid.new(job), "classifier returned unknown Epic ##{epic_id}" unless epic
-
-    if job.main_grader?
-      job.errors.add(:base, Job::MAIN_GRADER_EPIC_ERROR)
-      raise ActiveRecord::RecordInvalid.new(job)
-    end
-
-    if job.investigation?
-      job.errors.add(:base, Job::INVESTIGATION_EPIC_ERROR)
-      raise ActiveRecord::RecordInvalid.new(job)
-    end
-
-    job.update!(epic: epic)
-  end
-
   def invalidate!(result)
     job.update!(
       validity: result.invalid_kind,
@@ -257,30 +231,11 @@ class IngestionClassifier
   def decision_payload(result)
     {
       classification: result.invalid? ? "invalid" : "valid",
-      epic_id: result.epic_id,
       invalid_kind: result.invalid_kind,
       reason: result.reason,
       evidence_urls: result.evidence_urls,
       placement_recommendation: result.placement_recommendation
     }
-  end
-
-  def epic_index
-    user.epics
-        .where(state: %w[ backlog ready in_progress ])
-        .where("created_at >= ?", now - 90.days)
-        .includes(:repository)
-        .order(created_at: :desc)
-        .limit(25)
-        .map do |epic|
-      {
-        id: epic.id,
-        title: epic.title.to_s,
-        description: epic.description.to_s,
-        repository: epic.repository.slug,
-        state: epic.state
-      }
-    end
   end
 
   def merged_pull_request_index
@@ -406,7 +361,6 @@ class IngestionClassifier
 
   def failure(reason, raw_output: nil, spawned_process_id: nil)
     Result.new(
-      epic_id: nil,
       invalid_kind: nil,
       reason: nil,
       evidence_urls: [],

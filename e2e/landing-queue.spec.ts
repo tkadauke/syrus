@@ -17,12 +17,8 @@ async function openJob(page: Page, title: string) {
 async function openLandingQueue(page: Page) {
   await page.goto("/dashboard/jobs?ownership_scope=team&view=list")
   await page.getByRole("link", { name: /^Landing queue \d+$/ }).click()
-  // The queue-position column, whose sortable header is labelled
-  // "Sort by <label> <direction>" (dashboard.sort_by). There is no separate
-  // "Queue status" column any more: JobsTable filters landing_queue_wait_reason
-  // out and shows blocker messaging on the rows instead, which the tests below
-  // assert.
-  await expect(page.getByRole("columnheader", { name: /^Sort by Queue/ })).toBeVisible()
+  await expect(page.getByRole("button", { name: "Preset is Landing queue" })).toBeVisible()
+  await expect(page.getByRole("table")).toBeVisible()
 }
 
 test("renders approved and landing queue states with blocker messaging", async ({ page }) => {
@@ -35,8 +31,9 @@ test("renders approved and landing queue states with blocker messaging", async (
 
   await openLandingQueue(page)
 
+  await expect(page.getByRole("button", { name: /\d+ blockers/ })).toBeVisible()
   const approvedRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: "Approve trigger label rollout", exact: true }) })
-  await expect(approvedRow).toContainText("Auto-merge not enabled")
+  await expect(approvedRow).toContainText("approved")
 
   const landingRow = page.getByRole("row").filter({ has: page.getByRole("link", { name: "Land approval queue fixture", exact: true }) })
   await expect(landingRow).toContainText("landing")

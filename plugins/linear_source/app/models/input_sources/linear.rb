@@ -140,11 +140,14 @@ module InputSources
         ) do |epic|
           epic.title = marker[:name]
           epic.description = issue_body
+          epic.origin = "linear_issue"
         end
         Rails.logger.info("[InputSources::Linear] #{repository.slug} #{issue['identifier']} ingested as Epic")
       when :child_of_epic
         epic_url = issue_url_for_reference(marker)
-        epic = user.epics.find_by(github_issue_url: epic_url)
+        candidate = Epic.find_by(user: user, github_issue_url: epic_url) || Epic.find_by(github_issue_url: epic_url)
+        rejection = candidate&.epic_marker_rejection(marker_origin: "linear_issue", marker_user: user)
+        epic = rejection ? nil : candidate
         job = Job.create!(
           user: user,
           repository: repository,
@@ -152,17 +155,20 @@ module InputSources
           issue_body: issue_body,
           state: Job.initial_state_for_creator(nil),
           epic: epic,
-          triaging_reason: epic ? "classifier_pending" : "pending_epic_ref",
-          pending_epic_reference: epic ? {} : { "github_issue_url" => epic_url },
+          triaging_reason: epic || rejection ? "classifier_pending" : "pending_epic_ref",
+          pending_epic_reference: epic || rejection ? {} : { "github_issue_url" => epic_url, "origin" => "linear_issue" },
           input_source: self,
           external_ref: dedup_key(issue)
         )
         job.advance_after_triage! if job.epic && job.may_advance_after_triage?
+        job.record_ignored_epic_marker!(rejection) if rejection
         Rails.logger.info("[InputSources::Linear] #{repository.slug} #{issue['identifier']} ingested as child-of-epic Job")
       end
     end
 
     def issue_url_for_reference(reference)
+      return "linear:issue:#{reference[:linear_issue_id]}" if reference[:linear_issue_id]
+
       "https://github.com/#{reference[:owner]}/#{reference[:repo]}/issues/#{reference[:number]}"
     end
 
