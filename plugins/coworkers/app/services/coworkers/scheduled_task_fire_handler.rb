@@ -19,6 +19,7 @@ module Coworkers
 
     def fire_journaling_catch_up!(now: Time.current, remaining:, after_date: nil)
       coworker = Coworkers::Coworker.find(task.coworker_id)
+      Coworkers::SystemSchedules.record_out_of_window_dates!(task, now: now)
       dates = Coworkers::SystemSchedules.target_dates(task, now: now)
       dates = dates.select { |date| date > after_date } if after_date
       dates.first(remaining).each_with_index do |date, index|

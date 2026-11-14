@@ -17,7 +17,11 @@ module Coworkers
       task&.record_failure!
       if task&.system_key == Coworkers::SystemSchedules::JOURNALING
         date = workflow.artifact("journaling_target_on")&.to_date
-        task.record_system_result!(date:, result: "failed", reason: workflow.failure_reason) if date
+        if date
+          reason = workflow.failure_reason
+          task.record_system_result!(date:, result: "failed", reason: reason)
+          Coworkers::JournalingFailureAlert.call(task:, date:, reason:)
+        end
         enqueue_journaling_catch_up(workflow, task, date)
       end
     ensure

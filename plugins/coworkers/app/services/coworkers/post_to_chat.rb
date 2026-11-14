@@ -86,10 +86,10 @@ module Coworkers
 
     def self.enqueue_wake!(chat:, job:, source_run:, summary:, duration:)
       task = ScheduledTasks::Task.find_by(id: job.scheduled_task_id)
+      return if task&.system_schedule?
       return unless task && source_run
 
-      policy = task.system_schedule? ? "wake" : task.after_run
-      Coworkers::AfterRunPolicy.for(policy).enqueue!(chat:, task:, source_run:, summary:, duration:)
+      Coworkers::AfterRunPolicy.for(task.after_run).enqueue!(chat:, task:, source_run:, summary:, duration:)
     end
 
     def self.summary_for(source_run, fallback:)

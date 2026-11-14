@@ -662,7 +662,7 @@ RSpec.describe "Coworker background runs" do
     expect(job.reload).to have_attributes(state: "closed", closure_reason: "coworker_task")
   end
 
-  it "wakes once when journaling repeatedly fails for the same structured target date" do
+  it "wakes once after three journaling failures for the same structured target date" do
     task = Coworkers::SystemSchedules.reconcile!(coworker)
     job.update!(scheduled_task_id: task.id)
     workflow = Coworkers::Workflow.instantiate(job: job)
@@ -672,7 +672,7 @@ RSpec.describe "Coworker background runs" do
     source_run = Run.create!(job: job, user: owner, step: source_step, trigger_kind: "coworker_run", agent_provider: "codex")
     source_run.update_columns(state: "failed", agent_summary: "Diary persistence failed.", finished_at: Time.current)
 
-    Coworkers::Workflow.after_fail(workflow)
+    3.times { Coworkers::Workflow.after_fail(workflow) }
     first_count = main_chat.messages.count
     Coworkers::Workflow.after_fail(workflow)
 

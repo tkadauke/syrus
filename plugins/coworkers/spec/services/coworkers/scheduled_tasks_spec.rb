@@ -95,6 +95,18 @@ RSpec.describe "Coworker scheduled tasks" do
       .to change { coworker.schedules.where(system_key: "journaling").count }.from(0).to(1)
   end
 
+  it "re-arms an auto-paused journaling schedule without resuming an owner-paused schedule" do
+    journaling = Coworkers::SystemSchedules.reconcile!(coworker)
+    journaling.update_columns(state: "auto_paused", consecutive_failure_count: 3)
+
+    expect(Coworkers::SystemSchedules.reconcile!(coworker)).to have_attributes(
+      state: "scheduled", consecutive_failure_count: 0
+    )
+
+    journaling.update_columns(state: "paused")
+    expect(Coworkers::SystemSchedules.reconcile!(coworker)).to be_paused
+  end
+
   it "uses the owner's general time zone instead of approval delivery preferences" do
     coworker.owner_user.update!(time_zone: "Europe/Berlin", approval_delivery_preferences: { "time_zone" => "America/Los_Angeles" })
 
@@ -248,7 +260,7 @@ RSpec.describe "Coworker scheduled tasks" do
     expect(journaling.system_result_history.to_json).not_to include(secret)
   end
 
-  it "backs off a failed catch-up fire before retrying it" do
+  it "backs off a failed catch-up fire for one hour" do
     journaling = Coworkers::SystemSchedules.reconcile!(coworker)
     journaling.update_columns(
       last_fired_at: nil, last_journaled_on: nil, created_at: Time.utc(2026, 11, 3, 9)
@@ -262,7 +274,38 @@ RSpec.describe "Coworker scheduled tasks" do
     expect {
       travel_to(Time.utc(2026, 11, 4, 3, 16)) { PollScheduledTasksJob.perform_now }
     }.not_to change(BackendExceptionEvent, :count)
-    expect(journaling).to be_due(now: Time.utc(2026, 11, 4, 3, 30))
+    expect(journaling).not_to be_due(now: Time.utc(2026, 11, 4, 3, 59))
+    expect(journaling).to be_due(now: Time.utc(2026, 11, 4, 4, 15))
+  end
+
+
+  it "stays scheduled and stops retrying after three failures until the next daily window" do
+    journaling = Coworkers::SystemSchedules.reconcile!(coworker)
+    journaling.update_columns(last_journaled_on: nil, created_at: Time.utc(2026, 11, 3, 9))
+    allow_any_instance_of(Coworkers::ScheduledTaskFireHandler).to receive(:fire!).and_raise("workspace locked")
+
+    [ Time.utc(2026, 11, 4, 1, 15), Time.utc(2026, 11, 4, 2, 15), Time.utc(2026, 11, 4, 3, 15) ].each do |time|
+      travel_to(time) { PollScheduledTasksJob.perform_now }
+    end
+
+    expect(journaling.reload).to have_attributes(state: "scheduled", consecutive_failure_count: 3)
+    expect(journaling).not_to be_due(now: Time.utc(2026, 11, 4, 4, 15))
+    expect(journaling).to be_due(now: Time.utc(2026, 11, 5, 0, 31))
+  end
+
+  it "records dates outside the seven-day catch-up window as skipped" do
+    journaling = Coworkers::SystemSchedules.reconcile!(coworker)
+    journaling.update_columns(last_journaled_on: Date.new(2026, 10, 20))
+    allow_any_instance_of(Coworkers::JournalingActivity).to receive(:active?).and_return(false)
+
+    Coworkers::ScheduledTaskFireHandler.new(journaling).fire_journaling_catch_up!(
+      now: Time.utc(2026, 11, 4, 1), remaining: 7
+    )
+
+    expect(journaling.reload.system_result_history).to include(
+      a_hash_including("date" => "2026-10-27", "result" => "skipped", "reason" => "out_of_catch_up_window")
+    )
+    expect(journaling.last_journaled_on).to eq(Date.new(2026, 11, 3))
   end
 
   it "counts active coworkers without a fire or recorded skip inside 25 hours" do
@@ -376,12 +419,12 @@ RSpec.describe "Coworker scheduled tasks" do
     end
   end
 
-  it "processes the oldest bounded catch-up batch in order without dropping earlier days" do
+  it "processes the bounded catch-up batch in chronological order" do
     chat = ChatSession.create!(user: owner, repository: repository, title: "Maya")
     Coworkers::Chat.create!(coworker: coworker, chat_session: chat, role: "main")
     journaling = Coworkers::SystemSchedules.reconcile!(coworker)
     journaling.update_columns(last_journaled_on: Date.new(2026, 10, 20))
-    dates = (Date.new(2026, 10, 21)..Date.new(2026, 10, 27)).to_a
+    dates = (Date.new(2026, 10, 28)..Date.new(2026, 11, 3)).to_a
     dates.each do |date|
       chat.messages.create!(role: "user", content: { "text" => date.iso8601 }, skip_turn_trigger: true,
                             created_at: date.in_time_zone("UTC").noon)
