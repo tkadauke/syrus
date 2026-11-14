@@ -7,6 +7,9 @@ class Coworkers::ReviewContextContributor
     coworker = resolve(target, run)
     context = coworker.prepare_review_context!(run:, evidence:, criteria:)
     {
+      owner: "coworkers",
+      type: "review_context",
+      version: 1,
       manifest: context.manifest,
       restricted_text: coworker.review_context_prompt(context),
       persistence_token: context.id.to_s
@@ -25,7 +28,7 @@ class Coworkers::ReviewContextContributor
       owner: "coworkers",
       type: "review_memory",
       key: persisted.id.to_s,
-      version: persisted.updated_at.to_i,
+      version: persisted.persisted_commit_sha.presence || persisted.updated_at.to_i,
       persisted_at: persisted.updated_at.iso8601,
       details: { "persisted_commit_sha" => persisted.persisted_commit_sha }
     }

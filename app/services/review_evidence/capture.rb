@@ -10,19 +10,21 @@ module ReviewEvidence::Capture
 
     run.update!(model: model) if run.model.blank?
     base_sha = ReviewEvidence::CanonicalDiff.resolve(workspace_path: workspace_path, ref: base_ref)
-    snapshot = ReviewEvidence::CanonicalDiff.snapshot(workspace_path: workspace_path, base_sha: base_sha)
+    diff_snapshot = ReviewEvidence::CanonicalDiff.snapshot(workspace_path: workspace_path, base_sha: base_sha)
 
-    reviewer = run.step.details.to_h["reviewer_target"]&.then do |target|
-      ReviewerTargets.resolve(target, owner: run.job.owner_user || run.job.user, repository: run.job.repository).fetch(:record)
+    target = run.step.details.to_h["reviewer_target"]&.deep_stringify_keys
+    target_snapshot = target&.then do |payload|
+      ReviewerTargets.snapshot(payload, owner: run.job.owner_user || run.job.user, repository: run.job.repository)
     end
     ReviewEvidence.create!(
       run: run, workflow: run.workflow, step: run.step, review_kind: review_kind,
       provider: run.agent_provider,
       model: run.model,
-      reviewer: reviewer,
+      target_envelope: target,
+      target_snapshot: target_snapshot,
       reviewed_base_sha: base_sha,
-      reviewed_head_sha: snapshot.fetch(:head_sha),
-      canonical_diff_sha256: snapshot.fetch(:sha256),
+      reviewed_head_sha: diff_snapshot.fetch(:head_sha),
+      canonical_diff_sha256: diff_snapshot.fetch(:sha256),
       prompt_version: PROMPT_VERSION,
       checklist_version: Digest::SHA256.hexdigest(JSON.generate(Array(checklist).map(&:to_s))),
       tool_policy_version: TOOL_POLICY_VERSION

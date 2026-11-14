@@ -100,7 +100,6 @@ compatibility_quarantine:
   app/models/concerns/mentionable.rb: 1
   app/models/problem/kind.rb: 2
   app/models/provider_routing_rule.rb: 2
-  app/models/review_evidence.rb: 1
   app/models/step/kind.rb: 7
   app/models/work_unit.rb: 1
   app/services/admin/capability_surface_registry.rb: 12
