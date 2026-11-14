@@ -300,14 +300,20 @@ explicit planned execution capabilities, and a coworker cannot target a
 repository its owner cannot write. A missing grant keeps the tools absent;
 an invalid target is returned as an authorization or validation error.
 
-The shared `syrus.jobs` capability exposes only `cancel_job` to coworker
-chats; approval, merge, retry, reopen and other lifecycle operations stay
-unavailable. Cancellation keeps its canonical policy and always creates a
-pending action for the owner to confirm. A cancellation reason is required,
-and duplicate cancellations may link a canonical replacement Job in the same
-repository. The state history records the coworker, chat, prior and resulting
-states, reason, time, and replacement. Jobs with landing or deployment
-evidence are refused.
+The shared `syrus.jobs` capability exposes `cancel_job` and
+`submit_chat_feedback` to coworker chats; approval, merge, retry, reopen and
+other lifecycle operations stay unavailable. Cancellation keeps its canonical
+policy and always creates a pending action for the owner to confirm. A
+cancellation reason is required, and duplicate cancellations may link a
+canonical replacement Job in the same repository. The state history records
+the coworker, chat, prior and resulting states, reason, time, and replacement.
+Jobs with landing or deployment evidence are refused.
+
+Feedback submission uses the same permission policy, Job-state checks, and
+operator confirmation as a normal chat submission. Confirmed feedback records
+the coworker, originating chat, and provider separately in Job history before
+starting the normal feedback workflow. Workflow review verdict tools remain
+limited to their corresponding review steps.
 
 Grant approval policies are enforced at invocation: `auto` executes directly,
 while `confirm` and `queue` create the standard pending-action card for owner

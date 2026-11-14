@@ -110,6 +110,17 @@ class McpToolRegistry
           scope_options_callback: nil,
           scope_label_callback: nil,
           valid_scope_callback: nil
+        },
+        {
+          name: "syrus.jobs",
+          label: "Act on visible Jobs",
+          description: "Submit targeted feedback to eligible Jobs in repositories visible to the coworker.",
+          default_policy: "confirm",
+          maximum_policy: "confirm",
+          tools: entries(surface: :coworker).select { |entry| entry.capability == :"syrus.jobs" }.map(&:tool_name),
+          scope_options_callback: nil,
+          scope_label_callback: nil,
+          valid_scope_callback: nil
         }
       ]
     end
@@ -248,7 +259,8 @@ class McpToolRegistry
         lifecycle_chat(Mcp::Tools::BaseRefreshRetryJobTool, mutation: true),
         legacy_chat(Mcp::Tools::SetJobPriorityTool, mutation: true),
         legacy_chat(Mcp::Tools::RepoInfoTool),
-        legacy_chat(Mcp::Tools::SubmitChatFeedbackTool, mutation: true, default_policy: :allow),
+        lifecycle_chat(Mcp::Tools::SubmitChatFeedbackTool, mutation: true, approval_effect: true,
+          capability: "syrus.jobs", descriptor_roles: AgentRole::CHAT_ROLES + [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]),
         legacy_chat(Mcp::Tools::RenameChatTool, mutation: true, default_policy: :allow),
         legacy_chat(Mcp::Tools::PinChatTool, mutation: true, default_policy: :allow),
         legacy_chat(Mcp::Tools::UnpinChatTool, mutation: true, default_policy: :allow),
@@ -580,10 +592,13 @@ class McpToolRegistry
       entry(tool, surface: :coworker, tier: tier, **metadata)
     end
 
-    # Coworkers receive only cancellation from the shared Job lifecycle
-    # capability: no approval, merge, retry, reopen, or other lifecycle
-    # authority. The tool keeps its mandatory pending-action confirmation.
-    COWORKER_JOB_LIFECYCLE_TOOLS = [ Mcp::Tools::CancelJobTool ].freeze
+    # Coworkers receive only cancellation and feedback submission from the
+    # shared Job lifecycle capability: no approval, merge, retry, reopen, or
+    # other lifecycle authority. Both tools keep pending-action confirmation.
+    COWORKER_JOB_LIFECYCLE_TOOLS = [
+      Mcp::Tools::CancelJobTool,
+      Mcp::Tools::SubmitChatFeedbackTool
+    ].freeze
 
     def coworker_job_lifecycle_entries
       chat_entries.filter_map do |chat_entry|
@@ -620,6 +635,12 @@ class McpToolRegistry
       shared_roles = (Array(roles) + [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]).uniq
       descriptor = Permissions::JobLifecycle.descriptor_for(tool_name_for(tool), required_roles: shared_roles)
       chat(tool, **metadata, descriptor:)
+    end
+
+    def lifecycle_coworker(tool, **metadata)
+      roles = metadata.delete(:descriptor_roles) || metadata[:required_roles].presence || [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]
+      descriptor = Permissions::JobLifecycle.descriptor_for(tool_name_for(tool), required_roles: roles)
+      coworker(tool, **metadata, descriptor:)
     end
 
     def operational_chat(tool, **metadata)

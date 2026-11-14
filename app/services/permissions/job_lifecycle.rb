@@ -29,6 +29,7 @@ module Permissions
       "cancel_job" => Operation.new(JOBS, "cancel", DESTRUCTIVE_CONTROL, :high),
       "retry_job" => Operation.new(JOBS, "retry", WORK_CONTROL, :medium),
       "base_refresh_retry_job" => Operation.new(JOBS, "retry_base_refresh", WORK_CONTROL, :medium),
+      "submit_chat_feedback" => Operation.new(JOBS, "submit_feedback", WORK_CONTROL, :medium),
       "poll_job_feedback" => Operation.new(JOBS, "poll_feedback", WORK_CONTROL, :medium),
       "rebase_job" => Operation.new(JOBS, "rebase", WORK_CONTROL, :medium),
       "reopen_job" => Operation.new(JOBS, "reopen", WORK_CONTROL, :medium),
