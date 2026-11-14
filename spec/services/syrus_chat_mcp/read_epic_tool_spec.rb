@@ -92,6 +92,7 @@ RSpec.describe Mcp::Tools::ReadEpicTool do
         ]
       )
     )
+    expect(payload[:child_jobs].first).not_to have_key(:state_transitions)
   end
 
   it "surfaces max_commits_behind_base and identifies the furthest-behind child job" do

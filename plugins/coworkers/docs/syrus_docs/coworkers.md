@@ -298,6 +298,16 @@ explicit planned execution capabilities, and a coworker cannot target a
 repository its owner cannot write. A missing grant keeps the tools absent;
 an invalid target is returned as an authorization or validation error.
 
+The separate `syrus.manage_job_state` capability exposes only
+`manage_job_state`. It closes or cancels an accessible duplicate or obsolete
+Job after the owner explicitly instructs the coworker or confirms the standard
+permission request. A reason is required, and duplicate closures may link a
+canonical replacement Job in the same repository. The state history records
+the coworker, chat, prior and resulting states, reason, time, and replacement.
+Jobs with landing or deployment evidence are refused; this capability does not
+grant general editing, approval, dependency, priority, merge, or deletion
+authority.
+
 Grant approval policies are enforced at invocation: `auto` executes directly,
 while `confirm` and `queue` create the standard pending-action card for owner
 approval. The card and the coworker's Approvals inbox identify the coworker,

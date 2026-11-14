@@ -94,6 +94,7 @@ class Job < ApplicationRecord
   belongs_to :landing_blocker_override_requested_by_user, class_name: "User", optional: true
   belongs_to :emergency_landed_by_user, class_name: "User", optional: true
   belongs_to :rollback_of, class_name: "Job", optional: true, inverse_of: :rollback_jobs
+  belongs_to :canonical_job, class_name: "Job", optional: true, inverse_of: :superseded_jobs
   belongs_to :rollback_epic, class_name: "Epic", optional: true, inverse_of: :rollback_jobs
   belongs_to :target_repository, class_name: "Repository", optional: true
   belongs_to :pr_repository, class_name: "Repository", optional: true
@@ -146,6 +147,8 @@ class Job < ApplicationRecord
   has_many :preview_environments, dependent: :destroy
   has_many :rollback_jobs, class_name: "Job", foreign_key: :rollback_of_id,
            dependent: :restrict_with_error, inverse_of: :rollback_of
+  has_many :superseded_jobs, class_name: "Job", foreign_key: :canonical_job_id,
+           dependent: :nullify, inverse_of: :canonical_job
 
   def unlanded_by
     rollback_jobs.closed.find_by(closure_reason: SUCCESSFUL_CLOSURE_REASONS) || epic&.unlanded_by
