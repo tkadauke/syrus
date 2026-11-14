@@ -187,21 +187,25 @@ export function JobDetailRoute() {
     placeholderData: keepPreviousData
   })
   const payload = detail.isSuccess
-    ? mergeJobWorkflowsPayload({
-        attachments: [],
-        typed_artifacts: [],
-        coverage: null,
-        summary: null,
-        test_plan: null,
-        report: null,
-        feedback_history: [],
-        ...detail.data,
-        job: { ...detail.data.job, ...(providerRouting.data?.job ?? {}) },
-        ...(tabDetail.data ?? {}),
-        pending_feedback: pendingFeedback.data?.comments ?? []
-      }, workflows.isPlaceholderData ? undefined : workflows.data, {
-        workflowsCommandsAreFresher: workflows.dataUpdatedAt > detail.dataUpdatedAt
-      })
+    ? mergeJobWorkflowsPayload(
+        {
+          attachments: [],
+          typed_artifacts: [],
+          coverage: null,
+          summary: null,
+          test_plan: null,
+          report: null,
+          feedback_history: [],
+          ...detail.data,
+          job: { ...detail.data.job, ...(providerRouting.data?.job ?? {}) },
+          ...(tabDetail.data ?? {}),
+          pending_feedback: pendingFeedback.data?.comments ?? []
+        },
+        workflows.isPlaceholderData ? undefined : workflows.data,
+        {
+          workflowsCommandsAreFresher: workflows.dataUpdatedAt > detail.dataUpdatedAt
+        }
+      )
     : null
   const job = detail.data?.job
   const pageTitle = job ? (job.issue_title ? `${jobSlug(job.id)}: ${job.issue_title}` : jobSlug(job.id)) : id ? `JOB-${id}` : undefined
