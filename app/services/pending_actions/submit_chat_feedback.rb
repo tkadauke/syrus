@@ -11,7 +11,8 @@ module PendingActions
         feedback: payload.fetch("feedback"),
         allowed_states: %w[implemented approved],
         chat_session: chat_session,
-        media: Array(payload["media"])
+        media: Array(payload["media"]),
+        extra_artifacts: { "feedback_source" => payload["feedback_source"] }.compact
       )
       raise ArgumentError, result.error unless result.success?
 

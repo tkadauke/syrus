@@ -135,6 +135,44 @@ RSpec.describe "Coworker chat surface" do
     expect(chat.pending_actions.where(action: "coworker_tool_call")).to be_empty
   end
 
+  it "submits targeted Job feedback through the shared confirmation and records coworker provenance" do
+    allow_tool(Mcp::Tools::SubmitChatFeedbackTool)
+    job = Factories.job_record(user: owner, repository: repository, state: "implemented")
+
+    response = coworker_tool("submit_chat_feedback").call(
+      job_id: job.id,
+      feedback: "Cover the broader retry path before landing.",
+      server_context: { chat_session: chat }
+    )
+
+    expect(response).not_to be_error
+    action = chat.pending_actions.find(response_payload(response).fetch("pending_action_id"))
+    expect(action).to have_attributes(action: "submit_chat_feedback", state: "pending", origin: chat)
+    expect(action.payload.fetch("feedback_source")).to eq(
+      "type" => "coworker",
+      "coworker_id" => coworker.id,
+      "coworker_handle" => "maya",
+      "coworker_name" => "Maya",
+      "chat_session_id" => chat.id,
+      "agent_provider" => chat.effective_chat_provider
+    )
+    expect(chat.pending_actions.where(action: "coworker_tool_call")).to be_empty
+
+    expect { action.confirm!(user: owner) }.to have_enqueued_job(RunJob)
+    workflow = action.reload.result
+    expect(workflow).to have_attributes(job: job, trigger_kind: "chat_feedback")
+    expect(workflow.artifact("chat_feedback")).to eq("Cover the broader retry path before landing.")
+    expect(workflow.artifact("feedback_source")).to eq(action.payload.fetch("feedback_source"))
+
+    history = App::JobDetailPayload.build(job: job.reload, user: owner).fetch(:feedback_history).sole
+    expect(history).to include(
+      kind: "chat_feedback",
+      body: "Cover the broader retry path before landing.",
+      workflow_id: workflow.id,
+      feedback_source: action.payload.fetch("feedback_source")
+    )
+  end
+
   it "creates an ordinary pending Epic card and child cards with coworker provenance" do
     allow_tool(Mcp::Tools::ProposeEpicWithJobsTool)
 

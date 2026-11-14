@@ -190,7 +190,7 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `search_jobs` | chat | essential | read | no | - | - | - | - |
 | `set_bookmark` | chat | essential | write | no | - | - | - | - |
 | `set_job_priority` | chat | essential | write | no | - | - | - | - |
-| `submit_chat_feedback` | chat | essential | write | no | - | - | - | - |
+| `submit_chat_feedback` | chat | essential | write | no | - | - | `syrus.jobs` | - |
 | `submit_coding_changes` | chat | essential | write | no | `chat:coding` | - | - | `coding_mode` |
 | `suggest_next_step` | chat | essential | write | no | - | - | - | - |
 | `unpin_chat` | chat | essential | write | no | - | - | - | - |
@@ -229,6 +229,7 @@ Generated catalog of MCP tools registered through `McpToolRegistry`.
 | `read_workflow_waterfall` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `ops.read_logs` | - |
 | `search_jobs` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `syrus.read_jobs` | - |
 | `search_repository_code` | coworker | essential | read | no | `chat:coworker`, `agent:coworker` | - | `code.read` | - |
+| `submit_chat_feedback` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `syrus.jobs` | - |
 | `suggest_next_step` | coworker | essential | write | no | `chat:coworker`, `agent:coworker` | - | `chat.message_owner` | - |
 | `get_coverage_report` | workflow | - | read | no | `workflow:implement`, `workflow:rebase_conflict`, `workflow:summary_test_plan`, `workflow:adversarial_reviewer`, `workflow:security_reviewer`, `workflow:coworker_reviewer`, `workflow:visual_reviewer`, `workflow:manual` | - | - | - |
 | `list_artifacts` | workflow | - | read | no | `workflow:implement`, `workflow:summary_test_plan`, `workflow:rebase_conflict`, `workflow:manual`, `workflow:visual_reviewer` | - | - | - |
