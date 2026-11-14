@@ -77,15 +77,18 @@ module ChatSearch
     scope = apply_chat_attachment_filter(scope, "Job", :job_id)
     return scope if performed?
 
-    apply_plugin_chat_filter(scope, :coworker_id)
+    ChatIdentityContributions.search_ownership(user: Current.user).reduce(scope) do |filtered_scope, ownership|
+      apply_plugin_chat_filter(filtered_scope, ownership.fetch("filter_field"))
+    end
   end
 
   def apply_plugin_chat_filter(scope, field)
+    field = field.to_s
     values = params[field].to_s.split(",").map(&:strip).reject(&:blank?)
     return scope if values.empty?
 
-    chip = Filters::Registry.find(field.to_s, subject: :chat_message)
-    op = params["#{field.to_s.delete_suffix('_id')}_op"].presence || "is"
+    chip = Filters::Registry.find(field, subject: :chat_message)
+    op = params["#{field.delete_suffix('_id')}_op"].presence || "is"
     unless chip.operators.include?(op.to_sym)
       render_error("bad_request", I18n.t("api.filters.unsupported_operator", field: field), status: :bad_request)
       return scope.none
