@@ -4,6 +4,12 @@ module AgentMemory
     # is advertised only to admin chats rather than merely refused at call
     # time -- a tool a chat can see is a tool it will try.
     ADMIN_TOOL_CLASSES = { essential: [ Tools::AdminReadMemoryAuditHistoryTool ].freeze }.freeze
+    MUTATION_TOOL_CLASSES = [
+      Tools::WriteMemoryTool,
+      Tools::DeleteMemoryTool,
+      Tools::PublishMemoryTool,
+      Tools::UnpublishMemoryTool
+    ].freeze
 
     def self.available_for?(_chat_session, tier:)
       AgentMemory.enabled? && CHAT_TOOL_CLASSES.key?(tier.to_sym)
@@ -22,7 +28,10 @@ module AgentMemory
     def self.handler_classes(context: nil) = (CHAT_TOOL_CLASSES.values + ADMIN_TOOL_CLASSES.values).flatten
 
     def self.definition(klass)
-      definition_for(klass).merge(admin_only: ADMIN_TOOL_CLASSES.values.flatten.include?(klass))
+      definition_for(klass).merge(
+        admin_only: ADMIN_TOOL_CLASSES.values.flatten.include?(klass),
+        mutation: MUTATION_TOOL_CLASSES.include?(klass)
+      )
     end
   end
 end

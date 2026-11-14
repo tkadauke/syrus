@@ -16,6 +16,8 @@ module SyrusBrowser
   # through its own daemon (a third, materially different backend --
   # explicitly out of scope here; see SessionContext).
   class ChatToolSet
+    def self.coworker_excluded? = true
+
     def self.available_for?(chat_session, tier:)
       chat_session.coding? && %i[essential deferred].include?(tier.to_sym)
     end

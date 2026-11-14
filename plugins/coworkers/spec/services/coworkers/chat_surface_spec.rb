@@ -476,16 +476,21 @@ RSpec.describe "Coworker chat surface" do
     expect(chat.reload.suggested_next_step).to be_nil
   end
 
-  it "offers only read-only memory tools without a grant" do
+  it "registers ordinary memory tools while leaving mutations gated without a grant" do
     allow(AgentMemory).to receive(:enabled?).and_return(true)
 
     essential_names = Mcp::Sidecar.chat_tool_names(chat, tier: :essential)
     expect(essential_names).to include("read_memory")
     deferred_names = Mcp::Sidecar.chat_tool_names(chat, tier: :deferred)
     expect(deferred_names).to include("search_memories", "list_memories")
-    expect(essential_names + deferred_names).not_to include(
-      "write_memory", "update_memory", "delete_memory", "publish_memory", "unpublish_memory"
+    expect(essential_names + deferred_names).to include(
+      "write_memory", "delete_memory", "publish_memory", "unpublish_memory"
     )
+    expect(essential_names + deferred_names).not_to include("update_memory")
+
+    report = Coworkers::ToolDefaultPolicyReport.new(chat_session: chat)
+    mutations = %w[write_memory delete_memory publish_memory unpublish_memory]
+    expect(report.grouped.fetch(:ask).map(&:tool)).to include(*mutations)
   end
 
   it "gives memory reads exactly the owner's visibility across repositories and scopes" do
