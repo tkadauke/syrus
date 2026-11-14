@@ -339,7 +339,7 @@ RSpec.describe Steps::GraderCollect do
 
     expect { handler.call }.to raise_error(
       Steps::Base::StepFailed,
-      "required graders were cancelled: rspec"
+      "required graders failed due to infrastructure: rspec"
     )
 
     expect(step.reload.details).to include(
@@ -1247,6 +1247,45 @@ RSpec.describe Steps::GraderCollect do
 
     expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: rspec")
     expect(step.reload.details[Steps::GraderCollect::TRANSIENT_ONLY_FAILURE_DETAIL_KEY]).to be_nil
+    expect(workflow.reload.artifact("grader_infrastructure_failures")).to contain_exactly(
+      include(
+        "grader_name" => "integration",
+        "process_outcome" => "timed_out",
+        "assertion_failures_present" => false
+      )
+    )
+  end
+
+  it "preserves assertion failures recorded before the grader worker died" do
+    grader = workflow.steps.find_by!(kind: "grader")
+    grader.update!(state: "failed", details: { "name" => "rspec", "required" => true })
+    grader_run = grader.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "failed")
+    grader_run.create_run_failure_classification!(
+      classification: "worker_died", confidence: 0.95, retryable: true,
+      reason: "The worker disappeared after reporting a failure.", classified_at: Time.current
+    )
+    allow(TestEvidenceLookup).to receive(:failed_test_cases_for)
+      .with(grader_run, "rspec")
+      .and_return([ { "suite_name" => "Widget", "name" => "fails" } ])
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: rspec")
+
+    expect(step.reload.details[Steps::GraderCollect::TRANSIENT_ONLY_FAILURE_DETAIL_KEY]).to be_nil
+    expect(workflow.reload.artifact("grader_infrastructure_failures")).to be_nil
+  end
+
+  it "preserves assertion failures recorded before a required grader was cancelled" do
+    grader = workflow.steps.find_by!(kind: "grader")
+    grader.update!(state: "cancelled", details: { "name" => "rspec", "required" => true, "cancelled" => true })
+    grader_run = grader.runs.create!(job: job, trigger_kind: workflow.trigger_kind, state: "cancelled")
+    allow(TestEvidenceLookup).to receive(:failed_test_cases_for)
+      .with(grader_run, "rspec")
+      .and_return([ { "suite_name" => "Widget", "name" => "fails" } ])
+
+    expect { handler.call }.to raise_error(Steps::Base::StepFailed, "required graders failed: rspec")
+
+    expect(step.reload.details[Steps::GraderCollect::TRANSIENT_ONLY_FAILURE_DETAIL_KEY]).to be_nil
+    expect(workflow.reload.artifact("grader_infrastructure_failures")).to be_nil
   end
 
   it "records grader loop timing and rollout metrics" do

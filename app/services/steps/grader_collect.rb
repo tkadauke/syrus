@@ -64,25 +64,15 @@ module Steps
       end
       record_grader_loop_metrics!(grader_steps, failed_required: failed_required)
 
-      if cancelled_required.any?
-        names = grader_names(cancelled_required)
-        evidence = record_infrastructure_evidence!(cancelled_required)
-        log("[grader_collect] required graders were cancelled: #{names.join(', ')}")
-        mark_transient_only_failure!
-        fail_with!(:worker_died, "required graders were cancelled: #{names.join(', ')}",
-                   evidence: {
-                     grader_names: names,
-                     states: cancelled_required.to_h { |grader| [ grader.id, grader.state ] },
-                     graders: evidence
-                   })
+      unsuccessful_required = failed_required + cancelled_required
+      infrastructure_failed_required = unsuccessful_required.select { |g| infrastructure_failed_step?(g) }
+      real_failed_required = unsuccessful_required - infrastructure_failed_required
+      infrastructure_evidence = if infrastructure_failed_required.any?
+        record_infrastructure_evidence!(infrastructure_failed_required)
       end
-
-      infrastructure_failed_required = failed_required.select { |g| infrastructure_failed_step?(g) }
-      real_failed_required = failed_required - infrastructure_failed_required
-      if infrastructure_failed_required.empty?
-        aggregate_status = GraderConclusionCache.aggregate_status_for(real_failed_required)
-        record_grader_conclusions!(grader_steps, aggregate_status, carried_forward)
-      else
+      aggregate_status = GraderConclusionCache.aggregate_status_for(unsuccessful_required)
+      record_grader_conclusions!(grader_steps, aggregate_status, carried_forward)
+      if infrastructure_failed_required.any?
         log("[grader_collect] grader conclusion not cached — required grader infrastructure failure")
       end
 
@@ -97,7 +87,7 @@ module Steps
         log("[grader_collect] grader conclusion NOT cached — sha=#{current_head_sha.inspect} steps=#{grader_steps.size}")
       end
 
-      if failed_required.empty?
+      if unsuccessful_required.empty?
         skipped_count = target_health_skipped.size
         log("[grader_collect] all required graders passed (#{grader_steps.size} grader Step(s) ran, #{skipped_count} target-health skip(s))")
         record_landing_validation!
@@ -105,16 +95,16 @@ module Steps
       end
 
       if ci_repair_target_fixed?(grader_steps, carried_forward, target_health_skipped)
-        record_ci_repair_advisories!(failed_required)
+        record_ci_repair_advisories!(unsuccessful_required)
         return
       end
 
       if real_failed_required.empty?
-        fail_for_infrastructure!(infrastructure_failed_required)
+        fail_for_infrastructure!(infrastructure_failed_required, evidence: infrastructure_evidence)
       end
 
       if dismissed_by_rung_zero?(real_failed_required)
-        fail_for_infrastructure!(infrastructure_failed_required) if infrastructure_failed_required.any?
+        fail_for_infrastructure!(infrastructure_failed_required, evidence: infrastructure_evidence) if infrastructure_failed_required.any?
         return
       end
 
@@ -353,11 +343,11 @@ module Steps
       step.update!(details: step.details.to_h.merge(TRANSIENT_ONLY_FAILURE_DETAIL_KEY => true))
     end
 
-    def fail_for_infrastructure!(grader_steps)
+    def fail_for_infrastructure!(grader_steps, evidence: nil)
       names = grader_names(grader_steps)
       classifications = grader_steps.filter_map { |grader| infrastructure_failure_classification_for(grader) }.uniq
       code = classifications.find { |classification| Problem::Kind.exists?(classification) } || "worker_died"
-      evidence = record_infrastructure_evidence!(grader_steps)
+      evidence ||= record_infrastructure_evidence!(grader_steps)
       log("[grader_collect] required graders failed due to infrastructure: #{names.join(', ')}")
       mark_transient_only_failure!
       fail_with!(code, "required graders failed due to infrastructure: #{names.join(', ')}",
@@ -722,20 +712,22 @@ module Steps
     end
 
     def infrastructure_failed_step?(grader_step)
-      return false unless grader_step.failed?
+      return false unless grader_step.failed? || grader_step.cancelled?
 
       infrastructure_failure_classification?(infrastructure_failure_classification_for(grader_step))
     end
 
     def infrastructure_failure_classification_for(grader_step)
-      return nil unless grader_step.failed?
+      return nil unless grader_step.failed? || grader_step.cancelled?
 
       run = latest_runs_by_step_id([ grader_step ])[grader_step.id]
+      return nil if assertion_failures_present?(grader_step, run: run)
+
       classification = run&.run_failure_classification&.classification
       return classification if infrastructure_failure_classification?(classification)
 
       outcome = grader_outcome_for(grader_step)
-      return nil if outcome.test_failed? || assertion_failures_present?(grader_step, run: run)
+      return nil if outcome.test_failed?
 
       outcome.reason if infrastructure_failure_classification?(outcome.reason)
     end
