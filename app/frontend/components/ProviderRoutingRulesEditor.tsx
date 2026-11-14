@@ -979,9 +979,7 @@ function reviewerTargetCapable(options: ProviderRoutingOptions, triggerKey: stri
   const stepKind = stepKindForTrigger(triggerKey)
   return Boolean(
     stepKind &&
-      (options.review_contributions || []).some(
-        (contribution) => contribution.kind === "target_editor" && contribution.trigger_kinds?.includes(stepKind)
-      )
+    (options.review_contributions || []).some((contribution) => contribution.kind === "target_editor" && contribution.trigger_kinds?.includes(stepKind))
   )
 }
 
@@ -989,9 +987,7 @@ function reviewerTargetRequired(options: ProviderRoutingOptions, triggerKey: str
   const stepKind = stepKindForTrigger(triggerKey)
   return Boolean(
     stepKind &&
-      (options.review_contributions || []).some(
-        (contribution) => contribution.kind === "target_editor" && contribution.target_required?.includes(stepKind)
-      )
+    (options.review_contributions || []).some((contribution) => contribution.kind === "target_editor" && contribution.target_required?.includes(stepKind))
   )
 }
 
