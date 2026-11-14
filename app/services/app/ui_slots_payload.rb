@@ -5,20 +5,22 @@ module App
   # providers are asked with the host page's context rather than answering
   # once instance-wide.
   class UiSlotsPayload
-    def self.panels_for(slot:, context: {})
+    def self.panels_for(slot:, context: {}, cacheable: nil)
       unless Syrus::Plugin::UiSlot.valid_slot?(slot)
         raise ArgumentError, "Unknown UI slot: #{slot.inspect}. Valid: #{Syrus::Plugin::UiSlot::SLOTS.inspect}"
       end
 
       Syrus::PluginRegistry.providers_for(:ui_slot)
-        .flat_map { |provider| panels_from_provider(provider, slot: slot, context: context) }
+        .flat_map { |provider| panels_from_provider(provider, slot: slot, context: context, cacheable: cacheable) }
         .each_with_index.sort_by { |panel, index| [ panel[:order].to_i, index ] }
         .map(&:first)
     end
 
-    def self.panels_from_provider(provider, slot:, context:)
+    def self.panels_from_provider(provider, slot:, context:, cacheable: nil)
       PerformanceLogging.plugin_call(extension_point: :ui_slot, provider: provider, operation: :ui_slots) do
-        Array(provider.ui_slots(slot: slot, context: context)).map { |panel| panel_payload(panel) }
+        Array(provider.ui_slots(slot: slot, context: context))
+          .select { |panel| cacheable.nil? || panel.to_h.fetch(:cacheable, true) == cacheable }
+          .map { |panel| panel_payload(panel) }
       end
     end
 

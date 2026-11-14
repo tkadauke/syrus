@@ -2407,8 +2407,8 @@ RSpec.describe App::DashboardPayload, :ci_only do
     before do
       SmartFolder.ensure_builtins_for_subject!("job")
       allow(Rails).to receive(:cache).and_return(cache_store)
-      allow(App::UiSlotsPayload).to receive(:panels_for) do |context:, **|
-        [ { id: "notice-#{context.fetch(:user).id}", component: "test/Notice" } ]
+      allow(App::UiSlotsPayload).to receive(:panels_for) do |context:, cacheable:, **|
+        cacheable ? [ { id: "notice-#{context.fetch(:user).id}", component: "test/Notice" } ] : []
       end
     end
 
@@ -2423,6 +2423,30 @@ RSpec.describe App::DashboardPayload, :ci_only do
       cached = call(subject: "job", section: "chrome")
 
       expect(cached).to eq(uncached)
+      expect(builds).to eq(1)
+    end
+
+    it "rebuilds volatile plugin panels without rebuilding stable chrome" do
+      volatile_revision = 0
+      allow(App::UiSlotsPayload).to receive(:panels_for) do |cacheable:, **|
+        if cacheable
+          [ { id: "stable", component: "test/Stable", order: 20 } ]
+        else
+          volatile_revision += 1
+          [ { id: "volatile-#{volatile_revision}", component: "test/Volatile", order: 10 } ]
+        end
+      end
+      builds = 0
+      allow_any_instance_of(described_class).to receive(:build_stable_chrome_payload).and_wrap_original do |method|
+        builds += 1
+        method.call
+      end
+
+      first = call(subject: "job", section: "chrome")
+      second = call(subject: "job", section: "chrome")
+
+      expect(first.fetch(:ui_panels).map { |panel| panel.fetch(:id) }).to eq(%w[volatile-1 stable])
+      expect(second.fetch(:ui_panels).map { |panel| panel.fetch(:id) }).to eq(%w[volatile-2 stable])
       expect(builds).to eq(1)
     end
 

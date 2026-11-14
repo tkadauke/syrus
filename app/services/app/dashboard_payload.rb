@@ -63,8 +63,12 @@ module App
 
     def chrome_payload
       health_blocked_repositories = PerformanceLogging.phase("dashboard_chrome.health_blocked_repositories", subject: subject) { health_blocked_repositories_json }
+      stable = stable_chrome_payload
+      ui_panels = (stable.fetch(:ui_panels) + volatile_ui_panels_json).sort_by { |panel| panel[:order].to_i }
 
-      volatile_chrome_payload(health_blocked_repositories).merge(stable_chrome_payload)
+      volatile_chrome_payload(health_blocked_repositories)
+        .merge(stable)
+        .merge(ui_panels: ui_panels)
     end
 
     def volatile_chrome_payload(health_blocked_repositories)
@@ -232,8 +236,19 @@ module App
     def ui_panels_json
       @ui_panels_json ||= core_ui_panels_json + ::App::UiSlotsPayload.panels_for(
         slot: "dashboard.jobs.notice",
-        context: ui_panel_context
+        context: ui_panel_context,
+        cacheable: true
       )
+    end
+
+    def volatile_ui_panels_json
+      PerformanceLogging.phase("dashboard_chrome.ui_panels.volatile", subject: subject) do
+        ::App::UiSlotsPayload.panels_for(
+          slot: "dashboard.jobs.notice",
+          context: ui_panel_context,
+          cacheable: false
+        )
+      end
     end
 
     def ui_panel_context
