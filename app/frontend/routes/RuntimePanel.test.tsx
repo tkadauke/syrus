@@ -565,7 +565,7 @@ describe("RuntimePanel terminal live view", () => {
 
     await waitFor(() => expect(actionCable.createSubscription).toHaveBeenCalled())
     const mixin = (actionCable.createSubscription.mock.calls[0] as unknown as [unknown, { received(data: { type: string; data?: string }): void }])[1]
-    mixin.received({ type: "disconnected" })
+    act(() => mixin.received({ type: "disconnected" }))
 
     expect(await screen.findByText("Session ended - reload to reconnect")).toBeInTheDocument()
     expect(screen.getByText("Terminal disconnected")).toBeInTheDocument()
