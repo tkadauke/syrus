@@ -41,7 +41,7 @@ module Mcp::Tools
                              .reorder(created_at: :desc, id: :desc)
                              .map { |wf| workflow_index_payload(wf) }
         Mcp::Tools.success(
-          job: job_detail_payload(job),
+          job: job_detail_payload(job, include_state_transitions: true),
           workflow_count: workflows_index.size,
           workflows_index: workflows_index,
           latest_workflow: workflow_summary_payload(workflow),

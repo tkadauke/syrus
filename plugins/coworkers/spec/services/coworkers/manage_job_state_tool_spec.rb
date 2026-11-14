@@ -66,6 +66,24 @@ RSpec.describe Mcp::Tools::ManageJobStateTool do
     )
   end
 
+  it "cancels an implemented Job and returns its cancelled closure reason" do
+    allow_tool
+    obsolete = job
+
+    response = described_class.call(
+      job_id: obsolete.id, action: "cancel", reason: "The operator confirmed this request is obsolete.", server_context:
+    )
+
+    result = payload(response)
+    expect(result).to include(
+      "job_id" => obsolete.id, "state" => "closed", "closure_reason" => "cancelled", "canonical_job_id" => nil
+    )
+    expect(obsolete.reload).to have_attributes(state: "closed", closure_reason: "cancelled")
+    expect(StateTransition.find(result.dig("audit", "id")).metadata).to include(
+      "human_reason" => "The operator confirmed this request is obsolete.", "requested_action" => "cancel"
+    )
+  end
+
   it "rejects inaccessible Jobs without mutation" do
     allow_tool
     other_owner = Factories.user

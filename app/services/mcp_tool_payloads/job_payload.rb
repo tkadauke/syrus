@@ -3,8 +3,8 @@ module McpToolPayloads
   # Extend this module into a class's singleton to get all helpers as class methods.
   module JobPayload
     # Full job detail payload for read_job — includes dependencies and split PR numbers.
-    def job_detail_payload(job, deployment_stages_plan: nil)
-      {
+    def job_detail_payload(job, deployment_stages_plan: nil, include_state_transitions: false)
+      payload = {
         id: job.id,
         repository_slug: job.repository&.slug,
         kind: job.kind,
@@ -28,11 +28,13 @@ module McpToolPayloads
         dependencies: job.dependencies.order(:id).filter_map { |dep| dependency_payload(dep) },
         created_at: job.created_at&.iso8601,
         updated_at: job.updated_at&.iso8601
-      }.merge(state_transition_history_payload(job))
-       .merge(deployment_stages_payload(job, plan: deployment_stages_plan))
+      }.merge(deployment_stages_payload(job, plan: deployment_stages_plan))
        .merge(approval_evidence_payload(job))
        .merge(invalidation_evidence_payload(job))
        .merge(landing_blocker_override_payload(job))
+      return payload unless include_state_transitions
+
+      payload.merge(state_transition_history_payload(job))
     end
 
     # Compact payload for list_jobs — includes repository_slug but not dependencies.
@@ -161,7 +163,7 @@ module McpToolPayloads
     end
 
     def state_transition_history_payload(job)
-      transitions = StateTransition.for_subject(job).recent.limit(50).map do |transition|
+      transitions = StateTransition.for_subject(job).recent.limit(50).preload(:user).map do |transition|
         {
           id: transition.id,
           from_state: transition.from_state,

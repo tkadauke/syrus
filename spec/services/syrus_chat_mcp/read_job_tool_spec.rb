@@ -83,6 +83,25 @@ RSpec.describe Mcp::Tools::ReadJobTool do
     expect(queries.grep(/SELECT [`"]?job_logs[`"]?\\.\\* FROM [`"]?job_logs[`"]? WHERE [`"]?job_logs[`"]?\\.[`"]?run_id[`"]? IN/i)).to be_empty
   end
 
+  it "returns state transition history without querying each transition user separately" do
+    job = Factories.job(repository: repository)
+    transition_users = Array.new(10) { Factories.user }
+    transition_users.each_with_index do |transition_user, index|
+      StateTransition.create!(
+        subject: job, from_state: "queued", to_state: "running", event_name: "start",
+        source: "operator", user: transition_user, metadata: { "sequence" => index }
+      )
+    end
+
+    response = nil
+    queries = capture_sql { response = call_tool(job_id: job.id) }
+    payload = response_payload(response)
+
+    expect(payload.dig(:job, :state_transitions).size).to be >= 10
+    user_queries = queries.grep(/SELECT [`"]?users[`"]?\.\* FROM [`"]?users[`"]? WHERE/i)
+    expect(user_queries.size).to be <= 2
+  end
+
   it "includes commits_behind_base when the job has a known staleness distance" do
     job = Factories.job(repository: repository)
     job.update_column(:commits_behind_base, 7)
