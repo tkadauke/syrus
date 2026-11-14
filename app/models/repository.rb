@@ -1,4 +1,9 @@
 class Repository < ApplicationRecord
+  DASHBOARD_CHROME_CONFIGURATION_COLUMNS = %w[
+    archived_at installation_id name owner trigger_label untagged_open_issue_count
+  ].freeze
+
+  after_commit -> { App::DashboardChromeCache.invalidate_all! }, if: :dashboard_chrome_cache_relevant_change?
   include AutoApproveModes
   include PluginDataCleanup
   include ValidatesAgentProvider
@@ -627,5 +632,9 @@ class Repository < ApplicationRecord
       updates[:config] = source.config.merge("trigger_label" => read_attribute(:trigger_label))
     end
     source.update_columns(updates) if updates.any?
+  end
+
+  def dashboard_chrome_cache_relevant_change?
+    previous_changes.key?("id") || previous_changes.keys.intersect?(DASHBOARD_CHROME_CONFIGURATION_COLUMNS)
   end
 end

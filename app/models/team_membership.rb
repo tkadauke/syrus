@@ -1,4 +1,5 @@
 class TeamMembership < ApplicationRecord
+  after_commit -> { App::DashboardChromeCache.invalidate_user!(user_id) }
   # Ordered low to high, matching RepositoryMembership's convention -- an
   # owner can manage the team's membership and repository grants.
   ROLES = %w[member owner].freeze
