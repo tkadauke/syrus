@@ -15,6 +15,7 @@ module McpToolPayloads
         branch_name: job.branch_name,
         state: job.state,
         closure_reason: job.closure_reason,
+        canonical_job_id: job.canonical_job_id,
         agent_provider: job.workflow_agent_provider,
         job_provider_setting: job.job_provider_setting,
         planned_execution: job.planned_execution_json,
@@ -27,7 +28,8 @@ module McpToolPayloads
         dependencies: job.dependencies.order(:id).filter_map { |dep| dependency_payload(dep) },
         created_at: job.created_at&.iso8601,
         updated_at: job.updated_at&.iso8601
-      }.merge(deployment_stages_payload(job, plan: deployment_stages_plan))
+      }.merge(state_transition_history_payload(job))
+       .merge(deployment_stages_payload(job, plan: deployment_stages_plan))
        .merge(approval_evidence_payload(job))
        .merge(invalidation_evidence_payload(job))
        .merge(landing_blocker_override_payload(job))
@@ -156,6 +158,22 @@ module McpToolPayloads
         display_name: user.display_name,
         email_address: user.email_address
       }
+    end
+
+    def state_transition_history_payload(job)
+      transitions = StateTransition.for_subject(job).recent.limit(50).map do |transition|
+        {
+          id: transition.id,
+          from_state: transition.from_state,
+          to_state: transition.to_state,
+          event_name: transition.event_name,
+          source: transition.source,
+          user: user_reference_payload(transition.user),
+          metadata: transition.metadata,
+          created_at: transition.created_at&.iso8601
+        }
+      end
+      transitions.any? ? { state_transitions: transitions } : {}
     end
   end
 end

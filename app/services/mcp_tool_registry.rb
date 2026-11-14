@@ -433,6 +433,7 @@ class McpToolRegistry
         coworker_action(Mcp::Tools::ListJobsTool, capability: "syrus.read_jobs"),
         coworker_action(Mcp::Tools::SearchJobsTool, capability: "syrus.read_jobs"),
         coworker_action(Mcp::Tools::ReadJobTool, capability: "syrus.read_jobs"),
+        coworker_action(Mcp::Tools::ManageJobStateTool, capability: "syrus.manage_job_state", mutation: true),
         # Proposal tools only create the owner's real confirmation cards. A
         # generic coworker gate here would ask once before asking again on the
         # proposal itself.

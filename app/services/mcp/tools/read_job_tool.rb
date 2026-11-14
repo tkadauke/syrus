@@ -29,6 +29,7 @@ module Mcp::Tools
           includes: [
             :repository,
             :deployment_stage_statuses,
+            :canonical_job,
             { dependencies: [ { depends_on_job: :repository }, :depends_on_epic ] },
             { workflows: { steps: :runs } }
           ]
