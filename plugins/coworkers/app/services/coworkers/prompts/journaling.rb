@@ -34,6 +34,12 @@ module Coworkers
         first_target < now.in_time_zone(zone).to_date - 1
       end
 
+      def attention_required?(task:, now:)
+        overdue?(task:, now:) ||
+          (task.last_system_result == "failed" &&
+            task.consecutive_failure_count >= Coworkers::JournalingFailureAlert::FAILURE_THRESHOLD)
+      end
+
       def prompt(task:, target_date:)
         coworker = Coworkers::Coworker.find(task.coworker_id)
         material = Coworkers::JournalingActivity.new(coworker:, date: target_date).material
