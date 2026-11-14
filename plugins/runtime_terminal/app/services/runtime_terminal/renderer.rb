@@ -104,9 +104,13 @@ module RuntimeTerminal
       # Pango line boxes vary by host. Normalize an oversized line to the
       # fixed terminal row so its baseline and descenders keep their relative
       # positions; bottom-cropping moves ordinary glyphs onto the last row and
-      # erases that distinction.
+      # erases that distinction. Leave one pixel of headroom at the bottom:
+      # some libvips/Pango combinations round a full-height resize onto the
+      # final row, making an ordinary baseline indistinguishable from a
+      # descender or box-drawing edge.
       available_height = CELL_HEIGHT - line_top
-      glyph = glyph.resize(1, vscale: available_height.to_f / glyph.height) if glyph.height > available_height
+      normalized_height = available_height - 1
+      glyph = glyph.resize(1, vscale: normalized_height.to_f / glyph.height) if glyph.height > normalized_height
       clipped_width = [ glyph.width - source_left, cell_width ].min
       clipped_height = [ glyph.height, available_height ].min
       canvas = Vips::Image.black(cell_width, CELL_HEIGHT)
