@@ -30,6 +30,10 @@ module ReviewContextContributions
     provider_for(target).tool_capability(target.deep_stringify_keys)&.to_sym
   end
 
+  def operator_links(target:, run:, user:)
+    provider_for(target).operator_links(target: target.deep_stringify_keys, run:, user:)
+  end
+
   def provider_for(target)
     type = target.to_h.deep_stringify_keys.fetch("type")
     Syrus::PluginRegistry.providers_for(:review_context_contributor).find { |candidate| candidate.target_type == type } ||
