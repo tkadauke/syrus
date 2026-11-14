@@ -236,7 +236,7 @@ export function PendingActionCarousel({
         focusWithinRef.current = true
       }}
       onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return
+        if (collapsed || event.target !== event.currentTarget) return
         if (event.key === "ArrowLeft") {
           event.preventDefault()
           navigate(-1)
@@ -253,7 +253,7 @@ export function PendingActionCarousel({
         const start = touchStartRef.current
         const touch = event.changedTouches[0]
         touchStartRef.current = null
-        if (!start || !touch || items.length < 2) return
+        if (collapsed || !start || !touch || items.length < 2) return
         const deltaX = touch.clientX - start.x
         const deltaY = touch.clientY - start.y
         if (Math.abs(deltaX) < ACTION_CAROUSEL_SWIPE_THRESHOLD || Math.abs(deltaX) <= Math.abs(deltaY) * 1.25) return
