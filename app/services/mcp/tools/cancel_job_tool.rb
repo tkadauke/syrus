@@ -61,7 +61,10 @@ module Mcp::Tools
           end
         end
         if ineligible.any?
-          return Mcp::Tools.invalid("Cannot cancel #{ineligible.size} of #{jobs.size} Jobs - #{ineligible.join('; ')}")
+          return invalid_job_states(
+            "Cannot cancel #{ineligible.size} of #{jobs.size} Jobs - #{ineligible.join('; ')}",
+            jobs
+          )
         end
 
         unless bulk
@@ -96,6 +99,15 @@ module Mcp::Tools
         bulk_action_response(group: group, message: "Cancel #{jobs.size} Jobs?")
       rescue ActiveRecord::RecordInvalid => e
         Mcp::Tools.invalid(e.record.errors.full_messages.to_sentence)
+      end
+
+      private
+
+      def invalid_job_states(message, jobs)
+        states = jobs.map { |job| { job_id: job.id, state: job.reload.state } }
+        payload = { ok: false, error: message, jobs: states }
+        payload.merge!(states.first) if states.one?
+        MCP::Tool::Response.new([ { type: "text", text: JSON.generate(payload) } ], error: true)
       end
     end
   end

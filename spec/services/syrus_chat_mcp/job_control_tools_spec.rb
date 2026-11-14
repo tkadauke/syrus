@@ -196,7 +196,10 @@ RSpec.describe "Mcp::Tools job control tools", :full_chat_access do
     response = call_tool("cancel_job", job_id: job.id, reason: "No longer needed.")
 
     expect(response.dig(:result, :isError)).to be(true)
-    expect(response.dig(:result, :content, 0, :text)).to include("already closed", "Reopen")
+    expect(payload(response)).to include(
+      ok: false, job_id: job.id, state: "closed",
+      error: include("already closed", "Reopen")
+    )
     expect(chat_session.pending_actions).to be_empty
   end
 

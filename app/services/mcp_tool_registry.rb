@@ -433,7 +433,7 @@ class McpToolRegistry
         coworker_action(Mcp::Tools::ListJobsTool, capability: "syrus.read_jobs"),
         coworker_action(Mcp::Tools::SearchJobsTool, capability: "syrus.read_jobs"),
         coworker_action(Mcp::Tools::ReadJobTool, capability: "syrus.read_jobs"),
-        *coworker_job_lifecycle_entries,
+        coworker_job_cancellation,
         # Proposal tools only create the owner's real confirmation cards. A
         # generic coworker gate here would ask once before asking again on the
         # proposal itself.
@@ -580,32 +580,20 @@ class McpToolRegistry
       entry(tool, surface: :coworker, tier: tier, **metadata)
     end
 
-    # Job lifecycle operations are one shared capability family. Coworkers get
-    # the same tools as ordinary chats unless a registration is intrinsically
-    # tied to another context (currently create_coding_job). The tools retain
-    # their established pending-action confirmation boundary.
-    def coworker_job_lifecycle_entries
-      chat_entries.filter_map do |chat_entry|
-        next unless chat_entry.descriptor.capability == Permissions::JobLifecycle::JOBS
-        next if chat_entry.tool == Mcp::Tools::CreateCodingJobTool
-
-        coworker(
-          chat_entry.tool,
-          tier: chat_entry.tier || :essential,
-          feature_flag: chat_entry.feature_flag,
-          capability: Permissions::JobLifecycle::JOBS.delete_suffix("@v1"),
-          mutation: chat_entry.mutation,
-          approval_effect: pending_action_tool?(chat_entry.tool),
-          descriptor: chat_entry.descriptor
-        )
-      end
-    end
-
-    def pending_action_tool?(tool)
-      PendingActions.for(tool_name_for(tool))
-      true
-    rescue PendingActions::UnknownAction
-      false
+    # Coworkers receive only the narrow cancellation operation, not the rest
+    # of the ordinary-chat Job lifecycle family. The descriptor is shared so
+    # both agent surfaces use the same operation, evaluator and confirmation
+    # policy without widening coworker authority to approve, retry or land.
+    def coworker_job_cancellation
+      chat_entry = chat_entries.find { |entry| entry.tool == Mcp::Tools::CancelJobTool }
+      coworker(
+        chat_entry.tool,
+        tier: chat_entry.tier || :essential,
+        capability: Permissions::JobLifecycle::JOBS.delete_suffix("@v1"),
+        mutation: true,
+        approval_effect: true,
+        descriptor: chat_entry.descriptor
+      )
     end
 
     # Compatibility is declared beside the registrations it covers so adding
@@ -617,8 +605,8 @@ class McpToolRegistry
 
     def lifecycle_chat(tool, **metadata)
       roles = metadata[:required_roles].presence || AgentRole::CHAT_ROLES
-      shared_roles = (Array(roles) + [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]).uniq
-      descriptor = Permissions::JobLifecycle.descriptor_for(tool_name_for(tool), required_roles: shared_roles)
+      roles = (Array(roles) + [ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ]).uniq if tool == Mcp::Tools::CancelJobTool
+      descriptor = Permissions::JobLifecycle.descriptor_for(tool_name_for(tool), required_roles: roles)
       chat(tool, **metadata, descriptor:)
     end
 
