@@ -70,10 +70,11 @@ module Steps
       infrastructure_evidence = if infrastructure_failed_required.any?
         record_infrastructure_evidence!(infrastructure_failed_required)
       end
-      aggregate_status = GraderConclusionCache.aggregate_status_for(unsuccessful_required)
-      record_grader_conclusions!(grader_steps, aggregate_status, carried_forward)
       if infrastructure_failed_required.any?
         log("[grader_collect] grader conclusion not cached — required grader infrastructure failure")
+      else
+        aggregate_status = GraderConclusionCache.aggregate_status_for(unsuccessful_required)
+        record_grader_conclusions!(grader_steps, aggregate_status, carried_forward)
       end
 
       grader_fingerprint = workflow.artifact(GraderConclusionCache::ARTIFACT_FINGERPRINT_KEY)

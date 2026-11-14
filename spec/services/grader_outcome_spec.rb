@@ -40,6 +40,13 @@ RSpec.describe GraderOutcome do
     expect(classify({ "exit_code" => 124, "timed_out" => true, "output" => "x" }).outcome).to eq("inconclusive")
   end
 
+  it "does not mistake a framework test timeout for a grader process timeout" do
+    result = classify({ "exit_code" => 1, "timed_out" => false, "output" => "Error: Test timed out in 5000ms." })
+
+    expect(result.outcome).to eq("test_failed")
+    expect(result.reason).to eq("nonzero_exit_with_evidence")
+  end
+
   it "treats invalid exit status or missing evidence as inconclusive" do
     expect(classify({ "exit_code" => -1, "output" => "boom" }).reason).to eq("invalid_exit_status")
     expect(classify({ "exit_code" => 1, "output" => "", "log_bytes" => 0 }).reason).to eq("missing_failure_evidence")
