@@ -108,14 +108,18 @@ describe("renderChatMessages tool grouping", () => {
 
   it("rebuilds only an appended ordinary message after a long unchanged prefix", () => {
     const cache = createChatRenderCache()
-    const messages = Array.from({ length: 200 }, (_, index) => ({
-      type: "message",
-      id: index + 1,
-      entity_revision: 1,
-      role: index % 2 === 0 ? "user" : "assistant",
-      text: `message ${index + 1}`,
-      bookmarkable: false
-    } as ChatMessageItem))
+    const messages = Array.from(
+      { length: 200 },
+      (_, index) =>
+        ({
+          type: "message",
+          id: index + 1,
+          entity_revision: 1,
+          role: index % 2 === 0 ? "user" : "assistant",
+          text: `message ${index + 1}`,
+          bookmarkable: false
+        }) as ChatMessageItem
+    )
     const first = renderChatMessages(messages, cache)
     const appended = { ...messages[199], id: 201, role: "user" as const, text: "appended" }
 
@@ -179,7 +183,13 @@ describe("renderChatMessages tool grouping", () => {
     renderChatMessages([legacy, { ...legacy, id: 2 }], cache)
     expect(cache.lastDerivation).toEqual({ reusedMessageCount: 1, rebuiltMessageCount: 1, fullRebuild: false })
 
-    renderChatMessages([{ ...legacy, text: "replacement" }, { ...legacy, id: 2 }], cache)
+    renderChatMessages(
+      [
+        { ...legacy, text: "replacement" },
+        { ...legacy, id: 2 }
+      ],
+      cache
+    )
     expect(cache.lastDerivation).toEqual({ reusedMessageCount: 0, rebuiltMessageCount: 2, fullRebuild: true })
   })
 
@@ -871,13 +881,7 @@ describe("renderChatMessages benign cleanup suppression", () => {
     const pendingUse = toolUse(4, { toolUseId: "tu_pending", toolName: "read_file" })
     const first = renderChatMessages([cleanupUse, cleanup, checkpoint, pendingUse], cache)
 
-    const second = renderChatMessages([
-      cleanupUse,
-      cleanup,
-      checkpoint,
-      pendingUse,
-      toolResult(5, { toolUseId: "tu_pending", content: "done" })
-    ], cache)
+    const second = renderChatMessages([cleanupUse, cleanup, checkpoint, pendingUse, toolResult(5, { toolUseId: "tu_pending", content: "done" })], cache)
 
     expect(first).toHaveLength(2)
     expect(second).toHaveLength(2)
