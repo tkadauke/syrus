@@ -16,10 +16,11 @@ module Timeline
   # `workflow_blocked` value the top-level `workflow` payload does, rather
   # than fabricating a per-step explanation.
   class WorkflowWaterfallQuery
-    def self.call(workflow_id:) = new(workflow_id: workflow_id).call
+    def self.call(workflow_id:, include_step_worker_identity: false) = new(workflow_id: workflow_id, include_step_worker_identity: include_step_worker_identity).call
 
-    def initialize(workflow_id:)
+    def initialize(workflow_id:, include_step_worker_identity: false)
       @workflow = Workflow.includes(:job, steps: :runs).find(workflow_id)
+      @include_step_worker_identity = include_step_worker_identity
     end
 
     def call
@@ -31,7 +32,7 @@ module Timeline
 
     private
 
-    attr_reader :workflow
+    attr_reader :workflow, :include_step_worker_identity
 
     def attribution
       @attribution ||= WorkerAttribution.for_workflows([ workflow ]).fetch(workflow.id)
@@ -72,6 +73,7 @@ module Timeline
         finished_at: step.finished_at&.iso8601,
         runs: step.runs.map { |run| run_payload(run) }
       }
+      payload.merge!(attribution.slice(:worker_storage_key, :queue_role, :hostname, :pid)) if include_step_worker_identity
       payload[:blocked] = workflow_blocked if step.started_at.nil?
       payload
     end

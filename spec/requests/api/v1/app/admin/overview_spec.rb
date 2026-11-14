@@ -268,7 +268,7 @@ RSpec.describe "API: /api/v1/app/admin/overview", type: :request do
       "recent_top_consumers" => []
     )
     expect(parse_body).not_to have_key("chat_scoped_events")
-    expect(parse_body.keys).to eq([ "resource_admission" ])
+    expect(parse_body.keys).to eq([ "v", "resource_admission" ])
   end
 
   it "returns scoped chat event diagnostics only when requested for the subpage" do
