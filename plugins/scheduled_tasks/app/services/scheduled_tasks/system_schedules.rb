@@ -7,6 +7,8 @@ module ScheduledTasks
 
       def failure_date(task:, now:) = nil
 
+      def failure_recorded(task:, date:, reason:) = nil
+
       def overdue?(task:, now:) = false
     end
 
