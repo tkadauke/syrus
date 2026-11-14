@@ -2292,6 +2292,14 @@ and the number of paths covered instead of presenting an empty partial result
 as a definitive no-match. The agent and operator-facing tool card both advise
 narrowing the path or retrying.
 
+Coworkers can submit targeted feedback to an implemented Job they can see by
+using the same `submit_chat_feedback` operation as an ordinary chat agent. The
+shared Job permission policy and operator confirmation still apply. After
+confirmation, Job history identifies the coworker and originating chat while
+keeping the execution provider separate, then links the resulting feedback
+workflow. Review-step verdict tools remain unavailable outside their matching
+review context.
+
 When provider routing selects a named coworker for repository review, Syrus
 freezes a protected context containing only that identity, applicable
 repository criteria, and the published repository memories actually shown to

@@ -29,6 +29,7 @@ module Permissions
       "cancel_job" => Operation.new(JOBS, "cancel", DESTRUCTIVE_CONTROL, :high),
       "retry_job" => Operation.new(JOBS, "retry", WORK_CONTROL, :medium),
       "base_refresh_retry_job" => Operation.new(JOBS, "retry_base_refresh", WORK_CONTROL, :medium),
+      "submit_chat_feedback" => Operation.new(JOBS, "submit_feedback", WORK_CONTROL, :medium),
       "poll_job_feedback" => Operation.new(JOBS, "poll_feedback", WORK_CONTROL, :medium),
       "rebase_job" => Operation.new(JOBS, "rebase", WORK_CONTROL, :medium),
       "reopen_job" => Operation.new(JOBS, "reopen", WORK_CONTROL, :medium),
@@ -58,10 +59,11 @@ module Permissions
 
       def covers?(tool_name) = OPERATIONS.key?(tool_name.to_s)
 
-      def descriptor_for(tool_name, required_roles: AgentRole::CHAT_ROLES)
+      def descriptor_for(tool_name, required_roles: AgentRole::CHAT_ROLES, default_policies: {})
         operation = OPERATIONS.fetch(tool_name.to_s)
         identifier = "#{operation.capability.delete_suffix('@v1')}/#{operation.name}@v1"
         roles = Array(required_roles)
+        policies = default_policies.to_h.stringify_keys
 
         CapabilityDescriptor.new(
           capability: operation.capability,
@@ -70,7 +72,7 @@ module Permissions
           effects: operation.effects,
           risk: operation.risk,
           requestable_roles: roles,
-          defaults: roles.index_with { :ask },
+          defaults: roles.index_with { |role| policies.fetch(role, :ask) },
           maximum_autonomy: :invocation,
           authority_durations: %i[invocation],
           resource_scope: { type: :none },
