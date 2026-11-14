@@ -231,7 +231,7 @@ RSpec.describe "API: coworkers", type: :request do
 
     get "/api/v1/app/scheduled_tasks"
     expect(response.parsed_body.fetch("active_tasks")).to include(
-      include("id" => task_id, "name" => "Morning briefing")
+      include("id" => task_id, "name" => "Morning briefing", "repository_id" => repository.id)
     )
   end
 
