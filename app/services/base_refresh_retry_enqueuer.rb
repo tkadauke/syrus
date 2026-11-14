@@ -16,16 +16,23 @@ class BaseRefreshRetryEnqueuer
     return failure("A reason is required for a base refresh retry.") if reason.blank?
 
     source = selected_source_workflow
-    return failure("The selected source workflow is not a failed workflow for this Job.") unless source&.job_id == job.id && source.failed?
+    if source&.job_id == job.id && (checkpoint = RunCheckpoint.published.where(workflow_id: source.id).recent.first) &&
+        (existing = reserved_retry_for(source, checkpoint))
+      return Result.new(workflow: existing, checkpoint: checkpoint, error: nil, launch_result: nil)
+    end
 
-    checkpoint = latest_checkpoint(source)
-    return failure("No published mutation checkpoint is available for the selected failed workflow.") unless checkpoint
+    eligibility = BaseRefreshRetryEligibility.call(job: job, source_workflow_id: source&.id)
+    return failure(eligibility.message) unless eligibility.eligible?
+    source = eligibility.workflow
+    checkpoint = eligibility.checkpoint
 
     base_ref = job.effective_base_branch.to_s.presence
     return failure("The Job has no effective base ref to refresh onto.") unless base_ref
 
     base_sha = RepositoryContent.for(effective_base_repository, user: job.user).resolve(base_ref, max_age: 0).id
-    workflow = instantiate_retry!(source, checkpoint, base_ref, base_sha)
+    workflow, existing = instantiate_retry!(source, checkpoint, base_ref, base_sha)
+    return Result.new(workflow: workflow, checkpoint: checkpoint, error: nil, launch_result: nil) if existing
+
     workflow.set_artifact!(RebaseTarget::BRANCH_ARTIFACT, WorkflowWorkspace.new(workflow).branch_name)
     launch = WorkUnits::Launcher.start!(workflow)
     if launch.not_started?
@@ -33,6 +40,7 @@ class BaseRefreshRetryEnqueuer
                         error: "Base refresh retry did not start: #{launch.reason || 'unknown start block'}", launch_result: launch)
     end
 
+    job.reload.clear_needs_attention!(reason: "agent_cannot_proceed")
     Result.new(workflow: workflow, checkpoint: checkpoint, error: nil, launch_result: launch)
   rescue WorkUnits::Launcher::LockConflict
     failure("Active mutation work must finish before starting a base refresh retry.")
@@ -47,11 +55,7 @@ class BaseRefreshRetryEnqueuer
   attr_reader :job, :source_workflow, :reason, :agent_provider
 
   def selected_source_workflow
-    source_workflow || job.workflows.where(state: "failed").order(created_at: :desc, id: :desc).first
-  end
-
-  def latest_checkpoint(source)
-    RunCheckpoint.published.where(workflow_id: source.id).recent.first
+    source_workflow || job.workflows.where(state: %w[failed blocked]).order(created_at: :desc, id: :desc).first
   end
 
   def effective_base_repository
@@ -61,23 +65,38 @@ class BaseRefreshRetryEnqueuer
   def instantiate_retry!(source, checkpoint, base_ref, base_sha)
     job.with_lock do
       job.reload
-      eligibility = RetryWorkflowEligibility.call(job: job)
+      if (existing = reserved_retry_for(source, checkpoint))
+        return [ existing, true ]
+      end
+
+      eligibility = BaseRefreshRetryEligibility.call(job: job, source_workflow_id: source.id)
       raise ArgumentError, eligibility.message unless eligibility.eligible?
       raise ArgumentError, "Job is not ready to retry after failure." unless job.may_retry_after_failure?
 
       job.retry_after_failure!
       job.save!
-      WorkUnits::Launcher.instantiate(
+      workflow = WorkUnits::Launcher.instantiate(
         kind: "base_refresh_retry", job: job, agent_provider: agent_provider,
         artifacts: provenance(source, checkpoint, base_ref, base_sha)
       )
+      source.set_artifact!("base_refresh_retry_checkpoint_id", checkpoint.id)
+      source.set_artifact!("base_refresh_retry_workflow_id", workflow.id)
+      [ workflow, false ]
     end
+  end
+
+  def reserved_retry_for(source, checkpoint)
+    workflow_id = source.artifact("base_refresh_retry_workflow_id")
+    return unless source.artifact("base_refresh_retry_checkpoint_id").to_i == checkpoint.id && workflow_id.present?
+
+    job.workflows.find_by(id: workflow_id)
   end
 
   def provenance(source, checkpoint, base_ref, base_sha)
     snapshot = WorkflowSourceSnapshots.current_for(source)
     {
       "checkpoint_ref" => checkpoint.remote_ref, "checkpoint_sha" => checkpoint.commit_sha,
+      "checkpoint_id" => checkpoint.id,
       "checkpoint_source_run_id" => checkpoint.run_id, "checkpoint_source_workflow_id" => source.id,
       "base_refresh_source_snapshot_id" => snapshot&.id, "base_refresh_source_snapshot_ref" => snapshot&.source_ref,
       "base_refresh_source_snapshot_sha" => snapshot&.source_sha,

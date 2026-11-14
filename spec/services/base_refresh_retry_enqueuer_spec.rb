@@ -18,8 +18,11 @@ RSpec.describe BaseRefreshRetryEnqueuer do
     RunCheckpoint.create!(run: run, workflow: source, step: step, job: job, repository: repository, user: user,
       step_kind: "implement", commit_sha: "checkpoint-sha", base_sha: "old-base",
       remote_ref: RunCheckpoint.remote_ref_for(run), status: "published", published_at: Time.current)
-    revision = RepositoryContent::Revision.new(id: "new-base", ref: "main", observed_at: Time.current)
-    reader = instance_double(RepositoryContent::Reader, resolve: revision, read_if_present: nil)
+    reader = instance_double(RepositoryContent::Reader, read_if_present: nil)
+    allow(reader).to receive(:resolve) do |ref, **|
+      sha = ref == RunCheckpoint.remote_ref_for(run) ? "checkpoint-sha" : "new-base"
+      RepositoryContent::Revision.new(id: sha, ref: ref, observed_at: Time.current)
+    end
     allow(RepositoryContent).to receive(:for).and_return(reader)
   end
 
@@ -70,5 +73,132 @@ RSpec.describe BaseRefreshRetryEnqueuer do
     result = described_class.call(job: job, source_workflow: source, reason: "parent advanced")
     expect(result).to be_success
     expect(result.workflow.artifacts).to include(RebaseTarget::BASE_BRANCH_ARTIFACT => "syrus/parent")
+  end
+
+  it "recovers a quiescent blocked source and clears stale attention only after replacement ownership exists" do
+    source.update!(state: "blocked")
+    add_recoverable_blocked_failure
+    job.update!(needs_attention: true, needs_attention_reason: "agent_cannot_proceed", needs_attention_since: 1.hour.ago)
+
+    result = described_class.call(job: job, source_workflow: source, reason: "restore durable implementation")
+
+    expect(result).to be_success
+    expect(result.workflow.work_unit).to be_present
+    expect(source.reload).to be_blocked
+    expect(job.reload.needs_attention_reason).to be_nil
+  end
+
+  it "converges repeated requests on the checkpoint reservation" do
+    source.update!(state: "blocked")
+    add_recoverable_blocked_failure
+
+    first = described_class.call(job: job, source_workflow: source, reason: "restore durable implementation")
+    second = described_class.call(job: job.reload, source_workflow: source.reload, reason: "restore durable implementation")
+
+    expect(second).to be_success
+    expect(second.workflow).to eq(first.workflow)
+    expect(job.workflows.where(trigger_kind: "base_refresh_retry").count).to eq(1)
+  end
+
+  it "rejects a blocked source whose checkpoint provenance belongs to another Job" do
+    source.update!(state: "blocked")
+    add_recoverable_blocked_failure
+    other = Factories.job_record(user: user, repository: repository, state: "failed")
+    run.run_checkpoint.update_columns(job_id: other.id)
+
+    result = described_class.call(job: job, source_workflow: source, reason: "restore durable implementation")
+
+    expect(result.error).to include("checkpoint provenance")
+    expect(job.reload).to be_failed
+  end
+
+  it "rejects a failed source whose checkpoint provenance belongs to another Job" do
+    other = Factories.job_record(user: user, repository: repository, state: "failed")
+    run.run_checkpoint.update_columns(job_id: other.id)
+
+    result = described_class.call(job: job, source_workflow: source, reason: "restore durable implementation")
+
+    expect(result.error).to include("checkpoint provenance")
+    expect(job.reload).to be_failed
+  end
+
+  it "rejects a blocked source with an active Run" do
+    source.update!(state: "blocked")
+    add_recoverable_blocked_failure
+    step.runs.create!(job: job, user: user, trigger_kind: "initial", agent_provider: "claude", state: "queued")
+
+    result = described_class.call(job: job, source_workflow: source, reason: "restore durable implementation")
+
+    expect(result.error).to include("still has queued or running Runs")
+  end
+
+  it "rejects a blocked source with active ownership before reserving its checkpoint" do
+    source.update!(state: "blocked")
+    add_recoverable_blocked_failure
+    allow(WorkUnits::Ownership).to receive(:active_for_job?).with(job).and_return(true)
+
+    result = described_class.call(job: job, source_workflow: source, reason: "restore durable implementation")
+
+    expect(result.error).to include("active WorkUnit ownership or retained mutation locks")
+    expect(source.artifact("base_refresh_retry_workflow_id")).to be_nil
+  end
+
+  it "rejects a blocked source with a retained mutation lock on a terminal WorkUnit" do
+    source.update!(state: "blocked")
+    add_recoverable_blocked_failure
+    intent = WorkIntent.create!(kind: "initial", state: "failed", repository: repository,
+      scope_type: "job", scope_id: job.id, actor: user, source_type: "spec")
+    unit = WorkUnit.create!(work_intent: intent, kind: "initial", state: "failed", repository: repository,
+      scope_type: "job", scope_id: job.id, finished_at: 5.minutes.ago)
+    unit.work_unit_members.create!(job: job, role: "primary")
+    unit.work_unit_locks.create!(lock_key: "job:#{job.id}")
+
+    result = described_class.call(job: job, source_workflow: source, reason: "restore durable implementation")
+
+    expect(result.error).to include("active WorkUnit ownership or retained mutation locks")
+    expect(source.artifact("base_refresh_retry_workflow_id")).to be_nil
+  end
+
+  it "rejects a checkpoint whose durable ref no longer reaches the recorded commit" do
+    source.update!(state: "blocked")
+    add_recoverable_blocked_failure
+    allow(RepositoryContent).to receive(:for).and_return(
+      instance_double(RepositoryContent::Reader, resolve: RepositoryContent::Revision.new(
+        id: "different-sha", ref: RunCheckpoint.remote_ref_for(run), observed_at: Time.current
+      ))
+    )
+
+    result = described_class.call(job: job, source_workflow: source, reason: "restore durable implementation")
+
+    expect(result.error).to include("does not resolve to its recorded commit SHA")
+  end
+
+
+  it "rejects an ambiguous blocked source without structured infrastructure failure evidence" do
+    source.update!(state: "blocked")
+
+    result = described_class.call(job: job, source_workflow: source, reason: "restore durable implementation")
+
+    expect(result.error).to include("no structured recoverable infrastructure failure evidence")
+  end
+
+  it "rejects a failed source when its durable ref cannot be verified" do
+    allow(RepositoryContent).to receive(:for).and_return(
+      instance_double(RepositoryContent::Reader).tap do |reader|
+        allow(reader).to receive(:resolve).and_raise(RepositoryContent::Unavailable, "provider unavailable")
+      end
+    )
+
+    result = BaseRefreshRetryEligibility.call(job: job, source_workflow_id: source.id)
+
+    expect(result).not_to be_eligible
+    expect(result.message).to include("could not be resolved: provider unavailable")
+  end
+
+  def add_recoverable_blocked_failure
+    grader = Step.create!(workflow: source, kind: "grader", position: 1, state: "failed")
+    failed_run = grader.runs.create!(job: job, user: user, trigger_kind: "initial", state: "failed")
+    RunFailureClassification.create!(run: failed_run, classification: "storage_unavailable",
+      retryable: true, confidence: 1.0, reason: "structured test evidence", classified_at: Time.current)
   end
 end
