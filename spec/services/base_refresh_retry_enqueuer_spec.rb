@@ -112,6 +112,16 @@ RSpec.describe BaseRefreshRetryEnqueuer do
     expect(job.reload).to be_failed
   end
 
+  it "rejects a failed source whose checkpoint provenance belongs to another Job" do
+    other = Factories.job_record(user: user, repository: repository, state: "failed")
+    run.run_checkpoint.update_columns(job_id: other.id)
+
+    result = described_class.call(job: job, source_workflow: source, reason: "restore durable implementation")
+
+    expect(result.error).to include("checkpoint provenance")
+    expect(job.reload).to be_failed
+  end
+
   it "rejects a blocked source with an active Run" do
     source.update!(state: "blocked")
     add_recoverable_blocked_failure
@@ -172,7 +182,7 @@ RSpec.describe BaseRefreshRetryEnqueuer do
     expect(result.error).to include("no structured recoverable infrastructure failure evidence")
   end
 
-  it "keeps failed-source eligibility compatible when durable refs are temporarily unavailable" do
+  it "rejects a failed source when its durable ref cannot be verified" do
     allow(RepositoryContent).to receive(:for).and_return(
       instance_double(RepositoryContent::Reader).tap do |reader|
         allow(reader).to receive(:resolve).and_raise(RepositoryContent::Unavailable, "provider unavailable")
@@ -181,9 +191,8 @@ RSpec.describe BaseRefreshRetryEnqueuer do
 
     result = BaseRefreshRetryEligibility.call(job: job, source_workflow_id: source.id)
 
-    expect(result).to be_eligible
-    expect(result.workflow).to eq(source)
-    expect(result.checkpoint).to eq(run.run_checkpoint)
+    expect(result).not_to be_eligible
+    expect(result.message).to include("could not be resolved: provider unavailable")
   end
 
   def add_recoverable_blocked_failure

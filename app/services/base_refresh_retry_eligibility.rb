@@ -33,7 +33,7 @@ class BaseRefreshRetryEligibility
 
     checkpoint = RunCheckpoint.published.where(workflow_id: workflow.id).recent.first
     return failure("No published mutation checkpoint is available for the selected source workflow.") unless checkpoint
-    if workflow.blocked? && (checkpoint_failure = blocked_checkpoint_failure(checkpoint, workflow))
+    if (checkpoint_failure = checkpoint_failure(checkpoint, workflow))
       return checkpoint_failure
     end
 
@@ -50,7 +50,7 @@ class BaseRefreshRetryEligibility
     job.base_on_upstream_default? ? job.base_repository : job.repository
   end
 
-  def blocked_checkpoint_failure(checkpoint, workflow)
+  def checkpoint_failure(checkpoint, workflow)
     unless checkpoint.job_id == job.id && checkpoint.workflow_id == workflow.id &&
         checkpoint.run&.workflow_id == workflow.id && checkpoint.run&.job_id == job.id
       return failure("The published checkpoint provenance does not match the selected Job and Workflow.")
