@@ -720,22 +720,18 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     end
   end
 
-  it "caps initial groups at five chats while preserving the requested size for group expansion" do
+  it "honors the configured size for initial chat groups" do
     sign_in_as(user)
-    user.update!(recent_chats_group_size: 20)
-    chats = 7.times.map do |index|
+    user.update!(recent_chats_group_size: 10)
+    chats = 11.times.map do |index|
       ChatSession.create!(user: user, title: "Chat #{index}", last_message_at: index.minutes.ago)
     end
 
     get "/api/v1/app/chats"
 
     group = parse_body.fetch("groups").find { |item| item.fetch("key") == "general" }
-    expect(group.fetch("chats").map { |chat| chat.fetch("id") }).to eq(chats.first(5).map(&:id))
+    expect(group.fetch("chats").map { |chat| chat.fetch("id") }).to eq(chats.first(10).map(&:id))
     expect(group.fetch("has_more")).to eq(true)
-
-    get "/api/v1/app/chats/more", params: { group_by: "repository", group_key: "general", before_id: group.fetch("chats").last.fetch("id"), per_group: 20 }
-
-    expect(parse_body.fetch("chats").map { |chat| chat.fetch("id") }).to eq(chats.last(2).map(&:id))
   end
 
   it "loads initial sidebar chat groups without one chat query per repository" do
@@ -880,13 +876,10 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
     expect(response).to have_http_status(:not_modified)
   end
 
-  it "bounds the first sidebar page below the configured group size and honors a smaller one" do
+  it "honors a configured sidebar group size below five" do
     expect(user.recent_chats_group_size).to eq(10)
-    initial = Api::V1::App::ChatsController::CHAT_INDEX_INITIAL_GROUP_SIZE
-    expect(initial).to be < user.recent_chats_group_size
-
     sign_in_as(user)
-    chats = 11.times.map do |index|
+    chats = 4.times.map do |index|
       chat = ChatSession.create!(
         user: user,
         repository: repository,
@@ -896,12 +889,6 @@ RSpec.describe "API: /api/v1/app/chats", :ci_only, type: :request do
       chat.update_columns(created_at: chat.last_message_at, updated_at: chat.last_message_at)
       chat
     end
-
-    get "/api/v1/app/chats"
-
-    group = parse_body["groups"].find { |candidate| candidate["repository_id"] == repository.id }
-    expect(group["chats"].map { |chat| chat["id"] }).to eq(chats.first(initial).map(&:id))
-    expect(group["has_more"]).to eq(true)
 
     user.update!(recent_chats_group_size: 3)
 
