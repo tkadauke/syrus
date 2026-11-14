@@ -39,6 +39,9 @@ export type TerminalWorkspaceRecord = {
 
 export type TerminalSessionsPayload = {
   sessions: TerminalSessionRecord[]
+}
+
+export type TerminalWorkspacesPayload = {
   workspaces: TerminalWorkspaceRecord[]
 }
 
@@ -58,11 +61,17 @@ export function fetchTerminalSessions(options: { signal?: AbortSignal } = {}) {
   return getJson<TerminalSessionsPayload>("/api/v1/app/terminal_sessions", options)
 }
 
+export function fetchTerminalWorkspaces(options: { query?: string; signal?: AbortSignal } = {}) {
+  const query = options.query?.trim()
+  const path = query ? `/api/v1/app/terminal_sessions/workspaces?query=${encodeURIComponent(query)}` : "/api/v1/app/terminal_sessions/workspaces"
+  return getJson<TerminalWorkspacesPayload>(path, { signal: options.signal })
+}
+
 export function createTerminalSession(input: CreateTerminalSessionInput) {
   return postJson<TerminalSessionPayload>("/api/v1/app/terminal_sessions", {
     terminal_session: {
       candidate_key: "kind" in input ? input.key : undefined,
-      workflow_id: "kind" in input ? (input.kind === "workflow" ? input.workflow_id ?? input.id : null) : input.workflow_id,
+      workflow_id: "kind" in input ? (input.kind === "workflow" ? (input.workflow_id ?? input.id) : null) : input.workflow_id,
       working_directory: input.working_directory,
       name: "kind" in input ? input.label : input.name
     }

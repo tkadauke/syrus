@@ -158,6 +158,10 @@ RSpec.describe "App API terminal sessions", type: :request do
       "workflow_id" => workflow.id
     )
     expect(parse_body["sessions"].first).not_to have_key("auth_token")
+    expect(parse_body).not_to have_key("workspaces")
+
+    get "/api/v1/app/terminal_sessions/workspaces"
+    expect(response).to have_http_status(:ok)
 
     expect(parse_body["workspaces"].first).to include(
       "id" => workflow.id,
@@ -181,6 +185,22 @@ RSpec.describe "App API terminal sessions", type: :request do
         "queue_name" => "resume-storage-a"
       )
     )
+  end
+
+  it "answers an unchanged sessions poll with 304 and filters workspaces by query" do
+    sign_in_as(user)
+    Terminal::Session.create!(user: user, name: "Shell", working_directory: "/tmp/shell", auth_token: SecureRandom.hex(32), started_at: Time.current)
+
+    get "/api/v1/app/terminal_sessions"
+    etag = response.headers["ETag"]
+    expect(etag).to be_present
+
+    get "/api/v1/app/terminal_sessions", headers: { "If-None-Match" => etag }
+    expect(response).to have_http_status(:not_modified)
+
+    get "/api/v1/app/terminal_sessions/workspaces", params: { query: "zzz-no-such-workspace" }
+    expect(response).to have_http_status(:ok)
+    expect(parse_body["workspaces"]).to eq([])
   end
 
   it "creates a workflow-scoped terminal session from a candidate and enqueues the relay job on its storage route" do

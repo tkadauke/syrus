@@ -193,6 +193,19 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     expect(body["issues"].map { |issue| issue["number"] }).to eq([ 2, 1 ])
   end
 
+  it "paginates the SQL-backed issue list and exposes only the repository fields the tab consumes" do
+    sign_in_as(user)
+    repository = Factories.repository(user: user, owner: "acme", name: "widgets")
+    51.times { |index| fake_issue(repository: repository, number: index + 1, title: "Issue #{index + 1}") }
+
+    get "/api/v1/app/repositories/#{repository.id}/issues", params: { folder: "open", page: 2, sort: "number", direction: "asc" }
+
+    body = parse_body
+    expect(body).to include("page" => 2, "per_page" => 50, "total_pages" => 2, "issue_count" => 51)
+    expect(body.fetch("issues").map { |issue| issue.fetch("number") }).to eq([ 51 ])
+    expect(body.fetch("repository").keys).to contain_exactly("id", "slug", "github_url", "trigger_label", "github_rate_limit")
+  end
+
 
   it "falls back to the closed folder for legacy state=closed links" do
     sign_in_as(user)
@@ -238,21 +251,14 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     post "/api/v1/app/repositories/#{repository.id}/issues/close", params: { issue_number: 12, folder: "open" }
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Issue #12 closed.")
-    expect(parse_body).to include(
-      "folder" => "open",
-      "filter" => { "and" => [ { "field" => "preset", "op" => "is", "value" => "open" } ] },
-      "untouched_preset" => true
-    )
+    expect(parse_body.fetch("changed_issues")).to contain_exactly(include("number" => 12, "state" => "closed"))
+    expect(parse_body).not_to have_key("filter_schema")
     expect(GithubSource::Issue.where(repository: repository).find_by!(number: 12).state).to eq("closed")
 
     post "/api/v1/app/repositories/#{repository.id}/issues/delegate", params: { issue_number: 13, folder: "open" }
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("Issue #13 delegated to Syrus.")
-    expect(parse_body).to include(
-      "folder" => "open",
-      "filter" => { "and" => [ { "field" => "preset", "op" => "is", "value" => "open" } ] },
-      "untouched_preset" => true
-    )
+    expect(parse_body.fetch("changed_issues")).to contain_exactly(include("number" => 13, "delegated" => true))
     expect(GithubSource::Issue.where(repository: repository).find_by!(number: 13)).to be_delegated("syrus")
   end
 
@@ -298,7 +304,7 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     }
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("2 issues delegated to Syrus.")
-    expect(parse_body).to include("folder" => "open", "untouched_preset" => true)
+    expect(parse_body.fetch("changed_issues").map { |row| row.fetch("number") }).to contain_exactly(4, 8)
 
     post "/api/v1/app/repositories/#{repository.id}/issues/bulk", params: {
       issue_numbers: %w[4 4 invalid],
@@ -307,7 +313,7 @@ RSpec.describe "API: repository GitHub issues", :ci_only, type: :request do
     }
     expect(response).to have_http_status(:ok)
     expect(parse_body["message"]).to eq("1 issue closed.")
-    expect(parse_body).to include("folder" => "open", "untouched_preset" => true)
+    expect(parse_body.fetch("changed_issues")).to contain_exactly(include("number" => 4, "state" => "closed"))
   end
 
   it "keeps successful bulk delegates cache-consistent when a later GitHub mutation fails" do

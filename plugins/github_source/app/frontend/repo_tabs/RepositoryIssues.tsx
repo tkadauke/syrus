@@ -105,8 +105,21 @@ export function RepositoryIssues({
   const [searchParams] = useSearchParams()
   const setupStatus = useSetupStatus()
   const filterParam = searchParams.get("q") || ""
+  const page = Math.max(1, Number(searchParams.get("page")) || 1)
   const sort = payload.sort
-  const queryKey = ["repositories", String(payload.repository.id), "issues", resolveFolder(searchParams), filterParam, sort.column, sort.direction] as const
+  const currentPage = payload.page ?? 1
+  const perPage = payload.per_page ?? 50
+  const totalPages = payload.total_pages ?? 1
+  const queryKey = [
+    "repositories",
+    String(payload.repository.id),
+    "issues",
+    resolveFolder(searchParams),
+    filterParam,
+    sort.column,
+    sort.direction,
+    page
+  ] as const
   const [notice, setNotice] = useState<string | null>(payload.message || null)
   const [selected, setSelected] = useState<number[]>([])
   const allSelected = payload.issues.length > 0 && selected.length === payload.issues.length
@@ -135,7 +148,17 @@ export function RepositoryIssues({
       }
     },
     onSuccess: (updated) => {
-      queryClient.setQueryData(queryKey, updated)
+      const changedIssues = updated.changed_issues ?? updated.issues ?? []
+      queryClient.setQueryData<RepositoryIssuesPayload>(
+        queryKey,
+        (current) =>
+          current && {
+            ...current,
+            folder_counts: updated.folder_counts,
+            issues: current.issues.map((issue) => changedIssues.find((changed) => changed.number === issue.number) ?? issue)
+          }
+      )
+      void queryClient.invalidateQueries({ queryKey: ["repositories", String(payload.repository.id), "issues"] })
       setNotice(updated.message || null)
       setSelected([])
     }
@@ -297,6 +320,33 @@ export function RepositoryIssues({
                 ))}
               </DataTable.Body>
             </DataTable.Root>
+            {totalPages > 1 ? (
+              <div className="flex items-center justify-between text-sm text-gray-600">
+                <span>
+                  {t("repository.pagination_showing", {
+                    first: (currentPage - 1) * perPage + 1,
+                    last: Math.min(currentPage * perPage, payload.issue_count),
+                    total: payload.issue_count
+                  })}
+                </span>
+                <div className="flex gap-2">
+                  {currentPage > 1 ? (
+                    <Button onClick={() => navigate(pageLink(location.pathname, location.search, currentPage - 1))} size="sm" variant="secondary">
+                      {t("repository.pagination_previous")}
+                    </Button>
+                  ) : (
+                    <span className="rounded border border-gray-200 px-3 py-1 text-gray-300">{t("repository.pagination_previous")}</span>
+                  )}
+                  {currentPage < totalPages ? (
+                    <Button onClick={() => navigate(pageLink(location.pathname, location.search, currentPage + 1))} size="sm" variant="secondary">
+                      {t("repository.pagination_next")}
+                    </Button>
+                  ) : (
+                    <span className="rounded border border-gray-200 px-3 py-1 text-gray-300">{t("repository.pagination_next")}</span>
+                  )}
+                </div>
+              </div>
+            ) : null}
           </>
         ) : (
           <OnboardingEmptyState
@@ -468,6 +518,12 @@ function sortDirection(sort: IssueSort): DataTableSortDirection {
   return sort.direction === "asc" ? "ascending" : "descending"
 }
 
+function pageLink(pathname: string, search: string, page: number) {
+  const params = new URLSearchParams(search)
+  page > 1 ? params.set("page", String(page)) : params.delete("page")
+  return `${pathname}?${params}`
+}
+
 function IssueLabel({ color, name }: { color: string; name: string }) {
   const safeColor = color.match(/^[0-9a-fA-F]{6}$/) ? color : "6b7280"
   return (
@@ -497,10 +553,11 @@ export default function RepositoryIssuesTab() {
   const folder = resolveFolder(searchParams)
   const filterParam = searchParams.get("q") || ""
   const sort = resolveSort(searchParams)
+  const page = Math.max(1, Number(searchParams.get("page")) || 1)
 
   const issues = useQuery({
-    queryKey: ["repositories", repositoryId, "issues", folder, filterParam, sort.column, sort.direction],
-    queryFn: () => fetchRepositoryIssues(repositoryId, folder, filterParam, sort),
+    queryKey: ["repositories", repositoryId, "issues", folder, filterParam, sort.column, sort.direction, page],
+    queryFn: () => fetchRepositoryIssues(repositoryId, folder, filterParam, sort, page),
     enabled: repositoryId.length > 0
   })
   const payload = issues.data

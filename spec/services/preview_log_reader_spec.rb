@@ -119,4 +119,38 @@ RSpec.describe PreviewLogReader do
 
     expect(described_class.call(env)).to eq([])
   end
+
+  describe "since cursor" do
+    before do
+      FileUtils.mkdir_p(File.join(workspace_path, "log"))
+      source = instance_double(PreviewCommandSource, resolve: preview_config(log_paths: [ "log/development.log" ]))
+      allow(PreviewCommandSource).to receive(:new).with(workspace_path).and_return(source)
+    end
+
+    def read(since: nil) = described_class.call((@env ||= preview_environment(workspace_path)), lines: 50, since: since).first
+
+    it "reports the file size and returns only appended bytes, so concatenation rebuilds the tail" do
+      path = File.join(workspace_path, "log/development.log")
+      File.write(path, "a\nb\n")
+      first = read
+      expect(first).to have_attributes(content: "a\nb", size: 4, incremental: false)
+
+      File.write(path, "c\nd\n", mode: "a")
+      second = read(since: { "log/development.log" => first.size })
+      expect(second).to have_attributes(content: "\nc\nd", size: 8, incremental: true)
+      expect(first.content + second.content).to eq("a\nb\nc\nd")
+
+      unchanged = read(since: { "log/development.log" => second.size })
+      expect(unchanged).to have_attributes(content: "", incremental: true)
+    end
+
+    it "falls back to a full tail when the file shrank (rotated)" do
+      path = File.join(workspace_path, "log/development.log")
+      File.write(path, "x\n")
+
+      log = read(since: { "log/development.log" => 500 })
+
+      expect(log).to have_attributes(content: "x", incremental: false, size: 2)
+    end
+  end
 end

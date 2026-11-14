@@ -16,8 +16,7 @@ module Api
           )
 
           render json: {
-            repository: repository_json(repository),
-            tabs: repository_tabs_json(repository),
+            **(params[:cursor].present? ? {} : { repository: repository_json(repository), tabs: repository_tabs_json(repository) }),
             available: result.available,
             commits: result.commits,
             next_cursor: result.next_cursor,

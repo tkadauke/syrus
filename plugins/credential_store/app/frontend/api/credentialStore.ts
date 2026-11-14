@@ -69,6 +69,11 @@ export type CredentialStorePayload = {
   message?: string
 }
 
+export type CredentialStoreMutationPayload = {
+  credential: CredentialStoreCredential
+  message: string
+}
+
 export type CredentialStoreInput = {
   name: string
   description: string
@@ -107,19 +112,19 @@ export function fetchCredentialStore() {
 }
 
 export function createCredentialStoreCredential(input: CredentialStoreInput) {
-  return postJson<CredentialStorePayload>(BASE, { credential: input })
+  return postJson<CredentialStoreMutationPayload>(BASE, { credential: input })
 }
 
 export function updateCredentialStoreCredential(id: number, input: CredentialStoreInput) {
-  return patchJson<CredentialStorePayload>(`${BASE}/${id}`, { credential: input })
+  return patchJson<CredentialStoreMutationPayload>(`${BASE}/${id}`, { credential: input })
 }
 
 export function rotateCredentialStoreCredential(id: number, payload: string) {
-  return postJson<CredentialStorePayload>(`${BASE}/${id}/rotate`, { credential: { payload } })
+  return postJson<CredentialStoreMutationPayload>(`${BASE}/${id}/rotate`, { credential: { payload } })
 }
 
 export function revokeCredentialStoreCredential(id: number) {
-  return postJson<CredentialStorePayload>(`${BASE}/${id}/revoke`, {})
+  return postJson<CredentialStoreMutationPayload>(`${BASE}/${id}/revoke`, {})
 }
 
 export function deleteCredentialStoreCredential(id: number) {
