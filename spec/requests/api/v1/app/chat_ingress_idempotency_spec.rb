@@ -37,10 +37,10 @@ RSpec.describe "Chat ingress idempotency", type: :request do
 
     get "/api/v1/app/chats/#{chat.id}/message_delivery", params: { client_idempotency_key: key }
     expect(response).to have_http_status(:ok)
-    expect(response.parsed_body).to eq("delivered" => true)
+    expect(response.parsed_body).to eq("delivered" => true, "v" => 1)
 
     get "/api/v1/app/chats/#{chat.id}/message_delivery", params: { client_idempotency_key: SecureRandom.uuid }
-    expect(response.parsed_body).to eq("delivered" => false)
+    expect(response.parsed_body).to eq("delivered" => false, "v" => 1)
 
     other_user = Factories.user
     other_chat = ChatSession.create!(user: other_user)
