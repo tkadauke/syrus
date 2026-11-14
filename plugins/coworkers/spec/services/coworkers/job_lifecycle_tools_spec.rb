@@ -71,6 +71,42 @@ RSpec.describe "coworker Job lifecycle tools" do
     expect(inaccessible.reload).to be_implemented
   end
 
+  it "rejects Jobs in an unattached repository owned by the same operator" do
+    outside_repository = Factories.repository(user: owner)
+    outside_job = Factories.job_record(user: owner, repository: outside_repository, state: "implemented")
+
+    response = Mcp::Tools::CancelJobTool.call(job_id: outside_job.id, reason: "Obsolete.", server_context:)
+
+    expect(response).to be_error
+    expect(chat.pending_actions).to be_empty
+    expect(outside_job.reload).to be_implemented
+  end
+
+  it "rejects a canonical Job in an unattached repository owned by the same operator" do
+    duplicate = Factories.job_record(user: owner, repository:, state: "implemented")
+    outside_repository = Factories.repository(user: owner)
+    canonical = Factories.job_record(user: owner, repository: outside_repository, state: "implemented")
+
+    response = Mcp::Tools::CancelJobTool.call(
+      job_id: duplicate.id, canonical_job_id: canonical.id, reason: "Duplicate.", server_context:
+    )
+
+    expect(response).to be_error
+    expect(chat.pending_actions).to be_empty
+    expect(duplicate.reload).to be_implemented
+  end
+
+  it "rechecks repository scope when the owner confirms cancellation" do
+    duplicate = Factories.job_record(user: owner, repository:, state: "implemented")
+    response = Mcp::Tools::CancelJobTool.call(job_id: duplicate.id, reason: "Obsolete.", server_context:)
+    action = chat.pending_actions.find(payload(response).fetch("pending_confirmation_id"))
+
+    chat.repository_attachments.find_by!(attachable: repository).destroy!
+
+    expect { action.confirm!(user: owner) }.to raise_error(ArgumentError, "Job is outside the chat's repository scope.")
+    expect(duplicate.reload).to be_implemented
+  end
+
   it "enforces a canonical deny rule before creating the lifecycle pending action" do
     job = Factories.job_record(user: owner, repository:, state: "implemented")
     descriptor = McpToolRegistry.entries(surface: :coworker)

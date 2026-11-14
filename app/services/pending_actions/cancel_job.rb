@@ -5,6 +5,7 @@ module PendingActions
     repairs_job!
 
     def execute
+      validate_repository_scope!
       canonical_job = accessible_canonical_job
 
       progress!("Cancelling active work for #{action_job.slug}...")
@@ -41,10 +42,23 @@ module PendingActions
 
     private
 
+    def validate_repository_scope!
+      return unless payload["enforce_repository_scope"]
+
+      repository_ids = chat_session.attached_repositories.ids
+      target_ids = [ action_job.repository_id ]
+      target_ids << canonical_job_without_scope_check.repository_id if payload["canonical_job_id"].present?
+      raise ArgumentError, "Job is outside the chat's repository scope." unless (target_ids - repository_ids).empty?
+    end
+
+    def canonical_job_without_scope_check
+      user.admin? ? Job.find(payload["canonical_job_id"]) : Job.visible_to(user).find(payload["canonical_job_id"])
+    end
+
     def accessible_canonical_job
       return if payload["canonical_job_id"].blank?
 
-      replacement = user.admin? ? Job.find(payload["canonical_job_id"]) : Job.visible_to(user).find(payload["canonical_job_id"])
+      replacement = canonical_job_without_scope_check
       if replacement == action_job || replacement.repository_id != action_job.repository_id
         raise ArgumentError, "canonical_job_id must reference another accessible Job in the same repository"
       end

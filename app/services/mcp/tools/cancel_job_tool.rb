@@ -41,6 +41,9 @@ module Mcp::Tools
     class << self
       def call(job_id: nil, job_ids: nil, reason:, canonical_job_id: nil, server_context:)
         chat_session = server_context.fetch(:chat_session)
+        context = McpToolContext.from_server_context(server_context)
+        coworker_scope = context.allowed_repository_ids if context.role.in?([ AgentRole::COWORKER_CHAT, AgentRole::COWORKER ])
+        scope_payload = coworker_scope ? { "enforce_repository_scope" => true } : {}
         return Mcp::Tools.invalid("reason is required") if reason.to_s.strip.blank?
         return Mcp::Tools.invalid("reason is too long (maximum is 1000 characters)") if reason.to_s.length > 1_000
         ids, bulk, error = resolve_ids(id: job_id, ids: job_ids, param_name: "job_id")
@@ -49,6 +52,10 @@ module Mcp::Tools
 
         jobs = ids.map { |id| find_job!(id) }
         canonical_job = find_job!(canonical_job_id) if canonical_job_id.present?
+        scoped_jobs = jobs + Array(canonical_job)
+        if coworker_scope && scoped_jobs.any? { |job| !coworker_scope.include?(job.repository_id) }
+          raise AuthorizationSupport::NotAccessible, "job not found or not accessible"
+        end
         if canonical_job && (canonical_job == jobs.first || canonical_job.repository_id != jobs.first.repository_id)
           return Mcp::Tools.invalid("canonical_job_id must reference another accessible Job in the same repository")
         end
@@ -73,7 +80,10 @@ module Mcp::Tools
             server_context,
             chat_session,
             action: "cancel_job",
-            payload: { "job_id" => job.id, "reason" => reason.to_s.strip, "canonical_job_id" => canonical_job&.id }.compact,
+            payload: {
+              "job_id" => job.id, "reason" => reason.to_s.strip,
+              "canonical_job_id" => canonical_job&.id
+            }.compact.merge(scope_payload),
             requested_by: "agent",
             reason: reason.to_s.strip,
             subject: McpToolContext.from_server_context(server_context).agent_actor
@@ -91,7 +101,9 @@ module Mcp::Tools
           server_context: server_context,
           chat_session: chat_session,
           member_attributes: jobs.map do |job|
-            { action: "cancel_job", payload: { "job_id" => job.id, "reason" => reason.to_s.strip },
+            { action: "cancel_job", payload: {
+                "job_id" => job.id, "reason" => reason.to_s.strip
+              }.merge(scope_payload),
               requested_by: "agent", reason: reason.to_s.strip,
               subject: McpToolContext.from_server_context(server_context).agent_actor }
           end
