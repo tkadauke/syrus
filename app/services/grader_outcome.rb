@@ -91,7 +91,9 @@ class GraderOutcome
     def result(outcome, reason, evidence) = Result.new(outcome, reason, evidence)
 
     def timed_out?(details)
-      details["timed_out"] == true || details["timed_out"].to_s == "true" || GraderFailureSignal.timeout_like_entry?(details)
+      return true if details["timed_out"] == true || details["timed_out"].to_s == "true"
+
+      !details.key?("timed_out") && details["exit_code"].to_i == GraderFailureSignal::TIMEOUT_EXIT_CODE
     end
 
     def silent_timed_out?(details)
