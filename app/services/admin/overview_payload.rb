@@ -43,7 +43,9 @@ module Admin
           data_root_disk_usage: PerformanceLogging.phase("admin_overview.data_root_disk_usage") { data_root_disk_usage_payload },
           active_storage: PerformanceLogging.phase("admin_overview.active_storage") { active_storage_payload },
           stalled_classifier_jobs: PerformanceLogging.phase("admin_overview.stalled_classifier_jobs") { stalled_classifier_jobs_payload },
-          worker_health: PerformanceLogging.phase("admin_overview.worker_health") { worker_health_levels_payload },
+          worker_health: PerformanceLogging.phase("admin_overview.worker_health") {
+            include_worker_health? ? worker_health_payload(sample_limit_per_host: 4) : worker_health_levels_payload
+          },
           time_zones: time_zones_payload
         }
 
@@ -102,6 +104,10 @@ module Admin
 
     def include_worker_data_root_usages?
       requested_includes.include?("worker_data_root_usages")
+    end
+
+    def include_worker_health?
+      requested_includes.include?("worker_health")
     end
 
     def requested_includes
