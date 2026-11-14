@@ -159,7 +159,9 @@ RSpec.describe "Mcp::Tools workflow inspection tools", :full_chat_access do
     it "returns paginated transcript chunks without the agent diff" do
       job = Factories.job(repository: repository)
       run = job.initial_run
-      run.update!(agent_outcome: "success", agent_summary: "changed the code", agent_diff: "full diff\n" * 20)
+      run.update!(agent_outcome: "success", agent_summary: "changed the code",
+        agent_diff: "full diff\n" * 20, step_agent_diff: "step diff\n",
+        base_sha: "base-sha", head_sha: "head-sha")
       5.times { |index| run.job_logs.create!(sequence: index, kind: "stdout", chunk: "chunk-#{index}") }
 
       response = call_tool("read_run_transcript", run_id: run.id, page: 2, per: 2)
@@ -169,6 +171,10 @@ RSpec.describe "Mcp::Tools workflow inspection tools", :full_chat_access do
       expect(payload).to include(run_id: run.id, run_state: run.state, agent_outcome: "success", agent_summary: "changed the code", total_chunks: 5, page: 2, per: 2, total_pages: 3)
       expect(payload).not_to include(:agent_diff)
       expect(payload[:agent_diff_bytes]).to eq(("full diff\n" * 20).bytesize)
+      expect(payload).to include(
+        step_agent_diff_bytes: "step diff\n".bytesize,
+        base_sha: "base-sha", head_sha: "head-sha"
+      )
       expect(payload[:chunks]).to eq([
         { sequence: 2, kind: "stdout", chunk: "chunk-2" },
         { sequence: 3, kind: "stdout", chunk: "chunk-3" }

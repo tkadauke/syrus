@@ -31,8 +31,7 @@ module Mcp::Tools
             :user,
             :parent_job,
             :epic,
-            { dependencies: [ :depends_on_epic, { depends_on_job: [ :repository, :dependencies ] } ] },
-            { workflows: { steps: { runs: [ :run_diagnostic, :run_failure_classification ] } } }
+            { dependencies: [ :depends_on_epic, { depends_on_job: [ :repository, :dependencies ] } ] }
           ]
         )
 
