@@ -18,6 +18,8 @@ export type JobDetailQueryKey = readonly ["jobs", string, "detail", string]
 export type JobWorkflowsQueryKey = readonly ["jobs", string, "workflows", string]
 export type JobWorkflowDetailQueryKey = readonly ["jobs", string, "workflow_detail", string]
 export type JobTabQueryKey = readonly ["jobs", string, "tab", string]
+export type JobPendingFeedbackQueryKey = readonly ["jobs", string, "pending_feedback"]
+export type JobProviderRoutingQueryKey = readonly ["jobs", string, "provider_routing"]
 
 export function jobDetailQueryKey(id: string | number, search: string): JobDetailQueryKey {
   return ["jobs", String(id), "detail", search] as const
@@ -33,6 +35,14 @@ export function jobWorkflowDetailQueryKey(jobId: string | number, workflowId: st
 
 export function jobTabQueryKey(jobId: string | number, tab: string): JobTabQueryKey {
   return ["jobs", String(jobId), "tab", tab] as const
+}
+
+export function jobPendingFeedbackQueryKey(jobId: string | number): JobPendingFeedbackQueryKey {
+  return ["jobs", String(jobId), "pending_feedback"] as const
+}
+
+export function jobProviderRoutingQueryKey(jobId: string | number): JobProviderRoutingQueryKey {
+  return ["jobs", String(jobId), "provider_routing"] as const
 }
 
 export function mergeJobWorkflowsPayload(

@@ -1060,33 +1060,6 @@ module App
       @discussion_chat = @job.discussion_chat
     end
 
-    def pending_feedback_json
-      scope = @job.pr_review_comments.order(:comment_created_at, :id)
-      scope = if @job.repository.feedback_policy_confirm?
-        scope.pending_for_operator_review
-      else
-        scope.retryable_handling_review
-      end
-
-      scope.map do |comment|
-        {
-          id: comment.id,
-          github_handle: comment.github_handle,
-          attributed_to: comment.attributed_to,
-          pr_type: comment.pr_type,
-          comment_kind: comment.comment_kind,
-          body: comment.body,
-          comment_created_at: iso8601(comment.comment_created_at),
-          handling_state: comment.handling_state || "pending",
-          handling_workflow_id: comment.handling_workflow_id,
-          handling_failed_at: iso8601(comment.handling_failed_at),
-          handling_failure_reason: comment.handling_failure_reason,
-          classification: comment.classification_audit,
-          retryable: comment.retryable_handling_without_workflow_load?
-        }
-      end
-    end
-
     def feedback_history_json
       feedback_history_workflows
         .filter_map do |workflow|

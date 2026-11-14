@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest"
 import type { JobDetailPayload, JobWorkflowsPayload } from "../../api/jobs"
-import { jobTabQueryKey, mergeJobWorkflowsPayload, tabFromLocation } from "./queryKeys"
+import { jobPendingFeedbackQueryKey, jobProviderRoutingQueryKey, jobTabQueryKey, mergeJobWorkflowsPayload, tabFromLocation } from "./queryKeys"
 
 it("keys lazy tab payloads independently", () => {
   expect(jobTabQueryKey(42, "review")).toEqual(["jobs", "42", "tab", "review"])
+})
+
+it("keys separately fetched job editor sections independently", () => {
+  expect(jobPendingFeedbackQueryKey(42)).toEqual(["jobs", "42", "pending_feedback"])
+  expect(jobProviderRoutingQueryKey(42)).toEqual(["jobs", "42", "provider_routing"])
 })
 
 describe("tabFromLocation", () => {

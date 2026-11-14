@@ -93,6 +93,8 @@ import {
   diffRefsFromLocation,
   jobDetailQueryKey,
   jobDetailSearch,
+  jobPendingFeedbackQueryKey,
+  jobProviderRoutingQueryKey,
   jobTabQueryKey,
   jobWorkflowsQueryKey,
   mergeJobWorkflowsPayload,
@@ -166,12 +168,12 @@ export function JobDetailRoute() {
     enabled: id.length > 0 && lazyTab !== null && detail.isSuccess
   })
   const pendingFeedback = useQuery({
-    queryKey: ["jobs", id, "pending_feedback"],
+    queryKey: jobPendingFeedbackQueryKey(id),
     queryFn: () => fetchPendingFeedback(id),
     enabled: id.length > 0 && activeTab === "summary" && detail.isSuccess
   })
   const providerRouting = useQuery({
-    queryKey: ["jobs", id, "provider_routing"],
+    queryKey: jobProviderRoutingQueryKey(id),
     queryFn: () => fetchJobProviderRouting(id),
     enabled: id.length > 0 && activeTab === "summary" && detail.isSuccess,
     staleTime: 5 * 60 * 1000
@@ -189,6 +191,7 @@ export function JobDetailRoute() {
   const payload = detail.isSuccess
     ? mergeJobWorkflowsPayload(
         {
+          ...detail.data,
           attachments: [],
           typed_artifacts: [],
           coverage: null,
@@ -196,7 +199,6 @@ export function JobDetailRoute() {
           test_plan: null,
           report: null,
           feedback_history: [],
-          ...detail.data,
           job: { ...detail.data.job, ...(providerRouting.data?.job ?? {}) },
           ...(tabDetail.data ?? {}),
           pending_feedback: pendingFeedback.data?.comments ?? []
@@ -1004,7 +1006,7 @@ function SummaryTab({
 
           <PluginUiSlot panels={payload.ui_panels} props={{ job: payload.job }} />
 
-          <PendingFeedbackPanel jobId={payload.job.id} comments={payload.pending_feedback} queryKey={queryKey} />
+          <PendingFeedbackPanel jobId={payload.job.id} comments={payload.pending_feedback} />
 
           <AuthorizationRequestsPanel jobId={payload.job.id} requests={payload.authorization_requests ?? []} />
 
@@ -1127,7 +1129,7 @@ function SummaryTab({
             <TagsPanel canManageTags={payload.actions.can_manage_tags} embedded command={command} payload={payload} />
           </Section.Root>
 
-          <JobRoutingPanel payload={payload} queryKey={queryKey} />
+          <JobRoutingPanel payload={payload} />
 
           <ApprovalStatusPanel payload={payload} prefix={prefix} />
           {deliveryPanelRelevant(payload) ? <DeliveryPanel payload={payload} /> : null}
@@ -1356,7 +1358,7 @@ function PrioritySelector({ currentPriority, priorityPath, queryKey }: { current
   )
 }
 
-function JobRoutingPanel({ payload, queryKey }: { payload: JobDetailPayload; queryKey: JobDetailQueryKey }) {
+function JobRoutingPanel({ payload }: { payload: JobDetailPayload }) {
   const { t } = useT("jobs")
   const resolution = payload.job.provider_routing_resolution
   const candidates = resolution?.final_action?.candidates || []
@@ -1434,7 +1436,7 @@ function JobRoutingPanel({ payload, queryKey }: { payload: JobDetailPayload; que
         description={t("routing_job_panel_description")}
         inheritedContext={payload.job.inherited_provider_routing_context}
         options={payload.job.provider_routing_options}
-        queryKey={queryKey}
+        queryKey={jobProviderRoutingQueryKey(payload.job.id)}
         rules={payload.job.provider_routing_rules}
         title={t("routing_job_panel_title")}
       />
@@ -1662,25 +1664,26 @@ function AuthorizationRequestsPanel({ requests, jobId }: { requests: NonNullable
   )
 }
 
-function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: number; comments?: PendingFeedbackComment[]; queryKey: JobDetailQueryKey }) {
+function PendingFeedbackPanel({ jobId, comments = [] }: { jobId: number; comments?: PendingFeedbackComment[] }) {
   const { t } = useT("jobs")
   const queryClient = useQueryClient()
   const [replaceId, setReplaceId] = useState<number | null>(null)
   const [replaceBody, setReplaceBody] = useState("")
   const [notice, setNotice] = useState<string | null>(null)
+  const pendingFeedbackKey = jobPendingFeedbackQueryKey(jobId)
 
   const apply = useMutation({
     mutationFn: (commentId: number) => applyPendingFeedback(jobId, commentId),
     onSuccess: (data) => {
       setNotice(data.message)
-      void queryClient.invalidateQueries({ queryKey })
+      void queryClient.invalidateQueries({ queryKey: pendingFeedbackKey })
     }
   })
 
   const ignore = useMutation({
     mutationFn: (commentId: number) => ignorePendingFeedback(jobId, commentId),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey })
+      void queryClient.invalidateQueries({ queryKey: pendingFeedbackKey })
     }
   })
 
@@ -1690,7 +1693,7 @@ function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: numbe
       setReplaceId(null)
       setReplaceBody("")
       setNotice(data.message)
-      void queryClient.invalidateQueries({ queryKey })
+      void queryClient.invalidateQueries({ queryKey: pendingFeedbackKey })
     }
   })
 
@@ -1698,7 +1701,7 @@ function PendingFeedbackPanel({ jobId, comments = [], queryKey }: { jobId: numbe
     mutationFn: (commentId: number) => retryPendingFeedback(jobId, commentId),
     onSuccess: (data) => {
       setNotice(data.message)
-      void queryClient.invalidateQueries({ queryKey })
+      void queryClient.invalidateQueries({ queryKey: pendingFeedbackKey })
     }
   })
 
