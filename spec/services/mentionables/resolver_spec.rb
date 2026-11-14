@@ -41,6 +41,20 @@ RSpec.describe Mentionables::Resolver do
     expect(described_class.find(kind: "coworker", id: 41)).to be(coworker)
   end
 
+  it "resolves bare human and provider handles" do
+    provider_mentionable = Struct.new(:id, :handle).new(42, "adrian-bot")
+    provider = class_double("MentionableProvider")
+    allow(provider).to receive(:find_mentionable_by_handle) do |handle:|
+      provider_mentionable if handle == "adrian-bot"
+    end
+    allow(Syrus::PluginRegistry).to receive(:providers_for).and_call_original
+    allow(Syrus::PluginRegistry).to receive(:providers_for).with(:mentionable).and_return([ provider ])
+
+    expect(described_class.find_by_handle("@#{owner.handle}")).to eq(owner)
+    expect(described_class.find_by_handle("adrian-bot")).to eq(provider_mentionable)
+    expect(described_class.find_by_handle("missing")).to be_nil
+  end
+
   it "exposes the complete core Mentionable contract" do
     syrus = Mentionables::Syrus.new
 

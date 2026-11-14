@@ -10,6 +10,10 @@ module Coworkers
       def find_mentionable(kind:, id:)
         Coworkers::Coworker.find_by(id: id) if kind.to_s == "coworker"
       end
+
+      def find_mentionable_by_handle(handle:)
+        Coworkers::Coworker.find_by("LOWER(handle) = ?", handle.to_s.downcase)
+      end
       def autocomplete_mentionables(chat:, user:)
         return Coworkers::Coworker.none unless chat.user_id == user.id
 

@@ -319,6 +319,7 @@ module App
         landing_blocker_override_requested_by: user_reference_json(@job.landing_blocker_override_requested_by_user),
         origin: origin_json,
         goal_provenance: App::GoalProvenancePayload.for(@job),
+        proposer: App::ProposerPayload.for(@job),
         epic_id: @job.epic_id,
         total_cost_usd: cost_snapshot.fetch(:total_cost_usd)&.to_f,
         billed_runs_count: cost_snapshot.fetch(:billed_runs_count),

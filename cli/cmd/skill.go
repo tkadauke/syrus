@@ -30,7 +30,7 @@ implementation. This machine has the ` + "`syrus`" + ` CLI installed and signed 
 ## Reviewing work
 
 - ` + "`syrus inbox`" + ` — implemented and failed jobs awaiting a human.
-- ` + "`syrus jobs [--closed] [--repo <owner/name>]`" + ` — list active jobs by default.
+- ` + "`syrus jobs [--closed] [--repo <owner/name>] [--proposer <handle>]`" + ` — list active jobs by default.
 - ` + "`syrus job show JOB-<id> --json`" + ` — one job's state, PR, workflow history.
 - ` + "`syrus job diff JOB-<id> --json`" + ` — the job's full diff (review without a checkout).
 - ` + "`syrus job log JOB-<id> --json`" + ` / ` + "`syrus job watch JOB-<id> --json`" + ` — run logs, once or live.

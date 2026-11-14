@@ -154,9 +154,9 @@ in-flight Runs.
 |---|---|
 | `GET /api/v1/admin/overview` | Tile rollup: active/queued runs, recent_failures_24h, GH rate limits + blocked users, provider_circuits, `agent_session_capture_rate`, data_root_disk_usage, worker_health, workers, recurring |
 | `GET /api/v1/admin/stuck` | Paginated stuck-items list (`items` + `pagination`, 50/page; `?page=N`, `?refresh=true` to bypass the cached snapshot) |
-| `GET /api/v1/admin/jobs` | Compact list. Filters: `pr_number`, `issue_number`, `repo=owner/name`, `state=open|closed`, `user=<email substring>`, `has_active_workflow=true`, `failed_in_last_24h=true`. Use to map a GH PR/issue back to a Syrus Job ID |
+| `GET /api/v1/admin/jobs` | Compact list. Filters: `pr_number`, `issue_number`, `repo=owner/name`, `state=open|closed`, `user=<email substring>`, `proposer=<handle>`, `has_active_workflow=true`, `failed_in_last_24h=true`. Use to map a GH PR/issue back to a Syrus Job ID |
 | `GET /api/v1/admin/jobs/:id` | Job + workflows + steps + runs + diagnostics + provider_session (agent-session) metadata, all in one. `?include_github=true` adds a live GitHub PR snapshot. |
-| `GET /api/v1/admin/epics` | Compact Epic list. Filters: `state`, `repo=owner/name`, `user`, `owner=mine\|other_owned\|unclaimed`, `has_unfinished_children=true`. |
+| `GET /api/v1/admin/epics` | Compact Epic list. Filters: `state`, `repo=owner/name`, `user`, `proposer=<handle>`, `owner=mine\|other_owned\|unclaimed`, `has_unfinished_children=true`. |
 | `GET /api/v1/admin/epics/:id` | Full Epic + child jobs + dependency edges (depends_on + dependents) + pending dependency refs. |
 | `GET /api/v1/admin/workflows/:id` | One workflow's steps + runs + diagnostics, no sibling workflows. Use when investigating a specific failure on a long-lived Job. |
 | `GET /api/v1/admin/runs` | Cross-Job compact run list. Filters: `?state`, `?trigger_kind`, `?job_id`, `?since=ISO8601`. Pagination: `?page` + `?per` (max 100). Use for "what failed across the system in the last hour" without walking each Job. |
