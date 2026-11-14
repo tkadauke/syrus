@@ -301,9 +301,9 @@ The manifest records:
 
 ### Landing gate
 
-`Steps::AutoMerge` and `Steps::MergeTrainLand` refuse to merge unless the
-manifest for that exact SHA shows a conclusive pass for every required
-target. Evidence for another SHA is never promoted to exact-SHA evidence,
+Auto-merge and merge-train landing refuse to merge unless the manifest for
+that exact SHA shows a conclusive pass for every required target. Evidence for
+another SHA is never promoted to exact-SHA evidence,
 even when the tree is identical; the only exception is an explicit,
 operator-trusted clean-rebase carry-forward (`trust_clean_rebase_grade`),
 which re-binds the manifest to the rebased SHA and records `carried_from_sha`.
@@ -345,8 +345,8 @@ selected target to matching pre-merge evidence or an explicit delta
 the integration is declared healthy. It is diagnostic and never changes
 health on its own.
 
-Operators read both artifacts, plus the manifest summary, under
-`validation_parity` in `GET /api/v1/admin/workflows/:id`.
+Operators can read both artifacts, plus the manifest summary, in the workflow's
+`validation_parity` details.
 
 ### When main repair may still be spawned
 
