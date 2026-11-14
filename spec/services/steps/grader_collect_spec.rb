@@ -1667,6 +1667,30 @@ RSpec.describe Steps::GraderCollect do
         include("name" => "lint", "status" => "passed", "carried_forward" => true)
       )
     end
+
+    it "adds a synthetic pass for a deduplicated variant after its canonical grader passes" do
+      workflow.set_artifact!(Steps::GraderFanout::DEDUPLICATED_ARTIFACT_KEY, [
+        {
+          "name" => "tests-ci",
+          "required" => true,
+          "target_label" => "//:grade/tests-ci",
+          "canonical_name" => "tests",
+          "canonical_target_label" => "//:grade/tests"
+        }
+      ])
+
+      expect { handler.call }.not_to raise_error
+
+      expect(workflow.reload.artifact("iterations").first).to include(
+        include("name" => "tests", "status" => "passed"),
+        include(
+          "name" => "tests-ci",
+          "status" => "passed",
+          "carried_forward" => true,
+          "reason" => "deduplicated equivalent grader variant"
+        )
+      )
+    end
   end
 
   describe "empty fanout integrity" do
