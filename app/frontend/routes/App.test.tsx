@@ -10550,12 +10550,12 @@ describe("App", () => {
       kind: string
       display_name: string
       details: unknown
-      runs: Array<{ app_grade_log_path: string | null }>
+      runs: Array<{ grade_log_available?: boolean }>
     }
     gradeStep.kind = "grader"
     gradeStep.display_name = "tests"
     gradeStep.details = { name: "tests", command: "bin/rspec" }
-    gradeStep.runs[0].app_grade_log_path = "/api/v1/app/jobs/42/runs/9/grade_log?name=tests&workflow_id=5"
+    gradeStep.runs[0].grade_log_available = true
     const clipboardWrite = mockClipboardWrite()
     let artifactFetchCount = 0
     const fetchSpy = vi.spyOn(window, "fetch").mockImplementation((input, init) => {

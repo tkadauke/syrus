@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render as testingRender, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { MemoryRouter } from "react-router-dom"
 import { describe, expect, it, vi } from "vitest"
@@ -7,6 +7,10 @@ import { stubVirtualizerMeasurements } from "../../test/virtualizerMeasurements"
 import { StepCoworkerReviewPanel, WorkflowsTab } from "./WorkflowGraph"
 
 stubVirtualizerMeasurements()
+
+function render(ui: Parameters<typeof testingRender>[0]) {
+  return testingRender(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>)
+}
 
 describe("StepCoworkerReviewPanel", () => {
   it("distinguishes named identity, provider provenance, immutable evidence, and durable memory", () => {
@@ -116,6 +120,28 @@ function command() {
 }
 
 describe("WorkflowsTab", () => {
+  it("fetches step and run detail only when a collapsed workflow is expanded", async () => {
+    const detailed = workflowWithDiffRun()
+    const summary = structuredClone(detailed) as JobDetailPayload["workflows"][number]
+    summary.steps.forEach((step) => delete (step as Partial<typeof step>).runs)
+    const fetchSpy = vi
+      .spyOn(window, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ workflow: detailed }), { status: 200, headers: { "Content-Type": "application/json" } }))
+
+    render(
+      <MemoryRouter>
+        <WorkflowsTab command={command()} payload={payload({ workflows: [summary] })} prefix="" />
+      </MemoryRouter>
+    )
+
+    expect(fetchSpy).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }))
+    await waitFor(() =>
+      expect(fetchSpy).toHaveBeenCalledWith(`/api/v1/app/workflows/${summary.id}/detail`, expect.objectContaining({ signal: expect.any(AbortSignal) }))
+    )
+    expect(await screen.findByRole("button", { name: /Implement/ })).toBeInTheDocument()
+  })
+
   it("shows the causal workspace-recovery step as failed, the unstarted tail as cancelled, and no in-place retry", () => {
     const baseStep = {
       position: 1,

@@ -7,6 +7,11 @@ module Api
           render json: { workflow: ::App::JobDetailPayload.workflow_preview(workflow: workflow, user: Current.user) }
         end
 
+        def detail
+          workflow = find_workflow
+          render json: ::App::JobDetailPayload.workflow_detail(workflow: workflow, user: Current.user)
+        end
+
         def coverage_hit_map
           workflow = find_workflow
           file = params[:file].to_s.strip

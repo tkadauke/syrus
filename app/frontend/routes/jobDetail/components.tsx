@@ -95,7 +95,7 @@ export function ActiveRunBanner({ run }: { run: JobRun }) {
   const prefix = location.pathname.startsWith("/app-shell") ? "/app-shell" : ""
   const queued = run.state === "queued" || !run.started_at
   const now = useNow(true)
-  const sinceIso = queued ? run.created_at : run.started_at
+  const sinceIso = queued ? (run.queued_at ?? run.created_at) : run.started_at
   const elapsed = sinceIso ? formatElapsed((now - new Date(sinceIso).getTime()) / 1000) : null
   const activeProcess = run.active_process
   const budgetParts: string[] = []
