@@ -1,6 +1,6 @@
 class Repository < ApplicationRecord
   DASHBOARD_CHROME_CONFIGURATION_COLUMNS = %w[
-    archived_at installation_id name owner trigger_label untagged_open_issue_count
+    archived_at installation_id name owner trigger_label
   ].freeze
 
   after_commit -> { App::DashboardChromeCache.invalidate_all! }, if: :dashboard_chrome_cache_relevant_change?

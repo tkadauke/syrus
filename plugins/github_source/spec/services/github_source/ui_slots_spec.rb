@@ -42,7 +42,8 @@ RSpec.describe GithubSource::UiSlots do
     expect(panel).to include(
       id: "github_source.untagged_issues",
       component: "github_source/UntaggedIssuesBanner",
-      order: 10
+      order: 10,
+      cacheable: false
     )
     expect(panel.dig(:props, :untagged_issues, :total)).to eq(5)
     expect(panel.dig(:props, :untagged_issues, :repositories)).to contain_exactly(

@@ -31,6 +31,15 @@ RSpec.describe TeamRepository do
     expect(grant).to be_valid
   end
 
+  it "invalidates dashboard chrome after repository permission changes" do
+    grant = team.team_repositories.create!(repository: repository, role: "read")
+    allow(App::DashboardChromeCache).to receive(:invalidate_all!)
+
+    grant.update!(role: "write")
+
+    expect(App::DashboardChromeCache).to have_received(:invalidate_all!)
+  end
+
   describe ".at_least" do
     it "matches grants at or above the given tier" do
       reader_repo = Factories.repository
