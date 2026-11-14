@@ -611,7 +611,10 @@ module ChatIndexPayload
         claimed_ids.merge(ids)
         next if ids.empty?
 
-        metadata = contribution["metadata_by_chat_session_id"].to_h.transform_keys(&:to_i).slice(*ids)
+        metadata = contribution["metadata_by_chat_session_id"].to_h
+          .transform_keys(&:to_i)
+          .transform_values(&:deep_symbolize_keys)
+          .slice(*ids)
         { key: key, label: label, chat_session_ids: ids, metadata_by_chat_session_id: metadata }
       end
     end

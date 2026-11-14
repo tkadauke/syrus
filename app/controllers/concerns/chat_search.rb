@@ -77,9 +77,11 @@ module ChatSearch
     scope = apply_chat_attachment_filter(scope, "Job", :job_id)
     return scope if performed?
 
-    ChatIdentityContributions.search_ownership(user: Current.user).reduce(scope) do |filtered_scope, ownership|
-      apply_plugin_chat_filter(filtered_scope, ownership.fetch("filter_field"))
+    ChatIdentityContributions.search_ownership(user: Current.user).each do |ownership|
+      scope = apply_plugin_chat_filter(scope, ownership.fetch("filter_field"))
+      break if performed?
     end
+    scope
   end
 
   def apply_plugin_chat_filter(scope, field)
