@@ -80,6 +80,8 @@ Generated catalog of core `/api/v1/app/*` endpoints, excluding the UI-serving `/
 | core | PATCH | `/api/v1/app/chats/:id/mark_unread` | `api/v1/app/chats#mark_unread` |
 | core | GET | `/api/v1/app/chats/:id/media` | `api/v1/app/chats#media` |
 | core | GET | `/api/v1/app/chats/:id/media/chat_images/:document_id/file` | `api/v1/app/chats#media_chat_image` |
+| core | GET | `/api/v1/app/chats/:id/media/chat_images/:document_id/thumbnail` | `api/v1/app/chats#media_chat_image_thumbnail` |
+| core | GET | `/api/v1/app/chats/:id/media/typed_artifacts/:artifact_type` | `api/v1/app/chats#media_typed_artifact` |
 | core | GET | `/api/v1/app/chats/:id/mentionables` | `api/v1/app/chats#mentionables` |
 | core | POST | `/api/v1/app/chats/:id/message` | `api/v1/app/chats#message` |
 | core | DELETE | `/api/v1/app/chats/:id/messages` | `api/v1/app/chats#clear_messages` |

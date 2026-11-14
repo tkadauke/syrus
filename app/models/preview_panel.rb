@@ -80,6 +80,7 @@ class PreviewPanel < ApplicationRecord
       )
     end
     version.save!
+    association(:latest_version).reset
     version
   end
 
