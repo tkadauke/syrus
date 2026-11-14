@@ -2424,6 +2424,15 @@ tool name plus readable arguments on both the chat card and the coworker's
 Approvals tab. Secret-like values are redacted, and long values can be expanded
 before the operator confirms or declines the action.
 
+Coworker tool discovery starts from the same registered tools as an ordinary
+chat agent, including enabled plugin tools. Seeing a tool is not a permission
+grant: canonical permission rules, repository and resource scope, plugin and
+resource availability, and mandatory pending actions still decide whether a
+call runs, asks for confirmation, or is denied. Discovery reports those states
+instead of hiding a meaningful operation. Admin-only tools, Coding or Local
+Mode tools, workflow-role submission tools, and operations explicitly marked
+as having no coworker semantics are excluded from registration.
+
 Credential-backed database, Kubernetes, log, and third-party capabilities
 have an additional hard gate. Syrus offers them only when a live worker has
 verified a non-root, read-only per-turn container and default-deny direct

@@ -21,7 +21,9 @@ module Coworkers
 
     class << self
       def all
-        (core_descriptors + plugin_descriptors).index_by(&:name).values.freeze
+        declared = core_descriptors + plugin_descriptors
+        known = declared.map(&:name).to_set
+        (declared + derived_descriptors(known)).index_by(&:name).values.freeze
       end
 
       def names = all.map(&:name)
@@ -53,10 +55,47 @@ module Coworkers
         end.map { |attributes| build_descriptor(attributes) }
       end
 
+      def derived_descriptors(known)
+        Mcp::CoworkerToolCatalog.all.group_by(&:capability).filter_map do |name, tools|
+          next if name.blank? || known.include?(name)
+
+          descriptors = tools.filter_map do |tool|
+            if tool.tool
+              McpToolRegistry.entries(surface: :coworker).find { |entry| entry.tool == tool.tool }&.descriptor
+            elsif tool.definition
+              Permissions::CapabilityDescriptorAdapter.for_plugin_definition(tool.definition)
+            end
+          end
+          default_policy = descriptors.all? do |descriptor|
+            descriptor.defaults.values_at(AgentRole::COWORKER_CHAT, AgentRole::COWORKER).all?(:allow)
+          end ? "auto" : "confirm"
+          grant = tools.filter_map(&:grant).first&.symbolize_keys
+          if grant
+            build_descriptor(grant.merge(default_policy:, tools: tools.map(&:tool_name).uniq.sort))
+          else
+            descriptor = descriptors.first
+            next unless descriptor
+
+            Descriptor.new(
+              name: name, label: descriptor.presentation.capability_name,
+              description: descriptor.presentation.capability_description,
+              default_policy: default_policy,
+              maximum_policy: "auto", tools: tools.map(&:tool_name).uniq.sort,
+              scope_options_callback: nil, scope_label_callback: nil, valid_scope_callback: nil,
+              privileged: false
+            )
+          end
+        end
+      end
+
       def build_descriptor(attributes)
         return attributes if attributes.is_a?(Descriptor)
         values = attributes.to_h.symbolize_keys
-        Descriptor.new(**{ default_policy: "confirm" }.merge(values.slice(*Descriptor.members)))
+        defaults = {
+          default_policy: "confirm", privileged: false,
+          scope_options_callback: nil, scope_label_callback: nil, valid_scope_callback: nil
+        }
+        Descriptor.new(**defaults.merge(values.slice(*Descriptor.members)))
       end
     end
   end

@@ -25,6 +25,8 @@ module SyrusDev
 
     def self.available_for?(_chat_session, tier:) = false
 
+    def self.coworker_specific_availability? = true
+
     def self.available_for_coworker?(_chat_session, tier:)
       SyrusDev.enabled? && tier.to_sym == :essential
     end

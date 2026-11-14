@@ -7,6 +7,7 @@ require "rails_helper"
 # from it. That opt-in is declarable on the definition.
 RSpec.describe "plugin chat tool policy" do
   let(:user) { Factories.user }
+  let(:chat) { instance_double(ChatSession) }
 
   def tool_set(definitions)
     Class.new do
@@ -40,6 +41,36 @@ RSpec.describe "plugin chat tool policy" do
 
   it "offers the evaluator only what opted in" do
     expect(names_for(:evaluator)).to eq(%w[plugin_read])
+  end
+
+  it "offers coworkers shared plugin tools by default with explicit exclusions" do
+    definitions = [
+      { name: "shared" },
+      { name: "legacy_safe", coworker_safe: true },
+      { name: "admin", admin_only: true },
+      { name: "mode_bound", coworker_excluded: true }
+    ]
+
+    expect(Mcp::Sidecar.filter_by_policy(definitions, :coworker).map { |definition| definition[:name] })
+      .to eq(%w[shared legacy_safe])
+
+    excluded = class_double("ExcludedToolSet", coworker_excluded?: true)
+    expect(Mcp::CoworkerToolExposure.plugin_provider?(excluded)).to be(false)
+  end
+
+  it "uses ordinary availability by default and names coworker-only provider exceptions centrally" do
+    shared = class_double("SharedToolSet").as_stubbed_const
+    allow(shared).to receive(:name).and_return("Example::SharedToolSet")
+    allow(shared).to receive(:available_for?).with(chat, tier: :essential).and_return(true)
+    allow(shared).to receive(:available_for_coworker?).and_return(false)
+
+    expect(Mcp::CoworkerToolExposure.plugin_provider_available?(shared, chat, tier: :essential)).to be(true)
+
+    specific = class_double(
+      "SpecificToolSet", coworker_specific_availability?: true,
+      available_for_coworker?: false, coworker_excluded?: false
+    )
+    expect(Mcp::CoworkerToolExposure.plugin_provider_available?(specific, chat, tier: :essential)).to be(false)
   end
 
   # A tool set written before the flags existed must behave exactly as it did.

@@ -42,12 +42,7 @@ RSpec.describe "Coworker observability tools" do
   end
 
   it "advertises the shared read-only observability tools independently of legacy grants" do
-    expected = %w[
-      admin_read_operational_logs read_worker_health read_backend_exception_events
-      read_browser_error_events read_performance_log_events read_metrics_diagnostics
-      read_worker_occupancy read_workflow_timeline read_workflow_waterfall
-      read_admission_diagnostics diagnose_run_queue
-    ]
+    expected = %w[read_backend_exception_events read_browser_error_events read_performance_log_events]
 
     expect(family.map(&:tool_name)).to contain_exactly(*expected)
     expect(family).to all(be_read_only)
@@ -65,10 +60,6 @@ RSpec.describe "Coworker observability tools" do
     coworker.grants.create!(capability: "ops.read_logs", approval_policy: "auto")
     allow_observability_tools!
     context = { chat_session: chat }
-    allow(OperationalLogging).to receive(:enabled_for_instance?).and_return(true)
-    allow(OperationalLogSearch).to receive(:search_response).and_return(Mcp::Tools.success(logs: []))
-    allow(Admin::WorkerHealthPayload).to receive(:new).and_return(instance_double(Admin::WorkerHealthPayload, as_json: { workers: [] }))
-
     101.times do |index|
       BackendExceptionEvent.create!(
         occurred_at: index.seconds.ago, app_revision: "current-sha", source: "active_job",
@@ -85,8 +76,6 @@ RSpec.describe "Coworker observability tools" do
     )
 
     responses = {
-      logs: Mcp::Tools::AdminReadOperationalLogsTool.call(server_context: context),
-      workers: Mcp::Tools::ReadWorkerHealthTool.call(server_context: context),
       backend: Mcp::Tools::ReadBackendExceptionEventsTool.call(server_context: context, revision_scope: "current", limit: 500),
       browser: Mcp::Tools::ReadBrowserErrorEventsTool.call(server_context: context, revision_scope: "current"),
       performance: Mcp::Tools::ReadPerformanceLogEventsTool.call(server_context: context)

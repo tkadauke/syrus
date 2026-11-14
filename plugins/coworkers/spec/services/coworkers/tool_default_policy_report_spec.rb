@@ -50,19 +50,20 @@ RSpec.describe Coworkers::ToolDefaultPolicyReport do
     )
   end
 
-  it "includes the coworker's own memory reads, searches, and listings as allowed" do
+  it "allows memory reads while keeping inherited memory mutations gated" do
     memory = report.rows.select { |row| row.source == "AgentMemory::ChatToolSet" }.map(&:tool)
 
-    expect(memory).to match_array(%w[read_memory search_memories list_memories])
-    expect(group(:allow)).to include(*memory)
+    reads = %w[read_memory search_memories list_memories]
+    mutations = %w[write_memory delete_memory publish_memory unpublish_memory]
+    expect(memory).to match_array(reads + mutations)
+    expect(group(:allow)).to include(*reads)
+    expect(group(:ask)).to include(*mutations)
   end
 
   it "keeps confidential, operational, communicating, scheduling, and spawning tools gated" do
     expect(group(:ask)).to include(
       "list_chats", "search_chats", "read_chat_messages",
-      "admin_read_operational_logs", "read_worker_health", "read_backend_exception_events", "read_browser_error_events",
-      "read_performance_log_events", "read_metrics_diagnostics", "read_worker_occupancy", "read_workflow_timeline",
-      "read_workflow_waterfall", "read_admission_diagnostics", "diagnose_run_queue",
+        "read_backend_exception_events", "read_browser_error_events", "read_performance_log_events",
       "message_coworker", "manage_coworker_schedule", "spawn_coworker_chat", "read_syrus_logs", "read_performance_diagnostics"
     )
     expect(group(:allow)).not_to include("message_coworker", "manage_coworker_schedule", "spawn_coworker_chat", "list_chats")
